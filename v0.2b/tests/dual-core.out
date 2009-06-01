@@ -1,0 +1,1230 @@
+sim-zesto: SimpleScalar/x86-Zesto Tool Set version 4.1 of January, 2009.
+Copyright (C) 2000-2002 by The Regents of The University of Michigan.
+Copyright (C) 1994-2002 by Todd M. Austin, Ph.D. and SimpleScalar, LLC.
+This version of SimpleScalar is licensed for academic non-commercial use only.
+
+sim: loading EIO file: tests/app1.eio.gz
+sim: loading EIO file: tests/app2.eio.gz
+sim: command line: ./sim-zesto -config config/merom.cfg -config dram-config/DDR2-800-5-5-5.cfg -cores 2 -max:inst 100000 -tracelimit 1000000 tests/app1.eio.gz tests/app2.eio.gz 
+
+
+sim-zesto: This simulator implements an execute-at-fetch timing
+simulator for x86 only.  Exec-at-exec is planned for the future.
+
+# -config                     # load configuration from a file
+# -dumpconfig                 # dump configuration to a file
+# -h                            false # print help message    
+-seed                               1 # random number generator seed (0 for timer seed)
+# -q                            false # initialize and terminate immediately
+# -ignore_notes                 false # suppresses printing of notes
+# -redir:sim                   <null> # redirect simulator output to file (non-interactive only)
+# -redir:prog                  <null> # redirect simulated program output to file
+-nice                              17 # simulator scheduling priority
+# -                             false # ignored flag          
+-fastfwd                            0 # number of inst's to skip before timing simulation
+-tracelimit                   1000000 # maximum number of instructions per trace
+-cores                              2 # number of cores (if > 1, must provide this many eio traces)
+-max:inst                      100000 # maximum number of inst's to execute
+-max:uops                           0 # maximum number of uop's to execute
+-model                            DPM # pipeline model type   
+-syscall:mem_lat                    1 # number of cycles per syscall memory request (0 to omit syscall memory activity)
+-bpred           tage:TAGE5:5:2048:512:9:6:75 # bpred configuration string(s) [DS]
+-bpred:fusion                    none # fusion/meta-prediction algorithm configurations string [DS]
+-bpred:btb         btac:BTB:512:4:8:l # branch target buffer configuration configuration string [DS]
+-bpred:ibtb      2levbtac:iBTB:1:8:1:128:4:8:l # indirect branch target buffer configuration string [DS]
+-bpred:ras               stack:RAS:16 # return address stack predictor configuration string [DS]
+-jeclear:delay                      1 # additional latency from branch-exec to jeclear [D]
+-il1             IL1:64:8:64:4:64:2:C:8 # 1st-level instruction cache configuration string [DS]
+-itlb              ITLB:128:4:1:2:L:1 # instruction TLB configuration string [DS]
+-il1:pf          nextline # 1st-level instruction cache prefetcher configuration string(s) [DS]
+-il1:pf:fifosize                    8 # IL1 prefetch FIFO size [DS]
+-il1:pf:buffer                      0 # IL1 prefetch buffer size [D]
+-il1:pf:filter                      0 # IL1 prefetch filter size [D]
+-il1:pf:filterreset                65536 # IL1 prefetch filter reset interval (cycles) [D]
+-il1:pf:thresh                      4 # IL1 prefetch threshold (only prefetch if MSHR occupancy < thresh) [DS]
+-il1:pf:max                         2 # maximum IL1 prefetch requests in MSHRs at a time [DS]
+-il1:pf:lowWM                  0.1000 # IL1 low watermark for prefetch control [DS]
+-il1:pf:highWM                 0.3000 # IL1 high watermark for prefetch control [DS]
+-il1:pf:WMinterval                  100 # IL1 sampling interval (in cycles) for prefetch control (0 = no PF controller) [DS]
+-il1:pf:miss                     true # generate IL1 prefetches only from miss traffic [DS]
+-byteQ:size                         3 # number of entries in byteQ [DS]
+-byteQ:linesize                    16 # linesize of byteQ (bytes) [DS]
+-predecode:depth                    2 # number of stages in predecode pipe [D]
+-predecode:width                    6 # width of predecode pipe (Macro-ops) [D]
+-IQ:size                           18 # size of instruction queue (Macro-ops - placed between predecode and decode) [D]
+-warm:bpred                      true # warm branch predictors during functional fast-forwarding [DS]
+-decode:depth                       2 # decode pipeline depth (stages) [DS]
+-decode:width                       4 # decode pipeline width (Macro-ops) [DS]
+-decode:targetstage                    1 # decode pipeline stage of branch address calculator [DS]
+-decode:branches                    1 # maximum branches decoded per cycle [D]
+-decoders        4 1 1 1 # maximum uops generated for each decoder (e.g., 4 1 1) [D]
+-MS:latency                         0 # additional latency for accessing ucode sequencer (cycles) [D]
+-uopQ:size                         24 # number of entries in uopQ [D]
+-fuse:none                      false # disable all uop fusion rules [DS]
+-fuse:all                        true # enable all uop fusion rules [D]
+-fuse:loadop                    false # enable load-op uop fusion [D]
+-fuse:stastd                    false # enable sta-std uop fusion [D]
+-fuse:partial                   false # enable uop-fusion of partial register write combining uops [D]
+-alloc:depth                        1 # alloc pipeline depth (stages) [D]
+-alloc:width                        4 # alloc pipeline width (uops) [DS]
+-flush:drain                     true # use drain-flush after misprediction [DS]
+-rs:size                           32 # number of reservation station entries [DS]
+-ldq:size                          32 # number of load queue entries [DS]
+-stq:size                          20 # number of store queue entries [DS]
+-exec:width                         6 # maximum issues from RS per cycle (equal to num exec ports) [DS]
+-payload:depth                      2 # number of cycles for payload RAM access (schedule-to-exec delay) [D]
+-exec:tornado_breaker                false # enable heuristic tornado breaker [D]
+-exec:partial_throttle                false # enable load-issue throttling on partial matches [D]
+-fp:penalty                         0 # extra cycle(s) to forward results to FP cluster [D]
+-pb:ieu          0 1 5 # IEU port binding [DS] 
+-pb:jeu          0 # JEU port binding [DS] 
+-pb:imul         1 # IMUL port binding [DS]
+-pb:idiv         0 # IDIV port binding [DS]
+-pb:shift        5 0 # SHIFT port binding [DS]
+-pb:fadd         5 # FADD port binding [DS]
+-pb:fmul         1 # FMUL port binding [DS]
+-pb:fdiv         0 # FDIV port binding [DS]
+-pb:fcplx        0 # FCPLX port binding [DS]
+-pb:lda          2 # LD port binding [DS]  
+-pb:sta          3 # STA port binding [DS] 
+-pb:std          4 # STD port binding [DS] 
+-ieu:lat                            1 # IEU execution latency [DS]
+-jeu:lat                            1 # JEU execution latency [DS]
+-imul:lat                           3 # IMUL execution latency [DS]
+-idiv:lat                          24 # IDIV execution latency [DS]
+-shift:lat                          1 # SHIFT execution latency [DS]
+-fadd:lat                           3 # FADD execution latency [DS]
+-fmul:lat                           5 # FMUL execution latency [DS]
+-fdiv:lat                          32 # FDIV execution latency [DS]
+-fcplx:lat                         58 # FCPLX execution latency [DS]
+-lda:lat                            1 # LD-agen execution latency [DS]
+-sta:lat                            1 # ST-agen execution latency [DS]
+-std:lat                            1 # ST-data execution latency [DS]
+-ieu:rate                           1 # IEU execution issue rate [DS]
+-jeu:rate                           1 # JEU execution issue rate [DS]
+-imul:rate                          1 # IMUL execution issue rate [DS]
+-idiv:rate                         16 # IDIV execution issue rate [DS]
+-shift:rate                         1 # SHIFT execution issue rate [DS]
+-fadd:rate                          1 # FADD execution issue rate [DS]
+-fmul:rate                          2 # FMUL execution issue rate [DS]
+-fdiv:rate                         32 # FDIV execution issue rate [DS]
+-fcplx:rate                        58 # FCPLX execution issue rate [DS]
+-lda:rate                           1 # LD-agen execution issue rate [DS]
+-sta:rate                           1 # ST-agen execution issue rate [DS]
+-std:rate                           1 # ST-data execution issue rate [DS]
+-dl1             DL1:64:8:64:8:64:2:C:W:B:8:8:C # 1st-level data cache configuration string [DS]
+-dl1:mshr_cmd                    RWBP # 1st-level data cache MSHR scheduling policy [DS]
+-dtlb               DTLB:16:4:1:2:L:4 # data TLB configuration string [DS]
+-dtlb2            DTLB2:256:4:1:2:L:1 # L2 data TLB configuration string [D]
+-dl1:pf          IP:256:12:13:6 nextline # 1st-level data cache prefetcher configuration string(s) [DS]
+-dl1:pf:fifosize                    8 # DL1 prefetch FIFO size [DS]
+-dl1:pf:buffer                      0 # DL1 prefetch buffer size [D]
+-dl1:pf:filter                      0 # DL1 prefetch filter size [D]
+-dl1:pf:filterreset                65536 # DL1 prefetch filter reset interval (cycles) [D]
+-dl1:pf:thresh                      4 # DL1 prefetch threshold (only prefetch if MSHR occupancy < thresh) [DS]
+-dl1:pf:max                         2 # maximum DL1 prefetch requests in MSHRs at a time [DS]
+-dl1:pf:lowWM                  0.1000 # DL1 low watermark for prefetch control [DS]
+-dl1:pf:highWM                 0.3000 # DL1 high watermark for prefetch control [DS]
+-dl1:pf:WMinterval                  100 # DL1 sampling interval (in cycles) for prefetch control (0 = no PF controller) [DS]
+-dl1:pf:miss                     true # generate DL1 prefetches only from miss traffic [DS]
+-warm:caches                     true # warm caches during functional fast-forwarding [DS]
+-memdep           lwt:LWT:8192:999999 # memory dependence predictor configuration string [D]
+-rob:size                          96 # number of reorder buffer entries [DS]
+-commit:width                       4 # maximum number of uops committed per cycle [DS]
+-commit:branches                    0 # maximum number of branches committed per cycle [D]
+-LLC             LLC:4096:16:64:16:64:11:C:W:B:8:1:8:C # last-level cache configuration string [DS]
+-LLC:mshr_cmd                    RPWB # last-level cache MSHR scheduling policy [DS]
+-LLC:bus                            1 # CPU clock cycles per LLC-bus cycle [DS]
+-LLC:rate                           2 # access LLC once per this many cpu clock cycles [DS]
+-LLC:pf          IP:256:12:13:6 stream:12:4 # last-level cache prefetcher configuration string(s) [DS]
+-LLC:pf:fifosize                    8 # LLC prefetch FIFO size [DS]
+-LLC:pf:buffer                      0 # LLC prefetch buffer size [DS]
+-LLC:pf:filter                      0 # LLC prefetch filter size [DS]
+-LLC:pf:filterreset                65536 # LLC prefetch filter reset interval (cycles) [DS]
+-LLC:pf:thresh                      4 # LLC prefetch threshold (only prefetch if MSHR occupancy < thresh) [DS]
+-LLC:pf:max                         2 # maximum LLC prefetch requests in MSHRs at a time [DS]
+-LLC:pf:lowWM                  0.1000 # LLC low watermark for prefetch control [DS]
+-LLC:pf:highWM                 0.4000 # LLC high watermark for prefetch control [DS]
+-LLC:pf:WMinterval                 2000 # LLC sampling interval (in cycles) for prefetch control (0 = no PF controller) [DS]
+-LLC:pf:miss                    false # generate LLC prefetches only from miss traffic [DS]
+-fsb:width                          8 # front-side bus width (bytes) [DS]
+-fsb:ddr                         true # front-side bus double-pumped data (DDR) [DS]
+-fsb:speed                   400.0000 # front-side bus speed in MHz [DS]
+-cpu:speed                  3000.0000 # CPU speed in MHz [DS] 
+-MC                       simple:16:0 # memory controller configuration string [DS]
+-dram            simplesdram:4:4:45:12.5:12.5:15:12.5:64 # dram configuration string
+
+### starting timing simulation 
+# Committed instruction limit reached for core 0.
+# Committed instruction limit reached for core 1.
+
+sim: ** simulation statistics **
+
+#### ORACLE STATS ####
+c0.oracle_num_insn                 100142 # number of instructions executed by oracle
+c0.oracle_total_insn               100175 # total number of instructions executed by oracle, including misspec
+c0.oracle_num_uops                 100336 # number of uops executed by oracle
+c0.oracle_total_uops               100377 # total number of uops executed by oracle, including misspec
+c0.oracle_num_eff_uops             125711 # number of effective uops executed by oracle
+c0.oracle_total_eff_uops           125761 # total number of effective uops executed by oracle, including misspec
+c0.oracle_IPC                      1.3654 # IPC at oracle
+c0.oracle_uPC                      1.3680 # uPC at oracle
+c0.oracle_euPC                     1.7140 # euPC at oracle
+c0.oracle_total_IPC                1.3658 # IPC at oracle, including wrong-path
+c0.oracle_total_uPC                1.3686 # uPC at oracle, including wrong-path
+c0.oracle_total_euPC               1.7147 # euPC at oracle, including wrong-path
+c0.avg_oracle_flowlen              1.0019 # uops per instruction at oracle
+c0.avg_oracle_eff_flowlen          1.2553 # effective uops per instruction at oracle
+c0.avg_oracle_total_flowlen        1.0020 # uops per instruction at oracle, including wrong-path
+c0.avg_oracle_total_eff_flowlen       1.2554 # effective uops per instruction at oracle, including wrong-path
+c0.oracle_num_refs                  74961 # total number of loads and stores executed by oracle
+c0.oracle_num_loads                 49974 # total number of loads executed by oracle
+c0.oracle_num_stores                24987 # total number of stores executed by oracle
+c0.oracle_num_branches                388 # total number of branches executed by oracle
+c0.oracle_total_refs                74977 # total number of loads and stores executed by oracle, including wrong-path
+c0.oracle_total_loads               49982 # total number of loads executed by oracle, including wrong-path
+c0.oracle_total_stores              24995 # total number of stores executed by oracle, including wrong-path
+c0.oracle_total_branches              394 # total number of branches executed by oracle, including wrong-path
+c0.MopQ_occupancy                 9732062 # total oracle MopQ occupancy
+c0.MopQ_avg                      132.6924 # average oracle MopQ occupancy
+c0.MopQ_full                            0 # total cycles oracle MopQ was full
+c0.MopQ_frac_full                  0.0000 # fraction of cycles oracle MopQ was full
+c0.oracle_bogus_cycles                  0 # total cycles oracle stalled on invalid wrong-path insts
+c0.oracle_frac_bogus               0.0000 # fraction of cycles oracle stalled on invalid wrong-path insts
+c0.oracle_emergency_recoveries            0 # number of times this thread underwent an emergency recovery
+c0.syscall_mem_accesses                 0 # memory accesses made by system calls
+
+#### BPRED STATS ####
+c0.bpred_lookups                      394 # total branch predictor lookups (including wrong-path)
+c0.bpred_updates                      388 # total branch predictor updates
+c0.bpred_cond_br                      194 # total branch predictor cond_br (non-speculative)
+c0.bpred_calls                          0 # total branch predictor calls (non-speculative)
+c0.bpred_rets                           0 # total branch predictor rets (non-speculative)
+c0.bpred_unconds                      194 # total branch predictor unconds (non-speculative)
+c0.bpred_dir_hits                     387 # total branch predictor dir_hits (non-speculative)
+c0.bpred_addr_hits                    387 # total branch predictor addr_hits (non-speculative)
+c0.bpred_dir_rate                  0.9974 # overall branch direction prediction rate
+c0.bpred_addr_rate                 0.9974 # overall branch address prediction rate
+c0.bpred_dir_MPKI                  0.0100 # overall branch direction mispredictions per Kinst
+c0.bpred_addr_MPKI                 0.0100 # overall branch address mispredictions per Kinst
+c0.TAGE5.type                        tage # prediction algorithm of TAGE5
+c0.TAGE5.bits                       32847 # total size of TAGE5 in bits
+c0.TAGE5.size                      4.0096 # total size of TAGE5 in KB
+c0.TAGE5.lookups                      394 # number of prediction lookups in TAGE5 (including wrong-path)
+c0.TAGE5.updates                      194 # number of prediction updates in TAGE5
+c0.TAGE5.spec_updates                 198 # number of speculative prediction updates in TAGE5
+c0.TAGE5.hits                         193 # number of correct predictions in TAGE5
+c0.TAGE5.hit_rate                  0.9948 # fraction of correct predictions in TAGE5
+c0.TAGE5.MPKI                      0.0100 # misses per thousand insts in TAGE5
+c0.TAGE5.uses0                        207 # predictions made with TAGE5's T[0]
+c0.TAGE5.uses1                          0 # predictions made with TAGE5's T[1]
+c0.TAGE5.uses2                          0 # predictions made with TAGE5's T[2]
+c0.TAGE5.uses3                          0 # predictions made with TAGE5's T[3]
+c0.TAGE5.uses4                          0 # predictions made with TAGE5's T[4]
+c0.BTB.type                          btac # BTB type of BTB
+c0.BTB.bits                         61440 # total size of BTB in bits
+c0.BTB.size                        7.5000 # total size of BTB in KB
+c0.BTB.lookups                        394 # number of prediction lookups in BTB (including wrong-path)
+c0.BTB.updates                        194 # number of prediction updates in BTB
+c0.BTB.spec_updates                   198 # number of speculative prediction updates in BTB
+c0.BTB.hits                           193 # number of correct predictions in BTB
+c0.BTB.hit_rate                    0.9948 # fraction of correct predictions in BTB
+c0.BTB.MPKI                        0.0100 # misses per thousand insts in BTB
+c0.BTB.num_nt                         194 # number of NT predictions from BTB
+c0.BTB.frac_nt                     1.0000 # fraction of targets predicted NT by BTB
+c0.iBTB.type                     2levbtac # BTB type of iBTB
+c0.iBTB.bits                        16392 # total size of iBTB in bits
+c0.iBTB.size                       2.0010 # total size of iBTB in KB
+c0.iBTB.lookups                       394 # number of prediction lookups in iBTB (including wrong-path)
+c0.iBTB.updates                         0 # number of prediction updates in iBTB
+c0.iBTB.spec_updates                  198 # number of speculative prediction updates in iBTB
+c0.iBTB.hits                            0 # number of correct predictions in iBTB
+c0.iBTB.hit_rate             <error: DBZ> # fraction of correct predictions in iBTB
+c0.iBTB.MPKI                       0.0000 # misses per thousand insts in iBTB
+c0.iBTB.num_nt                          0 # number of NT predictions from iBTB
+c0.iBTB.frac_nt              <error: DBZ> # fraction of targets predicted NT by iBTB
+c0.RAS.type                    finite RAS # RAS type of RAS
+c0.RAS.bits                           512 # total size of RAS in bits
+c0.RAS.size                        0.0625 # total size of RAS in KB
+c0.RAS.pushes                           0 # number of stack pushes to RAS (including wrong-path)
+c0.RAS.pops                             0 # number of stack pops to RAS (including wrong-path)
+c0.RAS.recover                          7 # number of stack recoveries/repairs to RAS
+c0.RAS.hits                             0 # correct predictions in RAS
+c0.RAS.hit_rate              <error: DBZ> # fraction of correct predictions in RAS
+c0.RAS.MPKI                        0.0000 # misses per thousand insts in RAS
+
+#### INST CACHE STATS ####
+c0.IL1.lookups                      17052 # number of lookups in IL1
+c0.IL1.misses                          52 # number of misses in IL1
+c0.IL1.pf_lookups                      37 # number of prefetch lookups in IL1
+c0.IL1.pf_misses                       30 # number of prefetch misses in IL1
+c0.IL1.pf_miss_rate                0.8108 # prefetch miss rate in IL1
+c0.IL1.pf_insertions                   20 # number of prefetched blocks inserted into IL1
+c0.IL1.pf_useful_insertions            19 # number of prefetched blocks actually used in IL1
+c0.IL1.pf_useful_rate              0.9500 # rate of useful prefetches in IL1
+c0.IL1.miss_rate                   0.0030 # miss rate in IL1 (no prefetches)
+c0.IL1.total_miss_rate             0.0048 # miss rate in IL1
+c0.IL1.MPKI                        0.5200 # miss rate in MPKI (no prefetches) for IL1
+c0.IL1.MPKu                        0.5190 # miss rate in MPKu (no prefetches) for IL1
+c0.IL1.MPKeu                       0.4142 # miss rate in MPKeu (no prefetches) for IL1
+c0.IL1.MPKC                        0.7090 # miss rate in MPKC (no prefetches) for IL1
+c0.IL1.WBB_victim_insertions            0 # total number of non-dirty WBB insertions in IL1
+c0.IL1.WBB_hits                         0 # total number hits in IL1's WBB
+c0.IL1.WBB_victim_hits                  0 # total number victim hits in IL1's WBB
+c0.IL1.MSHR_avg_occupancy          0.4792 # average MSHR entries in use in IL1
+c0.IL1.MSHR_full                   0.0000 # fraction of time MSHRs are full in IL1
+c0.IL1.nextline.bits                    0 # total size of nextline in bits
+c0.IL1.nextline.size               0.0000 # total size of nextline in KB
+c0.IL1.nextline.lookups                52 # number of prediction lookups in nextline
+c0.ITLB.lookups                     17052 # number of lookups in ITLB
+c0.ITLB.misses                          2 # number of misses in ITLB
+c0.ITLB.miss_rate                  0.0001 # miss rate in ITLB
+c0.ITLB.MPKI                       0.0200 # miss rate in MPKI (no prefetches) for ITLB
+c0.ITLB.MPKu                       0.0200 # miss rate in MPKu (no prefetches) for ITLB
+c0.ITLB.MPKeu                      0.0159 # miss rate in MPKeu (no prefetches) for ITLB
+c0.ITLB.MPKC                       0.0273 # miss rate in MPKC (no prefetches) for ITLB
+c0.ITLB.WBB_victim_insertions            0 # total number of non-dirty WBB insertions in ITLB
+c0.ITLB.WBB_hits                        0 # total number hits in ITLB's WBB
+c0.ITLB.WBB_victim_hits                 0 # total number victim hits in ITLB's WBB
+c0.ITLB.MSHR_avg_occupancy         0.0024 # average MSHR entries in use in ITLB
+c0.ITLB.MSHR_full                  0.0024 # fraction of time MSHRs are full in ITLB
+
+#### FETCH STATS ####
+c0.fetch_bytes                     270990 # total number of bytes fetched
+c0.fetch_insn                      100143 # total number of instructions fetched
+c0.fetch_uops                      100343 # total number of uops fetched
+c0.fetch_eff_uops                  125718 # total number of effective uops fetched
+c0.fetch_BPC                       3.6948 # BPC (bytes per cycle) at fetch
+c0.fetch_IPC                       1.3654 # IPC at fetch
+c0.fetch_uPC                       1.3681 # uPC at fetch
+c0.fetch_euPC                      1.7141 # euPC at fetch
+c0.fetch_byte_per_inst             2.7060 # average bytes per instruction
+c0.fetch_byte_per_uop              2.7006 # average bytes per uop
+c0.fetch_byte_per_eff_uop          2.1555 # average bytes per effective uop
+
+c0.fetch_stall               # breakdown of stalls in fetch
+c0.fetch_stall.array_size = 7
+c0.fetch_stall.bucket_size = 1
+c0.fetch_stall.count = 7
+c0.fetch_stall.total = 73342
+c0.fetch_stall.imin = 0
+c0.fetch_stall.imax = 7
+c0.fetch_stall.average = 10477.4286
+c0.fetch_stall.std_dev = 20625.1658
+c0.fetch_stall.overflows = 0
+# pdf == prob dist fn, cdf == cumulative dist fn
+#          index      count    pdf 
+c0.fetch_stall.start_dist
+byteQ full                   56292  76.75 
+taken branch                   193   0.26 
+end of cache line             6202   8.46 
+inst split on two lines      10655  14.53 
+wrong-path invalid inst          0   0.00 
+trap waiting on drain            0   0.00 
+request for page zero            0   0.00 
+c0.fetch_stall.end_dist
+
+c0.byteQ_avg                       2.9905 # average byteQ occupancy (in insts)
+c0.predecode_bytes                 270968 # total number of bytes predecoded
+c0.predecode_insn                  100135 # total number of instructions predecoded
+c0.predecode_uops                  100335 # total number of uops predecoded
+c0.predecode_eff_uops              125708 # total number of effective uops predecoded
+c0.predecode_BPC                   3.6945 # BPC (bytes per cycle) at predecode
+c0.predecode_IPC                   1.3653 # IPC at predecode
+c0.predecode_uPC                   1.3680 # uPC at predecode
+c0.predecode_euPC                  1.7140 # euPC at predecode
+c0.IQ_avg                         16.1012 # average IQ occupancy (in insts)
+c0.IQ_uop_avg                     16.1384 # average IQ occupancy (in uops)
+c0.IQ_eff_uop_avg                 20.6347 # average IQ occupancy (in effective uops)
+c0.IQ_frac_empty                   0.0784 # fraction of cycles IQ was empty
+c0.IQ_frac_full                    0.7315 # fraction of cycles IQ was full
+
+#### DECODE STATS ####
+c0.target_resteers                      0 # decode-time target resteers
+c0.phantom_resteers                     0 # decode-time phantom resteers
+c0.decode_insn                     100104 # total number of instructions decodeed
+c0.decode_uops                     100304 # total number of uops decodeed
+c0.decode_eff_uops                 125670 # total number of effective uops decodeed
+c0.decode_IPC                      1.3649 # IPC at decode
+c0.decode_uPC                      1.3676 # uPC at decode
+c0.decode_euPC                     1.7135 # effective uPC at decode
+c0.uopQ_avg                       21.4367 # average uopQ occupancy
+c0.uopQ_eff_avg                   26.6883 # average uopQ effective occupancy
+c0.uopQ_frac_empty                 0.0703 # fraction of cycles uopQ was empty
+c0.uopQ_frac_full                  0.5795 # fraction of cycles uopQ was full
+
+c0.decode_stall              # breakdown of stalls at decode
+c0.decode_stall.array_size = 9
+c0.decode_stall.bucket_size = 1
+c0.decode_stall.count = 9
+c0.decode_stall.total = 73342
+c0.decode_stall.imin = 0
+c0.decode_stall.imax = 9
+c0.decode_stall.average = 8149.1111
+c0.decode_stall.std_dev = 14935.6184
+c0.decode_stall.overflows = 0
+# pdf == prob dist fn, cdf == cumulative dist fn
+#          index      count    pdf 
+c0.decode_stall.start_dist
+no stall                         24800  33.81 
+next decode stage is full        41631  56.76 
+REP inst waiting for MS              0   0.00 
+long flow waiting for UROM           0   0.00 
+available decoder too small        963   1.31 
+no insts to decode                5754   7.85 
+phantom taken branch                 0   0.00 
+target correction                    0   0.00 
+branch decode limit                194   0.26 
+c0.decode_stall.end_dist
+
+#### ALLOC STATS ####
+c0.alloc_insn                       74907 # total number of instructions alloced
+c0.alloc_uops                      100268 # total number of uops alloced
+c0.alloc_eff_uops                  125627 # total number of effective uops alloced
+c0.alloc_IPC                       1.0213 # IPC at alloc
+c0.alloc_uPC                       1.3671 # uPC at alloc
+c0.alloc_euPC                      1.7129 # effective uPC at alloc
+
+c0.alloc_stall               # breakdown of stalls at alloc
+c0.alloc_stall.array_size = 7
+c0.alloc_stall.bucket_size = 1
+c0.alloc_stall.count = 7
+c0.alloc_stall.total = 73342
+c0.alloc_stall.imin = 0
+c0.alloc_stall.imax = 7
+c0.alloc_stall.average = 10477.4286
+c0.alloc_stall.std_dev = 16157.1808
+c0.alloc_stall.overflows = 0
+# pdf == prob dist fn, cdf == cumulative dist fn
+#          index      count    pdf 
+c0.alloc_stall.start_dist
+no stall                         25083  34.20 
+no uops to allocate               5161   7.04 
+ROB is full                          0   0.00 
+LDQ is full                      40936  55.82 
+STQ is full                        419   0.57 
+RS is full                        1743   2.38 
+OOO core draining                    0   0.00 
+c0.alloc_stall.end_dist
+
+#### EXEC STATS ####
+c0.exec_uops_issued                141763 # number of uops issued
+c0.exec_uPC                        1.9329 # average number of uops executed per cycle
+c0.exec_uops_replayed               15268 # number of uops replayed
+c0.exec_avg_replays                0.1077 # average replays per uop
+c0.exec_uops_snatched                 893 # number of uops snatched-back
+c0.exec_avg_snatched               0.0063 # average snatch-backs per uop
+c0.num_jeclear                          1 # number of branch mispredictions
+c0.num_wp_jeclear                       0 # number of branch mispredictions in the shadow of an earlier mispred
+c0.load_nukes                           0 # num pipeflushes due to load-store order violation
+c0.wp_load_nukes                        0 # num pipeflushes due to load-store order violation on wrong-path
+c0.DL1_load_split_accesses              0 # number of loads requiring split accesses
+c0.DL1_load_split_frac             0.0000 # fraction of loads requiring split accesses
+c0.RS_avg                         13.6469 # average RS occupancy
+c0.RS_eff_avg                     14.7052 # effective average RS occupancy
+c0.RS_frac_empty                   0.0606 # fraction of cycles RS was empty
+c0.RS_frac_full                    0.0240 # fraction of cycles RS was full
+c0.LDQ_occupancy                  2172611 # total LDQ occupancy
+c0.LDQ_empty                         4087 # total cycles LDQ was empty
+c0.LDQ_full                         65667 # total cycles LDQ was full
+c0.LDQ_avg                        29.6226 # average LDQ occupancy
+c0.LDQ_frac_empty                  0.0557 # fraction of cycles LDQ was empty
+c0.LDQ_frac_full                   0.8953 # fraction of cycles LDQ was full
+c0.STQ_occupancy                  1137877 # total STQ occupancy
+c0.STQ_empty                         4116 # total cycles STQ was empty
+c0.STQ_full                             0 # total cycles STQ was full
+c0.STQ_avg                        15.5145 # average STQ occupancy
+c0.STQ_frac_empty                  0.0561 # fraction of cycles STQ was empty
+c0.STQ_frac_full                   0.0000 # fraction of cycles STQ was full
+c0.LWT.type                    lwt-memdep # prediction algorithm of LWT
+c0.LWT.bits                          8212 # total size of LWT in bits
+c0.LWT.size                        1.0024 # total size of LWT in KB
+c0.LWT.lookups                      66223 # number of prediction lookups in LWT
+c0.LWT.updates                          0 # number of prediction updates in LWT
+
+#### DATA CACHE STATS ####
+c0.DL1.load_lookups                 50118 # number of load lookups in DL1
+c0.DL1.load_misses                     18 # number of load misses in DL1
+c0.DL1.load_miss_rate              0.0004 # load miss rate in DL1
+c0.DL1.store_lookups                49705 # number of store lookups in DL1
+c0.DL1.store_misses                     9 # number of store misses in DL1
+c0.DL1.store_miss_rate             0.0002 # store miss rate in DL1
+c0.DL1.pf_lookups                       4 # number of prefetch lookups in DL1
+c0.DL1.pf_misses                        3 # number of prefetch misses in DL1
+c0.DL1.pf_miss_rate                0.7500 # prefetch miss rate in DL1
+c0.DL1.pf_insertions                    2 # number of prefetched blocks inserted into DL1
+c0.DL1.pf_useful_insertions             0 # number of prefetched blocks actually used in DL1
+c0.DL1.pf_useful_rate              0.0000 # rate of useful prefetches in DL1
+c0.DL1.total_lookups                99827 # total number of lookups in DL1
+c0.DL1.total_misses                    30 # total number of misses in DL1
+c0.DL1.total_miss_rate             0.0003 # total miss rate in DL1
+c0.DL1.MPKI                        0.2700 # total miss rate in MPKI (no prefetches) for DL1
+c0.DL1.MPKu                        0.2695 # total miss rate in MPKu (no prefetches) for DL1
+c0.DL1.MPKeu                       0.2151 # total miss rate in MPKeu (no prefetches) for DL1
+c0.DL1.MPKC                        0.3681 # total miss rate in MPKC (no prefetches) for DL1 (misses/thousand cycles)
+c0.DL1.WBB_write_insertions             0 # total number of write/writeback WBB insertions in DL1
+c0.DL1.WBB_victim_insertions            0 # total number of non-dirty WBB insertions in DL1
+c0.DL1.WBB_hits                         0 # total number hits in DL1's WBB
+c0.DL1.WBB_write_hits                   0 # total write/writeback hits in DL1 (write-combining)
+c0.DL1.WBB_victim_hits                  0 # total number victim hits in DL1's WBB
+c0.DL1.WBB_avg_occupancy           0.0000 # average WBB entries in use in DL1 (dirty-lines only)
+c0.DL1.WBB_frac_full               0.0000 # fraction of time WBBs are full in DL1 (dirty-lines only)
+c0.DL1.MSHR_avg_occupancy          0.3037 # average MSHR entries in use in DL1
+c0.DL1.MSHR_full                   0.0297 # fraction of time MSHRs are full in DL1
+c0.DL1.IP.bits                       8448 # total size of IP in bits
+c0.DL1.IP.size                     1.0312 # total size of IP in KB
+c0.DL1.IP.lookups                      18 # number of prediction lookups in IP
+c0.DL1.nextline.bits                    0 # total size of nextline in bits
+c0.DL1.nextline.size               0.0000 # total size of nextline in KB
+c0.DL1.nextline.lookups                18 # number of prediction lookups in nextline
+c0.DTLB.lookups                     50118 # number of lookups in DTLB
+c0.DTLB.misses                         10 # number of misses in DTLB
+c0.DTLB.miss_rate                  0.0002 # miss rate in DTLB
+c0.DTLB.MPKI                       0.1000 # miss rate in MPKI (no prefetches) for DTLB
+c0.DTLB.MPKu                       0.0998 # miss rate in MPKu (no prefetches) for DTLB
+c0.DTLB.MPKeu                      0.0797 # miss rate in MPKeu (no prefetches) for DTLB
+c0.DTLB.MPKC                       0.1363 # miss rate in MPKC (no prefetches) for DTLB
+c0.DTLB.WBB_victim_insertions            0 # total number of non-dirty WBB insertions in DTLB
+c0.DTLB.WBB_hits                        0 # total number hits in DTLB's WBB
+c0.DTLB.WBB_victim_hits                 0 # total number victim hits in DTLB's WBB
+c0.DTLB.MSHR_avg_occupancy         0.0568 # average MSHR entries in use in DTLB
+c0.DTLB.MSHR_full                  0.0137 # fraction of time MSHRs are full in DTLB
+c0.DTLB2.lookups                    24960 # number of lookups in DTLB2
+c0.DTLB2.misses                         2 # number of misses in DTLB2
+c0.DTLB2.miss_rate                 0.0001 # miss rate in DTLB2
+c0.DTLB2.MPKI                      0.0200 # miss rate in MPKI (no prefetches) for DTLB2
+c0.DTLB2.MPKu                      0.0200 # miss rate in MPKu (no prefetches) for DTLB2
+c0.DTLB2.MPKeu                     0.0159 # miss rate in MPKeu (no prefetches) for DTLB2
+c0.DTLB2.MPKC                      0.0273 # miss rate in MPKC (no prefetches) for DTLB2
+c0.DTLB2.WBB_victim_insertions            0 # total number of non-dirty WBB insertions in DTLB2
+c0.DTLB2.WBB_hits                       0 # total number hits in DTLB2's WBB
+c0.DTLB2.WBB_victim_hits                0 # total number victim hits in DTLB2's WBB
+c0.DTLB2.MSHR_avg_occupancy        0.0144 # average MSHR entries in use in DTLB2
+c0.DTLB2.MSHR_full                 0.0144 # fraction of time MSHRs are full in DTLB2
+
+#### COMMIT STATS ####
+c0.commit_bytes                    270606 # total number of bytes committed
+c0.commit_insn                     100000 # total number of instructions committed
+c0.commit_uops                     100194 # total number of uops committed
+c0.commit_eff_uops                 125533 # total number of effective uops committed
+c0.commit_BPC                      3.6896 # BPC (bytes per cycle) at commit
+c0.commit_IPC                      1.3635 # IPC at commit
+c0.commit_uPC                      1.3661 # uPC at commit
+c0.commit_euPC                     1.7116 # effective uPC at commit
+c0.commit_byte_per_inst            2.7061 # average bytes per instruction
+c0.commit_byte_per_uop             2.7008 # average bytes per uop
+c0.commit_byte_per_eff_uop         2.1557 # average bytes per effective uop
+c0.avg_commit_flowlen              1.0019 # uops per instruction at commit
+c0.avg_commit_eff_flowlen          1.2553 # effective uops per instruction at commit
+c0.commit_fusions                   25339 # total number of fused uops committed
+c0.commit_fusion_uops               50678 # fused uops at commit
+c0.commit_frac_fusion_uops         0.4037 # fraction of effective uops fused at commit
+c0.commit_fusion_compression       0.2019 # fraction of effective uops compressed via fusion at commit
+c0.commit_fusion_expansion         1.2529 # average number of effective uops per uop (fused or standalone) commit
+c0.commit_dead_lock_flushes             0 # total number of pipe-flushes due to dead-locked pipeline
+c0.ROB_avg                        60.0183 # average ROB occupancy
+c0.ROB_eff_avg                    75.2069 # average ROB effective occupancy
+c0.ROB_frac_empty                  0.0552 # fraction of cycles ROB was empty
+c0.ROB_frac_full                   0.0000 # fraction of cycles ROB was full
+c0.DL1_store_split_accesses         56648 # number of stores requiring split accesses
+c0.DL1_store_split_frac           -8.1590 # fraction of stores requiring split accesses
+
+c0.commit_stall              # breakdown of stalls at commit
+c0.commit_stall.array_size = 6
+c0.commit_stall.bucket_size = 1
+c0.commit_stall.count = 6
+c0.commit_stall.total = 73342
+c0.commit_stall.imin = 0
+c0.commit_stall.imax = 6
+c0.commit_stall.average = 12223.6667
+c0.commit_stall.std_dev = 26514.7605
+c0.commit_stall.overflows = 0
+# pdf == prob dist fn, cdf == cumulative dist fn
+#          index      count    pdf 
+c0.commit_stall.start_dist
+no stall                         66228  90.30 
+oldest inst not done              2965   4.04 
+oldest inst partially done          59   0.08 
+ROB is empty                      4090   5.58 
+Mop done, jeclear in flight          0   0.00 
+branch commit limit                  0   0.00 
+c0.commit_stall.end_dist
+
+#### TIMING STATS ####
+c0.sim_cycle                        73343 # total number of cycles when last instruction (or uop) committed
+c0.Mop_fetch_avg_slip             12.4724 # Mop fetch average delay
+c0.Mop_f2d_avg_slip               22.7091 # Mop fetch-to-decode average delay
+c0.Mop_decode_avg_slip             0.1999 # Mop decode average delay
+c0.uop_d2a_avg_slip               22.0730 # uop decode-to-alloc average delay
+c0.uop_a2r_avg_slip                7.3350 # uop alloc-to-ready average delay
+c0.uop_r2i_avg_slip                0.9177 # uop ready-to-issue average delay
+c0.uop_i2e_avg_slip                2.5164 # uop issue-to-exec average delay
+c0.uop_e2w_avg_slip                2.6661 # uop exec-to-WB average delay
+c0.uop_w2c_avg_slip               41.6008 # uop WB-to-commit average delay
+c0.Mop_d2c_avg_slip               61.2680 # Mop decode-to-commit average delay
+c0.Mop_commit_avg_slip             0.4154 # Mop commit average delay
+c0.Mop_avg_end_to_end             96.8649 # Mop average end-to-end pipeline delay
+
+#### INSTRUCTION STATS (no wrong-path) ####
+c0.num_insn                        100000 # total number of instructions committed
+c0.num_refs                         74855 # total number of loads and stores committed
+c0.num_loads                        49904 # total number of loads committed
+c0.num_stores                       24951 # total number of stores committed
+c0.num_branches                       388 # total number of branches committed
+c0.num_traps                            0 # total number of traps committed
+c0.num_rep_insn                         0 # total number of REP insts committed
+c0.num_rep_iter                         0 # total number of REP iterations committed
+c0.num_rep_uops                         0 # total number of uops in REP insts committed
+c0.num_avg_reps              <error: DBZ> # average iterations per REP inst
+c0.num_avg_rep_uops          <error: DBZ> # average uops per REP inst
+c0.num_UROM_insn                        0 # total number of insn using the UROM committed
+c0.num_UROM_uops                        0 # total number of uops using the UROM committed
+c0.num_UROM_eff_uops                    0 # total number of effective uops using the UROM committed
+c0.num_avg_UROM_uops         <error: DBZ> # average uops per UROM inst
+c0.avg_flowlen                     1.0019 # average uops per instruction
+c0.avg_eff_flowlen                 1.2553 # average effective uops per instruction
+
+c0.flow_lengths              # histogram of uop flow lengths
+c0.flow_lengths.array_size = 9
+c0.flow_lengths.bucket_size = 1
+c0.flow_lengths.count = 9
+c0.flow_lengths.total = 100000
+c0.flow_lengths.imin = 0
+c0.flow_lengths.imax = 9
+c0.flow_lengths.average = 11111.1111
+c0.flow_lengths.std_dev = 33260.6452
+c0.flow_lengths.overflows = 0
+# pdf == prob dist fn, cdf == cumulative dist fn
+#          index      count    pdf 
+c0.flow_lengths.start_dist
+               0          0   0.00 
+               1      99806  99.81 
+               2        194   0.19 
+               3          0   0.00 
+               4          0   0.00 
+               5          0   0.00 
+               6          0   0.00 
+               7          0   0.00 
+               8          0   0.00 
+c0.flow_lengths.end_dist
+
+
+c0.eff_flow_lengths          # histogram of effective uop flow lengths
+c0.eff_flow_lengths.array_size = 9
+c0.eff_flow_lengths.bucket_size = 1
+c0.eff_flow_lengths.count = 9
+c0.eff_flow_lengths.total = 100000
+c0.eff_flow_lengths.imin = 0
+c0.eff_flow_lengths.imax = 9
+c0.eff_flow_lengths.average = 11111.1111
+c0.eff_flow_lengths.std_dev = 25285.2476
+c0.eff_flow_lengths.overflows = 0
+# pdf == prob dist fn, cdf == cumulative dist fn
+#          index      count    pdf 
+c0.eff_flow_lengths.start_dist
+               0          0   0.00 
+               1      74855  74.86 
+               2      24951  24.95 
+               3          0   0.00 
+               4        194   0.19 
+               5          0   0.00 
+               6          0   0.00 
+               7          0   0.00 
+               8          0   0.00 
+c0.eff_flow_lengths.end_dist
+
+
+#### PROGRAM/TEXT STATS ####
+c0.loader.text_base            0x08048000 # program text (code) segment base
+c0.loader.text_bound           0x00000000 # program text (code) segment bound
+c0.loader.text_size                381168 # program text (code) size in bytes
+c0.loader.data_base            0x080a6000 # program initialized data segment base
+c0.loader.data_bound           0x00000000 # program initialized data segment bound
+c0.loader.data_size                  3348 # program init'ed `.data' and uninit'ed `.bss' size in bytes
+c0.loader.stack_base           0xc0000000 # program stack segment base (highest address in stack)
+c0.loader.stack_size                16384 # program initial stack size
+c0.loader.prog_entry           0x080485e5 # program entry point (initial PC)
+c0.loader.environ_base         0xbfffbda0 # program environment base address address
+c0.loader.target_big_endian             0 # target executable endian-ness, non-zero if big endian
+
+#### ORACLE STATS ####
+c1.oracle_num_insn                 100102 # number of instructions executed by oracle
+c1.oracle_total_insn               281733 # total number of instructions executed by oracle, including misspec
+c1.oracle_num_uops                 109426 # number of uops executed by oracle
+c1.oracle_total_uops               291172 # total number of uops executed by oracle, including misspec
+c1.oracle_num_eff_uops             114754 # number of effective uops executed by oracle
+c1.oracle_total_eff_uops           296586 # total number of effective uops executed by oracle, including misspec
+c1.oracle_IPC                      1.2846 # IPC at oracle
+c1.oracle_uPC                      1.4042 # uPC at oracle
+c1.oracle_euPC                     1.4726 # euPC at oracle
+c1.oracle_total_IPC                3.6154 # IPC at oracle, including wrong-path
+c1.oracle_total_uPC                3.7366 # uPC at oracle, including wrong-path
+c1.oracle_total_euPC               3.8060 # euPC at oracle, including wrong-path
+c1.avg_oracle_flowlen              1.0931 # uops per instruction at oracle
+c1.avg_oracle_eff_flowlen          1.1464 # effective uops per instruction at oracle
+c1.avg_oracle_total_flowlen        1.0335 # uops per instruction at oracle, including wrong-path
+c1.avg_oracle_total_eff_flowlen       1.0527 # effective uops per instruction at oracle, including wrong-path
+c1.oracle_num_refs                  10656 # total number of loads and stores executed by oracle
+c1.oracle_num_loads                  6660 # total number of loads executed by oracle
+c1.oracle_num_stores                 3996 # total number of stores executed by oracle
+c1.oracle_num_branches              25344 # total number of branches executed by oracle
+c1.oracle_total_refs                10810 # total number of loads and stores executed by oracle, including wrong-path
+c1.oracle_total_loads                6754 # total number of loads executed by oracle, including wrong-path
+c1.oracle_total_stores               4056 # total number of stores executed by oracle, including wrong-path
+c1.oracle_total_branches            70726 # total number of branches executed by oracle, including wrong-path
+c1.MopQ_occupancy                 5777070 # total oracle MopQ occupancy
+c1.MopQ_avg                       74.1363 # average oracle MopQ occupancy
+c1.MopQ_full                            0 # total cycles oracle MopQ was full
+c1.MopQ_frac_full                  0.0000 # fraction of cycles oracle MopQ was full
+c1.oracle_bogus_cycles                  0 # total cycles oracle stalled on invalid wrong-path insts
+c1.oracle_frac_bogus               0.0000 # fraction of cycles oracle stalled on invalid wrong-path insts
+c1.oracle_emergency_recoveries            0 # number of times this thread underwent an emergency recovery
+c1.syscall_mem_accesses                 0 # memory accesses made by system calls
+
+#### BPRED STATS ####
+c1.bpred_lookups                    70725 # total branch predictor lookups (including wrong-path)
+c1.bpred_updates                    25333 # total branch predictor updates
+c1.bpred_cond_br                    21337 # total branch predictor cond_br (non-speculative)
+c1.bpred_calls                       1332 # total branch predictor calls (non-speculative)
+c1.bpred_rets                        1332 # total branch predictor rets (non-speculative)
+c1.bpred_unconds                     1332 # total branch predictor unconds (non-speculative)
+c1.bpred_dir_hits                   23999 # total branch predictor dir_hits (non-speculative)
+c1.bpred_addr_hits                  23993 # total branch predictor addr_hits (non-speculative)
+c1.bpred_dir_rate                  0.9473 # overall branch direction prediction rate
+c1.bpred_addr_rate                 0.9471 # overall branch address prediction rate
+c1.bpred_dir_MPKI                 13.3400 # overall branch direction mispredictions per Kinst
+c1.bpred_addr_MPKI                13.4000 # overall branch address mispredictions per Kinst
+c1.TAGE5.type                        tage # prediction algorithm of TAGE5
+c1.TAGE5.bits                       32847 # total size of TAGE5 in bits
+c1.TAGE5.size                      4.0096 # total size of TAGE5 in KB
+c1.TAGE5.lookups                    70725 # number of prediction lookups in TAGE5 (including wrong-path)
+c1.TAGE5.updates                    21337 # number of prediction updates in TAGE5
+c1.TAGE5.spec_updates               66696 # number of speculative prediction updates in TAGE5
+c1.TAGE5.hits                       20003 # number of correct predictions in TAGE5
+c1.TAGE5.hit_rate                  0.9375 # fraction of correct predictions in TAGE5
+c1.TAGE5.MPKI                     13.3400 # misses per thousand insts in TAGE5
+c1.TAGE5.uses0                       1365 # predictions made with TAGE5's T[0]
+c1.TAGE5.uses1                          7 # predictions made with TAGE5's T[1]
+c1.TAGE5.uses2                         16 # predictions made with TAGE5's T[2]
+c1.TAGE5.uses3                         59 # predictions made with TAGE5's T[3]
+c1.TAGE5.uses4                      19890 # predictions made with TAGE5's T[4]
+c1.BTB.type                          btac # BTB type of BTB
+c1.BTB.bits                         61440 # total size of BTB in bits
+c1.BTB.size                        7.5000 # total size of BTB in KB
+c1.BTB.lookups                      70725 # number of prediction lookups in BTB (including wrong-path)
+c1.BTB.updates                      22669 # number of prediction updates in BTB
+c1.BTB.spec_updates                 66696 # number of speculative prediction updates in BTB
+c1.BTB.hits                         22663 # number of correct predictions in BTB
+c1.BTB.hit_rate                    0.9997 # fraction of correct predictions in BTB
+c1.BTB.MPKI                        0.0600 # misses per thousand insts in BTB
+c1.BTB.num_nt                        1332 # number of NT predictions from BTB
+c1.BTB.frac_nt                     0.0588 # fraction of targets predicted NT by BTB
+c1.iBTB.type                     2levbtac # BTB type of iBTB
+c1.iBTB.bits                        16392 # total size of iBTB in bits
+c1.iBTB.size                       2.0010 # total size of iBTB in KB
+c1.iBTB.lookups                     70725 # number of prediction lookups in iBTB (including wrong-path)
+c1.iBTB.updates                         0 # number of prediction updates in iBTB
+c1.iBTB.spec_updates                66696 # number of speculative prediction updates in iBTB
+c1.iBTB.hits                            0 # number of correct predictions in iBTB
+c1.iBTB.hit_rate             <error: DBZ> # fraction of correct predictions in iBTB
+c1.iBTB.MPKI                       0.0000 # misses per thousand insts in iBTB
+c1.iBTB.num_nt                          0 # number of NT predictions from iBTB
+c1.iBTB.frac_nt              <error: DBZ> # fraction of targets predicted NT by iBTB
+c1.RAS.type                    finite RAS # RAS type of RAS
+c1.RAS.bits                           512 # total size of RAS in bits
+c1.RAS.size                        0.0625 # total size of RAS in KB
+c1.RAS.pushes                        1332 # number of stack pushes to RAS (including wrong-path)
+c1.RAS.pops                          1332 # number of stack pops to RAS (including wrong-path)
+c1.RAS.recover                      46706 # number of stack recoveries/repairs to RAS
+c1.RAS.hits                          1330 # correct predictions in RAS
+c1.RAS.hit_rate                    0.9985 # fraction of correct predictions in RAS
+c1.RAS.MPKI                        0.0200 # misses per thousand insts in RAS
+
+#### INST CACHE STATS ####
+c1.IL1.lookups                      24106 # number of lookups in IL1
+c1.IL1.misses                          18 # number of misses in IL1
+c1.IL1.pf_lookups                      12 # number of prefetch lookups in IL1
+c1.IL1.pf_misses                        9 # number of prefetch misses in IL1
+c1.IL1.pf_miss_rate                0.7500 # prefetch miss rate in IL1
+c1.IL1.pf_insertions                    7 # number of prefetched blocks inserted into IL1
+c1.IL1.pf_useful_insertions             3 # number of prefetched blocks actually used in IL1
+c1.IL1.pf_useful_rate              0.4286 # rate of useful prefetches in IL1
+c1.IL1.miss_rate                   0.0007 # miss rate in IL1 (no prefetches)
+c1.IL1.total_miss_rate             0.0011 # miss rate in IL1
+c1.IL1.MPKI                        0.1800 # miss rate in MPKI (no prefetches) for IL1
+c1.IL1.MPKu                        0.1646 # miss rate in MPKu (no prefetches) for IL1
+c1.IL1.MPKeu                       0.1570 # miss rate in MPKeu (no prefetches) for IL1
+c1.IL1.MPKC                        0.2310 # miss rate in MPKC (no prefetches) for IL1
+c1.IL1.WBB_victim_insertions            0 # total number of non-dirty WBB insertions in IL1
+c1.IL1.WBB_hits                         0 # total number hits in IL1's WBB
+c1.IL1.WBB_victim_hits                  0 # total number victim hits in IL1's WBB
+c1.IL1.MSHR_avg_occupancy          0.3033 # average MSHR entries in use in IL1
+c1.IL1.MSHR_full                   0.0019 # fraction of time MSHRs are full in IL1
+c1.IL1.nextline.bits                    0 # total size of nextline in bits
+c1.IL1.nextline.size               0.0000 # total size of nextline in KB
+c1.IL1.nextline.lookups                18 # number of prediction lookups in nextline
+c1.ITLB.lookups                     24106 # number of lookups in ITLB
+c1.ITLB.misses                          2 # number of misses in ITLB
+c1.ITLB.miss_rate                  0.0001 # miss rate in ITLB
+c1.ITLB.MPKI                       0.0200 # miss rate in MPKI (no prefetches) for ITLB
+c1.ITLB.MPKu                       0.0183 # miss rate in MPKu (no prefetches) for ITLB
+c1.ITLB.MPKeu                      0.0174 # miss rate in MPKeu (no prefetches) for ITLB
+c1.ITLB.MPKC                       0.0257 # miss rate in MPKC (no prefetches) for ITLB
+c1.ITLB.WBB_victim_insertions            0 # total number of non-dirty WBB insertions in ITLB
+c1.ITLB.WBB_hits                        0 # total number hits in ITLB's WBB
+c1.ITLB.WBB_victim_hits                 0 # total number victim hits in ITLB's WBB
+c1.ITLB.MSHR_avg_occupancy         0.0052 # average MSHR entries in use in ITLB
+c1.ITLB.MSHR_full                  0.0052 # fraction of time MSHRs are full in ITLB
+
+#### FETCH STATS ####
+c1.fetch_bytes                     477699 # total number of bytes fetched
+c1.fetch_insn                      235388 # total number of instructions fetched
+c1.fetch_uops                      244811 # total number of uops fetched
+c1.fetch_eff_uops                  250205 # total number of effective uops fetched
+c1.fetch_BPC                       6.1302 # BPC (bytes per cycle) at fetch
+c1.fetch_IPC                       3.0207 # IPC at fetch
+c1.fetch_uPC                       3.1416 # uPC at fetch
+c1.fetch_euPC                      3.2108 # euPC at fetch
+c1.fetch_byte_per_inst             2.0294 # average bytes per instruction
+c1.fetch_byte_per_uop              1.9513 # average bytes per uop
+c1.fetch_byte_per_eff_uop          1.9092 # average bytes per effective uop
+
+c1.fetch_stall               # breakdown of stalls in fetch
+c1.fetch_stall.array_size = 7
+c1.fetch_stall.bucket_size = 1
+c1.fetch_stall.count = 7
+c1.fetch_stall.total = 77924
+c1.fetch_stall.imin = 0
+c1.fetch_stall.imax = 7
+c1.fetch_stall.average = 11132.0000
+c1.fetch_stall.std_dev = 26349.8674
+c1.fetch_stall.overflows = 0
+# pdf == prob dist fn, cdf == cumulative dist fn
+#          index      count    pdf 
+c1.fetch_stall.start_dist
+byteQ full                    5844   7.50 
+taken branch                 70692  90.72 
+end of cache line             1353   1.74 
+inst split on two lines         35   0.04 
+wrong-path invalid inst          0   0.00 
+trap waiting on drain            0   0.00 
+request for page zero            0   0.00 
+c1.fetch_stall.end_dist
+
+c1.byteQ_avg                       1.2884 # average byteQ occupancy (in insts)
+c1.predecode_bytes                 451645 # total number of bytes predecoded
+c1.predecode_insn                  222062 # total number of instructions predecoded
+c1.predecode_uops                  231475 # total number of uops predecoded
+c1.predecode_eff_uops              236864 # total number of effective uops predecoded
+c1.predecode_BPC                   5.7959 # BPC (bytes per cycle) at predecode
+c1.predecode_IPC                   2.8497 # IPC at predecode
+c1.predecode_uPC                   2.9705 # uPC at predecode
+c1.predecode_euPC                  3.0396 # euPC at predecode
+c1.IQ_avg                         10.4685 # average IQ occupancy (in insts)
+c1.IQ_uop_avg                     10.7920 # average IQ occupancy (in uops)
+c1.IQ_eff_uop_avg                 10.9735 # average IQ occupancy (in effective uops)
+c1.IQ_frac_empty                   0.1305 # fraction of cycles IQ was empty
+c1.IQ_frac_full                    0.1736 # fraction of cycles IQ was full
+
+#### DECODE STATS ####
+c1.target_resteers                      0 # decode-time target resteers
+c1.phantom_resteers                     0 # decode-time phantom resteers
+c1.decode_insn                     188939 # total number of instructions decodeed
+c1.decode_uops                     198330 # total number of uops decodeed
+c1.decode_eff_uops                 203705 # total number of effective uops decodeed
+c1.decode_IPC                      2.4246 # IPC at decode
+c1.decode_uPC                      2.5451 # uPC at decode
+c1.decode_euPC                     2.6141 # effective uPC at decode
+c1.uopQ_avg                       11.0867 # average uopQ occupancy
+c1.uopQ_eff_avg                   11.2181 # average uopQ effective occupancy
+c1.uopQ_frac_empty                 0.1727 # fraction of cycles uopQ was empty
+c1.uopQ_frac_full                  0.3209 # fraction of cycles uopQ was full
+
+c1.decode_stall              # breakdown of stalls at decode
+c1.decode_stall.array_size = 9
+c1.decode_stall.bucket_size = 1
+c1.decode_stall.count = 9
+c1.decode_stall.total = 77924
+c1.decode_stall.imin = 0
+c1.decode_stall.imax = 9
+c1.decode_stall.average = 8658.2222
+c1.decode_stall.std_dev = 15389.5721
+c1.decode_stall.overflows = 0
+# pdf == prob dist fn, cdf == cumulative dist fn
+#          index      count    pdf 
+c1.decode_stall.start_dist
+no stall                         47890  61.46 
+next decode stage is full        12150  15.59 
+REP inst waiting for MS              0   0.00 
+long flow waiting for UROM        2008   2.58 
+available decoder too small       4375   5.61 
+no insts to decode               10167  13.05 
+phantom taken branch                 0   0.00 
+target correction                    0   0.00 
+branch decode limit               1334   1.71 
+c1.decode_stall.end_dist
+
+#### ALLOC STATS ####
+c1.alloc_insn                      150730 # total number of instructions alloced
+c1.alloc_uops                      161450 # total number of uops alloced
+c1.alloc_eff_uops                  166813 # total number of effective uops alloced
+c1.alloc_IPC                       1.9343 # IPC at alloc
+c1.alloc_uPC                       2.0719 # uPC at alloc
+c1.alloc_euPC                      2.1407 # effective uPC at alloc
+
+c1.alloc_stall               # breakdown of stalls at alloc
+c1.alloc_stall.array_size = 7
+c1.alloc_stall.bucket_size = 1
+c1.alloc_stall.count = 7
+c1.alloc_stall.total = 77924
+c1.alloc_stall.imin = 0
+c1.alloc_stall.imax = 7
+c1.alloc_stall.average = 11132.0000
+c1.alloc_stall.std_dev = 16150.1396
+c1.alloc_stall.overflows = 0
+# pdf == prob dist fn, cdf == cumulative dist fn
+#          index      count    pdf 
+c1.alloc_stall.start_dist
+no stall                         42567  54.63 
+no uops to allocate              14325  18.38 
+ROB is full                        665   0.85 
+LDQ is full                          0   0.00 
+STQ is full                          0   0.00 
+RS is full                       20367  26.14 
+OOO core draining                    0   0.00 
+c1.alloc_stall.end_dist
+
+#### EXEC STATS ####
+c1.exec_uops_issued                131744 # number of uops issued
+c1.exec_uPC                        1.6907 # average number of uops executed per cycle
+c1.exec_uops_replayed                1531 # number of uops replayed
+c1.exec_avg_replays                0.0116 # average replays per uop
+c1.exec_uops_snatched                 275 # number of uops snatched-back
+c1.exec_avg_snatched               0.0021 # average snatch-backs per uop
+c1.num_jeclear                       1340 # number of branch mispredictions
+c1.num_wp_jeclear                       0 # number of branch mispredictions in the shadow of an earlier mispred
+c1.load_nukes                           0 # num pipeflushes due to load-store order violation
+c1.wp_load_nukes                        0 # num pipeflushes due to load-store order violation on wrong-path
+c1.DL1_load_split_accesses              0 # number of loads requiring split accesses
+c1.DL1_load_split_frac             0.0000 # fraction of loads requiring split accesses
+c1.RS_avg                         20.7665 # average RS occupancy
+c1.RS_eff_avg                     21.0076 # effective average RS occupancy
+c1.RS_frac_empty                   0.2009 # fraction of cycles RS was empty
+c1.RS_frac_full                    0.4318 # fraction of cycles RS was full
+c1.LDQ_occupancy                    83686 # total LDQ occupancy
+c1.LDQ_empty                        54347 # total cycles LDQ was empty
+c1.LDQ_full                             0 # total cycles LDQ was full
+c1.LDQ_avg                         1.0739 # average LDQ occupancy
+c1.LDQ_frac_empty                  0.6974 # fraction of cycles LDQ was empty
+c1.LDQ_frac_full                   0.0000 # fraction of cycles LDQ was full
+c1.STQ_occupancy                    51908 # total STQ occupancy
+c1.STQ_empty                        58350 # total cycles STQ was empty
+c1.STQ_full                             0 # total cycles STQ was full
+c1.STQ_avg                         0.6661 # average STQ occupancy
+c1.STQ_frac_empty                  0.7488 # fraction of cycles STQ was empty
+c1.STQ_frac_full                   0.0000 # fraction of cycles STQ was full
+c1.LWT.type                    lwt-memdep # prediction algorithm of LWT
+c1.LWT.bits                          8212 # total size of LWT in bits
+c1.LWT.size                        1.0024 # total size of LWT in KB
+c1.LWT.lookups                       7330 # number of prediction lookups in LWT
+c1.LWT.updates                          0 # number of prediction updates in LWT
+
+#### DATA CACHE STATS ####
+c1.DL1.load_lookups                  6682 # number of load lookups in DL1
+c1.DL1.load_misses                     13 # number of load misses in DL1
+c1.DL1.load_miss_rate              0.0019 # load miss rate in DL1
+c1.DL1.store_lookups                 3996 # number of store lookups in DL1
+c1.DL1.store_misses                     0 # number of store misses in DL1
+c1.DL1.store_miss_rate             0.0000 # store miss rate in DL1
+c1.DL1.pf_lookups                       6 # number of prefetch lookups in DL1
+c1.DL1.pf_misses                        4 # number of prefetch misses in DL1
+c1.DL1.pf_miss_rate                0.6667 # prefetch miss rate in DL1
+c1.DL1.pf_insertions                    2 # number of prefetched blocks inserted into DL1
+c1.DL1.pf_useful_insertions             1 # number of prefetched blocks actually used in DL1
+c1.DL1.pf_useful_rate              0.5000 # rate of useful prefetches in DL1
+c1.DL1.total_lookups                10684 # total number of lookups in DL1
+c1.DL1.total_misses                    17 # total number of misses in DL1
+c1.DL1.total_miss_rate             0.0016 # total miss rate in DL1
+c1.DL1.MPKI                        0.1300 # total miss rate in MPKI (no prefetches) for DL1
+c1.DL1.MPKu                        0.1189 # total miss rate in MPKu (no prefetches) for DL1
+c1.DL1.MPKeu                       0.1134 # total miss rate in MPKeu (no prefetches) for DL1
+c1.DL1.MPKC                        0.1668 # total miss rate in MPKC (no prefetches) for DL1 (misses/thousand cycles)
+c1.DL1.WBB_write_insertions             0 # total number of write/writeback WBB insertions in DL1
+c1.DL1.WBB_victim_insertions            0 # total number of non-dirty WBB insertions in DL1
+c1.DL1.WBB_hits                         0 # total number hits in DL1's WBB
+c1.DL1.WBB_write_hits                   0 # total write/writeback hits in DL1 (write-combining)
+c1.DL1.WBB_victim_hits                  0 # total number victim hits in DL1's WBB
+c1.DL1.WBB_avg_occupancy           0.0000 # average WBB entries in use in DL1 (dirty-lines only)
+c1.DL1.WBB_frac_full               0.0000 # fraction of time WBBs are full in DL1 (dirty-lines only)
+c1.DL1.MSHR_avg_occupancy          0.2083 # average MSHR entries in use in DL1
+c1.DL1.MSHR_full                   0.0123 # fraction of time MSHRs are full in DL1
+c1.DL1.IP.bits                       8448 # total size of IP in bits
+c1.DL1.IP.size                     1.0312 # total size of IP in KB
+c1.DL1.IP.lookups                      13 # number of prediction lookups in IP
+c1.DL1.nextline.bits                    0 # total size of nextline in bits
+c1.DL1.nextline.size               0.0000 # total size of nextline in KB
+c1.DL1.nextline.lookups                13 # number of prediction lookups in nextline
+c1.DTLB.lookups                      6682 # number of lookups in DTLB
+c1.DTLB.misses                         10 # number of misses in DTLB
+c1.DTLB.miss_rate                  0.0015 # miss rate in DTLB
+c1.DTLB.MPKI                       0.1000 # miss rate in MPKI (no prefetches) for DTLB
+c1.DTLB.MPKu                       0.0915 # miss rate in MPKu (no prefetches) for DTLB
+c1.DTLB.MPKeu                      0.0872 # miss rate in MPKeu (no prefetches) for DTLB
+c1.DTLB.MPKC                       0.1283 # miss rate in MPKC (no prefetches) for DTLB
+c1.DTLB.WBB_victim_insertions            0 # total number of non-dirty WBB insertions in DTLB
+c1.DTLB.WBB_hits                        0 # total number hits in DTLB's WBB
+c1.DTLB.WBB_victim_hits                 0 # total number victim hits in DTLB's WBB
+c1.DTLB.MSHR_avg_occupancy         0.0574 # average MSHR entries in use in DTLB
+c1.DTLB.MSHR_full                  0.0141 # fraction of time MSHRs are full in DTLB
+c1.DTLB2.lookups                     4006 # number of lookups in DTLB2
+c1.DTLB2.misses                         2 # number of misses in DTLB2
+c1.DTLB2.miss_rate                 0.0005 # miss rate in DTLB2
+c1.DTLB2.MPKI                      0.0200 # miss rate in MPKI (no prefetches) for DTLB2
+c1.DTLB2.MPKu                      0.0183 # miss rate in MPKu (no prefetches) for DTLB2
+c1.DTLB2.MPKeu                     0.0174 # miss rate in MPKeu (no prefetches) for DTLB2
+c1.DTLB2.MPKC                      0.0257 # miss rate in MPKC (no prefetches) for DTLB2
+c1.DTLB2.WBB_victim_insertions            0 # total number of non-dirty WBB insertions in DTLB2
+c1.DTLB2.WBB_hits                       0 # total number hits in DTLB2's WBB
+c1.DTLB2.WBB_victim_hits                0 # total number victim hits in DTLB2's WBB
+c1.DTLB2.MSHR_avg_occupancy        0.0143 # average MSHR entries in use in DTLB2
+c1.DTLB2.MSHR_full                 0.0143 # fraction of time MSHRs are full in DTLB2
+
+#### COMMIT STATS ####
+c1.commit_bytes                    206660 # total number of bytes committed
+c1.commit_insn                     100000 # total number of instructions committed
+c1.commit_uops                     109324 # total number of uops committed
+c1.commit_eff_uops                 114652 # total number of effective uops committed
+c1.commit_BPC                      2.6520 # BPC (bytes per cycle) at commit
+c1.commit_IPC                      1.2833 # IPC at commit
+c1.commit_uPC                      1.4029 # uPC at commit
+c1.commit_euPC                     1.4713 # effective uPC at commit
+c1.commit_byte_per_inst            2.0666 # average bytes per instruction
+c1.commit_byte_per_uop             1.8903 # average bytes per uop
+c1.commit_byte_per_eff_uop         1.8025 # average bytes per effective uop
+c1.avg_commit_flowlen              1.0932 # uops per instruction at commit
+c1.avg_commit_eff_flowlen          1.1465 # effective uops per instruction at commit
+c1.commit_fusions                    5328 # total number of fused uops committed
+c1.commit_fusion_uops               10656 # fused uops at commit
+c1.commit_frac_fusion_uops         0.0929 # fraction of effective uops fused at commit
+c1.commit_fusion_compression       0.0465 # fraction of effective uops compressed via fusion at commit
+c1.commit_fusion_expansion         1.0487 # average number of effective uops per uop (fused or standalone) commit
+c1.commit_dead_lock_flushes             0 # total number of pipe-flushes due to dead-locked pipeline
+c1.ROB_avg                        28.3656 # average ROB occupancy
+c1.ROB_eff_avg                    29.2260 # average ROB effective occupancy
+c1.ROB_frac_empty                  0.1836 # fraction of cycles ROB was empty
+c1.ROB_frac_full                   0.0085 # fraction of cycles ROB was full
+c1.DL1_store_split_accesses             0 # number of stores requiring split accesses
+c1.DL1_store_split_frac            0.0000 # fraction of stores requiring split accesses
+
+c1.commit_stall              # breakdown of stalls at commit
+c1.commit_stall.array_size = 6
+c1.commit_stall.bucket_size = 1
+c1.commit_stall.count = 6
+c1.commit_stall.total = 77924
+c1.commit_stall.imin = 0
+c1.commit_stall.imax = 6
+c1.commit_stall.average = 12987.3333
+c1.commit_stall.std_dev = 16449.7104
+c1.commit_stall.overflows = 0
+# pdf == prob dist fn, cdf == cumulative dist fn
+#          index      count    pdf 
+c1.commit_stall.start_dist
+no stall                          6656   8.54 
+oldest inst not done             44074  56.56 
+oldest inst partially done       11546  14.82 
+ROB is empty                     15648  20.08 
+Mop done, jeclear in flight          0   0.00 
+branch commit limit                  0   0.00 
+c1.commit_stall.end_dist
+
+#### TIMING STATS ####
+c1.sim_cycle                        77925 # total number of cycles when last instruction (or uop) committed
+c1.Mop_fetch_avg_slip              1.8501 # Mop fetch average delay
+c1.Mop_f2d_avg_slip                6.5270 # Mop fetch-to-decode average delay
+c1.Mop_decode_avg_slip             0.0000 # Mop decode average delay
+c1.uop_d2a_avg_slip                2.5137 # uop decode-to-alloc average delay
+c1.uop_a2r_avg_slip                7.8187 # uop alloc-to-ready average delay
+c1.uop_r2i_avg_slip                0.2321 # uop ready-to-issue average delay
+c1.uop_i2e_avg_slip                2.0975 # uop issue-to-exec average delay
+c1.uop_e2w_avg_slip                1.2051 # uop exec-to-WB average delay
+c1.uop_w2c_avg_slip                3.5101 # uop WB-to-commit average delay
+c1.Mop_d2c_avg_slip               17.2192 # Mop decode-to-commit average delay
+c1.Mop_commit_avg_slip             0.0133 # Mop commit average delay
+c1.Mop_avg_end_to_end             25.6096 # Mop average end-to-end pipeline delay
+
+#### INSTRUCTION STATS (no wrong-path) ####
+c1.num_insn                        100000 # total number of instructions committed
+c1.num_refs                         10656 # total number of loads and stores committed
+c1.num_loads                         6660 # total number of loads committed
+c1.num_stores                        3996 # total number of stores committed
+c1.num_branches                     25333 # total number of branches committed
+c1.num_traps                            0 # total number of traps committed
+c1.num_rep_insn                         0 # total number of REP insts committed
+c1.num_rep_iter                         0 # total number of REP iterations committed
+c1.num_rep_uops                         0 # total number of uops in REP insts committed
+c1.num_avg_reps              <error: DBZ> # average iterations per REP inst
+c1.num_avg_rep_uops          <error: DBZ> # average uops per REP inst
+c1.num_UROM_insn                        0 # total number of insn using the UROM committed
+c1.num_UROM_uops                        0 # total number of uops using the UROM committed
+c1.num_UROM_eff_uops                    0 # total number of effective uops using the UROM committed
+c1.num_avg_UROM_uops         <error: DBZ> # average uops per UROM inst
+c1.avg_flowlen                     1.0932 # average uops per instruction
+c1.avg_eff_flowlen                 1.1465 # average effective uops per instruction
+
+c1.flow_lengths              # histogram of uop flow lengths
+c1.flow_lengths.array_size = 9
+c1.flow_lengths.bucket_size = 1
+c1.flow_lengths.count = 9
+c1.flow_lengths.total = 100000
+c1.flow_lengths.imin = 0
+c1.flow_lengths.imax = 9
+c1.flow_lengths.average = 11111.1111
+c1.flow_lengths.std_dev = 31349.4853
+c1.flow_lengths.overflows = 0
+# pdf == prob dist fn, cdf == cumulative dist fn
+#          index      count    pdf 
+c1.flow_lengths.start_dist
+               0          0   0.00 
+               1      94672  94.67 
+               2       2664   2.66 
+               3       1332   1.33 
+               4       1332   1.33 
+               5          0   0.00 
+               6          0   0.00 
+               7          0   0.00 
+               8          0   0.00 
+c1.flow_lengths.end_dist
+
+
+c1.eff_flow_lengths          # histogram of effective uop flow lengths
+c1.eff_flow_lengths.array_size = 9
+c1.eff_flow_lengths.bucket_size = 1
+c1.eff_flow_lengths.count = 9
+c1.eff_flow_lengths.total = 100000
+c1.eff_flow_lengths.imin = 0
+c1.eff_flow_lengths.imax = 9
+c1.eff_flow_lengths.average = 11111.1111
+c1.eff_flow_lengths.std_dev = 30864.1397
+c1.eff_flow_lengths.overflows = 0
+# pdf == prob dist fn, cdf == cumulative dist fn
+#          index      count    pdf 
+c1.eff_flow_lengths.start_dist
+               0          0   0.00 
+               1      93340  93.34 
+               2       1332   1.33 
+               3       3996   4.00 
+               4          0   0.00 
+               5       1332   1.33 
+               6          0   0.00 
+               7          0   0.00 
+               8          0   0.00 
+c1.eff_flow_lengths.end_dist
+
+
+#### PROGRAM/TEXT STATS ####
+c1.loader.text_base            0x08048000 # program text (code) segment base
+c1.loader.text_bound           0x00000000 # program text (code) segment bound
+c1.loader.text_size                383616 # program text (code) size in bytes
+c1.loader.data_base            0x080a6a80 # program initialized data segment base
+c1.loader.data_bound           0x00000000 # program initialized data segment bound
+c1.loader.data_size                  4116 # program init'ed `.data' and uninit'ed `.bss' size in bytes
+c1.loader.stack_base           0xc0000000 # program stack segment base (highest address in stack)
+c1.loader.stack_size                16384 # program initial stack size
+c1.loader.prog_entry           0x080481f8 # program entry point (initial PC)
+c1.loader.environ_base         0xbfffbd68 # program environment base address address
+c1.loader.target_big_endian             0 # target executable endian-ness, non-zero if big endian
+
+#### LAST-LEVEL CACHE STATS ####
+LLC.load_lookups                      109 # number of load lookups in LLC
+LLC.load_misses                        19 # number of load misses in LLC
+LLC.load_miss_rate                 0.1743 # load miss rate in LLC
+LLC.store_lookups                       9 # number of store lookups in LLC
+LLC.store_misses                        1 # number of store misses in LLC
+LLC.store_miss_rate                0.1111 # store miss rate in LLC
+LLC.pf_lookups                         47 # number of prefetch lookups in LLC
+LLC.pf_misses                          31 # number of prefetch misses in LLC
+LLC.pf_miss_rate                   0.6596 # prefetch miss rate in LLC
+LLC.pf_insertions                      31 # number of prefetched blocks inserted into LLC
+LLC.pf_useful_insertions               20 # number of prefetched blocks actually used in LLC
+LLC.pf_useful_rate                 0.6452 # rate of useful prefetches in LLC
+LLC.total_lookups                     165 # total number of lookups in LLC
+LLC.total_misses                       51 # total number of misses in LLC
+LLC.total_miss_rate                0.3091 # total miss rate in LLC
+LLC.MPKC                           0.2567 # MPKC for the LLC (no prefetches)
+LLC.total_MPKC                     0.6545 # MPKC for the LLC
+LLC.WBB_write_insertions                0 # total number of write/writeback insertions in LLC
+LLC.WBB_victim_insertions               0 # total number of non-dirty WBB insertions in LLC
+LLC.WBB_hits                            0 # total number hits in LLC's WBB
+LLC.WBB_write_hits                      0 # total write/writeback hits in LLC's WBB (write-combining)
+LLC.WBB_victim_hits                     0 # total number victim hits in LLC's WBB
+LLC.WBB_avg_occupancy              0.0000 # average WBB entries in use in LLC (dirty-lines only)
+LLC.WBB_frac_full                  0.0000 # fraction of time WBBs are full in LLC (dirty-lines only)
+LLC.MSHR_avg_occupancy             0.1341 # average MSHR entries in use in LLC
+LLC.MSHR_full                      0.0000 # fraction of time MSHRs are full in LLC
+LLC.c0.lookups                        116 # number of lookups by core 0 in shared LLC cache
+LLC.c0.misses                          33 # number of misses by core 0 in shared LLC cache
+LLC.c0.MPKI                        0.3300 # MPKI by core 0 in shared LLC cache
+LLC.c0.MPKC                        0.4499 # MPKC by core 0 in shared LLC cache
+LLC.c1.lookups                         48 # number of lookups by core 1 in shared LLC cache
+LLC.c1.misses                          18 # number of misses by core 1 in shared LLC cache
+LLC.c1.MPKI                        0.1800 # MPKI by core 1 in shared LLC cache
+LLC.c1.MPKC                        0.2310 # MPKC by core 1 in shared LLC cache
+LLC.IP.bits                          8448 # total size of IP in bits
+LLC.IP.size                        1.0312 # total size of IP in KB
+LLC.IP.lookups                        107 # number of prediction lookups in IP
+LLC.stream.bits                       448 # total size of stream in bits
+LLC.stream.size                    0.0547 # total size of stream in KB
+LLC.stream.lookups                    107 # number of prediction lookups in stream
+LLC_bus.accesses                      164 # number of accesses to bus LLC_bus
+LLC_bus.utilization                   164 # cumulative cycles of utilization of bus LLC_bus
+LLC_bus.avg_burst                  1.0000 # avg cycles utilized per transfer of bus LLC_bus
+LLC_bus.duty_cycle                 0.0021 # fraction of time bus LLC_bus was in use
+LLC_bus.pf_utilization                 46 # cumulative cycles of utilization of bus LLC_bus for prefetches
+LLC_bus.pf_duty_cycle              0.0006 # fraction of time bus LLC_bus was in use for prefetches
+
+#### MAIN MEMORY/DRAM STATS ####
+dram.total_access                      51 # total number of memory accesses
+dram.average_latency             123.9216 # average memory latency in cycles
+dram.best_latency                      72 # fastest memory latency observed
+dram.worst_latency                    296 # worst memory latency observed
+dram.average_burst                 8.0000 # average memory burst length
+dram.row_buffer_hits                   23 # total number of accesses that hit in row buffer
+dram.row_buffer_hit_rate           0.4510 # fraction of accesses that hit in row buffer
+FSB.accesses                          102 # number of accesses to bus FSB
+FSB.utilization                      2064 # cumulative cycles of utilization of bus FSB
+FSB.avg_burst                     20.2353 # avg cycles utilized per transfer of bus FSB
+FSB.duty_cycle                     0.0265 # fraction of time bus FSB was in use
+FSB.pf_utilization                   1240 # cumulative cycles of utilization of bus FSB for prefetches
+FSB.pf_duty_cycle                  0.0159 # fraction of time bus FSB was in use for prefetches
+FSB.clock_ratio                         8 # CPU clocks per FSB clock
+MC.total_accesses                      51 # total accesses to memory controller
+MC.service_average               207.3725 # average cycles per MC request
+
+#### SIMULATED MEMORY STATS ####
+c1.mem.page_count                     108 # total number of pages allocated
+c1.mem.page_mem                      432k # total size of memory pages allocated
+
+#### SIMULATOR PERFORMANCE STATS ####
+sim_cycle                           77925 # total simulation cycles
+all_insn                           200000 # total insts simulated for all cores
+all_uops                           209518 # total uops simulated for all cores
+all_eff_uops                       240185 # total effective uops simulated for all cores
+HM_IPC                             1.3222 # harmonic mean IPC across all cores
+HM_uPC                             1.3843 # harmonic mean uPC across all cores
+HM_euPC                            1.5824 # harmonic mean euPC across all cores
+GM_IPC                             1.3228 # geometric mean IPC across all cores
+GM_uPC                             1.3844 # geometric mean uPC across all cores
+GM_euPC                            1.5869 # geometric mean euPC across all cores
+TP_IPC                             2.6467 # IPC ThroughPut for all cores (this is a nonsense metric: you can't add IPCs)
+TP_uPC                             2.7690 # uPC ThroughPut for all cores (this is a nonsense metric: you can't add uPCs)
+TP_euPC                            3.1829 # euPC ThroughPut for all cores (this is a nonsense metric: you can't add euPCs)
+total_insn                         206926 # total instructions simulated for all cores, including instructions from inactive (looping) cores
+total_uops                         216457 # total uops simulated for all cores, including uops from inactive (looping) cores
+total_eff_uops                     248878 # total effective uops simulated for all cores, including effective uops from inactive (looping) cores
+total_IPC                          2.6555 # total IPC of all cores, including instructions from inactive (looping) cores
+total_uPC                          2.7778 # total uPC of all cores, including instructions from inactive (looping) cores
+total_euPC                         3.1938 # total euPC of all cores, including instructions from inactive (looping) cores
+loop_inst_overhead                 1.0346 # overhead rate for additional looping instructions
+loop_uop_overhead                  1.0331 # overhead rate for additional looping uops
+loop_eff_uop_overhead              1.0362 # overhead rate for additional looping effective uops
+

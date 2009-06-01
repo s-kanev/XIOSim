@@ -1,0 +1,115 @@
+Zesto has only been tested on Red Hat Enterprise Linux versions 4 and 5 on
+Intel P4-based 32-bit and Core 2-based 64-bit systems.  Even though the
+simulator runs on 64-bit systems, it's still a 32-bit application.  If you find
+that it works on other distros, please let us know.  If you modify Zesto to get
+it to run on other distros, send us the patches and we'll put these on the
+website and give you full credit.
+
+By default, the Makefile is set up for compiling on Red Hat Enterprise Linux
+version 5 (RHEL5).  If this matches your configuration, you should be able to
+just type "make" and that's it.  The only minor tweaks you might make are to
+the OFLAGS options in the Makefile, which are currently set to optimize for the
+Intel Core 2 microarchitecture (but again, in 32-bit mode as specified by the
+-m32 flag).
+
+The main simulator is called sim-zesto.  To discourage researchers and students
+from blindly using the default parameter/knob settings, they have all been set
+to silly values.  Instead, we have included example configuration files for the
+pipeline and memory.  To test the simulator, try:
+
+  $ ./sim-zesto -config config/merom.cfg \
+     -config dram-config/DDR2-800-5-5-5.cfg tests/fib
+
+This will run the fib program and print out a lot of stats.  Fib is a toy
+program that just computes the first couple of number in the Fibonacci series
+using a dumb recursive implementation.  It is a regular binary (i.e., you
+should be able to run it directly from your command prompt) written in regular
+C and compiled with gcc.  You can create your own binaries by compiling on an
+x86 machine with "-m32 -static -march=pentiumpro".  (NOTE: binaries created on
+RHEL4 seem to run just fine.  Binaries created on RHEL5 seem to be generating
+some odd/unsupported behavior that causes the %gs register to get zeroed out
+when it seems that it shouldn't.  Ignoring the resulting null-pointer loads
+seems to not cause any problems and our simple test programs appear to execute
+without any other noticeable problems.) The pentiumpro constraint is to prevent
+the compiler from emitting MMX or SSE instructions which are currently not
+supported.  Obviously for "real" benchmarks, you need to add in other relevant
+optimization flags (e.g., you can set -mtune to be different from pentiumpro to
+have the code generator target a more modern microarchitecture).
+
+To run the simulator in multi-core mode, you can only use .eio files.  You can
+generate these in the same way that you would have for previous versions of
+SimpleScalar (the sim-eio that comes with Zesto generated .eio files that are
+completely compatible with sim-zesto).  Once you have your .eio files:
+
+  $ ./sim-zesto -config config/merom.cfg \
+     -config dram-config/DDR2-800-5-5-5.cfg -cores 2 -max:inst 100000 \
+     -tracelimit 1000000 tests/app1.eio.gz tests/app2.eio.gz
+
+The simulator will then simulate 100,000 instructions (x86 macro-ops, *not*
+internal RISC micro-ops) as specified by the "-max:inst" knob.  Note that in a
+multi-core simulation, one program may reach the instruction limit before the
+other.  In this case, the statistics for the "finished" program are frozen
+(prevented from any more updates) so that they directly correspond to the
+behaviors observed for the specified number of instruction (i.e., "max:inst").
+The program, however, is allowed to continue executing so that it continues to
+contend with the other core(s) for shared resources.  So what we typically do
+is collect a .eio trace file corresponding to more instructions than we want to
+collect stats for.  In this example, say app1 finishes first, in which case it
+will continue executing until a limit of one million instructions have been
+committed.  At this point, if app2 has not yet reached its instruction limit of
+100,000, the execution of app1 is restarted from the beginning (but again,
+performance statistics are not allowed to be updated beyond the original
+100,000 instructions).  Eventually when app2 reaches 100,000 committed
+instructions, the simulation will terminate and print out even more stats for
+both cores.  Note that the simulator assumes that all .eio files have the same
+tracelimit.  If you use .eio files capturing different numbers of instructions,
+you should set -tracelimit to the minimum of the .eio files.
+
+Like the original SimpleScalar, you can also specify a fast-forward amount with
+-fastfwd.  By default, all caches and branch predictors will be warmed during
+the fast-forwarding interval (this can be disabled).  In a multi-core
+simulation, the fast-forward simply functionally executes one instruction at a
+time from each program in a round-robin fashion, updating the cache hierarchy
+as it goes.  This obviously will not result in a truly-correct warmed cache
+state as the cache contents depend on the exact timing of the arrival of the
+memory requests (and we don't know the exact timing since we're not simulating
+the pipeline during the fast functional simulation).  So overall, when
+collecting .eio files for multi-core execution, you should start collecting the
+trace F instructions prior to the sample you want to collect (where F is the
+number of instructions you want to warm the processors with), N instructions
+corresponding to the actual sample, and then another E instructions (where E
+corresponds to extra instructions after the sample so that the simulator does
+not keep looping the same F+N instructions over and over again while waiting
+for the other cores to finish up).  We don't have any particularly good
+guidance on how to choose E, and if F is large enough, it may be fine to just
+set E to zero.  (One note, sim-eio's -fastfwd option specified instructions in
+*millions*.)
+
+So far in one form or another, we've been able to get a decent number of
+benchmarks running in our infrastructure.
+
+SPEC2000fp: applu, apsi, art, equake, galgel, mesa, mgrid, swim, wupwise
+SPEC2000int: all 12
+SPEC2006fp: bwaves, cactusADM, dealII, gromacs, lbm, milc, namd, soplex,
+    zeusmp
+SPEC2006int: astar, bzip2, go, h264ref, hmmer, libquantum, mcf, omnetpp,
+    perl, sjeng
+Mediabench: adpcm, epic, g721, gs, gsm, jpeg, mesa, mpeg2, pegwit
+Mediabench-II/video: h263, h264, jpeg, jpg2000, mpeg2, mpeg4
+MiBench: adpcm, basicmath, bitcount, blowfish, crc32, dijkstra, fft, gsm
+    ispell, lame, patricia, pgp, qsort, rijndael, sha, susan
+BioBench: blastp, clustalw, fasta, hmmer, mummer, phylip, tigr
+BioPerf: clustalw, hmmpfam, phylip, predator
+PhysicsBench: breakable, continuous, deformable, everything, explosions,
+    highspeed, periodic, ragdoll
+MineBench: bayes, eclat, semphy
+FacePerf: ebgm, pca
+PtrDist: anagram, bc, ft, ks, yacr2
+Stream, Stream2: all
+
+Most of the SPEC benchmarks that aren't running are Fortran.  There's something
+not correctly and/or completely implemented in the simulator for properly
+handling what seems to be some of the Fortran I/O routines.  There are a few
+other SPEC2006 benchmarks that we have running in a "partial state", in that
+they will run for many tens of billions of instructions before running into
+some sort of problem.  These include gcc (int), leslie3d (fp) and sphinx3 (fp).

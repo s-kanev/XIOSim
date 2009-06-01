@@ -1,0 +1,90 @@
+Please see zesto.cc.gatech.edu for more up-to-date and complete
+information and documentation.
+
+1.0 The x86 ISA
+
+The x86 instruction set required several changes to be made to the
+baseline architecture.  Support had to be added to handle repeating
+instructions, condition code dependencies and the unique aspects of
+the x86 register file.  In addition instructions could no longer be
+represented with fixed-byte lengths due to x86's variable length
+instructions.  What follows is a overview on how these issues were
+dealt with in SimpleScalar.  This is by no means an exhaustive list of
+changes made, as there were numerous small changes, but it will cover
+the major changes. 
+
+1.1 Repeat Instructions [Original]
+
+Certain instructions in the x86 ISA contain fields that tell the
+processor to repeat that instruction.  These repeats could be a fixed
+number of iterations or variable based on meeting a specified
+condition.  To deal with this we introduced a series of macros
+(REP_COUNT, REP_AGAIN, REP_FIRST) to the main/dispatch stage. The
+REP_COUNT macro simply marks off each iteration of an instruction and
+REP_AGAIN macro checks whether or not another iteration is required.
+These functions would be enough except that it is possible for x86 to
+have instructions with repeat counts of 0. The REP_FIRST macro checks
+repeat instruction counts prior to their first execution and blocks
+execution if it has a count of 0.  For the performance simulator,
+sim-outorder-x86, we also had to allow the dispatch stage to deal with
+speculative repeats.  Since repeat counts cannot truly be resolved
+until after execution, we allow the dispatch stage to blast repeats
+into the ROB until execution of the last repeat occurs at which time
+the speculative repeats are blown away.   
+
+1.1 Repeat Instructions [Zesto]
+
+We simulate repeat instructions more closely to the hardware.  We assume
+a microcode sequencer that injects the additional necessary uops to
+perform the "microjumps" involved in executing the REP instructions.
+In particular, prior to the first iteration, uops are injected to
+test for a zero-iteration instruction.  After each instruction, the
+ucode sequencer injects the uops to decrement the REP counter register
+and test for exit.
+
+1.2 Condition Code Handling
+
+The condition code flags are commonly used in x86.  Many instructions
+read and/or write multiple flags and are therefor dependent on
+previous instructions through those flags.  In SimpleScalar this was
+handled with a method similar to the generation of register
+dependencies.  A flag create vector (effectively a flag-renaming
+table) is kept allowing flag consumers to install dependency links in
+the respective flag creator.  After the creator is executed, the flags
+are broadcast to the consumer instructions in parallel with the
+broadcast of its destination register.  To allow flags in x86
+instructions we also introduced two new fields (OFLAGS, IFLAGS) to the
+machine.def files which contain bit fields of the flags set/read.  We also
+included two functions for set flag output dependencies and reading
+flag input dependencies in the flag create vector. 
+
+1.3 Partial Forwarding [Original]
+
+The evolution of x86 registers has produces some interesting problems
+for dependence simulation.  The x86 architectural registers can be
+accessed in multiple ways.  For instance the 32-bit EAX register can
+be referenced as 32-bits (EAX), the lower 16-bits (AX) or one of the
+two lowest-order bytes (AH,AL).  In terms of dependence generation,
+there is no real difference between EAX and AX.  The interesting
+problem is that a write to AH does not produce a dependency for a read
+to AL (and visa versa).  Since x86 uses a lot of byte operand
+instructions the problem of correct dependence generation had to be
+addressed.  To solve this issue, we introduced a set of virtual
+registers onto the end of simulated register space.  All byte-sized
+register references where transformed from their original value
+(corresponding to EAX) to this virtual register space.  Then code was
+added to allow instructions to specify multiple output dependencies.
+A write to EAX would set the instruction as the creator of EAX, AH and
+AL, while a write to AH would set the instruction as the creator of
+just EAX and AH leaving AL independent.  Reading dependencies from
+create vector was unchanged. 
+
+1.3 Partial Forwarding [Zesto]
+
+To support partial-register reads/writes, we force each instruction
+to always update the entire 32-bit register (e.g., EAX).  A write to
+AL causes the entire EAX to be updated.  Where necessary, additional
+partial-write merging uops have been inserted into the uop flows to
+ensure that all 32 bits always get updated together.  This means that
+an update to AL followed by an update to AH will in fact be serialized
+by the intermediate merging uop.  Same goes for writes to AX.
