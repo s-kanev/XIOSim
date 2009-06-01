@@ -17,7 +17,7 @@
 ## Redhat Enterprise 5/Linux 2.6.18/64-bit
 ## Redhat Enterprise 4/Linux 2.6.9/32-bit
 ##
-CC = g++
+CC = g++4
 
 ##################################################################
 # Uncomment only one of the following OFLAGS, or make your own
@@ -61,7 +61,7 @@ X=/
 #		  sysprobe will auto-detect if host can use fast shifts
 # -DLINUX_RHEL4 - we needed to use this for RHEL4, but not for RHEL5 (default)
 #
-FFLAGS = #-DLINUX_RHEL4
+FFLAGS = -DLINUX_RHEL4
 
 ##################################################################
 #
@@ -131,7 +131,7 @@ default: sim-zesto
 all: $(PROGS)
 
 syscall.$(OEXT): syscall.c syscall.h thread.h
-	gcc $(CFLAGS) -c $*.c
+	gcc4 $(CFLAGS) -c $*.c
 
 make.target:
 	touch make.target
