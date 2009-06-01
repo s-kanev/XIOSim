@@ -1,0 +1,2 @@
+PROGS = sim-uop$(EEXT) sim-fast$(EEXT) sim-eio$(EEXT) \
+sim-bpred$(EEXT) sim-zesto$(EEXT) sim-cache$(EEXT)
