@@ -2595,6 +2595,17 @@ void core_exec_DPM_t::step()
                 odep->uop->timing.when_ival_ready[odep->op_num] = sim_cycle+fp_penalty;
                 odep = odep->next;
               }
+              // add to commit buffer
+              if((!uop->decode.in_fusion) || uop->decode.is_fusion_head)
+              {
+                if(!core->commit.ROB_available())
+                {
+                   fatal("implement exec port stalls!!!");
+                }
+                core->commit.ROB_insert(uop);
+              }
+              else
+                core->commit.ROB_fuse_insert(uop);
             }
          } /* if uop in last stage of FU */
 
@@ -2617,7 +2628,7 @@ void core_exec_DPM_t::step()
   }
 
 //process pipe stages before actual FUs - payload pipe
-//relies that we have a fixed -stage pipe
+//relies that we have a fixed 3-stage pipe
 //1st stage - address generation
 //2nd - cache access
 //3rd - cache access res + leave to FU

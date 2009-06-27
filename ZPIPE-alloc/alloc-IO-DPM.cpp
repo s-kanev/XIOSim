@@ -184,7 +184,7 @@ void core_alloc_DPM_t::step(void)
               break;
             }
 
-            //TODO: Marked for removal(IO pipe)
+            //moved to end of exec
             //do only Mops commit - may still need an ROB
             /* place in ROB */
 //            if((!uop->decode.in_fusion) || uop->decode.is_fusion_head)
