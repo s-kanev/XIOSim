@@ -109,6 +109,13 @@ class core_commit_t
   virtual void ROB_insert(struct uop_t * const uop) = 0;
   virtual void ROB_fuse_insert(struct uop_t * const uop) = 0;
 
+  virtual bool pre_commit_available(void) = 0;
+  virtual void pre_commit_insert(struct uop_t * const uop) = 0;
+  virtual void pre_commit_fused_insert(struct uop_t * const uop) = 0;
+  virtual void pre_commit_step(void) = 0;
+  virtual void pre_commit_recover(struct Mop_t * const Mop) = 0;
+  virtual int squash_uop(struct uop_t * const uop) = 0;
+
   protected:
 
   struct core_t * core;

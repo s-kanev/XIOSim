@@ -152,6 +152,13 @@ class core_exec_t
      microarchitectural state is consistent. */
   virtual void recover_check_assertions(void) = 0;
 
+  virtual void step(void) = 0;
+  virtual bool exec_empty(void) = 0;
+  virtual void exec_fuse_insert(struct uop_t * const uop) = 0;
+  virtual void exec_insert(struct uop_t * const uop) = 0;
+  virtual bool port_available(int port_ind) = 0;
+  virtual bool exec_fused_ST(struct uop_t * const uop) = 0;
+ 
   protected:
   struct core_t * core;
 

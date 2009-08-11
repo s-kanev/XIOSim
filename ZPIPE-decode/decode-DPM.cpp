@@ -4,7 +4,8 @@
  */
 
 #ifdef ZESTO_PARSE_ARGS
-  if(!strcasecmp(decode_opt_string,"DPM"))
+  if(!strcasecmp(decode_opt_string,"DPM")
+		  || !strcasecmp(decode_opt_string,"IO-DPM"))
     return new core_decode_DPM_t(core);
 #else
 

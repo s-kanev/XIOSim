@@ -11,7 +11,7 @@ int fib(int n)
 main()
 {
   int i;
-  for(i=0;i<17;i++)
+  for(i=0;i<29;i++)
     fprintf(stderr,"fib(%d) = %d\n",i,fib(i));
   return 0;
 }

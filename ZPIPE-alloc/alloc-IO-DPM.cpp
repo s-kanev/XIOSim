@@ -5,11 +5,11 @@
 
 
 #ifdef ZESTO_PARSE_ARGS
-  if(!strcasecmp(alloc_opt_string,"DPM"))
-    return new core_alloc_DPM_t(core);
+  if(!strcasecmp(alloc_opt_string,"IO-DPM"))
+    return new core_alloc_IO_DPM_t(core);
 #else
-
-class core_alloc_DPM_t:public core_alloc_t
+    
+class core_alloc_IO_DPM_t:public core_alloc_t
 {
   enum alloc_stall_t {ASTALL_NONE,   /* no stall */
                       ASTALL_EMPTY,
@@ -24,7 +24,7 @@ class core_alloc_DPM_t:public core_alloc_t
 
   public:
 
-  core_alloc_DPM_t(struct core_t * const core);
+  core_alloc_IO_DPM_t(struct core_t * const core);
   virtual void reg_stats(struct stat_sdb_t * const sdb);
 
   virtual void step(void);
@@ -44,7 +44,7 @@ class core_alloc_DPM_t:public core_alloc_t
   static const char *alloc_stall_str[ASTALL_num];
 };
 
-const char *core_alloc_DPM_t::alloc_stall_str[ASTALL_num] = {
+const char *core_alloc_IO_DPM_t::alloc_stall_str[ASTALL_num] = {
   "no stall                   ",
   "no uops to allocate        ",
   "ROB is full                ",
@@ -59,7 +59,7 @@ const char *core_alloc_DPM_t::alloc_stall_str[ASTALL_num] = {
 /* SETUP FUNCTIONS */
 /*******************/
 
-core_alloc_DPM_t::core_alloc_DPM_t(struct core_t * const arg_core)
+core_alloc_IO_DPM_t::core_alloc_IO_DPM_t(struct core_t * const arg_core)
 {
   struct core_knobs_t * knobs = arg_core->knobs;
   core = arg_core;
@@ -91,7 +91,7 @@ core_alloc_DPM_t::core_alloc_DPM_t(struct core_t * const arg_core)
 }
 
 void
-core_alloc_DPM_t::reg_stats(struct stat_sdb_t * const sdb)
+core_alloc_IO_DPM_t::reg_stats(struct stat_sdb_t * const sdb)
 {
   char buf[1024];
   char buf2[1024];
@@ -130,13 +130,12 @@ core_alloc_DPM_t::reg_stats(struct stat_sdb_t * const sdb)
 /* MAIN ALLOC FUNCTIONS */
 /************************/
 
-void core_alloc_DPM_t::step(void)
+void core_alloc_IO_DPM_t::step(void)
 {
   struct core_knobs_t * knobs = core->knobs;
   int stage, i;
   enum alloc_stall_t stall_reason = ASTALL_NONE;
 
-  class io_exec_t * io_exec = static_cast<io_exec_t>(core->exec);
 
   /*========================================================================*/
   /*== Dispatch insts if ROB, RS, and LQ/SQ entries available (as needed) ==*/
@@ -151,10 +150,9 @@ void core_alloc_DPM_t::step(void)
       /* if using drain flush: */
       /* is the back-end still draining from a misprediction recovery? */
 
-// SK - TODO: rethink!
       if(knobs->alloc.drain_flush && drain_in_progress)
       {
-        if(!core->commit->ROB_empty())
+        if(!core->commit->ROB_empty() || !core->exec->exec_empty())
         {
           stall_reason = ASTALL_DRAIN;
           break;
@@ -169,173 +167,178 @@ void core_alloc_DPM_t::step(void)
         {
           if(uop->timing.when_allocated == TICK_T_MAX)
           {
-// SK - no ROB - after selecting port, check availability there
             /* is the ROB full? */
+//SK - should already be in pipe_commit
 
-// SK - done in exec, after address generation
+// SK - done in exec(XXX:misnomer - issue), after address generation
             /* for loads, is the LDQ full? */
+// SK - XXX: brought back to alloc after check for port availability 
             
 
-// SK - TODO: Remove, place in backend
-            if(uop->decode.is_sta && !core->exec->STQ_available())
-            {
-              stall_reason = ASTALL_STQ;
-              abort_alloc = true;
-              break;
-            }
+// SK - done in commit pipe
+            /* is the STQ full? */
 
-            //moved to end of exec
-            //do only Mops commit - may still need an ROB
+//SK - moved to end of exec
             /* place in ROB */
-//            if((!uop->decode.in_fusion) || uop->decode.is_fusion_head)
-//              core->commit->ROB_insert(uop);
-//            else /* fusion body doesn't occupy additional ROB entries */
-//              core->commit->ROB_fuse_insert(uop);
 
             /* place in LDQ/STQ if needed */
 //SK - done in exec->step
 
-//SK - TODO: should be done in commit pipe
-//            else if(uop->decode.is_sta)
-//              core->exec->STQ_insert_sta(uop);
-//            else if(uop->decode.is_std)
-//              core->exec->STQ_insert_std(uop);
+//SK - done in commit pipe
+            /* insert in STQ */
 
             /* all store uops had better be marked is_std */
             zesto_assert((!(uop->decode.opflags & F_STORE)) || uop->decode.is_std,(void)0);
             zesto_assert((!(uop->decode.opflags & F_LOAD)) || uop->decode.is_load,(void)0);
 
             /* port bindings */
-            if(!uop->decode.is_nop && !uop->Mop->decode.is_trap)
-            {
-              /* port-binding is trivial when there's only one valid port */
-              if(knobs->exec.port_binding[uop->decode.FU_class].num_FUs == 1)
-              {
-                int port_ind = knobs->exec.port_binding[uop->decode.FU_class].ports[0];
-                
-                if(!knobs->exec.port_available(port_ind))
-                {
-                   stall_reason = ASTALL_WAIT_EXEC;
-		   abort_alloc = true;
-		   break;		      
-                }
 
-                uop->alloc.port_assignment = port_ind;
-              }
-              else /* else assign uop to least loaded port */
+            /* fused instructions go together as atomic ops */
+            if(uop->decode.in_fusion && !uop->decode.is_fusion_head)
+               uop->alloc.port_assignment = uop->decode.fusion_head->alloc.port_assignment;
+            else
+            {
+              /* assign uop to least loaded port */
+              int min_load = INT_MAX;
+              int index = -1;
+              struct uop_t * exec_uop = uop;
+
+              /* should trigger for fusion head */
+              if(uop->decode.in_fusion && uop->decode.is_load)
               {
-                int min_load = INT_MAX;
-                int index = -1;
-                for(int j=0;j<knobs->exec.port_binding[uop->decode.FU_class].num_FUs;j++)
+
+                 /* assume we're fusing max LD-OP-STA-STD; if so, we do the port binding based on the actual OP, not on the fusion head (LD). This relies that all execution port can do LDs */
+                   
+                 zesto_assert(uop->decode.fusion_next, (void)0);
+                 zesto_assert(!uop->decode.fusion_next->decode.is_load, (void)0);
+                 zesto_assert(!uop->decode.fusion_next->decode.is_sta, (void)0);
+                 zesto_assert(!uop->decode.fusion_next->decode.is_std, (void)0);
+
+                 exec_uop = uop->decode.fusion_next;
+              }
+
+              /* nops and traps should also be alloced to keep program order */
+              if(exec_uop->decode.is_nop || exec_uop->Mop->decode.is_trap)
+              {
+                 zesto_assert(exec_uop->decode.FU_class == FU_NA, (void)0);
+                 for(int j=0;j<knobs->exec.num_exec_ports;j++)
+                 {
+                    if(core->exec->port_available(j) && port_loading[j] < min_load)
+                    {
+                       min_load = port_loading[j];
+                       index = j;
+                    }
+                 }
+              }
+              else /* if not nop or trap */
+              {
+                for(int j=0;j<knobs->exec.port_binding[exec_uop->decode.FU_class].num_FUs;j++)
                 {
-                  int port = knobs->exec.port_binding[uop->decode.FU_class].ports[j];
-                  if((knobs->exec.port_available(port)) && (port_loading[port] < min_load))
+                  int port = knobs->exec.port_binding[exec_uop->decode.FU_class].ports[j];
+                  if((core->exec->port_available(port)) && (port_loading[port] < min_load))
                   {
                     min_load = port_loading[port];
                     index = port;
                   }
-                 }
-                 /* no available port */
-                 if(index == -1)
-                 {
-                   stall_reason = ASTALL_WAIT_EXEC;
-		   abort_alloc = true;
-		   break;		                       
-                 }
-                 uop->alloc.port_assignment = index;
-               }
-               port_loading[uop->alloc.port_assignment]++;
-
-              /* only allocate for non-fused or fusion-head */
-               if((!uop->decode.in_fusion) || uop->decode.is_fusion_head)
-                 core->exec->exec_insert(uop);
-               else
-                 core->exec->exec_fuse_insert(uop);
-
-              /* Get input mappings - this is a proxy for explicit register numbers, which
-                 you can always get from idep_uop->alloc.ROB_index */
-              for(int j=0;j<MAX_IDEPS;j++)
-              {
-                /* This use of oracle info is valid: at this point the processor would be
-                   looking up this information in the RAT, but this saves us having to
-                   explicitly store/track the RAT state. */
-                uop->exec.idep_uop[j] = uop->oracle.idep_uop[j];
-
-                /* Add self onto parent's output list.  This output list doesn't
-                   have a real microarchitectural counter part, but it makes the
-                   simulation faster by not having to perform a whole mess of
-                   associative searches each time any sort of broadcast is needed.
-                   The parent's odep list only points to uops which have dispatched
-                   into the OOO core (i.e. has left the alloc pipe). */
-                if(uop->exec.idep_uop[j])
-                {
-                  struct odep_t * odep = core->get_odep_link();
-                  odep->next = uop->exec.idep_uop[j]->exec.odep_uop;
-                  uop->exec.idep_uop[j]->exec.odep_uop = odep;
-                  odep->uop = uop;
-                  odep->aflags = (uop->decode.idep_name[j] == DCREG(MD_REG_AFLAGS));
-                  odep->op_num = j;
                 }
               }
-
-              /* check "scoreboard" for operand readiness (we're not actually
-                 explicitly implementing a scoreboard); if value is ready, read
-                 it into data-capture window or payload RAM. */
-              tick_t when_ready = 0;
-              for(int j=0;j<MAX_IDEPS;j++) /* for possible input argument */
+              /* no available port */
+              if(index == -1)
               {
-                if(uop->exec.idep_uop[j]) /* if the parent uop exists (i.e., still in the processor) */
-                {
-                  uop->timing.when_itag_ready[j] = uop->exec.idep_uop[j]->timing.when_otag_ready;
-                  if(uop->exec.idep_uop[j]->exec.ovalue_valid)
-                  {
-                    uop->timing.when_ival_ready[j] = uop->exec.idep_uop[j]->timing.when_completed;
-                    uop->exec.ivalue_valid[j] = true;
-                    if(uop->decode.idep_name[j] == DCREG(MD_REG_AFLAGS))
-                      uop->exec.ivalue[j].dw = uop->exec.idep_uop[j]->exec.oflags;
-                    else
-                      uop->exec.ivalue[j] = uop->exec.idep_uop[j]->exec.ovalue;
-                  }
-                }
-                else /* read from ARF */
-                {
-                  uop->timing.when_itag_ready[j] = sim_cycle;
-                  uop->timing.when_ival_ready[j] = sim_cycle;
-                  uop->exec.ivalue_valid[j] = true; /* applies to invalid (DNA) inputs as well */
-                  if(uop->decode.idep_name[j] != DNA)
-                    uop->exec.ivalue[j] = uop->oracle.ivalue[j]; /* oracle value == architected value */
-                }
-                if(when_ready < uop->timing.when_itag_ready[j])
-                  when_ready = uop->timing.when_itag_ready[j];
+                 stall_reason = ASTALL_WAIT_EXEC;
+                 abort_alloc = true;
+                 break;		                       
               }
-              uop->timing.when_ready = when_ready;
+              uop->alloc.port_assignment = index;
+            }
+            port_loading[uop->alloc.port_assignment]++;
+
+
+//SK - add loads to LDQ here (not in issue pipe anymore)
+            if(uop->decode.is_load)
+            {
+              /* due to IO pipe, LDQ should always be available */
+              zesto_assert(core->exec->LDQ_available(), (void)0);
+              zesto_assert(uop->alloc.LDQ_index == -1, (void)0);
+
+              core->exec->LDQ_insert(uop);
+            }
+
+            /* only allocate for non-fused or fusion-head */
+            if((!uop->decode.in_fusion) || uop->decode.is_fusion_head)
+              core->exec->exec_insert(uop);
+            else
+              core->exec->exec_fuse_insert(uop);
+
+            /* Get input mappings - this is a proxy for explicit register numbers, which
+               you can always get from idep_uop->alloc.ROB_index */
+            for(int j=0;j<MAX_IDEPS;j++)
+            {
+              /* This use of oracle info is valid: at this point the processor would be
+                 looking up this information in the RAT, but this saves us having to
+                 explicitly store/track the RAT state. */
+              uop->exec.idep_uop[j] = uop->oracle.idep_uop[j];
+
+              /* Add self onto parent's output list.  This output list doesn't
+                 have a real microarchitectural counter part, but it makes the
+                 simulation faster by not having to perform a whole mess of
+                 associative searches each time any sort of broadcast is needed.
+                 The parent's odep list only points to uops which have dispatched
+                 into the OOO core (i.e. has left the alloc pipe). */
+              if(uop->exec.idep_uop[j])
+              {
+                struct odep_t * odep = core->get_odep_link();
+                odep->next = uop->exec.idep_uop[j]->exec.odep_uop;
+                uop->exec.idep_uop[j]->exec.odep_uop = odep;
+                odep->uop = uop;
+                odep->aflags = (uop->decode.idep_name[j] == DCREG(MD_REG_AFLAGS));
+                odep->op_num = j;
+              }
+            }
+
+            /* check "scoreboard" for operand readiness (we're not actually
+               explicitly implementing a scoreboard); if value is ready, read
+               it into data-capture window or payload RAM. */
+            tick_t when_ready = 0;
+            for(int j=0;j<MAX_IDEPS;j++) /* for possible input argument */
+            {
+              if(uop->exec.idep_uop[j]) /* if the parent uop exists (i.e., still in the processor) */
+              {
+                uop->timing.when_itag_ready[j] = uop->exec.idep_uop[j]->timing.when_otag_ready;
+                if(uop->exec.idep_uop[j]->exec.ovalue_valid)
+                {
+                  uop->timing.when_ival_ready[j] = uop->exec.idep_uop[j]->timing.when_completed;
+                  uop->exec.ivalue_valid[j] = true;
+                  if(uop->decode.idep_name[j] == DCREG(MD_REG_AFLAGS))
+                    uop->exec.ivalue[j].dw = uop->exec.idep_uop[j]->exec.oflags;
+                  else
+                    uop->exec.ivalue[j] = uop->exec.idep_uop[j]->exec.ovalue;
+                }
+              }
+              else /* read from ARF */
+              {
+                uop->timing.when_itag_ready[j] = sim_cycle;
+                uop->timing.when_ival_ready[j] = sim_cycle;
+                uop->exec.ivalue_valid[j] = true; /* applies to invalid (DNA) inputs as well */
+                if(uop->decode.idep_name[j] != DNA)
+                  uop->exec.ivalue[j] = uop->oracle.ivalue[j]; /* oracle value == architected value */
+              }
+              if(when_ready < uop->timing.when_itag_ready[j])
+                when_ready = uop->timing.when_itag_ready[j];
+            }
+            uop->timing.when_ready = when_ready;
 //SK - NO rQ
 //              if(when_ready < TICK_T_MAX) /* add to readyQ if appropriate */
 //                core->exec->insert_ready_uop(uop);
 
-
-            }
-            else if(uop->decode.is_nop)
-            {
-              //TODO: Check if rest of pipe empty. If not, issue to keep IO execution
-            }
-            else /* is_trap */
-            {
-              /* Since traps/interrupts aren't really properly modeled in SimpleScalar, we just let
-                 it go through without doing anything. */
-              uop->timing.when_ready = sim_cycle;
-              uop->timing.when_issued = sim_cycle;
-              uop->timing.when_completed = sim_cycle;
-            }
-
             uop->timing.when_allocated = sim_cycle;
 
 #ifdef ZTRACE
-            ztrace_print_start(uop,"a|alloc:ROB=%d,",uop->alloc.ROB_index);
-            if(uop->alloc.RS_index == -1) // nop
-              ztrace_print_cont("RS=.");
-            else
-              ztrace_print_cont("RS=%d",uop->alloc.RS_index);
+//            ztrace_print_start(uop,"a|alloc:ROB=%d,",uop->alloc.ROB_index);
+ //           if(uop->alloc.RS_index == -1) // nop
+//              ztrace_print_cont("RS=.");
+//            else
+//              ztrace_print_cont("RS=%d",uop->alloc.RS_index);
             if(uop->decode.in_fusion && !uop->decode.is_fusion_head)
               ztrace_print_cont("f");
             ztrace_print_cont(":pb=%d",uop->alloc.port_assignment);
@@ -425,7 +428,7 @@ void core_alloc_DPM_t::step(void)
 /* start from most recently fetched, blow away everything until
    we find the Mop */
 void
-core_alloc_DPM_t::recover(const struct Mop_t * const Mop)
+core_alloc_IO_DPM_t::recover(const struct Mop_t * const Mop)
 {
   struct core_knobs_t * knobs = core->knobs;
   int stage,i;
@@ -449,7 +452,7 @@ core_alloc_DPM_t::recover(const struct Mop_t * const Mop)
 
 /* clean up on pipeline flush (blow everything away) */
 void
-core_alloc_DPM_t::recover(void)
+core_alloc_IO_DPM_t::recover(void)
 {
   struct core_knobs_t * knobs = core->knobs;
   int stage,i;
@@ -470,13 +473,13 @@ core_alloc_DPM_t::recover(void)
   }
 }
 
-void core_alloc_DPM_t::RS_deallocate(const struct uop_t * const uop)
+void core_alloc_IO_DPM_t::RS_deallocate(const struct uop_t * const uop)
 {
   zesto_assert(port_loading[uop->alloc.port_assignment] > 0,(void)0);
   port_loading[uop->alloc.port_assignment]--;
 }
 
-void core_alloc_DPM_t::start_drain(void)
+void core_alloc_IO_DPM_t::start_drain(void)
 {
   drain_in_progress = true;
 }

@@ -413,6 +413,7 @@ struct core_knobs_t
     int ROB_size;
     int width;
     int branch_limit; /* maximum number of branches committed per cycle */
+    int pre_commit_depth;
   } commit;
 };
 

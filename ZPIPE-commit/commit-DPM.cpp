@@ -34,6 +34,14 @@ class core_commit_DPM_t:public core_commit_t
   virtual void ROB_insert(struct uop_t * const uop);
   virtual void ROB_fuse_insert(struct uop_t * const uop);
 
+  virtual void pre_commit_insert(struct uop_t * const uop);
+  virtual void pre_commit_fused_insert(struct uop_t * const uop);
+  virtual bool pre_commit_available();
+  virtual void pre_commit_step();
+  virtual void pre_commit_recover(struct Mop_t * const Mop);
+  virtual int squash_uop(struct uop_t * const uop);
+
+  
   protected:
 
   struct uop_t ** ROB;
@@ -963,5 +971,31 @@ void core_commit_DPM_t::ROB_fuse_insert(struct uop_t * const uop)
   uop->alloc.ROB_index = uop->decode.fusion_head->alloc.ROB_index;
   ROB_eff_num++;
 }
+
+void core_commit_DPM_t::pre_commit_insert(struct uop_t * const uop)
+{
+  fatal("shouldn't be called");
+}
+void core_commit_DPM_t::pre_commit_fused_insert(struct uop_t * const uop)
+{
+  fatal("shouldn't be called");
+}
+bool core_commit_DPM_t::pre_commit_available()
+{
+  fatal("shouldn't be called");
+}
+void core_commit_DPM_t::pre_commit_step()
+{
+  fatal("shouldn't be called");
+}
+void core_commit_DPM_t::pre_commit_recover(struct Mop_t * const Mop)
+{
+  fatal("shouldn't be called");
+}
+int core_commit_DPM_t::squash_uop(struct uop_t * const uop)
+{
+  fatal("shouldn't be called");
+}
+
 
 #endif

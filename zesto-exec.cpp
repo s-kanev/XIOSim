@@ -79,6 +79,7 @@
 #include "zesto-oracle.h"
 #include "zesto-alloc.h"
 #include "zesto-exec.h"
+#include "zesto-commit.h"
 #include "zesto-memdep.h"
 #include "zesto-prefetch.h"
 #include "zesto-uncore.h"

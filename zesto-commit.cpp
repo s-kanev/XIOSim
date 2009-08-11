@@ -95,6 +95,8 @@ void commit_reg_options(struct opt_odb_t * odb, struct core_knobs_t * knobs)
       &knobs->commit.width, /*default*/ knobs->commit.width, /*print*/true,/*format*/NULL);
   opt_reg_int(odb, "-commit:branches","maximum number of branches committed per cycle [D]",
       &knobs->commit.branch_limit, /*default*/ knobs->commit.branch_limit, /*print*/true,/*format*/NULL);
+  opt_reg_int(odb, "-pre_commit:depth", "depth of pipeline between exec and commit [DS]",
+      &knobs->commit.pre_commit_depth, /*defaukt*/ knobs->commit.pre_commit_depth, /*print*/true,/*format*/NULL);
 }
 
 

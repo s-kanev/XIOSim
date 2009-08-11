@@ -77,6 +77,13 @@ class core_exec_DPM_t:public core_exec_t
 
   virtual void recover_check_assertions(void);
 
+  virtual void step();
+  virtual void exec_fuse_insert(struct uop_t * const uop);
+  virtual bool exec_empty(void);
+  virtual void exec_insert(struct uop_t * const uop);
+  virtual bool port_available(int port_ind);
+  virtual bool exec_fused_ST(struct uop_t * const uop);
+
   protected:
   struct readyQ_node_t * readyQ_free_pool; /* for scheduling readyQ's */
 #ifdef DEBUG
@@ -2529,5 +2536,37 @@ bool core_exec_DPM_t::store_translated_callback(void * const op, const seq_t act
   zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < knobs->exec.STQ_size),true);
   return E->STQ[uop->alloc.STQ_index].translation_complete;
 }
+
+
+void core_exec_DPM_t::step()
+{
+  fatal("shouldn't be called");
+}
+
+void core_exec_DPM_t::exec_fuse_insert(struct uop_t * uop)
+{	
+  fatal("shouldn't be called");
+}
+
+void core_exec_DPM_t::exec_insert(struct uop_t * uop)
+{	
+  fatal("shouldn't be called");
+}
+
+bool core_exec_DPM_t::port_available(int port_ind)
+{	
+  fatal("shouldn't be called");
+}
+
+bool core_exec_DPM_t::exec_fused_ST(struct uop_t * const curr_uop)
+{
+ fatal("shouldn't be called");
+}
+
+bool core_exec_DPM_t::exec_empty(void)
+{
+  fatal("shouldn't be called");
+}
+
 
 #endif

@@ -150,6 +150,7 @@
 #include "zesto-uncore.h"
 #include "zesto-MC.h"
 
+ 
 /* architected state */
 struct thread_t ** threads = NULL;
 
@@ -174,7 +175,7 @@ sim_pre_init(void)
   memzero(&knobs,sizeof(knobs));
 
   /* set default parameters */
-  knobs.model = "DPM";
+  knobs.model = "IO-DPM";
 
   knobs.memory.IL1PF_opt_str[0] = "nextline";
   knobs.memory.IL1_num_PF = 1;
@@ -999,6 +1000,9 @@ sim_main(void)
     for(i=0;i<num_threads;i++)
       cores[i]->commit->step();
 
+    for(i=0;i<num_threads;i++)
+      cores[i]->commit->pre_commit_step();
+
     /* all memory processed here */
     for(i=0;i<num_threads;i++)
     {
@@ -1006,13 +1010,14 @@ sim_main(void)
          doesn't get continual priority over the others for L2 access */
       cores[mod2m(start_pos+i,num_threads)]->exec->LDST_exec();
     }
+    
     for(i=0;i<num_threads;i++)
-      cores[i]->exec->ALU_exec();
+       cores[i]->exec->step();
 
     for(i=0;i<num_threads;i++)
       cores[i]->exec->LDQ_schedule();
-    for(i=0;i<num_threads;i++)
-      cores[i]->exec->RS_schedule();
+//    for(i=0;i<num_threads;i++)
+//      cores[i]->exec->RS_schedule();
     
     for(i=0;i<num_threads;i++)
       cores[i]->alloc->step();

@@ -77,6 +77,14 @@ class core_exec_STM_t:public core_exec_t
 
   virtual void recover_check_assertions(void);
 
+  virtual void step();
+  virtual void exec_fuse_insert(struct uop_t * const uop);
+  virtual bool exec_empty(void);
+  virtual void exec_insert(struct uop_t * const uop);
+  virtual bool port_available(int port_ind);
+  virtual bool exec_fused_ST(struct uop_t * const uop);
+	
+  
   protected:
   struct readyQ_node_t * readyQ_free_pool; /* for scheduling readyQ's */
 #ifdef DEBUG
@@ -1583,6 +1591,36 @@ void core_exec_STM_t::ALU_heap_remove(struct uop_action_t * const pipe, const in
     else
       return;
   }
+}
+
+void core_exec_STM_t::step()
+{
+  fatal("shouldn't be called");
+}
+        
+void core_exec_STM_t::exec_fuse_insert(struct uop_t * uop)
+{       
+  fatal("shouldn't be called");
+}
+
+void core_exec_STM_t::exec_insert(struct uop_t * uop)
+{
+  fatal("shouldn't be called");
+}
+
+bool core_exec_STM_t::port_available(int port_ind)
+{      
+  fatal("shouldn't be called");
+}
+
+bool core_exec_STM_t::exec_fused_ST(struct uop_t * const curr_uop)
+{
+ fatal("shouldn't be called");
+}
+
+bool core_exec_STM_t::exec_empty()
+{
+  fatal("shouldn't be called");
 }
 
 #endif
