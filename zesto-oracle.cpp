@@ -1495,8 +1495,11 @@ void core_oracle_t::pipe_recover(struct Mop_t * const Mop, const md_addr_t New_P
     if(Mop->fetch.bpred_update)
       core->fetch->bpred->recover(Mop->fetch.bpred_update,(New_PC != (Mop->fetch.PC + Mop->fetch.inst.len)));
     /*core->oracle->*/recover(Mop);
-    core->commit->recover(Mop);
+
+    //XXX: A bit stupid - recovery should be done from youngest (most speculative op), swap commit and exec;
     core->exec->recover(Mop);
+    core->commit->recover(Mop);
+
     core->alloc->recover(Mop);
     core->decode->recover(Mop);
     core->fetch->recover(New_PC);

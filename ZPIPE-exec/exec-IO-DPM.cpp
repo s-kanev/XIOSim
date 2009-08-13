@@ -2253,7 +2253,7 @@ void core_exec_IO_DPM_t::recover(const struct Mop_t * const Mop)
   }
 
 
-  /* this pretty much clears dependency pointers and LD/ST queus */
+  /* this pretty much clears dependency pointers and LD/ST queues */
   /* should be called in program order; XXX: move to oracle??? */
   for(it=flushed_uops.begin(); it!=flushed_uops.end(); it++)
   {
@@ -3268,8 +3268,6 @@ void core_exec_IO_DPM_t::step()
 /* not entirely sure what the architectural counterpart of this is(scoreboard?), but we use it in the simulator to check if issuing won't break the program order (after issue no reordering can be done) */
 bool core_exec_IO_DPM_t::can_issue_IO(struct uop_t * const uop)
 {
-  struct Mop_t * Mop = uop->Mop;
-  core_oracle_t * oracle = core->oracle;
   struct core_knobs_t * knobs = core->knobs;
  
   /* Assuming we issue now, when will the value be ready - used to check if we don't break execution order if we issue */
@@ -3307,7 +3305,7 @@ bool core_exec_IO_DPM_t::can_issue_IO(struct uop_t * const uop)
                if(uop->decode.uop_seq > curr_uop->decode.uop_seq)
                {
 /* when_otag_rady should be already assigned for instructions in exec */
-                 if(when_otag_ready <= curr_uop->timing.when_otag_ready)
+                 if(when_otag_ready < curr_uop->timing.when_otag_ready)
                     return false;
                }
 
@@ -3347,7 +3345,7 @@ bool core_exec_IO_DPM_t::can_issue_IO(struct uop_t * const uop)
                  when_curr_ready = sim_cycle + port[curr_uop->alloc.port_assignment].FU[curr_uop->decode.FU_class]->latency + curr_fp_penalty;
              }
 
-             if(when_otag_ready <= when_curr_ready)
+             if(when_otag_ready < when_curr_ready)
               return false;
         }
 

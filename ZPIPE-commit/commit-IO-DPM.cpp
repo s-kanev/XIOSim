@@ -96,7 +96,7 @@ core_commit_IO_DPM_t::core_commit_IO_DPM_t(struct core_t * const arg_core):
   if(!ROB)
     fatal("couldn't calloc ROB");
 
-  pre_commit_pipe = (struct uop_t**) calloc(knobs->commit.pre_commit_depth-1, sizeof(*pre_commit_pipe));
+  pre_commit_pipe = (struct uop_t**) calloc(knobs->commit.pre_commit_depth, sizeof(*pre_commit_pipe));
   if(!pre_commit_pipe)
     fatal("couldn't calloc pre-commit pipe");
 
@@ -994,12 +994,26 @@ void core_commit_IO_DPM_t::ROB_fuse_insert(struct uop_t * const uop)
 
 bool core_commit_IO_DPM_t::pre_commit_available()
 {
-  return (pre_commit_pipe[0] == NULL);
+  struct core_knobs_t * knobs = core->knobs; 
+  for(int i=knobs->commit.width-1; i>-1; i--)
+    if(pre_commit_pipe[i] == NULL)
+      return true;
+
+  return false;
 }
 
 void core_commit_IO_DPM_t::pre_commit_insert(struct uop_t * const uop)
 {
-  pre_commit_pipe[0] = uop;
+  struct core_knobs_t * knobs = core->knobs; 
+  int i = knobs->commit.width-1;
+  for(; i>-1; i--)
+    if(pre_commit_pipe[i] == NULL)
+    {  
+       pre_commit_pipe[i] = uop;
+       break;
+    }
+
+  zesto_assert(i > -1, (void)0);
 }
 
 void core_commit_IO_DPM_t::pre_commit_fused_insert(struct uop_t * const uop)
@@ -1016,43 +1030,56 @@ void core_commit_IO_DPM_t::pre_commit_step()
   struct core_knobs_t * knobs = core->knobs;
   int stage = knobs->commit.pre_commit_depth-1;
 
-  struct uop_t * uop = pre_commit_pipe[stage];
+  struct uop_t * uop;
 
   bool stall = false;
 
-  while(uop)
+  //send uops at the end of pipe to commit
+  for(int j=0; j < knobs->commit.width; j++)
   {
-    if((!uop->decode.in_fusion) || uop->decode.is_fusion_head)
+    stage-=j;
+    uop = pre_commit_pipe[stage];   
+
+    while(uop)
     {
-      if(!this->ROB_available())// || this->is_stall()) - wrong! stall doesn't mean no new uops in ROB - breaks whole system
+      if((!uop->decode.in_fusion) || uop->decode.is_fusion_head)
       {
-        stall = true;
+        if(!this->ROB_available())// || this->is_stall()) - wrong! stall doesn't mean no new uops in ROB - breaks whole system
+        {
+          stall = true;
+        }
+        else
+          this->ROB_insert(uop);
       }
       else
-        this->ROB_insert(uop);
-    }
-    else
-      this->ROB_fuse_insert(uop);
+        this->ROB_fuse_insert(uop);
 
-   if(uop->decode.in_fusion)
-     uop = uop->decode.fusion_next;
-   else
-     uop = NULL;
-  }
+     if(uop->decode.in_fusion)
+       uop = uop->decode.fusion_next;
+     else
+       uop = NULL;
+    }
   
-  if(!stall)
-  {
-    pre_commit_pipe[stage] = NULL;
+    if(stall)
+      return;
 
-   //shuffle stages forward
-    for(;stage > 0; stage--)
+
+    pre_commit_pipe[stage] = NULL;
+  }
+   
+  //shuffle the rest of the pipe forward
+  stage--;
+  int dest_stage;
+  for(;stage > -1; stage--)
+  {
+    dest_stage = stage + knobs->commit.width;
+    if(pre_commit_pipe[stage])
     {
-      if(pre_commit_pipe[stage] == NULL && pre_commit_pipe[stage-1])
-      {
-        pre_commit_pipe[stage] = pre_commit_pipe[stage-1];
-        pre_commit_pipe[stage-1] = NULL;
-      }
-    }
+       //should already be NULL-ed
+       zesto_assert(pre_commit_pipe[dest_stage] == NULL, (void)0);
+       pre_commit_pipe[dest_stage] = pre_commit_pipe[stage];
+       pre_commit_pipe[stage] = NULL;
+    } 
   }
 }
 
