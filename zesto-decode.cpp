@@ -123,6 +123,8 @@ void decode_reg_options(struct opt_odb_t * odb, struct core_knobs_t * knobs)
       &knobs->decode.fusion_sta_std, /*default*/ false, /*print*/true,/*format*/NULL);
   opt_reg_flag(odb, "-fuse:partial","enable uop-fusion of partial register write combining uops [D]",
       &knobs->decode.fusion_partial, /*default*/ false, /*print*/true,/*format*/NULL);
+  opt_reg_flag(odb, "-fuse:ldopst","enable load-op-store fusion",
+      &knobs->decode.fusion_load_op_st, /*default*/ false, /*print*/true,/*format*/NULL);
 }
 
 

@@ -1707,6 +1707,7 @@ int md_fcc_eval(int cond, dword_t aflags, bool * bogus);
 #define FUSION_STA_STD 0x0002LL
 #define FUSION_PARTIAL 0x0004LL  /* for partial-register-write merging uops */
 /* to add: OP_OP, OP_ST */
+#define FUSION_LD_OP_ST 0x0008LL /* for atomic Mop execution */
 
 #define FUSION_TYPE(uop) (((uop_inst_t)((uop)->decode.raw_op)) >> 32)
 

@@ -128,6 +128,8 @@ core_decode_DPM_t::core_decode_DPM_t(struct core_t * const arg_core):
       knobs->decode.fusion_mode |= FUSION_STA_STD;
     if(knobs->decode.fusion_partial)
       knobs->decode.fusion_mode |= FUSION_PARTIAL;
+    if(knobs->decode.fusion_load_op_st)
+      knobs->decode.fusion_mode |= FUSION_LD_OP_ST;
   }
 }
 

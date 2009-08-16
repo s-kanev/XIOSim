@@ -351,6 +351,7 @@ struct core_knobs_t
     bool fusion_load_op;
     bool fusion_sta_std;
     bool fusion_partial;
+    bool fusion_load_op_st;
   } decode;
 
   struct {
