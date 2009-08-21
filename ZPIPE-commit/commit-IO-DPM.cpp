@@ -841,7 +841,7 @@ core_commit_IO_DPM_t::recover(const struct Mop_t * const Mop)
       continue;
 
     /* if younger than last uop of the given Mop */
-    if(curr_uop->Mop == Mop && !curr_uop->decode.EOM)
+    if(curr_uop->Mop == Mop && !curr_uop->decode.EOM && !curr_uop->decode.in_fusion)
       continue;
 
     last_squashed_pre = i;
