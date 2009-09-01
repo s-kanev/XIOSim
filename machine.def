@@ -16514,7 +16514,7 @@ CONNECT(FISTP_Mq_LINK)
 }
   DEFUOP(AGENW,      0x00,
       "agenw",    "%Dw,%Sw,%Tw,%Li,%Iw",
-      FU_IEU,      F_ICOMP,
+      FU_AGEN,      F_AGEN,
       DGPR_D(URD),
       DGPR_W(URS), DGPR_W(URT), DSEG(USG),
       DNA, DNA)
@@ -16532,7 +16532,7 @@ CONNECT(FISTP_Mq_LINK)
 }
   DEFUOP(AGEND,      0x00,
       "agend",    "%Dd,%Sd,%Td,%Li,%Id",
-      FU_IEU,      F_ICOMP,
+      FU_AGEN,      F_AGEN,
       DGPR_D(URD),
       DGPR_D(URS), DGPR_D(URT), DSEG(USG),
       DNA, DNA)

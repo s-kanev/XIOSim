@@ -235,6 +235,17 @@ void core_alloc_IO_DPM_t::step(void)
                 for(int j=0;j<knobs->exec.port_binding[exec_uop->decode.FU_class].num_FUs;j++)
                 {
                   int port = knobs->exec.port_binding[exec_uop->decode.FU_class].ports[j];
+
+                  /* XXX: quick workaround for *-ST fusion - check if port exists for next uop in fusion as well */
+                  if(exec_uop->decode.in_fusion && exec_uop->decode.fusion_next)
+                  { 
+                     bool has_next_port = false;
+                     for(int k=0;k<knobs->exec.port_binding[exec_uop->decode.fusion_next->decode.FU_class].num_FUs; k++)
+                        has_next_port |= (knobs->exec.port_binding[exec_uop->decode.fusion_next->decode.FU_class].ports[k] == port);
+                     if(!has_next_port)
+                       continue;
+                  }
+
                   if((core->exec->port_available(port)) && (port_loading[port] < min_load))
                   {
                     min_load = port_loading[port];

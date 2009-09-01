@@ -2997,9 +2997,12 @@ void core_exec_IO_DPM_t::step()
 
           /* at this point a LOAD means non-fused LOAD, already executed -> go to commit 
              stores here are also ready to go to pre-commit (they execute there). The uop is a fused STA-STD or non-fused, not part of larger fusion 
-             traps and NOPs also skip the execution units and go straight to pre_commit */
+             traps and NOPs also skip the execution units and go straight to pre_commit 
+             same happens for AGEN (generated mostly by LEA) */
+
          if(uop->decode.is_load || uop->decode.is_sta 
-               || uop->decode.is_nop || uop->Mop->decode.is_trap)
+               || uop->decode.is_nop || uop->Mop->decode.is_trap
+               || (uop->decode.opflags & F_AGEN) == F_AGEN)
           {
              if(!core->commit->pre_commit_available() || !can_issue_IO(uop))
              {
@@ -3227,12 +3230,53 @@ void core_exec_IO_DPM_t::step()
            {
              zesto_assert(curr_uop->alloc.LDQ_index != -1, (void)0);
 
-             /* this validates the AGEN from the prevous stage - in this case, just use the oracle value */
+             /* this validates the AGEN - just use the oracle value */
              LDQ[curr_uop->alloc.LDQ_index].virt_addr = curr_uop->oracle.virt_addr;
              LDQ[curr_uop->alloc.LDQ_index].addr_valid = true;
              curr_uop->timing.when_exec = sim_cycle;
              /* actual load processing in LDQ_schedule() */
 
+             break;
+           }
+
+           /* LEA workaround - execution of LEA instruction on the Atom happens in the AGU, not in the ALU (see Intel Optimization manual) */
+           if((curr_uop->decode.opflags & F_AGEN) == F_AGEN && !stall)
+           {
+             bool agen_ready = true;
+             for(int j=0;j<MAX_IDEPS;j++)
+                agen_ready &= curr_uop->exec.ivalue_valid[j];
+ 
+
+             if(!agen_ready)
+             {
+               stall = true;
+               if(port[i].when_stalled == 0)
+                 port[i].when_stalled = sim_cycle;
+
+               break;
+             }
+
+
+             curr_uop->exec.ovalue_valid = true;
+             curr_uop->exec.ovalue = uop->oracle.ovalue;
+
+             curr_uop->timing.when_exec = sim_cycle;
+             curr_uop->timing.when_completed = sim_cycle;
+
+             /* bypass output value to dependents */
+             struct odep_t * odep = curr_uop->exec.odep_uop;
+             while(odep)
+             {
+               zesto_assert(!odep->uop->exec.ivalue_valid[odep->op_num], (void)0);
+               odep->uop->exec.ivalue_valid[odep->op_num] = true;
+               if(odep->aflags)
+                 odep->uop->exec.ivalue[odep->op_num].dw = curr_uop->exec.oflags;
+               else
+                 odep->uop->exec.ivalue[odep->op_num] = curr_uop->exec.ovalue;
+
+               odep->uop->timing.when_ival_ready[odep->op_num] = sim_cycle;
+               odep = odep->next;
+             }
              break;
            }
 
@@ -3273,7 +3317,8 @@ bool core_exec_IO_DPM_t::can_issue_IO(struct uop_t * const uop)
   /* Assuming we issue now, when will the value be ready - used to check if we don't break execution order if we issue */
   tick_t when_otag_ready;
   if(!uop->decode.is_load && !uop->decode.is_sta && !uop->decode.is_std
-     && !uop->decode.is_nop && !uop->Mop->decode.is_trap)
+     && !uop->decode.is_nop && !uop->Mop->decode.is_trap
+     && (uop->decode.opflags & F_AGEN) != F_AGEN)
   {
     int fp_penalty = ((REG_IS_FPR(uop->decode.odep_name) && !(uop->decode.opflags & F_FCOMP)) ||
                      (!REG_IS_FPR(uop->decode.odep_name) && (uop->decode.opflags & F_FCOMP)))?knobs->exec.fp_penalty:0;
@@ -3333,7 +3378,7 @@ bool core_exec_IO_DPM_t::can_issue_IO(struct uop_t * const uop)
 /* when_completed should be already assigned (and reliable since only loads can have variable latencies, but they are already processed) */
 
              tick_t when_curr_ready;
-             if(curr_uop->decode.is_load)
+             if(curr_uop->decode.is_load || (curr_uop->decode.opflags & F_AGEN) == F_AGEN)
                 when_curr_ready = curr_uop->timing.when_completed;
              else if(curr_uop->decode.is_sta || curr_uop->decode.is_std
                      || curr_uop->decode.is_nop || curr_uop->Mop->decode.is_trap)

@@ -404,24 +404,7 @@ void core_commit_IO_DPM_t::step(void)
       break;
     }
 
-    struct Mop_t * Mop = ROB[ROB_head]->Mop;
-
-    /* stores get added to the store queue in commit! */
-    if(Mop->commit.complete_index != -1)
-    {
-      struct uop_t * curr_uop = &Mop->uop[Mop->commit.complete_index];
-      if(curr_uop->decode.is_sta)
-      {  
-        if(!core->exec->exec_fused_ST(curr_uop))
-        {
-           stall_reason = CSTALL_STQ;
-           break;
-        }
-      }
-    }
-
-//TODO: Add call to STQ_step here to ensure back to back execution
-    
+    struct Mop_t * Mop = ROB[ROB_head]->Mop; 
 
     /* For branches, don't commit until the corresponding jeclear
        (if any) has been processed by the front-end. */
@@ -443,9 +426,22 @@ void core_commit_IO_DPM_t::step(void)
     /* Are all uops in the Mop completed? */
     if(Mop->commit.complete_index != -1) /* still some outstanding insts */
     {
-      while(Mop->uop[Mop->commit.complete_index].timing.when_completed <= sim_cycle)
+      struct uop_t * uop = &Mop->uop[Mop->commit.complete_index];
+    
+      while(uop->timing.when_completed <= sim_cycle
+            || uop->decode.is_sta || uop->decode.is_std)
       {
-        struct uop_t * uop = &Mop->uop[Mop->commit.complete_index];
+        /* stores get added to the STQ at commit */
+        if(uop->decode.is_sta)
+        {  
+          if(!core->exec->exec_fused_ST(uop))
+          {
+             stall_reason = CSTALL_STQ;
+             break;
+          }
+        }
+
+        zesto_assert(uop->timing.when_completed <= sim_cycle, (void)0);
 
         Mop->commit.complete_index += uop->decode.has_imm ? 3 : 1;
         if(Mop->commit.complete_index >= Mop->decode.flow_length)
@@ -463,6 +459,8 @@ void core_commit_IO_DPM_t::step(void)
           }
           break;
         }
+
+        uop = &Mop->uop[Mop->commit.complete_index];
       }
     }
 
