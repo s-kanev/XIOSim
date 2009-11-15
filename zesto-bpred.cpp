@@ -677,10 +677,15 @@ oPC        - oracle PC or actual return address
   void reg_stats(struct stat_sdb_t * const sdb, struct core_t * const core)
 #define RAS_RESET_STATS_HEADER \
   void reset_stats(void)
+#define RAS_REAL_PUSH \
+  void real_push(const md_addr_t PC,const md_addr_t ftPC,const md_addr_t tPC,const md_addr_t oPC)
+#define RAS_REAL_POP \
+  md_addr_t real_pop(const md_addr_t PC,const md_addr_t tPC,const md_addr_t oPC)
 #define RAS_GET_STATE_HEADER \
   class RAS_chkpt_t * get_state(void)
 #define RAS_RET_STATE_HEADER \
   void ret_state(class RAS_chkpt_t * const cpvp)
+
 
 
 #include "ZCOMPS-ras.list"
@@ -737,6 +742,25 @@ RAS_t::push(
     const md_addr_t oraclePC)
 {
 }
+
+void
+RAS_t::real_push(
+    const md_addr_t PC,
+    const md_addr_t fallthruPC,
+    const md_addr_t targetPC,
+    const md_addr_t oraclePC)
+{
+}
+
+md_addr_t 
+RAS_t::real_pop(
+    const md_addr_t PC,
+    const md_addr_t tPC,
+    const md_addr_t oPC)
+{
+  return 0;
+}
+ 
 
 void RAS_t::recover(class RAS_chkpt_t * const cp)
 {
@@ -958,13 +982,15 @@ bpred_t::lookup(
 
 /*==================================================================*/
 /* Branch prediction update: this function is called at commit and
-   does not update the branch history registers.                    */
+   does not update the branch history registers.                    
+   XXX: not necessarily (see ras-multistack.cpp) */
 /*==================================================================*/
 void
 bpred_t::update(
     class bpred_state_cache_t * const sc,
     const unsigned int opflags,
     const md_addr_t PC,
+    const md_addr_t fallthruPC,
     const md_addr_t targetPC,
     const md_addr_t oraclePC,
     const bool outcome
@@ -988,6 +1014,8 @@ bpred_t::update(
     }
     else if(MD_IS_CALL(opflags))
     {
+      /* If ras supports a real stack, push there */
+      ras->real_push(PC,fallthruPC,targetPC,oraclePC);
       BPRED_STAT(ras->num_pushes++;)
       BPRED_STAT(num_call++;)
     }
@@ -1008,6 +1036,9 @@ bpred_t::update(
   }
   else
   {
+    /* If ras supports a real stack, pop from it */
+    ras->real_pop(PC,targetPC,oraclePC);
+    
     BPRED_STAT(ras->num_pops++;)
     if(sc->our_target == oraclePC)
       BPRED_STAT(ras->num_hits++;)

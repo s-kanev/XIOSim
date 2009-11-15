@@ -78,7 +78,8 @@ const char *core_commit_IO_DPM_t::commit_stall_str[CSTALL_num] = {
   "oldest inst partially done ",
   "ROB is empty               ",
   "Mop done, jeclear in flight",
-  "branch commit limit        "
+  "branch commit limit        ",
+  "STQ full (or cache not ok) "
 };
 
 /*******************/
@@ -453,7 +454,7 @@ void core_commit_IO_DPM_t::step(void)
           if(Mop->fetch.bpred_update)
           {
             core->fetch->bpred->update(Mop->fetch.bpred_update,Mop->decode.opflags,
-                Mop->fetch.PC, Mop->decode.targetPC, Mop->oracle.NextPC, (Mop->oracle.NextPC != (Mop->fetch.PC + Mop->fetch.inst.len)));
+                Mop->fetch.PC, Mop->fetch.PC+Mop->fetch.inst.len, Mop->decode.targetPC, Mop->oracle.NextPC, (Mop->oracle.NextPC != (Mop->fetch.PC + Mop->fetch.inst.len)));
             core->fetch->bpred->return_state_cache(Mop->fetch.bpred_update);
             Mop->fetch.bpred_update = NULL;
           }
@@ -484,7 +485,10 @@ void core_commit_IO_DPM_t::step(void)
       if(uop->decode.is_std) /* we alloc on STA, dealloc on STD */
       {
         if(!core->exec->STQ_deallocate_std(uop))
+        {
+          stall_reason = CSTALL_STQ;
           break;
+        }
       }
 
       /* any remaining transactions in-flight (only for loads)
@@ -835,7 +839,7 @@ core_commit_IO_DPM_t::recover(const struct Mop_t * const Mop)
       continue;    
 
     /* if uop older than squashed one, leave it to commit */
-    if(curr_uop->decode.Mop_seq < Mop->oracle.seq)
+    if(curr_uop->decode.Mop_seq <= Mop->oracle.seq)
       continue;
 
     /* if younger than last uop of the given Mop */
@@ -900,7 +904,7 @@ core_commit_IO_DPM_t::recover(const struct Mop_t * const Mop)
   /* do the same for pre_commit_pipe if there are speculative uops there */
   if(last_squashed_pre != -1)
   {
-    for(int index = 0; index < last_squashed_pre; index++)
+    for(int index = 0; index <= last_squashed_pre; index++)
     {
        struct uop_t * dead_uop = pre_commit_pipe[index];
 
@@ -910,6 +914,14 @@ core_commit_IO_DPM_t::recover(const struct Mop_t * const Mop)
        this->squash_uop(dead_uop);
        pre_commit_pipe[index] = NULL;
     }
+
+   //XXX: quick and dirty - above fails if last_squashed_pre == 0 
+/*   if(last_squashed_pre == 0)
+   {
+     if(pre_commit_pipe[0]) 
+       this->squash_uop(pre_commit_pipe[0]);
+     pre_commit_pipe[0] = NULL;
+   }*/
   }
 
 }
@@ -1012,6 +1024,28 @@ void core_commit_IO_DPM_t::pre_commit_insert(struct uop_t * const uop)
     }
 
   zesto_assert(i > -1, (void)0);
+
+
+  /*XXX: Quick and dirty IO fix: sometimes uops that are completed on the same cycle can be inserted here breaking program order. This happens if one uop doesn't use a functional unit (LD, ST, LEA, NOP, trap) and the other does. Due to the sequential code in exec, the uop that uses a FU will be added first. This has nothing to do with the actual hardware. So, if we see such a swapped pair, reverse them to keep program order... */
+
+//  for(i=knobs->commit.width-1;i>0;i--)
+//   if(pre_commit_pipe[i] && pre_commit_pipe[i-1] && pre_commit_pipe[i-1]->decode.uop_seq < pre_commit_pipe[i]->decode.uop_seq)
+//   {
+//     zesto_assert(pre_commit_pipe[i-1]->decode.FU_class == FU_NA ||
+//                  pre_commit_pipe[i-1]->decode.FU_class == FU_AGEN ||
+//                  pre_commit_pipe[i-1]->decode.FU_class == FU_LD || 
+//                  pre_commit_pipe[i-1]->decode.FU_class == FU_STA, (void)0);
+
+/*     zesto_assert(pre_commit_pipe[i]->decode.FU_class != FU_NA &&
+                  pre_commit_pipe[i]->decode.FU_class != FU_AGEN &&
+                  pre_commit_pipe[i]->decode.FU_class != FU_LD && 
+                  pre_commit_pipe[i]->decode.FU_class != FU_STA, (void)0);
+*/
+
+//     struct uop_t * tmp = pre_commit_pipe[i];
+//     pre_commit_pipe[i] = pre_commit_pipe[i-1];
+//     pre_commit_pipe[i-1] = tmp;
+//   }
 }
 
 void core_commit_IO_DPM_t::pre_commit_fused_insert(struct uop_t * const uop)

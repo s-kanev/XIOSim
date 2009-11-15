@@ -296,6 +296,9 @@ class core_t {
     counter_t STQ_full_cycles;
     counter_t STQ_empty_cycles;
 
+    counter_t port0_issue_occupancy;
+    counter_t port1_issue_occupancy;
+
     struct stat_stat_t *commit_stall;
 
     int flow_count;

@@ -792,6 +792,7 @@ exec_rep_again:
         core->fetch->bpred->update(Mop->fetch.bpred_update,
                                    Mop->decode.opflags,
                                    Mop->fetch.PC,
+                                   Mop->fetch.PC + Mop->fetch.inst.len,
                                    Mop->decode.targetPC,
                                    Mop->oracle.NextPC,
                                    (Mop->oracle.NextPC != (Mop->fetch.PC + Mop->fetch.inst.len)));
@@ -997,12 +998,6 @@ sim_main(void)
     for(i=0;i<num_threads;i++)
       step_core_PF_controllers(cores[i]);
 
-    for(i=0;i<num_threads;i++)
-      cores[i]->commit->step();
-
-    for(i=0;i<num_threads;i++)
-      cores[i]->commit->pre_commit_step();
-
     /* all memory processed here */
     for(i=0;i<num_threads;i++)
     {
@@ -1010,15 +1005,19 @@ sim_main(void)
          doesn't get continual priority over the others for L2 access */
       cores[mod2m(start_pos+i,num_threads)]->exec->LDST_exec();
     }
-    
-    for(i=0;i<num_threads;i++)
-       cores[i]->exec->step();
 
     for(i=0;i<num_threads;i++)
+      cores[i]->commit->step();
+
+    for(i=0;i<num_threads;i++)
+      cores[i]->commit->pre_commit_step();
+ 
+    for(i=0;i<num_threads;i++)
+      cores[i]->exec->step();
+ 
+    for(i=0;i<num_threads;i++)
       cores[i]->exec->LDQ_schedule();
-//    for(i=0;i<num_threads;i++)
-//      cores[i]->exec->RS_schedule();
-    
+
     for(i=0;i<num_threads;i++)
       cores[i]->alloc->step();
 

@@ -2406,10 +2406,11 @@
   UOP_R1(UV, XV(JMPR), XF_RM, FUSION_NONE);					\
 }
 
+/* on Atom LD and JEU are on different ports - no fusion */
 #define JMPN_Mv_FLOW							\
 {									\
   UOP_RLI_OV(UV, XAXV(LD), XR_TMP1, XF_SEG, XF_BASE, XF_INDEX, XF_SCALE, XF_DISP, FUSION_NONE);\
-  UOP_R1(UV, XV(JMPR), XR_TMP1, FUSION_LOAD_OP);					\
+  UOP_R1(UV, XV(JMPR), XR_TMP1, FUSION_NONE);					\
 }
 
 #define JMPN_RMv_FLOW							\

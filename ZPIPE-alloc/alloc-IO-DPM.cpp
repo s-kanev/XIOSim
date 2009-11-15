@@ -8,6 +8,9 @@
   if(!strcasecmp(alloc_opt_string,"IO-DPM"))
     return new core_alloc_IO_DPM_t(core);
 #else
+
+#include <list>
+using namespace std;
     
 class core_alloc_IO_DPM_t:public core_alloc_t
 {
@@ -42,6 +45,7 @@ class core_alloc_IO_DPM_t:public core_alloc_t
   int * port_loading;
 
   static const char *alloc_stall_str[ASTALL_num];
+  bool oldest_in_alloc(struct uop_t * uop);
 };
 
 const char *core_alloc_IO_DPM_t::alloc_stall_str[ASTALL_num] = {
@@ -129,6 +133,25 @@ core_alloc_IO_DPM_t::reg_stats(struct stat_sdb_t * const sdb)
 /************************/
 /* MAIN ALLOC FUNCTIONS */
 /************************/
+struct alloc_uop_t{
+  struct uop_t * uop;
+  int alloc_port;
+};
+
+
+bool core_alloc_IO_DPM_t::oldest_in_alloc(struct uop_t * uop)
+{
+  struct core_knobs_t * knobs = core->knobs;
+
+  for(int stage=knobs->alloc.depth-1; stage>=0; stage--)
+   for(int i=0; i<knobs->alloc.width; i++)
+     if(pipe[stage][i] && pipe[stage][i]->decode.uop_seq < 
+         uop->decode.uop_seq)
+         return false;
+
+  return true;
+
+}
 
 void core_alloc_IO_DPM_t::step(void)
 {
@@ -137,15 +160,43 @@ void core_alloc_IO_DPM_t::step(void)
   enum alloc_stall_t stall_reason = ASTALL_NONE;
 
 
+   list<struct alloc_uop_t *> alloced_uops;
+   list<struct alloc_uop_t *>::iterator it;
   /*========================================================================*/
-  /*== Dispatch insts if ROB, RS, and LQ/SQ entries available (as needed) ==*/
+  /*== Dispatch insts to the appropriate execution ports ==*/
   stage = knobs->alloc.depth-1;
   if(occupancy[stage]) /* are there uops in the last stage of the alloc pipe? */
   {
     for(i=0; i < knobs->alloc.width; i++) /* if so, scan all slots (width) of this stage */
     {
       struct uop_t * uop = pipe[stage][i];
+      if(uop)
+       {
+          struct alloc_uop_t * alloc_uop = new alloc_uop_t();
+          alloc_uop->uop = uop;
+          alloc_uop->alloc_port = i;
+
+          for(it=alloced_uops.begin(); it!=alloced_uops.end(); it++)
+          {
+             if((*it)->uop->decode.uop_seq > uop->decode.uop_seq)
+               break;
+          }
+          alloced_uops.insert(it, alloc_uop);
+       }
+    }
+
+    for(it=alloced_uops.begin(); it!=alloced_uops.end(); it++)
+    {
+      struct uop_t * uop = (*it)->uop;
+      i = (*it)->alloc_port;
       int abort_alloc = false;
+
+      if(!oldest_in_alloc(uop))
+      {
+         abort_alloc = true;
+         break;
+      }
+
 
       /* if using drain flush: */
       /* is the back-end still draining from a misprediction recovery? */
@@ -167,26 +218,6 @@ void core_alloc_IO_DPM_t::step(void)
         {
           if(uop->timing.when_allocated == TICK_T_MAX)
           {
-            /* is the ROB full? */
-//SK - should already be in pipe_commit
-
-// SK - done in exec(XXX:misnomer - issue), after address generation
-            /* for loads, is the LDQ full? */
-// SK - XXX: brought back to alloc after check for port availability 
-            
-
-// SK - done in commit pipe
-            /* is the STQ full? */
-
-//SK - moved to end of exec
-            /* place in ROB */
-
-            /* place in LDQ/STQ if needed */
-//SK - done in exec->step
-
-//SK - done in commit pipe
-            /* insert in STQ */
-
             /* all store uops had better be marked is_std */
             zesto_assert((!(uop->decode.opflags & F_STORE)) || uop->decode.is_std,(void)0);
             zesto_assert((!(uop->decode.opflags & F_LOAD)) || uop->decode.is_load,(void)0);
@@ -201,58 +232,61 @@ void core_alloc_IO_DPM_t::step(void)
               /* assign uop to least loaded port */
               int min_load = INT_MAX;
               int index = -1;
+              int j;
               struct uop_t * exec_uop = uop;
+              int *can_alloc;
 
-              /* should trigger for fusion head */
-              if(uop->decode.in_fusion && uop->decode.is_load)
+              can_alloc = (int*)calloc(knobs->exec.num_exec_ports,sizeof(int));
+              if(!can_alloc)
+                 fatal("couldn't alloc memory");
+              for(j=0;j<knobs->exec.num_exec_ports;j++)
+                 can_alloc[j] = true;
+
+
+              /* fused uops should all go toghether - we look for a port that can execute the whole fusion */
+              while(exec_uop)
               {
-
-                 /* assume we're fusing max LD-OP-STA-STD; if so, we do the port binding based on the actual OP, not on the fusion head (LD). This relies that all execution port can do LDs */
-                   
-                 zesto_assert(uop->decode.fusion_next, (void)0);
-                 zesto_assert(!uop->decode.fusion_next->decode.is_load, (void)0);
-                 zesto_assert(!uop->decode.fusion_next->decode.is_sta, (void)0);
-                 zesto_assert(!uop->decode.fusion_next->decode.is_std, (void)0);
-
-                 exec_uop = uop->decode.fusion_next;
-              }
-
-              /* nops and traps should also be alloced to keep program order */
-              if(exec_uop->decode.is_nop || exec_uop->Mop->decode.is_trap)
-              {
-                 zesto_assert(exec_uop->decode.FU_class == FU_NA, (void)0);
-                 for(int j=0;j<knobs->exec.num_exec_ports;j++)
-                 {
-                    if(core->exec->port_available(j) && port_loading[j] < min_load)
-                    {
-                       min_load = port_loading[j];
-                       index = j;
-                    }
-                 }
-              }
-              else /* if not nop or trap */
-              {
-                for(int j=0;j<knobs->exec.port_binding[exec_uop->decode.FU_class].num_FUs;j++)
+                /* nops and traps can issue everywhere (we alloc them to keep program order */
+                if(exec_uop->decode.is_nop || exec_uop->Mop->decode.is_trap)
                 {
-                  int port = knobs->exec.port_binding[exec_uop->decode.FU_class].ports[j];
-
-                  /* XXX: quick workaround for *-ST fusion - check if port exists for next uop in fusion as well */
-                  if(exec_uop->decode.in_fusion && exec_uop->decode.fusion_next)
-                  { 
-                     bool has_next_port = false;
-                     for(int k=0;k<knobs->exec.port_binding[exec_uop->decode.fusion_next->decode.FU_class].num_FUs; k++)
-                        has_next_port |= (knobs->exec.port_binding[exec_uop->decode.fusion_next->decode.FU_class].ports[k] == port);
-                     if(!has_next_port)
-                       continue;
-                  }
-
-                  if((core->exec->port_available(port)) && (port_loading[port] < min_load))
+                  zesto_assert(exec_uop->decode.FU_class == FU_NA, (void)0); 
+                }
+                else
+                {
+                  /* step through all exec ports and find if exec_uop can issue there; if not, we can't issue the whole fussion there */
+                  for(j=0;j<knobs->exec.num_exec_ports;j++)
                   {
-                    min_load = port_loading[port];
-                    index = port;
+                    bool port_possible = false;
+                    for(int k=0;k<knobs->exec.port_binding[exec_uop->decode.FU_class].num_FUs;k++)
+                    {
+                      if(knobs->exec.port_binding[exec_uop->decode.FU_class].ports[k] == j)
+                      {
+                        port_possible = true;
+                        break;
+                      }
+                    }
+                    can_alloc[j] &= port_possible;
                   }
                 }
+
+
+                if(exec_uop->decode.in_fusion)
+                  exec_uop = exec_uop->decode.fusion_next;
+                else
+                  exec_uop = NULL;                  
               }
+
+              for(j=0;j<knobs->exec.num_exec_ports;j++)
+              {
+                 if(can_alloc[j] && core->exec->port_available(j) && port_loading[j] < min_load)
+                 {
+                    min_load = port_loading[j];
+                    index = j;
+                 }
+              }
+
+              free(can_alloc);
+
               /* no available port */
               if(index == -1)
               {
@@ -265,7 +299,7 @@ void core_alloc_IO_DPM_t::step(void)
             port_loading[uop->alloc.port_assignment]++;
 
 
-//SK - add loads to LDQ here (not in issue pipe anymore)
+            //SK - add loads to LDQ here (not in issue pipe anymore)
             if(uop->decode.is_load)
             {
               /* due to IO pipe, LDQ should always be available */
@@ -338,18 +372,9 @@ void core_alloc_IO_DPM_t::step(void)
                 when_ready = uop->timing.when_itag_ready[j];
             }
             uop->timing.when_ready = when_ready;
-//SK - NO rQ
-//              if(when_ready < TICK_T_MAX) /* add to readyQ if appropriate */
-//                core->exec->insert_ready_uop(uop);
-
             uop->timing.when_allocated = sim_cycle;
 
 #ifdef ZTRACE
-//            ztrace_print_start(uop,"a|alloc:ROB=%d,",uop->alloc.ROB_index);
- //           if(uop->alloc.RS_index == -1) // nop
-//              ztrace_print_cont("RS=.");
-//            else
-//              ztrace_print_cont("RS=%d",uop->alloc.RS_index);
             if(uop->decode.in_fusion && !uop->decode.is_fusion_head)
               ztrace_print_cont("f");
             ztrace_print_cont(":pb=%d",uop->alloc.port_assignment);
@@ -392,6 +417,10 @@ void core_alloc_IO_DPM_t::step(void)
   else
     stall_reason = ASTALL_EMPTY;
 
+  for(it=alloced_uops.begin(); it!=alloced_uops.end(); it++)
+  {
+    delete (*it);
+  }
 
   /*=============================================*/
   /*== Shuffle uops down the rename/alloc pipe ==*/
@@ -399,19 +428,23 @@ void core_alloc_IO_DPM_t::step(void)
   /* walk pipe backwards */
   for(stage=knobs->alloc.depth-1; stage > 0; stage--)
   {
-    if(0 == occupancy[stage]) /* implementing non-serpentine pipe (no compressing) - can't advance until stage is empty */
+//    if(0 == occupancy[stage]) /* implementing non-serpentine pipe (no compressing) - can't advance until stage is empty */
+    if(occupancy[stage] < knobs->alloc.width)
     {
       /* move everyone from previous stage forward */
       for(i=0;i<knobs->alloc.width;i++)
       {
-        pipe[stage][i] = pipe[stage-1][i];
-        pipe[stage-1][i] = NULL;
-        if(pipe[stage][i])
+        if(pipe[stage][i] == NULL)
         {
-          occupancy[stage]++;
-          occupancy[stage-1]--;
-          zesto_assert(occupancy[stage] <= knobs->alloc.width,(void)0);
-          zesto_assert(occupancy[stage-1] >= 0,(void)0);
+           pipe[stage][i] = pipe[stage-1][i];
+           pipe[stage-1][i] = NULL;
+           if(pipe[stage][i])
+           {
+             occupancy[stage]++;
+             occupancy[stage-1]--;
+             zesto_assert(occupancy[stage] <= knobs->alloc.width,(void)0);
+             zesto_assert(occupancy[stage-1] >= 0,(void)0);
+           }
         }
       }
     }
@@ -419,11 +452,15 @@ void core_alloc_IO_DPM_t::step(void)
 
   /*==============================================*/
   /*== fill first alloc stage from decode stage ==*/
-  if(0 == occupancy[0])
+//  if(0 == occupancy[0])
+  if(occupancy[0] < knobs->alloc.width)
   {
     /* while the uopQ sitll has uops in it, allocate up to alloc.width uops per cycle */
     for(i=0;(i<knobs->alloc.width) && core->decode->uop_available();i++)
     {
+      if(pipe[0][i] != NULL)
+         continue;
+
       pipe[0][i] = core->decode->uop_peek(); core->decode->uop_consume();
       occupancy[0]++;
       zesto_assert(occupancy[0] <= knobs->alloc.width,(void)0);
@@ -486,8 +523,7 @@ core_alloc_IO_DPM_t::recover(void)
 
 void core_alloc_IO_DPM_t::RS_deallocate(const struct uop_t * const uop)
 {
-  zesto_assert(port_loading[uop->alloc.port_assignment] > 0,(void)0);
-  port_loading[uop->alloc.port_assignment]--;
+  fatal("shouldn't be called in an IO pipe");
 }
 
 void core_alloc_IO_DPM_t::start_drain(void)

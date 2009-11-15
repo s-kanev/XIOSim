@@ -427,7 +427,7 @@ void core_commit_DPM_t::step(void)
           if(Mop->fetch.bpred_update)
           {
             core->fetch->bpred->update(Mop->fetch.bpred_update,Mop->decode.opflags,
-                Mop->fetch.PC, Mop->decode.targetPC, Mop->oracle.NextPC, (Mop->oracle.NextPC != (Mop->fetch.PC + Mop->fetch.inst.len)));
+                Mop->fetch.PC, Mop->fetch.PC+Mop->fetch.inst.len, Mop->decode.targetPC, Mop->oracle.NextPC, (Mop->oracle.NextPC != (Mop->fetch.PC + Mop->fetch.inst.len)));
             core->fetch->bpred->return_state_cache(Mop->fetch.bpred_update);
             Mop->fetch.bpred_update = NULL;
           }
