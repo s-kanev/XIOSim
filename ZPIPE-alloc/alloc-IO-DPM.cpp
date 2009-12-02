@@ -488,8 +488,8 @@ core_alloc_IO_DPM_t::recover(const struct Mop_t * const Mop)
       {
         if(pipe[stage][i])
         {
-          if(pipe[stage][i]->Mop == Mop)
-            return;
+          if(pipe[stage][i]->decode.Mop_seq <= Mop->oracle.seq)
+            continue;
           pipe[stage][i] = NULL;
           occupancy[stage]--;
           zesto_assert(occupancy[stage] >= 0,(void)0);

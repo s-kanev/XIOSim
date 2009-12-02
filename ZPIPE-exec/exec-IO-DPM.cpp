@@ -2519,21 +2519,51 @@ void core_exec_IO_DPM_t::step()
   }
  
 
-  /* shuffle the other stages forward */
+  /* shuffle the other stages forward (and update timing if we are in an exec_stal)*/
   for(i=0;i<knobs->exec.num_exec_ports;i++)
   {
     for(int j=0;j<port[i].num_FU_types;j++)
     {
        enum md_fu_class FU_type = port[i].FU_types[j];
        struct ALU_t * FU = port[i].FU[FU_type];
-        if(FU->occupancy > 0 && !exec_stall)
+        if(FU->occupancy > 0)
         {
-          for(int stage=FU->latency-1;stage > 0; stage--)
+          /* If we are stalling update timing, so that dependant instructions don't issue to execution */
+          if(exec_stall)
           {
-            if((FU->pipe[stage].uop == NULL) && FU->pipe[stage-1].uop)
+            for(int stage=FU->latency-1; stage > -1; stage--)
+              if(FU->pipe[stage].uop)
+              {
+                 FU->pipe[stage].uop->timing.when_otag_ready++;
+ 
+                 /* tag broadcast to dependents */
+                 struct odep_t * odep = FU->pipe[stage].uop->exec.odep_uop;
+                 while(odep)
+                 {
+                    int j;
+                    tick_t when_ready = 0;
+                    odep->uop->timing.when_itag_ready[odep->op_num] = FU->pipe[stage].uop->timing.when_otag_ready;
+
+                    for(j=0;j<MAX_IDEPS;j++)
+                    {
+                       if(when_ready < odep->uop->timing.when_itag_ready[j])
+                          when_ready = odep->uop->timing.when_itag_ready[j];
+                    }
+                    odep->uop->timing.when_ready = when_ready;
+
+                    odep = odep->next;
+                 }	   
+              }
+          }
+          else
+          {
+            for(int stage=FU->latency-1;stage > 0; stage--)
             {
-              FU->pipe[stage] = FU->pipe[stage-1];
-              FU->pipe[stage-1].uop = NULL;
+              if((FU->pipe[stage].uop == NULL) && FU->pipe[stage-1].uop)
+              {
+                FU->pipe[stage] = FU->pipe[stage-1];
+                FU->pipe[stage-1].uop = NULL;
+              }
             }
           }
         }

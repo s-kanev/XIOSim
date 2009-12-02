@@ -1043,6 +1043,8 @@ core_oracle_t::exec(const md_addr_t requested_PC)
     uop->decode.opflags = MD_OP_FLAGS(uop->decode.op);
     uop->decode.is_ctrl = true;
     uop->Mop = Mop;
+    uop->decode.Mop_seq = Mop->oracle.seq;
+    uop->decode.uop_seq = (Mop->oracle.seq << UOP_SEQ_SHIFT);
   }
 
   if(!Mop->fetch.inst.rep || Mop->decode.first_rep)
