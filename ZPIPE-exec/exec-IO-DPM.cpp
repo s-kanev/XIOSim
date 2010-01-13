@@ -2267,9 +2267,6 @@ void core_exec_IO_DPM_t::step()
   struct core_knobs_t * knobs = core->knobs;
   int i;
 
-//  if(sim_cycle == 999983)
-//    dump_payload();
- 
 //  if(check_for_work == false)
 //    return;
 
@@ -3113,6 +3110,24 @@ bool core_exec_IO_DPM_t::exec_fused_ST(struct uop_t * const uop)
   STQ[curr_uop->alloc.STQ_index].virt_addr = curr_uop->oracle.virt_addr;
   STQ[curr_uop->alloc.STQ_index].addr_valid = true;
 
+  /* In a rare event, another uop (other than the STD) may depend on 
+     the result of the STA. Since, presumably, store address calculation
+     is done here, we need to update STA dependants */
+  struct odep_t * odep = curr_uop->exec.odep_uop;
+  while(odep)
+  {
+     zesto_assert(!odep->uop->exec.ivalue_valid[odep->op_num], false);
+     odep->uop->exec.ivalue_valid[odep->op_num] = true;
+     if(odep->aflags)
+        odep->uop->exec.ivalue[odep->op_num].dw = curr_uop->exec.oflags;
+     else
+        odep->uop->exec.ivalue[odep->op_num] = curr_uop->exec.ovalue;
+     odep->uop->timing.when_ival_ready[odep->op_num] = sim_cycle;
+     odep = odep->next;
+  }
+  
+
+  /* move on to STD */
   zesto_assert(curr_uop->decode.in_fusion, false);
   curr_uop = curr_uop->decode.fusion_next;
   zesto_assert(curr_uop, false);
