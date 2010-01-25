@@ -1117,10 +1117,7 @@ seq_t core_exec_IO_DPM_t::get_uop_action_id(void * const op)
    speculatively rescheduled based on the next anticipated latency
    (e.g., L2 hit latency). */
 void core_exec_IO_DPM_t::load_miss_reschedule(void * const op, const int new_pred_latency)
-{
- //SK
-//  fatal("shouldn't happen in an IO pipe");
-  
+{ 
   struct uop_t * uop = (struct uop_t*) op;
   struct core_t * core = uop->core;
   struct core_exec_IO_DPM_t * E = (core_exec_IO_DPM_t*)core->exec;
@@ -1274,7 +1271,8 @@ void core_exec_IO_DPM_t::LDST_exec(void)
                 int fp_penalty = REG_IS_FPR(uop->decode.odep_name)?knobs->exec.fp_penalty:0;
                 uop->exec.ovalue = STQ[j].value;
                 uop->exec.ovalue_valid = true;
-                uop->exec.action_id = core->new_action_id();
+                //SK - No need to flush here, simply use the found value
+                //uop->exec.action_id = core->new_action_id();
                 zesto_assert(uop->timing.when_completed == TICK_T_MAX,(void)0);
                 uop->timing.when_completed = sim_cycle+fp_penalty;
                 uop->timing.when_exec = sim_cycle+fp_penalty;
@@ -1364,14 +1362,16 @@ void core_exec_IO_DPM_t::LDST_exec(void)
                     if(odep->uop->timing.when_issued != TICK_T_MAX)
                       ztrace_print(odep->uop,"e|snatch-back|parent STQ data not ready");
 #endif
-                    snatch_back(odep->uop);
+                    //SK - Shouldn't be snatching back anything in an IO pipe
+                    //snatch_back(odep->uop);
 
                     odep = odep->next;
                   }
                   /* clear flag so we don't keep doing this over and over again */
                   LDQ[uop->alloc.LDQ_index].speculative_broadcast = false;
                 }
-                uop->exec.action_id = core->new_action_id();
+                //SK - Don't need to flush uop - we resolve by waiting
+                //uop->exec.action_id = core->new_action_id();
                 LDQ[uop->alloc.LDQ_index].hit_in_STQ = false;
                 LDQ[uop->alloc.LDQ_index].first_byte_requested = false;
                 LDQ[uop->alloc.LDQ_index].last_byte_requested = false;
@@ -1422,13 +1422,15 @@ void core_exec_IO_DPM_t::LDST_exec(void)
                 if(odep->uop->timing.when_issued != TICK_T_MAX)
                   ztrace_print(odep->uop,"e|snatch-back|parent had partial match in STQ");
 #endif
-                snatch_back(odep->uop);
+                //SK - no snatching back of anything in IO
+                //snatch_back(odep->uop);
                 odep = odep->next;
               }
               /* clear flag so we don't keep doing this over and over again */
               LDQ[uop->alloc.LDQ_index].speculative_broadcast = false;
             }
-            uop->exec.action_id = core->new_action_id();
+            //SK - Again, we stall
+            //uop->exec.action_id = core->new_action_id();
 
             /* different from STD-not-ready case above, in the case of a partial match,
                the load may not get woken up by the store (and even if it does, the
@@ -1614,7 +1616,7 @@ void core_exec_IO_DPM_t::LDQ_schedule(void)
                 if(odep->uop->timing.when_issued != TICK_T_MAX)
                   ztrace_print(odep->uop,"e|snatch_back|load unable to issue from LDQ to cache");
 #endif
-                snatch_back(odep->uop);
+                //snatch_back(odep->uop);
 
                 odep = odep->next;
               }
