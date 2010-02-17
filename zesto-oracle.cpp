@@ -1613,6 +1613,11 @@ void core_oracle_t::commit_mapping(const struct uop_t * const uop)
     /* if you're committing this, it better be in the mapping */
     assert(p);
     /* if you're committing this, it better be the oldest one */
+    if(uop != p->uop)
+    {
+       warn("Asetion about to fail. (cycle: %lld), (uop->uop_seq: %lld), (p->uop->uop_seq: %lld)",
+            sim_cycle, uop->decode.uop_seq, p->uop->decode.uop_seq);
+    }
     assert(uop == p->uop);
 
     /* remove from head */

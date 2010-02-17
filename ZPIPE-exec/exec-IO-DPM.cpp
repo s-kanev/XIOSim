@@ -2441,77 +2441,91 @@ void core_exec_IO_DPM_t::step()
 
       /* there's uop completing execution (hasn't been squashed) */
       if(!squashed)// && (!needs_bypass || bypass_available))
-      {
-         if(needs_bypass)
-            port[i].when_bypass_used = sim_cycle;
-            
-
+      {        
          int fp_penalty = ((REG_IS_FPR(uop->decode.odep_name) && !(uop->decode.opflags & F_FCOMP)) ||
                           (!REG_IS_FPR(uop->decode.odep_name) && (uop->decode.opflags & F_FCOMP)))?knobs->exec.fp_penalty:0;
-         /* actual execution occurs here - copy oracle value*/
-         uop->exec.ovalue_valid = true;
-         uop->exec.ovalue = uop->oracle.ovalue;
-            
-         /* alloc, uopQ, and decode all have to search for the
-            recovery point (Mop) because a long flow may have
-            uops that span multiple sections of the pipeline.  */
-         if(uop->decode.is_ctrl && (uop->Mop->oracle.NextPC != uop->Mop->fetch.pred_NPC))
-         {
-            uop->Mop->fetch.pred_NPC = uop->Mop->oracle.NextPC; /* in case this instruction gets flushed more than once (jeclear followed by load-nuke) */
-            core->oracle->pipe_recover(uop->Mop,uop->Mop->oracle.NextPC);
-            ZESTO_STAT(core->stat.num_jeclear++;)
-            if(uop->Mop->oracle.spec_mode)
-              ZESTO_STAT(core->stat.num_wp_jeclear++;)
-#ifdef ZTRACE
-            ztrace_print(uop,"e|jeclear|branch mispred detected at execute");
-#endif
-         }
- 
-  //TODO: Check why jumps fail here!!!
-         //zesto_assert(uop->timing.when_completed == TICK_T_MAX,(void)0);
-         uop->timing.when_completed = sim_cycle+fp_penalty;
-         last_completed = sim_cycle+fp_penalty; /* for deadlock detection*/
 
-         /* bypass output value to dependents */
-         struct odep_t * odep = uop->exec.odep_uop;
-         while(odep)
+         
+         //zesto_assert(uop->timing.when_completed == TICK_T_MAX,(void)0);
+         if(uop->timing.when_completed == TICK_T_MAX)
          {
+            uop->timing.when_completed = sim_cycle+fp_penalty;
+            last_completed = sim_cycle+fp_penalty; /* for deadlock detection*/
+         }
+         //when_completed can only be set if waiting for fp_penalty
+         else
+            zesto_assert(fp_penalty > 0, (void)0); 
+
+         //Wait until fp_penalty has been paid
+         if(sim_cycle < uop->timing.when_completed)
+         {
+         }
+         else
+         {          
+           if(needs_bypass)
+            port[i].when_bypass_used = sim_cycle;
+ 
+           /* actual execution occurs here - copy oracle value*/
+           uop->exec.ovalue_valid = true;
+           uop->exec.ovalue = uop->oracle.ovalue;
+            
+           /* alloc, uopQ, and decode all have to search for the
+              recovery point (Mop) because a long flow may have
+              uops that span multiple sections of the pipeline.  */
+           if(uop->decode.is_ctrl && (uop->Mop->oracle.NextPC != uop->Mop->fetch.pred_NPC))
+           {
+              uop->Mop->fetch.pred_NPC = uop->Mop->oracle.NextPC; /* in case this instruction gets flushed more than once (jeclear followed by load-nuke) */
+              core->oracle->pipe_recover(uop->Mop,uop->Mop->oracle.NextPC);
+              ZESTO_STAT(core->stat.num_jeclear++;)
+              if(uop->Mop->oracle.spec_mode)
+                ZESTO_STAT(core->stat.num_wp_jeclear++;)
+#ifdef ZTRACE
+              ztrace_print(uop,"e|jeclear|branch mispred detected at execute");
+#endif
+           }
+ 
+         
+           /* bypass output value to dependents */
+           struct odep_t * odep = uop->exec.odep_uop;
+           while(odep)
+           {
   //XXX:assert breaks on exec_stall, fix repeating!
   //         zesto_assert(!odep->uop->exec.ivalue_valid[odep->op_num], (void)0);
-           odep->uop->exec.ivalue_valid[odep->op_num] = true;
-           if(odep->aflags)
-              odep->uop->exec.ivalue[odep->op_num].dw = uop->exec.oflags;
-           else
-              odep->uop->exec.ivalue[odep->op_num] = uop->exec.ovalue;
-           odep->uop->timing.when_ival_ready[odep->op_num] = sim_cycle+fp_penalty;
-           odep = odep->next;
-         }
+             odep->uop->exec.ivalue_valid[odep->op_num] = true;
+             if(odep->aflags)
+                odep->uop->exec.ivalue[odep->op_num].dw = uop->exec.oflags;
+             else
+                odep->uop->exec.ivalue[odep->op_num] = uop->exec.ovalue;
+             odep->uop->timing.when_ival_ready[odep->op_num] = sim_cycle+fp_penalty;
+             odep = odep->next;
+           }
           
-         /* if we are in the middle of a fusion, don't alloc pre_commit yet until the last part (apart from STs) of the fusion is completed - workaround for OP-x-OP fusion */
+           /* if we are in the middle of a fusion, don't alloc pre_commit yet until the last part (apart from STs) of the fusion is completed - workaround for OP-x-OP fusion */
 //         bool uop_goes_to_commit = true;
 
 //         if(uop->decode.in_fusion && uop->decode.fusion_next && !uop->decode.fusion_next->decode.is_sta)
 //            uop_goes_to_commit = false;
 
-         if(uop_goes_to_commit)
-         {
-            /* we reach this only if pre_commit_available() */
-            // add to commit buffer
-            if((!uop->decode.in_fusion) || uop->decode.is_fusion_head)
-               core->commit->pre_commit_insert(uop);
-            else
-               core->commit->pre_commit_fused_insert(uop);
+           if(uop_goes_to_commit)
+           {
+              /* we reach this only if pre_commit_available() */
+              // add to commit buffer
+              if((!uop->decode.in_fusion) || uop->decode.is_fusion_head)
+                 core->commit->pre_commit_insert(uop);
+              else
+                 core->commit->pre_commit_fused_insert(uop);
 
-            FU->occupancy--;
-            zesto_assert(FU->occupancy >= 0,(void)0);
-            FU->pipe[stage].uop = NULL;
+              FU->occupancy--;
+              zesto_assert(FU->occupancy >= 0,(void)0);
+              FU->pipe[stage].uop = NULL;
+           }
+           else
+           {
+             FU->occupancy--;
+             zesto_assert(FU->occupancy >= 0,(void)0);
+             FU->pipe[stage].uop = NULL;
+           }
          }
-         else
-         {
-           FU->occupancy--;
-           zesto_assert(FU->occupancy >= 0,(void)0);
-           FU->pipe[stage].uop = NULL;
-         }      
       } /* if not squashed */
       }
     }
@@ -2527,7 +2541,7 @@ void core_exec_IO_DPM_t::step()
        struct ALU_t * FU = port[i].FU[FU_type];
         if(FU->occupancy > 0)
         {
-          /* If we are stalling update timing, so that dependant instructions don't issue to execution */
+          /* If we are stalling, update timing, so that dependant instructions don't issue to execution */
           if(exec_stall)
           {
             for(int stage=FU->latency-1; stage > -1; stage--)
@@ -3053,9 +3067,19 @@ bool core_exec_IO_DPM_t::can_issue_IO(struct uop_t * const uop)
                 when_curr_ready = TICK_T_MAX;
              else
              {
-                 int curr_fp_penalty = ((REG_IS_FPR(curr_uop->decode.odep_name) && !(curr_uop->decode.opflags & F_FCOMP)) ||
-                                       (!REG_IS_FPR(curr_uop->decode.odep_name) && (curr_uop->decode.opflags & F_FCOMP)))?knobs->exec.fp_penalty:0;
-                 when_curr_ready = sim_cycle + port[curr_uop->alloc.port_assignment].FU[curr_uop->decode.FU_class]->latency + curr_fp_penalty;
+                 /* if curr_uop doesn't have all operands ready, it can't issue at this cycle */
+                 bool operands_ready = true;
+                 for(int ind = 0; ind < MAX_IDEPS; ind++)
+                    operands_ready &= curr_uop->exec.ivalue_valid[ind];
+
+                 if(!operands_ready)
+                    when_curr_ready = TICK_T_MAX;
+                 else
+                 {
+                    int curr_fp_penalty = ((REG_IS_FPR(curr_uop->decode.odep_name) && !(curr_uop->decode.opflags & F_FCOMP)) ||
+                                          (!REG_IS_FPR(curr_uop->decode.odep_name) && (curr_uop->decode.opflags & F_FCOMP)))?knobs->exec.fp_penalty:0;
+                    when_curr_ready = sim_cycle + port[curr_uop->alloc.port_assignment].FU[curr_uop->decode.FU_class]->latency + curr_fp_penalty;
+                 }
              }
 
              if(when_otag_ready < when_curr_ready)

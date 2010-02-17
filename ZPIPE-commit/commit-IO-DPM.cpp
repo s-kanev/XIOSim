@@ -973,6 +973,7 @@ core_commit_IO_DPM_t::recover(void)
 
   core->exec->recover_check_assertions();
   zesto_assert(ROB_num == 0,(void)0);
+  zesto_assert(ROB_eff_num == 0,(void)0);
 }
 
 bool core_commit_IO_DPM_t::ROB_available(void)
@@ -993,6 +994,7 @@ void core_commit_IO_DPM_t::ROB_insert(struct uop_t * const uop)
   uop->alloc.ROB_index = ROB_tail;
   ROB_num++;
   ROB_eff_num++;
+  
   ROB_tail = modinc(ROB_tail,knobs->commit.ROB_size); //(ROB_tail+1) % knobs->commit.ROB_size;
 }
 
@@ -1024,28 +1026,6 @@ void core_commit_IO_DPM_t::pre_commit_insert(struct uop_t * const uop)
     }
 
   zesto_assert(i > -1, (void)0);
-
-
-  /*XXX: Quick and dirty IO fix: sometimes uops that are completed on the same cycle can be inserted here breaking program order. This happens if one uop doesn't use a functional unit (LD, ST, LEA, NOP, trap) and the other does. Due to the sequential code in exec, the uop that uses a FU will be added first. This has nothing to do with the actual hardware. So, if we see such a swapped pair, reverse them to keep program order... */
-
-//  for(i=knobs->commit.width-1;i>0;i--)
-//   if(pre_commit_pipe[i] && pre_commit_pipe[i-1] && pre_commit_pipe[i-1]->decode.uop_seq < pre_commit_pipe[i]->decode.uop_seq)
-//   {
-//     zesto_assert(pre_commit_pipe[i-1]->decode.FU_class == FU_NA ||
-//                  pre_commit_pipe[i-1]->decode.FU_class == FU_AGEN ||
-//                  pre_commit_pipe[i-1]->decode.FU_class == FU_LD || 
-//                  pre_commit_pipe[i-1]->decode.FU_class == FU_STA, (void)0);
-
-/*     zesto_assert(pre_commit_pipe[i]->decode.FU_class != FU_NA &&
-                  pre_commit_pipe[i]->decode.FU_class != FU_AGEN &&
-                  pre_commit_pipe[i]->decode.FU_class != FU_LD && 
-                  pre_commit_pipe[i]->decode.FU_class != FU_STA, (void)0);
-*/
-
-//     struct uop_t * tmp = pre_commit_pipe[i];
-//     pre_commit_pipe[i] = pre_commit_pipe[i-1];
-//     pre_commit_pipe[i-1] = tmp;
-//   }
 }
 
 void core_commit_IO_DPM_t::pre_commit_fused_insert(struct uop_t * const uop)
@@ -1079,6 +1059,7 @@ void core_commit_IO_DPM_t::pre_commit_step()
         if(!this->ROB_available())// || this->is_stall()) - wrong! stall doesn't mean no new uops in ROB - breaks whole system
         {
           stall = true;
+          break;
         }
         else
           this->ROB_insert(uop);
@@ -1086,10 +1067,10 @@ void core_commit_IO_DPM_t::pre_commit_step()
       else
         this->ROB_fuse_insert(uop);
 
-     if(uop->decode.in_fusion)
-       uop = uop->decode.fusion_next;
-     else
-       uop = NULL;
+      if(uop->decode.in_fusion)
+        uop = uop->decode.fusion_next;
+      else
+        uop = NULL;
     }
   
     if(stall)

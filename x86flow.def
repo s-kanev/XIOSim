@@ -2737,10 +2737,11 @@
   UOP_R2(UV, XV(MOVSXW), XF_R, XF_RM, FUSION_NONE);				\
 }
 
+/* Had FUSION_LOAD_OP but this does not seem to work for atom pipe (LD and FADD at different ports)*/
 #define FADD_Ms_FLOW							\
 {									\
   UOP_RLI_OV(UV, XAx(FLD,S), XR_FTMP0, XF_SEG, XF_BASE, XF_INDEX, XF_SCALE, XF_DISP, FUSION_NONE);\
-  UOP_R3(UV, ADDE, XR_ST0, XR_ST0, XR_FTMP0, FUSION_LOAD_OP);		\
+  UOP_R3(UV, ADDE, XR_ST0, XR_ST0, XR_FTMP0, FUSION_NONE);	\
 }
 
 #define FADD_ST0STi_FLOW						\
@@ -2759,10 +2760,11 @@
   UOP_R3(UV, MULE, XR_ST0, XR_ST0, XF_STI, FUSION_NONE);			\
 }
 
+/*SK - removed fusion due to Atom pipe constraints */
 #define FCOM_Ms_FLOW							\
 {									\
   UOP_RLI_OV(UV, XAx(FLD,S), XR_FTMP0, XF_SEG, XF_BASE, XF_INDEX, XF_SCALE, XF_DISP, FUSION_NONE);\
-  UOP_R3(UV, COM, XR_ZERO, XR_ST0, XR_FTMP0, FUSION_LOAD_OP);		\
+  UOP_R3(UV, COM, XR_ZERO, XR_ST0, XR_FTMP0, FUSION_NONE);		\
 }
 
 #define FCOM_ST0STi_FLOW						\
@@ -2770,10 +2772,11 @@
   UOP_R3(UV, COM, XR_ZERO, XR_ST0, XF_STI, FUSION_NONE);			\
 }
 
+/* Had FUSION_LOAD_OP but this does not seem to work for atom pipe (LD and FADD at different ports)*/
 #define FCOMP_Ms_FLOW							\
 {									\
   UOP_RLI_OV(UV, XAx(FLD,S), XR_FTMP0, XF_SEG, XF_BASE, XF_INDEX, XF_SCALE, XF_DISP, FUSION_NONE);\
-  UOP_R3(UV, COM, XR_ZERO, XR_ST0, XR_FTMP0, FUSION_LOAD_OP);		\
+  UOP_R3(UV, COM, XR_ZERO, XR_ST0, XR_FTMP0, FUSION_NONE);		\
   FP_STACK_OP(fpstk_pop);		\
 }
 
@@ -2783,10 +2786,11 @@
   FP_STACK_OP(fpstk_pop);		\
 }
 
+/*SK - remove fusion due to Atom pipe constraints */
 #define FSUB_Ms_FLOW							\
 {									\
   UOP_RLI_OV(UV, XAx(FLD,S), XR_FTMP0, XF_SEG, XF_BASE, XF_INDEX, XF_SCALE, XF_DISP, FUSION_NONE);\
-  UOP_R3(UV, SUBE, XR_ST0, XR_ST0, XR_FTMP0, FUSION_LOAD_OP);		\
+  UOP_R3(UV, SUBE, XR_ST0, XR_ST0, XR_FTMP0, FUSION_NONE);		\
 }
 
 #define FSUB_ST0STi_FLOW						\
@@ -2794,10 +2798,11 @@
   UOP_R3(UV, SUBE, XR_ST0, XR_ST0, XF_STI, FUSION_NONE);			\
 }
 
+/*SK - removed fusion due to Atom pipe constraints */
 #define FSUBR_Ms_FLOW							\
 {									\
   UOP_RLI_OV(UV, XAx(FLD,S), XR_FTMP0, XF_SEG, XF_BASE, XF_INDEX, XF_SCALE, XF_DISP, FUSION_NONE);\
-  UOP_R3(UV, SUBE, XR_ST0, XR_FTMP0, XR_ST0, FUSION_LOAD_OP);		\
+  UOP_R3(UV, SUBE, XR_ST0, XR_FTMP0, XR_ST0, FUSION_NONE);		\
 }
 
 #define FSUBR_ST0STi_FLOW						\
@@ -2974,10 +2979,11 @@
   UOP_R2(UV, COS, XR_ST0, XR_ST0, FUSION_NONE);			\
 }
 
+/*SK - removed fusion due to Atom pipe constraints */
 #define FIADD_Md_FLOW							\
 {									\
   UOP_RLI_OV(UV, XAx(FLD,D), XR_FTMP0, XF_SEG, XF_BASE, XF_INDEX, XF_SCALE, XF_DISP, FUSION_NONE);\
-  UOP_R3(UV, ADDE, XR_ST0, XR_ST0, XR_FTMP0, FUSION_LOAD_OP);		\
+  UOP_R3(UV, ADDE, XR_ST0, XR_ST0, XR_FTMP0, FUSION_NONE);		\
 }
 
 #define FCMOVB_ST0STi_FLOW						\
@@ -2996,10 +3002,11 @@
   UOP_RL(UV, CMOVE, XR_ST0, XR_ST0, XF_STI, XE_FCCE, FUSION_NONE);			\
 }
 
+/*SK - removed fusion due to Atom pipe constraints */
 #define FICOM_Md_FLOW							\
 {									\
   UOP_RLI_OV(UV, XAx(FLD,D), XR_FTMP0, XF_SEG, XF_BASE, XF_INDEX, XF_SCALE, XF_DISP, FUSION_NONE);\
-  UOP_R3(UV, COM, XR_ZERO, XR_ST0, XR_FTMP0, FUSION_LOAD_OP);		\
+  UOP_R3(UV, COM, XR_ZERO, XR_ST0, XR_FTMP0, FUSION_NONE);		\
 }
 
 #define FCMOVBE_ST0STi_FLOW						\
@@ -3007,10 +3014,11 @@
   UOP_RL(UV, CMOVE, XR_ST0, XR_ST0, XF_STI, XE_FCCBE, FUSION_NONE);		\
 }
 
+/*SK - removed fusion due to Atom pipe constraints */
 #define FICOMP_Md_FLOW							\
 {									\
   UOP_RLI_OV(UV, XAx(FLD,D), XR_FTMP0, XF_SEG, XF_BASE, XF_INDEX, XF_SCALE, XF_DISP, FUSION_NONE);\
-  UOP_R3(UV, COM, XR_ZERO, XR_ST0, XR_FTMP0, FUSION_LOAD_OP);		\
+  UOP_R3(UV, COM, XR_ZERO, XR_ST0, XR_FTMP0, FUSION_NONE);		\
   FP_STACK_OP(fpstk_pop);		\
 }
 
@@ -3019,16 +3027,18 @@
   UOP_RL(UV, CMOVE, XR_ST0, XR_ST0, XF_STI, XE_FCCU, FUSION_NONE);			\
 }
 
+/*SK - removed fusion due to Atom pipe constraints */
 #define FISUB_Md_FLOW							\
 {									\
   UOP_RLI_OV(UV, XAx(FLD,D), XR_FTMP0, XF_SEG, XF_BASE, XF_INDEX, XF_SCALE, XF_DISP, FUSION_NONE);\
-  UOP_R3(UV, SUBE, XR_ST0, XR_ST0, XR_FTMP0, FUSION_LOAD_OP);		\
+  UOP_R3(UV, SUBE, XR_ST0, XR_ST0, XR_FTMP0, FUSION_NONE);		\
 }
 
+/*SK - removed fusion due to Atom pipe constraints */
 #define FISUBR_Md_FLOW							\
 {									\
   UOP_RLI_OV(UV, XAx(FLD,D), XR_FTMP0, XF_SEG, XF_BASE, XF_INDEX, XF_SCALE, XF_DISP, FUSION_NONE);\
-  UOP_R3(UV, SUBE, XR_ST0, XR_FTMP0, XR_ST0, FUSION_LOAD_OP);		\
+  UOP_R3(UV, SUBE, XR_ST0, XR_FTMP0, XR_ST0, FUSION_NONE);		\
 }
 
 #define FUCOMPP_FLOW							\
@@ -3116,10 +3126,11 @@
   FP_STACK_OP(fpstk_pop);		\
 }
 
+/* SK - remove fusion because inconsistent with Atom pipe */
 #define FADD_Mt_FLOW							\
 {									\
   UOP_RLI_OV(UV, XAx(FLD,T), XR_FTMP0, XF_SEG, XF_BASE, XF_INDEX, XF_SCALE, XF_DISP, FUSION_NONE);\
-  UOP_R3(UV, ADDE, XR_ST0, XR_ST0, XR_FTMP0, FUSION_LOAD_OP);		\
+  UOP_R3(UV, ADDE, XR_ST0, XR_ST0, XR_FTMP0, FUSION_NONE);		\
 }
 
 #define FADD_STiST0_FLOW						\
@@ -3138,23 +3149,27 @@
   UOP_R3(UV, MULE, XF_STI, XF_STI, XR_ST0, FUSION_NONE);			\
 }
 
+/*SK - removed fusion due to Atom pipe constraints */
 #define FCOM_Mt_FLOW							\
 {									\
   UOP_RLI_OV(UV, XAx(FLD,T), XR_FTMP0, XF_SEG, XF_BASE, XF_INDEX, XF_SCALE, XF_DISP, FUSION_NONE);\
-  UOP_R3(UV, COM, XR_ZERO, XR_ST0, XR_FTMP0, FUSION_LOAD_OP);		\
+  UOP_R3(UV, COM, XR_ZERO, XR_ST0, XR_FTMP0, FUSION_NONE);		\
 }
 
+
+/*SK - remove fusion due to Atom pipe constraints */
 #define FCOMP_Mt_FLOW							\
 {									\
   UOP_RLI_OV(UV, XAx(FLD,T), XR_FTMP0, XF_SEG, XF_BASE, XF_INDEX, XF_SCALE, XF_DISP, FUSION_NONE);\
-  UOP_R3(UV, COM, XR_ZERO, XR_ST0, XR_FTMP0, FUSION_LOAD_OP);		\
+  UOP_R3(UV, COM, XR_ZERO, XR_ST0, XR_FTMP0, FUSION_NONE);		\
   FP_STACK_OP(fpstk_pop);		\
 }
 
+/*SK - remove fusion due to Atom pipe constraints */
 #define FSUB_Mt_FLOW							\
 {									\
   UOP_RLI_OV(UV, XAx(FLD,T), XR_FTMP0, XF_SEG, XF_BASE, XF_INDEX, XF_SCALE, XF_DISP, FUSION_NONE);\
-  UOP_R3(UV, SUBE, XR_ST0, XR_ST0, XR_FTMP0, FUSION_LOAD_OP);		\
+  UOP_R3(UV, SUBE, XR_ST0, XR_ST0, XR_FTMP0, FUSION_NONE);		\
 }
 
 #define FSUBR_STiST0_FLOW						\
@@ -3162,10 +3177,11 @@
   UOP_R3(UV, SUBE, XF_STI, XR_ST0, XF_STI, FUSION_NONE);			\
 }
 
+/*SK - remove fusion due to Atom pipe constraints */
 #define FSUBR_Mt_FLOW							\
 {									\
   UOP_RLI_OV(UV, XAx(FLD,T), XR_FTMP0, XF_SEG, XF_BASE, XF_INDEX, XF_SCALE, XF_DISP, FUSION_NONE);\
-  UOP_R3(UV, SUBE, XR_ST0, XR_FTMP0, XR_ST0, FUSION_LOAD_OP);		\
+  UOP_R3(UV, SUBE, XR_ST0, XR_FTMP0, XR_ST0, FUSION_NONE);		\
 }
 
 #define FSUB_STiST0_FLOW						\
@@ -3243,10 +3259,11 @@
   FP_STACK_OP(fpstk_pop);		\
 }
 
+/*SK - removed fusion due to Atom pipe constraints */
 #define FIADD_Mw_FLOW							\
 {									\
   UOP_RLI_OV(UV, XAx(FLD,W), XR_FTMP0, XF_SEG, XF_BASE, XF_INDEX, XF_SCALE, XF_DISP, FUSION_NONE);\
-  UOP_R3(UV, ADDE, XR_ST0, XR_ST0, XR_FTMP0, FUSION_LOAD_OP);		\
+  UOP_R3(UV, ADDE, XR_ST0, XR_ST0, XR_FTMP0, FUSION_NONE);		\
 }
 
 #define FADDP_STiST0_FLOW						\
@@ -3267,16 +3284,18 @@
   FP_STACK_OP(fpstk_pop);		\
 }
 
+/*SK - removed fusion due to Atom pipe constraints */
 #define FICOM_Mw_FLOW							\
 {									\
   UOP_RLI_OV(UV, XAx(FLD,W), XR_FTMP0, XF_SEG, XF_BASE, XF_INDEX, XF_SCALE, XF_DISP, FUSION_NONE);\
-  UOP_R3(UV, COM, XR_ZERO, XR_ST0, XR_FTMP0, FUSION_LOAD_OP);		\
+  UOP_R3(UV, COM, XR_ZERO, XR_ST0, XR_FTMP0, FUSION_NONE);		\
 }
 
+/*SK - removed fusion due to Atom pipe constraints */
 #define FICOMP_Mw_FLOW							\
 {									\
   UOP_RLI_OV(UV, XAx(FLD,W), XR_FTMP0, XF_SEG, XF_BASE, XF_INDEX, XF_SCALE, XF_DISP, FUSION_NONE);\
-  UOP_R3(UV, COM, XR_ZERO, XR_ST0, XR_FTMP0, FUSION_LOAD_OP);		\
+  UOP_R3(UV, COM, XR_ZERO, XR_ST0, XR_FTMP0, FUSION_NONE);		\
   FP_STACK_OP(fpstk_pop);		\
 }
 
@@ -3286,10 +3305,11 @@
   FP_STACK_OP(fpstk_poppop);		\
 }
 
+/*SK - removed fusion due to Atom pipe constraints */
 #define FISUB_Mw_FLOW							\
 {									\
   UOP_RLI_OV(UV, XAx(FLD,W), XR_FTMP0, XF_SEG, XF_BASE, XF_INDEX, XF_SCALE, XF_DISP, FUSION_NONE);\
-  UOP_R3(UV, SUBE, XR_ST0, XR_ST0, XR_FTMP0, FUSION_LOAD_OP);		\
+  UOP_R3(UV, SUBE, XR_ST0, XR_ST0, XR_FTMP0, FUSION_NONE);		\
 }
 
 #define FSUBRP_STiST0_FLOW						\
@@ -3298,10 +3318,11 @@
   FP_STACK_OP(fpstk_pop);		\
 }
 
+/*SK - removed fusion due to Atom pipe constraints */
 #define FISUBR_Mw_FLOW							\
 {									\
   UOP_RLI_OV(UV, XAx(FLD,W), XR_FTMP0, XF_SEG, XF_BASE, XF_INDEX, XF_SCALE, XF_DISP, FUSION_NONE);\
-  UOP_R3(UV, SUBE, XR_ST0, XR_FTMP0, XR_ST0, FUSION_LOAD_OP);		\
+  UOP_R3(UV, SUBE, XR_ST0, XR_FTMP0, XR_ST0, FUSION_NONE);		\
 }
 
 #define FSUBP_STiST0_FLOW						\

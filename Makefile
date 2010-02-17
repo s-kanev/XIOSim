@@ -23,11 +23,18 @@ CC = g++4
 # Uncomment only one of the following OFLAGS, or make your own
 
 # For debug:
-#OFLAGS = -O0 -g -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -Wall -DDEBUG -msse4a -mfpmath=sse
+OFLAGS = -O0 -g -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -Wall -DDEBUG -msse4a -mfpmath=sse
+OFLAGS_SAFE = $(OFLAGS)
+
 # Fully-optimized, but with profiling for gprof:
 #OFLAGS = -O3 -g -pg -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -Wall -static -fexpensive-optimizations -mtune=core2 -march=core2 -msse4a -mfpmath=sse -funroll-loops
 # Fully-optimized:
-OFLAGS = -O3 -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -Wall -static -fexpensive-optimizations -mtune=core2 -march=core2 -msse4a -mfpmath=sse -funroll-loops
+#OFLAGS = -O3 -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -Wall -static -fexpensive-optimizations -mtune=core2 -march=core2 -msse4a -mfpmath=sse -funroll-loops
+
+#Needed only by syscall.c because > O0 breaks it
+#OFLAGS_SAFE = -O0 -g -pg -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -Wall -static -mfpmath=sse -msse4a
+
+
 
 ##################################################################
 # Uncomment to turn on pipeline event logging (currently not supported)
@@ -68,6 +75,7 @@ FFLAGS = -DLINUX_RHEL4
 # complete flags
 #
 CFLAGS = $(MFLAGS) $(FFLAGS) $(OFLAGS) $(BINUTILS_INC) $(BINUTILS_LIB) $(ZTRACE)
+CFLAGS_SAFE = $(MFLAGS) $(FFLAGS) $(OFLAGS_SAFE) $(BINUTILS_INC) $(BINUTILS_LIB) $(ZTRACE)
 
 #
 # all the sources
@@ -131,7 +139,7 @@ default: sim-zesto
 all: $(PROGS)
 
 syscall.$(OEXT): syscall.c syscall.h thread.h
-	gcc4 $(CFLAGS) -c $*.c
+	gcc4 $(CFLAGS_SAFE) -c $*.c
 
 make.target:
 	touch make.target
