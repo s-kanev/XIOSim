@@ -588,7 +588,7 @@ static inline void SYMCAT(OP,_IMPL_FUNC)(struct thread_t * thread, struct Mop_t 
 #undef DECLARE_FAULT
 
 void
-sim_fastfwd(struct core_t ** cores, const int insn_count)
+sim_fastfwd(struct core_t ** cores, const long long insn_count)
 {
   md_addr_t addr = 0;
   struct thread_t * thread = NULL;
@@ -599,9 +599,9 @@ sim_fastfwd(struct core_t ** cores, const int insn_count)
 
   memzero(Mop,sizeof(*Mop));
   if(num_threads > 1)
-    fprintf(stderr, "### fast forwarding %u instructions per thread, for all %d threads", insn_count,num_threads);
+    fprintf(stderr, "### fast forwarding %lld instructions per thread, for all %d threads", insn_count,num_threads);
   else
-    fprintf(stderr, "### fast forwarding %u instructions", insn_count);
+    fprintf(stderr, "### fast forwarding %lld instructions", insn_count);
   if(knobs.memory.warm_caches || knobs.fetch.warm_bpred)
   {
     fprintf(stderr,": warming ");
@@ -614,7 +614,7 @@ sim_fastfwd(struct core_t ** cores, const int insn_count)
   }
   fprintf(stderr,"\n");
 
-  for(int i=0;i<insn_count;i++)
+  for(long long i=0;i<insn_count;i++)
   {
     for(int t=0;t<num_threads;t++)
     {

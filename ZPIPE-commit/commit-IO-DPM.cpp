@@ -369,6 +369,15 @@ void core_commit_IO_DPM_t::step(void)
 #ifdef ZTRACE
       ztrace_print("DEADLOCK DETECTED: TERMINATING SIMULATION");
 #endif
+
+     struct Mop_t * last_Mop = core->oracle->get_oldest_Mop();
+     if(last_Mop)
+     {
+       warn("Dumping possible cause: ");
+       md_print_insn(last_Mop, stderr);
+       //dump_Mop_information(last_Mop);
+     }
+
       zesto_fatal(buf,(void)0);
     }
     else

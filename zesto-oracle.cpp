@@ -322,6 +322,14 @@ struct Mop_t * core_oracle_t::get_Mop(const int index)
   return &MopQ[index];
 }
 
+struct Mop_t * core_oracle_t::get_oldest_Mop()
+{
+  if(MopQ_num == 0)
+    return NULL;
+
+  return &MopQ[MopQ_head];
+}
+
 int core_oracle_t::get_index(const struct Mop_t * const Mop)
 {
   return Mop - MopQ;

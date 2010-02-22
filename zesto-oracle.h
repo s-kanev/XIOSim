@@ -214,6 +214,7 @@ class core_oracle_t {
   struct Mop_t * get_Mop(const int index);
   int get_index(const struct Mop_t * const Mop);
   int next_index(const int index);
+  struct Mop_t * get_oldest_Mop();
 
   bool spec_read_byte(const md_addr_t addr, byte_t * const valp);
   struct spec_byte_t * spec_write_byte(const md_addr_t addr, const byte_t val);
