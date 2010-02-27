@@ -109,19 +109,19 @@ ZSRCS = \
 sim-zesto.cpp zesto-core.cpp zesto-opts.c zesto-oracle.cpp zesto-fetch.cpp         \
 zesto-decode.cpp zesto-alloc.cpp zesto-exec.cpp zesto-commit.cpp zesto-cache.cpp   \
 zesto-dram.cpp zesto-bpred.cpp zesto-memdep.cpp zesto-prefetch.cpp                 \
-zesto-uncore.cpp zesto-MC.cpp
+zesto-uncore.cpp zesto-MC.cpp zesto-dumps.cpp
 
 ZHDRS = \
 zesto-structs.h zesto-core.h zesto-opts.h zesto-oracle.h zesto-fetch.h             \
 zesto-decode.h zesto-alloc.h zesto-exec.h zesto-commit.h zesto-cache.h             \
 zesto-dram.h zesto-bpred.h zesto-memdep.h zesto-prefetch.h zesto-uncore.h          \
-zesto-MC.h
+zesto-MC.h zesto-dumps.h
 
 ZOBJS = \
 zesto-opts.$(OEXT) zesto-core.$(OEXT) zesto-oracle.$(OEXT) zesto-fetch.$(OEXT)     \
 zesto-decode.$(OEXT) zesto-alloc.$(OEXT) zesto-exec.$(OEXT) zesto-commit.$(OEXT)   \
 zesto-cache.$(OEXT) zesto-dram.$(OEXT) zesto-bpred.$(OEXT) zesto-memdep.$(OEXT)    \
-zesto-prefetch.$(OEXT) zesto-uncore.$(OEXT) zesto-MC.$(OEXT)
+zesto-prefetch.$(OEXT) zesto-uncore.$(OEXT) zesto-MC.$(OEXT) zesto-dumps.$(OEXT)
 
 EXOOBJS = \
 libexo/libexo.$(OEXT) libexo/exolex.$(OEXT)
@@ -346,7 +346,7 @@ zesto-commit.o: sim.h options.h stats.h host.h machine.h misc.h machine.def
 zesto-commit.o: zesto-structs.h regs.h eval.h memory.h thread.h zesto-core.h
 zesto-commit.o: zesto-opts.h zesto-oracle.h zesto-fetch.h zesto-decode.h
 zesto-commit.o: zesto-alloc.h zesto-exec.h zesto-cache.h zesto-commit.h
-zesto-commit.o: zesto-bpred.h
+zesto-commit.o: zesto-bpred.h zesto-dumps.h
 zesto-cache.o: thread.h machine.h host.h misc.h machine.def zesto-structs.h
 zesto-cache.o: regs.h options.h memory.h stats.h eval.h zesto-core.h
 zesto-cache.o: zesto-opts.h zesto-cache.h zesto-prefetch.h zesto-dram.h

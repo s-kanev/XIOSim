@@ -645,6 +645,9 @@ void core_exec_IO_DPM_t::update_occupancy(void)
     core->stat.STQ_full_cycles++;
   if(STQ_num <= 0)
     core->stat.STQ_empty_cycles++;
+
+  core->stat.port0_issue_occupancy += port[0].occupancy;
+  core->stat.port1_issue_occupancy += port[1].occupancy;
 }
 
 /* Functions to support dependency tracking 
@@ -2986,8 +2989,6 @@ void core_exec_IO_DPM_t::step()
         port[i].when_stalled = 0;
   }
   check_for_work = work_found;
-  ZESTO_STAT(core->stat.port0_issue_occupancy += port[0].occupancy;)
-  ZESTO_STAT(core->stat.port1_issue_occupancy += port[1].occupancy;)
 }
 
 /* not entirely sure what the architectural counterpart of this is(scoreboard?), but we use it in the simulator to check if issuing won't break the program order (after issue no reordering can be done) */

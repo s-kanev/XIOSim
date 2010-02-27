@@ -375,7 +375,11 @@ void core_commit_IO_DPM_t::step(void)
      {
        warn("Dumping possible cause: ");
        md_print_insn(last_Mop, stderr);
-       //dump_Mop_information(last_Mop);
+       fprintf(stderr, "\n");
+       int commit_ind = last_Mop->commit.commit_index;
+       fprintf(stderr, "Last non-commited uop: %d. Dumping stats\n", commit_ind); 
+       dump_uop_alloc(&last_Mop->uop[commit_ind]);
+       dump_uop_timing(&last_Mop->uop[commit_ind]);
      }
 
       zesto_fatal(buf,(void)0);
