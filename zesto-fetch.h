@@ -90,7 +90,20 @@ class core_fetch_t {
   virtual void update_occupancy(void) = 0;
 
   /* simulate one cycle */
-  virtual void step(void) = 0;
+  virtual void step(void)
+  {
+     post_fetch();
+     while(do_fetch());
+     pre_fetch();
+  }
+
+  //Handles events before the actual fetch (cache requests, jeclears, etc.)
+  virtual void pre_fetch(void) = 0;
+  //Fetch a Mop from the current PC, returns true if more Mops can be fetched this cycle
+  //possibly called multiple times a cycle
+  virtual bool do_fetch(void) = 0;
+  //Handles events after the actual fetch (predecode pipe, insert into decode, etc.)
+  virtual void post_fetch(void) = 0;
 
   /* interface to decode stage:
      Mop_available() returns true if front-end has a Mop ready

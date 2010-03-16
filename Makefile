@@ -23,11 +23,11 @@ CC = g++4
 # Uncomment only one of the following OFLAGS, or make your own
 
 # For debug:
-#OFLAGS = -O0 -g -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -Wall -DDEBUG -msse4a -mfpmath=sse
+OFLAGS = -O0 -g -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -Wall -DDEBUG -msse4a -mfpmath=sse
 # Fully-optimized, but with profiling for gprof:
 #OFLAGS = -O3 -g -pg -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -Wall -static -fexpensive-optimizations -mtune=core2 -march=core2 -msse4a -mfpmath=sse -funroll-loops
 # Fully-optimized:
-OFLAGS = -O3 -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -Wall -static -fexpensive-optimizations -mtune=core2 -march=core2 -msse4a -mfpmath=sse -funroll-loops
+#OFLAGS = -O3 -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -Wall -static -fexpensive-optimizations -mtune=core2 -march=core2 -msse4a -mfpmath=sse -funroll-loops
 
 ##################################################################
 # Uncomment to turn on pipeline event logging (currently not supported)
@@ -74,11 +74,11 @@ CFLAGS = $(MFLAGS) $(FFLAGS) $(OFLAGS) $(BINUTILS_INC) $(BINUTILS_LIB) $(ZTRACE)
 #
 SRCS =  \
 bbtracker.c          eio.c                endian.c              eval.c             \
-loader.c 		         machine.c            main.c                memory.c           \
+loader.c	     machine.c            main.c                memory.c           \
 misc.c               options.c            range.c               regs.c             \
 sim-eio.c            sim-fast.c           stats.c               symbol.c           \
-syscall.c 					 sysprobe.c           sim-cache.c                              \
-loader.c             symbol.c             syscall.c
+syscall.c	     sysprobe.c           sim-cache.c           slave.c	           \
+loader.c             symbol.c             syscall.c             sim-main.c
 
 HDRS = \
 bbtracker.h          cache.h                                    thread.h           \
@@ -87,14 +87,16 @@ host.h               loader.h             machine.h             memory.h        
 mem-system.h         misc.h               options.h             ptrace.h           \
 range.h              regs.h               resource.h            sim.h              \
 stats.h              symbol.h             syscall.h             version.h          \
-machine.def          elf.h                x86flow.def
+machine.def          elf.h                x86flow.def           interface.h
 
 OBJS_NOMAIN =	\
 eio.$(OEXT)          endian.$(OEXT)       eval.$(OEXT)          loader.$(OEXT)     \
 machine.$(OEXT)      memory.$(OEXT)       misc.$(OEXT)          options.$(OEXT)    \
-range.$(OEXT)        regs.$(OEXT)         stats.$(OEXT)         symbol.$(OEXT)
+range.$(OEXT)        regs.$(OEXT)         stats.$(OEXT)         symbol.$(OEXT)     \
+sim-main.$(OEXT)
 
 OBJS = main.$(OEXT) $(OBJS_NOMAIN) syscall.$(OEXT)
+OBJS_SLAVE = slave.$(OEXT) $(OBJS_NOMAIN) syscall.$(OEXT)
 
 # Zesto specific files
 ZSRCS = \
@@ -127,7 +129,7 @@ include make.target
 #
 # all targets, NOTE: library ordering is important...
 #
-default: sim-zesto
+default: sim-zesto libsim.a
 all: $(PROGS)
 
 syscall.$(OEXT): syscall.c syscall.h thread.h
@@ -167,6 +169,9 @@ sim-zesto3$(EEXT):	sysprobe$(EEXT) sim-zesto.$(OEXT) $(OBJS) $(ZOBJS) $(EXOOBJS)
 	$(CC) -o sim-zesto3$(EEXT) $(CFLAGS) sim-zesto.$(OEXT) $(OBJS) $(ZOBJS) $(EXOOBJS) $(MLIBS)
 sim-zesto4$(EEXT):	sysprobe$(EEXT) sim-zesto.$(OEXT) $(OBJS) $(ZOBJS) $(EXOOBJS)
 	$(CC) -o sim-zesto4$(EEXT) $(CFLAGS) sim-zesto.$(OEXT) $(OBJS) $(ZOBJS) $(EXOOBJS) $(MLIBS)
+libsim.a:		sysprobe$(EEXT) syscall.$(OEXT) sim-slave.$(OEXT) $(OBJS_SLAVE) $(ZOBJS) $(EXOOBJS)
+	ar rs $@ sim-slave.$(OEXT) syscall.$(OEXT) $(OBJS_SLAVE) $(ZOBJS) $(EXOOBJS)
+	ranlib $@
 
 exo $(EXOOBJS): sysprobe$(EEXT)
 	cd libexo $(CS) \
@@ -225,7 +230,7 @@ filelist:
 	@echo $(SRCS) $(HDRS) Makefile
 
 clean:
-	-$(RM) *.o *.obj core *~ Makefile.bak sysprobe$(EEXT) $(PROGS)
+	-$(RM) *.o *.obj core *~ Makefile.bak libsim* sysprobe$(EEXT) $(PROGS)
 	cd libexo $(CS) $(MAKE) "RM=$(RM)" "CS=$(CS)" clean $(CS) cd ..
 
 test: sim-zesto
@@ -262,6 +267,16 @@ machine.o: options.h eval.h memory.h stats.h sim.h thread.h
 machine.o: x86flow.def
 main.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h options.h
 main.o: endian.h thread.h memory.h stats.h eval.h version.h loader.h sim.h
+main.o: interface.h
+slave.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h options.h
+slave.o: endian.h thread.h memory.h stats.h eval.h version.h loader.h sim.h
+slave.o: interface.h
+sim-slave.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h
+sim-slave.o: options.h memory.h stats.h eval.h loader.h thread.h syscall.h
+sim-slave.o: sim.h zesto-opts.h zesto-core.h zesto-oracle.h zesto-fetch.h
+sim-slave.o: zesto-decode.h zesto-bpred.h zesto-alloc.h zesto-exec.h
+sim-slave.o: zesto-commit.h zesto-dram.h zesto-cache.h zesto-uncore.h
+sim-slave.o: zesto-MC.h interface.h
 memory.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h
 memory.o: options.h stats.h eval.h memory.h
 misc.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h options.h
@@ -304,6 +319,12 @@ sim-zesto.o: sim.h zesto-opts.h zesto-core.h zesto-oracle.h zesto-fetch.h
 sim-zesto.o: zesto-decode.h zesto-bpred.h zesto-alloc.h zesto-exec.h
 sim-zesto.o: zesto-commit.h zesto-dram.h zesto-cache.h zesto-uncore.h
 sim-zesto.o: zesto-MC.h
+libsim.a: host.h misc.h machine.h machine.def zesto-structs.h regs.h
+libsim.a: options.h memory.h stats.h eval.h loader.h thread.h syscall.h
+libsim.a: sim.h zesto-opts.h zesto-core.h zesto-oracle.h zesto-fetch.h
+libsim.a: zesto-decode.h zesto-bpred.h zesto-alloc.h zesto-exec.h
+libsim.a: zesto-commit.h zesto-dram.h zesto-cache.h zesto-uncore.h
+libsim.a: zesto-MC.h interface.h
 zesto-core.o: zesto-core.h zesto-structs.h machine.h host.h misc.h
 zesto-core.o: machine.def regs.h options.h
 zesto-opts.o: thread.h machine.h host.h misc.h machine.def zesto-structs.h

@@ -260,9 +260,15 @@ typedef enum md_fault_type
 #define MEM_WRITE(MEM, ADDR, TYPE, VAL)          \
   core->oracle->spec_write_byte((ADDR),(VAL))
 
+
+#ifdef ZESTO_PIN
+/*Pin does the actual write if instruction is not speculative */
+#define MEM_WRITE_BYTE_NON_SPEC(MEM, ADDR, VAL) ()
+#else
 #define MEM_WRITE_BYTE_NON_SPEC(MEM, ADDR, VAL)          \
   (MEM_TICKLE(MEM, (md_addr_t)(ADDR)),          \
    *((byte_t *)(MEM_PAGE(MEM, (md_addr_t)(ADDR),1) + MEM_OFFSET(ADDR))) = (VAL))
+#endif /*ZESTO_PIN*/
 
 #else /* regular non-speculative versions... */
 

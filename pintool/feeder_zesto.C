@@ -16,7 +16,6 @@
 
 #include "../interface.h" 
 
-
 using namespace std;
 
 /* ========================================================================== */
@@ -66,7 +65,7 @@ VOID ImageUnload(IMG img, VOID *v)
     ADDRINT start = IMG_LowAddress(img);
     ADDRINT length = IMG_HighAddress(img) - start;
 
-    ASSERTX( SIMPLESCALAR_NotifyMunmap(start, length));
+    ASSERTX( Zesto_Notify_Munmap(start, length));
 }
 
 /* ========================================================================== */
@@ -75,7 +74,7 @@ VOID ImageLoad(IMG img, VOID *v)
     ADDRINT start = IMG_LowAddress(img);
     ADDRINT length = IMG_HighAddress(img) - start;
 
-    ASSERTX( SIMPLESCALAR_NotifyMmap(start, length));
+    ASSERTX( Zesto_Notify_Mmap(start, length));
 }
 
 /* ========================================================================== */
@@ -327,7 +326,7 @@ INT32 main(INT32 argc, CHAR **argv)
     INS_AddInstrumentFunction(Instrument, 0);
     PIN_AddFiniFunction(Fini, 0);
 
-    Zesto_Init(ssargs.first, ssargs.second);
+    Zesto_SlaveInit(ssargs.first, ssargs.second);
 
     PIN_StartProgram();
 

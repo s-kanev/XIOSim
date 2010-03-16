@@ -27,7 +27,10 @@ class core_fetch_STM_t:public core_fetch_t
   virtual void update_occupancy(void);
 
   /* simulate one cycle */
-  virtual void step(void);
+  virtual void pre_fetch(void);
+  virtual bool do_fetch(void);
+  virtual void post_fetch(void);
+
 
   /* decode interface */
   virtual bool Mop_available(void);
@@ -74,6 +77,7 @@ class core_fetch_STM_t:public core_fetch_t
   static bool translated_callback(void * const op, const seq_t action_id);
   static seq_t get_byteQ_action_id(void * const op);
 
+  enum fetch_stall_t stall_reason;
 };
 
 const char *core_fetch_STM_t::fetch_stall_str[FSTALL_num] = {
@@ -287,138 +291,10 @@ seq_t core_fetch_STM_t::get_byteQ_action_id(void * const op)
 /* MAIN FETCH FUNCTIONS */
 /************************/
 
-void core_fetch_STM_t::step(void)
+void core_fetch_STM_t::pre_fetch(void)
 {
   struct core_knobs_t * knobs = core->knobs;
-  md_addr_t current_line = PC & byteQ_linemask;
-  struct Mop_t * Mop = NULL;
-  enum fetch_stall_t stall_reason = FSTALL_EOL;
   int i;
-
-  /* This gets processed here, so that demand misses from the DL1 get higher
-     priority for accessing the L2 */
-  if(core->memory.ITLB->check_for_work) cache_process(core->memory.ITLB);
-  if(core->memory.IL1->check_for_work) cache_process(core->memory.IL1);
-
-  /* XXX: I don't think we really should need this code here, since
-     whenever a Mop gets consumed, this check should be happening
-     any way (see the Mop_consume function)... but the simulator
-     seems to get stuck with a line where all Mops have been read
-     yet has not been reclaimed. */
-  if(byteQ_num && (byteQ[byteQ_head].when_fetched != TICK_T_MAX) 
-                  && (byteQ[byteQ_head].when_translated != TICK_T_MAX)
-                  && (byteQ[byteQ_head].num_Mop <= 0))
-  {
-    /* consumed all insts from this fetch line */
-    byteQ[byteQ_head].MopQ_first_index = -1;
-    byteQ[byteQ_head].when_fetch_requested = TICK_T_MAX;
-    byteQ[byteQ_head].when_fetched = TICK_T_MAX;
-    byteQ[byteQ_head].when_translation_requested = TICK_T_MAX;
-    byteQ[byteQ_head].when_translated = TICK_T_MAX;
-    byteQ_num--;
-    byteQ_head = modinc(byteQ_head,knobs->fetch.byteQ_size); //(byteQ_head+1)%knobs->fetch.byteQ_size;
-  }
-
-
-  while( /* still fetching from the same byteQ entry */
-         (PC & byteQ_linemask) == current_line
-       )
-  {
-    Mop = core->oracle->exec(PC);
-    if(Mop && ((PC >> PAGE_SHIFT) == 0))
-    {
-      zesto_assert(core->oracle->spec_mode,(void)0);
-      stall_reason = FSTALL_ZPAGE;
-      break;
-    }
-
-    if(!Mop) /* awaiting pipe to clear for system call/trap, or encountered wrong-path bogus inst */
-    {
-      if(bogus)
-        stall_reason = FSTALL_BOGUS;
-      else
-        stall_reason = FSTALL_SYSCALL;
-      break;
-    }
-
-    /* We explicitly check for both the address of the first byte and the last
-       byte, since x86 instructions have no alignment restrictions and therefore
-       may end up getting split across more than one cache line.  If so, this
-       can generate more than one IL1/ITLB lookup. */
-    if(byteQ_already_requested(Mop->fetch.PC))
-    {
-      Mop->fetch.first_byte_requested = true;
-      if(Mop->timing.when_fetch_started == TICK_T_MAX)
-        Mop->timing.when_fetch_started = sim_cycle;
-    }
-    if(!Mop->fetch.first_byte_requested)
-    {
-      if(byteQ_is_full()) /* stall if byteQ is full */
-      {
-        stall_reason = FSTALL_byteQ_FULL;
-        break;
-      }
-
-      if(Mop->timing.when_fetch_started == TICK_T_MAX)
-        Mop->timing.when_fetch_started = sim_cycle;
-      Mop->fetch.first_byte_requested = true;
-      byteQ_request(Mop->fetch.PC & byteQ_linemask);
-    }
-
-    /* STM model doesn't deal with fetches across cache lines */
-    Mop->fetch.last_byte_requested = true;
-
-    zesto_assert(Mop->fetch.first_byte_requested,(void)0);
-
-    /* All bytes for this Mop have been requested.  Record it in the byteQ entry
-       and let the oracle know we're done with it so can proceed to the next
-       one */
-
-    int byteQ_index = moddec(byteQ_tail,knobs->fetch.byteQ_size); //(byteQ_tail-1+knobs->fetch.byteQ_size)%knobs->fetch.byteQ_size;
-    if(byteQ[byteQ_index].num_Mop == 0)
-      byteQ[byteQ_index].MopQ_first_index = core->oracle->get_index(Mop);
-    byteQ[byteQ_index].num_Mop++;
-
-    core->oracle->consume(Mop);
-
-    /* figure out where to fetch from next */
-    if(Mop->decode.is_ctrl || Mop->fetch.inst.rep)
-    {
-      Mop->fetch.bpred_update = bpred->get_state_cache();
-
-      Mop->fetch.pred_NPC = bpred->lookup(Mop->fetch.bpred_update,
-          Mop->decode.opflags, Mop->fetch.PC,Mop->fetch.PC+Mop->fetch.inst.len,Mop->decode.targetPC,
-          Mop->oracle.NextPC,(Mop->oracle.NextPC != (Mop->fetch.PC+Mop->fetch.inst.len)));
-
-
-      bpred->spec_update(Mop->fetch.bpred_update,Mop->decode.opflags,
-          Mop->fetch.PC,Mop->decode.targetPC,Mop->oracle.NextPC,Mop->fetch.bpred_update->our_pred);
-    }
-    else
-      Mop->fetch.pred_NPC = Mop->fetch.PC + Mop->fetch.inst.len;
-
-    if(Mop->fetch.pred_NPC != Mop->oracle.NextPC)
-    {
-      Mop->oracle.recover_inst = true;
-      Mop->uop[Mop->decode.last_uop_index].oracle.recover_inst = true;
-    }
-
-    /* advance the fetch PC to the next instruction */
-    PC = Mop->fetch.pred_NPC;
-
-    if(  (Mop->fetch.pred_NPC != (Mop->fetch.PC + Mop->fetch.inst.len))
-      && (Mop->fetch.pred_NPC != Mop->fetch.PC)) /* REPs don't count as taken branches w.r.t. fetching */
-    {
-      stall_reason = FSTALL_TBR;
-      break;
-    }
-    else if((Mop->fetch.PC & byteQ_linemask) != current_line)
-    {
-      stall_reason = FSTALL_EOL;
-      break;
-    }
-
-  } /* while */
 
   ZESTO_STAT(stat_add_sample(core->stat.fetch_stall, (int)stall_reason);)
 
@@ -452,6 +328,141 @@ void core_fetch_STM_t::step(void)
     }
     index = modinc(index,knobs->fetch.byteQ_size);
   }
+}
+
+void core_fetch_STM_t::post_fetch(void)
+{
+  struct core_knobs_t * knobs = core->knobs;
+
+  /* This gets processed here, so that demand misses from the DL1 get higher
+     priority for accessing the L2 */
+  if(core->memory.ITLB->check_for_work) cache_process(core->memory.ITLB);
+  if(core->memory.IL1->check_for_work) cache_process(core->memory.IL1);
+
+  /* XXX: I don't think we really should need this code here, since
+     whenever a Mop gets consumed, this check should be happening
+     any way (see the Mop_consume function)... but the simulator
+     seems to get stuck with a line where all Mops have been read
+     yet has not been reclaimed. */
+  if(byteQ_num && (byteQ[byteQ_head].when_fetched != TICK_T_MAX) 
+                  && (byteQ[byteQ_head].when_translated != TICK_T_MAX)
+                  && (byteQ[byteQ_head].num_Mop <= 0))
+  {
+    /* consumed all insts from this fetch line */
+    byteQ[byteQ_head].MopQ_first_index = -1;
+    byteQ[byteQ_head].when_fetch_requested = TICK_T_MAX;
+    byteQ[byteQ_head].when_fetched = TICK_T_MAX;
+    byteQ[byteQ_head].when_translation_requested = TICK_T_MAX;
+    byteQ[byteQ_head].when_translated = TICK_T_MAX;
+    byteQ_num--;
+    byteQ_head = modinc(byteQ_head,knobs->fetch.byteQ_size); //(byteQ_head+1)%knobs->fetch.byteQ_size;
+  }
+
+  stall_reason = FSTALL_EOL;
+}
+
+bool core_fetch_STM_t::do_fetch(void)
+{
+  struct core_knobs_t * knobs = core->knobs;
+  md_addr_t current_line = PC & byteQ_linemask;
+  struct Mop_t * Mop = NULL;
+
+  Mop = core->oracle->exec(PC);
+  if(Mop && ((PC >> PAGE_SHIFT) == 0))
+  {
+    zesto_assert(core->oracle->spec_mode,(void)0);
+    stall_reason = FSTALL_ZPAGE;
+    return false;
+  }
+
+  if(!Mop) /* awaiting pipe to clear for system call/trap, or encountered wrong-path bogus inst */
+  {
+    if(bogus)
+      stall_reason = FSTALL_BOGUS;
+    else
+      stall_reason = FSTALL_SYSCALL;
+    return false;
+  }
+
+  /* We explicitly check for both the address of the first byte and the last
+     byte, since x86 instructions have no alignment restrictions and therefore
+     may end up getting split across more than one cache line.  If so, this
+     can generate more than one IL1/ITLB lookup. */
+  if(byteQ_already_requested(Mop->fetch.PC))
+  {
+    Mop->fetch.first_byte_requested = true;
+    if(Mop->timing.when_fetch_started == TICK_T_MAX)
+      Mop->timing.when_fetch_started = sim_cycle;
+  }
+  if(!Mop->fetch.first_byte_requested)
+  {
+    if(byteQ_is_full()) /* stall if byteQ is full */
+    {
+      stall_reason = FSTALL_byteQ_FULL;
+      return false;
+    }
+
+    if(Mop->timing.when_fetch_started == TICK_T_MAX)
+      Mop->timing.when_fetch_started = sim_cycle;
+    Mop->fetch.first_byte_requested = true;
+    byteQ_request(Mop->fetch.PC & byteQ_linemask);
+  }
+
+  /* STM model doesn't deal with fetches across cache lines */
+  Mop->fetch.last_byte_requested = true;
+
+  zesto_assert(Mop->fetch.first_byte_requested,(void)0);
+
+  /* All bytes for this Mop have been requested.  Record it in the byteQ entry
+     and let the oracle know we're done with it so can proceed to the next
+     one */
+
+  int byteQ_index = moddec(byteQ_tail,knobs->fetch.byteQ_size); //(byteQ_tail-1+knobs->fetch.byteQ_size)%knobs->fetch.byteQ_size;
+  if(byteQ[byteQ_index].num_Mop == 0)
+    byteQ[byteQ_index].MopQ_first_index = core->oracle->get_index(Mop);
+  byteQ[byteQ_index].num_Mop++;
+
+  core->oracle->consume(Mop);
+
+  /* figure out where to fetch from next */
+  if(Mop->decode.is_ctrl || Mop->fetch.inst.rep)
+  {
+    Mop->fetch.bpred_update = bpred->get_state_cache();
+
+    Mop->fetch.pred_NPC = bpred->lookup(Mop->fetch.bpred_update,
+	Mop->decode.opflags, Mop->fetch.PC,Mop->fetch.PC+Mop->fetch.inst.len,Mop->decode.targetPC,
+	Mop->oracle.NextPC,(Mop->oracle.NextPC != (Mop->fetch.PC+Mop->fetch.inst.len)));
+
+
+    bpred->spec_update(Mop->fetch.bpred_update,Mop->decode.opflags,
+	Mop->fetch.PC,Mop->decode.targetPC,Mop->oracle.NextPC,Mop->fetch.bpred_update->our_pred);
+  }
+  else
+    Mop->fetch.pred_NPC = Mop->fetch.PC + Mop->fetch.inst.len;
+
+  if(Mop->fetch.pred_NPC != Mop->oracle.NextPC)
+  {
+    Mop->oracle.recover_inst = true;
+    Mop->uop[Mop->decode.last_uop_index].oracle.recover_inst = true;
+  }
+
+  /* advance the fetch PC to the next instruction */
+  PC = Mop->fetch.pred_NPC;
+
+  if(  (Mop->fetch.pred_NPC != (Mop->fetch.PC + Mop->fetch.inst.len))
+    && (Mop->fetch.pred_NPC != Mop->fetch.PC)) /* REPs don't count as taken branches w.r.t. fetching */
+  {
+    stall_reason = FSTALL_TBR;
+    return false;
+  }
+  else if((Mop->fetch.PC & byteQ_linemask) != current_line)
+  {
+    stall_reason = FSTALL_EOL;
+    return false;
+  }
+
+  /* still fetching from the same byteQ entry */
+  return ((PC & byteQ_linemask) == current_line);
 }
 
 

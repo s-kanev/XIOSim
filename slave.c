@@ -90,8 +90,28 @@
 #include "version.h"
 #include "options.h"
 #include "stats.h"
+#include "interface.h"
 #include "loader.h"
 #include "sim.h"
+
+#include "zesto-core.h"
+#include "zesto-fetch.h"
+#include "zesto-oracle.h"
+#include "zesto-decode.h"
+#include "zesto-bpred.h"
+#include "zesto-alloc.h"
+#include "zesto-exec.h"
+#include "zesto-commit.h"
+#include "zesto-dram.h"
+#include "zesto-uncore.h"
+#include "zesto-MC.h"
+
+
+extern void sim_main_slave_pre_pin();
+extern void sim_main_slave_post_pin();
+extern bool sim_main_slave_fetch_insn();
+extern bool sim_main_slave_step();
+
 
 /* stats signal handler */
 extern void signal_sim_stats(int sigtype);
@@ -161,18 +181,19 @@ extern int running;
 extern void sim_print_stats(FILE *fd);
 extern void exit_now(int exit_code);
 
-
 int
-main(int argc, char **argv, char **envp)
+Zesto_SlaveInit(int argc, char **argv)
 {
   char *s;
   int i, exit_code;
 
   /* catch SIGUSR1 and dump intermediate stats */
-  signal(SIGUSR1, signal_sim_stats);
+//SK: Used by PIN
+//  signal(SIGUSR1, signal_sim_stats);
 
   /* catch SIGUSR2 and dump final stats and exit */
-  signal(SIGUSR2, signal_exit_now);
+//SK: Used by PIN
+//  signal(SIGUSR2, signal_exit_now);
 
   /* register an error handler */
   fatal_hook(sim_print_stats);
@@ -288,30 +309,19 @@ main(int argc, char **argv, char **envp)
   /* check simulator-specific options */
   sim_check_options(sim_odb, argc, argv);
 
+//Irrelevant for slave mode
   /* set simulator scheduling priority */
-  if (nice(0) < nice_priority)
+/*  if (nice(0) < nice_priority)
     {
       if (nice(nice_priority - nice(0)) < 0)
         fatal("could not renice simulator process");
-    }
+    }*/
 
   /* initialize the instruction decoder */
   md_init_decoder();
 
   /* initialize all simulation modules */
   sim_post_init();
-
-  /* initialize architected state */
-  for(i=0;i<num_threads;i++)
-  {
-    if((num_threads > 1) && (exec_index == argc))
-      fatal("if you set -cores to %d, you must provide %d EIO trace inputs",num_threads,num_threads);
-    int is_eio = sim_load_prog(threads[i],argv[exec_index], argc-exec_index, argv+exec_index, envp);
-    if(is_eio)
-      exec_index ++;
-    else if(num_threads > 1)
-      fatal("only EIO traces supported in multi-core mode");
-  }
 
   /* register all simulator stats */
   sim_sdb = stat_new();
@@ -342,10 +352,93 @@ main(int argc, char **argv, char **envp)
     exit_now(0);
 
   running = TRUE;
-  sim_main();
 
-  /* simulation finished early */
-  exit_now(0);
+  /* Run all stages after fetch for first cycle */
+  sim_main_slave_pre_pin();
 
+  /* return control to Pin and wait for first instruction */
   return 0;
 }
+
+int Zesto_Notify_Mmap(unsigned int addr, unsigned int length)
+{
+   int i = 0;
+   struct mem_t * mem = cores[i]->current_thread->mem;
+   assert(num_threads == 1);
+
+   md_addr_t retval = mem_newmap2(mem, (md_addr_t)addr, (md_addr_t)addr, length, 1);
+   return (retval == addr);
+}
+
+int Zesto_Notify_Munmap(unsigned int addr, unsigned int length)
+{
+  int i = 0;
+  struct mem_t * mem = cores[i]->current_thread->mem;
+  assert(num_threads == 1);
+
+  mem_delmap(mem, (md_addr_t)addr, length);
+  return 1;
+}
+
+void Zesto_Destroy()
+{
+  /* print simulator stats */
+  sim_print_stats(stderr);
+}
+
+
+void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
+{
+   //TODO: Widen hanshake to include thread id
+   assert(num_threads == 1);
+
+   int i = 0;
+
+   regs_t * regs = &cores[i]->current_thread->regs;
+
+//   myfprintf(stderr, "Getting control from PIN, PC: %u \n", handshake->pc);
+
+   /* Copy architectural state from pim
+      XXX: This is arch state BEFORE executed the instruction we're about to simulate*/
+   //regs->regs_PC = handshake->pc;
+   regs->regs_NPC = handshake->pc;
+
+   regs->regs_R = handshake->ctxt->regs_R;
+   regs->regs_F = handshake->ctxt->regs_F;
+   regs->regs_C = handshake->ctxt->regs_C;
+   regs->regs_S = handshake->ctxt->regs_S;
+
+   cores[i]->fetch->PC = handshake->pc;
+
+
+   bool fetch_more = sim_main_slave_fetch_insn();
+
+
+   if(!cores[i]->oracle->spec_mode )
+   {
+     /* Pass control back to Pin to get a new PC */
+     if(fetch_more)
+       return;
+    
+     sim_main_slave_post_pin();
+
+     /* This is already next cycle, up to fetch */
+     sim_main_slave_pre_pin();
+   }
+   else
+   {
+     do
+     {
+       while(fetch_more)
+         fetch_more = sim_main_slave_fetch_insn();
+
+       sim_main_slave_post_pin();
+
+       sim_main_slave_pre_pin();
+
+     }while(cores[i]->oracle->spec_mode);
+      
+   }
+}
+
+

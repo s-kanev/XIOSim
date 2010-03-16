@@ -14,9 +14,5 @@ typedef struct P2Z_HANDSHAKE {
     unsigned char *ins;                 /* Instruction bytes */
 } P2Z_HANDSHAKE;
 
-void Zesto_Init();
-void Zesto_Destroy();
-void Zesto_Resume(struct P2Z_HANDSHAKE * handshake);
-
 
 #endif /*__PIN_ZESTO_H__*/

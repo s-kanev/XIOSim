@@ -25,7 +25,8 @@
 #    or as an environment variable.
 #
 PIN_HOME ?= /home/skanev/pin/pin-2.7-31933-gcc.3.4.6-ia32_intel64-linux
-
+ZESTO_HOME = /home/skanev/pin/zpin
+TARGET = ia32
 
 
 ##############################################################
@@ -95,10 +96,10 @@ $(OBJDIR)%.o : %.C
 $(OBJDIR)%.o : %.cpp
 	$(CXX) -c $(CXXFLAGS) $(PIN_CXXFLAGS) ${OUTOPT}$@ $<
 
-$(TOOLS): $(PIN_LIBNAMES)
+$(TOOLS): $(PIN_LIBNAMES) $(ZESTO_HOME)/libsim.a
 
-$(TOOLS): %$(PINTOOL_SUFFIX) : %.o
-	${PIN_LD} $(PIN_LDFLAGS) $(LINK_DEBUG) ${LINK_OUT}$@ $< ${PIN_LPATHS} $(PIN_LIBS) $(DBG)
+$(TOOLS): %$(PINTOOL_SUFFIX) : %.o 
+	${PIN_LD} $(PIN_LDFLAGS) -I$(ZESTO_HOME) -L$(ZESTO_HOME) $(LINK_DEBUG) ${LINK_OUT} $@ $< ${PIN_LPATHS} $(ZESTO_HOME)/libsim.a $(PIN_LIBS) $(DBG) -static
 
 
 ## cleaning
