@@ -617,8 +617,11 @@ seq_t core_oracle_t::syscall_get_action_id(void * const op)
 #endif
 
                                                  /* system call handler macro */
+#ifndef ZESTO_PIN
 #define SYSCALL(INST)    sys_syscall(thread, core_oracle_t::syscall_mem_access, INST, true)
-
+#else 
+#define SYSCALL(INST) 
+#endif
   /*-----------------*/
  /* </SIMPLESCALAR> */
 /*-----------------*/
@@ -774,7 +777,12 @@ core_oracle_t::exec(const md_addr_t requested_PC)
   if( ((Mop->decode.op == XCHG_RMvRv) || (Mop->decode.op == XCHG_RMbRb)) && (R==RM))
     Mop->decode.op = NOP;
   if(Mop->decode.op == OP_NA)
-    Mop->decode.op = NOP;
+//    Mop->decode.op = NOP;
+/* Skip invalid instruction */
+  {
+    core->fetch->invalid = true;
+    return NULL;   /* This will break normal simulation, but should be fine in slave mode because PC and NPC will get updated by instruction feeder. */
+  }
 
   Mop->decode.rep_seq = thread->rep_sequence;
 
@@ -1277,10 +1285,10 @@ core_oracle_t::exec(const md_addr_t requested_PC)
     flow_index += MD_INC_FLOW;
   }
 
-  /* if PC==NPC, means we're still REP'ing */
+  /* if PC==NPC, means we're still REP'ing, or we've encountered an instruction we can't handle (which is fine if running in slave mode) */
   if(thread->regs.regs_PC == thread->regs.regs_NPC)
   {
-    assert(Mop->oracle.spec_mode || Mop->fetch.inst.rep);
+    assert(Mop->oracle.spec_mode || Mop->fetch.inst.rep || Mop->decode.op == NOP);
     thread->rep_sequence ++;
   }
   else
@@ -1480,6 +1488,8 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
   core->current_thread->regs.regs_PC = Mop->fetch.PC;
   core->current_thread->regs.regs_NPC = Mop->oracle.NextPC;
 
+  myfprintf(stderr, "Recovering to fetchPC: %u \n", Mop->fetch.PC);
+
   spec_mode = Mop->oracle.spec_mode;
   current_Mop = NULL;
 }
@@ -1567,8 +1577,12 @@ core_oracle_t::reset_execution(void)
   core->fetch->recover(0);
   wipe_memory(core->current_thread->mem);
 
+#ifndef ZESTO_PIN
   ld_reload_prog(core->current_thread);
   core->fetch->PC = core->current_thread->regs.regs_PC;
+#else
+  core->fetch->PC = core->current_thread->loader.prog_entry;
+#endif
   core->fetch->bogus = false;
   core->stat.oracle_resets++;
 }

@@ -208,7 +208,9 @@ cpu_reg_stats(struct core_t * core, struct stat_sdb_t *sdb)
   core->alloc->reg_stats(sdb);
   core->exec->reg_stats(sdb);
   core->commit->reg_stats(sdb);
+#ifndef ZESTO_PIN
   ld_reg_stats(core->current_thread,sdb);
+#endif
 
   /* only print this out once at the very end */
   if(core->current_thread->id == (num_threads-1))

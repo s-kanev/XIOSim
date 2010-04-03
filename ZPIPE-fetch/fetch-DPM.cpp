@@ -7,6 +7,7 @@
   if(!strcasecmp(fetch_opt_string,"DPM"))
     return new core_fetch_DPM_t(core);
 #else
+extern bool consumed;
 
 class core_fetch_DPM_t:public core_fetch_t
 {
@@ -625,11 +626,14 @@ bool core_fetch_DPM_t::do_fetch(void)
   struct core_knobs_t * knobs = core->knobs;
   md_addr_t current_line = PC & byteQ_linemask;
   struct Mop_t * Mop = NULL;
+  trapped = false;
 
 
-//  myfprintf(stderr, "Fetch fetching from PC: %u ; spec: %d \n", PC, (core->oracle->spec_mode?1:0));
+  //fprintf(stderr, "Fetch fetching from PC: %u ; spec: %d \n", PC, (core->oracle->spec_mode?1:0));
+  myfprintf(stderr, "Fetch PC: %u, page: %u\n", PC, (PC >> PAGE_SHIFT));
 
   Mop = core->oracle->exec(PC);
+  myfprintf(stderr, "After. PC: %u, page %u\n", PC, (PC >> PAGE_SHIFT));
   if(Mop && ((PC >> PAGE_SHIFT) == 0))
   {
     zesto_assert(core->oracle->spec_mode,(void)0);
@@ -641,8 +645,18 @@ bool core_fetch_DPM_t::do_fetch(void)
   {
     if(bogus)
       stall_reason = FSTALL_BOGUS;
-    else
+    else if(!invalid)
+    {  
       stall_reason = FSTALL_SYSCALL;
+      trapped = true;
+    }
+    else
+    {
+      consumed = true;
+      invalid = false;
+      /* Since we don't know the unknown instucrion length, assume a length of 1 byte and see if we can continue fetching that address at the next cycle; XXX: Use pin NPC for more accuracy */
+      return (((PC + 1) & byteQ_linemask) == current_line);
+    }
     return false;
   }
 
@@ -721,6 +735,7 @@ bool core_fetch_DPM_t::do_fetch(void)
   byteQ[byteQ_index].num_Mop++;
 
   core->oracle->consume(Mop);
+  consumed = true;
 
   /* figure out where to fetch from next */
   if(Mop->decode.is_ctrl || Mop->fetch.inst.rep)  /* XXX: illegal use of decode information */
@@ -752,6 +767,7 @@ bool core_fetch_DPM_t::do_fetch(void)
 
   /* advance the fetch PC to the next instruction */
   PC = Mop->fetch.pred_NPC;
+  myfprintf(stderr, "After bpred. PC: %u, page %u\n", PC, (PC >> PAGE_SHIFT));
 
   if(  (Mop->fetch.pred_NPC != (Mop->fetch.PC + Mop->fetch.inst.len))
     && (Mop->fetch.pred_NPC != Mop->fetch.PC)) /* REPs don't count as taken branches w.r.t. fetching */

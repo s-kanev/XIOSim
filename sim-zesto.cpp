@@ -150,6 +150,9 @@
 #include "zesto-uncore.h"
 #include "zesto-MC.h"
 
+//XXX: REMOVE ME!!!
+bool consumed = false;
+
 /* architected state */
 struct thread_t ** threads = NULL;
 

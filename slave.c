@@ -83,6 +83,7 @@
 #include <sys/time.h>
 #include <sys/io.h>
 
+#include "interface.h"
 #include "host.h"
 #include "misc.h"
 #include "machine.h"
@@ -90,7 +91,6 @@
 #include "version.h"
 #include "options.h"
 #include "stats.h"
-#include "interface.h"
 #include "loader.h"
 #include "sim.h"
 
@@ -180,6 +180,10 @@ extern int running;
 
 extern void sim_print_stats(FILE *fd);
 extern void exit_now(int exit_code);
+
+unsigned long insn = 0;
+unsigned long insn1 = 0;
+bool consumed = false;
 
 int
 Zesto_SlaveInit(int argc, char **argv)
@@ -366,7 +370,9 @@ int Zesto_Notify_Mmap(unsigned int addr, unsigned int length)
    struct mem_t * mem = cores[i]->current_thread->mem;
    assert(num_threads == 1);
 
-   md_addr_t retval = mem_newmap2(mem, (md_addr_t)addr, (md_addr_t)addr, length, 1);
+   md_addr_t retval = mem_newmap2(mem, ROUND_UP((md_addr_t)addr, MD_PAGE_SIZE), ROUND_UP((md_addr_t)addr, MD_PAGE_SIZE), length, 1);
+
+   myfprintf(stderr, "New memory mapping at addr: %u, length: %u \n",addr, length);
    return (retval == addr);
 }
 
@@ -376,12 +382,16 @@ int Zesto_Notify_Munmap(unsigned int addr, unsigned int length)
   struct mem_t * mem = cores[i]->current_thread->mem;
   assert(num_threads == 1);
 
-  mem_delmap(mem, (md_addr_t)addr, length);
+  mem_delmap(mem, ROUND_UP((md_addr_t)addr, MD_PAGE_SIZE), length);
+  myfprintf(stderr, "Memory un-mapping at addr: %u\n",addr);
   return 1;
 }
 
 void Zesto_Destroy()
 {
+  myfprintf(stderr, "Mops counted in Zesto_Resume: %u\n", insn);
+  myfprintf(stderr, "Mops counted in Zesto_Resume loop: %u\n", insn1);
+
   /* print simulator stats */
   sim_print_stats(stderr);
 }
@@ -396,48 +406,86 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
 
    regs_t * regs = &cores[i]->current_thread->regs;
 
-//   myfprintf(stderr, "Getting control from PIN, PC: %u \n", handshake->pc);
+   md_addr_t NPC = handshake->brtaken ? handshake->tpc : handshake->npc;  
+
+   myfprintf(stderr, "Getting control from PIN, PC: %u, NPC: %u \n", handshake->pc, NPC);
+   
+   if(insn==0) 
+   {  
+      cores[i]->current_thread->loader.prog_entry = handshake->pc;
+      regs->regs_PC = handshake->pc;
+      regs->regs_NPC = handshake->pc;
+      cores[i]->fetch->PC = handshake->pc;
+   }
 
    /* Copy architectural state from pim
       XXX: This is arch state BEFORE executed the instruction we're about to simulate*/
-   //regs->regs_PC = handshake->pc;
-   regs->regs_NPC = handshake->pc;
-
+ 
    regs->regs_R = handshake->ctxt->regs_R;
    regs->regs_F = handshake->ctxt->regs_F;
    regs->regs_C = handshake->ctxt->regs_C;
    regs->regs_S = handshake->ctxt->regs_S;
 
-   cores[i]->fetch->PC = handshake->pc;
+ 
+   insn++;
+   bool fetch_more = false;
+   consumed = false;
 
-
-   bool fetch_more = sim_main_slave_fetch_insn();
-
-
-   if(!cores[i]->oracle->spec_mode )
+//   while(cores[i]->fetch->PC == handshake->pc)
+//   while(regs->regs_NPC == handshake->pc)
+   while(!consumed)
    {
-     /* Pass control back to Pin to get a new PC */
-     if(fetch_more)
-       return;
-    
-     sim_main_slave_post_pin();
+     fetch_more = sim_main_slave_fetch_insn();
 
-     /* This is already next cycle, up to fetch */
-     sim_main_slave_pre_pin();
-   }
-   else
-   {
-     do
+//     regs->regs_NPC = handshake->npc;
+
+     insn1++;
+
+//     if(!cores[i]->oracle->spec_mode )
+        /*XXX: here oracle still doesn't know if we're speculating or not. But if we predicted 
+        the wrong path, we'd better not return to Pin, because that will mess the state up */
+     if(cores[i]->fetch->PC != NPC
+           && cores[i]->fetch->PC != handshake->pc) //Not trapped
      {
-       while(fetch_more)
-         fetch_more = sim_main_slave_fetch_insn();
+       do
+       {
+         while(fetch_more && cores[i]->fetch->PC != NPC)
+           fetch_more = sim_main_slave_fetch_insn();
+        
+         sim_main_slave_post_pin();
 
+         /* Next cycle */ 
+         sim_main_slave_pre_pin();
+
+       }while(cores[i]->fetch->PC != NPC);
+//       }while(cores[i]->oracle->spec_mode);
+
+      /* After we recover from a speculation, we still need to execute the instruction Pin called us about */
+//      consumed = false;
+       regs->regs_NPC = NPC;
+       return; // ? if we cam utilize a new PC
+     }
+     else
+     /* non-speculative */
+     {
+       /* Pass control back to Pin to get a new PC on the same cycle*/
+       if(fetch_more)// && (cores[i]->fetch->PC == handshake->npc))
+       {
+         regs->regs_NPC = NPC; 
+         return;
+       }
+
+//       if(cores[i]->fetch->trapped)
+//       {
+//         regs->regs_NPC = NPC;
+//         return;
+//       }
+      
        sim_main_slave_post_pin();
 
+       /* This is already next cycle, up to fetch */
        sim_main_slave_pre_pin();
-
-     }while(cores[i]->oracle->spec_mode);
-      
+     }
    }
 }
 

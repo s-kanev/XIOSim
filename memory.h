@@ -262,8 +262,12 @@ typedef enum md_fault_type
 
 
 #ifdef ZESTO_PIN
-/*Pin does the actual write if instruction is not speculative */
-#define MEM_WRITE_BYTE_NON_SPEC(MEM, ADDR, VAL) ()
+/* Pin does the actual write if instruction is not speculative, but we do a 
+   dummy address translate from the same page to update the MRU list and dirty flag in the page table */
+#define MEM_WRITE_BYTE_NON_SPEC(MEM, ADDR, VAL)          \
+  (MEM_TICKLE(MEM, (md_addr_t)(ADDR)),                   \
+  (MEM_PAGE(MEM, (md_addr_t)(ADDR),1)))
+
 #else
 #define MEM_WRITE_BYTE_NON_SPEC(MEM, ADDR, VAL)          \
   (MEM_TICKLE(MEM, (md_addr_t)(ADDR)),          \

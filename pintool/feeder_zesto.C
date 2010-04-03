@@ -44,6 +44,7 @@ EXECUTION_MODE ExecMode = EXECUTION_MODE_INVALID;
 
 typedef pair <UINT32, CHAR **> SSARGS;
 
+
 /* ========================================================================== */
 INSTLIB::ALARM_ICOUNT FFwdingAlarm; // Fires upon reaching point of interest
 UINT64 SimOrgInsCount;                   // # of simulated instructions
@@ -104,6 +105,16 @@ struct regs_t *MakeSSContext(const CONTEXT *ictxt, ADDRINT pc, ADDRINT npc)
     SSRegs.regs_R.dw[MD_REG_EDI] = PIN_GetContextReg(&ssctxt, REG_EDI);
     SSRegs.regs_R.dw[MD_REG_ESI] = PIN_GetContextReg(&ssctxt, REG_ESI);
 
+
+    // Copy segment registers (IA32-specific)
+     SSRegs.regs_S.w[MD_REG_CS] = PIN_GetContextReg(&ssctxt, REG_SEG_CS);
+     SSRegs.regs_S.w[MD_REG_SS] = PIN_GetContextReg(&ssctxt, REG_SEG_SS);
+     SSRegs.regs_S.w[MD_REG_DS] = PIN_GetContextReg(&ssctxt, REG_SEG_DS);
+     SSRegs.regs_S.w[MD_REG_ES] = PIN_GetContextReg(&ssctxt, REG_SEG_ES);
+     SSRegs.regs_S.w[MD_REG_FS] = PIN_GetContextReg(&ssctxt, REG_SEG_FS);
+     SSRegs.regs_S.w[MD_REG_GS] = PIN_GetContextReg(&ssctxt, REG_SEG_GS);
+
+
     // Copy floating purpose registers: Floating point state is generated via
     // the fxsave instruction, which is a 512-byte memory region. Look at the
     // header file for the complete layout of the fxsave region. SS only
@@ -138,6 +149,8 @@ struct regs_t *MakeSSContext(const CONTEXT *ictxt, ADDRINT pc, ADDRINT npc)
 VOID Fini(INT32 exitCode, VOID *v)
 {
     Zesto_Destroy();
+
+    cout << "TotalIns = " << SimOrgInsCount << endl;
 
     if (exitCode != EXIT_SUCCESS)
         cout << "ERROR! Exit code = " << dec << exitCode << endl;
@@ -193,6 +206,8 @@ VOID SimulateInstruction(ADDRINT pc, BOOL taken, ADDRINT npc, ADDRINT tpc, const
 {
     struct P2Z_HANDSHAKE *handshake  = MakeSSRequest(pc, npc, tpc, taken, ictxt);
 
+    cout << SimOrgInsCount << "  PC: " << pc << " Taken br: " << taken << " NPC: " << (taken ? tpc : npc) << endl;
+
     FeedOriginalInstruction(handshake);
 
     ExitOnMaxIns();
@@ -203,6 +218,8 @@ VOID Instrument(INS ins, VOID *v)
 {
     if (ExecMode == EXECUTION_MODE_FASTFORWARD)
         return;
+
+    cout << INS_Mnemonic(ins) << endl;
 
     if (! INS_IsBranchOrCall(ins))
     {

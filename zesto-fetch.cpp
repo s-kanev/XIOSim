@@ -158,7 +158,7 @@ void fetch_reg_options(struct opt_odb_t * odb, struct core_knobs_t * knobs)
 
 
 /* default constructor */
-core_fetch_t::core_fetch_t(void): bogus(false)
+core_fetch_t::core_fetch_t(void): bogus(false), invalid(false)
 {
 }
 

@@ -68,6 +68,7 @@ FFLAGS = -DLINUX_RHEL4
 # complete flags
 #
 CFLAGS = $(MFLAGS) $(FFLAGS) $(OFLAGS) $(BINUTILS_INC) $(BINUTILS_LIB) $(ZTRACE)
+SLAVE_CFLAGS = -DZESTO_PIN $(CFLAGS)
 
 #
 # all the sources
@@ -90,13 +91,13 @@ stats.h              symbol.h             syscall.h             version.h       
 machine.def          elf.h                x86flow.def           interface.h
 
 OBJS_NOMAIN =	\
-eio.$(OEXT)          endian.$(OEXT)       eval.$(OEXT)          loader.$(OEXT)     \
+endian.$(OEXT)       eval.$(OEXT)         \
 machine.$(OEXT)      memory.$(OEXT)       misc.$(OEXT)          options.$(OEXT)    \
 range.$(OEXT)        regs.$(OEXT)         stats.$(OEXT)         symbol.$(OEXT)     \
 sim-main.$(OEXT)
 
-OBJS = main.$(OEXT) $(OBJS_NOMAIN) syscall.$(OEXT)
-OBJS_SLAVE = slave.$(OEXT) $(OBJS_NOMAIN) syscall.$(OEXT)
+OBJS = main.$(OEXT) eio.$(OEXT) loader.$(OEXT) $(OBJS_NOMAIN) syscall.$(OEXT) 
+OBJS_SLAVE = slave.$(OEXT) $(OBJS_NOMAIN)
 
 # Zesto specific files
 ZSRCS = \
@@ -129,7 +130,7 @@ include make.target
 #
 # all targets, NOTE: library ordering is important...
 #
-default: sim-zesto libsim.a
+default: sim-zesto
 all: $(PROGS)
 
 syscall.$(OEXT): syscall.c syscall.h thread.h
@@ -169,9 +170,10 @@ sim-zesto3$(EEXT):	sysprobe$(EEXT) sim-zesto.$(OEXT) $(OBJS) $(ZOBJS) $(EXOOBJS)
 	$(CC) -o sim-zesto3$(EEXT) $(CFLAGS) sim-zesto.$(OEXT) $(OBJS) $(ZOBJS) $(EXOOBJS) $(MLIBS)
 sim-zesto4$(EEXT):	sysprobe$(EEXT) sim-zesto.$(OEXT) $(OBJS) $(ZOBJS) $(EXOOBJS)
 	$(CC) -o sim-zesto4$(EEXT) $(CFLAGS) sim-zesto.$(OEXT) $(OBJS) $(ZOBJS) $(EXOOBJS) $(MLIBS)
-libsim.a:		sysprobe$(EEXT) syscall.$(OEXT) sim-slave.$(OEXT) $(OBJS_SLAVE) $(ZOBJS) $(EXOOBJS)
-	ar rs $@ sim-slave.$(OEXT) syscall.$(OEXT) $(OBJS_SLAVE) $(ZOBJS) $(EXOOBJS)
-	ranlib $@
+lib:	CFLAGS += -DZESTO_PIN	
+lib:	sysprobe$(EEXT) sim-slave.$(OEXT) $(OBJS_SLAVE) $(ZOBJS) $(EXOOBJS)
+	ar rs libsim.a sim-slave.$(OEXT) $(OBJS_SLAVE) $(ZOBJS) $(EXOOBJS)
+	ranlib libsim.a
 
 exo $(EXOOBJS): sysprobe$(EEXT)
 	cd libexo $(CS) \
