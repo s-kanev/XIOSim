@@ -470,7 +470,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
          /* Next cycle */ 
          sim_main_slave_pre_pin();
 
-       }while(cores[i]->fetch->PC != NPC);
+       }while(cores[i]->fetch->PC != NPC || cores[i]->oracle->spec_mode);
 //       }while(cores[i]->oracle->spec_mode);
 
       /* After we recover from a speculation, we still need to execute the instruction Pin called us about */
