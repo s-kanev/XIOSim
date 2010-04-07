@@ -206,7 +206,7 @@ VOID SimulateInstruction(ADDRINT pc, BOOL taken, ADDRINT npc, ADDRINT tpc, const
 {
     struct P2Z_HANDSHAKE *handshake  = MakeSSRequest(pc, npc, tpc, taken, ictxt);
 
-    cout << SimOrgInsCount << "  PC: " << pc << " Taken br: " << taken << " NPC: " << (taken ? tpc : npc) << endl;
+    cout << SimOrgInsCount << "  PC: " << hex << pc << " Taken br: " << taken << " NPC: " << (taken ? tpc : npc) << dec << endl;
 
     FeedOriginalInstruction(handshake);
 

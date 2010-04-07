@@ -255,7 +255,7 @@ typedef enum md_fault_type
   (core->oracle->spec_read_byte((ADDR),&_mem_read_tmp) ? _mem_read_tmp :             \
   (MEM_PAGE(MEM, (md_addr_t)(ADDR),0)          \
    ? *((TYPE *)(MEM_PAGE(MEM, (md_addr_t)(ADDR),0) + MEM_OFFSET(ADDR)))  \
-   : /* page not yet allocated, return zero value */ 0))
+   : /* page not yet allocated, return zero value */ (fprintf(stderr, "Addr: %x\n", ADDR),0)))
 
 #define MEM_WRITE(MEM, ADDR, TYPE, VAL)          \
   core->oracle->spec_write_byte((ADDR),(VAL))

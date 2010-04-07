@@ -7,7 +7,10 @@
   if(!strcasecmp(fetch_opt_string,"DPM"))
     return new core_fetch_DPM_t(core);
 #else
+
+#ifdef ZESTO_PIN
 extern bool consumed;
+#endif
 
 class core_fetch_DPM_t:public core_fetch_t
 {
@@ -556,7 +559,6 @@ void core_fetch_DPM_t::pre_fetch(void)
   int i;
 
   ZESTO_STAT(stat_add_sample(core->stat.fetch_stall, (int)stall_reason);)
-//  myfprintf(stderr, "Fetch stall reason: %s\n", fetch_stall_str[stall_reason]);
 
   /* check byteQ and send requests to I$/ITLB */
   int index = byteQ_head;
@@ -628,12 +630,14 @@ bool core_fetch_DPM_t::do_fetch(void)
   struct Mop_t * Mop = NULL;
   trapped = false;
 
-
-  //fprintf(stderr, "Fetch fetching from PC: %u ; spec: %d \n", PC, (core->oracle->spec_mode?1:0));
-  myfprintf(stderr, "Fetch PC: %u, page: %u\n", PC, (PC >> PAGE_SHIFT));
+#ifdef ZESTO_PIN
+  myfprintf(stderr, "Fetch PC: %x, page: %u\n", PC, (PC >> PAGE_SHIFT));
+#endif
 
   Mop = core->oracle->exec(PC);
-  myfprintf(stderr, "After. PC: %u, page %u\n", PC, (PC >> PAGE_SHIFT));
+#ifdef ZESTO_PIN
+  myfprintf(stderr, "After. PC: %x, page %u\n", PC, (PC >> PAGE_SHIFT));
+#endif
   if(Mop && ((PC >> PAGE_SHIFT) == 0))
   {
     zesto_assert(core->oracle->spec_mode,(void)0);
@@ -652,7 +656,9 @@ bool core_fetch_DPM_t::do_fetch(void)
     }
     else
     {
+#ifdef ZESTO_PIN
       consumed = true;
+#endif
       invalid = false;
       /* Since we don't know the unknown instucrion length, assume a length of 1 byte and see if we can continue fetching that address at the next cycle; XXX: Use pin NPC for more accuracy */
       return (((PC + 1) & byteQ_linemask) == current_line);
@@ -735,7 +741,9 @@ bool core_fetch_DPM_t::do_fetch(void)
   byteQ[byteQ_index].num_Mop++;
 
   core->oracle->consume(Mop);
+#ifdef ZESTO_PIN
   consumed = true;
+#endif
 
   /* figure out where to fetch from next */
   if(Mop->decode.is_ctrl || Mop->fetch.inst.rep)  /* XXX: illegal use of decode information */
@@ -767,7 +775,9 @@ bool core_fetch_DPM_t::do_fetch(void)
 
   /* advance the fetch PC to the next instruction */
   PC = Mop->fetch.pred_NPC;
-  myfprintf(stderr, "After bpred. PC: %u, page %u\n", PC, (PC >> PAGE_SHIFT));
+#ifdef ZESTO_PIN
+  myfprintf(stderr, "After bpred. PC: %x, page %u\n", PC, (PC >> PAGE_SHIFT));
+#endif
 
   if(  (Mop->fetch.pred_NPC != (Mop->fetch.PC + Mop->fetch.inst.len))
     && (Mop->fetch.pred_NPC != Mop->fetch.PC)) /* REPs don't count as taken branches w.r.t. fetching */

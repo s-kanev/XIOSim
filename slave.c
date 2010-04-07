@@ -372,7 +372,7 @@ int Zesto_Notify_Mmap(unsigned int addr, unsigned int length)
 
    md_addr_t retval = mem_newmap2(mem, ROUND_UP((md_addr_t)addr, MD_PAGE_SIZE), ROUND_UP((md_addr_t)addr, MD_PAGE_SIZE), length, 1);
 
-   myfprintf(stderr, "New memory mapping at addr: %u, length: %u \n",addr, length);
+   myfprintf(stderr, "New memory mapping at addr: %x, length: %u \n",addr, length);
    return (retval == addr);
 }
 
@@ -383,7 +383,7 @@ int Zesto_Notify_Munmap(unsigned int addr, unsigned int length)
   assert(num_threads == 1);
 
   mem_delmap(mem, ROUND_UP((md_addr_t)addr, MD_PAGE_SIZE), length);
-  myfprintf(stderr, "Memory un-mapping at addr: %u\n",addr);
+  myfprintf(stderr, "Memory un-mapping at addr: %x\n",addr);
   return 1;
 }
 
@@ -408,11 +408,24 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
 
    md_addr_t NPC = handshake->brtaken ? handshake->tpc : handshake->npc;  
 
-   myfprintf(stderr, "Getting control from PIN, PC: %u, NPC: %u \n", handshake->pc, NPC);
-   
+#ifdef ZESTO_PIN
+   myfprintf(stderr, "Getting control from PIN, PC: %x, NPC: %x \n", handshake->pc, NPC);
+#endif
+
    if(insn==0) 
    {  
       cores[i]->current_thread->loader.prog_entry = handshake->pc;
+
+      /* Init stack pointer */
+      md_addr_t sp = handshake->ctxt->regs_R.dw[MD_REG_ESP];     
+      cores[i]->current_thread->loader.environ_base = sp;
+
+      /* Create local pages for stack 
+         XXX: hardcoded 4 pages for now. See how to get stack base + stack endfrom PIN */
+      md_addr_t stack_addr = mem_newmap2(cores[i]->current_thread->mem, ROUND_DOWN(sp, MD_PAGE_SIZE), ROUND_DOWN(sp, MD_PAGE_SIZE), 4*MD_PAGE_SIZE, 1);
+      myfprintf(stderr, "Stack pointer: %x; \n", sp);
+
+
       regs->regs_PC = handshake->pc;
       regs->regs_NPC = handshake->pc;
       cores[i]->fetch->PC = handshake->pc;

@@ -777,12 +777,15 @@ core_oracle_t::exec(const md_addr_t requested_PC)
   if( ((Mop->decode.op == XCHG_RMvRv) || (Mop->decode.op == XCHG_RMbRb)) && (R==RM))
     Mop->decode.op = NOP;
   if(Mop->decode.op == OP_NA)
-//    Mop->decode.op = NOP;
+#ifdef ZESTO_PIN
 /* Skip invalid instruction */
   {
     core->fetch->invalid = true;
     return NULL;   /* This will break normal simulation, but should be fine in slave mode because PC and NPC will get updated by instruction feeder. */
   }
+#else
+    Mop->decode.op = NOP;
+#endif
 
   Mop->decode.rep_seq = thread->rep_sequence;
 
@@ -1488,7 +1491,9 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
   core->current_thread->regs.regs_PC = Mop->fetch.PC;
   core->current_thread->regs.regs_NPC = Mop->oracle.NextPC;
 
-  myfprintf(stderr, "Recovering to fetchPC: %u \n", Mop->fetch.PC);
+#ifdef ZESTO_PIN
+  myfprintf(stderr, "Recovering to fetchPC: %x \n", Mop->fetch.PC);
+#endif
 
   spec_mode = Mop->oracle.spec_mode;
   current_Mop = NULL;
