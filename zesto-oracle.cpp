@@ -777,15 +777,14 @@ core_oracle_t::exec(const md_addr_t requested_PC)
   if( ((Mop->decode.op == XCHG_RMvRv) || (Mop->decode.op == XCHG_RMbRb)) && (R==RM))
     Mop->decode.op = NOP;
   if(Mop->decode.op == OP_NA)
-#ifdef ZESTO_PIN
 /* Skip invalid instruction */
   {
+#ifdef ZESTO_PIN
     core->fetch->invalid = true;
-    return NULL;   /* This will break normal simulation, but should be fine in slave mode because PC and NPC will get updated by instruction feeder. */
-  }
-#else
-    Mop->decode.op = NOP;
 #endif
+//    return NULL;   /* This will break normal simulation, but should be fine in slave mode because PC and NPC will get updated by instruction feeder. */
+    Mop->decode.op = NOP;
+  }
 
   Mop->decode.rep_seq = thread->rep_sequence;
 
@@ -1292,7 +1291,20 @@ core_oracle_t::exec(const md_addr_t requested_PC)
   if(thread->regs.regs_PC == thread->regs.regs_NPC)
   {
     assert(Mop->oracle.spec_mode || Mop->fetch.inst.rep || Mop->decode.op == NOP);
+#ifdef ZESTO_PIN
+    /* If we can't handle isntruction, at least set NPC correctly, so that we don't corrupt fetch sequence */
+    if(Mop->decode.op == NOP && !Mop->oracle.spec_mode)
+    {  
+       Mop->uop[Mop->decode.last_uop_index].decode.EOM = true;
+       thread->rep_sequence = 0;
+       assert(core->fetch->invalid);
+       thread->regs.regs_NPC = core->fetch->feeder_NPC;
+       Mop->fetch.pred_NPC = thread->regs.regs_NPC;
+       Mop->fetch.inst.len = thread->regs.regs_NPC - thread->regs.regs_PC;
+    }
+#else
     thread->rep_sequence ++;
+#endif
   }
   else
   {

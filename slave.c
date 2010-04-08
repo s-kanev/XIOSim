@@ -434,6 +434,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
    /* Copy architectural state from pim
       XXX: This is arch state BEFORE executed the instruction we're about to simulate*/
  
+   cores[i]->fetch->feeder_NPC = handshake->npc;
    regs->regs_R = handshake->ctxt->regs_R;
    regs->regs_F = handshake->ctxt->regs_F;
    regs->regs_C = handshake->ctxt->regs_C;
