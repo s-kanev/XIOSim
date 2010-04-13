@@ -404,7 +404,8 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
 
    int i = 0;
 
-   regs_t * regs = &cores[i]->current_thread->regs;
+   thread_t * thread = cores[i]->current_thread;
+   regs_t * regs = &thread->regs;
 
    md_addr_t NPC = handshake->brtaken ? handshake->tpc : handshake->npc;  
 
@@ -414,15 +415,15 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
 
    if(insn==0) 
    {  
-      cores[i]->current_thread->loader.prog_entry = handshake->pc;
+      thread->loader.prog_entry = handshake->pc;
 
       /* Init stack pointer */
       md_addr_t sp = handshake->ctxt->regs_R.dw[MD_REG_ESP];     
-      cores[i]->current_thread->loader.environ_base = sp;
+      thread->loader.environ_base = sp;
 
       /* Create local pages for stack 
          XXX: hardcoded 4 pages for now. See how to get stack base + stack endfrom PIN */
-      md_addr_t stack_addr = mem_newmap2(cores[i]->current_thread->mem, ROUND_DOWN(sp, MD_PAGE_SIZE), ROUND_DOWN(sp, MD_PAGE_SIZE), 4*MD_PAGE_SIZE, 1);
+      md_addr_t stack_addr = mem_newmap2(thread->mem, ROUND_DOWN(sp, MD_PAGE_SIZE), ROUND_DOWN(sp, MD_PAGE_SIZE), 4*MD_PAGE_SIZE, 1);
       myfprintf(stderr, "Stack pointer: %x; \n", sp);
 
 
@@ -444,22 +445,22 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
    insn++;
    bool fetch_more = false;
    consumed = false;
+   bool repping = false;
 
-//   while(cores[i]->fetch->PC == handshake->pc)
-//   while(regs->regs_NPC == handshake->pc)
-   while(!consumed)
+  while(!consumed || repping)
    {
      fetch_more = sim_main_slave_fetch_insn();
 
-//     regs->regs_NPC = handshake->npc;
-
      insn1++;
 
-//     if(!cores[i]->oracle->spec_mode )
-        /*XXX: here oracle still doesn't know if we're speculating or not. But if we predicted 
-        the wrong path, we'd better not return to Pin, because that will mess the state up */
-     if(cores[i]->fetch->PC != NPC
-           && cores[i]->fetch->PC != handshake->pc) //Not trapped
+     repping = thread->rep_sequence != 0;
+
+
+     /*XXX: here oracle still doesn't know if we're speculating or not. But if we predicted 
+     the wrong path, we'd better not return to Pin, because that will mess the state up */
+     if((!repping && cores[i]->fetch->PC != NPC
+           && cores[i]->fetch->PC != handshake->pc) || //Not trapped
+         repping ) 
      {
        do
        {
@@ -471,30 +472,26 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
          /* Next cycle */ 
          sim_main_slave_pre_pin();
 
-       }while(cores[i]->fetch->PC != NPC || cores[i]->oracle->spec_mode);
-//       }while(cores[i]->oracle->spec_mode);
+         /* The only way to know a REP sequence has ended is to compare computed NPC with what Pin gives us */
+         if(repping && !cores[i]->oracle->spec_mode && regs->regs_NPC == NPC)
+           return;
 
-      /* After we recover from a speculation, we still need to execute the instruction Pin called us about */
-//      consumed = false;
-       regs->regs_NPC = NPC;
-       return; // ? if we cam utilize a new PC
+       }while(cores[i]->fetch->PC != NPC || cores[i]->oracle->spec_mode || repping);
+
+      /* If not in a REP sequence, pass control back to Pin for new instruction */
+       if(!repping)
+       { 
+         regs->regs_NPC = NPC;
+         return;
+       }
      }
      else
      /* non-speculative */
      {
        /* Pass control back to Pin to get a new PC on the same cycle*/
        if(fetch_more)// && (cores[i]->fetch->PC == handshake->npc))
-       {
-         regs->regs_NPC = NPC; 
          return;
-       }
-
-//       if(cores[i]->fetch->trapped)
-//       {
-//         regs->regs_NPC = NPC;
-//         return;
-//       }
-      
+    
        sim_main_slave_post_pin();
 
        /* This is already next cycle, up to fetch */

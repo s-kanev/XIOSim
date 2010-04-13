@@ -214,6 +214,13 @@ VOID SimulateInstruction(ADDRINT pc, BOOL taken, ADDRINT npc, ADDRINT tpc, const
 }
 
 /* ========================================================================== */
+//Trivial call to let us do conditional instrumentation based on an argument
+ADDRINT returnArg(BOOL arg)
+{
+   return arg;
+}
+
+/* ========================================================================== */
 VOID Instrument(INS ins, VOID *v)
 {
     if (ExecMode == EXECUTION_MODE_FASTFORWARD)
@@ -223,7 +230,19 @@ VOID Instrument(INS ins, VOID *v)
 
     if (! INS_IsBranchOrCall(ins))
     {
-        INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) SimulateInstruction, 
+        if(INS_HasRealRep(ins))
+        {
+           INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR) returnArg, IARG_FIRST_REP_ITERATION, IARG_END);
+           INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR) SimulateInstruction, 
+                       IARG_INST_PTR, 
+                       IARG_BOOL, 0, 
+                       IARG_ADDRINT, INS_NextAddress(ins),
+                       IARG_FALLTHROUGH_ADDR, 
+                       IARG_CONTEXT,
+                       IARG_END);
+        }
+        else
+            INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) SimulateInstruction, 
                        IARG_INST_PTR, 
                        IARG_BOOL, 0, 
                        IARG_ADDRINT, INS_NextAddress(ins),
@@ -233,14 +252,14 @@ VOID Instrument(INS ins, VOID *v)
     }
     else 
     {
-        INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) SimulateInstruction, 
+          INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) SimulateInstruction, 
                        IARG_INST_PTR, 
                        IARG_BRANCH_TAKEN, 
                        IARG_ADDRINT, INS_NextAddress(ins),
                        IARG_BRANCH_TARGET_ADDR, 
                        IARG_CONTEXT,
                        IARG_END);
-    }
+    } 
 }
 
 /* ========================================================================== */

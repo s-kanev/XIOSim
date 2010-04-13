@@ -85,7 +85,6 @@ class core_fetch_t {
 #endif
   bool bogus; /* TRUE if oracle is on wrong path and encountered an invalid inst */
   bool invalid; /* TRUE if oracle encounters an instruction it doesn't know (which is fine if we are running under an instruction feeder */
-  bool trapped; /* TRUE if oracle has finished clearing from a syscall */
   class bpred_t * bpred;
 
   /* constructor, stats registration */

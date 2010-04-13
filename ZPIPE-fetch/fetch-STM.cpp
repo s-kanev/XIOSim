@@ -366,8 +366,7 @@ bool core_fetch_STM_t::do_fetch(void)
   struct core_knobs_t * knobs = core->knobs;
   md_addr_t current_line = PC & byteQ_linemask;
   struct Mop_t * Mop = NULL;
-  trapped = false;
-
+  
   Mop = core->oracle->exec(PC);
   if(Mop && ((PC >> PAGE_SHIFT) == 0))
   {
@@ -381,10 +380,7 @@ bool core_fetch_STM_t::do_fetch(void)
     if(bogus)
       stall_reason = FSTALL_BOGUS;
     else
-    {
-      stall_reason = FSTALL_SYSCALL;
-      trapped = true;
-    }
+       stall_reason = FSTALL_SYSCALL;
     return false;
   }
 

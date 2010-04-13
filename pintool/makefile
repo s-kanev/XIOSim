@@ -39,6 +39,7 @@ PIN_KIT=$(PIN_HOME)
 KIT=1
 TESTAPP=$(OBJDIR)cp-pin.exe
 
+
 TARGET_COMPILER?=gnu
 ifdef OS
     ifeq (${OS},Windows_NT)
@@ -48,7 +49,7 @@ endif
 
 ifeq ($(TARGET_COMPILER),gnu)
     include $(PIN_HOME)/source/tools/makefile.gnu.config
-    CXXFLAGS ?= -I$(PIN_HOME)/source/tools/InstLib -Wall -Werror -Wno-unknown-pragmas $(DBG) $(OPT)
+    CXXFLAGS ?= -I$(PIN_HOME)/source/tools/InstLib -Wall -Werror -Wno-unknown-pragmas -g $(DBG) $(OPT)
     PIN=$(PIN_HOME)/pin
 endif
 
@@ -99,7 +100,7 @@ $(OBJDIR)%.o : %.cpp
 $(TOOLS): $(PIN_LIBNAMES) $(ZESTO_HOME)/libsim.a
 
 $(TOOLS): %$(PINTOOL_SUFFIX) : %.o 
-	${PIN_LD} $(PIN_LDFLAGS) -I$(ZESTO_HOME) -L$(ZESTO_HOME) $(LINK_DEBUG) ${LINK_OUT} $@ $< ${PIN_LPATHS} $(ZESTO_HOME)/libsim.a $(PIN_LIBS) $(DBG) -static
+	${PIN_LD} $(PIN_LDFLAGS) -I$(ZESTO_HOME) -L$(ZESTO_HOME) $(LINK_DEBUG) ${LINK_OUT} $@ $< ${PIN_LPATHS} $(ZESTO_HOME)/libsim.a $(PIN_LIBS) $(DBG) -g -static
 
 
 ## cleaning

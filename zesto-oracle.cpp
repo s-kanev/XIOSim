@@ -782,7 +782,6 @@ core_oracle_t::exec(const md_addr_t requested_PC)
 #ifdef ZESTO_PIN
     core->fetch->invalid = true;
 #endif
-//    return NULL;   /* This will break normal simulation, but should be fine in slave mode because PC and NPC will get updated by instruction feeder. */
     Mop->decode.op = NOP;
   }
 
@@ -1302,8 +1301,12 @@ core_oracle_t::exec(const md_addr_t requested_PC)
        Mop->fetch.pred_NPC = thread->regs.regs_NPC;
        Mop->fetch.inst.len = thread->regs.regs_NPC - thread->regs.regs_PC;
     }
-#else
-    thread->rep_sequence ++;
+    else{
+#endif
+       thread->rep_sequence ++;
+       fprintf(stderr, "REP-ing: %d\n", thread->rep_sequence);
+#ifdef ZESTO_PIN
+    }
 #endif
   }
   else
@@ -1504,7 +1507,7 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
   core->current_thread->regs.regs_NPC = Mop->oracle.NextPC;
 
 #ifdef ZESTO_PIN
-  myfprintf(stderr, "Recovering to fetchPC: %x \n", Mop->fetch.PC);
+  myfprintf(stderr, "Recovering to fetchPC: %x; REP seq: %d \n", Mop->fetch.PC, core->current_thread->rep_sequence);
 #endif
 
   spec_mode = Mop->oracle.spec_mode;

@@ -628,7 +628,6 @@ bool core_fetch_DPM_t::do_fetch(void)
   struct core_knobs_t * knobs = core->knobs;
   md_addr_t current_line = PC & byteQ_linemask;
   struct Mop_t * Mop = NULL;
-  trapped = false;
 
 #ifdef ZESTO_PIN
   myfprintf(stderr, "Fetch PC: %x, page: %u\n", PC, (PC >> PAGE_SHIFT));
@@ -649,20 +648,8 @@ bool core_fetch_DPM_t::do_fetch(void)
   {
     if(bogus)
       stall_reason = FSTALL_BOGUS;
-    else if(!invalid)
-    {  
-      stall_reason = FSTALL_SYSCALL;
-      trapped = true;
-    }
     else
-    {
-#ifdef ZESTO_PIN
-      consumed = true;
-#endif
-      invalid = false;
-      /* Since we don't know the unknown instucrion length, assume a length of 1 byte and see if we can continue fetching that address at the next cycle; XXX: Use pin NPC for more accuracy */
-      return (((PC + 1) & byteQ_linemask) == current_line);
-    }
+      stall_reason = FSTALL_SYSCALL;
     return false;
   }
 
@@ -776,7 +763,7 @@ bool core_fetch_DPM_t::do_fetch(void)
   /* advance the fetch PC to the next instruction */
   PC = Mop->fetch.pred_NPC;
 #ifdef ZESTO_PIN
-  myfprintf(stderr, "After bpred. PC: %x, page %u\n", PC, (PC >> PAGE_SHIFT));
+  myfprintf(stderr, "After bpred. PC: %x, oracle.NPC: %x\n", PC, Mop->oracle.NextPC);
 #endif
 
   if(  (Mop->fetch.pred_NPC != (Mop->fetch.PC + Mop->fetch.inst.len))
