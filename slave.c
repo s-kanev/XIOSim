@@ -443,7 +443,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
 
  
    insn++;
-   bool fetch_more = false;
+   bool fetch_more = true;
    consumed = false;
    bool repping = false;
 
@@ -464,6 +464,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
        sim_main_slave_post_pin();
 
        sim_main_slave_pre_pin();
+       fetch_more = true;
 
        if(cores[i]->oracle->num_Mops_nuked == 0)
        {
@@ -488,7 +489,9 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
      {
        do
        {
-         while(fetch_more && cores[i]->fetch->PC != NPC)
+         while(fetch_more && ((!repping && (cores[i]->fetch->PC != NPC || 
+                                           cores[i]->oracle->spec_mode))
+                               || repping))
            fetch_more = sim_main_slave_fetch_insn();
         
          sim_main_slave_post_pin();
@@ -500,9 +503,14 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
          if(repping && !cores[i]->oracle->spec_mode && regs->regs_NPC == NPC)
            return;
 
+         if(repping && !cores[i]->oracle->spec_mode && regs->regs_NPC != NPC)
+           break;
+
          /* We can encounter a nuke while speculating. Then we go to the nuke recovery loop */
          if(cores[i]->oracle->num_Mops_nuked > 0)
            break;
+
+         fetch_more = true;
 
        }while(cores[i]->fetch->PC != NPC || cores[i]->oracle->spec_mode || repping);
 
