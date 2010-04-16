@@ -595,7 +595,7 @@ mem_newmap(struct mem_t *mem,            /* memory space to access */
   md_addr_t comp_addr;
   struct mem_pte_t *pte;
  
-  fprintf(stderr, "Mem_newmap: %x, length: %u\n", addr, length);
+  fprintf(stderr, "Mem_newmap: %x, length: %u, end_addr: %x\n", addr, length, addr+length);
 
   /* first check alignment */
   if((addr & (MD_PAGE_SIZE-1))!=0) {
@@ -661,7 +661,7 @@ mem_newmap2(struct mem_t *mem,            /* memory space to access */
   md_addr_t comp_addr;
   struct mem_pte_t *pte;
 
-  fprintf(stderr, "Mem_newmap2: %x -> %x, length: %u\n", addr, our_addr, length);
+  fprintf(stderr, "Mem_newmap2: %x -> %x, length: %u, end_addr: %x\n", addr, our_addr, length, addr+length);
 
   /* first check alignment */
   if((addr & (MD_PAGE_SIZE-1))!=0) {

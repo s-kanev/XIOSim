@@ -161,7 +161,7 @@ int core_oracle_t::spec_mem_pool_debt = 0;
 
 /* CONSTRUCTOR */
 core_oracle_t::core_oracle_t(struct core_t * const arg_core):
-  spec_mode(false), hosed(false), MopQ(NULL), MopQ_head(0), MopQ_tail(0),
+  spec_mode(false), num_Mops_nuked(0), hosed(false), MopQ(NULL), MopQ_head(0), MopQ_tail(0),
   MopQ_num(0), current_Mop(NULL), mem_req_free_pool(NULL),
   syscall_mem_req_head(NULL), syscall_mem_req_tail(NULL), syscall_mem_reqs(0),
   syscall_remaining_delay(0)
@@ -1350,6 +1350,11 @@ void core_oracle_t::consume(const struct Mop_t * const Mop)
 {
   assert(Mop == current_Mop);
   current_Mop = NULL;
+
+  /* If recovering from a nuke, keep track of num instructions left until the nuke reason */
+  if(!spec_mode && num_Mops_nuked > 0)
+     num_Mops_nuked--;
+
 }
 
 void core_oracle_t::commit_uop(struct uop_t * const uop)
@@ -1497,6 +1502,10 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
       core->fetch->bpred->return_state_cache(MopQ[idx].fetch.bpred_update);
       MopQ[idx].fetch.bpred_update = NULL;
     }
+
+    /* Flush not caused by branch misprediction - nuke */
+    if(!spec_mode)
+      num_Mops_nuked++;
 
     MopQ_num --;
     MopQ_tail = idx;

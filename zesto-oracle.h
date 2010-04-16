@@ -203,6 +203,7 @@ class core_oracle_t {
   public:
 
   bool spec_mode;  /* are we currently on a wrong-path? */
+  int num_Mops_nuked; /* Used if we want to find the instruction that originally caused the nuke after we flush and start executing again */
 
   bool hosed; /* set to TRUE when something in the architected state (core->arch_state) has been seriously
                 corrupted. */

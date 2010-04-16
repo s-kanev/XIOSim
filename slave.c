@@ -372,7 +372,7 @@ int Zesto_Notify_Mmap(unsigned int addr, unsigned int length)
 
    md_addr_t retval = mem_newmap2(mem, ROUND_UP((md_addr_t)addr, MD_PAGE_SIZE), ROUND_UP((md_addr_t)addr, MD_PAGE_SIZE), length, 1);
 
-   myfprintf(stderr, "New memory mapping at addr: %x, length: %u \n",addr, length);
+   myfprintf(stderr, "New memory mapping at addr: %x, length: %u,endaddr: %x \n",addr, length, addr+length);
    return (retval == addr);
 }
 
@@ -422,8 +422,8 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
       thread->loader.environ_base = sp;
 
       /* Create local pages for stack 
-         XXX: hardcoded 4 pages for now. See how to get stack base + stack endfrom PIN */
-      md_addr_t stack_addr = mem_newmap2(thread->mem, ROUND_DOWN(sp, MD_PAGE_SIZE), ROUND_DOWN(sp, MD_PAGE_SIZE), 4*MD_PAGE_SIZE, 1);
+         XXX: hardcoded 16 pages for now. See how to get stack base + stack endfrom PIN */
+      md_addr_t stack_addr = mem_newmap2(thread->mem, ROUND_UP(sp, MD_PAGE_SIZE)-16*MD_PAGE_SIZE, ROUND_UP(sp, MD_PAGE_SIZE)-16*MD_PAGE_SIZE, 16*MD_PAGE_SIZE, 1);
       myfprintf(stderr, "Stack pointer: %x; \n", sp);
 
 
@@ -447,7 +447,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
    consumed = false;
    bool repping = false;
 
-  while(!consumed || repping)
+  while(!consumed || repping || cores[i]->oracle->num_Mops_nuked > 0)
    {
      fetch_more = sim_main_slave_fetch_insn();
 
@@ -456,11 +456,35 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
      repping = thread->rep_sequence != 0;
 
 
-     /*XXX: here oracle still doesn't know if we're speculating or not. But if we predicted 
+     if(cores[i]->oracle->num_Mops_nuked > 0)
+     {
+       while(fetch_more && cores[i]->oracle->num_Mops_nuked > 0)
+         fetch_more = sim_main_slave_fetch_insn();
+      
+       sim_main_slave_post_pin();
+
+       sim_main_slave_pre_pin();
+
+       if(cores[i]->oracle->num_Mops_nuked == 0)
+       {
+         //Nuke reocvery instruction is a mispredicted branch
+         if(cores[i]->fetch->PC != NPC)
+         {
+           consumed = false;
+           continue;
+         }
+//           fprintf(stderr, "Nuke recovery sent us to wrong pc! Expected %x, got to %x \n", NPC, cores[i]->fetch->PC);
+//         zesto_assert(cores[i]->fetch->PC == NPC, (void)0);
+         else //fetching from the correct addres, go back to Pin for instruction
+           return;
+       }
+
+     }
+    /*XXX: here oracle still doesn't know if we're speculating or not. But if we predicted 
      the wrong path, we'd better not return to Pin, because that will mess the state up */
-     if((!repping && cores[i]->fetch->PC != NPC
-           && cores[i]->fetch->PC != handshake->pc) || //Not trapped
-         repping ) 
+     else if((!repping && cores[i]->fetch->PC != NPC
+               && cores[i]->fetch->PC != handshake->pc) || //Not trapped
+              repping) 
      {
        do
        {
@@ -476,10 +500,14 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
          if(repping && !cores[i]->oracle->spec_mode && regs->regs_NPC == NPC)
            return;
 
+         /* We can encounter a nuke while speculating. Then we go to the nuke recovery loop */
+         if(cores[i]->oracle->num_Mops_nuked > 0)
+           break;
+
        }while(cores[i]->fetch->PC != NPC || cores[i]->oracle->spec_mode || repping);
 
-      /* If not in a REP sequence, pass control back to Pin for new instruction */
-       if(!repping)
+      /* If not in a REP sequence and not recovering from a nuke, pass control back to Pin for new instruction */
+       if(!repping && cores[i]->oracle->num_Mops_nuked == 0)
        { 
          regs->regs_NPC = NPC;
          return;
