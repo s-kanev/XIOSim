@@ -10,6 +10,7 @@
 #include <iomanip>
 #include <syscall.h>
 #include <stdlib.h>
+#include <elf.h>
 
 #include "pin.H"
 #include "instlib.H"
@@ -206,7 +207,9 @@ VOID SimulateInstruction(ADDRINT pc, BOOL taken, ADDRINT npc, ADDRINT tpc, const
 {
     struct P2Z_HANDSHAKE *handshake  = MakeSSRequest(pc, npc, tpc, taken, ictxt);
 
+#ifdef ZESTO_PIN_DBG
     cout << SimOrgInsCount << "  PC: " << hex << pc << " Taken br: " << taken << " NPC: " << (taken ? tpc : npc) << dec << endl;
+#endif
 
     FeedOriginalInstruction(handshake);
 
@@ -226,7 +229,9 @@ VOID Instrument(INS ins, VOID *v)
     if (ExecMode == EXECUTION_MODE_FASTFORWARD)
         return;
 
+#ifdef ZESTO_PIN_DBG
     cout << INS_Mnemonic(ins) << endl;
+#endif
 
     if (! INS_IsBranchOrCall(ins))
     {
@@ -347,6 +352,34 @@ SSARGS MakeSimpleScalarArgcArgv(UINT32 argc, CHAR *argv[])
     return make_pair(ssArgc, ssArgv);
 }
 
+VOID onMainThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
+{
+//    cout << "Thread start. ID: " << threadIndex << endl;
+    if(threadIndex != 0)
+      return;
+
+
+    CHAR* sp = (CHAR*)PIN_GetContextReg(ictxt, REG_ESP);
+//    cout << hex << "SP: " << (VOID*) sp << dec << endl;
+    
+    while(*sp++); //go to end of argv
+//    cout << hex << (VOID*)sp << dec << endl;
+    while(*sp++); //go to end of envp
+
+    Elf32_auxv_t *auxv;
+    for(auxv = (Elf32_auxv_t*)sp; auxv->a_type != AT_NULL; auxv++); //go to end of aux_vector
+
+    sp = (CHAR*)auxv + sizeof(Elf32_auxv_t);
+
+    while(*sp++); //this should reach bottom of stack
+
+    Zesto_SetBOS((ADDRINT) sp);
+//    cout << (int)*sp << endl;
+//    cout << hex << (VOID*)sp << dec << endl;
+//    cout << *(char*)sp << endl;
+
+}
+
 /* ========================================================================== */
 INT32 main(INT32 argc, CHAR **argv)
 {
@@ -357,6 +390,7 @@ INT32 main(INT32 argc, CHAR **argv)
 
     InstallFastForwarding();
 
+    PIN_AddThreadStartFunction(onMainThreadStart, NULL);  
     IMG_AddUnloadFunction(ImageUnload, 0);
     IMG_AddInstrumentFunction(ImageLoad, 0);
     INS_AddInstrumentFunction(Instrument, 0);

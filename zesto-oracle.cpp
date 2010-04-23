@@ -1304,7 +1304,6 @@ core_oracle_t::exec(const md_addr_t requested_PC)
     else{
 #endif
        thread->rep_sequence ++;
-       fprintf(stderr, "REP-ing: %d\n", thread->rep_sequence);
 #ifdef ZESTO_PIN
     }
 #endif
@@ -1515,7 +1514,7 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
   core->current_thread->regs.regs_PC = Mop->fetch.PC;
   core->current_thread->regs.regs_NPC = Mop->oracle.NextPC;
 
-#ifdef ZESTO_PIN
+#ifdef ZESTO_PIN_DBG
   myfprintf(stderr, "Recovering to fetchPC: %x; REP seq: %d \n", Mop->fetch.PC, core->current_thread->rep_sequence);
 #endif
 

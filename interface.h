@@ -7,6 +7,7 @@
 #include "machine.h"
 
 int Zesto_SlaveInit(int argc, char **argv);
+void Zesto_SetBOS(unsigned int stack_base);
 void Zesto_Destroy();
 void Zesto_Resume(struct P2Z_HANDSHAKE * handshake);
 int Zesto_Notify_Mmap(unsigned int addr, unsigned int length);

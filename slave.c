@@ -181,9 +181,8 @@ extern int running;
 extern void sim_print_stats(FILE *fd);
 extern void exit_now(int exit_code);
 
-unsigned long insn = 0;
-unsigned long insn1 = 0;
 bool consumed = false;
+bool first_insn = true;
 
 int
 Zesto_SlaveInit(int argc, char **argv)
@@ -210,7 +209,7 @@ Zesto_SlaveInit(int argc, char **argv)
   if ((exit_code = setjmp(sim_exit_buf)) != 0)
     {
       /* special handling as longjmp cannot pass 0 */
-      exit_now(exit_code-1);
+        exit_now(exit_code-1);
     }
 
   sim_pre_init();
@@ -364,15 +363,25 @@ Zesto_SlaveInit(int argc, char **argv)
   return 0;
 }
 
+void Zesto_SetBOS(unsigned int stack_base)
+{
+   assert(num_threads == 1);
+   cores[0]->current_thread->loader.stack_base = (md_addr_t)stack_base;
+   myfprintf(stderr, "Stack base: %x; \n", cores[0]->current_thread->loader.stack_base);
+
+}
+
 int Zesto_Notify_Mmap(unsigned int addr, unsigned int length)
 {
    int i = 0;
    struct mem_t * mem = cores[i]->current_thread->mem;
    assert(num_threads == 1);
 
-   md_addr_t retval = mem_newmap2(mem, ROUND_UP((md_addr_t)addr, MD_PAGE_SIZE), ROUND_UP((md_addr_t)addr, MD_PAGE_SIZE), length, 1);
+   md_addr_t retval = mem_newmap2(mem, ROUND_DOWN((md_addr_t)addr, MD_PAGE_SIZE), ROUND_DOWN((md_addr_t)addr, MD_PAGE_SIZE), ROUND_UP(length, MD_PAGE_SIZE), 1);
 
    myfprintf(stderr, "New memory mapping at addr: %x, length: %u,endaddr: %x \n",addr, length, addr+length);
+
+   zesto_assert(retval == addr, 0);
    return (retval == addr);
 }
 
@@ -389,9 +398,6 @@ int Zesto_Notify_Munmap(unsigned int addr, unsigned int length)
 
 void Zesto_Destroy()
 {
-  myfprintf(stderr, "Mops counted in Zesto_Resume: %u\n", insn);
-  myfprintf(stderr, "Mops counted in Zesto_Resume loop: %u\n", insn1);
-
   /* print simulator stats */
   sim_print_stats(stderr);
 }
@@ -409,27 +415,30 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
 
    md_addr_t NPC = handshake->brtaken ? handshake->tpc : handshake->npc;  
 
-#ifdef ZESTO_PIN
+#ifdef ZESTO_PIN_DBG
    myfprintf(stderr, "Getting control from PIN, PC: %x, NPC: %x \n", handshake->pc, NPC);
 #endif
 
-   if(insn==0) 
+   if(first_insn) 
    {  
+      zesto_assert(thread->loader.stack_base, (void)0);
       thread->loader.prog_entry = handshake->pc;
 
       /* Init stack pointer */
       md_addr_t sp = handshake->ctxt->regs_R.dw[MD_REG_ESP];     
-      thread->loader.environ_base = sp;
+      thread->loader.stack_min = (md_addr_t)sp;
+      thread->loader.stack_size = thread->loader.stack_base-sp;
 
-      /* Create local pages for stack 
-         XXX: hardcoded 16 pages for now. See how to get stack base + stack endfrom PIN */
-      md_addr_t stack_addr = mem_newmap2(thread->mem, ROUND_UP(sp, MD_PAGE_SIZE)-16*MD_PAGE_SIZE, ROUND_UP(sp, MD_PAGE_SIZE)-16*MD_PAGE_SIZE, 16*MD_PAGE_SIZE, 1);
+      /* Create local pages for stack */ 
+      md_addr_t stack_addr = mem_newmap2(thread->mem, ROUND_DOWN(thread->loader.stack_min, MD_PAGE_SIZE), ROUND_DOWN(thread->loader.stack_min, MD_PAGE_SIZE), ROUND_UP(thread->loader.stack_size, MD_PAGE_SIZE), 1);
       myfprintf(stderr, "Stack pointer: %x; \n", sp);
+      zesto_assert(stack_addr == ROUND_DOWN(thread->loader.stack_min, MD_PAGE_SIZE), (void)0);
 
 
       regs->regs_PC = handshake->pc;
       regs->regs_NPC = handshake->pc;
       cores[i]->fetch->PC = handshake->pc;
+      first_insn= false;
    }
 
    /* Copy architectural state from pim
@@ -442,7 +451,6 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
    regs->regs_S = handshake->ctxt->regs_S;
 
  
-   insn++;
    bool fetch_more = true;
    consumed = false;
    bool repping = false;
@@ -450,8 +458,6 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
   while(!consumed || repping || cores[i]->oracle->num_Mops_nuked > 0)
    {
      fetch_more = sim_main_slave_fetch_insn();
-
-     insn1++;
 
      repping = thread->rep_sequence != 0;
 
@@ -474,8 +480,6 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
            consumed = false;
            continue;
          }
-//           fprintf(stderr, "Nuke recovery sent us to wrong pc! Expected %x, got to %x \n", NPC, cores[i]->fetch->PC);
-//         zesto_assert(cores[i]->fetch->PC == NPC, (void)0);
          else //fetching from the correct addres, go back to Pin for instruction
            return;
        }
@@ -489,9 +493,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
      {
        do
        {
-         while(fetch_more && ((!repping && (cores[i]->fetch->PC != NPC || 
-                                           cores[i]->oracle->spec_mode))
-                               || repping))
+         while(fetch_more) 
            fetch_more = sim_main_slave_fetch_insn();
         
          sim_main_slave_post_pin();

@@ -629,12 +629,12 @@ bool core_fetch_DPM_t::do_fetch(void)
   md_addr_t current_line = PC & byteQ_linemask;
   struct Mop_t * Mop = NULL;
 
-#ifdef ZESTO_PIN
+#ifdef ZESTO_PIN_DBG
   myfprintf(stderr, "Fetch PC: %x, page: %u\n", PC, (PC >> PAGE_SHIFT));
 #endif
 
   Mop = core->oracle->exec(PC);
-#ifdef ZESTO_PIN
+#ifdef ZESTO_PIN_DBG
   myfprintf(stderr, "After. PC: %x, page %u\n", PC, (PC >> PAGE_SHIFT));
 #endif
   if(Mop && ((PC >> PAGE_SHIFT) == 0))
@@ -762,8 +762,8 @@ bool core_fetch_DPM_t::do_fetch(void)
 
   /* advance the fetch PC to the next instruction */
   PC = Mop->fetch.pred_NPC;
-#ifdef ZESTO_PIN
-  myfprintf(stderr, "After bpred. PC: %x, oracle.NPC: %x\n", PC, Mop->oracle.NextPC);
+#ifdef ZESTO_PIN_DBG
+  myfprintf(stderr, "After bpred. PC: %x, oracle.NPC: %x, spec: %d\n", PC, Mop->oracle.NextPC, core->oracle->spec_mode);
 #endif
 
   if(  (Mop->fetch.pred_NPC != (Mop->fetch.PC + Mop->fetch.inst.len))
