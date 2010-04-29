@@ -174,6 +174,10 @@ lib:	CFLAGS += -DZESTO_PIN
 lib:	sysprobe$(EEXT) sim-slave.$(OEXT) $(OBJS_SLAVE) $(ZOBJS) $(EXOOBJS)
 	ar rs libsim.a sim-slave.$(OEXT) $(OBJS_SLAVE) $(ZOBJS) $(EXOOBJS)
 	ranlib libsim.a
+libd:	CFLAGS += -DZESTO_PIN -DZESTO_PIN_DBG
+libd:	sysprobe$(EEXT) sim-slave.$(OEXT) $(OBJS_SLAVE) $(ZOBJS) $(EXOOBJS)
+	ar rs libsim.a sim-slave.$(OEXT) $(OBJS_SLAVE) $(ZOBJS) $(EXOOBJS)
+	ranlib libsim.a
 
 exo $(EXOOBJS): sysprobe$(EEXT)
 	cd libexo $(CS) \

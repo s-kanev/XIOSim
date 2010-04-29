@@ -217,7 +217,7 @@ class core_oracle_t {
   int next_index(const int index);
 
   bool spec_read_byte(const md_addr_t addr, byte_t * const valp);
-  struct spec_byte_t * spec_write_byte(const md_addr_t addr, const byte_t val);
+  struct spec_byte_t * spec_write_byte(const md_addr_t addr, const byte_t val,  struct uop_t * uop);
 
   struct Mop_t * exec(const md_addr_t requested_PC);
   void consume(const struct Mop_t * const Mop);
@@ -266,7 +266,7 @@ class core_oracle_t {
   int syscall_mem_reqs; /* total number of syscall memory requests */
   int syscall_remaining_delay;
 
-  void undo(struct Mop_t * const Mop);
+  void undo(struct Mop_t * const Mop, bool nuke);
 
   void install_mapping(struct uop_t * const uop);
   void commit_mapping(const struct uop_t * const uop);

@@ -455,7 +455,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
    consumed = false;
    bool repping = false;
 
-  while(!consumed || repping || cores[i]->oracle->num_Mops_nuked > 0)
+   while(!consumed || repping || cores[i]->oracle->num_Mops_nuked > 0)
    {
      fetch_more = sim_main_slave_fetch_insn();
 

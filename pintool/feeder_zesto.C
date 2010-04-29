@@ -383,6 +383,11 @@ VOID onMainThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID 
 /* ========================================================================== */
 INT32 main(INT32 argc, CHAR **argv)
 {
+    cout << "Command line: ";
+    for(int i=0; i<argc; i++)
+       cout << argv[i];
+    cout << endl; 
+
     SSARGS ssargs = MakeSimpleScalarArgcArgv(argc, argv);
 
     PIN_Init(argc, argv);

@@ -635,7 +635,7 @@ bool core_fetch_DPM_t::do_fetch(void)
 
   Mop = core->oracle->exec(PC);
 #ifdef ZESTO_PIN_DBG
-  myfprintf(stderr, "After. PC: %x, page %u\n", PC, (PC >> PAGE_SHIFT));
+  myfprintf(stderr, "After. PC: %x, page %u, nuked_Mops: %d\n", PC, (PC >> PAGE_SHIFT), core->oracle->num_Mops_nuked);
 #endif
   if(Mop && ((PC >> PAGE_SHIFT) == 0))
   {

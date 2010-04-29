@@ -139,6 +139,7 @@
 #include "thread.h"
 #include "syscall.h"
 #include "loader.h"
+#include "memory.h"
 
 #include "zesto-core.h"
 #include "zesto-opts.h"
@@ -336,10 +337,44 @@ int core_oracle_t::next_index(const int index)
    and return a pointer to the entry. */
 struct spec_byte_t * core_oracle_t::spec_write_byte(
     const md_addr_t addr,
-    const byte_t val)
+    const byte_t val,
+    struct uop_t * uop)
 {
   int index = addr & MEM_HASH_MASK;
-  struct spec_byte_t * p = get_spec_mem_node();
+  byte_t _mem_read_tmp;
+  bool _read_succ;
+  byte_t prev_val = MEM_READ_SUCC(core->current_thread->mem,addr,byte_t);
+  struct spec_byte_t * p;
+
+#ifdef ZESTO_PIN
+  if(num_Mops_nuked > 0 && !uop->Mop->oracle.spec_mode)
+  {
+#ifdef ZESTO_PIN_DBG
+    fprintf(stderr, "Nuke recovery spec_write 0x%x %d\n", addr, val);
+#endif
+    p = spec_mem_map.hash[index].tail;
+    while(p)
+    {
+       if(p->uop == NULL && p->addr == addr)
+       {
+#ifdef ZESTO_PIN_DBG
+          if(p->val != val)
+            fprintf(stderr, "Diff p->val values: %d %d\n", p->val, val);
+          else
+            fprintf(stderr, "Same p->val values\n");
+#endif
+//        assert(p->val == val && p->addr == addr);
+          p->uop = uop;
+          p->val = val;
+          return p;
+       }
+       p = p->next;
+    }
+  }
+#endif
+
+
+  p = get_spec_mem_node();
   if(spec_mem_map.hash[index].tail)
     spec_mem_map.hash[index].tail->next = p;
   p->prev = spec_mem_map.hash[index].tail;
@@ -347,8 +382,14 @@ struct spec_byte_t * core_oracle_t::spec_write_byte(
   if(spec_mem_map.hash[index].head == NULL)
     spec_mem_map.hash[index].head = p;
 
+#ifdef ZESTO_PIN_DBG
+  fprintf(stderr, "Write to specQ at 0x%x, val: %d, prev_val: %d(%d), spec_mode: %d\n", addr, val, prev_val, _read_succ, uop->Mop->oracle.spec_mode);
+#endif
   p->val = val;
+  p->prev_val = prev_val;
+  p->prev_val_valid = _read_succ;
   p->addr = addr;
+  p->uop = uop;
   return p;
 }
 
@@ -1160,6 +1201,9 @@ core_oracle_t::exec(const md_addr_t requested_PC)
     }
     uop->oracle.ictrl = thread->regs.regs_C;
 
+    if(requested_PC == 0x80cd139)
+       fprintf(stderr, "CHECK ME!!! SP: 0x%x, Contains: 0x%x\n", thread->regs.regs_R.dw[MD_REG_ESP], *(word_t*)thread->regs.regs_R.dw[MD_REG_ESP]);
+
     /* execute the instruction */
     switch (uop->decode.op)
     {
@@ -1351,7 +1395,7 @@ void core_oracle_t::consume(const struct Mop_t * const Mop)
   current_Mop = NULL;
 
   /* If recovering from a nuke, keep track of num instructions left until the nuke reason */
-  if(!spec_mode && num_Mops_nuked > 0)
+  if(!spec_mode && num_Mops_nuked > 0 && !Mop->oracle.spec_mode)
      num_Mops_nuked--;
 
 }
@@ -1415,7 +1459,7 @@ core_oracle_t::commit(const struct Mop_t * const commit_Mop)
    state.  Bookkeeping for the MopQ and other core-level structures has to be
    dealt with separately. */
 void
-core_oracle_t::undo(struct Mop_t * const Mop)
+core_oracle_t::undo(struct Mop_t * const Mop, bool nuke)
 {
   struct thread_t * thread = core->current_thread;
   /* walk uop list backwards, undoing each operation's effects */
@@ -1463,13 +1507,76 @@ core_oracle_t::undo(struct Mop_t * const Mop)
     /* undo memory changes */
     if(uop->decode.is_std)
     {
-      for(int j=0;j<12;j++)
+#ifdef ZESTO_PIN
+// If recovering from a nuke, the instruction feeder may have corrupted main memory already.
+// So we keep a shadow copy of the last value we wrote there and recover it once we go down the recovery path.
+// Since this is a nuke, we are bound to go back the same route, so it's not technically a speculation problem, 
+// but more something like checkpoint recovery.
+      if(nuke)
       {
-        if(uop->oracle.spec_mem[j] == NULL)
-          break;
-        squash_write_byte(uop->oracle.spec_mem[j]);
-        uop->oracle.spec_mem[j] = NULL;
+        int index;
+	for(int j=0;j<12;j++)
+	{
+          spec_byte_t * p = uop->oracle.spec_mem[j];
+
+	  if(p == NULL)
+	    break;
+
+          index = p->addr & MEM_HASH_MASK; 
+
+          /* If memory location wasn't accesible before (f.e. unallocated page) we don't have a prev_val to keep - throw it away */
+          if(!p->prev_val_valid)
+          {
+#ifdef ZESTO_PIN_DBG
+             fprintf(stderr, "Nuke and kill entry at 0x%x\n",p->addr);
+#endif
+             if(!p->prev)
+               spec_mem_map.hash[index].head = p->next;
+             if(!p->next)
+               spec_mem_map.hash[index].tail = p->prev;
+             if(p->prev)
+               p->prev->next = p->next;
+             if(p->next)
+               p->next->prev = p->prev;
+
+             return_spec_mem_node(p);
+          }
+          /* If there is a prev_val, add that to speculative memory, so loads on the nuke recovery path can see that, not the possibly corrupted main memory */
+          else
+          {
+#ifdef ZESTO_PIN_DBG
+            fprintf(stderr, "Nuke and restore entry at 0x%x, val:%d, prev_val:%d, uop:%p \n", p->addr, p->val, p->prev_val, p->uop);
+#endif
+	    p->val = p->prev_val;
+	    p->prev_val = 0;
+            p->prev_val_valid = false;
+            p->uop = NULL;
+
+            /* Move to tail of specQ so memory reads see this value */
+            if(p->next)
+              p->next->prev = p->prev;
+            if(p == spec_mem_map.hash[index].head)            
+              spec_mem_map.hash[index].head = p->next ? p->next : p;
+
+            p->next = NULL;
+            p->prev = spec_mem_map.hash[index].tail;
+            spec_mem_map.hash[index].tail = p;
+          }
+	}
       }
+      else
+      {
+#endif
+	for(int j=0;j<12;j++)
+	{
+	  if(uop->oracle.spec_mem[j] == NULL)
+	    break;
+	  squash_write_byte(uop->oracle.spec_mem[j]);
+	  uop->oracle.spec_mem[j] = NULL;
+	}
+#ifdef ZESTO_PIN
+      }
+#endif
     }
 
     /* remove self from register mapping */
@@ -1493,7 +1600,13 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
   {
     if(idx == MopQ_head)
       fatal("ran out of Mop's before finding requested MopQ recovery point");
-    undo(&MopQ[idx]);
+
+    /* Flush not caused by branch misprediction - nuke */
+    bool nuke = !spec_mode && !MopQ[idx].oracle.spec_mode;
+    if(nuke)
+      num_Mops_nuked++;
+
+    undo(&MopQ[idx], nuke);
     MopQ[idx].valid = false;
     if(MopQ[idx].fetch.bpred_update)
     {
@@ -1502,9 +1615,6 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
       MopQ[idx].fetch.bpred_update = NULL;
     }
 
-    /* Flush not caused by branch misprediction - nuke */
-    if(!spec_mode)
-      num_Mops_nuked++;
 
     MopQ_num --;
     MopQ_tail = idx;
@@ -1515,7 +1625,7 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
   core->current_thread->regs.regs_NPC = Mop->oracle.NextPC;
 
 #ifdef ZESTO_PIN_DBG
-  myfprintf(stderr, "Recovering to fetchPC: %x; REP seq: %d \n", Mop->fetch.PC, core->current_thread->rep_sequence);
+  myfprintf(stderr, "Recovering to fetchPC: %x; nuked_Mops: %d \n", Mop->fetch.PC, num_Mops_nuked);
 #endif
 
   spec_mode = Mop->oracle.spec_mode;
@@ -1569,7 +1679,7 @@ core_oracle_t::complete_flush(void)
   {
     arch_PC = MopQ[idx].fetch.PC;
     assert(MopQ[idx].valid);
-    undo(&MopQ[idx]);
+    undo(&MopQ[idx],false);
     MopQ[idx].valid = false;
     if(MopQ[idx].fetch.bpred_update)
     {
@@ -1691,6 +1801,10 @@ void core_oracle_t::commit_dependencies(struct uop_t * const uop)
 void core_oracle_t::commit_write_byte(struct spec_byte_t * const p)
 {
   const int index = p->addr & MEM_HASH_MASK;
+#ifdef ZESTO_PIN_DBG
+  if(p!= spec_mem_map.hash[index].head)
+    fprintf(stderr, "Commit wr: p:0x%p, p->addr: 0x%x, p->val: %d, p->uop->PC: 0x%x, head:0x%p, head->add: 0x%x, head->val: %d, head->uop->PC: 0x%x\n",p,p->addr,p->val, p->uop->Mop->fetch.PC,spec_mem_map.hash[index].head, spec_mem_map.hash[index].head->addr, spec_mem_map.hash[index].head->val, spec_mem_map.hash[index].head->uop->Mop->fetch.PC);
+#endif
   assert(spec_mem_map.hash[index].head == p);
 
   if(p->next)
@@ -1996,6 +2110,9 @@ void core_oracle_t::return_spec_mem_node(struct spec_byte_t * const p)
   p->prev = NULL;
   p->addr = 0;
   p->val = 0;
+  p->prev_val = 0;
+  p->prev_val_valid = false;
+  p->uop = NULL;
 }
 
 /* similar to commit_write_byte, but remove the tail entry
@@ -2016,6 +2133,7 @@ void core_oracle_t::squash_write_byte(struct spec_byte_t * const p)
 
   return_spec_mem_node(p);
 }
+
 
 /* if a Mop is partially executed in oracle-exec and then
    aborts (likely due to it being on the wrong path and

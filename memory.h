@@ -267,8 +267,14 @@ typedef enum md_fault_type
    ? *((TYPE *)(MEM_PAGE(MEM, (md_addr_t)(ADDR),0) + MEM_OFFSET(ADDR)))  \
    : /* page not yet allocated, return zero value */ 0))
 
+#define MEM_READ_SUCC(MEM, ADDR, TYPE)          \
+  (core->oracle->spec_read_byte((ADDR),&_mem_read_tmp) ? (_read_succ = true, _mem_read_tmp) :             \
+  (MEM_PAGE(MEM, (md_addr_t)(ADDR),0)          \
+   ? (_read_succ = true, *((TYPE *)(MEM_PAGE(MEM, (md_addr_t)(ADDR),0) + MEM_OFFSET(ADDR))))  \
+   : /* page not yet allocated, return zero value */ (_read_succ = false, 0)))
+
 #define MEM_WRITE(MEM, ADDR, TYPE, VAL)          \
-  core->oracle->spec_write_byte((ADDR),(VAL))
+  core->oracle->spec_write_byte((ADDR),(VAL),uop)
 
 
 #ifdef ZESTO_PIN
@@ -280,7 +286,8 @@ typedef enum md_fault_type
   byte_t _val = *_tr_addr;  \
   (MEM_PAGE(MEM, (md_addr_t)(ADDR),1))
 
-/*  if(_val != (VAL)) fprintf(stderr, "Wrong mem value at addr %x, expected: %d, got: %d, tr_addr: %x\n",(ADDR), (VAL), _val, _tr_addr); \*/
+
+//  if(_val != (VAL)) fprintf(stderr, "Wrong mem value at addr %x, expected: %d, got: %d, tr_addr: %x\n",(ADDR), (VAL), _val, _tr_addr)
 //  assert(_val == (VAL)); 
 
 
@@ -301,7 +308,7 @@ typedef enum md_fault_type
 
 /* safe version, works only with scalar types */
 /* FIXME: write a more efficient GNU C expression for this... */
-#define MEM_WRITE(MEM, ADDR, TYPE, VAL)          \
+#define MEM_WRITE(MEM, ADDR, TYPE, VAL)         \
   (MEM_TICKLE(MEM, (md_addr_t)(ADDR)),          \
    *((TYPE *)(MEM_PAGE(MEM, (md_addr_t)(ADDR),1) + MEM_OFFSET(ADDR))) = (VAL))
 #endif
