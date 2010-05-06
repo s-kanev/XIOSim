@@ -345,6 +345,7 @@ struct spec_byte_t * core_oracle_t::spec_write_byte(
   bool _read_succ;
   byte_t prev_val = MEM_READ_SUCC(core->current_thread->mem,addr,byte_t);
   struct spec_byte_t * p;
+  struct spec_byte_t * p_tmp;
 
 #ifdef ZESTO_PIN
   if(num_Mops_nuked > 0 && !uop->Mop->oracle.spec_mode)
@@ -366,9 +367,38 @@ struct spec_byte_t * core_oracle_t::spec_write_byte(
 //        assert(p->val == val && p->addr == addr);
           p->uop = uop;
           p->val = val;
+
+          /* Put the already corrected value before the first non-nuked store */
+          /* After that, we've recovered from the possible ambiguity of that store */
+
+          if(!p->prev)
+            return p;
+
+          p_tmp = p->prev;
+          while(p_tmp && p_tmp->uop == NULL) p_tmp = p_tmp->prev;
+          if(p_tmp) //Not adding to head
+          {
+             p->next = p_tmp->next;
+             p_tmp->next = p;
+             spec_mem_map.hash[index].tail = p->prev;
+             p->prev->next = NULL;
+             p->prev = p_tmp;
+          }
+          else
+          {
+             spec_mem_map.hash[index].tail = p->prev;
+             p->prev->next = NULL;
+
+             p->next = spec_mem_map.hash[index].head;
+             spec_mem_map.hash[index].head->prev = p;
+             spec_mem_map.hash[index].head = p;
+
+             p->prev = NULL;
+          }
+
           return p;
        }
-       p = p->next;
+       p = p->prev;
     }
   }
 #endif
@@ -1555,12 +1585,14 @@ core_oracle_t::undo(struct Mop_t * const Mop, bool nuke)
             /* Move to tail of specQ so memory reads see this value */
             if(p->next)
               p->next->prev = p->prev;
+            if(p->prev)
+              p->prev->next = p->next;
             if(p == spec_mem_map.hash[index].head)            
               spec_mem_map.hash[index].head = p->next ? p->next : p;
 
-            p->next = NULL;
-            p->prev = spec_mem_map.hash[index].tail;
-            spec_mem_map.hash[index].tail = p;
+             p->next = NULL;
+             p->prev = spec_mem_map.hash[index].tail;
+             spec_mem_map.hash[index].tail = p;
           }
 	}
       }
@@ -1800,12 +1832,27 @@ void core_oracle_t::commit_dependencies(struct uop_t * const uop)
 /* remove the entry from the table */
 void core_oracle_t::commit_write_byte(struct spec_byte_t * const p)
 {
+/* In case of a load nuke, we allow some reordering of the specQ beacuse we need to keep requestes out of main meory (which may be corrupted).
+   So, we can end up commiting not the first byte in the Q */
+
   const int index = p->addr & MEM_HASH_MASK;
 #ifdef ZESTO_PIN_DBG
   if(p!= spec_mem_map.hash[index].head)
     fprintf(stderr, "Commit wr: p:0x%p, p->addr: 0x%x, p->val: %d, p->uop->PC: 0x%x, head:0x%p, head->add: 0x%x, head->val: %d, head->uop->PC: 0x%x\n",p,p->addr,p->val, p->uop->Mop->fetch.PC,spec_mem_map.hash[index].head, spec_mem_map.hash[index].head->addr, spec_mem_map.hash[index].head->val, spec_mem_map.hash[index].head->uop->Mop->fetch.PC);
 #endif
   assert(spec_mem_map.hash[index].head == p);
+
+
+/*  if(p->prev)
+    p->prev->next = p->next;
+  if(p->next)
+    p->next->prev = p->prev;
+
+  if(p == spec_mem_map.hash[index].head)
+    spec_mem_map.hash[index].head = p->next;
+  if(p == spec_mem_map.hash[index].tail)
+    spec_mem_map.hash[index].tail = p->prev;
+*/
 
   if(p->next)
     p->next->prev = NULL;

@@ -385,7 +385,7 @@ INT32 main(INT32 argc, CHAR **argv)
 {
     cout << "Command line: ";
     for(int i=0; i<argc; i++)
-       cout << argv[i];
+       cout << argv[i] << " ";
     cout << endl; 
 
     SSARGS ssargs = MakeSimpleScalarArgcArgv(argc, argv);
