@@ -377,12 +377,20 @@ int Zesto_Notify_Mmap(unsigned int addr, unsigned int length)
    struct mem_t * mem = cores[i]->current_thread->mem;
    assert(num_threads == 1);
 
-   md_addr_t retval = mem_newmap2(mem, ROUND_DOWN((md_addr_t)addr, MD_PAGE_SIZE), ROUND_DOWN((md_addr_t)addr, MD_PAGE_SIZE), ROUND_UP(length, MD_PAGE_SIZE), 1);
+   md_addr_t page_addr = ROUND_DOWN((md_addr_t)addr, MD_PAGE_SIZE);
+   unsigned int page_length = ROUND_UP(length, MD_PAGE_SIZE);
+
+   md_addr_t retval = mem_newmap2(mem, page_addr, page_addr, page_length, 1);
 
    myfprintf(stderr, "New memory mapping at addr: %x, length: %u,endaddr: %x \n",addr, length, addr+length);
 
-   zesto_assert(retval == addr, 0);
-   return (retval == addr);
+   bool success = (retval == addr);
+   zesto_assert(success, 0);
+
+   if(page_addr > cores[i]->current_thread->loader.brk_point)
+     cores[i]->current_thread->loader.brk_point = page_addr + page_length;
+
+   return success;
 }
 
 int Zesto_Notify_Munmap(unsigned int addr, unsigned int length)
@@ -394,6 +402,22 @@ int Zesto_Notify_Munmap(unsigned int addr, unsigned int length)
   mem_delmap(mem, ROUND_UP((md_addr_t)addr, MD_PAGE_SIZE), length);
   myfprintf(stderr, "Memory un-mapping at addr: %x\n",addr);
   return 1;
+}
+
+void Zesto_UpdateBrk(unsigned int brk_end)
+{
+  zesto_assert(num_threads == 1, (void)0);
+
+  if(brk_end == 0)
+    return;
+
+  unsigned int old_brk_end = cores[0]->current_thread->loader.brk_point;
+  if(brk_end > old_brk_end)
+    Zesto_Notify_Mmap(old_brk_end, brk_end - old_brk_end);
+  else if(brk_end < old_brk_end)
+    Zesto_Notify_Munmap(brk_end, old_brk_end - brk_end);
+
+  cores[0]->current_thread->loader.brk_point = brk_end;
 }
 
 void Zesto_Destroy()
@@ -441,6 +465,9 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
       first_insn= false;
    }
 
+   zesto_assert(cores[i]->oracle->num_Mops_nuked == 0, (void)0);
+   zesto_assert(!cores[i]->oracle->spec_mode, (void)0);
+
    /* Copy architectural state from pim
       XXX: This is arch state BEFORE executed the instruction we're about to simulate*/
  
@@ -485,7 +512,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
        }
 
      }
-    /*XXX: here oracle still doesn't know if we're speculating or not. But if we predicted 
+     /*XXX: here oracle still doesn't know if we're speculating or not. But if we predicted 
      the wrong path, we'd better not return to Pin, because that will mess the state up */
      else if((!repping && cores[i]->fetch->PC != NPC
                && cores[i]->fetch->PC != handshake->pc) || //Not trapped
@@ -500,6 +527,9 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
 
          /* Next cycle */ 
          sim_main_slave_pre_pin();
+
+         /* If we recover from a speculation (in exec pipe (called by pre_pin)) onto a REP-instrucion */
+         repping = (thread->rep_sequence != 0);
 
          /* The only way to know a REP sequence has ended is to compare computed NPC with what Pin gives us */
          if(repping && !cores[i]->oracle->spec_mode && regs->regs_NPC == NPC)

@@ -630,15 +630,23 @@ bool core_fetch_DPM_t::do_fetch(void)
   struct Mop_t * Mop = NULL;
 
 #ifdef ZESTO_PIN_DBG
-  myfprintf(stderr, "Fetch PC: %x, page: %u\n", PC, (PC >> PAGE_SHIFT));
+  myfprintf(stderr, "Fetch PC: %x, page: %u, rep_seq: %d\n", PC, (PC >> PAGE_SHIFT), core->current_thread->rep_sequence);
 #endif
 
   Mop = core->oracle->exec(PC);
 #ifdef ZESTO_PIN_DBG
-  myfprintf(stderr, "After. PC: %x, page %u, nuked_Mops: %d\n", PC, (PC >> PAGE_SHIFT), core->oracle->num_Mops_nuked);
+  myfprintf(stderr, "After. PC: %x, page %u, nuked_Mops: %d, rep_seq: %d\n", PC, (PC >> PAGE_SHIFT), core->oracle->num_Mops_nuked, core->current_thread->rep_sequence);
 #endif
   if(Mop && ((PC >> PAGE_SHIFT) == 0))
   {
+    //XXX: Generate core file
+    if(!core->oracle->spec_mode)
+    {
+       int * bad = NULL;
+       myfprintf(stderr, "PC error at PC: 0x%x, Mop.PC: 0x%x \n", PC, Mop->fetch.PC);
+       fflush(stderr);
+       *bad = 0;
+    }
     zesto_assert(core->oracle->spec_mode,(void)0);
     stall_reason = FSTALL_ZPAGE;
     return false;

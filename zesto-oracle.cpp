@@ -345,60 +345,74 @@ struct spec_byte_t * core_oracle_t::spec_write_byte(
   bool _read_succ;
   byte_t prev_val = MEM_READ_SUCC(core->current_thread->mem,addr,byte_t);
   struct spec_byte_t * p;
-  struct spec_byte_t * p_tmp;
+  struct spec_byte_t * insert_after = NULL;
+  struct spec_byte_t * oldest_wr = NULL;
 
 #ifdef ZESTO_PIN
   if(num_Mops_nuked > 0 && !uop->Mop->oracle.spec_mode)
   {
 #ifdef ZESTO_PIN_DBG
-    fprintf(stderr, "Nuke recovery spec_write 0x%x %d\n", addr, val);
+    fprintf(stderr, "Nuke recovery spec_write 0x%x %d; Nuked_Mops: %d, spec_mode: %d\n", addr, val,num_Mops_nuked, spec_mode);
 #endif
     p = spec_mem_map.hash[index].tail;
+//XXX
     while(p)
     {
        if(p->uop == NULL && p->addr == addr)
        {
-#ifdef ZESTO_PIN_DBG
-          if(p->val != val)
-            fprintf(stderr, "Diff p->val values: %d %d\n", p->val, val);
-          else
-            fprintf(stderr, "Same p->val values\n");
-#endif
-//        assert(p->val == val && p->addr == addr);
-          p->uop = uop;
-          p->val = val;
-
-          /* Put the already corrected value before the first non-nuked store */
-          /* After that, we've recovered from the possible ambiguity of that store */
-
-          if(!p->prev)
-            return p;
-
-          p_tmp = p->prev;
-          while(p_tmp && p_tmp->uop == NULL) p_tmp = p_tmp->prev;
-          if(p_tmp) //Not adding to head
-          {
-             p->next = p_tmp->next;
-             p_tmp->next = p;
-             spec_mem_map.hash[index].tail = p->prev;
-             p->prev->next = NULL;
-             p->prev = p_tmp;
-          }
-          else
-          {
-             spec_mem_map.hash[index].tail = p->prev;
-             p->prev->next = NULL;
-
-             p->next = spec_mem_map.hash[index].head;
-             spec_mem_map.hash[index].head->prev = p;
-             spec_mem_map.hash[index].head = p;
-
-             p->prev = NULL;
-          }
-
-          return p;
+         oldest_wr = p;
+         break;
        }
+
        p = p->prev;
+    }
+
+    if(oldest_wr)
+    {
+       oldest_wr->uop = uop;
+       oldest_wr->val = val;
+
+       assert(oldest_wr == spec_mem_map.hash[index].tail);
+ 
+       /* Put the already corrected value before the first non-nuked store */
+       /* After that, we've recovered from the possible ambiguity of that store */
+
+       if(!oldest_wr->prev)
+       {
+          assert(oldest_wr == spec_mem_map.hash[index].head);
+          return oldest_wr;
+       }
+
+       insert_after = oldest_wr->prev;
+       while(insert_after && insert_after->uop == NULL) 
+          insert_after = insert_after->prev;
+
+       if(insert_after == oldest_wr->prev)
+	 return oldest_wr;
+
+       if(insert_after) //Not adding to head
+       {
+	  oldest_wr->next = insert_after->next;
+	  if(insert_after->next)
+	    insert_after->next->prev = oldest_wr;
+	  insert_after->next = oldest_wr;
+	  spec_mem_map.hash[index].tail = oldest_wr->prev;
+	  oldest_wr->prev->next = NULL;
+	  oldest_wr->prev = insert_after;
+       }
+       else
+       {
+	  spec_mem_map.hash[index].tail = oldest_wr->prev;
+	  oldest_wr->prev->next = NULL;
+
+	  oldest_wr->next = spec_mem_map.hash[index].head;
+	  spec_mem_map.hash[index].head->prev = oldest_wr;
+	  spec_mem_map.hash[index].head = oldest_wr;
+
+	  oldest_wr->prev = NULL;
+       }
+
+       return oldest_wr;
     }
   }
 #endif
@@ -1231,8 +1245,8 @@ core_oracle_t::exec(const md_addr_t requested_PC)
     }
     uop->oracle.ictrl = thread->regs.regs_C;
 
-    if(requested_PC == 0x80cd139)
-       fprintf(stderr, "CHECK ME!!! SP: 0x%x, Contains: 0x%x\n", thread->regs.regs_R.dw[MD_REG_ESP], *(word_t*)thread->regs.regs_R.dw[MD_REG_ESP]);
+/*    if(requested_PC == 0x80cd139)
+       fprintf(stderr, "CHECK ME!!! SP: 0x%x, Contains: 0x%x\n", thread->regs.regs_R.dw[MD_REG_ESP], *(word_t*)thread->regs.regs_R.dw[MD_REG_ESP]);*/
 
     /* execute the instruction */
     switch (uop->decode.op)
@@ -1575,14 +1589,18 @@ core_oracle_t::undo(struct Mop_t * const Mop, bool nuke)
           else
           {
 #ifdef ZESTO_PIN_DBG
-            fprintf(stderr, "Nuke and restore entry at 0x%x, val:%d, prev_val:%d, uop:%p \n", p->addr, p->val, p->prev_val, p->uop);
+            fprintf(stderr, "Nuke and restore entry at 0x%x, val:%d, prev_val:%d, uop:%p; Nuked_Mops: %d, spec_mode: %d \n", p->addr, p->val, p->prev_val, p->uop, num_Mops_nuked, spec_mode);
 #endif
 	    p->val = p->prev_val;
 	    p->prev_val = 0;
             p->prev_val_valid = false;
             p->uop = NULL;
 
-            /* Move to tail of specQ so memory reads see this value */
+            if(p == spec_mem_map.hash[index].tail)
+              continue;
+
+
+	   /* Move to tail of specQ so memory reads see this value */
             if(p->next)
               p->next->prev = p->prev;
             if(p->prev)
@@ -1591,6 +1609,7 @@ core_oracle_t::undo(struct Mop_t * const Mop, bool nuke)
               spec_mem_map.hash[index].head = p->next ? p->next : p;
 
              p->next = NULL;
+             spec_mem_map.hash[index].tail->next = p;
              p->prev = spec_mem_map.hash[index].tail;
              spec_mem_map.hash[index].tail = p;
           }
@@ -1634,7 +1653,7 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
       fatal("ran out of Mop's before finding requested MopQ recovery point");
 
     /* Flush not caused by branch misprediction - nuke */
-    bool nuke = !spec_mode && !MopQ[idx].oracle.spec_mode;
+    bool nuke = /*!spec_mode &&*/ !MopQ[idx].oracle.spec_mode;
     if(nuke)
       num_Mops_nuked++;
 
@@ -1657,7 +1676,7 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
   core->current_thread->regs.regs_NPC = Mop->oracle.NextPC;
 
 #ifdef ZESTO_PIN_DBG
-  myfprintf(stderr, "Recovering to fetchPC: %x; nuked_Mops: %d \n", Mop->fetch.PC, num_Mops_nuked);
+  myfprintf(stderr, "Recovering to fetchPC: %x; nuked_Mops: %d, rep_seq: %d \n", Mop->fetch.PC, num_Mops_nuked, core->current_thread->rep_sequence);
 #endif
 
   spec_mode = Mop->oracle.spec_mode;
@@ -1835,24 +1854,25 @@ void core_oracle_t::commit_write_byte(struct spec_byte_t * const p)
 /* In case of a load nuke, we allow some reordering of the specQ beacuse we need to keep requestes out of main meory (which may be corrupted).
    So, we can end up commiting not the first byte in the Q */
 
+   int * bad = NULL;
+
   const int index = p->addr & MEM_HASH_MASK;
-#ifdef ZESTO_PIN_DBG
+//#ifdef ZESTO_PIN_DBG
   if(p!= spec_mem_map.hash[index].head)
-    fprintf(stderr, "Commit wr: p:0x%p, p->addr: 0x%x, p->val: %d, p->uop->PC: 0x%x, head:0x%p, head->add: 0x%x, head->val: %d, head->uop->PC: 0x%x\n",p,p->addr,p->val, p->uop->Mop->fetch.PC,spec_mem_map.hash[index].head, spec_mem_map.hash[index].head->addr, spec_mem_map.hash[index].head->val, spec_mem_map.hash[index].head->uop->Mop->fetch.PC);
-#endif
+  {  
+     fprintf(stderr, "Commit wr: p:%p, p->addr: 0x%x, p->val: %d, p->uop: 0x%x, head:%p, head->addr: 0x%x, head->val: %d, head->uop: 0x%x\n",p,p->addr,p->val, p->uop,spec_mem_map.hash[index].head, spec_mem_map.hash[index].head->addr, spec_mem_map.hash[index].head->val, spec_mem_map.hash[index].head->uop);
+     if(p->uop)
+       fprintf(stderr, "p->uop->PC: 0x%x, p->spec: %d\n", p->uop->Mop->fetch.PC, p->uop->Mop->oracle.spec_mode);
+     if(spec_mem_map.hash[index].head->uop)
+       fprintf(stderr, "head->uop->PC: 0x%x, head->spec: %d\n", spec_mem_map.hash[index].head->uop->Mop->fetch.PC, spec_mem_map.hash[index].head->uop->Mop->oracle.spec_mode);
+     // XXX:Generate core file
+     fflush(stderr);
+     *bad = 0;
+  }
+//#endif
   assert(spec_mem_map.hash[index].head == p);
 
-
-/*  if(p->prev)
-    p->prev->next = p->next;
-  if(p->next)
-    p->next->prev = p->prev;
-
-  if(p == spec_mem_map.hash[index].head)
-    spec_mem_map.hash[index].head = p->next;
-  if(p == spec_mem_map.hash[index].tail)
-    spec_mem_map.hash[index].tail = p->prev;
-*/
+  assert(p->uop);
 
   if(p->next)
     p->next->prev = NULL;

@@ -352,6 +352,7 @@ SSARGS MakeSimpleScalarArgcArgv(UINT32 argc, CHAR *argv[])
     return make_pair(ssArgc, ssArgv);
 }
 
+/* ========================================================================== */
 VOID onMainThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
 {
 //    cout << "Thread start. ID: " << threadIndex << endl;
@@ -381,6 +382,22 @@ VOID onMainThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID 
 }
 
 /* ========================================================================== */
+VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VOID *v)
+{
+    //Single-threaded for now
+    assert(threadIndex == 0);
+
+    ADDRINT syscall_num = PIN_GetSyscallNumber(ictxt, std);
+    ADDRINT addr = PIN_GetSyscallArgument(ictxt, std, 0);
+
+    if(syscall_num == 45)
+    {
+      cout << "Syscall: " << syscall_num << " addr: 0x" << hex << addr << dec << endl;
+      Zesto_UpdateBrk(addr);
+    }
+}
+
+/* ========================================================================== */
 INT32 main(INT32 argc, CHAR **argv)
 {
     cout << "Command line: ";
@@ -398,6 +415,7 @@ INT32 main(INT32 argc, CHAR **argv)
     PIN_AddThreadStartFunction(onMainThreadStart, NULL);  
     IMG_AddUnloadFunction(ImageUnload, 0);
     IMG_AddInstrumentFunction(ImageLoad, 0);
+    PIN_AddSyscallEntryFunction(SyscallEntry, 0);
     INS_AddInstrumentFunction(Instrument, 0);
     PIN_AddFiniFunction(Fini, 0);
 
