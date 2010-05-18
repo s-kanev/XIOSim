@@ -1439,7 +1439,7 @@ void core_oracle_t::consume(const struct Mop_t * const Mop)
   current_Mop = NULL;
 
   /* If recovering from a nuke, keep track of num instructions left until the nuke reason */
-  if(!spec_mode && num_Mops_nuked > 0 && !Mop->oracle.spec_mode)
+  if(num_Mops_nuked > 0 && !Mop->oracle.spec_mode)
      num_Mops_nuked--;
 
 }

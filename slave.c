@@ -501,14 +501,17 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
 
        if(cores[i]->oracle->num_Mops_nuked == 0)
        {
-         //Nuke reocvery instruction is a mispredicted branch
-         if(cores[i]->fetch->PC != NPC)
+         //Nuke reocvery instruction is a mispredicted branch or REP-ed
+         if(cores[i]->fetch->PC != NPC || regs->regs_NPC != NPC)
          {
            consumed = false;
            continue;
          }
          else //fetching from the correct addres, go back to Pin for instruction
-           return;
+         {
+            assert(cores[i]->fetch->PC == NPC);
+            return;
+         }
        }
 
      }
@@ -518,47 +521,65 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
                && cores[i]->fetch->PC != handshake->pc) || //Not trapped
               repping) 
      {
+       bool spec;
        do
        {
          while(fetch_more) 
-           fetch_more = sim_main_slave_fetch_insn();
+         {
+            fetch_more = sim_main_slave_fetch_insn();
+
+            spec = (cores[i]->oracle->spec_mode || (cores[i]->fetch->PC != regs->regs_NPC));
+            /* If fetch can tolerate more insns, but needs to get them from PIN */
+            if(fetch_more && !spec && thread->rep_sequence == 0 && cores[i]->oracle->num_Mops_nuked == 0)
+            {
+               assert(cores[i]->fetch->PC == NPC);
+               return;
+            }
+         }
         
          sim_main_slave_post_pin();
 
          /* Next cycle */ 
          sim_main_slave_pre_pin();
 
-         /* If we recover from a speculation (in exec pipe (called by pre_pin)) onto a REP-instrucion */
-         repping = (thread->rep_sequence != 0);
+         if(!consumed)
+         {
+            fetch_more = true;
+            continue;
+         }
 
-         /* The only way to know a REP sequence has ended is to compare computed NPC with what Pin gives us */
-         if(repping && !cores[i]->oracle->spec_mode && regs->regs_NPC == NPC)
-           return;
+         /* Potentially different after exec (in pre_pin) where branches are resolved */
+         spec = (cores[i]->oracle->spec_mode || (cores[i]->fetch->PC != regs->regs_NPC));
 
-         if(repping && !cores[i]->oracle->spec_mode && regs->regs_NPC != NPC)
-           break;
+         /* After recovering from spec and/or REP, we find no nukes -> great, get control back to PIN */
+         if(thread->rep_sequence == 0 && !spec && cores[i]->oracle->num_Mops_nuked == 0)
+         {
+            assert(cores[i]->fetch->PC == NPC);
+            return;
+         }
 
-         /* We can encounter a nuke while speculating. Then we go to the nuke recovery loop */
-         if(cores[i]->oracle->num_Mops_nuked > 0)
-           break;
+         /* After recovering from spec and/or REP, nuke -> go to nuke recovery loop */
+         if(thread->rep_sequence == 0 && !spec && cores[i]->oracle->num_Mops_nuked > 0)
+         {
 
+            break;
+         }
+
+         /* All other cases should stay in this loop until they get resolved */
          fetch_more = true;
 
-       }while(cores[i]->fetch->PC != NPC || cores[i]->oracle->spec_mode || repping);
+       }while(spec || thread->rep_sequence != 0);
 
-      /* If not in a REP sequence and not recovering from a nuke, pass control back to Pin for new instruction */
-       if(!repping && cores[i]->oracle->num_Mops_nuked == 0)
-       { 
-         regs->regs_NPC = NPC;
-         return;
-       }
      }
      else
-     /* non-speculative */
+     /* non-speculative, non-REP, non-nuke */
      {
        /* Pass control back to Pin to get a new PC on the same cycle*/
        if(fetch_more)// && (cores[i]->fetch->PC == handshake->npc))
-         return;
+       {
+          assert(cores[i]->fetch->PC == NPC);
+          return;
+       }
     
        sim_main_slave_post_pin();
 
