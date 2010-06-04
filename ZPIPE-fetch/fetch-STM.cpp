@@ -290,7 +290,6 @@ seq_t core_fetch_STM_t::get_byteQ_action_id(void * const op)
 /************************/
 /* MAIN FETCH FUNCTIONS */
 /************************/
-
 void core_fetch_STM_t::pre_fetch(void)
 {
   struct core_knobs_t * knobs = core->knobs;
@@ -370,7 +369,7 @@ bool core_fetch_STM_t::do_fetch(void)
   Mop = core->oracle->exec(PC);
   if(Mop && ((PC >> PAGE_SHIFT) == 0))
   {
-    zesto_assert(core->oracle->spec_mode,(void)0);
+    zesto_assert(core->oracle->spec_mode,false);
     stall_reason = FSTALL_ZPAGE;
     return false;
   }
@@ -411,7 +410,7 @@ bool core_fetch_STM_t::do_fetch(void)
   /* STM model doesn't deal with fetches across cache lines */
   Mop->fetch.last_byte_requested = true;
 
-  zesto_assert(Mop->fetch.first_byte_requested,(void)0);
+  zesto_assert(Mop->fetch.first_byte_requested,false);
 
   /* All bytes for this Mop have been requested.  Record it in the byteQ entry
      and let the oracle know we're done with it so can proceed to the next
@@ -465,7 +464,12 @@ bool core_fetch_STM_t::do_fetch(void)
   return ((PC & byteQ_linemask) == current_line);
 }
 
-
+/*void core_fetch_STM_t::step(void)
+{
+   post_fetch();
+   while(do_fetch());
+   pre_fetch();
+}*/
 
 bool core_fetch_STM_t::Mop_available(void)
 {

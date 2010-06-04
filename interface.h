@@ -1,8 +1,6 @@
 #ifndef __PIN_ZESTO_INTERFACE__
 #define __PIN_ZESTO_INTERFACE__
 
-//#define ZESTO_PIN 
-
 #include "pin.h"
 #include "machine.h"
 

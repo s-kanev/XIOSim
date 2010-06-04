@@ -267,8 +267,8 @@ typedef enum md_fault_type
    ? *((TYPE *)(MEM_PAGE(MEM, (md_addr_t)(ADDR),0) + MEM_OFFSET(ADDR)))  \
    : /* page not yet allocated, return zero value */ 0))
 
-#define MEM_READ_SUCC(MEM, ADDR, TYPE)          \
-  (core->oracle->spec_read_byte((ADDR),&_mem_read_tmp) ? (_read_succ = true, _mem_read_tmp) :             \
+#define MEM_READ_SUCC(MEM, ADDR, TYPE, IGNORE_TAIL)          \
+  (core->oracle->spec_read_byte((ADDR),&_mem_read_tmp,(IGNORE_TAIL)) ? (_read_succ = true, _mem_read_tmp) :             \
   (MEM_PAGE(MEM, (md_addr_t)(ADDR),0)          \
    ? (_read_succ = true, *((TYPE *)(MEM_PAGE(MEM, (md_addr_t)(ADDR),0) + MEM_OFFSET(ADDR))))  \
    : /* page not yet allocated, return zero value */ (_read_succ = false, 0)))

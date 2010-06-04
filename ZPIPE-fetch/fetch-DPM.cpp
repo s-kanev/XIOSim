@@ -629,16 +629,14 @@ bool core_fetch_DPM_t::do_fetch(void)
   md_addr_t current_line = PC & byteQ_linemask;
   struct Mop_t * Mop = NULL;
 
-#ifdef ZESTO_PIN_DBG
-  myfprintf(stderr, "Fetch PC: %x, page: %u, rep_seq: %d\n", PC, (PC >> PAGE_SHIFT), core->current_thread->rep_sequence);
-#endif
+  ZPIN_TRACE(myfprintf(stderr, "Fetch PC: %x, rep_seq: %d\n", PC, core->current_thread->rep_sequence));
 
   Mop = core->oracle->exec(PC);
-#ifdef ZESTO_PIN_DBG
-  myfprintf(stderr, "After. PC: %x, page %u, nuked_Mops: %d, rep_seq: %d\n", PC, (PC >> PAGE_SHIFT), core->oracle->num_Mops_nuked, core->current_thread->rep_sequence);
-#endif
+
+  ZPIN_TRACE(myfprintf(stderr, "After. PC: %x, nuked_Mops: %d, rep_seq: %d\n", PC, core->oracle->num_Mops_nuked, core->current_thread->rep_sequence));
   if(Mop && ((PC >> PAGE_SHIFT) == 0))
   {
+//#ifdef ZESTO_PIN_DBG
     //XXX: Generate core file
     if(!core->oracle->spec_mode)
     {
@@ -647,7 +645,8 @@ bool core_fetch_DPM_t::do_fetch(void)
        fflush(stderr);
        *bad = 0;
     }
-    zesto_assert(core->oracle->spec_mode,(void)0);
+//#endif
+    zesto_assert(core->oracle->spec_mode, false);
     stall_reason = FSTALL_ZPAGE;
     return false;
   }
@@ -724,7 +723,7 @@ bool core_fetch_DPM_t::do_fetch(void)
     byteQ_request(end_PC & byteQ_linemask);
   }
 
-  zesto_assert(Mop->fetch.first_byte_requested && Mop->fetch.last_byte_requested,(void)0);
+  zesto_assert(Mop->fetch.first_byte_requested && Mop->fetch.last_byte_requested,false);
 
   /* All bytes for this Mop have been requested.  Record it in the byteQ entry
      and let the oracle know we're done with it so can proceed to the next
@@ -770,9 +769,8 @@ bool core_fetch_DPM_t::do_fetch(void)
 
   /* advance the fetch PC to the next instruction */
   PC = Mop->fetch.pred_NPC;
-#ifdef ZESTO_PIN_DBG
-  myfprintf(stderr, "After bpred. PC: %x, oracle.NPC: %x, spec: %d\n", PC, Mop->oracle.NextPC, core->oracle->spec_mode);
-#endif
+
+  ZPIN_TRACE(myfprintf(stderr, "After bpred. PC: %x, oracle.NPC: %x, spec: %d\n", PC, Mop->oracle.NextPC, core->oracle->spec_mode));
 
   if(  (Mop->fetch.pred_NPC != (Mop->fetch.PC + Mop->fetch.inst.len))
     && (Mop->fetch.pred_NPC != Mop->fetch.PC)) /* REPs don't count as taken branches w.r.t. fetching */
@@ -795,6 +793,13 @@ bool core_fetch_DPM_t::do_fetch(void)
   /* still fetching from the same byteQ entry */
   return ((PC & byteQ_linemask) == current_line);
 }
+
+/*void core_fetch_DPM_t::step(void)
+{
+   post_fetch();
+   while(do_fetch());
+   pre_fetch();
+}*/
 
 bool core_fetch_DPM_t::Mop_available(void)
 {

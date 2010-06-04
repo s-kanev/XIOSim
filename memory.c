@@ -599,6 +599,7 @@ mem_newmap(struct mem_t *mem,            /* memory space to access */
 #ifdef ZESTO_PIN_DBG
   fprintf(stderr, "Mem_newmap: %x, length: %u, end_addr: %x\n", addr, length, addr+length);
 #endif
+
   /* first check alignment */
   if((addr & (MD_PAGE_SIZE-1))!=0) {
     fprintf(stderr, "mem_newmap address %x, not page aligned\n", addr);

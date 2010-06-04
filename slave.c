@@ -181,6 +181,8 @@ extern int running;
 extern void sim_print_stats(FILE *fd);
 extern void exit_now(int exit_code);
 
+extern tick_t sim_cycle;
+
 bool consumed = false;
 bool first_insn = true;
 
@@ -374,6 +376,7 @@ void Zesto_SetBOS(unsigned int stack_base)
 int Zesto_Notify_Mmap(unsigned int addr, unsigned int length)
 {
    int i = 0;
+   struct core_t * core = cores[i];
    struct mem_t * mem = cores[i]->current_thread->mem;
    assert(num_threads == 1);
 
@@ -382,7 +385,7 @@ int Zesto_Notify_Mmap(unsigned int addr, unsigned int length)
 
    md_addr_t retval = mem_newmap2(mem, page_addr, page_addr, page_length, 1);
 
-   myfprintf(stderr, "New memory mapping at addr: %x, length: %u,endaddr: %x \n",addr, length, addr+length);
+   ZPIN_TRACE(myfprintf(stderr, "New memory mapping at addr: %x, length: %u,endaddr: %x \n",addr, length, addr+length));
 
    bool success = (retval == addr);
    zesto_assert(success, 0);
@@ -400,12 +403,18 @@ int Zesto_Notify_Munmap(unsigned int addr, unsigned int length)
   assert(num_threads == 1);
 
   mem_delmap(mem, ROUND_UP((md_addr_t)addr, MD_PAGE_SIZE), length);
-  myfprintf(stderr, "Memory un-mapping at addr: %x\n",addr);
+
+  ZPIN_TRACE(myfprintf(stderr, "Memory un-mapping at addr: %x\n",addr));
+
   return 1;
 }
 
 void Zesto_UpdateBrk(unsigned int brk_end)
 {
+  int i = 0;
+  struct core_t * core = cores[i];
+
+  assert(num_threads == 1);
   zesto_assert(num_threads == 1, (void)0);
 
   if(brk_end == 0)
@@ -417,7 +426,7 @@ void Zesto_UpdateBrk(unsigned int brk_end)
   else if(brk_end < old_brk_end)
     Zesto_Notify_Munmap(brk_end, old_brk_end - brk_end);
 
-  cores[0]->current_thread->loader.brk_point = brk_end;
+  core->current_thread->loader.brk_point = brk_end;
 }
 
 void Zesto_Destroy()
@@ -433,15 +442,14 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
    assert(num_threads == 1);
 
    int i = 0;
+   struct core_t * core = cores[i];
 
    thread_t * thread = cores[i]->current_thread;
    regs_t * regs = &thread->regs;
 
    md_addr_t NPC = handshake->brtaken ? handshake->tpc : handshake->npc;  
 
-#ifdef ZESTO_PIN_DBG
-   myfprintf(stderr, "Getting control from PIN, PC: %x, NPC: %x \n", handshake->pc, NPC);
-#endif
+   ZPIN_TRACE(myfprintf(stderr, "PIN -> PC: %x, NPC: %x \n", handshake->pc, NPC));
 
    if(first_insn) 
    {  
@@ -471,7 +479,8 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
    /* Copy architectural state from pim
       XXX: This is arch state BEFORE executed the instruction we're about to simulate*/
  
-   cores[i]->fetch->feeder_NPC = handshake->npc;
+   cores[i]->fetch->feeder_NPC = NPC;
+   cores[i]->fetch->feeder_PC = handshake->pc;
    regs->regs_R = handshake->ctxt->regs_R;
    regs->regs_F = handshake->ctxt->regs_F;
    regs->regs_C = handshake->ctxt->regs_C;
@@ -509,7 +518,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
          }
          else //fetching from the correct addres, go back to Pin for instruction
          {
-            assert(cores[i]->fetch->PC == NPC);
+            zesto_assert(cores[i]->fetch->PC == NPC, (void)0);
             return;
          }
        }
@@ -517,22 +526,22 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
      }
      /*XXX: here oracle still doesn't know if we're speculating or not. But if we predicted 
      the wrong path, we'd better not return to Pin, because that will mess the state up */
-     else if((!repping && cores[i]->fetch->PC != NPC
-               && cores[i]->fetch->PC != handshake->pc) || //Not trapped
+     else if((!repping && (cores[i]->fetch->PC != NPC || cores[i]->oracle->spec_mode)) ||
+               //&& cores[i]->fetch->PC != handshake->pc) || //Not trapped
               repping) 
      {
-       bool spec;
+       bool spec = false;
        do
        {
          while(fetch_more) 
          {
             fetch_more = sim_main_slave_fetch_insn();
 
-            spec = (cores[i]->oracle->spec_mode || (cores[i]->fetch->PC != regs->regs_NPC));
-            /* If fetch can tolerate more insns, but needs to get them from PIN */
-            if(fetch_more && !spec && thread->rep_sequence == 0 && cores[i]->oracle->num_Mops_nuked == 0)
+            spec = (cores[i]->oracle->spec_mode || (cores[i]->fetch->PC != NPC));
+            /* If fetch can tolerate more insns, but needs to get them from PIN (f.e. after finishing a REP-ed instruction) */
+            if(fetch_more && !spec && thread->rep_sequence == 0 && core->fetch->PC != handshake->pc && cores[i]->oracle->num_Mops_nuked == 0)
             {
-               assert(cores[i]->fetch->PC == NPC);
+               zesto_assert(cores[i]->fetch->PC == NPC, (void)0);
                return;
             }
          }
@@ -549,12 +558,12 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
          }
 
          /* Potentially different after exec (in pre_pin) where branches are resolved */
-         spec = (cores[i]->oracle->spec_mode || (cores[i]->fetch->PC != regs->regs_NPC));
+         spec = (cores[i]->oracle->spec_mode || (cores[i]->fetch->PC != NPC));
 
          /* After recovering from spec and/or REP, we find no nukes -> great, get control back to PIN */
-         if(thread->rep_sequence == 0 && !spec && cores[i]->oracle->num_Mops_nuked == 0)
+         if(thread->rep_sequence == 0 && core->fetch->PC != handshake->pc && !spec && cores[i]->oracle->num_Mops_nuked == 0)
          {
-            assert(cores[i]->fetch->PC == NPC);
+            zesto_assert(cores[i]->fetch->PC == NPC, (void)0);
             return;
          }
 
@@ -577,7 +586,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
        /* Pass control back to Pin to get a new PC on the same cycle*/
        if(fetch_more)// && (cores[i]->fetch->PC == handshake->npc))
        {
-          assert(cores[i]->fetch->PC == NPC);
+          zesto_assert(cores[i]->fetch->PC == NPC, (void)0);
           return;
        }
     

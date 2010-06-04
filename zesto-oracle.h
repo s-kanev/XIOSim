@@ -159,14 +159,31 @@
 }
 #endif
 
-#ifdef DEBUG
-#define zesto_assert(cond, retval) assert(cond)
+//#ifdef DEBUG
+//#define zesto_assert(cond, retval) assert(cond)
+//#elif ZESTO_PIN
+#ifdef ZESTO_PIN
+#define zesto_assert(cond, retval) { \
+  if(!(cond)) { \
+    core->oracle->hosed = TRUE; \
+    fprintf(stderr,"assertion failed (%s,%d:thread %d): ",__FILE__,__LINE__,core->current_thread->id); \
+    fprintf(stderr,"%s\n",#cond); \
+    fprintf(stderr, "cycle: %lld, num_Mops: %lld\n", sim_cycle, core->stat.oracle_total_insn); \
+    fprintf(stderr, "PC: %x, regs->NPC: %x, pin->PC: %x, pin->NPC: %x\n", core->fetch->PC, core->current_thread->regs.regs_NPC, core->fetch->feeder_PC, core->fetch->feeder_NPC); \
+    fflush(stderr); \
+    assert(cond); \
+    return (retval); \
+  } \
+}
 #else
 #define zesto_assert(cond, retval) { \
   if(!(cond)) { \
     core->oracle->hosed = TRUE; \
     fprintf(stderr,"assertion failed (%s,%d:thread %d): ",__FILE__,__LINE__,core->current_thread->id); \
     fprintf(stderr,"%s\n",#cond); \
+    fprintf(stderr, "cycle: %lld, num_Mops: %lld\n", sim_cycle, core->stat.oracle_total_insn); \
+    fprintf(stderr, "PC: %x, regs->NPC: %x\n", core->fetch->PC, core->current_thread->regs.regs_NPC); \
+    fflush(stderr); \
     return (retval); \
   } \
 }
@@ -216,7 +233,7 @@ class core_oracle_t {
   int get_index(const struct Mop_t * const Mop);
   int next_index(const int index);
 
-  bool spec_read_byte(const md_addr_t addr, byte_t * const valp);
+  bool spec_read_byte(const md_addr_t addr, byte_t * const valp, bool no_tail=false);
   struct spec_byte_t * spec_write_byte(const md_addr_t addr, const byte_t val,  struct uop_t * uop);
 
   struct Mop_t * exec(const md_addr_t requested_PC);

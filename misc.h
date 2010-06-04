@@ -163,6 +163,14 @@ extern "C" {
 extern bool debugging;
 #endif /* DEBUG */
 
+//Quick and dirty to tarce after e certain amount of cycles
+#ifdef ZESTO_PIN_DBG
+#define ZPIN_TRACE(COMM) \
+  if(sim_cycle > 4000000) (COMM)
+#else
+#define ZPIN_TRACE(COMM)
+#endif
+
 /* register a function to be called when an error is detected */
 void
 fatal_hook(void (*hook_fn)(FILE *stream));	/* fatal hook function */

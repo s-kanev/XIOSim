@@ -100,7 +100,7 @@ $(OBJDIR)%.o : %.cpp
 $(TOOLS): $(PIN_LIBNAMES) $(ZESTO_HOME)/libsim.a
 
 $(TOOLS): %$(PINTOOL_SUFFIX) : %.o 
-	${PIN_LD} $(PIN_LDFLAGS) -I$(ZESTO_HOME) -L$(ZESTO_HOME) $(LINK_DEBUG) ${LINK_OUT} $@ $< ${PIN_LPATHS} $(ZESTO_HOME)/libsim.a $(PIN_LIBS) $(DBG) -g -static
+	${PIN_LD} -g $(PIN_LDFLAGS) -I$(ZESTO_HOME) -L$(ZESTO_HOME) $(LINK_DEBUG) ${LINK_OUT} $@ $< ${PIN_LPATHS} $(ZESTO_HOME)/libsim.a $(PIN_LIBS) $(DBG) -g -static
 
 
 ## cleaning

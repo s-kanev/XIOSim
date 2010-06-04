@@ -1149,9 +1149,9 @@ void core_exec_DPM_t::DL1_split_callback(void * const op)
 void core_exec_DPM_t::DTLB_callback(void * const op)
 {
   struct uop_t * uop = (struct uop_t*) op;
-#ifndef DEBUG
+//#ifndef DEBUG
   struct core_t * core = uop->core;
-#endif
+//#endif
   struct core_exec_DPM_t * E = (core_exec_DPM_t*)uop->core->exec;
   if(uop->alloc.LDQ_index != -1)
   {
