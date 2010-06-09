@@ -501,7 +501,24 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
      if(cores[i]->oracle->num_Mops_nuked > 0)
      {
        while(fetch_more && cores[i]->oracle->num_Mops_nuked > 0)
+       {       
          fetch_more = sim_main_slave_fetch_insn();
+
+         //Fetch can get more insns this cycle, but they are needed from PIN
+         if(fetch_more && cores[i]->oracle->num_Mops_nuked == 0
+                       && !cores[i]->oracle->spec_mode)
+         {
+            zesto_assert(cores[i]->fetch->PC == NPC, (void)0);
+            return;
+         }
+       }
+
+       //Fetch can get more insns this cycle, but not on nuke path 
+       if(fetch_more)
+       {
+         consumed = false;
+         continue;
+       }
       
        sim_main_slave_post_pin();
 

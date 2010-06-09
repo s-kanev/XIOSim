@@ -166,7 +166,7 @@ extern bool debugging;
 //Quick and dirty to tarce after e certain amount of cycles
 #ifdef ZESTO_PIN_DBG
 #define ZPIN_TRACE(COMM) \
-  if(sim_cycle > 4000000) (COMM)
+  if(sim_cycle > 10000000) (COMM)
 #else
 #define ZPIN_TRACE(COMM)
 #endif
