@@ -286,7 +286,6 @@ typedef enum md_fault_type
   byte_t _val = *_tr_addr;  \
   (MEM_PAGE(MEM, (md_addr_t)(ADDR),1))
 
-
 //  if(_val != (VAL)) fprintf(stderr, "Wrong mem value at addr %x, expected: %d, got: %d, tr_addr: %x\n",(ADDR), (VAL), _val, _tr_addr)
 //  assert(_val == (VAL)); 
 

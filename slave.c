@@ -506,7 +506,8 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
 
          //Fetch can get more insns this cycle, but they are needed from PIN
          if(fetch_more && cores[i]->oracle->num_Mops_nuked == 0
-                       && !cores[i]->oracle->spec_mode)
+                       && !cores[i]->oracle->spec_mode
+                       && cores[i]->fetch->PC == NPC)
          {
             zesto_assert(cores[i]->fetch->PC == NPC, (void)0);
             return;

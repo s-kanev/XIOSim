@@ -342,7 +342,7 @@ struct spec_byte_t * core_oracle_t::spec_write_byte(
 {
   int index = addr & MEM_HASH_MASK;
   byte_t _mem_read_tmp;
-  bool _read_succ;
+  bool _read_succ = false;
   byte_t prev_val = MEM_READ_SUCC(core->current_thread->mem,addr,byte_t,false);
   struct spec_byte_t * p;
   struct spec_byte_t * insert_after = NULL;
@@ -1565,6 +1565,8 @@ core_oracle_t::undo(struct Mop_t * const Mop, bool nuke)
 	  if(p == NULL)
 	    break;
 
+          uop->oracle.spec_mem[j] = NULL;
+
           index = p->addr & MEM_HASH_MASK; 
 
           /* If memory location wasn't accesible before (f.e. unallocated page) we don't have a prev_val to keep - throw it away */
@@ -1610,11 +1612,13 @@ core_oracle_t::undo(struct Mop_t * const Mop, bool nuke)
              /* Need to update these correctly in case another nuke hits on the same address  
                 before this one is completely resolved */
 
-             bool _read_succ;
-             byte_t _mem_read_tmp;
-             byte_t old_val = MEM_READ_SUCC(core->current_thread->mem, p->addr, byte_t, true);
-             p->prev_val_valid = _read_succ;
-             p->prev_val = _read_succ ? old_val : 0;
+             //bool _read_succ = false;
+             //byte_t _mem_read_tmp;
+             //byte_t old_val = MEM_READ_SUCC(core->current_thread->mem, p->addr, byte_t, true);
+             //p->prev_val_valid = _read_succ;
+             //p->prev_val = _read_succ ? old_val : 0;
+             p->prev_val_valid = false;
+             p->prev_val = 0;
           }
 	}
       }
