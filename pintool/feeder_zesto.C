@@ -12,6 +12,8 @@
 #include <stdlib.h>
 #include <elf.h>
 
+#include <unistd.h>
+
 #include "pin.H"
 #include "instlib.H"
 
@@ -390,10 +392,17 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, V
     ADDRINT syscall_num = PIN_GetSyscallNumber(ictxt, std);
     ADDRINT addr = PIN_GetSyscallArgument(ictxt, std, 0);
 
-    if(syscall_num == 45)
+
+    if(syscall_num == __NR_brk)
     {
-      cout << "Syscall: " << syscall_num << " addr: 0x" << hex << addr << dec << endl;
+      cout << "Syscall brk(" << syscall_num << ") addr: 0x" << hex << addr << dec << endl;
       Zesto_UpdateBrk(addr);
+    } else
+    if(syscall_num == __NR_munmap)
+    {
+      ADDRINT size = PIN_GetSyscallArgument(ictxt, std, 1);
+      Zesto_Notify_Munmap(addr, size);
+      cout << "Syscall munmap(" << syscall_num << ") addr: 0x" << hex << addr << dec << endl;
     }
 }
 
