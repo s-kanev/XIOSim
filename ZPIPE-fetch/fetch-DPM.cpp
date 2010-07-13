@@ -629,21 +629,22 @@ bool core_fetch_DPM_t::do_fetch(void)
   md_addr_t current_line = PC & byteQ_linemask;
   struct Mop_t * Mop = NULL;
 
-  ZPIN_TRACE(myfprintf(stderr, "Fetch PC: %x, rep_seq: %d\n", PC, core->current_thread->rep_sequence));
+  ZPIN_TRACE("Fetch PC: %x, rep_seq: %d\n", PC, core->current_thread->rep_sequence)
 
   Mop = core->oracle->exec(PC);
 
-  ZPIN_TRACE(myfprintf(stderr, "After. PC: %x, nuked_Mops: %d, rep_seq: %d\n", PC, core->oracle->num_Mops_nuked, core->current_thread->rep_sequence));
+  ZPIN_TRACE("After. PC: %x, nuked_Mops: %d, rep_seq: %d\n", PC, core->oracle->num_Mops_nuked, core->current_thread->rep_sequence)
   if(Mop && ((PC >> PAGE_SHIFT) == 0))
   {
 //#ifdef ZESTO_PIN_DBG
     //XXX: Generate core file
     if(!core->oracle->spec_mode)
     {
-       int * bad = NULL;
+//       int * bad = NULL;
        myfprintf(stderr, "PC error at PC: 0x%x, Mop.PC: 0x%x \n", PC, Mop->fetch.PC);
-       fflush(stderr);
-       *bad = 0;
+//       fflush(stderr);
+//       *bad = 0;
+       zesto_assert(0, false);
     }
 //#endif
     zesto_assert(core->oracle->spec_mode, false);
@@ -770,7 +771,7 @@ bool core_fetch_DPM_t::do_fetch(void)
   /* advance the fetch PC to the next instruction */
   PC = Mop->fetch.pred_NPC;
 
-  ZPIN_TRACE(myfprintf(stderr, "After bpred. PC: %x, oracle.NPC: %x, spec: %d\n", PC, Mop->oracle.NextPC, core->oracle->spec_mode));
+  ZPIN_TRACE("After bpred. PC: %x, oracle.NPC: %x, spec: %d\n", PC, Mop->oracle.NextPC, core->oracle->spec_mode)
 
   if(  (Mop->fetch.pred_NPC != (Mop->fetch.PC + Mop->fetch.inst.len))
     && (Mop->fetch.pred_NPC != Mop->fetch.PC)) /* REPs don't count as taken branches w.r.t. fetching */

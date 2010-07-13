@@ -273,6 +273,11 @@ typedef enum md_fault_type
    ? (_read_succ = true, *((TYPE *)(MEM_PAGE(MEM, (md_addr_t)(ADDR),0) + MEM_OFFSET(ADDR))))  \
    : /* page not yet allocated, return zero value */ (_read_succ = false, 0)))
 
+#define MEM_READ_SUCC_NON_SPEC(MEM, ADDR, TYPE)          \
+  (MEM_PAGE(MEM, (md_addr_t)(ADDR),0)          \
+   ? (_read_succ = true, *((TYPE *)(MEM_PAGE(MEM, (md_addr_t)(ADDR),0) + MEM_OFFSET(ADDR))))  \
+   : /* page not yet allocated, return zero value */ (_read_succ = false, 0))
+
 #define MEM_WRITE(MEM, ADDR, TYPE, VAL)          \
   core->oracle->spec_write_byte((ADDR),(VAL),uop)
 
@@ -282,13 +287,18 @@ typedef enum md_fault_type
    dummy address translate from the same page to update the MRU list and dirty flag in the page table */
 #define MEM_WRITE_BYTE_NON_SPEC(MEM, ADDR, VAL)          \
   MEM_TICKLE(MEM, (md_addr_t)(ADDR));                   \
-  byte_t * _tr_addr = (MEM_PAGE(MEM, (md_addr_t)(ADDR),0) + MEM_OFFSET(ADDR)); \
-  byte_t _val = *_tr_addr;  \
-  (MEM_PAGE(MEM, (md_addr_t)(ADDR),1))
+  (MEM_PAGE(MEM, (md_addr_t)(ADDR),1) + MEM_OFFSET(ADDR))
+
+//  byte_t * _tr_addr = (MEM_PAGE(MEM, (md_addr_t)(ADDR),0) + MEM_OFFSET(ADDR)); 
+//  byte_t _val = *_tr_addr;  
+//  (MEM_PAGE(MEM, (md_addr_t)(ADDR),1))
 
 //  if(_val != (VAL)) fprintf(stderr, "Wrong mem value at addr %x, expected: %d, got: %d, tr_addr: %x\n",(ADDR), (VAL), _val, _tr_addr)
 //  assert(_val == (VAL)); 
 
+#define MEM_DO_WRITE_BYTE_NON_SPEC(MEM, ADDR, VAL)          \
+  (MEM_TICKLE(MEM, (md_addr_t)(ADDR)),          \
+   *((byte_t *)(MEM_PAGE(MEM, (md_addr_t)(ADDR),1) + MEM_OFFSET(ADDR))) = (VAL))
 
 #else
 #define MEM_WRITE_BYTE_NON_SPEC(MEM, ADDR, VAL)          \

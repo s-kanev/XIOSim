@@ -171,6 +171,7 @@
     fprintf(stderr, "cycle: %lld, num_Mops: %lld\n", sim_cycle, core->stat.oracle_total_insn); \
     fprintf(stderr, "PC: %x, regs->NPC: %x, pin->PC: %x, pin->NPC: %x\n", core->fetch->PC, core->current_thread->regs.regs_NPC, core->fetch->feeder_PC, core->fetch->feeder_NPC); \
     fflush(stderr); \
+    flush_trace(); \
     assert(cond); \
     return (retval); \
   } \

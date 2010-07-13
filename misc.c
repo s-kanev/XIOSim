@@ -142,6 +142,14 @@ extern "C" {
 bool debugging = false;
 #endif /* DEBUG */
 
+#ifdef ZESTO_PIN_DBG
+#define MAX_TRACEBUFF_ITEMS 5000
+static char tracebuff[MAX_TRACEBUFF_ITEMS][255];
+static int tracebuff_head = 0;
+static int tracebuff_tail = 0;
+static int tracebuff_occupancy = 0;
+#endif
+
 /* fatal function hook, this function is called just before an exit
    caused by a fatal error, used to spew stats, etc. */
 static void (*hook_fn)(FILE *stream) = NULL;
@@ -268,6 +276,40 @@ debug(const char *fmt, ...)
 }
 #endif /* DEBUG */
 
+#ifdef ZESTO_PIN_DBG
+void trace(const char *fmt, ...)
+{
+  va_list v;
+  va_start(v, fmt);
+
+  myvsprintf(tracebuff[tracebuff_tail], fmt, v);
+
+  tracebuff_tail = modinc(tracebuff_tail, MAX_TRACEBUFF_ITEMS);
+  if(tracebuff_occupancy == MAX_TRACEBUFF_ITEMS)
+    tracebuff_head = modinc(tracebuff_head, MAX_TRACEBUFF_ITEMS);
+  else
+    tracebuff_occupancy++;
+}
+
+void flush_trace()
+{
+  if(tracebuff_occupancy == 0)
+    return;
+
+  myfprintf(stderr, "==============================\n");
+  myfprintf(stderr, "BEGIN TRACE (%d items)\n", tracebuff_occupancy);
+
+  int i = tracebuff_head;
+  do
+  {
+    fprintf(stderr, tracebuff[i]);
+    i = modinc(i, MAX_TRACEBUFF_ITEMS);
+  } while(i != tracebuff_tail);
+  myfprintf(stderr, "END TRACE\n");
+  myfprintf(stderr, "==============================\n");
+  fflush(stderr);
+}
+#endif
 
 /* ctype.h replacements - response to request from Prof. Todd Austin for
    an implementation that does not use the built-in ctype.h due to

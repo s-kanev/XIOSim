@@ -185,6 +185,7 @@ extern tick_t sim_cycle;
 
 bool consumed = false;
 bool first_insn = true;
+long long fetches_since_feeder = 0;
 
 int
 Zesto_SlaveInit(int argc, char **argv)
@@ -385,7 +386,7 @@ int Zesto_Notify_Mmap(unsigned int addr, unsigned int length)
 
    md_addr_t retval = mem_newmap2(mem, page_addr, page_addr, page_length, 1);
 
-   ZPIN_TRACE(myfprintf(stderr, "New memory mapping at addr: %x, length: %u,endaddr: %x \n",addr, length, addr+length));
+   ZPIN_TRACE("New memory mapping at addr: %x, length: %u,endaddr: %x \n",addr, length, addr+length)
 
    bool success = (retval == addr);
    zesto_assert(success, 0);
@@ -404,7 +405,7 @@ int Zesto_Notify_Munmap(unsigned int addr, unsigned int length)
 
   mem_delmap(mem, ROUND_UP((md_addr_t)addr, MD_PAGE_SIZE), length);
 
-  ZPIN_TRACE(myfprintf(stderr, "Memory un-mapping at addr: %x\n",addr));
+  ZPIN_TRACE("Memory un-mapping at addr: %x\n",addr)
 
   return 1;
 }
@@ -449,7 +450,8 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
 
    md_addr_t NPC = handshake->brtaken ? handshake->tpc : handshake->npc;  
 
-   ZPIN_TRACE(myfprintf(stderr, "PIN -> PC: %x, NPC: %x \n", handshake->pc, NPC));
+   ZPIN_TRACE("PIN -> PC: %x, NPC: %x \n", handshake->pc, NPC)
+   fetches_since_feeder = 0;
 
    if(first_insn) 
    {  
@@ -494,15 +496,18 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
    while(!consumed || repping || cores[i]->oracle->num_Mops_nuked > 0)
    {
      fetch_more = sim_main_slave_fetch_insn();
+     fetches_since_feeder++;
 
      repping = thread->rep_sequence != 0;
 
 
      if(cores[i]->oracle->num_Mops_nuked > 0)
      {
-       while(fetch_more && cores[i]->oracle->num_Mops_nuked > 0)
+       while(fetch_more && cores[i]->oracle->num_Mops_nuked > 0 &&
+             !(cores[i]->fetch->PC != NPC || cores[i]->oracle->spec_mode))
        {       
          fetch_more = sim_main_slave_fetch_insn();
+         fetches_since_feeder++;
 
          //Fetch can get more insns this cycle, but they are needed from PIN
          if(fetch_more && cores[i]->oracle->num_Mops_nuked == 0
@@ -554,8 +559,9 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
          while(fetch_more) 
          {
             fetch_more = sim_main_slave_fetch_insn();
+            fetches_since_feeder++;
 
-            spec = (cores[i]->oracle->spec_mode || (cores[i]->fetch->PC != NPC));
+            spec = (cores[i]->oracle->spec_mode || (cores[i]->fetch->PC != regs->regs_NPC));
             /* If fetch can tolerate more insns, but needs to get them from PIN (f.e. after finishing a REP-ed instruction) */
             if(fetch_more && !spec && thread->rep_sequence == 0 && core->fetch->PC != handshake->pc && cores[i]->oracle->num_Mops_nuked == 0)
             {
@@ -576,7 +582,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
          }
 
          /* Potentially different after exec (in pre_pin) where branches are resolved */
-         spec = (cores[i]->oracle->spec_mode || (cores[i]->fetch->PC != NPC));
+         spec = (cores[i]->oracle->spec_mode || (cores[i]->fetch->PC != regs->regs_NPC));
 
          /* After recovering from spec and/or REP, we find no nukes -> great, get control back to PIN */
          if(thread->rep_sequence == 0 && core->fetch->PC != handshake->pc && !spec && cores[i]->oracle->num_Mops_nuked == 0)
@@ -602,7 +608,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
      /* non-speculative, non-REP, non-nuke */
      {
        /* Pass control back to Pin to get a new PC on the same cycle*/
-       if(fetch_more)// && (cores[i]->fetch->PC == handshake->npc))
+       if(fetch_more)
        {
           zesto_assert(cores[i]->fetch->PC == NPC, (void)0);
           return;

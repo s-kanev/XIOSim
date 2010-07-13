@@ -7,6 +7,6 @@ set PINTOOL = /home/skanev/pin/zpin/pintool/obj-ia32/feeder_zesto.so
 set ZESTOCFG = /home/skanev/pin/zpin/config/M.cfg
 
 
-set CMD_LINE = "$PIN -pause_tool 20 -t $PINTOOL -s -config $ZESTOCFG -redir:sim tst.out -- $PROGRAM"
+set CMD_LINE = "setarch i686 -3BL $PIN -pause_tool 20 -t $PINTOOL -s -config $ZESTOCFG -redir:sim tst.out -- $PROGRAM"
 echo $CMD_LINE
 $CMD_LINE

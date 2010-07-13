@@ -163,12 +163,17 @@ extern "C" {
 extern bool debugging;
 #endif /* DEBUG */
 
-//Quick and dirty to tarce after e certain amount of cycles
+//Keeps a circular trace buffer of last few thousand trace lines
+//Useful when debugging long traces that don't fit hard drive
 #ifdef ZESTO_PIN_DBG
-#define ZPIN_TRACE(COMM) \
-  if(sim_cycle > 10000000) (COMM)
+extern void trace(const char *fmt, ...)
+    __attribute__ ((format (printf, 1, 2)));
+extern void flush_trace();
+#define ZPIN_TRACE(fmt, ...) \
+/*  if(sim_cycle > 15000000) */\
+  trace(fmt, __VA_ARGS__);
 #else
-#define ZPIN_TRACE(COMM)
+#define ZPIN_TRACE(fmt, ...)
 #endif
 
 /* register a function to be called when an error is detected */
