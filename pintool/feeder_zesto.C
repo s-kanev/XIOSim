@@ -372,16 +372,29 @@ VOID onMainThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID 
     Elf32_auxv_t *auxv;
     for(auxv = (Elf32_auxv_t*)sp; auxv->a_type != AT_NULL; auxv++); //go to end of aux_vector
 
-    sp = (CHAR*)auxv + sizeof(Elf32_auxv_t);
+    INT32* bos = (INT32*)((CHAR*)auxv+1);
 
-    while(*sp++); //this should reach bottom of stack
+    while(*bos++); //this should reach bottom of stack
 
-    Zesto_SetBOS((ADDRINT) sp);
+    Zesto_SetBOS((ADDRINT) bos);
 //    cout << (int)*sp << endl;
 //    cout << hex << (VOID*)sp << dec << endl;
 //    cout << *(char*)sp << endl;
 
 }
+
+//from linux/arch/x86/ia32/sys_ia32.c
+struct mmap_arg_struct {
+     UINT32 addr;
+     UINT32 len;
+     UINT32 prot;
+     UINT32 flags;
+     UINT32 fd;
+     UINT32 offset;
+}; 
+
+ADDRINT last_syscall_number;
+ADDRINT last_syscall_arg;
 
 /* ========================================================================== */
 VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VOID *v)
@@ -392,6 +405,7 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, V
     ADDRINT syscall_num = PIN_GetSyscallNumber(ictxt, std);
     ADDRINT addr = PIN_GetSyscallArgument(ictxt, std, 0);
 
+    last_syscall_number = syscall_num;
 
     if(syscall_num == __NR_brk)
     {
@@ -402,8 +416,35 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, V
     {
       ADDRINT size = PIN_GetSyscallArgument(ictxt, std, 1);
       Zesto_Notify_Munmap(addr, size);
-      cout << "Syscall munmap(" << syscall_num << ") addr: 0x" << hex << addr << dec << endl;
+      cout << "Syscall munmap(" << syscall_num << ") addr: 0x" << hex << addr 
+           << " length: " << size << dec << endl;
+    } else
+    if(syscall_num == 90) //oldmmap
+    {
+//      mmap_arg_struct* arg = (mmap_arg_struct*) addr;
+      mmap_arg_struct arg;
+      memcpy(&arg, (void*)addr, sizeof(mmap_arg_struct));
+      cout << "Syscall oldmmap(" << syscall_num << ") addr: 0x" << hex << arg.addr 
+           << " length: " << arg.len << dec << endl;
+      last_syscall_arg = arg.len;
     }
+}
+
+/* ========================================================================== */
+VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VOID *v)
+{
+    //Single-threaded for now
+    assert(threadIndex == 0);
+
+    ADDRINT retval = PIN_GetSyscallReturn(ictxt, std);
+
+    if(last_syscall_number == 90) //oldmap
+    {
+        ASSERTX( Zesto_Notify_Mmap(retval, last_syscall_arg) );
+        cout << "Ret syscall oldmmap(" << last_syscall_number << ") addr: 0x" 
+             << hex << retval << " length: " << last_syscall_arg << dec << endl;
+    }
+
 }
 
 /* ========================================================================== */
@@ -425,6 +466,7 @@ INT32 main(INT32 argc, CHAR **argv)
     IMG_AddUnloadFunction(ImageUnload, 0);
     IMG_AddInstrumentFunction(ImageLoad, 0);
     PIN_AddSyscallEntryFunction(SyscallEntry, 0);
+    PIN_AddSyscallExitFunction(SyscallExit, 0);
     INS_AddInstrumentFunction(Instrument, 0);
     PIN_AddFiniFunction(Fini, 0);
 

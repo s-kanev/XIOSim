@@ -143,7 +143,7 @@ bool debugging = false;
 #endif /* DEBUG */
 
 #ifdef ZESTO_PIN_DBG
-#define MAX_TRACEBUFF_ITEMS 5000
+#define MAX_TRACEBUFF_ITEMS 50000
 static char tracebuff[MAX_TRACEBUFF_ITEMS][255];
 static int tracebuff_head = 0;
 static int tracebuff_tail = 0;
