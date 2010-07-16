@@ -69,7 +69,10 @@ VOID ImageUnload(IMG img, VOID *v)
     ADDRINT start = IMG_LowAddress(img);
     ADDRINT length = IMG_HighAddress(img) - start;
 
-    ASSERTX( Zesto_Notify_Munmap(start, length));
+    cout << "Image load, addr: " << hex << start  
+         << " len: " << length << " end_addr: " << start + length << endl;
+
+    ASSERTX( Zesto_Notify_Munmap(start, length, true));
 }
 
 /* ========================================================================== */
@@ -78,7 +81,10 @@ VOID ImageLoad(IMG img, VOID *v)
     ADDRINT start = IMG_LowAddress(img);
     ADDRINT length = IMG_HighAddress(img) - start;
 
-    ASSERTX( Zesto_Notify_Mmap(start, length));
+    cout << "Image load, addr: " << hex << start  
+         << " len: " << length << " end_addr: " << start + length << endl;
+
+    ASSERTX( Zesto_Notify_Mmap(start, length, true));
 }
 
 /* ========================================================================== */
@@ -415,13 +421,12 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, V
     if(syscall_num == __NR_munmap)
     {
       ADDRINT size = PIN_GetSyscallArgument(ictxt, std, 1);
-      Zesto_Notify_Munmap(addr, size);
+      Zesto_Notify_Munmap(addr, size, false);
       cout << "Syscall munmap(" << syscall_num << ") addr: 0x" << hex << addr 
            << " length: " << size << dec << endl;
     } else
     if(syscall_num == 90) //oldmmap
     {
-//      mmap_arg_struct* arg = (mmap_arg_struct*) addr;
       mmap_arg_struct arg;
       memcpy(&arg, (void*)addr, sizeof(mmap_arg_struct));
       cout << "Syscall oldmmap(" << syscall_num << ") addr: 0x" << hex << arg.addr 
@@ -440,7 +445,7 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
 
     if(last_syscall_number == 90) //oldmap
     {
-        ASSERTX( Zesto_Notify_Mmap(retval, last_syscall_arg) );
+        ASSERTX( Zesto_Notify_Mmap(retval, last_syscall_arg, false) );
         cout << "Ret syscall oldmmap(" << last_syscall_number << ") addr: 0x" 
              << hex << retval << " length: " << last_syscall_arg << dec << endl;
     }

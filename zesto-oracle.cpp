@@ -374,7 +374,7 @@ struct spec_byte_t * core_oracle_t::spec_write_byte(
      // (where we changed it directly when doing rollback)
      if(num_Mops_nuked > 0)
      {
-        ZPIN_TRACE("Nuke recovery path updates main mem at 0x%x, val: %d, prev_val: %d(%d)\n", addr, val, p->prev_val, p->prev_val_valid);
+        ZPIN_TRACE("Nuke recovery path updates main mem at 0x%x, val: %x, prev_val: %d(%d)\n", addr, val, p->prev_val, p->prev_val_valid);
         MEM_DO_WRITE_BYTE_NON_SPEC(core->current_thread->mem, addr, val);
      }
   }

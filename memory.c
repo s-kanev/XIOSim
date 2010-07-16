@@ -665,9 +665,9 @@ mem_newmap2(struct mem_t *mem,            /* memory space to access */
   struct mem_pte_t *pte;
 
 #ifdef ZESTO_PIN_DBG
-  fprintf(stderr, "Mem_newmap2: %x -> %x, length: %u, end_addr: %x\n", addr, our_addr, length, addr+length);
+  fprintf(stderr, "Mem_newmap2: %x -> %x, length: %x, end_addr: %x\n", addr, our_addr, length, addr+length);
 #endif
-  ZPIN_TRACE("Mem_newmap2: %x -> %x, length: %u, end_addr: %x\n", addr, our_addr, length, addr+length)
+  ZPIN_TRACE("Mem_newmap2: %x -> %x, length: %x, end_addr: %x\n", addr, our_addr, length, addr+length)
 
   /* first check alignment */
   if((addr & (MD_PAGE_SIZE-1))!=0) {
