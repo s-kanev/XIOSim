@@ -1537,6 +1537,11 @@ void
 core_oracle_t::recover(const struct Mop_t * const Mop)
 {
   int idx = moddec(MopQ_tail,MopQ_size); //(MopQ_tail-1+MopQ_size) % MopQ_size;
+
+  /* When a nuke recovers to another nuke, consume never gets called, so we compensate */
+  if(num_Mops_nuked > 0 && !MopQ[idx].oracle.spec_mode)
+    num_Mops_nuked--;
+
   while(Mop != &MopQ[idx])
   {
     if(idx == MopQ_head)
@@ -1561,6 +1566,7 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
     MopQ_tail = idx;
     idx = moddec(idx,MopQ_size); //(idx-1+MopQ_size) % MopQ_size;
   }
+
   /* reset PC */
   core->current_thread->regs.regs_PC = Mop->fetch.PC;
   core->current_thread->regs.regs_NPC = Mop->oracle.NextPC;

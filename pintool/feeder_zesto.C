@@ -31,6 +31,10 @@ KNOB<UINT64> KnobFFwd(KNOB_MODE_WRITEONCE,    "pintool",
         "ffwd", "0", "Number of instructions to fast forward");
 KNOB<UINT64> KnobMaxSimIns(KNOB_MODE_WRITEONCE,    "pintool",
         "maxins", "100000000", "Max. # of instructions to simulate (0 == till end of program");
+KNOB<string> KnobInsTraceFile(KNOB_MODE_WRITEONCE,   "pintool",
+        "trace", "", "File where instruction trace is written");
+
+ofstream trace_file;
 
 /* ========================================================================== */
 /* Execution mode allows easy querying of exactly what the pin tool is doing at
@@ -69,7 +73,7 @@ VOID ImageUnload(IMG img, VOID *v)
     ADDRINT start = IMG_LowAddress(img);
     ADDRINT length = IMG_HighAddress(img) - start;
 
-    cout << "Image load, addr: " << hex << start  
+    cout << "Image unload, addr: " << hex << start  
          << " len: " << length << " end_addr: " << start + length << endl;
 
     ASSERTX( Zesto_Notify_Munmap(start, length, true));
@@ -159,7 +163,7 @@ VOID Fini(INT32 exitCode, VOID *v)
 {
     Zesto_Destroy();
 
-    cout << "TotalIns = " << SimOrgInsCount << endl;
+    cout << "TotalIns = " << dec << SimOrgInsCount << endl;
 
     if (exitCode != EXIT_SUCCESS)
         cout << "ERROR! Exit code = " << dec << exitCode << endl;
@@ -171,7 +175,7 @@ VOID ExitOnMaxIns()
     if (KnobMaxSimIns.Value() && (SimOrgInsCount < KnobMaxSimIns.Value()))
         return;
 
-    cout << "TotalIns = " << SimOrgInsCount << endl;
+    cout << "TotalIns = " << dec << SimOrgInsCount << endl;
 
     Fini(EXIT_SUCCESS, 0);
 
@@ -182,6 +186,9 @@ VOID ExitOnMaxIns()
 VOID FeedOriginalInstruction(struct P2Z_HANDSHAKE *handshake)
 {
     ADDRINT pc = handshake->pc;
+
+    if(!KnobInsTraceFile.Value().empty())
+         trace_file << pc << endl;
 
     handshake->ins = MakeCopy(pc);
     ASSERT(handshake->orig, "Must execute real instruction in this function");
@@ -466,6 +473,10 @@ INT32 main(INT32 argc, CHAR **argv)
     PIN_InitSymbols();
 
     InstallFastForwarding();
+
+    if(!KnobInsTraceFile.Value().empty())
+        trace_file.open(KnobInsTraceFile.Value().c_str());
+    trace_file << hex; 
 
     PIN_AddThreadStartFunction(onMainThreadStart, NULL);  
     IMG_AddUnloadFunction(ImageUnload, 0);

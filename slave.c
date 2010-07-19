@@ -424,10 +424,13 @@ void Zesto_UpdateBrk(unsigned int brk_end)
     return;
 
   unsigned int old_brk_end = cores[0]->current_thread->loader.brk_point;
+
   if(brk_end > old_brk_end)
-    Zesto_Notify_Mmap(old_brk_end, brk_end - old_brk_end, false);
+    Zesto_Notify_Mmap(ROUND_UP(old_brk_end, MD_PAGE_SIZE), 
+                      ROUND_UP(brk_end - old_brk_end, MD_PAGE_SIZE), false);
   else if(brk_end < old_brk_end)
-    Zesto_Notify_Munmap(brk_end, old_brk_end - brk_end, false);
+    Zesto_Notify_Munmap(ROUND_UP(brk_end, MD_PAGE_SIZE),
+                        ROUND_UP(old_brk_end - brk_end, MD_PAGE_SIZE), false);
 
   core->current_thread->loader.brk_point = brk_end;
 }
