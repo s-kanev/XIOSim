@@ -172,7 +172,7 @@
     fprintf(stderr, "PC: %x, regs->NPC: %x, pin->PC: %x, pin->NPC: %x\n", core->fetch->PC, core->current_thread->regs.regs_NPC, core->fetch->feeder_PC, core->fetch->feeder_NPC); \
     fflush(stderr); \
     flush_trace(); \
-    assert(cond); \
+    exit(6); \
     return (retval); \
   } \
 }
@@ -301,6 +301,11 @@ class core_oracle_t {
 
   void commit_write_byte(struct spec_byte_t * const p);
   void squash_write_byte(struct spec_byte_t * const p);
+
+#ifdef ZESTO_PIN
+  void write_spec_byte_to_mem(struct uop_t * const uop, struct spec_byte_t * p, bool skip_last);
+  void write_Mop_spec_bytes_to_mem(const struct Mop_t * const Mop, bool skip_last);
+#endif
 
   void cleanup_aborted_mop(struct Mop_t * const Mop);
 

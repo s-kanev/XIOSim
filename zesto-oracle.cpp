@@ -333,6 +333,60 @@ int core_oracle_t::next_index(const int index)
   return modinc(index,MopQ_size); //return (index+1)%MopQ_size;
 }
 
+#ifdef ZESTO_PIN
+void core_oracle_t::write_spec_byte_to_mem(
+   struct uop_t * const uop,
+   struct spec_byte_t * p,
+   bool skip_last)
+{
+     byte_t _mem_read_tmp;
+     bool _read_succ = false;
+     // Previous memory value in case we need to restore on another nuke
+     byte_t prev_val = MEM_READ_SUCC_NON_SPEC(core->current_thread->mem,p->addr,byte_t);
+
+     ZPIN_TRACE(" prev_val: %d(%d)\n", prev_val, _read_succ)
+
+     p->prev_val = prev_val;
+     p->prev_val_valid = _read_succ;
+     p->uop = uop;
+
+     if(num_Mops_nuked > 1 || (!skip_last && num_Mops_nuked == 1))
+     {
+        ZPIN_TRACE("Nuke recovery path updates main mem at 0x%x, val: %x, prev_val: %d(%d)\n", p->addr, p->val, p->prev_val, p->prev_val_valid);
+        MEM_DO_WRITE_BYTE_NON_SPEC(core->current_thread->mem, p->addr, p->val);
+     }
+     else if (skip_last && num_Mops_nuked == 1)
+        ZPIN_TRACE("Nuke recovery Mop skipping main mem update at 0x%x, val: %x, so that PIN can see correct value when excuting this Mop\n", p->addr, p->val);
+}
+
+void core_oracle_t::write_Mop_spec_bytes_to_mem(
+    const struct Mop_t * const Mop,
+    bool skip_last)
+{
+   struct uop_t * uop;
+   struct spec_byte_t * p;
+   for(int i = 0; i < Mop->decode.flow_length; i++)
+   {
+      uop = &Mop->uop[i];
+      if(uop == NULL)
+        break;
+
+      if(!uop->decode.is_std)
+        break;
+
+      for(int j = 0; j < 12 ; j++)
+      {
+         p = uop->oracle.spec_mem[j];
+
+         if(p == NULL)
+           break;
+
+         write_spec_byte_to_mem(uop, p, skip_last);
+      }
+   }
+}
+#endif
+
 /* create a new entry in the spec_mem table, insert the entry,
    and return a pointer to the entry. */
 struct spec_byte_t * core_oracle_t::spec_write_byte(
@@ -353,35 +407,17 @@ struct spec_byte_t * core_oracle_t::spec_write_byte(
 
 
 #ifdef ZESTO_PIN
-     ZPIN_TRACE("Write to specQ at 0x%x, val: %d, spec_mode: %d\n", addr, val, uop->Mop->oracle.spec_mode)
+  ZPIN_TRACE("Write to specQ at 0x%x, val: %d, spec_mode: %d\n", addr, val, uop->Mop->oracle.spec_mode)
 #endif
 
   p->val = val;
-#ifdef ZESTO_PIN
-  if(!uop->Mop->oracle.spec_mode)
-  {
-     byte_t _mem_read_tmp;
-     bool _read_succ = false;
-     byte_t prev_val = MEM_READ_SUCC_NON_SPEC(core->current_thread->mem,addr,byte_t);
-
-     ZPIN_TRACE(" prev_val: %d(%d)\n", prev_val, _read_succ)
-
-     p->prev_val = prev_val;
-     p->prev_val_valid = _read_succ;
-     p->uop = uop;
-
-     // On a nuke recovery path we do writes to host memory here, getting PIN state as it was before the nuke 
-     // (where we changed it directly when doing rollback)
-     if(num_Mops_nuked > 0)
-     {
-        ZPIN_TRACE("Nuke recovery path updates main mem at 0x%x, val: %x, prev_val: %d(%d)\n", addr, val, p->prev_val, p->prev_val_valid);
-        MEM_DO_WRITE_BYTE_NON_SPEC(core->current_thread->mem, addr, val);
-     }
-  }
-  else
-     ZPIN_TRACE("\n", 0); 
-#endif
   p->addr = addr;
+#ifdef ZESTO_PIN
+  // On a nuke recovery path we do writes to host memory here, getting PIN state as it was before the nuke 
+  // (where we changed it directly when doing rollback)
+  if(!uop->Mop->oracle.spec_mode)
+    write_spec_byte_to_mem(uop, p, true);
+#endif
   return p;
 }
 
@@ -1538,9 +1574,25 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
 {
   int idx = moddec(MopQ_tail,MopQ_size); //(MopQ_tail-1+MopQ_size) % MopQ_size;
 
+#ifdef ZESTO_PIN
+  /* If nuke, and the instruction that caused the nuke was the last instruction on 
+     a previous nuke path (num_Mops_nuked == 1) and this instruction writes to memory,
+     in write_byte_spec we didn't restore the correct value to main memory, hoping that we 
+     are going back to PIN and it will fix it (thus not corrupting state for PIN, if 
+     the instruction also does a read from same addess). Instead, no we have another nuke, 
+     so we'd better update memory with the "speculative" writes, so that recovery goes fine */
+  if(num_Mops_nuked == 1 && !MopQ[idx].oracle.spec_mode)
+  {
+    write_Mop_spec_bytes_to_mem(&MopQ[idx], false);
+  }
+#endif
+
   /* When a nuke recovers to another nuke, consume never gets called, so we compensate */
   if(num_Mops_nuked > 0 && !MopQ[idx].oracle.spec_mode)
+  {
     num_Mops_nuked--;
+    ZPIN_TRACE("num_Mops_nuke-- correction; recPC: 0x%x\n", Mop->fetch.PC)
+  }
 
   while(Mop != &MopQ[idx])
   {

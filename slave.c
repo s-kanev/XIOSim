@@ -485,7 +485,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
 
    /* Copy architectural state from pim
       XXX: This is arch state BEFORE executed the instruction we're about to simulate*/
- 
+
    cores[i]->fetch->feeder_NPC = NPC;
    cores[i]->fetch->feeder_PC = handshake->pc;
    regs->regs_R = handshake->ctxt->regs_R;
@@ -509,7 +509,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
      if(cores[i]->oracle->num_Mops_nuked > 0)
      {
        while(fetch_more && cores[i]->oracle->num_Mops_nuked > 0 &&
-             !(cores[i]->fetch->PC != NPC || cores[i]->oracle->spec_mode))
+             !cores[i]->oracle->spec_mode)
        {       
          fetch_more = sim_main_slave_fetch_insn();
          fetches_since_feeder++;
