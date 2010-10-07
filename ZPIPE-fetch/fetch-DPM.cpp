@@ -636,17 +636,12 @@ bool core_fetch_DPM_t::do_fetch(void)
   ZPIN_TRACE("After. PC: %x, nuked_Mops: %d, rep_seq: %d\n", PC, core->oracle->num_Mops_nuked, core->current_thread->rep_sequence)
   if(Mop && ((PC >> PAGE_SHIFT) == 0))
   {
-//#ifdef ZESTO_PIN_DBG
     //XXX: Generate core file
     if(!core->oracle->spec_mode)
     {
-//       int * bad = NULL;
        myfprintf(stderr, "PC error at PC: 0x%x, Mop.PC: 0x%x \n", PC, Mop->fetch.PC);
-//       fflush(stderr);
-//       *bad = 0;
        zesto_assert(0, false);
     }
-//#endif
     zesto_assert(core->oracle->spec_mode, false);
     stall_reason = FSTALL_ZPAGE;
     return false;

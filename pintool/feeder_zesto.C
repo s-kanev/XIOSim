@@ -193,6 +193,14 @@ VOID FeedOriginalInstruction(struct P2Z_HANDSHAKE *handshake)
     handshake->ins = MakeCopy(pc);
     ASSERT(handshake->orig, "Must execute real instruction in this function");
 
+    // Stop so we can attach a debugger
+/*    if(SimOrgInsCount == 24284106)
+    {
+       bool paused = true;
+       while(paused)
+          sleep(10);
+    }*/
+
     Zesto_Resume(handshake);
 
     SimOrgInsCount++;

@@ -482,6 +482,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
 
    zesto_assert(cores[i]->oracle->num_Mops_nuked == 0, (void)0);
    zesto_assert(!cores[i]->oracle->spec_mode, (void)0);
+   zesto_assert(thread->rep_sequence == 0, (void)0);
 
    /* Copy architectural state from pim
       XXX: This is arch state BEFORE executed the instruction we're about to simulate*/
@@ -493,6 +494,8 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
    regs->regs_C = handshake->ctxt->regs_C;
    regs->regs_S = handshake->ctxt->regs_S;
 
+   if(core->fetch->PC != handshake->pc)
+     ZPIN_TRACE("PIN->PC (0x%x) different from fetch->PC (0x%x). Bad things will happen!!!\n", handshake->pc, core->fetch->PC);
  
    bool fetch_more = true;
    consumed = false;
@@ -517,7 +520,8 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
          //Fetch can get more insns this cycle, but they are needed from PIN
          if(fetch_more && cores[i]->oracle->num_Mops_nuked == 0
                        && !cores[i]->oracle->spec_mode
-                       && cores[i]->fetch->PC == NPC)
+                       && cores[i]->fetch->PC == NPC
+                       && cores[i]->fetch->PC == regs->regs_NPC)
          {
             zesto_assert(cores[i]->fetch->PC == NPC, (void)0);
             return;

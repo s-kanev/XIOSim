@@ -356,7 +356,7 @@ void core_oracle_t::write_spec_byte_to_mem(
         MEM_DO_WRITE_BYTE_NON_SPEC(core->current_thread->mem, p->addr, p->val);
      }
      else if (skip_last && num_Mops_nuked == 1)
-        ZPIN_TRACE("Nuke recovery Mop skipping main mem update at 0x%x, val: %x, so that PIN can see correct value when excuting this Mop\n", p->addr, p->val);
+        ZPIN_TRACE("Nuke recovery Mop skipping main mem update at 0x%x, val: %x, so that PIN can see correct value when executing this Mop\n", p->addr, p->val);
 }
 
 void core_oracle_t::write_Mop_spec_bytes_to_mem(

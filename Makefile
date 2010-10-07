@@ -240,6 +240,9 @@ clean:
 	-$(RM) *.o *.obj core *~ Makefile.bak libsim* sysprobe$(EEXT) $(PROGS)
 	cd libexo $(CS) $(MAKE) "RM=$(RM)" "CS=$(CS)" clean $(CS) cd ..
 
+tags: 
+	ctags -R --extra=+q .
+
 test: sim-zesto
 	@ echo "### Testing simple single-core program ... " | chomp
 	@ ./sim-zesto -config config/merom.cfg -config dram-config/DDR2-800-5-5-5.cfg tests/fib.eio.gz 2>&1 | \

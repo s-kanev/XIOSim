@@ -170,7 +170,6 @@ extern void trace(const char *fmt, ...)
     __attribute__ ((format (printf, 1, 2)));
 extern void flush_trace();
 #define ZPIN_TRACE(fmt, ...) \
-/*  if(sim_cycle > 15000000) */\
   trace(fmt, __VA_ARGS__);
 #else
 #define ZPIN_TRACE(fmt, ...)
