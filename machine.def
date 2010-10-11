@@ -1264,7 +1264,16 @@ CONNECT(TOPLEV)
 
   /* FIXME: TODO 0x9a: callf_Ap: F_NOMOD */
 
-  /* FIXME: TODO 0x9b: fwait: F_NOMOD */
+#define FWAIT_IMPL              \
+{                  \
+  /* nada... */              \
+}
+  DEFINST(FWAIT,      0x9b,
+      "fwait",      "",
+      FU_INVALID,                 F_FCOMP|F_NOMOD|F_UCODE,
+      DNA,
+      DNA, DNA, DNA,
+      DNA, DNA)
 
 #define PUSHF_IMPL              \
 {                  \
@@ -10596,9 +10605,9 @@ CONNECT(GRPD9_LINK)
 
   DEFLINK(FLDCW_Mw_LINK, 0x05, "fldcw_mw_link", 6, 0x03)
 
-  DEFLINK(FSTENV_Mx_LINK, 0x06, "fstenv_mx_link", 6, 0x03)
+  DEFLINK(FNSTENV_Mx_LINK, 0x06, "fnstenv_mx_link", 6, 0x03)
 
-  DEFLINK(FSTCW_Mw_LINK, 0x07, "fstcw_mw_link", 6, 0x03)
+  DEFLINK(FNSTCW_Mw_LINK, 0x07, "fnstcw_mw_link", 6, 0x03)
 
 
 CONNECT(FLD_Es_LINK)
@@ -10851,9 +10860,9 @@ CONNECT(FLDC_LINK)
       DNA, DNA)
 
 
-CONNECT(FSTENV_Mx_LINK)
+CONNECT(FNSTENV_Mx_LINK)
 
-  /* FIXME: TODO: 0x0200: FSTENV_Mx */
+  /* FIXME: TODO: 0x0200: FNSTENV_Mx */
 
   DEFLINK(F2XM1_LINK, 0x03, "f2xm1_link", 0, 0x07)
 
@@ -10960,10 +10969,9 @@ CONNECT(F2XM1_LINK)
   /* FIXME: TODO: 0x07: FINCSTP */
 
 
-CONNECT(FSTCW_Mw_LINK)
+CONNECT(FNSTCW_Mw_LINK)
 
-#if 1
-#define FSTCW_Mw_IMPL              \
+#define FNSTCW_Mw_IMPL              \
 {                  \
   word_t _src;              \
   md_addr_t _addr;              \
@@ -10976,13 +10984,12 @@ CONNECT(FSTCW_Mw_LINK)
   if (_fault != md_fault_none)          \
   DECLARE_FAULT(_fault);            \
 }
-  DEFINST(FSTCW_Mw,    0x0200,
-      "fstcw",    "%Mw",
+  DEFINST(FNSTCW_Mw,    0x0200,
+      "fnstcw",    "%Mw",
       FU_INVALID,                 F_FCOMP|F_MEM|F_STORE|F_UCODE,
       DNA,
       DNA, DNA, DNA,
       DNA, DNA)
-#endif
 
   DEFLINK(FPREM_LINK, 0x03, "fprem_link", 0, 0x07)
 
@@ -11470,7 +11477,7 @@ CONNECT(GRPDB_LINK)
 
   DEFLINK(FISTP_Md_LINK, 0x03, "fistp_md_link", 6, 0x03)
 
-  DEFLINK(FCLEX_LINK, 0x04, "fclex_link", 6, 0x03)
+  DEFLINK(FNCLEX_LINK, 0x04, "fnclex_link", 6, 0x03)
 
   DEFLINK(FLD_Me_LINK, 0x05, "fld_me_link", 6, 0x03)
 
@@ -11633,19 +11640,19 @@ CONNECT(FISTP_Md_LINK)
       DNA, DNA)
 
 
-CONNECT(FCLEX_LINK)
+CONNECT(FNCLEX_LINK)
 
-  DEFLINK(FCLEX1_LINK, 0x03, "fclex1_link", 0, 0x03)
+  DEFLINK(FNCLEX1_LINK, 0x03, "fnclex1_link", 0, 0x03)
 
 
-CONNECT(FCLEX1_LINK)
+CONNECT(FNCLEX1_LINK)
 
-#define FCLEX_IMPL              \
+#define FNCLEX_IMPL              \
 {                  \
   SET_FSW(0, IE|DE|ZE|OE|UE|PE|FSF|ES);        \
 }
-  DEFINST(FCLEX,      0x02,
-      "fclex",    "",
+  DEFINST(FNCLEX,      0x02,
+      "fnclex",    "",
       FU_INVALID,                 F_FCOMP|F_UCODE,
       DNA,
       DNA, DNA, DNA,
@@ -12103,14 +12110,14 @@ CONNECT(GRPDD_LINK)
 
   DEFLINK(FUCOMP_STi_LINK, 0x05, "fucomp_sti_link", 6, 0x03)
 
-  /* DEFLINK(FSAVE_Mx_LINK, 0x06, "fsave_mx_link", 6, 0x03) */
+  /* DEFLINK(FNSAVE_Mx_LINK, 0x06, "fnsave_mx_link", 6, 0x03) */
 
-  DEFLINK(FSTSW_Mw_LINK, 0x07, "fstsw_mw_link", 6, 0x03)
+  DEFLINK(FNSTSW_Mw_LINK, 0x07, "fnstsw_mw_link", 6, 0x03)
 
 
-CONNECT(FSTSW_Mw_LINK)
+CONNECT(FNSTSW_Mw_LINK)
 
-#define FSTSW_Mw_IMPL              \
+#define FNSTSW_Mw_IMPL              \
 {                  \
   word_t _src;              \
   md_addr_t _addr;              \
@@ -12123,8 +12130,8 @@ CONNECT(FSTSW_Mw_LINK)
   if (_fault != md_fault_none)          \
   DECLARE_FAULT(_fault);            \
 }
-  DEFINST(FSTSW_Mw,    0x0200,
-      "fstsw",    "%Mw",
+  DEFINST(FNSTSW_Mw,    0x0200,
+      "fnstsw",    "%Mw",
       FU_INVALID,                 F_FCOMP|F_MEM|F_STORE|F_UCODE,
       DNA,
       DNA, DNA, DNA,
@@ -12736,15 +12743,15 @@ CONNECT(FISTP_Mw_LINK)
 
 CONNECT(FBLD_Mx_Mw_LINK)
 
-#define FSTSW_AX_IMPL              \
+#define FNSTSW_AX_IMPL              \
 {                  \
   word_t _src;              \
   \
   _src = FSW(0xffff);             \
   SET_GPR_W(MD_REG_AX, _src);            \
 }
-  DEFINST(FSTSW_AX,    0x03,
-      "fstsw",    "AX",
+  DEFINST(FNSTSW_AX,    0x03,
+      "fnstsw",    "AX",
       FU_INVALID,                 F_FCOMP|F_UCODE,
       DNA,
       DNA, DNA, DNA,
@@ -18834,6 +18841,7 @@ CONNECT(FISTP_Mq_LINK)
 #undef XCHG_eAXeDI_IMPL
 #undef CBW_CWDE_IMPL
 #undef CWD_CDQ_IMPL
+#undef FWAIT_IMPL
 #undef PUSHF_IMPL
 #undef POPF_IMPL
 #undef SAHF_IMPL
@@ -19234,7 +19242,7 @@ CONNECT(FISTP_Mq_LINK)
 #undef FPTAN_IMPL
 #undef FPATAN_IMPL
 #undef FPREM1_IMPL
-#undef FSTCW_Mw_IMPL
+#undef FNSTCW_Mw_IMPL
 #undef FPREM_IMPL
 #undef FYL2XP1_IMPL
 #undef FSQRT_IMPL
@@ -19263,7 +19271,7 @@ CONNECT(FISTP_Mq_LINK)
 #undef FCMOVNBE_ST0STi_IMPL
 #undef FISTP_Md_IMPL
 #undef FCMOVNU_ST0STi_IMPL
-#undef FCLEX_IMPL
+#undef FNCLEX_IMPL
 #undef FLD_Me_IMPL
 #undef FUCOMI_ST0STi_IMPL
 #undef FCOMI_ST0STi_IMPL
@@ -19282,7 +19290,7 @@ CONNECT(FISTP_Mq_LINK)
 #undef FDIVR_STiST0_IMPL
 #undef FDIVR_Mt_IMPL
 #undef FDIV_STiST0_IMPL
-#undef FSTSW_Mw_IMPL
+#undef FNSTSW_Mw_IMPL
 #undef FLD_Mt_IMPL
 #undef FST_Mt_IMPL
 #undef FST_STi_IMPL
@@ -19308,7 +19316,7 @@ CONNECT(FISTP_Mq_LINK)
 #undef FILD_Mw_IMPL
 #undef FIST_Mw_IMPL
 #undef FISTP_Mw_IMPL
-#undef FSTSW_AX_IMPL
+#undef FNSTSW_AX_IMPL
 #undef FILD_Mq_IMPL
 #undef FUCOMIP_ST0STi_IMPL
 #undef FCOMIP_ST0STi_IMPL

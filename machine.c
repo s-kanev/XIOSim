@@ -175,7 +175,6 @@ const char *md_fu2name[NUM_FU_CLASSES] = {
 #define PFX_SEG(X)	(((X) >> 3) & 0x07)
 
 #define _LK		(1 << 6)
-#define _WT		_LK
 #define PFX_LOCK(X)	(((X) >> 6) & 1)
 
 #define _NZ		(REP_REPNZ << 7)
@@ -203,7 +202,7 @@ const static word_t pfxtab[256] = {
   /* 0x80 */  0,   0,   0,   0,   0,   0,   0,   0,
   /* 0x88 */  0,   0,   0,   0,   0,   0,   0,   0,
   /* 0x90 */  0,   0,   0,   0,   0,   0,   0,   0,
-  /* 0x98 */  0,   0,   0,   _WT, 0,   0,   0,   0,
+  /* 0x98 */  0,   0,   0,   0,   0,   0,   0,   0,
   /* 0xa0 */  0,   0,   0,   0,   0,   0,   0,   0,
   /* 0xa8 */  0,   0,   0,   0,   0,   0,   0,   0,
   /* 0xb0 */  0,   0,   0,   0,   0,   0,   0,   0,

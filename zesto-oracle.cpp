@@ -1579,7 +1579,7 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
      a previous nuke path (num_Mops_nuked == 1) and this instruction writes to memory,
      in write_byte_spec we didn't restore the correct value to main memory, hoping that we 
      are going back to PIN and it will fix it (thus not corrupting state for PIN, if 
-     the instruction also does a read from same addess). Instead, no we have another nuke, 
+     the instruction also does a read from same addess). Instead, now we have another nuke, 
      so we'd better update memory with the "speculative" writes, so that recovery goes fine */
   if(num_Mops_nuked == 1 && !MopQ[idx].oracle.spec_mode)
   {
@@ -1591,7 +1591,7 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
   if(num_Mops_nuked > 0 && !MopQ[idx].oracle.spec_mode)
   {
     num_Mops_nuked--;
-    ZPIN_TRACE("num_Mops_nuke-- correction; recPC: 0x%x\n", Mop->fetch.PC)
+    ZPIN_TRACE("num_Mops_nuked-- correction; recPC: 0x%x\n", Mop->fetch.PC)
   }
 
   while(Mop != &MopQ[idx])

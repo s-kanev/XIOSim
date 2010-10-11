@@ -531,8 +531,8 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
        //Fetch can get more insns this cycle, but not on nuke path 
        if(fetch_more)
        {
-         consumed = false;
-         continue;
+          consumed = false;
+          continue;
        }
       
        sim_main_slave_post_pin();
@@ -542,11 +542,11 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
 
        if(cores[i]->oracle->num_Mops_nuked == 0)
        {
-         //Nuke reocvery instruction is a mispredicted branch or REP-ed
+         //Nuke recovery instruction is a mispredicted branch or REP-ed
          if(cores[i]->fetch->PC != NPC || regs->regs_NPC != NPC)
          {
-           consumed = false;
-           continue;
+            consumed = false;
+            continue;
          }
          else //fetching from the correct addres, go back to Pin for instruction
          {
@@ -629,6 +629,8 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
        sim_main_slave_pre_pin();
      }
    }
+
+   zesto_assert(cores[i]->fetch->PC == NPC, (void)0);
 }
 
 
