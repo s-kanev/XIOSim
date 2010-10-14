@@ -1588,7 +1588,7 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
 #endif
 
   /* When a nuke recovers to another nuke, consume never gets called, so we compensate */
-  if(num_Mops_nuked > 0 && !MopQ[idx].oracle.spec_mode)
+  if(num_Mops_nuked > 0 && !MopQ[idx].oracle.spec_mode && current_Mop != NULL)
   {
     num_Mops_nuked--;
     ZPIN_TRACE("num_Mops_nuked-- correction; recPC: 0x%x\n", Mop->fetch.PC)
@@ -1603,6 +1603,8 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
     bool nuke = /*!spec_mode &&*/ !MopQ[idx].oracle.spec_mode;
     if(nuke)
       num_Mops_nuked++;
+
+    ZPIN_TRACE("Undoing Mop @ PC: %x, nuke: %d, num_Mops_nuked: %d\n", MopQ[idx].fetch.PC, nuke, num_Mops_nuked)
 
     undo(&MopQ[idx], nuke);
     MopQ[idx].valid = false;

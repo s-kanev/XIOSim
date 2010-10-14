@@ -602,8 +602,8 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
 
          /* After recovering from spec and/or REP, nuke -> go to nuke recovery loop */
          if(thread->rep_sequence == 0 && !spec && cores[i]->oracle->num_Mops_nuked > 0)
-         {
-
+        {
+            ZPIN_TRACE("Going from spec loop to nuke loop. PC: %x\n",cores[i]->fetch->PC);
             break;
          }
 
