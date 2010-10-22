@@ -407,7 +407,7 @@ struct spec_byte_t * core_oracle_t::spec_write_byte(
 
 
 #ifdef ZESTO_PIN
-  ZPIN_TRACE("Write to specQ at 0x%x, val: %d, spec_mode: %d\n", addr, val, uop->Mop->oracle.spec_mode)
+  ZPIN_TRACE("Write to specQ at 0x%x, val: %x, spec_mode: %d\n", addr, val, uop->Mop->oracle.spec_mode)
 #endif
 
   p->val = val;

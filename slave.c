@@ -489,14 +489,20 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
 
    cores[i]->fetch->feeder_NPC = NPC;
    cores[i]->fetch->feeder_PC = handshake->pc;
+
    regs->regs_R = handshake->ctxt->regs_R;
    regs->regs_F = handshake->ctxt->regs_F;
    regs->regs_C = handshake->ctxt->regs_C;
    regs->regs_S = handshake->ctxt->regs_S;
 
+
    if(core->fetch->PC != handshake->pc)
      ZPIN_TRACE("PIN->PC (0x%x) different from fetch->PC (0x%x). Bad things will happen!!!\n", handshake->pc, core->fetch->PC);
  
+   int j = FSW_TOP(thread->regs.regs_C.fsw);
+   ZPIN_TRACE("PIN FTOP: %d, REG: %llx, ext. val: %lf \n", j, (dfloat_t)thread->regs.regs_F.e[j], thread->regs.regs_F.e[j])
+
+
    bool fetch_more = true;
    consumed = false;
    bool repping = false;

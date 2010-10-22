@@ -24,7 +24,7 @@
 #    Pin was installed. This can also be set on the command line,
 #    or as an environment variable.
 #
-PIN_HOME ?= /home/skanev/pin/pin-2.7-31933-gcc.3.4.6-ia32_intel64-linux
+PIN_HOME ?= /home/skanev/pin/pin-2.8-36111-gcc.3.4.6-ia32_intel64-linux
 ZESTO_HOME = /home/skanev/pin/zpin
 TARGET = ia32
 

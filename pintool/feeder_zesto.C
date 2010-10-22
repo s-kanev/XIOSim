@@ -73,8 +73,10 @@ VOID ImageUnload(IMG img, VOID *v)
     ADDRINT start = IMG_LowAddress(img);
     ADDRINT length = IMG_HighAddress(img) - start;
 
+#ifdef ZESTO_PIN_DBG
     cout << "Image unload, addr: " << hex << start  
          << " len: " << length << " end_addr: " << start + length << endl;
+#endif
 
     ASSERTX( Zesto_Notify_Munmap(start, length, true));
 }
@@ -85,8 +87,10 @@ VOID ImageLoad(IMG img, VOID *v)
     ADDRINT start = IMG_LowAddress(img);
     ADDRINT length = IMG_HighAddress(img) - start;
 
+#ifdef ZESTO_PIN_DBG
     cout << "Image load, addr: " << hex << start  
          << " len: " << length << " end_addr: " << start + length << endl;
+#endif
 
     ASSERTX( Zesto_Notify_Mmap(start, length, true));
 }
@@ -130,30 +134,34 @@ struct regs_t *MakeSSContext(const CONTEXT *ictxt, ADDRINT pc, ADDRINT npc)
 
     // Copy floating purpose registers: Floating point state is generated via
     // the fxsave instruction, which is a 512-byte memory region. Look at the
-    // header file for the complete layout of the fxsave region. SS only
-    // requires the (1) floating point status word, and the (2) eight 10byte
-    // floating point registers. Thus, we only copy the required information
-    // into the SS-specific data structure
-    CHAR fpstate[512];
+    // header file for the complete layout of the fxsave region. Zesto only
+    // requires the (1) floating point status word, the (2) fp control word,
+    // and the (3) eight 10byte floating point registers. Thus, we only copy
+    // the required information into the SS-specific (and Zesto-inherited)
+    // data structure
+    FPSTATE fpstate;
     memset(&fpstate, 0x0, sizeof(fpstate));
 
     PIN_GetContextFPState(&ssctxt, &fpstate);
 
-    // Copy the floating point status word, which is @ a 2-byte offset
-    memcpy(&SSRegs.regs_C.fsw, fpstate+2, 2);
+    //Copy the floating point control word at the beginning of the block
+    memcpy(&SSRegs.regs_C.cwd, &fpstate.fxsave_legacy._fcw, 2);
 
-    #define FXSAVE_STx_OFFSET(arr, st) (arr + 32 + (st * 16))
+    // Copy the floating point status word, which is @ a 2-byte offset
+    memcpy(&SSRegs.regs_C.fsw, &fpstate.fxsave_legacy._fsw, 2);
+
+    #define FXSAVE_STx_OFFSET(arr, st) (arr + (st * 16))
     #define ST_SIZE (10) // Each x86 floating point register is 80-bits wide
 
     // Load up the SS-specific data structures
-    memcpy(&SSRegs.regs_F.e[MD_REG_ST0], FXSAVE_STx_OFFSET(fpstate, MD_REG_ST0), ST_SIZE);
-    memcpy(&SSRegs.regs_F.e[MD_REG_ST1], FXSAVE_STx_OFFSET(fpstate, MD_REG_ST1), ST_SIZE);
-    memcpy(&SSRegs.regs_F.e[MD_REG_ST2], FXSAVE_STx_OFFSET(fpstate, MD_REG_ST2), ST_SIZE);
-    memcpy(&SSRegs.regs_F.e[MD_REG_ST3], FXSAVE_STx_OFFSET(fpstate, MD_REG_ST3), ST_SIZE);
-    memcpy(&SSRegs.regs_F.e[MD_REG_ST4], FXSAVE_STx_OFFSET(fpstate, MD_REG_ST4), ST_SIZE);
-    memcpy(&SSRegs.regs_F.e[MD_REG_ST5], FXSAVE_STx_OFFSET(fpstate, MD_REG_ST5), ST_SIZE);
-    memcpy(&SSRegs.regs_F.e[MD_REG_ST6], FXSAVE_STx_OFFSET(fpstate, MD_REG_ST6), ST_SIZE);
-    memcpy(&SSRegs.regs_F.e[MD_REG_ST7], FXSAVE_STx_OFFSET(fpstate, MD_REG_ST7), ST_SIZE);
+    memcpy(&SSRegs.regs_F.e[MD_REG_ST0], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST0), ST_SIZE);
+    memcpy(&SSRegs.regs_F.e[MD_REG_ST1], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST1), ST_SIZE);
+    memcpy(&SSRegs.regs_F.e[MD_REG_ST2], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST2), ST_SIZE);
+    memcpy(&SSRegs.regs_F.e[MD_REG_ST3], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST3), ST_SIZE);
+    memcpy(&SSRegs.regs_F.e[MD_REG_ST4], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST4), ST_SIZE);
+    memcpy(&SSRegs.regs_F.e[MD_REG_ST5], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST5), ST_SIZE);
+    memcpy(&SSRegs.regs_F.e[MD_REG_ST6], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST6), ST_SIZE);
+    memcpy(&SSRegs.regs_F.e[MD_REG_ST7], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST7), ST_SIZE);
 
     return &SSRegs;
 }
@@ -163,7 +171,9 @@ VOID Fini(INT32 exitCode, VOID *v)
 {
     Zesto_Destroy();
 
+#ifdef ZESTO_PIN_DBG
     cout << "TotalIns = " << dec << SimOrgInsCount << endl;
+#endif
 
     if (exitCode != EXIT_SUCCESS)
         cout << "ERROR! Exit code = " << dec << exitCode << endl;
@@ -175,7 +185,9 @@ VOID ExitOnMaxIns()
     if (KnobMaxSimIns.Value() && (SimOrgInsCount < KnobMaxSimIns.Value()))
         return;
 
+#ifdef ZESTO_PIN_DBG
     cout << "TotalIns = " << dec << SimOrgInsCount << endl;
+#endif
 
     Fini(EXIT_SUCCESS, 0);
 
@@ -192,14 +204,6 @@ VOID FeedOriginalInstruction(struct P2Z_HANDSHAKE *handshake)
 
     handshake->ins = MakeCopy(pc);
     ASSERT(handshake->orig, "Must execute real instruction in this function");
-
-    // Stop so we can attach a debugger
-/*    if(SimOrgInsCount == 24284106)
-    {
-       bool paused = true;
-       while(paused)
-          sleep(10);
-    }*/
 
     Zesto_Resume(handshake);
 
@@ -430,22 +434,28 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, V
 
     if(syscall_num == __NR_brk)
     {
+#ifdef ZESTO_PIN_DBG
       cout << "Syscall brk(" << syscall_num << ") addr: 0x" << hex << addr << dec << endl;
+#endif
       Zesto_UpdateBrk(addr);
     } else
     if(syscall_num == __NR_munmap)
     {
       ADDRINT size = PIN_GetSyscallArgument(ictxt, std, 1);
       Zesto_Notify_Munmap(addr, size, false);
+#ifdef ZESTO_PIN_DBG
       cout << "Syscall munmap(" << syscall_num << ") addr: 0x" << hex << addr 
            << " length: " << size << dec << endl;
+#endif
     } else
     if(syscall_num == 90) //oldmmap
     {
       mmap_arg_struct arg;
       memcpy(&arg, (void*)addr, sizeof(mmap_arg_struct));
+#ifdef ZESTO_PIN_DBG
       cout << "Syscall oldmmap(" << syscall_num << ") addr: 0x" << hex << arg.addr 
            << " length: " << arg.len << dec << endl;
+#endif
       last_syscall_arg = arg.len;
     }
 }
@@ -461,8 +471,10 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
     if(last_syscall_number == 90) //oldmap
     {
         ASSERTX( Zesto_Notify_Mmap(retval, last_syscall_arg, false) );
+#ifdef ZESTO_PIN_DBG
         cout << "Ret syscall oldmmap(" << last_syscall_number << ") addr: 0x" 
              << hex << retval << " length: " << last_syscall_arg << dec << endl;
+#endif
     }
 
 }
@@ -470,10 +482,12 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
 /* ========================================================================== */
 INT32 main(INT32 argc, CHAR **argv)
 {
+#ifdef ZESTO_PIN_DBG
     cout << "Command line: ";
     for(int i=0; i<argc; i++)
        cout << argv[i] << " ";
-    cout << endl; 
+    cout << endl;
+#endif
 
     SSARGS ssargs = MakeSimpleScalarArgcArgv(argc, argv);
 

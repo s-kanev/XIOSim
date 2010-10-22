@@ -591,6 +591,7 @@ myvsprintf(char *obuf, const char *format, va_list v)
 
   /* value being converted, if floating point */
   dfloat_t fval;
+  efloat_t lfval;
 
   for (;;)
     {
@@ -774,18 +775,37 @@ myvsprintf(char *obuf, const char *format, va_list v)
 #endif /* !HOST_HAS_QWORD */
 
 	case 'f':
-	  if (flagword & DOTSEEN)
-	    sprintf(buf1, "%%%d.%df", width, prec);
-	  else if (width)
-	    sprintf(buf1, "%%%df", width);
+	  if (flagword & LENGTH)
+	  {
+	    if (flagword & DOTSEEN)
+	      sprintf(buf1, "%%%d.%dLf", width, prec);
+	    else if (width)
+	      sprintf(buf1, "%%%dLf", width);
+	    else
+	      sprintf(buf1, "%%Lf");
+
+	    /* fetch the argument to be printed */
+	    lfval = va_arg(v, efloat_t);
+
+  	    /* print floating point value */
+	    sprintf(buf, buf1, lfval);
+	  }
 	  else
-	    sprintf(buf1, "%%f");
+	  {
+	    if (flagword & DOTSEEN)
+	      sprintf(buf1, "%%%d.%df", width, prec);
+	    else if (width)
+	      sprintf(buf1, "%%%df", width);
+	    else
+	      sprintf(buf1, "%%f");
 
-	  /* fetch the argument to be printed */
-	  fval = va_arg(v, dfloat_t);
+	    /* fetch the argument to be printed */
+	    fval = va_arg(v, dfloat_t);
 
-	  /* print floating point value */
-	  sprintf(buf, buf1, fval);
+  	    /* print floating point value */
+	    sprintf(buf, buf1, fval);
+	  }
+
 	  bp = buf;
 	  p = bp + strlen(bp);
 	  break;
