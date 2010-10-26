@@ -153,15 +153,18 @@ struct regs_t *MakeSSContext(const CONTEXT *ictxt, ADDRINT pc, ADDRINT npc)
     #define FXSAVE_STx_OFFSET(arr, st) (arr + (st * 16))
     #define ST_SIZE (10) // Each x86 floating point register is 80-bits wide
 
+    //For Zesto, regs_F is indexed by physical register, not stack-based
+    #define ST2P(num) (FSW_TOP(SSRegs.regs_C.fsw) + (num) & 0x7)
+
     // Load up the SS-specific data structures
-    memcpy(&SSRegs.regs_F.e[MD_REG_ST0], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST0), ST_SIZE);
-    memcpy(&SSRegs.regs_F.e[MD_REG_ST1], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST1), ST_SIZE);
-    memcpy(&SSRegs.regs_F.e[MD_REG_ST2], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST2), ST_SIZE);
-    memcpy(&SSRegs.regs_F.e[MD_REG_ST3], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST3), ST_SIZE);
-    memcpy(&SSRegs.regs_F.e[MD_REG_ST4], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST4), ST_SIZE);
-    memcpy(&SSRegs.regs_F.e[MD_REG_ST5], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST5), ST_SIZE);
-    memcpy(&SSRegs.regs_F.e[MD_REG_ST6], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST6), ST_SIZE);
-    memcpy(&SSRegs.regs_F.e[MD_REG_ST7], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST7), ST_SIZE);
+    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST0)], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST0), ST_SIZE);
+    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST1)], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST1), ST_SIZE);
+    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST2)], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST2), ST_SIZE);
+    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST3)], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST3), ST_SIZE);
+    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST4)], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST4), ST_SIZE);
+    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST5)], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST5), ST_SIZE);
+    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST6)], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST6), ST_SIZE);
+    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST7)], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST7), ST_SIZE);
 
     return &SSRegs;
 }
@@ -234,10 +237,6 @@ VOID SimulateInstruction(ADDRINT pc, BOOL taken, ADDRINT npc, ADDRINT tpc, const
 {
     struct P2Z_HANDSHAKE *handshake  = MakeSSRequest(pc, npc, tpc, taken, ictxt);
 
-#ifdef ZESTO_PIN_DBG
-    cout << SimOrgInsCount << "  PC: " << hex << pc << " Taken br: " << taken << " NPC: " << (taken ? tpc : npc) << dec << endl;
-#endif
-
     FeedOriginalInstruction(handshake);
 
     ExitOnMaxIns();
@@ -255,10 +254,6 @@ VOID Instrument(INS ins, VOID *v)
 {
     if (ExecMode == EXECUTION_MODE_FASTFORWARD)
         return;
-
-#ifdef ZESTO_PIN_DBG
-    cout << INS_Mnemonic(ins) << endl;
-#endif
 
     if (! INS_IsBranchOrCall(ins))
     {

@@ -79,6 +79,8 @@ TOOLS = $(TOOL_ROOTS:%=$(OBJDIR)%$(PINTOOL_SUFFIX))
 ##############################################################
 
 all: tools
+debug:	CXXFLAGS += -DZESTO_PIN_DBG
+debug:	tools
 tools: $(OBJDIR) $(TOOLS) $(OBJDIR)cp-pin.exe
 test: $(OBJDIR) $(TOOL_ROOTS:%=%.test)
 
