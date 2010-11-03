@@ -770,8 +770,7 @@ bool core_fetch_DPM_t::do_fetch(void)
 
   //XXX: Remove me!
   thread_t* thread = core->current_thread;
-  int j = FSW_TOP(thread->regs.regs_C.fsw);
-  ZPIN_TRACE("FTOP: %d, REG: %llx\n", j, (dfloat_t)thread->regs.regs_F.e[j])
+  trace_fp_regfile(&thread->regs.regs_F, &thread->regs.regs_C);
 
   if(  (Mop->fetch.pred_NPC != (Mop->fetch.PC + Mop->fetch.inst.len))
     && (Mop->fetch.pred_NPC != Mop->fetch.PC)) /* REPs don't count as taken branches w.r.t. fetching */

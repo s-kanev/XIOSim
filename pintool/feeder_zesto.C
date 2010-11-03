@@ -142,29 +142,33 @@ struct regs_t *MakeSSContext(const CONTEXT *ictxt, ADDRINT pc, ADDRINT npc)
     FPSTATE fpstate;
     memset(&fpstate, 0x0, sizeof(fpstate));
 
+    ASSERTX(PIN_ContextContainsState(&ssctxt, PROCESSOR_STATE_X87));
     PIN_GetContextFPState(&ssctxt, &fpstate);
 
-    //Copy the floating point control word at the beginning of the block
+    //Copy the floating point control word
     memcpy(&SSRegs.regs_C.cwd, &fpstate.fxsave_legacy._fcw, 2);
 
-    // Copy the floating point status word, which is @ a 2-byte offset
+    // Copy the floating point status word
     memcpy(&SSRegs.regs_C.fsw, &fpstate.fxsave_legacy._fsw, 2);
 
-    #define FXSAVE_STx_OFFSET(arr, st) (arr + (st * 16))
-    #define ST_SIZE (10) // Each x86 floating point register is 80-bits wide
+    //Copy floating point tag word specifying which regsiters hold valid values
+    memcpy(&SSRegs.regs_C.ftw, &fpstate.fxsave_legacy._ftw, 1);
+
+    #define FXSAVE_STx_OFFSET(arr, st) ((arr) + ((st) * 16))
 
     //For Zesto, regs_F is indexed by physical register, not stack-based
-    #define ST2P(num) (FSW_TOP(SSRegs.regs_C.fsw) + (num) & 0x7)
+    #define ST2P(num) ((FSW_TOP(SSRegs.regs_C.fsw) + (num)) & 0x7)
 
-    // Load up the SS-specific data structures
-    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST0)], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST0), ST_SIZE);
-    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST1)], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST1), ST_SIZE);
-    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST2)], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST2), ST_SIZE);
-    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST3)], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST3), ST_SIZE);
-    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST4)], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST4), ST_SIZE);
-    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST5)], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST5), ST_SIZE);
-    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST6)], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST6), ST_SIZE);
-    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST7)], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST7), ST_SIZE);
+    // Copy actual extended fp registers
+    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST0)], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST0), MD_FPR_SIZE);
+    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST1)], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST1), MD_FPR_SIZE);
+    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST2)], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST2), MD_FPR_SIZE);
+    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST3)], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST3), MD_FPR_SIZE);
+    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST4)], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST4), MD_FPR_SIZE);
+    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST5)], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST5), MD_FPR_SIZE);
+    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST6)], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST6), MD_FPR_SIZE);
+    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST7)], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST7), MD_FPR_SIZE);
+
 
     return &SSRegs;
 }
@@ -420,7 +424,7 @@ ADDRINT last_syscall_arg;
 VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VOID *v)
 {
     //Single-threaded for now
-    assert(threadIndex == 0);
+    ASSERTX(threadIndex == 0);
 
     ADDRINT syscall_num = PIN_GetSyscallNumber(ictxt, std);
     ADDRINT addr = PIN_GetSyscallArgument(ictxt, std, 0);
@@ -459,7 +463,7 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, V
 VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VOID *v)
 {
     //Single-threaded for now
-    assert(threadIndex == 0);
+    ASSERTX(threadIndex == 0);
 
     ADDRINT retval = PIN_GetSyscallReturn(ictxt, std);
 

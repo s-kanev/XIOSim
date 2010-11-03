@@ -84,8 +84,8 @@
 #include <sys/io.h>
 
 #include "host.h"
-#include "misc.h"
 #include "machine.h"
+#include "misc.h"
 #include "endian.h"
 #include "version.h"
 #include "options.h"

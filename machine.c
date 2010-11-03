@@ -1154,7 +1154,7 @@ md_print_creg(md_ctrl_t regs, int reg, FILE *stream)
   /* index is only used to iterate over these registers, hence no enums... */
   switch (reg)
   {
-    case 0:
+    case MD_REG_AFLAGS:
       myfprintf(stream, "AFLAGS: 0x%08x", regs.aflags);
       fprintf(stream, " {");
       if (regs.aflags & CF)
@@ -1174,7 +1174,7 @@ md_print_creg(md_ctrl_t regs, int reg, FILE *stream)
       fprintf(stream, "}");
       break;
 
-    case 1:
+    case MD_REG_FSW:
       myfprintf(stream, "FSW: 0x%04x", (dword_t)regs.fsw);
       fprintf(stream, " {TOP:%d ", FSW_TOP(regs.fsw));
       if (regs.fsw & C0)
@@ -1196,9 +1196,9 @@ md_print_creg(md_ctrl_t regs, int reg, FILE *stream)
   void
 md_print_cregs(md_ctrl_t regs, FILE *stream)
 {
-  md_print_creg(regs, 0, stream);
+  md_print_creg(regs, MD_REG_AFLAGS, stream);
   fprintf(stream, "  ");
-  md_print_creg(regs, 1, stream);
+  md_print_creg(regs, MD_REG_FSW, stream);
   fprintf(stream, "  ");
 }
 

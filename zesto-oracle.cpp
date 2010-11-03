@@ -1615,6 +1615,8 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
       MopQ[idx].fetch.bpred_update = NULL;
     }
 
+    thread_t* thread = core->current_thread;
+    trace_fp_regfile(&thread->regs.regs_F, &thread->regs.regs_C);
 
     MopQ_num --;
     MopQ_tail = idx;

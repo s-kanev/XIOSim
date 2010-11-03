@@ -79,3 +79,30 @@ regs_init(struct regs_t *regs)		/* register file to initialize */
   /* regs->regs_R[MD_SP_INDEX] and regs->regs_PC initialized by loader... */
   memset(regs, 0, sizeof(*regs));
 }
+
+/* Print out the contets of extended-width fp register file */
+void
+trace_fp_regfile(const md_fpr_t *regs_F, const md_ctrl_t  *regs_C)
+{
+   int top = FSW_TOP(regs_C->fsw);
+   char buff[2*MD_FPR_SIZE+1] = "";
+   char tmp[3];
+
+   int j,k;
+   unsigned char *curr;
+
+   ZPIN_TRACE("FTOP: %d\n", top)
+   for(k=0; k< MD_NUM_ARCH_FREGS; k++)
+   {
+     curr = (unsigned char*)(&(regs_F->e[k]));
+     buff[0] = 0;
+     for(j=0; j< MD_FPR_SIZE; j++)
+     {
+       sprintf(tmp, "%02x", *(curr+(MD_FPR_SIZE-1)-j));
+       strncat(buff, tmp, 2);
+     }
+
+     ZPIN_TRACE("REG %d: %s \n", k, buff)
+     ZPIN_TRACE("%f\n", (double)regs_F->e[k]);
+   }
+}

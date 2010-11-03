@@ -142,9 +142,13 @@ enum md_fault_type {
 
 /* number of floating point registers */
 #define MD_NUM_FREGS        (/* arch */8 + /* uarch */8)
+#define MD_NUM_ARCH_FREGS   8
+
+/* size in bytes of fp registers */
+#define MD_FPR_SIZE         10
 
 /* number of control registers */
-#define MD_NUM_CREGS        3
+#define MD_NUM_CREGS        4
 
 /* number of segment registers */
 #define MD_NUM_SREGS        6 // UCSD
@@ -180,6 +184,9 @@ enum md_fault_type {
 #define _DCREG(N) ((N)-CREG_OFFSET)
 #define _DSEG(N) ((N)-SEG_OFFSET)
 
+/* check the tag word for fp register valid bits (physical, not stack index) */
+#define FPR_VALID(FTW, N) (((FTW) & (1 << (N))) == (1 << (N)))
+
 /* general purpose (integer) register file entry type */
 typedef union {
   dword_t dw[MD_NUM_IREGS];
@@ -202,6 +209,7 @@ typedef struct {
   dword_t aflags;        /* processor arithmetic flags */
   word_t cwd;            /* floating point control word */
   word_t fsw;            /* floating point status register */
+  byte_t ftw;            /* floating points tag word */
 } md_ctrl_t;
 
 /* well known registers */
@@ -283,7 +291,8 @@ enum md_sreg_names {
 enum md_creg_names {
   MD_REG_AFLAGS = 0, 
   MD_REG_CWD = 1, 
-  MD_REG_FSW = 2
+  MD_REG_FSW = 2,
+  MD_REG_FTW = 3
 };
 
 /* Not used by x86, present for ARM compatibility */

@@ -458,6 +458,28 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
    ZPIN_TRACE("PIN -> PC: %x, NPC: %x \n", handshake->pc, NPC)
    fetches_since_feeder = 0;
 
+   trace_fp_regfile(&handshake->ctxt->regs_F, &handshake->ctxt->regs_C);
+
+/*   if(!first_insn)
+   {
+     zesto_assert(!(handshake->ctxt->regs_C.ftw & 0x01) ||
+                  (handshake->ctxt->regs_F.e[0] == regs->regs_F.e[0]), (void)0);
+     zesto_assert(!(handshake->ctxt->regs_C.ftw & 0x02) ||
+                  (handshake->ctxt->regs_F.e[1] == regs->regs_F.e[1]), (void)0);
+     zesto_assert(!(handshake->ctxt->regs_C.ftw & 0x04) ||
+                  (handshake->ctxt->regs_F.e[2] == regs->regs_F.e[2]), (void)0);
+     zesto_assert(!(handshake->ctxt->regs_C.ftw & 0x08) ||
+                  (handshake->ctxt->regs_F.e[3] == regs->regs_F.e[3]), (void)0);
+     zesto_assert(!(handshake->ctxt->regs_C.ftw & 0x10) ||
+                  (handshake->ctxt->regs_F.e[4] == regs->regs_F.e[4]), (void)0);
+     zesto_assert(!(handshake->ctxt->regs_C.ftw & 0x20) ||
+                  (handshake->ctxt->regs_F.e[5] == regs->regs_F.e[5]), (void)0);
+     zesto_assert(!(handshake->ctxt->regs_C.ftw & 0x40) ||
+                  (handshake->ctxt->regs_F.e[6] == regs->regs_F.e[6]), (void)0);
+     zesto_assert(!(handshake->ctxt->regs_C.ftw & 0x80) ||
+                  (handshake->ctxt->regs_F.e[7] == regs->regs_F.e[7]), (void)0);
+   }
+*/
    if(first_insn) 
    {  
       zesto_assert(thread->loader.stack_base, (void)0);
@@ -486,22 +508,23 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
 
    /* Copy architectural state from pim
       XXX: This is arch state BEFORE executed the instruction we're about to simulate*/
-
    cores[i]->fetch->feeder_NPC = NPC;
    cores[i]->fetch->feeder_PC = handshake->pc;
 
    regs->regs_R = handshake->ctxt->regs_R;
-   regs->regs_F = handshake->ctxt->regs_F;
    regs->regs_C = handshake->ctxt->regs_C;
    regs->regs_S = handshake->ctxt->regs_S;
+
+   /* Copy only valid FP registers (PIN uses invalid ones and they may differ) */
+   int j;
+   for(j=0; j< MD_NUM_ARCH_FREGS; j++)
+     if(FPR_VALID(handshake->ctxt->regs_C.ftw, j))
+       memcpy(&regs->regs_F.e[j], &handshake->ctxt->regs_F.e[j], MD_FPR_SIZE);
 
 
    if(core->fetch->PC != handshake->pc)
      ZPIN_TRACE("PIN->PC (0x%x) different from fetch->PC (0x%x). Bad things will happen!!!\n", handshake->pc, core->fetch->PC);
  
-   int j = FSW_TOP(thread->regs.regs_C.fsw);
-   ZPIN_TRACE("PIN FTOP: %d, REG: %llx \n", j, (dfloat_t)thread->regs.regs_F.e[j])
-
    bool fetch_more = true;
    consumed = false;
    bool repping = false;
