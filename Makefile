@@ -281,6 +281,12 @@ main.o: interface.h
 slave.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h options.h
 slave.o: endian.h thread.h memory.h stats.h eval.h version.h loader.h sim.h
 slave.o: interface.h
+sim-main.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h
+sim-main.o: options.h memory.h stats.h eval.h loader.h thread.h syscall.h
+sim-main.o: sim.h zesto-opts.h zesto-core.h zesto-oracle.h zesto-fetch.h
+sim-main.o: zesto-decode.h zesto-bpred.h zesto-alloc.h zesto-exec.h
+sim-main.o: zesto-commit.h zesto-dram.h zesto-cache.h zesto-uncore.h
+sim-main.o: zesto-MC.h interface.h
 sim-slave.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h
 sim-slave.o: options.h memory.h stats.h eval.h loader.h thread.h syscall.h
 sim-slave.o: sim.h zesto-opts.h zesto-core.h zesto-oracle.h zesto-fetch.h
