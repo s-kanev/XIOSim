@@ -1615,9 +1615,6 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
       MopQ[idx].fetch.bpred_update = NULL;
     }
 
-    thread_t* thread = core->current_thread;
-    trace_fp_regfile(&thread->regs.regs_F, &thread->regs.regs_C);
-
     MopQ_num --;
     MopQ_tail = idx;
     idx = moddec(idx,MopQ_size); //(idx-1+MopQ_size) % MopQ_size;
@@ -1801,26 +1798,7 @@ void core_oracle_t::commit_dependencies(struct uop_t * const uop)
 /* remove the entry from the table */
 void core_oracle_t::commit_write_byte(struct spec_byte_t * const p)
 {
-  int * bad = NULL;
-
   const int index = p->addr & MEM_HASH_MASK;
-#if 0
-//#ifdef ZESTO_PIN_DBG
-  if(p!= spec_mem_map.hash[index].head)
-  {  
-     fprintf(stderr, "Commit wr: p:%p, p->addr: 0x%x, p->val: %d, p->uop: 0x%x, head:%p, head->addr: 0x%x, head->val: %d, head->uop: 0x%x\n",p,p->addr,p->val, p->uop,spec_mem_map.hash[index].head, spec_mem_map.hash[index].head->addr, spec_mem_map.hash[index].head->val, spec_mem_map.hash[index].head->uop);
-     if(p->uop)
-       fprintf(stderr, "p->uop->PC: 0x%x, p->spec: %d\n", p->uop->Mop->fetch.PC, p->uop->Mop->oracle.spec_mode);
-     if(spec_mem_map.hash[index].head->uop)
-       fprintf(stderr, "head->uop->PC: 0x%x, head->spec: %d\n", spec_mem_map.hash[index].head->uop->Mop->fetch.PC, spec_mem_map.hash[index].head->uop->Mop->oracle.spec_mode);
-     fprintf(stderr, "Sim cycle: %llu\n", sim_cycle);
-     // XXX:Generate core file
-     flush_trace();
-     fflush(stderr);
-     *bad = 0;
-  }
-  assert(p->uop);
-#endif
   assert(spec_mem_map.hash[index].head == p);
 
   if(p->next)

@@ -458,28 +458,6 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
    ZPIN_TRACE("PIN -> PC: %x, NPC: %x \n", handshake->pc, NPC)
    fetches_since_feeder = 0;
 
-   trace_fp_regfile(&handshake->ctxt->regs_F, &handshake->ctxt->regs_C);
-
-/*   if(!first_insn)
-   {
-     zesto_assert(!(handshake->ctxt->regs_C.ftw & 0x01) ||
-                  (handshake->ctxt->regs_F.e[0] == regs->regs_F.e[0]), (void)0);
-     zesto_assert(!(handshake->ctxt->regs_C.ftw & 0x02) ||
-                  (handshake->ctxt->regs_F.e[1] == regs->regs_F.e[1]), (void)0);
-     zesto_assert(!(handshake->ctxt->regs_C.ftw & 0x04) ||
-                  (handshake->ctxt->regs_F.e[2] == regs->regs_F.e[2]), (void)0);
-     zesto_assert(!(handshake->ctxt->regs_C.ftw & 0x08) ||
-                  (handshake->ctxt->regs_F.e[3] == regs->regs_F.e[3]), (void)0);
-     zesto_assert(!(handshake->ctxt->regs_C.ftw & 0x10) ||
-                  (handshake->ctxt->regs_F.e[4] == regs->regs_F.e[4]), (void)0);
-     zesto_assert(!(handshake->ctxt->regs_C.ftw & 0x20) ||
-                  (handshake->ctxt->regs_F.e[5] == regs->regs_F.e[5]), (void)0);
-     zesto_assert(!(handshake->ctxt->regs_C.ftw & 0x40) ||
-                  (handshake->ctxt->regs_F.e[6] == regs->regs_F.e[6]), (void)0);
-     zesto_assert(!(handshake->ctxt->regs_C.ftw & 0x80) ||
-                  (handshake->ctxt->regs_F.e[7] == regs->regs_F.e[7]), (void)0);
-   }
-*/
    if(first_insn) 
    {  
       zesto_assert(thread->loader.stack_base, (void)0);

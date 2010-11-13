@@ -768,10 +768,6 @@ bool core_fetch_DPM_t::do_fetch(void)
 
   ZPIN_TRACE("After bpred. PC: %x, oracle.NPC: %x, spec: %d, nuked_Mops: %d\n", PC, Mop->oracle.NextPC, core->oracle->spec_mode, core->oracle->num_Mops_nuked)
 
-  //XXX: Remove me!
-  thread_t* thread = core->current_thread;
-  trace_fp_regfile(&thread->regs.regs_F, &thread->regs.regs_C);
-
   if(  (Mop->fetch.pred_NPC != (Mop->fetch.PC + Mop->fetch.inst.len))
     && (Mop->fetch.pred_NPC != Mop->fetch.PC)) /* REPs don't count as taken branches w.r.t. fetching */
   {
