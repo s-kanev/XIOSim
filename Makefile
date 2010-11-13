@@ -98,7 +98,7 @@ range.$(OEXT)        regs.$(OEXT)         stats.$(OEXT)         symbol.$(OEXT)  
 sim-main.$(OEXT)
 
 OBJS = main.$(OEXT) eio.$(OEXT) loader.$(OEXT) $(OBJS_NOMAIN) syscall.$(OEXT) 
-OBJS_SLAVE = slave.$(OEXT) $(OBJS_NOMAIN)
+OBJS_SLAVE = slave.$(OEXT) loader.$(OEXT) $(OBJS_NOMAIN)
 
 # Zesto specific files
 ZSRCS = \
@@ -240,6 +240,7 @@ clean:
 	-$(RM) *.o *.obj core *~ Makefile.bak libsim* sysprobe$(EEXT) $(PROGS)
 	cd libexo $(CS) $(MAKE) "RM=$(RM)" "CS=$(CS)" clean $(CS) cd ..
 
+.PHONY: tags
 tags: 
 	ctags -R --extra=+q .
 
