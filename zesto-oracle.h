@@ -159,14 +159,32 @@
 }
 #endif
 
-#ifdef DEBUG
-#define zesto_assert(cond, retval) assert(cond)
+//#ifdef DEBUG
+//#define zesto_assert(cond, retval) assert(cond)
+//#elif ZESTO_PIN
+#ifdef ZESTO_PIN
+#define zesto_assert(cond, retval) { \
+  if(!(cond)) { \
+    core->oracle->hosed = TRUE; \
+    fprintf(stderr,"assertion failed (%s,%d:thread %d): ",__FILE__,__LINE__,core->current_thread->id); \
+    fprintf(stderr,"%s\n",#cond); \
+    fprintf(stderr, "cycle: %lld, num_Mops: %lld\n", sim_cycle, core->stat.oracle_total_insn); \
+    fprintf(stderr, "PC: %x, regs->NPC: %x, pin->PC: %x, pin->NPC: %x\n", core->fetch->PC, core->current_thread->regs.regs_NPC, core->fetch->feeder_PC, core->fetch->feeder_NPC); \
+    fflush(stderr); \
+    flush_trace(); \
+    exit(6); \
+    return (retval); \
+  } \
+}
 #else
 #define zesto_assert(cond, retval) { \
   if(!(cond)) { \
     core->oracle->hosed = TRUE; \
     fprintf(stderr,"assertion failed (%s,%d:thread %d): ",__FILE__,__LINE__,core->current_thread->id); \
     fprintf(stderr,"%s\n",#cond); \
+    fprintf(stderr, "cycle: %lld, num_Mops: %lld\n", sim_cycle, core->stat.oracle_total_insn); \
+    fprintf(stderr, "PC: %x, regs->NPC: %x\n", core->fetch->PC, core->current_thread->regs.regs_NPC); \
+    fflush(stderr); \
     return (retval); \
   } \
 }
@@ -203,6 +221,7 @@ class core_oracle_t {
   public:
 
   bool spec_mode;  /* are we currently on a wrong-path? */
+  int num_Mops_nuked; /* Used if we want to find the instruction that originally caused the nuke after we flush and start executing again */
 
   bool hosed; /* set to TRUE when something in the architected state (core->arch_state) has been seriously
                 corrupted. */
@@ -215,8 +234,8 @@ class core_oracle_t {
   int get_index(const struct Mop_t * const Mop);
   int next_index(const int index);
 
-  bool spec_read_byte(const md_addr_t addr, byte_t * const valp);
-  struct spec_byte_t * spec_write_byte(const md_addr_t addr, const byte_t val);
+  bool spec_read_byte(const md_addr_t addr, byte_t * const valp, bool no_tail=false);
+  struct spec_byte_t * spec_write_byte(const md_addr_t addr, const byte_t val,  struct uop_t * uop);
 
   struct Mop_t * exec(const md_addr_t requested_PC);
   void consume(const struct Mop_t * const Mop);
@@ -265,7 +284,7 @@ class core_oracle_t {
   int syscall_mem_reqs; /* total number of syscall memory requests */
   int syscall_remaining_delay;
 
-  void undo(struct Mop_t * const Mop);
+  void undo(struct Mop_t * const Mop, bool nuke);
 
   void install_mapping(struct uop_t * const uop);
   void commit_mapping(const struct uop_t * const uop);
@@ -282,6 +301,11 @@ class core_oracle_t {
 
   void commit_write_byte(struct spec_byte_t * const p);
   void squash_write_byte(struct spec_byte_t * const p);
+
+#ifdef ZESTO_PIN
+  void write_spec_byte_to_mem(struct uop_t * const uop, struct spec_byte_t * p, bool skip_last);
+  void write_Mop_spec_bytes_to_mem(const struct Mop_t * const Mop, bool skip_last);
+#endif
 
   void cleanup_aborted_mop(struct Mop_t * const Mop);
 

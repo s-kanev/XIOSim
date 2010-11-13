@@ -1,5 +1,5 @@
-/* zesto-alloc.cpp - Zesto allocation stage class
- *
+/* main.c - main line routines */
+/*
  * Copyright © 2009 by Gabriel H. Loh and the Georgia Tech Research Corporation
  * Atlanta, GA  30332-0415
  * All Rights Reserved.
@@ -72,53 +72,159 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
-#include <limits.h>
-#include "thread.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+#include <setjmp.h>
+#include <signal.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <sys/time.h>
+#include <sys/io.h>
 
-#include "zesto-core.h"
-#include "zesto-opts.h"
-#include "zesto-oracle.h"
-#include "zesto-decode.h"
-#include "zesto-alloc.h"
-#include "zesto-exec.h"
-#include "zesto-commit.h"
-#include "zesto-fetch.h"
+#include "host.h"
+#include "misc.h"
+#include "machine.h"
+#include "endian.h"
+#include "version.h"
+#include "options.h"
+#include "stats.h"
+#include "loader.h"
+#include "sim.h"
 
 
-void alloc_reg_options(struct opt_odb_t * odb, struct core_knobs_t * knobs)
+/* stats signal handler */
+void
+signal_sim_stats(int sigtype)
 {
-  opt_reg_int(odb, "-alloc:depth","alloc pipeline depth (stages) [D]",
-      &knobs->alloc.depth, /*default*/ knobs->alloc.depth, /*print*/true,/*format*/NULL);
-
-  opt_reg_int(odb, "-alloc:width","alloc pipeline width (uops) [DS]",
-      &knobs->alloc.width, /*default*/ knobs->alloc.width, /*print*/true,/*format*/NULL);
-
-  opt_reg_flag(odb, "-flush:drain","use drain-flush after misprediction [DS]",
-      &knobs->alloc.drain_flush, /*default*/ false, /*print*/true,/*format*/NULL);
+  sim_dump_stats = TRUE;
 }
 
-
-/* default constructor */
-core_alloc_t::core_alloc_t(void):
-  drain_in_progress(false)
+/* exit signal handler */
+void
+signal_exit_now(int sigtype)
 {
+  sim_exit_now = TRUE;
 }
 
-/* default destructor */
-core_alloc_t::~core_alloc_t()
+/* execution start/end times */
+time_t sim_start_time;
+time_t sim_end_time;
+int sim_elapsed_time;
+
+/* byte/word swapping required to execute target executable on this host */
+int sim_swap_bytes;
+int sim_swap_words;
+
+/* exit when this becomes non-zero */
+int sim_exit_now = FALSE;
+
+/* longjmp here when simulation is completed */
+jmp_buf sim_exit_buf;
+
+/* set to non-zero when simulator should dump statistics */
+int sim_dump_stats = FALSE;
+
+/* options database */
+struct opt_odb_t *sim_odb;
+
+/* stats database */
+struct stat_sdb_t *sim_sdb;
+
+/* EIO interfaces */
+char *sim_eio_fname[MAX_CORES];
+FILE *sim_eio_fd[MAX_CORES];
+
+/* redirected program/simulator output file names */
+char *sim_simout = NULL;
+char *sim_progout = NULL;
+FILE *sim_progfd = NULL;
+
+/* track first argument orphan, this is the program to execute */
+int exec_index = -1;
+
+/* dump help information */
+bool help_me;
+
+/* random number generator seed */
+int rand_seed;
+
+/* initialize and quit immediately */
+bool init_quit;
+
+/* simulator scheduling priority */
+int nice_priority;
+
+/* default simulator scheduling priority */
+#define NICE_DEFAULT_VALUE		0
+
+int start_pos = 0;
+
+int heartbeat_count = 0;
+
+
+ 
+int
+orphan_fn(int i, int argc, char **argv)
 {
+  exec_index = i;
+  return /* done */FALSE;
 }
 
-
-/* load in all definitions */
-#include "ZPIPE-alloc.list"
-
-
-class core_alloc_t * alloc_create(const char * alloc_opt_string, struct core_t * core)
+void
+banner(FILE *fd, int argc, char **argv)
 {
-#define ZESTO_PARSE_ARGS
-#include "ZPIPE-alloc.list"
+  char *s;
 
-  fatal("unknown alloc engine type \"%s\"",alloc_opt_string);
-#undef ZESTO_PARSE_ARGS
+  fprintf(fd,
+	  "%s: SimpleScalar/%s Tool Set version %d.%d of %s.\n"
+	  "Copyright (C) 2000-2002 by The Regents of The University of Michigan.\n"
+          "Copyright (C) 1994-2002 by Todd M. Austin, Ph.D. and SimpleScalar, LLC.\n"
+	  "This version of SimpleScalar is licensed for academic non-commercial use only.\n"
+	  "\n",
+	  ((s = strrchr(argv[0], '/')) ? s+1 : argv[0]),
+	  VER_TARGET, VER_MAJOR, VER_MINOR, VER_UPDATE);
 }
+
+void
+usage(FILE *fd, int argc, char **argv)
+{
+  fprintf(fd, "Usage: %s {-options} executable {arguments}\n", argv[0]);
+  opt_print_help(sim_odb, fd);
+}
+
+int running = FALSE;
+
+/* print all simulator stats */
+void
+sim_print_stats(FILE *fd)		/* output stream */
+{
+  if (!running)
+    return;
+
+  /* get stats time */
+  sim_end_time = time((time_t *)NULL);
+  sim_elapsed_time = MAX(sim_end_time - sim_start_time, 1);
+
+  /* print simulation stats */
+  fprintf(fd, "\nsim: ** simulation statistics **\n");
+  stat_print_stats(sim_sdb, fd);
+  sim_aux_stats(fd);
+  fprintf(fd, "\n");
+}
+
+/* print stats, uninitialize simulator components, and exit w/ exitcode */
+void
+exit_now(int exit_code)
+{
+  /* print simulation stats */
+  sim_print_stats(stderr);
+
+  /* un-initialize the simulator */
+  sim_uninit();
+
+  /* all done! */
+   exit(exit_code);
+}
+

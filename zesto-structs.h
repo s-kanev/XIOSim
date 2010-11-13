@@ -112,6 +112,11 @@ struct odep_t {
 /* Note, the memory table is per-byte indexed */
 struct spec_byte_t {
   byte_t val;
+#ifdef ZESTO_PIN
+  byte_t prev_val;
+  bool prev_val_valid;
+  uop_t * uop; /* backpointer for uop that is doing the speculative write */
+#endif
   md_addr_t addr;
   struct spec_byte_t * next;
   struct spec_byte_t * prev;
@@ -204,6 +209,8 @@ struct uop_t
 
     md_ctrl_t ictrl;		/* control regs input values */
     md_ctrl_t octrl;		/* control regs output values */
+    int dummy1; /* padding */
+    int dummy2; /* padding */
 
     /* memory information */
     md_addr_t virt_addr;

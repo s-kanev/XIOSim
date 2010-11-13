@@ -52,8 +52,8 @@
 #define REGS_H
 
 #include "host.h"
-#include "misc.h"
 #include "machine.h"
+#include "misc.h"
 
 /*
  * This module implements the SimpleScalar architected register state, which
@@ -111,5 +111,9 @@ struct regs_t *regs_create(void);
 /* initialize architected register state */
 void
 regs_init(struct regs_t *regs);		/* register file to initialize */
+
+/* Print out the contets of extended-width fp register file */
+void
+trace_fp_regfile(const md_fpr_t *regs_F, const md_ctrl_t *regs_C);
 
 #endif /* REGS_H */

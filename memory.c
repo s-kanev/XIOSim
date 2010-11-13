@@ -533,6 +533,10 @@ mem_newpage(struct mem_t *mem,		/* memory space to allocate in */
   byte_t *page = NULL;
   struct mem_pte_t *pte;
 
+#ifdef ZESTO_PIN_DBG
+  myfprintf(stderr, "Creating memory page at: %x\n", addr);
+#endif
+
   if(max_core_pages && (num_core_pages >= max_core_pages))
     write_core_to_backing_file(mem,addr);
 
@@ -591,6 +595,11 @@ mem_newmap(struct mem_t *mem,            /* memory space to access */
   int i;
   md_addr_t comp_addr;
   struct mem_pte_t *pte;
+ 
+#ifdef ZESTO_PIN_DBG
+  fprintf(stderr, "Mem_newmap: %x, length: %u, end_addr: %x\n", addr, length, addr+length);
+#endif
+
   /* first check alignment */
   if((addr & (MD_PAGE_SIZE-1))!=0) {
     fprintf(stderr, "mem_newmap address %x, not page aligned\n", addr);
@@ -654,6 +663,12 @@ mem_newmap2(struct mem_t *mem,            /* memory space to access */
   int i;
   md_addr_t comp_addr;
   struct mem_pte_t *pte;
+
+#ifdef ZESTO_PIN_DBG
+  fprintf(stderr, "Mem_newmap2: %x -> %x, length: %x, end_addr: %x\n", addr, our_addr, length, addr+length);
+#endif
+  ZPIN_TRACE("Mem_newmap2: %x -> %x, length: %x, end_addr: %x\n", addr, our_addr, length, addr+length)
+
   /* first check alignment */
   if((addr & (MD_PAGE_SIZE-1))!=0) {
     fprintf(stderr, "mem_newmap address %x, not page aligned\n", addr);

@@ -232,11 +232,21 @@ typedef enum md_fault_type
 #define MEM_ADDR2HOST(MEM, ADDR) MEM_PAGE(MEM, ADDR, 0)+MEM_OFFSET(ADDR)
 
 /* memory tickle function, allocates pages when they are first written */
+#ifndef ZESTO_PIN
 #define MEM_TICKLE(MEM, ADDR)            \
   ((!MEM_PAGE(MEM, ADDR, 0)            \
     ? (/* allocate page at address ADDR */        \
       mem_newpage(MEM, ADDR))            \
-    : (/* nada... */ (void)0)))            
+    : (/* nada... */ (void)0)))           
+#else
+/* If running under PIN, make sure to create the page at its actual location! */
+#define MEM_TICKLE(MEM, ADDR)            \
+  ((!MEM_PAGE(MEM, ADDR, 0)            \
+    ? (/* allocate page at address ADDR */        \
+      (void) mem_newmap2(MEM, ROUND_DOWN(ADDR, MD_PAGE_SIZE), ROUND_DOWN(ADDR,MD_PAGE_SIZE), MD_PAGE_SIZE, 1)) \
+    : (/* nada... */ (void)0)))           
+#endif
+ 
 
 /* memory page iterator */
 #define MEM_FORALL(MEM, ITER, PTE)          \
@@ -251,18 +261,50 @@ typedef enum md_fault_type
 #ifdef ZESTO_ORACLE_C
 /* these macros are to support speculative reads/writes of memory
    due to instructions in-flight (uncommitted) in the machine */
-#define MEM_READ(MEM, ADDR, TYPE)          \
+#define _MEM_READ(MEM, ADDR, TYPE)          \
   (core->oracle->spec_read_byte((ADDR),&_mem_read_tmp) ? _mem_read_tmp :             \
   (MEM_PAGE(MEM, (md_addr_t)(ADDR),0)          \
    ? *((TYPE *)(MEM_PAGE(MEM, (md_addr_t)(ADDR),0) + MEM_OFFSET(ADDR)))  \
    : /* page not yet allocated, return zero value */ 0))
 
-#define MEM_WRITE(MEM, ADDR, TYPE, VAL)          \
-  core->oracle->spec_write_byte((ADDR),(VAL))
+#define MEM_READ(MEM, ADDR, TYPE)           \
+   ({ byte_t _tmp = _MEM_READ(MEM, ADDR, TYPE); \
+     ZPIN_TRACE("Read at addr 0x%x returns 0x%x\n", (ADDR), _tmp); \
+     _tmp; \
+   })
 
+#define MEM_READ_SUCC_NON_SPEC(MEM, ADDR, TYPE)          \
+  (MEM_PAGE(MEM, (md_addr_t)(ADDR),0)          \
+   ? (_read_succ = true, *((TYPE *)(MEM_PAGE(MEM, (md_addr_t)(ADDR),0) + MEM_OFFSET(ADDR))))  \
+   : /* page not yet allocated, return zero value */ (_read_succ = false, 0))
+
+#define MEM_WRITE(MEM, ADDR, TYPE, VAL)          \
+  core->oracle->spec_write_byte((ADDR),(VAL),uop)
+
+
+#ifdef ZESTO_PIN
+/* Pin does the actual write if instruction is not speculative, but we do a 
+   dummy address translate from the same page to update the MRU list and dirty flag in the page table */
+#define MEM_WRITE_BYTE_NON_SPEC(MEM, ADDR, VAL)          \
+  MEM_TICKLE(MEM, (md_addr_t)(ADDR));                   \
+  (MEM_PAGE(MEM, (md_addr_t)(ADDR),1) + MEM_OFFSET(ADDR))
+
+//  byte_t * _tr_addr = (MEM_PAGE(MEM, (md_addr_t)(ADDR),0) + MEM_OFFSET(ADDR)); 
+//  byte_t _val = *_tr_addr;  
+//  (MEM_PAGE(MEM, (md_addr_t)(ADDR),1))
+
+//  if(_val != (VAL)) fprintf(stderr, "Wrong mem value at addr %x, expected: %d, got: %d, tr_addr: %x\n",(ADDR), (VAL), _val, _tr_addr)
+//  assert(_val == (VAL)); 
+
+#define MEM_DO_WRITE_BYTE_NON_SPEC(MEM, ADDR, VAL)          \
+  (MEM_TICKLE(MEM, (md_addr_t)(ADDR)),          \
+   *((byte_t *)(MEM_PAGE(MEM, (md_addr_t)(ADDR),1) + MEM_OFFSET(ADDR))) = (VAL))
+
+#else
 #define MEM_WRITE_BYTE_NON_SPEC(MEM, ADDR, VAL)          \
   (MEM_TICKLE(MEM, (md_addr_t)(ADDR)),          \
    *((byte_t *)(MEM_PAGE(MEM, (md_addr_t)(ADDR),1) + MEM_OFFSET(ADDR))) = (VAL))
+#endif /*ZESTO_PIN*/
 
 #else /* regular non-speculative versions... */
 
@@ -275,7 +317,7 @@ typedef enum md_fault_type
 
 /* safe version, works only with scalar types */
 /* FIXME: write a more efficient GNU C expression for this... */
-#define MEM_WRITE(MEM, ADDR, TYPE, VAL)          \
+#define MEM_WRITE(MEM, ADDR, TYPE, VAL)         \
   (MEM_TICKLE(MEM, (md_addr_t)(ADDR)),          \
    *((TYPE *)(MEM_PAGE(MEM, (md_addr_t)(ADDR),1) + MEM_OFFSET(ADDR))) = (VAL))
 #endif

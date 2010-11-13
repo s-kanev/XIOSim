@@ -80,7 +80,12 @@ class core_fetch_t {
   public:
 
   md_addr_t PC;
+#ifdef ZESTO_PIN
+  md_addr_t feeder_NPC; // What the instruction feeder sends us as next pc
+  md_addr_t feeder_PC;  // Same for current pc
+#endif
   bool bogus; /* TRUE if oracle is on wrong path and encountered an invalid inst */
+  bool invalid; /* TRUE if oracle encounters an instruction it doesn't know (which is fine if we are running under an instruction feeder */
   class bpred_t * bpred;
 
   /* constructor, stats registration */
@@ -89,8 +94,21 @@ class core_fetch_t {
   virtual void reg_stats(struct stat_sdb_t * const sdb) = 0;
   virtual void update_occupancy(void) = 0;
 
+  //Handles events before the actual fetch (cache requests, jeclears, etc.)
+  virtual void pre_fetch(void) = 0;
+  //Fetch a Mop from the current PC, returns true if more Mops can be fetched this cycle
+  //possibly called multiple times a cycle
+  virtual bool do_fetch(void) = 0;
+  //Handles events after the actual fetch (predecode pipe, insert into decode, etc.)
+  virtual void post_fetch(void) = 0;
+
   /* simulate one cycle */
-  virtual void step(void) = 0;
+  virtual void step(void)
+  {
+     post_fetch();
+     while(do_fetch());
+     pre_fetch();
+  }
 
   /* interface to decode stage:
      Mop_available() returns true if front-end has a Mop ready
