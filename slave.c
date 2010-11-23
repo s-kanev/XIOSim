@@ -412,7 +412,7 @@ int Zesto_Notify_Munmap(unsigned int addr, unsigned int length, bool mod_brk)
   return 1;
 }
 
-void Zesto_UpdateBrk(unsigned int brk_end)
+void Zesto_UpdateBrk(unsigned int brk_end, bool do_mmap)
 {
   int i = 0;
   struct core_t * core = cores[i];
@@ -420,17 +420,19 @@ void Zesto_UpdateBrk(unsigned int brk_end)
   assert(num_threads == 1);
   zesto_assert(num_threads == 1, (void)0);
 
-  if(brk_end == 0)
-    return;
+  zesto_assert(brk_end != 0, (void)0);
 
-  unsigned int old_brk_end = cores[0]->current_thread->loader.brk_point;
+  if(do_mmap)
+  {
+    unsigned int old_brk_end = cores[0]->current_thread->loader.brk_point;
 
-  if(brk_end > old_brk_end)
-    Zesto_Notify_Mmap(ROUND_UP(old_brk_end, MD_PAGE_SIZE), 
-                      ROUND_UP(brk_end - old_brk_end, MD_PAGE_SIZE), false);
-  else if(brk_end < old_brk_end)
-    Zesto_Notify_Munmap(ROUND_UP(brk_end, MD_PAGE_SIZE),
-                        ROUND_UP(old_brk_end - brk_end, MD_PAGE_SIZE), false);
+    if(brk_end > old_brk_end)
+      Zesto_Notify_Mmap(ROUND_UP(old_brk_end, MD_PAGE_SIZE), 
+                        ROUND_UP(brk_end - old_brk_end, MD_PAGE_SIZE), false);
+    else if(brk_end < old_brk_end)
+      Zesto_Notify_Munmap(ROUND_UP(brk_end, MD_PAGE_SIZE),
+                          ROUND_UP(old_brk_end - brk_end, MD_PAGE_SIZE), false);
+  }
 
   core->current_thread->loader.brk_point = brk_end;
 }

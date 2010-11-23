@@ -11,7 +11,7 @@ PinTool         = /home/skanev/zesto_tmp/pintool/obj-ia32/feeder_zesto.so
 ExperimentDir   = /group/brooks/skanev/data_zpin
 Executable      = /usr/bin/env
 Prefix          = -i setarch i686 -3BL $(Pin) -pause_tool 1 -t $(PinTool) -maxins 100000000
-ZestoCFG        = /home/skanev/pin/zpin/config/M.cfg -config /home/skanev/pin/zpin/dram-config/DDR2-800-5-5-5.cfg
+ZestoCFG        = /home/skanev/pin/zpin/config/M.cfg
 
 SpecDir         = /group/brooks/skanev/cpu2006/benchspec/CPU2006
 SpecExt         = O3gcc4static241

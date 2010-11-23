@@ -6,7 +6,7 @@
 set PROGRAM_DIR = /home/skanev/ubench/fp
 #set PROGRAM_DIR = /group/brooks/skanev/cpu2006/benchspec/CPU2006/416.gamess/run/run_base_ref_O3gcc4static241.0000
 #set PROGRAM = ../../exe/gamess_base.O3gcc4static241
-set PROGRAM = ./accum
+#set PROGRAM = ./accum
 #set FFWD = 822800000000 
 set FFWD = 0
 

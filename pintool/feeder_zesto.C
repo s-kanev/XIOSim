@@ -74,7 +74,7 @@ VOID ImageUnload(IMG img, VOID *v)
     ADDRINT length = IMG_HighAddress(img) - start;
 
 #ifdef ZESTO_PIN_DBG
-    cout << "Image unload, addr: " << hex << start  
+    cerr << "Image unload, addr: " << hex << start  
          << " len: " << length << " end_addr: " << start + length << endl;
 #endif
 
@@ -88,7 +88,7 @@ VOID ImageLoad(IMG img, VOID *v)
     ADDRINT length = IMG_HighAddress(img) - start;
 
 #ifdef ZESTO_PIN_DBG
-    cout << "Image load, addr: " << hex << start  
+    cerr << "Image load, addr: " << hex << start  
          << " len: " << length << " end_addr: " << start + length << endl;
 #endif
 
@@ -179,11 +179,11 @@ VOID Fini(INT32 exitCode, VOID *v)
     Zesto_Destroy();
 
 #ifdef ZESTO_PIN_DBG
-    cout << "TotalIns = " << dec << SimOrgInsCount << endl;
+    cerr << "TotalIns = " << dec << SimOrgInsCount << endl;
 #endif
 
     if (exitCode != EXIT_SUCCESS)
-        cout << "ERROR! Exit code = " << dec << exitCode << endl;
+        cerr << "ERROR! Exit code = " << dec << exitCode << endl;
 }
 
 /* ========================================================================== */
@@ -193,7 +193,7 @@ VOID ExitOnMaxIns()
         return;
 
 #ifdef ZESTO_PIN_DBG
-    cout << "TotalIns = " << dec << SimOrgInsCount << endl;
+    cerr << "TotalIns = " << dec << SimOrgInsCount << endl;
 #endif
 
     Fini(EXIT_SUCCESS, 0);
@@ -434,28 +434,31 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, V
     if(syscall_num == __NR_brk)
     {
 #ifdef ZESTO_PIN_DBG
-      cout << "Syscall brk(" << syscall_num << ") addr: 0x" << hex << addr << dec << endl;
+        cerr << "Syscall brk(" << syscall_num << ") addr: 0x" << hex << addr << dec << endl;
 #endif
-      Zesto_UpdateBrk(addr);
+        last_syscall_arg = addr;
+
+        if(addr != 0)
+            Zesto_UpdateBrk(addr, true);
     } else
     if(syscall_num == __NR_munmap)
     {
-      ADDRINT size = PIN_GetSyscallArgument(ictxt, std, 1);
-      Zesto_Notify_Munmap(addr, size, false);
+        ADDRINT size = PIN_GetSyscallArgument(ictxt, std, 1);
+        Zesto_Notify_Munmap(addr, size, false);
 #ifdef ZESTO_PIN_DBG
-      cout << "Syscall munmap(" << syscall_num << ") addr: 0x" << hex << addr 
-           << " length: " << size << dec << endl;
+        cerr << "Syscall munmap(" << syscall_num << ") addr: 0x" << hex << addr 
+             << " length: " << size << dec << endl;
 #endif
     } else
     if(syscall_num == 90) //oldmmap
     {
-      mmap_arg_struct arg;
-      memcpy(&arg, (void*)addr, sizeof(mmap_arg_struct));
+        mmap_arg_struct arg;
+        memcpy(&arg, (void*)addr, sizeof(mmap_arg_struct));
 #ifdef ZESTO_PIN_DBG
-      cout << "Syscall oldmmap(" << syscall_num << ") addr: 0x" << hex << arg.addr 
-           << " length: " << arg.len << dec << endl;
+        cerr << "Syscall oldmmap(" << syscall_num << ") addr: 0x" << hex << arg.addr 
+             << " length: " << arg.len << dec << endl;
 #endif
-      last_syscall_arg = arg.len;
+        last_syscall_arg = arg.len;
     }
 }
 
@@ -471,9 +474,20 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
     {
         ASSERTX( Zesto_Notify_Mmap(retval, last_syscall_arg, false) );
 #ifdef ZESTO_PIN_DBG
-        cout << "Ret syscall oldmmap(" << last_syscall_number << ") addr: 0x" 
+        cerr << "Ret syscall oldmmap(" << last_syscall_number << ") addr: 0x" 
              << hex << retval << " length: " << last_syscall_arg << dec << endl;
 #endif
+    } else
+    if(last_syscall_number == __NR_brk)
+    {
+#ifdef ZESTO_PIN_DBG
+        cerr << "Ret syscall brk(" << last_syscall_number << ") addr: 0x" 
+             << hex << retval << dec << endl;
+#endif
+
+        /* Seemingly libc code calls sbrk(0) to get the initial value of the sbrk. We intercept that and send it to zesto, so that we can correclty deal with virtual memory. */
+        if(last_syscall_arg == 0)
+            Zesto_UpdateBrk(retval, false);
     }
 
 }
@@ -482,10 +496,10 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
 INT32 main(INT32 argc, CHAR **argv)
 {
 #ifdef ZESTO_PIN_DBG
-    cout << "Command line: ";
+    cerr << "Command line: ";
     for(int i=0; i<argc; i++)
-       cout << argv[i] << " ";
-    cout << endl;
+       cerr << argv[i] << " ";
+    cerr << endl;
 #endif
 
     SSARGS ssargs = MakeSimpleScalarArgcArgv(argc, argv);

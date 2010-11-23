@@ -10,7 +10,7 @@ void Zesto_Destroy();
 int Zesto_Notify_Mmap(unsigned int addr, unsigned int length, bool mod_brk);
 int Zesto_Notify_Munmap(unsigned int addr, unsigned int length, bool mod_brk);
 void Zesto_SetBOS(unsigned int stack_base);
-void Zesto_UpdateBrk(unsigned int brk_end);
+void Zesto_UpdateBrk(unsigned int brk_end, bool do_mmap);
 
 
 #endif /*__PIN_ZESTO_INTERFACE__*/
