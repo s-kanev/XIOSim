@@ -418,7 +418,9 @@ struct mmap_arg_struct {
 }; 
 
 ADDRINT last_syscall_number;
-ADDRINT last_syscall_arg;
+ADDRINT last_syscall_arg1;
+ADDRINT last_syscall_arg2;
+ADDRINT last_syscall_arg3;
 
 /* ========================================================================== */
 VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VOID *v)
@@ -427,38 +429,64 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, V
     ASSERTX(threadIndex == 0);
 
     ADDRINT syscall_num = PIN_GetSyscallNumber(ictxt, std);
-    ADDRINT addr = PIN_GetSyscallArgument(ictxt, std, 0);
+    ADDRINT arg1 = PIN_GetSyscallArgument(ictxt, std, 0);
+    ADDRINT arg2;
+    ADDRINT arg3;
+    mmap_arg_struct mmap_arg;
 
     last_syscall_number = syscall_num;
 
-    if(syscall_num == __NR_brk)
+    switch(syscall_num)
     {
+      case __NR_brk:
 #ifdef ZESTO_PIN_DBG
-        cerr << "Syscall brk(" << syscall_num << ") addr: 0x" << hex << addr << dec << endl;
+        cerr << "Syscall brk(" << dec << syscall_num << ") addr: 0x" << hex << arg1 << dec << endl;
 #endif
-        last_syscall_arg = addr;
+        last_syscall_arg1 = arg1;
+        break;
 
-        if(addr != 0)
-            Zesto_UpdateBrk(addr, true);
-    } else
-    if(syscall_num == __NR_munmap)
-    {
-        ADDRINT size = PIN_GetSyscallArgument(ictxt, std, 1);
-        Zesto_Notify_Munmap(addr, size, false);
+      case __NR_munmap:
+        arg2 = PIN_GetSyscallArgument(ictxt, std, 1);
 #ifdef ZESTO_PIN_DBG
-        cerr << "Syscall munmap(" << syscall_num << ") addr: 0x" << hex << addr 
-             << " length: " << size << dec << endl;
+        cerr << "Syscall munmap(" << dec << syscall_num << ") addr: 0x" << hex << arg1 
+             << " length: " << arg2 << dec << endl;
 #endif
-    } else
-    if(syscall_num == 90) //oldmmap
-    {
-        mmap_arg_struct arg;
-        memcpy(&arg, (void*)addr, sizeof(mmap_arg_struct));
+        last_syscall_arg1 = arg1;
+        last_syscall_arg2 = arg2;
+        break;
+
+      case __NR_mmap: //oldmmap
+        memcpy(&mmap_arg, (void*)arg1, sizeof(mmap_arg_struct));
 #ifdef ZESTO_PIN_DBG
-        cerr << "Syscall oldmmap(" << syscall_num << ") addr: 0x" << hex << arg.addr 
-             << " length: " << arg.len << dec << endl;
+        cerr << "Syscall oldmmap(" << dec << syscall_num << ") addr: 0x" << hex << mmap_arg.addr 
+             << " length: " << mmap_arg.len << dec << endl;
 #endif
-        last_syscall_arg = arg.len;
+        last_syscall_arg1 = mmap_arg.len;
+        break;
+
+      case __NR_mmap2:
+        arg2 = PIN_GetSyscallArgument(ictxt, std, 1);
+#ifdef ZESTO_PIN_DBG
+        cerr << "Syscall mmap2(" << dec << syscall_num << ") addr: 0x" << hex << arg1 
+             << " length: " << arg2 << dec << endl;
+#endif
+        last_syscall_arg1 = arg2;
+        break;
+
+      case __NR_mremap:
+        arg2 = PIN_GetSyscallArgument(ictxt, std, 1);
+        arg3 = PIN_GetSyscallArgument(ictxt, std, 2);
+#ifdef ZESTO_PIN_DBG
+        cerr << "Syscall mremap(" << dec << syscall_num << ") old_addr: 0x" << hex << arg1 
+             << " old_length: " << arg2 << " new_length: " << arg3 << dec << endl;
+#endif
+        last_syscall_arg1 = arg1;
+        last_syscall_arg2 = arg2;
+        last_syscall_arg3 = arg3;
+        break;
+
+      default:
+        break;
     }
 }
 
@@ -470,26 +498,62 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
 
     ADDRINT retval = PIN_GetSyscallReturn(ictxt, std);
 
-    if(last_syscall_number == 90) //oldmap
+    switch(last_syscall_number)
     {
-        ASSERTX( Zesto_Notify_Mmap(retval, last_syscall_arg, false) );
+      case __NR_brk:
 #ifdef ZESTO_PIN_DBG
-        cerr << "Ret syscall oldmmap(" << last_syscall_number << ") addr: 0x" 
-             << hex << retval << " length: " << last_syscall_arg << dec << endl;
-#endif
-    } else
-    if(last_syscall_number == __NR_brk)
-    {
-#ifdef ZESTO_PIN_DBG
-        cerr << "Ret syscall brk(" << last_syscall_number << ") addr: 0x" 
+        cerr << "Ret syscall brk(" << dec << last_syscall_number << ") addr: 0x" 
              << hex << retval << dec << endl;
 #endif
-
-        /* Seemingly libc code calls sbrk(0) to get the initial value of the sbrk. We intercept that and send it to zesto, so that we can correclty deal with virtual memory. */
-        if(last_syscall_arg == 0)
+        if(last_syscall_arg1 != 0)
+            Zesto_UpdateBrk(last_syscall_arg1, true);
+        /* Seemingly libc code calls sbrk(0) to get the initial value of the sbrk. We intercept that and send result to zesto, so that we can correclty deal with virtual memory. */
+        else
             Zesto_UpdateBrk(retval, false);
-    }
+        break;
 
+      case __NR_munmap:
+#ifdef ZESTO_PIN_DBG
+        cerr << "Ret syscall munmap(" << dec << last_syscall_number << ") addr: 0x" 
+             << hex << last_syscall_arg1 << " length: " << last_syscall_arg2 << dec << endl;
+#endif
+        Zesto_Notify_Munmap(last_syscall_arg1, last_syscall_arg2, false);
+        break;
+
+      case __NR_mmap: //oldmap
+#ifdef ZESTO_PIN_DBG
+        cerr << "Ret syscall oldmmap(" << dec << last_syscall_number << ") addr: 0x" 
+             << hex << retval << " length: " << last_syscall_arg1 << dec << endl;
+#endif
+
+        ASSERTX( Zesto_Notify_Mmap(retval, last_syscall_arg1, false) );
+        break;
+
+      case __NR_mmap2:
+#ifdef ZESTO_PIN_DBG
+        cerr << "Ret syscall mmap2(" << dec << last_syscall_number << ") addr: 0x" 
+             << hex << retval << " length: " << last_syscall_arg1 << dec << endl;
+#endif
+
+        ASSERTX( Zesto_Notify_Mmap(retval, last_syscall_arg1, false) );
+        break;
+
+      case __NR_mremap:
+#ifdef ZESTO_PIN_DBG
+        cerr << "Ret syscall mremap(" << dec << last_syscall_number << ") " << hex 
+             << " old_addr: 0x" << last_syscall_arg1
+             << " old_length: " << last_syscall_arg2
+             << " new address: 0x" << retval
+             << " new_length: " << last_syscall_arg3 << dec << endl;
+#endif
+
+        ASSERTX( Zesto_Notify_Munmap(last_syscall_arg1, last_syscall_arg2, false) );
+        ASSERTX( Zesto_Notify_Mmap(retval, last_syscall_arg3, false) );
+        break;
+
+      default:
+        break;
+    }
 }
 
 /* ========================================================================== */
