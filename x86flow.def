@@ -2862,6 +2862,11 @@
   UOP_R2(UV, MOVE, XR_ZERO, XR_ZERO, FUSION_NONE);		\
 }
 
+#define FWAIT_FLOW							\
+{									\
+  UOP_R2(UV, MOVE, XR_ZERO, XR_ZERO, FUSION_NONE);			\
+}
+
 #define FSTP_Ms_FLOW							\
 {									\
   UOP_RLI_OV(UP, XA(STA), XR_TMP0, XF_SEG, XF_BASE, XF_INDEX, XF_SCALE, XF_DISP, FUSION_NONE);\
@@ -2929,7 +2934,7 @@
   UOP_R3(UV, REM1, XR_ST0, XR_ST0, XR_ST1, FUSION_NONE);			\
 }
 
-#define FSTCW_Mw_FLOW							\
+#define FNSTCW_Mw_FLOW							\
 {									\
   UOP_RLI_OV(UP, XA(STA), XR_TMP0, XF_SEG, XF_BASE, XF_INDEX, XF_SCALE, XF_DISP, FUSION_NONE);\
   UOP_R1(UV, XAx(FSTC,W), XR_TMP0, FUSION_STA_STD);		\
@@ -3098,7 +3103,7 @@
   UOP_RL(UV, CMOVE, XR_ST0, XR_ST0, XF_STI, XE_FCCNU, FUSION_NONE);		\
 }
 
-#define FCLEX_FLOW							\
+#define FNCLEX_FLOW							\
 {									\
   UOP_R0(UV, FCLEX_UOP, FUSION_NONE);		\
 }
@@ -3211,7 +3216,7 @@
   UOP_R3(UV, DIVE, XF_STI, XF_STI, XR_ST0, FUSION_NONE);			\
 }
 
-#define FSTSW_Mw_FLOW							\
+#define FNSTSW_Mw_FLOW							\
 {									\
   UOP_R2(UV, FSTSW, XR_TMP1, XR_ZERO, FUSION_NONE);		\
   UOP_RLI_OV(UP, XA(STA), XR_TMP0, XF_SEG, XF_BASE, XF_INDEX, XF_SCALE, XF_DISP, FUSION_NONE);\
@@ -3374,7 +3379,7 @@
   FP_STACK_OP(fpstk_pop);		\
 }
 
-#define FSTSW_AX_FLOW							\
+#define FNSTSW_AX_FLOW							\
 {									\
   UOP_R2(UV, FSTSW, XR_AX, XR_ZERO, FUSION_NONE);		\
 }

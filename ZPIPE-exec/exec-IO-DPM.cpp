@@ -1082,7 +1082,7 @@ void core_exec_IO_DPM_t::DTLB_callback(void * const op)
   struct core_exec_IO_DPM_t * E = (core_exec_IO_DPM_t*)uop->core->exec;
   if(uop->alloc.LDQ_index != -1)
   {
-    zesto_assert(uop->exec.when_addr_translated == TICK_T_MAX,(void)0);
+    assert(uop->exec.when_addr_translated == TICK_T_MAX);
     uop->exec.when_addr_translated = sim_cycle;
 #ifdef ZTRACE
     ztrace_print(uop,"e|load|virtual address translated");

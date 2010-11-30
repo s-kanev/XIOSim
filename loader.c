@@ -172,6 +172,8 @@ ld_reg_stats(struct thread_t * thread, struct stat_sdb_t *sdb)	/* stats data bas
   stat_reg_int(sdb, TRUE, buf, "target executable endian-ness, non-zero if big endian", &thread->loader.target_big_endian, thread->loader.target_big_endian, NULL);
 }
 
+#ifndef ZESTO_PIN
+
 void elf_load_segment( FILE *fobj, struct mem_t *mem, md_addr_t addr, struct elf_phdr *phdr )
 {
   int length = ROUND_UP(phdr->p_filesz + ELF_PAGEOFFSET(phdr->p_vaddr),MD_PAGE_SIZE) ;
@@ -621,6 +623,4 @@ ld_reload_prog(struct thread_t * thread)
   regs->regs_NPC = regs->regs_PC;
 }
 
-
-
-
+#endif //ZESTO_PIN

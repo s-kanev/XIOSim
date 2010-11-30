@@ -840,9 +840,9 @@ void core_exec_STM_t::load_writeback(struct uop_t * const uop)
 void core_exec_STM_t::DL1_callback(void * const op)
 {
   struct uop_t * const uop = (struct uop_t*) op;
-#ifndef DEBUG
+//#ifndef DEBUG
   struct core_t * const core = uop->core; // for use with zesto-assert
-#endif
+//#endif
   class core_exec_STM_t * E = (core_exec_STM_t*)uop->core->exec;
   if(uop->alloc.LDQ_index != -1)
   {
@@ -863,9 +863,9 @@ void core_exec_STM_t::DL1_callback(void * const op)
 void core_exec_STM_t::DTLB_callback(void * const op)
 {
   struct uop_t * const uop = (struct uop_t*) op;
-#ifndef DEBUG
+//#ifndef DEBUG
   struct core_t * const core = uop->core; // for use with zesto-assert
-#endif
+//#endif
   struct core_exec_STM_t * const E = (core_exec_STM_t*)uop->core->exec;
   if(uop->alloc.LDQ_index != -1)
   {

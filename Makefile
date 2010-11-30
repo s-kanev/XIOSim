@@ -29,11 +29,10 @@ OFLAGS_SAFE = $(OFLAGS)
 # Fully-optimized, but with profiling for gprof:
 #OFLAGS = -O3 -g -pg -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -Wall -static -fexpensive-optimizations -mtune=core2 -march=core2 -msse4a -mfpmath=sse -funroll-loops
 # Fully-optimized:
-#OFLAGS = -O3 -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -Wall -static -fexpensive-optimizations -mtune=core2 -march=core2 -msse4a -mfpmath=sse -funroll-loops
+#OFLAGS = -O3 -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -Wall -static -fexpensive-optimizations -mtune=core2 -march=core2 -msse4a -mfpmath=sse -funroll-loops -Wuninitialized
 
 #Needed only by syscall.c because > O0 breaks it
 #OFLAGS_SAFE = -O0 -g -pg -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -Wall -static -mfpmath=sse -msse4a
-
 
 
 ##################################################################
@@ -76,17 +75,18 @@ FFLAGS = -DLINUX_RHEL4
 #
 CFLAGS = $(MFLAGS) $(FFLAGS) $(OFLAGS) $(BINUTILS_INC) $(BINUTILS_LIB) $(ZTRACE)
 CFLAGS_SAFE = $(MFLAGS) $(FFLAGS) $(OFLAGS_SAFE) $(BINUTILS_INC) $(BINUTILS_LIB) $(ZTRACE)
+SLAVE_CFLAGS = -DZESTO_PIN $(CFLAGS)
 
 #
 # all the sources
 #
 SRCS =  \
 bbtracker.c          eio.c                endian.c              eval.c             \
-loader.c 		         machine.c            main.c                memory.c           \
+loader.c	     machine.c            main.c                memory.c           \
 misc.c               options.c            range.c               regs.c             \
 sim-eio.c            sim-fast.c           stats.c               symbol.c           \
-syscall.c 					 sysprobe.c           sim-cache.c                              \
-loader.c             symbol.c             syscall.c
+syscall.c	     sysprobe.c           sim-cache.c           slave.c	           \
+loader.c             symbol.c             syscall.c             sim-main.c
 
 HDRS = \
 bbtracker.h          cache.h                                    thread.h           \
@@ -95,14 +95,16 @@ host.h               loader.h             machine.h             memory.h        
 mem-system.h         misc.h               options.h             ptrace.h           \
 range.h              regs.h               resource.h            sim.h              \
 stats.h              symbol.h             syscall.h             version.h          \
-machine.def          elf.h                x86flow.def
+machine.def          elf.h                x86flow.def           interface.h
 
 OBJS_NOMAIN =	\
-eio.$(OEXT)          endian.$(OEXT)       eval.$(OEXT)          loader.$(OEXT)     \
+endian.$(OEXT)       eval.$(OEXT)         \
 machine.$(OEXT)      memory.$(OEXT)       misc.$(OEXT)          options.$(OEXT)    \
-range.$(OEXT)        regs.$(OEXT)         stats.$(OEXT)         symbol.$(OEXT)
+range.$(OEXT)        regs.$(OEXT)         stats.$(OEXT)         symbol.$(OEXT)     \
+sim-main.$(OEXT)
 
-OBJS = main.$(OEXT) $(OBJS_NOMAIN) syscall.$(OEXT)
+OBJS = main.$(OEXT) eio.$(OEXT) loader.$(OEXT) $(OBJS_NOMAIN) syscall.$(OEXT) 
+OBJS_SLAVE = slave.$(OEXT) loader.$(OEXT) $(OBJS_NOMAIN)
 
 # Zesto specific files
 ZSRCS = \
@@ -175,6 +177,14 @@ sim-zesto3$(EEXT):	sysprobe$(EEXT) sim-zesto.$(OEXT) $(OBJS) $(ZOBJS) $(EXOOBJS)
 	$(CC) -o sim-zesto3$(EEXT) $(CFLAGS) sim-zesto.$(OEXT) $(OBJS) $(ZOBJS) $(EXOOBJS) $(MLIBS)
 sim-zesto4$(EEXT):	sysprobe$(EEXT) sim-zesto.$(OEXT) $(OBJS) $(ZOBJS) $(EXOOBJS)
 	$(CC) -o sim-zesto4$(EEXT) $(CFLAGS) sim-zesto.$(OEXT) $(OBJS) $(ZOBJS) $(EXOOBJS) $(MLIBS)
+lib:	CFLAGS += -DZESTO_PIN	
+lib:	sysprobe$(EEXT) sim-slave.$(OEXT) $(OBJS_SLAVE) $(ZOBJS) $(EXOOBJS)
+	ar rs libsim.a sim-slave.$(OEXT) $(OBJS_SLAVE) $(ZOBJS) $(EXOOBJS)
+	ranlib libsim.a
+libd:	CFLAGS += -DZESTO_PIN -DZESTO_PIN_DBG
+libd:	sysprobe$(EEXT) sim-slave.$(OEXT) $(OBJS_SLAVE) $(ZOBJS) $(EXOOBJS)
+	ar rs libsim.a sim-slave.$(OEXT) $(OBJS_SLAVE) $(ZOBJS) $(EXOOBJS)
+	ranlib libsim.a
 
 exo $(EXOOBJS): sysprobe$(EEXT)
 	cd libexo $(CS) \
@@ -233,8 +243,12 @@ filelist:
 	@echo $(SRCS) $(HDRS) Makefile
 
 clean:
-	-$(RM) *.o *.obj core *~ Makefile.bak sysprobe$(EEXT) $(PROGS)
+	-$(RM) *.o *.obj core *~ Makefile.bak libsim* sysprobe$(EEXT) $(PROGS)
 	cd libexo $(CS) $(MAKE) "RM=$(RM)" "CS=$(CS)" clean $(CS) cd ..
+
+.PHONY: tags
+tags: 
+	ctags -R --extra=+q .
 
 test: sim-zesto
 	@ echo "### Testing simple single-core program ... " | chomp
@@ -270,6 +284,22 @@ machine.o: options.h eval.h memory.h stats.h sim.h thread.h
 machine.o: x86flow.def
 main.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h options.h
 main.o: endian.h thread.h memory.h stats.h eval.h version.h loader.h sim.h
+main.o: interface.h
+slave.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h options.h
+slave.o: endian.h thread.h memory.h stats.h eval.h version.h loader.h sim.h
+slave.o: interface.h
+sim-main.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h
+sim-main.o: options.h memory.h stats.h eval.h loader.h thread.h syscall.h
+sim-main.o: sim.h zesto-opts.h zesto-core.h zesto-oracle.h zesto-fetch.h
+sim-main.o: zesto-decode.h zesto-bpred.h zesto-alloc.h zesto-exec.h
+sim-main.o: zesto-commit.h zesto-dram.h zesto-cache.h zesto-uncore.h
+sim-main.o: zesto-MC.h interface.h
+sim-slave.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h
+sim-slave.o: options.h memory.h stats.h eval.h loader.h thread.h syscall.h
+sim-slave.o: sim.h zesto-opts.h zesto-core.h zesto-oracle.h zesto-fetch.h
+sim-slave.o: zesto-decode.h zesto-bpred.h zesto-alloc.h zesto-exec.h
+sim-slave.o: zesto-commit.h zesto-dram.h zesto-cache.h zesto-uncore.h
+sim-slave.o: zesto-MC.h interface.h
 memory.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h
 memory.o: options.h stats.h eval.h memory.h
 misc.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h options.h
@@ -312,6 +342,12 @@ sim-zesto.o: sim.h zesto-opts.h zesto-core.h zesto-oracle.h zesto-fetch.h
 sim-zesto.o: zesto-decode.h zesto-bpred.h zesto-alloc.h zesto-exec.h
 sim-zesto.o: zesto-commit.h zesto-dram.h zesto-cache.h zesto-uncore.h
 sim-zesto.o: zesto-MC.h
+libsim.a: host.h misc.h machine.h machine.def zesto-structs.h regs.h
+libsim.a: options.h memory.h stats.h eval.h loader.h thread.h syscall.h
+libsim.a: sim.h zesto-opts.h zesto-core.h zesto-oracle.h zesto-fetch.h
+libsim.a: zesto-decode.h zesto-bpred.h zesto-alloc.h zesto-exec.h
+libsim.a: zesto-commit.h zesto-dram.h zesto-cache.h zesto-uncore.h
+libsim.a: zesto-MC.h interface.h
 zesto-core.o: zesto-core.h zesto-structs.h machine.h host.h misc.h
 zesto-core.o: machine.def regs.h options.h
 zesto-opts.o: thread.h machine.h host.h misc.h machine.def zesto-structs.h
