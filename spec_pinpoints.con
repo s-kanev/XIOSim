@@ -10,9 +10,9 @@ PinTool         = /home/skanev/zesto/pintool/obj-ia32/feeder_zesto.so
 
 ExperimentDir   = /group/brooks/skanev/data_atom
 Executable      = /usr/bin/env
-Prefix          = -i setarch i686 -3BL $(Pin) -pause_tool 1 -t $(PinTool) -maxins 100000000
+Prefix          = -i setarch i686 -3BL $(Pin) -pause_tool 1 -t $(PinTool)
 MemCFG          = /home/skanev/zesto/dram-config/DDR2-800-5-5-5.cfg 
-ZestoCFG        = /home/skanev/zesto/config/A.cfg -config $(MemCFG)
+ZestoCFG        = /home/skanev/pin/zpin/config/A.cfg -config $(MemCFG)
 
 SpecDir         = /group/brooks/skanev/cpu2006/benchspec/CPU2006
 SpecExt         = O3gcc4static241
@@ -33,7 +33,8 @@ Output          = tonto.out
 Error           = tonto.err
 ExePath         = $(InitialDir)/../../exe/tonto_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ffwd 2720100000000 -s -config $(ZestoCFG) -redir:sim $(OutputPrefix).zesto -- $(ExePath)
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG) -redir:sim $(OutputPrefix).zesto -- $(ExePath)
 Queue
 
 App             = 400.perlbench
@@ -44,7 +45,8 @@ Output          = checkspam.2500.5.25.11.150.1.1.1.1.out
 Error           = checkspam.2500.5.25.11.150.1.1.1.1.err
 ExePath         = $(InitialDir)/../../exe/perlbench_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ffwd 1007300000000 -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) -I./lib checkspam.pl 2500 5 25 11 150 1 1 1 1
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) -I./lib checkspam.pl 2500 5 25 11 150 1 1 1 1
 Queue
 
 App             = 400.perlbench
@@ -55,7 +57,8 @@ Output          = diffmail.4.800.10.17.19.300.out
 Error           = diffmail.4.800.10.17.19.300.err
 ExePath         = $(InitialDir)/../../exe/perlbench_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ffwd 97600000000 -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto  -- $(ExePath) -I./lib diffmail.pl 4 800 10 17 19 300
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto  -- $(ExePath) -I./lib diffmail.pl 4 800 10 17 19 300
 Queue
 
 App             = 400.perlbench
@@ -66,7 +69,8 @@ Output          = splitmail.1600.12.26.16.4500.out
 Error           = splitmail.1600.12.26.16.4500.err
 ExePath         = $(InitialDir)/../../exe/perlbench_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 287100000000 -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) -I./lib splitmail.pl 1600 12 26 16 4500
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) -I./lib splitmail.pl 1600 12 26 16 4500
 Queue
 
 App             = 401.bzip2
@@ -77,7 +81,8 @@ Output          = input.source.out
 Error           = input.source.err
 ExePath         = $(InitialDir)/../../exe/bzip2_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ffwd 195400000000 -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) input.source 280
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) input.source 280
 Queue
 
 App             = 401.bzip2
@@ -88,7 +93,8 @@ Output          = chicken.jpg.out
 Error           = chicken.jpg.err
 ExePath         = $(InitialDir)/../../exe/bzip2_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 188800000000 -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) chicken.jpg 30
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) chicken.jpg 30
 Queue
 
 App             = 401.bzip2
@@ -99,7 +105,8 @@ Output          = liberty.jpg.out
 Error           = liberty.jpg.err
 ExePath         = $(InitialDir)/../../exe/bzip2_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 97900000000 -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) liberty.jpg 30
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) liberty.jpg 30
 Queue
 
 App             = 401.bzip2
@@ -110,7 +117,8 @@ Output          = input.program.out
 Error           = input.program.err
 ExePath         = $(InitialDir)/../../exe/bzip2_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 164200000000 -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) input.program 280
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) input.program 280
 Queue
 
 App             = 401.bzip2
@@ -121,7 +129,8 @@ Output          = text.html.out
 Error           = text.html.err
 ExePath         = $(InitialDir)/../../exe/bzip2_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 118400000000 -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) text.html 280
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) text.html 280
 Queue
 
 App             = 401.bzip2
@@ -132,7 +141,8 @@ Output          = input.combined.out
 Error           = input.combined.err
 ExePath         = $(InitialDir)/../../exe/bzip2_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 334700000000 -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) input.combined 200
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) input.combined 200
 Queue
 
 App             = 403.gcc
@@ -143,7 +153,8 @@ Output          = 166.out
 Error           = 166.err
 ExePath         = $(InitialDir)/../../exe/gcc_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 42100000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) 166.i -o 166.s
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) 166.i -o 166.s
 Queue
 
 App             = 403.gcc
@@ -154,7 +165,8 @@ Output          = 200.out
 Error           = 200.err
 ExePath         = $(InitialDir)/../../exe/gcc_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 112700000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) 200.i -o 200.s
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) 200.i -o 200.s
 Queue
 
 App             = 403.gcc
@@ -165,7 +177,8 @@ Output          = c-typeck.out
 Error           = c-typeck.err
 ExePath         = $(InitialDir)/../../exe/gcc_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 128600000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) c-typeck.i -o c-typeck.s
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) c-typeck.i -o c-typeck.s
 Queue
 
 App             = 403.gcc
@@ -176,7 +189,8 @@ Output          = cp-decl.out
 Error           = cp-decl.err
 ExePath         = $(InitialDir)/../../exe/gcc_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 49300000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) cp-decl.i -o cp-decl.s
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) cp-decl.i -o cp-decl.s
 Queue
 
 App             = 403.gcc
@@ -187,7 +201,8 @@ Output          = expr.out
 Error           = expr.err
 ExePath         = $(InitialDir)/../../exe/gcc_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 113800000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) expr.i -o expr.s
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) expr.i -o expr.s
 Queue
 
 App             = 403.gcc
@@ -198,7 +213,8 @@ Output          = expr2.out
 Error           = expr2.err
 ExePath         = $(InitialDir)/../../exe/gcc_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 500000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) expr2.i -o expr2.s
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) expr2.i -o expr2.s
 Queue
 
 App             = 403.gcc
@@ -209,7 +225,8 @@ Output          = g23.out
 Error           = g23.err
 ExePath         = $(InitialDir)/../../exe/gcc_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 87100000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) g23.i -o g23.s
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) g23.i -o g23.s
 Queue
 
 App             = 403.gcc
@@ -220,7 +237,8 @@ Output          = s04.out
 Error           = s04.err
 ExePath         = $(InitialDir)/../../exe/gcc_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 37500000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) s04.i -o s04.s
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) s04.i -o s04.s
 Queue
 
 App             = 403.gcc
@@ -231,7 +249,8 @@ Output          = scilab.out
 Error           = scilab.err
 ExePath         = $(InitialDir)/../../exe/gcc_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 58900000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) scilab.i -o scilab.s
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) scilab.i -o scilab.s
 Queue
 
 App             = 429.mcf
@@ -242,7 +261,8 @@ Output          = inp.out
 Error           = inp.err
 ExePath         = $(InitialDir)/../../exe/mcf_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 141200000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) inp.in
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) inp.in
 Queue
 
 App             = 445.gobmk
@@ -253,7 +273,8 @@ Output          = 13x13.out
 Error           = 13x13.err
 ExePath         = $(InitialDir)/../../exe/gobmk_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 143500000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) --quiet --mode gtp
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) --quiet --mode gtp
 Queue
 
 App             = 445.gobmk
@@ -264,7 +285,8 @@ Output          = nngs.out
 Error           = nngs.err
 ExePath         = $(InitialDir)/../../exe/gobmk_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 330900000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) --quiet --mode gtp
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) --quiet --mode gtp
 Queue
 
 App             = 445.gobmk
@@ -275,7 +297,8 @@ Output          = score2.out
 Error           = score2.err
 ExePath         = $(InitialDir)/../../exe/gobmk_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 142500000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) --quiet --mode gtp
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) --quiet --mode gtp
 Queue
 
 App             = 445.gobmk
@@ -286,7 +309,8 @@ Output          = trevorc.out
 Error           = trevorc.err
 ExePath         = $(InitialDir)/../../exe/gobmk_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 47600000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) --quiet --mode gtp
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) --quiet --mode gtp
 Queue
 
 App             = 445.gobmk
@@ -297,7 +321,8 @@ Output          = trevord.out
 Error           = trevord.err
 ExePath         = $(InitialDir)/../../exe/gobmk_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 132300000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) --quiet --mode gtp
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) --quiet --mode gtp
 Queue
 
 App             = 456.hmmer
@@ -308,7 +333,8 @@ Output          = nph3.out
 Error           = nph3.err
 ExePath         = $(InitialDir)/../../exe/hmmer_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 958400000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) nph3.hmm swiss41
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) nph3.hmm swiss41
 Queue
 
 App             = 456.hmmer
@@ -319,7 +345,8 @@ Output          = retro.out
 Error           = retro.err
 ExePath         = $(InitialDir)/../../exe/hmmer_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 200300000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) --fixed 0 --mean 500 --num 500000 --sd 350 --seed 0 retro.hmm
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) --fixed 0 --mean 500 --num 500000 --sd 350 --seed 0 retro.hmm
 Queue
 
 App             = 458.sjeng
@@ -330,7 +357,8 @@ Output          = ref.out
 Error           = ref.err
 ExePath         = $(InitialDir)/../../exe/sjeng_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 397500000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) ref.txt
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) ref.txt
 Queue
 
 App             = 462.libquantum
@@ -341,7 +369,8 @@ Output          = ref.out
 Error           = ref.err
 ExePath         = $(InitialDir)/../../exe/libquantum_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 1992000000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) 1397 8
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) 1397 8
 Queue
 
 App             = 464.h264ref
@@ -352,7 +381,8 @@ Output          = foreman_ref_baseline_encodelog.out
 Error           = foreman_ref_baseline_encodelog.err
 ExePath         = $(InitialDir)/../../exe/h264ref_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 266800000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) -d foreman_ref_encoder_baseline.cfg
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) -d foreman_ref_encoder_baseline.cfg
 Queue
 
 App             = 464.h264ref
@@ -363,7 +393,8 @@ Output          = foreman_ref_main_encodelog.out
 Error           = foreman_ref_main_encodelog.err
 ExePath         = $(InitialDir)/../../exe/h264ref_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 223300000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) -d foreman_ref_encoder_main.cfg
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) -d foreman_ref_encoder_main.cfg
 Queue
 
 App             = 464.h264ref
@@ -374,7 +405,8 @@ Output          = sss_main_encodelog.out
 Error           = sss_main_encodelog.err
 ExePath         = $(InitialDir)/../../exe/h264ref_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 989500000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) -d sss_encoder_main.cfg
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) -d sss_encoder_main.cfg
 Queue
 
 App             = 471.omnetpp
@@ -385,7 +417,8 @@ Output          = omnetpp.log
 Error           = omnetpp.err
 ExePath         = $(InitialDir)/../../exe/omnetpp_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 353400000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) omnetpp.ini
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) omnetpp.ini
 Queue
 
 App             = 473.astar
@@ -396,7 +429,8 @@ Output          = BigLakes2048.out
 Error           = BigLakes2048.err
 ExePath         = $(InitialDir)/../../exe/astar_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 138900000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) BigLakes2048.cfg
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) BigLakes2048.cfg
 Queue
 
 App             = 473.astar
@@ -407,7 +441,8 @@ Output          = rivers.out
 Error           = rivers.err
 ExePath         = $(InitialDir)/../../exe/astar_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 226200000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) rivers.cfg
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) rivers.cfg
 Queue
 
 App             = 483.xalancbmk
@@ -418,7 +453,8 @@ Output          = ref.out
 Error           = ref.err
 ExePath         = $(InitialDir)/../../exe/Xalan_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 164800000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) -v t5.xml xalanc.xsl
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) -v t5.xml xalanc.xsl
 Queue
 
 App             = 410.bwaves
@@ -429,7 +465,8 @@ Output          =
 Error           = bwaves.err
 ExePath         = $(InitialDir)/../../exe/bwaves_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 2016600000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) 
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) 
 Queue
 
 App             = 416.gamess
@@ -440,7 +477,8 @@ Output          = cytosine.2.out
 Error           = cytosine.2.err
 ExePath         = $(InitialDir)/../../exe/gamess_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 822800000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) 
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) 
 Queue
 
 App             = 416.gamess
@@ -451,7 +489,8 @@ Output          = h2ocu2+.gradient.out
 Error           = h2ocu2+.gradient.err
 ExePath         = $(InitialDir)/../../exe/gamess_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 605800000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) 
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) 
 Queue
 
 App             = 416.gamess
@@ -462,7 +501,8 @@ Output          = triazolium.out
 Error           = triazolium.err
 ExePath         = $(InitialDir)/../../exe/gamess_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 2991300000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) 
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) 
 Queue
 
 App             = 433.milc
@@ -473,7 +513,8 @@ Output          = su3imp.out
 Error           = su3imp.err
 ExePath         = $(InitialDir)/../../exe/milc_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 157400000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) 
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) 
 Queue
 
 App             = 434.zeusmp
@@ -484,7 +525,8 @@ Output          = zeusmp.stdout
 Error           = zeusmp.err
 ExePath         = $(InitialDir)/../../exe/zeusmp_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 2376100000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) 
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) 
 Queue
 
 App             = 435.gromacs
@@ -495,7 +537,8 @@ Output          =
 Error           = gromacs.errQ
 ExePath         = $(InitialDir)/../../exe/gromacs_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 1508200000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) -silent -deffnm gromacs -nice 0
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) -silent -deffnm gromacs -nice 0
 Queue
 
 App             = 436.cactusADM
@@ -506,7 +549,8 @@ Output          = benchADM.out
 Error           = benchADM.err
 ExePath         = $(InitialDir)/../../exe/cactusADM_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 527600000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) benchADM.par
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) benchADM.par
 Queue
 
 App             = 437.leslie3d
@@ -517,7 +561,8 @@ Output          = leslie3d.stdout
 Error           = leslie3d.err
 ExePath         = $(InitialDir)/../../exe/leslie3d_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 787600000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) 
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) 
 Queue
 
 App             = 444.namd
@@ -528,7 +573,7 @@ Output          = namd.stdout
 Error           = namd.err
 ExePath         = $(InitialDir)/../../exe/namd_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 249600000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) --input namd.input --iterations 38 --output namd.out
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) --input namd.input --iterations 38 --output namd.out
 Queue
 
 App             = 447.dealII
@@ -539,7 +584,8 @@ Output          = log
 Error           = dealII.err
 ExePath         = $(InitialDir)/../../exe/dealII_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 421600000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) 23
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) 23
 Queue
 
 App             = 450.soplex
@@ -550,7 +596,8 @@ Output          = pds-50.mps.out
 Error           = pds-50.mps.stderr
 ExePath         = $(InitialDir)/../../exe/soplex_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 123300000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) -s1 -e -m45000 pds-50.mps
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) -s1 -e -m45000 pds-50.mps
 Queue
 
 App             = 450.soplex
@@ -561,7 +608,8 @@ Output          = ref.out
 Error           = ref.stderr
 ExePath         = $(InitialDir)/../../exe/soplex_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 91400000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) -m3500 ref.mps
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) -m3500 ref.mps
 Queue
 
 App             = 453.povray
@@ -572,7 +620,8 @@ Output          = SPEC-benchmark-ref.stdout
 Error           = SPEC-benchmark-ref.stderr
 ExePath         = $(InitialDir)/../../exe/povray_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 326000000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) SPEC-benchmark-ref.ini
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) SPEC-benchmark-ref.ini
 Queue
 
 App             = 454.calculix
@@ -583,7 +632,8 @@ Output          = hyperviscoplastic.log
 Error           = hyperviscoplastic.err
 ExePath         = $(InitialDir)/../../exe/calculix_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 4832900000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) -i hyperviscoplastic
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) -i hyperviscoplastic
 Queue
 
 App             = 459.GemsFDTD
@@ -594,7 +644,8 @@ Output          = ref.log
 Error           = ref.err
 ExePath         = $(InitialDir)/../../exe/GemsFDTD_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 1109200000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) 
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) 
 Queue
 
 App             = 470.lbm
@@ -605,7 +656,8 @@ Output          = lbm.out
 Error           = lbm.err
 ExePath         = $(InitialDir)/../../exe/lbm_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 1587600000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) 3000 reference.dat 0 0 100_100_130_ldc.of
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) 3000 reference.dat 0 0 100_100_130_ldc.of
 Queue
 
 App             = 481.wrf
@@ -616,7 +668,8 @@ Output          = rsl.out.0000
 Error           = wrf.err
 ExePath         = $(InitialDir)/../../exe/wrf_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 1640700000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) 
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) 
 Queue
 
 App             = 482.sphinx3
@@ -627,5 +680,6 @@ Output          = an4.log
 Error           = an4.err
 ExePath         = $(InitialDir)/../../exe/sphinx_livepretend_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
-Arguments       = $(Prefix) -oprefix $(OutputPrefix)  -ffwd 2749900000000  -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) ctlfile . args.an4
+PPFile          = $(App).$(InputName).pintool.1.pp
+Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) ctlfile . args.an4
 Queue

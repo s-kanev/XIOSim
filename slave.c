@@ -386,7 +386,7 @@ int Zesto_Notify_Mmap(unsigned int addr, unsigned int length, bool mod_brk)
 
    md_addr_t retval = mem_newmap2(mem, page_addr, page_addr, page_length, 1);
 
-   myfprintf(stderr, "New memory mapping at addr: %x, length: %x ,endaddr: %x \n",addr, length, addr+length);
+//   myfprintf(stderr, "New memory mapping at addr: %x, length: %x ,endaddr: %x \n",addr, length, addr+length);
    ZPIN_TRACE("New memory mapping at addr: %x, length: %x ,endaddr: %x \n",addr, length, addr+length)
 
    bool success = (retval == addr);
@@ -406,7 +406,7 @@ int Zesto_Notify_Munmap(unsigned int addr, unsigned int length, bool mod_brk)
 
   mem_delmap(mem, ROUND_UP((md_addr_t)addr, MD_PAGE_SIZE), length);
 
-  myfprintf(stderr, "Memory un-mapping at addr: %x, len: %x\n",addr, length);
+//  myfprintf(stderr, "Memory un-mapping at addr: %x, len: %x\n",addr, length);
   ZPIN_TRACE("Memory un-mapping at addr: %x, len: %x\n",addr, length)
 
   return 1;

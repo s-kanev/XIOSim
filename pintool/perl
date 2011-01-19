@@ -1,4 +1,4 @@
 cd /group/brooks/skanev/cpu2006/benchspec/CPU2006/400.perlbench/run/run_base_ref_O3gcc4static241.0000 
-/home/skanev/pin/pin-2.7-31933-gcc.3.4.6-ia32_intel64-linux/ia32/bin/pinbin -t /home/skanev/pin/zpin/pintool/obj-ia32/feeder_zesto.so -maxins 100000000 -ffwd 97600000000 -s -config /home/skanev/pin/zpin/config/M.cfg -redir:sim /group/brooks/skanev/data_zpin/ref/400.perlbench.diffmail.zesto -- /group/brooks/skanev/cpu2006/benchspec/CPU2006/400.perlbench/run/run_base_ref_O3gcc4static241.0000/../../exe/perlbench_base.O3gcc4static241 -I./lib diffmail.pl 4 800 10 17 19 300
+/home/skanev/pin/pin-2.8-36111-gcc.3.4.6-ia32_intel64-linux/ia32/bin/pinbin -t /home/skanev/zesto_tmp/pintool/obj-ia32/feeder_zesto.so -ppfile 400.perlbench.diffmail.pintool.1.pp -s -config /home/skanev/zesto_tmp/config/M.cfg -redir:sim /group/brooks/skanev/data_zpin/ref/400.perlbench.diffmail.zesto -- /group/brooks/skanev/cpu2006/benchspec/CPU2006/400.perlbench/run/run_base_ref_O3gcc4static241.0000/../../exe/perlbench_base.O3gcc4static241 -I./lib diffmail.pl 4 800 10 17 19 300
 
 #-oprefix /group/brooks/skanev/data_zpin/ref/400.perlbench.diffmail

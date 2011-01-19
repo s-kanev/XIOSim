@@ -20,6 +20,7 @@
 #include "../interface.h" 
 
 using namespace std;
+using namespace INSTLIB;
 
 /* ========================================================================== */
 /* ========================================================================== */
@@ -37,6 +38,14 @@ KNOB<string> KnobInsTraceFile(KNOB_MODE_WRITEONCE,   "pintool",
 ofstream trace_file;
 
 /* ========================================================================== */
+/* Pinpoint related */
+// Track the number of instructions executed
+ICOUNT icount;
+
+// Contains knobs and instrumentation to recognize start/stop points
+CONTROL control;
+
+/* ========================================================================== */
 /* Execution mode allows easy querying of exactly what the pin tool is doing at
  * a given time, and also helps ensuring that certain parts of the code are run
  * in only certain modes. */
@@ -50,7 +59,6 @@ enum EXECUTION_MODE
 EXECUTION_MODE ExecMode = EXECUTION_MODE_INVALID;
 
 typedef pair <UINT32, CHAR **> SSARGS;
-
 
 /* ========================================================================== */
 INSTLIB::ALARM_ICOUNT FFwdingAlarm; // Fires upon reaching point of interest
@@ -81,6 +89,54 @@ VOID ImageUnload(IMG img, VOID *v)
     ASSERTX( Zesto_Notify_Munmap(start, length, true));
 }
 
+/* ========================================================================== */
+VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREADID tid)
+{
+    cerr << "tid: " << dec << tid << " ip: 0x" << hex << ip; 
+    // get line info on current instruction
+    INT32 linenum = 0;
+    string filename;
+
+    PIN_LockClient();
+
+    PIN_GetSourceLocation((ADDRINT)ip, NULL, &linenum, &filename);
+    
+    PIN_UnlockClient();
+    
+    if(filename != "") 
+    {
+        cerr << " ( "  << filename << ":" << dec << linenum << " )"; 
+    }
+    cerr <<  dec << " Inst. Count " << icount.Count(tid) << " ";
+
+    switch(ev)
+    {
+      case CONTROL_START:
+        cerr << "Start" << endl;
+        if(control.PinPointsActive())
+        {
+            CODECACHE_FlushCache();
+            ExecMode = EXECUTION_MODE_SIMULATE;
+            cerr << "PinPoint: " << control.CurrentPp(tid) << " PhaseNo: " << control.CurrentPhase(tid) << endl;
+        }
+        break;
+
+      case CONTROL_STOP:
+        cerr << "Stop" << endl;
+        if(control.PinPointsActive())
+        {
+            CODECACHE_FlushCache();
+            ExecMode = EXECUTION_MODE_FASTFORWARD;
+            cerr << "PinPoint: " << control.CurrentPp(tid) << endl;
+        }
+        break;
+
+      default:
+        ASSERTX(false);
+        break;
+    }
+}
+    
 /* ========================================================================== */
 VOID ImageLoad(IMG img, VOID *v)
 {
@@ -178,12 +234,11 @@ VOID Fini(INT32 exitCode, VOID *v)
 {
     Zesto_Destroy();
 
-#ifdef ZESTO_PIN_DBG
     cerr << "TotalIns = " << dec << SimOrgInsCount << endl;
-#endif
 
     if (exitCode != EXIT_SUCCESS)
         cerr << "ERROR! Exit code = " << dec << exitCode << endl;
+    cerr << "Total ins: " << icount.Count(0) << endl;
 }
 
 /* ========================================================================== */
@@ -256,7 +311,7 @@ ADDRINT returnArg(BOOL arg)
 /* ========================================================================== */
 VOID Instrument(INS ins, VOID *v)
 {
-    if (ExecMode == EXECUTION_MODE_FASTFORWARD)
+    if (ExecMode != EXECUTION_MODE_SIMULATE)
         return;
 
     if (! INS_IsBranchOrCall(ins))
@@ -294,7 +349,7 @@ VOID Instrument(INS ins, VOID *v)
 }
 
 /* ========================================================================== */
-VOID Handler(VOID * val, CONTEXT * ctxt, VOID * ip, THREADID tid)
+VOID FFwdHandler(VOID * val, CONTEXT * ctxt, VOID * ip, THREADID tid)
 {
     INSTLIB::ALARM_ICOUNT * al = static_cast<INSTLIB::ALARM_ICOUNT *> (val);
 
@@ -304,13 +359,12 @@ VOID Handler(VOID * val, CONTEXT * ctxt, VOID * ip, THREADID tid)
 
     ExecMode = EXECUTION_MODE_SIMULATE;
 }
- 
 /* ========================================================================== */
 VOID InstallFastForwarding()
 {
     FFwdingAlarm.Activate();
 
-    FFwdingAlarm.SetAlarm(KnobFFwd.Value(), Handler, &FFwdingAlarm);
+    FFwdingAlarm.SetAlarm(KnobFFwd.Value(), FFwdHandler, &FFwdingAlarm);
 
     ExecMode = EXECUTION_MODE_FASTFORWARD;
 }
@@ -571,7 +625,12 @@ INT32 main(INT32 argc, CHAR **argv)
     PIN_Init(argc, argv);
     PIN_InitSymbols();
 
-    InstallFastForwarding();
+
+    // Try activate pinpoints alarm, must be done before PIN_StartProgram
+    if(control.CheckKnobs(PPointHandler, 0) != 1)
+        InstallFastForwarding(); //If not, try activate simple ffwd
+
+    icount.Activate();
 
     if(!KnobInsTraceFile.Value().empty())
         trace_file.open(KnobInsTraceFile.Value().c_str());

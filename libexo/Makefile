@@ -80,7 +80,7 @@ libexo.$(LEXT):	$(OBJS)
 	$(RANLIB) libexo.$(LEXT)
 
 .c.$(OEXT):
-	g++4 $(CFLAGS) -c $*.c
+	g++ $(CFLAGS) -c $*.c
 
 # TODO: move the code inserted in exolex.c back into exolex.l
 # just use the permanent version of exolex.c
