@@ -17,7 +17,7 @@
 ## Redhat Enterprise 5/Linux 2.6.18/64-bit
 ## Redhat Enterprise 4/Linux 2.6.9/32-bit
 ##
-CC = g++4
+CC = g++
 
 ##################################################################
 # Uncomment only one of the following OFLAGS, or make your own
@@ -135,7 +135,7 @@ default: sim-zesto
 all: $(PROGS)
 
 syscall.$(OEXT): syscall.c syscall.h thread.h
-	gcc4 $(CFLAGS) -c $*.c
+	gcc $(CFLAGS) -c $*.c
 
 make.target:
 	touch make.target
