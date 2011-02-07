@@ -1643,9 +1643,7 @@ void core_exec_IO_DPM_t::ALU_exec(void)
 
 void core_exec_IO_DPM_t::recover(const struct Mop_t * const Mop)
 {
-  /* most flushing/squashing is accomplished through assignments of new action_id's */
-  //SK - not anymore, since there is no single structure (ROB, scoreboeard, etc.) that holds all alloced instructions
-  // for now, flush everything except the instruction we want to keep (it should be the oldest one since this gets called /almost/ only from the end of exec)
+  //since there is no single structure (ROB, scoreboeard, etc.) that holds all alloced instructions, we need to walk all pipes and later flush, based on program order
 
   struct core_knobs_t * knobs = core->knobs;
 
@@ -1678,15 +1676,11 @@ void core_exec_IO_DPM_t::recover(const struct Mop_t * const Mop)
           /* this doesn't make any sense in hardware. However, when we clear dependency pointers in the simulator, we should start with the youngest instruction so that we clear everything nicely */
           for(it=flushed_uops.begin(); it!=flushed_uops.end(); it++)
           {
-            if((*it)->decode.uop_seq < uop->decode.uop_seq)
+            if((*it)->decode.uop_seq > uop->decode.uop_seq)
               break;
           }
 
           flushed_uops.insert(it, uop);
-
-          
-          /* this can be done regardless of program order */
-          uop->exec.action_id = core->new_action_id();
 
           FU->pipe[stage].uop=NULL;
           FU->occupancy--;
@@ -1718,13 +1712,11 @@ void core_exec_IO_DPM_t::recover(const struct Mop_t * const Mop)
          /* this doesn't make any sense in hardware. However, when we clear dependency pointers in the simulator, we should start with the youngest instruction so that we clear everything nicely */
          for(it=flushed_uops.begin(); it!=flushed_uops.end(); it++)
          {
-           if((*it)->decode.uop_seq < uop->decode.uop_seq)
+           if((*it)->decode.uop_seq > uop->decode.uop_seq)
              break;
          }
 
          flushed_uops.insert(it, uop);
-
-         uop->exec.action_id = core->new_action_id();
 
          port[i].payload_pipe[stage].uop = NULL;
          port[i].occupancy--;
@@ -1775,15 +1767,11 @@ void core_exec_IO_DPM_t::recover(void)
           /* this doesn't make any sense in hardware. However, when we clear dependency pointers in the simulator, we should start with the youngest instruction so that we clear everything nicely */
           for(it=flushed_uops.begin(); it!=flushed_uops.end(); it++)
           {
-            if((*it)->decode.uop_seq < uop->decode.uop_seq)
+            if((*it)->decode.uop_seq > uop->decode.uop_seq)
               break;
           }
 
           flushed_uops.insert(it, uop);
-
-          
-          /* this can be done regardless of program order */
-          uop->exec.action_id = core->new_action_id();
 
           FU->pipe[stage].uop=NULL;
           FU->occupancy--;
@@ -1809,16 +1797,14 @@ void core_exec_IO_DPM_t::recover(void)
            continue;
 
          /* add uop to the flush list observing program order */
-         /* this doesn't make any sense in hardware. However, when we clear dependency pointers in the simulator, we should start with the youngest instruction so that we clear everything nicely */
+         /* this doesn't make any sense in hardware. However, when we clear dependency pointers in the simulator, we should start with the oldest instruction so that we clear everything nicely */
          for(it=flushed_uops.begin(); it!=flushed_uops.end(); it++)
          {
-           if((*it)->decode.uop_seq < uop->decode.uop_seq)
+           if((*it)->decode.uop_seq > uop->decode.uop_seq)
              break;
          }
 
          flushed_uops.insert(it, uop);
-
-         uop->exec.action_id = core->new_action_id();
 
          port[i].payload_pipe[stage].uop = NULL;
          port[i].occupancy--;
@@ -1836,6 +1822,7 @@ void core_exec_IO_DPM_t::recover(void)
      core->commit->squash_uop(*it);  
   }
 
+  recover_check_assertions();
 }
 
 
@@ -2117,15 +2104,8 @@ void core_exec_IO_DPM_t::STQ_squash_sta(struct uop_t * const dead_uop)
 {
   struct core_knobs_t * knobs = core->knobs;
   zesto_assert((dead_uop->alloc.STQ_index >= 0) && (dead_uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
-  zesto_assert(STQ[dead_uop->alloc.STQ_index].std == NULL,(void)0);
   zesto_assert(STQ[dead_uop->alloc.STQ_index].sta == dead_uop,(void)0);
-  //memset(&STQ[dead_uop->alloc.STQ_index],0,sizeof(STQ[0]));
-  memzero(&STQ[dead_uop->alloc.STQ_index],sizeof(STQ[0]));
-  STQ_num --;
-  STQ_senior_num --;
-  STQ_tail = moddec(STQ_tail,knobs->exec.STQ_size); //(STQ_tail - 1 + knobs->exec.STQ_size) % knobs->exec.STQ_size;
-  zesto_assert(STQ_num >= 0,(void)0);
-  zesto_assert(STQ_senior_num >= 0,(void)0);
+  STQ[dead_uop->alloc.STQ_index].sta = NULL;
   dead_uop->alloc.STQ_index = -1;
 }
 
@@ -2133,8 +2113,15 @@ void core_exec_IO_DPM_t::STQ_squash_std(struct uop_t * const dead_uop)
 {
   struct core_knobs_t * knobs = core->knobs;
   zesto_assert((dead_uop->alloc.STQ_index >= 0) && (dead_uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
+  zesto_assert(STQ[dead_uop->alloc.STQ_index].sta == NULL,(void)0);
   zesto_assert(STQ[dead_uop->alloc.STQ_index].std == dead_uop,(void)0);
-  STQ[dead_uop->alloc.STQ_index].std = NULL;
+  //memset(&STQ[dead_uop->alloc.STQ_index],0,sizeof(STQ[0]));
+  memzero(&STQ[dead_uop->alloc.STQ_index],sizeof(STQ[0]));
+  STQ_num --;
+  STQ_senior_num --;
+  STQ_tail = moddec(STQ_tail,knobs->exec.STQ_size); //(STQ_tail - 1 + knobs->exec.STQ_size) % knobs->exec.STQ_size;
+  zesto_assert(STQ_num >= 0,(void)0);
+  zesto_assert(STQ_senior_num >= 0,(void)0);
   dead_uop->alloc.STQ_index = -1;
 }
 
@@ -3060,6 +3047,9 @@ bool core_exec_IO_DPM_t::can_issue_IO(struct uop_t * const uop)
 /* when_completed should be already assigned (and reliable since only loads can have variable latencies, but they are already processed) */
 
              tick_t when_curr_ready;
+             int curr_port = curr_uop->alloc.port_assignment;
+             enum md_fu_class curr_FU_class = curr_uop->decode.FU_class;
+
              if(curr_uop->decode.is_load) 
                 when_curr_ready = curr_uop->timing.when_completed;
              else if(curr_uop->decode.is_sta || curr_uop->decode.is_std
@@ -3079,8 +3069,12 @@ bool core_exec_IO_DPM_t::can_issue_IO(struct uop_t * const uop)
                  {
                     int curr_fp_penalty = ((REG_IS_FPR(curr_uop->decode.odep_name) && !(curr_uop->decode.opflags & F_FCOMP)) ||
                                           (!REG_IS_FPR(curr_uop->decode.odep_name) && (curr_uop->decode.opflags & F_FCOMP)))?knobs->exec.fp_penalty:0;
-                    when_curr_ready = sim_cycle + port[curr_uop->alloc.port_assignment].FU[curr_uop->decode.FU_class]->latency + curr_fp_penalty;
+                    when_curr_ready = sim_cycle + port[curr_port].FU[curr_FU_class]->latency + curr_fp_penalty;
                  }
+
+                 //If curr_uop is all set, but the FU it is supposed to go to is full or busy, it won't get issued this cycle and we should play safe
+                 if((port[curr_port].FU[curr_FU_class]->pipe[0].uop != NULL) || port[curr_port].FU[curr_FU_class]->when_executable)
+                    when_curr_ready = TICK_T_MAX;
              }
 
              if(when_otag_ready < when_curr_ready)

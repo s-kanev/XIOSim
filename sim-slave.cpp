@@ -423,9 +423,6 @@ void sim_main_slave_pre_pin()
 {
   int i;
 
-  //for(i=0;i<num_threads;i++)
-    //cores[i]->fetch->PC = cores[i]->current_thread->regs.regs_PC;
-
   ZPIN_TRACE("###Cycle%s\n"," ")
 
   if(sim_cycle == 0)

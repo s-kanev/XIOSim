@@ -662,6 +662,8 @@ mem_newmap2(struct mem_t *mem,            /* memory space to access */
 
   ZPIN_TRACE("Mem_newmap2: %x -> %x, length: %x, end_addr: %x\n", addr, our_addr, length, addr+length)
 
+  myfprintf(stderr, "Mem_newmap2: %x -> %x, length: %x, end_addr: %x\n", addr, our_addr, length, addr+length);
+
   /* first check alignment */
   if((addr & (MD_PAGE_SIZE-1))!=0) {
     fprintf(stderr, "mem_newmap address %x, not page aligned\n", addr);

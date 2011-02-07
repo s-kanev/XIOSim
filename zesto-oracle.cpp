@@ -1314,7 +1314,11 @@ core_oracle_t::exec(const md_addr_t requested_PC)
         return NULL;
       }
       else
-        fatal("fault (%d) detected @ 0x%08p", uop->oracle.fault, thread->regs.regs_PC);
+#ifdef ZESTO_PIN
+        info("fault (%d) detected @ 0x%08p", uop->oracle.fault, thread->regs.regs_PC);
+#else
+        fault("fault (%d) detected @ 0x%08p", uop->oracle.fault, thread->regs.regs_PC);
+#endif
     }
 
     /* Update stats */
@@ -1651,11 +1655,8 @@ void core_oracle_t::pipe_recover(struct Mop_t * const Mop, const md_addr_t New_P
     if(Mop->fetch.bpred_update)
       core->fetch->bpred->recover(Mop->fetch.bpred_update,(New_PC != (Mop->fetch.PC + Mop->fetch.inst.len)));
     /*core->oracle->*/recover(Mop);
-
-    //XXX: A bit stupid - recovery should be done from youngest (most speculative op), swap commit and exec;
-    core->exec->recover(Mop);
     core->commit->recover(Mop);
-
+    core->exec->recover(Mop);
     core->alloc->recover(Mop);
     core->decode->recover(Mop);
     core->fetch->recover(New_PC);

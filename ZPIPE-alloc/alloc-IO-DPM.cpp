@@ -203,7 +203,7 @@ void core_alloc_IO_DPM_t::step(void)
 
       if(knobs->alloc.drain_flush && drain_in_progress)
       {
-        if(!core->commit->ROB_empty() || !core->exec->exec_empty())
+        if(!core->commit->pipe_empty() || !core->exec->exec_empty())
         {
           stall_reason = ASTALL_DRAIN;
           break;

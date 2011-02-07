@@ -33,6 +33,7 @@ class core_commit_IO_DPM_t:public core_commit_t
 
   virtual bool ROB_available(void);
   virtual bool ROB_empty(void);
+  virtual bool pipe_empty(void);
   virtual void ROB_insert(struct uop_t * const uop);
   virtual void ROB_fuse_insert(struct uop_t * const uop);
 
@@ -435,7 +436,8 @@ void core_commit_IO_DPM_t::step(void)
     }
 
     if(Mop->oracle.spec_mode)
-      zesto_fatal("oldest instruction in processor is on wrong-path",(void)0);
+//      zesto_fatal("oldest instruction in processor is on wrong-path",(void)0);
+      zesto_assert(false, (void)0);
 
     /* Are all uops in the Mop completed? */
     if(Mop->commit.complete_index != -1) /* still some outstanding insts */
@@ -726,19 +728,16 @@ void core_commit_IO_DPM_t::step(void)
   ZESTO_STAT(stat_add_sample(core->stat.commit_stall, (int)stall_reason);)
 }
 
-/* squashes a uop, reardless in which stage it is; deallocates from LDQ and STQ; other structures and stats should be updated by the caller; retutns fused length; */
+/* squashes a uop, reardless in which stage it is; deallocates from LDQ and STQ; other structures and stats should be updated by the caller; retutns fused length;
+   Because of clearing dependency pointers, should be called in program order, from oldest to youngest */
 int core_commit_IO_DPM_t::squash_uop(struct uop_t * const uop)
 {
 
   struct uop_t * dead_uop = uop;
 
   if(dead_uop->decode.in_fusion)
-  {
-    //zesto_assert(dead_uop->decode.is_fusion_head,(void)0);
-    while(dead_uop->decode.fusion_next)
-      dead_uop = dead_uop->decode.fusion_next;
-    zesto_assert(dead_uop != dead_uop->decode.fusion_head, 0);
-  }
+    dead_uop = dead_uop->decode.fusion_head;
+//    zesto_assert(dead_uop->decode.is_fusion_head,0);
 
   int fusion_size = 1;
   while(dead_uop)
@@ -751,76 +750,84 @@ int core_commit_IO_DPM_t::squash_uop(struct uop_t * const uop)
        to do with our non-atomic implementation of allocation for fused-uops */
     if(dead_uop->decode.is_load)
     {
-//      if(dead_uop->timing.when_allocated != TICK_T_MAX)
       if(dead_uop->alloc.LDQ_index != -1)
         core->exec->LDQ_squash(dead_uop);
     }
-    else if(dead_uop->decode.is_std) /* dealloc when we get to the STA */
+    else if(dead_uop->decode.is_std) /* dealloc when we get to the STD */
     {
-//      if(dead_uop->timing.when_allocated != TICK_T_MAX)
       if(dead_uop->alloc.STQ_index != -1)
         core->exec->STQ_squash_std(dead_uop);
     }
     else if(dead_uop->decode.is_sta)
     {
-//      if(dead_uop->timing.when_allocated != TICK_T_MAX)
       if(dead_uop->alloc.STQ_index != -1)
         core->exec->STQ_squash_sta(dead_uop);
     }
 
-    /* clean up idep/odep pointers.  Since we're working our
-       way back from the most speculative instruction, we only
-       need to clean-up our parent's forward-pointers (odeps)
-       and our own back-pointers (our fwd-ptrs would have
-       already cleaned-up our own children). */
-    for(int i=0;i<MAX_IDEPS;i++)
+    /* clean up odep  pointers. We need to clean-up
+       our children's back-pointers (ideps)
+       and our own forward-pointers */ 
+    struct odep_t * odep = dead_uop->exec.odep_uop;
+    struct odep_t * odep_next;
+
+    while(odep)
     {
-      struct uop_t * parent = dead_uop->exec.idep_uop[i];
-      if(parent) /* I have an active parent */
-      {
-        struct odep_t * prev, * current;
-        prev = NULL;
-        current = parent->exec.odep_uop;
-        while(current)
-        {
-          if((current->uop == dead_uop) && (current->op_num == i))
-            break;
-          prev = current;
-          current = current->next;
-        }
+      odep->uop->exec.idep_uop[odep->op_num] = NULL;
 
-        zesto_assert(current, 0);
+      odep_next = odep->next;
 
-        /* remove self from parent's odep list */
-        if(prev)
-          prev->next = current->next;
-        else
-          parent->exec.odep_uop = current->next;
+      /* return the odep struct */
+      core->return_odep_link(odep);
 
-        /* eliminate my own idep */
-        dead_uop->exec.idep_uop[i] = NULL;
-
-        /* return the odep struct */
-        core->return_odep_link(current);
-      }
+      odep = odep_next;
     }
 
-    zesto_assert(dead_uop->exec.odep_uop == NULL, 0);
+    dead_uop->exec.odep_uop = NULL;
 
-    if((!dead_uop->decode.in_fusion) || dead_uop->decode.is_fusion_head)
+
+    /* dead_uop may have back-pointers (ideps) to non-squashed uops;
+       we should remove these */
+    struct uop_t * idep;
+    for(int i=0;i<MAX_IDEPS;i++)
+    {
+      idep = dead_uop->exec.idep_uop[i];
+
+      if(idep == NULL)
+        continue;
+
+      odep = idep->exec.odep_uop;
+ 
+      struct odep_t * prev_odep = NULL;
+      while(odep)
+      {
+        if(odep->uop == dead_uop)
+          break;
+
+        prev_odep = odep;
+        odep = odep->next;
+      }
+
+      if(prev_odep != NULL)
+        prev_odep->next = odep->next;
+      else
+        idep->exec.odep_uop = odep->next;
+
+      /* return the odep struct */
+      core->return_odep_link(odep);
+
+      dead_uop->exec.idep_uop[i] = NULL;
+    }
+
+    for(int i=0;i<MAX_IDEPS;i++)
+      zesto_assert(dead_uop->exec.idep_uop[i] == NULL, 0);
+
+
+    if(!dead_uop->decode.in_fusion)
       dead_uop = NULL;
     else
     {
-      /* this is ugly... need to traverse fused uop linked-list
-         in reverse; most fused uops are short, so we're just
-         going to re-traverse... if longer fused uops are
-         supported, it may make sense to implement a
-         doubly-linked list instead. */
-      struct uop_t * p = dead_uop->decode.fusion_head;
-      while(p->decode.fusion_next != dead_uop)
-        p = p->decode.fusion_next;
+      dead_uop = dead_uop->decode.fusion_next;
 
-      dead_uop = p;
       if(dead_uop)
         fusion_size++;
     }
@@ -829,21 +836,43 @@ int core_commit_IO_DPM_t::squash_uop(struct uop_t * const uop)
 }
 
 
-/* Walk ROB from youngest uop until we find the requested Mop.
-   (NOTE: We stop at any uop belonging to the Mop.  We assume
+/* Walk ROB from oldest uop until we find the requested Mop and start squashing.
+   (NOTE: We start after all uops belonging to the Mop.  We assume
    that recovery only occurs on Mop boundaries.)
-   Release resources (PREGs, RS/ROB/LSQ entries, etc. as we go).
-   If Mop == NULL, we're blowing away the entire pipeline. */
+   Release resources (PREGs, RS/ROB/LSQ entries, etc. as we go). */
 void
 core_commit_IO_DPM_t::recover(const struct Mop_t * const Mop)
 {
   assert(Mop != NULL);
   struct core_knobs_t * knobs = core->knobs;
 
-
-  /* see if pre-commit pipeline needs flushing*/
   struct uop_t * curr_uop = NULL;
-  int last_squashed_pre = -1;
+  int squashed_uops = 0;
+
+  /* flush uops in the ROB */
+  for(int i=ROB_head; i!=ROB_tail; i=modinc(i, knobs->commit.ROB_size))
+  {
+    curr_uop = ROB[i];
+
+    /* if uop older than squashed one, leave it to commit */
+    if(curr_uop->decode.Mop_seq <= Mop->oracle.seq)
+      continue;
+
+    zesto_assert(ROB_num > 0,(void)0);
+
+    int eff_uop_num = this->squash_uop(curr_uop);
+
+    ROB[i] = NULL;
+    ROB_num --;
+    ROB_eff_num-= eff_uop_num;
+    zesto_assert(ROB_num >= 0,(void)0);
+    zesto_assert(ROB_eff_num >= 0,(void)0);
+    squashed_uops++;
+  }
+
+  ROB_tail = (ROB_tail - squashed_uops) % knobs->commit.ROB_size;
+
+  /* flush uops in the pre_commit pipe */
   for(int i=knobs->commit.pre_commit_depth-1; i>-1; i--)
   {
     curr_uop = pre_commit_pipe[i];
@@ -855,138 +884,55 @@ core_commit_IO_DPM_t::recover(const struct Mop_t * const Mop)
     if(curr_uop->decode.Mop_seq <= Mop->oracle.seq)
       continue;
 
-    /* if younger than last uop of the given Mop */
-    if(curr_uop->Mop == Mop && !curr_uop->decode.EOM && !curr_uop->decode.in_fusion)
-      continue;
-
-    last_squashed_pre = i;
-    break;
+    this->squash_uop(curr_uop);
+    pre_commit_pipe[i] = NULL;
+    squashed_uops++;
   }
 
-  curr_uop = NULL;
-  int last_squashed = -1;
-  for(int i=ROB_head; i!=ROB_tail; i=modinc(i, knobs->commit.ROB_size))
-  {
-    curr_uop = ROB[i];
-
-    /* if uop older than squashed one, leave it to commit */
-    if(curr_uop->decode.Mop_seq < Mop->oracle.seq)
-      continue;
-
-    /* if younger than last uop of the given Mop */
-    if(curr_uop->Mop == Mop && !curr_uop->decode.EOM)
-      continue;
-
-    last_squashed = i;
-    break;
-  }
-
-  /* to actually squash, we have to walk backwards (from newest uop) */
-  if(last_squashed != -1 && last_squashed != moddec(ROB_tail,knobs->commit.ROB_size))
-  {
-    //flush whole pre_commit
-    last_squashed_pre = knobs->commit.pre_commit_depth;
- 
-    int index = moddec(ROB_tail,knobs->commit.ROB_size); //(ROB_tail-1+knobs->commit.ROB_size) % knobs->commit.ROB_size;
-
-    if(knobs->alloc.drain_flush)
-      core->alloc->start_drain();
-
-    while(ROB[index] && (ROB[index]->Mop != Mop))
-    {
-      struct uop_t * dead_uop = ROB[index];
-
-      zesto_assert(ROB_num > 0,(void)0);
-
-      int eff_uop_num = this->squash_uop(dead_uop);
-
-      ROB[index] = NULL;
-      ROB_tail = moddec(ROB_tail,knobs->commit.ROB_size); //(ROB_tail-1+knobs->commit.ROB_size) % knobs->commit.ROB_size;
-      ROB_num --;
-      ROB_eff_num-= eff_uop_num;
-      zesto_assert(ROB_num >= 0,(void)0);
-      zesto_assert(ROB_eff_num >= 0,(void)0);
-
-      index = moddec(index,knobs->commit.ROB_size); //(index-1+knobs->commit.ROB_size) % knobs->commit.ROB_size
-
-      if(index == last_squashed)
-        break;
-    }
-  }
-
-  /* do the same for pre_commit_pipe if there are speculative uops there */
-  if(last_squashed_pre != -1)
-  {
-    for(int index = 0; index <= last_squashed_pre; index++)
-    {
-       struct uop_t * dead_uop = pre_commit_pipe[index];
-
-       if(dead_uop == NULL)
-         continue;
-
-       this->squash_uop(dead_uop);
-       pre_commit_pipe[index] = NULL;
-    }
-
-   //XXX: quick and dirty - above fails if last_squashed_pre == 0 
-/*   if(last_squashed_pre == 0)
-   {
-     if(pre_commit_pipe[0]) 
-       this->squash_uop(pre_commit_pipe[0]);
-     pre_commit_pipe[0] = NULL;
-   }*/
-  }
-
+//  if(knobs->alloc.drain_flush && ROB_num > 0)
+//    core->alloc->start_drain();
 }
 
 void
 core_commit_IO_DPM_t::recover(void)
 {
   struct core_knobs_t * knobs = core->knobs;
-  if(ROB_num > 0)
+
+  struct uop_t * curr_uop = NULL;
+
+  /* flush uops in the ROB */
+  for(int i=ROB_head; i!=ROB_tail; i=modinc(i, knobs->commit.ROB_size))
   {
-    /* requested uop should always be in the ROB - not in IO pipe */
-    int index = moddec(ROB_tail,knobs->commit.ROB_size); //(ROB_tail-1+knobs->commit.ROB_size) % knobs->commit.ROB_size;
+    curr_uop = ROB[i];
 
-    while(ROB[index])
-    {
-      struct uop_t * dead_uop = ROB[index];
+    zesto_assert(ROB_num > 0,(void)0);
 
-      zesto_assert(ROB_num > 0,(void)0);
+    int eff_uop_num = this->squash_uop(curr_uop);
 
-      int eff_uop_num = this->squash_uop(dead_uop);
-
-      ROB[index] = NULL;
-      ROB_tail = moddec(ROB_tail,knobs->commit.ROB_size); //(ROB_tail-1+knobs->commit.ROB_size) % knobs->commit.ROB_size;
-      ROB_num --;
-      ROB_eff_num-= eff_uop_num;
-      zesto_assert(ROB_num >= 0,(void)0);
-      zesto_assert(ROB_eff_num >= 0,(void)0);
-
-      index = moddec(index,knobs->commit.ROB_size); //(index-1+knobs->commit.ROB_size) % knobs->commit.ROB_size;
-    }
+    ROB[i] = NULL;
+    ROB_num --;
+    ROB_eff_num-= eff_uop_num;
+    zesto_assert(ROB_num >= 0,(void)0);
+    zesto_assert(ROB_eff_num >= 0,(void)0);
   }
+
+  zesto_assert(ROB_num == 0,(void)0);
+  zesto_assert(ROB_eff_num == 0,(void)0);
+  ROB_tail = ROB_head;
 
   core->exec->STQ_squash_senior();
 
-
-  /* squash pre-commit pipe */
-  int index = knobs->commit.pre_commit_depth-1;
-  for(; index > -1; index--)
+  /* flush uops in the pre_commit pipe */
+  for(int i=knobs->commit.pre_commit_depth-1; i>-1; i--)
   {
-     struct uop_t * dead_uop = pre_commit_pipe[index];
+    curr_uop = pre_commit_pipe[i];
 
-     if(dead_uop == NULL)
-        continue;
+    if(curr_uop == NULL)
+      continue;    
 
-     this->squash_uop(dead_uop);
-     pre_commit_pipe[index] = NULL;
+    this->squash_uop(curr_uop);
+    pre_commit_pipe[i] = NULL;
   }
- 
-
-  core->exec->recover_check_assertions();
-  zesto_assert(ROB_num == 0,(void)0);
-  zesto_assert(ROB_eff_num == 0,(void)0);
 }
 
 bool core_commit_IO_DPM_t::ROB_available(void)
@@ -998,6 +944,18 @@ bool core_commit_IO_DPM_t::ROB_available(void)
 bool core_commit_IO_DPM_t::ROB_empty(void)
 {
   return 0 == ROB_num;
+}
+
+bool core_commit_IO_DPM_t::pipe_empty(void)
+{
+  if(ROB_num > 0)
+    return false;
+
+  for(int stage=core->knobs->commit.pre_commit_depth-1; stage>-1; stage--)
+    if(pre_commit_pipe[stage] != NULL)
+      return false;
+
+  return true;
 }
 
 void core_commit_IO_DPM_t::ROB_insert(struct uop_t * const uop)

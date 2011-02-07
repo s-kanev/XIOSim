@@ -12,7 +12,7 @@ ExperimentDir   = /group/brooks/skanev/data_atom
 Executable      = /usr/bin/env
 Prefix          = -i setarch i686 -3BL $(Pin) -pause_tool 1 -t $(PinTool)
 MemCFG          = /home/skanev/zesto/dram-config/DDR2-800-5-5-5.cfg 
-ZestoCFG        = /home/skanev/pin/zpin/config/A.cfg -config $(MemCFG)
+ZestoCFG        = /home/skanev/zesto/config/A.cfg -config $(MemCFG)
 
 SpecDir         = /group/brooks/skanev/cpu2006/benchspec/CPU2006
 SpecExt         = O3gcc4static241

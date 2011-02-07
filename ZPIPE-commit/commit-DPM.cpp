@@ -31,6 +31,7 @@ class core_commit_DPM_t:public core_commit_t
 
   virtual bool ROB_available(void);
   virtual bool ROB_empty(void);
+  virtual bool pipe_empty(void);
   virtual void ROB_insert(struct uop_t * const uop);
   virtual void ROB_fuse_insert(struct uop_t * const uop);
 
@@ -952,6 +953,11 @@ bool core_commit_DPM_t::ROB_available(void)
 }
 
 bool core_commit_DPM_t::ROB_empty(void)
+{
+  return 0 == ROB_num;
+}
+
+bool core_commit_DPM_t::pipe_empty(void)
 {
   return 0 == ROB_num;
 }

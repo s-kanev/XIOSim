@@ -607,11 +607,8 @@ void core_fetch_DPM_t::pre_fetch(void)
       if(Mop->fetch.bpred_update)
         bpred->recover(Mop->fetch.bpred_update,(New_PC != (Mop->fetch.PC + Mop->fetch.inst.len)));
       core->oracle->recover(Mop);
-      
-      //XXX: A bit stupid - need the flush everything from the most speculative - reverse order
-      core->exec->recover(Mop);
       core->commit->recover(Mop);
-      
+      core->exec->recover(Mop);
       core->alloc->recover(Mop);
       core->decode->recover(Mop);
       /*core->fetch->*/recover(New_PC);

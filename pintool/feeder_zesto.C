@@ -31,11 +31,14 @@ using namespace INSTLIB;
 KNOB<UINT64> KnobFFwd(KNOB_MODE_WRITEONCE,    "pintool",
         "ffwd", "0", "Number of instructions to fast forward");
 KNOB<UINT64> KnobMaxSimIns(KNOB_MODE_WRITEONCE,    "pintool",
-        "maxins", "100000000", "Max. # of instructions to simulate (0 == till end of program");
+        "maxins", "0", "Max. # of instructions to simulate (0 == till end of program");
 KNOB<string> KnobInsTraceFile(KNOB_MODE_WRITEONCE,   "pintool",
         "trace", "", "File where instruction trace is written");
 
 ofstream trace_file;
+
+BOOL isFirstInsn = true;
+BOOL isLastInsn = false;
 
 /* ========================================================================== */
 /* Pinpoint related */
@@ -94,7 +97,7 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
 {
     cerr << "tid: " << dec << tid << " ip: 0x" << hex << ip; 
     // get line info on current instruction
-    INT32 linenum = 0;
+/*    INT32 linenum = 0;
     string filename;
 
     PIN_LockClient();
@@ -106,27 +109,31 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
     if(filename != "") 
     {
         cerr << " ( "  << filename << ":" << dec << linenum << " )"; 
-    }
+    }*/
     cerr <<  dec << " Inst. Count " << icount.Count(tid) << " ";
 
     switch(ev)
     {
       case CONTROL_START:
         cerr << "Start" << endl;
+        ExecMode = EXECUTION_MODE_SIMULATE;
+
         if(control.PinPointsActive())
         {
             CODECACHE_FlushCache();
-            ExecMode = EXECUTION_MODE_SIMULATE;
+            isFirstInsn = true;
             cerr << "PinPoint: " << control.CurrentPp(tid) << " PhaseNo: " << control.CurrentPhase(tid) << endl;
         }
         break;
 
       case CONTROL_STOP:
         cerr << "Stop" << endl;
+        ExecMode = EXECUTION_MODE_FASTFORWARD;
+
         if(control.PinPointsActive())
         {
             CODECACHE_FlushCache();
-            ExecMode = EXECUTION_MODE_FASTFORWARD;
+            isLastInsn = true;
             cerr << "PinPoint: " << control.CurrentPp(tid) << endl;
         }
         break;
@@ -234,7 +241,7 @@ VOID Fini(INT32 exitCode, VOID *v)
 {
     Zesto_Destroy();
 
-    cerr << "TotalIns = " << dec << SimOrgInsCount << endl;
+    cerr << "Total simulated ins = " << dec << SimOrgInsCount << endl;
 
     if (exitCode != EXIT_SUCCESS)
         cerr << "ERROR! Exit code = " << dec << exitCode << endl;
@@ -244,6 +251,9 @@ VOID Fini(INT32 exitCode, VOID *v)
 /* ========================================================================== */
 VOID ExitOnMaxIns()
 {
+    if(KnobMaxSimIns.Value() == 0)
+        return;
+
     if (KnobMaxSimIns.Value() && (SimOrgInsCount < KnobMaxSimIns.Value()))
         return;
 
@@ -267,7 +277,13 @@ VOID FeedOriginalInstruction(struct P2Z_HANDSHAKE *handshake)
     handshake->ins = MakeCopy(pc);
     ASSERT(handshake->orig, "Must execute real instruction in this function");
 
-    Zesto_Resume(handshake);
+    Zesto_Resume(handshake, isFirstInsn, isLastInsn);
+
+    if(isFirstInsn)
+        isFirstInsn = false;
+
+    if(isLastInsn)
+        isLastInsn = false;
 
     SimOrgInsCount++;
 }
@@ -358,6 +374,7 @@ VOID FFwdHandler(VOID * val, CONTEXT * ctxt, VOID * ip, THREADID tid)
     CODECACHE_FlushCache();
 
     ExecMode = EXECUTION_MODE_SIMULATE;
+    isFirstInsn = true;
 }
 /* ========================================================================== */
 VOID InstallFastForwarding()
@@ -540,6 +557,9 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, V
         break;
 
       default:
+#ifdef ZESTO_PIN_DBG
+        cerr << "Syscall " << dec << syscall_num << endl;
+#endif
         break;
     }
 }
