@@ -128,6 +128,7 @@ extern "C" {
 
 #include <stdio.h>
 
+#include "callbacks.h"
 #include "host.h"
 #include "misc.h"
 #include "machine.h"
@@ -298,6 +299,7 @@ typedef enum md_fault_type
 
 #define MEM_DO_WRITE_BYTE_NON_SPEC(MEM, ADDR, VAL)          \
   (MEM_TICKLE(MEM, (md_addr_t)(ADDR)),          \
+   Zesto_Call_WriteByteCallback((ADDR), (VAL)),      \
    *((byte_t *)(MEM_PAGE(MEM, (md_addr_t)(ADDR),1) + MEM_OFFSET(ADDR))) = (VAL))
 
 #else

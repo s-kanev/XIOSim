@@ -8,6 +8,6 @@ set ZESTOCFG = ../config/A.cfg
 set MEMCFG = ../dram-config/DDR2-800-5-5-5.cfg
 
 
-set CMD_LINE = "setarch i686 -3BL $PIN -xyzzy -t $PINTOOL -maxins -1 -s -config $ZESTOCFG -config $MEMCFG -redir:sim tst.out -- $PROGRAM"
+set CMD_LINE = "setarch i686 -3BL $PIN -xyzzy -t $PINTOOL -maxins -1 -sanity -s -config $ZESTOCFG -config $MEMCFG -redir:sim tst.out -- $PROGRAM"
 echo $CMD_LINE
 $CMD_LINE

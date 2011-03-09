@@ -8,6 +8,7 @@
 
 #include <iostream>
 #include <iomanip>
+#include <map>
 #include <syscall.h>
 #include <stdlib.h>
 #include <elf.h>
@@ -34,6 +35,10 @@ KNOB<UINT64> KnobMaxSimIns(KNOB_MODE_WRITEONCE,    "pintool",
         "maxins", "0", "Max. # of instructions to simulate (0 == till end of program");
 KNOB<string> KnobInsTraceFile(KNOB_MODE_WRITEONCE,   "pintool",
         "trace", "", "File where instruction trace is written");
+KNOB<BOOL> KnobSanity(KNOB_MODE_WRITEONCE,     "pintool",
+        "sanity", "false", "Sanity-check if simulator corrupted memory (expensive)");
+
+map<ADDRINT, UINT8> sanity_writes;
 
 ofstream trace_file;
 
@@ -267,6 +272,39 @@ VOID ExitOnMaxIns()
 }
 
 /* ========================================================================== */
+//Callback to collect memory addresses modified by a given instruction
+//We grab the actual address before the simulator modifies it
+//(assumes it is called before the actual write occurs)
+VOID Zesto_WriteByteCallback(ADDRINT addr, UINT8 val_to_write)
+{
+    (VOID) val_to_write;
+
+    UINT8* _addr = (UINT8*) addr;
+    UINT8 val = *_addr;
+
+    // Since map.insert doesn't change existing keys, we only capture the value
+    // before the first write on that address by this inst (as we should)
+    sanity_writes.insert(pair<ADDRINT, UINT8>(addr, val));
+}
+
+/* ========================================================================== */
+//Checks if instruction correctly rolled back any writes it may have done.
+VOID SanityMemCheck()
+{
+    map<ADDRINT, UINT8>::iterator it;
+
+    UINT8* addr;
+    UINT8 written_val;
+
+    for (it = sanity_writes.begin(); it != sanity_writes.end(); it++)
+    {
+        addr = (UINT8*) (*it).first;
+        written_val = (*it).second;
+
+        ASSERTX(written_val == *addr);
+    }
+}
+/* ========================================================================== */
 VOID FeedOriginalInstruction(struct P2Z_HANDSHAKE *handshake)
 {
     ADDRINT pc = handshake->pc;
@@ -312,7 +350,13 @@ VOID SimulateInstruction(ADDRINT pc, BOOL taken, ADDRINT npc, ADDRINT tpc, const
 {
     struct P2Z_HANDSHAKE *handshake  = MakeSSRequest(pc, npc, tpc, taken, ictxt);
 
+    if (KnobSanity.Value())
+        sanity_writes.clear();
+
     FeedOriginalInstruction(handshake);
+
+    if (KnobSanity.Value())
+        SanityMemCheck();
 
     ExitOnMaxIns();
 }
@@ -663,6 +707,9 @@ INT32 main(INT32 argc, CHAR **argv)
     PIN_AddSyscallExitFunction(SyscallExit, 0);
     INS_AddInstrumentFunction(Instrument, 0);
     PIN_AddFiniFunction(Fini, 0);
+
+    if(KnobSanity.Value())
+        Zesto_Add_WriteByteCallback(Zesto_WriteByteCallback);
 
     Zesto_SlaveInit(ssargs.first, ssargs.second);
 

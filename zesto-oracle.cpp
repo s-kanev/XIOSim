@@ -139,6 +139,9 @@
 #include "thread.h"
 #include "syscall.h"
 #include "loader.h"
+#ifdef ZESTO_PIN
+#include "callbacks.h"
+#endif
 #include "memory.h"
 
 #include "zesto-core.h"

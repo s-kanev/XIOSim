@@ -13,6 +13,7 @@ void Zesto_SetBOS(unsigned int stack_base);
 void Zesto_UpdateBrk(unsigned int brk_end, bool do_mmap);
 void Zesto_Drain();
 
+void Zesto_Add_WriteByteCallback(ZESTO_WRITE_BYTE_CALLBACK callback);
 
 #endif /*__PIN_ZESTO_INTERFACE__*/
 
