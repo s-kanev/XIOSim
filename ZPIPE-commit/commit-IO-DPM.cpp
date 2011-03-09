@@ -967,6 +967,8 @@ void core_commit_IO_DPM_t::ROB_insert(struct uop_t * const uop)
   ROB_eff_num++;
   
   ROB_tail = modinc(ROB_tail,knobs->commit.ROB_size); //(ROB_tail+1) % knobs->commit.ROB_size;
+
+  zesto_assert(ROB_num <= knobs->commit.ROB_size, (void)0);
 }
 
 void core_commit_IO_DPM_t::ROB_fuse_insert(struct uop_t * const uop)

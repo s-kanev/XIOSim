@@ -676,6 +676,8 @@ void Zesto_Drain()
    core->decode->recover();
    core->fetch->recover(core->current_thread->regs.regs_NPC);
 
+   // Do this after fetch->recover, since the latest Mop might have had a rep prefix
+   core->current_thread->rep_sequence = 0;
    /* Invoke stages after fetch until all fetched insns get commited */
 //   while(core->current_thread->stat.num_insn > core->stat.commit_insn)
 //   while(core->oracle->get_oldest_Mop() != NULL)

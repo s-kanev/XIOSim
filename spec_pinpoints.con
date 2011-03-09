@@ -1,5 +1,5 @@
 Universe        = vanilla
-Requirements    = (OpSys == "LINUX") && (Arch == "X86_64")
+Requirements    = (OpSys == "LINUX") && (Arch == "X86_64") && (Memory >= 4000)
 Notification    = Always
 #Notify_User     = skanev@eecs.harvard.edu
 Coresize        = 0
@@ -10,7 +10,7 @@ PinTool         = /home/skanev/zesto/pintool/obj-ia32/feeder_zesto.so
 
 ExperimentDir   = /group/brooks/skanev/data_atom
 Executable      = /usr/bin/env
-Prefix          = -i setarch i686 -3BL $(Pin) -pause_tool 1 -t $(PinTool)
+Prefix          = -i setarch i686 -3BL $(Pin) -pause_tool 1 -separate_memory -t $(PinTool)
 MemCFG          = /home/skanev/zesto/dram-config/DDR2-800-5-5-5.cfg 
 ZestoCFG        = /home/skanev/zesto/config/A.cfg -config $(MemCFG)
 
