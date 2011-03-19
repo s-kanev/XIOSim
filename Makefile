@@ -80,7 +80,8 @@ loader.c	     machine.c            main.c                memory.c           \
 misc.c               options.c            range.c               regs.c             \
 sim-eio.c            sim-fast.c           stats.c               symbol.c           \
 syscall.c	     sysprobe.c           sim-cache.c           slave.c	           \
-loader.c             symbol.c             syscall.c             sim-main.c
+loader.c             symbol.c             syscall.c             sim-main.c         \
+callbacks.c
 
 HDRS = \
 bbtracker.h          cache.h                                    thread.h           \
@@ -89,7 +90,8 @@ host.h               loader.h             machine.h             memory.h        
 mem-system.h         misc.h               options.h             ptrace.h           \
 range.h              regs.h               resource.h            sim.h              \
 stats.h              symbol.h             syscall.h             version.h          \
-machine.def          elf.h                x86flow.def           interface.h
+machine.def          elf.h                x86flow.def           interface.h        \
+callbacks.h
 
 OBJS_NOMAIN =	\
 endian.$(OEXT)       eval.$(OEXT)         \
@@ -98,7 +100,7 @@ range.$(OEXT)        regs.$(OEXT)         stats.$(OEXT)         symbol.$(OEXT)  
 sim-main.$(OEXT)
 
 OBJS = main.$(OEXT) eio.$(OEXT) loader.$(OEXT) $(OBJS_NOMAIN) syscall.$(OEXT) 
-OBJS_SLAVE = slave.$(OEXT) loader.$(OEXT) $(OBJS_NOMAIN)
+OBJS_SLAVE = callbacks.$(OEXT) slave.$(OEXT) loader.$(OEXT) $(OBJS_NOMAIN)
 
 # Zesto specific files
 ZSRCS = \
@@ -281,7 +283,8 @@ main.o: endian.h thread.h memory.h stats.h eval.h version.h loader.h sim.h
 main.o: interface.h
 slave.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h options.h
 slave.o: endian.h thread.h memory.h stats.h eval.h version.h loader.h sim.h
-slave.o: interface.h
+slave.o: interface.h callbacks.h
+callbacks.o: callbacks.h interface.h
 sim-main.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h
 sim-main.o: options.h memory.h stats.h eval.h loader.h thread.h syscall.h
 sim-main.o: sim.h zesto-opts.h zesto-core.h zesto-oracle.h zesto-fetch.h
@@ -293,9 +296,9 @@ sim-slave.o: options.h memory.h stats.h eval.h loader.h thread.h syscall.h
 sim-slave.o: sim.h zesto-opts.h zesto-core.h zesto-oracle.h zesto-fetch.h
 sim-slave.o: zesto-decode.h zesto-bpred.h zesto-alloc.h zesto-exec.h
 sim-slave.o: zesto-commit.h zesto-dram.h zesto-cache.h zesto-uncore.h
-sim-slave.o: zesto-MC.h interface.h
+sim-slave.o: zesto-MC.h interface.h callbacks.h
 memory.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h
-memory.o: options.h stats.h eval.h memory.h
+memory.o: options.h stats.h eval.h memory.h interface.h callbacks.h
 misc.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h options.h
 options.o: host.h misc.h options.h
 range.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h options.h
@@ -341,7 +344,7 @@ libsim.a: options.h memory.h stats.h eval.h loader.h thread.h syscall.h
 libsim.a: sim.h zesto-opts.h zesto-core.h zesto-oracle.h zesto-fetch.h
 libsim.a: zesto-decode.h zesto-bpred.h zesto-alloc.h zesto-exec.h
 libsim.a: zesto-commit.h zesto-dram.h zesto-cache.h zesto-uncore.h
-libsim.a: zesto-MC.h interface.h
+libsim.a: zesto-MC.h interface.h callbacks.h
 zesto-core.o: zesto-core.h zesto-structs.h machine.h host.h misc.h
 zesto-core.o: machine.def regs.h options.h
 zesto-opts.o: thread.h machine.h host.h misc.h machine.def zesto-structs.h
@@ -353,7 +356,7 @@ zesto-oracle.o: misc.h thread.h machine.h host.h machine.def zesto-structs.h
 zesto-oracle.o: regs.h options.h memory.h stats.h eval.h syscall.h loader.h
 zesto-oracle.o: zesto-core.h zesto-opts.h zesto-oracle.h zesto-fetch.h
 zesto-oracle.o: zesto-bpred.h zesto-decode.h zesto-alloc.h zesto-exec.h
-zesto-oracle.o: zesto-commit.h zesto-cache.h
+zesto-oracle.o: zesto-commit.h zesto-cache.h callbacks.h
 zesto-fetch.o: thread.h machine.h host.h misc.h machine.def zesto-structs.h
 zesto-fetch.o: regs.h options.h memory.h stats.h eval.h zesto-core.h
 zesto-fetch.o: zesto-opts.h zesto-oracle.h zesto-fetch.h zesto-alloc.h

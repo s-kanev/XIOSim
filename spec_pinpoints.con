@@ -1,17 +1,18 @@
 Universe        = vanilla
-Requirements    = (OpSys == "LINUX") && (Arch == "X86_64")
+Requirements    = (OpSys == "LINUX") && (Arch == "X86_64") && (Memory >= 4000)
 Notification    = Always
 #Notify_User     = skanev@eecs.harvard.edu
 Coresize        = 0
 GetEnv          = False
 
 Pin             = /home/skanev/pin/pin-2.8-36111-gcc.3.4.6-ia32_intel64-linux/ia32/bin/pinbin
-PinTool         = /home/skanev/zesto_tmp/pintool/obj-ia32/feeder_zesto.so
+PinTool         = /home/skanev/zesto_trunk/pintool/obj-ia32/feeder_zesto.so
 
 ExperimentDir   = /group/brooks/skanev/data_zpin
 Executable      = /usr/bin/env
-Prefix          = -i setarch i686 -3BL $(Pin) -pause_tool 1 -t $(PinTool)
-ZestoCFG        = /home/skanev/pin/zpin/config/M.cfg
+Prefix          = -i setarch i686 -3BL $(Pin) -pause_tool 1 -separate_memory -t $(PinTool)
+MemCFG          = /home/skanev/zesto_trunk/dram-config/DDR2-800-5-5-5.cfg 
+ZestoCFG        = /home/skanev/zesto_trunk/config/M.cfg -config $(MemCFG)
 
 SpecDir         = /group/brooks/skanev/cpu2006/benchspec/CPU2006
 SpecExt         = O3gcc4static241

@@ -14,5 +14,6 @@ typedef struct P2Z_HANDSHAKE {
     unsigned char *ins;                 /* Instruction bytes */
 } P2Z_HANDSHAKE;
 
+typedef void (*ZESTO_WRITE_BYTE_CALLBACK) (unsigned int, unsigned char);
 
 #endif /*__PIN_ZESTO_H__*/

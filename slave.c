@@ -444,7 +444,7 @@ void Zesto_Destroy()
 }
 
 
-void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
+void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool start_slice, bool end_slice)
 {
    //TODO: Widen hanshake to include thread id
    assert(num_threads == 1);
@@ -457,21 +457,34 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
 
    md_addr_t NPC = handshake->brtaken ? handshake->tpc : handshake->npc;  
 
-   ZPIN_TRACE("PIN -> PC: %x, NPC: %x \n", handshake->pc, NPC)
-   fetches_since_feeder = 0;
+   zesto_assert(cores[i]->oracle->num_Mops_nuked == 0, (void)0);
+   zesto_assert(!cores[i]->oracle->spec_mode, (void)0);
+   zesto_assert(thread->rep_sequence == 0, (void)0);
+
+   cores[i]->fetch->feeder_NPC = NPC;
+   cores[i]->fetch->feeder_PC = handshake->pc;
 
    if(first_insn) 
    {  
-      zesto_assert(thread->loader.stack_base, (void)0);
       thread->loader.prog_entry = handshake->pc;
 
+      first_insn= false;
+   }
+
+   if(start_slice)
+   {
+      zesto_assert(thread->loader.stack_base, (void)0);
+
       /* Init stack pointer */
-      md_addr_t sp = handshake->ctxt->regs_R.dw[MD_REG_ESP];     
-      thread->loader.stack_min = (md_addr_t)sp;
+      md_addr_t sp = handshake->ctxt->regs_R.dw[MD_REG_ESP]; 
       thread->loader.stack_size = thread->loader.stack_base-sp;
+      thread->loader.stack_min = (md_addr_t)sp;
 
       /* Create local pages for stack */ 
-      md_addr_t stack_addr = mem_newmap2(thread->mem, ROUND_DOWN(thread->loader.stack_min, MD_PAGE_SIZE), ROUND_DOWN(thread->loader.stack_min, MD_PAGE_SIZE), ROUND_UP(thread->loader.stack_size, MD_PAGE_SIZE), 1);
+      md_addr_t page_start = ROUND_DOWN(sp, MD_PAGE_SIZE);
+      md_addr_t page_end = ROUND_UP(thread->loader.stack_base, MD_PAGE_SIZE);
+
+      md_addr_t stack_addr = mem_newmap2(thread->mem, page_start, page_start, page_end-page_start, 1);
       myfprintf(stderr, "Stack pointer: %x; \n", sp);
       zesto_assert(stack_addr == ROUND_DOWN(thread->loader.stack_min, MD_PAGE_SIZE), (void)0);
 
@@ -479,17 +492,19 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
       regs->regs_PC = handshake->pc;
       regs->regs_NPC = handshake->pc;
       cores[i]->fetch->PC = handshake->pc;
-      first_insn= false;
    }
 
-   zesto_assert(cores[i]->oracle->num_Mops_nuked == 0, (void)0);
-   zesto_assert(!cores[i]->oracle->spec_mode, (void)0);
-   zesto_assert(thread->rep_sequence == 0, (void)0);
+   if(end_slice)
+   {
+      Zesto_Drain();
+      return;
+   }
 
-   /* Copy architectural state from pim
+   ZPIN_TRACE("PIN -> PC: %x, NPC: %x \n", handshake->pc, NPC)
+   fetches_since_feeder = 0;
+
+   /* Copy architectural state from pin
       XXX: This is arch state BEFORE executed the instruction we're about to simulate*/
-   cores[i]->fetch->feeder_NPC = NPC;
-   cores[i]->fetch->feeder_PC = handshake->pc;
 
    regs->regs_R = handshake->ctxt->regs_R;
    regs->regs_C = handshake->ctxt->regs_C;
@@ -501,9 +516,14 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
      if(FPR_VALID(handshake->ctxt->regs_C.ftw, j))
        memcpy(&regs->regs_F.e[j], &handshake->ctxt->regs_F.e[j], MD_FPR_SIZE);
 
-
-   if(core->fetch->PC != handshake->pc)
-     ZPIN_TRACE("PIN->PC (0x%x) different from fetch->PC (0x%x). Bad things will happen!!!\n", handshake->pc, core->fetch->PC);
+   if(!start_slice && core->fetch->PC != handshake->pc)
+   {
+     ZPIN_TRACE("PIN->PC (0x%x) different from fetch->PC (0x%x). Overwriting with Pin value!\n", handshake->pc, core->fetch->PC);
+     info("PIN->PC (0x%x) different from fetch->PC (0x%x). Overwriting with Pin value!\n", handshake->pc, core->fetch->PC);
+     cores[i]->fetch->PC = handshake->pc;
+     regs->regs_PC = handshake->pc;
+     regs->regs_NPC = handshake->pc;
+   }
  
    bool fetch_more = true;
    consumed = false;
@@ -641,4 +661,27 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake)
    zesto_assert(cores[i]->fetch->PC == NPC, (void)0);
 }
 
+void Zesto_Drain()
+{
+   assert(num_threads == 1);
 
+   int i = 0;
+   struct core_t * core = cores[i];
+
+   /* Just flush anything left */
+   core->oracle->complete_flush();
+   core->commit->recover();
+   core->exec->recover();
+   core->alloc->recover();
+   core->decode->recover();
+   core->fetch->recover(core->current_thread->regs.regs_NPC);
+
+   // Do this after fetch->recover, since the latest Mop might have had a rep prefix
+   core->current_thread->rep_sequence = 0;
+   /* Invoke stages after fetch until all fetched insns get commited */
+//   while(core->current_thread->stat.num_insn > core->stat.commit_insn)
+//   while(core->oracle->get_oldest_Mop() != NULL)
+//   {
+//      sim_main_slave_pre_pin();
+//   }
+}

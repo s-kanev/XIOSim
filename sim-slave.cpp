@@ -409,9 +409,9 @@ void sim_main_slave_post_pin()
     for(i=0;i<num_threads;i++)
     {
       if(i < (num_threads-1))
-	myfprintf(stderr,"%lld, ",cores[i]->stat.commit_insn);
+        myfprintf(stderr,"%lld, ",cores[i]->stat.commit_insn);
       else
-	myfprintf(stderr,"%lld}\n",cores[i]->stat.commit_insn);
+        myfprintf(stderr,"%lld}\n",cores[i]->stat.commit_insn);
     }
     heartbeat_count = 0;
   }
@@ -422,9 +422,6 @@ void sim_main_slave_post_pin()
 void sim_main_slave_pre_pin()
 {
   int i;
-
-  //for(i=0;i<num_threads;i++)
-    //cores[i]->fetch->PC = cores[i]->current_thread->regs.regs_PC;
 
   ZPIN_TRACE("###Cycle%s\n"," ")
 

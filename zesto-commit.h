@@ -106,6 +106,7 @@ class core_commit_t
        allocated ROB entry (i.e., that alloc'd to the head) */
   virtual bool ROB_available(void) = 0;
   virtual bool ROB_empty(void) = 0;
+  virtual bool pipe_empty(void) = 0;
   virtual void ROB_insert(struct uop_t * const uop) = 0;
   virtual void ROB_fuse_insert(struct uop_t * const uop) = 0;
 

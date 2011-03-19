@@ -8,6 +8,7 @@
 
 #include <iostream>
 #include <iomanip>
+#include <map>
 #include <syscall.h>
 #include <stdlib.h>
 #include <elf.h>
@@ -16,6 +17,12 @@
 
 #include "pin.H"
 #include "instlib.H"
+
+#ifdef TIME_TRANSPARENCY
+#include "rdtsc.h"
+#endif
+
+#include "fpstate.h"
 
 #include "../interface.h" 
 
@@ -31,11 +38,29 @@ using namespace INSTLIB;
 KNOB<UINT64> KnobFFwd(KNOB_MODE_WRITEONCE,    "pintool",
         "ffwd", "0", "Number of instructions to fast forward");
 KNOB<UINT64> KnobMaxSimIns(KNOB_MODE_WRITEONCE,    "pintool",
-        "maxins", "100000000", "Max. # of instructions to simulate (0 == till end of program");
+        "maxins", "0", "Max. # of instructions to simulate (0 == till end of program");
 KNOB<string> KnobInsTraceFile(KNOB_MODE_WRITEONCE,   "pintool",
         "trace", "", "File where instruction trace is written");
+KNOB<string> KnobSanityInsTraceFile(KNOB_MODE_WRITEONCE,   "pintool",
+        "sanity_trace", "", "Instruction trace file to use for sanity checking of codepaths");
+KNOB<BOOL> KnobSanity(KNOB_MODE_WRITEONCE,     "pintool",
+        "sanity", "false", "Sanity-check if simulator corrupted memory (expensive)");
+
+map<ADDRINT, UINT8> sanity_writes;
+
+#ifdef TIME_TRANSPARENCY
+// Tracks the time we spend in simulation and tries to subtract it from timing calls
+UINT64 sim_time = 0;
+#endif
 
 ofstream trace_file;
+ifstream sanity_trace;
+
+BOOL isFirstInsn = true;
+BOOL isLastInsn = false;
+
+// Buffer to store FP state
+static FPSTATE fpstate_buf;
 
 /* ========================================================================== */
 /* Pinpoint related */
@@ -94,39 +119,30 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
 {
     cerr << "tid: " << dec << tid << " ip: 0x" << hex << ip; 
     // get line info on current instruction
-    INT32 linenum = 0;
-    string filename;
-
-    PIN_LockClient();
-
-    PIN_GetSourceLocation((ADDRINT)ip, NULL, &linenum, &filename);
-    
-    PIN_UnlockClient();
-    
-    if(filename != "") 
-    {
-        cerr << " ( "  << filename << ":" << dec << linenum << " )"; 
-    }
     cerr <<  dec << " Inst. Count " << icount.Count(tid) << " ";
 
     switch(ev)
     {
       case CONTROL_START:
         cerr << "Start" << endl;
+        ExecMode = EXECUTION_MODE_SIMULATE;
+
         if(control.PinPointsActive())
         {
             CODECACHE_FlushCache();
-            ExecMode = EXECUTION_MODE_SIMULATE;
+            isFirstInsn = true;
             cerr << "PinPoint: " << control.CurrentPp(tid) << " PhaseNo: " << control.CurrentPhase(tid) << endl;
         }
         break;
 
       case CONTROL_STOP:
         cerr << "Stop" << endl;
+        ExecMode = EXECUTION_MODE_FASTFORWARD;
+
         if(control.PinPointsActive())
         {
             CODECACHE_FlushCache();
-            ExecMode = EXECUTION_MODE_FASTFORWARD;
+            isLastInsn = true;
             cerr << "PinPoint: " << control.CurrentPp(tid) << endl;
         }
         break;
@@ -153,7 +169,7 @@ VOID ImageLoad(IMG img, VOID *v)
 
 /* ========================================================================== */
 /* The returned pointer is to static data that is overwritten with each call */
-struct regs_t *MakeSSContext(const CONTEXT *ictxt, ADDRINT pc, ADDRINT npc)
+struct regs_t *MakeSSContext(const CONTEXT *ictxt, const FPSTATE* fpstate, ADDRINT pc, ADDRINT npc)
 {
     CONTEXT ssctxt;
     memset(&ssctxt, 0x0, sizeof(ssctxt));
@@ -190,25 +206,23 @@ struct regs_t *MakeSSContext(const CONTEXT *ictxt, ADDRINT pc, ADDRINT npc)
 
     // Copy floating purpose registers: Floating point state is generated via
     // the fxsave instruction, which is a 512-byte memory region. Look at the
-    // header file for the complete layout of the fxsave region. Zesto only
+    // SDM for the complete layout of the fxsave region. Zesto only
     // requires the (1) floating point status word, the (2) fp control word,
     // and the (3) eight 10byte floating point registers. Thus, we only copy
     // the required information into the SS-specific (and Zesto-inherited)
     // data structure
-    FPSTATE fpstate;
-    memset(&fpstate, 0x0, sizeof(fpstate));
-
     ASSERTX(PIN_ContextContainsState(&ssctxt, PROCESSOR_STATE_X87));
-    PIN_GetContextFPState(&ssctxt, &fpstate);
+    //XXX: fpstate is passed from earlier routines, so we don't need to
+    // (potentially) call fxsave multiple times
 
     //Copy the floating point control word
-    memcpy(&SSRegs.regs_C.cwd, &fpstate.fxsave_legacy._fcw, 2);
+    memcpy(&SSRegs.regs_C.cwd, &fpstate->fxsave_legacy._fcw, 2);
 
     // Copy the floating point status word
-    memcpy(&SSRegs.regs_C.fsw, &fpstate.fxsave_legacy._fsw, 2);
+    memcpy(&SSRegs.regs_C.fsw, &fpstate->fxsave_legacy._fsw, 2);
 
     //Copy floating point tag word specifying which regsiters hold valid values
-    memcpy(&SSRegs.regs_C.ftw, &fpstate.fxsave_legacy._ftw, 1);
+    memcpy(&SSRegs.regs_C.ftw, &fpstate->fxsave_legacy._ftw, 1);
 
     #define FXSAVE_STx_OFFSET(arr, st) ((arr) + ((st) * 16))
 
@@ -216,14 +230,14 @@ struct regs_t *MakeSSContext(const CONTEXT *ictxt, ADDRINT pc, ADDRINT npc)
     #define ST2P(num) ((FSW_TOP(SSRegs.regs_C.fsw) + (num)) & 0x7)
 
     // Copy actual extended fp registers
-    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST0)], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST0), MD_FPR_SIZE);
-    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST1)], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST1), MD_FPR_SIZE);
-    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST2)], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST2), MD_FPR_SIZE);
-    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST3)], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST3), MD_FPR_SIZE);
-    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST4)], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST4), MD_FPR_SIZE);
-    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST5)], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST5), MD_FPR_SIZE);
-    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST6)], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST6), MD_FPR_SIZE);
-    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST7)], FXSAVE_STx_OFFSET(fpstate.fxsave_legacy._st, MD_REG_ST7), MD_FPR_SIZE);
+    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST0)], FXSAVE_STx_OFFSET(fpstate->fxsave_legacy._st, MD_REG_ST0), MD_FPR_SIZE);
+    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST1)], FXSAVE_STx_OFFSET(fpstate->fxsave_legacy._st, MD_REG_ST1), MD_FPR_SIZE);
+    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST2)], FXSAVE_STx_OFFSET(fpstate->fxsave_legacy._st, MD_REG_ST2), MD_FPR_SIZE);
+    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST3)], FXSAVE_STx_OFFSET(fpstate->fxsave_legacy._st, MD_REG_ST3), MD_FPR_SIZE);
+    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST4)], FXSAVE_STx_OFFSET(fpstate->fxsave_legacy._st, MD_REG_ST4), MD_FPR_SIZE);
+    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST5)], FXSAVE_STx_OFFSET(fpstate->fxsave_legacy._st, MD_REG_ST5), MD_FPR_SIZE);
+    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST6)], FXSAVE_STx_OFFSET(fpstate->fxsave_legacy._st, MD_REG_ST6), MD_FPR_SIZE);
+    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST7)], FXSAVE_STx_OFFSET(fpstate->fxsave_legacy._st, MD_REG_ST7), MD_FPR_SIZE);
 
 
     return &SSRegs;
@@ -234,7 +248,7 @@ VOID Fini(INT32 exitCode, VOID *v)
 {
     Zesto_Destroy();
 
-    cerr << "TotalIns = " << dec << SimOrgInsCount << endl;
+    cerr << "Total simulated ins = " << dec << SimOrgInsCount << endl;
 
     if (exitCode != EXIT_SUCCESS)
         cerr << "ERROR! Exit code = " << dec << exitCode << endl;
@@ -244,6 +258,9 @@ VOID Fini(INT32 exitCode, VOID *v)
 /* ========================================================================== */
 VOID ExitOnMaxIns()
 {
+    if(KnobMaxSimIns.Value() == 0)
+        return;
+
     if (KnobMaxSimIns.Value() && (SimOrgInsCount < KnobMaxSimIns.Value()))
         return;
 
@@ -257,23 +274,69 @@ VOID ExitOnMaxIns()
 }
 
 /* ========================================================================== */
+//Callback to collect memory addresses modified by a given instruction
+//We grab the actual address before the simulator modifies it
+//(assumes it is called before the actual write occurs)
+VOID Zesto_WriteByteCallback(ADDRINT addr, UINT8 val_to_write)
+{
+    (VOID) val_to_write;
+
+    UINT8* _addr = (UINT8*) addr;
+    UINT8 val = *_addr;
+
+    // Since map.insert doesn't change existing keys, we only capture the value
+    // before the first write on that address by this inst (as we should)
+    sanity_writes.insert(pair<ADDRINT, UINT8>(addr, val));
+}
+
+/* ========================================================================== */
+//Checks if instruction correctly rolled back any writes it may have done.
+VOID SanityMemCheck()
+{
+    map<ADDRINT, UINT8>::iterator it;
+
+    UINT8* addr;
+    UINT8 written_val;
+
+    for (it = sanity_writes.begin(); it != sanity_writes.end(); it++)
+    {
+        addr = (UINT8*) (*it).first;
+        written_val = (*it).second;
+
+        ASSERTX(written_val == *addr);
+    }
+}
+/* ========================================================================== */
 VOID FeedOriginalInstruction(struct P2Z_HANDSHAKE *handshake)
 {
     ADDRINT pc = handshake->pc;
 
-    if(!KnobInsTraceFile.Value().empty())
-         trace_file << pc << endl;
-
     handshake->ins = MakeCopy(pc);
     ASSERT(handshake->orig, "Must execute real instruction in this function");
 
-    Zesto_Resume(handshake);
+#ifdef TIME_TRANSPARENCY
+    // Capture time spent in simulation to ensure time syscall transparency
+    UINT64 ins_delta_time = rdtsc();
+#endif
+
+    Zesto_Resume(handshake, isFirstInsn, isLastInsn);
+
+#ifdef TIME_TRANSPARENCY
+    ins_delta_time = rdtsc() - ins_delta_time;
+    sim_time += ins_delta_time;
+#endif
+
+    if(isFirstInsn)
+        isFirstInsn = false;
+
+    if(isLastInsn)
+        isLastInsn = false;
 
     SimOrgInsCount++;
 }
 
 /* ========================================================================== */
-struct P2Z_HANDSHAKE *MakeSSRequest(ADDRINT pc, ADDRINT npc, ADDRINT tpc, BOOL brtaken, const CONTEXT *ictxt)
+struct P2Z_HANDSHAKE *MakeSSRequest(ADDRINT pc, ADDRINT npc, ADDRINT tpc, BOOL brtaken, const CONTEXT *ictxt, const FPSTATE* fpstate)
 {
     // Must invalidate prior to use because previous invocation data still
     // resides in this statically allocated buffer
@@ -284,7 +347,7 @@ struct P2Z_HANDSHAKE *MakeSSRequest(ADDRINT pc, ADDRINT npc, ADDRINT tpc, BOOL b
     handshake.npc = npc;
     handshake.tpc = tpc;
     handshake.brtaken = brtaken;
-    handshake.ctxt = MakeSSContext(ictxt, pc, npc);
+    handshake.ctxt = MakeSSContext(ictxt, fpstate, pc, npc);
     handshake.orig = TRUE;
     handshake.ins = NULL;
     handshake.icount = 0;
@@ -294,11 +357,78 @@ struct P2Z_HANDSHAKE *MakeSSRequest(ADDRINT pc, ADDRINT npc, ADDRINT tpc, BOOL b
 /* ========================================================================== */
 VOID SimulateInstruction(ADDRINT pc, BOOL taken, ADDRINT npc, ADDRINT tpc, const CONTEXT *ictxt)
 {
-    struct P2Z_HANDSHAKE *handshake  = MakeSSRequest(pc, npc, tpc, taken, ictxt);
+    // Tracing
+    if (!KnobInsTraceFile.Value().empty())
+         trace_file << pc << endl;
 
+    // Sanity trace
+    if (!KnobSanityInsTraceFile.Value().empty())
+    {
+        ADDRINT sanity_pc;
+        sanity_trace >> sanity_pc;
+#ifdef ZESTO_PIN_DBG
+        if (sanity_pc != pc)
+        {
+            cerr << "Sanity_pc != pc. Bad things will happen!" << endl << "sanity_pc: " <<
+            hex << sanity_pc << " pc: " << pc << " sim_icount: " << dec << SimOrgInsCount << endl;
+        }
+#endif
+        ASSERTX(sanity_pc == pc);
+    }
+
+    struct P2Z_HANDSHAKE *handshake  = MakeSSRequest(pc, npc, tpc, taken, ictxt, &fpstate_buf);
+
+    // Clear memory sanity check buffer - callbacks should fill it in FeedOriginalInstruction
+    if (KnobSanity.Value())
+        sanity_writes.clear();
+
+    // Pass instruction to simulator
     FeedOriginalInstruction(handshake);
 
+    // Perform memory sanity checks for values touched by simulator
+    if (KnobSanity.Value())
+        SanityMemCheck();
+
     ExitOnMaxIns();
+}
+/*======================================================== */
+//Check if instruction requires FPState
+BOOL TouchesFPState(INS ins)
+{
+    xed_extension_enum_t ext = static_cast<xed_extension_enum_t>(INS_Extension(ins));
+    switch (ext) {
+      case XED_EXTENSION_3DNOW:
+      case XED_EXTENSION_AES:
+      case XED_EXTENSION_AVX:
+      case XED_EXTENSION_MMX:
+      case XED_EXTENSION_PCLMULQDQ:
+      case XED_EXTENSION_SSE:
+      case XED_EXTENSION_SSE2:
+      case XED_EXTENSION_SSE3:
+      case XED_EXTENSION_SSE4:
+      case XED_EXTENSION_SSE4A:
+      case XED_EXTENSION_SSSE3:
+      case XED_EXTENSION_X87:
+      case XED_EXTENSION_XSAVE:
+      case XED_EXTENSION_XSAVEOPT:
+        return true;
+      default:
+        return false;
+    }
+}
+
+/*======================================================== */
+//Save FP state on the actual hardware
+VOID SaveFPState()
+{
+   fxsave(reinterpret_cast<char*>(&fpstate_buf.fxsave_legacy));
+}
+
+/*======================================================== */
+//Restore FP state on the actual hardware
+VOID RestoreFPState()
+{
+   fxrstor(reinterpret_cast<char*>(&fpstate_buf.fxsave_legacy));
 }
 
 /* ========================================================================== */
@@ -314,8 +444,17 @@ VOID Instrument(INS ins, VOID *v)
     if (ExecMode != EXECUTION_MODE_SIMULATE)
         return;
 
+    // Save FP state since SimulateInstruction may corrupt it
+    // Note: PIN ensures proper order of instrument functions
+    // Note: MakeSSContext relies this was called, so don't make
+    // it conditional
+    INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) SaveFPState,
+                    IARG_END);
+
     if (! INS_IsBranchOrCall(ins))
     {
+        // REP-ed instruction: only instrument first iteration
+        // (simulator will return once all iterations are done)
         if(INS_HasRealRep(ins))
         {
            INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR) returnArg, IARG_FIRST_REP_ITERATION, IARG_END);
@@ -328,6 +467,7 @@ VOID Instrument(INS ins, VOID *v)
                        IARG_END);
         }
         else
+            // Non-REP-ed, non-branch instruction, use falltrough
             INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) SimulateInstruction, 
                        IARG_INST_PTR, 
                        IARG_BOOL, 0, 
@@ -338,14 +478,22 @@ VOID Instrument(INS ins, VOID *v)
     }
     else 
     {
-          INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) SimulateInstruction, 
-                       IARG_INST_PTR, 
-                       IARG_BRANCH_TAKEN, 
-                       IARG_ADDRINT, INS_NextAddress(ins),
-                       IARG_BRANCH_TARGET_ADDR, 
-                       IARG_CONTEXT,
-                       IARG_END);
-    } 
+        // Branch, give instrumentation appropriate address
+        INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) SimulateInstruction, 
+                   IARG_INST_PTR, 
+                   IARG_BRANCH_TAKEN, 
+                   IARG_ADDRINT, INS_NextAddress(ins),
+                   IARG_BRANCH_TARGET_ADDR, 
+                   IARG_CONTEXT,
+                   IARG_END);
+    }
+
+    
+    // Now restore FP state, so we don't corrupt user application state
+    // TODO: this is costly, so only do if ins will need correct fpstate
+//    if (TouchesFPState(ins))
+        INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) RestoreFPState,
+                        IARG_END); 
 }
 
 /* ========================================================================== */
@@ -358,6 +506,7 @@ VOID FFwdHandler(VOID * val, CONTEXT * ctxt, VOID * ip, THREADID tid)
     CODECACHE_FlushCache();
 
     ExecMode = EXECUTION_MODE_SIMULATE;
+    isFirstInsn = true;
 }
 /* ========================================================================== */
 VOID InstallFastForwarding()
@@ -471,6 +620,14 @@ struct mmap_arg_struct {
      UINT32 offset;
 }; 
 
+//from times.h
+struct tms {
+    clock_t tms_utime;
+    clock_t tms_stime;
+    clock_t tms_cutime;
+    clock_t tms_cstime;
+};
+
 ADDRINT last_syscall_number;
 ADDRINT last_syscall_arg1;
 ADDRINT last_syscall_arg2;
@@ -539,7 +696,19 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, V
         last_syscall_arg3 = arg3;
         break;
 
+#ifdef TIME_TRANSPARENCY
+      case __NR_times:
+#ifdef ZESTO_PIN_DBG
+        cerr << "Syscall times(" << dec << syscall_num << ") num_ins: " << SimOrgInsCount << endl;
+#endif
+        last_syscall_arg1 = arg1;
+        break;
+#endif
+
       default:
+#ifdef ZESTO_PIN_DBG
+        cerr << "Syscall " << dec << syscall_num << endl;
+#endif
         break;
     }
 }
@@ -551,6 +720,12 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
     ASSERTX(threadIndex == 0);
 
     ADDRINT retval = PIN_GetSyscallReturn(ictxt, std);
+
+#ifdef TIME_TRANSPARENCY
+    //for times()
+    tms* buf;
+    clock_t adj_time;
+#endif
 
     switch(last_syscall_number)
     {
@@ -605,6 +780,36 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
         ASSERTX( Zesto_Notify_Mmap(retval, last_syscall_arg3, false) );
         break;
 
+#ifdef TIME_TRANSPARENCY
+      case __NR_times:
+        buf = (tms*) last_syscall_arg1;
+        adj_time = retval - (clock_t) sim_time;
+#ifdef ZESTO_PIN_DBG
+        cerr << "Ret syscall times(" << dec << last_syscall_number << ") old: "
+             << retval  << " adjusted: " << adj_time 
+             << " user: " << buf->tms_utime 
+             << " user_adj: " << (buf->tms_utime - sim_time)
+             << " system: " << buf->tms_stime << endl;
+#endif
+        /* Compensate for time we spent on simulation
+         * Included for full transparency - some apps detect we are taking a long time
+         * and do bad things like dropping frames
+         * Since we have no decent way of measuring how much time the simulator spends in the OS
+         * (other than calling times() for every instruction), we assume the simulator is mainly
+         * user code. XXX: how reasonable is this assmuption???
+         */
+        buf->tms_utime -= sim_time;
+        /* buf->tms_stime -=  0.1 * sim_time; ?? */
+        // Don't touch child process timing -- we don't support child processes anyway
+
+        // Adjust aggregate time passed by time spent in sim
+        // Return value as 32-bit int in EAX
+        if ((INT32)retval != - 1)
+            PIN_SetContextReg(ictxt, REG_EAX, adj_time);
+        //XXX: To make this work, we need to use PIN_ExecuteAt()
+        break;
+#endif
+
       default:
         break;
     }
@@ -633,8 +838,21 @@ INT32 main(INT32 argc, CHAR **argv)
     icount.Activate();
 
     if(!KnobInsTraceFile.Value().empty())
+    {
         trace_file.open(KnobInsTraceFile.Value().c_str());
-    trace_file << hex; 
+        trace_file << hex;
+    }
+
+    if(!KnobSanityInsTraceFile.Value().empty())
+    {
+        sanity_trace.open(KnobSanityInsTraceFile.Value().c_str(), ifstream::in);
+        if(sanity_trace.fail())
+        {
+            cerr << "Couldn't open sanity trace file " << KnobSanityInsTraceFile.Value() << endl;
+            return 1;
+        }
+        sanity_trace >> hex;
+    }
 
     PIN_AddThreadStartFunction(onMainThreadStart, NULL);  
     IMG_AddUnloadFunction(ImageUnload, 0);
@@ -643,6 +861,9 @@ INT32 main(INT32 argc, CHAR **argv)
     PIN_AddSyscallExitFunction(SyscallExit, 0);
     INS_AddInstrumentFunction(Instrument, 0);
     PIN_AddFiniFunction(Fini, 0);
+
+    if(KnobSanity.Value())
+        Zesto_Add_WriteByteCallback(Zesto_WriteByteCallback);
 
     Zesto_SlaveInit(ssargs.first, ssargs.second);
 

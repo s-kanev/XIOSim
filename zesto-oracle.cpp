@@ -139,6 +139,9 @@
 #include "thread.h"
 #include "syscall.h"
 #include "loader.h"
+#ifdef ZESTO_PIN
+#include "callbacks.h"
+#endif
 #include "memory.h"
 
 #include "zesto-core.h"
@@ -1304,7 +1307,11 @@ core_oracle_t::exec(const md_addr_t requested_PC)
         return NULL;
       }
       else
-        fatal("fault (%d) detected @ 0x%08p", uop->oracle.fault, thread->regs.regs_PC);
+#ifdef ZESTO_PIN
+        info("fault (%d) detected @ 0x%08p", uop->oracle.fault, thread->regs.regs_PC);
+#else
+        fault("fault (%d) detected @ 0x%08p", uop->oracle.fault, thread->regs.regs_PC);
+#endif
     }
 
     /* Update stats */
