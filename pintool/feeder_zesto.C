@@ -1,7 +1,7 @@
 /* ========================================================================== */
 /* ========================================================================== */
 /*                      
-    Feeder to Zesto.
+    Molecool: Feeder to Zesto, fed itself by ILDJIT.
 */
 /* ========================================================================== */
 /* ========================================================================== */
@@ -25,6 +25,8 @@
 #include "fpstate.h"
 
 #include "../interface.h" 
+
+#include "../../molecool.h"
 
 using namespace std;
 using namespace INSTLIB;
@@ -196,12 +198,12 @@ struct regs_t *MakeSSContext(const CONTEXT *ictxt, const FPSTATE* fpstate, ADDRI
 
 
     // Copy segment registers (IA32-specific)
-     SSRegs.regs_S.w[MD_REG_CS] = PIN_GetContextReg(&ssctxt, REG_SEG_CS);
-     SSRegs.regs_S.w[MD_REG_SS] = PIN_GetContextReg(&ssctxt, REG_SEG_SS);
-     SSRegs.regs_S.w[MD_REG_DS] = PIN_GetContextReg(&ssctxt, REG_SEG_DS);
-     SSRegs.regs_S.w[MD_REG_ES] = PIN_GetContextReg(&ssctxt, REG_SEG_ES);
-     SSRegs.regs_S.w[MD_REG_FS] = PIN_GetContextReg(&ssctxt, REG_SEG_FS);
-     SSRegs.regs_S.w[MD_REG_GS] = PIN_GetContextReg(&ssctxt, REG_SEG_GS);
+    SSRegs.regs_S.w[MD_REG_CS] = PIN_GetContextReg(&ssctxt, REG_SEG_CS);
+    SSRegs.regs_S.w[MD_REG_SS] = PIN_GetContextReg(&ssctxt, REG_SEG_SS);
+    SSRegs.regs_S.w[MD_REG_DS] = PIN_GetContextReg(&ssctxt, REG_SEG_DS);
+    SSRegs.regs_S.w[MD_REG_ES] = PIN_GetContextReg(&ssctxt, REG_SEG_ES);
+    SSRegs.regs_S.w[MD_REG_FS] = PIN_GetContextReg(&ssctxt, REG_SEG_FS);
+    SSRegs.regs_S.w[MD_REG_GS] = PIN_GetContextReg(&ssctxt, REG_SEG_GS);
 
 
     // Copy floating purpose registers: Floating point state is generated via
@@ -444,6 +446,10 @@ VOID Instrument(INS ins, VOID *v)
     if (ExecMode != EXECUTION_MODE_SIMULATE)
         return;
 
+    // ILDJIT is doing its initialization/compilation/...
+    if (MOLECOOL_executionStarted == 0)
+        return;
+
     // Save FP state since SimulateInstruction may corrupt it
     // Note: PIN ensures proper order of instrument functions
     // Note: MakeSSContext relies this was called, so don't make
@@ -584,10 +590,13 @@ SSARGS MakeSimpleScalarArgcArgv(UINT32 argc, CHAR *argv[])
 /* ========================================================================== */
 VOID onMainThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
 {
+    // ILDJIT is forking a compiler thread
+    if (MOLECOOL_codeExecutorCreation == 0)
+        return;
+
 //    cout << "Thread start. ID: " << threadIndex << endl;
     if(threadIndex != 0)
       return;
-
 
     CHAR* sp = (CHAR*)PIN_GetContextReg(ictxt, REG_ESP);
 //    cout << hex << "SP: " << (VOID*) sp << dec << endl;
@@ -636,6 +645,10 @@ ADDRINT last_syscall_arg3;
 /* ========================================================================== */
 VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VOID *v)
 {
+    // ILDJIT is minding its own bussiness
+    if (MOLECOOL_executionStarted == 0)
+        return;
+
     //Single-threaded for now
     ASSERTX(threadIndex == 0);
 
@@ -716,6 +729,10 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, V
 /* ========================================================================== */
 VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VOID *v)
 {
+    // ILDJIT is minding its own bussiness
+    if (MOLECOOL_executionStarted == 0)
+        return;
+
     //Single-threaded for now
     ASSERTX(threadIndex == 0);
 
