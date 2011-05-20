@@ -2381,6 +2381,16 @@
 }
 
 
+#ifdef ZESTO_PIN
+#define CALLN_Mv_FLOW							\
+{									\
+  UOP_RLI(UV, XS(STA), XR_TMP0, XR_eSP, XR_ZERO, XE_ZERO, XE_MSIZEV, FUSION_NONE); \
+  UOP_R2(UV, XV(STPC), XR_ZERO, XR_TMP0, FUSION_STA_STD);				     \
+  UOP_RLI_OV(UV, XAXV(LD), XR_TMP1, XF_SEG, XF_BASE, XF_INDEX, XF_SCALE, XF_DISP, FUSION_NONE);\
+  UOP_IV(UP, XSI(ADD), XR_eSP, XR_eSP, XE_MSIZEV, FUSION_NONE);		\
+  UOP_R1(UV, XV(JMPR), XR_TMP1, FUSION_NONE);					\
+}
+#else
 #define CALLN_Mv_FLOW							\
 {									\
   /* UCSD FIXME: not sure about the call *%gs system call interface */\
@@ -2397,6 +2407,7 @@
     UOP_R1(UV, XV(JMPR), XR_TMP1, FUSION_NONE);					\
   }									\
 }
+#endif
 
 #define CALLN_RMv_FLOW							\
 {									\

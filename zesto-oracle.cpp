@@ -577,6 +577,9 @@ seq_t core_oracle_t::syscall_get_action_id(void * const op)
 #define SEG_W(N)        (thread->regs.regs_S.w[N])
 #define SET_SEG_W(N,EXPR)    (thread->regs.regs_S.w[N] = (EXPR))
 
+                                                /* segment base */
+#define SEG_BASE(N)     (thread->regs.regs_SD.dw[N])
+
 #define GPR_B(N)        (_ARCH(N)                \
     ? (_HI(N)                \
       ? thread->regs.regs_R.b[_ID(N)].hi        \
@@ -1551,26 +1554,26 @@ core_oracle_t::undo(struct Mop_t * const Mop, bool nuke)
     /* undo memory changes */
     if(uop->decode.is_std)
     {
-	for(int j=0;j<12;j++)
-	{
-          spec_byte_t* p = uop->oracle.spec_mem[j];
-	  if(p == NULL)
-	    break;
+      for(int j=0;j<12;j++)
+      {
+        spec_byte_t* p = uop->oracle.spec_mem[j];
+        if(p == NULL)
+          break;
 
 #ifdef ZESTO_PIN
 // If recovering from a nuke, the instruction feeder may have corrupted main memory already.
 // So we keep a shadow copy of the last value we wrote there and recover it once we go down the recovery path.
 // Since this is a nuke, we are bound to go back the same route, so it's not technically a speculation problem, 
 // but more something like checkpoint recovery.
-          if(nuke && p->prev_val_valid)
-          {
-            ZPIN_TRACE("Nuke undo restoring main memory at 0x%x, val: %d\n", p->addr, p->prev_val);
-            MEM_DO_WRITE_BYTE_NON_SPEC(core->current_thread->mem, p->addr, p->prev_val);
-          }
+        if(nuke && p->prev_val_valid)
+        {
+          ZPIN_TRACE("Nuke undo restoring main memory at 0x%x, val: %d\n", p->addr, p->prev_val);
+          MEM_DO_WRITE_BYTE_NON_SPEC(core->current_thread->mem, p->addr, p->prev_val);
+        }
 #endif
-	  squash_write_byte(p);
-	  uop->oracle.spec_mem[j] = NULL;
-	}
+        squash_write_byte(p);
+        uop->oracle.spec_mem[j] = NULL;
+      }
     }
 
     /* remove self from register mapping */
