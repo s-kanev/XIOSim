@@ -737,6 +737,10 @@ mem_delmap(struct mem_t *mem,            /* memory space to access */
     abort();
   }
 
+  ZPIN_TRACE("Mem_delmap: %x, length: %x, end_addr: %x\n", addr, length, addr+length)
+
+  myfprintf(stderr, "Mem_delmap: %x, length: %x, end_addr: %x\n", addr, length, addr+length);
+
   num_pages = length / MD_PAGE_SIZE + ((length % MD_PAGE_SIZE>0)? 1 : 0);
   for(i=0;i<num_pages;i++) {
     /* check if pages already allocated */

@@ -248,21 +248,6 @@ sim_pre_init(void)
   knobs.commit.width = 4;
 }
 
-/* helper signal handler for holding the processor state after a
-   seg-fault or deadlock so that a debugger can be attached to check out
-   what's wrong. */
-void my_SIGSEGV_handler(int signum)
-{
-#ifdef DEBUG
-  fprintf(stderr,"# please attach a debugger or kill the simulator.\n");
-  while(true)
-    sleep(5);
-#else
-  fprintf(stderr,"# SIGSEGV or deadlock detected ... killing the simulator\n");
-  exit(1);
-#endif
-}
-
 /* initialize per-thread state, core state, etc. - called AFTER command-line parameters have been parsed */
 void
 sim_post_init(void)
@@ -306,9 +291,6 @@ sim_post_init(void)
     cores[i]->current_thread = threads[i];
     cores[i]->knobs = &knobs;
   }
-
-  /* install signal handler for debug assistance */
-  signal(SIGSEGV,my_SIGSEGV_handler);
 
   for(i=0;i<num_threads;i++)
   {
