@@ -1,7 +1,9 @@
 /* ========================================================================== */
 /* ========================================================================== */
 /*                      
-    Molecool: Feeder to Zesto, fed itself by ILDJIT.
+ * Molecool: Feeder to Zesto, fed itself by ILDJIT.
+ * Copyright, Vijay Reddi, 2007 -- SimpleScalar feeder prototype 
+              Svilen Kanev, 2011
 */
 /* ========================================================================== */
 /* ========================================================================== */
@@ -23,10 +25,9 @@
 #endif
 
 #include "fpstate.h"
+#include "ildjit.h"
 
 #include "../interface.h" 
-
-#include "../../molecool.h"
 
 using namespace std;
 using namespace INSTLIB;
@@ -37,8 +38,8 @@ using namespace INSTLIB;
 /* ========================================================================== */
 /* ========================================================================== */
 
-KNOB<UINT64> KnobFFwd(KNOB_MODE_WRITEONCE,    "pintool",
-        "ffwd", "0", "Number of instructions to fast forward");
+CHAR sim_name[] = "Zesto";
+
 KNOB<UINT64> KnobMaxSimIns(KNOB_MODE_WRITEONCE,    "pintool",
         "maxins", "0", "Max. # of instructions to simulate (0 == till end of program");
 KNOB<string> KnobInsTraceFile(KNOB_MODE_WRITEONCE,   "pintool",
@@ -47,6 +48,8 @@ KNOB<string> KnobSanityInsTraceFile(KNOB_MODE_WRITEONCE,   "pintool",
         "sanity_trace", "", "Instruction trace file to use for sanity checking of codepaths");
 KNOB<BOOL> KnobSanity(KNOB_MODE_WRITEONCE,     "pintool",
         "sanity", "false", "Sanity-check if simulator corrupted memory (expensive)");
+KNOB<BOOL> KnobILDJIT(KNOB_MODE_WRITEONCE,      "pintool",
+        "ildjit", "false", "Application run is ildjit");
 
 map<ADDRINT, UINT8> sanity_writes;
 
@@ -61,8 +64,30 @@ ifstream sanity_trace;
 BOOL isFirstInsn = true;
 BOOL isLastInsn = false;
 
-// Buffer to store FP state
-static FPSTATE fpstate_buf;
+/* ========================================================================== */
+// Thread-private state that we need to preserve between different instrumentation calls
+class thread_state_t
+{
+  public:
+    // Buffer to store the fpstate that the simulator may corrupt
+    FPSTATE fpstate_buf;
+
+    // Register state  as seen by Zesto
+    regs_t regstate;
+
+    // Handshake information that gets passed on to Zesto
+    struct P2Z_HANDSHAKE handshake;
+
+    // Used by syscall capture code
+    ADDRINT last_syscall_number;
+    ADDRINT last_syscall_arg1;
+    ADDRINT last_syscall_arg2;
+    ADDRINT last_syscall_arg3;
+};
+
+// Used to access thread-local storage
+static TLS_KEY tls_key;
+static PIN_LOCK test;
 
 /* ========================================================================== */
 /* Pinpoint related */
@@ -88,7 +113,6 @@ EXECUTION_MODE ExecMode = EXECUTION_MODE_INVALID;
 typedef pair <UINT32, CHAR **> SSARGS;
 
 /* ========================================================================== */
-INSTLIB::ALARM_ICOUNT FFwdingAlarm; // Fires upon reaching point of interest
 UINT64 SimOrgInsCount;                   // # of simulated instructions
 
 /* ========================================================================== */
@@ -100,6 +124,15 @@ unsigned char * MakeCopy(ADDRINT pc)
     memcpy(codeBuff, reinterpret_cast <VOID *> (pc), sizeof(codeBuff));
 
     return codeBuff;
+}
+
+// function to access thread-specific data
+/* ========================================================================== */
+thread_state_t* get_tls(THREADID threadid)
+{
+    thread_state_t* tstate = 
+          static_cast<thread_state_t*>(PIN_GetThreadData(tls_key, threadid));
+    return tstate;
 }
 
 /* ========================================================================== */
@@ -119,8 +152,7 @@ VOID ImageUnload(IMG img, VOID *v)
 /* ========================================================================== */
 VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREADID tid)
 {
-    cerr << "tid: " << dec << tid << " ip: 0x" << hex << ip; 
-    // get line info on current instruction
+    cerr << "tid: " << dec << tid << " ip: " << hex << ip; 
     cerr <<  dec << " Inst. Count " << icount.Count(tid) << " ";
 
     switch(ev)
@@ -128,11 +160,11 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
       case CONTROL_START:
         cerr << "Start" << endl;
         ExecMode = EXECUTION_MODE_SIMULATE;
+        CODECACHE_FlushCache();
+        isFirstInsn = true;
 
         if(control.PinPointsActive())
         {
-            CODECACHE_FlushCache();
-            isFirstInsn = true;
             cerr << "PinPoint: " << control.CurrentPp(tid) << " PhaseNo: " << control.CurrentPhase(tid) << endl;
         }
         break;
@@ -140,11 +172,11 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
       case CONTROL_STOP:
         cerr << "Stop" << endl;
         ExecMode = EXECUTION_MODE_FASTFORWARD;
+        CODECACHE_FlushCache();
+        isLastInsn = true;
 
         if(control.PinPointsActive())
         {
-            CODECACHE_FlushCache();
-            isLastInsn = true;
             cerr << "PinPoint: " << control.CurrentPp(tid) << endl;
         }
         break;
@@ -154,7 +186,7 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
         break;
     }
 }
-    
+
 /* ========================================================================== */
 VOID ImageLoad(IMG img, VOID *v)
 {
@@ -166,12 +198,16 @@ VOID ImageLoad(IMG img, VOID *v)
          << " len: " << length << " end_addr: " << start + length << endl;
 #endif
 
-    ASSERTX( Zesto_Notify_Mmap(start, length, true));
+    // Register callback interface to get notified on ILDJIT events
+    if (KnobILDJIT.Value())
+        AddILDJITCallbacks(img);
+
+    ASSERTX( Zesto_Notify_Mmap(start, length, false) );
 }
 
 /* ========================================================================== */
-/* The returned pointer is to static data that is overwritten with each call */
-struct regs_t *MakeSSContext(const CONTEXT *ictxt, const FPSTATE* fpstate, ADDRINT pc, ADDRINT npc)
+/* The last parameter is a  pointer to static data that is overwritten with each call */
+VOID MakeSSContext(const CONTEXT *ictxt, const FPSTATE* fpstate, ADDRINT pc, ADDRINT npc, regs_t *ssregs)
 {
     CONTEXT ssctxt;
     memset(&ssctxt, 0x0, sizeof(ssctxt));
@@ -179,32 +215,39 @@ struct regs_t *MakeSSContext(const CONTEXT *ictxt, const FPSTATE* fpstate, ADDRI
 
     // Must invalidate prior to use because previous invocation data still
     // resides in this statically allocated buffer
-    static struct regs_t SSRegs;
-    memset(&SSRegs, 0x0, sizeof(SSRegs));
+    memset(ssregs, 0x0, sizeof(regs_t));
     
-    SSRegs.regs_PC = pc;
-    SSRegs.regs_NPC = npc;
+    ssregs->regs_PC = pc;
+    ssregs->regs_NPC = npc;
 
     // Copy general purpose registers, which Pin provides individual access to
-    SSRegs.regs_C.aflags = PIN_GetContextReg(&ssctxt, REG_EFLAGS);
-    SSRegs.regs_R.dw[MD_REG_EAX] = PIN_GetContextReg(&ssctxt, REG_EAX);
-    SSRegs.regs_R.dw[MD_REG_ECX] = PIN_GetContextReg(&ssctxt, REG_ECX);
-    SSRegs.regs_R.dw[MD_REG_EDX] = PIN_GetContextReg(&ssctxt, REG_EDX);
-    SSRegs.regs_R.dw[MD_REG_EBX] = PIN_GetContextReg(&ssctxt, REG_EBX);
-    SSRegs.regs_R.dw[MD_REG_ESP] = PIN_GetContextReg(&ssctxt, REG_ESP);
-    SSRegs.regs_R.dw[MD_REG_EBP] = PIN_GetContextReg(&ssctxt, REG_EBP);
-    SSRegs.regs_R.dw[MD_REG_EDI] = PIN_GetContextReg(&ssctxt, REG_EDI);
-    SSRegs.regs_R.dw[MD_REG_ESI] = PIN_GetContextReg(&ssctxt, REG_ESI);
+    ssregs->regs_C.aflags = PIN_GetContextReg(&ssctxt, REG_EFLAGS);
+    ssregs->regs_R.dw[MD_REG_EAX] = PIN_GetContextReg(&ssctxt, REG_EAX);
+    ssregs->regs_R.dw[MD_REG_ECX] = PIN_GetContextReg(&ssctxt, REG_ECX);
+    ssregs->regs_R.dw[MD_REG_EDX] = PIN_GetContextReg(&ssctxt, REG_EDX);
+    ssregs->regs_R.dw[MD_REG_EBX] = PIN_GetContextReg(&ssctxt, REG_EBX);
+    ssregs->regs_R.dw[MD_REG_ESP] = PIN_GetContextReg(&ssctxt, REG_ESP);
+    ssregs->regs_R.dw[MD_REG_EBP] = PIN_GetContextReg(&ssctxt, REG_EBP);
+    ssregs->regs_R.dw[MD_REG_EDI] = PIN_GetContextReg(&ssctxt, REG_EDI);
+    ssregs->regs_R.dw[MD_REG_ESI] = PIN_GetContextReg(&ssctxt, REG_ESI);
 
 
-    // Copy segment registers (IA32-specific)
-    SSRegs.regs_S.w[MD_REG_CS] = PIN_GetContextReg(&ssctxt, REG_SEG_CS);
-    SSRegs.regs_S.w[MD_REG_SS] = PIN_GetContextReg(&ssctxt, REG_SEG_SS);
-    SSRegs.regs_S.w[MD_REG_DS] = PIN_GetContextReg(&ssctxt, REG_SEG_DS);
-    SSRegs.regs_S.w[MD_REG_ES] = PIN_GetContextReg(&ssctxt, REG_SEG_ES);
-    SSRegs.regs_S.w[MD_REG_FS] = PIN_GetContextReg(&ssctxt, REG_SEG_FS);
-    SSRegs.regs_S.w[MD_REG_GS] = PIN_GetContextReg(&ssctxt, REG_SEG_GS);
+    // Copy segment selector registers (IA32-specific)
+    ssregs->regs_S.w[MD_REG_CS] = PIN_GetContextReg(&ssctxt, REG_SEG_CS);
+    ssregs->regs_S.w[MD_REG_SS] = PIN_GetContextReg(&ssctxt, REG_SEG_SS);
+    ssregs->regs_S.w[MD_REG_DS] = PIN_GetContextReg(&ssctxt, REG_SEG_DS);
+    ssregs->regs_S.w[MD_REG_ES] = PIN_GetContextReg(&ssctxt, REG_SEG_ES);
+    ssregs->regs_S.w[MD_REG_FS] = PIN_GetContextReg(&ssctxt, REG_SEG_FS);
+    ssregs->regs_S.w[MD_REG_GS] = PIN_GetContextReg(&ssctxt, REG_SEG_GS);
 
+    // Copy segment base registers (simulator needs them for address calculations)
+    // XXX: For security reasons, we (as user code) aren't allowed to touch those.
+    // So, we access whatever we can (FS and GS because of 64-bit addressing).
+    // For the rest, Linux sets the base of user-leve CS and DS to 0, so life is good.
+    // FIXME: Check what Linux does with user-level SS and ES!
+
+    ssregs->regs_SD.dw[MD_REG_FS] = PIN_GetContextReg(&ssctxt, REG_SEG_FS_BASE);
+    ssregs->regs_SD.dw[MD_REG_GS] = PIN_GetContextReg(&ssctxt, REG_SEG_GS_BASE);
 
     // Copy floating purpose registers: Floating point state is generated via
     // the fxsave instruction, which is a 512-byte memory region. Look at the
@@ -218,31 +261,28 @@ struct regs_t *MakeSSContext(const CONTEXT *ictxt, const FPSTATE* fpstate, ADDRI
     // (potentially) call fxsave multiple times
 
     //Copy the floating point control word
-    memcpy(&SSRegs.regs_C.cwd, &fpstate->fxsave_legacy._fcw, 2);
+    memcpy(&ssregs->regs_C.cwd, &fpstate->fxsave_legacy._fcw, 2);
 
     // Copy the floating point status word
-    memcpy(&SSRegs.regs_C.fsw, &fpstate->fxsave_legacy._fsw, 2);
+    memcpy(&ssregs->regs_C.fsw, &fpstate->fxsave_legacy._fsw, 2);
 
     //Copy floating point tag word specifying which regsiters hold valid values
-    memcpy(&SSRegs.regs_C.ftw, &fpstate->fxsave_legacy._ftw, 1);
+    memcpy(&ssregs->regs_C.ftw, &fpstate->fxsave_legacy._ftw, 1);
 
     #define FXSAVE_STx_OFFSET(arr, st) ((arr) + ((st) * 16))
 
     //For Zesto, regs_F is indexed by physical register, not stack-based
-    #define ST2P(num) ((FSW_TOP(SSRegs.regs_C.fsw) + (num)) & 0x7)
+    #define ST2P(num) ((FSW_TOP(ssregs->regs_C.fsw) + (num)) & 0x7)
 
     // Copy actual extended fp registers
-    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST0)], FXSAVE_STx_OFFSET(fpstate->fxsave_legacy._st, MD_REG_ST0), MD_FPR_SIZE);
-    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST1)], FXSAVE_STx_OFFSET(fpstate->fxsave_legacy._st, MD_REG_ST1), MD_FPR_SIZE);
-    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST2)], FXSAVE_STx_OFFSET(fpstate->fxsave_legacy._st, MD_REG_ST2), MD_FPR_SIZE);
-    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST3)], FXSAVE_STx_OFFSET(fpstate->fxsave_legacy._st, MD_REG_ST3), MD_FPR_SIZE);
-    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST4)], FXSAVE_STx_OFFSET(fpstate->fxsave_legacy._st, MD_REG_ST4), MD_FPR_SIZE);
-    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST5)], FXSAVE_STx_OFFSET(fpstate->fxsave_legacy._st, MD_REG_ST5), MD_FPR_SIZE);
-    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST6)], FXSAVE_STx_OFFSET(fpstate->fxsave_legacy._st, MD_REG_ST6), MD_FPR_SIZE);
-    memcpy(&SSRegs.regs_F.e[ST2P(MD_REG_ST7)], FXSAVE_STx_OFFSET(fpstate->fxsave_legacy._st, MD_REG_ST7), MD_FPR_SIZE);
-
-
-    return &SSRegs;
+    memcpy(&ssregs->regs_F.e[ST2P(MD_REG_ST0)], FXSAVE_STx_OFFSET(fpstate->fxsave_legacy._st, MD_REG_ST0), MD_FPR_SIZE);
+    memcpy(&ssregs->regs_F.e[ST2P(MD_REG_ST1)], FXSAVE_STx_OFFSET(fpstate->fxsave_legacy._st, MD_REG_ST1), MD_FPR_SIZE);
+    memcpy(&ssregs->regs_F.e[ST2P(MD_REG_ST2)], FXSAVE_STx_OFFSET(fpstate->fxsave_legacy._st, MD_REG_ST2), MD_FPR_SIZE);
+    memcpy(&ssregs->regs_F.e[ST2P(MD_REG_ST3)], FXSAVE_STx_OFFSET(fpstate->fxsave_legacy._st, MD_REG_ST3), MD_FPR_SIZE);
+    memcpy(&ssregs->regs_F.e[ST2P(MD_REG_ST4)], FXSAVE_STx_OFFSET(fpstate->fxsave_legacy._st, MD_REG_ST4), MD_FPR_SIZE);
+    memcpy(&ssregs->regs_F.e[ST2P(MD_REG_ST5)], FXSAVE_STx_OFFSET(fpstate->fxsave_legacy._st, MD_REG_ST5), MD_FPR_SIZE);
+    memcpy(&ssregs->regs_F.e[ST2P(MD_REG_ST6)], FXSAVE_STx_OFFSET(fpstate->fxsave_legacy._st, MD_REG_ST6), MD_FPR_SIZE);
+    memcpy(&ssregs->regs_F.e[ST2P(MD_REG_ST7)], FXSAVE_STx_OFFSET(fpstate->fxsave_legacy._st, MD_REG_ST7), MD_FPR_SIZE);
 }
 
 /* ========================================================================== */
@@ -338,30 +378,33 @@ VOID FeedOriginalInstruction(struct P2Z_HANDSHAKE *handshake)
 }
 
 /* ========================================================================== */
-struct P2Z_HANDSHAKE *MakeSSRequest(ADDRINT pc, ADDRINT npc, ADDRINT tpc, BOOL brtaken, const CONTEXT *ictxt, const FPSTATE* fpstate)
+struct P2Z_HANDSHAKE *MakeSSRequest(THREADID tid, ADDRINT pc, ADDRINT npc, ADDRINT tpc, BOOL brtaken, const CONTEXT *ictxt)
 {
+    thread_state_t* tstate = get_tls(tid);
+
     // Must invalidate prior to use because previous invocation data still
     // resides in this statically allocated buffer
-    static struct P2Z_HANDSHAKE handshake;
-    memset(&handshake, 0, sizeof(P2Z_HANDSHAKE));
+    memset(&tstate->handshake, 0, sizeof(P2Z_HANDSHAKE));
 
-    handshake.pc = pc;
-    handshake.npc = npc;
-    handshake.tpc = tpc;
-    handshake.brtaken = brtaken;
-    handshake.ctxt = MakeSSContext(ictxt, fpstate, pc, npc);
-    handshake.orig = TRUE;
-    handshake.ins = NULL;
-    handshake.icount = 0;
-    return &handshake;
+    MakeSSContext(ictxt, &tstate->fpstate_buf, pc, npc, &tstate->regstate);
+
+    tstate->handshake.pc = pc;
+    tstate->handshake.npc = npc;
+    tstate->handshake.tpc = tpc;
+    tstate->handshake.brtaken = brtaken;
+    tstate->handshake.ctxt = &tstate->regstate;
+    tstate->handshake.orig = TRUE;
+    tstate->handshake.ins = NULL;
+    tstate->handshake.icount = 0;
+    return &tstate->handshake;
 }
 
 /* ========================================================================== */
-VOID SimulateInstruction(ADDRINT pc, BOOL taken, ADDRINT npc, ADDRINT tpc, const CONTEXT *ictxt)
+VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDRINT tpc, const CONTEXT *ictxt)
 {
     // Tracing
-    if (!KnobInsTraceFile.Value().empty())
-         trace_file << pc << endl;
+//    if (!KnobInsTraceFile.Value().empty())
+//         trace_file << pc << endl;
 
     // Sanity trace
     if (!KnobSanityInsTraceFile.Value().empty())
@@ -378,7 +421,7 @@ VOID SimulateInstruction(ADDRINT pc, BOOL taken, ADDRINT npc, ADDRINT tpc, const
         ASSERTX(sanity_pc == pc);
     }
 
-    struct P2Z_HANDSHAKE *handshake  = MakeSSRequest(pc, npc, tpc, taken, ictxt, &fpstate_buf);
+    struct P2Z_HANDSHAKE *handshake  = MakeSSRequest(tid, pc, npc, tpc, taken, ictxt);
 
     // Clear memory sanity check buffer - callbacks should fill it in FeedOriginalInstruction
     if (KnobSanity.Value())
@@ -421,16 +464,18 @@ BOOL TouchesFPState(INS ins)
 
 /*======================================================== */
 //Save FP state on the actual hardware
-VOID SaveFPState()
+VOID SaveFPState(THREADID tid)
 {
-   fxsave(reinterpret_cast<char*>(&fpstate_buf.fxsave_legacy));
+    thread_state_t *tstate = get_tls(tid);
+    fxsave(reinterpret_cast<char*>(&tstate->fpstate_buf.fxsave_legacy));
 }
 
 /*======================================================== */
 //Restore FP state on the actual hardware
-VOID RestoreFPState()
+VOID RestoreFPState(THREADID tid)
 {
-   fxrstor(reinterpret_cast<char*>(&fpstate_buf.fxsave_legacy));
+    thread_state_t *tstate = get_tls(tid);
+    fxrstor(reinterpret_cast<char*>(&tstate->fpstate_buf.fxsave_legacy));
 }
 
 /* ========================================================================== */
@@ -447,14 +492,26 @@ VOID Instrument(INS ins, VOID *v)
         return;
 
     // ILDJIT is doing its initialization/compilation/...
-    if (MOLECOOL_executionStarted == 0)
+    if (KnobILDJIT.Value() && !ILDJIT_IsExecuting())
         return;
+
+    // Tracing
+    if (!KnobInsTraceFile.Value().empty()) {
+             ADDRINT pc = INS_Address(ins);
+             USIZE size = INS_Size(ins);
+
+             trace_file << pc << " " << INS_Disassemble(ins);
+             for (INT32 curr = size-1; curr >= 0; curr--)
+                trace_file << " " << int(*(UINT8*)(curr + pc));
+             trace_file << endl;
+    }
 
     // Save FP state since SimulateInstruction may corrupt it
     // Note: PIN ensures proper order of instrument functions
     // Note: MakeSSContext relies this was called, so don't make
     // it conditional
     INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) SaveFPState,
+                    IARG_THREAD_ID,
                     IARG_END);
 
     if (! INS_IsBranchOrCall(ins))
@@ -465,6 +522,7 @@ VOID Instrument(INS ins, VOID *v)
         {
            INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR) returnArg, IARG_FIRST_REP_ITERATION, IARG_END);
            INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR) SimulateInstruction, 
+                       IARG_THREAD_ID,
                        IARG_INST_PTR, 
                        IARG_BOOL, 0, 
                        IARG_ADDRINT, INS_NextAddress(ins),
@@ -475,6 +533,7 @@ VOID Instrument(INS ins, VOID *v)
         else
             // Non-REP-ed, non-branch instruction, use falltrough
             INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) SimulateInstruction, 
+                       IARG_THREAD_ID,
                        IARG_INST_PTR, 
                        IARG_BOOL, 0, 
                        IARG_ADDRINT, INS_NextAddress(ins),
@@ -486,6 +545,7 @@ VOID Instrument(INS ins, VOID *v)
     {
         // Branch, give instrumentation appropriate address
         INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) SimulateInstruction, 
+                   IARG_THREAD_ID,
                    IARG_INST_PTR, 
                    IARG_BRANCH_TAKEN, 
                    IARG_ADDRINT, INS_NextAddress(ins),
@@ -499,29 +559,8 @@ VOID Instrument(INS ins, VOID *v)
     // TODO: this is costly, so only do if ins will need correct fpstate
 //    if (TouchesFPState(ins))
         INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) RestoreFPState,
-                        IARG_END); 
-}
-
-/* ========================================================================== */
-VOID FFwdHandler(VOID * val, CONTEXT * ctxt, VOID * ip, THREADID tid)
-{
-    INSTLIB::ALARM_ICOUNT * al = static_cast<INSTLIB::ALARM_ICOUNT *> (val);
-
-    al->DeActivate();
-
-    CODECACHE_FlushCache();
-
-    ExecMode = EXECUTION_MODE_SIMULATE;
-    isFirstInsn = true;
-}
-/* ========================================================================== */
-VOID InstallFastForwarding()
-{
-    FFwdingAlarm.Activate();
-
-    FFwdingAlarm.SetAlarm(KnobFFwd.Value(), FFwdHandler, &FFwdingAlarm);
-
-    ExecMode = EXECUTION_MODE_FASTFORWARD;
+                       IARG_THREAD_ID,
+                       IARG_END); 
 }
 
 /* ========================================================================== */
@@ -570,7 +609,7 @@ SSARGS MakeSimpleScalarArgcArgv(UINT32 argc, CHAR *argv[])
     ssArgv = reinterpret_cast <CHAR **> (calloc(ssArgc, sizeof(CHAR *)));
 
     UINT32 ssArgIndex = 0;
-    ssArgv[ssArgIndex++] = "SimpleScalar";  // Does not matter; just for sanity
+    ssArgv[ssArgIndex++] = sim_name;  // Does not matter; just for sanity
     for (UINT32 pin = ssArgBegin; pin < ssArgEnd; pin++)
     {
         if (string(argv[pin]) != "--")
@@ -588,35 +627,48 @@ SSARGS MakeSimpleScalarArgcArgv(UINT32 argc, CHAR *argv[])
 }
 
 /* ========================================================================== */
-VOID onMainThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
+VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
 {
-    // ILDJIT is forking a compiler thread
-    if (MOLECOOL_codeExecutorCreation == 0)
-        return;
+    // ILDJIT is forking a compiler thread, ignore
+//    if (KnobILDJIT.Value() && !ILDJIT_IsCreatingExecutor())
+//        return;
 
-//    cout << "Thread start. ID: " << threadIndex << endl;
-    if(threadIndex != 0)
-      return;
+    GetLock(&test, 1);
+
+    cerr << "Thread start. ID: " << dec << threadIndex << endl;
+
+    thread_state_t* tstate = new thread_state_t();
+    PIN_SetThreadData(tls_key, tstate, threadIndex);
 
     CHAR* sp = (CHAR*)PIN_GetContextReg(ictxt, REG_ESP);
-//    cout << hex << "SP: " << (VOID*) sp << dec << endl;
+//    cerr << hex << "SP: " << (VOID*) sp << dec << endl;
     
-    while(*sp++); //go to end of argv
-//    cout << hex << (VOID*)sp << dec << endl;
-    while(*sp++); //go to end of envp
+    while (*sp++); //go to end of argv
+//    cerr << hex << (VOID*)sp << dec << endl;
+    while (*sp++); //go to end of envp
 
     Elf32_auxv_t *auxv;
-    for(auxv = (Elf32_auxv_t*)sp; auxv->a_type != AT_NULL; auxv++); //go to end of aux_vector
+    for (auxv = (Elf32_auxv_t*)sp; auxv->a_type != AT_NULL; auxv++) { //go to end of aux_vector
+        // This containts the address of the kernel-mapped page used for a fast syscall routine
+        if (threadIndex == 0 && auxv->a_type == AT_SYSINFO) {
+#ifdef ZESTO_PIN_DBG
+            cerr << "AT_SYSINFO: " << auxv->a_un.a_val << endl;
+#endif
+            ADDRINT vsyscall_page = *(UINT32*) auxv->a_un.a_val;
+            ASSERTX( Zesto_Notify_Mmap(vsyscall_page, 4096, false) );
+        }
+    }
 
     INT32* bos = (INT32*)((CHAR*)auxv+1);
 
-    while(*bos++); //this should reach bottom of stack
+    while (*bos++); //this should reach bottom of stack
 
     Zesto_SetBOS((ADDRINT) bos);
-//    cout << (int)*sp << endl;
-//    cout << hex << (VOID*)sp << dec << endl;
-//    cout << *(char*)sp << endl;
+//    cerr << (int)*sp << endl;
+//    cerr << hex << (VOID*)sp << dec << endl;
+//    cerr << *(char*)sp << endl;
 
+    ReleaseLock(&test);
 }
 
 //from linux/arch/x86/ia32/sys_ia32.c
@@ -637,20 +689,13 @@ struct tms {
     clock_t tms_cstime;
 };
 
-ADDRINT last_syscall_number;
-ADDRINT last_syscall_arg1;
-ADDRINT last_syscall_arg2;
-ADDRINT last_syscall_arg3;
-
 /* ========================================================================== */
 VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VOID *v)
 {
     // ILDJIT is minding its own bussiness
-    if (MOLECOOL_executionStarted == 0)
-        return;
-
-    //Single-threaded for now
-    ASSERTX(threadIndex == 0);
+//    if (KnobILDJIT.Value() && !ILDJIT_IsExecuting())
+//        return;
+    GetLock(&test, threadIndex+1);
 
     ADDRINT syscall_num = PIN_GetSyscallNumber(ictxt, std);
     ADDRINT arg1 = PIN_GetSyscallArgument(ictxt, std, 0);
@@ -658,7 +703,9 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, V
     ADDRINT arg3;
     mmap_arg_struct mmap_arg;
 
-    last_syscall_number = syscall_num;
+    thread_state_t* tstate = get_tls(threadIndex);
+
+    tstate->last_syscall_number = syscall_num;
 
     switch(syscall_num)
     {
@@ -666,7 +713,7 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, V
 #ifdef ZESTO_PIN_DBG
         cerr << "Syscall brk(" << dec << syscall_num << ") addr: 0x" << hex << arg1 << dec << endl;
 #endif
-        last_syscall_arg1 = arg1;
+        tstate->last_syscall_arg1 = arg1;
         break;
 
       case __NR_munmap:
@@ -675,8 +722,8 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, V
         cerr << "Syscall munmap(" << dec << syscall_num << ") addr: 0x" << hex << arg1 
              << " length: " << arg2 << dec << endl;
 #endif
-        last_syscall_arg1 = arg1;
-        last_syscall_arg2 = arg2;
+        tstate->last_syscall_arg1 = arg1;
+        tstate->last_syscall_arg2 = arg2;
         break;
 
       case __NR_mmap: //oldmmap
@@ -685,7 +732,7 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, V
         cerr << "Syscall oldmmap(" << dec << syscall_num << ") addr: 0x" << hex << mmap_arg.addr 
              << " length: " << mmap_arg.len << dec << endl;
 #endif
-        last_syscall_arg1 = mmap_arg.len;
+        tstate->last_syscall_arg1 = mmap_arg.len;
         break;
 
       case __NR_mmap2:
@@ -694,7 +741,7 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, V
         cerr << "Syscall mmap2(" << dec << syscall_num << ") addr: 0x" << hex << arg1 
              << " length: " << arg2 << dec << endl;
 #endif
-        last_syscall_arg1 = arg2;
+        tstate->last_syscall_arg1 = arg2;
         break;
 
       case __NR_mremap:
@@ -704,9 +751,9 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, V
         cerr << "Syscall mremap(" << dec << syscall_num << ") old_addr: 0x" << hex << arg1 
              << " old_length: " << arg2 << " new_length: " << arg3 << dec << endl;
 #endif
-        last_syscall_arg1 = arg1;
-        last_syscall_arg2 = arg2;
-        last_syscall_arg3 = arg3;
+        tstate->last_syscall_arg1 = arg1;
+        tstate->last_syscall_arg2 = arg2;
+        tstate->last_syscall_arg3 = arg3;
         break;
 
 #ifdef TIME_TRANSPARENCY
@@ -714,7 +761,7 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, V
 #ifdef ZESTO_PIN_DBG
         cerr << "Syscall times(" << dec << syscall_num << ") num_ins: " << SimOrgInsCount << endl;
 #endif
-        last_syscall_arg1 = arg1;
+        tstate->last_syscall_arg1 = arg1;
         break;
 #endif
 
@@ -724,19 +771,20 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, V
 #endif
         break;
     }
+    ReleaseLock(&test);
 }
 
 /* ========================================================================== */
 VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VOID *v)
 {
     // ILDJIT is minding its own bussiness
-    if (MOLECOOL_executionStarted == 0)
-        return;
+//    if (KnobILDJIT.Value() && !ILDJIT_IsExecuting())
+//        return;
 
-    //Single-threaded for now
-    ASSERTX(threadIndex == 0);
-
+    GetLock(&test, threadIndex+1);
     ADDRINT retval = PIN_GetSyscallReturn(ictxt, std);
+
+    thread_state_t* tstate = get_tls(threadIndex);
 
 #ifdef TIME_TRANSPARENCY
     //for times()
@@ -744,15 +792,15 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
     clock_t adj_time;
 #endif
 
-    switch(last_syscall_number)
+    switch(tstate->last_syscall_number)
     {
       case __NR_brk:
 #ifdef ZESTO_PIN_DBG
-        cerr << "Ret syscall brk(" << dec << last_syscall_number << ") addr: 0x" 
+        cerr << "Ret syscall brk(" << dec << tstate->last_syscall_number << ") addr: 0x" 
              << hex << retval << dec << endl;
 #endif
-        if(last_syscall_arg1 != 0)
-            Zesto_UpdateBrk(last_syscall_arg1, true);
+        if(tstate->last_syscall_arg1 != 0)
+            Zesto_UpdateBrk(tstate->last_syscall_arg1, true);
         /* Seemingly libc code calls sbrk(0) to get the initial value of the sbrk. We intercept that and send result to zesto, so that we can correclty deal with virtual memory. */
         else
             Zesto_UpdateBrk(retval, false);
@@ -760,49 +808,49 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
 
       case __NR_munmap:
 #ifdef ZESTO_PIN_DBG
-        cerr << "Ret syscall munmap(" << dec << last_syscall_number << ") addr: 0x" 
-             << hex << last_syscall_arg1 << " length: " << last_syscall_arg2 << dec << endl;
+        cerr << "Ret syscall munmap(" << dec << tstate->last_syscall_number << ") addr: 0x" 
+             << hex << tstate->last_syscall_arg1 << " length: " << tstate->last_syscall_arg2 << dec << endl;
 #endif
-        Zesto_Notify_Munmap(last_syscall_arg1, last_syscall_arg2, false);
+        Zesto_Notify_Munmap(tstate->last_syscall_arg1, tstate->last_syscall_arg2, false);
         break;
 
       case __NR_mmap: //oldmap
 #ifdef ZESTO_PIN_DBG
-        cerr << "Ret syscall oldmmap(" << dec << last_syscall_number << ") addr: 0x" 
-             << hex << retval << " length: " << last_syscall_arg1 << dec << endl;
+        cerr << "Ret syscall oldmmap(" << dec << tstate->last_syscall_number << ") addr: 0x" 
+             << hex << retval << " length: " << tstate->last_syscall_arg1 << dec << endl;
 #endif
 
-        ASSERTX( Zesto_Notify_Mmap(retval, last_syscall_arg1, false) );
+        ASSERTX( Zesto_Notify_Mmap(retval, tstate->last_syscall_arg1, false) );
         break;
 
       case __NR_mmap2:
 #ifdef ZESTO_PIN_DBG
-        cerr << "Ret syscall mmap2(" << dec << last_syscall_number << ") addr: 0x" 
-             << hex << retval << " length: " << last_syscall_arg1 << dec << endl;
+        cerr << "Ret syscall mmap2(" << dec << tstate->last_syscall_number << ") addr: 0x" 
+             << hex << retval << " length: " << tstate->last_syscall_arg1 << dec << endl;
 #endif
 
-        ASSERTX( Zesto_Notify_Mmap(retval, last_syscall_arg1, false) );
+        ASSERTX( Zesto_Notify_Mmap(retval, tstate->last_syscall_arg1, false) );
         break;
 
       case __NR_mremap:
 #ifdef ZESTO_PIN_DBG
-        cerr << "Ret syscall mremap(" << dec << last_syscall_number << ") " << hex 
-             << " old_addr: 0x" << last_syscall_arg1
-             << " old_length: " << last_syscall_arg2
+        cerr << "Ret syscall mremap(" << dec << tstate->last_syscall_number << ") " << hex 
+             << " old_addr: 0x" << tstate->last_syscall_arg1
+             << " old_length: " << tstate->last_syscall_arg2
              << " new address: 0x" << retval
-             << " new_length: " << last_syscall_arg3 << dec << endl;
+             << " new_length: " << tstate->last_syscall_arg3 << dec << endl;
 #endif
 
-        ASSERTX( Zesto_Notify_Munmap(last_syscall_arg1, last_syscall_arg2, false) );
-        ASSERTX( Zesto_Notify_Mmap(retval, last_syscall_arg3, false) );
+        ASSERTX( Zesto_Notify_Munmap(tstate->last_syscall_arg1, tstate->last_syscall_arg2, false) );
+        ASSERTX( Zesto_Notify_Mmap(retval, tstate->last_syscall_arg3, false) );
         break;
 
 #ifdef TIME_TRANSPARENCY
       case __NR_times:
-        buf = (tms*) last_syscall_arg1;
+        buf = (tms*) tstate->last_syscall_arg1;
         adj_time = retval - (clock_t) sim_time;
 #ifdef ZESTO_PIN_DBG
-        cerr << "Ret syscall times(" << dec << last_syscall_number << ") old: "
+        cerr << "Ret syscall times(" << dec << tstate->last_syscall_number << ") old: "
              << retval  << " adjusted: " << adj_time 
              << " user: " << buf->tms_utime 
              << " user_adj: " << (buf->tms_utime - sim_time)
@@ -812,8 +860,8 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
          * Included for full transparency - some apps detect we are taking a long time
          * and do bad things like dropping frames
          * Since we have no decent way of measuring how much time the simulator spends in the OS
-         * (other than calling times() for every instruction), we assume the simulator is mainly
-         * user code. XXX: how reasonable is this assmuption???
+         * (other than calling times() for every instruction), we assume the simulator is ainly
+          user code. XXX: how reasonable is this assmuption???
          */
         buf->tms_utime -= sim_time;
         /* buf->tms_stime -=  0.1 * sim_time; ?? */
@@ -830,6 +878,7 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
       default:
         break;
     }
+    ReleaseLock(&test);
 }
 
 /* ========================================================================== */
@@ -844,13 +893,23 @@ INT32 main(INT32 argc, CHAR **argv)
 
     SSARGS ssargs = MakeSimpleScalarArgcArgv(argc, argv);
 
+    if (KnobILDJIT.Value())
+        MOLECOOL_Init();
+
+    InitLock(&test);
+
+    // Obtain  a key for TLS storage.
+    tls_key = PIN_CreateThreadDataKey(0);
+
     PIN_Init(argc, argv);
     PIN_InitSymbols();
 
 
     // Try activate pinpoints alarm, must be done before PIN_StartProgram
-    if(control.CheckKnobs(PPointHandler, 0) != 1)
-        InstallFastForwarding(); //If not, try activate simple ffwd
+    if(control.CheckKnobs(PPointHandler, 0) != 1) {
+        cerr << "Error reading control parametrs, exiting." << endl;
+        return 1;
+    }
 
     icount.Activate();
 
@@ -871,7 +930,7 @@ INT32 main(INT32 argc, CHAR **argv)
         sanity_trace >> hex;
     }
 
-    PIN_AddThreadStartFunction(onMainThreadStart, NULL);  
+    PIN_AddThreadStartFunction(ThreadStart, NULL);  
     IMG_AddUnloadFunction(ImageUnload, 0);
     IMG_AddInstrumentFunction(ImageLoad, 0);
     PIN_AddSyscallEntryFunction(SyscallEntry, 0);
