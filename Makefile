@@ -62,7 +62,7 @@ X=/
 #		  sysprobe will auto-detect if host can use fast shifts
 # -DLINUX_RHEL4 - we needed to use this for RHEL4, but not for RHEL5 (default)
 #
-FFLAGS = -DLINUX_RHEL4
+#FFLAGS = -DLINUX_RHEL4
 
 ##################################################################
 #
@@ -177,7 +177,7 @@ lib:	CFLAGS += -DZESTO_PIN
 lib:	sysprobe$(EEXT) sim-slave.$(OEXT) $(OBJS_SLAVE) $(ZOBJS) $(EXOOBJS)
 	ar rs libsim.a sim-slave.$(OEXT) $(OBJS_SLAVE) $(ZOBJS) $(EXOOBJS)
 	ranlib libsim.a
-libd:	CFLAGS += -DZESTO_PIN -DZESTO_PIN_DBG
+libd:	CFLAGS += -DZESTO_PIN -DZESTO_PIN_DBG -DZTRACE
 libd:	sysprobe$(EEXT) sim-slave.$(OEXT) $(OBJS_SLAVE) $(ZOBJS) $(EXOOBJS)
 	ar rs libsim.a sim-slave.$(OEXT) $(OBJS_SLAVE) $(ZOBJS) $(EXOOBJS)
 	ranlib libsim.a
