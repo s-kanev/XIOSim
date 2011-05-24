@@ -83,6 +83,9 @@ class thread_state_t
     ADDRINT last_syscall_arg1;
     ADDRINT last_syscall_arg2;
     ADDRINT last_syscall_arg3;
+
+    // Bottom-of-stack pointer used for shadow page table
+    ADDRINT bos;
 };
 
 // Used to access thread-local storage
@@ -427,6 +430,10 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
     if (KnobSanity.Value())
         sanity_writes.clear();
 
+    thread_state_t* tstate = get_tls(tid);
+    if (isFirstInsn)
+        Zesto_SetBOS(tstate->bos);
+
     // Pass instruction to simulator
     FeedOriginalInstruction(handshake);
 
@@ -640,33 +647,63 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
     thread_state_t* tstate = new thread_state_t();
     PIN_SetThreadData(tls_key, tstate, threadIndex);
 
-    CHAR* sp = (CHAR*)PIN_GetContextReg(ictxt, REG_ESP);
-//    cerr << hex << "SP: " << (VOID*) sp << dec << endl;
-    
-    while (*sp++); //go to end of argv
-//    cerr << hex << (VOID*)sp << dec << endl;
-    while (*sp++); //go to end of envp
+    ADDRINT tos, bos;
 
-    Elf32_auxv_t *auxv;
-    for (auxv = (Elf32_auxv_t*)sp; auxv->a_type != AT_NULL; auxv++) { //go to end of aux_vector
-        // This containts the address of the kernel-mapped page used for a fast syscall routine
-        if (threadIndex == 0 && auxv->a_type == AT_SYSINFO) {
-#ifdef ZESTO_PIN_DBG
-            cerr << "AT_SYSINFO: " << auxv->a_un.a_val << endl;
-#endif
-            ADDRINT vsyscall_page = *(UINT32*) auxv->a_un.a_val;
-            ASSERTX( Zesto_Notify_Mmap(vsyscall_page, 4096, false) );
+    tos = PIN_GetContextReg(ictxt, REG_ESP);
+    CHAR** sp = (CHAR**)tos;
+//    cerr << hex << "SP: " << (VOID*) sp << dec << endl;
+
+    // We care about the address space only on main thread creation
+    if (threadIndex == 0) {
+        UINT32 argc = *(UINT32*) sp;
+//        cerr << hex << "argc: " << argc << dec << endl;
+
+        for(UINT32 i=0; i<argc; i++) {
+            sp++;
+//            cerr << hex << (ADDRINT)(*sp) << dec << endl;
         }
+        sp++;   // End of argv (=NULL);
+
+        sp++;   // Start of envp
+
+        CHAR** envp = sp;
+//        cerr << "envp: " << hex << (ADDRINT)envp << endl;
+        while(*envp != NULL) {
+//            cerr << hex << (ADDRINT)(*envp) << dec << endl;
+            envp++;
+        } // End of envp
+
+        CHAR* last_env = *(envp-1);
+        envp++; // Skip end of envp (=NULL)
+
+        Elf32_auxv_t* auxv = (Elf32_auxv_t*)envp;
+//        cerr << "auxv: " << hex << auxv << endl;
+        for (; auxv->a_type != AT_NULL; auxv++) { //go to end of aux_vector
+            // This containts the address of the kernel-mapped page used for a fast syscall routine
+            if (auxv->a_type == AT_SYSINFO) {
+#ifdef ZESTO_PIN_DBG
+                cerr << "AT_SYSINFO: " << hex << auxv->a_un.a_val << endl;
+#endif
+                ADDRINT vsyscall_page = (ADDRINT)(auxv->a_un.a_val & 0xfffff000);
+                ASSERTX( Zesto_Notify_Mmap(vsyscall_page, MD_PAGE_SIZE, false) );
+            }
+        }
+
+        bos = (ADDRINT) last_env + strlen(last_env)+1;
+//        cerr << "bos: " << hex << bos << dec << endl;
+
+        // Reserve space for environment and arguments in case 
+        // execution starts on another thread.
+        ADDRINT tos_start = ROUND_DOWN(tos, MD_PAGE_SIZE);
+        ADDRINT bos_end = ROUND_UP(bos, MD_PAGE_SIZE);
+        ASSERTX( Zesto_Notify_Mmap(tos_start, bos_end-tos_start, false));
+
+    }
+    else {
+        bos = tos;
     }
 
-    INT32* bos = (INT32*)((CHAR*)auxv+1);
-
-    while (*bos++); //this should reach bottom of stack
-
-    Zesto_SetBOS((ADDRINT) bos);
-//    cerr << (int)*sp << endl;
-//    cerr << hex << (VOID*)sp << dec << endl;
-//    cerr << *(char*)sp << endl;
+    tstate->bos = bos;
 
     ReleaseLock(&test);
 }
@@ -764,6 +801,14 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, V
         tstate->last_syscall_arg1 = arg1;
         break;
 #endif
+      case __NR_mprotect:
+        arg2 = PIN_GetSyscallArgument(ictxt, std, 1);
+        arg3 = PIN_GetSyscallArgument(ictxt, std, 2);
+#ifdef ZESTO_PIN_DBG
+        cerr << "Syscall mprotect(" << dec << syscall_num << ") addr: " << hex << arg1
+             << dec << " length: " << arg2 << " prot: " << hex << arg3 << dec << endl;
+#endif
+        break;
 
       default:
 #ifdef ZESTO_PIN_DBG
