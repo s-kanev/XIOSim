@@ -532,6 +532,7 @@ void ztrace_print(const struct Mop_t * Mop)
       i += Mop->uop[i].decode.has_imm?3:1;
       count++;
     }
+    fflush(ztrace_fp);
   }
 }
 

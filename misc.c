@@ -308,6 +308,8 @@ void flush_trace()
   myfprintf(stderr, "END TRACE\n");
   myfprintf(stderr, "==============================\n");
   fflush(stderr);
+  tracebuff_occupancy = 0;
+  tracebuff_head = tracebuff_tail;
 }
 #endif
 
