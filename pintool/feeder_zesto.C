@@ -12,6 +12,7 @@
 #include <iomanip>
 #include <map>
 #include <syscall.h>
+#include <sys/mman.h>
 #include <stdlib.h>
 #include <elf.h>
 
@@ -808,6 +809,9 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, V
         cerr << "Syscall mprotect(" << dec << syscall_num << ") addr: " << hex << arg1
              << dec << " length: " << arg2 << " prot: " << hex << arg3 << dec << endl;
 #endif
+        tstate->last_syscall_arg1 = arg1;
+        tstate->last_syscall_arg2 = arg2;
+        tstate->last_syscall_arg3 = arg3;
         break;
 
       default:
@@ -888,6 +892,14 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
 
         ASSERTX( Zesto_Notify_Munmap(tstate->last_syscall_arg1, tstate->last_syscall_arg2, false) );
         ASSERTX( Zesto_Notify_Mmap(retval, tstate->last_syscall_arg3, false) );
+        break;
+
+      case __NR_mprotect:
+        if ((tstate->last_syscall_arg3 & PROT_READ) == 0)
+            ASSERTX( Zesto_Notify_Munmap(tstate->last_syscall_arg1, tstate->last_syscall_arg2, false) );
+        else
+            ASSERTX( Zesto_Notify_Mmap(tstate->last_syscall_arg1, tstate->last_syscall_arg2, false) );
+
         break;
 
 #ifdef TIME_TRANSPARENCY
