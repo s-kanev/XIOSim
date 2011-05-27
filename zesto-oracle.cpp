@@ -356,7 +356,6 @@ void core_oracle_t::write_spec_byte_to_mem(
      byte_t prev_val = MEM_READ_SUCC_NON_SPEC(core->current_thread->mem,p->addr,byte_t);
 
      ZPIN_TRACE(" prev_val: %d(%d)\n", prev_val, _read_succ)
-
      p->prev_val = prev_val;
      p->prev_val_valid = _read_succ;
      p->uop = uop;
