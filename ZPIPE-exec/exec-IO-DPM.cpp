@@ -782,12 +782,14 @@ bool core_exec_IO_DPM_t::check_load_issue_conditions(const struct uop_t * const 
     
     if(STQ[i].addr_valid)
       st_addr1 = STQ[i].virt_addr; /* addr of first byte */
-    else
+    else if(STQ[i].sta != NULL)
     {
-if(!STQ[i].sta)
-      zesto_assert(STQ[i].sta,false);
       st_addr1 = STQ[i].sta->oracle.virt_addr; /* addr of first byte */
       sta_unknown = true;
+    } else
+    {
+      num_stores++;
+      continue;
     }
     st_addr2 = st_addr1 + st_mem_size - 1; /* addr of last byte */
 
@@ -2259,6 +2261,7 @@ void core_exec_IO_DPM_t::step()
   struct core_knobs_t * knobs = core->knobs;
   int i;
 
+// FIXME: Re-enable for performance
 //  if(check_for_work == false)
 //    return;
 
@@ -2436,7 +2439,6 @@ void core_exec_IO_DPM_t::step()
                           (!REG_IS_FPR(uop->decode.odep_name) && (uop->decode.opflags & F_FCOMP)))?knobs->exec.fp_penalty:0;
 
          
-         //zesto_assert(uop->timing.when_completed == TICK_T_MAX,(void)0);
          if(uop->timing.when_completed == TICK_T_MAX)
          {
             uop->timing.when_completed = sim_cycle+fp_penalty;
@@ -2579,6 +2581,7 @@ void core_exec_IO_DPM_t::step()
 //1st stage - address generation
 //2nd - cache access
 //3rd - cache access res + leave to FU
+//FIXME: This should be configurable
 
   zesto_assert(knobs->exec.payload_depth == 3, (void)0);
   int stage = knobs->exec.payload_depth-1;
@@ -2603,16 +2606,16 @@ void core_exec_IO_DPM_t::step()
 
 
            //loads should have already finished by now, if not, stall
-	   if(uop->decode.is_load)
+	       if(uop->decode.is_load)
            {
              if(!uop->exec.ovalue_valid)
-	     {
-	       stall = true;
-               uop->exec.num_replays++;
-	       if(port[i].when_stalled == 0)
-                 port[i].when_stalled = sim_cycle;
-	       continue;
-	     }
+	         {
+	            stall = true;
+                uop->exec.num_replays++;
+	            if(port[i].when_stalled == 0)
+                  port[i].when_stalled = sim_cycle;
+	            continue;
+	         }
            } 
 
 //SK - we deal with fused uops on the same cycle. This assumes we are fusing LOAD, OP, STA, STD at most since in the IO pipe there are dedicated cycles for LOAD, STA and STD. 

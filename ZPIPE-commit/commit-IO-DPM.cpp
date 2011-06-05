@@ -848,29 +848,41 @@ core_commit_IO_DPM_t::recover(const struct Mop_t * const Mop)
 
   struct uop_t * curr_uop = NULL;
   int squashed_uops = 0;
+  int old_entries = 0;
 
   /* flush uops in the ROB */
-  for(int i=ROB_head; i!=ROB_tail; i=modinc(i, knobs->commit.ROB_size))
+  if(ROB_num > 0)
   {
-    curr_uop = ROB[i];
+    int i=ROB_head;
+    do
+    {
+      curr_uop = ROB[i];
 
-    /* if uop older than squashed one, leave it to commit */
-    if(curr_uop->decode.Mop_seq <= Mop->oracle.seq)
-      continue;
+      /* if uop older than squashed one, leave it to commit */
+      if(curr_uop->decode.Mop_seq <= Mop->oracle.seq)
+      {
+        i=modinc(i, knobs->commit.ROB_size);
+        old_entries++;
+        continue;
+      }
 
-    zesto_assert(ROB_num > 0,(void)0);
+      zesto_assert(ROB_num > 0,(void)0);
 
-    int eff_uop_num = this->squash_uop(curr_uop);
+      int eff_uop_num = this->squash_uop(curr_uop);
 
-    ROB[i] = NULL;
-    ROB_num --;
-    ROB_eff_num-= eff_uop_num;
-    zesto_assert(ROB_num >= 0,(void)0);
-    zesto_assert(ROB_eff_num >= 0,(void)0);
-    squashed_uops++;
+      ROB[i] = NULL;
+      ROB_num --;
+      ROB_eff_num-= eff_uop_num;
+      zesto_assert(ROB_num >= 0,(void)0);
+      zesto_assert(ROB_eff_num >= 0,(void)0);
+      squashed_uops++;
+
+      i=modinc(i, knobs->commit.ROB_size);
+    } while(i != ROB_tail);
   }
 
   ROB_tail = (ROB_tail - squashed_uops) % knobs->commit.ROB_size;
+  zesto_assert(ROB_num == old_entries, (void)0);
 
   /* flush uops in the pre_commit pipe */
   for(int i=knobs->commit.pre_commit_depth-1; i>-1; i--)
@@ -889,6 +901,7 @@ core_commit_IO_DPM_t::recover(const struct Mop_t * const Mop)
     squashed_uops++;
   }
 
+//FIXME: Re-enable after chaning alloc drain part
 //  if(knobs->alloc.drain_flush && ROB_num > 0)
 //    core->alloc->start_drain();
 }
@@ -901,26 +914,30 @@ core_commit_IO_DPM_t::recover(void)
   struct uop_t * curr_uop = NULL;
 
   /* flush uops in the ROB */
-  for(int i=ROB_head; i!=ROB_tail; i=modinc(i, knobs->commit.ROB_size))
+  if(ROB_num > 0)
   {
-    curr_uop = ROB[i];
+    int i=ROB_head;
+    do
+    {
+      curr_uop = ROB[i];
 
-    zesto_assert(ROB_num > 0,(void)0);
+      zesto_assert(ROB_num > 0,(void)0);
 
-    int eff_uop_num = this->squash_uop(curr_uop);
+      int eff_uop_num = this->squash_uop(curr_uop);
 
-    ROB[i] = NULL;
-    ROB_num --;
-    ROB_eff_num-= eff_uop_num;
-    zesto_assert(ROB_num >= 0,(void)0);
-    zesto_assert(ROB_eff_num >= 0,(void)0);
+      ROB[i] = NULL;
+      ROB_num --;
+      ROB_eff_num-= eff_uop_num;
+      zesto_assert(ROB_num >= 0,(void)0);
+      zesto_assert(ROB_eff_num >= 0,(void)0);
+
+      i=modinc(i, knobs->commit.ROB_size);
+    } while(i != ROB_tail);
   }
 
   zesto_assert(ROB_num == 0,(void)0);
   zesto_assert(ROB_eff_num == 0,(void)0);
   ROB_tail = ROB_head;
-
-  core->exec->STQ_squash_senior();
 
   /* flush uops in the pre_commit pipe */
   for(int i=knobs->commit.pre_commit_depth-1; i>-1; i--)
@@ -933,6 +950,8 @@ core_commit_IO_DPM_t::recover(void)
     this->squash_uop(curr_uop);
     pre_commit_pipe[i] = NULL;
   }
+
+  core->exec->STQ_squash_senior();
 }
 
 bool core_commit_IO_DPM_t::ROB_available(void)
