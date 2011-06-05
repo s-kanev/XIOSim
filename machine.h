@@ -199,10 +199,14 @@ typedef union {
   efloat_t e[MD_NUM_FREGS];    /* extended-precision floating point view */
 } md_fpr_t;
 
-/* segment register file entry type */
-typedef union{
+/* segment selector entry type */
+typedef union {
   word_t w[MD_NUM_SREGS]; // UCSD
 } md_seg_t;
+
+typedef union {
+  md_addr_t dw[MD_NUM_SREGS];
+} md_seg_base_t;
 
 /* control register file contents */
 typedef struct {
@@ -576,16 +580,16 @@ extern const unsigned int md_op2flags[];
 #define DISP        (Mop->fetch.inst.disp)
 
 /* address generation */
-/* Ganesh */
+/* Ganesh, SK */
 #define AGEN_W(S,B,I,SC,D)                        \
   ((Mop->fetch.inst.seg == SEG_DEF)                                                  \
    ? ((word_t)((dword_t)(B) + ((dword_t)(I) << (SC)) + (dword_t)(D)))        \
-   : ((word_t)((dword_t)(B) + ((dword_t)(thread->ldt_p?((thread->ldt_p)[S>>3]):0)) + ((dword_t)(I) << (SC)) + (dword_t)(D))))
+   : ((word_t)((dword_t)(B) + ((dword_t)(SEG_BASE(SEG_INDEX))) + ((dword_t)(I) << (SC)) + (dword_t)(D))))
 
 #define AGEN_D(S,B,I,SC,D)                                            \
   ((Mop->fetch.inst.seg == SEG_DEF)                                                  \
    ? ((dword_t)((dword_t)(B) + ((dword_t)(I) << (SC)) + (dword_t)(D)))        \
-   : ((dword_t)((dword_t)(B) + ((dword_t)(thread->ldt_p?((thread->ldt_p)[S>>3]):0)) + ((dword_t)(I) << (SC)) + (dword_t)(D))))
+   : ((dword_t)((dword_t)(B) + ((dword_t)(SEG_BASE(SEG_INDEX))) + ((dword_t)(I) << (SC)) + (dword_t)(D))))
 
 /*  ((dword_t)((dword_t)(B) + ((dword_t)(I) << (SC)) + (dword_t)(D)))*/
 

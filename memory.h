@@ -269,8 +269,9 @@ typedef enum md_fault_type
    : /* page not yet allocated, return zero value */ 0))
 
 #define MEM_READ(MEM, ADDR, TYPE)           \
-   ({ byte_t _tmp = _MEM_READ(MEM, ADDR, TYPE); \
-     ZPIN_TRACE("Read at addr 0x%x returns 0x%x\n", (ADDR), _tmp); \
+   ({ ZPIN_TRACE("Read at addr 0x%x", (ADDR)); \
+     byte_t _tmp = _MEM_READ(MEM, ADDR, TYPE); \
+     ZPIN_TRACE("returns 0x%x\n", _tmp); \
      _tmp; \
    })
 

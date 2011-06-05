@@ -509,6 +509,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool start_slice, bool end_s
    regs->regs_R = handshake->ctxt->regs_R;
    regs->regs_C = handshake->ctxt->regs_C;
    regs->regs_S = handshake->ctxt->regs_S;
+   regs->regs_SD = handshake->ctxt->regs_SD;
 
    /* Copy only valid FP registers (PIN uses invalid ones and they may differ) */
    int j;

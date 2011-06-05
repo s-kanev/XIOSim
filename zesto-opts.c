@@ -465,6 +465,8 @@ void ztrace_Mop_ID(const struct Mop_t * Mop)
 
 void ztrace_uop_ID(const struct uop_t * uop)
 {
+  if(uop==NULL)
+    return;
   fprintf(ztrace_fp,"%lld|u:%lld:%lld|", sim_cycle,
           uop->decode.Mop_seq, (uop->decode.Mop_seq << UOP_SEQ_SHIFT) + uop->flow_index);
   if(uop->Mop && uop->Mop->oracle.spec_mode)
@@ -530,6 +532,7 @@ void ztrace_print(const struct Mop_t * Mop)
       i += Mop->uop[i].decode.has_imm?3:1;
       count++;
     }
+    fflush(ztrace_fp);
   }
 }
 
