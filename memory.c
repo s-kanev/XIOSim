@@ -662,8 +662,6 @@ mem_newmap2(struct mem_t *mem,            /* memory space to access */
 
   ZPIN_TRACE("Mem_newmap2: %x -> %x, length: %x, end_addr: %x\n", addr, our_addr, length, addr+length)
 
-  myfprintf(stderr, "Mem_newmap2: %x -> %x, length: %x, end_addr: %x\n", addr, our_addr, length, addr+length);
-
   /* first check alignment */
   if((addr & (MD_PAGE_SIZE-1))!=0) {
     fprintf(stderr, "mem_newmap address %x, not page aligned\n", addr);
@@ -738,8 +736,6 @@ mem_delmap(struct mem_t *mem,            /* memory space to access */
   }
 
   ZPIN_TRACE("Mem_delmap: %x, length: %x, end_addr: %x\n", addr, length, addr+length)
-
-  myfprintf(stderr, "Mem_delmap: %x, length: %x, end_addr: %x\n", addr, length, addr+length);
 
   num_pages = length / MD_PAGE_SIZE + ((length % MD_PAGE_SIZE>0)? 1 : 0);
   for(i=0;i<num_pages;i++) {
