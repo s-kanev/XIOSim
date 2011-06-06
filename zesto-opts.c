@@ -89,7 +89,7 @@
 
 #if defined(ZTRACE) && !defined(ZESTO_PIN_DBG)
 FILE * ztrace_fp = NULL;
-char * ztrace_filename = NULL;
+const char * ztrace_filename = NULL;
 #endif
 
 /* variables for fast-forwarding prior to detailed simulation */

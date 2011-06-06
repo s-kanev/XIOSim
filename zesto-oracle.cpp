@@ -342,7 +342,6 @@ void core_oracle_t::write_spec_byte_to_mem(
    struct spec_byte_t * p,
    bool skip_last)
 {
-     byte_t _mem_read_tmp;
      bool _read_succ = false;
      // Previous memory value in case we need to restore on another nuke
      byte_t prev_val = MEM_READ_SUCC_NON_SPEC(core->current_thread->mem,p->addr,byte_t);

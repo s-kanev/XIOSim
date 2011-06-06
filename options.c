@@ -135,12 +135,12 @@ add_option(struct opt_odb_t *odb,	/* option database */
 /* register an integer option variable */
 void
 opt_reg_int(struct opt_odb_t *odb,	/* option data base */
-	    char *name,			/* option name */
-	    char *desc,			/* option description */
+	    const char *name,			/* option name */
+	    const char *desc,			/* option description */
 	    int *var,			/* target variable */
 	    int def_val,		/* default variable value */
 	    int print,			/* print during `-dumpconfig'? */
-	    char *format)		/* optional value print format */
+	    const char *format)		/* optional value print format */
 {
   struct opt_opt_t *opt;
 
@@ -169,14 +169,14 @@ opt_reg_int(struct opt_odb_t *odb,	/* option data base */
 /* register an integer option list */
 void
 opt_reg_int_list(struct opt_odb_t *odb,/* option database */
-		 char *name,		/* option name */
-		 char *desc,		/* option description */
+		 const char *name,		/* option name */
+		 const char *desc,		/* option description */
 		 int *vars,		/* pointer to option array */
 		 int nvars,		/* total entries in option array */
 		 int *nelt,		/* number of entries parsed */
 		 int *def_val,		/* default value of option array */
 		 int print,		/* print during `-dumpconfig'? */
-		 char *format,		/* optional user print format */
+		 const char *format,		/* optional user print format */
 		 int accrue)		/* accrue list across uses */
 {
   int i;
@@ -208,12 +208,12 @@ opt_reg_int_list(struct opt_odb_t *odb,/* option database */
 /* register an long long integer option variable */
 void
 opt_reg_long_long(struct opt_odb_t *odb,	/* option database */
-	     char *name,		/* option name */
-	     char *desc,		/* option description */
+	     const char *name,		/* option name */
+	     const char *desc,		/* option description */
 	     long long *var,		/* pointer to option variable */
 	     long long def_val,	/* default value of option variable */
 	     int print,			/* print during `-dumpconfig'? */
-	     char *format)		/* optional user print format */
+	     const char *format)		/* optional user print format */
 {
   struct opt_opt_t *opt;
 
@@ -242,12 +242,12 @@ opt_reg_long_long(struct opt_odb_t *odb,	/* option database */
 /* register an unsigned integer option variable */
 void
 opt_reg_uint(struct opt_odb_t *odb,	/* option database */
-	     char *name,		/* option name */
-	     char *desc,		/* option description */
+	     const char *name,		/* option name */
+	     const char *desc,		/* option description */
 	     unsigned int *var,		/* pointer to option variable */
 	     unsigned int def_val,	/* default value of option variable */
 	     int print,			/* print during `-dumpconfig'? */
-	     char *format)		/* optional user print format */
+	     const char *format)		/* optional user print format */
 {
   struct opt_opt_t *opt;
 
@@ -276,14 +276,14 @@ opt_reg_uint(struct opt_odb_t *odb,	/* option database */
 /* register an unsigned integer option list */
 void
 opt_reg_uint_list(struct opt_odb_t *odb,/* option database */
-		  char *name,		/* option name */
-		  char *desc,		/* option description */
+		  const char *name,		/* option name */
+		  const char *desc,		/* option description */
 		  unsigned int *vars,	/* pointer to option array */
 		  int nvars,		/* total entries in option array */
 		  int *nelt,		/* number of elements parsed */
 		  unsigned int *def_val,/* default value of option array */
 		  int print,		/* print opt during `-dumpconfig'? */
-		  char *format,		/* optional user print format */
+		  const char *format,		/* optional user print format */
 		  int accrue)		/* accrue list across uses */
 {
   int i;
@@ -315,12 +315,12 @@ opt_reg_uint_list(struct opt_odb_t *odb,/* option database */
 /* register a single-precision floating point option variable */
 void
 opt_reg_float(struct opt_odb_t *odb,	/* option data base */
-	      char *name,		/* option name */
-	      char *desc,		/* option description */
+	      const char *name,		/* option name */
+	      const char *desc,		/* option description */
 	      float *var,		/* target option variable */
 	      float def_val,		/* default variable value */
 	      int print,		/* print during `-dumpconfig'? */
-	      char *format)		/* optional value print format */
+	      const char *format)		/* optional value print format */
 {
   struct opt_opt_t *opt;
 
@@ -349,14 +349,14 @@ opt_reg_float(struct opt_odb_t *odb,	/* option data base */
 /* register a single-precision floating point option array */
 void
 opt_reg_float_list(struct opt_odb_t *odb,/* option data base */
-		   char *name,		/* option name */
-		   char *desc,		/* option description */
+		   const char *name,		/* option name */
+		   const char *desc,		/* option description */
 		   float *vars,		/* target array */
 		   int nvars,		/* target array size */
 		   int *nelt,		/* number of args parsed goes here */
 		   float *def_val,	/* default variable value */
 		   int print,		/* print during `-dumpconfig'? */
-		   char *format,	/* optional value print format */
+		   const char *format,	/* optional value print format */
 		   int accrue)		/* accrue list across uses */
 {
   int i;
@@ -388,12 +388,12 @@ opt_reg_float_list(struct opt_odb_t *odb,/* option data base */
 /* register a double-precision floating point option variable */
 void
 opt_reg_double(struct opt_odb_t *odb,	/* option data base */
-	       char *name,		/* option name */
-	       char *desc,		/* option description */
+	       const char *name,		/* option name */
+	       const char *desc,		/* option description */
 	       double *var,		/* target variable */
 	       double def_val,		/* default variable value */
 	       int print,		/* print during `-dumpconfig'? */
-	       char *format)		/* option value print format */
+	       const char *format)		/* option value print format */
 {
   struct opt_opt_t *opt;
 
@@ -422,14 +422,14 @@ opt_reg_double(struct opt_odb_t *odb,	/* option data base */
 /* register a double-precision floating point option array */
 void
 opt_reg_double_list(struct opt_odb_t *odb, /* option data base */
-		    char *name,		/* option name */
-		    char *desc,		/* option description */
+		    const char *name,		/* option name */
+		    const char *desc,		/* option description */
 		    double *vars,	/* target array */
 		    int nvars,		/* target array size */
 		    int *nelt,		/* number of args parsed goes here */
 		    double *def_val,	/* default variable value */
 		    int print,		/* print during `-dumpconfig'? */
-		    char *format,	/* option value print format */
+		    const char *format,	/* option value print format */
 		    int accrue)		/* accrue list across uses */
 {
   int i;
@@ -460,9 +460,9 @@ opt_reg_double_list(struct opt_odb_t *odb, /* option data base */
 
 /* bind an enumeration string to an enumeration value */
 static int
-bind_to_enum(char *str,			/* string to bind to an enum */
-	     char **emap,		/* enumeration string map */
-	     char *eval,			/* enumeration value map, optional */
+bind_to_enum(const char *str,			/* string to bind to an enum */
+	     const char **emap,		/* enumeration string map */
+	     const char *eval,			/* enumeration value map, optional */
 	     int emap_sz,		/* size of maps */
 	     char *res)			/* enumeration string value result */
 {
@@ -493,10 +493,10 @@ bind_to_enum(char *str,			/* string to bind to an enum */
 }
 
 /* bind a enumeration value to an enumeration string */
-static char *
+static const char *
 bind_to_str(int val,			/* enumeration value */
-	    char **emap,		/* enumeration string map */
-	    char *eval,			/* enumeration value map, optional */
+	    const char **emap,		/* enumeration string map */
+	    const char *eval,			/* enumeration value map, optional */
 	    int emap_sz)		/* size of maps */
 {
   int i;
@@ -533,15 +533,15 @@ bind_to_str(int val,			/* enumeration value */
    with variable sizes by some compilers */
 void
 opt_reg_enum(struct opt_odb_t *odb,	/* option data base */
-	     char *name,		/* option name */
-	     char *desc,		/* option description */
+	     const char *name,		/* option name */
+	     const char *desc,		/* option description */
 	     char *var,			/* target variable */
-	     char *def_val,		/* default variable value */
-	     char **emap,		/* enumeration string map */
+	     const char *def_val,		/* default variable value */
+	     const char **emap,		/* enumeration string map */
 	     char *eval,			/* enumeration value map, optional */
 	     int emap_sz,		/* size of maps */
 	     int print,			/* print during `-dumpconfig'? */
-	     char *format)		/* option value print format */
+	     const char *format)		/* option value print format */
 {
   char enum_val;
   struct opt_opt_t *opt;
@@ -583,17 +583,17 @@ opt_reg_enum(struct opt_odb_t *odb,	/* option data base */
    variable sizes by some compilers */
 void
 opt_reg_enum_list(struct opt_odb_t *odb,/* option data base */
-		  char *name,		/* option name */
-		  char *desc,		/* option description */
+		  const char *name,		/* option name */
+		  const char *desc,		/* option description */
 		  char *vars,		/* target array */
 		  int nvars,		/* target array size */
 		  int *nelt,		/* number of args parsed goes here */
-		  char *def_val,	/* default variable value */
-		  char **emap,		/* enumeration string map */
+		  const char *def_val,	/* default variable value */
+		  const char **emap,		/* enumeration string map */
 		  char *eval,		/* enumeration value map, optional */
 		  int emap_sz,		/* size of maps */
 		  int print,		/* print during `-dumpconfig'? */
-		  char *format,		/* option value print format */
+		  const char *format,		/* option value print format */
 		  int accrue)		/* accrue list across uses */
 {
   int i;
@@ -635,7 +635,7 @@ opt_reg_enum_list(struct opt_odb_t *odb,/* option data base */
 
 /* pre-defined boolean flag operands */
 #define NUM_FLAGS		28
-static char *flag_emap[NUM_FLAGS] = {
+static const char *flag_emap[NUM_FLAGS] = {
   "true", "t", "T", "True", "TRUE", "1", "y", "Y", "yes", "Yes", "YES",
   "on", "On", "ON",
   "false", "f", "F", "False", "FALSE", "0", "n", "N", "no", "No", "NO",
@@ -649,12 +649,12 @@ static bool flag_eval[NUM_FLAGS] = {
 /* register a boolean flag option variable */
 void
 opt_reg_flag(struct opt_odb_t *odb,	/* option data base */
-	     char *name,		/* option name */
-	     char *desc,		/* option description */
+	     const char *name,		/* option name */
+	     const char *desc,		/* option description */
 	     bool *var,			/* target variable */
 	     bool def_val,		/* default variable value */
 	     int print,			/* print during `-dumpconfig'? */
-	     char *format)		/* optional value print format */
+	     const char *format)		/* optional value print format */
 {
   struct opt_opt_t *opt;
 
@@ -686,14 +686,14 @@ opt_reg_flag(struct opt_odb_t *odb,	/* option data base */
 /* register a boolean flag option array */
 void
 opt_reg_flag_list(struct opt_odb_t *odb,/* option database */
-		  char *name,		/* option name */
-		  char *desc,		/* option description */
+		  const char *name,		/* option name */
+		  const char *desc,		/* option description */
 		  bool *vars,		/* pointer to option array */
 		  int nvars,		/* total entries in option array */
 		  int *nelt,		/* number of elements parsed */
 		  bool *def_val,		/* default array value */
 		  int print,		/* print during `-dumpconfig'? */
-		  char *format,		/* optional value print format */
+		  const char *format,		/* optional value print format */
 		  int accrue)		/* accrue list across uses */
 {
   int i;
@@ -728,12 +728,12 @@ opt_reg_flag_list(struct opt_odb_t *odb,/* option database */
 /* register a string option variable */
 void
 opt_reg_string(struct opt_odb_t *odb,	/* option data base */
-	       char *name,		/* option name */
-	       char *desc,		/* option description */
-	       char **var,		/* pointer to string option variable */
-	       char *def_val,		/* default variable value */
+	       const char *name,		/* option name */
+	       const char *desc,		/* option description */
+	       const char **var,		/* pointer to string option variable */
+	       const char *def_val,		/* default variable value */
 	       int print,		/* print during `-dumpconfig'? */
-	       char *format)		/* optional value print format */
+	       const char *format)		/* optional value print format */
 {
   struct opt_opt_t *opt;
 
@@ -762,14 +762,14 @@ opt_reg_string(struct opt_odb_t *odb,	/* option data base */
 /* register a string option array */
 void
 opt_reg_string_list(struct opt_odb_t *odb,/* option data base */
-		    char *name,		/* option name */
-		    char *desc,		/* option description */
-		    char **vars,	/* pointer to option string array */
+		    const char *name,		/* option name */
+		    const char *desc,		/* option description */
+		    const char **vars,	/* pointer to option string array */
 		    int nvars,		/* target array size */
 		    int *nelt,		/* number of args parsed goes here */
-		    char **def_val,	/* default variable value */
+		    const char **def_val,	/* default variable value */
 		    int print,		/* print during `-dumpconfig'? */
-		    char *format,	/* optional value print format */
+		    const char *format,	/* optional value print format */
 		    int accrue)		/* accrue list across uses */
 {
   int i;
@@ -1157,7 +1157,7 @@ process_option(struct opt_odb_t *odb,	/* option database */
 
 /* forward declarations */
 static void process_file(struct opt_odb_t *odb, char *fname, int depth);
-static void dump_config(struct opt_odb_t *odb, char *fname);
+static void dump_config(struct opt_odb_t *odb, const char *fname);
 
 /* process a command line, internal version that tracks `-config' depth */
 static void
@@ -1422,7 +1422,7 @@ opt_print_option(struct opt_opt_t *opt,/* option variable */
 	nelt = 1;
       for (i=0; i<nelt; i++)
 	{
-	  char *estr = bind_to_str(opt->variant.for_enum.var[i],
+	  const char *estr = bind_to_str(opt->variant.for_enum.var[i],
 				   opt->variant.for_enum.emap,
 				   opt->variant.for_enum.eval,
 				   opt->variant.for_enum.emap_sz);
@@ -1441,7 +1441,7 @@ opt_print_option(struct opt_opt_t *opt,/* option variable */
 	nelt = 1;
       for (i=0; i<nelt; i++)
 	{
-	  char *estr = bind_to_str(opt->variant.for_enum.var[i],
+	  const char *estr = bind_to_str(opt->variant.for_enum.var[i],
 				   opt->variant.for_enum.emap,
 				   opt->variant.for_enum.eval,
 				   opt->variant.for_enum.emap_sz);
@@ -1602,7 +1602,7 @@ static void
 print_help(struct opt_opt_t *opt,	/* option variable */
 	   FILE *fd)			/* output stream */
 {
-  char *s = NULL;
+  const char *s = NULL;
 
   fprintf(fd, "%-20s ", opt->name);
   switch (opt->oc)
@@ -1693,7 +1693,7 @@ opt_print_help(struct opt_odb_t *odb,	/* option data base */
 /* handle `-dumpconfig' builtin option, print options from file argument */
 static void
 dump_config(struct opt_odb_t *odb,	/* option data base */
-	    char *fname)		/* output file name, "-" == stdout */
+	    const char *fname)		/* output file name, "-" == stdout */
 {
   FILE *fd;
 
@@ -1718,7 +1718,7 @@ dump_config(struct opt_odb_t *odb,	/* option data base */
 /* find an option by name in the option database, returns NULL if not found */
 struct opt_opt_t *
 opt_find_option(struct opt_odb_t *odb,	/* option database */
-		char *opt_name)	/* option name */
+		const char *opt_name)	/* option name */
 {
   struct opt_opt_t *opt;
 
@@ -1748,7 +1748,7 @@ opt_find_option(struct opt_odb_t *odb,	/* option database */
 /* register an options header, the header is printed before the option list */
 void
 opt_reg_header(struct opt_odb_t *odb,	/* option database */
-	       char *header)		/* options header string */
+	       const char *header)		/* options header string */
 {
   odb->header = header;
 }
@@ -1756,7 +1756,7 @@ opt_reg_header(struct opt_odb_t *odb,	/* option database */
 /* register an option note, notes are printed after the list of options */
 void
 opt_reg_note(struct opt_odb_t *odb,	/* option database */
-	     char *note_str)		/* option note */
+	     const char *note_str)		/* option note */
 {
   struct opt_note_t *note, *elt, *prev;
 

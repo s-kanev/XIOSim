@@ -305,7 +305,7 @@ mystricmp(const char *s1, const char *s2);	/* strings to compare, case insensiti
 int log_base2(const int n);
 
 /* return string describing elapsed time, passed in SEC in seconds */
-char *elapsed_time(long sec);
+const char *elapsed_time(long sec);
 
 /* portable 64-bit I/O package */
 

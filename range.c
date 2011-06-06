@@ -65,7 +65,7 @@ extern "C" {
 #include "range.h"
 
 /* parse execution position *PSTR to *POS */
-char *						/* error string, or NULL */
+const char *						/* error string, or NULL */
 range_parse_pos(struct thread_t * core,
     char *pstr,			/* execution position string */
 		struct range_pos_t *pos)	/* position return buffer */
@@ -150,13 +150,14 @@ range_print_pos(struct range_pos_t *pos,	/* execution position */
 }
 
 /* parse execution range *RSTR to *RANGE */
-char *						/* error string, or NULL */
+const char *						/* error string, or NULL */
 range_parse_range(
       struct thread_t * core,
       char *rstr,			/* execution range string */
 		  struct range_range_t *range)	/* range return buffer */
 {
-  char *pos1, *pos2, *p, buf[512], *errstr;
+  char *pos1, *pos2, *p, buf[512];
+  const char *errstr;
 
   /* make a copy of the execution range */
   strcpy(buf, rstr);

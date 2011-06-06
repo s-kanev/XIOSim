@@ -150,8 +150,8 @@ extern char *sim_eio_fname[MAX_CORES];
 extern FILE *sim_eio_fd[MAX_CORES];
 
 /* redirected program/simulator output file names */
-extern char *sim_simout;
-extern char *sim_progout;
+extern const char *sim_simout;
+extern const char *sim_progout;
 extern FILE *sim_progfd;
 
 /* track first argument orphan, this is the program to execute */

@@ -111,7 +111,7 @@ class bpred_t
 
   public:
 
-  bpred_t(int, char**, char*, char*, char*, char*);
+  bpred_t(int, const char**, const char*, const char*, const char*, const char*);
   ~bpred_t();
 
   /* PC = current PC of the branch being predicted

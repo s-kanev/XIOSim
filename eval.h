@@ -114,7 +114,7 @@ enum eval_err_t {
 extern enum eval_err_t eval_error /* = ERR_NOERR */;
 
 /* enum eval_err_t -> error description string map */
-extern char *eval_err_str[ERR_NUM];
+extern const char *eval_err_str[ERR_NUM];
 
 /* expression value types */
 enum eval_type_t {
@@ -135,7 +135,7 @@ enum eval_type_t {
    || (TYPE) == et_qword || (TYPE) == et_sqword)
 
 /* enum eval_type_t -> expression type description string map */
-extern char *eval_type_str[et_NUM];
+extern const char *eval_type_str[et_NUM];
 
 /* an expression value */
 struct eval_value_t {

@@ -111,7 +111,7 @@ class uncore_t
            const int arg_fsb_width,
            const int arg_fsb_DDR,
            const double arg_fsb_speed,
-           char * MC_opt_string);
+           const char * MC_opt_string);
   virtual ~uncore_t();
 
 };
