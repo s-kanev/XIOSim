@@ -87,7 +87,7 @@
 #include "zesto-dram.h"
 #include "zesto-uncore.h"
 
-#ifdef ZTRACE
+#if defined(ZTRACE) && !defined(ZESTO_PIN_DBG)
 FILE * ztrace_fp = NULL;
 char * ztrace_filename = NULL;
 #endif
@@ -151,7 +151,7 @@ sim_reg_options(struct opt_odb_t *odb)
   opt_reg_int(odb, "-syscall:mem_lat", "number of cycles per syscall memory request (0 to omit syscall memory activity)",
       &knobs.memory.syscall_memory_latency, /* default */1, /* print */true, /* format */NULL);
 
-#ifdef ZTRACE
+#if defined(ZTRACE) && !defined(ZESTO_PIN_DBG)
   opt_reg_string(odb, "-ztrace:filename","zesto-trace filename",
       &ztrace_filename, /*default*/ NULL, /*print*/true,/*format*/NULL);
 #endif
@@ -184,7 +184,7 @@ sim_check_options(struct opt_odb_t *odb, int argc, char **argv)
   uncore_create();
   dram_create();
 
-#ifdef ZTRACE
+#if defined(ZTRACE) && !defined(ZESTO_PIN_DBG)
   if(ztrace_filename && strcmp(ztrace_filename,""))
   {
     ztrace_fp = fopen(ztrace_filename,"w");
@@ -454,160 +454,159 @@ sim_reg_stats(struct thread_t ** archs, struct stat_sdb_t *sdb)
 
 #ifdef ZTRACE
 
+#ifdef ZESTO_PIN_DBG
+#define ZTRACE_PRINT(fmt, ...) ZPIN_TRACE(fmt, ## __VA_ARGS__)
+#define ZTRACE_CHECK_FILE()
+#else
+#define ZTRACE_PRINT(fmt, ...)  fprintf(ztrace_fp, fmt, ## __VA_ARGS__)
+#define ZTRACE_CHECK_FILE() \
+if(ztrace_fp == NULL) \
+return;
+#endif /* ZESTO_PIN_DBG */
+
 void ztrace_Mop_ID(const struct Mop_t * Mop)
 {
-  fprintf(ztrace_fp,"%lld|M:%lld|",sim_cycle,Mop->oracle.seq);
+  ZTRACE_PRINT("%lld|M:%lld|",sim_cycle,Mop->oracle.seq);
   if(Mop->oracle.spec_mode)
-    fprintf(ztrace_fp,"X|");
+    ZTRACE_PRINT("X|");
   else
-    fprintf(ztrace_fp,".|");
+    ZTRACE_PRINT(".|");
 }
 
 void ztrace_uop_ID(const struct uop_t * uop)
 {
   if(uop==NULL)
     return;
-  fprintf(ztrace_fp,"%lld|u:%lld:%lld|", sim_cycle,
+  ZTRACE_PRINT("%lld|u:%lld:%lld|", sim_cycle,
           uop->decode.Mop_seq, (uop->decode.Mop_seq << UOP_SEQ_SHIFT) + uop->flow_index);
   if(uop->Mop && uop->Mop->oracle.spec_mode)
-    fprintf(ztrace_fp,"X|");
+    ZTRACE_PRINT("X|");
   else
-    fprintf(ztrace_fp,".|");
+    ZTRACE_PRINT(".|");
 }
 
 
 /* called by oracle when Mop first executes */
 void ztrace_print(const struct Mop_t * Mop)
 {
-  if(ztrace_fp)
+  ZTRACE_CHECK_FILE();
+
+  ztrace_Mop_ID(Mop);
+  // core id, PC{virtual,physical}
+  ZTRACE_PRINT("DEF|core=%d:virtPC=%x:physPC=%llx:op=",Mop->core->id,Mop->fetch.PC,v2p_translate(Mop->core->id,Mop->fetch.PC));
+  // rep prefix and iteration
+  if(Mop->fetch.inst.rep)
+    ZTRACE_PRINT("rep{%d}",Mop->decode.rep_seq);
+  // opcode name
+  ZTRACE_PRINT("%s:",md_op2name[Mop->decode.op]);
+  ZTRACE_PRINT("trap=%d:",Mop->decode.is_trap);
+
+  // ucode flow length
+  ZTRACE_PRINT("flow-length=%d\n",Mop->decode.flow_length);
+
+  int i;
+  int count=0;
+  for(i=0;i<Mop->decode.flow_length;)
   {
-    ztrace_Mop_ID(Mop);
-    // core id, PC{virtual,physical}
-    fprintf(ztrace_fp,"DEF|core=%d:virtPC=%x:physPC=%llx:op=",Mop->core->id,Mop->fetch.PC,v2p_translate(Mop->core->id,Mop->fetch.PC));
-    // rep prefix and iteration
-    if(Mop->fetch.inst.rep)
-      fprintf(ztrace_fp,"rep{%d}",Mop->decode.rep_seq);
+    struct uop_t * uop = &Mop->uop[i];
+    ztrace_uop_ID(uop);
+    ZTRACE_PRINT("DEF");
+    if(uop->decode.BOM && !uop->decode.EOM) ZTRACE_PRINT("-BOM");
+    if(uop->decode.EOM && !uop->decode.BOM) ZTRACE_PRINT("-EOM");
+    // core id, uop number within flow
+    ZTRACE_PRINT("|core=%d:uop-number=%d:",Mop->core->id,count);
     // opcode name
-    fprintf(ztrace_fp,"%s:",md_op2name[Mop->decode.op]);
-    fprintf(ztrace_fp,"trap=%d:",Mop->decode.is_trap);
-
-    // ucode flow length
-    fprintf(ztrace_fp,"flow-length=%d\n",Mop->decode.flow_length);
-
-    int i;
-    int count=0;
-    for(i=0;i<Mop->decode.flow_length;)
+    ZTRACE_PRINT("op=%s",md_op2name[uop->decode.op]);
+    if(uop->decode.in_fusion)
     {
-      struct uop_t * uop = &Mop->uop[i];
-      ztrace_uop_ID(uop);
-      fprintf(ztrace_fp,"DEF");
-      if(uop->decode.BOM && !uop->decode.EOM) fprintf(ztrace_fp,"-BOM");
-      if(uop->decode.EOM && !uop->decode.BOM) fprintf(ztrace_fp,"-EOM");
-      // core id, uop number within flow
-      fprintf(ztrace_fp,"|core=%d:uop-number=%d:",Mop->core->id,count);
-      // opcode name
-      fprintf(ztrace_fp,"op=%s",md_op2name[uop->decode.op]);
-      if(uop->decode.in_fusion)
-      {
-        fprintf(ztrace_fp,"-f");
-        if(uop->decode.is_fusion_head)
-          fprintf(ztrace_fp,"H"); // fusion head
-        else
-          fprintf(ztrace_fp,"b"); // fusion body
-      }
-
-      // register identifiers
-      fprintf(ztrace_fp,":odep=%d:i0=%d:i1=%d:i2=%d:",
-          uop->decode.odep_name,
-          uop->decode.idep_name[0],
-          uop->decode.idep_name[1],
-          uop->decode.idep_name[2]);
-
-      // load/store address and size
-      if(uop->decode.is_load || uop->decode.is_sta)
-        fprintf(ztrace_fp,"VA=%lx:PA=%llx:mem-size=%d:fault=%d",(long unsigned int)uop->oracle.virt_addr,uop->oracle.phys_addr,uop->decode.mem_size,uop->oracle.fault);
-
-      fprintf(ztrace_fp,"\n");
-
-      i += Mop->uop[i].decode.has_imm?3:1;
-      count++;
+      ZTRACE_PRINT("-f");
+      if(uop->decode.is_fusion_head)
+        ZTRACE_PRINT("H"); // fusion head
+      else
+        ZTRACE_PRINT("b"); // fusion body
     }
-    fflush(ztrace_fp);
+
+    // register identifiers
+    ZTRACE_PRINT(":odep=%d:i0=%d:i1=%d:i2=%d:",
+        uop->decode.odep_name,
+        uop->decode.idep_name[0],
+        uop->decode.idep_name[1],
+        uop->decode.idep_name[2]);
+
+    // load/store address and size
+    if(uop->decode.is_load || uop->decode.is_sta)
+      ZTRACE_PRINT("VA=%lx:PA=%llx:mem-size=%d:fault=%d",(long unsigned int)uop->oracle.virt_addr,uop->oracle.phys_addr,uop->decode.mem_size,uop->oracle.fault);
+
+    ZTRACE_PRINT("\n");
+
+    i += Mop->uop[i].decode.has_imm?3:1;
+    count++;
   }
+#ifndef ZESTO_PIN_DBG
+  fflush(ztrace_fp);
+#endif
 }
 
 void ztrace_print(const struct Mop_t * Mop, const char * fmt, ... )
 {
-  if(ztrace_fp)
-  {
-    va_list v;
-    va_start(v, fmt);
+  ZTRACE_CHECK_FILE();
+  va_list v;
+  va_start(v, fmt);
 
-    ztrace_Mop_ID(Mop);
-    myvfprintf(ztrace_fp, fmt, v);
-    fprintf(ztrace_fp,"\n");
-  }
+  ztrace_Mop_ID(Mop);
+  ZTRACE_PRINT( fmt, v);
+  ZTRACE_PRINT("\n");
 }
 
 void ztrace_print(const struct uop_t * uop, const char * fmt, ... )
 {
-  if(ztrace_fp)
-  {
-    va_list v;
-    va_start(v, fmt);
+  ZTRACE_CHECK_FILE();
+  va_list v;
+  va_start(v, fmt);
 
-    ztrace_uop_ID(uop);
-    myvfprintf(ztrace_fp, fmt, v);
-    fprintf(ztrace_fp,"\n");
-  }
+  ztrace_uop_ID(uop);
+  ZTRACE_PRINT( fmt, v);
+  ZTRACE_PRINT("\n");
 }
 
 void ztrace_print(const char * fmt, ... )
 {
-  if(ztrace_fp)
-  {
-    va_list v;
-    va_start(v, fmt);
+  ZTRACE_CHECK_FILE();
+  va_list v;
+  va_start(v, fmt);
 
-    fprintf(ztrace_fp,"%lld|",sim_cycle);
-    myvfprintf(ztrace_fp, fmt, v);
-    fprintf(ztrace_fp,"\n");
-  }
+  ZTRACE_PRINT("%lld|",sim_cycle);
+  ZTRACE_PRINT( fmt, v);
+  ZTRACE_PRINT("\n");
 }
 
 void ztrace_print_start(const struct uop_t * uop, const char * fmt, ... )
 {
-  if(ztrace_fp)
-  {
-    va_list v;
-    va_start(v, fmt);
+  ZTRACE_CHECK_FILE();
+  va_list v;
+  va_start(v, fmt);
 
-    ztrace_uop_ID(uop);
-    myvfprintf(ztrace_fp, fmt, v);
-  }
+  ztrace_uop_ID(uop);
+  ZTRACE_PRINT( fmt, v);
 }
 
 void ztrace_print_cont(const char * fmt, ... )
 {
-  if(ztrace_fp)
-  {
-    va_list v;
-    va_start(v, fmt);
+  ZTRACE_CHECK_FILE();
+  va_list v;
+  va_start(v, fmt);
 
-    myvfprintf(ztrace_fp, fmt, v);
-  }
+  ZTRACE_PRINT( fmt, v);
 }
 
 void ztrace_print_finish(const char * fmt, ... )
 {
-  if(ztrace_fp)
-  {
-    va_list v;
-    va_start(v, fmt);
+  ZTRACE_CHECK_FILE();
+  va_list v;
+  va_start(v, fmt);
 
-    myvfprintf(ztrace_fp, fmt, v);
-    fprintf(ztrace_fp,"\n");
-  }
+  ZTRACE_PRINT( fmt, v);
+  ZTRACE_PRINT("\n");
 }
 
 #endif

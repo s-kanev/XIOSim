@@ -347,7 +347,7 @@ void core_oracle_t::write_spec_byte_to_mem(
      // Previous memory value in case we need to restore on another nuke
      byte_t prev_val = MEM_READ_SUCC_NON_SPEC(core->current_thread->mem,p->addr,byte_t);
 
-     ZPIN_TRACE(" prev_val: %d(%d)\n", prev_val, _read_succ)
+     ZPIN_TRACE(" prev_val: %d(%d)\n", prev_val, _read_succ);
 
      p->prev_val = prev_val;
      p->prev_val_valid = _read_succ;
@@ -410,7 +410,7 @@ struct spec_byte_t * core_oracle_t::spec_write_byte(
 
 
 #ifdef ZESTO_PIN
-  ZPIN_TRACE("Write to specQ at 0x%x, val: %x, spec_mode: %d\n", addr, val, uop->Mop->oracle.spec_mode)
+  ZPIN_TRACE("Write to specQ at 0x%x, val: %x, spec_mode: %d\n", addr, val, uop->Mop->oracle.spec_mode);
 #endif
 
   p->val = val;
@@ -1601,7 +1601,7 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
   if(num_Mops_nuked > 0 && !MopQ[idx].oracle.spec_mode && current_Mop != NULL)
   {
     num_Mops_nuked--;
-    ZPIN_TRACE("num_Mops_nuked-- correction; recPC: 0x%x\n", Mop->fetch.PC)
+    ZPIN_TRACE("num_Mops_nuked-- correction; recPC: 0x%x\n", Mop->fetch.PC);
   }
 
   while(Mop != &MopQ[idx])
@@ -1614,7 +1614,7 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
     if(nuke)
       num_Mops_nuked++;
 
-    ZPIN_TRACE("Undoing Mop @ PC: %x, nuke: %d, num_Mops_nuked: %d\n", MopQ[idx].fetch.PC, nuke, num_Mops_nuked)
+    ZPIN_TRACE("Undoing Mop @ PC: %x, nuke: %d, num_Mops_nuked: %d\n", MopQ[idx].fetch.PC, nuke, num_Mops_nuked);
 
     undo(&MopQ[idx], nuke);
     MopQ[idx].valid = false;
@@ -1634,7 +1634,7 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
   core->current_thread->regs.regs_PC = Mop->fetch.PC;
   core->current_thread->regs.regs_NPC = Mop->oracle.NextPC;
 
-  ZPIN_TRACE("Recovering to fetchPC: %x; nuked_Mops: %d, rep_seq: %d \n", Mop->fetch.PC, num_Mops_nuked, core->current_thread->rep_sequence)
+  ZPIN_TRACE("Recovering to fetchPC: %x; nuked_Mops: %d, rep_seq: %d \n", Mop->fetch.PC, num_Mops_nuked, core->current_thread->rep_sequence);
 
   spec_mode = Mop->oracle.spec_mode;
   current_Mop = NULL;

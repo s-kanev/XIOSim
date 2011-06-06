@@ -170,7 +170,7 @@ extern void trace(const char *fmt, ...)
     __attribute__ ((format (printf, 1, 2)));
 extern void flush_trace();
 #define ZPIN_TRACE(fmt, ...) \
-  trace(fmt, __VA_ARGS__);
+  trace(fmt, ## __VA_ARGS__)
 #else
 #define ZPIN_TRACE(fmt, ...)
 #endif

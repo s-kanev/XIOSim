@@ -78,7 +78,7 @@
 #include "options.h"
 #include "stats.h"
 
-#ifdef ZTRACE
+#if defined(ZTRACE) && !defined(ZESTO_PIN_DBG)
 #include <stdio.h>
 extern FILE * ztrace_fp;
 #endif
