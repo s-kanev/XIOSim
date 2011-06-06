@@ -61,7 +61,7 @@
 #include "libexo.h"
 
 /* EXO term classes print strings */
-char *exo_class_str[ec_NUM] = {
+const char *exo_class_str[ec_NUM] = {
   "integer",
   "address",
   "float",
@@ -862,7 +862,7 @@ extern char *yytext;
 extern FILE *yyin;
 
 static void
-exo_err(char *err)
+exo_err(const char *err)
 {
   extern int line;
 

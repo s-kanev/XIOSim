@@ -140,7 +140,7 @@ our_pred - what the branch predictor had predicted (some predictors
 /* argument parsing                                   */
 /*====================================================*/
 static class bpred_dir_t *
-bpred_from_string(char * const opt_string)
+bpred_from_string(const char * const opt_string)
 {
   char name[256];
   char type[256];
@@ -322,7 +322,7 @@ static class fusion_t *
 fusion_from_string(
     const int num_pred,
     struct bpred_dir_t ** bpreds,
-    char * const opt_string)
+    const char * const opt_string)
 {
   char name[256];
   char type[256];
@@ -506,7 +506,7 @@ our_pred   - what the branch-predictor had predicted
 /*=================================================*/
 #define BPRED_PARSE_ARGS
 static class BTB_t *
-BTB_from_string(char * const opt_string)
+BTB_from_string(const char * const opt_string)
 {
   char name[256];
   char type[256];
@@ -693,7 +693,7 @@ oPC        - oracle PC or actual return address
 
 #define BPRED_PARSE_ARGS
 static class RAS_t *
-RAS_from_string(char * const opt_string)
+RAS_from_string(const char * const opt_string)
 {
   char name[256];
   char type[256];
@@ -841,11 +841,11 @@ void RAS_t::ret_state(class RAS_chkpt_t * const cpvp)
 
 bpred_t::bpred_t(
     const int arg_num_pred         /* num direction preds */,
-    char ** const bpred_opts       /* config strings for dir preds */,
-    char  * const fusion_opt       /* config string for meta-pred */,
-    char  * const dirjmp_BTB_opt   /* direct jmp target pred config */,
-    char  * const indirjmp_BTB_opt /* indirect jmp target pred config */,
-    char  * const RAS_opt          /* subroutine retn addr pred config */
+    const char ** const bpred_opts       /* config strings for dir preds */,
+    const char  * const fusion_opt       /* config string for meta-pred */,
+    const char  * const dirjmp_BTB_opt   /* direct jmp target pred config */,
+    const char  * const indirjmp_BTB_opt /* indirect jmp target pred config */,
+    const char  * const RAS_opt          /* subroutine retn addr pred config */
    )
 {
   num_pred = arg_num_pred;

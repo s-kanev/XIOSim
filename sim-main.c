@@ -137,8 +137,8 @@ char *sim_eio_fname[MAX_CORES];
 FILE *sim_eio_fd[MAX_CORES];
 
 /* redirected program/simulator output file names */
-char *sim_simout = NULL;
-char *sim_progout = NULL;
+const char *sim_simout = NULL;
+const char *sim_progout = NULL;
 FILE *sim_progfd = NULL;
 
 /* track first argument orphan, this is the program to execute */

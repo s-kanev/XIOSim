@@ -127,7 +127,7 @@ class MC_t
   virtual void print(FILE * const fp) = 0;
 };
 
-MC_t * MC_from_string(char * const opt_string);
+MC_t * MC_from_string(const char * const opt_string);
 
 /* since these cannot directly set the core->oracle.hosed bit, they
    just return and depend on the rest of the core state getting hosed

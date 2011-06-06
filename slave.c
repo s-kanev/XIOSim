@@ -150,8 +150,8 @@ extern char *sim_eio_fname[MAX_CORES];
 extern FILE *sim_eio_fd[MAX_CORES];
 
 /* redirected program/simulator output file names */
-extern char *sim_simout;
-extern char *sim_progout;
+extern const char *sim_simout;
+extern const char *sim_progout;
 extern FILE *sim_progfd;
 
 /* track first argument orphan, this is the program to execute */
@@ -387,7 +387,7 @@ int Zesto_Notify_Mmap(unsigned int addr, unsigned int length, bool mod_brk)
    md_addr_t retval = mem_newmap2(mem, page_addr, page_addr, page_length, 1);
 
 //   myfprintf(stderr, "New memory mapping at addr: %x, length: %x ,endaddr: %x \n",addr, length, addr+length);
-   ZPIN_TRACE("New memory mapping at addr: %x, length: %x ,endaddr: %x \n",addr, length, addr+length)
+   ZPIN_TRACE("New memory mapping at addr: %x, length: %x ,endaddr: %x \n",addr, length, addr+length);
 
    bool success = (retval == addr);
    zesto_assert(success, 0);
@@ -407,7 +407,7 @@ int Zesto_Notify_Munmap(unsigned int addr, unsigned int length, bool mod_brk)
   mem_delmap(mem, ROUND_UP((md_addr_t)addr, MD_PAGE_SIZE), length);
 
 //  myfprintf(stderr, "Memory un-mapping at addr: %x, len: %x\n",addr, length);
-  ZPIN_TRACE("Memory un-mapping at addr: %x, len: %x\n",addr, length)
+  ZPIN_TRACE("Memory un-mapping at addr: %x, len: %x\n",addr, length);
 
   return 1;
 }
@@ -500,7 +500,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool start_slice, bool end_s
       return;
    }
 
-   ZPIN_TRACE("PIN -> PC: %x, NPC: %x \n", handshake->pc, NPC)
+   ZPIN_TRACE("PIN -> PC: %x, NPC: %x \n", handshake->pc, NPC);
    fetches_since_feeder = 0;
 
    /* Copy architectural state from pin

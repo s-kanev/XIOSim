@@ -322,7 +322,7 @@ struct Mop_t
    for command line parsing (e.g., config strings) */
 struct core_knobs_t
 {
-  char * model;
+  const char * model;
 
   struct {
     int byteQ_size;
@@ -333,11 +333,11 @@ struct core_knobs_t
     int jeclear_delay;
 
     int   num_bpred_components;
-    char *bpred_opt_str[MAX_HYBRID_BPRED];
-    char *fusion_opt_str;
-    char *dirjmpbtb_opt_str;
-    char *indirjmpbtb_opt_str;
-    char *ras_opt_str;
+    const char *bpred_opt_str[MAX_HYBRID_BPRED];
+    const char *fusion_opt_str;
+    const char *dirjmpbtb_opt_str;
+    const char *indirjmpbtb_opt_str;
+    const char *ras_opt_str;
 
     bool warm_bpred;
   } fetch;
@@ -381,7 +381,7 @@ struct core_knobs_t
     int num_bindings[NUM_FU_CLASSES];
     int latency[NUM_FU_CLASSES];
     int issue_rate[NUM_FU_CLASSES];
-    char * memdep_opt_str;
+    const char * memdep_opt_str;
     int fp_penalty; /* extra cycles to forward to FP cluster */
     bool tornado_breaker;
     bool throttle_partial;
@@ -395,23 +395,23 @@ struct core_knobs_t
     int DL1_num_PF; int DL1_PFFsize; int DL1_PFthresh; int DL1_PFmax; int DL1_PF_buffer_size;
     int DL1_PF_filter_size; int DL1_PF_filter_reset; bool DL1_PF_on_miss;
     int DL1_WMinterval; double DL1_low_watermark; double DL1_high_watermark;
-    char * DL1_MSHR_cmd;
+    const char * DL1_MSHR_cmd;
     int DL2_num_PF; int DL2_PFFsize; int DL2_PFthresh; int DL2_PFmax; int DL2_PF_buffer_size;
     int DL2_PF_filter_size; int DL2_PF_filter_reset; bool DL2_PF_on_miss;
     int DL2_WMinterval; double DL2_low_watermark; double DL2_high_watermark;
-    char * DL2_MSHR_cmd;
+    const char * DL2_MSHR_cmd;
 
     /* for storing command line parameters */
-    char * IL1_opt_str;
-    char * ITLB_opt_str;
-    char * DL1_opt_str;
-    char * DL2_opt_str;
-    char * DTLB_opt_str;
-    char * DTLB2_opt_str;
+    const char * IL1_opt_str;
+    const char * ITLB_opt_str;
+    const char * DL1_opt_str;
+    const char * DL2_opt_str;
+    const char * DTLB_opt_str;
+    const char * DTLB2_opt_str;
 
-    char * IL1PF_opt_str[MAX_PREFETCHERS];
-    char * DL1PF_opt_str[MAX_PREFETCHERS];
-    char * DL2PF_opt_str[MAX_PREFETCHERS];
+    const char * IL1PF_opt_str[MAX_PREFETCHERS];
+    const char * DL1PF_opt_str[MAX_PREFETCHERS];
+    const char * DL2PF_opt_str[MAX_PREFETCHERS];
 
     bool warm_caches;
     int syscall_memory_latency;

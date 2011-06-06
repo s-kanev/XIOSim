@@ -91,7 +91,7 @@ trace_fp_regfile(const md_fpr_t *regs_F, const md_ctrl_t  *regs_C)
    int j,k;
    unsigned char *curr;
 
-   ZPIN_TRACE("FTOP: %d\n", top)
+   ZPIN_TRACE("FTOP: %d\n", top);
    for(k=0; k< MD_NUM_ARCH_FREGS; k++)
    {
      curr = (unsigned char*)(&(regs_F->e[k]));
@@ -102,7 +102,7 @@ trace_fp_regfile(const md_fpr_t *regs_F, const md_ctrl_t  *regs_C)
        strncat(buff, tmp, 2);
      }
 
-     ZPIN_TRACE("REG %d: %s \n", k, buff)
+     ZPIN_TRACE("REG %d: %s \n", k, buff);
      ZPIN_TRACE("%f\n", (double)regs_F->e[k]);
    }
 }

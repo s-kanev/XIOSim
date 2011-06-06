@@ -68,7 +68,7 @@ extern "C" {
 enum eval_err_t eval_error = ERR_NOERR;
 
 /* enum eval_err_t -> error description string map */
-char *eval_err_str[ERR_NUM] = {
+const char *eval_err_str[ERR_NUM] = {
   /* ERR_NOERR */        "!! no error!!",
   /* ERR_UPAREN */        "unmatched parenthesis",
   /* ERR_NOTERM */        "expression term is missing",
@@ -235,7 +235,7 @@ static struct eval_value_t expr(struct eval_state_t *es);
 static struct eval_value_t err_value = { et_int, { 0 } };
 
 /* expression type strings */
-char *eval_type_str[et_NUM] = {
+const char *eval_type_str[et_NUM] = {
   /* et_int */                "int",
   /* et_uint */                "unsigned int",
   /* et_addr */                "md_addr_t",

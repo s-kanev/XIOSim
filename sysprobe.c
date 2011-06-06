@@ -60,7 +60,7 @@
 #include "host.h"
 #include "misc.h"
 
-char *gzip_paths[] =
+const char* gzip_paths[] =
 {
   "/bin/gzip",
   "/usr/bin/gzip",
@@ -258,8 +258,8 @@ main(int argc, char **argv)
     }
   else if (argc == 2 && !strcmp(argv[1], "-t"))
     {
-      fprintf(stdout, "sizeof(int) = %d\n", sizeof(int));
-      fprintf(stdout, "sizeof(long) = %d\n", sizeof(long));
+      fprintf(stdout, "sizeof(int) = %ld\n", sizeof(int));
+      fprintf(stdout, "sizeof(long) = %ld\n", sizeof(long));
     }
 
 

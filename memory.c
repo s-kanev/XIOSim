@@ -660,7 +660,7 @@ mem_newmap2(struct mem_t *mem,            /* memory space to access */
   md_addr_t comp_addr;
   struct mem_pte_t *pte;
 
-  ZPIN_TRACE("Mem_newmap2: %x -> %x, length: %x, end_addr: %x\n", addr, our_addr, length, addr+length)
+  ZPIN_TRACE("Mem_newmap2: %x -> %x, length: %x, end_addr: %x\n", addr, our_addr, length, addr+length);
 
   myfprintf(stderr, "Mem_newmap2: %x -> %x, length: %x, end_addr: %x\n", addr, our_addr, length, addr+length);
 
@@ -737,7 +737,7 @@ mem_delmap(struct mem_t *mem,            /* memory space to access */
     abort();
   }
 
-  ZPIN_TRACE("Mem_delmap: %x, length: %x, end_addr: %x\n", addr, length, addr+length)
+  ZPIN_TRACE("Mem_delmap: %x, length: %x, end_addr: %x\n", addr, length, addr+length);
 
   num_pages = length / MD_PAGE_SIZE + ((length % MD_PAGE_SIZE>0)? 1 : 0);
   for(i=0;i<num_pages;i++) {

@@ -88,7 +88,7 @@ struct range_range_t {
 };
 
 /* parse execution position *PSTR to *POS */
-char *						/* error string, or NULL */
+const char *						/* error string, or NULL */
 range_parse_pos(
     struct thread_t * core,
     char *pstr,			/* execution position string */
@@ -100,7 +100,7 @@ range_print_pos(struct range_pos_t *pos,	/* execution position */
 		FILE *stream);			/* output stream */
 
 /* parse execution range *RSTR to *RANGE */
-char *						/* error string, or NULL */
+const char *						/* error string, or NULL */
 range_parse_range(
       struct thread_t * core,
       char *rstr,			/* execution range string */

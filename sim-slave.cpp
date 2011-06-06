@@ -405,7 +405,7 @@ void sim_main_slave_pre_pin()
 {
   int i;
 
-  ZPIN_TRACE("###Cycle%s\n"," ")
+  ZPIN_TRACE("###Cycle%s\n"," ");
 
   if(sim_cycle == 0)
     myfprintf(stderr, "### starting timing simulation \n");

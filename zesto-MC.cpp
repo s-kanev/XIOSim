@@ -133,7 +133,7 @@ void MC_t::reset_stats(void)
 
 #include "ZCOMPS-MC.list"
 
-MC_t * MC_from_string(char * const opt_string)
+MC_t * MC_from_string(const char * const opt_string)
 {
   char type[256];
 
