@@ -37,7 +37,7 @@ runs = (
 
         BenchmarkRun('403.gcc', 'gcc', '166.i -o 166.s', '', '166.out', '166.err', '166'),
         BenchmarkRun('403.gcc', 'gcc', '200.i -o 200.s', '', '200.out', '200.err', '200'),
-        BenchmarkRun('403.gcc', 'gcc', 'c-typeck.i -o c-typeck.s', '', 'c-typeck.out', 'c-typeck.err', 'c-typecheck'),
+        BenchmarkRun('403.gcc', 'gcc', 'c-typeck.i -o c-typeck.s', '', 'c-typeck.out', 'c-typeck.err', 'c-typeck'),
         BenchmarkRun('403.gcc', 'gcc', 'cp-decl.i -o cp-decl.s', '', 'cp-decl.out', 'cp-decl.err', 'cp-decl'),
         BenchmarkRun('403.gcc', 'gcc', 'expr.i -o expr.s', '', 'expr.out', 'expr.err', 'expr'),
         BenchmarkRun('403.gcc', 'gcc', 'expr2.i -o expr2.s', '', 'expr2.out', 'expr2.err', 'expr2'),
@@ -71,12 +71,12 @@ runs = (
 
         BenchmarkRun('483.xalancbmk', 'Xalan', '-v t5.xml xalanc.xsl', '', 'ref.out', 'ref.err', 'ref'),
 
-        BenchmarkRun('998.specrand', 'specrand', '1255432124 234923', '', 'rand.234923.out', 'rand.234923.err', 'rand.234923'),
+#        BenchmarkRun('998.specrand', 'specrand', '1255432124 234923', '', 'rand.234923.out', 'rand.234923.err', 'rand.234923'),
 
         BenchmarkRun('410.bwaves', 'bwaves', '', '', 'bwaves.out', 'bwaves.err', 'bwaves'),
 
         BenchmarkRun('416.gamess', 'gamess', '', 'cytosine.2.config', 'cytosine.2.out', 'cytosine.2.err', 'cytosine'),
-        BenchmarkRun('416.gamess', 'gamess', '', 'h2ocu2+.gradient.config', 'h2ocu2+.gradient.out', 'h2ocu2+.gradient.err', 'h2ocu2+.gradient'),
+        BenchmarkRun('416.gamess', 'gamess', '', 'h2ocu2+.gradient.config', 'h2ocu2+.gradient.out', 'h2ocu2+.gradient.err', 'h2ocu2+'),
         BenchmarkRun('416.gamess', 'gamess', '', 'triazolium.config', 'triazolium.out', 'triazolium.err', 'triazolium'),
 
         BenchmarkRun('433.milc', 'milc', '', 'su3imp.in', 'su3imp.out', 'su3imp.err', 'su3imp'),
@@ -110,5 +110,5 @@ runs = (
 
         BenchmarkRun('482.sphinx3', 'sphinx_livepretend', 'ctlfile . args.an4', '', 'an4.log', 'an4.err', 'an4'),
 
-        BenchmarkRun('999.specrand', 'specrand', '1255432124 234923', '', 'rand.234923.out', 'rand.234923.err', 'rand.234923')
+#        BenchmarkRun('999.specrand', 'specrand', '1255432124 234923', '', 'rand.234923.out', 'rand.234923.err', 'rand.234923')
        )
