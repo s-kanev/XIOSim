@@ -1371,7 +1371,7 @@ md_uop_reg(const enum md_xfield_t xval, const struct Mop_t * Mop, bool * bogus)
     case XF_RM:		res = RM; break;
     case XF_BASE:	res = (Mop->fetch.inst.base >= 0) ? Mop->fetch.inst.base : MD_REG_ZERO;
                   break;
-    case XF_SEG:	res = (Mop->fetch.inst.seg != SEG_DEF) ? Mop->fetch.inst.seg-1 : (byte_t)0;
+    case XF_SEG:	res = (Mop->fetch.inst.seg != SEG_DEF) ? Mop->fetch.inst.seg-1 : (byte_t)SEG_INV;
                   /*fprintf(stderr, "md_uop_reg: %x\n", res);*/
                   break;
     case XF_INDEX:	res = (Mop->fetch.inst.index >= 0) ? Mop->fetch.inst.index : MD_REG_ZERO;

@@ -172,7 +172,7 @@ enum md_fault_type {
 #define DGPR(N) ((N)+GPR_OFFSET)
 #define DFPR(N) ((F2P(N))+FPR_OFFSET)
 #define DCREG(N) ((N)+CREG_OFFSET)
-#define DSEG(N) ((N)+SEG_OFFSET)
+#define DSEG(N) ((N == SEG_INV) ? (DNA) : ((N)+SEG_OFFSET))
 
 #define DGPR_B(N) ((_ARCH(N) ? (_ID(N)) : (N)) + GPR_OFFSET)
 #define DGPR_W(N) (N+GPR_OFFSET)
@@ -182,7 +182,7 @@ enum md_fault_type {
 #define _DGPR(N) ((N)-GPR_OFFSET)
 #define _DFPR(N) ((N)-FPR_OFFSET)
 #define _DCREG(N) ((N)-CREG_OFFSET)
-#define _DSEG(N) ((N)-SEG_OFFSET)
+#define _DSEG(N) ((N == DNA) ? (SEG_INV) : ((N)-SEG_OFFSET))
 
 /* check the tag word for fp register valid bits (physical, not stack index) */
 #define FPR_VALID(FTW, N) (((FTW) & (1 << (N))) == (1 << (N)))
@@ -340,6 +340,7 @@ typedef struct md_inst_t {
 #define SEG_ES            4
 #define SEG_FS            5
 #define SEG_GS            6
+#define SEG_INV           15 /* invalid -- same semantics as default, but non-conflicting value (SEG_DEF == MD_SEG_CS) */
   byte_t seg;            /* segment override */ /* UCSD - Verify */
 
   /* predecode information */
@@ -559,13 +560,13 @@ extern const unsigned int md_op2flags[];
 #define STI        (Mop->fetch.inst.code[Mop->fetch.inst.npfx + Mop->fetch.inst.nopc] & 0x07)
 
 /* Segment override - UCSD */
-#define SEG_INDEX                                                      \
-  Mop->fetch.inst.seg-1
+#define SEG_INDEX(S)                                                   \
+  (S)-1
 
-#define SEG                                                            \
-  ((Mop->fetch.inst.seg != SEG_DEF)                                              \
-   ?  SEG_W(SEG_INDEX)                                                   \
-   : (word_t)0)                                                                      
+#define SEG                                                     \
+  ((Mop->fetch.inst.seg != SEG_DEF)                             \
+   ?  SEG_INDEX(Mop->fetch.inst.seg)                            \
+   :  SEG_INV)                                                                      
 
 /* addressing mode fields */
 #define BASE                                \
@@ -582,16 +583,14 @@ extern const unsigned int md_op2flags[];
 /* address generation */
 /* Ganesh, SK */
 #define AGEN_W(S,B,I,SC,D)                        \
-  ((Mop->fetch.inst.seg == SEG_DEF)                                                  \
+  ((S == SEG_INV)                                                  \
    ? ((word_t)((dword_t)(B) + ((dword_t)(I) << (SC)) + (dword_t)(D)))        \
-   : ((word_t)((dword_t)(B) + ((dword_t)(SEG_BASE(SEG_INDEX))) + ((dword_t)(I) << (SC)) + (dword_t)(D))))
+   : ((word_t)((dword_t)(B) + ((dword_t)(SEG_BASE(S))) + ((dword_t)(I) << (SC)) + (dword_t)(D))))
 
 #define AGEN_D(S,B,I,SC,D)                                            \
-  ((Mop->fetch.inst.seg == SEG_DEF)                                                  \
+  ((S == SEG_INV)                                                  \
    ? ((dword_t)((dword_t)(B) + ((dword_t)(I) << (SC)) + (dword_t)(D)))        \
-   : ((dword_t)((dword_t)(B) + ((dword_t)(SEG_BASE(SEG_INDEX))) + ((dword_t)(I) << (SC)) + (dword_t)(D))))
-
-/*  ((dword_t)((dword_t)(B) + ((dword_t)(I) << (SC)) + (dword_t)(D)))*/
+   : ((dword_t)((dword_t)(B) + ((dword_t)(SEG_BASE(S))) + ((dword_t)(I) << (SC)) + (dword_t)(D))))
 
 #if 1
 #define AGEN_A(S,B,I,SC,D)                        \
