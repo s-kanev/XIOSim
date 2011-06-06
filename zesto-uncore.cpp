@@ -97,14 +97,14 @@ static double cpu_speed; /* CPU speed in MHz */
 static int fsb_width;    /* in bytes */
 static bool fsb_DDR;     /* true if DDR */
 static double fsb_speed; /* in MHz */
-static char * MC_opt_string = NULL;
-static char * LLC_opt_str = "LLC:4096:16:64:16:64:9:L:W:B:8:1:8:C";
+static const char * MC_opt_string = NULL;
+static const char * LLC_opt_str = "LLC:4096:16:64:16:64:9:L:W:B:8:1:8:C";
 static int LLC_bus_ratio = 1;
 static int LLC_access_rate = 1;
-static char * LLC_MSHR_cmd = "RPWB";
+static const char * LLC_MSHR_cmd = "RPWB";
 
 /* LLC prefetcher options */
-static char * LLC_PF_opt_str[MAX_PREFETCHERS];
+static const char * LLC_PF_opt_str[MAX_PREFETCHERS];
 static int LLC_num_PF = 0;
 static int LLC_PFFsize = 8;
 static int LLC_PFthresh = 2;
@@ -126,7 +126,7 @@ uncore_t::uncore_t(
     const int arg_fsb_width,
     const int arg_fsb_DDR,
     const double arg_fsb_speed,
-    char * MC_opt_string)
+    const char * MC_opt_string)
 : cpu_speed(arg_cpu_speed),
   fsb_speed(arg_fsb_speed),
   fsb_DDR(arg_fsb_DDR)

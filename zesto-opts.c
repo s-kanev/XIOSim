@@ -89,7 +89,7 @@
 
 #ifdef ZTRACE
 FILE * ztrace_fp = NULL;
-char * ztrace_filename = NULL;
+const char * ztrace_filename = NULL;
 #endif
 
 /* variables for fast-forwarding prior to detailed simulation */

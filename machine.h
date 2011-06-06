@@ -1833,21 +1833,21 @@ int md_fcc_eval(int cond, dword_t aflags, bool * bogus);
 
 /* register name specifier */
 struct md_reg_names_t {
-  char *str;            /* register name */
-  enum md_reg_type file;    /* register file */
-  int reg;            /* register index */
+  const char *str;            /* register name */
+  enum md_reg_type file;      /* register file */
+  int reg;                    /* register index */
 };
 
 /* symbolic register names, parser is case-insensitive */
 extern const struct md_reg_names_t md_reg_names[];
 
 /* returns a register name string */
-char *md_reg_name(const enum md_reg_type rt, const int reg);
+const char *md_reg_name(const enum md_reg_type rt, const int reg);
 
 /* default register accessor object */
 struct eval_value_t;
 struct regs_t;
-char *                        /* err str, NULL for no err */
+const char *                        /* err str, NULL for no err */
 md_reg_obj(struct regs_t *regs,            /* registers to access */
     const int is_write,            /* access type */
     const enum md_reg_type rt,            /* reg bank to probe */

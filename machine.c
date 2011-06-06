@@ -1006,7 +1006,7 @@ const struct md_reg_names_t md_reg_names[] =
 };
 
 /* returns a register name string */
-  char *
+const char *
 md_reg_name(const enum md_reg_type rt, const int reg)
 {
   int i;
@@ -1021,7 +1021,7 @@ md_reg_name(const enum md_reg_type rt, const int reg)
   return NULL;
 }
 
-  char *						/* err str, NULL for no err */
+const char *						/* err str, NULL for no err */
 md_reg_obj(struct regs_t *regs,			/* registers to access */
     const int is_write,			/* access type */
     const enum md_reg_type rt,			/* reg bank to probe */
@@ -1214,7 +1214,7 @@ const unsigned int md_op2flags[OP_MAX] = {
 
 
   static unsigned long
-md_set_decoder(char *name,
+md_set_decoder(const char *name,
     unsigned long mskbits, unsigned long offset,
     enum md_opcode op, unsigned long max_offset)
 {

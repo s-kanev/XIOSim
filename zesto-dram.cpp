@@ -88,7 +88,7 @@
 /* this pointer hold DRAM implementation/model-specific state */
 class dram_t * dram = NULL;
 
-static char * dram_opt_string = NULL;
+static const char * dram_opt_string = NULL;
 
 void  
 dram_reg_options(struct opt_odb_t * const odb)
@@ -144,7 +144,7 @@ void dram_t::reg_stats(struct stat_sdb_t * const sdb)
 /* include all of the DRAM definitions */
 #include "ZCOMPS-dram.list"
 
-static dram_t * dram_from_string(char * const opt_string)
+static dram_t * dram_from_string(const char * const opt_string)
 {
   char type[256];
 

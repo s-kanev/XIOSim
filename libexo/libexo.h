@@ -97,7 +97,7 @@ enum exo_class_t {
 };
 
 /* EXO term classes print strings */
-extern char *exo_class_str[ec_NUM];
+extern const char *exo_class_str[ec_NUM];
 
 /* EXO token table entry */
 struct exo_token_t {

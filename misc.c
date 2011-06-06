@@ -302,7 +302,7 @@ void flush_trace()
   int i = tracebuff_head;
   do
   {
-    fprintf(stderr, tracebuff[i]);
+    fprintf(stderr, "%s", tracebuff[i]);
     i = modinc(i, MAX_TRACEBUFF_ITEMS);
   } while(i != tracebuff_tail);
   myfprintf(stderr, "END TRACE\n");
@@ -354,7 +354,7 @@ bool myisspace(char c)
 
 bool myisprint(char c)
 {
-  return (myisspace(c) || (c >= 32) && (c <= 126));
+  return (myisspace(c) || ((c >= 32) && (c <= 126)));
 }
 
 
@@ -450,7 +450,7 @@ log_base2(const int n)
 }
 
 /* return string describing elapsed time, passed in SEC in seconds */
-char *
+const char *
 elapsed_time(long sec)
 {
   static char tstr[256];
@@ -580,7 +580,7 @@ myvsprintf(char *obuf, const char *format, va_list v)
   int k, lradix, mradix;
 
   /* pointer to sign, "0x", "0X", or empty */
-  char *prefix = NULL;
+  const char *prefix = NULL;
 
   /* values are developed in this buffer */
   static char buf[MAXDIGS*4], buf1[MAXDIGS*4];
@@ -793,10 +793,12 @@ myvsprintf(char *obuf, const char *format, va_list v)
 	  p = bp + strlen(bp);
 	  break;
 
+    static char null_str[] = "(null)";
+
 	case 's':
 	  bp = va_arg(v, char *);
 	  if (bp == NULL)
-	    bp = "(null)";
+	    bp = null_str;
 	  p = bp + strlen(bp);
 	  break;
 
@@ -1115,9 +1117,9 @@ noconv:
 #ifdef GZIP_PATH
 
 static struct {
-  char *type;
-  char *ext;
-  char *cmd;
+  const char *type;
+  const char *ext;
+  const char *cmd;
 } gzcmds[] = {
   /* type */	/* extension */		/* command */
   { "r",	".gz",			"%s -dc %s" },
@@ -1134,7 +1136,7 @@ FILE *
 gzopen(const char *fname, const char *type)
 {
   int i;
-  char *cmd = NULL;
+  const char *cmd = NULL;
   const char *ext;
   FILE *fd;
   char str[2048];
@@ -1182,7 +1184,7 @@ gzclose(FILE *fd)
 #else /* !GZIP_PATH */
 
 FILE *
-gzopen(char *fname, char *type)
+gzopen(const char *fname, const char *type)
 {
   return fopen(fname, type);
 }
