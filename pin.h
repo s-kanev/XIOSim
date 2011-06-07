@@ -1,3 +1,8 @@
+/* 
+ * Handshake between Pin and Zesto.
+ * Copyright, Svilen Kanev, 2011
+*/
+
 #ifndef __PIN_ZESTO_H__
 #define __PIN_ZESTO_H__
 

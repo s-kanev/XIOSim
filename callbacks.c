@@ -1,3 +1,8 @@
+/* 
+ * Callbacks to instruction feeder.
+ * Copyright, Svilen Kanev, 2011
+*/
+
 #include "callbacks.h"
 
 static ZESTO_WRITE_BYTE_CALLBACK write_byte_call = NULL;

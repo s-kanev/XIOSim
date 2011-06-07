@@ -1,3 +1,8 @@
+/* 
+ * Tracing-related functions (XXX: merge with misc.c).
+ * Copyright, Svilen Kanev, 2011
+*/
+
 #ifdef __cplusplus
 extern "C" {
 #endif

@@ -1,6 +1,6 @@
 /* ras-multistack.cpp: 	Implementation using multiple speculative and real Return Address Stacks - very loosely folowing US patent 6374350 by Intel */
 /*
- * __COPYRIGHT__ GT
+ * Copyright, Svilen Kanev 2011
  */
 
 #define COMPONENT_NAME "multistack"

@@ -36,7 +36,7 @@ OFLAGS_SAFE = $(OFLAGS)
 
 
 ##################################################################
-# Uncomment to turn on pipeline event logging (currently not supported)
+# Uncomment to turn on pipeline event logging 
 ZTRACE = #-DZTRACE
 
 ##################################################################

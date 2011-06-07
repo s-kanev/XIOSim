@@ -1,7 +1,13 @@
-/* commit-IO-DPM.cpp - Detailed Pipeline Model */
+/* commit-IO-DPM.cpp - Detailed In-Order Pipeline Model */
 /*
- * __COPYRIGHT__ SK
+ * Derived from Zesto OO model
+ * Svilen Kanev, 2011
  */
+
+/* NOTE: For compatibility and interchargability between the IO and OO models 
+         some structure names are inconsistent with their purpose.
+         Here, the ROB is a small commit buffer that is entered after pre-commit.
+*/
 
 
 #ifdef ZESTO_PARSE_ARGS

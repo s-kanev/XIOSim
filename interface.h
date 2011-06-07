@@ -1,3 +1,8 @@
+/* 
+ * Interface to instruction feeder.
+ * Copyright, Svilen Kanev, 2011
+*/
+
 #ifndef __PIN_ZESTO_INTERFACE__
 #define __PIN_ZESTO_INTERFACE__
 

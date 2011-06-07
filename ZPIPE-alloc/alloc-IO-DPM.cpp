@@ -1,6 +1,7 @@
-/* alloc-IO-DPM.cpp - Detailed Pipeline Model */
+/* alloc-IO-DPM.cpp - Detailed In-Order Pipeline Model */
 /*
- * __COPYRIGHT__ SK
+ * Derived from Zesto OO model
+ * Svilen Kanev, 2011
  */
 
 

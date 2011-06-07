@@ -1,8 +1,17 @@
-/* exec-DPM.cpp - Detailed Pipeline Model */
+/* exec-IO-DPM.cpp - Detailed In-Order Pipeline Model */
 /*
- * __COPYRIGHT__ SK
+ * Derived from Zesto OO model
+ * Svilen Kanev, 2011
  */
 
+
+/* NOTE: For compatibility and interchargability between the IO and OO models 
+         some structure names are inconsistent with their purpose in an IO pipe.
+         Here, portX.payload_pipe is in fact the issue pipe;
+               the LDQ and STQ are small buffers and not the big structures of an OO core;
+               reservation station (RS) functions are stubs.
+               the readyQ is a also a stub and not used.
+*/
 
 #ifdef ZESTO_PARSE_ARGS
   if(!strcasecmp(exec_opt_string,"IO-DPM"))

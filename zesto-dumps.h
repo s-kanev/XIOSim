@@ -1,3 +1,8 @@
+/* 
+ * Tracing-related functions (XXX: merge with misc.h).
+ * Copyright, Svilen Kanev, 2011
+*/
+
 #ifndef ZESTO_DUMPS_H
 #define ZESTO_DUMPS_H
 
