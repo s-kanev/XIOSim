@@ -663,6 +663,7 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
             sp++;
 //            cerr << hex << (ADDRINT)(*sp) << dec << endl;
         }
+        CHAR* last_argv = *sp;
         sp++;   // End of argv (=NULL);
 
         sp++;   // Start of envp
@@ -690,7 +691,10 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
             }
         }
 
-        bos = (ADDRINT) last_env + strlen(last_env)+1;
+        if (last_env != NULL)
+            bos = (ADDRINT) last_env + strlen(last_env)+1;
+        else
+            bos = (ADDRINT) last_argv + strlen(last_argv)+1; //last_argv != NULLalways
 //        cerr << "bos: " << hex << bos << dec << endl;
 
         // Reserve space for environment and arguments in case 
