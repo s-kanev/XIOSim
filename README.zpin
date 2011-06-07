@@ -28,13 +28,22 @@ Build-related: building the pintool and simulator library should be fine with an
 RUNNING IN SLAVE MODE:
 Running as a pintool frees the simulator for certain responsibilities, like implementing an elf file loader and emulating/dispatching system calls. Instead, these are done natively by the host operating system, and we only grab information that is relevant for simulation.
 
-Pintool command line flags:
+Flags should be given in this order:
+
+Pin flags [immediately after pin executable].
+
+Pintool flags [after -t in command line]:
 -ppfile, skip, etc. -- as defined by the CONTROLLER_PINPOINT class.
 -skip -- exit after a number of simulated instructions.
 -trace (file) -- dump a trace of instructions simulated as seen by Pin.
 -sanity_trace (file) -- points to a plain-text pc trace to verify that the simulator doesn't tip Pin to a different execution path.
 -sanity -- perform checks if simulator corrupts main memory (slow).
 -iljit -- Experimental support for running the high-level VM ILDJIT on top of the simulator.
+
+Simulator command line flags [after -s in command line]:
+-f.e. -redir:sim to redirect simulator output (see Zesto documentation).
+
+Simulated executable and parameters [after -- in command line].
 
 ===================================================
 STABILITY NOTE:
