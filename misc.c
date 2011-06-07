@@ -282,6 +282,11 @@ void trace(const char *fmt, ...)
   va_list v;
   va_start(v, fmt);
 
+  vtrace(fmt, v);
+}
+
+void vtrace(const char *fmt, va_list v)
+{
   myvsprintf(tracebuff[tracebuff_tail], fmt, v);
 
   tracebuff_tail = modinc(tracebuff_tail, MAX_TRACEBUFF_ITEMS);

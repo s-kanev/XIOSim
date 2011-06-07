@@ -166,6 +166,7 @@ extern bool debugging;
 //Keeps a circular trace buffer of last few thousand trace lines
 //Useful when debugging long traces that don't fit hard drive
 #ifdef ZESTO_PIN_DBG
+extern void vtrace(const char *fmt, va_list v);
 extern void trace(const char *fmt, ...)
     __attribute__ ((format (printf, 1, 2)));
 extern void flush_trace();

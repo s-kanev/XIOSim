@@ -456,9 +456,11 @@ sim_reg_stats(struct thread_t ** archs, struct stat_sdb_t *sdb)
 
 #ifdef ZESTO_PIN_DBG
 #define ZTRACE_PRINT(fmt, ...) ZPIN_TRACE(fmt, ## __VA_ARGS__)
+#define ZTRACE_VPRINT(fmt, v) vtrace(fmt, v)
 #define ZTRACE_CHECK_FILE()
 #else
 #define ZTRACE_PRINT(fmt, ...)  fprintf(ztrace_fp, fmt, ## __VA_ARGS__)
+#define ZTRACE_VPRINT(fmt, v)   myvfprintf(ztrace_fp, fmt, v)
 #define ZTRACE_CHECK_FILE() \
 if(ztrace_fp == NULL) \
 return;
@@ -554,7 +556,7 @@ void ztrace_print(const struct Mop_t * Mop, const char * fmt, ... )
   va_start(v, fmt);
 
   ztrace_Mop_ID(Mop);
-  ZTRACE_PRINT( fmt, v);
+  ZTRACE_VPRINT( fmt, v);
   ZTRACE_PRINT("\n");
 }
 
@@ -565,7 +567,7 @@ void ztrace_print(const struct uop_t * uop, const char * fmt, ... )
   va_start(v, fmt);
 
   ztrace_uop_ID(uop);
-  ZTRACE_PRINT( fmt, v);
+  ZTRACE_VPRINT( fmt, v);
   ZTRACE_PRINT("\n");
 }
 
@@ -576,7 +578,7 @@ void ztrace_print(const char * fmt, ... )
   va_start(v, fmt);
 
   ZTRACE_PRINT("%lld|",sim_cycle);
-  ZTRACE_PRINT( fmt, v);
+  ZTRACE_VPRINT( fmt, v);
   ZTRACE_PRINT("\n");
 }
 
@@ -587,7 +589,7 @@ void ztrace_print_start(const struct uop_t * uop, const char * fmt, ... )
   va_start(v, fmt);
 
   ztrace_uop_ID(uop);
-  ZTRACE_PRINT( fmt, v);
+  ZTRACE_VPRINT( fmt, v);
 }
 
 void ztrace_print_cont(const char * fmt, ... )
@@ -596,7 +598,7 @@ void ztrace_print_cont(const char * fmt, ... )
   va_list v;
   va_start(v, fmt);
 
-  ZTRACE_PRINT( fmt, v);
+  ZTRACE_VPRINT( fmt, v);
 }
 
 void ztrace_print_finish(const char * fmt, ... )
@@ -605,7 +607,7 @@ void ztrace_print_finish(const char * fmt, ... )
   va_list v;
   va_start(v, fmt);
 
-  ZTRACE_PRINT( fmt, v);
+  ZTRACE_VPRINT( fmt, v);
   ZTRACE_PRINT("\n");
 }
 
