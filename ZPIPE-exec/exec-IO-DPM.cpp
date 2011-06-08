@@ -2142,6 +2142,13 @@ void core_exec_IO_DPM_t::STQ_squash_senior(void)
 
   while(STQ_senior_num > 0)
   {
+    /* Most of the time, instructions should be invalid here. But some flows get a vlid uop in senior queue, which should be disposed of properly, without leaving a dangling STQ pointer */
+    if(STQ[STQ_senior_head].sta != NULL)
+      STQ[STQ_senior_head].sta->alloc.STQ_index = -1;
+
+    if(STQ[STQ_senior_head].std != NULL)
+      STQ[STQ_senior_head].std->alloc.STQ_index = -1;
+
     memzero(&STQ[STQ_senior_head],sizeof(*STQ));
     STQ[STQ_senior_head].action_id = core->new_action_id();
 
