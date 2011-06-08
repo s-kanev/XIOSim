@@ -2002,6 +2002,8 @@ void core_exec_IO_DPM_t::STQ_insert_std(struct uop_t * const uop)
 
 void core_exec_IO_DPM_t::STQ_deallocate_sta(void)
 {
+  if(STQ[STQ_head].sta != NULL)
+    STQ[STQ_head].sta->alloc.STQ_index = -1;
   STQ[STQ_head].sta = NULL;
 }
 
@@ -2086,6 +2088,8 @@ bool core_exec_IO_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
     ztrace_print(uop,"c|store|store enqueued to DL1/DTLB");
 #endif
 
+    if(STQ[STQ_head].std != NULL)
+      STQ[STQ_head].std->alloc.STQ_index = -1;
     STQ[STQ_head].std = NULL;
     STQ_num --;
     STQ_head = modinc(STQ_head,knobs->exec.STQ_size); //(STQ_head+1) % knobs->exec.STQ_size;
