@@ -316,6 +316,9 @@ void flush_trace()
   tracebuff_occupancy = 0;
   tracebuff_head = tracebuff_tail;
 }
+#else
+// Assert macros rely that this is defined.
+void flush_trace() {}
 #endif
 
 /* ctype.h replacements - response to request from Prof. Todd Austin for
