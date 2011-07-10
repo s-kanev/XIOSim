@@ -87,7 +87,7 @@ misc.c               options.c            range.c               regs.c          
 sim-eio.c            sim-fast.c           stats.c               symbol.c           \
 syscall.c	     sysprobe.c           sim-cache.c           slave.c	           \
 loader.c             symbol.c             syscall.c             sim-main.c         \
-callbacks.c
+callbacks.c       slices.cpp
 
 HDRS = \
 bbtracker.h          cache.h                                    thread.h           \
@@ -103,7 +103,7 @@ OBJS_NOMAIN =	\
 endian.$(OEXT)       eval.$(OEXT)         \
 machine.$(OEXT)      memory.$(OEXT)       misc.$(OEXT)          options.$(OEXT)    \
 range.$(OEXT)        regs.$(OEXT)         stats.$(OEXT)         symbol.$(OEXT)     \
-sim-main.$(OEXT)
+sim-main.$(OEXT)     slices.$(OEXT)
 
 OBJS = main.$(OEXT) eio.$(OEXT) loader.$(OEXT) $(OBJS_NOMAIN) syscall.$(OEXT) 
 OBJS_SLAVE = callbacks.$(OEXT) slave.$(OEXT) loader.$(OEXT) $(OBJS_NOMAIN)
@@ -291,6 +291,8 @@ slave.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h options.h
 slave.o: endian.h thread.h memory.h stats.h eval.h version.h loader.h sim.h
 slave.o: interface.h callbacks.h
 callbacks.o: callbacks.h interface.h
+slices.o: stats.h host.h eval.h thread.h machine.h memory.h regs.h
+slices.o: zesto-core.h zesto-structs.h
 sim-main.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h
 sim-main.o: options.h memory.h stats.h eval.h loader.h thread.h syscall.h
 sim-main.o: sim.h zesto-opts.h zesto-core.h zesto-oracle.h zesto-fetch.h

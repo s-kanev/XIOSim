@@ -369,12 +369,13 @@ void Zesto_UpdateBrk(unsigned int brk_end, bool do_mmap)
   core->current_thread->loader.brk_point = brk_end;
 }
 
-void Zesto_Destroy()
-{
+//void Zesto_Destroy()
+//{
   /* print simulator stats */
-  sim_print_stats(stderr);
-}
+//  sim_print_stats(stderr);
+//}
 
+void Zesto_Drain();
 
 void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool start_slice, bool end_slice)
 {

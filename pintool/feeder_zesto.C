@@ -165,24 +165,30 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
         cerr << "Start" << endl;
         ExecMode = EXECUTION_MODE_SIMULATE;
         CODECACHE_FlushCache();
+//        PIN_RemoveInstrumentation();
         isFirstInsn = true;
 
         if(control.PinPointsActive())
         {
             cerr << "PinPoint: " << control.CurrentPp(tid) << " PhaseNo: " << control.CurrentPhase(tid) << endl;
+            Zesto_SliceStart(control.CurrentPP(tid));
         }
+//        if (ctxt) PIN_ExecuteAt(ctxt);
         break;
 
       case CONTROL_STOP:
         cerr << "Stop" << endl;
         ExecMode = EXECUTION_MODE_FASTFORWARD;
         CODECACHE_FlushCache();
+//        PIN_RemoveInstrumentation();
         isLastInsn = true;
 
         if(control.PinPointsActive())
         {
             cerr << "PinPoint: " << control.CurrentPp(tid) << endl;
+            Zesto_SliceEnd(control.CurrentPp(tid), control.CurrentPpWeightTimesThousand(tid), control.CurrentPpLength(tid));
         }
+//        if (ctxt) PIN_ExecuteAt(ctxt);
         break;
 
       default:

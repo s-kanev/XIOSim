@@ -157,6 +157,7 @@ stat_new(void)
 
   sdb->stats = NULL;
   sdb->evaluator = eval_new(stat_eval_ident, sdb);
+  sdb->slice_weight = 1.0;
 
   return sdb;
 }
@@ -1100,10 +1101,142 @@ stat_find_stat(struct stat_sdb_t *sdb,	/* stat database */
   return stat;
 }
 
+/* save a stat variable for using at a later stage */
+static void stat_save_stat(struct stat_stat_t *stat)
+{
+   if (stat == NULL)
+     return;
 
+   switch(stat->sc)
+   {
+     case sc_int:
+       stat->variant.for_int.end_val = *stat->variant.for_int.var;
+       break;
+     case sc_uint:
+       stat->variant.for_uint.end_val = *stat->variant.for_uint.var;
+       break;
+     case sc_qword:
+       stat->variant.for_qword.end_val = *stat->variant.for_qword.var;
+       break;
+     case sc_sqword:
+       stat->variant.for_sqword.end_val = *stat->variant.for_sqword.var;
+       break;
+     case sc_float:
+       stat->variant.for_float.end_val = *stat->variant.for_float.var;
+       break;
+     case sc_double:
+       stat->variant.for_double.end_val = *stat->variant.for_double.var;
+       break;
+     case sc_dist:
+     case sc_formula:
+     case sc_string:
+     case sc_note:
+     default: 
+       fprintf(stderr, "Unsupported stat type for save_stat: %d (%s)\n", stat->sc, stat->name);
+       break;
+   }
+}
 
+/* save a stat database for using stats at a later stage */
+void stat_save_stats(struct stat_sdb_t *sdb)
+{
+   if (sdb == NULL)
+     return;
 
+   struct stat_stat_t *stat = sdb->stats;
+   while(stat)
+   {
+     stat_save_stat(stat);
+     stat = stat->next;
+   }
+}
 
+/* scale a stat variable by a fixed weight metric
+   (note possible loss of precission for integral types) */
+void stat_scale_stat(struct stat_stat_t *stat, double weight)
+{
+   if (stat == NULL)
+     return;
 
+   if (!stat->scale_me)
+     return;
 
+   switch(stat->sc)
+   {
+     case sc_int:
+       stat->variant.for_int.end_val = (int)(weight * ((double) stat->variant.for_int.end_val));
+       break;
+     case sc_uint:
+       stat->variant.for_uint.end_val = (unsigned int)(weight * ((double) stat->variant.for_uint.end_val));
+       break;
+     case sc_qword:
+       stat->variant.for_qword.end_val = (qword_t)(weight * ((double) stat->variant.for_qword.end_val));
+       break;
+     case sc_sqword:
+       stat->variant.for_sqword.end_val = (sqword_t)(weight * ((double) stat->variant.for_sqword.end_val));
+       break;
+     case sc_float:
+       stat->variant.for_float.end_val = (float)(weight * ((double) stat->variant.for_float.end_val));
+       break;
+     case sc_double:
+       stat->variant.for_double.end_val = (weight * stat->variant.for_double.end_val);
+       break;
+     case sc_dist:
+     case sc_formula:
+     case sc_string:
+     case sc_note:
+     default: 
+       fprintf(stderr, "Unsupported stat type for save_stat: %d (%s)\n", stat->sc, stat->name);
+       break;
+   }
+}
 
+/* scale stats in a database by a fixed weigth metric */
+void stat_scale_stats(struct stat_sdb_t *sdb)
+{
+   if (sdb == NULL)
+     return;
+
+   struct stat_stat_t *stat = sdb->stats;
+   while(stat)
+   {
+     stat_scale_stat(stat, sdb->slice_weight);
+     stat = stat->next;
+   }
+}
+
+/* accumulate the value of a stat variable in another */
+void stat_accum_stat(struct stat_stat_t *dst, const struct stat_stat_t *src)
+{
+   if (src == NULL || dst == NULL)
+     return;
+
+   switch(dst->sc)
+   {
+     case sc_int:
+       dst->variant.for_int.end_val += src->variant.for_int.end_val;
+       break;
+     case sc_uint:
+       dst->variant.for_uint.end_val += src->variant.for_uint.end_val;
+       break;
+     case sc_qword:
+       dst->variant.for_qword.end_val += src->variant.for_qword.end_val;
+       break;
+     case sc_sqword:
+       dst->variant.for_sqword.end_val += src->variant.for_sqword.end_val;
+       break;
+     case sc_float:
+       dst->variant.for_float.end_val += src->variant.for_float.end_val;
+       break;
+     case sc_double:
+       dst->variant.for_double.end_val += src->variant.for_double.end_val;
+       break;
+     case sc_dist:
+     case sc_formula:
+     case sc_string:
+     case sc_note:
+     default: 
+       fprintf(stderr, "Unsupported stat type for accum_stat: %d (%s)\n", dst->sc, dst->name);
+       break;
+   }
+}
