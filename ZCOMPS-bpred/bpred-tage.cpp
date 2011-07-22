@@ -467,7 +467,7 @@ class bpred_tage_t:public bpred_dir_t
 
       sprintf(buf,"c%d.%s.uses%d",id,name,i);
       sprintf(buf2,"predictions made with %s's T[%d]",name,i);
-      stat_reg_counter(sdb, true, buf, buf2, &Tuses[i], 0, NULL);
+      stat_reg_counter(sdb, true, buf, buf2, &Tuses[i], 0, TRUE, NULL);
     }
   }
 

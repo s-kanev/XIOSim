@@ -17,6 +17,10 @@ typedef struct P2Z_HANDSHAKE {
     int orig;                           /* Original program instruction */
     int icount;                         /* Dynamic program instruction sequence id */
     unsigned char *ins;                 /* Instruction bytes */
+
+    unsigned int slice_num;
+    unsigned long long feeder_slice_length;
+    unsigned long long slice_weight_times_1000;
 } P2Z_HANDSHAKE;
 
 typedef void (*ZESTO_WRITE_BYTE_CALLBACK) (unsigned int, unsigned char);

@@ -115,6 +115,11 @@ extern void exit_now(int exit_code);
 
 extern tick_t sim_cycle;
 
+
+extern void start_slice(unsigned int slice_num);
+extern void end_slice(unsigned int slice_num, unsigned long long slice_length, unsigned long long slice_weight_times_1000);
+extern void scale_all_slices(void);
+
 bool consumed = false;
 bool first_insn = true;
 long long fetches_since_feeder = 0;
@@ -369,15 +374,37 @@ void Zesto_UpdateBrk(unsigned int brk_end, bool do_mmap)
   core->current_thread->loader.brk_point = brk_end;
 }
 
-//void Zesto_Destroy()
-//{
+void Zesto_Destroy()
+{
+  /* scale stats if running multiple simulation slices */
+  scale_all_slices();
+
   /* print simulator stats */
-//  sim_print_stats(stderr);
-//}
+  sim_print_stats(stderr);
+}
 
-void Zesto_Drain();
 
-void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool start_slice, bool end_slice)
+static void sim_drain_pipe(void)
+{
+   assert(num_threads == 1);
+
+   int i = 0;
+   struct core_t * core = cores[i];
+
+   /* Just flush anything left */
+   core->oracle->complete_flush();
+   core->commit->recover();
+   core->exec->recover();
+   core->alloc->recover();
+   core->decode->recover();
+   core->fetch->recover(core->current_thread->regs.regs_NPC);
+
+   // Do this after fetch->recover, since the latest Mop might have had a rep prefix
+   core->current_thread->rep_sequence = 0;
+}
+
+
+void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool slice_start, bool slice_end)
 {
    //TODO: Widen hanshake to include thread id
    assert(num_threads == 1);
@@ -404,9 +431,19 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool start_slice, bool end_s
       first_insn= false;
    }
 
-   if(start_slice)
+   if(slice_end)
+   {
+      sim_drain_pipe(); // blow away any instructions executing
+      end_slice(handshake->slice_num, handshake->feeder_slice_length, handshake->slice_weight_times_1000);
+      if (!slice_start) //start and end markers can be the same
+        return;
+   }
+
+   if(slice_start)
    {
       zesto_assert(thread->loader.stack_base, (void)0);
+
+      start_slice(handshake->slice_num);
 
       /* Init stack pointer */
       md_addr_t sp = handshake->ctxt->regs_R.dw[MD_REG_ESP]; 
@@ -427,12 +464,6 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool start_slice, bool end_s
       cores[i]->fetch->PC = handshake->pc;
    }
 
-   if(end_slice)
-   {
-      Zesto_Drain();
-      return;
-   }
-
    ZPIN_TRACE("PIN -> PC: %x, NPC: %x \n", handshake->pc, NPC);
    fetches_since_feeder = 0;
 
@@ -450,7 +481,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool start_slice, bool end_s
      if(FPR_VALID(handshake->ctxt->regs_C.ftw, j))
        memcpy(&regs->regs_F.e[j], &handshake->ctxt->regs_F.e[j], MD_FPR_SIZE);
 
-   if(!start_slice && core->fetch->PC != handshake->pc)
+   if(!slice_start && core->fetch->PC != handshake->pc)
    {
      ZPIN_TRACE("PIN->PC (0x%x) different from fetch->PC (0x%x). Overwriting with Pin value!\n", handshake->pc, core->fetch->PC);
      info("PIN->PC (0x%x) different from fetch->PC (0x%x). Overwriting with Pin value!\n", handshake->pc, core->fetch->PC);
@@ -593,23 +624,4 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool start_slice, bool end_s
    }
 
    zesto_assert(cores[i]->fetch->PC == NPC, (void)0);
-}
-
-void Zesto_Drain()
-{
-   assert(num_threads == 1);
-
-   int i = 0;
-   struct core_t * core = cores[i];
-
-   /* Just flush anything left */
-   core->oracle->complete_flush();
-   core->commit->recover();
-   core->exec->recover();
-   core->alloc->recover();
-   core->decode->recover();
-   core->fetch->recover(core->current_thread->regs.regs_NPC);
-
-   // Do this after fetch->recover, since the latest Mop might have had a rep prefix
-   core->current_thread->rep_sequence = 0;
 }

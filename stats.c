@@ -196,6 +196,7 @@ stat_delete(struct stat_sdb_t *sdb)	/* stats database */
       case sc_dist:
         /* free distribution array */
         free(stat->variant.for_dist.arr);
+        free(stat->variant.for_dist.end_arr);
         stat->variant.for_dist.arr = NULL;
         break;
       case sc_sdist:
@@ -264,6 +265,7 @@ stat_reg_string(struct stat_sdb_t *sdb,	/* stat database */
   stat->name = mystrdup(name);
   stat->desc = mystrdup(desc);
   stat->print_me = TRUE;
+  stat->scale_me = FALSE;
   stat->format = format ? format : "%12s";
   stat->sc = sc_string;
   stat->variant.for_string.string = var;
@@ -282,6 +284,7 @@ stat_reg_int(struct stat_sdb_t *sdb,	/* stat database */
     const char *desc,		/* stat variable description */
     int *var,			/* stat variable */
     int init_val,		/* stat variable initial value */
+    int scale_me,
     const char *format)		/* optional variable output format */
 {
   struct stat_stat_t *stat;
@@ -293,6 +296,7 @@ stat_reg_int(struct stat_sdb_t *sdb,	/* stat database */
   stat->name = mystrdup(name);
   stat->desc = mystrdup(desc);
   stat->print_me = print_me;
+  stat->scale_me = scale_me;
   stat->format = format ? format : "%12d";
   stat->sc = sc_int;
   stat->variant.for_int.var = var;
@@ -315,6 +319,7 @@ stat_reg_uint(struct stat_sdb_t *sdb,	/* stat database */
     const char *desc,		/* stat variable description */
     unsigned int *var,	/* stat variable */
     unsigned int init_val,	/* stat variable initial value */
+    int scale_me,
     const char *format)		/* optional variable output format */
 {
   struct stat_stat_t *stat;
@@ -326,6 +331,7 @@ stat_reg_uint(struct stat_sdb_t *sdb,	/* stat database */
   stat->name = mystrdup(name);
   stat->desc = mystrdup(desc);
   stat->print_me = print_me;
+  stat->scale_me = scale_me;
   stat->format = format ? format : "%12u";
   stat->sc = sc_uint;
   stat->variant.for_uint.var = var;
@@ -348,6 +354,7 @@ stat_reg_qword(struct stat_sdb_t *sdb,	/* stat database */
     const char *desc,		/* stat variable description */
     qword_t *var,		/* stat variable */
     qword_t init_val,		/* stat variable initial value */
+    int scale_me,
     const char *format)		/* optional variable output format */
 {
   struct stat_stat_t *stat;
@@ -359,6 +366,7 @@ stat_reg_qword(struct stat_sdb_t *sdb,	/* stat database */
   stat->name = mystrdup(name);
   stat->desc = mystrdup(desc);
   stat->print_me = print_me;
+  stat->scale_me = scale_me;
   stat->format = format ? format : "%12lu";
   stat->sc = sc_qword;
   stat->variant.for_qword.var = var;
@@ -381,6 +389,7 @@ stat_reg_sqword(struct stat_sdb_t *sdb,	/* stat database */
     const char *desc,		/* stat variable description */
     sqword_t *var,		/* stat variable */
     sqword_t init_val,	/* stat variable initial value */
+    int scale_me,
     const char *format)		/* optional variable output format */
 {
   struct stat_stat_t *stat;
@@ -392,6 +401,7 @@ stat_reg_sqword(struct stat_sdb_t *sdb,	/* stat database */
   stat->name = mystrdup(name);
   stat->desc = mystrdup(desc);
   stat->print_me = print_me;
+  stat->scale_me = scale_me;
   stat->format = format ? format : "%12ld";
   stat->sc = sc_sqword;
   stat->variant.for_sqword.var = var;
@@ -414,6 +424,7 @@ stat_reg_float(struct stat_sdb_t *sdb,	/* stat database */
     const char *desc,		/* stat variable description */
     float *var,		/* stat variable */
     float init_val,		/* stat variable initial value */
+    int scale_me,
     const char *format)		/* optional variable output format */
 {
   struct stat_stat_t *stat;
@@ -425,6 +436,7 @@ stat_reg_float(struct stat_sdb_t *sdb,	/* stat database */
   stat->name = mystrdup(name);
   stat->desc = mystrdup(desc);
   stat->print_me = print_me;
+  stat->scale_me = scale_me;
   stat->format = format ? format : "%12.4f";
   stat->sc = sc_float;
   stat->variant.for_float.var = var;
@@ -447,6 +459,7 @@ stat_reg_double(struct stat_sdb_t *sdb,	/* stat database */
     const char *desc,		/* stat variable description */
     double *var,		/* stat variable */
     double init_val,	/* stat variable initial value */
+    int scale_me,
     const char *format)		/* optional variable output format */
 {
   struct stat_stat_t *stat;
@@ -458,6 +471,7 @@ stat_reg_double(struct stat_sdb_t *sdb,	/* stat database */
   stat->name = mystrdup(name);
   stat->desc = mystrdup(desc);
   stat->print_me = print_me;
+  stat->scale_me = scale_me;
   stat->format = format ? format : "%12.4f";
   stat->sc = sc_double;
   stat->variant.for_double.var = var;
@@ -488,11 +502,12 @@ stat_reg_dist(struct stat_sdb_t *sdb,	/* stat database */
     int pf,			/* print format, use PF_* defs */
     const char *format,		/* optional variable output format */
     const char **imap,		/* optional index -> string map */
+    int scale_me,
     print_fn_t print_fn)	/* optional user print function */
 {
   unsigned int i;
   struct stat_stat_t *stat;
-  unsigned int *arr;
+  unsigned int *arr, *end_arr;
 
   stat = (struct stat_stat_t *)calloc(1, sizeof(struct stat_stat_t));
   if (!stat)
@@ -501,6 +516,7 @@ stat_reg_dist(struct stat_sdb_t *sdb,	/* stat database */
   stat->name = mystrdup(name);
   stat->desc = mystrdup(desc);
   stat->print_me = TRUE;
+  stat->scale_me = scale_me;
   stat->format = format ? format : NULL;
   stat->sc = sc_dist;
   stat->variant.for_dist.init_val = init_val;
@@ -515,6 +531,11 @@ stat_reg_dist(struct stat_sdb_t *sdb,	/* stat database */
   if (!arr)
     fatal("out of virtual memory");
   stat->variant.for_dist.arr = arr;
+
+  end_arr = (unsigned int *)calloc(arr_sz, sizeof(unsigned int));
+  if (!end_arr)
+    fatal("out of virtual memory");
+  stat->variant.for_dist.end_arr = end_arr;
 
   /* link onto SDB chain */
   add_stat(sdb, stat);
@@ -540,6 +561,7 @@ stat_reg_sdist(struct stat_sdb_t *sdb,	/* stat database */
     unsigned int init_val,	/* dist initial value */
     int pf,			/* print format, use PF_* defs */
     const char *format,		/* optional variable output format */
+    int scale_me,
     print_fn_t print_fn)	/* optional user print function */
 {
   struct stat_stat_t *stat;
@@ -552,6 +574,7 @@ stat_reg_sdist(struct stat_sdb_t *sdb,	/* stat database */
   stat->name = mystrdup(name);
   stat->desc = mystrdup(desc);
   stat->print_me = TRUE;
+  stat->scale_me = scale_me;
   stat->format = format ? format : NULL;
   stat->sc = sc_sdist;
   stat->variant.for_sdist.init_val = init_val;
@@ -683,6 +706,7 @@ stat_reg_note(struct stat_sdb_t *sdb,	/* stat database */
   stat->name = "--not a stat--";
   stat->desc = "--not a stat--";
   stat->print_me = TRUE;
+  stat->scale_me = FALSE;
   stat->format = "--not a stat--";
   stat->sc = sc_note;
   stat->variant.for_note.note = mystrdup(note);
@@ -1127,10 +1151,17 @@ static void stat_save_stat(struct stat_stat_t *stat)
      case sc_double:
        stat->variant.for_double.end_val = *stat->variant.for_double.var;
        break;
-     case sc_dist:
-     case sc_formula:
      case sc_string:
      case sc_note:
+       /* These are generally const string and not expected to change */
+       break;
+     case sc_dist:
+       for(unsigned int i=0; i<stat->variant.for_dist.arr_sz; i++)
+         stat->variant.for_dist.end_arr[i] = stat->variant.for_dist.arr[i];
+       break;
+     case sc_formula:
+       /* If individual terms are saved, this should be fine too. We'll just recompute */
+       break;
      default: 
        fprintf(stderr, "Unsupported stat type for save_stat: %d (%s)\n", stat->sc, stat->name);
        break;
@@ -1181,12 +1212,19 @@ void stat_scale_stat(struct stat_stat_t *stat, double weight)
      case sc_double:
        stat->variant.for_double.end_val = (weight * stat->variant.for_double.end_val);
        break;
-     case sc_dist:
-     case sc_formula:
      case sc_string:
      case sc_note:
+       /* These are generally const string and not expected to change */
+       break;
+     case sc_dist:
+       for(unsigned int i=0; i<stat->variant.for_dist.arr_sz; i++)
+         stat->variant.for_dist.end_arr[i] = (unsigned int) (weight * (double)stat->variant.for_dist.end_arr[i]);
+       break;
+     case sc_formula:
+       /* If individual terms are saved, this should be fine too. We'll just recompute */
+       break;
      default: 
-       fprintf(stderr, "Unsupported stat type for save_stat: %d (%s)\n", stat->sc, stat->name);
+       fprintf(stderr, "Unsupported stat type for scale_stat: %d (%s)\n", stat->sc, stat->name);
        break;
    }
 }
@@ -1214,27 +1252,34 @@ void stat_accum_stat(struct stat_stat_t *dst, const struct stat_stat_t *src)
    switch(dst->sc)
    {
      case sc_int:
-       dst->variant.for_int.end_val += src->variant.for_int.end_val;
+       *dst->variant.for_int.var += src->variant.for_int.end_val;
        break;
      case sc_uint:
-       dst->variant.for_uint.end_val += src->variant.for_uint.end_val;
+       *dst->variant.for_uint.var += src->variant.for_uint.end_val;
        break;
      case sc_qword:
-       dst->variant.for_qword.end_val += src->variant.for_qword.end_val;
+       *dst->variant.for_qword.var += src->variant.for_qword.end_val;
        break;
      case sc_sqword:
-       dst->variant.for_sqword.end_val += src->variant.for_sqword.end_val;
+       *dst->variant.for_sqword.var += src->variant.for_sqword.end_val;
        break;
      case sc_float:
-       dst->variant.for_float.end_val += src->variant.for_float.end_val;
+       *dst->variant.for_float.var += src->variant.for_float.end_val;
        break;
      case sc_double:
-       dst->variant.for_double.end_val += src->variant.for_double.end_val;
+       *dst->variant.for_double.var += src->variant.for_double.end_val;
        break;
-     case sc_dist:
-     case sc_formula:
      case sc_string:
      case sc_note:
+       /* These are generally const string and not expected to change */
+       break;
+     case sc_dist:
+       for(unsigned int i=0; i<src->variant.for_dist.arr_sz; i++)
+         dst->variant.for_dist.arr[i] += src->variant.for_dist.end_arr[i];
+       break;
+     case sc_formula:
+       /* If individual terms are saved, this should be fine too. We'll just recompute */
+       break;
      default: 
        fprintf(stderr, "Unsupported stat type for accum_stat: %d (%s)\n", dst->sc, dst->name);
        break;

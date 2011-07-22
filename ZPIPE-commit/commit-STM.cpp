@@ -94,9 +94,9 @@ core_commit_STM_t::reg_stats(struct stat_sdb_t * const sdb)
   stat_reg_note(sdb,"\n#### COMMIT STATS ####");
 
   sprintf(buf,"c%d.commit_insn",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of instructions committed", &core->stat.commit_insn, core->stat.commit_insn, NULL);
+  stat_reg_counter(sdb, true, buf, "total number of instructions committed", &core->stat.commit_insn, 0, TRUE, NULL);
   sprintf(buf,"c%d.commit_uops",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of uops committed", &core->stat.commit_uops, core->stat.commit_uops, NULL);
+  stat_reg_counter(sdb, true, buf, "total number of uops committed", &core->stat.commit_uops, 0, TRUE, NULL);
   sprintf(buf,"c%d.commit_IPC",arch->id);
   sprintf(buf2,"c%d.commit_insn/c%d.sim_cycle",arch->id,arch->id);
   stat_reg_formula(sdb, true, buf, "IPC at commit", buf2, NULL);
@@ -108,13 +108,13 @@ core_commit_STM_t::reg_stats(struct stat_sdb_t * const sdb)
   stat_reg_formula(sdb, true, buf, "uops per instruction at commit", buf2, NULL);
 
   sprintf(buf,"c%d.commit_dead_lock_flushes",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of pipe-flushes due to dead-locked pipeline", &core->stat.commit_deadlock_flushes, core->stat.commit_deadlock_flushes, NULL);
+  stat_reg_counter(sdb, true, buf, "total number of pipe-flushes due to dead-locked pipeline", &core->stat.commit_deadlock_flushes, 0, FALSE, NULL);
   sprintf(buf,"c%d.ROB_occupancy",arch->id);
-  stat_reg_counter(sdb, false, buf, "total ROB occupancy", &core->stat.ROB_occupancy, core->stat.ROB_occupancy, NULL);
+  stat_reg_counter(sdb, false, buf, "total ROB occupancy", &core->stat.ROB_occupancy, 0, TRUE, NULL);
   sprintf(buf,"c%d.ROB_empty",arch->id);
-  stat_reg_counter(sdb, false, buf, "total cycles ROB was empty", &core->stat.ROB_empty_cycles, core->stat.ROB_empty_cycles, NULL);
+  stat_reg_counter(sdb, false, buf, "total cycles ROB was empty", &core->stat.ROB_empty_cycles, 0, TRUE, NULL);
   sprintf(buf,"c%d.ROB_full",arch->id);
-  stat_reg_counter(sdb, false, buf, "total cycles ROB was full", &core->stat.ROB_full_cycles, core->stat.ROB_full_cycles, NULL);
+  stat_reg_counter(sdb, false, buf, "total cycles ROB was full", &core->stat.ROB_full_cycles, 0, TRUE, NULL);
   sprintf(buf,"c%d.ROB_avg",arch->id);
   sprintf(buf2,"c%d.ROB_occupancy/c%d.sim_cycle",arch->id,arch->id);
   stat_reg_formula(sdb, true, buf, "average ROB occupancy", buf2, NULL);
@@ -134,19 +134,21 @@ core_commit_STM_t::reg_stats(struct stat_sdb_t * const sdb)
                                            /* print format */(PF_COUNT|PF_PDF),
                                            /* format */NULL,
                                            /* index map */commit_stall_str,
+                                           /* scale_me */TRUE,
                                            /* print fn */NULL);
 
   stat_reg_note(sdb,"#### TIMING STATS ####");
   sprintf(buf,"c%d.sim_cycle",arch->id);
-  stat_reg_qword(sdb, true, buf, "total number of cycles when last instruction (or uop) committed", (qword_t*) &core->stat.final_sim_cycle, core->stat.final_sim_cycle, NULL);
+  stat_reg_qword(sdb, true, buf, "total number of cycles when last instruction (or uop) committed", (qword_t*) &core->stat.final_sim_cycle, 0, TRUE, NULL);
   /* instruction distribution stats */
   stat_reg_note(sdb,"\n#### INSTRUCTION STATS (no wrong-path) ####");
   sprintf(buf,"c%d.num_insn",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of instructions committed", &core->stat.commit_insn, core->stat.commit_insn, NULL);
+  sprintf(buf2,"c%d.commit_insn",arch->id);
+  stat_reg_formula(sdb, true, buf, "total number of instructions committed", buf2, NULL);
   sprintf(buf,"c%d.num_refs",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of loads and stores committed", &core->stat.commit_refs, core->stat.commit_refs, NULL);
+  stat_reg_counter(sdb, true, buf, "total number of loads and stores committed", &core->stat.commit_refs, 0, TRUE, NULL);
   sprintf(buf,"c%d.num_loads",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of loads committed", &core->stat.commit_loads, core->stat.commit_loads, NULL);
+  stat_reg_counter(sdb, true, buf, "total number of loads committed", &core->stat.commit_loads, 0, TRUE, NULL);
   sprintf(buf2,"c%d.num_refs - c%d.num_loads",arch->id,arch->id);
   sprintf(buf,"c%d.num_stores",arch->id);
   stat_reg_formula(sdb, true, buf, "total number of stores committed", buf2, "%12.0f");

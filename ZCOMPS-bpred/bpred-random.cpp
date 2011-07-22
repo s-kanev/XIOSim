@@ -68,7 +68,7 @@ struct bpred_random_t:public bpred_dir_t
 
     sprintf(buf,"c%d.%s.num_taken",id,name);
     sprintf(buf2,"number of taken branch predictions by %s",name);
-    stat_reg_counter(sdb, true, buf, buf2, &num_taken, num_taken, NULL);
+    stat_reg_counter(sdb, true, buf, buf2, &num_taken, 0, TRUE, NULL);
   }
 
   /* RESET_STATS */

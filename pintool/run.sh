@@ -11,3 +11,5 @@ set MEMCFG = ../dram-config/DDR2-800-5-5-5.cfg
 set CMD_LINE = "setarch i686 -3BL $PIN -xyzzy -t $PINTOOL -maxins -1 -sanity -s -config $ZESTOCFG -config $MEMCFG -redir:sim tst.out -- $PROGRAM"
 echo $CMD_LINE
 $CMD_LINE
+
+#/usr/bin/env -i setarch i686 -3BL /home/skanev/pin/pin-2.8-36111-gcc.3.4.6-ia32_intel64-linux/ia32/bin/pinbin -pause_tool 1 -separate_memory -t /home/skanev/zesto/pintool/obj-ia32/feeder_zesto.so -ppfile fib..pintool.1.pp -s -config /home/skanev/zesto/config/A.cfg -config /home/skanev/zesto/dram-config/DDR2-533-4-4-4.cfg -redir:sim tst.out -- /home/skanev/ubench/fib

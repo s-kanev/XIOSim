@@ -281,7 +281,7 @@ void uncore_reg_stats(struct stat_sdb_t * const sdb)
   bus_reg_stats(sdb,NULL,uncore->fsb);
 
   stat_reg_int(sdb, true, "FSB.clock_ratio", "CPU clocks per FSB clock",
-      &uncore->cpu_ratio, uncore->cpu_ratio, /* format */NULL);
+      &uncore->cpu_ratio, uncore->cpu_ratio, FALSE, /* format */NULL);
 
   uncore->MC->reg_stats(sdb);
 }

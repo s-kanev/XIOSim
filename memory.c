@@ -856,7 +856,7 @@ mem_reg_stats(struct mem_t *mem,	/* memory space to declare */
   stat_reg_note(sdb,"\n#### SIMULATED MEMORY STATS ####");
   sprintf(buf, "%s.page_count", mem->name);
   stat_reg_counter(sdb, TRUE, buf, "total number of pages allocated",
-      &mem->page_count, mem->page_count, NULL);
+      &mem->page_count, 0, FALSE, NULL);
 
   sprintf(buf, "%s.page_mem", mem->name);
   sprintf(buf1, "%s.page_count * %d / 1024", mem->name, MD_PAGE_SIZE);

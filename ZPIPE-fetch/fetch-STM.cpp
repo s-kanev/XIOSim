@@ -185,9 +185,9 @@ core_fetch_STM_t::reg_stats(struct stat_sdb_t * const sdb)
 
   stat_reg_note(sdb,"\n#### FETCH STATS ####");
   sprintf(buf,"c%d.fetch_insn",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of instructions fetched", &core->stat.fetch_insn, core->stat.fetch_insn, NULL);
+  stat_reg_counter(sdb, true, buf, "total number of instructions fetched", &core->stat.fetch_insn, 0, TRUE, NULL);
   sprintf(buf,"c%d.fetch_uops",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of uops fetched", &core->stat.fetch_uops, core->stat.fetch_uops, NULL);
+  stat_reg_counter(sdb, true, buf, "total number of uops fetched", &core->stat.fetch_uops, 0, TRUE, NULL);
   sprintf(buf,"c%d.fetch_IPC",arch->id);
   sprintf(buf2,"c%d.fetch_insn/c%d.sim_cycle",arch->id,arch->id);
   stat_reg_formula(sdb, true, buf, "IPC at fetch", buf2, NULL);
@@ -204,10 +204,11 @@ core_fetch_STM_t::reg_stats(struct stat_sdb_t * const sdb)
                                           /* print format */(PF_COUNT|PF_PDF),
                                           /* format */NULL,
                                           /* index map */fetch_stall_str,
+                                          /* scale_me */ TRUE,
                                           /* print fn */NULL);
 
   sprintf(buf,"c%d.byteQ_occupancy",arch->id);
-  stat_reg_counter(sdb, false, buf, "total byteQ occupancy (in lines/entries)", &core->stat.byteQ_occupancy, core->stat.byteQ_occupancy, NULL);
+  stat_reg_counter(sdb, false, buf, "total byteQ occupancy (in lines/entries)", &core->stat.byteQ_occupancy, 0, TRUE, NULL);
   sprintf(buf,"c%d.byteQ_avg",arch->id);
   sprintf(buf2,"c%d.byteQ_occupancy/c%d.sim_cycle",arch->id,arch->id);
   stat_reg_formula(sdb, true, buf, "average byteQ occupancy (in insts)", buf2, NULL);

@@ -103,11 +103,11 @@ core_decode_STM_t::reg_stats(struct stat_sdb_t * const sdb)
 
   stat_reg_note(sdb,"\n#### DECODE STATS ####");
   sprintf(buf,"c%d.target_resteers",arch->id);
-  stat_reg_counter(sdb, true, buf, "decode-time target resteers", &core->stat.target_resteers, core->stat.target_resteers, NULL);
+  stat_reg_counter(sdb, true, buf, "decode-time target resteers", &core->stat.target_resteers, 0, TRUE, NULL);
   sprintf(buf,"c%d.decode_insn",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of instructions decodeed", &core->stat.decode_insn, core->stat.decode_insn, NULL);
+  stat_reg_counter(sdb, true, buf, "total number of instructions decodeed", &core->stat.decode_insn, 0, TRUE, NULL);
   sprintf(buf,"c%d.decode_uops",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of uops decodeed", &core->stat.decode_uops, core->stat.decode_uops, NULL);
+  stat_reg_counter(sdb, true, buf, "total number of uops decodeed", &core->stat.decode_uops, 0, TRUE, NULL);
   sprintf(buf,"c%d.decode_IPC",arch->id);
   sprintf(buf2,"c%d.decode_insn/c%d.sim_cycle",arch->id,arch->id);
   stat_reg_formula(sdb, true, buf, "IPC at decode", buf2, NULL);
@@ -124,6 +124,7 @@ core_decode_STM_t::reg_stats(struct stat_sdb_t * const sdb)
                                            /* print format */(PF_COUNT|PF_PDF),
                                            /* format */NULL,
                                            /* index map */decode_stall_str,
+                                           /* scale_me */TRUE,
                                            /* print fn */NULL);
   
 }

@@ -44,6 +44,7 @@ class core_exec_DPM_t:public core_exec_t
   virtual void reg_stats(struct stat_sdb_t * const sdb);
   virtual void freeze_stats(void);
   virtual void update_occupancy(void);
+  virtual void reset_execution(void);
 
   virtual void ALU_exec(void);
   virtual void LDST_exec(void);
@@ -500,42 +501,42 @@ core_exec_DPM_t::reg_stats(struct stat_sdb_t * const sdb)
 
   stat_reg_note(sdb,"#### EXEC STATS ####");
   sprintf(buf,"c%d.exec_uops_issued",arch->id);
-  stat_reg_counter(sdb, true, buf, "number of uops issued", &core->stat.exec_uops_issued, core->stat.exec_uops_issued, NULL);
+  stat_reg_counter(sdb, true, buf, "number of uops issued", &core->stat.exec_uops_issued, 0, TRUE, NULL);
   sprintf(buf,"c%d.exec_uPC",arch->id);
   sprintf(buf2,"c%d.exec_uops_issued/c%d.sim_cycle",arch->id,arch->id);
   stat_reg_formula(sdb, true, buf, "average number of uops executed per cycle", buf2, NULL);
   sprintf(buf,"c%d.exec_uops_replayed",arch->id);
-  stat_reg_counter(sdb, true, buf, "number of uops replayed", &core->stat.exec_uops_replayed, core->stat.exec_uops_replayed, NULL);
+  stat_reg_counter(sdb, true, buf, "number of uops replayed", &core->stat.exec_uops_replayed, 0, TRUE, NULL);
   sprintf(buf,"c%d.exec_avg_replays",arch->id);
   sprintf(buf2,"c%d.exec_uops_replayed/c%d.exec_uops_issued",arch->id,arch->id);
   stat_reg_formula(sdb, true, buf, "average replays per uop", buf2, NULL);
   sprintf(buf,"c%d.exec_uops_snatched",arch->id);
-  stat_reg_counter(sdb, true, buf, "number of uops snatched-back", &core->stat.exec_uops_snatched_back, core->stat.exec_uops_snatched_back, NULL);
+  stat_reg_counter(sdb, true, buf, "number of uops snatched-back", &core->stat.exec_uops_snatched_back, 0, TRUE, NULL);
   sprintf(buf,"c%d.exec_avg_snatched",arch->id);
   sprintf(buf2,"c%d.exec_uops_snatched/c%d.exec_uops_issued",arch->id,arch->id);
   stat_reg_formula(sdb, true, buf, "average snatch-backs per uop", buf2, NULL);
   sprintf(buf,"c%d.num_jeclear",arch->id);
-  stat_reg_counter(sdb, true, buf, "number of branch mispredictions", &core->stat.num_jeclear, core->stat.num_jeclear, NULL);
+  stat_reg_counter(sdb, true, buf, "number of branch mispredictions", &core->stat.num_jeclear, 0, TRUE, NULL);
   sprintf(buf,"c%d.num_wp_jeclear",arch->id);
-  stat_reg_counter(sdb, true, buf, "number of branch mispredictions in the shadow of an earlier mispred", &core->stat.num_wp_jeclear, core->stat.num_wp_jeclear, NULL);
-  sprintf(buf,"c%d.load_nukes",arch->id);
-  stat_reg_counter(sdb, true, buf, "num pipeflushes due to load-store order violation", &core->stat.load_nukes, core->stat.load_nukes, NULL);
+  stat_reg_counter(sdb, true, buf, "number of branch mispredictions in the shadow of an earlier mispred", &core->stat.num_wp_jeclear, 0, TRUE, NULL);
+  sprintf(buf,"c%d.load_nukes", arch->id);
+  stat_reg_counter(sdb, true, buf, "num pipeflushes due to load-store order violation", &core->stat.load_nukes, 0, TRUE, NULL);
   sprintf(buf,"c%d.wp_load_nukes",arch->id);
-  stat_reg_counter(sdb, true, buf, "num pipeflushes due to load-store order violation on wrong-path", &core->stat.wp_load_nukes, core->stat.wp_load_nukes, NULL);
+  stat_reg_counter(sdb, true, buf, "num pipeflushes due to load-store order violation on wrong-path", &core->stat.wp_load_nukes, 0, TRUE, NULL);
   sprintf(buf,"c%d.DL1_load_split_accesses",arch->id);
-  stat_reg_counter(sdb, true, buf, "number of loads requiring split accesses", &core->stat.DL1_load_split_accesses, core->stat.DL1_load_split_accesses, NULL);
+  stat_reg_counter(sdb, true, buf, "number of loads requiring split accesses", &core->stat.DL1_load_split_accesses, 0, TRUE, NULL);
   sprintf(buf,"c%d.DL1_load_split_frac",arch->id);
   sprintf(buf2,"c%d.DL1_load_split_accesses/(c%d.DL1.load_lookups-c%d.DL1_load_split_accesses)",arch->id,arch->id,arch->id); /* need to subtract since each split access generated two load accesses */
   stat_reg_formula(sdb, true, buf, "fraction of loads requiring split accesses", buf2, NULL);
 
   sprintf(buf,"c%d.RS_occupancy",arch->id);
-  stat_reg_counter(sdb, false, buf, "total RS occupancy", &core->stat.RS_occupancy, core->stat.RS_occupancy, NULL);
+  stat_reg_counter(sdb, false, buf, "total RS occupancy", &core->stat.RS_occupancy, 0, TRUE, NULL);
   sprintf(buf,"c%d.RS_eff_occupancy",arch->id);
-  stat_reg_counter(sdb, false, buf, "total RS effective occupancy", &core->stat.RS_eff_occupancy, core->stat.RS_eff_occupancy, NULL);
+  stat_reg_counter(sdb, false, buf, "total RS effective occupancy", &core->stat.RS_eff_occupancy, 0, TRUE, NULL);
   sprintf(buf,"c%d.RS_empty",arch->id);
-  stat_reg_counter(sdb, false, buf, "total cycles RS was empty", &core->stat.RS_empty_cycles, core->stat.RS_empty_cycles, NULL);
+  stat_reg_counter(sdb, false, buf, "total cycles RS was empty", &core->stat.RS_empty_cycles, 0, TRUE, NULL);
   sprintf(buf,"c%d.RS_full",arch->id);
-  stat_reg_counter(sdb, false, buf, "total cycles RS was full", &core->stat.RS_full_cycles, core->stat.RS_full_cycles, NULL);
+  stat_reg_counter(sdb, false, buf, "total cycles RS was full", &core->stat.RS_full_cycles, 0, TRUE, NULL);
   sprintf(buf,"c%d.RS_avg",arch->id);
   sprintf(buf2,"c%d.RS_occupancy/c%d.sim_cycle",arch->id,arch->id);
   stat_reg_formula(sdb, true, buf, "average RS occupancy", buf2, NULL);
@@ -550,11 +551,11 @@ core_exec_DPM_t::reg_stats(struct stat_sdb_t * const sdb)
   stat_reg_formula(sdb, true, buf, "fraction of cycles RS was full", buf2, NULL);
 
   sprintf(buf,"c%d.LDQ_occupancy",arch->id);
-  stat_reg_counter(sdb, true, buf, "total LDQ occupancy", &core->stat.LDQ_occupancy, core->stat.LDQ_occupancy, NULL);
+  stat_reg_counter(sdb, true, buf, "total LDQ occupancy", &core->stat.LDQ_occupancy, 0, TRUE, NULL);
   sprintf(buf,"c%d.LDQ_empty",arch->id);
-  stat_reg_counter(sdb, true, buf, "total cycles LDQ was empty", &core->stat.LDQ_empty_cycles, core->stat.LDQ_empty_cycles, NULL);
+  stat_reg_counter(sdb, true, buf, "total cycles LDQ was empty", &core->stat.LDQ_empty_cycles, 0, TRUE, NULL);
   sprintf(buf,"c%d.LDQ_full",arch->id);
-  stat_reg_counter(sdb, true, buf, "total cycles LDQ was full", &core->stat.LDQ_full_cycles, core->stat.LDQ_full_cycles, NULL);
+  stat_reg_counter(sdb, true, buf, "total cycles LDQ was full", &core->stat.LDQ_full_cycles, 0, TRUE, NULL);
   sprintf(buf,"c%d.LDQ_avg",arch->id);
   sprintf(buf2,"c%d.LDQ_occupancy/c%d.sim_cycle",arch->id,arch->id);
   stat_reg_formula(sdb, true, buf, "average LDQ occupancy", buf2, NULL);
@@ -566,11 +567,11 @@ core_exec_DPM_t::reg_stats(struct stat_sdb_t * const sdb)
   stat_reg_formula(sdb, true, buf, "fraction of cycles LDQ was full", buf2, NULL);
 
   sprintf(buf,"c%d.STQ_occupancy",arch->id);
-  stat_reg_counter(sdb, true, buf, "total STQ occupancy", &core->stat.STQ_occupancy, core->stat.STQ_occupancy, NULL);
+  stat_reg_counter(sdb, true, buf, "total STQ occupancy", &core->stat.STQ_occupancy, 0, TRUE, NULL);
   sprintf(buf,"c%d.STQ_empty",arch->id);
-  stat_reg_counter(sdb, true, buf, "total cycles STQ was empty", &core->stat.STQ_empty_cycles, core->stat.STQ_empty_cycles, NULL);
+  stat_reg_counter(sdb, true, buf, "total cycles STQ was empty", &core->stat.STQ_empty_cycles, 0, TRUE, NULL);
   sprintf(buf,"c%d.STQ_full",arch->id);
-  stat_reg_counter(sdb, true, buf, "total cycles STQ was full", &core->stat.STQ_full_cycles, core->stat.STQ_full_cycles, NULL);
+  stat_reg_counter(sdb, true, buf, "total cycles STQ was full", &core->stat.STQ_full_cycles, 0, TRUE, NULL);
   sprintf(buf,"c%d.STQ_avg",arch->id);
   sprintf(buf2,"c%d.STQ_occupancy/c%d.sim_cycle",arch->id,arch->id);
   stat_reg_formula(sdb, true, buf, "average STQ occupancy", buf2, NULL);
@@ -620,6 +621,23 @@ void core_exec_DPM_t::update_occupancy(void)
     core->stat.STQ_full_cycles++;
   if(STQ_num <= 0)
     core->stat.STQ_empty_cycles++;
+}
+
+void core_exec_DPM_t::reset_execution(void)
+{
+  struct core_knobs_t * knobs = core->knobs;
+  for(int i=0; i<knobs->exec.num_exec_ports; i++)
+  {
+    port[i].when_bypass_used = 0;
+
+    for(int j=0; j<NUM_FU_CLASSES; j++)
+      if(port[i].FU[j])
+      {
+        port[i].FU[j]->when_scheduleable = sim_cycle;
+        port[i].FU[j]->when_executable = sim_cycle;
+      }
+  }
+  check_for_work = true;
 }
 
 /* Functions to support dependency tracking 

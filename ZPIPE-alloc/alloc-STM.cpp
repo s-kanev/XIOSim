@@ -74,9 +74,9 @@ core_alloc_STM_t::reg_stats(struct stat_sdb_t * const sdb)
 
   stat_reg_note(sdb,"#### ALLOC STATS ####");
   sprintf(buf,"c%d.alloc_insn",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of instructions alloced", &core->stat.alloc_insn, core->stat.alloc_insn, NULL);
+  stat_reg_counter(sdb, true, buf, "total number of instructions alloced", &core->stat.alloc_insn, 0, TRUE, NULL);
   sprintf(buf,"c%d.alloc_uops",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of uops alloced", &core->stat.alloc_uops, core->stat.alloc_uops, NULL);
+  stat_reg_counter(sdb, true, buf, "total number of uops alloced", &core->stat.alloc_uops, 0, TRUE, NULL);
   sprintf(buf,"c%d.alloc_IPC",arch->id);
   sprintf(buf2,"c%d.alloc_insn/c%d.sim_cycle",arch->id,arch->id);
   stat_reg_formula(sdb, true, buf, "IPC at alloc", buf2, NULL);
@@ -93,6 +93,7 @@ core_alloc_STM_t::reg_stats(struct stat_sdb_t * const sdb)
                                           /* print format */(PF_COUNT|PF_PDF),
                                           /* format */NULL,
                                           /* index map */alloc_stall_str,
+                                          /* scale_me */TRUE,
                                           /* print fn */NULL);
 }
 

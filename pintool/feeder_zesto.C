@@ -70,6 +70,19 @@ BOOL isLastInsn = false;
 class thread_state_t
 {
   public:
+    thread_state_t() {
+        memzero(&fpstate_buf, sizeof(FPSTATE));
+        memzero(&regstate, sizeof(regs_t));
+        memzero(&handshake, sizeof(P2Z_HANDSHAKE));
+
+        last_syscall_number = last_syscall_arg1 = 0;
+        last_syscall_arg2 = last_syscall_arg3 = 0;
+        bos = -1;
+        slice_num = 1;
+        slice_length = 0;
+        slice_weight_times_1000 = 0;
+    }
+
     // Buffer to store the fpstate that the simulator may corrupt
     FPSTATE fpstate_buf;
 
@@ -87,6 +100,11 @@ class thread_state_t
 
     // Bottom-of-stack pointer used for shadow page table
     ADDRINT bos;
+
+    // Pinpoints-related
+    ADDRINT slice_num;
+    ADDRINT slice_length;
+    ADDRINT slice_weight_times_1000;
 };
 
 // Used to access thread-local storage
@@ -159,6 +177,8 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
     cerr << "tid: " << dec << tid << " ip: " << hex << ip; 
     cerr <<  dec << " Inst. Count " << icount.Count(tid) << " ";
 
+    thread_state_t* tstate = get_tls(tid);
+
     switch(ev)
     {
       case CONTROL_START:
@@ -171,7 +191,6 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
         if(control.PinPointsActive())
         {
             cerr << "PinPoint: " << control.CurrentPp(tid) << " PhaseNo: " << control.CurrentPhase(tid) << endl;
-            Zesto_SliceStart(control.CurrentPP(tid));
         }
 //        if (ctxt) PIN_ExecuteAt(ctxt);
         break;
@@ -186,7 +205,9 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
         if(control.PinPointsActive())
         {
             cerr << "PinPoint: " << control.CurrentPp(tid) << endl;
-            Zesto_SliceEnd(control.CurrentPp(tid), control.CurrentPpWeightTimesThousand(tid), control.CurrentPpLength(tid));
+            tstate->slice_num = control.CurrentPp(tid);
+            tstate->slice_length = control.CurrentPpLength(tid);
+            tstate->slice_weight_times_1000 = control.CurrentPpWeightTimesThousand(tid);
         }
 //        if (ctxt) PIN_ExecuteAt(ctxt);
         break;
@@ -406,6 +427,10 @@ struct P2Z_HANDSHAKE *MakeSSRequest(THREADID tid, ADDRINT pc, ADDRINT npc, ADDRI
     tstate->handshake.orig = TRUE;
     tstate->handshake.ins = NULL;
     tstate->handshake.icount = 0;
+
+    tstate->handshake.slice_num = tstate->slice_num;
+    tstate->handshake.feeder_slice_length = tstate->slice_length;
+    tstate->handshake.slice_weight_times_1000 = tstate->slice_weight_times_1000; 
     return &tstate->handshake;
 }
 

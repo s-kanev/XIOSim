@@ -88,9 +88,9 @@
 void MC_t::reg_stats(struct stat_sdb_t * sdb)
 {
   stat_reg_counter(sdb, true, "MC.total_accesses", "total accesses to memory controller",
-      &total_accesses, /* initial value */0, /* format */NULL);
+      &total_accesses, /* initial value */0, TRUE, /* format */NULL);
   stat_reg_counter(sdb, false, "MC.total_service_cycles", "cumulative request service cycles",
-      &total_service_cycles, /* initial value */0, /* format */NULL);
+      &total_service_cycles, /* initial value */0, TRUE, /* format */NULL);
   stat_reg_formula(sdb, true, "MC.service_average","average cycles per MC request",
       "MC.total_service_cycles / MC.total_accesses",/* format */NULL);
 }

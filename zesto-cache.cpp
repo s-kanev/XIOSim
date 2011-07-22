@@ -302,10 +302,10 @@ void cache_reg_stats(
   {
     sprintf(buf,"%s%s.load_lookups",core_str,cp->name);
     sprintf(buf2,"number of load lookups in %s",cp->name);
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.load_lookups, 0, NULL);
+    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.load_lookups, 0, TRUE, NULL);
     sprintf(buf,"%s%s.load_misses",core_str,cp->name);
     sprintf(buf2,"number of load misses in %s",cp->name);
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.load_misses, 0, NULL);
+    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.load_misses, 0, TRUE, NULL);
     sprintf(buf,"%s%s.load_miss_rate",core_str,cp->name);
     sprintf(buf2,"load miss rate in %s",cp->name);
     sprintf(buf3,"%s%s.load_misses/%s%s.load_lookups",core_str,cp->name,core_str,cp->name);
@@ -313,10 +313,10 @@ void cache_reg_stats(
 
     sprintf(buf,"%s%s.store_lookups",core_str,cp->name);
     sprintf(buf2,"number of store lookups in %s",cp->name);
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.store_lookups, 0, NULL);
+    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.store_lookups, 0, TRUE, NULL);
     sprintf(buf,"%s%s.store_misses",core_str,cp->name);
     sprintf(buf2,"number of store misses in %s",cp->name);
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.store_misses, 0, NULL);
+    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.store_misses, 0, TRUE, NULL);
     sprintf(buf,"%s%s.store_miss_rate",core_str,cp->name);
     sprintf(buf2,"store miss rate in %s",cp->name);
     sprintf(buf3,"%s%s.store_misses/%s%s.store_lookups",core_str,cp->name,core_str,cp->name);
@@ -324,10 +324,10 @@ void cache_reg_stats(
 
     sprintf(buf,"%s%s.writeback_lookups",core_str,cp->name);
     sprintf(buf2,"number of writeback lookups in %s",cp->name);
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.writeback_lookups, 0, NULL);
+    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.writeback_lookups, 0, TRUE, NULL);
     sprintf(buf,"%s%s.writeback_misses",core_str,cp->name);
     sprintf(buf2,"number of writeback misses in %s",cp->name);
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.writeback_misses, 0, NULL);
+    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.writeback_misses, 0, TRUE, NULL);
     sprintf(buf,"%s%s.writeback_miss_rate",core_str,cp->name);
     sprintf(buf2,"writeback miss rate in %s",cp->name);
     sprintf(buf3,"%s%s.writeback_misses/%s%s.writeback_lookups",core_str,cp->name,core_str,cp->name);
@@ -337,10 +337,10 @@ void cache_reg_stats(
     {
       sprintf(buf,"%s%s.pf_lookups",core_str,cp->name);
       sprintf(buf2,"number of prefetch lookups in %s",cp->name);
-      stat_reg_counter(sdb, true, buf, buf2, &cp->stat.prefetch_lookups, 0, NULL);
+      stat_reg_counter(sdb, true, buf, buf2, &cp->stat.prefetch_lookups, 0, TRUE, NULL);
       sprintf(buf,"%s%s.pf_misses",core_str,cp->name);
       sprintf(buf2,"number of prefetch misses in %s",cp->name);
-      stat_reg_counter(sdb, true, buf, buf2, &cp->stat.prefetch_misses, 0, NULL);
+      stat_reg_counter(sdb, true, buf, buf2, &cp->stat.prefetch_misses, 0, TRUE, NULL);
       sprintf(buf,"%s%s.pf_miss_rate",core_str,cp->name);
       sprintf(buf2,"prefetch miss rate in %s",cp->name);
       sprintf(buf3,"%s%s.pf_misses/%s%s.pf_lookups",core_str,cp->name,core_str,cp->name);
@@ -348,10 +348,10 @@ void cache_reg_stats(
 
       sprintf(buf,"%s%s.pf_insertions",core_str,cp->name);
       sprintf(buf2,"number of prefetched blocks inserted into %s",cp->name);
-      stat_reg_counter(sdb, true, buf, buf2, &cp->stat.prefetch_insertions, 0, NULL);
+      stat_reg_counter(sdb, true, buf, buf2, &cp->stat.prefetch_insertions, 0, TRUE, NULL);
       sprintf(buf,"%s%s.pf_useful_insertions",core_str,cp->name);
       sprintf(buf2,"number of prefetched blocks actually used in %s",cp->name);
-      stat_reg_counter(sdb, true, buf, buf2, &cp->stat.prefetch_useful_insertions, 0, NULL);
+      stat_reg_counter(sdb, true, buf, buf2, &cp->stat.prefetch_useful_insertions, 0, TRUE, NULL);
       sprintf(buf,"%s%s.pf_useful_rate",core_str,cp->name);
       sprintf(buf2,"rate of useful prefetches in %s",cp->name);
       sprintf(buf3,"%s%s.pf_useful_insertions/%s%s.pf_insertions",core_str,cp->name,core_str,cp->name);
@@ -390,29 +390,29 @@ void cache_reg_stats(
 
     sprintf(buf,"%s%s.WBB_write_insertions",core_str,cp->name);
     sprintf(buf2,"total number of write/writeback WBB insertions in %s",cp->name);
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_insertions, 0, NULL);
+    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_insertions, 0, TRUE, NULL);
     sprintf(buf,"%s%s.WBB_victim_insertions",core_str,cp->name);
     sprintf(buf2,"total number of non-dirty WBB insertions in %s",cp->name);
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_victim_insertions, 0, NULL);
+    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_victim_insertions, 0, TRUE, NULL);
     sprintf(buf,"%s%s.WBB_hits",core_str,cp->name);
     sprintf(buf2,"total number hits in %s's WBB",cp->name);
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_hits, 0, NULL);
+    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_hits, 0, TRUE, NULL);
     sprintf(buf,"%s%s.WBB_write_hits",core_str,cp->name);
     sprintf(buf2,"total write/writeback hits in %s (write-combining)",cp->name);
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_combines, 0, NULL);
+    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_combines, 0, TRUE, NULL);
     sprintf(buf,"%s%s.WBB_victim_hits",core_str,cp->name);
     sprintf(buf2,"total number victim hits in %s's WBB",cp->name);
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_victim_hits, 0, NULL);
+    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_victim_hits, 0, TRUE, NULL);
     sprintf(buf,"%s%s.WBB_total_occupancy",core_str,cp->name);
     sprintf(buf2,"cumulative WBB occupancy in %s (dirty-lines only)",cp->name);
-    stat_reg_counter(sdb, false, buf, buf2, &cp->stat.WBB_occupancy, 0, NULL);
+    stat_reg_counter(sdb, false, buf, buf2, &cp->stat.WBB_occupancy, 0, TRUE, NULL);
     sprintf(buf,"%s%s.WBB_avg_occupancy",core_str,cp->name);
     sprintf(buf2,"average WBB entries in use in %s (dirty-lines only)",cp->name);
     sprintf(buf3,"(%s%s.WBB_total_occupancy / %ssim_cycle)",core_str,cp->name,core_str);
     stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
     sprintf(buf,"%s%s.WBB_full_cycles",core_str,cp->name);
     sprintf(buf2,"cycles WBB was full in %s (dirty-lines only)",cp->name);
-    stat_reg_counter(sdb, false, buf, buf2, &cp->stat.WBB_full_cycles, 0, NULL);
+    stat_reg_counter(sdb, false, buf, buf2, &cp->stat.WBB_full_cycles, 0, TRUE, NULL);
     sprintf(buf,"%s%s.WBB_frac_full",core_str,cp->name);
     sprintf(buf2,"fraction of time WBBs are full in %s (dirty-lines only)",cp->name);
     sprintf(buf3,"(%s%s.WBB_full_cycles / c%d.sim_cycle)",core_str,cp->name,id);
@@ -422,18 +422,18 @@ void cache_reg_stats(
   {
     sprintf(buf,"%s%s.lookups",core_str,cp->name);
     sprintf(buf2,"number of lookups in %s",cp->name);
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.load_lookups, 0, NULL);
+    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.load_lookups, 0, TRUE, NULL);
     sprintf(buf,"%s%s.misses",core_str,cp->name);
     sprintf(buf2,"number of misses in %s",cp->name);
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.load_misses, 0, NULL);
+    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.load_misses, 0, TRUE, NULL);
     if(cp->num_prefetchers > 0)
     {
       sprintf(buf,"%s%s.pf_lookups",core_str,cp->name);
       sprintf(buf2,"number of prefetch lookups in %s",cp->name);
-      stat_reg_counter(sdb, true, buf, buf2, &cp->stat.prefetch_lookups, 0, NULL);
+      stat_reg_counter(sdb, true, buf, buf2, &cp->stat.prefetch_lookups, 0, TRUE, NULL);
       sprintf(buf,"%s%s.pf_misses",core_str,cp->name);
       sprintf(buf2,"number of prefetch misses in %s",cp->name);
-      stat_reg_counter(sdb, true, buf, buf2, &cp->stat.prefetch_misses, 0, NULL);
+      stat_reg_counter(sdb, true, buf, buf2, &cp->stat.prefetch_misses, 0, TRUE, NULL);
       sprintf(buf,"%s%s.pf_miss_rate",core_str,cp->name);
       sprintf(buf2,"prefetch miss rate in %s",cp->name);
       sprintf(buf3,"%s%s.pf_misses/%s%s.pf_lookups",core_str,cp->name,core_str,cp->name);
@@ -441,10 +441,10 @@ void cache_reg_stats(
 
       sprintf(buf,"%s%s.pf_insertions",core_str,cp->name);
       sprintf(buf2,"number of prefetched blocks inserted into %s",cp->name);
-      stat_reg_counter(sdb, true, buf, buf2, &cp->stat.prefetch_insertions, 0, NULL);
+      stat_reg_counter(sdb, true, buf, buf2, &cp->stat.prefetch_insertions, 0, TRUE, NULL);
       sprintf(buf,"%s%s.pf_useful_insertions",core_str,cp->name);
       sprintf(buf2,"number of prefetched blocks actually used in %s",cp->name);
-      stat_reg_counter(sdb, true, buf, buf2, &cp->stat.prefetch_useful_insertions, 0, NULL);
+      stat_reg_counter(sdb, true, buf, buf2, &cp->stat.prefetch_useful_insertions, 0, TRUE, NULL);
       sprintf(buf,"%s%s.pf_useful_rate",core_str,cp->name);
       sprintf(buf2,"rate of useful prefetches in %s",cp->name);
       sprintf(buf3,"%s%s.pf_useful_insertions/%s%s.pf_insertions",core_str,cp->name,core_str,cp->name);
@@ -485,31 +485,31 @@ void cache_reg_stats(
     stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
     sprintf(buf,"%s%s.WBB_victim_insertions",core_str,cp->name);
     sprintf(buf2,"total number of non-dirty WBB insertions in %s",cp->name);
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_victim_insertions, 0, NULL);
+    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_victim_insertions, 0, TRUE, NULL);
     sprintf(buf,"%s%s.WBB_hits",core_str,cp->name);
     sprintf(buf2,"total number hits in %s's WBB",cp->name);
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_hits, 0, NULL);
+    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_hits, 0, TRUE, NULL);
     sprintf(buf,"%s%s.WBB_victim_hits",core_str,cp->name);
     sprintf(buf2,"total number victim hits in %s's WBB",cp->name);
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_victim_hits, 0, NULL);
+    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_victim_hits, 0, TRUE, NULL);
   }
   sprintf(buf,"%s%s.MSHR_total_occupancy",core_str,cp->name);
   sprintf(buf2,"cumulative MSHR occupancy in %s",cp->name);
-  stat_reg_counter(sdb, false, buf, buf2, &cp->stat.MSHR_occupancy, 0, NULL);
+  stat_reg_counter(sdb, false, buf, buf2, &cp->stat.MSHR_occupancy, 0, TRUE, NULL);
   sprintf(buf,"%s%s.MSHR_avg_occupancy",core_str,cp->name);
   sprintf(buf2,"average MSHR entries in use in %s",cp->name);
   sprintf(buf3,"(%s%s.MSHR_total_occupancy / c%d.sim_cycle)",core_str,cp->name,id);
   stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
   sprintf(buf,"%s%s.MSHR_full_cycles",core_str,cp->name);
   sprintf(buf2,"cycles MSHR was full in %s",cp->name);
-  stat_reg_counter(sdb, false, buf, buf2, &cp->stat.MSHR_full_cycles, 0, NULL);
+  stat_reg_counter(sdb, false, buf, buf2, &cp->stat.MSHR_full_cycles, 0, TRUE, NULL);
   sprintf(buf,"%s%s.MSHR_full",core_str,cp->name);
   sprintf(buf2,"fraction of time MSHRs are full in %s",cp->name);
   sprintf(buf3,"(%s%s.MSHR_full_cycles / c%d.sim_cycle)",core_str,cp->name,id);
   stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
   sprintf(buf,"%s%s.MSHR_combos",core_str,cp->name);
   sprintf(buf2,"MSHR requests combined in %s",cp->name);
-  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.MSHR_combos, 0, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.MSHR_combos, 0, TRUE, NULL);
 
   for(int i=0;i<cp->num_prefetchers;i++)
     cp->prefetcher[i]->reg_stats(sdb,core);
@@ -527,10 +527,10 @@ void LLC_reg_stats(
 
   sprintf(buf,"LLC.load_lookups");
   sprintf(buf2,"number of load lookups in LLC");
-  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.load_lookups, 0, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.load_lookups, 0, TRUE, NULL);
   sprintf(buf,"LLC.load_misses");
   sprintf(buf2,"number of load misses in LLC");
-  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.load_misses, 0, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.load_misses, 0, TRUE, NULL);
   sprintf(buf,"LLC.load_miss_rate");
   sprintf(buf2,"load miss rate in LLC");
   sprintf(buf3,"LLC.load_misses/LLC.load_lookups");
@@ -538,10 +538,10 @@ void LLC_reg_stats(
 
   sprintf(buf,"LLC.store_lookups");
   sprintf(buf2,"number of store lookups in LLC");
-  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.store_lookups, 0, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.store_lookups, 0, TRUE, NULL);
   sprintf(buf,"LLC.store_misses");
   sprintf(buf2,"number of store misses in LLC");
-  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.store_misses, 0, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.store_misses, 0, TRUE, NULL);
   sprintf(buf,"LLC.store_miss_rate");
   sprintf(buf2,"store miss rate in LLC");
   sprintf(buf3,"LLC.store_misses/LLC.store_lookups");
@@ -549,10 +549,10 @@ void LLC_reg_stats(
 
   sprintf(buf,"LLC.writeback_lookups");
   sprintf(buf2,"number of writeback lookups in LLC");
-  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.writeback_lookups, 0, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.writeback_lookups, 0, TRUE, NULL);
   sprintf(buf,"LLC.writeback_misses");
   sprintf(buf2,"number of writeback misses in LLC");
-  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.writeback_misses, 0, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.writeback_misses, 0, TRUE, NULL);
   sprintf(buf,"LLC.writeback_miss_rate");
   sprintf(buf2,"writeback miss rate in LLC");
   sprintf(buf3,"LLC.writeback_misses/LLC.writeback_lookups");
@@ -562,10 +562,10 @@ void LLC_reg_stats(
   {
     sprintf(buf,"LLC.pf_lookups");
     sprintf(buf2,"number of prefetch lookups in LLC");
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.prefetch_lookups, 0, NULL);
+    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.prefetch_lookups, 0, TRUE, NULL);
     sprintf(buf,"LLC.pf_misses");
     sprintf(buf2,"number of prefetch misses in LLC");
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.prefetch_misses, 0, NULL);
+    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.prefetch_misses, 0, TRUE, NULL);
     sprintf(buf,"LLC.pf_miss_rate");
     sprintf(buf2,"prefetch miss rate in LLC");
     sprintf(buf3,"LLC.pf_misses/LLC.pf_lookups");
@@ -573,10 +573,10 @@ void LLC_reg_stats(
 
     sprintf(buf,"LLC.pf_insertions");
     sprintf(buf2,"number of prefetched blocks inserted into LLC");
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.prefetch_insertions, 0, NULL);
+    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.prefetch_insertions, 0, TRUE, NULL);
     sprintf(buf,"LLC.pf_useful_insertions");
     sprintf(buf2,"number of prefetched blocks actually used in LLC");
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.prefetch_useful_insertions, 0, NULL);
+    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.prefetch_useful_insertions, 0, TRUE, NULL);
     sprintf(buf,"LLC.pf_useful_rate");
     sprintf(buf2,"rate of useful prefetches in LLC");
     sprintf(buf3,"LLC.pf_useful_insertions/LLC.pf_insertions");
@@ -621,29 +621,29 @@ void LLC_reg_stats(
 
   sprintf(buf,"LLC.WBB_write_insertions");
   sprintf(buf2,"total number of write/writeback insertions in LLC");
-  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_insertions, 0, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_insertions, 0, TRUE, NULL);
   sprintf(buf,"LLC.WBB_victim_insertions");
   sprintf(buf2,"total number of non-dirty WBB insertions in LLC");
-  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_victim_insertions, 0, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_victim_insertions, 0, TRUE, NULL);
   sprintf(buf,"LLC.WBB_hits");
   sprintf(buf2,"total number hits in %s's WBB",cp->name);
-  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_hits, 0, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_hits, 0, TRUE, NULL);
   sprintf(buf,"LLC.WBB_write_hits");
   sprintf(buf2,"total write/writeback hits in %s's WBB (write-combining)",cp->name);
-  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_combines, 0, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_combines, 0, TRUE, NULL);
   sprintf(buf,"LLC.WBB_victim_hits");
   sprintf(buf2,"total number victim hits in %s's WBB",cp->name);
-  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_victim_hits, 0, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_victim_hits, 0, TRUE, NULL);
   sprintf(buf,"LLC.WBB_total_occupancy");
   sprintf(buf2,"cumulative WBB occupancy in %s (dirty-lines only)",cp->name);
-  stat_reg_counter(sdb, false, buf, buf2, &cp->stat.WBB_occupancy, 0, NULL);
+  stat_reg_counter(sdb, false, buf, buf2, &cp->stat.WBB_occupancy, 0, TRUE, NULL);
   sprintf(buf,"LLC.WBB_avg_occupancy");
   sprintf(buf2,"average WBB entries in use in %s (dirty-lines only)",cp->name);
   sprintf(buf3,"(LLC.WBB_total_occupancy / sim_cycle)");
   stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
   sprintf(buf,"LLC.WBB_full_cycles");
   sprintf(buf2,"cycles WBB was full in %s (dirty-lines only)",cp->name);
-  stat_reg_counter(sdb, false, buf, buf2, &cp->stat.WBB_full_cycles, 0, NULL);
+  stat_reg_counter(sdb, false, buf, buf2, &cp->stat.WBB_full_cycles, 0, TRUE, NULL);
   sprintf(buf,"LLC.WBB_frac_full");
   sprintf(buf2,"fraction of time WBBs are full in %s (dirty-lines only)",cp->name);
   sprintf(buf3,"(LLC.WBB_full_cycles / sim_cycle)");
@@ -651,30 +651,30 @@ void LLC_reg_stats(
 
   sprintf(buf,"LLC.MSHR_total_occupancy");
   sprintf(buf2,"cumulative MSHR occupancy in LLC");
-  stat_reg_counter(sdb, false, buf, buf2, &cp->stat.MSHR_occupancy, 0, NULL);
+  stat_reg_counter(sdb, false, buf, buf2, &cp->stat.MSHR_occupancy, 0, TRUE, NULL);
   sprintf(buf,"LLC.MSHR_avg_occupancy");
   sprintf(buf2,"average MSHR entries in use in LLC");
   sprintf(buf3,"(LLC.MSHR_total_occupancy / sim_cycle)");
   stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
   sprintf(buf,"LLC.MSHR_full_cycles");
   sprintf(buf2,"cycles MSHR was full in LLC");
-  stat_reg_counter(sdb, false, buf, buf2, &cp->stat.MSHR_full_cycles, 0, NULL);
+  stat_reg_counter(sdb, false, buf, buf2, &cp->stat.MSHR_full_cycles, 0, TRUE, NULL);
   sprintf(buf,"LLC.MSHR_full");
   sprintf(buf2,"fraction of time MSHRs are full in LLC");
   sprintf(buf3,"(LLC.MSHR_full_cycles / sim_cycle)");
   stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
   sprintf(buf,"LLC.MSHR_combos");
   sprintf(buf2,"MSHR requests combined in LLC");
-  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.MSHR_combos, 0, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.MSHR_combos, 0, TRUE, NULL);
 
   if(num_threads == 1)
   {
     sprintf(buf,"LLC.lookups");
     sprintf(buf2,"number of lookups in the LLC");
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.core_lookups[0], 0, NULL);
+    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.core_lookups[0], 0, TRUE, NULL);
     sprintf(buf,"LLC.misses");
     sprintf(buf2,"number of misses in the LLC");
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.core_misses[0], 0, NULL);
+    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.core_misses[0], 0, TRUE, NULL);
     sprintf(buf,"LLC.MPKI");
     sprintf(buf2,"MPKI for the LLC");
     sprintf(buf3,"(LLC.misses / c0.commit_insn) * 1000.0");
@@ -690,10 +690,10 @@ void LLC_reg_stats(
     {
       sprintf(buf,"LLC.c%d.lookups",i);
       sprintf(buf2,"number of lookups by core %d in shared %s cache",i,cp->name);
-      stat_reg_counter(sdb, true, buf, buf2, &cp->stat.core_lookups[i], 0, NULL);
+      stat_reg_counter(sdb, true, buf, buf2, &cp->stat.core_lookups[i], 0, TRUE, NULL);
       sprintf(buf,"LLC.c%d.misses",i);
       sprintf(buf2,"number of misses by core %d in shared %s cache",i,cp->name);
-      stat_reg_counter(sdb, true, buf, buf2, &cp->stat.core_misses[i], 0, NULL);
+      stat_reg_counter(sdb, true, buf, buf2, &cp->stat.core_misses[i], 0, TRUE, NULL);
       sprintf(buf,"LLC.c%d.miss_rate",i);
       sprintf(buf2,"miss rate by core %d in shared %s cache",i,cp->name);
       sprintf(buf3,"LLC.c%d.misses / LLC.c%d.lookups",i,i);
@@ -2669,10 +2669,10 @@ void bus_reg_stats(
 
   sprintf(buf,"%s%s.accesses",core_str,bus->name);
   sprintf(buf2,"number of accesses to bus %s",bus->name);
-  stat_reg_counter(sdb, true, buf, buf2, &bus->stat.accesses, 0, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &bus->stat.accesses, 0, TRUE, NULL);
   sprintf(buf,"%s%s.utilization",core_str,bus->name);
   sprintf(buf2,"cumulative cycles of utilization of bus %s",bus->name);
-  stat_reg_counter(sdb, true, buf, buf2, &bus->stat.utilization, 0, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &bus->stat.utilization, 0, TRUE, NULL);
   sprintf(buf,"%s%s.avg_burst",core_str,bus->name);
   sprintf(buf2,"avg cycles utilized per transfer of bus %s",bus->name);
   sprintf(buf3,"%s%s.utilization/%s%s.accesses",core_str,bus->name,core_str,bus->name);
@@ -2683,7 +2683,7 @@ void bus_reg_stats(
   stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
   sprintf(buf,"%s%s.pf_utilization",core_str,bus->name);
   sprintf(buf2,"cumulative cycles of utilization of bus %s for prefetches",bus->name);
-  stat_reg_counter(sdb, true, buf, buf2, &bus->stat.prefetch_utilization, 0, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &bus->stat.prefetch_utilization, 0, TRUE, NULL);
   sprintf(buf,"%s%s.pf_duty_cycle",core_str,bus->name);
   sprintf(buf2,"fraction of time bus %s was in use for prefetches",bus->name);
   sprintf(buf3,"%s%s.pf_utilization/sim_cycle",core_str,bus->name);
