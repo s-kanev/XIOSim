@@ -27,9 +27,6 @@ void start_slice(unsigned int slice_num)
    core_t* core = cores[i];
    struct thread_t *thread = core->current_thread;
 
-   slice_start_cycle = sim_cycle;
-   slice_start_icount = thread->stat.num_insn;
-
    /* create stats database for this slice */
    struct stat_sdb_t* new_stat_db = stat_new();
 
@@ -40,6 +37,8 @@ void start_slice(unsigned int slice_num)
 
    sim_cycle = slice_end_cycle;
    cores[i]->stat.final_sim_cycle = slice_end_cycle;
+   slice_start_cycle = sim_cycle;
+   slice_start_icount = thread->stat.num_insn;
 }
 
 //XXX: REMOVE ME
