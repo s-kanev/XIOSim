@@ -403,7 +403,7 @@ static void sim_drain_pipe(void)
    core->current_thread->rep_sequence = 0;
 }
 
-
+bool stopped = true;
 void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool slice_start, bool slice_end)
 {
    //TODO: Widen hanshake to include thread id
@@ -411,6 +411,11 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool slice_start, bool slice
 
    int i = 0;
    struct core_t * core = cores[i];
+
+   if (stopped && !slice_start) {
+     fprintf(stderr, "DEBUG DEBUG: Start/stop out of sync? PC: %x\n", handshake->pc);
+     return;
+   }
 
    thread_t * thread = cores[i]->current_thread;
    regs_t * regs = &thread->regs;
@@ -435,12 +440,15 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool slice_start, bool slice
    {
       sim_drain_pipe(); // blow away any instructions executing
       end_slice(handshake->slice_num, handshake->feeder_slice_length, handshake->slice_weight_times_1000);
-      if (!slice_start) //start and end markers can be the same
+      if (!slice_start) {//start and end markers can be the same
+        stopped = true;
         return;
+      }
    }
 
    if(slice_start)
    {
+      stopped = false;
       zesto_assert(thread->loader.stack_base, (void)0);
 
       start_slice(handshake->slice_num);
