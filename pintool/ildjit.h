@@ -6,6 +6,8 @@
  * Copyright, Svilen Kanev, 2011
  */
 
+#include "fluffy.h"
+
 // True if ILDJIT has finished compilation and is executing user code
 BOOL ILDJIT_executionStarted = false;
 
@@ -18,6 +20,8 @@ PIN_LOCK ildjit_lock;
 VOID MOLECOOL_Init()
 {
     InitLock(&ildjit_lock);
+
+    FLUFFY_Init();
 }
 
 /* ========================================================================== */
@@ -165,6 +169,45 @@ VOID AddILDJITCallbacks(IMG img)
         RTN_Close(rtn);
     }
 
+//==========================================================
+//FLUFFY-related
+    if (!KnobFluffy.Value().empty())
+    {
+
+        rtn = RTN_FindByName(img, "step3_start_inst");
+        if (RTN_Valid(rtn))
+        {
+#ifdef ZESTO_PIN_DBG
+            cerr << "FLUFFY_step3_start_inst ";
+#endif
+            RTN_Open(rtn);
+            
+            RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(FLUFFY_StartInsn),
+                           IARG_THREAD_ID,
+                           IARG_INST_PTR,
+                           IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+                           IARG_END);
+
+            RTN_Close(rtn);
+        }
+
+        rtn = RTN_FindByName(img, "step3_end_inst");
+        if (RTN_Valid(rtn))
+        {
+#ifdef ZESTO_PIN_DBG
+            cerr << "FLUFFY_step3_end_inst ";
+#endif
+            RTN_Open(rtn);
+            
+            RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(FLUFFY_StopInsn),
+                           IARG_THREAD_ID,
+                           IARG_INST_PTR,
+                           IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+                           IARG_END);
+
+            RTN_Close(rtn);
+        }
+    }
 #ifdef ZESTO_PIN_DBG
     cerr << endl;
 #endif

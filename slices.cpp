@@ -67,7 +67,7 @@ void end_slice(unsigned int slice_num, unsigned long long feeder_slice_length, u
    // Check if simulator and feeder measure instruction counts in the same way
    // (they may not count REP-s the same, f.e.)
    double slice_length_diff = 1.0 - ((double)slice_length/(double)feeder_slice_length);
-   if (fabs(slice_length_diff) > 0.01)
+   if ((fabs(slice_length_diff) > 0.01) && (feeder_slice_length > 0))
      fprintf(stderr, "Significant slice length different between sim and feeder! Slice: %u, sim_length: %llu, feeder_length: %llu\n", slice_num, slice_length, feeder_slice_length);
 
    stat_save_stats(curr_sdb);
@@ -92,7 +92,7 @@ void end_slice(unsigned int slice_num, unsigned long long feeder_slice_length, u
    double curr_ipc = 1.0 / curr_cpi;
 
    total_cpi += curr_cpi;
-   fprintf(stderr, "Slice %d, weight: %.4f, IPC: %.2f, n_insn: %.0f, n_insn_pin: %.0f, n_cycles: %.0f\n", slice_num, weight, curr_ipc, n_insn, n_pin_n_insn, n_cycles);
+   fprintf(stderr, "Slice %d, weight: %.4f, IPC/weight: %.2f, n_insn: %.0f, n_insn_pin: %.0f, n_cycles: %.0f\n", slice_num, weight, curr_ipc, n_insn, n_pin_n_insn, n_cycles);
    fprintf(stderr, "Average IPC: %.2f\n", 1.0/total_cpi);
 }
 

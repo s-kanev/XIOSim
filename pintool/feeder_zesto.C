@@ -18,20 +18,16 @@
 
 #include <unistd.h>
 
-#include "pin.H"
-#include "instlib.H"
-
 #ifdef TIME_TRANSPARENCY
 #include "rdtsc.h"
 #endif
 
+#include "feeder.h"
 #include "fpstate.h"
 #include "ildjit.h"
 
-#include "../interface.h" 
 
 using namespace std;
-using namespace INSTLIB;
 
 /* ========================================================================== */
 /* ========================================================================== */
@@ -51,6 +47,8 @@ KNOB<BOOL> KnobSanity(KNOB_MODE_WRITEONCE,     "pintool",
         "sanity", "false", "Sanity-check if simulator corrupted memory (expensive)");
 KNOB<BOOL> KnobILDJIT(KNOB_MODE_WRITEONCE,      "pintool",
         "ildjit", "false", "Application run is ildjit");
+KNOB<string> KnobFluffy(KNOB_MODE_WRITEONCE,      "pintool",
+        "fluffy_annotations", "", "Annotation file that specifies fluffy ROI");
 
 map<ADDRINT, UINT8> sanity_writes;
 
@@ -65,47 +63,6 @@ ifstream sanity_trace;
 BOOL isFirstInsn = true;
 BOOL isLastInsn = false;
 
-/* ========================================================================== */
-// Thread-private state that we need to preserve between different instrumentation calls
-class thread_state_t
-{
-  public:
-    thread_state_t() {
-        memzero(&fpstate_buf, sizeof(FPSTATE));
-        memzero(&regstate, sizeof(regs_t));
-        memzero(&handshake, sizeof(P2Z_HANDSHAKE));
-
-        last_syscall_number = last_syscall_arg1 = 0;
-        last_syscall_arg2 = last_syscall_arg3 = 0;
-        bos = -1;
-        slice_num = 1;
-        slice_length = 0;
-        slice_weight_times_1000 = 0;
-    }
-
-    // Buffer to store the fpstate that the simulator may corrupt
-    FPSTATE fpstate_buf;
-
-    // Register state  as seen by Zesto
-    regs_t regstate;
-
-    // Handshake information that gets passed on to Zesto
-    struct P2Z_HANDSHAKE handshake;
-
-    // Used by syscall capture code
-    ADDRINT last_syscall_number;
-    ADDRINT last_syscall_arg1;
-    ADDRINT last_syscall_arg2;
-    ADDRINT last_syscall_arg3;
-
-    // Bottom-of-stack pointer used for shadow page table
-    ADDRINT bos;
-
-    // Pinpoints-related
-    ADDRINT slice_num;
-    ADDRINT slice_length;
-    ADDRINT slice_weight_times_1000;
-};
 
 // Used to access thread-local storage
 static TLS_KEY tls_key;
@@ -174,8 +131,9 @@ VOID ImageUnload(IMG img, VOID *v)
 /* ========================================================================== */
 VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREADID tid)
 {
-    cerr << "tid: " << dec << tid << " ip: " << hex << ip; 
-    cerr <<  dec << " Inst. Count " << icount.Count(tid) << " ";
+    cerr << "tid: " << dec << tid << " ip: " << hex << ip << " "; 
+    if (tid < ISIMPOINT_MAX_THREADS)
+        cerr <<  dec << " Inst. Count " << icount.Count(tid) << " ";
 
     thread_state_t* tstate = get_tls(tid);
 
@@ -677,6 +635,8 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
     cerr << "Thread start. ID: " << dec << threadIndex << endl;
 
     thread_state_t* tstate = new thread_state_t();
+    if (control.PinPointsActive())
+        tstate->slice_num = 1;      // PP slices aren't 0-indexed
     PIN_SetThreadData(tls_key, tstate, threadIndex);
 
     ADDRINT tos, bos;
@@ -849,6 +809,12 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, V
         tstate->last_syscall_arg3 = arg3;
         break;
 
+#ifdef ZESTO_PIN_DBG
+    case __NR_open:
+        cerr << "Syscall open (" << dec << syscall_num << ") path: " << (char*)arg1 << endl;
+        break;
+#endif
+
       default:
 #ifdef ZESTO_PIN_DBG
         cerr << "Syscall " << dec << syscall_num << endl;
@@ -985,9 +951,6 @@ INT32 main(INT32 argc, CHAR **argv)
 
     SSARGS ssargs = MakeSimpleScalarArgcArgv(argc, argv);
 
-    if (KnobILDJIT.Value())
-        MOLECOOL_Init();
-
     InitLock(&test);
 
     // Obtain  a key for TLS storage.
@@ -996,11 +959,16 @@ INT32 main(INT32 argc, CHAR **argv)
     PIN_Init(argc, argv);
     PIN_InitSymbols();
 
+    if (KnobILDJIT.Value())
+        MOLECOOL_Init();
 
-    // Try activate pinpoints alarm, must be done before PIN_StartProgram
-    if(control.CheckKnobs(PPointHandler, 0) != 1) {
-        cerr << "Error reading control parametrs, exiting." << endl;
-        return 1;
+//XXX: Re-enable for fluffy
+    if (!KnobILDJIT.Value()) {
+        // Try activate pinpoints alarm, must be done before PIN_StartProgram
+        if(control.CheckKnobs(PPointHandler, 0) != 1) {
+            cerr << "Error reading control parametrs, exiting." << endl;
+            return 1;
+        }
     }
 
     icount.Activate();
