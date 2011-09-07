@@ -214,7 +214,7 @@ class dram_simplesdram_t:public dram_t
 
       /* can't activate page until precharged */
       when_start = MAX(when_start + c_RP,array[rank][bank].when_precharge_ready);
-      when_done = MAX(when_start + lat,when_data_bus_ready) + data_lat;
+      when_done = MAX(when_start + lat,when_data_bus_ready + data_lat);
 
       array[rank][bank].when_available = when_done;
       array[rank][bank].current_row = row;
