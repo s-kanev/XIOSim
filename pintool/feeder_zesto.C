@@ -123,7 +123,7 @@ VOID ImageUnload(IMG img, VOID *v)
          << " len: " << length << " end_addr: " << start + length << endl;
 #endif
 
-    ASSERTX( Zesto_Notify_Munmap(start, length, true));
+    ASSERTX( Zesto_Notify_Munmap(0/*coreID*/, start, length, true));
 }
 
 /* ========================================================================== */
@@ -197,7 +197,7 @@ VOID ImageLoad(IMG img, VOID *v)
     if (KnobILDJIT.Value())
         AddILDJITCallbacks(img);
 
-    ASSERTX( Zesto_Notify_Mmap(start, length, false) );
+    ASSERTX( Zesto_Notify_Mmap(0/*coreID*/, start, length, false) );
 }
 
 /* ========================================================================== */
@@ -360,6 +360,7 @@ VOID SimulatorLoop(VOID* arg)
 
     while (true)
     {
+        cerr << "PING!" << endl;
         GetLock(&simbuffer_lock, tid+1);
         if (!sim_running)
         {
@@ -472,7 +473,7 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
     if (isFirstInsn)
     {
         thread_state_t* tstate = get_tls(tid);
-        Zesto_SetBOS(tstate->bos);
+        Zesto_SetBOS(0/*coreID*/, tstate->bos);
     }
 
     // Populate handshake buffer
@@ -732,7 +733,7 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
                 cerr << "AT_SYSINFO: " << hex << auxv->a_un.a_val << endl;
 #endif
                 ADDRINT vsyscall_page = (ADDRINT)(auxv->a_un.a_val & 0xfffff000);
-                ASSERTX( Zesto_Notify_Mmap(vsyscall_page, MD_PAGE_SIZE, false) );
+                ASSERTX( Zesto_Notify_Mmap(0/*coreID*/, vsyscall_page, MD_PAGE_SIZE, false) );
             }
         }
 
@@ -746,7 +747,7 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
         // execution starts on another thread.
         ADDRINT tos_start = ROUND_DOWN(tos, MD_PAGE_SIZE);
         ADDRINT bos_end = ROUND_UP(bos, MD_PAGE_SIZE);
-        ASSERTX( Zesto_Notify_Mmap(tos_start, bos_end-tos_start, false));
+        ASSERTX( Zesto_Notify_Mmap(0/*coreID*/, tos_start, bos_end-tos_start, false));
 
     }
     else {
@@ -916,10 +917,10 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
              << hex << retval << dec << endl;
 #endif
         if(tstate->last_syscall_arg1 != 0)
-            Zesto_UpdateBrk(tstate->last_syscall_arg1, true);
+            Zesto_UpdateBrk(0/*coreID*/, tstate->last_syscall_arg1, true);
         /* Seemingly libc code calls sbrk(0) to get the initial value of the sbrk. We intercept that and send result to zesto, so that we can correclty deal with virtual memory. */
         else
-            Zesto_UpdateBrk(retval, false);
+            Zesto_UpdateBrk(0/*coreID*/, retval, false);
         break;
 
       case __NR_munmap:
@@ -928,7 +929,7 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
              << hex << tstate->last_syscall_arg1 << " length: " << tstate->last_syscall_arg2 << dec << endl;
 #endif
         if(retval != (ADDRINT)-1)
-            Zesto_Notify_Munmap(tstate->last_syscall_arg1, tstate->last_syscall_arg2, false);
+            Zesto_Notify_Munmap(0/*coreID*/, tstate->last_syscall_arg1, tstate->last_syscall_arg2, false);
         break;
 
       case __NR_mmap: //oldmap
@@ -937,7 +938,7 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
              << hex << retval << " length: " << tstate->last_syscall_arg1 << dec << endl;
 #endif
         if(retval != (ADDRINT)-1)
-            ASSERTX( Zesto_Notify_Mmap(retval, tstate->last_syscall_arg1, false) );
+            ASSERTX( Zesto_Notify_Mmap(0/*coreID*/, retval, tstate->last_syscall_arg1, false) );
         break;
 
       case __NR_mmap2:
@@ -945,9 +946,8 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
         cerr << "Ret syscall mmap2(" << dec << tstate->last_syscall_number << ") addr: 0x" 
              << hex << retval << " length: " << tstate->last_syscall_arg1 << dec << endl;
 #endif
-
         if(retval != (ADDRINT)-1)
-            ASSERTX( Zesto_Notify_Mmap(retval, tstate->last_syscall_arg1, false) );
+            ASSERTX( Zesto_Notify_Mmap(0/*coreID*/, retval, tstate->last_syscall_arg1, false) );
         break;
 
       case __NR_mremap:
@@ -958,21 +958,19 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
              << " new address: 0x" << retval
              << " new_length: " << tstate->last_syscall_arg3 << dec << endl;
 #endif
-
         if(retval != (ADDRINT)-1)
         {
-            ASSERTX( Zesto_Notify_Munmap(tstate->last_syscall_arg1, tstate->last_syscall_arg2, false) );
-            ASSERTX( Zesto_Notify_Mmap(retval, tstate->last_syscall_arg3, false) );
+            ASSERTX( Zesto_Notify_Munmap(0/*coreID*/, tstate->last_syscall_arg1, tstate->last_syscall_arg2, false) );
+            ASSERTX( Zesto_Notify_Mmap(0/*coreID*/, retval, tstate->last_syscall_arg3, false) );
         }
         break;
 
       case __NR_mprotect:
         if(retval != (ADDRINT)-1)
             if ((tstate->last_syscall_arg3 & PROT_READ) == 0)
-                ASSERTX( Zesto_Notify_Munmap(tstate->last_syscall_arg1, tstate->last_syscall_arg2, false) );
+                ASSERTX( Zesto_Notify_Munmap(0/*coreID*/, tstate->last_syscall_arg1, tstate->last_syscall_arg2, false) );
             else
-                ASSERTX( Zesto_Notify_Mmap(tstate->last_syscall_arg1, tstate->last_syscall_arg2, false) );
-
+                ASSERTX( Zesto_Notify_Mmap(0/*coreID*/, tstate->last_syscall_arg1, tstate->last_syscall_arg2, false) );
         break;
 
 #ifdef TIME_TRANSPARENCY
