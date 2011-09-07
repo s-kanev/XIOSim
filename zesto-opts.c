@@ -130,6 +130,8 @@ sim_reg_options(struct opt_odb_t *odb)
 
   opt_reg_int(odb, "-cores", "number of cores (if > 1, must provide this many eio traces)",
       &num_threads, /* default */1, /* print */true, /* format */NULL);
+  opt_reg_flag(odb, "-multi_threaded", "do cores share an address space",
+      &multi_threaded, /*default */false, /*print */true, /*format*/NULL);
 
   /* instruction limit */
   opt_reg_long_long(odb, "-max:inst", "maximum number of inst's to execute",

@@ -53,6 +53,7 @@ struct thread_t {
 /* architected state for each simulated thread/process */
 extern struct thread_t ** threads;
 extern int num_threads;
+extern bool multi_threaded;
 extern int simulated_processes_remaining;
 
 /* load program into simulated state; returns 1 if program is an eio trace */

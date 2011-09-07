@@ -6,6 +6,7 @@
  * Copyright, Svilen Kanev, 2011
  */
 
+#include "feeder.h"
 #include "fluffy.h"
 
 // True if ILDJIT has finished compilation and is executing user code
@@ -103,6 +104,22 @@ VOID ILDJIT_ExecutorCreateEnd(THREADID tid)
 }
 
 /* ========================================================================== */
+/* This is a hack to escape the constraints PIN imposes on PIN-created threads.
+   We rely on ILDJIT to start a simulator thread with every executor thread and
+   intercept the simulator thread, forcing it in this function.
+   Note: This is called through routine replacement, so we don't hold the VM lock */
+VOID* ILDJIT_SimulatorThread(VOID* jnk)
+{
+    THREADID tid = PIN_ThreadId();
+    ASSERTX(tid != INVALID_THREADID);
+    // We're assuming executor and simulator threads have consequtive IDs.
+    THREADID instrument_tid = tid - 1;
+
+    SimulatorLoop(reinterpret_cast<VOID*>(instrument_tid));
+    return NULL;
+}
+
+/* ========================================================================== */
 VOID AddILDJITCallbacks(IMG img)
 {
 #ifdef ZESTO_PIN_DBG
@@ -170,6 +187,17 @@ VOID AddILDJITCallbacks(IMG img)
         RTN_Close(rtn);
     }
 
+/*    rtn = RTN_FindByName(img, "MOLECOOL_startThread");
+    if (RTN_Valid(rtn))
+    {
+#ifdef ZESTO_PIN_DBG
+        cerr << "MOLECOOL_startThread ";
+#endif
+        
+        RTN_Replace(rtn, AFUNPTR(ILDJIT_SimulatorThread));
+
+    }
+*/
 //==========================================================
 //FLUFFY-related
     if (!KnobFluffy.Value().empty())

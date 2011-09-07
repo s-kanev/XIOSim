@@ -20,10 +20,8 @@ extern KNOB<string> KnobFluffy;
 class thread_state_t
 {
   public:
-    thread_state_t() {
+    thread_state_t(THREADID instrument_tid) {
         memzero(&fpstate_buf, sizeof(FPSTATE));
-        memzero(&regstate, sizeof(regs_t));
-        memzero(&handshake, sizeof(P2Z_HANDSHAKE));
 
         last_syscall_number = last_syscall_arg1 = 0;
         last_syscall_arg2 = last_syscall_arg3 = 0;
@@ -31,16 +29,11 @@ class thread_state_t
         slice_num = 0;
         slice_length = 0;
         slice_weight_times_1000 = 0;
+        coreID = -1;
     }
 
     // Buffer to store the fpstate that the simulator may corrupt
     FPSTATE fpstate_buf;
-
-    // Register state  as seen by Zesto
-    regs_t regstate;
-
-    // Handshake information that gets passed on to Zesto
-    struct P2Z_HANDSHAKE handshake;
 
     // Used by syscall capture code
     ADDRINT last_syscall_number;
@@ -55,6 +48,9 @@ class thread_state_t
     ADDRINT slice_num;
     ADDRINT slice_length;
     ADDRINT slice_weight_times_1000;
+
+    // Which simulated core this thread runs on
+    ADDRINT coreID;
 };
 thread_state_t* get_tls(ADDRINT tid);
 
@@ -70,6 +66,26 @@ enum EXECUTION_MODE
 };
 extern EXECUTION_MODE ExecMode;
 
+class handshake_container_t
+{
+  public:
+    handshake_container_t() {
+        memzero(&regstate, sizeof(regs_t));
+        memzero(&handshake, sizeof(P2Z_HANDSHAKE));
+        valid = FALSE;
+    }
+
+    // Did we finish dumping context
+    BOOL valid;
+
+    // Register state as seen by Zesto
+    regs_t regstate;
+
+    // Handshake information that gets passed on to Zesto
+    struct P2Z_HANDSHAKE handshake;
+};
+
 VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREADID tid);
+VOID SimulatorLoop(VOID* arg);
 
 #endif /*__FEEDER_ZESTO__ */

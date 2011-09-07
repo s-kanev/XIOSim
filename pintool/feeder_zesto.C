@@ -11,6 +11,7 @@
 #include <iostream>
 #include <iomanip>
 #include <map>
+#include <queue>
 #include <syscall.h>
 #include <sys/mman.h>
 #include <stdlib.h>
@@ -63,10 +64,22 @@ ifstream sanity_trace;
 BOOL isFirstInsn = true;
 BOOL isLastInsn = false;
 
+BOOL sim_running = false;
 
 // Used to access thread-local storage
 static TLS_KEY tls_key;
 static PIN_LOCK test;
+
+// Used to access Zesto instruction buffer
+static PIN_LOCK simbuffer_lock;
+static map<THREADID, handshake_container_t*> handshake_buffer;
+
+// Used to manage internal pin simulator threads
+static queue<THREADID> instrument_tid_queue;
+static PIN_LOCK instrument_tid_lock;
+
+// The core where a new thread will be started
+UINT32 nextCoreID = 0;
 
 /* ========================================================================== */
 /* Pinpoint related */
@@ -84,14 +97,10 @@ typedef pair <UINT32, CHAR **> SSARGS;
 UINT64 SimOrgInsCount;                   // # of simulated instructions
 
 /* ========================================================================== */
-unsigned char * MakeCopy(ADDRINT pc)
+VOID MakeInsCopy(P2Z_HANDSHAKE* handshake, ADDRINT pc)
 {
-    STATIC unsigned char codeBuff[16];
-
-    memset(codeBuff, 0, sizeof(codeBuff));
-    memcpy(codeBuff, reinterpret_cast <VOID *> (pc), sizeof(codeBuff));
-
-    return codeBuff;
+    memset(handshake->ins, 0, sizeof(handshake->ins));
+    memcpy(handshake->ins, reinterpret_cast <VOID *> (pc), sizeof(handshake->ins));
 }
 
 // function to access thread-specific data
@@ -274,6 +283,9 @@ VOID MakeSSContext(const CONTEXT *ictxt, const FPSTATE* fpstate, ADDRINT pc, ADD
 /* ========================================================================== */
 VOID Fini(INT32 exitCode, VOID *v)
 {
+    // Stops simulator threads (good idea to lock around this?)
+    sim_running = false;
+
     Zesto_Destroy();
 
     cerr << "Total simulated ins = " << dec << SimOrgInsCount << endl;
@@ -335,63 +347,109 @@ VOID SanityMemCheck()
     }
 }
 /* ========================================================================== */
-VOID FeedOriginalInstruction(struct P2Z_HANDSHAKE *handshake)
+VOID SimulatorLoop(VOID* arg)
 {
-    ADDRINT pc = handshake->pc;
+    THREADID instrument_tid = reinterpret_cast<THREADID>(arg);
+    THREADID tid = PIN_ThreadId();
 
-    handshake->ins = MakeCopy(pc);
-    ASSERT(handshake->orig, "Must execute real instruction in this function");
+    // Create new buffer to store thread context
+    GetLock(&simbuffer_lock, tid+1);
+    handshake_container_t* new_handshake = new handshake_container_t();
+    handshake_buffer[instrument_tid] = new_handshake;
+    ReleaseLock(&simbuffer_lock);
+
+    while (true)
+    {
+        GetLock(&simbuffer_lock, tid+1);
+        if (!sim_running)
+        {
+            ReleaseLock(&simbuffer_lock);
+            break;
+        }
+
+        handshake_container_t* handshake = handshake_buffer[instrument_tid];
+
+        while (!handshake->valid)
+        {
+            ReleaseLock(&simbuffer_lock);
+            PIN_Yield();
+            GetLock(&simbuffer_lock, tid+1);
+        }
+
+        ADDRINT pc = handshake->handshake.pc;
+
+        MakeInsCopy(&handshake->handshake, pc);
+        ASSERT(handshake->handshake.orig, "Must execute real instruction in this function");
 
 #ifdef TIME_TRANSPARENCY
-    // Capture time spent in simulation to ensure time syscall transparency
-    UINT64 ins_delta_time = rdtsc();
+        // Capture time spent in simulation to ensure time syscall transparency
+        UINT64 ins_delta_time = rdtsc();
 #endif
+        // Actual simulation happens here
+        Zesto_Resume(&handshake->handshake, isFirstInsn, isLastInsn);
 
-    Zesto_Resume(handshake, isFirstInsn, isLastInsn);
+        if (isFirstInsn)
+            isFirstInsn = false;
+
+        if (isLastInsn)
+            isLastInsn = false;
+
+        SimOrgInsCount++;
 
 #ifdef TIME_TRANSPARENCY
-    ins_delta_time = rdtsc() - ins_delta_time;
-    sim_time += ins_delta_time;
+        ins_delta_time = rdtsc() - ins_delta_time;
+        sim_time += ins_delta_time;
 #endif
+        // Perform memory sanity checks for values touched by simulator
+        if (KnobSanity.Value())
+            SanityMemCheck();
 
-    if(isFirstInsn)
-        isFirstInsn = false;
+        handshake->valid = false;   // Let pin instrument instruction
 
-    if(isLastInsn)
-        isLastInsn = false;
-
-    SimOrgInsCount++;
+        ReleaseLock(&simbuffer_lock);
+    }
 }
 
 /* ========================================================================== */
-struct P2Z_HANDSHAKE *MakeSSRequest(THREADID tid, ADDRINT pc, ADDRINT npc, ADDRINT tpc, BOOL brtaken, const CONTEXT *ictxt)
+VOID MakeSSRequest(THREADID tid, ADDRINT pc, ADDRINT npc, ADDRINT tpc, BOOL brtaken, const CONTEXT *ictxt)
 {
-    thread_state_t* tstate = get_tls(tid);
+    handshake_container_t* hshake = handshake_buffer[tid];
 
     // Must invalidate prior to use because previous invocation data still
     // resides in this statically allocated buffer
-    memset(&tstate->handshake, 0, sizeof(P2Z_HANDSHAKE));
+    memset(&hshake->handshake, 0, sizeof(P2Z_HANDSHAKE));
 
-    MakeSSContext(ictxt, &tstate->fpstate_buf, pc, npc, &tstate->regstate);
+    thread_state_t* tstate = get_tls(tid);
+    MakeSSContext(ictxt, &tstate->fpstate_buf, pc, npc, &hshake->regstate);
 
-    tstate->handshake.pc = pc;
-    tstate->handshake.npc = npc;
-    tstate->handshake.tpc = tpc;
-    tstate->handshake.brtaken = brtaken;
-    tstate->handshake.ctxt = &tstate->regstate;
-    tstate->handshake.orig = TRUE;
-    tstate->handshake.ins = NULL;
-    tstate->handshake.icount = 0;
+    hshake->handshake.coreID = tstate->coreID;
+    hshake->handshake.pc = pc;
+    hshake->handshake.npc = npc;
+    hshake->handshake.tpc = tpc;
+    hshake->handshake.brtaken = brtaken;
+    hshake->handshake.ctxt = &hshake->regstate;
+    hshake->handshake.orig = TRUE;
+    hshake->handshake.icount = 0;
 
-    tstate->handshake.slice_num = tstate->slice_num;
-    tstate->handshake.feeder_slice_length = tstate->slice_length;
-    tstate->handshake.slice_weight_times_1000 = tstate->slice_weight_times_1000; 
-    return &tstate->handshake;
+    hshake->handshake.slice_num = tstate->slice_num;
+    hshake->handshake.feeder_slice_length = tstate->slice_length;
+    hshake->handshake.slice_weight_times_1000 = tstate->slice_weight_times_1000; 
 }
 
 /* ========================================================================== */
 VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDRINT tpc, const CONTEXT *ictxt)
 {
+    GetLock(&simbuffer_lock, tid+1);
+    handshake_container_t* handshake  = handshake_buffer[tid];
+
+    while (handshake->valid)
+    {
+        ReleaseLock(&simbuffer_lock);
+        PIN_Yield();
+        GetLock(&simbuffer_lock, tid+1);
+    }
+
+
     // Tracing
 //    if (!KnobInsTraceFile.Value().empty())
 //         trace_file << pc << endl;
@@ -411,23 +469,22 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
         ASSERTX(sanity_pc == pc);
     }
 
-    struct P2Z_HANDSHAKE *handshake  = MakeSSRequest(tid, pc, npc, tpc, taken, ictxt);
+    if (isFirstInsn)
+    {
+        thread_state_t* tstate = get_tls(tid);
+        Zesto_SetBOS(tstate->bos);
+    }
 
-    // Clear memory sanity check buffer - callbacks should fill it in FeedOriginalInstruction
+    // Populate handshake buffer
+    MakeSSRequest(tid, pc, npc, tpc, taken, ictxt);
+
+    // Clear memory sanity check buffer - callbacks should fill it in SimulatorLoop
     if (KnobSanity.Value())
         sanity_writes.clear();
 
-    thread_state_t* tstate = get_tls(tid);
-    if (isFirstInsn)
-        Zesto_SetBOS(tstate->bos);
-
-    // Pass instruction to simulator
-    FeedOriginalInstruction(handshake);
-
-    // Perform memory sanity checks for values touched by simulator
-    if (KnobSanity.Value())
-        SanityMemCheck();
-
+    // Let simulator consume instruction from SimulatorLoop
+    handshake->valid = true;
+    ReleaseLock(&simbuffer_lock);
     ExitOnMaxIns();
 }
 /*======================================================== */
@@ -631,7 +688,7 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
 
     cerr << "Thread start. ID: " << dec << threadIndex << endl;
 
-    thread_state_t* tstate = new thread_state_t();
+    thread_state_t* tstate = new thread_state_t(threadIndex);
     if (control.PinPointsActive())
         tstate->slice_num = 1;      // PP slices aren't 0-indexed
     PIN_SetThreadData(tls_key, tstate, threadIndex);
@@ -697,6 +754,18 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
     }
 
     tstate->bos = bos;
+
+    // Application threads only -- assign a core for them
+    // and make sure a respective simulator thread gets created
+    if (!KnobILDJIT.Value() ||
+        (KnobILDJIT.Value() && ILDJIT_IsCreatingExecutor()))
+    {
+        tstate->coreID = nextCoreID++;
+        sim_running = true;
+        GetLock(&instrument_tid_lock, threadIndex+1);
+        instrument_tid_queue.push(threadIndex); // this will trigger spawning a sim thread
+        ReleaseLock(&instrument_tid_lock);
+    }
 
     ReleaseLock(&test);
 }
@@ -943,6 +1012,34 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
 }
 
 /* ========================================================================== */
+VOID SimulatorThreadSpawner(VOID* arg)
+{
+    (void) arg;
+
+    while (true)
+    {
+        // Is it time to die?
+        if (PIN_IsProcessExiting())
+            break;
+
+        // Check if there's an insturment thread without the appropriate simulator thread
+        // and spawn one, if necessary
+        GetLock(&instrument_tid_lock, 0);
+        if (!instrument_tid_queue.empty())
+        {
+            THREADID instrument_tid = instrument_tid_queue.front();
+            instrument_tid_queue.pop();
+            PIN_SpawnInternalThread(SimulatorLoop, reinterpret_cast<VOID*>(instrument_tid),
+                                    0, NULL);
+        }
+        ReleaseLock(&instrument_tid_lock);
+
+        // Go to sleep -- no need to constatnly check
+        PIN_Sleep(1000);
+    }
+}
+
+/* ========================================================================== */
 INT32 main(INT32 argc, CHAR **argv)
 {
 #ifdef ZESTO_PIN_DBG
@@ -955,6 +1052,8 @@ INT32 main(INT32 argc, CHAR **argv)
     SSARGS ssargs = MakeSimpleScalarArgcArgv(argc, argv);
 
     InitLock(&test);
+    InitLock(&simbuffer_lock);
+    InitLock(&instrument_tid_lock);
 
     // Obtain  a key for TLS storage.
     tls_key = PIN_CreateThreadDataKey(0);
@@ -965,7 +1064,6 @@ INT32 main(INT32 argc, CHAR **argv)
     if (KnobILDJIT.Value())
         MOLECOOL_Init();
 
-//XXX: Re-enable for fluffy
     if (!KnobILDJIT.Value()) {
         // Try activate pinpoints alarm, must be done before PIN_StartProgram
         if(control.CheckKnobs(PPointHandler, 0) != 1) {
@@ -1006,7 +1104,29 @@ INT32 main(INT32 argc, CHAR **argv)
 
     Zesto_SlaveInit(ssargs.first, ssargs.second);
 
+    // The only safe way to spawn internal pin threads is from main() 
+    // or other internal threads, so we create a thread spawner here
+    PIN_SpawnInternalThread(SimulatorThreadSpawner, NULL, 0, NULL);
+
     PIN_StartProgram();
 
     return 0;
+}
+
+/* ========================================================================== */
+/* Wrappers for PIN-locking, so we can build Zesto as a standalone lib */
+
+void lk_lock(int32_t* lk)
+{
+    GetLock(lk, 0);
+}
+
+int32_t lk_unlock(int32_t* lk)
+{
+    return ReleaseLock(lk);
+}
+
+void lk_init(int32_t* lk)
+{
+    InitLock(lk);
 }

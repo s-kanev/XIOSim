@@ -82,6 +82,8 @@
 #include <unistd.h>
 #include <sys/time.h>
 #include <sys/io.h>
+#include <semaphore.h>
+
 
 #include "host.h"
 #include "machine.h"
@@ -109,6 +111,22 @@
 #include "zesto-power.h"
 
 
+
+extern void lk_lock(int32_t* lk);
+extern int32_t lk_unlock(int32_t* lk);
+extern void lk_init(int32_t* lk);
+
+int32_t fetch_lock;
+int32_t ldst_lock;
+int32_t post_fetch_lock;
+int32_t pre_fetch_lock;
+int32_t cache_prefetch_lock;
+
+sem_t cycle_sem;
+sem_t cycle_end_sem;
+sem_t LLC_prefetch_sem;
+sem_t LLC_prefetch_end_sem;
+
 extern int start_pos;
 extern int heartbeat_count;
 /* power stats database */
@@ -125,10 +143,12 @@ struct core_knobs_t knobs;
 
 /* number of cores */
 int num_threads = 1;
+bool multi_threaded = false;
 int simulated_processes_remaining = 1;
 
 tick_t sim_cycle = 0;
 
+bool sim_slave_running = false;
 
 /* initialize simulator data structures - called before any command-line options have been parsed! */
 void
@@ -249,6 +269,17 @@ sim_pre_init(void)
 
   knobs.commit.ROB_size = 64;
   knobs.commit.width = 4;
+
+  // Initialize synchronization primitives
+  lk_init(&fetch_lock);
+  lk_init(&post_fetch_lock);
+  lk_init(&pre_fetch_lock);
+  lk_init(&cache_prefetch_lock);
+
+  sem_init(&cycle_sem, 0, 0);
+  sem_init(&cycle_end_sem, 0, 0);
+  sem_init(&LLC_prefetch_sem, 0, 0);
+  sem_init(&LLC_prefetch_end_sem, 0, 0);
 }
 
 /* initialize per-thread state, core state, etc. - called AFTER command-line parameters have been parsed */
@@ -262,6 +293,14 @@ sim_post_init(void)
   threads = (struct thread_t **)calloc(num_threads,sizeof(*threads));
   if(!threads)
     fatal("failed to calloc threads");
+
+  mem_t *mem; /* the one and only virtual memory space in multithreaded mode */
+  if(multi_threaded)
+  {
+    mem = mem_create("mem");
+    mem_init(mem);
+  }
+
   for(i=0;i<num_threads;i++)
   {
     threads[i] = (struct thread_t *)calloc(1,sizeof(**threads));
@@ -274,11 +313,16 @@ sim_post_init(void)
     /* allocate and initialize register file */
     regs_init(&threads[i]->regs);
 
-    /* allocate and initialize virtual memory space */
-    char buf[128];
-    sprintf(buf,"c%d.mem",i);
-    threads[i]->mem = mem_create(buf);
-    mem_init(threads[i]->mem);
+    if (multi_threaded)
+      threads[i]->mem = mem;
+    else
+    {
+      /* allocate and initialize virtual memory space */
+      char buf[128];
+      sprintf(buf,"c%d.mem",i);
+      threads[i]->mem = mem_create(buf);
+      mem_init(threads[i]->mem);
+    }
   }
 
   /* initialize microarchitecture state */
@@ -331,13 +375,14 @@ sim_uninit(void)
 
 
 //Returns true if another instruction can be fetched in the same cycle
-bool sim_main_slave_fetch_insn()
+bool sim_main_slave_fetch_insn(int coreID)
 {
-  int i=0;
-
-  assert(num_threads == 1);
-
-  return cores[mod2m(start_pos+i,num_threads)]->fetch->do_fetch();
+  volatile bool res;
+  //XXX: Round-robin!
+  lk_lock(&fetch_lock);
+  res = cores[coreID]->fetch->do_fetch();
+  lk_unlock(&fetch_lock);
+  return res;
 }
 
 void sim_main_slave_post_pin()
@@ -482,13 +527,158 @@ void sim_main_slave_pre_pin()
 
 }
 
+void sim_main_slave_pre_pin(int coreID)
+{
+  if(cores[coreID]->current_thread->active)
+    cores[coreID]->stat.final_sim_cycle = sim_cycle;
 
-void sim_main_slave_step()
+  // Allow shared code to advance cycle counter
+  sem_post(&cycle_sem);
+
+  // ... and wait until shared code is complete
+  sem_wait(&cycle_end_sem);
+
+  step_core_PF_controllers(cores[coreID]);
+
+  /* all memory processed here */
+  //XXX: RR
+  lk_lock(&ldst_lock);
+  cores[coreID]->exec->LDST_exec();
+  lk_unlock(&ldst_lock);
+
+  cores[coreID]->commit->step();
+
+  cores[coreID]->commit->pre_commit_step();
+
+  cores[coreID]->exec->step();
+
+  cores[coreID]->exec->LDQ_schedule();
+
+  cores[coreID]->alloc->step();
+
+  cores[coreID]->decode->step();
+
+  /* round-robin on which cache to process first so that one core
+     doesn't get continual priority over the others for L2 access */
+  //XXX: RR
+  lk_lock(&post_fetch_lock);
+  cores[coreID]->fetch->post_fetch();
+  lk_unlock(&post_fetch_lock);
+}
+
+void sim_main_prefetch_LLC(void)
+{
+  int i;
+  while(sim_slave_running)
+  {
+    // gather all threads until this stage
+    for(i=0; i<num_threads;i++)
+      sem_wait(&LLC_prefetch_sem);
+
+    prefetch_LLC(uncore);
+
+    // ... and let them progress
+    for(i=0; i<num_threads;i++)
+      sem_post(&LLC_prefetch_end_sem);
+  }
+}
+
+void sim_main_slave_post_pin(int coreID)
+{
+
+  /* round-robin on which cache to process first so that one core
+     doesn't get continual priority over the others for L2 access */
+  //XXX: RR
+  lk_lock(&pre_fetch_lock);
+  cores[coreID]->fetch->pre_fetch();
+  lk_unlock(&pre_fetch_lock);
+
+  /* this is done last so that prefetch requests have the lowest
+     priority when competing for queues, buffers, etc. */
+  sem_post(&LLC_prefetch_sem);  //unblock prefetch_LLC thread
+  sem_wait(&LLC_prefetch_end_sem); //... and wait until it finishes
+
+  /* process prefetch requests in reverse order as L1/L2; i.e., whoever
+     got the lowest priority for L1/L2 processing gets highest priority
+     for prefetch processing */
+  //XXX: RR
+  lk_lock(&cache_prefetch_lock);
+  prefetch_core_caches(cores[coreID]);
+  lk_unlock(&cache_prefetch_lock);
+
+  /*******************/
+  /* occupancy stats */
+  /*******************/
+  /* this avoids the need to guard each stat update below with "ZESTO_STAT()" */
+  if(cores[coreID]->current_thread->active)
+  {
+    cores[coreID]->oracle->update_occupancy();
+    cores[coreID]->fetch->update_occupancy();
+    cores[coreID]->decode->update_occupancy();
+    cores[coreID]->exec->update_occupancy();
+    cores[coreID]->commit->update_occupancy();
+  }
+
+  /* check to see if all cores are "ok" */
+  if(cores[coreID]->oracle->hosed)
+    fatal("Core %d got hosed, quitting."); 
+}
+
+void global_step()
+{
+  int i;
+  while(sim_slave_running)
+  {
+    // Wait until all cores are ready to advance cycle
+    for(i=0;i<num_threads;i++)
+      sem_wait(&cycle_sem);
+
+    if((heartbeat_frequency > 0) && (heartbeat_count >= heartbeat_frequency))
+    {
+      fprintf(stderr,"##HEARTBEAT## %lld: {",sim_cycle);
+      for(i=0;i<num_threads;i++)
+      {
+        if(i < (num_threads-1))
+          myfprintf(stderr,"%lld, ",cores[i]->stat.commit_insn);
+        else
+          myfprintf(stderr,"%lld}\n",cores[i]->stat.commit_insn);
+      }
+      heartbeat_count = 0;
+    }
+
+
+    ZPIN_TRACE("###Cycle%s\n"," ");
+
+    if(sim_cycle == 0)
+      myfprintf(stderr, "### starting timing simulation \n");
+
+    sim_cycle++;
+    heartbeat_count++;
+    for(i=0;i<num_threads;i++)
+      if(cores[i]->current_thread->active)
+        cores[i]->stat.final_sim_cycle = sim_cycle;
+
+    /*********************************************/
+    /* step through pipe stages in reverse order */
+    /*********************************************/
+
+    dram->refresh();
+    uncore->MC->step();
+
+    step_LLC_PF_controller(uncore);
+
+    // Let individual core threads continue
+    for(i=0;i<num_threads;i++)
+      sem_post(&cycle_end_sem);
+  }
+}
+
+/*void sim_main_slave_step()
 {
    sim_main_slave_post_pin();
  
    while(sim_main_slave_fetch_insn());
 
    sim_main_slave_pre_pin();
-}
+}*/
 

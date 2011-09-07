@@ -182,11 +182,11 @@ sim-zesto3$(EEXT):	sysprobe$(EEXT) sim-zesto.$(OEXT) $(OBJS) $(ZOBJS) $(EXOOBJS)
 	$(CC) -o sim-zesto3$(EEXT) $(CFLAGS) sim-zesto.$(OEXT) $(OBJS) $(ZOBJS) $(EXOOBJS) $(MLIBS)
 sim-zesto4$(EEXT):	sysprobe$(EEXT) sim-zesto.$(OEXT) $(OBJS) $(ZOBJS) $(EXOOBJS)
 	$(CC) -o sim-zesto4$(EEXT) $(CFLAGS) sim-zesto.$(OEXT) $(OBJS) $(ZOBJS) $(EXOOBJS) $(MLIBS)
-lib:	CFLAGS += -DZESTO_PIN	
+lib:	CFLAGS += $(SLAVE_CFLAGS)	
 lib:	sysprobe$(EEXT) sim-slave.$(OEXT) $(OBJS_SLAVE) $(ZOBJS) $(EXOOBJS)
 	ar rs libsim.a sim-slave.$(OEXT) $(OBJS_SLAVE) $(ZOBJS) $(EXOOBJS)
 	ranlib libsim.a
-libd:	CFLAGS += -DZESTO_PIN -DZESTO_PIN_DBG -DZTRACE
+libd:	CFLAGS += $(SLAVE_CFLAGS) -DZESTO_PIN_DBG -DZTRACE
 libd:	sysprobe$(EEXT) sim-slave.$(OEXT) $(OBJS_SLAVE) $(ZOBJS) $(EXOOBJS)
 	ar rs libsim.a sim-slave.$(OEXT) $(OBJS_SLAVE) $(ZOBJS) $(EXOOBJS)
 	ranlib libsim.a
