@@ -122,6 +122,10 @@ extern void start_slice(unsigned int slice_num);
 extern void end_slice(unsigned int slice_num, unsigned long long slice_length, unsigned long long slice_weight_times_1000);
 extern void scale_all_slices(void);
 
+extern void spawn_new_thread(void entry_point(void*), void* arg);
+extern void global_step(void* arg);
+extern void sim_main_prefetch_LLC(void* arg); 
+
 struct thread_flags_t {
   bool consumed;
   bool first_insn;
@@ -292,9 +296,10 @@ Zesto_SlaveInit(int argc, char **argv)
 
   sim_slave_running = true;
 
-  /* Run all stages after fetch for first cycle */
-//  for (int i=0; i<num_threads; i++)
-//    sim_main_slave_pre_pin(i);
+  // Launch threads that deal with global (not per-core) state
+  spawn_new_thread(global_step, NULL);
+  spawn_new_thread(sim_main_prefetch_LLC, NULL);
+
 //XXX
   /* return control to Pin and wait for first instruction */
   return 0;

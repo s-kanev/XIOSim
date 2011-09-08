@@ -269,17 +269,6 @@ sim_pre_init(void)
 
   knobs.commit.ROB_size = 64;
   knobs.commit.width = 4;
-
-  // Initialize synchronization primitives
-  lk_init(&fetch_lock);
-  lk_init(&post_fetch_lock);
-  lk_init(&pre_fetch_lock);
-  lk_init(&cache_prefetch_lock);
-
-  sem_init(&cycle_sem, 0, 0);
-  sem_init(&cycle_end_sem, 0, 0);
-  sem_init(&LLC_prefetch_sem, 0, 0);
-  sem_init(&LLC_prefetch_end_sem, 0, 0);
 }
 
 /* initialize per-thread state, core state, etc. - called AFTER command-line parameters have been parsed */
@@ -288,6 +277,17 @@ sim_post_init(void)
 {
   int i;
   assert(num_threads > 0);
+
+  /* Initialize synchronization primitives */
+  lk_init(&fetch_lock);
+  lk_init(&post_fetch_lock);
+  lk_init(&pre_fetch_lock);
+  lk_init(&cache_prefetch_lock);
+
+  sem_init(&cycle_sem, 0, num_threads); // means global_step will execute first
+  sem_init(&cycle_end_sem, 0, 0);
+  sem_init(&LLC_prefetch_sem, 0, 0);
+  sem_init(&LLC_prefetch_end_sem, 0, 0);
 
   /* initialize architected state(s) */
   threads = (struct thread_t **)calloc(num_threads,sizeof(*threads));
@@ -566,9 +566,10 @@ void sim_main_slave_pre_pin(int coreID)
   lk_unlock(&post_fetch_lock);
 }
 
-void sim_main_prefetch_LLC(void)
+void sim_main_prefetch_LLC(void* arg)
 {
   int i;
+  (void) arg;
   while(sim_slave_running)
   {
     // gather all threads until this stage
@@ -624,9 +625,11 @@ void sim_main_slave_post_pin(int coreID)
     fatal("Core %d got hosed, quitting."); 
 }
 
-void global_step()
+void global_step(void* arg)
 {
   int i;
+  (void) arg;
+
   while(sim_slave_running)
   {
     // Wait until all cores are ready to advance cycle

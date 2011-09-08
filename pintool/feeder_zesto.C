@@ -352,15 +352,8 @@ VOID SimulatorLoop(VOID* arg)
     THREADID instrument_tid = reinterpret_cast<THREADID>(arg);
     THREADID tid = PIN_ThreadId();
 
-    // Create new buffer to store thread context
-    GetLock(&simbuffer_lock, tid+1);
-    handshake_container_t* new_handshake = new handshake_container_t();
-    handshake_buffer[instrument_tid] = new_handshake;
-    ReleaseLock(&simbuffer_lock);
-
     while (true)
     {
-        cerr << "PING!" << endl;
         GetLock(&simbuffer_lock, tid+1);
         if (!sim_running)
         {
@@ -449,7 +442,6 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
         PIN_Yield();
         GetLock(&simbuffer_lock, tid+1);
     }
-
 
     // Tracing
 //    if (!KnobInsTraceFile.Value().empty())
@@ -762,9 +754,19 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
         (KnobILDJIT.Value() && ILDJIT_IsCreatingExecutor()))
     {
         tstate->coreID = nextCoreID++;
+
+        // Create new buffer to store thread context
+        GetLock(&simbuffer_lock, threadIndex+1);
+        handshake_container_t* new_handshake = new handshake_container_t();
+        handshake_buffer[threadIndex] = new_handshake;
+        ReleaseLock(&simbuffer_lock);
+
+        // Mark simulation as running (only matters for first thread)
         sim_running = true;
+
+        // This will trigger spawning a sim thread
         GetLock(&instrument_tid_lock, threadIndex+1);
-        instrument_tid_queue.push(threadIndex); // this will trigger spawning a sim thread
+        instrument_tid_queue.push(threadIndex); 
         ReleaseLock(&instrument_tid_lock);
     }
 
@@ -1022,7 +1024,7 @@ VOID SimulatorThreadSpawner(VOID* arg)
 
         // Check if there's an insturment thread without the appropriate simulator thread
         // and spawn one, if necessary
-        GetLock(&instrument_tid_lock, 0);
+        GetLock(&instrument_tid_lock, 1);
         if (!instrument_tid_queue.empty())
         {
             THREADID instrument_tid = instrument_tid_queue.front();
@@ -1116,7 +1118,7 @@ INT32 main(INT32 argc, CHAR **argv)
 
 void lk_lock(int32_t* lk)
 {
-    GetLock(lk, 0);
+    GetLock(lk, 1);
 }
 
 int32_t lk_unlock(int32_t* lk)
@@ -1127,4 +1129,9 @@ int32_t lk_unlock(int32_t* lk)
 void lk_init(int32_t* lk)
 {
     InitLock(lk);
+}
+
+void spawn_new_thread(void entry_point(void*), void* arg)
+{
+    PIN_SpawnInternalThread(entry_point, arg, 0, NULL);
 }
