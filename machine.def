@@ -372,7 +372,7 @@ CONNECT(TOPLEV)
   _sp = GPR_S(MD_REG_eSP);            \
   _sp = _sp - SIZE_V;              \
   \
-  _addr = AGEN_S(SEG_SS, _sp, 0, 0, 0);        \
+  _addr = AGEN_S(SEG_INDEX(SEG_SS), _sp, 0, 0, 0);        \
   WRITE_V(_src, _addr, _fault);          \
   if (_fault != md_fault_none)          \
   DECLARE_FAULT(_fault);            \
@@ -396,7 +396,7 @@ CONNECT(TOPLEV)
   \
   _sp = GPR_S(MD_REG_eSP);            \
   \
-  _addr = AGEN_S(SEG_SS, _sp, 0, 0, 0);        \
+  _addr = AGEN_S(SEG_INDEX(SEG_SS), _sp, 0, 0, 0);        \
   _src = READ_V(_addr, _fault);          \
   if (_fault != md_fault_none)          \
   DECLARE_FAULT(_fault);            \
@@ -833,7 +833,7 @@ CONNECT(TOPLEV)
   _sp = GPR_S(MD_REG_eSP);            \
   _sp = _sp - SIZE_V;              \
   \
-  _addr = AGEN_S(SEG_SS, _sp, 0, 0, 0);        \
+  _addr = AGEN_S(SEG_INDEX(SEG_SS), _sp, 0, 0, 0);        \
   WRITE_V(_src, _addr, _fault);          \
   if (_fault != md_fault_none)          \
   DECLARE_FAULT(_fault);            \
@@ -855,7 +855,7 @@ CONNECT(TOPLEV)
   \
   _sp = GPR_S(MD_REG_eSP);            \
   \
-  _addr = AGEN_S(SEG_SS, _sp, 0, 0, 0);        \
+  _addr = AGEN_S(SEG_INDEX(SEG_SS), _sp, 0, 0, 0);        \
   _src = READ_V(_addr, _fault);          \
   if (_fault != md_fault_none)          \
   DECLARE_FAULT(_fault);            \
@@ -877,7 +877,7 @@ CONNECT(TOPLEV)
     _src = target;              \
   _sp = _sp - SIZE_V;              \
   \
-  _addr = AGEN_S(SEG_SS, _sp, 0, 0, 0);        \
+  _addr = AGEN_S(SEG_INDEX(SEG_SS), _sp, 0, 0, 0);        \
   WRITE_V(_src, _addr, _fault);          \
   if (_fault != md_fault_none)          \
   DECLARE_FAULT(_fault);            \
@@ -906,7 +906,7 @@ CONNECT(TOPLEV)
       DNA, DNA)
 
 #define DO_ONE_POPA( reg_target )  \
-    _addr = AGEN_S(SEG_SS, _sp, 0, 0, 0);        \
+    _addr = AGEN_S(SEG_INDEX(SEG_SS), _sp, 0, 0, 0);        \
   _src = READ_V(_addr, _fault);          \
   if (_fault != md_fault_none)          \
   DECLARE_FAULT(_fault);            \
@@ -963,7 +963,7 @@ CONNECT(TOPLEV)
   _sp = GPR_S(MD_REG_eSP);            \
   _sp = _sp - SIZE_V;              \
   \
-  _addr = AGEN_S(SEG_SS, _sp, 0, 0, 0);        \
+  _addr = AGEN_S(SEG_INDEX(SEG_SS), _sp, 0, 0, 0);        \
   WRITE_V(_src, _addr, _fault);          \
   if (_fault != md_fault_none)          \
   DECLARE_FAULT(_fault);            \
@@ -989,7 +989,7 @@ CONNECT(TOPLEV)
   _sp = GPR_S(MD_REG_eSP);            \
   _sp = _sp - SIZE_V;              \
   \
-  _addr = AGEN_S(SEG_SS, _sp, 0, 0, 0);        \
+  _addr = AGEN_S(SEG_INDEX(SEG_SS), _sp, 0, 0, 0);        \
   WRITE_V(_src, _addr, _fault);          \
   if (_fault != md_fault_none)          \
   DECLARE_FAULT(_fault);            \
@@ -1285,7 +1285,7 @@ CONNECT(TOPLEV)
   _sp = GPR_S(MD_REG_eSP);            \
   _sp = _sp - SIZE_V;              \
   \
-  _addr = AGEN_S(SEG_SS, _sp, 0, 0, 0);        \
+  _addr = AGEN_S(SEG_INDEX(SEG_SS), _sp, 0, 0, 0);        \
   WRITE_V(_src, _addr, _fault);          \
   if (_fault != md_fault_none)          \
   DECLARE_FAULT(_fault);            \
@@ -1296,7 +1296,7 @@ CONNECT(TOPLEV)
       "pushf",      "",
       FU_INVALID,                 F_ICOMP|F_MEM|F_STORE|F_UCODE|F_NOMOD,
       DGPR(MD_REG_eSP),
-      DGPR(MD_REG_eSP), DSEG(SEG_SS), DNA,
+      DGPR(MD_REG_eSP), DSEG(SEG_INDEX(SEG_SS)), DNA,
       DNA, DNA)
 
 
@@ -1308,7 +1308,7 @@ CONNECT(TOPLEV)
   \
   _sp = GPR_S(MD_REG_eSP);            \
   \
-  _addr = AGEN_S(SEG_SS, _sp, 0, 0, 0);        \
+  _addr = AGEN_S(SEG_INDEX(SEG_SS), _sp, 0, 0, 0);        \
   _src = READ_V(_addr, _fault);          \
   if (_fault != md_fault_none)          \
   DECLARE_FAULT(_fault);            \
@@ -1321,7 +1321,7 @@ CONNECT(TOPLEV)
       "popf",      "",
       FU_INVALID,                 F_ICOMP|F_MEM|F_LOAD|F_NOMOD|F_UCODE,
       DGPR(MD_REG_eSP),
-      DGPR(MD_REG_eSP), DSEG(SEG_SS), DNA,
+      DGPR(MD_REG_eSP), DSEG(SEG_INDEX(SEG_SS)), DNA,
       DNA, DNA)
 
 #define SAHF_IMPL              \
@@ -1443,7 +1443,7 @@ CONNECT(TOPLEV)
   if (_fault != md_fault_none)          \
   DECLARE_FAULT(_fault);            \
   \
-  _dstaddr = AGEN_A(SEG_ES, GPR_A(MD_REG_eDI), 0, 0, 0);    \
+  _dstaddr = AGEN_A(SEG_INDEX(SEG_ES), GPR_A(MD_REG_eDI), 0, 0, 0);    \
   WRITE_BYTE(_src, _dstaddr, _fault);          \
   if (_fault != md_fault_none)          \
   DECLARE_FAULT(_fault);            \
@@ -1473,7 +1473,7 @@ CONNECT(TOPLEV)
   enum md_fault_type _fault;            \
   \
   _srcaddr = AGEN_A(SEG, GPR_A(MD_REG_eSI), 0, 0, 0);      \
-  _dstaddr = AGEN_A(SEG_ES, GPR_A(MD_REG_eDI), 0, 0, 0);    \
+  _dstaddr = AGEN_A(SEG_INDEX(SEG_ES), GPR_A(MD_REG_eDI), 0, 0, 0);    \
   \
   _src = READ_V(_srcaddr, _fault);          \
   if (_fault != md_fault_none)          \
@@ -1513,7 +1513,7 @@ CONNECT(TOPLEV)
   if (_fault != md_fault_none)          \
   DECLARE_FAULT(_fault);            \
   \
-  _src2addr = AGEN_A(SEG_ES, GPR_A(MD_REG_eDI), 0, 0, 0);    \
+  _src2addr = AGEN_A(SEG_INDEX(SEG_ES), GPR_A(MD_REG_eDI), 0, 0, 0);    \
   _src2 = READ_BYTE(_src2addr, _fault);        \
   if (_fault != md_fault_none)          \
   DECLARE_FAULT(_fault);            \
@@ -1550,7 +1550,7 @@ CONNECT(TOPLEV)
   if (_fault != md_fault_none)          \
   DECLARE_FAULT(_fault);            \
   \
-  _src2addr = AGEN_A(SEG_ES, GPR_A(MD_REG_eDI), 0, 0, 0);    \
+  _src2addr = AGEN_A(SEG_INDEX(SEG_ES), GPR_A(MD_REG_eDI), 0, 0, 0);    \
   _src2 = READ_V(_src2addr, _fault);          \
   if (_fault != md_fault_none)          \
   DECLARE_FAULT(_fault);            \
@@ -1615,7 +1615,7 @@ CONNECT(TOPLEV)
   enum md_fault_type _fault;            \
   \
   _src = GPR_B(MD_REG_AL);            \
-  _addr = AGEN_A(SEG_ES, GPR_A(MD_REG_eDI), 0, 0, 0);      \
+  _addr = AGEN_A(SEG_INDEX(SEG_ES), GPR_A(MD_REG_eDI), 0, 0, 0);      \
   WRITE_BYTE(_src, _addr, _fault);          \
   if (_fault != md_fault_none)          \
   DECLARE_FAULT(_fault);            \
@@ -1643,7 +1643,7 @@ CONNECT(TOPLEV)
   enum md_fault_type _fault;            \
   \
   _src = GPR_V(MD_REG_eAX);            \
-  _addr = AGEN_A(SEG_ES, GPR_A(MD_REG_eDI), 0, 0, 0);      \
+  _addr = AGEN_A(SEG_INDEX(SEG_ES), GPR_A(MD_REG_eDI), 0, 0, 0);      \
   WRITE_V(_src, _addr, _fault);          \
   if (_fault != md_fault_none)          \
   DECLARE_FAULT(_fault);            \
@@ -1729,7 +1729,7 @@ CONNECT(TOPLEV)
   enum md_fault_type _fault;            \
   \
   _src1 = GPR_B(MD_REG_AL);            \
-  _addr = AGEN_A(SEG_ES, GPR_A(MD_REG_eDI), 0, 0, 0);      \
+  _addr = AGEN_A(SEG_INDEX(SEG_ES), GPR_A(MD_REG_eDI), 0, 0, 0);      \
   _src2 = READ_BYTE(_addr, _fault);          \
   if (_fault != md_fault_none)          \
   DECLARE_FAULT(_fault);            \
@@ -1760,7 +1760,7 @@ CONNECT(TOPLEV)
   enum md_fault_type _fault;            \
   \
   _src1 = GPR_V(MD_REG_eAX);            \
-  _addr = AGEN_A(SEG_ES, GPR_A(MD_REG_eDI), 0, 0, 0);      \
+  _addr = AGEN_A(SEG_INDEX(SEG_ES), GPR_A(MD_REG_eDI), 0, 0, 0);      \
   _src2 = READ_V(_addr, _fault);          \
   if (_fault != md_fault_none)          \
   DECLARE_FAULT(_fault);            \
@@ -1818,7 +1818,7 @@ CONNECT(TOPLEV)
   \
   _sp = GPR_S(MD_REG_eSP);            \
   \
-  _addr = AGEN_S(SEG_SS, _sp, 0, 0, 0);        \
+  _addr = AGEN_S(SEG_INDEX(SEG_SS), _sp, 0, 0, 0);        \
   _src = READ_V(_addr, _fault);          \
   if (_fault != md_fault_none)          \
   DECLARE_FAULT(_fault);            \
@@ -1844,7 +1844,7 @@ CONNECT(TOPLEV)
   \
   _sp = GPR_S(MD_REG_eSP);            \
   \
-  _addr = AGEN_S(SEG_SS, _sp, 0, 0, 0);        \
+  _addr = AGEN_S(SEG_INDEX(SEG_SS), _sp, 0, 0, 0);        \
   _src = READ_V(_addr, _fault);          \
   if (_fault != md_fault_none)          \
   DECLARE_FAULT(_fault);            \
@@ -1881,7 +1881,7 @@ CONNECT(TOPLEV)
   SET_GPR_S(MD_REG_eSP, _bp);            \
   \
   _sp = GPR_S(MD_REG_eSP);            \
-  _addr = AGEN_S(SEG_SS, _sp, 0, 0, 0);        \
+  _addr = AGEN_S(SEG_INDEX(SEG_SS), _sp, 0, 0, 0);        \
   _src = READ_V(_addr, _fault);          \
   if (_fault != md_fault_none)          \
   DECLARE_FAULT(_fault);            \
@@ -2144,7 +2144,7 @@ CONNECT(TOPLEV)
   _sp = GPR_S(MD_REG_eSP);            \
   _sp = _sp - SIZE_V;              \
   \
-  _addr = AGEN_S(SEG_SS, _sp, 0, 0, 0);        \
+  _addr = AGEN_S(SEG_INDEX(SEG_SS), _sp, 0, 0, 0);        \
   WRITE_V(_npc, _addr, _fault);          \
   if (_fault != md_fault_none)          \
   DECLARE_FAULT(_fault);            \
@@ -5475,7 +5475,6 @@ CONNECT(MOV_EvRv_LINK)
   enum md_fault_type _fault;            \
   \
   _src = GPR_V(R);              \
-  \
   _addr = AGEN_A(SEG, BASE, INDEX, SCALE, DISP);      \
   WRITE_V(_src, _addr, _fault);          \
   if (_fault != md_fault_none)          \
@@ -5663,7 +5662,7 @@ CONNECT(POP_Ev_LINK1)
   \
   _sp = GPR_S(MD_REG_eSP);            \
   \
-  _addr = AGEN_S(SEG_SS, _sp, 0, 0, 0);        \
+  _addr = AGEN_S(SEG_INDEX(SEG_SS), _sp, 0, 0, 0);        \
   _src = READ_V(_addr, _fault);          \
   if (_fault != md_fault_none)          \
   DECLARE_FAULT(_fault);            \
@@ -5692,7 +5691,7 @@ CONNECT(POP_Ev_LINK1)
   \
   _sp = GPR_S(MD_REG_eSP);            \
   \
-  _addr = AGEN_S(SEG_SS, _sp, 0, 0, 0);        \
+  _addr = AGEN_S(SEG_INDEX(SEG_SS), _sp, 0, 0, 0);        \
   _src = READ_V(_addr, _fault);          \
   if (_fault != md_fault_none)          \
   DECLARE_FAULT(_fault);            \
@@ -8728,6 +8727,34 @@ CONNECT(GRP5_Ev_LINK)
 
 CONNECT(CALLN_Ev_LINK)
 
+#ifdef ZESTO_PIN
+#define CALLN_Mv_IMPL              \
+{                  \
+  dword_t _sp;                \
+  md_addr_t _addr, _npc, _tpc;          \
+  enum md_fault_type _fault;            \
+  \
+  _npc = NPC;              \
+  _sp = GPR_S(MD_REG_eSP);          \
+  _sp = _sp - SIZE_V;            \
+  \
+  _addr = AGEN_S(SEG_INDEX(SEG_SS), _sp, 0, 0, 0);        \
+  WRITE_V(_npc, _addr, _fault);          \
+  if (_fault != md_fault_none)          \
+  DECLARE_FAULT(_fault);          \
+  \
+  _addr = AGEN_A(SEG, BASE, INDEX, SCALE, DISP);      \
+  \
+  _tpc = READ_V(_addr, _fault);          \
+  if (_fault != md_fault_none)          \
+  DECLARE_FAULT(_fault);          \
+  \
+  SET_GPR_S(MD_REG_eSP, _sp);          \
+  SET_TPC(_tpc);              \
+  SET_NPC(_tpc);              \
+  UPDATE_CALLGRAPH_CALL();                \
+}
+#else
 #define CALLN_Mv_IMPL              \
 {                  \
   dword_t _sp;                \
@@ -8745,7 +8772,7 @@ CONNECT(CALLN_Ev_LINK)
     _sp = GPR_S(MD_REG_eSP);          \
     _sp = _sp - SIZE_V;            \
     \
-    _addr = AGEN_S(SEG_SS, _sp, 0, 0, 0);        \
+    _addr = AGEN_S(SEG_INDEX(SEG_SS), _sp, 0, 0, 0);        \
     WRITE_V(_npc, _addr, _fault);          \
     if (_fault != md_fault_none)          \
     DECLARE_FAULT(_fault);          \
@@ -8762,6 +8789,8 @@ CONNECT(CALLN_Ev_LINK)
     UPDATE_CALLGRAPH_CALL();                \
   }                                                                   \
 }
+#endif
+
   DEFINST(CALLN_Mv,    0x0200,
       "call",      "%Mv",
       FU_INVALID,                 F_ICOMP|F_MEM|F_STORE|F_CTRL|F_UNCOND|F_UCODE|F_CALL,
@@ -8779,7 +8808,7 @@ CONNECT(CALLN_Ev_LINK)
   _sp = GPR_S(MD_REG_eSP);            \
   _sp = _sp - SIZE_V;              \
   \
-  _addr = AGEN_S(SEG_SS, _sp, 0, 0, 0);        \
+  _addr = AGEN_S(SEG_INDEX(SEG_SS), _sp, 0, 0, 0);        \
   WRITE_V(_npc, _addr, _fault);          \
   if (_fault != md_fault_none)          \
   DECLARE_FAULT(_fault);            \
@@ -8944,7 +8973,7 @@ CONNECT(PUSH_Ev_LINK)
   _sp = GPR_S(MD_REG_eSP);            \
   _sp = _sp - SIZE_V;              \
   \
-  _addr = AGEN_S(SEG_SS, _sp, 0, 0, 0);        \
+  _addr = AGEN_S(SEG_INDEX(SEG_SS), _sp, 0, 0, 0);        \
   WRITE_V(_src, _addr, _fault);          \
   if (_fault != md_fault_none)          \
   DECLARE_FAULT(_fault);            \
@@ -8968,7 +8997,7 @@ CONNECT(PUSH_Ev_LINK)
   _sp = GPR_S(MD_REG_eSP);            \
   _sp = _sp - SIZE_V;              \
   \
-  _addr = AGEN_S(SEG_SS, _sp, 0, 0, 0);        \
+  _addr = AGEN_S(SEG_INDEX(SEG_SS), _sp, 0, 0, 0);        \
   WRITE_V(_src, _addr, _fault);          \
   if (_fault != md_fault_none)          \
   DECLARE_FAULT(_fault);            \
@@ -9126,7 +9155,7 @@ DNA, DNA)
   _sp = GPR_S(MD_REG_eSP);            \
   _sp = _sp - SIZE_W;              \
   \
-  _addr = AGEN_S(SEG_SS, _sp, 0, 0, 0);        \
+  _addr = AGEN_S(SEG_INDEX(SEG_SS), _sp, 0, 0, 0);        \
   WRITE_V(_src, _addr, _fault);          \
   if (_fault != md_fault_none)          \
   DECLARE_FAULT(_fault);            \
@@ -16510,36 +16539,34 @@ CONNECT(FISTP_Mq_LINK)
 
 #define AGENW_IMPL              \
 {                  \
-  word_t _base, _index, _seg;            \
+  word_t _base, _index;            \
   md_addr_t _addr;              \
   \
   _base = GPR_W(URS);              \
   _index = GPR_W(URT);            \
-  _seg = (USG != SEG_DEF) ? SEG_W(USG) : 0;                    \
-  _addr = AGEN_W(_seg, _base, _index, ULIT, UIMMW);      \
+  _addr = AGEN_W(USG, _base, _index, ULIT, UIMMW);      \
   SET_GPR_D(URD, _addr);            \
 }
   DEFUOP(AGENW,      0x00,
       "agenw",    "%Dw,%Sw,%Tw,%Li,%Iw",
-      FU_IEU,      F_ICOMP,
+      FU_AGEN,      F_AGEN,
       DGPR_D(URD),
       DGPR_W(URS), DGPR_W(URT), DSEG(USG),
       DNA, DNA)
 
 #define AGEND_IMPL              \
 {                  \
-  dword_t _base, _index, _seg;            \
+  dword_t _base, _index;            \
   md_addr_t _addr;              \
   \
   _base = GPR_D(URS);              \
   _index = GPR_D(URT);            \
-  _seg = (USG != SEG_DEF) ? SEG_W(USG) : 0;                    \
-  _addr = AGEN_D(_seg, _base, _index, ULIT, UIMMD);      \
+  _addr = AGEN_D(USG, _base, _index, ULIT, UIMMD);      \
   SET_GPR_D(URD, _addr);            \
 }
   DEFUOP(AGEND,      0x00,
       "agend",    "%Dd,%Sd,%Td,%Li,%Id",
-      FU_IEU,      F_ICOMP,
+      FU_AGEN,      F_AGEN,
       DGPR_D(URD),
       DGPR_D(URS), DGPR_D(URT), DSEG(USG),
       DNA, DNA)
@@ -16576,14 +16603,13 @@ CONNECT(FISTP_Mq_LINK)
 {                  \
   enum md_fault_type _fault;            \
   byte_t _res;              \
-  word_t _base, _index, _seg;            \
+  word_t _base, _index;            \
   md_addr_t _addr;              \
   dword_t _orig = GPR_DB(URD);             \
   \
   _base = GPR_W(URS);              \
   _index = GPR_W(URT);            \
-  _seg = (USG != SEG_DEF) ? SEG_W(USG) : 0;                    \
-  _addr = AGEN_W(_seg, _base, _index, ULIT, UIMMW);      \
+  _addr = AGEN_W(USG, _base, _index, ULIT, UIMMW);      \
   \
   _res = READ_BYTE(_addr, _fault);          \
   if (_fault != md_fault_none)          \
@@ -16602,14 +16628,13 @@ CONNECT(FISTP_Mq_LINK)
 {                  \
   enum md_fault_type _fault;            \
   byte_t _res;              \
-  dword_t _base, _index, _seg;            \
+  dword_t _base, _index;            \
   md_addr_t _addr;              \
   dword_t _orig = GPR_DB(URD);             \
   \
   _base = GPR_D(URS);              \
   _index = GPR_D(URT);            \
-  _seg = (USG != SEG_DEF) ? SEG_W(USG) : 0;                    \
-  _addr = AGEN_D(_seg, _base, _index, ULIT, UIMMD);      \
+  _addr = AGEN_D(USG, _base, _index, ULIT, UIMMD);      \
   \
   _res = READ_BYTE(_addr, _fault);          \
   if (_fault != md_fault_none)          \
@@ -16647,13 +16672,12 @@ CONNECT(FISTP_Mq_LINK)
 {                  \
   enum md_fault_type _fault;            \
   word_t _res;              \
-  word_t _base, _index, _seg;            \
+  word_t _base, _index;            \
   md_addr_t _addr;              \
   \
   _base = GPR_W(URS);              \
   _index = GPR_W(URT);            \
-  _seg = (USG != SEG_DEF) ? SEG_W(USG) : 0;                    \
-  _addr = AGEN_W(_seg, _base, _index, ULIT, UIMMW);      \
+  _addr = AGEN_W(USG, _base, _index, ULIT, UIMMW);      \
   \
   _res = READ_WORD(_addr, _fault);          \
   if (_fault != md_fault_none)          \
@@ -16671,13 +16695,12 @@ CONNECT(FISTP_Mq_LINK)
 {                  \
   enum md_fault_type _fault;            \
   word_t _res;              \
-  dword_t _base, _index, _seg;            \
+  dword_t _base, _index;            \
   md_addr_t _addr;              \
   \
   _base = GPR_D(URS);              \
   _index = GPR_D(URT);            \
-  _seg = (USG != SEG_DEF) ? SEG_W(USG) : 0;                    \
-  _addr = AGEN_D(_seg, _base, _index, ULIT, UIMMD);      \
+  _addr = AGEN_D(USG, _base, _index, ULIT, UIMMD);      \
   \
   _res = READ_WORD(_addr, _fault);          \
   if (_fault != md_fault_none)          \
@@ -16697,13 +16720,12 @@ CONNECT(FISTP_Mq_LINK)
   enum md_fault_type _fault;            \
   word_t _res;              \
   dword_t _orig = GPR_D(URD);             \
-  word_t _base, _index, _seg;            \
+  word_t _base, _index;            \
   md_addr_t _addr;              \
   \
   _base = GPR_W(URS);              \
   _index = GPR_W(URT);            \
-  _seg = (USG != SEG_DEF) ? SEG_W(USG) : 0;                    \
-  _addr = AGEN_W(_seg, _base, _index, ULIT, UIMMW);      \
+  _addr = AGEN_W(USG, _base, _index, ULIT, UIMMW);      \
   \
   _res = READ_WORD(_addr, _fault);          \
   if (_fault != md_fault_none)          \
@@ -16722,13 +16744,12 @@ CONNECT(FISTP_Mq_LINK)
 {                  \
   enum md_fault_type _fault;            \
   word_t _res;              \
-  dword_t _base, _index, _seg;            \
+  dword_t _base, _index;            \
   md_addr_t _addr;              \
   \
   _base = GPR_D(URS);              \
   _index = GPR_D(URT);            \
-  _seg = (USG != SEG_DEF) ? SEG_W(USG) : 0;                    \
-  _addr = AGEN_D(_seg, _base, _index, ULIT, UIMMD);      \
+  _addr = AGEN_D(USG, _base, _index, ULIT, UIMMD);      \
   \
   _res = READ_WORD(_addr, _fault);          \
   if (_fault != md_fault_none)          \
@@ -16785,13 +16806,12 @@ CONNECT(FISTP_Mq_LINK)
 {                  \
   enum md_fault_type _fault;            \
   dword_t _res;              \
-  word_t _base, _index, _seg;            \
+  word_t _base, _index;            \
   md_addr_t _addr;              \
   \
   _base = GPR_W(URS);              \
   _index = GPR_W(URT);            \
-  _seg = (USG != SEG_DEF) ? SEG_W(USG) : 0;                    \
-  _addr = AGEN_W(_seg, _base, _index, ULIT, UIMMW);      \
+  _addr = AGEN_W(USG, _base, _index, ULIT, UIMMW);      \
   \
   _res = READ_DWORD(_addr, _fault);          \
   if (_fault != md_fault_none)          \
@@ -16809,13 +16829,12 @@ CONNECT(FISTP_Mq_LINK)
 {                  \
   enum md_fault_type _fault;            \
   dword_t _res;              \
-  dword_t _base, _index, _seg;            \
+  dword_t _base, _index;            \
   md_addr_t _addr;              \
   \
   _base = GPR_D(URS);              \
   _index = GPR_D(URT);            \
-  _seg = (USG != SEG_DEF) ? SEG_W(USG) : 0;                    \
-  _addr = AGEN_D(_seg, _base, _index, ULIT, UIMMD);      \
+  _addr = AGEN_D(USG, _base, _index, ULIT, UIMMD);      \
   \
   _res = READ_DWORD(_addr, _fault);          \
   if (_fault != md_fault_none)          \
@@ -16834,13 +16853,12 @@ CONNECT(FISTP_Mq_LINK)
 {                  \
   enum md_fault_type _fault;            \
   dword_t _res;              \
-  word_t _base, _index, _seg;            \
+  word_t _base, _index;            \
   md_addr_t _addr;              \
   \
   _base = GPR_W(URS);              \
   _index = GPR_W(URT);            \
-  _seg = (USG != SEG_DEF) ? SEG_W(USG) : 0;                    \
-  _addr = AGEN_W(_seg, _base, _index, ULIT, UIMMW);      \
+  _addr = AGEN_W(USG, _base, _index, ULIT, UIMMW);      \
   \
   _res = READ_DWORD(_addr, _fault);          \
   if (_fault != md_fault_none)          \
@@ -16858,13 +16876,12 @@ CONNECT(FISTP_Mq_LINK)
 {                  \
   enum md_fault_type _fault;            \
   dword_t _res;              \
-  dword_t _base, _index, _seg;            \
+  dword_t _base, _index;            \
   md_addr_t _addr;              \
   \
   _base = GPR_D(URS);              \
   _index = GPR_D(URT);            \
-  _seg = (USG != SEG_DEF) ? SEG_W(USG) : 0;                    \
-  _addr = AGEN_D(_seg, _base, _index, ULIT, UIMMD);      \
+  _addr = AGEN_D(USG, _base, _index, ULIT, UIMMD);      \
   \
   _res = READ_DWORD(_addr, _fault);          \
   if (_fault != md_fault_none)          \
@@ -16921,13 +16938,12 @@ CONNECT(FISTP_Mq_LINK)
 {                  \
   enum md_fault_type _fault;            \
   dword_t _res;              \
-  word_t _base, _index, _seg;            \
+  word_t _base, _index;            \
   md_addr_t _addr;              \
   \
   _base = GPR_W(URS);              \
   _index = GPR_W(URT);            \
-  _seg = (USG != SEG_DEF) ? SEG_W(USG) : 0;                    \
-  _addr = AGEN_W(_seg, _base, _index, ULIT, UIMMW);      \
+  _addr = AGEN_W(USG, _base, _index, ULIT, UIMMW);      \
   \
   _res = READ_WORD(_addr, _fault);          \
   if (_fault != md_fault_none)          \
@@ -16946,13 +16962,12 @@ CONNECT(FISTP_Mq_LINK)
 {                  \
   enum md_fault_type _fault;            \
   dword_t _res;              \
-  dword_t _base, _index, _seg;            \
+  dword_t _base, _index;            \
   md_addr_t _addr;              \
   \
   _base = GPR_D(URS);              \
   _index = GPR_D(URT);            \
-  _seg = (USG != SEG_DEF) ? SEG_W(USG) : 0;                    \
-  _addr = AGEN_D(_seg, _base, _index, ULIT, UIMMD);      \
+  _addr = AGEN_D(USG, _base, _index, ULIT, UIMMD);      \
   \
   _res = READ_WORD(_addr, _fault);          \
   if (_fault != md_fault_none)          \
@@ -16990,13 +17005,12 @@ CONNECT(FISTP_Mq_LINK)
 {                  \
   enum md_fault_type _fault;            \
   dword_t _res;              \
-  word_t _base, _index, _seg;            \
+  word_t _base, _index;            \
   md_addr_t _addr;              \
   \
   _base = GPR_W(URS);              \
   _index = GPR_W(URT);            \
-  _seg = (USG != SEG_DEF) ? SEG_W(USG) : 0;                    \
-  _addr = AGEN_W(_seg, _base, _index, ULIT, UIMMW);      \
+  _addr = AGEN_W(USG, _base, _index, ULIT, UIMMW);      \
   \
   _res = READ_DWORD(_addr, _fault);          \
   if (_fault != md_fault_none)          \
@@ -17015,13 +17029,12 @@ CONNECT(FISTP_Mq_LINK)
 {                  \
   enum md_fault_type _fault;            \
   dword_t _res;              \
-  dword_t _base, _index, _seg;            \
+  dword_t _base, _index;            \
   md_addr_t _addr;              \
   \
   _base = GPR_D(URS);              \
   _index = GPR_D(URT);            \
-  _seg = (USG != SEG_DEF) ? SEG_W(USG) : 0;                    \
-  _addr = AGEN_D(_seg, _base, _index, ULIT, UIMMD);      \
+  _addr = AGEN_D(USG, _base, _index, ULIT, UIMMD);      \
   \
   _res = READ_DWORD(_addr, _fault);          \
   if (_fault != md_fault_none)          \
@@ -18007,13 +18020,12 @@ CONNECT(FISTP_Mq_LINK)
 {                  \
   enum md_fault_type _fault;            \
   efloat_t _res;              \
-  word_t _base, _index, _seg;            \
+  word_t _base, _index;            \
   md_addr_t _addr;              \
   \
   _base = GPR_W(URS);              \
   _index = GPR_W(URT);            \
-  _seg = (USG != SEG_DEF) ? SEG_W(USG) : 0;                    \
-  _addr = AGEN_W(_seg, _base, _index, ULIT, UIMMW);      \
+  _addr = AGEN_W(USG, _base, _index, ULIT, UIMMW);      \
   \
   _res = READ_S2E(_addr, _fault);          \
   if (_fault != md_fault_none)          \
@@ -18032,13 +18044,12 @@ CONNECT(FISTP_Mq_LINK)
 {                  \
   enum md_fault_type _fault;            \
   efloat_t _res;              \
-  dword_t _base, _index, _seg;            \
+  dword_t _base, _index;            \
   md_addr_t _addr;              \
   \
   _base = GPR_D(URS);              \
   _index = GPR_D(URT);            \
-  _seg = (USG != SEG_DEF) ? SEG_W(USG) : 0;                    \
-  _addr = AGEN_D(_seg, _base, _index, ULIT, UIMMD);      \
+  _addr = AGEN_D(USG, _base, _index, ULIT, UIMMD);      \
   \
   _res = READ_S2E(_addr, _fault);          \
   if (_fault != md_fault_none)          \
@@ -18077,13 +18088,12 @@ CONNECT(FISTP_Mq_LINK)
 {                  \
   enum md_fault_type _fault;            \
   efloat_t _res;              \
-  word_t _base, _index, _seg;            \
+  word_t _base, _index;            \
   md_addr_t _addr;              \
   \
   _base = GPR_W(URS);              \
   _index = GPR_W(URT);            \
-  _seg = (USG != SEG_DEF) ? SEG_W(USG) : 0;                    \
-  _addr = AGEN_W(_seg, _base, _index, ULIT, UIMMW);      \
+  _addr = AGEN_W(USG, _base, _index, ULIT, UIMMW);      \
   \
   _res = READ_T2E(_addr, _fault);          \
   if (_fault != md_fault_none)          \
@@ -18102,13 +18112,12 @@ CONNECT(FISTP_Mq_LINK)
 {                  \
   enum md_fault_type _fault;            \
   efloat_t _res;              \
-  dword_t _base, _index, _seg;            \
+  dword_t _base, _index;            \
   md_addr_t _addr;              \
   \
   _base = GPR_D(URS);              \
   _index = GPR_D(URT);            \
-  _seg = (USG != SEG_DEF) ? SEG_W(USG) : 0;                    \
-  _addr = AGEN_D(_seg, _base, _index, ULIT, UIMMD);      \
+  _addr = AGEN_D(USG, _base, _index, ULIT, UIMMD);      \
   \
   _res = READ_T2E(_addr, _fault);          \
   if (_fault != md_fault_none)          \
@@ -18147,13 +18156,12 @@ CONNECT(FISTP_Mq_LINK)
 {                  \
   enum md_fault_type _fault;            \
   efloat_t _res;              \
-  word_t _base, _index, _seg;            \
+  word_t _base, _index;            \
   md_addr_t _addr;              \
   \
   _base = GPR_W(URS);              \
   _index = GPR_W(URT);            \
-  _seg = (USG != SEG_DEF) ? SEG_W(USG) : 0;                    \
-  _addr = AGEN_W(_seg, _base, _index, ULIT, UIMMW);      \
+  _addr = AGEN_W(USG, _base, _index, ULIT, UIMMW);      \
   \
   _res = READ_W2E(_addr, _fault);          \
   if (_fault != md_fault_none)          \
@@ -18172,13 +18180,12 @@ CONNECT(FISTP_Mq_LINK)
 {                  \
   enum md_fault_type _fault;            \
   efloat_t _res;              \
-  dword_t _base, _index, _seg;            \
+  dword_t _base, _index;            \
   md_addr_t _addr;              \
   \
   _base = GPR_D(URS);              \
   _index = GPR_D(URT);            \
-  _seg = (USG != SEG_DEF) ? SEG_W(USG) : 0;                    \
-  _addr = AGEN_D(_seg, _base, _index, ULIT, UIMMD);      \
+  _addr = AGEN_D(USG, _base, _index, ULIT, UIMMD);      \
   \
   _res = READ_W2E(_addr, _fault);          \
   if (_fault != md_fault_none)          \
@@ -18217,13 +18224,12 @@ CONNECT(FISTP_Mq_LINK)
 {                  \
   enum md_fault_type _fault;            \
   efloat_t _res;              \
-  word_t _base, _index, _seg;            \
+  word_t _base, _index;            \
   md_addr_t _addr;              \
   \
   _base = GPR_W(URS);              \
   _index = GPR_W(URT);            \
-  _seg = (USG != SEG_DEF) ? SEG_W(USG) : 0;                    \
-  _addr = AGEN_W(_seg, _base, _index, ULIT, UIMMW);      \
+  _addr = AGEN_W(USG, _base, _index, ULIT, UIMMW);      \
   \
   _res = READ_D2E(_addr, _fault);          \
   if (_fault != md_fault_none)          \
@@ -18242,13 +18248,12 @@ CONNECT(FISTP_Mq_LINK)
 {                  \
   enum md_fault_type _fault;            \
   efloat_t _res;              \
-  dword_t _base, _index, _seg;            \
+  dword_t _base, _index;            \
   md_addr_t _addr;              \
   \
   _base = GPR_D(URS);              \
   _index = GPR_D(URT);            \
-  _seg = (USG != SEG_DEF) ? SEG_W(USG) : 0;                    \
-  _addr = AGEN_D(_seg, _base, _index, ULIT, UIMMD);      \
+  _addr = AGEN_D(USG, _base, _index, ULIT, UIMMD);      \
   \
   _res = READ_D2E(_addr, _fault);          \
   if (_fault != md_fault_none)          \
@@ -18287,13 +18292,12 @@ CONNECT(FISTP_Mq_LINK)
 {                  \
   enum md_fault_type _fault;            \
   efloat_t _res;              \
-  word_t _base, _index, _seg;            \
+  word_t _base, _index;            \
   md_addr_t _addr;              \
   \
   _base = GPR_W(URS);              \
   _index = GPR_W(URT);            \
-  _seg = (USG != SEG_DEF) ? SEG_W(USG) : 0;                    \
-  _addr = AGEN_W(_seg, _base, _index, ULIT, UIMMW);      \
+  _addr = AGEN_W(USG, _base, _index, ULIT, UIMMW);      \
   \
   _res = READ_Q2E(_addr, _fault);          \
   if (_fault != md_fault_none)          \
@@ -18312,13 +18316,12 @@ CONNECT(FISTP_Mq_LINK)
 {                  \
   enum md_fault_type _fault;            \
   efloat_t _res;              \
-  dword_t _base, _index, _seg;            \
+  dword_t _base, _index;            \
   md_addr_t _addr;              \
   \
   _base = GPR_D(URS);              \
   _index = GPR_D(URT);            \
-  _seg = (USG != SEG_DEF) ? SEG_W(USG) : 0;                    \
-  _addr = AGEN_D(_seg, _base, _index, ULIT, UIMMD);      \
+  _addr = AGEN_D(USG, _base, _index, ULIT, UIMMD);      \
   \
   _res = READ_Q2E(_addr, _fault);          \
   if (_fault != md_fault_none)          \
@@ -18359,13 +18362,12 @@ CONNECT(FISTP_Mq_LINK)
   qword_t _src1;              \
   dword_t _src2;              \
   efloat_t _res;              \
-  word_t _base, _index, _seg;            \
+  word_t _base, _index;            \
   md_addr_t _addr;              \
   \
   _base = GPR_W(URS);              \
   _index = GPR_W(URT);            \
-  _seg = (USG != SEG_DEF) ? SEG_W(USG) : 0;                    \
-  _addr = AGEN_W(_seg, _base, _index, ULIT, UIMMW);      \
+  _addr = AGEN_W(USG, _base, _index, ULIT, UIMMW);      \
   \
   _src1 = READ_QWORD(_addr, _fault);          \
   if (_fault != md_fault_none)          \
@@ -18390,13 +18392,12 @@ CONNECT(FISTP_Mq_LINK)
   qword_t _src1;              \
   dword_t _src2;              \
   efloat_t _res;              \
-  dword_t _base, _index, _seg;            \
+  dword_t _base, _index;            \
   md_addr_t _addr;              \
   \
   _base = GPR_D(URS);              \
   _index = GPR_D(URT);            \
-  _seg = (USG != SEG_DEF) ? SEG_W(USG) : 0;                    \
-  _addr = AGEN_D(_seg, _base, _index, ULIT, UIMMD);      \
+  _addr = AGEN_D(USG, _base, _index, ULIT, UIMMD);      \
   \
   _src1 = READ_QWORD(_addr, _fault);          \
   if (_fault != md_fault_none)          \
@@ -18459,14 +18460,13 @@ CONNECT(FISTP_Mq_LINK)
 
 #define FLDCWW_IMPL              \
 {                  \
-  word_t _base, _index, _seg, _res;            \
+  word_t _base, _index, _res;            \
   md_addr_t _addr;              \
   enum md_fault_type _fault;            \
   \
   _base = GPR_W(URS);              \
   _index = GPR_W(URT);            \
-  _seg = (USG != SEG_DEF) ? SEG_W(USG) : 0;                    \
-  _addr = AGEN_A(_seg, _base, _index, ULIT, UIMMW);      \
+  _addr = AGEN_A(USG, _base, _index, ULIT, UIMMW);      \
   \
   _res = READ_WORD(_addr, _fault);          \
   if (_fault != md_fault_none)          \
@@ -18482,14 +18482,13 @@ CONNECT(FISTP_Mq_LINK)
 
 #define FLDCDW_IMPL              \
 {                  \
-  dword_t _base, _index, _seg, _res;            \
+  dword_t _base, _index, _res;            \
   md_addr_t _addr;              \
   enum md_fault_type _fault;            \
   \
   _base = GPR_D(URS);              \
   _index = GPR_D(URT);            \
-  _seg = (USG != SEG_DEF) ? SEG_W(USG) : 0;                    \
-  _addr = AGEN_D(_seg, _base, _index, ULIT, UIMMD);      \
+  _addr = AGEN_D(USG, _base, _index, ULIT, UIMMD);      \
   \
   _res = READ_WORD(_addr, _fault);          \
   if (_fault != md_fault_none)          \

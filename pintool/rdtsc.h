@@ -1,6 +1,10 @@
 #ifndef __RDTSC_H__
 #define __RDTSC_H__
 
+/* 
+ * Helper for pin-based zesto feeder.
+ * Copyright, Svilen Kanev, 2011
+ */
 
 // Helper function: Execute an rdtsc from tool to get current tsc (works fine because tsc is shared for the machine)
 __inline__ uint64_t rdtsc() 

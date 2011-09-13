@@ -150,6 +150,7 @@
 #include "zesto-uncore.h"
 #include "zesto-MC.h"
 
+ 
 /* architected state */
 struct thread_t ** threads = NULL;
 
@@ -174,7 +175,7 @@ sim_pre_init(void)
   memzero(&knobs,sizeof(knobs));
 
   /* set default parameters */
-  knobs.model = "DPM";
+  knobs.model = "IO-DPM";
 
   knobs.memory.IL1PF_opt_str[0] = "nextline";
   knobs.memory.IL1_num_PF = 1;
@@ -587,7 +588,7 @@ static inline void SYMCAT(OP,_IMPL_FUNC)(struct thread_t * thread, struct Mop_t 
 #undef DECLARE_FAULT
 
 void
-sim_fastfwd(struct core_t ** cores, const int insn_count)
+sim_fastfwd(struct core_t ** cores, const long long insn_count)
 {
   md_addr_t addr = 0;
   struct thread_t * thread = NULL;
@@ -598,9 +599,9 @@ sim_fastfwd(struct core_t ** cores, const int insn_count)
 
   memzero(Mop,sizeof(*Mop));
   if(num_threads > 1)
-    fprintf(stderr, "### fast forwarding %u instructions per thread, for all %d threads", insn_count,num_threads);
+    fprintf(stderr, "### fast forwarding %lld instructions per thread, for all %d threads", insn_count,num_threads);
   else
-    fprintf(stderr, "### fast forwarding %u instructions", insn_count);
+    fprintf(stderr, "### fast forwarding %lld instructions", insn_count);
   if(knobs.memory.warm_caches || knobs.fetch.warm_bpred)
   {
     fprintf(stderr,": warming ");
@@ -613,7 +614,7 @@ sim_fastfwd(struct core_t ** cores, const int insn_count)
   }
   fprintf(stderr,"\n");
 
-  for(int i=0;i<insn_count;i++)
+  for(long long i=0;i<insn_count;i++)
   {
     for(int t=0;t<num_threads;t++)
     {
@@ -791,6 +792,7 @@ exec_rep_again:
         core->fetch->bpred->update(Mop->fetch.bpred_update,
                                    Mop->decode.opflags,
                                    Mop->fetch.PC,
+                                   Mop->fetch.PC + Mop->fetch.inst.len,
                                    Mop->decode.targetPC,
                                    Mop->oracle.NextPC,
                                    (Mop->oracle.NextPC != (Mop->fetch.PC + Mop->fetch.inst.len)));
@@ -997,7 +999,7 @@ sim_main(void)
       step_core_PF_controllers(cores[i]);
 
     for(i=0;i<num_threads;i++)
-      cores[i]->commit->step();
+      cores[i]->commit->IO_step(); /* IO cores only */ //UGLY UGLY UGLY
 
     /* all memory processed here */
     for(i=0;i<num_threads;i++)
@@ -1006,14 +1008,25 @@ sim_main(void)
          doesn't get continual priority over the others for L2 access */
       cores[mod2m(start_pos+i,num_threads)]->exec->LDST_exec();
     }
-    for(i=0;i<num_threads;i++)
-      cores[i]->exec->ALU_exec();
 
     for(i=0;i<num_threads;i++)
-      cores[i]->exec->LDQ_schedule();
+      cores[i]->commit->step();  /* OoO cores only */
+
     for(i=0;i<num_threads;i++)
-      cores[i]->exec->RS_schedule();
-    
+      cores[i]->commit->pre_commit_step(); /* IO cores only */
+ 
+    for(i=0;i<num_threads;i++)
+    {
+      cores[i]->exec->step();     /* IO cores only */
+      cores[i]->exec->ALU_exec(); /* OoO cores only */
+    }
+ 
+    for(i=0;i<num_threads;i++)
+      cores[i]->exec->LDQ_schedule();
+
+    for(i=0;i<num_threads;i++)
+      cores[i]->exec->RS_schedule();  /* OoO cores only */
+
     for(i=0;i<num_threads;i++)
       cores[i]->alloc->step();
 

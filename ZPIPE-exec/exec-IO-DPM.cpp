@@ -1,15 +1,27 @@
-/* exec-DPM.cpp - Detailed Pipeline Model */
+/* exec-IO-DPM.cpp - Detailed In-Order Pipeline Model */
 /*
- * __COPYRIGHT__ GT
+ * Derived from Zesto OO model
+ * Svilen Kanev, 2011
  */
 
 
+/* NOTE: For compatibility and interchargability between the IO and OO models 
+         some structure names are inconsistent with their purpose in an IO pipe.
+         Here, portX.payload_pipe is in fact the issue pipe;
+               the LDQ and STQ are small buffers and not the big structures of an OO core;
+               reservation station (RS) functions are stubs.
+               the readyQ is a also a stub and not used.
+*/
+
 #ifdef ZESTO_PARSE_ARGS
-  if(!strcasecmp(exec_opt_string,"DPM"))
-    return new core_exec_DPM_t(core);
+  if(!strcasecmp(exec_opt_string,"IO-DPM"))
+    return new core_exec_IO_DPM_t(core);
 #else
 
-class core_exec_DPM_t:public core_exec_t
+#include <list>
+using namespace std;
+
+class core_exec_IO_DPM_t:public core_exec_t
 {
   /* readyQ for scheduling */
   struct readyQ_node_t {
@@ -40,7 +52,7 @@ class core_exec_DPM_t:public core_exec_t
 
   public:
 
-  core_exec_DPM_t(struct core_t * const core);
+  core_exec_IO_DPM_t(struct core_t * const core);
   virtual void reg_stats(struct stat_sdb_t * const sdb);
   virtual void freeze_stats(void);
   virtual void update_occupancy(void);
@@ -85,6 +97,7 @@ class core_exec_DPM_t:public core_exec_t
   virtual bool port_available(int port_ind);
   virtual bool exec_fused_ST(struct uop_t * const uop);
 
+
   protected:
   struct readyQ_node_t * readyQ_free_pool; /* for scheduling readyQ's */
 #ifdef DEBUG
@@ -114,6 +127,7 @@ class core_exec_DPM_t:public core_exec_t
   int LDQ_head;
   int LDQ_tail;
   int LDQ_num;
+
 
   struct STQ_t {
     struct uop_t * sta;
@@ -153,6 +167,9 @@ class core_exec_DPM_t:public core_exec_t
                                 could happen due to insts with different latencies */
     int num_FU_types; /* the number of FU's bound to this port */
     enum md_fu_class * FU_types; /* the corresponding types of those FUs */
+    tick_t when_stalled; /* to make sure stalled uops don't execute more than once */
+
+    counter_t issue_occupancy;
   } * port;
   bool check_for_work; /* used to skip ALU exec when there's no uops */
 
@@ -167,6 +184,11 @@ class core_exec_DPM_t:public core_exec_t
   void snatch_back(struct uop_t * const replayed_uop);
 
   void load_writeback(struct uop_t * const uop);
+
+  bool can_issue_IO(struct uop_t * const uop);
+
+
+  void dump_payload();
 
   /* callbacks need to be static */
   static void DL1_callback(void * const op);
@@ -188,7 +210,7 @@ class core_exec_DPM_t:public core_exec_t
 /* SETUP FUNCTIONS */
 /*******************/
 
-core_exec_DPM_t::core_exec_DPM_t(struct core_t * const arg_core):
+core_exec_IO_DPM_t::core_exec_IO_DPM_t(struct core_t * const arg_core):
   readyQ_free_pool(NULL),
 #ifdef DEBUG
   readyQ_free_pool_debt(0),
@@ -204,11 +226,11 @@ core_exec_DPM_t::core_exec_DPM_t(struct core_t * const arg_core):
   if(!RS)
     fatal("couldn't calloc RS");
 
-  LDQ = (core_exec_DPM_t::LDQ_t*) calloc(knobs->exec.LDQ_size,sizeof(*LDQ));
+  LDQ = (core_exec_IO_DPM_t::LDQ_t*) calloc(knobs->exec.LDQ_size,sizeof(*LDQ));
   if(!LDQ)
     fatal("couldn't calloc LDQ");
 
-  STQ = (core_exec_DPM_t::STQ_t*) calloc(knobs->exec.STQ_size,sizeof(*STQ));
+  STQ = (core_exec_IO_DPM_t::STQ_t*) calloc(knobs->exec.STQ_size,sizeof(*STQ));
   if(!STQ)
     fatal("couldn't calloc STQ");
 
@@ -405,7 +427,7 @@ core_exec_DPM_t::core_exec_DPM_t(struct core_t * const arg_core):
   /************************************/
   /* execution port payload pipelines */
   /************************************/
-  port = (core_exec_DPM_t::exec_port_t*) calloc(knobs->exec.num_exec_ports,sizeof(*port));
+  port = (core_exec_IO_DPM_t::exec_port_t*) calloc(knobs->exec.num_exec_ports,sizeof(*port));
   if(!port)
     fatal("couldn't calloc exec ports");
   for(i=0;i<knobs->exec.num_exec_ports;i++)
@@ -493,7 +515,7 @@ core_exec_DPM_t::core_exec_DPM_t(struct core_t * const arg_core):
 }
 
 void
-core_exec_DPM_t::reg_stats(struct stat_sdb_t * const sdb)
+core_exec_IO_DPM_t::reg_stats(struct stat_sdb_t * const sdb)
 {
   char buf[1024];
   char buf2[1024];
@@ -519,7 +541,7 @@ core_exec_DPM_t::reg_stats(struct stat_sdb_t * const sdb)
   stat_reg_counter(sdb, true, buf, "number of branch mispredictions", &core->stat.num_jeclear, 0, TRUE, NULL);
   sprintf(buf,"c%d.num_wp_jeclear",arch->id);
   stat_reg_counter(sdb, true, buf, "number of branch mispredictions in the shadow of an earlier mispred", &core->stat.num_wp_jeclear, 0, TRUE, NULL);
-  sprintf(buf,"c%d.load_nukes", arch->id);
+  sprintf(buf,"c%d.load_nukes",arch->id);
   stat_reg_counter(sdb, true, buf, "num pipeflushes due to load-store order violation", &core->stat.load_nukes, 0, TRUE, NULL);
   sprintf(buf,"c%d.wp_load_nukes",arch->id);
   stat_reg_counter(sdb, true, buf, "num pipeflushes due to load-store order violation on wrong-path", &core->stat.wp_load_nukes, 0, TRUE, NULL);
@@ -528,27 +550,6 @@ core_exec_DPM_t::reg_stats(struct stat_sdb_t * const sdb)
   sprintf(buf,"c%d.DL1_load_split_frac",arch->id);
   sprintf(buf2,"c%d.DL1_load_split_accesses/(c%d.DL1.load_lookups-c%d.DL1_load_split_accesses)",arch->id,arch->id,arch->id); /* need to subtract since each split access generated two load accesses */
   stat_reg_formula(sdb, true, buf, "fraction of loads requiring split accesses", buf2, NULL);
-
-  sprintf(buf,"c%d.RS_occupancy",arch->id);
-  stat_reg_counter(sdb, false, buf, "total RS occupancy", &core->stat.RS_occupancy, 0, TRUE, NULL);
-  sprintf(buf,"c%d.RS_eff_occupancy",arch->id);
-  stat_reg_counter(sdb, false, buf, "total RS effective occupancy", &core->stat.RS_eff_occupancy, 0, TRUE, NULL);
-  sprintf(buf,"c%d.RS_empty",arch->id);
-  stat_reg_counter(sdb, false, buf, "total cycles RS was empty", &core->stat.RS_empty_cycles, 0, TRUE, NULL);
-  sprintf(buf,"c%d.RS_full",arch->id);
-  stat_reg_counter(sdb, false, buf, "total cycles RS was full", &core->stat.RS_full_cycles, 0, TRUE, NULL);
-  sprintf(buf,"c%d.RS_avg",arch->id);
-  sprintf(buf2,"c%d.RS_occupancy/c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "average RS occupancy", buf2, NULL);
-  sprintf(buf,"c%d.RS_eff_avg",arch->id);
-  sprintf(buf2,"c%d.RS_eff_occupancy/c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "effective average RS occupancy", buf2, NULL);
-  sprintf(buf,"c%d.RS_frac_empty",arch->id);
-  sprintf(buf2,"c%d.RS_empty/c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "fraction of cycles RS was empty", buf2, NULL);
-  sprintf(buf,"c%d.RS_frac_full",arch->id);
-  sprintf(buf2,"c%d.RS_full/c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "fraction of cycles RS was full", buf2, NULL);
 
   sprintf(buf,"c%d.LDQ_occupancy",arch->id);
   stat_reg_counter(sdb, true, buf, "total LDQ occupancy", &core->stat.LDQ_occupancy, 0, TRUE, NULL);
@@ -582,6 +583,16 @@ core_exec_DPM_t::reg_stats(struct stat_sdb_t * const sdb)
   sprintf(buf2,"c%d.STQ_full/c%d.sim_cycle",arch->id,arch->id);
   stat_reg_formula(sdb, true, buf, "fraction of cycles STQ was full", buf2, NULL);
 
+
+  for(int i=0; i<core->knobs->exec.num_exec_ports;i++)
+  {
+    sprintf(buf,"c%d.port%d_issue_occupancy",arch->id, i);
+    stat_reg_counter(sdb, true, buf, "total issue occupancy", &port[i].issue_occupancy, 0, TRUE, NULL);
+    sprintf(buf, "c%d.port%d_occ_avg",arch->id, i);
+    sprintf(buf2,"c%d.port%d_issue_occupancy/c%d.sim_cycle",arch->id,i,arch->id);
+    stat_reg_formula(sdb, true, buf, "average issue occupancy", buf2, NULL);
+  }
+
   memdep->reg_stats(sdb, core);
 
   stat_reg_note(sdb,"\n#### DATA CACHE STATS ####");
@@ -593,12 +604,12 @@ core_exec_DPM_t::reg_stats(struct stat_sdb_t * const sdb)
     cache_reg_stats(sdb, core, core->memory.DL2);
 }
 
-void core_exec_DPM_t::freeze_stats(void)
+void core_exec_IO_DPM_t::freeze_stats(void)
 {
   memdep->freeze_stats();
 }
 
-void core_exec_DPM_t::update_occupancy(void)
+void core_exec_IO_DPM_t::update_occupancy(void)
 {
     /* RS */
   core->stat.RS_occupancy += RS_num;
@@ -621,13 +632,17 @@ void core_exec_DPM_t::update_occupancy(void)
     core->stat.STQ_full_cycles++;
   if(STQ_num <= 0)
     core->stat.STQ_empty_cycles++;
+
+  for(int i=0; i<core->knobs->exec.num_exec_ports; i++)
+    port[i].issue_occupancy += port[i].occupancy;
 }
 
-void core_exec_DPM_t::reset_execution(void)
+void core_exec_IO_DPM_t::reset_execution(void)
 {
   struct core_knobs_t * knobs = core->knobs;
   for(int i=0; i<knobs->exec.num_exec_ports; i++)
   {
+    port[i].when_stalled = 0;
     port[i].when_bypass_used = 0;
 
     for(int j=0; j<NUM_FU_CLASSES; j++)
@@ -646,7 +661,7 @@ void core_exec_DPM_t::reset_execution(void)
    necessarily executed).  However, that doesn't necessarily mean that the
    corresponding input *values* are "ready" due to non-zero schedule-to-
    execute latencies. */
-core_exec_DPM_t::readyQ_node_t * core_exec_DPM_t::get_readyQ_node(void)
+core_exec_IO_DPM_t::readyQ_node_t * core_exec_IO_DPM_t::get_readyQ_node(void)
 {
   struct readyQ_node_t * p = NULL;
   if(readyQ_free_pool)
@@ -669,7 +684,7 @@ core_exec_DPM_t::readyQ_node_t * core_exec_DPM_t::get_readyQ_node(void)
   return p;
 }
 
-void core_exec_DPM_t::return_readyQ_node(struct readyQ_node_t * const p)
+void core_exec_IO_DPM_t::return_readyQ_node(struct readyQ_node_t * const p)
 {
   assert(p);
   assert(p->uop);
@@ -684,7 +699,7 @@ void core_exec_DPM_t::return_readyQ_node(struct readyQ_node_t * const p)
 
 /* Add the uop to the corresponding readyQ (based on port binding - we maintain
    one readyQ per execution port) */
-void core_exec_DPM_t::insert_ready_uop(struct uop_t * const uop)
+void core_exec_IO_DPM_t::insert_ready_uop(struct uop_t * const uop)
 {
   struct core_knobs_t * knobs = core->knobs;
   zesto_assert((uop->alloc.port_assignment >= 0) && (uop->alloc.port_assignment < knobs->exec.num_exec_ports),(void)0);
@@ -732,124 +747,13 @@ void core_exec_DPM_t::insert_ready_uop(struct uop_t * const uop)
 /* MAIN SCHED/EXEC FUNCTIONS */
 /*****************************/
 
-void core_exec_DPM_t::RS_schedule(void) /* for uops in the RS */
+void core_exec_IO_DPM_t::RS_schedule(void) /* for uops in the RS */
 {
-  struct core_knobs_t * knobs = core->knobs;
-  int i;
-
-  /* select/pick from ready instructions and send to exec ports */
-  for(i=0;i<knobs->exec.num_exec_ports;i++)
-  {
-    struct readyQ_node_t * rq = port[i].readyQ;
-    struct readyQ_node_t * prev = NULL;
-    int issued = false;
-
-    if(port[i].payload_pipe[0].uop == NULL) /* port is free */
-      while(rq) /* if anyone's waiting to issue to this port */
-      {
-        struct uop_t * uop = rq->uop;
-
-#ifdef ZTRACE
-        if(uop->timing.when_ready == sim_cycle)
-          ztrace_print(uop,"e|ready|uop ready for scheduling");
-#endif
-
-        if(uop->exec.action_id != rq->action_id) /* RQ entry has been squashed */
-        {
-          struct readyQ_node_t * next = rq->next;
-          /* remove from readyQ */
-          if(prev)
-            prev->next = next;
-          else
-            port[i].readyQ = next;
-          return_readyQ_node(rq);
-          /* and go on to next node */
-          rq = next;
-        }
-        else if((uop->timing.when_ready <= sim_cycle) &&
-                !issued &&
-                (port[i].FU[uop->decode.FU_class]->when_scheduleable <= sim_cycle) &&
-                ((!uop->decode.in_fusion) || uop->decode.fusion_head->alloc.full_fusion_allocated))
-        {
-          zesto_assert(uop->alloc.port_assignment == i,(void)0);
-
-          port[i].payload_pipe[0].uop = uop;
-          port[i].payload_pipe[0].action_id = uop->exec.action_id;
-          port[i].occupancy++;
-          zesto_assert(port[i].occupancy <= knobs->exec.payload_depth,(void)0);
-          uop->timing.when_issued = sim_cycle;
-          check_for_work = true;
-
-#ifdef ZTRACE
-          ztrace_print(uop,"e|RS-issue|uop issued to payload RAM");
-#endif
-
-          if(uop->decode.is_load)
-          {
-            int fp_penalty = REG_IS_FPR(uop->decode.odep_name)?knobs->exec.fp_penalty:0;
-            uop->timing.when_otag_ready = sim_cycle + port[i].FU[uop->decode.FU_class]->latency + core->memory.DL1->latency + fp_penalty;
-          }
-          else
-          {
-            int fp_penalty = ((REG_IS_FPR(uop->decode.odep_name) && !(uop->decode.opflags & F_FCOMP)) ||
-                             (!REG_IS_FPR(uop->decode.odep_name) && (uop->decode.opflags & F_FCOMP)))?knobs->exec.fp_penalty:0;
-            uop->timing.when_otag_ready = sim_cycle + port[i].FU[uop->decode.FU_class]->latency + fp_penalty;
-          }
-
-          port[i].FU[uop->decode.FU_class]->when_scheduleable = sim_cycle + port[i].FU[uop->decode.FU_class]->issue_rate;
-
-          /* tag broadcast to dependents */
-          struct odep_t * odep = uop->exec.odep_uop;
-          while(odep)
-          {
-            int j;
-            tick_t when_ready = 0;
-            odep->uop->timing.when_itag_ready[odep->op_num] = uop->timing.when_otag_ready;
-            for(j=0;j<MAX_IDEPS;j++)
-            {
-              if(when_ready < odep->uop->timing.when_itag_ready[j])
-                when_ready = odep->uop->timing.when_itag_ready[j];
-            }
-            odep->uop->timing.when_ready = when_ready;
-
-            if(when_ready < TICK_T_MAX)
-              insert_ready_uop(odep->uop);
-
-            odep = odep->next;
-          }
-
-          if(uop->decode.is_load)
-          {
-            zesto_assert((uop->alloc.LDQ_index >= 0) && (uop->alloc.LDQ_index < knobs->exec.LDQ_size),(void)0);
-            LDQ[uop->alloc.LDQ_index].speculative_broadcast = true;
-          }
-
-          struct readyQ_node_t * next = rq->next;
-          /* remove from readyQ */
-          if(prev)
-            prev->next = next;
-          else
-            port[i].readyQ = next;
-          return_readyQ_node(rq);
-          uop->exec.in_readyQ = false;
-          ZESTO_STAT(core->stat.exec_uops_issued++;)
-
-          /* only one uop schedules from an issue port per cycle */
-          issued = true;
-          rq = next;
-        }
-        else
-        {
-          /* node valid, but not ready; skip over it */
-          prev = rq;
-          rq = rq->next;
-        }
-      }
-  }
+  /* Compatibility: Simulation can call this */
 }
 
 /* returns true if load is allowed to issue (or is predicted to be ok) */
-bool core_exec_DPM_t::check_load_issue_conditions(const struct uop_t * const uop)
+bool core_exec_IO_DPM_t::check_load_issue_conditions(const struct uop_t * const uop)
 {
   struct core_knobs_t * knobs = core->knobs;
   /* are all previous STA's known? If there's a match, is the STD ready? */
@@ -883,11 +787,14 @@ bool core_exec_DPM_t::check_load_issue_conditions(const struct uop_t * const uop
     
     if(STQ[i].addr_valid)
       st_addr1 = STQ[i].virt_addr; /* addr of first byte */
-    else
+    else if(STQ[i].sta != NULL)
     {
-      zesto_assert(STQ[i].sta,false);
       st_addr1 = STQ[i].sta->oracle.virt_addr; /* addr of first byte */
       sta_unknown = true;
+    } else
+    {
+      num_stores++;
+      continue;
     }
     st_addr2 = st_addr1 + st_mem_size - 1; /* addr of last byte */
 
@@ -948,7 +855,7 @@ bool core_exec_DPM_t::check_load_issue_conditions(const struct uop_t * const uop
 }
 
 /* helper function to remove issued uops after a latency misprediction */
-void core_exec_DPM_t::snatch_back(struct uop_t * const replayed_uop)
+void core_exec_IO_DPM_t::snatch_back(struct uop_t * const replayed_uop)
 {
   struct core_knobs_t * knobs = core->knobs;
   int i;
@@ -1042,7 +949,7 @@ void core_exec_DPM_t::snatch_back(struct uop_t * const replayed_uop)
    all are done do we call the load-writeback function to finish
    off execution of the load. */
 
-void core_exec_DPM_t::load_writeback(struct uop_t * const uop)
+void core_exec_IO_DPM_t::load_writeback(struct uop_t * const uop)
 {
   struct core_knobs_t * knobs = core->knobs;
   zesto_assert((uop->alloc.LDQ_index >= 0) && (uop->alloc.LDQ_index < knobs->exec.LDQ_size),(void)0);
@@ -1099,8 +1006,10 @@ void core_exec_DPM_t::load_writeback(struct uop_t * const uop)
         if(when_ready < TICK_T_MAX)
         {
           odep->uop->timing.when_ready = when_ready;
-          if(!odep->uop->exec.in_readyQ)
-            insert_ready_uop(odep->uop);
+
+//SK - no readyQ
+//          if(!odep->uop->exec.in_readyQ)
+//            insert_ready_uop(odep->uop);
         }
       }
 
@@ -1124,10 +1033,10 @@ void core_exec_DPM_t::load_writeback(struct uop_t * const uop)
 
 /* used for accesses that can be serviced entirely by one cacheline,
    or by the first access of a split-access */
-void core_exec_DPM_t::DL1_callback(void * const op)
+void core_exec_IO_DPM_t::DL1_callback(void * const op)
 {
   struct uop_t * uop = (struct uop_t*) op;
-  class core_exec_DPM_t * E = (core_exec_DPM_t*)uop->core->exec;
+  class core_exec_IO_DPM_t * E = (core_exec_IO_DPM_t*)uop->core->exec;
   if(uop->alloc.LDQ_index != -1)
   {
 #ifdef ZTRACE
@@ -1148,10 +1057,10 @@ void core_exec_DPM_t::DL1_callback(void * const op)
 }
 
 /* used only for the second access of a split access */
-void core_exec_DPM_t::DL1_split_callback(void * const op)
+void core_exec_IO_DPM_t::DL1_split_callback(void * const op)
 {
   struct uop_t * uop = (struct uop_t*) op;
-  class core_exec_DPM_t * E = (core_exec_DPM_t*)uop->core->exec;
+  class core_exec_IO_DPM_t * E = (core_exec_IO_DPM_t*)uop->core->exec;
   if(uop->alloc.LDQ_index != -1)
   {
 #ifdef ZTRACE
@@ -1171,16 +1080,16 @@ void core_exec_DPM_t::DL1_split_callback(void * const op)
   }
 }
 
-void core_exec_DPM_t::DTLB_callback(void * const op)
+void core_exec_IO_DPM_t::DTLB_callback(void * const op)
 {
   struct uop_t * uop = (struct uop_t*) op;
-//#ifndef DEBUG
+#ifndef DEBUG
   struct core_t * core = uop->core;
-//#endif
-  struct core_exec_DPM_t * E = (core_exec_DPM_t*)uop->core->exec;
+#endif
+  struct core_exec_IO_DPM_t * E = (core_exec_IO_DPM_t*)uop->core->exec;
   if(uop->alloc.LDQ_index != -1)
   {
-    zesto_assert(uop->exec.when_addr_translated == TICK_T_MAX,(void)0);
+    assert(uop->exec.when_addr_translated == TICK_T_MAX);
     uop->exec.when_addr_translated = sim_cycle;
 #ifdef ZTRACE
     ztrace_print(uop,"e|load|virtual address translated");
@@ -1194,7 +1103,7 @@ void core_exec_DPM_t::DTLB_callback(void * const op)
 }
 
 /* returns true if TLB translation has completed */
-bool core_exec_DPM_t::translated_callback(void * const op, const seq_t action_id)
+bool core_exec_IO_DPM_t::translated_callback(void * const op, const seq_t action_id)
 {
   struct uop_t * uop = (struct uop_t*) op;
   if((uop->exec.action_id == action_id) && (uop->alloc.LDQ_index != -1))
@@ -1205,7 +1114,7 @@ bool core_exec_DPM_t::translated_callback(void * const op, const seq_t action_id
 
 /* Used by the cache processing functions to recover the id of the
    uop without needing to know about the uop struct. */
-seq_t core_exec_DPM_t::get_uop_action_id(void * const op)
+seq_t core_exec_IO_DPM_t::get_uop_action_id(void * const op)
 {
   struct uop_t const * uop = (struct uop_t*) op;
   return uop->exec.action_id;
@@ -1217,11 +1126,11 @@ seq_t core_exec_DPM_t::get_uop_action_id(void * const op)
    load latency will be longer due to a cache miss).  Uops may be
    speculatively rescheduled based on the next anticipated latency
    (e.g., L2 hit latency). */
-void core_exec_DPM_t::load_miss_reschedule(void * const op, const int new_pred_latency)
-{
+void core_exec_IO_DPM_t::load_miss_reschedule(void * const op, const int new_pred_latency)
+{ 
   struct uop_t * uop = (struct uop_t*) op;
   struct core_t * core = uop->core;
-  struct core_exec_DPM_t * E = (core_exec_DPM_t*)core->exec;
+  struct core_exec_IO_DPM_t * E = (core_exec_IO_DPM_t*)core->exec;
   struct core_knobs_t * knobs = core->knobs;
   zesto_assert(uop->decode.is_load,(void)0);
   zesto_assert((uop->alloc.LDQ_index >= 0) && (uop->alloc.LDQ_index < knobs->exec.LDQ_size),(void)0);
@@ -1243,7 +1152,8 @@ void core_exec_DPM_t::load_miss_reschedule(void * const op, const int new_pred_l
     while(odep)
     {
       odep->uop->timing.when_itag_ready[odep->op_num] = TICK_T_MAX;
-      E->snatch_back(odep->uop);
+//SK - simpler logic - we stall until load ready
+//      E->snatch_back(odep->uop);
 
       odep = odep->next;
     }
@@ -1257,20 +1167,20 @@ void core_exec_DPM_t::load_miss_reschedule(void * const op, const int new_pred_l
     {
       odep->uop->timing.when_itag_ready[odep->op_num] = uop->timing.when_otag_ready;
 
-      /* put back on to readyQ if appropriate */
+      /* put back on to readyQ if appropriate SK - no readyQ */
       int j;
       tick_t when_ready = 0;
-      zesto_assert(!odep->uop->exec.in_readyQ,(void)0);
+//    zesto_assert(!odep->uop->exec.in_readyQ,(void)0);
 
       for(j=0;j<MAX_IDEPS;j++)
         if(when_ready < odep->uop->timing.when_itag_ready[j])
           when_ready = odep->uop->timing.when_itag_ready[j];
 
       odep->uop->timing.when_ready = when_ready;
-      if(when_ready < TICK_T_MAX)
-      {
-        E->insert_ready_uop(odep->uop);
-      }
+//    if(when_ready < TICK_T_MAX)
+//    {
+//      E->insert_ready_uop(odep->uop);
+//    }
 
       odep = odep->next;
     }
@@ -1283,7 +1193,7 @@ void core_exec_DPM_t::load_miss_reschedule(void * const op, const int new_pred_l
 }
 
 /* process loads exiting the STQ search pipeline, update caches */
-void core_exec_DPM_t::LDST_exec(void)
+void core_exec_IO_DPM_t::LDST_exec(void)
 {
   struct core_knobs_t * knobs = core->knobs;
   int i;
@@ -1371,7 +1281,8 @@ void core_exec_DPM_t::LDST_exec(void)
                 int fp_penalty = REG_IS_FPR(uop->decode.odep_name)?knobs->exec.fp_penalty:0;
                 uop->exec.ovalue = STQ[j].value;
                 uop->exec.ovalue_valid = true;
-                uop->exec.action_id = core->new_action_id();
+                //SK - No need to flush here, simply use the found value
+                //uop->exec.action_id = core->new_action_id();
                 zesto_assert(uop->timing.when_completed == TICK_T_MAX,(void)0);
                 uop->timing.when_completed = sim_cycle+fp_penalty;
                 uop->timing.when_exec = sim_cycle+fp_penalty;
@@ -1422,8 +1333,9 @@ void core_exec_DPM_t::LDST_exec(void)
                     if(when_ready < TICK_T_MAX)
                     {
                       odep->uop->timing.when_ready = when_ready;
-                      if(!odep->uop->exec.in_readyQ)
-                        insert_ready_uop(odep->uop);
+//SK - no readyQ
+//                      if(!odep->uop->exec.in_readyQ)
+//                        insert_ready_uop(odep->uop);
                     }
                   }
 
@@ -1460,14 +1372,16 @@ void core_exec_DPM_t::LDST_exec(void)
                     if(odep->uop->timing.when_issued != TICK_T_MAX)
                       ztrace_print(odep->uop,"e|snatch-back|parent STQ data not ready");
 #endif
-                    snatch_back(odep->uop);
+                    //SK - Shouldn't be snatching back anything in an IO pipe
+                    //snatch_back(odep->uop);
 
                     odep = odep->next;
                   }
                   /* clear flag so we don't keep doing this over and over again */
                   LDQ[uop->alloc.LDQ_index].speculative_broadcast = false;
                 }
-                uop->exec.action_id = core->new_action_id();
+                //SK - Don't need to flush uop - we resolve by waiting
+                //uop->exec.action_id = core->new_action_id();
                 LDQ[uop->alloc.LDQ_index].hit_in_STQ = false;
                 LDQ[uop->alloc.LDQ_index].first_byte_requested = false;
                 LDQ[uop->alloc.LDQ_index].last_byte_requested = false;
@@ -1518,13 +1432,15 @@ void core_exec_DPM_t::LDST_exec(void)
                 if(odep->uop->timing.when_issued != TICK_T_MAX)
                   ztrace_print(odep->uop,"e|snatch-back|parent had partial match in STQ");
 #endif
-                snatch_back(odep->uop);
+                //SK - no snatching back of anything in IO
+                //snatch_back(odep->uop);
                 odep = odep->next;
               }
               /* clear flag so we don't keep doing this over and over again */
               LDQ[uop->alloc.LDQ_index].speculative_broadcast = false;
             }
-            uop->exec.action_id = core->new_action_id();
+            //SK - Again, we stall
+            //uop->exec.action_id = core->new_action_id();
 
             /* different from STD-not-ready case above, in the case of a partial match,
                the load may not get woken up by the store (and even if it does, the
@@ -1572,7 +1488,7 @@ void core_exec_DPM_t::LDST_exec(void)
 /* Schedule load uops to execute from the LDQ.  Load execution occurs in a two-step
    process: first the address gets computed (issuing from the RS), and then the
    cache/STQ search occur (issuing from the LDQ). */
-void core_exec_DPM_t::LDQ_schedule(void)
+void core_exec_IO_DPM_t::LDQ_schedule(void)
 {
   struct core_knobs_t * knobs = core->knobs;
   int i;
@@ -1629,13 +1545,17 @@ void core_exec_DPM_t::LDQ_schedule(void)
                        forwarding, and load stalling on earlier partial forwarding cases. */
                     if(odep->uop->timing.when_exec != TICK_T_MAX) /* inst already finished executing */
                     {
+//XXX: this really shouldn't happen; Now, it happens when a load depends on another load because we don't do checking for ivalue readiness before sending a load. We don't do the check because otherwise hell breaks loose. CHECK CHECK CHECK
+
+//                      fatal("Feel like this shouldn't happen for IO pipe");
+ 
                       /* bad mis-scheduling, just flush to recover */
-                      core->oracle->pipe_recover(uop->Mop,uop->Mop->oracle.NextPC);
-                      ZESTO_STAT(core->stat.num_jeclear++;)
-                      if(uop->Mop->oracle.spec_mode)
-                        ZESTO_STAT(core->stat.num_wp_jeclear++;)
+//                      core->oracle->pipe_recover(uop->Mop,uop->Mop->oracle.NextPC);
+//                      ZESTO_STAT(core->stat.num_jeclear++;)
+//                      if(uop->Mop->oracle.spec_mode)
+//                        ZESTO_STAT(core->stat.num_wp_jeclear++;)
 #ifdef ZTRACE
-          ztrace_print(uop,"e|jeclear|UNEXPECTED flush");
+//          ztrace_print(uop,"e|jeclear|UNEXPECTED flush");
 #endif
                     }
                     else
@@ -1657,8 +1577,9 @@ void core_exec_DPM_t::LDQ_schedule(void)
                            it has more than one input replayed on the same cycle, then the
                            first inst to replay will have already placed the odep into
                            the readyq. */
-                        if(!odep->uop->exec.in_readyQ)
-                          insert_ready_uop(odep->uop);
+//SK - no readyQ
+//                        if(!odep->uop->exec.in_readyQ)
+//                          insert_ready_uop(odep->uop);
                       }
                     }
 
@@ -1705,7 +1626,7 @@ void core_exec_DPM_t::LDQ_schedule(void)
                 if(odep->uop->timing.when_issued != TICK_T_MAX)
                   ztrace_print(odep->uop,"e|snatch_back|load unable to issue from LDQ to cache");
 #endif
-                snatch_back(odep->uop);
+                //snatch_back(odep->uop);
 
                 odep = odep->next;
               }
@@ -1720,531 +1641,285 @@ void core_exec_DPM_t::LDQ_schedule(void)
   }
 }
 
-/* Process actual execution (in ALUs) of uops, as well as shuffling of
-   uops through the payload pipeline. */
-void core_exec_DPM_t::ALU_exec(void)
+//Substituted for ::step
+void core_exec_IO_DPM_t::ALU_exec(void)
 {
+  /* Compatibility: Simulation can call this */
+}
+
+
+void core_exec_IO_DPM_t::recover(const struct Mop_t * const Mop)
+{
+  //since there is no single structure (ROB, scoreboeard, etc.) that holds all alloced instructions, we need to walk all pipes and later flush, based on program order
+
   struct core_knobs_t * knobs = core->knobs;
-  int i;
 
-  if(check_for_work == false)
-    return;
+  list<struct uop_t *> flushed_uops;
+  list<struct uop_t *>::iterator it;
 
-  bool work_found = false;
 
-  /* Process Functional Units */
-  for(i=0;i<knobs->exec.num_exec_ports;i++)
+  /* Flush Functional Units */
+  for(int i=0;i<knobs->exec.num_exec_ports;i++)
   {
-    int j;
-    for(j=0;j<port[i].num_FU_types;j++)
+    for(int j=0;j<port[i].num_FU_types;j++)
     {
       enum md_fu_class FU_type = port[i].FU_types[j];
       struct ALU_t * FU = port[i].FU[FU_type];
       if(FU && (FU->occupancy > 0))
       {
-        work_found = true;
-        /* process last stage of FU pipeline (those uops completing execution) */
         int stage = FU->latency-1;
-        struct uop_t * uop = FU->pipe[stage].uop;
-        if(uop)
+        for(;stage>=0; stage--)
         {
-          int squashed = (FU->pipe[stage].action_id != uop->exec.action_id);
-          int bypass_available = (port[i].when_bypass_used != sim_cycle);
-          int needs_bypass = !(uop->decode.is_sta||uop->decode.is_std||uop->decode.is_load||uop->decode.is_ctrl);
+          struct uop_t * uop = FU->pipe[stage].uop;
 
-#ifdef ZTRACE
-          ztrace_print(uop,"e|ALU:squash=%d:needs-bp=%d:bp-available=%d|execution complete",(int)squashed,(int)needs_bypass,(int)bypass_available);
-#endif
+          if(!uop)
+            continue;
 
-          if(squashed || !needs_bypass || bypass_available)
+          /* leave older Mops to go untouched */
+          if(uop->decode.Mop_seq <= Mop->oracle.seq)
+            continue;
+
+          /* add uop to the flush list observing program order */
+          /* this doesn't make any sense in hardware. However, when we clear dependency pointers in the simulator, we should start with the youngest instruction so that we clear everything nicely */
+          for(it=flushed_uops.begin(); it!=flushed_uops.end(); it++)
           {
-            FU->occupancy--;
-            zesto_assert(FU->occupancy >= 0,(void)0);
-            FU->pipe[stage].uop = NULL;
+            if((*it)->decode.uop_seq > uop->decode.uop_seq)
+              break;
           }
 
-          /* there's a uop completing execution (that hasn't been squashed) */
-          if(!squashed && (!needs_bypass || bypass_available))
-          {
-            if(needs_bypass)
-              port[i].when_bypass_used = sim_cycle;
+          flushed_uops.insert(it, uop);
 
-            if(uop->decode.is_load) /* loads need to be processed differently */
-            {
-              /* update load queue entry */
-              zesto_assert((uop->alloc.LDQ_index >= 0) && (uop->alloc.LDQ_index < knobs->exec.LDQ_size),(void)0);
-              LDQ[uop->alloc.LDQ_index].virt_addr = uop->oracle.virt_addr;
-              LDQ[uop->alloc.LDQ_index].addr_valid = true;
-              /* actual scheduling from load queue takes place in LDQ_schedule() */
-            }
-            else
-            {
-              int fp_penalty = ((REG_IS_FPR(uop->decode.odep_name) && !(uop->decode.opflags & F_FCOMP)) ||
-                               (!REG_IS_FPR(uop->decode.odep_name) && (uop->decode.opflags & F_FCOMP)))?knobs->exec.fp_penalty:0;
-              /* TODO: real execute-at-execute of instruction */
-              /* XXX for now just copy oracle value */
-              uop->exec.ovalue_valid = true;
-              uop->exec.ovalue = uop->oracle.ovalue;
-
-              /* alloc, uopQ, and decode all have to search for the
-                 recovery point (Mop) because a long flow may have
-                 uops that span multiple sections of the pipeline.  */
-              if(uop->decode.is_ctrl && (uop->Mop->oracle.NextPC != uop->Mop->fetch.pred_NPC))
-              {
-                uop->Mop->fetch.pred_NPC = uop->Mop->oracle.NextPC; /* in case this instruction gets flushed more than once (jeclear followed by load-nuke) */
-                core->oracle->pipe_recover(uop->Mop,uop->Mop->oracle.NextPC);
-                ZESTO_STAT(core->stat.num_jeclear++;)
-                if(uop->Mop->oracle.spec_mode)
-                  ZESTO_STAT(core->stat.num_wp_jeclear++;)
-#ifdef ZTRACE
-                ztrace_print(uop,"e|jeclear|branch mispred detected at execute");
-#endif
-              }
-              else if(uop->decode.is_sta)
-              {
-                zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
-                zesto_assert(!STQ[uop->alloc.STQ_index].addr_valid,(void)0);
-                STQ[uop->alloc.STQ_index].virt_addr = uop->oracle.virt_addr;
-                STQ[uop->alloc.STQ_index].addr_valid = true;
-              }
-              else if(uop->decode.is_std)
-              {
-                zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
-                zesto_assert(!STQ[uop->alloc.STQ_index].value_valid,(void)0);
-                STQ[uop->alloc.STQ_index].value = uop->exec.ovalue;
-                STQ[uop->alloc.STQ_index].value_valid = true;
-              }
-
-              if((uop->decode.is_sta || uop->decode.is_std) &&
-                  STQ[uop->alloc.STQ_index].addr_valid &&
-                  STQ[uop->alloc.STQ_index].value_valid)
-              {
-                /* both parts of store have now made it to the STQ: walk
-                   forward in LDQ to see if there are any loads waiting on this
-                   this STD.  If so, unblock them. */
-                int idx;
-                int num_loads = 0;
-                int overwrite_index = uop->alloc.STQ_index;
-
-                /* XXX using oracle info here. */
-                zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
-                md_addr_t st_addr1 = STQ[uop->alloc.STQ_index].sta->oracle.virt_addr;
-                md_addr_t st_addr2 = st_addr1 + STQ[uop->alloc.STQ_index].mem_size - 1;
-
-                /* this is a bit mask for each byte of the stored value; if it reaches zero,
-                   then we've been completely overwritten and we can stop.
-                   least-sig bit corresponds to lowest address byte. */
-                int overwrite_mask = (1<< STQ[uop->alloc.STQ_index].mem_size)-1;
-
-                for(idx=STQ[uop->alloc.STQ_index].next_load;
-                    LDQ[idx].uop && (LDQ[idx].uop->decode.uop_seq > uop->decode.uop_seq) && (num_loads < LDQ_num);
-                    idx=modinc(idx,knobs->exec.LDQ_size))
-                {
-                  if(LDQ[idx].store_color != uop->alloc.STQ_index) /* some younger stores present */
-                  {
-                    /* scan store queue for younger loads to see if we've been overwritten */
-                    while(overwrite_index != LDQ[idx].store_color)
-                    {
-                      overwrite_index = modinc(overwrite_index,knobs->exec.STQ_size); //(overwrite_index + 1) % knobs->exec.STQ_size;
-                      if(overwrite_index == STQ_tail)
-                        zesto_fatal("searching for matching store color but hit the end of the STQ",(void)0);
-
-                      md_addr_t new_st_addr1 = STQ[overwrite_index].virt_addr;
-                      md_addr_t new_st_addr2 = new_st_addr1 + STQ[overwrite_index].mem_size - 1;
-
-                      /* does this store overwrite any of our bytes? 
-                         (1) address has been computed and
-                         (2) addr does NOT come completely before or after us */
-                      if(STQ[overwrite_index].addr_valid &&
-                        !((st_addr2 < new_st_addr1) || (st_addr1 > new_st_addr2)))
-                      {
-                        /* If the old store does a write of 8 bytes at addres 1000, then
-                           its mask is:  0000000011111111 (with the lsb representing the
-                           byte at address 1000, and the 8th '1' bit mapping to 1007).
-                           If the next store is a 2 byte write to address 1002, then
-                           its initial mask is 00..00011, which gets shifted up to:
-                           0000000000001100.  We then use this to mask out those two
-                           bits to get: 0000000011110011, with the remaining 1's indicating
-                           which bytes are still "in play" (i.e. have not been overwritten
-                           by a younger store) */
-                        int new_write_mask = (1<<STQ[overwrite_index].mem_size)-1;
-                        int offset = new_st_addr1 - st_addr1;
-                        if(offset < 0) /* new_addr is at lower address */
-                          new_write_mask >>= (-offset);
-                        else
-                          new_write_mask <<= offset;
-                        overwrite_mask &= ~new_write_mask;
-
-                        if(overwrite_mask == 0)
-                          break; /* while */
-                      }
-                    }
-
-                    if(overwrite_mask == 0)
-                      break; /* for */
-                  }
-
-                  if(LDQ[idx].addr_valid && /* if addr not valid, load hasn't finished AGEN... it'll pick up the right value after AGEN */
-                     (LDQ[idx].when_issued != TICK_T_MAX)) /* similar to addr not valid, the load'll grab the value when it issues from the LDQ */
-                  {
-                    md_addr_t ld_addr1 = LDQ[idx].virt_addr;
-                    md_addr_t ld_addr2 = ld_addr1 + LDQ[idx].mem_size - 1;
-
-                    /* order violation/forwarding case/partial forwarding can
-                       occur if there's any overlap in the addresses */
-                    if(!((st_addr2 < ld_addr1) || (st_addr1 > ld_addr2)))
-                    {
-                      /* Similar to the store-overwrite mask above, we take the store
-                         mask to see which bytes are still in play (if all bytes overwritten,
-                         then the overwriting stores would have been responsible for forwarding
-                         to this load/checking for misspeculations).  Taking the same mask
-                         as above, if the store wrote to address 1000, and there was that
-                         one intervening store, the mask would still be 0000000011110011.
-                         Now if we have a 2-byte load from address 1002, it would generate
-                         a mask of 00..00011,then shifted to 00..0001100.  When AND'ed with
-                         the store mask, we would get all zeros indicating no conflict (this
-                         is ok, even though the store overlaps the load's address range,
-                         the latter 2-byte store would have forwarded the value to this 2-byte
-                         load).  However, if the load was say 4-byte read from 09FE, it would
-                         have a mask of 000..001111.  We would then shift the store's mask
-                         (since the load is at a lower address) to 00..0001111001100.  ANDing
-                         these gives 00...001100, which indicates that the 2 least significant
-                         bytes of the store overlapped with the two most-significant bytes of
-                         the load, which reveals a match.  Hooray for non-aligned loads and
-                         stores of every which size! */
-                      int load_read_mask = (1<<LDQ[idx].mem_size) - 1;
-                      int offset = ld_addr1 - st_addr1;
-                      if(offset < 0) /* load is at lower address */
-                        overwrite_mask <<= (-offset);
-                      else
-                        load_read_mask <<= offset;
-
-                      if(load_read_mask & overwrite_mask)
-                      {
-                        if(LDQ[idx].uop->timing.when_completed != TICK_T_MAX) /* completed --> memory-ordering violation */
-                        {
-                          memdep->update(LDQ[idx].uop->Mop->fetch.PC);
-
-                          ZESTO_STAT(core->stat.load_nukes++;)
-                          if(LDQ[idx].uop->Mop->oracle.spec_mode)
-                            ZESTO_STAT(core->stat.wp_load_nukes++;)
-
-#ifdef ZTRACE
-                          ztrace_print(uop,"e|order-violation:STQ=%d|store uncovered mis-ordered load",uop->alloc.STQ_index);
-                          ztrace_print(LDQ[idx].uop,"e|order-violation:LDQ=%d|load squashed",idx);
-#endif
-                          core->oracle->pipe_flush(LDQ[idx].uop->Mop);
-                        }
-                        else /* attempted to issue, but STD not available or still in flight in the memory hierarchy */
-                        {
-                          /* mark load as schedulable */
-                          LDQ[idx].when_issued = TICK_T_MAX; /* this will allow it to get issued from LDQ_schedule */
-                          zesto_assert(LDQ[idx].uop->timing.when_completed == TICK_T_MAX,(void)0);
-                          LDQ[idx].hit_in_STQ = false; /* it's possible the store commits before the load gets back to searching the STQ */
-                          LDQ[idx].first_byte_requested = false;
-                          LDQ[idx].last_byte_requested = false;
-                          LDQ[idx].first_byte_arrived = false;
-                          LDQ[idx].last_byte_arrived = false;
-
-                          /* invalidate any in-flight loads from cache hierarchy */
-                          LDQ[idx].uop->exec.action_id = core->new_action_id();
-
-                          /* since load attempted to issue, its dependents may have been mis-scheduled */
-                          if(LDQ[idx].speculative_broadcast)
-                          {
-                            LDQ[idx].uop->timing.when_otag_ready = TICK_T_MAX;
-                            LDQ[idx].uop->timing.when_completed = TICK_T_MAX;
-                            struct odep_t * odep = LDQ[idx].uop->exec.odep_uop;
-                            while(odep)
-                            {
-                              odep->uop->timing.when_itag_ready[odep->op_num] = TICK_T_MAX;
-                              odep->uop->exec.ivalue_valid[odep->op_num] = false;
-#ifdef ZTRACE
-                              if(odep->uop->timing.when_issued != TICK_T_MAX)
-                                ztrace_print(odep->uop,"e|snatch-back|STA hit, but STD not ready");
-#endif
-                              snatch_back(odep->uop);
-
-                              odep = odep->next;
-                            }
-                            /* clear flag so we don't keep doing this over and over again */
-                            LDQ[idx].speculative_broadcast = false;
-                          }
-                        }
-                      }
-                    }
-                  }
-
-                  num_loads++;
-                }
-              }
-              zesto_assert(uop->timing.when_completed == TICK_T_MAX,(void)0);
-              uop->timing.when_completed = sim_cycle+fp_penalty;
-              last_completed = sim_cycle+fp_penalty; /* for deadlock detection */
-
-              /* bypass output value to dependents */
-              struct odep_t * odep = uop->exec.odep_uop;
-              while(odep)
-              {
-                zesto_assert(!odep->uop->exec.ivalue_valid[odep->op_num],(void)0);
-                odep->uop->exec.ivalue_valid[odep->op_num] = true;
-                if(odep->aflags)
-                  odep->uop->exec.ivalue[odep->op_num].dw = uop->exec.oflags;
-                else
-                  odep->uop->exec.ivalue[odep->op_num] = uop->exec.ovalue;
-                odep->uop->timing.when_ival_ready[odep->op_num] = sim_cycle+fp_penalty;
-
-                odep = odep->next;
-              }
-            }
-          }
-        }
-
-        /* shuffle the rest forward */
-        if(FU->occupancy > 0)
-        {
-          for( /*nada*/; stage > 0; stage--)
-          {
-            if((FU->pipe[stage].uop == NULL) && FU->pipe[stage-1].uop)
-            {
-              FU->pipe[stage] = FU->pipe[stage-1];
-              FU->pipe[stage-1].uop = NULL;
-            }
-          }
+          FU->pipe[stage].uop=NULL;
+          FU->occupancy--;
         }
       }
     }
   }
+ 
 
-  /* Process Payload RAM pipestages */
-  for(i=0;i<knobs->exec.num_exec_ports;i++)
+  /* flush payload pipe */
+  for(int i=0;i<knobs->exec.num_exec_ports;i++)
   {
     if(port[i].occupancy > 0)
     {
       int stage = knobs->exec.payload_depth-1;
-      struct uop_t * uop = port[i].payload_pipe[stage].uop;
-      work_found = true;
 
-      /* uops leaving payload section go to their respective FU's */
-      if(uop && (port[i].payload_pipe[stage].action_id == uop->exec.action_id)) /* uop is valid, hasn't been squashed */
+      for(;stage>=0; stage--)
       {
-        int j;
-        int all_ready = true;
-        enum md_fu_class FU_class = uop->decode.FU_class;
+         struct uop_t * uop = port[i].payload_pipe[stage].uop;
 
-        /* uop leaves payload regardless of whether it replays */
-        port[i].payload_pipe[stage].uop = NULL;
-        port[i].occupancy--;
-        zesto_assert(port[i].occupancy >= 0,(void)0);
+         if(!uop)
+           continue;
 
-        for(j=0;j<MAX_IDEPS;j++)
-          all_ready &= uop->exec.ivalue_valid[j];
+         /* leave older Mops to go untouched */
+         if(uop->decode.Mop_seq <= Mop->oracle.seq)
+           continue;
 
-        /* have all input values arrived and FU available? */
-        if((!all_ready) || (port[i].FU[FU_class]->pipe[0].uop != NULL) || (port[i].FU[FU_class]->when_executable > sim_cycle))
+         /* add uop to the flush list observing program order */
+         /* this doesn't make any sense in hardware. However, when we clear dependency pointers in the simulator, we should start with the youngest instruction so that we clear everything nicely */
+         for(it=flushed_uops.begin(); it!=flushed_uops.end(); it++)
+         {
+           if((*it)->decode.uop_seq > uop->decode.uop_seq)
+             break;
+         }
+
+         flushed_uops.insert(it, uop);
+
+         port[i].payload_pipe[stage].uop = NULL;
+         port[i].occupancy--;
+      }
+    }
+    
+//XXX: some cases break this (REP'd instruction that spans to the issue pipe)
+//    zesto_assert(port[i].occupancy == 0, (void)0);
+  }
+
+
+  /* this pretty much clears dependency pointers and LD/ST queues */
+  /* should be called in program order; XXX: move to oracle??? */
+  for(it=flushed_uops.begin(); it!=flushed_uops.end(); it++)
+  {
+     core->commit->squash_uop(*it);  
+  }
+
+}
+
+/* not that different from the overloaded version above */
+void core_exec_IO_DPM_t::recover(void)
+{
+  struct core_knobs_t * knobs = core->knobs;
+
+  list<struct uop_t *> flushed_uops;
+  list<struct uop_t *>::iterator it;
+
+
+  /* Flush Functional Units */
+  for(int i=0;i<knobs->exec.num_exec_ports;i++)
+  {
+    for(int j=0;j<port[i].num_FU_types;j++)
+    {
+      enum md_fu_class FU_type = port[i].FU_types[j];
+      struct ALU_t * FU = port[i].FU[FU_type];
+      if(FU && (FU->occupancy > 0))
+      {
+        int stage = FU->latency-1;
+        for(;stage>=0; stage--)
         {
-          /* if not, replay */
-          ZESTO_STAT(core->stat.exec_uops_replayed++;)
-          uop->exec.num_replays++;
+          struct uop_t * uop = FU->pipe[stage].uop;
 
-          for(j=0;j<MAX_IDEPS;j++)
+          if(!uop)
+            continue;
+
+          /* add uop to the flush list observing program order */
+          /* this doesn't make any sense in hardware. However, when we clear dependency pointers in the simulator, we should start with the youngest instruction so that we clear everything nicely */
+          for(it=flushed_uops.begin(); it!=flushed_uops.end(); it++)
           {
-            if((!uop->exec.ivalue_valid[j]) && uop->oracle.idep_uop[j] && (uop->oracle.idep_uop[j]->timing.when_otag_ready < sim_cycle))
-            {
-              uop->timing.when_ready = sim_cycle+BIG_LATENCY;
-            }
-          }
-          snatch_back(uop);
-
-          if(uop->timing.when_ready <= sim_cycle) /* we were supposed to be ready in the past */
-          {
-            uop->timing.when_ready = sim_cycle+1;
-            if(knobs->exec.tornado_breaker)
-            {
-              /* heuristic replay tornado breaker; if uop is replaying too much, slow down
-                 its ability to issue by delaying its readiness (amount of additional delay
-                 escalates with the number of times the uop has been replayed).  If a cache
-                 access gets "stuck" for some reason (e.g., cache bank blocked due to full
-                 MSHRs), the load's dependents won't get notified of a change in the load's
-                 latency since the load is still stuck somewhere in the middle of the cache,
-                 and so the dependents will enter a loop of scheduling, issuing, reaching
-                 execution and discovering that input operands are not ready, and then going
-                 back to the RS to immediately start the process all over again.  Such replay
-                 "tornados" waste power and issue slots, and so we try to detect and slow
-                 down the replay cycle.
-                 */
-              if(uop->exec.num_replays > 20)
-                uop->timing.when_ready += uop->exec.num_replays << 1;
-              else if(uop->exec.num_replays > 4)
-                uop->timing.when_ready += uop->exec.num_replays << 3;
-            }
-          }
-#ifdef ZTRACE
-          ztrace_print(uop,"e|snatch-back|uop cannot go to ALU because inputs not ready",uop->exec.num_replays,uop->timing.when_ready);
-#endif
-
-        }
-        else
-        {
-          zesto_assert((uop->alloc.RS_index >= 0) && (uop->alloc.RS_index < knobs->exec.RS_size),(void)0);
-          if(uop->decode.in_fusion)
-            uop->decode.fusion_head->exec.uops_in_RS--;
-#ifdef ZTRACE
-          ztrace_print_start(uop,"e|payload|uop goes to ALU");
-#endif
-
-          if((!uop->decode.in_fusion) || (uop->decode.fusion_head->exec.uops_in_RS == 0)) /* only deallocate when entire fused uop finished (or not fused) */
-          {
-            RS[uop->alloc.RS_index] = NULL;
-            RS_num--;
-            zesto_assert(RS_num >= 0,(void)0);
-            if(uop->decode.in_fusion)
-            {
-              struct uop_t * fusion_uop = uop->decode.fusion_head;
-              while(fusion_uop)
-              {
-                fusion_uop->alloc.RS_index = -1;
-                fusion_uop = fusion_uop->decode.fusion_next;
-              }
-            }
-            else
-              uop->alloc.RS_index = -1;
-#ifdef ZTRACE
-            ztrace_print_cont(", deallocates from RS");
-#endif
+            if((*it)->decode.uop_seq > uop->decode.uop_seq)
+              break;
           }
 
-#ifdef ZTRACE
-          ztrace_print_finish("");
-#endif
+          flushed_uops.insert(it, uop);
 
-          RS_eff_num--;
-          zesto_assert(RS_eff_num >= 0,(void)0);
-
-          /* update port loading table */
-          core->alloc->RS_deallocate(uop);
-
-          uop->timing.when_exec = sim_cycle;
-
-          /* this port has the proper FU and the first stage is free. */
-          zesto_assert(port[i].FU[FU_class] && (port[i].FU[FU_class]->pipe[0].uop == NULL),(void)0);
-
-          port[i].FU[FU_class]->pipe[0].uop = uop;
-          port[i].FU[FU_class]->pipe[0].action_id = uop->exec.action_id;
-          port[i].FU[FU_class]->occupancy++;
-          port[i].FU[FU_class]->when_executable = sim_cycle + port[i].FU[FU_class]->issue_rate;
-          check_for_work = true;
+          FU->pipe[stage].uop=NULL;
+          FU->occupancy--;
         }
       }
-      else if(uop && (port[i].payload_pipe[stage].action_id != uop->exec.action_id)) /* uop has been squashed */
-      {
-#ifdef ZTRACE
-        ztrace_print(uop,"e|payload|on exit from payload, uop discovered to have been squashed");
-#endif
-        port[i].payload_pipe[stage].uop = NULL;
-        port[i].occupancy--;
-        zesto_assert(port[i].occupancy >= 0,(void)0);
-      }
-
-      /* shuffle the other uops through the payload pipeline */
-
-      for(/*nada*/; stage > 0; stage--)
-        port[i].payload_pipe[stage] = port[i].payload_pipe[stage-1];
-      port[i].payload_pipe[0].uop = NULL;
+      zesto_assert(FU->occupancy == 0, (void)0);
     }
   }
+ 
 
-  check_for_work = work_found;
+  /* flush payload pipe */
+  for(int i=0;i<knobs->exec.num_exec_ports;i++)
+  {
+    if(port[i].occupancy > 0)
+    {
+      int stage = knobs->exec.payload_depth-1;
+
+      for(;stage>=0; stage--)
+      {
+         struct uop_t * uop = port[i].payload_pipe[stage].uop;
+
+         if(!uop)
+           continue;
+
+         /* add uop to the flush list observing program order */
+         /* this doesn't make any sense in hardware. However, when we clear dependency pointers in the simulator, we should start with the oldest instruction so that we clear everything nicely */
+         for(it=flushed_uops.begin(); it!=flushed_uops.end(); it++)
+         {
+           if((*it)->decode.uop_seq > uop->decode.uop_seq)
+             break;
+         }
+
+         flushed_uops.insert(it, uop);
+
+         port[i].payload_pipe[stage].uop = NULL;
+         port[i].occupancy--;
+      }
+    }
+    
+    zesto_assert(port[i].occupancy == 0, (void)0);
+  }
+
+
+  /* this pretty much clears dependency pointers and LD/ST queus */
+  /* should be called in program order; XXX: move to oracle??? */
+  for(it=flushed_uops.begin(); it!=flushed_uops.end(); it++)
+  {
+     core->commit->squash_uop(*it);  
+  }
+
+  recover_check_assertions();
 }
 
-void core_exec_DPM_t::recover(const struct Mop_t * const Mop)
+
+bool core_exec_IO_DPM_t::RS_available(void)
 {
-  /* most flushing/squashing is accomplished through assignments of new action_id's */
+   fatal("Not implemented!");
 }
 
-void core_exec_DPM_t::recover(void)
+bool core_exec_IO_DPM_t::port_available(int port_ind)
 {
-  /* most flushing/squashing is accomplished through assignments of new action_id's */
+   return (port[port_ind].payload_pipe[0].uop == NULL);
 }
 
-bool core_exec_DPM_t::RS_available(void)
+
+bool core_exec_IO_DPM_t::exec_empty(void)
 {
   struct core_knobs_t * knobs = core->knobs;
-  return RS_num < knobs->exec.RS_size;
+  for(int i=0;i<knobs->exec.num_exec_ports;i++)
+  {
+    if(port[i].occupancy > 0)
+      return false;
+
+    for(int j=0;j<port[i].num_FU_types;j++)
+    {
+      enum md_fu_class FU_type = port[i].FU_types[j];
+      struct ALU_t * FU = port[i].FU[FU_type];
+      if(FU && (FU->occupancy > 0))
+        return false;
+    }
+
+  }
+  
+  return true;
 }
 
+// SK - changed to add to assigned port - no RS
 /* assumes you already called RS_available to check that
    an entry is available */
-void core_exec_DPM_t::RS_insert(struct uop_t * const uop)
+void core_exec_IO_DPM_t::exec_insert(struct uop_t * const uop)
 {
-  struct core_knobs_t * knobs = core->knobs;
-  int RS_index;
-  /* find a free RS entry */
-  for(RS_index=0;RS_index < knobs->exec.RS_size;RS_index++)
-  {
-    if(RS[RS_index] == NULL)
-      break;
-  }
-  if(RS_index == knobs->exec.RS_size)
-    zesto_fatal("RS and RS_num out of sync",(void)0);
+  int port_ind = uop->alloc.port_assignment;
+  zesto_assert(port[port_ind].payload_pipe[0].uop == NULL, (void)0);
 
-  RS[RS_index] = uop;
-  RS_num++;
-  RS_eff_num++;
-  uop->alloc.RS_index = RS_index;
+  port[port_ind].payload_pipe[0].uop = uop;
+  port[port_ind].payload_pipe[0].action_id = uop->exec.action_id;
+  port[port_ind].occupancy++;
+// for consistency:
+  uop->alloc.RS_index = -1;
+  uop->exec.in_readyQ = false;
 
-  if(uop->decode.in_fusion)
-    uop->exec.uops_in_RS ++; /* used to track when RS can be deallocated */
   uop->alloc.full_fusion_allocated = false;
 }
 
+void core_exec_IO_DPM_t::RS_insert(struct uop_t * const uop)
+{
+  fatal("Not implemented!");
+}
+
+
 /* add uops to an existing entry (where all uops in the same
    entry are assumed to be fused) */
-void core_exec_DPM_t::RS_fuse_insert(struct uop_t * const uop)
+void core_exec_IO_DPM_t::exec_fuse_insert(struct uop_t * const uop)
 {
-  /* fusion body shares same RS entry as fusion head */
+  zesto_assert(uop->decode.in_fusion, (void)0);
+  zesto_assert(uop->alloc.port_assignment == uop->decode.fusion_head->alloc.port_assignment, (void)0);
   uop->alloc.RS_index = uop->decode.fusion_head->alloc.RS_index;
-  RS_eff_num++;
-  uop->decode.fusion_head->exec.uops_in_RS ++;
+  
   if(uop->decode.fusion_next == NULL)
     uop->decode.fusion_head->alloc.full_fusion_allocated = true;
 }
 
-void core_exec_DPM_t::RS_deallocate(struct uop_t * const dead_uop)
+void core_exec_IO_DPM_t::RS_fuse_insert(struct uop_t * const uop)
 {
-  struct core_knobs_t * knobs = core->knobs;
-  zesto_assert(dead_uop->alloc.RS_index < knobs->exec.RS_size,(void)0);
-  if(dead_uop->decode.in_fusion && (dead_uop->timing.when_exec == TICK_T_MAX))
-  {
-    dead_uop->decode.fusion_head->exec.uops_in_RS --;
-    RS_eff_num--;
-    zesto_assert(RS_eff_num >= 0,(void)0);
-  }
-  if(!dead_uop->decode.in_fusion)
-  {
-    RS_eff_num--;
-    zesto_assert(RS_eff_num >= 0,(void)0);
-  }
-
-  if(dead_uop->decode.is_fusion_head)
-    zesto_assert(dead_uop->exec.uops_in_RS == 0,(void)0);
-
-  if((!dead_uop->decode.in_fusion) || dead_uop->decode.is_fusion_head) /* make head uop responsible for deallocating RS during recovery */
-  {
-    RS[dead_uop->alloc.RS_index] = NULL;
-    RS_num --;
-    zesto_assert(RS_num >= 0,(void)0);
-  }
-  dead_uop->alloc.RS_index = -1;
+  fatal("Not implemented!");
 }
 
-bool core_exec_DPM_t::LDQ_available(void)
+void core_exec_IO_DPM_t::RS_deallocate(struct uop_t * const dead_uop)
+{
+  fatal("Not implemented!");
+}
+
+//SK - called in alloc
+bool core_exec_IO_DPM_t::LDQ_available(void)
 {
   struct core_knobs_t * knobs = core->knobs;
   return LDQ_num < knobs->exec.LDQ_size;
 }
 
-void core_exec_DPM_t::LDQ_insert(struct uop_t * const uop)
+//SK - called after AGEN in payload pipe
+void core_exec_IO_DPM_t::LDQ_insert(struct uop_t * const uop)
 {
   struct core_knobs_t * knobs = core->knobs;
   //memset(&LDQ[LDQ_tail],0,sizeof(*LDQ));
@@ -2256,19 +1931,23 @@ void core_exec_DPM_t::LDQ_insert(struct uop_t * const uop)
   uop->alloc.LDQ_index = LDQ_tail;
   LDQ_num++;
   LDQ_tail = modinc(LDQ_tail,knobs->exec.LDQ_size); //(LDQ_tail+1) % knobs->exec.LDQ_size;
+  zesto_assert(LDQ_tail >=0, (void)0);
 }
 
-/* called by commit */
-void core_exec_DPM_t::LDQ_deallocate(struct uop_t * const uop)
+/* called by the end of payload pipe */
+void core_exec_IO_DPM_t::LDQ_deallocate(struct uop_t * const uop)
 {
   struct core_knobs_t * knobs = core->knobs;
+  zesto_assert(LDQ[LDQ_head].uop == uop, (void)0);
   LDQ[LDQ_head].uop = NULL;
   LDQ_num --;
   LDQ_head = modinc(LDQ_head,knobs->exec.LDQ_size); //(LDQ_head+1) % knobs->exec.LDQ_size;
+//To be removed
+  zesto_assert(LDQ_head >= 0, (void)0);
   uop->alloc.LDQ_index = -1;
 }
 
-void core_exec_DPM_t::LDQ_squash(struct uop_t * const dead_uop)
+void core_exec_IO_DPM_t::LDQ_squash(struct uop_t * const dead_uop)
 {
   struct core_knobs_t * knobs = core->knobs;
   zesto_assert((dead_uop->alloc.LDQ_index >= 0) && (dead_uop->alloc.LDQ_index < knobs->exec.LDQ_size),(void)0);
@@ -2277,19 +1956,20 @@ void core_exec_DPM_t::LDQ_squash(struct uop_t * const dead_uop)
   memzero(&LDQ[dead_uop->alloc.LDQ_index],sizeof(LDQ[0]));
   LDQ_num --;
   LDQ_tail = moddec(LDQ_tail,knobs->exec.LDQ_size); //(LDQ_tail - 1 + knobs->exec.LDQ_size) % knobs->exec.LDQ_size;
+  zesto_assert(LDQ_tail >= 0, (void)0);
   zesto_assert(LDQ_num >= 0,(void)0);
   dead_uop->alloc.LDQ_index = -1;
 }
 
-bool core_exec_DPM_t::STQ_available(void)
+bool core_exec_IO_DPM_t::STQ_available(void)
 {
   struct core_knobs_t * knobs = core->knobs;
   return STQ_senior_num < knobs->exec.STQ_size;
 }
 
-void core_exec_DPM_t::STQ_insert_sta(struct uop_t * const uop)
+void core_exec_IO_DPM_t::STQ_insert_sta(struct uop_t * const uop)
 {
-  struct core_knobs_t * knobs = core->knobs;
+ struct core_knobs_t * knobs = core->knobs;
   //memset(&STQ[STQ_tail],0,sizeof(*STQ));
   memzero(&STQ[STQ_tail],sizeof(*STQ));
   STQ[STQ_tail].sta = uop;
@@ -2304,9 +1984,10 @@ void core_exec_DPM_t::STQ_insert_sta(struct uop_t * const uop)
   STQ_tail = modinc(STQ_tail,knobs->exec.STQ_size); //(STQ_tail+1) % knobs->exec.STQ_size;
 }
 
-void core_exec_DPM_t::STQ_insert_std(struct uop_t * const uop)
+void core_exec_IO_DPM_t::STQ_insert_std(struct uop_t * const uop)
 {
-  struct core_knobs_t * knobs = core->knobs;
+
+ struct core_knobs_t * knobs = core->knobs;
   /* STQ_tail already incremented from the STA.  Just add this uop to STQ->std */
   int index = moddec(STQ_tail,knobs->exec.STQ_size); //(STQ_tail - 1 + knobs->exec.STQ_size) % knobs->exec.STQ_size;
   uop->alloc.STQ_index = index;
@@ -2315,13 +1996,15 @@ void core_exec_DPM_t::STQ_insert_std(struct uop_t * const uop)
   zesto_assert(STQ[index].sta->Mop == uop->Mop,(void)0); /* and we should be from the same macro */
 }
 
-void core_exec_DPM_t::STQ_deallocate_sta(void)
+void core_exec_IO_DPM_t::STQ_deallocate_sta(void)
 {
+  if(STQ[STQ_head].sta != NULL)
+    STQ[STQ_head].sta->alloc.STQ_index = -1;
   STQ[STQ_head].sta = NULL;
 }
 
 /* returns true if successful */
-bool core_exec_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
+bool core_exec_IO_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
 {
   struct core_knobs_t * knobs = core->knobs;
   /* Store write back occurs here at commit.  NOTE: stores go directly to
@@ -2401,6 +2084,8 @@ bool core_exec_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
     ztrace_print(uop,"c|store|store enqueued to DL1/DTLB");
 #endif
 
+    if(STQ[STQ_head].std != NULL)
+      STQ[STQ_head].std->alloc.STQ_index = -1;
     STQ[STQ_head].std = NULL;
     STQ_num --;
     STQ_head = modinc(STQ_head,knobs->exec.STQ_size); //(STQ_head+1) % knobs->exec.STQ_size;
@@ -2411,7 +2096,7 @@ bool core_exec_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
     return false; /* store not completed processed */
 }
 
-void core_exec_DPM_t::STQ_deallocate_senior(void)
+void core_exec_IO_DPM_t::STQ_deallocate_senior(void)
 {
   struct core_knobs_t * knobs = core->knobs;
   if(STQ[STQ_senior_head].write_complete &&
@@ -2426,12 +2111,21 @@ void core_exec_DPM_t::STQ_deallocate_senior(void)
   }
 }
 
-void core_exec_DPM_t::STQ_squash_sta(struct uop_t * const dead_uop)
+void core_exec_IO_DPM_t::STQ_squash_sta(struct uop_t * const dead_uop)
 {
   struct core_knobs_t * knobs = core->knobs;
   zesto_assert((dead_uop->alloc.STQ_index >= 0) && (dead_uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
-  zesto_assert(STQ[dead_uop->alloc.STQ_index].std == NULL,(void)0);
   zesto_assert(STQ[dead_uop->alloc.STQ_index].sta == dead_uop,(void)0);
+  STQ[dead_uop->alloc.STQ_index].sta = NULL;
+  dead_uop->alloc.STQ_index = -1;
+}
+
+void core_exec_IO_DPM_t::STQ_squash_std(struct uop_t * const dead_uop)
+{
+  struct core_knobs_t * knobs = core->knobs;
+  zesto_assert((dead_uop->alloc.STQ_index >= 0) && (dead_uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
+  zesto_assert(STQ[dead_uop->alloc.STQ_index].sta == NULL,(void)0);
+  zesto_assert(STQ[dead_uop->alloc.STQ_index].std == dead_uop,(void)0);
   //memset(&STQ[dead_uop->alloc.STQ_index],0,sizeof(STQ[0]));
   memzero(&STQ[dead_uop->alloc.STQ_index],sizeof(STQ[0]));
   STQ_num --;
@@ -2442,21 +2136,19 @@ void core_exec_DPM_t::STQ_squash_sta(struct uop_t * const dead_uop)
   dead_uop->alloc.STQ_index = -1;
 }
 
-void core_exec_DPM_t::STQ_squash_std(struct uop_t * const dead_uop)
-{
-  struct core_knobs_t * knobs = core->knobs;
-  zesto_assert((dead_uop->alloc.STQ_index >= 0) && (dead_uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
-  zesto_assert(STQ[dead_uop->alloc.STQ_index].std == dead_uop,(void)0);
-  STQ[dead_uop->alloc.STQ_index].std = NULL;
-  dead_uop->alloc.STQ_index = -1;
-}
-
-void core_exec_DPM_t::STQ_squash_senior(void)
+void core_exec_IO_DPM_t::STQ_squash_senior(void)
 {
   struct core_knobs_t * knobs = core->knobs;
 
   while(STQ_senior_num > 0)
   {
+    /* Most of the time, instructions should be invalid here. But some flows get a vlid uop in senior queue, which should be disposed of properly, without leaving a dangling STQ pointer */
+    if(STQ[STQ_senior_head].sta != NULL)
+      STQ[STQ_senior_head].sta->alloc.STQ_index = -1;
+
+    if(STQ[STQ_senior_head].std != NULL)
+      STQ[STQ_senior_head].std->alloc.STQ_index = -1;
+
     memzero(&STQ[STQ_senior_head],sizeof(*STQ));
     STQ[STQ_senior_head].action_id = core->new_action_id();
 
@@ -2470,7 +2162,7 @@ void core_exec_DPM_t::STQ_squash_senior(void)
   }
 }
 
-void core_exec_DPM_t::recover_check_assertions(void)
+void core_exec_IO_DPM_t::recover_check_assertions(void)
 {
   zesto_assert(STQ_senior_num == 0,(void)0);
   zesto_assert(STQ_num == 0,(void)0);
@@ -2482,11 +2174,11 @@ void core_exec_DPM_t::recover_check_assertions(void)
    and DTLB accesses complete, these functions get called which
    update the status of the corresponding STQ entries.  The STQ
    entry cannot be deallocated until the store has completed. */
-void core_exec_DPM_t::store_dl1_callback(void * const op)
+void core_exec_IO_DPM_t::store_dl1_callback(void * const op)
 {
   struct uop_t * uop = (struct uop_t *)op;
   struct core_t * core = uop->core;
-  struct core_exec_DPM_t * E = (core_exec_DPM_t*)core->exec;
+  struct core_exec_IO_DPM_t * E = (core_exec_IO_DPM_t*)core->exec;
   struct core_knobs_t * knobs = core->knobs;
 
 #ifdef ZTRACE
@@ -2504,11 +2196,11 @@ void core_exec_DPM_t::store_dl1_callback(void * const op)
 }
 
 /* only used for the 2nd part of a split write */
-void core_exec_DPM_t::store_dl1_split_callback(void * const op)
+void core_exec_IO_DPM_t::store_dl1_split_callback(void * const op)
 {
   struct uop_t * uop = (struct uop_t *)op;
   struct core_t * core = uop->core;
-  struct core_exec_DPM_t * E = (core_exec_DPM_t*)core->exec;
+  struct core_exec_IO_DPM_t * E = (core_exec_IO_DPM_t*)core->exec;
   struct core_knobs_t * knobs = core->knobs;
 
 #ifdef ZTRACE
@@ -2525,11 +2217,11 @@ void core_exec_DPM_t::store_dl1_split_callback(void * const op)
   core->return_uop_array(uop);
 }
 
-void core_exec_DPM_t::store_dtlb_callback(void * const op)
+void core_exec_IO_DPM_t::store_dtlb_callback(void * const op)
 {
   struct uop_t * uop = (struct uop_t *)op;
   struct core_t * core = uop->core;
-  struct core_exec_DPM_t * E = (core_exec_DPM_t*)core->exec;
+  struct core_exec_IO_DPM_t * E = (core_exec_IO_DPM_t*)core->exec;
   struct core_knobs_t * knobs = core->knobs;
   
 #ifdef ZTRACE
@@ -2542,12 +2234,12 @@ void core_exec_DPM_t::store_dtlb_callback(void * const op)
   core->return_uop_array(uop);
 }
 
-bool core_exec_DPM_t::store_translated_callback(void * const op, const seq_t action_id /* ignored */)
+bool core_exec_IO_DPM_t::store_translated_callback(void * const op, const seq_t action_id /* ignored */)
 {
   struct uop_t * uop = (struct uop_t *)op;
   struct core_t * core = uop->core;
   struct core_knobs_t * knobs = core->knobs;
-  struct core_exec_DPM_t * E = (core_exec_DPM_t*)core->exec;
+  struct core_exec_IO_DPM_t * E = (core_exec_IO_DPM_t*)core->exec;
 
   if((uop->alloc.STQ_index == -1) || (uop->exec.action_id != E->STQ[uop->alloc.STQ_index].action_id))
     return true;
@@ -2556,35 +2248,950 @@ bool core_exec_DPM_t::store_translated_callback(void * const op, const seq_t act
 }
 
 
-void core_exec_DPM_t::step()
+void core_exec_IO_DPM_t::dump_payload()
 {
-  /* Compatibility: Simulation can call this */
+  struct core_knobs_t * knobs = core->knobs;
+  struct uop_t * uop;
+  printf("cycle: %d\n",(int)sim_cycle);
+  for(int i=0; i<knobs->exec.num_exec_ports; i++){
+    printf("%d:|",i);
+    for(int stage=0; stage<knobs->exec.payload_depth; stage++)
+    {
+     uop = port[i].payload_pipe[stage].uop;
+     if(uop)
+      {
+        if(uop->decode.fusion_next)
+          printf(" %s \t|", md_op2name[uop->decode.fusion_next->decode.op]);
+        else
+          printf(" %s \t|", md_op2name[uop->decode.op]);
+      }
+      else
+        printf(" \t|");
+    }
+    printf("\n");
+  }
 }
 
-void core_exec_DPM_t::exec_fuse_insert(struct uop_t * uop)
-{	
-  fatal("shouldn't be called");
-}
-
-void core_exec_DPM_t::exec_insert(struct uop_t * uop)
-{	
-  fatal("shouldn't be called");
-}
-
-bool core_exec_DPM_t::port_available(int port_ind)
-{	
-  fatal("shouldn't be called");
-}
-
-bool core_exec_DPM_t::exec_fused_ST(struct uop_t * const curr_uop)
+void core_exec_IO_DPM_t::step()
 {
- fatal("shouldn't be called");
+  struct core_knobs_t * knobs = core->knobs;
+  int i;
+
+// FIXME: Re-enable for performance
+//  if(check_for_work == false)
+//    return;
+
+  bool work_found = false;
+  bool exec_stall = false;
+
+  /* Search for uops completing execution and order them according to program order*/
+
+  list<struct uop_t *> executed_uops;
+  list<struct uop_t *>::iterator it;
+
+  for(i=0;i<knobs->exec.num_exec_ports;i++)
+  {
+    struct uop_t * uop;
+    for(int j=0;j<port[i].num_FU_types;j++)
+    {
+       enum md_fu_class FU_type = port[i].FU_types[j];
+       struct ALU_t * FU = port[i].FU[FU_type];
+       if(FU && (FU->occupancy > 0))
+       {
+          int stage = FU->latency-1;
+          uop = FU->pipe[stage].uop;
+
+          if(!uop)
+            continue;
+
+          for(it=executed_uops.begin(); it!=executed_uops.end(); it++)
+          {
+            if((*it)->decode.uop_seq > uop->decode.uop_seq)
+              break;
+          }
+
+          executed_uops.insert(it, uop);
+       } 
+    }
+
+    uop = port[i].payload_pipe[knobs->exec.payload_depth-1].uop;
+    if(uop && port[i].payload_pipe[knobs->exec.payload_depth-1].action_id == uop->exec.action_id)
+    {
+      if(uop->decode.in_fusion && uop->decode.is_load && uop->exec.ovalue_valid)
+        uop = uop->decode.fusion_next;
+
+      if((uop->decode.is_load && uop->exec.ovalue_valid) || uop->decode.is_nop || 
+           uop->Mop->decode.is_trap || ((uop->decode.opflags & F_AGEN) == F_AGEN) ||
+           uop->decode.is_sta || uop->decode.is_std)
+      {
+         if(can_issue_IO(uop))
+         {
+
+            for(it=executed_uops.begin(); it!=executed_uops.end(); it++)
+            {
+              if((*it)->decode.uop_seq > uop->decode.uop_seq)
+                break;
+            }
+            executed_uops.insert(it, uop);
+         }
+         else 
+         {
+            uop->exec.num_replays++;
+            ZESTO_STAT(core->stat.exec_uops_replayed++;)
+
+            if(port[i].when_stalled == 0)
+              port[i].when_stalled = sim_cycle;
+         }
+      }
+      else port[i].when_stalled = 0;
+    }
+  }
+
+  work_found = !executed_uops.empty();
+
+
+  for(it=executed_uops.begin(); it!=executed_uops.end(); it++)
+  {
+    /* process last stage of FU pipeline (those uops completing execution) */
+    struct uop_t * uop = *it;
+    i = uop->alloc.port_assignment;
+
+
+    //uop is leaving the end of the issue pipe
+    if(uop->decode.is_load || uop->decode.is_nop || 
+         uop->Mop->decode.is_trap || ((uop->decode.opflags & F_AGEN) == F_AGEN) ||
+         uop->decode.is_sta || uop->decode.is_std)
+    {
+       /* This may happen when we process a jump prior in program order on the same cycle
+        (flushing of instruction is already taken care of, but executed_uops (the local cache) isn't updated)*/
+       if(port[i].payload_pipe[knobs->exec.payload_depth-1].uop != uop)
+         continue;
+
+       if(!core->commit->pre_commit_available())
+       {
+          ZESTO_STAT(core->stat.exec_uops_replayed++;)
+          uop->exec.num_replays++;
+          //stall port of issue pipe
+
+          //stall = true;
+          if(port[i].when_stalled == 0)
+            port[i].when_stalled = sim_cycle;
+
+//          break; 
+       }
+       else
+       {
+          port[i].when_stalled = 0;
+          port[i].payload_pipe[knobs->exec.payload_depth-1].uop = NULL;
+          port[i].occupancy--;
+          zesto_assert(port[i].occupancy >= 0, (void)0);
+
+          if(uop->decode.is_nop || uop->Mop->decode.is_trap)
+          {
+             uop->timing.when_exec = sim_cycle;
+             uop->timing.when_issued = sim_cycle;
+             uop->timing.when_completed = sim_cycle;
+          }
+
+          core->commit->pre_commit_insert(uop);
+
+          /* loads can be safely removed from load queue */
+          if(uop->decode.is_load)
+          {
+             zesto_assert(uop->exec.ovalue_valid, (void)0);
+             LDQ_deallocate(uop);
+          }
+       }
+    }
+
+    //uop is leaving a FU
+    else
+    {
+      struct ALU_t * FU = port[i].FU[uop->decode.FU_class];
+      int stage = FU->latency-1;
+
+
+      /* This may happen when we process a jump prior in program order on the same cycle
+       (flushing of instruction is already taken care of, but executed_uops (the local cache) isn't updated)*/
+      if(FU->pipe[stage].uop != uop)
+         continue;
+
+      int squashed = (FU->pipe[stage].action_id != uop->exec.action_id);
+      int bypass_available = (port[i].when_bypass_used != sim_cycle);
+      /* SK - TODO: may need to rethink for atomic uops */
+      int needs_bypass = !(uop->decode.is_sta||uop->decode.is_std||uop->decode.is_load||uop->decode.is_ctrl);
+
+#ifdef ZTRACE
+      ztrace_print(uop, "e|ALU:squash=%d:needs-bp=%d:bp-available=%d|execution complete",(int)squashed,(int)needs_bypass,(int)bypass_available);
+#endif
+
+      if(squashed)// || !needs_bypass || bypass_available)
+      {
+         FU->occupancy--;
+         zesto_assert(FU->occupancy >= 0,(void)0);
+         FU->pipe[stage].uop = NULL;
+      }
+
+      bool uop_goes_to_commit = true;
+
+      if(uop->decode.in_fusion && uop->decode.fusion_next && !uop->decode.fusion_next->decode.is_sta)
+         uop_goes_to_commit = false;
+
+      if(uop_goes_to_commit && !core->commit->pre_commit_available())
+      {
+         exec_stall = true;
+         for(int k=0;k<knobs->exec.num_exec_ports;k++)
+           if(port[k].when_stalled == 0)
+             port[k].when_stalled = sim_cycle;
+ //        break;
+      }
+      else
+      {
+
+      /* there's uop completing execution (hasn't been squashed) */
+      if(!squashed)// && (!needs_bypass || bypass_available))
+      {        
+         int fp_penalty = ((REG_IS_FPR(uop->decode.odep_name) && !(uop->decode.opflags & F_FCOMP)) ||
+                          (!REG_IS_FPR(uop->decode.odep_name) && (uop->decode.opflags & F_FCOMP)))?knobs->exec.fp_penalty:0;
+
+         
+         if(uop->timing.when_completed == TICK_T_MAX)
+         {
+            uop->timing.when_completed = sim_cycle+fp_penalty;
+            last_completed = sim_cycle+fp_penalty; /* for deadlock detection*/
+         }
+         //when_completed can only be set if waiting for fp_penalty
+         else
+            zesto_assert(fp_penalty > 0, (void)0); 
+
+         //Wait until fp_penalty has been paid
+         if(sim_cycle < uop->timing.when_completed)
+         {
+         }
+         else
+         {          
+           if(needs_bypass)
+            port[i].when_bypass_used = sim_cycle;
+ 
+           /* actual execution occurs here - copy oracle value*/
+           uop->exec.ovalue_valid = true;
+           uop->exec.ovalue = uop->oracle.ovalue;
+            
+           /* alloc, uopQ, and decode all have to search for the
+              recovery point (Mop) because a long flow may have
+              uops that span multiple sections of the pipeline.  */
+           if(uop->decode.is_ctrl && (uop->Mop->oracle.NextPC != uop->Mop->fetch.pred_NPC))
+           {
+              uop->Mop->fetch.pred_NPC = uop->Mop->oracle.NextPC; /* in case this instruction gets flushed more than once (jeclear followed by load-nuke) */
+              core->oracle->pipe_recover(uop->Mop,uop->Mop->oracle.NextPC);
+              ZESTO_STAT(core->stat.num_jeclear++;)
+              if(uop->Mop->oracle.spec_mode)
+                ZESTO_STAT(core->stat.num_wp_jeclear++;)
+#ifdef ZTRACE
+              ztrace_print(uop,"e|jeclear|branch mispred detected at execute");
+#endif
+           }
+ 
+         
+           /* bypass output value to dependents */
+           struct odep_t * odep = uop->exec.odep_uop;
+           while(odep)
+           {
+  //XXX:assert breaks on exec_stall, fix repeating!
+  //         zesto_assert(!odep->uop->exec.ivalue_valid[odep->op_num], (void)0);
+             odep->uop->exec.ivalue_valid[odep->op_num] = true;
+             if(odep->aflags)
+                odep->uop->exec.ivalue[odep->op_num].dw = uop->exec.oflags;
+             else
+                odep->uop->exec.ivalue[odep->op_num] = uop->exec.ovalue;
+             odep->uop->timing.when_ival_ready[odep->op_num] = sim_cycle+fp_penalty;
+             odep = odep->next;
+           }
+          
+           /* if we are in the middle of a fusion, don't alloc pre_commit yet until the last part (apart from STs) of the fusion is completed - workaround for OP-x-OP fusion */
+//         bool uop_goes_to_commit = true;
+
+//         if(uop->decode.in_fusion && uop->decode.fusion_next && !uop->decode.fusion_next->decode.is_sta)
+//            uop_goes_to_commit = false;
+
+           if(uop_goes_to_commit)
+           {
+              /* we reach this only if pre_commit_available() */
+              // add to commit buffer
+              if((!uop->decode.in_fusion) || uop->decode.is_fusion_head)
+                 core->commit->pre_commit_insert(uop);
+              else
+                 core->commit->pre_commit_fused_insert(uop);
+
+              FU->occupancy--;
+              zesto_assert(FU->occupancy >= 0,(void)0);
+              FU->pipe[stage].uop = NULL;
+           }
+           else
+           {
+             FU->occupancy--;
+             zesto_assert(FU->occupancy >= 0,(void)0);
+             FU->pipe[stage].uop = NULL;
+           }
+         }
+      } /* if not squashed */
+      }
+    }
+  }
+ 
+
+  /* shuffle the other stages forward (and update timing if we are in an exec_stal)*/
+  for(i=0;i<knobs->exec.num_exec_ports;i++)
+  {
+    for(int j=0;j<port[i].num_FU_types;j++)
+    {
+       enum md_fu_class FU_type = port[i].FU_types[j];
+       struct ALU_t * FU = port[i].FU[FU_type];
+        if(FU->occupancy > 0)
+        {
+          /* If we are stalling, update timing, so that dependant instructions don't issue to execution */
+          if(exec_stall)
+          {
+            for(int stage=FU->latency-1; stage > -1; stage--)
+              if(FU->pipe[stage].uop)
+              {
+                 FU->pipe[stage].uop->timing.when_otag_ready++;
+ 
+                 /* tag broadcast to dependents */
+                 struct odep_t * odep = FU->pipe[stage].uop->exec.odep_uop;
+                 while(odep)
+                 {
+                    int j;
+                    tick_t when_ready = 0;
+                    odep->uop->timing.when_itag_ready[odep->op_num] = FU->pipe[stage].uop->timing.when_otag_ready;
+
+                    for(j=0;j<MAX_IDEPS;j++)
+                    {
+                       if(when_ready < odep->uop->timing.when_itag_ready[j])
+                          when_ready = odep->uop->timing.when_itag_ready[j];
+                    }
+                    odep->uop->timing.when_ready = when_ready;
+
+                    odep = odep->next;
+                 }	   
+              }
+          }
+          else
+          {
+            for(int stage=FU->latency-1;stage > 0; stage--)
+            {
+              if((FU->pipe[stage].uop == NULL) && FU->pipe[stage-1].uop)
+              {
+                FU->pipe[stage] = FU->pipe[stage-1];
+                FU->pipe[stage-1].uop = NULL;
+              }
+            }
+          }
+        }
+    }
+  }
+         
+
+//process pipe stages before actual FUs - payload pipe
+//relies that we have a fixed 3-stage pipe
+//1st stage - address generation
+//2nd - cache access
+//3rd - cache access res + leave to FU
+//FIXME: This should be configurable
+
+  zesto_assert(knobs->exec.payload_depth == 3, (void)0);
+  int stage = knobs->exec.payload_depth-1;
+  bool stall = false;
+  struct uop_t * uop;
+
+  for(i=0;i<knobs->exec.num_exec_ports;i++)
+  {
+   stall = port[i].when_stalled != 0;
+   if(port[i].occupancy > 0)
+    {
+      uop = port[i].payload_pipe[stage].uop;
+      work_found = true;
+  
+      /* uops leaving this pipe and going to the FUs */ 
+	if (uop && port[i].payload_pipe[stage].action_id == uop->exec.action_id 
+                && !stall) /* uop is valid and hasn't been squashed */
+
+        {
+           int j;
+           int all_ready = true;
+
+
+           //loads should have already finished by now, if not, stall
+	       if(uop->decode.is_load)
+           {
+             if(!uop->exec.ovalue_valid)
+	         {
+	            stall = true;
+                uop->exec.num_replays++;
+	            if(port[i].when_stalled == 0)
+                  port[i].when_stalled = sim_cycle;
+	            continue;
+	         }
+           } 
+
+//SK - we deal with fused uops on the same cycle. This assumes we are fusing LOAD, OP, STA, STD at most since in the IO pipe there are dedicated cycles for LOAD, STA and STD. 
+          if(uop->decode.in_fusion && uop->decode.is_load)
+          {
+             /* here we change the uop pointer to check for dependecies of the actual operation in the LOAD-OP-ST fused op; should be ok since we've already checked the LOAD and will care for the ST as early as in commit */
+             zesto_assert(uop->exec.ovalue_valid, (void)0);
+
+             uop = uop->decode.fusion_next;
+             port[i].payload_pipe[stage].uop = uop;
+             port[i].payload_pipe[stage].action_id = uop->exec.action_id;
+
+             zesto_assert(uop, (void)0);
+             zesto_assert(!uop->decode.is_load, (void)0);
+             zesto_assert(!uop->decode.is_sta, (void)0);
+             zesto_assert(!uop->decode.is_std, (void)0);
+          }
+
+          enum md_fu_class FU_class = uop->decode.FU_class;
+
+
+          /* at this point a LOAD means non-fused LOAD, already executed -> go to commit 
+             stores here are also ready to go to pre-commit (they execute there). The uop is a fused STA-STD or non-fused, not part of larger fusion 
+             traps and NOPs also skip the execution units and go straight to pre_commit 
+             same happens for AGEN (generated mostly by LEA) */
+
+         if(uop->decode.is_load || uop->decode.is_sta 
+               || uop->decode.is_nop || uop->Mop->decode.is_trap
+               || (uop->decode.opflags & F_AGEN) == F_AGEN)
+          {
+//             if(!core->commit->pre_commit_available() || !can_issue_IO(uop))
+//             {
+               //STALL
+//               ZESTO_STAT(core->stat.exec_uops_replayed++;)
+//               uop->exec.num_replays++;
+//               stall = true;
+//               if(port[i].when_stalled == 0)
+//                 port[i].when_stalled = sim_cycle;
+//               continue;
+//             }
+//             else
+//             {
+                /* update occupancy */
+//                port[i].payload_pipe[stage].uop = NULL;
+//                port[i].occupancy--;
+//                zesto_assert(port[i].occupancy >= 0, (void)0);
+ 
+//                if(uop->decode.is_nop || uop->Mop->decode.is_trap)
+//                {
+//                  uop->timing.when_exec = sim_cycle;
+//                  uop->timing.when_issued = sim_cycle;
+//                  uop->timing.when_completed = sim_cycle;
+//                }
+
+//                core->commit->pre_commit_insert(uop);
+		
+                /* loads can be safely removed from load queue */
+//                if(uop->decode.is_load)
+//                {
+//                   zesto_assert(uop->exec.ovalue_valid, (void)0);
+//                   LDQ_deallocate(uop);
+//                }
+//             }
+          }
+          else
+          {
+
+             for(j=0;j<MAX_IDEPS;j++)
+                all_ready &= uop->exec.ivalue_valid[j];
+
+             /* have all input values arrived and FU available */
+             if((!all_ready) || (port[i].FU[FU_class]->pipe[0].uop != NULL) || (port[i].FU[FU_class]->when_executable > sim_cycle) || !can_issue_IO(uop))
+             {
+               /* no, stall */
+//SK - code for putting instruction back to sleep removed
+               if (uop->timing.when_ready <= sim_cycle) /* supposed to be ready in the past */
+               {
+                 uop->timing.when_ready = sim_cycle+1;
+                 /* ignore OO tornado breaker here, we stall */
+               }
+#ifdef ZTRACE
+               ztrace_print(uop, "e|stall|uop cannot go to ALU %d %lld", uop->exec.num_replays,uop->timing.when_ready);
+#endif 
+              /* stall*/
+               ZESTO_STAT(core->stat.exec_uops_replayed++;)
+               uop->exec.num_replays++;
+               stall = true;
+               if(port[i].when_stalled == 0)
+                  port[i].when_stalled = sim_cycle;
+               //continue;
+
+             }
+             else /* uop ready to leave to FU */
+             {
+#ifdef ZTRACE
+                ztrace_print(uop,"e|payload|uop goes to ALU");
+#endif
+                ZESTO_STAT(core->stat.exec_uops_issued++;)
+
+                if(!uop->decode.is_load)
+                {
+                   int fp_penalty = ((REG_IS_FPR(uop->decode.odep_name) && !(uop->decode.opflags & F_FCOMP)) ||
+                                    (!REG_IS_FPR(uop->decode.odep_name) && (uop->decode.opflags & F_FCOMP)))?knobs->exec.fp_penalty:0;
+                   uop->timing.when_otag_ready = sim_cycle + port[i].FU[uop->decode.FU_class]->latency + fp_penalty;
+                }
+
+               port[i].FU[uop->decode.FU_class]->when_scheduleable = sim_cycle + port[i].FU[uop->decode.FU_class]->issue_rate;
+	  
+                /* tag broadcast to dependents */
+                struct odep_t * odep = uop->exec.odep_uop;
+                while(odep)
+                {
+                   int j;
+                   tick_t when_ready = 0;
+                   odep->uop->timing.when_itag_ready[odep->op_num] = uop->timing.when_otag_ready;
+
+                   for(j=0;j<MAX_IDEPS;j++)
+                   {
+                      if(when_ready < odep->uop->timing.when_itag_ready[j])
+                         when_ready = odep->uop->timing.when_itag_ready[j];
+                   }
+                   odep->uop->timing.when_ready = when_ready;
+
+                   odep = odep->next;
+                }	   
+
+                //SK - removed code handling RS deallocation
+           
+                uop->timing.when_exec = sim_cycle;
+           
+                /* this port has the proper FU and the first stage is free */
+                zesto_assert((port[i].FU[FU_class] && (port[i].FU[FU_class]->pipe[0].uop == NULL)), (void)0);
+           
+                port[i].FU[FU_class]->pipe[0].uop = uop;
+                port[i].FU[FU_class]->pipe[0].action_id = uop->exec.action_id;
+                port[i].FU[FU_class]->occupancy++;
+                port[i].FU[FU_class]->when_executable = sim_cycle + port[i].FU[FU_class]->issue_rate;
+                check_for_work = true;
+
+
+                /* in a fusion, deallocate a previous LD from the the LDQ here (done here to keep program order in LDQ deallocation) */
+                if(uop->decode.in_fusion)
+                {
+                  struct uop_t * curr_uop = uop->decode.fusion_head;
+                  while(curr_uop && curr_uop != uop)
+                  {
+                    if(curr_uop->decode.is_load)
+                    {
+                      zesto_assert(curr_uop->alloc.LDQ_index != -1, (void)0);
+                      LDQ_deallocate(curr_uop);
+                      break;
+                    }
+                    curr_uop = curr_uop->decode.fusion_next;
+                  }
+                }
+
+                /* deal with OP-x-OP fusion */
+                bool valid_fusion_next = false;
+                
+                if(uop->decode.in_fusion && uop->decode.fusion_next && !uop->decode.fusion_next->decode.is_sta)
+                   valid_fusion_next = true;
+                
+
+                if(!valid_fusion_next)
+                {
+                  /* update occupancy */
+                  port[i].payload_pipe[stage].uop = NULL;
+                  port[i].occupancy--;
+                  zesto_assert(port[i].occupancy >= 0, (void)0);
+                }
+                /* This can happen when we are fusing the OP-x-OP format.
+                   In that case, simply keep the next part of the fusion at the end of issue*/
+                else
+                {
+                  port[i].payload_pipe[stage].uop = uop->decode.fusion_next;
+                  port[i].payload_pipe[stage].action_id = uop->decode.fusion_next->exec.action_id;
+
+                  /* don't shuffle pipe since we aren't vacating a stage */
+                  stall = true;
+                  if(port[i].when_stalled == 0)
+                     port[i].when_stalled = sim_cycle;
+                  //continue;
+               }
+
+
+             }
+          }
+        }    
+        else if(uop && (port[i].payload_pipe[stage].action_id != uop->exec.action_id)
+                    && !stall) /* uop has been squashed */
+        {
+#ifdef ZTRACE 
+          ztrace_print(uop,"e|payload|on exit from payload, uop discovered to have been squashed");
+#endif
+
+          /* in a fusion, deallocate a previous LD from the the LDQ here (done here to keep program order in LDQ deallocation) */
+          if(uop->decode.in_fusion)
+          {
+            struct uop_t * curr_uop = uop->decode.fusion_head;
+            while(curr_uop && curr_uop != uop)
+            {
+              if(curr_uop->decode.is_load)
+              {
+                zesto_assert(curr_uop->alloc.LDQ_index != -1, (void)0);
+                LDQ_deallocate(curr_uop);
+                break;
+              }
+              curr_uop = curr_uop->decode.fusion_next;
+            }
+          }
+
+          if(uop->decode.is_load && uop->alloc.LDQ_index != -1)
+    	    LDQ_deallocate(uop);
+
+
+          port[i].payload_pipe[stage].uop = NULL;
+          port[i].occupancy--;
+          zesto_assert(port[i].occupancy >= 0, (void)0);
+        }
+        else if(!uop)/* no uops in last stage, clear stall flag if pipe stalled */
+        {
+           stall = false;
+           port[i].when_stalled = 0;
+        }
+
+    }
+  }
+
+
+  for(i=0;i<knobs->exec.num_exec_ports;i++)
+  {
+      stall = port[i].when_stalled != 0;
+      stage = knobs->exec.payload_depth - 2;
+      uop = port[i].payload_pipe[stage].uop;
+
+      /* uop in mem DC1 stage */
+      /* LDQ insertion moved to end of alloc; AGEN in previous stage validates load - nothing to do here */
+
+      /* if IO pipe stalled, just generate stats */
+      if(stall
+         && port[i].payload_pipe[stage+1].uop != NULL)
+      /* The stall may be generated by a younger instruction waiting on us to
+         issue in order. If this is the case, next stage wll be empty and we
+         are safe to go there in order to avoid deadlock. */
+      {
+#ifdef ZTRACE
+         ztrace_print(uop,"e|payload|payload stalled, no shuffling");
+#endif
+         ZESTO_STAT(core->stat.exec_uops_replayed++;)
+         if(uop) uop->exec.num_replays++;
+      }
+      else
+      /* shuffle uop to next stage */
+      {
+         port[i].payload_pipe[stage+1] = port[i].payload_pipe[stage];
+         port[i].payload_pipe[stage].uop = NULL;
+      }
+      
+
+      stage--;
+      zesto_assert(stage >= 0, (void)0);
+      uop = port[i].payload_pipe[stage].uop;
+
+      /* uop in mem AGEN stage */
+      if(uop)
+      {
+         struct uop_t * curr_uop = uop;
+         while(curr_uop)
+         { 
+           if(curr_uop->decode.is_load && !stall)
+           {
+             zesto_assert(curr_uop->alloc.LDQ_index != -1, (void)0);
+
+             bool load_ready = true;
+             for(int j=0;j<MAX_IDEPS;j++)
+               load_ready &= curr_uop->exec.ivalue_valid[j];
+
+ //            if(!load_ready)
+//             {
+//               stall = true;
+//               if(port[i].when_stalled == 0)
+//                 port[i].when_stalled = sim_cycle;
+               
+//               ZESTO_STAT(core->stat.exec_uops_replayed++;)
+//               uop->exec.num_replays++;
+//             }
+//             else
+//             {
+               /* this validates the AGEN - just use the oracle value */
+               LDQ[curr_uop->alloc.LDQ_index].virt_addr = curr_uop->oracle.virt_addr;
+               LDQ[curr_uop->alloc.LDQ_index].addr_valid = true;
+               curr_uop->timing.when_exec = sim_cycle;
+               /* actual load processing in LDQ_schedule() */
+//             }
+
+             break;
+           }
+
+           /* LEA workaround - execution of LEA instruction on the Atom happens in the AGU, not in the ALU (see Intel Optimization manual) */
+           if((curr_uop->decode.opflags & F_AGEN) == F_AGEN && !stall)
+           {
+             bool agen_ready = true;
+             for(int j=0;j<MAX_IDEPS;j++)
+                agen_ready &= curr_uop->exec.ivalue_valid[j];
+ 
+
+             if(!agen_ready)
+             {
+               stall = true;
+               if(port[i].when_stalled == 0)
+                 port[i].when_stalled = sim_cycle;
+
+               ZESTO_STAT(core->stat.exec_uops_replayed++;)
+               uop->exec.num_replays++;
+ 
+               break;
+             }
+
+
+             curr_uop->exec.ovalue_valid = true;
+             curr_uop->exec.ovalue = uop->oracle.ovalue;
+
+             curr_uop->timing.when_exec = sim_cycle;
+             curr_uop->timing.when_completed = sim_cycle;
+
+             /* bypass output value to dependents */
+             struct odep_t * odep = curr_uop->exec.odep_uop;
+             while(odep)
+             {
+               zesto_assert(!odep->uop->exec.ivalue_valid[odep->op_num], (void)0);
+               odep->uop->exec.ivalue_valid[odep->op_num] = true;
+               if(odep->aflags)
+                 odep->uop->exec.ivalue[odep->op_num].dw = curr_uop->exec.oflags;
+               else
+                 odep->uop->exec.ivalue[odep->op_num] = curr_uop->exec.ovalue;
+
+               odep->uop->timing.when_ival_ready[odep->op_num] = sim_cycle;
+               odep = odep->next;
+             }
+             break;
+           }
+
+           if(curr_uop->decode.in_fusion)
+             curr_uop = curr_uop->decode.fusion_next;
+           else
+             curr_uop = NULL;
+         }
+
+         /* if stalling, just update stats */
+         if(stall)
+         {
+           ZESTO_STAT(core->stat.exec_uops_replayed++;)
+           uop->exec.num_replays++;
+         }
+         /* shuffle uop to next stage */
+         else
+         {
+           port[i].payload_pipe[stage+1] = port[i].payload_pipe[stage];
+           port[i].payload_pipe[stage].uop = NULL;
+         }
+      }
+ 
+
+      if(!stall)
+        port[i].when_stalled = 0;
+  }
+  check_for_work = work_found;
 }
 
-bool core_exec_DPM_t::exec_empty(void)
+/* not entirely sure what the architectural counterpart of this is(scoreboard?), but we use it in the simulator to check if issuing won't break the program order (after issue no reordering can be done) */
+bool core_exec_IO_DPM_t::can_issue_IO(struct uop_t * const uop)
 {
-  fatal("shouldn't be called");
+  struct core_knobs_t * knobs = core->knobs;
+ 
+  /* Assuming we issue now, when will the value be ready - used to check if we don't break execution order if we issue */
+  tick_t when_otag_ready;
+  if(!uop->decode.is_load && !uop->decode.is_sta && !uop->decode.is_std
+     && !uop->decode.is_nop && !uop->Mop->decode.is_trap
+     && (uop->decode.opflags & F_AGEN) != F_AGEN)
+  {
+    int fp_penalty = ((REG_IS_FPR(uop->decode.odep_name) && !(uop->decode.opflags & F_FCOMP)) ||
+                     (!REG_IS_FPR(uop->decode.odep_name) && (uop->decode.opflags & F_FCOMP)))?knobs->exec.fp_penalty:0;
+     when_otag_ready = sim_cycle + port[uop->alloc.port_assignment].FU[uop->decode.FU_class]->latency + fp_penalty;
+  }
+  else /* loads and stores go directly to pre_commit, as well as traps and nops */
+     when_otag_ready = sim_cycle;
+
+
+  for(int i=0;i<knobs->exec.num_exec_ports;i++)
+  {
+     for(int j=0;j<port[i].num_FU_types;j++)
+     {
+       enum md_fu_class FU_type = port[i].FU_types[j];
+       struct ALU_t * FU = port[i].FU[FU_type];
+       if(FU && (FU->occupancy > 0))
+       {
+         int stage = FU->latency-1;
+         for(;stage>=0;stage--)
+         {
+            struct uop_t * curr_uop = FU->pipe[stage].uop;
+            if(curr_uop)
+            {
+              if(curr_uop == uop)
+                continue;
+
+
+              /* issued uop prior in program order */
+               if(uop->decode.uop_seq > curr_uop->decode.uop_seq)
+               {
+/* when_otag_rady should be already assigned for instructions in exec */
+                 if(when_otag_ready < curr_uop->timing.when_otag_ready)
+                    return false;
+               }
+
+            }
+         }
+       }
+     }
+
+     /* Also check last stage of payload (issue) pipe - there may be a prior op there (especially a stalled LD waiting for cache) */
+
+     int stage = knobs->exec.payload_depth-1;
+     struct uop_t * curr_uop = port[i].payload_pipe[stage].uop;
+     if(curr_uop)
+     {
+        if(curr_uop == uop)
+          continue;
+
+        /* only fusion head occupies space in issue pipe */
+        if(uop->decode.in_fusion && uop->decode.fusion_head == curr_uop)
+          continue;
+
+        /* issued uop prior in program order */
+        if(uop->decode.uop_seq > curr_uop->decode.uop_seq)
+        {
+/* when_completed should be already assigned (and reliable since only loads can have variable latencies, but they are already processed) */
+
+             tick_t when_curr_ready;
+             int curr_port = curr_uop->alloc.port_assignment;
+             enum md_fu_class curr_FU_class = curr_uop->decode.FU_class;
+
+             if(curr_uop->decode.is_load) 
+                when_curr_ready = curr_uop->timing.when_completed;
+             else if(curr_uop->decode.is_sta || curr_uop->decode.is_std
+                     || curr_uop->decode.is_nop || curr_uop->Mop->decode.is_trap
+                     || (curr_uop->decode.opflags & F_AGEN) == F_AGEN)
+                when_curr_ready = TICK_T_MAX;
+             else
+             {
+                 /* if curr_uop doesn't have all operands ready, it can't issue at this cycle */
+                 bool operands_ready = true;
+                 for(int ind = 0; ind < MAX_IDEPS; ind++)
+                    operands_ready &= curr_uop->exec.ivalue_valid[ind];
+
+                 if(!operands_ready)
+                    when_curr_ready = TICK_T_MAX;
+                 else
+                 {
+                    int curr_fp_penalty = ((REG_IS_FPR(curr_uop->decode.odep_name) && !(curr_uop->decode.opflags & F_FCOMP)) ||
+                                          (!REG_IS_FPR(curr_uop->decode.odep_name) && (curr_uop->decode.opflags & F_FCOMP)))?knobs->exec.fp_penalty:0;
+                    when_curr_ready = sim_cycle + port[curr_port].FU[curr_FU_class]->latency + curr_fp_penalty;
+                 }
+
+                 //If curr_uop is all set, but the FU it is supposed to go to is full or busy, it won't get issued this cycle and we should play safe
+                 if((port[curr_port].FU[curr_FU_class]->pipe[0].uop != NULL) || (port[curr_port].FU[curr_FU_class]->when_executable > sim_cycle))
+                    when_curr_ready = TICK_T_MAX;
+             }
+
+             if(when_otag_ready < when_curr_ready)
+              return false;
+
+             if(curr_uop->decode.in_fusion)
+             {
+               while(curr_uop && 
+                     !curr_uop->decode.is_sta)
+               {
+                  if(when_otag_ready < curr_uop->timing.when_otag_ready)
+                    return false;
+
+                  curr_uop = curr_uop->decode.fusion_next;
+               }
+             }
+        }
+
+     }
+     /* uops prior in program order can be in the prevoius stages of issue pipe. They surely need at least one cycle to go to the last issued stage before going to exec. So, don't allow issue */
+     for(stage--;stage>=0;stage--)
+     {
+        curr_uop = port[i].payload_pipe[stage].uop;
+        if(curr_uop)
+          if(curr_uop->decode.uop_seq < uop->decode.uop_seq)
+             return false;
+     }
+ 
+  }
+      
+ 
+  return true; 
 }
 
+/* called by commit - tries to schedule a store for single cycle execution */
+/* Assumes writeback cache - no waiting, just mark as ready and leave the cache subsystem handle the rest */
+bool core_exec_IO_DPM_t::exec_fused_ST(struct uop_t * const uop)
+{
+  struct uop_t * curr_uop = uop;
+  struct core_knobs_t * knobs = core->knobs;
+
+  zesto_assert(curr_uop->decode.is_sta, false);
+
+  if(!STQ_available())
+     return false;
+
+  //No separate execution units for stores (directly issued to pre_commit), so need to set stats (move to issue?)
+  curr_uop->timing.when_exec = sim_cycle;
+  curr_uop->timing.when_completed = sim_cycle;
+  core->exec->STQ_insert_sta(curr_uop);
+
+  zesto_assert((curr_uop->alloc.STQ_index >= 0) && (curr_uop->alloc.STQ_index < knobs->exec.STQ_size), false);
+  zesto_assert(!STQ[curr_uop->alloc.STQ_index].addr_valid, false);
+  STQ[curr_uop->alloc.STQ_index].virt_addr = curr_uop->oracle.virt_addr;
+  STQ[curr_uop->alloc.STQ_index].addr_valid = true;
+
+  /* In a rare event, another uop (other than the STD) may depend on 
+     the result of the STA. Since, presumably, store address calculation
+     is done here, we need to update STA dependants */
+  struct odep_t * odep = curr_uop->exec.odep_uop;
+  while(odep)
+  {
+     zesto_assert(!odep->uop->exec.ivalue_valid[odep->op_num], false);
+     odep->uop->exec.ivalue_valid[odep->op_num] = true;
+     if(odep->aflags)
+        odep->uop->exec.ivalue[odep->op_num].dw = curr_uop->exec.oflags;
+     else
+        odep->uop->exec.ivalue[odep->op_num] = curr_uop->exec.ovalue;
+     odep->uop->timing.when_ival_ready[odep->op_num] = sim_cycle;
+     odep = odep->next;
+  }
+  
+
+  /* move on to STD */
+  zesto_assert(curr_uop->decode.in_fusion, false);
+  curr_uop = curr_uop->decode.fusion_next;
+  zesto_assert(curr_uop, false);
+  zesto_assert(curr_uop->decode.is_std, false);
+
+  curr_uop->timing.when_exec = sim_cycle;
+  curr_uop->timing.when_completed = sim_cycle;
+  core->exec->STQ_insert_std(curr_uop);
+
+  zesto_assert((curr_uop->alloc.STQ_index >= 0) && (curr_uop->alloc.STQ_index < knobs->exec.STQ_size), false);
+  zesto_assert(!STQ[curr_uop->alloc.STQ_index].value_valid, false);
+        
+  curr_uop->exec.ovalue_valid = true;
+  curr_uop->exec.ovalue = curr_uop->oracle.ovalue;
+
+  STQ[curr_uop->alloc.STQ_index].value = curr_uop->exec.ovalue;
+  STQ[curr_uop->alloc.STQ_index].value_valid = true;
+
+
+  return true;
+}
 
 #endif

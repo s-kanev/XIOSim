@@ -1,3 +1,8 @@
+/* 
+ * Interface to instruction feeder.
+ * Copyright, Svilen Kanev, 2011
+*/
+
 #ifndef __PIN_ZESTO_INTERFACE__
 #define __PIN_ZESTO_INTERFACE__
 
@@ -11,7 +16,6 @@ int Zesto_Notify_Mmap(unsigned int addr, unsigned int length, bool mod_brk);
 int Zesto_Notify_Munmap(unsigned int addr, unsigned int length, bool mod_brk);
 void Zesto_SetBOS(unsigned int stack_base);
 void Zesto_UpdateBrk(unsigned int brk_end, bool do_mmap);
-void Zesto_Drain();
 
 void Zesto_Add_WriteByteCallback(ZESTO_WRITE_BYTE_CALLBACK callback);
 

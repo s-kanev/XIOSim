@@ -122,13 +122,13 @@ void dram_t::refresh(void)
 
 void dram_t::reg_stats(struct stat_sdb_t * const sdb)
 {
-  stat_reg_counter(sdb, true, "dram.total_access", "total number of memory accesses", &total_accesses, /* initial value */0, /* format */NULL);
-  stat_reg_counter(sdb, false, "dram.total_latency", "total memory latency cycles", &total_latency, /* initial value */0, /* format */NULL);
+  stat_reg_counter(sdb, true, "dram.total_access", "total number of memory accesses", &total_accesses, /* initial value */0, TRUE, /* format */NULL);
+  stat_reg_counter(sdb, false, "dram.total_latency", "total memory latency cycles", &total_latency, /* initial value */0, TRUE, /* format */NULL);
   stat_reg_formula(sdb, true, "dram.average_latency","average memory latency in cycles",
       "dram.total_latency / dram.total_access",/* format */NULL);
-  stat_reg_int(sdb, true, "dram.best_latency", "fastest memory latency observed", &best_latency, /* initial value */INT_MAX, /* format */NULL);
-  stat_reg_int(sdb, true, "dram.worst_latency", "worst memory latency observed", &worst_latency, /* initial value */0, /* format */NULL);
-  stat_reg_counter(sdb, false, "dram.total_burst", "total memory burst lengths", &total_burst, /* initial value */0, /* format */NULL);
+  stat_reg_int(sdb, true, "dram.best_latency", "fastest memory latency observed", &best_latency, /* initial value */INT_MAX, FALSE, /* format */NULL);
+  stat_reg_int(sdb, true, "dram.worst_latency", "worst memory latency observed", &worst_latency, /* initial value */0, FALSE, /* format */NULL);
+  stat_reg_counter(sdb, false, "dram.total_burst", "total memory burst lengths", &total_burst, /* initial value */0, FALSE, /* format */NULL);
   stat_reg_formula(sdb, true, "dram.average_burst","average memory burst length", "dram.total_burst / dram.total_access",/* format */NULL);
 }
 

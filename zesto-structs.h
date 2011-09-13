@@ -356,8 +356,10 @@ struct core_knobs_t
     bool fusion_none; /* this takes precedence over -fusion:all */
     bool fusion_all;  /* and then this takes precedence over the subsequent flags */
     bool fusion_load_op;
+    bool fusion_fp_load_op;
     bool fusion_sta_std;
     bool fusion_partial;
+    bool fusion_load_op_st;
   } decode;
 
   struct {
@@ -420,6 +422,7 @@ struct core_knobs_t
     int ROB_size;
     int width;
     int branch_limit; /* maximum number of branches committed per cycle */
+    int pre_commit_depth;
   } commit;
 };
 

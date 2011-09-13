@@ -27,7 +27,7 @@
 PIN_HOME ?= /home/skanev/pin/pin-2.8-36111-gcc.3.4.6-ia32_intel64-linux
 ZESTO_HOME = ..
 TARGET = ia32
-
+INSTALL_DIR = /group/brooks/xan/Molecool/bin/
 
 ##############################################################
 #
@@ -69,6 +69,8 @@ endif
 
 TOOL_ROOTS = feeder_zesto
 
+TOOL_OBJS = $(OBJDIR)fluffy.o
+
 TOOLS = $(TOOL_ROOTS:%=$(OBJDIR)%$(PINTOOL_SUFFIX))
 
 
@@ -99,12 +101,15 @@ $(OBJDIR)%.o : %.C
 $(OBJDIR)%.o : %.cpp
 	$(CXX) -c $(CXXFLAGS) $(PIN_CXXFLAGS) ${OUTOPT}$@ $<
 
-$(TOOLS): $(PIN_LIBNAMES) $(ZESTO_HOME)/libsim.a
+$(TOOLS): $(PIN_LIBNAMES) $(TOOL_OBJS) $(ZESTO_HOME)/libsim.a
 
 $(TOOLS): %$(PINTOOL_SUFFIX) : %.o 
-	${PIN_LD} -g $(PIN_LDFLAGS) -I$(ZESTO_HOME) -L$(ZESTO_HOME) $(LINK_DEBUG) ${LINK_OUT} $@ $< ${PIN_LPATHS} $(ZESTO_HOME)/libsim.a $(PIN_LIBS) $(DBG) -g
+	${PIN_LD} -g $(PIN_LDFLAGS) -I$(ZESTO_HOME) -L$(ZESTO_HOME) $(LINK_DEBUG) ${LINK_OUT} $@ $< ${PIN_LPATHS} $(TOOL_OBJS) $(ZESTO_HOME)/libsim.a $(PIN_LIBS) $(DBG) -g
 
 
 ## cleaning
 clean:
 	-rm -rf $(OBJDIR) *.out *.tested *.failed makefile.copy
+
+install:
+	cp $(TOOLS) $(INSTALL_DIR)

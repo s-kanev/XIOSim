@@ -23,15 +23,20 @@ CC = g++
 # Uncomment only one of the following OFLAGS, or make your own
 
 # For debug:
-OFLAGS = -O0 -g -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -Wall -DDEBUG -msse4a -mfpmath=sse 
+OFLAGS = -O0 -g -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -Wall -DDEBUG -msse4a -mfpmath=sse
+OFLAGS_SAFE = $(OFLAGS)
+
 # Fully-optimized, but with profiling for gprof:
 #OFLAGS = -O3 -g -pg -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -Wall -static -fexpensive-optimizations -mtune=core2 -march=core2 -msse4a -mfpmath=sse -funroll-loops
 # Fully-optimized:
 #OFLAGS = -O3 -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -Wall -static -fexpensive-optimizations -mtune=core2 -march=core2 -msse4a -mfpmath=sse -funroll-loops -Wuninitialized
 
+#Needed only by syscall.c because > O0 breaks it
+#OFLAGS_SAFE = -O0 -g -pg -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -Wall -static -mfpmath=sse -msse4a
+
 
 ##################################################################
-# Uncomment to turn on pipeline event logging (currently not supported)
+# Uncomment to turn on pipeline event logging 
 ZTRACE = #-DZTRACE
 
 ##################################################################
@@ -69,6 +74,7 @@ X=/
 # complete flags
 #
 CFLAGS = $(MFLAGS) $(FFLAGS) $(OFLAGS) $(BINUTILS_INC) $(BINUTILS_LIB) $(ZTRACE)
+CFLAGS_SAFE = $(MFLAGS) $(FFLAGS) $(OFLAGS_SAFE) $(BINUTILS_INC) $(BINUTILS_LIB) $(ZTRACE)
 SLAVE_CFLAGS = -DZESTO_PIN $(CFLAGS)
 
 #
@@ -81,7 +87,7 @@ misc.c               options.c            range.c               regs.c          
 sim-eio.c            sim-fast.c           stats.c               symbol.c           \
 syscall.c	     sysprobe.c           sim-cache.c           slave.c	           \
 loader.c             symbol.c             syscall.c             sim-main.c         \
-callbacks.c
+callbacks.c       slices.cpp
 
 HDRS = \
 bbtracker.h          cache.h                                    thread.h           \
@@ -97,7 +103,7 @@ OBJS_NOMAIN =	\
 endian.$(OEXT)       eval.$(OEXT)         \
 machine.$(OEXT)      memory.$(OEXT)       misc.$(OEXT)          options.$(OEXT)    \
 range.$(OEXT)        regs.$(OEXT)         stats.$(OEXT)         symbol.$(OEXT)     \
-sim-main.$(OEXT)
+sim-main.$(OEXT)     slices.$(OEXT)
 
 OBJS = main.$(OEXT) eio.$(OEXT) loader.$(OEXT) $(OBJS_NOMAIN) syscall.$(OEXT) 
 OBJS_SLAVE = callbacks.$(OEXT) slave.$(OEXT) loader.$(OEXT) $(OBJS_NOMAIN)
@@ -107,19 +113,19 @@ ZSRCS = \
 sim-zesto.cpp zesto-core.cpp zesto-opts.c zesto-oracle.cpp zesto-fetch.cpp         \
 zesto-decode.cpp zesto-alloc.cpp zesto-exec.cpp zesto-commit.cpp zesto-cache.cpp   \
 zesto-dram.cpp zesto-bpred.cpp zesto-memdep.cpp zesto-prefetch.cpp                 \
-zesto-uncore.cpp zesto-MC.cpp
+zesto-uncore.cpp zesto-MC.cpp zesto-dumps.cpp
 
 ZHDRS = \
 zesto-structs.h zesto-core.h zesto-opts.h zesto-oracle.h zesto-fetch.h             \
 zesto-decode.h zesto-alloc.h zesto-exec.h zesto-commit.h zesto-cache.h             \
 zesto-dram.h zesto-bpred.h zesto-memdep.h zesto-prefetch.h zesto-uncore.h          \
-zesto-MC.h
+zesto-MC.h zesto-dumps.h
 
 ZOBJS = \
 zesto-opts.$(OEXT) zesto-core.$(OEXT) zesto-oracle.$(OEXT) zesto-fetch.$(OEXT)     \
 zesto-decode.$(OEXT) zesto-alloc.$(OEXT) zesto-exec.$(OEXT) zesto-commit.$(OEXT)   \
 zesto-cache.$(OEXT) zesto-dram.$(OEXT) zesto-bpred.$(OEXT) zesto-memdep.$(OEXT)    \
-zesto-prefetch.$(OEXT) zesto-uncore.$(OEXT) zesto-MC.$(OEXT)
+zesto-prefetch.$(OEXT) zesto-uncore.$(OEXT) zesto-MC.$(OEXT) zesto-dumps.$(OEXT)
 
 EXOOBJS = \
 libexo/libexo.$(OEXT) libexo/exolex.$(OEXT)
@@ -285,6 +291,8 @@ slave.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h options.h
 slave.o: endian.h thread.h memory.h stats.h eval.h version.h loader.h sim.h
 slave.o: interface.h callbacks.h
 callbacks.o: callbacks.h interface.h
+slices.o: stats.h host.h eval.h thread.h machine.h memory.h regs.h
+slices.o: zesto-core.h zesto-structs.h
 sim-main.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h
 sim-main.o: options.h memory.h stats.h eval.h loader.h thread.h syscall.h
 sim-main.o: sim.h zesto-opts.h zesto-core.h zesto-oracle.h zesto-fetch.h
@@ -379,7 +387,7 @@ zesto-commit.o: sim.h options.h stats.h host.h machine.h misc.h machine.def
 zesto-commit.o: zesto-structs.h regs.h eval.h memory.h thread.h zesto-core.h
 zesto-commit.o: zesto-opts.h zesto-oracle.h zesto-fetch.h zesto-decode.h
 zesto-commit.o: zesto-alloc.h zesto-exec.h zesto-cache.h zesto-commit.h
-zesto-commit.o: zesto-bpred.h
+zesto-commit.o: zesto-bpred.h zesto-dumps.h
 zesto-cache.o: thread.h machine.h host.h misc.h machine.def zesto-structs.h
 zesto-cache.o: regs.h options.h memory.h stats.h eval.h zesto-core.h
 zesto-cache.o: zesto-opts.h zesto-cache.h zesto-prefetch.h zesto-dram.h

@@ -126,41 +126,50 @@ struct stat_stat_t {
   const char *format;			/* stat output print format */
   enum stat_class_t sc;		/* stat class */
   int print_me;  /* set to FALSE to avoid printing */
+  int scale_me;  /* scale stat when using multiple sim slices */
   union stat_variant_t {
     /* sc == sc_int */
     struct stat_for_int_t {
       int *var;			/* integer stat variable */
       int init_val;		/* initial integer value */
+      int end_val;      /* final integer value */
     } for_int;
     /* sc == sc_uint */
     struct stat_for_uint_t {
       unsigned int *var;	/* unsigned integer stat variable */
       unsigned int init_val;	/* initial unsigned integer value */
+      unsigned int end_val;      /* final unsigned integer value */
     } for_uint;
     /* sc == sc_qword */
     struct stat_for_qword_t {
       qword_t *var;		/* qword integer stat variable */
       qword_t init_val;		/* qword integer value */
+      qword_t end_val;      /* final qword integer value */
     } for_qword;
     /* sc == sc_sqword */
     struct stat_for_sqword_t {
       sqword_t *var;		/* signed qword integer stat variable */
       sqword_t init_val;	/* signed qword integer value */
+      sqword_t end_val;     /* final signed qword integer value */
     } for_sqword;
     /* sc == sc_float */
     struct stat_for_float_t {
       float *var;		/* float stat variable */
       float init_val;		/* initial float value */
+      float end_val;		/* final float value */
     } for_float;
     /* sc == sc_double */
     struct stat_for_double_t {
       double *var;		/* double stat variable */
       double init_val;		/* initial double value */
+      double end_val;		/* final double value */
     } for_double;
     /* sc == sc_dist */
     struct stat_for_dist_t {
+      // XXX: Add final values for scaling
       unsigned int init_val;	/* initial dist value */
       unsigned int *arr;	/* non-sparse array pointer */
+      unsigned int *end_arr; /* final array pointer */
       unsigned int arr_sz;	/* array size */
       unsigned int bucket_sz;	/* array bucket size */
       int pf;			/* printables */
@@ -170,6 +179,7 @@ struct stat_stat_t {
     } for_dist;
     /* sc == sc_sdist */
     struct stat_for_sdist_t {
+      // XXX: Add final values for scaling
       unsigned int init_val;	/* initial dist value */
       struct bucket_t **sarr;	/* sparse array pointer */
       int pf;			/* printables */
@@ -192,6 +202,7 @@ struct stat_stat_t {
 struct stat_sdb_t {
   struct stat_stat_t *stats;		/* list of stats in database */
   struct eval_state_t *evaluator;	/* an expression evaluator */
+  double slice_weight;              /* weight of stat db in overall execution */
 };
 
 /* evaluate a stat as an expression */
@@ -213,6 +224,7 @@ stat_reg_int(struct stat_sdb_t *sdb,	/* stat database */
 	     const char *desc,		/* stat variable description */
 	     int *var,			/* stat variable */
 	     int init_val,		/* stat variable initial value */
+         int scale_me,
 	     const char *format);		/* optional variable output format */
 
 /* register an unsigned integer statistical variable */
@@ -223,6 +235,7 @@ stat_reg_uint(struct stat_sdb_t *sdb,	/* stat database */
 	      const char *desc,		/* stat variable description */
 	      unsigned int *var,	/* stat variable */
 	      unsigned int init_val,	/* stat variable initial value */
+          int scale_me,
 	      const char *format);		/* optional variable output format */
 
 /* register a qword integer statistical variable */
@@ -233,6 +246,7 @@ stat_reg_qword(struct stat_sdb_t *sdb,	/* stat database */
 	       const char *desc,		/* stat variable description */
 	       qword_t *var,		/* stat variable */
 	       qword_t init_val,	/* stat variable initial value */
+           int scale_me,
 	       const char *format);		/* optional variable output format */
 
 /* register a signed qword integer statistical variable */
@@ -243,6 +257,7 @@ stat_reg_sqword(struct stat_sdb_t *sdb,	/* stat database */
 		const char *desc,		/* stat variable description */
 		sqword_t *var,		/* stat variable */
 		sqword_t init_val,	/* stat variable initial value */
+        int scale_me,
 		const char *format);		/* optional variable output format */
 
 /* register a float statistical variable */
@@ -253,6 +268,7 @@ stat_reg_float(struct stat_sdb_t *sdb,	/* stat database */
 	       const char *desc,		/* stat variable description */
 	       float *var,		/* stat variable */
 	       float init_val,		/* stat variable initial value */
+           int scale_me,
 	       const char *format);		/* optional variable output format */
 
 /* register a double statistical variable */
@@ -263,6 +279,7 @@ stat_reg_double(struct stat_sdb_t *sdb,	/* stat database */
 		const char *desc,		/* stat variable description */
 		double *var,		/* stat variable */
 		double init_val,	/* stat variable initial value */
+        int scale_me,
 		const char *format);		/* optional variable output format */
 
 /* create an array distribution (w/ fixed size buckets) in stat database SDB,
@@ -281,6 +298,7 @@ stat_reg_dist(struct stat_sdb_t *sdb,	/* stat database */
 	      int pf,			/* print format, use PF_* defs */
 	      const char *format,		/* optional variable output format */
 	      const char **imap,		/* optional index -> string map */
+          int scale_me,
 	      print_fn_t print_fn);	/* optional user print function */
 
 /* create a sparse array distribution in stat database SDB, while the sparse
@@ -297,6 +315,7 @@ stat_reg_sdist(struct stat_sdb_t *sdb,	/* stat database */
 	       unsigned int init_val,	/* dist initial value */
 	       int pf,			/* print format, use PF_* defs */
 	       const char *format,		/* optional variable output format */
+           int scale_me,
 	       print_fn_t print_fn);	/* optional user print function */
 
 /* add NSAMPLES to array or sparse array distribution STAT */
@@ -364,6 +383,24 @@ print_sdist(struct stat_stat_t *stat,	/* stat variable */
 void
 print_dist(struct stat_stat_t *stat,	/* stat variable */
 	   FILE *fd);			/* output stream */
+
+/* save a stat database for using stats at a later stage */
+void
+stat_save_stats(struct stat_sdb_t *sdb);
+
+/* scale stats in a database by the db fixed weight */
+void
+stat_scale_stats(struct stat_sdb_t *sdb);
+
+/* scale a stat variable by a fixed weight metric
+   (note possible loss of precission for integral types) */
+void
+stat_scale_stat(struct stat_stat_t *stat, double weight);
+
+/* accumulate the value of a stat variable in another */
+void
+stat_accum_stat(struct stat_stat_t *dst,
+                const struct stat_stat_t *src);
 
 #ifdef __cplusplus
 }

@@ -12,14 +12,14 @@ set PROGRAM = ../../exe/bzip2_base.O3gcc4static241
 #set FFWD = 118400000000
 set FFWD = 0
 set PARAMETERS = "input.combined 200"
-set INST = 1000000000
+set INST = 100000000
 
 set PIN = /home/skanev/pin/pin-2.8-36111-gcc.3.4.6-ia32_intel64-linux/ia32/bin/pinbin
 set PINTOOL = /home/skanev/zesto/pintool/obj-ia32/feeder_zesto.so
 set ZESTOCFG = /home/skanev/zesto/config/A.cfg
 set MEMCFG = /home/skanev/zesto/dram-config/DDR2-800-5-5-5.cfg
 
-set CMD_LINE = "setarch i686 -3BL $PIN -pause_tool 15 -t $PINTOOL -ffwd $FFWD -maxinst $INST -s -config $ZESTOCFG -config $MEMCFG -redir:sim tst.out -- $PROGRAM $PARAMETERS"
+set CMD_LINE = "setarch i686 -3BL $PIN -pause_tool 15 -t $PINTOOL -skip $FFWD -maxinst $INST -s -config $ZESTOCFG -config $MEMCFG -redir:sim tst.out -- $PROGRAM $PARAMETERS"
 echo $CMD_LINE
 limit coredumpsize unlimited
 cd $PROGRAM_DIR

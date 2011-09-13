@@ -254,10 +254,10 @@ class bpred_pwl_t:public bpred_dir_t
 
     sprintf(buf,"c%d.%s.threshold",id,name);
     sprintf(buf2,"%s training threshold",type);
-    stat_reg_int(sdb, true, buf, buf2, &theta, theta, NULL);
+    stat_reg_int(sdb, true, buf, buf2, &theta, theta, FALSE, NULL);
     sprintf(buf,"c%d.%s.weight_width",id,name);
     sprintf(buf2,"%s weight/counter width in bits",type);
-    stat_reg_int(sdb, true, buf, buf2, &weight_width, weight_width, NULL);
+    stat_reg_int(sdb, true, buf, buf2, &weight_width, weight_width, FALSE, NULL);
   }
 
   /* GET_CACHE */

@@ -371,7 +371,7 @@ void MEM_QWRITE(struct mem_t *mem, md_addr_t addr, qword_t val);
 
 /* create a flat memory space */
 struct mem_t *
-mem_create(char *name);      /* name of the memory space */
+mem_create(const char *name);      /* name of the memory space */
 
 /* translate address ADDR in memory space MEM, returns pointer to host page */
 byte_t *

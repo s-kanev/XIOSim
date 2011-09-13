@@ -180,7 +180,7 @@
 #define zesto_assert(cond, retval) { \
   if(!(cond)) { \
     core->oracle->hosed = TRUE; \
-    fprintf(stderr,"assertion failed (%s,%d:thread %d): ",__FILE__,__LINE__,core->current_thread->id); \
+    fprintf(stderr,"assertion failed (%s,%d:thread %d) (cycle: %lld):",__FILE__,__LINE__,core->current_thread->id,sim_cycle); \
     fprintf(stderr,"%s\n",#cond); \
     fprintf(stderr, "cycle: %lld, num_Mops: %lld\n", sim_cycle, core->stat.oracle_total_insn); \
     fprintf(stderr, "PC: %x, regs->NPC: %x\n", core->fetch->PC, core->current_thread->regs.regs_NPC); \
@@ -233,6 +233,7 @@ class core_oracle_t {
   struct Mop_t * get_Mop(const int index);
   int get_index(const struct Mop_t * const Mop);
   int next_index(const int index);
+  struct Mop_t * get_oldest_Mop();
 
   bool spec_read_byte(const md_addr_t addr, byte_t * const valp, bool no_tail=false);
   struct spec_byte_t * spec_write_byte(const md_addr_t addr, const byte_t val,  struct uop_t * uop);

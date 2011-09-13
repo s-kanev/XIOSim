@@ -251,16 +251,16 @@ class bpred_pathneural_t:public bpred_dir_t
 
     sprintf(buf,"c%d.%s.threshold",id,name);
     sprintf(buf2,"%s training threshold",type);
-    stat_reg_int(sdb, true, buf, buf2, &theta, theta, NULL);
+    stat_reg_int(sdb, true, buf, buf2, &theta, theta, FALSE, NULL);
     sprintf(buf,"c%d.%s.weight_width",id,name);
     sprintf(buf2,"%s weight/counter width in bits",type);
-    stat_reg_int(sdb, true, buf, buf2, &weight_width, weight_width, NULL);
+    stat_reg_int(sdb, true, buf, buf2, &weight_width, weight_width, FALSE, NULL);
     sprintf(buf,"c%d.%s.weights_read",id,name);
     sprintf(buf2,"total number of weights read by %s",name);
-    stat_reg_counter(sdb, true, buf, buf2, &weights_read, weights_read, NULL);
+    stat_reg_counter(sdb, true, buf, buf2, &weights_read, 0, TRUE, NULL);
     sprintf(buf,"c%d.%s.weights_written",id,name);
     sprintf(buf2,"total number of weights written by %s",name);
-    stat_reg_counter(sdb, true, buf, buf2, &weights_written, weights_written, NULL);
+    stat_reg_counter(sdb, true, buf, buf2, &weights_written, 0, TRUE, NULL);
   }
 
   /* GET_CACHE */

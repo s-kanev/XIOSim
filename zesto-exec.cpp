@@ -80,6 +80,7 @@
 #include "zesto-alloc.h"
 #include "zesto-fetch.h"
 #include "zesto-exec.h"
+#include "zesto-commit.h"
 #include "zesto-memdep.h"
 #include "zesto-prefetch.h"
 #include "zesto-uncore.h"
@@ -135,6 +136,8 @@ void exec_reg_options(struct opt_odb_t * odb, struct core_knobs_t * knobs)
       MAX_EXEC_WIDTH, &knobs->exec.port_binding[FU_STA].num_FUs, knobs->exec.fu_bindings[FU_STA], /* print */true, /* format */NULL, /* !accrue */false);
   opt_reg_int_list(odb, "-pb:std", "STD port binding [DS]", knobs->exec.fu_bindings[FU_STD],
       MAX_EXEC_WIDTH, &knobs->exec.port_binding[FU_STD].num_FUs, knobs->exec.fu_bindings[FU_STD], /* print */true, /* format */NULL, /* !accrue */false);
+  opt_reg_int_list(odb, "-pb:agen", "AGEN port binding [DS]", knobs->exec.fu_bindings[FU_AGEN],
+      MAX_EXEC_WIDTH, &knobs->exec.port_binding[FU_AGEN].num_FUs, knobs->exec.fu_bindings[FU_AGEN], /* print */true, /* format */NULL, /* !accrue */false);
 
   /*****************************/
   /* functional unit latencies */

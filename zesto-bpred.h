@@ -132,6 +132,7 @@ class bpred_t
       class bpred_state_cache_t * const scvp,
       const unsigned int opflags,
       const md_addr_t PC,
+      const md_addr_t fallthruPC,
       const md_addr_t targetPC,
       const md_addr_t oraclePC,
       const bool outcome);
@@ -436,6 +437,19 @@ class RAS_t
   virtual class RAS_chkpt_t * get_state(void);
 
   virtual void ret_state(class RAS_chkpt_t * const cpvp);
+
+  virtual void real_push(
+      const md_addr_t PC,
+      const md_addr_t fallthruPC,
+      const md_addr_t tPC,
+      const md_addr_t oPC);
+
+  virtual md_addr_t real_pop(
+      const md_addr_t PC,
+      const md_addr_t tPC,
+      const md_addr_t oPC);
+
+
 };
 
 /* This is analogous to the various update_ptr's in the original

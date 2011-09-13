@@ -94,6 +94,7 @@ class core_commit_t
   virtual void update_occupancy(void) = 0;
 
   virtual void step(void) = 0;
+  virtual void IO_step(void) = 0;
   virtual void recover(const struct Mop_t * const Mop) = 0;
   virtual void recover(void) = 0;
 
@@ -109,6 +110,13 @@ class core_commit_t
   virtual bool pipe_empty(void) = 0;
   virtual void ROB_insert(struct uop_t * const uop) = 0;
   virtual void ROB_fuse_insert(struct uop_t * const uop) = 0;
+
+  virtual bool pre_commit_available(void) = 0;
+  virtual void pre_commit_insert(struct uop_t * const uop) = 0;
+  virtual void pre_commit_fused_insert(struct uop_t * const uop) = 0;
+  virtual void pre_commit_step(void) = 0;
+  virtual void pre_commit_recover(struct Mop_t * const Mop) = 0;
+  virtual int squash_uop(struct uop_t * const uop) = 0;
 
   protected:
 

@@ -429,7 +429,7 @@ void sim_main_slave_pre_pin()
     step_core_PF_controllers(cores[i]);
 
   for(i=0;i<num_threads;i++)
-    cores[i]->commit->step();
+    cores[i]->commit->IO_step(); /* IO cores only */ //UGLY UGLY UGLY
 
   /* all memory processed here */
   for(i=0;i<num_threads;i++)
@@ -438,14 +438,25 @@ void sim_main_slave_pre_pin()
        doesn't get continual priority over the others for L2 access */
     cores[mod2m(start_pos+i,num_threads)]->exec->LDST_exec();
   }
+
   for(i=0;i<num_threads;i++)
-    cores[i]->exec->ALU_exec();
+    cores[i]->commit->step();  /* OoO cores only */
+
+  for(i=0;i<num_threads;i++)
+    cores[i]->commit->pre_commit_step(); /* IO cores only */
+
+  for(i=0;i<num_threads;i++)
+  {
+    cores[i]->exec->step();     /* IO cores only */
+    cores[i]->exec->ALU_exec(); /* OoO cores only */
+  }
 
   for(i=0;i<num_threads;i++)
     cores[i]->exec->LDQ_schedule();
-  for(i=0;i<num_threads;i++)
-    cores[i]->exec->RS_schedule();
   
+  for(i=0;i<num_threads;i++)
+    cores[i]->exec->RS_schedule();  /* OoO cores only */
+
   for(i=0;i<num_threads;i++)
     cores[i]->alloc->step();
 

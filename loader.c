@@ -146,30 +146,30 @@ ld_reg_stats(struct thread_t * thread, struct stat_sdb_t *sdb)	/* stats data bas
 
   stat_reg_note(sdb,"\n#### PROGRAM/TEXT STATS ####");
   sprintf(buf,"c%d.loader.text_base",thread->id);
-  stat_reg_addr(sdb, TRUE, buf, "program text (code) segment base", &thread->loader.text_base, thread->loader.text_base, "  0x%08p");
+  stat_reg_addr(sdb, TRUE, buf, "program text (code) segment base", &thread->loader.text_base, thread->loader.text_base, FALSE, "  0x%08p");
   sprintf(buf,"c%d.loader.text_bound",thread->id);
-  stat_reg_addr(sdb, TRUE, buf, "program text (code) segment bound", &thread->loader.text_bound, thread->loader.text_bound, "  0x%08p");
+  stat_reg_addr(sdb, TRUE, buf, "program text (code) segment bound", &thread->loader.text_bound, thread->loader.text_bound, FALSE, "  0x%08p");
   sprintf(buf,"c%d.loader.text_size",thread->id);
-  stat_reg_uint(sdb, TRUE, buf, "program text (code) size in bytes", &thread->loader.text_size, thread->loader.text_size, NULL);
+  stat_reg_uint(sdb, TRUE, buf, "program text (code) size in bytes", &thread->loader.text_size, thread->loader.text_size, FALSE, NULL);
   sprintf(buf,"c%d.loader.data_base",thread->id);
-  stat_reg_addr(sdb, TRUE, buf, "program initialized data segment base", &thread->loader.data_base, thread->loader.data_base, "  0x%08p");
+  stat_reg_addr(sdb, TRUE, buf, "program initialized data segment base", &thread->loader.data_base, thread->loader.data_base, FALSE, "  0x%08p");
   sprintf(buf,"c%d.loader.data_bound",thread->id);
-  stat_reg_addr(sdb, TRUE, buf, "program initialized data segment bound", &thread->loader.data_bound, thread->loader.data_bound, "  0x%08p");
+  stat_reg_addr(sdb, TRUE, buf, "program initialized data segment bound", &thread->loader.data_bound, thread->loader.data_bound, FALSE, "  0x%08p");
   sprintf(buf,"c%d.loader.data_size",thread->id);
-  stat_reg_uint(sdb, TRUE, buf, "program init'ed `.data' and uninit'ed `.bss' size in bytes", &thread->loader.data_size, thread->loader.data_size, NULL);
+  stat_reg_uint(sdb, TRUE, buf, "program init'ed `.data' and uninit'ed `.bss' size in bytes", &thread->loader.data_size, thread->loader.data_size, FALSE, NULL);
   sprintf(buf,"c%d.loader.stack_base",thread->id);
-  stat_reg_addr(sdb, TRUE, buf, "program stack segment base (highest address in stack)", &thread->loader.stack_base, thread->loader.stack_base, "  0x%08p");
+  stat_reg_addr(sdb, TRUE, buf, "program stack segment base (highest address in stack)", &thread->loader.stack_base, thread->loader.stack_base, FALSE, "  0x%08p");
 #if 0 /* FIXME: broken... */
   stat_reg_addr(sdb, TRUE, "ld_stack_min", "program stack segment lowest address", &ld_stack_min, ld_stack_min, "0x%08p");
 #endif
   sprintf(buf,"c%d.loader.stack_size",thread->id);
-  stat_reg_uint(sdb, TRUE, buf, "program initial stack size", &thread->loader.stack_size, thread->loader.stack_size, NULL);
+  stat_reg_uint(sdb, TRUE, buf, "program initial stack size", &thread->loader.stack_size, thread->loader.stack_size, FALSE, NULL);
   sprintf(buf,"c%d.loader.prog_entry",thread->id);
-  stat_reg_addr(sdb, TRUE, buf, "program entry point (initial PC)", &thread->loader.prog_entry, thread->loader.prog_entry, "  0x%08p");
+  stat_reg_addr(sdb, TRUE, buf, "program entry point (initial PC)", &thread->loader.prog_entry, thread->loader.prog_entry, FALSE, "  0x%08p");
   sprintf(buf,"c%d.loader.environ_base",thread->id);
-  stat_reg_addr(sdb, TRUE, buf, "program environment base address address", &thread->loader.environ_base, thread->loader.environ_base, "  0x%08p");
+  stat_reg_addr(sdb, TRUE, buf, "program environment base address address", &thread->loader.environ_base, thread->loader.environ_base, FALSE, "  0x%08p");
   sprintf(buf,"c%d.loader.target_big_endian",thread->id);
-  stat_reg_int(sdb, TRUE, buf, "target executable endian-ness, non-zero if big endian", &thread->loader.target_big_endian, thread->loader.target_big_endian, NULL);
+  stat_reg_int(sdb, TRUE, buf, "target executable endian-ness, non-zero if big endian", &thread->loader.target_big_endian, thread->loader.target_big_endian, FALSE, NULL);
 }
 
 #ifndef ZESTO_PIN

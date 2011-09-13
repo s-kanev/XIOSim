@@ -4,7 +4,8 @@
  */
 
 #ifdef ZESTO_PARSE_ARGS
-  if(!strcasecmp(decode_opt_string,"DPM"))
+  if(!strcasecmp(decode_opt_string,"DPM")
+		  || !strcasecmp(decode_opt_string,"IO-DPM"))
     return new core_decode_DPM_t(core);
 #else
 
@@ -123,10 +124,14 @@ core_decode_DPM_t::core_decode_DPM_t(struct core_t * const arg_core):
     knobs->decode.fusion_mode = FUSION_NONE;
     if(knobs->decode.fusion_load_op)
       knobs->decode.fusion_mode |= FUSION_LOAD_OP;
+    if(knobs->decode.fusion_fp_load_op)
+      knobs->decode.fusion_mode |= FUSION_FP_LOAD_OP;
     if(knobs->decode.fusion_sta_std)
       knobs->decode.fusion_mode |= FUSION_STA_STD;
     if(knobs->decode.fusion_partial)
       knobs->decode.fusion_mode |= FUSION_PARTIAL;
+    if(knobs->decode.fusion_load_op_st)
+      knobs->decode.fusion_mode |= FUSION_LD_OP_ST;
   }
 }
 
@@ -139,15 +144,15 @@ core_decode_DPM_t::reg_stats(struct stat_sdb_t * const sdb)
 
   stat_reg_note(sdb,"\n#### DECODE STATS ####");
   sprintf(buf,"c%d.target_resteers",arch->id);
-  stat_reg_counter(sdb, true, buf, "decode-time target resteers", &core->stat.target_resteers, core->stat.target_resteers, NULL);
+  stat_reg_counter(sdb, true, buf, "decode-time target resteers", &core->stat.target_resteers, 0, TRUE, NULL);
   sprintf(buf,"c%d.phantom_resteers",arch->id);
-  stat_reg_counter(sdb, true, buf, "decode-time phantom resteers", &core->stat.phantom_resteers, core->stat.phantom_resteers, NULL);
+  stat_reg_counter(sdb, true, buf, "decode-time phantom resteers", &core->stat.phantom_resteers, 0, TRUE, NULL);
   sprintf(buf,"c%d.decode_insn",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of instructions decodeed", &core->stat.decode_insn, core->stat.decode_insn, NULL);
+  stat_reg_counter(sdb, true, buf, "total number of instructions decodeed", &core->stat.decode_insn, 0, TRUE, NULL);
   sprintf(buf,"c%d.decode_uops",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of uops decodeed", &core->stat.decode_uops, core->stat.decode_uops, NULL);
+  stat_reg_counter(sdb, true, buf, "total number of uops decodeed", &core->stat.decode_uops, 0, TRUE, NULL);
   sprintf(buf,"c%d.decode_eff_uops",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of effective uops decodeed", &core->stat.decode_eff_uops, core->stat.decode_eff_uops, NULL);
+  stat_reg_counter(sdb, true, buf, "total number of effective uops decodeed", &core->stat.decode_eff_uops, 0, TRUE, NULL);
   sprintf(buf,"c%d.decode_IPC",arch->id);
   sprintf(buf2,"c%d.decode_insn/c%d.sim_cycle",arch->id,arch->id);
   stat_reg_formula(sdb, true, buf, "IPC at decode", buf2, NULL);
@@ -158,13 +163,13 @@ core_decode_DPM_t::reg_stats(struct stat_sdb_t * const sdb)
   sprintf(buf2,"c%d.decode_eff_uops/c%d.sim_cycle",arch->id,arch->id);
   stat_reg_formula(sdb, true, buf, "effective uPC at decode", buf2, NULL);
   sprintf(buf,"c%d.uopQ_occupancy",arch->id);
-  stat_reg_counter(sdb, false, buf, "total uopQ occupancy", &core->stat.uopQ_occupancy, core->stat.uopQ_occupancy, NULL);
+  stat_reg_counter(sdb, false, buf, "total uopQ occupancy", &core->stat.uopQ_occupancy, 0, TRUE, NULL);
   sprintf(buf,"c%d.uopQ_eff_occupancy",arch->id);
-  stat_reg_counter(sdb, false, buf, "total uopQ effective occupancy", &core->stat.uopQ_eff_occupancy, core->stat.uopQ_eff_occupancy, NULL);
+  stat_reg_counter(sdb, false, buf, "total uopQ effective occupancy", &core->stat.uopQ_eff_occupancy, 0, TRUE, NULL);
   sprintf(buf,"c%d.uopQ_empty",arch->id);
-  stat_reg_counter(sdb, false, buf, "total cycles uopQ was empty", &core->stat.uopQ_empty_cycles, core->stat.uopQ_empty_cycles, NULL);
+  stat_reg_counter(sdb, false, buf, "total cycles uopQ was empty", &core->stat.uopQ_empty_cycles, 0, TRUE, NULL);
   sprintf(buf,"c%d.uopQ_full",arch->id);
-  stat_reg_counter(sdb, false, buf, "total cycles uopQ was full", &core->stat.uopQ_full_cycles, core->stat.uopQ_full_cycles, NULL);
+  stat_reg_counter(sdb, false, buf, "total cycles uopQ was full", &core->stat.uopQ_full_cycles, 0, TRUE, NULL);
   sprintf(buf,"c%d.uopQ_avg",arch->id);
   sprintf(buf2,"c%d.uopQ_occupancy/c%d.sim_cycle",arch->id,arch->id);
   stat_reg_formula(sdb, true, buf, "average uopQ occupancy", buf2, NULL);
@@ -187,6 +192,7 @@ core_decode_DPM_t::reg_stats(struct stat_sdb_t * const sdb)
                                            /* print format */(PF_COUNT|PF_PDF),
                                            /* format */NULL,
                                            /* index map */decode_stall_str,
+                                           /* scale_me */TRUE,
                                            /* print fn */NULL);
   
 }

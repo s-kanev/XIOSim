@@ -234,7 +234,7 @@ void bpred_dir_t::reg_stats(
   stat_reg_string(sdb, buf, buf2, type, NULL);
   sprintf(buf,"c%d.%s.bits",id,name);
   sprintf(buf2,"total size of %s in bits",name);
-  stat_reg_int(sdb, true, buf, buf2, &bits, bits, NULL);
+  stat_reg_int(sdb, true, buf, buf2, &bits, bits, FALSE, NULL);
   sprintf(buf,"c%d.%s.size",id,name);
   sprintf(buf2,"total size of %s in KB",name);
   sprintf(buf3,"c%d.%s.bits/8192.0",id,name);
@@ -242,16 +242,16 @@ void bpred_dir_t::reg_stats(
 
   sprintf(buf,"c%d.%s.lookups",id,name);
   sprintf(buf2,"number of prediction lookups in %s (including wrong-path)",name);
-  stat_reg_counter(sdb, true, buf, buf2, &lookups, lookups, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &lookups, 0, TRUE, NULL);
   sprintf(buf,"c%d.%s.updates",id,name);
   sprintf(buf2,"number of prediction updates in %s",name);
-  stat_reg_counter(sdb, true, buf, buf2, &updates, updates, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &updates, 0, TRUE, NULL);
   sprintf(buf,"c%d.%s.spec_updates",id,name);
   sprintf(buf2,"number of speculative prediction updates in %s",name);
-  stat_reg_counter(sdb, true, buf, buf2, &spec_updates, spec_updates, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &spec_updates, 0, TRUE, NULL);
   sprintf(buf,"c%d.%s.hits",id,name);
   sprintf(buf2,"number of correct predictions in %s",name);
-  stat_reg_counter(sdb, true, buf, buf2, &num_hits, num_hits, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &num_hits, 0, TRUE, NULL);
   sprintf(buf,"c%d.%s.hit_rate",id,name);
   sprintf(buf2,"fraction of correct predictions in %s",name);
   sprintf(buf3,"c%d.%s.hits/c%d.%s.updates",id,name,id,name);
@@ -420,7 +420,7 @@ void fusion_t::reg_stats(
   stat_reg_string(sdb, buf, buf2, type, NULL);
   sprintf(buf,"c%d.%s.bits",id,name);
   sprintf(buf2,"total size of %s in bits",name);
-  stat_reg_int(sdb, true, buf, buf2, &bits, bits, NULL);
+  stat_reg_int(sdb, true, buf, buf2, &bits, bits, TRUE, NULL);
   sprintf(buf,"c%d.%s.size",id,name);
   sprintf(buf2,"total size of %s in KB",name);
   sprintf(buf3,"c%d.%s.bits/8192.0",id,name);
@@ -428,16 +428,16 @@ void fusion_t::reg_stats(
 
   sprintf(buf,"c%d.%s.lookups",id,name);
   sprintf(buf2,"number of prediction lookups in %s (including wrong-path)",name);
-  stat_reg_counter(sdb, true, buf, buf2, &lookups, lookups, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &lookups, 0, TRUE, NULL);
   sprintf(buf,"c%d.%s.updates",id,name);
   sprintf(buf2,"number of prediction updates in %s",name);
-  stat_reg_counter(sdb, true, buf, buf2, &updates, updates, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &updates, 0, TRUE, NULL);
   sprintf(buf,"c%d.%s.spec_updates",id,name);
   sprintf(buf2,"number of speculative prediction updates in %s",name);
-  stat_reg_counter(sdb, true, buf, buf2, &spec_updates, spec_updates, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &spec_updates, 0, TRUE, NULL);
   sprintf(buf,"c%d.%s.hits",id,name);
   sprintf(buf2,"number of correct predictions in %s",name);
-  stat_reg_counter(sdb, true, buf, buf2, &num_hits, num_hits, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &num_hits, 0, TRUE, NULL);
   sprintf(buf,"c%d.%s.hit_rate",id,name);
   sprintf(buf2,"fraction of correct predictions in %s",name);
   sprintf(buf3,"c%d.%s.hits/c%d.%s.updates",id,name,id,name);
@@ -592,7 +592,7 @@ BTB_t::reg_stats(
   stat_reg_string(sdb, buf, buf2, type, NULL);
   sprintf(buf,"c%d.%s.bits",id,name);
   sprintf(buf2,"total size of %s in bits",name);
-  stat_reg_int(sdb, true, buf, buf2, &bits, bits, NULL);
+  stat_reg_int(sdb, true, buf, buf2, &bits, bits, FALSE, NULL);
   sprintf(buf,"c%d.%s.size",id,name);
   sprintf(buf2,"total size of %s in KB",name);
   sprintf(buf3,"c%d.%s.bits/8192.0",id,name);
@@ -600,16 +600,16 @@ BTB_t::reg_stats(
 
   sprintf(buf,"c%d.%s.lookups",id,name);
   sprintf(buf2,"number of prediction lookups in %s (including wrong-path)",name);
-  stat_reg_counter(sdb, true, buf, buf2, &lookups, lookups, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &lookups, 0, TRUE, NULL);
   sprintf(buf,"c%d.%s.updates",id,name);
   sprintf(buf2,"number of prediction updates in %s",name);
-  stat_reg_counter(sdb, true, buf, buf2, &updates, updates, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &updates, 0, TRUE, NULL);
   sprintf(buf,"c%d.%s.spec_updates",id,name);
   sprintf(buf2,"number of speculative prediction updates in %s",name);
-  stat_reg_counter(sdb, true, buf, buf2, &spec_updates, spec_updates, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &spec_updates, 0, TRUE, NULL);
   sprintf(buf,"c%d.%s.hits",id,name);
   sprintf(buf2,"number of correct predictions in %s",name);
-  stat_reg_counter(sdb, true, buf, buf2, &num_hits, num_hits, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &num_hits, 0, TRUE, NULL);
   sprintf(buf,"c%d.%s.hit_rate",id,name);
   sprintf(buf2,"fraction of correct predictions in %s",name);
   sprintf(buf3,"c%d.%s.hits/c%d.%s.updates",id,name,id,name);
@@ -621,7 +621,7 @@ BTB_t::reg_stats(
 
   sprintf(buf,"c%d.%s.num_nt",id,name);
   sprintf(buf2,"number of NT predictions from %s",name);
-  stat_reg_counter(sdb, true, buf, buf2, &num_nt, num_nt, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &num_nt, 0, TRUE, NULL);
   sprintf(buf,"c%d.%s.frac_nt",id,name);
   sprintf(buf2,"fraction of targets predicted NT by %s",name);
   sprintf(buf3,"c%d.%s.num_nt / c%d.%s.updates",id,name,id,name);
@@ -677,10 +677,15 @@ oPC        - oracle PC or actual return address
   void reg_stats(struct stat_sdb_t * const sdb, struct core_t * const core)
 #define RAS_RESET_STATS_HEADER \
   void reset_stats(void)
+#define RAS_REAL_PUSH \
+  void real_push(const md_addr_t PC,const md_addr_t ftPC,const md_addr_t tPC,const md_addr_t oPC)
+#define RAS_REAL_POP \
+  md_addr_t real_pop(const md_addr_t PC,const md_addr_t tPC,const md_addr_t oPC)
 #define RAS_GET_STATE_HEADER \
   class RAS_chkpt_t * get_state(void)
 #define RAS_RET_STATE_HEADER \
   void ret_state(class RAS_chkpt_t * const cpvp)
+
 
 
 #include "ZCOMPS-ras.list"
@@ -738,6 +743,25 @@ RAS_t::push(
 {
 }
 
+void
+RAS_t::real_push(
+    const md_addr_t PC,
+    const md_addr_t fallthruPC,
+    const md_addr_t targetPC,
+    const md_addr_t oraclePC)
+{
+}
+
+md_addr_t 
+RAS_t::real_pop(
+    const md_addr_t PC,
+    const md_addr_t tPC,
+    const md_addr_t oPC)
+{
+  return 0;
+}
+ 
+
 void RAS_t::recover(class RAS_chkpt_t * const cp)
 {
 }
@@ -763,23 +787,23 @@ RAS_t::reg_stats(
   stat_reg_string(sdb, buf, buf2, type, NULL);
   sprintf(buf,"c%d.%s.bits",id,name);
   sprintf(buf2,"total size of %s in bits",name);
-  stat_reg_int(sdb, true, buf, buf2, &bits, bits, NULL);
+  stat_reg_int(sdb, true, buf, buf2, &bits, bits, FALSE, NULL);
   sprintf(buf,"c%d.%s.size",id,name);
   sprintf(buf2,"total size of %s in KB",name);
   sprintf(buf3,"c%d.%s.bits/8192.0",id,name);
   stat_reg_formula(sdb, true, buf, buf2, buf3, NULL);
   sprintf(buf,"c%d.%s.pushes",id,name);
   sprintf(buf2,"number of stack pushes to %s (including wrong-path)",name);
-  stat_reg_counter(sdb, true, buf, buf2, &num_pushes, num_pushes, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &num_pushes, 0, TRUE, NULL);
   sprintf(buf,"c%d.%s.pops",id,name);
   sprintf(buf2,"number of stack pops to %s (including wrong-path)",name);
-  stat_reg_counter(sdb, true, buf, buf2, &num_pops, num_pops, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &num_pops, 0, TRUE, NULL);
   sprintf(buf,"c%d.%s.recover",id,name);
   sprintf(buf2,"number of stack recoveries/repairs to %s",name);
-  stat_reg_counter(sdb, true, buf, buf2, &num_recovers, num_recovers, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &num_recovers, 0, TRUE, NULL);
   sprintf(buf,"c%d.%s.hits",id,name);
   sprintf(buf2,"correct predictions in %s",name);
-  stat_reg_counter(sdb, true, buf, buf2, &num_hits, num_hits, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &num_hits, 0, TRUE, NULL);
   sprintf(buf,"c%d.%s.hit_rate",id,name);
   sprintf(buf2,"fraction of correct predictions in %s",name);
   sprintf(buf3,"c%d.%s.hits/c%d.%s.pops",id,name,id,name);
@@ -958,13 +982,15 @@ bpred_t::lookup(
 
 /*==================================================================*/
 /* Branch prediction update: this function is called at commit and
-   does not update the branch history registers.                    */
+   does not update the branch history registers.                    
+   XXX: not necessarily (see ras-multistack.cpp) */
 /*==================================================================*/
 void
 bpred_t::update(
     class bpred_state_cache_t * const sc,
     const unsigned int opflags,
     const md_addr_t PC,
+    const md_addr_t fallthruPC,
     const md_addr_t targetPC,
     const md_addr_t oraclePC,
     const bool outcome
@@ -988,6 +1014,8 @@ bpred_t::update(
     }
     else if(MD_IS_CALL(opflags))
     {
+      /* If ras supports a real stack, push there */
+      ras->real_push(PC,fallthruPC,targetPC,oraclePC);
       BPRED_STAT(ras->num_pushes++;)
       BPRED_STAT(num_call++;)
     }
@@ -1008,6 +1036,9 @@ bpred_t::update(
   }
   else
   {
+    /* If ras supports a real stack, pop from it */
+    ras->real_pop(PC,targetPC,oraclePC);
+    
     BPRED_STAT(ras->num_pops++;)
     if(sc->our_target == oraclePC)
       BPRED_STAT(ras->num_hits++;)
@@ -1105,28 +1136,28 @@ bpred_t::reg_stats(
 
   sprintf(buf,"c%d.bpred_lookups",id);
   sprintf(buf2,"total branch predictor lookups (including wrong-path)");
-  stat_reg_counter(sdb, true, buf, buf2, &num_lookups, num_lookups, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &num_lookups, 0, TRUE, NULL);
   sprintf(buf,"c%d.bpred_updates",id);
   sprintf(buf2,"total branch predictor updates");
-  stat_reg_counter(sdb, true, buf, buf2, &num_updates, num_lookups, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &num_updates, 0, TRUE, NULL);
   sprintf(buf,"c%d.bpred_cond_br",id);
   sprintf(buf2,"total branch predictor cond_br (non-speculative)");
-  stat_reg_counter(sdb, true, buf, buf2, &num_cond, num_cond, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &num_cond, 0, TRUE, NULL);
   sprintf(buf,"c%d.bpred_calls",id);
   sprintf(buf2,"total branch predictor calls (non-speculative)");
-  stat_reg_counter(sdb, true, buf, buf2, &num_call, num_call, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &num_call, 0, TRUE, NULL);
   sprintf(buf,"c%d.bpred_rets",id);
   sprintf(buf2,"total branch predictor rets (non-speculative)");
-  stat_reg_counter(sdb, true, buf, buf2, &num_ret, num_ret, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &num_ret, 0, TRUE, NULL);
   sprintf(buf,"c%d.bpred_unconds",id);
   sprintf(buf2,"total branch predictor unconds (non-speculative)");
-  stat_reg_counter(sdb, true, buf, buf2, &num_uncond, num_uncond, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &num_uncond, 0, TRUE, NULL);
   sprintf(buf,"c%d.bpred_dir_hits",id);
   sprintf(buf2,"total branch predictor dir_hits (non-speculative)");
-  stat_reg_counter(sdb, true, buf, buf2, &num_dir_hits, num_dir_hits, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &num_dir_hits, 0, TRUE, NULL);
   sprintf(buf,"c%d.bpred_addr_hits",id);
   sprintf(buf2,"total branch predictor addr_hits (non-speculative)");
-  stat_reg_counter(sdb, true, buf, buf2, &num_addr_hits, num_addr_hits, NULL);
+  stat_reg_counter(sdb, true, buf, buf2, &num_addr_hits, 0, TRUE, NULL);
   sprintf(buf,"c%d.bpred_dir_rate",id);
   sprintf(buf2,"overall branch direction prediction rate");
   sprintf(buf3,"c%d.bpred_dir_hits/c%d.bpred_updates",id,id);

@@ -232,8 +232,8 @@ sim_reg_stats(struct thread_t ** archs, struct stat_sdb_t *sdb)
     cpu_reg_stats(cores[i],sdb);
 
   stat_reg_note(sdb,"\n#### SIMULATOR PERFORMANCE STATS ####");
-  stat_reg_qword(sdb, true, "sim_cycle", "total simulation cycles", (qword_t*)&sim_cycle, 0, NULL);
-  stat_reg_int(sdb, true, "sim_elapsed_time", "total simulation time in seconds", &sim_elapsed_time, 0, NULL);
+  stat_reg_qword(sdb, true, "sim_cycle", "total simulation cycles", (qword_t*)&sim_cycle, 0, TRUE, NULL);
+  stat_reg_int(sdb, true, "sim_elapsed_time", "total simulation time in seconds", &sim_elapsed_time, 0, TRUE, NULL);
   stat_reg_formula(sdb, true, "sim_cycle_rate", "simulation speed (in Mcycles/sec)", "sim_cycle / (sim_elapsed_time * 1000000.0)", NULL);
   /* Make formula to add num_insn from all archs */
   strcpy(buf2,"");
@@ -424,10 +424,10 @@ sim_reg_stats(struct thread_t ** archs, struct stat_sdb_t *sdb)
       stat_reg_formula(sdb, true, "TP_euPC", "euPC ThroughPut for all cores (this is a nonsense metric: you can't add euPCs)", buf2, NULL);
     }
 
-    stat_reg_counter(sdb, true, "total_insn", "total instructions simulated for all cores, including instructions from inactive (looping) cores", &total_commit_insn, total_commit_insn, NULL);
-    stat_reg_counter(sdb, true, "total_uops", "total uops simulated for all cores, including uops from inactive (looping) cores", &total_commit_uops, total_commit_uops, NULL);
+    stat_reg_counter(sdb, true, "total_insn", "total instructions simulated for all cores, including instructions from inactive (looping) cores", &total_commit_insn, 0, TRUE, NULL);
+    stat_reg_counter(sdb, true, "total_uops", "total uops simulated for all cores, including uops from inactive (looping) cores", &total_commit_uops, 0, TRUE, NULL);
     if(is_DPM)
-      stat_reg_counter(sdb, true, "total_eff_uops", "total effective uops simulated for all cores, including effective uops from inactive (looping) cores", &total_commit_eff_uops, total_commit_eff_uops, NULL);
+      stat_reg_counter(sdb, true, "total_eff_uops", "total effective uops simulated for all cores, including effective uops from inactive (looping) cores", &total_commit_eff_uops, 0, TRUE, NULL);
 
     /* The following IPC stats are fine.  We can in fact add up these IPCs because in each case,
        the number of cycles is the same; however, you probably can't compare this number against
@@ -456,9 +456,11 @@ sim_reg_stats(struct thread_t ** archs, struct stat_sdb_t *sdb)
 
 #ifdef ZESTO_PIN_DBG
 #define ZTRACE_PRINT(fmt, ...) ZPIN_TRACE(fmt, ## __VA_ARGS__)
+#define ZTRACE_VPRINT(fmt, v) vtrace(fmt, v)
 #define ZTRACE_CHECK_FILE()
 #else
 #define ZTRACE_PRINT(fmt, ...)  fprintf(ztrace_fp, fmt, ## __VA_ARGS__)
+#define ZTRACE_VPRINT(fmt, v)   myvfprintf(ztrace_fp, fmt, v)
 #define ZTRACE_CHECK_FILE() \
 if(ztrace_fp == NULL) \
 return;
@@ -554,7 +556,7 @@ void ztrace_print(const struct Mop_t * Mop, const char * fmt, ... )
   va_start(v, fmt);
 
   ztrace_Mop_ID(Mop);
-  ZTRACE_PRINT( fmt, v);
+  ZTRACE_VPRINT( fmt, v);
   ZTRACE_PRINT("\n");
 }
 
@@ -565,7 +567,7 @@ void ztrace_print(const struct uop_t * uop, const char * fmt, ... )
   va_start(v, fmt);
 
   ztrace_uop_ID(uop);
-  ZTRACE_PRINT( fmt, v);
+  ZTRACE_VPRINT( fmt, v);
   ZTRACE_PRINT("\n");
 }
 
@@ -576,7 +578,7 @@ void ztrace_print(const char * fmt, ... )
   va_start(v, fmt);
 
   ZTRACE_PRINT("%lld|",sim_cycle);
-  ZTRACE_PRINT( fmt, v);
+  ZTRACE_VPRINT( fmt, v);
   ZTRACE_PRINT("\n");
 }
 
@@ -587,7 +589,7 @@ void ztrace_print_start(const struct uop_t * uop, const char * fmt, ... )
   va_start(v, fmt);
 
   ztrace_uop_ID(uop);
-  ZTRACE_PRINT( fmt, v);
+  ZTRACE_VPRINT( fmt, v);
 }
 
 void ztrace_print_cont(const char * fmt, ... )
@@ -596,7 +598,7 @@ void ztrace_print_cont(const char * fmt, ... )
   va_list v;
   va_start(v, fmt);
 
-  ZTRACE_PRINT( fmt, v);
+  ZTRACE_VPRINT( fmt, v);
 }
 
 void ztrace_print_finish(const char * fmt, ... )
@@ -605,7 +607,7 @@ void ztrace_print_finish(const char * fmt, ... )
   va_list v;
   va_start(v, fmt);
 
-  ZTRACE_PRINT( fmt, v);
+  ZTRACE_VPRINT( fmt, v);
   ZTRACE_PRINT("\n");
 }
 

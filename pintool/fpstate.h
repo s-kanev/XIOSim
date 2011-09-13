@@ -1,6 +1,11 @@
 #ifndef __FPSATTE_H__
 #define __FPSTATE_H__
 
+/* 
+ * Helper for pin-based zesto feeder.
+ * Copyright, Svilen Kanev, 2011
+ */
+
 // Saves and restores fp state (x87, MMX, SSE) to a static buffer
 
 /* XXX: This will blatantly fail if the simulator is compiled 

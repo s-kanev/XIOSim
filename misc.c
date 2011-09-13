@@ -282,6 +282,11 @@ void trace(const char *fmt, ...)
   va_list v;
   va_start(v, fmt);
 
+  vtrace(fmt, v);
+}
+
+void vtrace(const char *fmt, va_list v)
+{
   myvsprintf(tracebuff[tracebuff_tail], fmt, v);
 
   tracebuff_tail = modinc(tracebuff_tail, MAX_TRACEBUFF_ITEMS);
@@ -311,6 +316,9 @@ void flush_trace()
   tracebuff_occupancy = 0;
   tracebuff_head = tracebuff_tail;
 }
+#else
+// Assert macros rely that this is defined.
+void flush_trace() {}
 #endif
 
 /* ctype.h replacements - response to request from Prof. Todd Austin for

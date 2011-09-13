@@ -1,0 +1,62 @@
+README FOR ZESTO-PIN INTEGRATION (ZPinIO 0.1)
+Svilen Kanev,
+Harvard University, 2011
+===================================================
+===================================================
+REQUIREMENTS:
+Pin kit version 36111
+Available at http://www.pintool.org/downloads.html
+(The Pin front-end hasn't been tested with newer versions. Minor modifications may be needed if you decide to use a newer kit.)
+
+===================================================
+BUILD INSTRUCTIONS:
+
+0. Set PIN_HOME in pintool/makefile to pin kit location
+1. Build Zesto in library/slave mode:
+make lib
+2. Build pintool
+cd pintool; make
+
+Additional build targets:
+- make libd (slave mode with tracing enabled -- on error, last 50,000 lines of trace are added to the output file)
+- make tags (generate ctags)
+- make clean
+
+Build-related: building the pintool and simulator library should be fine with any relatively recent version of GCC (tested up to 4.5.2). For testing, we use gcc 4.1.2, and compile with -O0. Strangely, -O3 results in significantly worse performance on our nehalem machines.
+
+===================================================
+RUNNING IN SLAVE MODE:
+Running as a pintool frees the simulator for certain responsibilities, like implementing an elf file loader and emulating/dispatching system calls. Instead, these are done natively by the host operating system, and we only grab information that is relevant for simulation.
+
+Flags should be given in this order:
+
+Pin flags [immediately after pin executable].
+
+Pintool flags [after -t in command line]:
+-ppfile, skip, etc. -- as defined by the CONTROLLER_PINPOINT class.
+-skip -- exit after a number of simulated instructions.
+-trace (file) -- dump a trace of instructions simulated as seen by Pin.
+-sanity_trace (file) -- points to a plain-text pc trace to verify that the simulator doesn't tip Pin to a different execution path.
+-sanity -- perform checks if simulator corrupts main memory (slow).
+-iljit -- Experimental support for running the high-level VM ILDJIT on top of the simulator.
+
+Simulator command line flags [after -s in command line]:
+-f.e. -redir:sim to redirect simulator output (see Zesto documentation).
+
+Simulated executable and parameters [after -- in command line].
+
+===================================================
+STABILITY NOTE:
+Running under Pin and sharing its address space can cause issues with repeatability of the results between runs. This can completely ruin techniques that require the exact same call path, like PinPoints. To mitigate that:
+- disable address space randomization (f.e. "setarch i686 -3BL");
+- clear the environment (f.e. "/usr/bin/env -i"); note that all paths need to be absolute after this;
+- run Pin with the "-separate_memory" flag to minimize issues with sharing of a single address space;
+
+===================================================
+ISA SUPPORT:
+The simulator supports user-mode, 32-bit instructions. The only floating-point extensions supported are x87.
+Support for 64-bit mode, SSEx and/or AVX is planned, but is not a priority right now.
+
+===================================================
+SEGMENTATION SUPPORT NOTE:
+Because OS functions are executed by the host OS itself, support for segmenting is limited to the ES and GS registers. The gcc/glibc/Linux toolchain appears to set other segment registers to a segment base of 0, so this is not a big issue. Note that other OS/compiler combinations may not do that.
