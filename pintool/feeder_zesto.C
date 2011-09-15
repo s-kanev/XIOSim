@@ -167,6 +167,14 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
             tstate->slice_length = control.CurrentPpLength(tid);
             tstate->slice_weight_times_1000 = control.CurrentPpWeightTimesThousand(tid);
         }
+        else
+        {
+            /* There will be no further instructions instrumented, make sure we invoke Zesto_Resume with slice_end */
+            tstate->handshake.slice_num = 0;
+            tstate->handshake.feeder_slice_length = SimOrgInsCount;
+            tstate->handshake.slice_weight_times_1000 = 100000;
+            Zesto_Resume(&tstate->handshake, false, true);
+        }
 //        if (ctxt) PIN_ExecuteAt(ctxt);
         break;
 
