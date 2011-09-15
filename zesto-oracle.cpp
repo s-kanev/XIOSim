@@ -1149,6 +1149,9 @@ core_oracle_t::exec(const md_addr_t requested_PC)
      * has already been done for non-microcode instructions */
     struct uop_t * uop = &Mop->uop[flow_index];
     uop->decode.FU_class = MD_OP_FUCLASS(uop->decode.op);
+    /* Overwrite FU_class for OoO cores (done because only IO core has a dedicated AGU unit) */
+    if (strcasecmp(knobs->model, "IO-DPM") && (uop->decode.FU_class == FU_AGEN))
+      uop->decode.FU_class = FU_IEU;
 
     /* get dependency names */
     switch (uop->decode.op)

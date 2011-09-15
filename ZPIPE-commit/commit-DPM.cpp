@@ -614,8 +614,8 @@ void core_commit_DPM_t::step(void)
             zesto_assert(Mop->timing.when_commit_finished != TICK_T_MAX,(void)0);
             zesto_assert(Mop->timing.when_fetched != TICK_T_MAX,(void)0);
             zesto_assert(Mop->timing.when_fetch_started != TICK_T_MAX,(void)0);
-            zesto_assert(Mop->timing.when_fetched != 0,(void)0);
-            zesto_assert(Mop->timing.when_fetch_started != 0,(void)0);
+            //zesto_assert(Mop->timing.when_fetched != 0,(void)0);
+            //zesto_assert(Mop->timing.when_fetch_started != 0,(void)0);
           }
           else
             ZESTO_STAT(core->stat.commit_traps++;)
