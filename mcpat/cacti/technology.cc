@@ -43,6 +43,7 @@
 #include "basic_circuit.h"
 
 #include "parameter.h"
+#include "globalvar.h"
 
 double wire_resistance(double resistivity, double wire_width, double wire_thickness,
     double barrier_thickness, double dishing_thickness, double alpha_scatter)
@@ -138,7 +139,7 @@ void init_tech_params(double technology, bool is_tag)
     tech_hi = 22;
     if (ram_cell_tech_type == 3 )
     {
-       cout<<"current version does not support eDRAM technologies at 22nm"<<endl;
+       *out_file<<"current version does not support eDRAM technologies at 22nm"<<endl;
        exit(0);
     }
   }
@@ -179,7 +180,7 @@ void init_tech_params(double technology, bool is_tag)
 //    }
       else
     {
-  	  cout<<"Invalid technology nodes"<<endl;
+  	  *out_file<<"Invalid technology nodes"<<endl;
   	  exit(0);
     }
 
@@ -2923,7 +2924,7 @@ void init_tech_params(double technology, bool is_tag)
   g_tp.kinv = horowitz(0, tf, 0.5, 0.5, RISE);
   double KLOAD = 1;
   c_load = KLOAD * (drain_C_(g_tp.min_w_nmos_, NCH, 1, 1, g_tp.cell_h_def) +
-                    drain_C_(g_tp.min_w_nmos_ * p_to_n_sizing_r, PCH, 1, 1, g_tp.cell_h_def) +
+                    drain_C_(g_tp.min_w_nmos_ * p_to_n_sizing_r, _PCH, 1, 1, g_tp.cell_h_def) +
                     gate_C(g_tp.min_w_nmos_ * 4 * (1 + p_to_n_sizing_r), 0.0));
   tf = rd * c_load;
   g_tp.FO4 = horowitz(0, tf, 0.5, 0.5, RISE);

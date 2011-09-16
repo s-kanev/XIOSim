@@ -50,10 +50,11 @@
 #include "component.h"
 #include "const.h"
 #include "decoder.h"
-#include "parameter.h"
 #include "Ucache.h"
+#include "parameter.h"
 #include "subarray.h"
 #include "uca.h"
+#include "globalvar.h"
 
 #include <pthread.h>
 #include <iostream>
@@ -102,7 +103,6 @@ void min_values_t::update_min_values(const mem_array * res)
   min_area    = (min_area > res->area) ? res->area : min_area;
   min_cyc     = (min_cyc > res->cycle_time) ? res->cycle_time : min_cyc;
 }
-
 
 
 void * calc_time_mt_wrapper(void * void_obj)
@@ -316,9 +316,9 @@ bool calculate_time(
     ptr_array->power_routing_to_bank = uca->power_routing_to_bank;
     ptr_array->power_addr_input_htree = uca->bank.htree_in_add->power;
     ptr_array->power_data_input_htree = uca->bank.htree_in_data->power;
-//    cout<<"power_data_input_htree"<<uca->bank.htree_in_data->power.readOp.leakage<<endl;
+//    *out_file<<"power_data_input_htree"<<uca->bank.htree_in_data->power.readOp.leakage<<endl;
     ptr_array->power_data_output_htree = uca->bank.htree_out_data->power;
-//    cout<<"power_data_output_htree"<<uca->bank.htree_out_data->power.readOp.leakage<<endl;
+//    *out_file<<"power_data_output_htree"<<uca->bank.htree_out_data->power.readOp.leakage<<endl;
 
     ptr_array->power_row_predecoder_drivers = uca->bank.mat.r_predec->driver_power;
     ptr_array->power_row_predecoder_drivers.readOp.dynamic *= num_act_mats_hor_dir;
@@ -405,15 +405,15 @@ bool calculate_time(
     ptr_array->power_comparators.writeOp.dynamic *= num_act_mats_hor_dir;
     ptr_array->power_comparators.searchOp.dynamic *= num_act_mats_hor_dir;
 
-//    cout <<  "  num of mats: " << dyn_p.num_mats << endl;
+//    *out_file <<  "  num of mats: " << dyn_p.num_mats << endl;
     if (is_fa || pure_cam)
     {
     ptr_array->power_htree_in_search = uca->bank.htree_in_search->power;
-//    cout<<"power_htree_in_search"<<uca->bank.htree_in_search->power.readOp.leakage<<endl;
+//    *out_file<<"power_htree_in_search"<<uca->bank.htree_in_search->power.readOp.leakage<<endl;
     ptr_array->power_htree_out_search = uca->bank.htree_out_search->power;
-//    cout<<"power_htree_out_search"<<uca->bank.htree_out_search->power.readOp.leakage<<endl;
+//    *out_file<<"power_htree_out_search"<<uca->bank.htree_out_search->power.readOp.leakage<<endl;
     ptr_array->power_searchline = uca->bank.mat.power_searchline;
-//    cout<<"power_searchlineh"<<uca->bank.mat.power_searchline.readOp.leakage<<endl;
+//    *out_file<<"power_searchlineh"<<uca->bank.mat.power_searchline.readOp.leakage<<endl;
     ptr_array->power_searchline.searchOp.dynamic *= num_mats;
     ptr_array->power_searchline_precharge = uca->bank.mat.power_searchline_precharge;
     ptr_array->power_searchline_precharge.searchOp.dynamic *= num_mats;
@@ -422,7 +422,7 @@ bool calculate_time(
     ptr_array->power_matchline_precharge = uca->bank.mat.power_matchline_precharge;
     ptr_array->power_matchline_precharge.searchOp.dynamic *= num_mats;
     ptr_array->power_matchline_to_wordline_drv = uca->bank.mat.power_ml_to_ram_wl_drv;
-//    cout<<"power_matchline.searchOp.leakage"<<uca->bank.mat.power_matchline.searchOp.leakage<<endl;
+//    *out_file<<"power_matchline.searchOp.leakage"<<uca->bank.mat.power_matchline.searchOp.leakage<<endl;
     }
 
     ptr_array->activate_energy = uca->activate_energy;
@@ -437,18 +437,18 @@ bool calculate_time(
     ptr_array->precharge_delay = uca->precharge_delay;
 
 
-//      cout<<"power_matchline.searchOp.leakage"<<uca->bank.mat.<<endl;
+//      *out_file<<"power_matchline.searchOp.leakage"<<uca->bank.mat.<<endl;
 //
 //    if (!(is_fa || pure_cam))
 //    {
-//     cout <<  "  num of cols: " << dyn_p.num_c_subarray << endl;
+//     *out_file <<  "  num of cols: " << dyn_p.num_c_subarray << endl;
 //    }
 //    else if (is_fa)
 //    {
-//  	  cout <<  "  num of cols: " << dyn_p.tag_num_c_subarray+ dyn_p.data_num_c_subarray<< endl;
+//  	  *out_file <<  "  num of cols: " << dyn_p.tag_num_c_subarray+ dyn_p.data_num_c_subarray<< endl;
 //    } else
-//  	  cout <<  "  num of cols: " << dyn_p.tag_num_c_subarray<< endl;
-//      cout <<  uca->bank.mat.subarray.get_total_cell_area()<<endl;
+//  	  *out_file <<  "  num of cols: " << dyn_p.tag_num_c_subarray<< endl;
+//      *out_file <<  uca->bank.mat.subarray.get_total_cell_area()<<endl;
   }
 
 
@@ -523,7 +523,7 @@ void find_optimal_uca(uca_org_t *res, min_values_t * minval, list<uca_org_t> & u
 
   if (ulist.empty() == true)
   {
-    cout << "ERROR: no valid cache organizations found" << endl;
+    *out_file << "ERROR: no valid cache organizations found" << endl;
     exit(0);
   }
 
@@ -585,7 +585,7 @@ void find_optimal_uca(uca_org_t *res, min_values_t * minval, list<uca_org_t> & u
 
   if (min_cost == BIGNUM)
   {
-    cout << "ERROR: no cache organizations met optimization criteria" << endl;
+    *out_file << "ERROR: no cache organizations met optimization criteria" << endl;
     exit(0);
   }
 }
@@ -601,7 +601,7 @@ void filter_tag_arr(const min_values_t * min, list<mem_array *> & list)
 
   if (list.empty() == true)
   {
-    cout << "ERROR: no valid tag organizations found" << endl;
+    *out_file << "ERROR: no valid tag organizations found" << endl;
     exit(1);
   }
 
@@ -638,7 +638,7 @@ void filter_tag_arr(const min_values_t * min, list<mem_array *> & list)
   }
   if(!res)
   {
-    cout << "ERROR: no valid tag organizations found" << endl;
+    *out_file << "ERROR: no valid tag organizations found" << endl;
     exit(0);
   }
 
@@ -651,7 +651,7 @@ void filter_data_arr(list<mem_array *> & curr_list)
 {
   if (curr_list.empty() == true)
   {
-    cout << "ERROR: no valid data array organizations found" << endl;
+    *out_file << "ERROR: no valid data array organizations found" << endl;
     exit(1);
   }
 
@@ -741,10 +741,9 @@ void solve(uca_org_t *fin_res)
       calc_array[t].Nspd_min    = 0.125;
       pthread_create(&threads[t], NULL, calc_time_mt_wrapper, (void *)(&(calc_array[t])));
     }
-
     for (uint32_t t = 0; t < nthreads; t++)
     {
-      pthread_join(threads[t], NULL);
+       pthread_join(threads[t], NULL);
     }
 
     for (uint32_t t = 0; t < nthreads; t++)
@@ -783,7 +782,7 @@ void solve(uca_org_t *fin_res)
 
     for (uint32_t t = 0; t < nthreads; t++)
     {
-      pthread_join(threads[t], NULL);
+       pthread_join(threads[t], NULL);
     }
 
     data_arr.clear();
@@ -811,13 +810,13 @@ void solve(uca_org_t *fin_res)
   }
 
 
-  //cout << data_arr.size() << "\t" << tag_arr.size() <<" before\n";
+  //*out_file << data_arr.size() << "\t" << tag_arr.size() <<" before\n";
   filter_data_arr(data_arr);
   if(!(pure_ram||pure_cam||g_ip->fully_assoc))
   {
     filter_tag_arr(t_min, tag_arr);
   }
-  //cout << data_arr.size() << "\t" << tag_arr.size() <<" after\n";
+  //*out_file << data_arr.size() << "\t" << tag_arr.size() <<" after\n";
 
 
   if (pure_ram||pure_cam||g_ip->fully_assoc)

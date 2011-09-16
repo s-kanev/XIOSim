@@ -222,7 +222,7 @@ double Decoder::compute_delays(double inrisetime)
     // first check whether a decoder is required at all
     rd = tr_R_on(w_dec_n[0], NCH, num_in_signals, is_dram, false, is_wl_tr);
     c_load = gate_C(w_dec_n[1] + w_dec_p[1], 0.0, is_dram, false, is_wl_tr);
-    c_intrinsic = drain_C_(w_dec_p[0], PCH, 1, 1, area.h, is_dram, false, is_wl_tr) * num_in_signals +
+    c_intrinsic = drain_C_(w_dec_p[0], _PCH, 1, 1, area.h, is_dram, false, is_wl_tr) * num_in_signals +
                   drain_C_(w_dec_n[0], NCH, num_in_signals, 1, area.h, is_dram, false, is_wl_tr);
     tf = rd * (c_intrinsic + c_load);
     this_delay = horowitz(inrisetime, tf, 0.5, 0.5, RISE);
@@ -234,7 +234,7 @@ double Decoder::compute_delays(double inrisetime)
     {
       rd = tr_R_on(w_dec_n[i], NCH, 1, is_dram, false, is_wl_tr);
       c_load = gate_C(w_dec_p[i+1] + w_dec_n[i+1], 0.0, is_dram, false, is_wl_tr);
-      c_intrinsic = drain_C_(w_dec_p[i], PCH, 1, 1, area.h, is_dram, false, is_wl_tr) +
+      c_intrinsic = drain_C_(w_dec_p[i], _PCH, 1, 1, area.h, is_dram, false, is_wl_tr) +
                     drain_C_(w_dec_n[i], NCH, 1, 1, area.h, is_dram, false, is_wl_tr);
       tf = rd * (c_intrinsic + c_load);
       this_delay = horowitz(inrisetime, tf, 0.5, 0.5, RISE);
@@ -247,7 +247,7 @@ double Decoder::compute_delays(double inrisetime)
     i = num_gates - 1;
     c_load = C_ld_dec_out;
     rd = tr_R_on(w_dec_n[i], NCH, 1, is_dram, false, is_wl_tr);
-    c_intrinsic = drain_C_(w_dec_p[i], PCH, 1, 1, area.h, is_dram, false, is_wl_tr) +
+    c_intrinsic = drain_C_(w_dec_p[i], _PCH, 1, 1, area.h, is_dram, false, is_wl_tr) +
                   drain_C_(w_dec_n[i], NCH, 1, 1, area.h, is_dram, false, is_wl_tr);
     tf = rd * (c_intrinsic + c_load) + R_wire_dec_out * c_load / 2;
     this_delay = horowitz(inrisetime, tf, 0.5, 0.5, RISE);
@@ -711,7 +711,7 @@ pair<double, double> PredecBlk::compute_delays(
       //First gate is a NAND2 gate
       rd = tr_R_on(w_L1_nand2_n[0], NCH, 2, is_dram_);
       c_load = gate_C(w_L1_nand2_n[1] + w_L1_nand2_p[1], 0.0, is_dram_);
-      c_intrinsic = 2 * drain_C_(w_L1_nand2_p[0], PCH, 1, 1, g_tp.cell_h_def, is_dram_) +
+      c_intrinsic = 2 * drain_C_(w_L1_nand2_p[0], _PCH, 1, 1, g_tp.cell_h_def, is_dram_) +
                         drain_C_(w_L1_nand2_n[0], NCH, 2, 1, g_tp.cell_h_def, is_dram_);
       tf = rd * (c_intrinsic + c_load);
       this_delay = horowitz(inrisetime_nand2_path, tf, 0.5, 0.5, RISE);
@@ -724,7 +724,7 @@ pair<double, double> PredecBlk::compute_delays(
       {
         rd = tr_R_on(w_L1_nand2_n[i], NCH, 1, is_dram_);
         c_load = gate_C(w_L1_nand2_n[i+1] + w_L1_nand2_p[i+1], 0.0, is_dram_);
-        c_intrinsic = drain_C_(w_L1_nand2_p[i], PCH, 1, 1, g_tp.cell_h_def, is_dram_) +
+        c_intrinsic = drain_C_(w_L1_nand2_p[i], _PCH, 1, 1, g_tp.cell_h_def, is_dram_) +
                       drain_C_(w_L1_nand2_n[i], NCH, 1, 1, g_tp.cell_h_def, is_dram_);
         tf = rd * (c_intrinsic + c_load);
         this_delay = horowitz(inrisetime_nand2_path, tf, 0.5, 0.5, RISE);
@@ -739,7 +739,7 @@ pair<double, double> PredecBlk::compute_delays(
       if (flag_L2_gate)
       {
         c_load = branch_effort_nand2_gate_output*(gate_C(w_L2_n[0], 0, is_dram_) + gate_C(w_L2_p[0], 0, is_dram_));
-        c_intrinsic = drain_C_(w_L1_nand2_p[i], PCH, 1, 1, g_tp.cell_h_def, is_dram_) +
+        c_intrinsic = drain_C_(w_L1_nand2_p[i], _PCH, 1, 1, g_tp.cell_h_def, is_dram_) +
                       drain_C_(w_L1_nand2_n[i], NCH, 1, 1, g_tp.cell_h_def, is_dram_);
         tf = rd * (c_intrinsic + c_load);
         this_delay = horowitz(inrisetime_nand2_path, tf, 0.5, 0.5, RISE);
@@ -750,7 +750,7 @@ pair<double, double> PredecBlk::compute_delays(
       else
       { //First level directly drives decoder output load
         c_load = C_ld_predec_blk_out;
-        c_intrinsic = drain_C_(w_L1_nand2_p[i], PCH, 1, 1, g_tp.cell_h_def, is_dram_) +
+        c_intrinsic = drain_C_(w_L1_nand2_p[i], _PCH, 1, 1, g_tp.cell_h_def, is_dram_) +
                       drain_C_(w_L1_nand2_n[i], NCH, 1, 1, g_tp.cell_h_def, is_dram_);
         tf = rd * (c_intrinsic + c_load) + R_wire_predec_blk_out * c_load / 2;
         this_delay = horowitz(inrisetime_nand2_path, tf, 0.5, 0.5, RISE);
@@ -765,7 +765,7 @@ pair<double, double> PredecBlk::compute_delays(
       //First gate is a NAND3 gate
       rd = tr_R_on(w_L1_nand3_n[0], NCH, 3, is_dram_);
       c_load = gate_C(w_L1_nand3_n[1] + w_L1_nand3_p[1], 0.0, is_dram_);
-      c_intrinsic = 3 * drain_C_(w_L1_nand3_p[0], PCH, 1, 1, g_tp.cell_h_def, is_dram_) +
+      c_intrinsic = 3 * drain_C_(w_L1_nand3_p[0], _PCH, 1, 1, g_tp.cell_h_def, is_dram_) +
                         drain_C_(w_L1_nand3_n[0], NCH, 3, 1, g_tp.cell_h_def, is_dram_);
       tf = rd * (c_intrinsic + c_load);
       this_delay = horowitz(inrisetime_nand3_path, tf, 0.5, 0.5, RISE);
@@ -778,7 +778,7 @@ pair<double, double> PredecBlk::compute_delays(
       {
         rd = tr_R_on(w_L1_nand3_n[i], NCH, 1, is_dram_);
         c_load = gate_C(w_L1_nand3_n[i+1] + w_L1_nand3_p[i+1], 0.0, is_dram_);
-        c_intrinsic = drain_C_(w_L1_nand3_p[i], PCH, 1, 1, g_tp.cell_h_def, is_dram_) +
+        c_intrinsic = drain_C_(w_L1_nand3_p[i], _PCH, 1, 1, g_tp.cell_h_def, is_dram_) +
                       drain_C_(w_L1_nand3_n[i], NCH, 1, 1, g_tp.cell_h_def, is_dram_);
         tf = rd * (c_intrinsic + c_load);
         this_delay = horowitz(inrisetime_nand3_path, tf, 0.5, 0.5, RISE);
@@ -793,7 +793,7 @@ pair<double, double> PredecBlk::compute_delays(
       if (flag_L2_gate)
       {
         c_load = branch_effort_nand3_gate_output*(gate_C(w_L2_n[0], 0, is_dram_) + gate_C(w_L2_p[0], 0, is_dram_));
-        c_intrinsic = drain_C_(w_L1_nand3_p[i], PCH, 1, 1, g_tp.cell_h_def, is_dram_) +
+        c_intrinsic = drain_C_(w_L1_nand3_p[i], _PCH, 1, 1, g_tp.cell_h_def, is_dram_) +
                       drain_C_(w_L1_nand3_n[i], NCH, 1, 1, g_tp.cell_h_def, is_dram_);
         tf = rd * (c_intrinsic + c_load);
         this_delay = horowitz(inrisetime_nand3_path, tf, 0.5, 0.5, RISE);
@@ -804,7 +804,7 @@ pair<double, double> PredecBlk::compute_delays(
       else
       { //First level directly drives decoder output load
         c_load = C_ld_predec_blk_out;
-        c_intrinsic = drain_C_(w_L1_nand3_p[i], PCH, 1, 1, g_tp.cell_h_def, is_dram_) +
+        c_intrinsic = drain_C_(w_L1_nand3_p[i], _PCH, 1, 1, g_tp.cell_h_def, is_dram_) +
                       drain_C_(w_L1_nand3_n[i], NCH, 1, 1, g_tp.cell_h_def, is_dram_);
         tf = rd * (c_intrinsic + c_load) + R_wire_predec_blk_out * c_load / 2;
         this_delay = horowitz(inrisetime_nand3_path, tf, 0.5, 0.5, RISE);
@@ -821,7 +821,7 @@ pair<double, double> PredecBlk::compute_delays(
       {
         rd = tr_R_on(w_L2_n[0], NCH, 2, is_dram_);
         c_load = gate_C(w_L2_n[1] + w_L2_p[1], 0.0, is_dram_);
-        c_intrinsic = 2 * drain_C_(w_L2_p[0], PCH, 1, 1, g_tp.cell_h_def, is_dram_) +
+        c_intrinsic = 2 * drain_C_(w_L2_p[0], _PCH, 1, 1, g_tp.cell_h_def, is_dram_) +
                           drain_C_(w_L2_n[0], NCH, 2, 1, g_tp.cell_h_def, is_dram_);
         tf = rd * (c_intrinsic + c_load);
         this_delay = horowitz(inrisetime_nand2_path, tf, 0.5, 0.5, RISE);
@@ -833,7 +833,7 @@ pair<double, double> PredecBlk::compute_delays(
       { // flag_L2_gate = 3
         rd = tr_R_on(w_L2_n[0], NCH, 3, is_dram_);
         c_load = gate_C(w_L2_n[1] + w_L2_p[1], 0.0, is_dram_);
-        c_intrinsic = 3 * drain_C_(w_L2_p[0], PCH, 1, 1, g_tp.cell_h_def, is_dram_) +
+        c_intrinsic = 3 * drain_C_(w_L2_p[0], _PCH, 1, 1, g_tp.cell_h_def, is_dram_) +
                           drain_C_(w_L2_n[0], NCH, 3, 1, g_tp.cell_h_def, is_dram_);
         tf = rd * (c_intrinsic + c_load);
         this_delay = horowitz(inrisetime_nand3_path, tf, 0.5, 0.5, RISE);
@@ -846,7 +846,7 @@ pair<double, double> PredecBlk::compute_delays(
       {
         rd = tr_R_on(w_L2_n[i], NCH, 1, is_dram_);
         c_load = gate_C(w_L2_n[i+1] + w_L2_p[i+1], 0.0, is_dram_);
-        c_intrinsic = drain_C_(w_L2_p[i], PCH, 1, 1, g_tp.cell_h_def, is_dram_) +
+        c_intrinsic = drain_C_(w_L2_p[i], _PCH, 1, 1, g_tp.cell_h_def, is_dram_) +
                       drain_C_(w_L2_n[i], NCH, 1, 1, g_tp.cell_h_def, is_dram_);
         tf = rd * (c_intrinsic + c_load);
         this_delay = horowitz(inrisetime_nand2_path, tf, 0.5, 0.5, RISE);
@@ -862,7 +862,7 @@ pair<double, double> PredecBlk::compute_delays(
       i = number_gates_L2 - 1;
       c_load = C_ld_predec_blk_out;
       rd = tr_R_on(w_L2_n[i], NCH, 1, is_dram_);
-      c_intrinsic = drain_C_(w_L2_p[i], PCH, 1, 1, g_tp.cell_h_def, is_dram_) +
+      c_intrinsic = drain_C_(w_L2_p[i], _PCH, 1, 1, g_tp.cell_h_def, is_dram_) +
                     drain_C_(w_L2_n[i], NCH, 1, 1, g_tp.cell_h_def, is_dram_);
       tf = rd * (c_intrinsic + c_load) + R_wire_predec_blk_out * c_load / 2;
       this_delay = horowitz(inrisetime_nand2_path, tf, 0.5, 0.5, RISE);
@@ -1120,7 +1120,7 @@ pair<double, double> PredecBlkDrv::compute_delays(
     {
       rd = tr_R_on(width_nand2_path_n[i], NCH, 1, is_dram_);
       c_gate_load = gate_C(width_nand2_path_p[i+1] + width_nand2_path_n[i+1], 0.0, is_dram_);
-      c_intrinsic = drain_C_(width_nand2_path_p[i], PCH, 1, 1, g_tp.cell_h_def, is_dram_) +
+      c_intrinsic = drain_C_(width_nand2_path_p[i], _PCH, 1, 1, g_tp.cell_h_def, is_dram_) +
                     drain_C_(width_nand2_path_n[i], NCH, 1, 1, g_tp.cell_h_def, is_dram_);
       tf = rd * (c_intrinsic + c_gate_load);
       this_delay = horowitz(inrisetime_nand2_path, tf, 0.5, 0.5, RISE);
@@ -1134,7 +1134,7 @@ pair<double, double> PredecBlkDrv::compute_delays(
     {
       i = number_gates_nand2_path - 1;
       rd = tr_R_on(width_nand2_path_n[i], NCH, 1, is_dram_);
-      c_intrinsic = drain_C_(width_nand2_path_p[i], PCH, 1, 1, g_tp.cell_h_def, is_dram_) +
+      c_intrinsic = drain_C_(width_nand2_path_p[i], _PCH, 1, 1, g_tp.cell_h_def, is_dram_) +
                     drain_C_(width_nand2_path_n[i], NCH, 1, 1, g_tp.cell_h_def, is_dram_);
       c_load = c_load_nand2_path_out;
       tf = rd * (c_intrinsic + c_load) + r_load_nand2_path_out*c_load/ 2;
@@ -1148,7 +1148,7 @@ pair<double, double> PredecBlkDrv::compute_delays(
     {
       rd = tr_R_on(width_nand3_path_n[i], NCH, 1, is_dram_);
       c_gate_load = gate_C(width_nand3_path_p[i+1] + width_nand3_path_n[i+1], 0.0, is_dram_);
-      c_intrinsic = drain_C_(width_nand3_path_p[i], PCH, 1, 1, g_tp.cell_h_def, is_dram_) +
+      c_intrinsic = drain_C_(width_nand3_path_p[i], _PCH, 1, 1, g_tp.cell_h_def, is_dram_) +
                     drain_C_(width_nand3_path_n[i], NCH, 1, 1, g_tp.cell_h_def, is_dram_);
       tf = rd * (c_intrinsic + c_gate_load);
       this_delay = horowitz(inrisetime_nand3_path, tf, 0.5, 0.5, RISE);
@@ -1162,7 +1162,7 @@ pair<double, double> PredecBlkDrv::compute_delays(
     {
       i = number_gates_nand3_path - 1;
       rd = tr_R_on(width_nand3_path_n[i], NCH, 1, is_dram_);
-      c_intrinsic = drain_C_(width_nand3_path_p[i], PCH, 1, 1, g_tp.cell_h_def, is_dram_) +
+      c_intrinsic = drain_C_(width_nand3_path_p[i], _PCH, 1, 1, g_tp.cell_h_def, is_dram_) +
                     drain_C_(width_nand3_path_n[i], NCH, 1, 1, g_tp.cell_h_def, is_dram_);
       c_load = c_load_nand3_path_out;
       tf = rd*(c_intrinsic + c_load) + r_load_nand3_path_out*c_load / 2;
@@ -1335,7 +1335,7 @@ double Driver::compute_delay(double inrisetime)
   {
     rd = tr_R_on(width_n[i], NCH, 1, is_dram_);
     c_load = gate_C(width_n[i+1] + width_p[i+1], 0.0, is_dram_);
-    c_intrinsic = drain_C_(width_p[i], PCH, 1, 1, g_tp.cell_h_def, is_dram_) +
+    c_intrinsic = drain_C_(width_p[i], _PCH, 1, 1, g_tp.cell_h_def, is_dram_) +
                   drain_C_(width_n[i], NCH, 1, 1, g_tp.cell_h_def, is_dram_);
     tf = rd * (c_intrinsic + c_load);
     this_delay = horowitz(inrisetime, tf, 0.5, 0.5, RISE);
@@ -1349,7 +1349,7 @@ double Driver::compute_delay(double inrisetime)
   i = number_gates - 1;
   c_load = c_gate_load + c_wire_load;
   rd = tr_R_on(width_n[i], NCH, 1, is_dram_);
-  c_intrinsic = drain_C_(width_p[i], PCH, 1, 1, g_tp.cell_h_def, is_dram_) +
+  c_intrinsic = drain_C_(width_p[i], _PCH, 1, 1, g_tp.cell_h_def, is_dram_) +
                 drain_C_(width_n[i], NCH, 1, 1, g_tp.cell_h_def, is_dram_);
   tf = rd * (c_intrinsic + c_load) + r_wire_load * (c_wire_load / 2 + c_gate_load);
   this_delay = horowitz(inrisetime, tf, 0.5, 0.5, RISE);

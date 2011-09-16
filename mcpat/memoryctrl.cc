@@ -58,6 +58,7 @@
 #include <assert.h>
 #include "memoryctrl.h"
 #include "basic_components.h"
+#include "globalvar.h"
 
 /* overview of MC models:
  * McPAT memory controllers are modeled according to large number of industrial data points.
@@ -137,7 +138,7 @@ void MCBackend::compute()
   }
   else
   {//skip old model
-	  cout<<"Unknown memory controllers"<<endl;exit(0);
+	  *out_file<<"Unknown memory controllers"<<endl;exit(0);
 	  area.set_area(0.243*mcp.dataBusWidth/8);//area based on Cadence ChipEstimator for 8bit bus
 	  //mc_power = 4.32*0.1;//4.32W@1GhzMHz @65nm Cadence ChipEstimator 10% for backend
 	  C_MCB = mc_power/1e9/72/1.1/1.1*l_ip.F_sz_um/0.065;
@@ -474,48 +475,48 @@ void MCFrontEnd::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 
 	if (is_tdp)
 	{
-		cout << indent_str << "Front End ROB:" << endl;
-		cout << indent_str_next << "Area = " << frontendBuffer->area.get_area()*1e-6<< " mm^2" << endl;
-		cout << indent_str_next << "Peak Dynamic = " << frontendBuffer->power.readOp.dynamic*mcp.clockRate << " W" << endl;
-		cout << indent_str_next << "Subthreshold Leakage = " << frontendBuffer->power.readOp.leakage <<" W" << endl;
-		cout << indent_str_next << "Gate Leakage = " << frontendBuffer->power.readOp.gate_leakage << " W" << endl;
-		cout << indent_str_next << "Runtime Dynamic = " << frontendBuffer->rt_power.readOp.dynamic/mcp.executionTime << " W" << endl;
+		*out_file << indent_str << "Front End ROB:" << endl;
+		*out_file << indent_str_next << "Area = " << frontendBuffer->area.get_area()*1e-6<< " mm^2" << endl;
+		*out_file << indent_str_next << "Peak Dynamic = " << frontendBuffer->power.readOp.dynamic*mcp.clockRate << " W" << endl;
+		*out_file << indent_str_next << "Subthreshold Leakage = " << frontendBuffer->power.readOp.leakage <<" W" << endl;
+		*out_file << indent_str_next << "Gate Leakage = " << frontendBuffer->power.readOp.gate_leakage << " W" << endl;
+		*out_file << indent_str_next << "Runtime Dynamic = " << frontendBuffer->rt_power.readOp.dynamic/mcp.executionTime << " W" << endl;
 
-		cout <<endl;
-		cout << indent_str<< "Read Buffer:" << endl;
-		cout << indent_str_next << "Area = " << readBuffer->area.get_area()*1e-6  << " mm^2" << endl;
-		cout << indent_str_next << "Peak Dynamic = " << readBuffer->power.readOp.dynamic*mcp.clockRate  << " W" << endl;
-		cout << indent_str_next << "Subthreshold Leakage = " << readBuffer->power.readOp.leakage  << " W" << endl;
-		cout << indent_str_next << "Gate Leakage = " << readBuffer->power.readOp.gate_leakage  << " W" << endl;
-		cout << indent_str_next << "Runtime Dynamic = " << readBuffer->rt_power.readOp.dynamic/mcp.executionTime << " W" << endl;
-		cout <<endl;
-		cout << indent_str << "Write Buffer:" << endl;
-		cout << indent_str_next << "Area = " << writeBuffer->area.get_area() *1e-6 << " mm^2" << endl;
-		cout << indent_str_next << "Peak Dynamic = " << writeBuffer->power.readOp.dynamic*mcp.clockRate  << " W" << endl;
-		cout << indent_str_next << "Subthreshold Leakage = " << writeBuffer->power.readOp.leakage  << " W" << endl;
-		cout << indent_str_next << "Gate Leakage = " << writeBuffer->power.readOp.gate_leakage  << " W" << endl;
-		cout << indent_str_next << "Runtime Dynamic = " << writeBuffer->rt_power.readOp.dynamic/mcp.executionTime << " W" << endl;
-		cout <<endl;
+		*out_file <<endl;
+		*out_file << indent_str<< "Read Buffer:" << endl;
+		*out_file << indent_str_next << "Area = " << readBuffer->area.get_area()*1e-6  << " mm^2" << endl;
+		*out_file << indent_str_next << "Peak Dynamic = " << readBuffer->power.readOp.dynamic*mcp.clockRate  << " W" << endl;
+		*out_file << indent_str_next << "Subthreshold Leakage = " << readBuffer->power.readOp.leakage  << " W" << endl;
+		*out_file << indent_str_next << "Gate Leakage = " << readBuffer->power.readOp.gate_leakage  << " W" << endl;
+		*out_file << indent_str_next << "Runtime Dynamic = " << readBuffer->rt_power.readOp.dynamic/mcp.executionTime << " W" << endl;
+		*out_file <<endl;
+		*out_file << indent_str << "Write Buffer:" << endl;
+		*out_file << indent_str_next << "Area = " << writeBuffer->area.get_area() *1e-6 << " mm^2" << endl;
+		*out_file << indent_str_next << "Peak Dynamic = " << writeBuffer->power.readOp.dynamic*mcp.clockRate  << " W" << endl;
+		*out_file << indent_str_next << "Subthreshold Leakage = " << writeBuffer->power.readOp.leakage  << " W" << endl;
+		*out_file << indent_str_next << "Gate Leakage = " << writeBuffer->power.readOp.gate_leakage  << " W" << endl;
+		*out_file << indent_str_next << "Runtime Dynamic = " << writeBuffer->rt_power.readOp.dynamic/mcp.executionTime << " W" << endl;
+		*out_file <<endl;
 	}
 	else
 	{
-		cout << indent_str << "Front End ROB:" << endl;
-		cout << indent_str_next << "Area = " << frontendBuffer->area.get_area()*1e-6<< " mm^2" << endl;
-		cout << indent_str_next << "Peak Dynamic = " << frontendBuffer->rt_power.readOp.dynamic*mcp.clockRate << " W" << endl;
-		cout << indent_str_next << "Subthreshold Leakage = " << frontendBuffer->rt_power.readOp.leakage <<" W" << endl;
-		cout << indent_str_next << "Gate Leakage = " << frontendBuffer->rt_power.readOp.gate_leakage << " W" << endl;
-		cout <<endl;
-		cout << indent_str<< "Read Buffer:" << endl;
-		cout << indent_str_next << "Area = " << readBuffer->area.get_area()*1e-6  << " mm^2" << endl;
-		cout << indent_str_next << "Peak Dynamic = " << readBuffer->rt_power.readOp.dynamic*mcp.clockRate  << " W" << endl;
-		cout << indent_str_next << "Subthreshold Leakage = " << readBuffer->rt_power.readOp.leakage  << " W" << endl;
-		cout << indent_str_next << "Gate Leakage = " << readBuffer->rt_power.readOp.gate_leakage  << " W" << endl;
-		cout <<endl;
-		cout << indent_str << "Write Buffer:" << endl;
-		cout << indent_str_next << "Area = " << writeBuffer->area.get_area() *1e-6 << " mm^2" << endl;
-		cout << indent_str_next << "Peak Dynamic = " << writeBuffer->rt_power.readOp.dynamic*mcp.clockRate  << " W" << endl;
-		cout << indent_str_next << "Subthreshold Leakage = " << writeBuffer->rt_power.readOp.leakage  << " W" << endl;
-		cout << indent_str_next << "Gate Leakage = " << writeBuffer->rt_power.readOp.gate_leakage  << " W" << endl;
+		*out_file << indent_str << "Front End ROB:" << endl;
+		*out_file << indent_str_next << "Area = " << frontendBuffer->area.get_area()*1e-6<< " mm^2" << endl;
+		*out_file << indent_str_next << "Peak Dynamic = " << frontendBuffer->rt_power.readOp.dynamic*mcp.clockRate << " W" << endl;
+		*out_file << indent_str_next << "Subthreshold Leakage = " << frontendBuffer->rt_power.readOp.leakage <<" W" << endl;
+		*out_file << indent_str_next << "Gate Leakage = " << frontendBuffer->rt_power.readOp.gate_leakage << " W" << endl;
+		*out_file <<endl;
+		*out_file << indent_str<< "Read Buffer:" << endl;
+		*out_file << indent_str_next << "Area = " << readBuffer->area.get_area()*1e-6  << " mm^2" << endl;
+		*out_file << indent_str_next << "Peak Dynamic = " << readBuffer->rt_power.readOp.dynamic*mcp.clockRate  << " W" << endl;
+		*out_file << indent_str_next << "Subthreshold Leakage = " << readBuffer->rt_power.readOp.leakage  << " W" << endl;
+		*out_file << indent_str_next << "Gate Leakage = " << readBuffer->rt_power.readOp.gate_leakage  << " W" << endl;
+		*out_file <<endl;
+		*out_file << indent_str << "Write Buffer:" << endl;
+		*out_file << indent_str_next << "Area = " << writeBuffer->area.get_area() *1e-6 << " mm^2" << endl;
+		*out_file << indent_str_next << "Peak Dynamic = " << writeBuffer->rt_power.readOp.dynamic*mcp.clockRate  << " W" << endl;
+		*out_file << indent_str_next << "Subthreshold Leakage = " << writeBuffer->rt_power.readOp.leakage  << " W" << endl;
+		*out_file << indent_str_next << "Gate Leakage = " << writeBuffer->rt_power.readOp.gate_leakage  << " W" << endl;
 	}
 
 }
@@ -556,7 +557,7 @@ MemoryController::MemoryController(ParseXML *XML_interface,InputParameter* inter
 //  transecEngine.compute();
 //  transecEngine.area.set_area(XML->sys.mc.memory_channels_per_mc*transecEngine.area.get_area()) ;
 //  area.set_area(area.get_area()+ transecEngine.area.get_area());
-//  ///cout<<"area="<<area<<endl;
+//  ///*out_file<<"area="<<area<<endl;
 ////
 //  //++++++++++++++PHY ++++++++++++++++++++++++++ //TODO needs better numbers
 //  PHY.initialize(&interface_ip);
@@ -567,7 +568,7 @@ MemoryController::MemoryController(ParseXML *XML_interface,InputParameter* inter
 //  PHY.compute();
 //  PHY.area.set_area(XML->sys.mc.memory_channels_per_mc*PHY.area.get_area()) ;
 //  area.set_area(area.get_area()+ PHY.area.get_area());
-  ///cout<<"area="<<area<<endl;
+  ///*out_file<<"area="<<area<<endl;
 //
 //  interface_ip.pipeline_stages = 5;//normal memory controller has five stages in the pipeline.
 //  interface_ip.per_stage_vector = addressBusWidth + XML->sys.core[0].opcode_width + dataBusWidth;
@@ -623,54 +624,54 @@ void MemoryController::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 
 	if (is_tdp)
 	{
-		cout << "Memory Controller:" << endl;
-		cout << indent_str<< "Area = " << area.get_area()*1e-6<< " mm^2" << endl;
-		cout << indent_str << "Peak Dynamic = " << power.readOp.dynamic*mcp.clockRate  << " W" << endl;
-		cout << indent_str<< "Subthreshold Leakage = "
+		*out_file << "Memory Controller:" << endl;
+		*out_file << indent_str<< "Area = " << area.get_area()*1e-6<< " mm^2" << endl;
+		*out_file << indent_str << "Peak Dynamic = " << power.readOp.dynamic*mcp.clockRate  << " W" << endl;
+		*out_file << indent_str<< "Subthreshold Leakage = "
 			<< (long_channel? power.readOp.longer_channel_leakage:power.readOp.leakage) <<" W" << endl;
-		//cout << indent_str<< "Subthreshold Leakage = " << power.readOp.longer_channel_leakage <<" W" << endl;
-		cout << indent_str<< "Gate Leakage = " << power.readOp.gate_leakage << " W" << endl;
-		cout << indent_str << "Runtime Dynamic = " << rt_power.readOp.dynamic/mcp.executionTime << " W" << endl;
-		cout<<endl;
-		cout << indent_str << "Front End Engine:" << endl;
-		cout << indent_str_next << "Area = " << frontend->area.get_area()*1e-6<< " mm^2" << endl;
-		cout << indent_str_next << "Peak Dynamic = " << frontend->power.readOp.dynamic*mcp.clockRate << " W" << endl;
-		cout << indent_str_next << "Subthreshold Leakage = "
+		//*out_file << indent_str<< "Subthreshold Leakage = " << power.readOp.longer_channel_leakage <<" W" << endl;
+		*out_file << indent_str<< "Gate Leakage = " << power.readOp.gate_leakage << " W" << endl;
+		*out_file << indent_str << "Runtime Dynamic = " << rt_power.readOp.dynamic/mcp.executionTime << " W" << endl;
+		*out_file<<endl;
+		*out_file << indent_str << "Front End Engine:" << endl;
+		*out_file << indent_str_next << "Area = " << frontend->area.get_area()*1e-6<< " mm^2" << endl;
+		*out_file << indent_str_next << "Peak Dynamic = " << frontend->power.readOp.dynamic*mcp.clockRate << " W" << endl;
+		*out_file << indent_str_next << "Subthreshold Leakage = "
 			<< (long_channel? frontend->power.readOp.longer_channel_leakage:frontend->power.readOp.leakage) <<" W" << endl;
-		cout << indent_str_next << "Gate Leakage = " << frontend->power.readOp.gate_leakage << " W" << endl;
-		cout << indent_str_next << "Runtime Dynamic = " << frontend->rt_power.readOp.dynamic/mcp.executionTime << " W" << endl;
-		cout <<endl;
+		*out_file << indent_str_next << "Gate Leakage = " << frontend->power.readOp.gate_leakage << " W" << endl;
+		*out_file << indent_str_next << "Runtime Dynamic = " << frontend->rt_power.readOp.dynamic/mcp.executionTime << " W" << endl;
+		*out_file <<endl;
 		if (plevel >2){
 			frontend->displayEnergy(indent+4,is_tdp);
 		}
-		cout << indent_str << "Transaction Engine:" << endl;
-		cout << indent_str_next << "Area = " << transecEngine->area.get_area()*1e-6<< " mm^2" << endl;
-		cout << indent_str_next << "Peak Dynamic = " << transecEngine->power.readOp.dynamic*mcp.clockRate << " W" << endl;
-		cout << indent_str_next << "Subthreshold Leakage = "
+		*out_file << indent_str << "Transaction Engine:" << endl;
+		*out_file << indent_str_next << "Area = " << transecEngine->area.get_area()*1e-6<< " mm^2" << endl;
+		*out_file << indent_str_next << "Peak Dynamic = " << transecEngine->power.readOp.dynamic*mcp.clockRate << " W" << endl;
+		*out_file << indent_str_next << "Subthreshold Leakage = "
 			<< (long_channel? transecEngine->power.readOp.longer_channel_leakage:transecEngine->power.readOp.leakage) <<" W" << endl;
-		cout << indent_str_next << "Gate Leakage = " << transecEngine->power.readOp.gate_leakage << " W" << endl;
-		cout << indent_str_next << "Runtime Dynamic = " << transecEngine->rt_power.readOp.dynamic/mcp.executionTime << " W" << endl;
-		cout <<endl;
+		*out_file << indent_str_next << "Gate Leakage = " << transecEngine->power.readOp.gate_leakage << " W" << endl;
+		*out_file << indent_str_next << "Runtime Dynamic = " << transecEngine->rt_power.readOp.dynamic/mcp.executionTime << " W" << endl;
+		*out_file <<endl;
 		if (mcp.type==0 || (mcp.type==1&&mcp.withPHY))
 		{
-			cout << indent_str << "PHY:" << endl;
-			cout << indent_str_next << "Area = " << PHY->area.get_area()*1e-6<< " mm^2" << endl;
-			cout << indent_str_next << "Peak Dynamic = " << PHY->power.readOp.dynamic*mcp.clockRate << " W" << endl;
-			cout << indent_str_next << "Subthreshold Leakage = "
+			*out_file << indent_str << "PHY:" << endl;
+			*out_file << indent_str_next << "Area = " << PHY->area.get_area()*1e-6<< " mm^2" << endl;
+			*out_file << indent_str_next << "Peak Dynamic = " << PHY->power.readOp.dynamic*mcp.clockRate << " W" << endl;
+			*out_file << indent_str_next << "Subthreshold Leakage = "
 			<< (long_channel? PHY->power.readOp.longer_channel_leakage:PHY->power.readOp.leakage) <<" W" << endl;
-			cout << indent_str_next << "Gate Leakage = " << PHY->power.readOp.gate_leakage << " W" << endl;
-			cout << indent_str_next << "Runtime Dynamic = " << PHY->rt_power.readOp.dynamic/mcp.executionTime << " W" << endl;
-			cout <<endl;
+			*out_file << indent_str_next << "Gate Leakage = " << PHY->power.readOp.gate_leakage << " W" << endl;
+			*out_file << indent_str_next << "Runtime Dynamic = " << PHY->rt_power.readOp.dynamic/mcp.executionTime << " W" << endl;
+			*out_file <<endl;
 		}
 	}
 	else
 	{
-		cout << "Memory Controller:" << endl;
-		cout << indent_str_next << "Area = " << area.get_area()*1e-6<< " mm^2" << endl;
-		cout << indent_str_next << "Peak Dynamic = " << power.readOp.dynamic*mcp.clockRate << " W" << endl;
-		cout << indent_str_next << "Subthreshold Leakage = " << power.readOp.leakage <<" W" << endl;
-		cout << indent_str_next << "Gate Leakage = " << power.readOp.gate_leakage << " W" << endl;
-		cout<<endl;
+		*out_file << "Memory Controller:" << endl;
+		*out_file << indent_str_next << "Area = " << area.get_area()*1e-6<< " mm^2" << endl;
+		*out_file << indent_str_next << "Peak Dynamic = " << power.readOp.dynamic*mcp.clockRate << " W" << endl;
+		*out_file << indent_str_next << "Subthreshold Leakage = " << power.readOp.leakage <<" W" << endl;
+		*out_file << indent_str_next << "Gate Leakage = " << power.readOp.gate_leakage << " W" << endl;
+		*out_file<<endl;
 	}
 
 }
@@ -686,7 +687,7 @@ void MemoryController::set_mc_param()
 
 	  mcp.llcBlockSize    =int(ceil(XML->sys.mc.llc_line_length/8.0))+XML->sys.mc.llc_line_length;//ecc overhead
 	  mcp.dataBusWidth    =int(ceil(XML->sys.mc.databus_width/8.0)) + XML->sys.mc.databus_width;
-	  mcp.addressBusWidth =int(ceil(XML->sys.mc.addressbus_width));//XML->sys.physical_address_width;
+	  mcp.addressBusWidth =int(ceil((double)XML->sys.mc.addressbus_width));//XML->sys.physical_address_width;
 	  mcp.opcodeW         =16;
 	  mcp.num_mcs         = XML->sys.mc.number_mcs;
 	  mcp.num_channels    = XML->sys.mc.memory_channels_per_mc;
@@ -729,7 +730,7 @@ void MemoryController::set_mc_param()
 //	}
 	else
 	{
-		cout<<"Unknown memory controller type: neither DRAM controller nor Flash controller" <<endl;
+		*out_file<<"Unknown memory controller type: neither DRAM controller nor Flash controller" <<endl;
 		exit(0);
 	}
 }

@@ -165,7 +165,7 @@ interconnect::interconnect(
   no_device_under_wire_area.h *= data_width;
 
   if (latency_overflow==true)
-  		cout<< "Warning: "<< name <<" wire structure cannot satisfy latency constraint." << endl;
+  		*out_file<< "Warning: "<< name <<" wire structure cannot satisfy latency constraint." << endl;
 
 
   assert(power.readOp.dynamic > 0);

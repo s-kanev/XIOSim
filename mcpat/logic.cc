@@ -47,7 +47,7 @@
  ***************************************************************************/
 
 #include "logic.h"
-
+#include "globalvar.h"
 
 //selection_logic
 selection_logic::selection_logic(
@@ -103,16 +103,16 @@ void selection_logic::selection_power()
       num_arbiter += win_entries;
     }
   //the 4-input OR logic to generate anyreq
-  Cor = 4 * drain_C_(WSelORn,NCH,1,1, g_tp.cell_h_def) + drain_C_(WSelORprequ,PCH,1,1, g_tp.cell_h_def);
+  Cor = 4 * drain_C_(WSelORn,NCH,1,1, g_tp.cell_h_def) + drain_C_(WSelORprequ,_PCH,1,1, g_tp.cell_h_def);
   power.readOp.gate_leakage = cmos_Ig_leakage(WSelORn, WSelORprequ, 4, nor)*g_tp.peri_global.Vdd;
 
   //The total capacity of the 4-bit priority encoder
-  Cpencode = drain_C_(WSelPn,NCH,1, 1, g_tp.cell_h_def) + drain_C_(WSelPp,PCH,1, 1, g_tp.cell_h_def) +
-    2*drain_C_(WSelPn,NCH,1, 1, g_tp.cell_h_def) + drain_C_(WSelPp,PCH,2, 1, g_tp.cell_h_def) +
-    3*drain_C_(WSelPn,NCH,1, 1, g_tp.cell_h_def) + drain_C_(WSelPp,PCH,3, 1, g_tp.cell_h_def) +
-    4*drain_C_(WSelPn,NCH,1, 1, g_tp.cell_h_def) + drain_C_(WSelPp,PCH,4, 1, g_tp.cell_h_def) +//precompute priority logic
+  Cpencode = drain_C_(WSelPn,NCH,1, 1, g_tp.cell_h_def) + drain_C_(WSelPp,_PCH,1, 1, g_tp.cell_h_def) +
+    2*drain_C_(WSelPn,NCH,1, 1, g_tp.cell_h_def) + drain_C_(WSelPp,_PCH,2, 1, g_tp.cell_h_def) +
+    3*drain_C_(WSelPn,NCH,1, 1, g_tp.cell_h_def) + drain_C_(WSelPp,_PCH,3, 1, g_tp.cell_h_def) +
+    4*drain_C_(WSelPn,NCH,1, 1, g_tp.cell_h_def) + drain_C_(WSelPp,_PCH,4, 1, g_tp.cell_h_def) +//precompute priority logic
     2*4*gate_C(WSelEnn+WSelEnp,20.0)+
-    4*drain_C_(WSelEnn,NCH,1, 1, g_tp.cell_h_def) + 2*4*drain_C_(WSelEnp,PCH,1, 1, g_tp.cell_h_def)+//enable logic
+    4*drain_C_(WSelEnn,NCH,1, 1, g_tp.cell_h_def) + 2*4*drain_C_(WSelEnp,_PCH,1, 1, g_tp.cell_h_def)+//enable logic
     (2*4+2*3+2*2+2)*gate_C(WSelPn+WSelPp,10.0);//requests signal
 
   Ctotal += issue_width * num_arbiter*(Cor+Cpencode);
@@ -137,7 +137,7 @@ void selection_logic::selection_power()
 
 dep_resource_conflict_check::dep_resource_conflict_check(
 	const InputParameter *configure_interface,
-	const CoreDynParam & dyn_p_,
+	const CoreDynParam * dyn_p_,
 	int   compare_bits_,
     bool   _is_default)
  :  l_ip(*configure_interface),
@@ -154,7 +154,7 @@ dep_resource_conflict_check::dep_resource_conflict_check(
 
     	local_result = init_interface(&l_ip);
 
-    	if (coredynp.core_ty==Inorder)
+    	if (coredynp->core_ty==Inorder)
    		    compare_bits += 16 + 8 + 8;//TODO: opcode bits + log(shared resources) + REG TAG BITS-->opcode comparator
     	else
     		compare_bits += 16 + 8 + 8;
@@ -171,7 +171,7 @@ void dep_resource_conflict_check::conflict_check_power()
 {
 	double Ctotal;
 	int num_comparators;
-	num_comparators = 3*((coredynp.decodeW) * (coredynp.decodeW)-coredynp.decodeW);//2(N*N-N) is used for source to dest comparison, (N*N-N) is used for dest to dest comparision.
+	num_comparators = 3*((coredynp->decodeW) * (coredynp->decodeW)-coredynp->decodeW);//2(N*N-N) is used for source to dest comparison, (N*N-N) is used for dest to dest comparision.
 	//When decode-width ==1, no dcl logic
 
 	Ctotal = num_comparators * compare_cap();
@@ -180,7 +180,7 @@ void dep_resource_conflict_check::conflict_check_power()
 	power.readOp.dynamic=Ctotal*/*CLOCKRATE*/g_tp.peri_global.Vdd*g_tp.peri_global.Vdd/*AF*/;
 	power.readOp.leakage=num_comparators*compare_bits*2*simplified_nmos_leakage(Wcompn,  false);
 
-	double long_channel_device_reduction = longer_channel_device_reduction(Core_device, coredynp.core_ty);
+	double long_channel_device_reduction = longer_channel_device_reduction(Core_device, coredynp->core_ty);
 	power.readOp.longer_channel_leakage	= power.readOp.leakage*long_channel_device_reduction;
 	power.readOp.gate_leakage=num_comparators*compare_bits*2*cmos_Ig_leakage(Wcompn, 0, 2, nmos);
 
@@ -195,7 +195,7 @@ double dep_resource_conflict_check::compare_cap()
   WNORp = WNORp * compare_bits/2.0;//resize the big NOR gate at the DCL according to fan in.
   /* bottom part of comparator */
   c2 = (compare_bits)*(drain_C_(Wcompn,NCH,1,1, g_tp.cell_h_def)+drain_C_(Wcompn,NCH,2,1, g_tp.cell_h_def))+
-  drain_C_(Wevalinvp,PCH,1,1, g_tp.cell_h_def) + drain_C_(Wevalinvn,NCH,1,1, g_tp.cell_h_def);
+  drain_C_(Wevalinvp,_PCH,1,1, g_tp.cell_h_def) + drain_C_(Wevalinvn,NCH,1,1, g_tp.cell_h_def);
 
   /* top part of comparator */
   c1 = (compare_bits)*(drain_C_(Wcompn,NCH,1,1, g_tp.cell_h_def)+drain_C_(Wcompn,NCH,2,1, g_tp.cell_h_def)+
@@ -233,7 +233,7 @@ double DFFCell::fpfp_node_cap(unsigned int fan_in, unsigned int fan_out)
   //printf("WdecNANDn = %E\n", WdecNANDn);
 
   /* part 1: drain cap of NAND gate */
-  Ctotal += drain_C_(WdecNANDn, NCH, 2, 1, g_tp.cell_h_def, is_dram) + fan_in * drain_C_(WdecNANDp, PCH, 1, 1, g_tp.cell_h_def, is_dram);
+  Ctotal += drain_C_(WdecNANDn, NCH, 2, 1, g_tp.cell_h_def, is_dram) + fan_in * drain_C_(WdecNANDp, _PCH, 1, 1, g_tp.cell_h_def, is_dram);
 
   /* part 2: gate cap of NAND gates */
   Ctotal += fan_out * gate_C(WdecNANDn + WdecNANDp, 0, is_dram);
@@ -270,7 +270,7 @@ void DFFCell::compute_DFF_cell()
 
 Pipeline::Pipeline(
 		const InputParameter *configure_interface,
-		const CoreDynParam & dyn_p_,
+		const CoreDynParam * dyn_p_,
 		enum Device_ty device_ty_,
 		bool _is_core_pipeline,
 		bool _is_default)
@@ -283,7 +283,7 @@ Pipeline::Pipeline(
 
   {
 	local_result = init_interface(&l_ip);
-	if (!coredynp.Embedded)
+	if (!coredynp->Embedded)
 		process_ind = true;
 	else
 		process_ind = false;
@@ -311,7 +311,7 @@ void Pipeline::compute()
 	power.readOp.gate_leakage	+=pipe_reg_gate_leakage;
 	area.set_area(num_piperegs * pipe_reg.area.get_area());
 
-	double long_channel_device_reduction = longer_channel_device_reduction(device_ty, coredynp.core_ty);
+	double long_channel_device_reduction = longer_channel_device_reduction(device_ty, coredynp->core_ty);
 	power.readOp.longer_channel_leakage	= power.readOp.leakage*long_channel_device_reduction;
 
 
@@ -320,14 +320,14 @@ void Pipeline::compute()
 	power.writeOp.dynamic *= sckRation;
 	power.searchOp.dynamic *= sckRation;
 	double macro_layout_overhead = g_tp.macro_layout_overhead;
-	if (!coredynp.Embedded)
+	if (!coredynp->Embedded)
 		area.set_area(area.get_area()*macro_layout_overhead);
 }
 
 void Pipeline::compute_stage_vector()
 {
 	double num_stages, tot_stage_vector, per_stage_vector;
-	int opcode_length = coredynp.x86? coredynp.micro_opcode_length:coredynp.opcode_length;
+	int opcode_length = coredynp->x86? coredynp->micro_opcode_length:coredynp->opcode_length;
 	//Hthread = thread_clock_gated? 1:num_thread;
 
   if (!is_core_pipeline)
@@ -336,21 +336,21 @@ void Pipeline::compute_stage_vector()
   }
   else
   {
-	if (coredynp.core_ty==Inorder)
+	if (coredynp->core_ty==Inorder)
 	{
 		/* assume 6 pipe stages and try to estimate bits per pipe stage */
 		/* pipe stage 0/IF */
-		num_piperegs += coredynp.pc_width*2*coredynp.num_hthreads;
+		num_piperegs += coredynp->pc_width*2*coredynp->num_hthreads;
 		/* pipe stage IF/ID */
-		num_piperegs += coredynp.fetchW*(coredynp.instruction_length + coredynp.pc_width)*coredynp.num_hthreads;
+		num_piperegs += coredynp->fetchW*(coredynp->instruction_length + coredynp->pc_width)*coredynp->num_hthreads;
 		/* pipe stage IF/ThreadSEL */
-		if (coredynp.multithreaded) num_piperegs += coredynp.num_hthreads*coredynp.perThreadState; //8 bit thread states
+		if (coredynp->multithreaded) num_piperegs += coredynp->num_hthreads*coredynp->perThreadState; //8 bit thread states
 		/* pipe stage ID/EXE */
-		num_piperegs += coredynp.decodeW*(coredynp.instruction_length + coredynp.pc_width + pow(2.0,opcode_length)+ 2*coredynp.int_data_width)*coredynp.num_hthreads;
+		num_piperegs += coredynp->decodeW*(coredynp->instruction_length + coredynp->pc_width + pow(2.0,opcode_length)+ 2*coredynp->int_data_width)*coredynp->num_hthreads;
 		/* pipe stage EXE/MEM */
-		num_piperegs += coredynp.issueW*(3 * coredynp.arch_ireg_width + pow(2.0,opcode_length) + 8*2*coredynp.int_data_width/*+2*powers (2,reg_length)*/);
+		num_piperegs += coredynp->issueW*(3 * coredynp->arch_ireg_width + pow(2.0,opcode_length) + 8*2*coredynp->int_data_width/*+2*powers (2,reg_length)*/);
 		/* pipe stage MEM/WB the 2^opcode_length means the total decoded signal for the opcode*/
-		num_piperegs += coredynp.issueW*(2*coredynp.int_data_width + pow(2.0,opcode_length) + 8*2*coredynp.int_data_width/*+2*powers (2,reg_length)*/);
+		num_piperegs += coredynp->issueW*(2*coredynp->int_data_width + pow(2.0,opcode_length) + 8*2*coredynp->int_data_width/*+2*powers (2,reg_length)*/);
 //		/* pipe stage 5/6 */
 //		num_piperegs += issueWidth*(data_width + powers (2,opcode_length)/*+2*powers (2,reg_length)*/);
 //		/* pipe stage 6/7 */
@@ -367,30 +367,30 @@ void Pipeline::compute_stage_vector()
 		/*OOO: Fetch, decode, rename, IssueQ, dispatch, regread, EXE, MEM, WB, CM */
 
 		/* pipe stage 0/1F*/
-		num_piperegs += coredynp.pc_width*2*coredynp.num_hthreads ;//PC and Next PC
+		num_piperegs += coredynp->pc_width*2*coredynp->num_hthreads ;//PC and Next PC
 		/* pipe stage IF/ID */
-		num_piperegs += coredynp.fetchW*(coredynp.instruction_length + coredynp.pc_width)*coredynp.num_hthreads;//PC is used to feed branch predictor in ID
+		num_piperegs += coredynp->fetchW*(coredynp->instruction_length + coredynp->pc_width)*coredynp->num_hthreads;//PC is used to feed branch predictor in ID
 		/* pipe stage 1D/Renaming*/
-		num_piperegs += coredynp.decodeW*(coredynp.instruction_length + coredynp.pc_width)*coredynp.num_hthreads;//PC is for branch exe in later stage.
+		num_piperegs += coredynp->decodeW*(coredynp->instruction_length + coredynp->pc_width)*coredynp->num_hthreads;//PC is for branch exe in later stage.
 		/* pipe stage Renaming/wire_drive */
-		num_piperegs += coredynp.decodeW*(coredynp.instruction_length + coredynp.pc_width);
+		num_piperegs += coredynp->decodeW*(coredynp->instruction_length + coredynp->pc_width);
 		/* pipe stage Renaming/IssueQ */
-		num_piperegs += coredynp.issueW*(coredynp.instruction_length  + coredynp.pc_width + 3*coredynp.phy_ireg_width)*coredynp.num_hthreads;//3*coredynp.phy_ireg_width means 2 sources and 1 dest
+		num_piperegs += coredynp->issueW*(coredynp->instruction_length  + coredynp->pc_width + 3*coredynp->phy_ireg_width)*coredynp->num_hthreads;//3*coredynp->phy_ireg_width means 2 sources and 1 dest
 		/* pipe stage IssueQ/Dispatch */
-		num_piperegs += coredynp.issueW*(coredynp.instruction_length + 3 * coredynp.phy_ireg_width);
+		num_piperegs += coredynp->issueW*(coredynp->instruction_length + 3 * coredynp->phy_ireg_width);
 		/* pipe stage Dispatch/EXE */
 
-		num_piperegs += coredynp.issueW*(3 * coredynp.phy_ireg_width + coredynp.pc_width + pow(2.0,opcode_length)/*+2*powers (2,reg_length)*/);
+		num_piperegs += coredynp->issueW*(3 * coredynp->phy_ireg_width + coredynp->pc_width + pow(2.0,opcode_length)/*+2*powers (2,reg_length)*/);
 		/* 2^opcode_length means the total decoded signal for the opcode*/
-		num_piperegs += coredynp.issueW*(2*coredynp.int_data_width + pow(2.0,opcode_length)/*+2*powers (2,reg_length)*/);
+		num_piperegs += coredynp->issueW*(2*coredynp->int_data_width + pow(2.0,opcode_length)/*+2*powers (2,reg_length)*/);
 		/*2 source operands in EXE; Assume 2EXE stages* since we do not really distinguish OP*/
-		num_piperegs += coredynp.issueW*(2*coredynp.int_data_width + pow(2.0,opcode_length)/*+2*powers (2,reg_length)*/);
+		num_piperegs += coredynp->issueW*(2*coredynp->int_data_width + pow(2.0,opcode_length)/*+2*powers (2,reg_length)*/);
 		/* pipe stage EXE/MEM, data need to be read/write, address*/
-		num_piperegs += coredynp.issueW*(coredynp.int_data_width + coredynp.v_address_width + pow(2.0,opcode_length)/*+2*powers (2,reg_length)*/);//memory Opcode still need to be passed
+		num_piperegs += coredynp->issueW*(coredynp->int_data_width + coredynp->v_address_width + pow(2.0,opcode_length)/*+2*powers (2,reg_length)*/);//memory Opcode still need to be passed
 		/* pipe stage MEM/WB; result data, writeback regs */
-		num_piperegs += coredynp.issueW*(coredynp.int_data_width + coredynp.phy_ireg_width /* powers (2,opcode_length) + (2,opcode_length)+2*powers (2,reg_length)*/);
+		num_piperegs += coredynp->issueW*(coredynp->int_data_width + coredynp->phy_ireg_width /* powers (2,opcode_length) + (2,opcode_length)+2*powers (2,reg_length)*/);
 		/* pipe stage WB/CM ; result data, regs need to be updated, address for resolve memory ops in ROB's top*/
-		num_piperegs += coredynp.commitW*(coredynp.int_data_width + coredynp.v_address_width + coredynp.phy_ireg_width/*+ powers (2,opcode_length)*2*powers (2,reg_length)*/)*coredynp.num_hthreads;
+		num_piperegs += coredynp->commitW*(coredynp->int_data_width + coredynp->v_address_width + coredynp->phy_ireg_width/*+ powers (2,opcode_length)*2*powers (2,reg_length)*/)*coredynp->num_hthreads;
 //		if (multithreaded)
 //		{
 //
@@ -404,31 +404,29 @@ void Pipeline::compute_stage_vector()
 	tot_stage_vector=num_piperegs;
 	per_stage_vector=tot_stage_vector/num_stages;
 
-	if (coredynp.core_ty==Inorder)
+	if (coredynp->core_ty==Inorder)
 	{
-		if (coredynp.pipeline_stages>6)
-			num_piperegs= per_stage_vector*coredynp.pipeline_stages;
+		if (coredynp->pipeline_stages>6)
+			num_piperegs= per_stage_vector*coredynp->pipeline_stages;
 	}
 	else//OOO
 	{
-		if (coredynp.pipeline_stages>12)
-			num_piperegs= per_stage_vector*coredynp.pipeline_stages;
+		if (coredynp->pipeline_stages>12)
+			num_piperegs= per_stage_vector*coredynp->pipeline_stages;
 	}
   }
 
 }
 
-FunctionalUnit::FunctionalUnit(ParseXML *XML_interface, int ithCore_, InputParameter* interface_ip_,const CoreDynParam & dyn_p_, enum FU_type fu_type_)
+FunctionalUnit::FunctionalUnit(ParseXML *XML_interface, int ithCore_, InputParameter* interface_ip_,const CoreDynParam * dyn_p_, enum FU_type fu_type_)
 :XML(XML_interface),
  ithCore(ithCore_),
- interface_ip(*interface_ip_),
  coredynp(dyn_p_),
+ interface_ip(*interface_ip_),
  fu_type(fu_type_)
 {
     double area_t;//, leakage, gate_leakage;
     double pmos_to_nmos_sizing_r = pmos_to_nmos_sz_ratio();
-	clockRate = coredynp.clockRate;
-	executionTime = coredynp.executionTime;
 
 	//XML_interface=_XML_interface;
 	uca_org_t result2;
@@ -437,7 +435,7 @@ FunctionalUnit::FunctionalUnit(ParseXML *XML_interface, int ithCore_, InputParam
 	{
 		if (fu_type == FPU)
 		{
-			num_fu=coredynp.num_fpus;
+			num_fu=coredynp->num_fpus;
 			//area_t = 8.47*1e6*g_tp.scaling_factor.logic_scaling_co_eff;//this is um^2
 			area_t = 4.47*1e6*(g_ip->F_sz_nm*g_ip->F_sz_nm/90.0/90.0);//this is um^2 The base number
 			//4.47 contains both VFP and NEON processing unit, VFP is about 40% and NEON is about 60%
@@ -455,7 +453,7 @@ FunctionalUnit::FunctionalUnit(ParseXML *XML_interface, int ithCore_, InputParam
 		}
 		else if (fu_type == ALU)
 		{
-			num_fu=coredynp.num_alus;
+			num_fu=coredynp->num_alus;
 			area_t = 280*260*num_fu*g_tp.scaling_factor.logic_scaling_co_eff;//this is um^2 ALU + MUl
 			leakage = area_t *(g_tp.scaling_factor.core_tx_density)*cmos_Isub_leakage(20*g_tp.min_w_nmos_, 20*g_tp.min_w_nmos_*pmos_to_nmos_sizing_r, 1, inv)*g_tp.peri_global.Vdd/2;//unit W
 			gate_leakage = area_t*(g_tp.scaling_factor.core_tx_density)*cmos_Ig_leakage(20*g_tp.min_w_nmos_, 20*g_tp.min_w_nmos_*pmos_to_nmos_sizing_r, 1, inv)*g_tp.peri_global.Vdd/2;
@@ -468,7 +466,7 @@ FunctionalUnit::FunctionalUnit(ParseXML *XML_interface, int ithCore_, InputParam
 		}
 		else if (fu_type == MUL)
 		{
-			num_fu=coredynp.num_muls;
+			num_fu=coredynp->num_muls;
 			area_t = 280*260*3*num_fu*g_tp.scaling_factor.logic_scaling_co_eff;//this is um^2 ALU + MUl
 			leakage = area_t *(g_tp.scaling_factor.core_tx_density)*cmos_Isub_leakage(20*g_tp.min_w_nmos_, 20*g_tp.min_w_nmos_*pmos_to_nmos_sizing_r, 1, inv)*g_tp.peri_global.Vdd/2;//unit W
 			gate_leakage = area_t*(g_tp.scaling_factor.core_tx_density)*cmos_Ig_leakage(20*g_tp.min_w_nmos_, 20*g_tp.min_w_nmos_*pmos_to_nmos_sizing_r, 1, inv)*g_tp.peri_global.Vdd/2;
@@ -480,7 +478,7 @@ FunctionalUnit::FunctionalUnit(ParseXML *XML_interface, int ithCore_, InputParam
 		}
 		else
 		{
-			cout<<"Unknown Functional Unit Type"<<endl;
+			*out_file<<"Unknown Functional Unit Type"<<endl;
 			exit(0);
 		}
 		per_access_energy *=0.5;//According to ARM data embedded processor has much lower per acc energy
@@ -489,7 +487,7 @@ FunctionalUnit::FunctionalUnit(ParseXML *XML_interface, int ithCore_, InputParam
 	{
 		if (fu_type == FPU)
 		{
-			num_fu=coredynp.num_fpus;
+			num_fu=coredynp->num_fpus;
 			//area_t = 8.47*1e6*g_tp.scaling_factor.logic_scaling_co_eff;//this is um^2
 			area_t = 8.47*1e6*(g_ip->F_sz_nm*g_ip->F_sz_nm/90.0/90.0);//this is um^2
 			if (g_ip->F_sz_nm>90)
@@ -497,18 +495,18 @@ FunctionalUnit::FunctionalUnit(ParseXML *XML_interface, int ithCore_, InputParam
 			leakage = area_t *(g_tp.scaling_factor.core_tx_density)*cmos_Isub_leakage(5*g_tp.min_w_nmos_, 5*g_tp.min_w_nmos_*pmos_to_nmos_sizing_r, 1, inv)*g_tp.peri_global.Vdd/2;//unit W
 			gate_leakage = area_t *(g_tp.scaling_factor.core_tx_density)*cmos_Ig_leakage(5*g_tp.min_w_nmos_, 5*g_tp.min_w_nmos_*pmos_to_nmos_sizing_r, 1, inv)*g_tp.peri_global.Vdd/2;//unit W
 			//energy = 0.3529/10*1e-9;//this is the energy(nJ) for a FP instruction in FPU usually it can have up to 20 cycles.
-			base_energy = coredynp.core_ty==Inorder? 0: 89e-3*3; //W The base energy of ALU average numbers from Intel 4G and 773Mhz (Wattch)
+			base_energy = coredynp->core_ty==Inorder? 0: 89e-3*3; //W The base energy of ALU average numbers from Intel 4G and 773Mhz (Wattch)
 			base_energy *=(g_tp.peri_global.Vdd*g_tp.peri_global.Vdd/1.2/1.2);
 			per_access_energy = 1.15*3/1e9/4/1.3/1.3*g_tp.peri_global.Vdd*g_tp.peri_global.Vdd*(g_ip->F_sz_nm/90.0);//g_tp.peri_global.Vdd*g_tp.peri_global.Vdd/1.2/1.2);//0.00649*1e-9; //This is per op energy(nJ)
 			FU_height=(38667*num_fu)*interface_ip.F_sz_um;//FPU from Sun's data
 		}
 		else if (fu_type == ALU)
 		{
-			num_fu=coredynp.num_alus;
+			num_fu=coredynp->num_alus;
 			area_t = 280*260*2*num_fu*g_tp.scaling_factor.logic_scaling_co_eff;//this is um^2 ALU + MUl
 			leakage = area_t *(g_tp.scaling_factor.core_tx_density)*cmos_Isub_leakage(20*g_tp.min_w_nmos_, 20*g_tp.min_w_nmos_*pmos_to_nmos_sizing_r, 1, inv)*g_tp.peri_global.Vdd/2;//unit W
 			gate_leakage = area_t*(g_tp.scaling_factor.core_tx_density)*cmos_Ig_leakage(20*g_tp.min_w_nmos_, 20*g_tp.min_w_nmos_*pmos_to_nmos_sizing_r, 1, inv)*g_tp.peri_global.Vdd/2;
-			base_energy = coredynp.core_ty==Inorder? 0:89e-3; //W The base energy of ALU average numbers from Intel 4G and 773Mhz (Wattch)
+			base_energy = coredynp->core_ty==Inorder? 0:89e-3; //W The base energy of ALU average numbers from Intel 4G and 773Mhz (Wattch)
 			base_energy *=(g_tp.peri_global.Vdd*g_tp.peri_global.Vdd/1.2/1.2);
 			per_access_energy = 1.15/1e9/4/1.3/1.3*g_tp.peri_global.Vdd*g_tp.peri_global.Vdd*(g_ip->F_sz_nm/90.0);//(g_tp.peri_global.Vdd*g_tp.peri_global.Vdd/1.2/1.2);//0.00649*1e-9; //This is per cycle energy(nJ)
 			FU_height=(6222*num_fu)*interface_ip.F_sz_um;//integer ALU
@@ -516,18 +514,18 @@ FunctionalUnit::FunctionalUnit(ParseXML *XML_interface, int ithCore_, InputParam
 		}
 		else if (fu_type == MUL)
 		{
-			num_fu=coredynp.num_muls;
+			num_fu=coredynp->num_muls;
 			area_t = 280*260*2*3*num_fu*g_tp.scaling_factor.logic_scaling_co_eff;//this is um^2 ALU + MUl
 			leakage = area_t *(g_tp.scaling_factor.core_tx_density)*cmos_Isub_leakage(20*g_tp.min_w_nmos_, 20*g_tp.min_w_nmos_*pmos_to_nmos_sizing_r, 1, inv)*g_tp.peri_global.Vdd/2;//unit W
 			gate_leakage = area_t*(g_tp.scaling_factor.core_tx_density)*cmos_Ig_leakage(20*g_tp.min_w_nmos_, 20*g_tp.min_w_nmos_*pmos_to_nmos_sizing_r, 1, inv)*g_tp.peri_global.Vdd/2;
-			base_energy = coredynp.core_ty==Inorder? 0:89e-3*2; //W The base energy of ALU average numbers from Intel 4G and 773Mhz (Wattch)
+			base_energy = coredynp->core_ty==Inorder? 0:89e-3*2; //W The base energy of ALU average numbers from Intel 4G and 773Mhz (Wattch)
 			base_energy *=(g_tp.peri_global.Vdd*g_tp.peri_global.Vdd/1.2/1.2);
 			per_access_energy = 1.15*2/1e9/4/1.3/1.3*g_tp.peri_global.Vdd*g_tp.peri_global.Vdd*(g_ip->F_sz_nm/90.0);//(g_tp.peri_global.Vdd*g_tp.peri_global.Vdd/1.2/1.2);//0.00649*1e-9; //This is per cycle energy(nJ), coefficient based on Wattch
 			FU_height=(9334*num_fu )*interface_ip.F_sz_um;//divider/mul from Sun's data
 		}
 		else
 		{
-			cout<<"Unknown Functional Unit Type"<<endl;
+			*out_file<<"Unknown Functional Unit Type"<<endl;
 			exit(0);
 		}
 	}
@@ -549,6 +547,7 @@ void FunctionalUnit::computeEnergy(bool is_tdp)
 {
 	double pppm_t[4]    = {1,1,1,1};
 	double FU_duty_cycle;
+
 	if (is_tdp)
 	{
 
@@ -558,23 +557,23 @@ void FunctionalUnit::computeEnergy(bool is_tdp)
 		{
 			stats_t.readAc.access = num_fu;
 			tdp_stats = stats_t;
-			FU_duty_cycle = coredynp.FPU_duty_cycle;
+			FU_duty_cycle = coredynp->FPU_duty_cycle;
 		}
 		else if (fu_type == ALU)
 		{
 			stats_t.readAc.access = 1*num_fu;
 			tdp_stats = stats_t;
-			FU_duty_cycle = coredynp.ALU_duty_cycle;
+			FU_duty_cycle = coredynp->ALU_duty_cycle;
 		}
 		else if (fu_type == MUL)
 		{
 			stats_t.readAc.access = num_fu;
 			tdp_stats = stats_t;
-			FU_duty_cycle = coredynp.MUL_duty_cycle;
+			FU_duty_cycle = coredynp->MUL_duty_cycle;
 		}
 
 	    //power.readOp.dynamic = base_energy/clockRate + energy*stats_t.readAc.access;
-	    power.readOp.dynamic = per_access_energy*stats_t.readAc.access + base_energy/clockRate;
+	    power.readOp.dynamic = per_access_energy*stats_t.readAc.access + base_energy/coredynp->clockRate;
 		double sckRation = g_tp.sckt_co_eff;
 		power.readOp.dynamic *= sckRation*FU_duty_cycle;
 		power.writeOp.dynamic *= sckRation;
@@ -582,7 +581,7 @@ void FunctionalUnit::computeEnergy(bool is_tdp)
 
 	    power.readOp.leakage = leakage;
 	    power.readOp.gate_leakage = gate_leakage;
-	    double long_channel_device_reduction = longer_channel_device_reduction(Core_device, coredynp.core_ty);
+	    double long_channel_device_reduction = longer_channel_device_reduction(Core_device, coredynp->core_ty);
 	    power.readOp.longer_channel_leakage	= power.readOp.leakage*long_channel_device_reduction;
 
 	}
@@ -605,7 +604,7 @@ void FunctionalUnit::computeEnergy(bool is_tdp)
 		}
 
 	    //rt_power.readOp.dynamic = base_energy*executionTime + energy*stats_t.readAc.access;
-	    rt_power.readOp.dynamic = per_access_energy*stats_t.readAc.access + base_energy*executionTime;
+	    rt_power.readOp.dynamic = per_access_energy*stats_t.readAc.access + base_energy*coredynp->executionTime;
 		double sckRation = g_tp.sckt_co_eff;
 		rt_power.readOp.dynamic *= sckRation;
 		rt_power.writeOp.dynamic *= sckRation;
@@ -622,44 +621,44 @@ void FunctionalUnit::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 	string indent_str_next(indent+2, ' ');
 	bool long_channel = XML->sys.longer_channel_device;
 
-//	cout << indent_str_next << "Results Broadcast Bus Area = " << bypass->area.get_area() *1e-6 << " mm^2" << endl;
+//	*out_file << indent_str_next << "Results Broadcast Bus Area = " << bypass->area.get_area() *1e-6 << " mm^2" << endl;
 	if (is_tdp)
 	{
 		if (fu_type == FPU)
 		{
-			cout << indent_str << "Floating Point Units (FPUs) (Count: "<< coredynp.num_fpus <<" ):" << endl;
-			cout << indent_str_next << "Area = " << area.get_area()*1e-6  << " mm^2" << endl;
-			cout << indent_str_next << "Peak Dynamic = " << power.readOp.dynamic*clockRate  << " W" << endl;
-//			cout << indent_str_next << "Subthreshold Leakage = " << power.readOp.leakage  << " W" << endl;
-			cout << indent_str_next<< "Subthreshold Leakage = "
+			*out_file << indent_str << "Floating Point Units (FPUs) (Count: "<< coredynp->num_fpus <<" ):" << endl;
+			*out_file << indent_str_next << "Area = " << area.get_area()*1e-6  << " mm^2" << endl;
+			*out_file << indent_str_next << "Peak Dynamic = " << power.readOp.dynamic*coredynp->clockRate  << " W" << endl;
+//			*out_file << indent_str_next << "Subthreshold Leakage = " << power.readOp.leakage  << " W" << endl;
+			*out_file << indent_str_next<< "Subthreshold Leakage = "
 						<< (long_channel? power.readOp.longer_channel_leakage:power.readOp.leakage) <<" W" << endl;
-			cout << indent_str_next << "Gate Leakage = " << power.readOp.gate_leakage  << " W" << endl;
-			cout << indent_str_next << "Runtime Dynamic = " << rt_power.readOp.dynamic/executionTime << " W" << endl;
-			cout <<endl;
+			*out_file << indent_str_next << "Gate Leakage = " << power.readOp.gate_leakage  << " W" << endl;
+			*out_file << indent_str_next << "Runtime Dynamic = " << rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
+			*out_file <<endl;
 		}
 		else if (fu_type == ALU)
 		{
-			cout << indent_str << "Integer ALUs (Count: "<< coredynp.num_alus <<" ):" << endl;
-			cout << indent_str_next << "Area = " << area.get_area()*1e-6  << " mm^2" << endl;
-			cout << indent_str_next << "Peak Dynamic = " << power.readOp.dynamic*clockRate  << " W" << endl;
-//			cout << indent_str_next << "Subthreshold Leakage = " << power.readOp.leakage  << " W" << endl;
-			cout << indent_str_next<< "Subthreshold Leakage = "
+			*out_file << indent_str << "Integer ALUs (Count: "<< coredynp->num_alus <<" ):" << endl;
+			*out_file << indent_str_next << "Area = " << area.get_area()*1e-6  << " mm^2" << endl;
+			*out_file << indent_str_next << "Peak Dynamic = " << power.readOp.dynamic*coredynp->clockRate  << " W" << endl;
+//			*out_file << indent_str_next << "Subthreshold Leakage = " << power.readOp.leakage  << " W" << endl;
+			*out_file << indent_str_next<< "Subthreshold Leakage = "
 						<< (long_channel? power.readOp.longer_channel_leakage:power.readOp.leakage) <<" W" << endl;
-			cout << indent_str_next << "Gate Leakage = " << power.readOp.gate_leakage  << " W" << endl;
-			cout << indent_str_next << "Runtime Dynamic = " << rt_power.readOp.dynamic/executionTime << " W" << endl;
-			cout <<endl;
+			*out_file << indent_str_next << "Gate Leakage = " << power.readOp.gate_leakage  << " W" << endl;
+			*out_file << indent_str_next << "Runtime Dynamic = " << rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
+			*out_file <<endl;
 		}
 		else if (fu_type == MUL)
 		{
-			cout << indent_str << "Complex ALUs (Mul/Div) (Count: "<< coredynp.num_muls <<" ):" << endl;
-			cout << indent_str_next << "Area = " << area.get_area()*1e-6  << " mm^2" << endl;
-			cout << indent_str_next << "Peak Dynamic = " << power.readOp.dynamic*clockRate  << " W" << endl;
-//			cout << indent_str_next << "Subthreshold Leakage = " << power.readOp.leakage  << " W" << endl;
-			cout << indent_str_next<< "Subthreshold Leakage = "
+			*out_file << indent_str << "Complex ALUs (Mul/Div) (Count: "<< coredynp->num_muls <<" ):" << endl;
+			*out_file << indent_str_next << "Area = " << area.get_area()*1e-6  << " mm^2" << endl;
+			*out_file << indent_str_next << "Peak Dynamic = " << power.readOp.dynamic*coredynp->clockRate  << " W" << endl;
+//			*out_file << indent_str_next << "Subthreshold Leakage = " << power.readOp.leakage  << " W" << endl;
+			*out_file << indent_str_next<< "Subthreshold Leakage = "
 						<< (long_channel? power.readOp.longer_channel_leakage:power.readOp.leakage) <<" W" << endl;
-			cout << indent_str_next << "Gate Leakage = " << power.readOp.gate_leakage  << " W" << endl;
-			cout << indent_str_next << "Runtime Dynamic = " << rt_power.readOp.dynamic/executionTime << " W" << endl;
-			cout <<endl;
+			*out_file << indent_str_next << "Gate Leakage = " << power.readOp.gate_leakage  << " W" << endl;
+			*out_file << indent_str_next << "Runtime Dynamic = " << rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
+			*out_file <<endl;
 
 		}
 
@@ -670,16 +669,16 @@ void FunctionalUnit::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 
 }
 
-UndiffCore::UndiffCore(ParseXML* XML_interface, int ithCore_, InputParameter* interface_ip_, const CoreDynParam & dyn_p_, bool exist_,  bool embedded_)
+UndiffCore::UndiffCore(ParseXML* XML_interface, int ithCore_, InputParameter* interface_ip_, const CoreDynParam * dyn_p_, bool exist_,  bool embedded_)
 :XML(XML_interface),
  ithCore(ithCore_),
  interface_ip(*interface_ip_),
  coredynp(dyn_p_),
- core_ty(coredynp.core_ty),
+ core_ty(coredynp->core_ty),
  embedded(XML->sys.Embedded),
- pipeline_stage(coredynp.pipeline_stages),
- num_hthreads(coredynp.num_hthreads),
- issue_width(coredynp.issueW),
+ pipeline_stage(coredynp->pipeline_stages),
+ num_hthreads(coredynp->num_hthreads),
+ issue_width(coredynp->issueW),
  exist(exist_)
 // is_default(_is_default)
 {
@@ -708,7 +707,7 @@ UndiffCore::UndiffCore(ParseXML* XML_interface, int ithCore_, InputParameter* in
 		}
 		else
 		{
-			cout<<"invalid core type"<<endl;
+			*out_file<<"invalid core type"<<endl;
 			exit(0);
 		}
 		undifferentiated_core *= (1+ logtwo(num_hthreads)* 0.0716);
@@ -731,7 +730,7 @@ UndiffCore::UndiffCore(ParseXML* XML_interface, int ithCore_, InputParameter* in
 	power.readOp.leakage = undifferentiated_core*(core_tx_density)*cmos_Isub_leakage(5*g_tp.min_w_nmos_, 5*g_tp.min_w_nmos_*pmos_to_nmos_sizing_r, 1, inv)*g_tp.peri_global.Vdd;//unit W
 	power.readOp.gate_leakage = undifferentiated_core*(core_tx_density)*cmos_Ig_leakage(5*g_tp.min_w_nmos_, 5*g_tp.min_w_nmos_*pmos_to_nmos_sizing_r, 1, inv)*g_tp.peri_global.Vdd;
 
-	double long_channel_device_reduction = longer_channel_device_reduction(Core_device, coredynp.core_ty);
+	double long_channel_device_reduction = longer_channel_device_reduction(Core_device, coredynp->core_ty);
 	power.readOp.longer_channel_leakage	= power.readOp.leakage*long_channel_device_reduction;
 	area.set_area(undifferentiated_core);
 
@@ -747,7 +746,7 @@ UndiffCore::UndiffCore(ParseXML* XML_interface, int ithCore_, InputParameter* in
 //		double vt=g_tp.peri_global.Vth;
 //		double velocity_index=1.1;
 //		double c_in=gate_C(g_tp.min_w_nmos_, g_tp.min_w_nmos_*pmos_to_nmos_sizing_r , 0.0, false);
-//		double c_out= drain_C_(g_tp.min_w_nmos_, NCH, 2, 1, g_tp.cell_h_def, false) + drain_C_(g_tp.min_w_nmos_*pmos_to_nmos_sizing_r, PCH, 1, 1, g_tp.cell_h_def, false) + c_in;
+//		double c_out= drain_C_(g_tp.min_w_nmos_, NCH, 2, 1, g_tp.cell_h_def, false) + drain_C_(g_tp.min_w_nmos_*pmos_to_nmos_sizing_r, _PCH, 1, 1, g_tp.cell_h_def, false) + c_in;
 //		double w_nmos=g_tp.min_w_nmos_;
 //		double w_pmos=g_tp.min_w_nmos_*pmos_to_nmos_sizing_r;
 //		double i_on_n=1.0;
@@ -759,14 +758,14 @@ UndiffCore::UndiffCore(ParseXML* XML_interface, int ithCore_, InputParameter* in
 //		power.readOp.sc=shortcircuit_simple(vt, velocity_index, c_in, c_out, w_nmos,w_pmos, i_on_n, i_on_p,i_on_n_in, i_on_p_in, vdd);
 //		power.readOp.dynamic=c_out*vdd*vdd/2;
 
-//		cout<<power.readOp.dynamic << "dynamic" <<endl;
-//		cout<<power.readOp.sc << "sc" << endl;
+//		*out_file<<power.readOp.dynamic << "dynamic" <<endl;
+//		*out_file<<power.readOp.sc << "sc" << endl;
 
 //		power.readOp.sc=shortcircuit(vt, velocity_index, c_in, c_out, w_nmos,w_pmos, i_on_n, i_on_p,i_on_n_in, i_on_p_in, vdd);
 //		power.readOp.dynamic=c_out*vdd*vdd/2;
 //
-//		cout<<power.readOp.dynamic << "dynamic" <<endl;
-//		cout<<power.readOp.sc << "sc" << endl;
+//		*out_file<<power.readOp.dynamic << "dynamic" <<endl;
+//		*out_file<<power.readOp.sc << "sc" << endl;
 
 
 
@@ -781,25 +780,25 @@ void UndiffCore::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 
 	if (is_tdp)
 	{
-		cout << indent_str << "UndiffCore:" << endl;
-		cout << indent_str_next << "Area = " << area.get_area()*1e-6<< " mm^2" << endl;
-		cout << indent_str_next << "Peak Dynamic = " << power.readOp.dynamic*clockRate << " W" << endl;
-		//cout << indent_str_next << "Subthreshold Leakage = " << power.readOp.leakage <<" W" << endl;
-		cout << indent_str_next<< "Subthreshold Leakage = "
+		*out_file << indent_str << "UndiffCore:" << endl;
+		*out_file << indent_str_next << "Area = " << area.get_area()*1e-6<< " mm^2" << endl;
+		*out_file << indent_str_next << "Peak Dynamic = " << power.readOp.dynamic*clockRate << " W" << endl;
+		//*out_file << indent_str_next << "Subthreshold Leakage = " << power.readOp.leakage <<" W" << endl;
+		*out_file << indent_str_next<< "Subthreshold Leakage = "
 					<< (long_channel? power.readOp.longer_channel_leakage:power.readOp.leakage) <<" W" << endl;
-		cout << indent_str_next << "Gate Leakage = " << power.readOp.gate_leakage << " W" << endl;
-		//cout << indent_str_next << "Runtime Dynamic = " << rt_power.readOp.dynamic/executionTime << " W" << endl;
-		cout <<endl;
+		*out_file << indent_str_next << "Gate Leakage = " << power.readOp.gate_leakage << " W" << endl;
+		//*out_file << indent_str_next << "Runtime Dynamic = " << rt_power.readOp.dynamic/executionTime << " W" << endl;
+		*out_file <<endl;
 	}
 	else
 	{
-		cout << indent_str << "UndiffCore:" << endl;
-		cout << indent_str_next << "Area = " << area.get_area()*1e-6<< " mm^2" << endl;
-		cout << indent_str_next << "Peak Dynamic = " << power.readOp.dynamic*clockRate << " W" << endl;
-		cout << indent_str_next << "Subthreshold Leakage = " << power.readOp.leakage <<" W" << endl;
-		cout << indent_str_next << "Gate Leakage = " << power.readOp.gate_leakage << " W" << endl;
-		//cout << indent_str_next << "Runtime Dynamic = " << rt_power.readOp.dynamic/executionTime << " W" << endl;
-		cout <<endl;
+		*out_file << indent_str << "UndiffCore:" << endl;
+		*out_file << indent_str_next << "Area = " << area.get_area()*1e-6<< " mm^2" << endl;
+		*out_file << indent_str_next << "Peak Dynamic = " << power.readOp.dynamic*clockRate << " W" << endl;
+		*out_file << indent_str_next << "Subthreshold Leakage = " << power.readOp.leakage <<" W" << endl;
+		*out_file << indent_str_next << "Gate Leakage = " << power.readOp.gate_leakage << " W" << endl;
+		//*out_file << indent_str_next << "Runtime Dynamic = " << rt_power.readOp.dynamic/executionTime << " W" << endl;
+		*out_file <<endl;
 	}
 
 }

@@ -125,7 +125,7 @@
 //    'XMLNode::openFileHelper' : cannot convert parameter 2 from 'const char [5]' to 'const wchar_t *'
 // The _XMLWIDECHAR preprocessor variable force the XMLParser library into either utf16/32-mode (the proprocessor variable
 // must be defined) or utf8-mode(the pre-processor variable must be undefined).
-#define _XMLWIDECHAR
+//#define _XMLWIDECHAR
 #endif
 
 #if defined(WIN32) || defined(UNDER_CE) || defined(_WIN32) || defined(WIN64) || defined(__BORLANDC__)
@@ -672,11 +672,11 @@ XMLDLLENTRY XMLCSTR xmltoa(XMLCSTR xmlString,XMLCSTR defautValue=_CXML(""));
 XMLDLLENTRY XMLCHAR xmltoc(XMLCSTR xmlString,XMLCHAR defautValue=_CXML('\0'));
 /** @} */
 
-/** @defgroup ToXMLStringTool Helper class to create XML files using "printf", "fprintf", "cout",... functions.
+/** @defgroup ToXMLStringTool Helper class to create XML files using "printf", "fprintf", "*out_file",... functions.
  * @ingroup XMLParserGeneral
  * @{ */
-/// Helper class to create XML files using "printf", "fprintf", "cout",... functions.
-/** The ToXMLStringTool class helps you creating XML files using "printf", "fprintf", "cout",... functions.
+/// Helper class to create XML files using "printf", "fprintf", "*out_file",... functions.
+/** The ToXMLStringTool class helps you creating XML files using "printf", "fprintf", "*out_file",... functions.
  * The "ToXMLStringTool" class is processing strings so that all the characters
  * &,",',<,> are replaced by their XML equivalent:
  * \verbatim &amp;, &quot;, &apos;, &lt;, &gt; \endverbatim

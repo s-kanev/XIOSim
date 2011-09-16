@@ -46,23 +46,6 @@
  *
  ***************************************************************************/
 
-
-#ifndef GLOBALVAR_H_
-#define GLOBALVAR_H_
-
-#include <iostream>
-
-#ifdef  GLOBALVAR
-#define EXTERN
-#else
-#define EXTERN extern
-#endif
-
-EXTERN bool opt_for_clk;
-EXTERN ostream *out_file; 
-
-#endif /* GLOBALVAR_H_ */
-
-
-
-
+void mcpat_initialize(ParseXML *p1, std::ostream *_out_file, int print_level = 1);
+void mcpat_compute_energy(bool print_power, double * cores_rtp, double * uncore_rtp);
+void mcpat_finalize();

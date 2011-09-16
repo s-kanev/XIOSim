@@ -42,6 +42,7 @@
 
 
 #include "router.h"
+#include "globalvar.h"
 
 Router::Router(
     double flit_size_,
@@ -300,22 +301,22 @@ Router::calc_router_parameters()
   void
 Router::print_router()
 {
-  cout << "\n\nRouter stats:\n";
-  cout << "\tRouter Area - "<< area.get_area()*1e-6<<"(mm^2)\n";
-  cout << "\tMaximum possible network frequency - " << (1/max_cyc)*1e3 << "GHz\n";
-  cout << "\tNetwork frequency - " << FREQUENCY <<" GHz\n";
-  cout << "\tNo. of Virtual channels - " << vc_count << "\n";
-  cout << "\tNo. of pipeline stages - " << delay << endl;
-  cout << "\tLink bandwidth - " << flit_size << " (bits)\n";
-  cout << "\tNo. of buffer entries per virtual channel -  "<< vc_buffer_size << "\n";
-  cout << "\tSimple buffer Area - "<< buffer.area.get_area()*1e-6<<"(mm^2)\n";
-  cout << "\tSimple buffer access (Read) - " << buffer.power.readOp.dynamic * 1e9 <<" (nJ)\n";
-  cout << "\tSimple buffer leakage - " << buffer.power.readOp.leakage * 1e3 <<" (mW)\n";
-  cout << "\tCrossbar Area - "<< crossbar.area.get_area()*1e-6<<"(mm^2)\n";
-  cout << "\tCross bar access energy - " << crossbar.power.readOp.dynamic * 1e9<<" (nJ)\n";
-  cout << "\tCross bar leakage power - " << crossbar.power.readOp.leakage * 1e3<<" (mW)\n";
-  cout << "\tArbiter access energy (VC arb + Crossbar arb) - "<<arbiter.power.readOp.dynamic * 1e9 <<" (nJ)\n";
-  cout << "\tArbiter leakage (VC arb + Crossbar arb) - "<<arbiter.power.readOp.leakage * 1e3 <<" (mW)\n";
+  *out_file << "\n\nRouter stats:\n";
+  *out_file << "\tRouter Area - "<< area.get_area()*1e-6<<"(mm^2)\n";
+  *out_file << "\tMaximum possible network frequency - " << (1/max_cyc)*1e3 << "GHz\n";
+  *out_file << "\tNetwork frequency - " << FREQUENCY <<" GHz\n";
+  *out_file << "\tNo. of Virtual channels - " << vc_count << "\n";
+  *out_file << "\tNo. of pipeline stages - " << delay << endl;
+  *out_file << "\tLink bandwidth - " << flit_size << " (bits)\n";
+  *out_file << "\tNo. of buffer entries per virtual channel -  "<< vc_buffer_size << "\n";
+  *out_file << "\tSimple buffer Area - "<< buffer.area.get_area()*1e-6<<"(mm^2)\n";
+  *out_file << "\tSimple buffer access (Read) - " << buffer.power.readOp.dynamic * 1e9 <<" (nJ)\n";
+  *out_file << "\tSimple buffer leakage - " << buffer.power.readOp.leakage * 1e3 <<" (mW)\n";
+  *out_file << "\tCrossbar Area - "<< crossbar.area.get_area()*1e-6<<"(mm^2)\n";
+  *out_file << "\tCross bar access energy - " << crossbar.power.readOp.dynamic * 1e9<<" (nJ)\n";
+  *out_file << "\tCross bar leakage power - " << crossbar.power.readOp.leakage * 1e3<<" (mW)\n";
+  *out_file << "\tArbiter access energy (VC arb + Crossbar arb) - "<<arbiter.power.readOp.dynamic * 1e9 <<" (nJ)\n";
+  *out_file << "\tArbiter leakage (VC arb + Crossbar arb) - "<<arbiter.power.readOp.leakage * 1e3 <<" (mW)\n";
 
 }
 

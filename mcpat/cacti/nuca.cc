@@ -44,6 +44,7 @@
 #include "nuca.h"
 #include "Ucache.h"
 #include <assert.h>
+#include "globalvar.h"
 
 unsigned int MIN_BANKSIZE=65536;
 #define FIXED_OVERHEAD 55e-12 /* clock skew and jitter in s. Ref: Hrishikesh et al ISCA 01 */
@@ -67,7 +68,7 @@ Nuca::init_cont()
   char jk[5000];
   cont = fopen("contention.dat", "r");
   if (!cont) {
-    cout << "contention.dat file is missing!\n";
+    *out_file << "contention.dat file is missing!\n";
     exit(0);
   }
 
@@ -94,14 +95,14 @@ Nuca::print_cont_stats()
       for(int k=0; k<ROUTER_TYPES; k++) {
         for(int l=0;l<7; l++) {
           for(int m=0;l<7; l++) {
-            cout << cont_stats[i][j][k][l][m] << " ";
+            *out_file << cont_stats[i][j][k][l][m] << " ";
           }
-          cout << endl;
+          *out_file << endl;
         }
       }
     }
   }
-  cout << endl;
+  *out_file << endl;
 }
 
 Nuca::~Nuca(){
@@ -205,7 +206,7 @@ Nuca::sim_nuca()
   if (g_ip->cores <= 4) core_in = 2;
   else if (g_ip->cores <= 8) core_in = 3;
   else if (g_ip->cores <= 16) core_in = 4;
-  else {cout << "Number of cores should be <= 16!\n"; exit(0);}
+  else {*out_file << "Number of cores should be <= 16!\n"; exit(0);}
 
 
   // set the lower bound to an appropriate value. this depends on cache associativity
@@ -244,7 +245,7 @@ Nuca::sim_nuca()
     iterations = bank_start+1;
     g_ip->cache_sz = g_ip->cache_sz/g_ip->nuca_bank_count;
   }
-  cout << "Simulating various NUCA configurations\n";
+  *out_file << "Simulating various NUCA configurations\n";
   for (it=bank_start; it<iterations; it++) { /* different bank count values */
     ures.tag_array2 = &tag;
     ures.data_array2 = &data;
@@ -254,7 +255,7 @@ Nuca::sim_nuca()
     solve(&ures);
 //    output_UCA(&ures);
     bank_count = g_ip->nuca_cache_sz/g_ip->cache_sz;
-    cout << "====" <<  g_ip->cache_sz << "\n";
+    *out_file << "====" <<  g_ip->cache_sz << "\n";
 
     for (wr=wt_min; wr<=wt_max; wr++) {
 

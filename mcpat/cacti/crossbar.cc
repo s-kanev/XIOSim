@@ -40,6 +40,7 @@
  *------------------------------------------------------------*/
 
 #include "crossbar.h"
+#include "globalvar.h"
 
 #define ASPECT_THRESHOLD .8
 #define ADJ 1
@@ -77,19 +78,19 @@ double Crossbar::output_buffer()
   double input_cap = gate_C(TriS1*(2*min_w_pmos + g_tp.min_w_nmos_), 0) +
     gate_C(TriS1*(min_w_pmos + 2*g_tp.min_w_nmos_), 0);
 //  input_cap += drain_C_(TriS1*g_tp.min_w_nmos_, NCH, 1, 1, g_tp.cell_h_def) +
-//    drain_C_(TriS1*min_w_pmos, PCH, 1, 1, g_tp.cell_h_def)*2 +
+//    drain_C_(TriS1*min_w_pmos, _PCH, 1, 1, g_tp.cell_h_def)*2 +
 //    gate_C(TriS2*g_tp.min_w_nmos_, 0)+
 //    drain_C_(TriS1*min_w_pmos, NCH, 1, 1, g_tp.cell_h_def)*2 +
-//    drain_C_(TriS1*min_w_pmos, PCH, 1, 1, g_tp.cell_h_def) +
+//    drain_C_(TriS1*min_w_pmos, _PCH, 1, 1, g_tp.cell_h_def) +
 //    gate_C(TriS2*min_w_pmos, 0);
   tri_int_cap = drain_C_(TriS1*g_tp.min_w_nmos_, NCH, 1, 1, g_tp.cell_h_def) +
-    drain_C_(TriS1*min_w_pmos, PCH, 1, 1, g_tp.cell_h_def)*2 +
+    drain_C_(TriS1*min_w_pmos, _PCH, 1, 1, g_tp.cell_h_def)*2 +
     gate_C(TriS2*g_tp.min_w_nmos_, 0)+
     drain_C_(TriS1*min_w_pmos, NCH, 1, 1, g_tp.cell_h_def)*2 +
-    drain_C_(TriS1*min_w_pmos, PCH, 1, 1, g_tp.cell_h_def) +
+    drain_C_(TriS1*min_w_pmos, _PCH, 1, 1, g_tp.cell_h_def) +
     gate_C(TriS2*min_w_pmos, 0);
   double output_cap = drain_C_(TriS2*g_tp.min_w_nmos_, NCH, 1, 1, g_tp.cell_h_def) +
-    drain_C_(TriS2*min_w_pmos, PCH, 1, 1, g_tp.cell_h_def);
+    drain_C_(TriS2*min_w_pmos, _PCH, 1, 1, g_tp.cell_h_def);
   double ctr_cap = gate_C(TriS2 *(min_w_pmos + g_tp.min_w_nmos_), 0);
 
   tri_inp_cap = input_cap;
@@ -125,7 +126,7 @@ void Crossbar::compute_power()
   if (aspect_ratio_cb < ASPECT_THRESHOLD) {
     if (n_out > 2 && n_inp > 2) {
       CB_ADJ+=0.2;
-      //cout << "CB ADJ " << CB_ADJ << endl;
+      //*out_file << "CB ADJ " << CB_ADJ << endl;
       if (CB_ADJ < 4) {
         this->compute_power();
       }
@@ -158,14 +159,14 @@ void Crossbar::compute_power()
 
 void Crossbar::print_crossbar()
 {
-  cout << "\nCrossbar Stats (" << n_inp << "x" << n_out << ")\n\n";
-  cout << "Flit size        : " << flit_size << " bits" << endl;
-  cout << "Width            : " << area.w << " u" << endl;
-  cout << "Height           : " << area.h << " u" << endl;
-  cout << "Dynamic Power    : " << power.readOp.dynamic*1e9 * MIN(n_inp, n_out) << " (nJ)" << endl;
-  cout << "Leakage Power    : " << power.readOp.leakage*1e3 << " (mW)" << endl;
-  cout << "Gate Leakage Power    : " << power.readOp.gate_leakage*1e3 << " (mW)" << endl;
-  cout << "Crossbar Delay   : " << delay*1e12 << " ps\n";
+  *out_file << "\nCrossbar Stats (" << n_inp << "x" << n_out << ")\n\n";
+  *out_file << "Flit size        : " << flit_size << " bits" << endl;
+  *out_file << "Width            : " << area.w << " u" << endl;
+  *out_file << "Height           : " << area.h << " u" << endl;
+  *out_file << "Dynamic Power    : " << power.readOp.dynamic*1e9 * MIN(n_inp, n_out) << " (nJ)" << endl;
+  *out_file << "Leakage Power    : " << power.readOp.leakage*1e3 << " (mW)" << endl;
+  *out_file << "Gate Leakage Power    : " << power.readOp.gate_leakage*1e3 << " (mW)" << endl;
+  *out_file << "Crossbar Delay   : " << delay*1e12 << " ps\n";
 }
 
 

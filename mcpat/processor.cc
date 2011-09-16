@@ -60,6 +60,7 @@
 #include "XML_Parse.h"
 #include "processor.h"
 #include "version.h"
+#include "globalvar.h"
 
 
 Processor::Processor(ParseXML *XML_interface)
@@ -89,7 +90,7 @@ Processor::Processor(ParseXML *XML_interface)
 
   if (XML->sys.Private_L2 && numCore != numL2)
   {
-	  cout<<"Number of private L2 does not match number of cores"<<endl;
+	  *out_file<<"Number of private L2 does not match number of cores"<<endl;
       exit(0);
   }
 
@@ -105,7 +106,7 @@ Processor::Processor(ParseXML *XML_interface)
 
 //  if (!procdynp.homoNOC)
 //  {
-//	  cout<<"Current McPAT does not support heterogeneous NOC"<<endl;
+//	  *out_file<<"Current McPAT does not support heterogeneous NOC"<<endl;
 //      exit(0);
 //  }
 
@@ -126,9 +127,9 @@ Processor::Processor(ParseXML *XML_interface)
 		  cores[i]->computeEnergy(false);
 		  if (procdynp.homoCore){
 			  core.area.set_area(core.area.get_area() + cores[i]->area.get_area()*procdynp.numCore);
-			  set_pppm(pppm_t,cores[i]->clockRate*procdynp.numCore, procdynp.numCore,procdynp.numCore,procdynp.numCore);
+			  set_pppm(pppm_t,cores[i]->coredynp.clockRate*procdynp.numCore, procdynp.numCore,procdynp.numCore,procdynp.numCore);
 			  core.power = core.power + cores[i]->power*pppm_t;
-			  set_pppm(pppm_t,1/cores[i]->executionTime, procdynp.numCore,procdynp.numCore,procdynp.numCore);
+			  set_pppm(pppm_t,1/cores[i]->coredynp.executionTime, procdynp.numCore,procdynp.numCore,procdynp.numCore);
 			  core.rt_power = core.rt_power + cores[i]->rt_power*pppm_t;
 			  area.set_area(area.get_area() + core.area.get_area());//placement and routing overhead is 10%, core scales worse than cache 40% is accumulated from 90 to 22nm
 			  power = power  + core.power;
@@ -138,11 +139,11 @@ Processor::Processor(ParseXML *XML_interface)
 			  core.area.set_area(core.area.get_area() + cores[i]->area.get_area());
 			  area.set_area(area.get_area() + cores[i]->area.get_area());//placement and routing overhead is 10%, core scales worse than cache 40% is accumulated from 90 to 22nm
 
-			  set_pppm(pppm_t,cores[i]->clockRate, 1, 1, 1);
+			  set_pppm(pppm_t,cores[i]->coredynp.clockRate, 1, 1, 1);
 			  core.power = core.power + cores[i]->power*pppm_t;
 			  power = power  + cores[i]->power*pppm_t;
 
-			  set_pppm(pppm_t,1/cores[i]->executionTime, 1, 1, 1);
+			  set_pppm(pppm_t,1/cores[i]->coredynp.executionTime, 1, 1, 1);
 			  core.rt_power = core.rt_power + cores[i]->rt_power*pppm_t;
 			  rt_power = rt_power  + cores[i]->rt_power*pppm_t;
 		  }
@@ -429,6 +430,176 @@ Processor::Processor(ParseXML *XML_interface)
 
 }
 
+void Processor::compute()
+{
+  int i;
+  double pppm_t[4] = {1,1,1,1};
+
+  rt_power.reset();
+  core.rt_power.reset();
+  l2.rt_power.reset();
+  l3.rt_power.reset();
+  l1dir.rt_power.reset();
+  l2dir.rt_power.reset();
+  noc.rt_power.reset();
+  mcs.rt_power.reset();
+  cc.rt_power.reset();
+  nius.rt_power.reset();
+  pcies.rt_power.reset();
+  flashcontrollers.rt_power.reset();
+
+  for (i = 0;i < numCore; i++)
+  {
+    cores[i]->resetRtPower();
+    cores[i]->computeEnergy(false);
+    if (procdynp.homoCore){
+			  set_pppm(pppm_t,1/cores[i]->coredynp.executionTime, procdynp.numCore,procdynp.numCore,procdynp.numCore);
+			  core.rt_power = core.rt_power + cores[i]->rt_power*pppm_t;
+			  rt_power = rt_power  + core.rt_power;
+		  }
+		  else{
+			  set_pppm(pppm_t,1/cores[i]->coredynp.executionTime, 1, 1, 1);
+			  core.rt_power = core.rt_power + cores[i]->rt_power*pppm_t;
+			  rt_power = rt_power  + cores[i]->rt_power*pppm_t;
+		  }
+  }
+  if (!XML->sys.Private_L2)
+  {
+  if (numL2 >0)
+	  for (i = 0;i < numL2; i++)
+	  {
+        l2array[i]->rt_power.reset();
+		  l2array[i]->computeEnergy(false);
+		  if (procdynp.homoL2){
+			  set_pppm(pppm_t,1/l2array[i]->cachep.executionTime, procdynp.numL2,procdynp.numL2,procdynp.numL2);
+			  l2.rt_power = l2.rt_power + l2array[i]->rt_power*pppm_t;
+			  rt_power = rt_power  + l2.rt_power;
+		  }
+		  else{
+			  set_pppm(pppm_t,1/l2array[i]->cachep.executionTime, 1, 1, 1);
+			  l2.rt_power = l2.rt_power + l2array[i]->rt_power*pppm_t;
+			  rt_power = rt_power  + l2array[i]->rt_power*pppm_t;
+		  }
+	  }
+  }
+
+  if (numL3 >0)
+	  for (i = 0;i < numL3; i++)
+	  {
+        l3array[i]->rt_power.reset();
+		  l3array[i]->computeEnergy(false);
+		  if (procdynp.homoL3){
+			  set_pppm(pppm_t,1/l3array[i]->cachep.executionTime, procdynp.numL3,procdynp.numL3,procdynp.numL3);
+           l3.rt_power = l3.rt_power + l3array[i]->rt_power*pppm_t;
+			  rt_power = rt_power  + l3.rt_power;
+
+		  }
+		  else{
+			  set_pppm(pppm_t,1/l3array[i]->cachep.executionTime, 1, 1, 1);
+           l3.rt_power = l3.rt_power + l3array[i]->rt_power*pppm_t;
+           rt_power = rt_power  + l3array[i]->rt_power*pppm_t;
+
+		  }
+	  }
+  if (numL1Dir >0)
+	  for (i = 0;i < numL1Dir; i++)
+	  {
+        l1dirarray[i]->rt_power.reset();
+		  l1dirarray[i]->computeEnergy(false);
+		  if (procdynp.homoL1Dir){
+			  set_pppm(pppm_t,1/l1dirarray[i]->cachep.executionTime, procdynp.numL1Dir,procdynp.numL1Dir,procdynp.numL1Dir);
+           l1dir.rt_power = l1dir.rt_power + l1dirarray[i]->rt_power*pppm_t;
+			  rt_power = rt_power  + l1dir.rt_power;
+
+		  }
+		  else{
+			  set_pppm(pppm_t,1/l1dirarray[i]->cachep.executionTime, 1, 1, 1);
+           l1dir.rt_power = l1dir.rt_power + l1dirarray[i]->rt_power*pppm_t;
+			  rt_power = rt_power  + l1dirarray[i]->rt_power;
+		  }
+	  }
+
+  if (numL2Dir >0)
+	  for (i = 0;i < numL2Dir; i++)
+	  {
+        l2dirarray[i]->rt_power.reset();
+		  l2dirarray[i]->computeEnergy(false);
+		  if (procdynp.homoL2Dir){
+			  set_pppm(pppm_t,1/l2dirarray[i]->cachep.executionTime, procdynp.numL2Dir,procdynp.numL2Dir,procdynp.numL2Dir);
+           l2dir.rt_power = l2dir.rt_power + l2dirarray[i]->rt_power*pppm_t;
+			  rt_power = rt_power  + l2dir.rt_power;
+
+		  }
+		  else{
+			  set_pppm(pppm_t,1/l2dirarray[i]->cachep.executionTime, 1, 1, 1);
+           l2dir.rt_power = l2dir.rt_power + l2dirarray[i]->rt_power*pppm_t;
+			  rt_power = rt_power  + l2dirarray[i]->rt_power*pppm_t;
+		  }
+	  }
+
+  if (XML->sys.mc.number_mcs >0 && XML->sys.mc.memory_channels_per_mc>0)
+  {
+     mc->rt_power.reset();
+     mc->frontend->rt_power.reset();
+	  mc->computeEnergy(false);
+	  set_pppm(pppm_t,1/mc->mcp.executionTime, XML->sys.mc.number_mcs,XML->sys.mc.number_mcs,XML->sys.mc.number_mcs);
+	  mcs.rt_power = mc->rt_power*pppm_t;
+	  rt_power = rt_power  + mcs.rt_power;
+
+  }
+
+  if (XML->sys.flashc.number_mcs >0 )//flash controller
+  {
+     flashcontroller->rt_power.reset();
+     flashcontroller->computeEnergy(false);
+	  double number_fcs = flashcontroller->fcp.num_mcs;
+	  set_pppm(pppm_t,number_fcs , number_fcs ,number_fcs ,number_fcs );
+	  flashcontrollers.rt_power = flashcontroller->rt_power*pppm_t;
+	  rt_power = rt_power  + flashcontrollers.rt_power;
+
+  }
+
+  if (XML->sys.niu.number_units >0)
+  {
+     niu->rt_power.reset();
+     niu->computeEnergy(false);
+	  set_pppm(pppm_t,XML->sys.niu.number_units*niu->niup.clockRate, XML->sys.niu.number_units,XML->sys.niu.number_units,XML->sys.niu.number_units);
+	  nius.rt_power = niu->rt_power*pppm_t;
+	  rt_power = rt_power  + nius.rt_power;
+
+  }
+
+  if (XML->sys.pcie.number_units >0 && XML->sys.pcie.num_channels >0)
+  {
+     pcie->rt_power.reset();
+     pcie->computeEnergy(false);
+	  set_pppm(pppm_t,XML->sys.pcie.number_units*pcie->pciep.clockRate, XML->sys.pcie.number_units,XML->sys.pcie.number_units,XML->sys.pcie.number_units);
+	  pcies.rt_power = pcie->rt_power*pppm_t;
+	  rt_power = rt_power  + pcies.rt_power;
+  }
+
+  if (numNOC >0)
+  {
+	  //Compute energy of NoC (w or w/o links) or buses
+	  for (i = 0;i < numNOC; i++)
+	  {
+		  nocs[i]->rt_power.reset();
+		  nocs[i]->computeEnergy(false);
+		  if (procdynp.homoNOC){
+			  set_pppm(pppm_t,1/nocs[i]->nocdynp.executionTime, procdynp.numNOC,procdynp.numNOC,procdynp.numNOC);
+			  noc.rt_power = noc.rt_power + nocs[i]->rt_power*pppm_t;
+			  rt_power = rt_power  + noc.rt_power;
+		  }
+		  else
+		  {
+			  set_pppm(pppm_t,1/nocs[i]->nocdynp.executionTime, 1, 1, 1);
+			  noc.rt_power = noc.rt_power + nocs[i]->rt_power*pppm_t;
+			  rt_power = rt_power  + nocs[i]->rt_power*pppm_t;
+		  }
+	  }
+  }
+}
+
 void Processor::displayDeviceType(int device_type_, uint32_t indent)
 {
 	string indent_str(indent, ' ');
@@ -436,23 +607,23 @@ void Processor::displayDeviceType(int device_type_, uint32_t indent)
 	switch ( device_type_ ) {
 
 	  case 0 :
-		  cout <<indent_str<<"Device Type= "<<"ITRS high performance device type"<<endl;
+		  *out_file <<indent_str<<"Device Type= "<<"ITRS high performance device type"<<endl;
 	    break;
 	  case 1 :
-		  cout <<indent_str<<"Device Type= "<<"ITRS low standby power device type"<<endl;
+		  *out_file <<indent_str<<"Device Type= "<<"ITRS low standby power device type"<<endl;
 	    break;
 	  case 2 :
-		  cout <<indent_str<<"Device Type= "<<"ITRS low operating power device type"<<endl;
+		  *out_file <<indent_str<<"Device Type= "<<"ITRS low operating power device type"<<endl;
 	    break;
 	  case 3 :
-		  cout <<indent_str<<"Device Type= "<<"LP-DRAM device type"<<endl;
+		  *out_file <<indent_str<<"Device Type= "<<"LP-DRAM device type"<<endl;
 	    break;
 	  case 4 :
-		  cout <<indent_str<<"Device Type= "<<"COMM-DRAM device type"<<endl;
+		  *out_file <<indent_str<<"Device Type= "<<"COMM-DRAM device type"<<endl;
 	    break;
 	  default :
 		  {
-			  cout <<indent_str<<"Unknown Device Type"<<endl;
+			  *out_file <<indent_str<<"Unknown Device Type"<<endl;
 			  exit(0);
 		  }
 	}
@@ -465,14 +636,14 @@ void Processor::displayInterconnectType(int interconnect_type_, uint32_t indent)
 	switch ( interconnect_type_ ) {
 
 	  case 0 :
-		  cout <<indent_str<<"Interconnect metal projection= "<<"aggressive interconnect technology projection"<<endl;
+		  *out_file <<indent_str<<"Interconnect metal projection= "<<"aggressive interconnect technology projection"<<endl;
 	    break;
 	  case 1 :
-		  cout <<indent_str<<"Interconnect metal projection= "<<"conservative interconnect technology projection"<<endl;
+		  *out_file <<indent_str<<"Interconnect metal projection= "<<"conservative interconnect technology projection"<<endl;
 	    break;
 	  default :
 		  {
-			  cout <<indent_str<<"Unknown Interconnect Projection Type"<<endl;
+			  *out_file <<indent_str<<"Unknown Interconnect Projection Type"<<endl;
 			  exit(0);
 		  }
 	}
@@ -489,216 +660,216 @@ void Processor::displayEnergy(uint32_t indent, int plevel, bool is_tdp)
 
 		if (plevel<5)
 		{
-			cout<<"\nMcPAT (version "<< VER_MAJOR <<"."<< VER_MINOR
+			*out_file<<"\nMcPAT (version "<< VER_MAJOR <<"."<< VER_MINOR
 					<< " of " << VER_UPDATE << ") results (current print level is "<< plevel
 			<<", please increase print level to see the details in components): "<<endl;
 		}
 		else
 		{
-			cout<<"\nMcPAT (version "<< VER_MAJOR <<"."<< VER_MINOR
+			*out_file<<"\nMcPAT (version "<< VER_MAJOR <<"."<< VER_MINOR
 								<< " of " << VER_UPDATE << ") results  (current print level is 5)"<< endl;
 		}
-		cout <<"*****************************************************************************************"<<endl;
-		cout <<indent_str<<"Technology "<<XML->sys.core_tech_node<<" nm"<<endl;
-		//cout <<indent_str<<"Device Type= "<<XML->sys.device_type<<endl;
+		*out_file <<"*****************************************************************************************"<<endl;
+		*out_file <<indent_str<<"Technology "<<XML->sys.core_tech_node<<" nm"<<endl;
+		//*out_file <<indent_str<<"Device Type= "<<XML->sys.device_type<<endl;
 		if (long_channel)
-			cout <<indent_str<<"Using Long Channel Devices When Appropriate"<<endl;
-		//cout <<indent_str<<"Interconnect metal projection= "<<XML->sys.interconnect_projection_type<<endl;
+			*out_file <<indent_str<<"Using Long Channel Devices When Appropriate"<<endl;
+		//*out_file <<indent_str<<"Interconnect metal projection= "<<XML->sys.interconnect_projection_type<<endl;
 		displayInterconnectType(XML->sys.interconnect_projection_type, indent);
-		cout <<indent_str<<"Core clock Rate(MHz) "<<XML->sys.core[0].clock_rate<<endl;
-    	cout <<endl;
-		cout <<"*****************************************************************************************"<<endl;
-		cout <<"Processor: "<<endl;
-		cout << indent_str << "Area = " << area.get_area()*1e-6<< " mm^2" << endl;
-		cout << indent_str << "Peak Power = " << power.readOp.dynamic +
+		*out_file <<indent_str<<"Core clock Rate(MHz) "<<XML->sys.core[0].clock_rate<<endl;
+    	*out_file <<endl;
+		*out_file <<"*****************************************************************************************"<<endl;
+		*out_file <<"Processor: "<<endl;
+		*out_file << indent_str << "Area = " << area.get_area()*1e-6<< " mm^2" << endl;
+		*out_file << indent_str << "Peak Power = " << power.readOp.dynamic +
 			(long_channel? power.readOp.longer_channel_leakage:power.readOp.leakage) + power.readOp.gate_leakage <<" W" << endl;
-		cout << indent_str << "Total Leakage = " <<
+		*out_file << indent_str << "Total Leakage = " <<
 			(long_channel? power.readOp.longer_channel_leakage:power.readOp.leakage) + power.readOp.gate_leakage <<" W" << endl;
-		cout << indent_str << "Peak Dynamic = " << power.readOp.dynamic << " W" << endl;
-		cout << indent_str << "Subthreshold Leakage = " << (long_channel? power.readOp.longer_channel_leakage:power.readOp.leakage) <<" W" << endl;
-		//cout << indent_str << "Subthreshold Leakage = " << power.readOp.longer_channel_leakage <<" W" << endl;
-		cout << indent_str << "Gate Leakage = " << power.readOp.gate_leakage << " W" << endl;
-		cout << indent_str << "Runtime Dynamic = " << rt_power.readOp.dynamic << " W" << endl;
-		cout <<endl;
+		*out_file << indent_str << "Peak Dynamic = " << power.readOp.dynamic << " W" << endl;
+		*out_file << indent_str << "Subthreshold Leakage = " << (long_channel? power.readOp.longer_channel_leakage:power.readOp.leakage) <<" W" << endl;
+		//*out_file << indent_str << "Subthreshold Leakage = " << power.readOp.longer_channel_leakage <<" W" << endl;
+		*out_file << indent_str << "Gate Leakage = " << power.readOp.gate_leakage << " W" << endl;
+		*out_file << indent_str << "Runtime Dynamic = " << rt_power.readOp.dynamic << " W" << endl;
+		*out_file <<endl;
 		if (numCore >0){
-		cout <<indent_str<<"Total Cores: "<<XML->sys.number_of_cores << " cores "<<endl;
+		*out_file <<indent_str<<"Total Cores: "<<XML->sys.number_of_cores << " cores "<<endl;
 		displayDeviceType(XML->sys.device_type,indent);
-		cout << indent_str_next << "Area = " << core.area.get_area()*1e-6<< " mm^2" << endl;
-		cout << indent_str_next << "Peak Dynamic = " << core.power.readOp.dynamic << " W" << endl;
-		cout << indent_str_next << "Subthreshold Leakage = "
+		*out_file << indent_str_next << "Area = " << core.area.get_area()*1e-6<< " mm^2" << endl;
+		*out_file << indent_str_next << "Peak Dynamic = " << core.power.readOp.dynamic << " W" << endl;
+		*out_file << indent_str_next << "Subthreshold Leakage = "
 			<< (long_channel? core.power.readOp.longer_channel_leakage:core.power.readOp.leakage) <<" W" << endl;
-		//cout << indent_str_next << "Subthreshold Leakage = " << core.power.readOp.longer_channel_leakage <<" W" << endl;
-		cout << indent_str_next << "Gate Leakage = " << core.power.readOp.gate_leakage << " W" << endl;
-		cout << indent_str_next << "Runtime Dynamic = " << core.rt_power.readOp.dynamic << " W" << endl;
-		cout <<endl;
+		//*out_file << indent_str_next << "Subthreshold Leakage = " << core.power.readOp.longer_channel_leakage <<" W" << endl;
+		*out_file << indent_str_next << "Gate Leakage = " << core.power.readOp.gate_leakage << " W" << endl;
+		*out_file << indent_str_next << "Runtime Dynamic = " << core.rt_power.readOp.dynamic << " W" << endl;
+		*out_file <<endl;
 		}
 		if (!XML->sys.Private_L2)
 		{
 			if (numL2 >0){
-				cout <<indent_str<<"Total L2s: "<<endl;
+				*out_file <<indent_str<<"Total L2s: "<<endl;
 				displayDeviceType(XML->sys.L2[0].device_type,indent);
-				cout << indent_str_next << "Area = " << l2.area.get_area()*1e-6<< " mm^2" << endl;
-				cout << indent_str_next << "Peak Dynamic = " << l2.power.readOp.dynamic << " W" << endl;
-				cout << indent_str_next << "Subthreshold Leakage = "
+				*out_file << indent_str_next << "Area = " << l2.area.get_area()*1e-6<< " mm^2" << endl;
+				*out_file << indent_str_next << "Peak Dynamic = " << l2.power.readOp.dynamic << " W" << endl;
+				*out_file << indent_str_next << "Subthreshold Leakage = "
 				<< (long_channel? l2.power.readOp.longer_channel_leakage:l2.power.readOp.leakage) <<" W" << endl;
-				//cout << indent_str_next << "Subthreshold Leakage = " << l2.power.readOp.longer_channel_leakage <<" W" << endl;
-				cout << indent_str_next << "Gate Leakage = " << l2.power.readOp.gate_leakage << " W" << endl;
-				cout << indent_str_next << "Runtime Dynamic = " << l2.rt_power.readOp.dynamic << " W" << endl;
-				cout <<endl;
+				//*out_file << indent_str_next << "Subthreshold Leakage = " << l2.power.readOp.longer_channel_leakage <<" W" << endl;
+				*out_file << indent_str_next << "Gate Leakage = " << l2.power.readOp.gate_leakage << " W" << endl;
+				*out_file << indent_str_next << "Runtime Dynamic = " << l2.rt_power.readOp.dynamic << " W" << endl;
+				*out_file <<endl;
 			}
 		}
 		if (numL3 >0){
-			cout <<indent_str<<"Total L3s: "<<endl;
+			*out_file <<indent_str<<"Total L3s: "<<endl;
 			displayDeviceType(XML->sys.L3[0].device_type, indent);
-			cout << indent_str_next << "Area = " << l3.area.get_area()*1e-6<< " mm^2" << endl;
-			cout << indent_str_next << "Peak Dynamic = " << l3.power.readOp.dynamic << " W" << endl;
-			cout << indent_str_next << "Subthreshold Leakage = "
+			*out_file << indent_str_next << "Area = " << l3.area.get_area()*1e-6<< " mm^2" << endl;
+			*out_file << indent_str_next << "Peak Dynamic = " << l3.power.readOp.dynamic << " W" << endl;
+			*out_file << indent_str_next << "Subthreshold Leakage = "
 				<< (long_channel? l3.power.readOp.longer_channel_leakage:l3.power.readOp.leakage) <<" W" << endl;
-			//cout << indent_str_next << "Subthreshold Leakage = " << l3.power.readOp.longer_channel_leakage <<" W" << endl;
-			cout << indent_str_next << "Gate Leakage = " << l3.power.readOp.gate_leakage << " W" << endl;
-			cout << indent_str_next << "Runtime Dynamic = " << l3.rt_power.readOp.dynamic << " W" << endl;
-			cout <<endl;
+			//*out_file << indent_str_next << "Subthreshold Leakage = " << l3.power.readOp.longer_channel_leakage <<" W" << endl;
+			*out_file << indent_str_next << "Gate Leakage = " << l3.power.readOp.gate_leakage << " W" << endl;
+			*out_file << indent_str_next << "Runtime Dynamic = " << l3.rt_power.readOp.dynamic << " W" << endl;
+			*out_file <<endl;
 		}
 		if (numL1Dir >0){
-			cout <<indent_str<<"Total First Level Directory: "<<endl;
+			*out_file <<indent_str<<"Total First Level Directory: "<<endl;
 			displayDeviceType(XML->sys.L1Directory[0].device_type, indent);
-			cout << indent_str_next << "Area = " << l1dir.area.get_area()*1e-6<< " mm^2" << endl;
-			cout << indent_str_next << "Peak Dynamic = " << l1dir.power.readOp.dynamic << " W" << endl;
-			cout << indent_str_next << "Subthreshold Leakage = "
+			*out_file << indent_str_next << "Area = " << l1dir.area.get_area()*1e-6<< " mm^2" << endl;
+			*out_file << indent_str_next << "Peak Dynamic = " << l1dir.power.readOp.dynamic << " W" << endl;
+			*out_file << indent_str_next << "Subthreshold Leakage = "
 				<< (long_channel? l1dir.power.readOp.longer_channel_leakage:l1dir.power.readOp.leakage) <<" W" << endl;
-			//cout << indent_str_next << "Subthreshold Leakage = " << l1dir.power.readOp.longer_channel_leakage <<" W" << endl;
-			cout << indent_str_next << "Gate Leakage = " << l1dir.power.readOp.gate_leakage << " W" << endl;
-			cout << indent_str_next << "Runtime Dynamic = " << l1dir.rt_power.readOp.dynamic << " W" << endl;
-			cout <<endl;
+			//*out_file << indent_str_next << "Subthreshold Leakage = " << l1dir.power.readOp.longer_channel_leakage <<" W" << endl;
+			*out_file << indent_str_next << "Gate Leakage = " << l1dir.power.readOp.gate_leakage << " W" << endl;
+			*out_file << indent_str_next << "Runtime Dynamic = " << l1dir.rt_power.readOp.dynamic << " W" << endl;
+			*out_file <<endl;
 		}
 		if (numL2Dir >0){
-			cout <<indent_str<<"Total First Level Directory: "<<endl;
+			*out_file <<indent_str<<"Total First Level Directory: "<<endl;
 			displayDeviceType(XML->sys.L1Directory[0].device_type, indent);
-			cout << indent_str_next << "Area = " << l2dir.area.get_area()*1e-6<< " mm^2" << endl;
-			cout << indent_str_next << "Peak Dynamic = " << l2dir.power.readOp.dynamic << " W" << endl;
-			cout << indent_str_next << "Subthreshold Leakage = "
+			*out_file << indent_str_next << "Area = " << l2dir.area.get_area()*1e-6<< " mm^2" << endl;
+			*out_file << indent_str_next << "Peak Dynamic = " << l2dir.power.readOp.dynamic << " W" << endl;
+			*out_file << indent_str_next << "Subthreshold Leakage = "
 				<< (long_channel? l2dir.power.readOp.longer_channel_leakage:l2dir.power.readOp.leakage) <<" W" << endl;
-			//cout << indent_str_next << "Subthreshold Leakage = " << l2dir.power.readOp.longer_channel_leakage <<" W" << endl;
-			cout << indent_str_next << "Gate Leakage = " << l2dir.power.readOp.gate_leakage << " W" << endl;
-			cout << indent_str_next << "Runtime Dynamic = " << l2dir.rt_power.readOp.dynamic << " W" << endl;
-			cout <<endl;
+			//*out_file << indent_str_next << "Subthreshold Leakage = " << l2dir.power.readOp.longer_channel_leakage <<" W" << endl;
+			*out_file << indent_str_next << "Gate Leakage = " << l2dir.power.readOp.gate_leakage << " W" << endl;
+			*out_file << indent_str_next << "Runtime Dynamic = " << l2dir.rt_power.readOp.dynamic << " W" << endl;
+			*out_file <<endl;
 		}
 		if (numNOC >0){
-			cout <<indent_str<<"Total NoCs (Network/Bus): "<<endl;
+			*out_file <<indent_str<<"Total NoCs (Network/Bus): "<<endl;
 			displayDeviceType(XML->sys.device_type, indent);
-			cout << indent_str_next << "Area = " << noc.area.get_area()*1e-6<< " mm^2" << endl;
-			cout << indent_str_next << "Peak Dynamic = " << noc.power.readOp.dynamic << " W" << endl;
-			cout << indent_str_next << "Subthreshold Leakage = "
+			*out_file << indent_str_next << "Area = " << noc.area.get_area()*1e-6<< " mm^2" << endl;
+			*out_file << indent_str_next << "Peak Dynamic = " << noc.power.readOp.dynamic << " W" << endl;
+			*out_file << indent_str_next << "Subthreshold Leakage = "
 				<< (long_channel? noc.power.readOp.longer_channel_leakage:noc.power.readOp.leakage) <<" W" << endl;
-			//cout << indent_str_next << "Subthreshold Leakage = " << noc.power.readOp.longer_channel_leakage  <<" W" << endl;
-			cout << indent_str_next << "Gate Leakage = " << noc.power.readOp.gate_leakage << " W" << endl;
-			cout << indent_str_next << "Runtime Dynamic = " << noc.rt_power.readOp.dynamic << " W" << endl;
-			cout <<endl;
+			//*out_file << indent_str_next << "Subthreshold Leakage = " << noc.power.readOp.longer_channel_leakage  <<" W" << endl;
+			*out_file << indent_str_next << "Gate Leakage = " << noc.power.readOp.gate_leakage << " W" << endl;
+			*out_file << indent_str_next << "Runtime Dynamic = " << noc.rt_power.readOp.dynamic << " W" << endl;
+			*out_file <<endl;
 		}
 		if (XML->sys.mc.number_mcs >0 && XML->sys.mc.memory_channels_per_mc>0)
 		{
-			cout <<indent_str<<"Total MCs: "<<XML->sys.mc.number_mcs << " Memory Controllers "<<endl;
+			*out_file <<indent_str<<"Total MCs: "<<XML->sys.mc.number_mcs << " Memory Controllers "<<endl;
 			displayDeviceType(XML->sys.device_type, indent);
-			cout << indent_str_next << "Area = " << mcs.area.get_area()*1e-6<< " mm^2" << endl;
-			cout << indent_str_next << "Peak Dynamic = " << mcs.power.readOp.dynamic << " W" << endl;
-			cout << indent_str_next << "Subthreshold Leakage = "
+			*out_file << indent_str_next << "Area = " << mcs.area.get_area()*1e-6<< " mm^2" << endl;
+			*out_file << indent_str_next << "Peak Dynamic = " << mcs.power.readOp.dynamic << " W" << endl;
+			*out_file << indent_str_next << "Subthreshold Leakage = "
 				<< (long_channel? mcs.power.readOp.longer_channel_leakage:mcs.power.readOp.leakage)  <<" W" << endl;
-			cout << indent_str_next << "Gate Leakage = " << mcs.power.readOp.gate_leakage << " W" << endl;
-			cout << indent_str_next << "Runtime Dynamic = " << mcs.rt_power.readOp.dynamic << " W" << endl;
-			cout <<endl;
+			*out_file << indent_str_next << "Gate Leakage = " << mcs.power.readOp.gate_leakage << " W" << endl;
+			*out_file << indent_str_next << "Runtime Dynamic = " << mcs.rt_power.readOp.dynamic << " W" << endl;
+			*out_file <<endl;
 		}
 		if (XML->sys.flashc.number_mcs >0)
 		{
-			cout <<indent_str<<"Total Flash/SSD Controllers: "<<flashcontroller->fcp.num_mcs << " Flash/SSD Controllers "<<endl;
+			*out_file <<indent_str<<"Total Flash/SSD Controllers: "<<flashcontroller->fcp.num_mcs << " Flash/SSD Controllers "<<endl;
 			displayDeviceType(XML->sys.device_type, indent);
-			cout << indent_str_next << "Area = " << flashcontrollers.area.get_area()*1e-6<< " mm^2" << endl;
-			cout << indent_str_next << "Peak Dynamic = " << flashcontrollers.power.readOp.dynamic << " W" << endl;
-			cout << indent_str_next << "Subthreshold Leakage = "
+			*out_file << indent_str_next << "Area = " << flashcontrollers.area.get_area()*1e-6<< " mm^2" << endl;
+			*out_file << indent_str_next << "Peak Dynamic = " << flashcontrollers.power.readOp.dynamic << " W" << endl;
+			*out_file << indent_str_next << "Subthreshold Leakage = "
 				<< (long_channel? flashcontrollers.power.readOp.longer_channel_leakage:flashcontrollers.power.readOp.leakage)  <<" W" << endl;
-			cout << indent_str_next << "Gate Leakage = " << flashcontrollers.power.readOp.gate_leakage << " W" << endl;
-			cout << indent_str_next << "Runtime Dynamic = " << flashcontrollers.rt_power.readOp.dynamic << " W" << endl;
-			cout <<endl;
+			*out_file << indent_str_next << "Gate Leakage = " << flashcontrollers.power.readOp.gate_leakage << " W" << endl;
+			*out_file << indent_str_next << "Runtime Dynamic = " << flashcontrollers.rt_power.readOp.dynamic << " W" << endl;
+			*out_file <<endl;
 		}
 		if (XML->sys.niu.number_units >0 )
 		{
-			cout <<indent_str<<"Total NIUs: "<<niu->niup.num_units << " Network Interface Units "<<endl;
+			*out_file <<indent_str<<"Total NIUs: "<<niu->niup.num_units << " Network Interface Units "<<endl;
 			displayDeviceType(XML->sys.device_type, indent);
-			cout << indent_str_next << "Area = " << nius.area.get_area()*1e-6<< " mm^2" << endl;
-			cout << indent_str_next << "Peak Dynamic = " << nius.power.readOp.dynamic << " W" << endl;
-			cout << indent_str_next << "Subthreshold Leakage = "
+			*out_file << indent_str_next << "Area = " << nius.area.get_area()*1e-6<< " mm^2" << endl;
+			*out_file << indent_str_next << "Peak Dynamic = " << nius.power.readOp.dynamic << " W" << endl;
+			*out_file << indent_str_next << "Subthreshold Leakage = "
 				<< (long_channel? nius.power.readOp.longer_channel_leakage:nius.power.readOp.leakage)  <<" W" << endl;
-			cout << indent_str_next << "Gate Leakage = " << nius.power.readOp.gate_leakage << " W" << endl;
-			cout << indent_str_next << "Runtime Dynamic = " << nius.rt_power.readOp.dynamic << " W" << endl;
-			cout <<endl;
+			*out_file << indent_str_next << "Gate Leakage = " << nius.power.readOp.gate_leakage << " W" << endl;
+			*out_file << indent_str_next << "Runtime Dynamic = " << nius.rt_power.readOp.dynamic << " W" << endl;
+			*out_file <<endl;
 		}
 		if (XML->sys.pcie.number_units >0 && XML->sys.pcie.num_channels>0)
 				{
-					cout <<indent_str<<"Total PCIes: "<<pcie->pciep.num_units << " PCIe Controllers "<<endl;
+					*out_file <<indent_str<<"Total PCIes: "<<pcie->pciep.num_units << " PCIe Controllers "<<endl;
 					displayDeviceType(XML->sys.device_type, indent);
-					cout << indent_str_next << "Area = " << pcies.area.get_area()*1e-6<< " mm^2" << endl;
-					cout << indent_str_next << "Peak Dynamic = " << pcies.power.readOp.dynamic << " W" << endl;
-					cout << indent_str_next << "Subthreshold Leakage = "
+					*out_file << indent_str_next << "Area = " << pcies.area.get_area()*1e-6<< " mm^2" << endl;
+					*out_file << indent_str_next << "Peak Dynamic = " << pcies.power.readOp.dynamic << " W" << endl;
+					*out_file << indent_str_next << "Subthreshold Leakage = "
 						<< (long_channel? pcies.power.readOp.longer_channel_leakage:pcies.power.readOp.leakage)  <<" W" << endl;
-					cout << indent_str_next << "Gate Leakage = " << pcies.power.readOp.gate_leakage << " W" << endl;
-					cout << indent_str_next << "Runtime Dynamic = " << pcies.rt_power.readOp.dynamic << " W" << endl;
-					cout <<endl;
+					*out_file << indent_str_next << "Gate Leakage = " << pcies.power.readOp.gate_leakage << " W" << endl;
+					*out_file << indent_str_next << "Runtime Dynamic = " << pcies.rt_power.readOp.dynamic << " W" << endl;
+					*out_file <<endl;
 				}
-		cout <<"*****************************************************************************************"<<endl;
+		*out_file <<"*****************************************************************************************"<<endl;
 		if (plevel >1)
 		{
 			for (i = 0;i < numCore; i++)
 			{
 				cores[i]->displayEnergy(indent+4,plevel,is_tdp);
-				cout <<"*****************************************************************************************"<<endl;
+				*out_file <<"*****************************************************************************************"<<endl;
 			}
 			if (!XML->sys.Private_L2)
 			{
 				for (i = 0;i < numL2; i++)
 				{
 					l2array[i]->displayEnergy(indent+4,is_tdp);
-					cout <<"*****************************************************************************************"<<endl;
+					*out_file <<"*****************************************************************************************"<<endl;
 				}
 			}
 			for (i = 0;i < numL3; i++)
 			{
 				l3array[i]->displayEnergy(indent+4,is_tdp);
-				cout <<"*****************************************************************************************"<<endl;
+				*out_file <<"*****************************************************************************************"<<endl;
 			}
 			for (i = 0;i < numL1Dir; i++)
 			{
 				l1dirarray[i]->displayEnergy(indent+4,is_tdp);
-				cout <<"*****************************************************************************************"<<endl;
+				*out_file <<"*****************************************************************************************"<<endl;
 			}
 			for (i = 0;i < numL2Dir; i++)
 			{
 				l2dirarray[i]->displayEnergy(indent+4,is_tdp);
-				cout <<"*****************************************************************************************"<<endl;
+				*out_file <<"*****************************************************************************************"<<endl;
 			}
 			if (XML->sys.mc.number_mcs >0 && XML->sys.mc.memory_channels_per_mc>0)
 			{
 				mc->displayEnergy(indent+4,is_tdp);
-				cout <<"*****************************************************************************************"<<endl;
+				*out_file <<"*****************************************************************************************"<<endl;
 			}
 			if (XML->sys.flashc.number_mcs >0 && XML->sys.flashc.memory_channels_per_mc>0)
 			{
 				flashcontroller->displayEnergy(indent+4,is_tdp);
-				cout <<"*****************************************************************************************"<<endl;
+				*out_file <<"*****************************************************************************************"<<endl;
 			}
 			if (XML->sys.niu.number_units >0 )
 			{
 				niu->displayEnergy(indent+4,is_tdp);
-				cout <<"*****************************************************************************************"<<endl;
+				*out_file <<"*****************************************************************************************"<<endl;
 			}
 			if (XML->sys.pcie.number_units >0 && XML->sys.pcie.num_channels>0)
 			{
 				pcie->displayEnergy(indent+4,is_tdp);
-				cout <<"*****************************************************************************************"<<endl;
+				*out_file <<"*****************************************************************************************"<<endl;
 			}
 
 			for (i = 0;i < numNOC; i++)
 			{
 				nocs[i]->displayEnergy(indent+4,plevel,is_tdp);
-				cout <<"*****************************************************************************************"<<endl;
+				*out_file <<"*****************************************************************************************"<<endl;
 			}
 		}
 	}
@@ -731,13 +902,13 @@ void Processor::set_proc_param()
 
 //	if (procdynp.numCore<1)
 //	{
-//		cout<<" The target processor should at least have one core on chip." <<endl;
+//		*out_file<<" The target processor should at least have one core on chip." <<endl;
 //		exit(0);
 //	}
 
 	//  if (numNOCs<0 || numNOCs>2)
 	//    {
-	//  	  cout <<"number of NOCs must be 1 (only global NOCs) or 2 (both global and local NOCs)"<<endl;
+	//  	  *out_file <<"number of NOCs must be 1 (only global NOCs) or 2 (both global and local NOCs)"<<endl;
 	//  	  exit(0);
 	//    }
 

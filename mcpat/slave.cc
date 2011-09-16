@@ -45,100 +45,72 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THE SOFTWARE.
  *
  ***************************************************************************/
-
-#include "basic_components.h"
-#include <iostream>
-#include <assert.h>
-#include <cmath>
+#include "xmlParser.h"
+#include "XML_Parse.h"
+#include "processor.h"
 #include "globalvar.h"
 
-double longer_channel_device_reduction(
-		enum Device_ty device_ty,
-		enum Core_type core_ty)
-{
+#include "mcpat.h"
 
-	double longer_channel_device_percentage_core;
-	double longer_channel_device_percentage_uncore;
-	double longer_channel_device_percentage_llc;
+static Processor *proc;
+static int print_level;
 
-	double long_channel_device_reduction;
+using namespace std;
 
-	longer_channel_device_percentage_llc    = 1.0;
-	longer_channel_device_percentage_uncore = 0.82;
-	if (core_ty==OOO)
-	{
-		longer_channel_device_percentage_core   = 0.56;//0.54 Xeon Tulsa //0.58 Nehelam
-		//longer_channel_device_percentage_uncore = 0.76;//0.85 Nehelam
+void mcpat_initialize(ParseXML* p1, ostream *_out_file, int _print_level) {
+   print_level = _print_level;
 
-	}
-	else
-	{
-		longer_channel_device_percentage_core   = 0.8;//0.8;//Niagara
-		//longer_channel_device_percentage_uncore = 0.9;//Niagara
-	}
+   opt_for_clk = true;
+   out_file = _out_file;
 
-	if (device_ty==Core_device)
-	{
-		long_channel_device_reduction = (1- longer_channel_device_percentage_core)
-		+ longer_channel_device_percentage_core * g_tp.peri_global.long_channel_leakage_reduction;
-	}
-	else if (device_ty==Uncore_device)
-	{
-		long_channel_device_reduction = (1- longer_channel_device_percentage_uncore)
-		+ longer_channel_device_percentage_uncore * g_tp.peri_global.long_channel_leakage_reduction;
-	}
-	else if (device_ty==LLC_device)
-	{
-		long_channel_device_reduction = (1- longer_channel_device_percentage_llc)
-		+ longer_channel_device_percentage_llc * g_tp.peri_global.long_channel_leakage_reduction;
-	}
-	else
-	{
-		*out_file<<"unknown device category"<<endl;
-		exit(0);
-	}
-
-	return long_channel_device_reduction;
+   proc = new Processor(p1);
 }
 
-statsComponents operator+(const statsComponents & x, const statsComponents & y)
-{
-	statsComponents z;
+void mcpat_compute_energy(bool print_power, double * cores_rtp, double * uncore_rtp) {
+   int i;
+   /* These are stats, but are included in the dynamic parameters structures,
+      we must update them from the reparsed XML data */
+   for (i=0; i<proc->numCore; i++) {
+      proc->cores[i]->coredynp.pipeline_duty_cycle = proc->XML->sys.core[i].pipeline_duty_cycle;
+      proc->cores[i]->coredynp.total_cycles        = proc->XML->sys.core[i].total_cycles;
+      proc->cores[i]->coredynp.busy_cycles         = proc->XML->sys.core[i].busy_cycles;
+      proc->cores[i]->coredynp.idle_cycles         = proc->XML->sys.core[i].idle_cycles;
+      proc->cores[i]->coredynp.executionTime       = proc->XML->sys.total_cycles/proc->cores[i]->coredynp.clockRate;
+   }
 
-	z.access = x.access + y.access;
-	z.hit    = x.hit + y.hit;
-	z.miss   = x.miss  + y.miss;
+   for (i=0; i<proc->numL2;i++)
+      proc->l2array[i]->cachep.executionTime = proc->XML->sys.total_cycles/(proc->XML->sys.target_core_clockrate*1e6);
+   for (i=0; i<proc->numL1Dir;i++)
+      proc->l1dirarray[i]->cachep.executionTime = proc->XML->sys.total_cycles/(proc->XML->sys.target_core_clockrate*1e6);
+   for (i=0; i<proc->numL3;i++)
+      proc->l3array[i]->cachep.executionTime = proc->XML->sys.total_cycles/(proc->XML->sys.target_core_clockrate*1e6);
+   for (i=0; i<proc->numL2Dir;i++)
+      proc->l2dirarray[i]->cachep.executionTime = proc->XML->sys.total_cycles/(proc->XML->sys.target_core_clockrate*1e6);
 
-	return z;
+   /* Similarly for those components, even though we don't care about their power for now */
+   //XXX: Here we call set_*_param because they are quite short and don't overwrite anything important
+   proc->mc->set_mc_param();
+   if (proc->flashcontroller)
+      proc->flashcontroller->set_fc_param();
+   if (proc->niu)
+      proc->niu->set_niu_param();
+   if (proc->pcie)
+      proc->pcie->set_pcie_param();
+   for (i=0; i<proc->numNOC; i++)
+      proc->nocs[i]->set_noc_param();
+
+   /* Finally, compute power */
+   proc->compute();
+   
+   if (print_power)
+      proc->displayEnergy(2, print_level);
+
+   /* Set return values */
+   for (i=0; i<proc->numCore; i++)
+      cores_rtp[i] = proc->cores[i]->rt_power.readOp.dynamic/proc->cores[i]->coredynp.executionTime;
+   *uncore_rtp = proc->rt_power.readOp.dynamic - proc->core.rt_power.readOp.dynamic;
 }
 
-statsComponents operator*(const statsComponents & x, double const * const y)
-{
-	statsComponents z;
-
-	z.access = x.access*y[0];
-	z.hit    = x.hit*y[1];
-	z.miss   = x.miss*y[2];
-
-	return z;
-}
-
-statsDef operator+(const statsDef & x, const statsDef & y)
-{
-	statsDef z;
-
-	z.readAc   = x.readAc  + y.readAc;
-	z.writeAc  = x.writeAc + y.writeAc;
-	z.searchAc  = x.searchAc + y.searchAc;
-	return z;
-}
-
-statsDef operator*(const statsDef & x, double const * const y)
-{
-	statsDef z;
-
-	z.readAc   = x.readAc*y;
-	z.writeAc  = x.writeAc*y;
-	z.searchAc  = x.searchAc*y;
-	return z;
+void mcpat_finalize() {
+   delete proc;
 }

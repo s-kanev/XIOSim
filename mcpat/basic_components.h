@@ -68,7 +68,8 @@ enum Core_type {
 
 enum Renaming_type {
     RAMbased,
-	CAMbased
+	CAMbased,
+   None
 };
 
 enum Scheduler_type {
@@ -149,45 +150,45 @@ double longer_channel_device_reduction(
 
 class CoreDynParam {
 public:
-	CoreDynParam(){};
-	CoreDynParam(ParseXML *XML_interface, int ithCore_);
-	//    :XML(XML_interface),
-	//     ithCore(ithCore_)
-	//     core_ty(inorder),
-	//     rm_ty(CAMbased),
-	//     scheu_ty(PhysicalRegFile),
-	//     clockRate(1e9),//1GHz
-	//     arch_ireg_width(32),
-	//     arch_freg_width(32),
-	//     phy_ireg_width(128),
-	//     phy_freg_width(128),
-	//     perThreadState(8),
-	//     globalCheckpoint(32),
-	//     instructionLength(32){};
-	//ParseXML * XML;
-	bool opt_local;
-	bool x86;
-	bool Embedded;
-    enum Core_type  core_ty;
-	enum Renaming_type rm_ty;
-    enum Scheduler_type scheu_ty;
-    double clockRate,executionTime;
-    int  arch_ireg_width, arch_freg_width, phy_ireg_width, phy_freg_width;
-    int  num_IRF_entry, num_FRF_entry, num_ifreelist_entries, num_ffreelist_entries;
-    int  fetchW, decodeW,issueW,peak_issueW, commitW,peak_commitW, predictionW, fp_issueW, fp_decodeW;
-    int  perThreadState, globalCheckpoint, instruction_length, pc_width, opcode_length, micro_opcode_length;
-    int  num_hthreads, pipeline_stages, fp_pipeline_stages, num_pipelines, num_fp_pipelines;
-    int  num_alus, num_muls;
-    double num_fpus;
-    int  int_data_width, fp_data_width,v_address_width, p_address_width;
-    double pipeline_duty_cycle, total_cycles, busy_cycles, idle_cycles;
-    bool regWindowing,multithreaded;
-    double pppm_lkg_multhread[4];
-	double IFU_duty_cycle,BR_duty_cycle,LSU_duty_cycle,MemManU_I_duty_cycle,
-	       MemManU_D_duty_cycle, ALU_duty_cycle,MUL_duty_cycle,
-	       FPU_duty_cycle, ALU_cdb_duty_cycle,MUL_cdb_duty_cycle,
-	       FPU_cdb_duty_cycle;
-    ~CoreDynParam(){};
+   CoreDynParam(){};
+   CoreDynParam(ParseXML *XML_interface, int ithCore_);
+   //    :XML(XML_interface),
+   //     ithCore(ithCore_)
+   //     core_ty(inorder),
+   //     rm_ty(CAMbased),
+   //     scheu_ty(PhysicalRegFile),
+   //     clockRate(1e9),//1GHz
+   //     arch_ireg_width(32),
+   //     arch_freg_width(32),
+   //     phy_ireg_width(128),
+   //     phy_freg_width(128),
+   //     perThreadState(8),
+   //     globalCheckpoint(32),
+   //     instructionLength(32){};
+   //ParseXML * XML;
+   bool opt_local;
+   bool x86;
+   bool Embedded;
+   enum Core_type  core_ty;
+   enum Renaming_type rm_ty;
+   enum Scheduler_type scheu_ty;
+   double clockRate,executionTime;
+   int  arch_ireg_width, arch_freg_width, phy_ireg_width, phy_freg_width;
+   int  num_IRF_entry, num_FRF_entry, num_ifreelist_entries, num_ffreelist_entries;
+   int  fetchW, decodeW,issueW,peak_issueW, commitW,peak_commitW, predictionW, fp_issueW, fp_decodeW;
+   int  perThreadState, globalCheckpoint, instruction_length, pc_width, opcode_length, micro_opcode_length;
+   int  num_hthreads, pipeline_stages, fp_pipeline_stages, num_pipelines, num_fp_pipelines;
+   int  num_alus, num_muls;
+   double num_fpus;
+   int  int_data_width, fp_data_width,v_address_width, p_address_width;
+   double pipeline_duty_cycle, total_cycles, busy_cycles, idle_cycles;
+   bool regWindowing,multithreaded;
+   double pppm_lkg_multhread[4];
+   double IFU_duty_cycle,BR_duty_cycle,LSU_duty_cycle,MemManU_I_duty_cycle,
+      MemManU_D_duty_cycle, ALU_duty_cycle,MUL_duty_cycle,
+      FPU_duty_cycle, ALU_cdb_duty_cycle,MUL_cdb_duty_cycle,
+      FPU_cdb_duty_cycle;
+   ~CoreDynParam(){};
 };
 
 class CacheDynParam {

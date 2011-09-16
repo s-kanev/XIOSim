@@ -48,7 +48,6 @@
 #include "router.h"
 #include "nuca.h"
 
-
 class min_values_t
 {
   public:

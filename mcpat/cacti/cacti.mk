@@ -8,7 +8,7 @@ ifndef NTHREADS
 endif
 
 
-LIBS = 
+LIBS = -I..
 INCS = -lm
 
 ifeq ($(TAG),dbg)

@@ -57,7 +57,6 @@
 #include "parameter.h"
 #include "xmlParser.h"
 #include "XML_Parse.h"
-#include "arch_const.h"
 #include <cstring>
 #include <iostream>
 #include <cmath>
@@ -87,11 +86,11 @@ public:
 
 class dep_resource_conflict_check : public Component{
 public:
-	dep_resource_conflict_check(const InputParameter *configure_interface, const CoreDynParam & dyn_p_, int compare_bits_, bool _is_default=true);
+	dep_resource_conflict_check(const InputParameter *configure_interface, const CoreDynParam * dyn_p_, int compare_bits_, bool _is_default=true);
 	InputParameter l_ip;
 	uca_org_t local_result;
 	double WNORn, WNORp, Wevalinvp, Wevalinvn, Wcompn, Wcompp, Wcomppreequ;
-	CoreDynParam  coredynp;
+	const CoreDynParam * coredynp;
 	int compare_bits;
 	bool is_default;
 	statsDef       tdp_stats;
@@ -164,29 +163,28 @@ public:
 
 class Pipeline : public Component{
 public:
-	Pipeline(const InputParameter *configure_interface, const CoreDynParam & dyn_p_, enum Device_ty device_ty_=Core_device, bool _is_core_pipeline=true, bool _is_default=true);
-	InputParameter l_ip;
-	uca_org_t local_result;
-	CoreDynParam  coredynp;
-	enum Device_ty device_ty;
-	bool is_core_pipeline, is_default;
-	double num_piperegs;
-//	int pipeline_stages;
-//	int tot_stage_vector, per_stage_vector;
-	bool process_ind;
-	double WNANDn ;
-	double WNANDp;
-	double load_per_pipeline_stage;
-//	int  Hthread,  num_thread, fetchWidth, decodeWidth, issueWidth, commitWidth, instruction_length;
-//	int  PC_width, opcode_length, num_arch_reg_tag, data_width,num_phsical_reg_tag, address_width;
-//	bool thread_clock_gated;
-//	bool in_order, multithreaded;
-	void compute_stage_vector();
-	void compute();
-	~Pipeline(){
-		local_result.cleanup();
-	};
-
+   Pipeline(const InputParameter *configure_interface, const CoreDynParam * dyn_p_, enum Device_ty device_ty_=Core_device, bool _is_core_pipeline=true, bool _is_default=true);
+   InputParameter l_ip;
+   uca_org_t local_result;
+   const CoreDynParam * coredynp;
+   enum Device_ty device_ty;
+   bool is_core_pipeline, is_default;
+   double num_piperegs;
+   //	int pipeline_stages;
+   //	int tot_stage_vector, per_stage_vector;
+   bool process_ind;
+   double WNANDn ;
+   double WNANDp;
+   double load_per_pipeline_stage;
+   //	int  Hthread,  num_thread, fetchWidth, decodeWidth, issueWidth, commitWidth, instruction_length;
+   //	int  PC_width, opcode_length, num_arch_reg_tag, data_width,num_phsical_reg_tag, address_width;
+   //	bool thread_clock_gated;
+   //	bool in_order, multithreaded;
+   void compute_stage_vector();
+   void compute();
+   ~Pipeline(){
+      local_result.cleanup();
+   };
 };
 
 //class core_pipeline :public pipeline{
@@ -202,44 +200,43 @@ public:
 
 class FunctionalUnit :public Component{
 public:
-	ParseXML *XML;
-	int  ithCore;
-	InputParameter interface_ip;
-	CoreDynParam  coredynp;
-	double FU_height;
-	double clockRate,executionTime;
-	double num_fu;
-	double energy, base_energy,per_access_energy, leakage, gate_leakage;
-	bool  is_default;
-	enum FU_type fu_type;
-	statsDef       tdp_stats;
-	statsDef       rtp_stats;
-	statsDef       stats_t;
-	powerDef       power_t;
+   ParseXML *XML;
+   int  ithCore;
+   InputParameter interface_ip;
+   const CoreDynParam  *coredynp;
+   double FU_height;
+   double num_fu;
+   double energy, base_energy,per_access_energy, leakage, gate_leakage;
+   bool  is_default;
+   enum FU_type fu_type;
+   statsDef       tdp_stats;
+   statsDef       rtp_stats;
+   statsDef       stats_t;
+   powerDef       power_t;
 
-	FunctionalUnit(ParseXML *XML_interface, int ithCore_, InputParameter* interface_ip_,const CoreDynParam & dyn_p_, enum FU_type fu_type);
-    void computeEnergy(bool is_tdp=true);
-	void displayEnergy(uint32_t indent = 0,int plevel = 100, bool is_tdp=true);
+   FunctionalUnit(ParseXML *XML_interface, int ithCore_, InputParameter* interface_ip_,const CoreDynParam * dyn_p_, enum FU_type fu_type);
+   void computeEnergy(bool is_tdp=true);
+   void displayEnergy(uint32_t indent = 0,int plevel = 100, bool is_tdp=true);
 
 };
 
 class UndiffCore :public Component{
 public:
-	UndiffCore(ParseXML* XML_interface, int ithCore_, InputParameter* interface_ip_, const CoreDynParam & dyn_p_, bool exist_=true, bool embedded_=false);
-	ParseXML *XML;
-	int  ithCore;
-	InputParameter interface_ip;
-	CoreDynParam  coredynp;
-	double clockRate,executionTime;
-	double scktRatio, chip_PR_overhead, macro_PR_overhead;
-	enum  Core_type core_ty;
-	bool   opt_performance, embedded;
-	double pipeline_stage,num_hthreads,issue_width;
-	bool   is_default;
+   UndiffCore(ParseXML* XML_interface, int ithCore_, InputParameter* interface_ip_, const CoreDynParam * dyn_p_, bool exist_=true, bool embedded_=false);
+   ParseXML *XML;
+   int  ithCore;
+   InputParameter interface_ip;
+   const CoreDynParam * coredynp;
+   double clockRate,executionTime;
+   double scktRatio, chip_PR_overhead, macro_PR_overhead;
+   enum  Core_type core_ty;
+   bool   opt_performance, embedded;
+   double pipeline_stage,num_hthreads,issue_width;
+   bool   is_default;
 
-    void displayEnergy(uint32_t indent = 0,int plevel = 100, bool is_tdp=true);
-	~UndiffCore(){};
-	bool exist;
+   void displayEnergy(uint32_t indent = 0,int plevel = 100, bool is_tdp=true);
+   ~UndiffCore(){};
+   bool exist;
 
 
 };

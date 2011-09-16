@@ -125,13 +125,13 @@ void Htree2::input_nand(double s1, double s2, double l_eff)
   delay+= horowitz (w1.out_rise_time, tc,
       deviceType->Vth/deviceType->Vdd, deviceType->Vth/deviceType->Vdd, RISE);
   power.readOp.dynamic += 0.5 *
-    (2*drain_C_(pton_size * nsize*min_w_pmos, PCH, 1, 1, g_tp.cell_h_def)
+    (2*drain_C_(pton_size * nsize*min_w_pmos, _PCH, 1, 1, g_tp.cell_h_def)
      + drain_C_(nsize*min_w_nmos, NCH, 1, 1, g_tp.cell_h_def)
      + 2*gate_C(s2*(min_w_nmos + min_w_pmos), 0)) *
     deviceType->Vdd * deviceType->Vdd;
 
     power.searchOp.dynamic += 0.5 *
-    (2*drain_C_(pton_size * nsize*min_w_pmos, PCH, 1, 1, g_tp.cell_h_def)
+    (2*drain_C_(pton_size * nsize*min_w_pmos, _PCH, 1, 1, g_tp.cell_h_def)
      + drain_C_(nsize*min_w_nmos, NCH, 1, 1, g_tp.cell_h_def)
      + 2*gate_C(s2*(min_w_nmos + min_w_pmos), 0)) *
     deviceType->Vdd * deviceType->Vdd * wire_bw ;
@@ -154,12 +154,12 @@ void Htree2::output_buffer(double s1, double s2, double l_eff)
   double tr_size = gate_C(s1*(min_w_nmos + min_w_pmos), 0) * 1/2/(s_eff*gate_C(min_w_pmos, 0));
   size = (size < 1) ? 1 : size;
 
-  double res_nor = 2*tr_R_on(size*min_w_pmos, PCH, 1);
+  double res_nor = 2*tr_R_on(size*min_w_pmos, _PCH, 1);
   double res_ptrans = tr_R_on(tr_size*min_w_nmos, NCH, 1);
   double cap_nand_out = drain_C_(size*min_w_nmos, NCH, 1, 1, g_tp.cell_h_def) +
-                        drain_C_(size*min_w_pmos, PCH, 1, 1, g_tp.cell_h_def)*2 +
+                        drain_C_(size*min_w_pmos, _PCH, 1, 1, g_tp.cell_h_def)*2 +
                         gate_C(tr_size*min_w_pmos, 0);
-  double cap_ptrans_out = 2 *(drain_C_(tr_size*min_w_pmos, PCH, 1, 1, g_tp.cell_h_def) +
+  double cap_ptrans_out = 2 *(drain_C_(tr_size*min_w_pmos, _PCH, 1, 1, g_tp.cell_h_def) +
                               drain_C_(tr_size*min_w_nmos, NCH, 1, 1, g_tp.cell_h_def)) +
                           gate_C(s1*(min_w_nmos + min_w_pmos), 0);
 
@@ -171,52 +171,52 @@ void Htree2::output_buffer(double s1, double s2, double l_eff)
 
   //nand
   power.readOp.dynamic += 0.5 *
-    (2*drain_C_(size*min_w_pmos, PCH, 1, 1, g_tp.cell_h_def) +
+    (2*drain_C_(size*min_w_pmos, _PCH, 1, 1, g_tp.cell_h_def) +
        drain_C_(size*min_w_nmos, NCH, 1, 1, g_tp.cell_h_def) +
      gate_C(tr_size*(min_w_pmos), 0)) *
     deviceType->Vdd * deviceType->Vdd;
 
     power.searchOp.dynamic += 0.5 *
-    (2*drain_C_(size*min_w_pmos, PCH, 1, 1, g_tp.cell_h_def) +
+    (2*drain_C_(size*min_w_pmos, _PCH, 1, 1, g_tp.cell_h_def) +
        drain_C_(size*min_w_nmos, NCH, 1, 1, g_tp.cell_h_def) +
      gate_C(tr_size*(min_w_pmos), 0)) *
     deviceType->Vdd * deviceType->Vdd*init_wire_bw;
 
   //not
   power.readOp.dynamic += 0.5 *
-    (drain_C_(size*min_w_pmos, PCH, 1, 1, g_tp.cell_h_def)
+    (drain_C_(size*min_w_pmos, _PCH, 1, 1, g_tp.cell_h_def)
      +drain_C_(size*min_w_nmos, NCH, 1, 1, g_tp.cell_h_def)
      +gate_C(size*(min_w_nmos + min_w_pmos), 0)) *
     deviceType->Vdd * deviceType->Vdd;
 
     power.searchOp.dynamic += 0.5 *
-    (drain_C_(size*min_w_pmos, PCH, 1, 1, g_tp.cell_h_def)
+    (drain_C_(size*min_w_pmos, _PCH, 1, 1, g_tp.cell_h_def)
      +drain_C_(size*min_w_nmos, NCH, 1, 1, g_tp.cell_h_def)
      +gate_C(size*(min_w_nmos + min_w_pmos), 0)) *
     deviceType->Vdd * deviceType->Vdd*init_wire_bw;
 
   //nor
   power.readOp.dynamic += 0.5 *
-    (drain_C_(size*min_w_pmos, PCH, 1, 1, g_tp.cell_h_def)
+    (drain_C_(size*min_w_pmos, _PCH, 1, 1, g_tp.cell_h_def)
      + 2*drain_C_(size*min_w_nmos, NCH, 1, 1, g_tp.cell_h_def)
      +gate_C(tr_size*(min_w_nmos + min_w_pmos), 0)) *
     deviceType->Vdd * deviceType->Vdd;
 
     power.searchOp.dynamic += 0.5 *
-    (drain_C_(size*min_w_pmos, PCH, 1, 1, g_tp.cell_h_def)
+    (drain_C_(size*min_w_pmos, _PCH, 1, 1, g_tp.cell_h_def)
      + 2*drain_C_(size*min_w_nmos, NCH, 1, 1, g_tp.cell_h_def)
      +gate_C(tr_size*(min_w_nmos + min_w_pmos), 0)) *
     deviceType->Vdd * deviceType->Vdd*init_wire_bw;
 
   //output transistor
   power.readOp.dynamic += 0.5 *
-    ((drain_C_(tr_size*min_w_pmos, PCH, 1, 1, g_tp.cell_h_def)
+    ((drain_C_(tr_size*min_w_pmos, _PCH, 1, 1, g_tp.cell_h_def)
       +drain_C_(tr_size*min_w_nmos, NCH, 1, 1, g_tp.cell_h_def))*2
      + gate_C(s1*(min_w_nmos + min_w_pmos), 0)) *
     deviceType->Vdd * deviceType->Vdd;
 
     power.searchOp.dynamic += 0.5 *
-    ((drain_C_(tr_size*min_w_pmos, PCH, 1, 1, g_tp.cell_h_def)
+    ((drain_C_(tr_size*min_w_pmos, _PCH, 1, 1, g_tp.cell_h_def)
       +drain_C_(tr_size*min_w_nmos, NCH, 1, 1, g_tp.cell_h_def))*2
      + gate_C(s1*(min_w_nmos + min_w_pmos), 0)) *
     deviceType->Vdd * deviceType->Vdd*init_wire_bw;
@@ -522,7 +522,7 @@ void Htree2::out_htree()
   power.readOp.dynamic = 0;
   power.readOp.leakage = 0;
   power.readOp.gate_leakage = 0;
-  //cout<<"power.readOp.gate_leakage"<<power.readOp.gate_leakage<<endl;
+  //*out_file<<"power.readOp.gate_leakage"<<power.readOp.gate_leakage<<endl;
   len = len_temp;
   ht = ht_temp/2;
 
@@ -571,7 +571,7 @@ void Htree2::out_htree()
     power.searchOp.dynamic += wtemp1->power.readOp.dynamic*init_wire_bw;
     power.readOp.leakage += wtemp1->power.readOp.leakage*wire_bw;
     power.readOp.gate_leakage += wtemp1->power.readOp.gate_leakage*wire_bw;
-    //cout<<"power.readOp.gate_leakage"<<power.readOp.gate_leakage<<endl;
+    //*out_file<<"power.readOp.gate_leakage"<<power.readOp.gate_leakage<<endl;
     if ((uca_tree == false && option == 2) || search_tree==true)
     {
       wire_bw*=2;
@@ -613,7 +613,7 @@ void Htree2::out_htree()
     power.searchOp.dynamic += wtemp2->power.readOp.dynamic*init_wire_bw;
     power.readOp.leakage += wtemp2->power.readOp.leakage*wire_bw;
     power.readOp.gate_leakage += wtemp2->power.readOp.gate_leakage*wire_bw;
-    //cout<<"power.readOp.gate_leakage"<<power.readOp.gate_leakage<<endl;
+    //*out_file<<"power.readOp.gate_leakage"<<power.readOp.gate_leakage<<endl;
     if (uca_tree)
     {
       power.readOp.leakage += (wtemp2->power.readOp.leakage*wire_bw);
@@ -638,9 +638,9 @@ void Htree2::out_htree()
 
       output_buffer(s2, s3, l_eff);
     }
-    //cout<<"power.readOp.leakage"<<power.readOp.leakage<<endl;
-    //cout<<"power.readOp.gate_leakage"<<power.readOp.gate_leakage<<endl;
-    //cout<<"wtemp2->power.readOp.gate_leakage"<<wtemp2->power.readOp.gate_leakage<<endl;
+    //*out_file<<"power.readOp.leakage"<<power.readOp.leakage<<endl;
+    //*out_file<<"power.readOp.gate_leakage"<<power.readOp.gate_leakage<<endl;
+    //*out_file<<"wtemp2->power.readOp.gate_leakage"<<wtemp2->power.readOp.gate_leakage<<endl;
   }
 
   if (wtemp1) delete wtemp1;

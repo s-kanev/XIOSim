@@ -54,7 +54,7 @@
 
 using namespace std;
 
-void ParseXML::parse(char* filepath)
+void ParseXML::parse(const char* filepath)
 {
 	unsigned int i,j,k,m,n;
 	unsigned int NumofCom_4;
@@ -113,7 +113,7 @@ void ParseXML::parse(char* filepath)
 
 //	if (sys.Private_L2 && sys.number_of_cores!=sys.number_of_L2s)
 //	{
-//		cout<<"Private L2: Number of L2s must equal to Number of Cores"<<endl;
+//		*out_file<<"Private L2: Number of L2s must equal to Number of Cores"<<endl;
 //		exit(0);
 //	}
 
@@ -291,7 +291,7 @@ void ParseXML::parse(char* filepath)
 							if (strcmp(xNode3.getChildNode("stat",k).getAttribute("name"),"windowed_reg_transports")==0) {sys.core[i].windowed_reg_transports=atof(xNode3.getChildNode("stat",k).getAttribute("value"));continue;}
 							if (strcmp(xNode3.getChildNode("stat",k).getAttribute("name"),"function_calls")==0) {sys.core[i].function_calls=atof(xNode3.getChildNode("stat",k).getAttribute("value"));continue;}
 							if (strcmp(xNode3.getChildNode("stat",k).getAttribute("name"),"context_switches")==0) {sys.core[i].context_switches=atof(xNode3.getChildNode("stat",k).getAttribute("value"));continue;}
-							if (strcmp(xNode3.getChildNode("stat",k).getAttribute("name"),"ialu_accesses")==0) {sys.core[i].ialu_accesses=atof(xNode3.getChildNode("stat",k).getAttribute("value"));continue;}
+                     if (strcmp(xNode3.getChildNode("stat",k).getAttribute("name"),"ialu_accesses")==0) {sys.core[i].ialu_accesses=atof(xNode3.getChildNode("stat",k).getAttribute("value"));continue;}
 							if (strcmp(xNode3.getChildNode("stat",k).getAttribute("name"),"fpu_accesses")==0) {sys.core[i].fpu_accesses=atof(xNode3.getChildNode("stat",k).getAttribute("value"));continue;}
 							if (strcmp(xNode3.getChildNode("stat",k).getAttribute("name"),"mul_accesses")==0) {sys.core[i].mul_accesses=atof(xNode3.getChildNode("stat",k).getAttribute("value"));continue;}
 							if (strcmp(xNode3.getChildNode("stat",k).getAttribute("name"),"cdb_alu_accesses")==0) {sys.core[i].cdb_alu_accesses=atof(xNode3.getChildNode("stat",k).getAttribute("value"));continue;}
@@ -1223,7 +1223,7 @@ void ParseXML::parse(char* filepath)
 			}
 		}
 		//__________________________________________Get system.mem____________________________________________
-		if (OrderofComponents_3layer>0) OrderofComponents_3layer=OrderofComponents_3layer+1;
+		OrderofComponents_3layer=OrderofComponents_3layer+1;
 		xNode3=xNode2.getChildNode("component",OrderofComponents_3layer);
 		if (xNode3.isEmpty()==1) {
 			printf("some value(s) of number_of_cores/number_of_L2s/number_of_L3s/number_of_NoCs is/are not correct!");
@@ -1260,7 +1260,7 @@ void ParseXML::parse(char* filepath)
 			exit(0);
 		}
 		//__________________________________________Get system.mc____________________________________________
-		if (OrderofComponents_3layer>0) OrderofComponents_3layer=OrderofComponents_3layer+1;
+		OrderofComponents_3layer=OrderofComponents_3layer+1;
 		xNode3=xNode2.getChildNode("component",OrderofComponents_3layer);
 		if (xNode3.isEmpty()==1) {
 			printf("some value(s) of number_of_cores/number_of_L2s/number_of_L3s/number_of_NoCs is/are not correct!");
@@ -1299,7 +1299,7 @@ void ParseXML::parse(char* filepath)
 			exit(0);
 		}
 		//__________________________________________Get system.niu____________________________________________
-		if (OrderofComponents_3layer>0) OrderofComponents_3layer=OrderofComponents_3layer+1;
+		OrderofComponents_3layer=OrderofComponents_3layer+1;
 		xNode3=xNode2.getChildNode("component",OrderofComponents_3layer);
 		if (xNode3.isEmpty()==1) {
 			printf("some value(s) of number_of_cores/number_of_L2s/number_of_L3s/number_of_NoCs is/are not correct!");
@@ -1327,7 +1327,7 @@ void ParseXML::parse(char* filepath)
 		}
 
 		//__________________________________________Get system.pcie____________________________________________
-		if (OrderofComponents_3layer>0) OrderofComponents_3layer=OrderofComponents_3layer+1;
+		OrderofComponents_3layer=OrderofComponents_3layer+1;
 		xNode3=xNode2.getChildNode("component",OrderofComponents_3layer);
 		if (xNode3.isEmpty()==1) {
 			printf("some value(s) of number_of_cores/number_of_L2s/number_of_L3s/number_of_NoCs is/are not correct!");
@@ -1357,7 +1357,7 @@ void ParseXML::parse(char* filepath)
 			exit(0);
 		}
 		//__________________________________________Get system.flashcontroller____________________________________________
-		if (OrderofComponents_3layer>0) OrderofComponents_3layer=OrderofComponents_3layer+1;
+		OrderofComponents_3layer=OrderofComponents_3layer+1;
 		xNode3=xNode2.getChildNode("component",OrderofComponents_3layer);
 		if (xNode3.isEmpty()==1) {
 			printf("some value(s) of number_of_cores/number_of_L2s/number_of_L3s/number_of_NoCs is/are not correct!");

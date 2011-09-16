@@ -176,9 +176,9 @@ void ArrayST::optimize_array()
 	{
 		//For array structures except CAM and FA, Give warning but still provide a result with best timing found
 		if (throughput_overflow==true)
-			cout<< "Warning: " << name<<" array structure cannot satisfy throughput constraint." << endl;
+			*out_file<< "Warning: " << name<<" array structure cannot satisfy throughput constraint." << endl;
 		if (latency_overflow==true)
-			cout<< "Warning: " << name<<" array structure cannot satisfy latency constraint." << endl;
+			*out_file<< "Warning: " << name<<" array structure cannot satisfy latency constraint." << endl;
 	}
 
 //	else
@@ -192,10 +192,10 @@ void ArrayST::optimize_array()
 //		*/
 //		//For CAM and FA, stop opt if area efficiency is too low
 //		if (throughput_overflow==true)
-//			cout<< "Warning: " <<" McPAT stopped optimization on throughput for "<< name
+//			*out_file<< "Warning: " <<" McPAT stopped optimization on throughput for "<< name
 //				<<" array structure because its area efficiency is below "<<area_efficiency_threshold<<"% " << endl;
 //		if (latency_overflow==true)
-//			cout<< "Warning: " <<" McPAT stopped optimization on latency for "<< name
+//			*out_file<< "Warning: " <<" McPAT stopped optimization on latency for "<< name
 //				<<" array structure because its area efficiency is below "<<area_efficiency_threshold<<"% " << endl;
 //	}
 

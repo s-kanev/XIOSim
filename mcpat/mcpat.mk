@@ -1,4 +1,3 @@
-TARGET = mcpat
 SHELL = /bin/sh
 .PHONY: all depend clean
 .SUFFIXES: .cc .o
@@ -13,10 +12,10 @@ INCS = -lm
 
 ifeq ($(TAG),dbg)
   DBG = -Wall 
-  OPT = -ggdb -g -O0 -DNTHREADS=1 -Icacti
+  OPT = -ggdb -g -O0 -DNTHREADS=1 -Icacti -I.
 else
   DBG = 
-  OPT = -O3 -msse2 -mfpmath=sse -DNTHREADS=$(NTHREADS) -Icacti
+  OPT = -O3 -msse2 -mfpmath=sse -DNTHREADS=$(NTHREADS) -Icacti -I.
   #OPT = -O0 -DNTHREADS=$(NTHREADS)
 endif
 
@@ -24,8 +23,17 @@ endif
 CXXFLAGS = -Wno-unknown-pragmas $(DBG) $(OPT) 
 CXX = g++ -m32
 CC  = gcc -m32
+AR = ar rs
+RANLIB = ranlib
 
 VPATH = cacti
+
+ifeq ($(TGT),lib)
+  TARGET = mcpat.a
+else
+  TARGET = mcpat
+endif
+
 
 SRCS  = \
   Ucache.cc \
@@ -46,7 +54,7 @@ SRCS  = \
   io.cc \
   iocontrollers.cc \
   logic.cc \
-  main.cc \
+  slave.cc \
   mat.cc \
   memoryctrl.cc \
   noc.cc \
@@ -61,13 +69,26 @@ SRCS  = \
   wire.cc \
   xmlParser.cc 
 
+ifeq ($(TGT),exe)
+SRCS += \
+  main.cc
+else
+  CXXFLAGS += -DPIN
+endif
+
 OBJS = $(patsubst %.cc,obj_$(TAG)/%.o,$(SRCS))
 
 all: obj_$(TAG)/$(TARGET)
 	cp -f obj_$(TAG)/$(TARGET) $(TARGET)
 
 obj_$(TAG)/$(TARGET) : $(OBJS)
+ifeq ($(TGT),exe)
 	$(CXX) $(OBJS) -o $@ $(INCS) $(CXXFLAGS) $(LIBS) -pthread
+else
+	echo $(TARGET)
+	$(AR) $@ $(OBJS) 
+	$(RANLIB) $@
+endif
 
 #obj_$(TAG)/%.o : %.cc
 #	$(CXX) -c $(CXXFLAGS) $(INCS) -o $@ $<

@@ -49,6 +49,7 @@
 #include "bank.h"
 #include "component.h"
 #include "decoder.h"
+#include "globalvar.h"
 
 using namespace std;
 
@@ -136,7 +137,7 @@ double Component::compute_gate_area(
       total_pdiff_w = compute_diffusion_width(1, num_inputs * num_folded_pmos);
       break;
     default:
-      cout << "Unknown gate type: " << gate_type << endl;
+      *out_file << "Unknown gate type: " << gate_type << endl;
       exit(1);
   }
 

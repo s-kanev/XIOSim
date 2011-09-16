@@ -41,6 +41,7 @@
 
 #include "wire.h"
 #include "cmath"
+#include "globalvar.h"
 // use this constructor to calculate wire stats
 Wire::Wire(
     enum Wire_type wire_model,
@@ -59,7 +60,7 @@ Wire::Wire(
   in_rise_time   = 0;
   out_rise_time  = 0;
   if (initialized != 1) {
-    cout << "Wire not initialized. Initializing it with default values\n";
+    *out_file << "Wire not initialized. Initializing it with default values\n";
     Wire winit;
   }
   calculate_wire_stats();
@@ -239,12 +240,12 @@ Wire::signal_fall_time ()
   double timeconst;
 
   timeconst = (drain_C_(g_tp.min_w_nmos_, NCH, 1, 1, g_tp.cell_h_def) +
-      drain_C_(min_w_pmos, PCH, 1, 1, g_tp.cell_h_def) +
+      drain_C_(min_w_pmos, _PCH, 1, 1, g_tp.cell_h_def) +
       gate_C(min_w_pmos + g_tp.min_w_nmos_, 0)) *
-    tr_R_on(min_w_pmos, PCH, 1);
+    tr_R_on(min_w_pmos, _PCH, 1);
   rt = horowitz (0, timeconst, deviceType->Vth/deviceType->Vdd, deviceType->Vth/deviceType->Vdd, FALL) / (deviceType->Vdd - deviceType->Vth);
   timeconst = (drain_C_(g_tp.min_w_nmos_, NCH, 1, 1, g_tp.cell_h_def) +
-      drain_C_(min_w_pmos, PCH, 1, 1, g_tp.cell_h_def) +
+      drain_C_(min_w_pmos, _PCH, 1, 1, g_tp.cell_h_def) +
       gate_C(min_w_pmos + g_tp.min_w_nmos_, 0)) *
     tr_R_on(g_tp.min_w_nmos_, NCH, 1);
   ft = horowitz (rt, timeconst, deviceType->Vth/deviceType->Vdd, deviceType->Vth/deviceType->Vdd, RISE) / deviceType->Vth;
@@ -263,14 +264,14 @@ double Wire::signal_rise_time ()
   double timeconst;
 
   timeconst = (drain_C_(g_tp.min_w_nmos_, NCH, 1, 1, g_tp.cell_h_def) +
-      drain_C_(min_w_pmos, PCH, 1, 1, g_tp.cell_h_def) +
+      drain_C_(min_w_pmos, _PCH, 1, 1, g_tp.cell_h_def) +
       gate_C(min_w_pmos + g_tp.min_w_nmos_, 0)) *
     tr_R_on(g_tp.min_w_nmos_, NCH, 1);
   rt = horowitz (0, timeconst, deviceType->Vth/deviceType->Vdd, deviceType->Vth/deviceType->Vdd, RISE) / deviceType->Vth;
   timeconst = (drain_C_(g_tp.min_w_nmos_, NCH, 1, 1, g_tp.cell_h_def) +
-      drain_C_(min_w_pmos, PCH, 1, 1, g_tp.cell_h_def) +
+      drain_C_(min_w_pmos, _PCH, 1, 1, g_tp.cell_h_def) +
       gate_C(min_w_pmos + g_tp.min_w_nmos_, 0)) *
-    tr_R_on(min_w_pmos, PCH, 1);
+    tr_R_on(min_w_pmos, _PCH, 1);
   ft = horowitz (rt, timeconst, deviceType->Vth/deviceType->Vdd, deviceType->Vth/deviceType->Vdd, FALL) / (deviceType->Vdd - deviceType->Vth);
   return ft; //sec
 }
@@ -453,7 +454,7 @@ Wire::low_swing_model()
 
   /* nand gate delay */
   double res_eq = (2 * tr_R_on(g_tp.min_w_nmos_, NCH, 1));
-  double cap_eq = 2 * drain_C_(min_w_pmos, PCH, 1, 1, g_tp.cell_h_def) +
+  double cap_eq = 2 * drain_C_(min_w_pmos, _PCH, 1, 1, g_tp.cell_h_def) +
     drain_C_(2*g_tp.min_w_nmos_, NCH, 1, 1, g_tp.cell_h_def) +
     gate_C(inv_size*g_tp.min_w_nmos_, 0) +
     gate_C(inv_size*min_w_pmos, 0);
@@ -471,8 +472,8 @@ Wire::low_swing_model()
    * the gate capacitance of the final stage nmos
    * transistor which in turn depends on nsize
    */
-  res_eq = tr_R_on(inv_size*min_w_pmos, PCH, 1);
-  cap_eq = drain_C_(inv_size*min_w_pmos, PCH, 1, 1, g_tp.cell_h_def) +
+  res_eq = tr_R_on(inv_size*min_w_pmos, _PCH, 1);
+  cap_eq = drain_C_(inv_size*min_w_pmos, _PCH, 1, 1, g_tp.cell_h_def) +
     drain_C_(inv_size*g_tp.min_w_nmos_, NCH, 1, 1, g_tp.cell_h_def) +
     gate_C(nsize, 0);
   timeconst = res_eq * cap_eq;
@@ -550,10 +551,10 @@ Wire::low_swing_model()
   double
 Wire::sense_amp_input_cap()
 {
-  return drain_C_(g_tp.w_iso, PCH, 1, 1, g_tp.cell_h_def) +
+  return drain_C_(g_tp.w_iso, _PCH, 1, 1, g_tp.cell_h_def) +
     gate_C(g_tp.w_sense_en + g_tp.w_sense_n, 0) +
     drain_C_(g_tp.w_sense_n, NCH, 1, 1, g_tp.cell_h_def) +
-    drain_C_(g_tp.w_sense_p, PCH, 1, 1, g_tp.cell_h_def);
+    drain_C_(g_tp.w_sense_p, _PCH, 1, 1, g_tp.cell_h_def);
 }
 
 
@@ -570,11 +571,11 @@ void Wire::delay_optimal_wire ()
 
    // output parasitic capacitance of
    // the min. sized driver
-  double out_cap = drain_C_(min_w_pmos, PCH, 1, 1, g_tp.cell_h_def) +
+  double out_cap = drain_C_(min_w_pmos, _PCH, 1, 1, g_tp.cell_h_def) +
     drain_C_(g_tp.min_w_nmos_, NCH, 1, 1, g_tp.cell_h_def);
   // drive resistance
   double out_res = (tr_R_on(g_tp.min_w_nmos_, NCH, 1) +
-      tr_R_on(min_w_pmos, PCH, 1))/2;
+      tr_R_on(min_w_pmos, _PCH, 1))/2;
   double wr = wire_res(len); //ohm
 
   // wire cap /m
@@ -639,7 +640,7 @@ Wire::init_wire(){
         global.area.h = si;
         global.area.w = sp*1e-6; // m
       }
-//      cout << "Repeater size - "<< i <<
+//      *out_file << "Repeater size - "<< i <<
 //        " Repeater spacing - " << j <<
 //        " Delay - " << del <<
 //        " PowerD - " << pow.readOp.dynamic <<
@@ -737,11 +738,11 @@ powerDef Wire::wire_model (double space, double size, double *delay)
 
    // output parasitic capacitance of
    // the min. sized driver
-  double out_cap = drain_C_(min_w_pmos, PCH, 1, 1, g_tp.cell_h_def) +
+  double out_cap = drain_C_(min_w_pmos, _PCH, 1, 1, g_tp.cell_h_def) +
     drain_C_(g_tp.min_w_nmos_, NCH, 1, 1, g_tp.cell_h_def);
   // drive resistance
   double out_res = (tr_R_on(g_tp.min_w_nmos_, NCH, 1) +
-      tr_R_on(min_w_pmos, PCH, 1))/2;
+      tr_R_on(min_w_pmos, _PCH, 1))/2;
   double wr = wire_res(len); //ohm
 
   // wire cap /m
@@ -780,63 +781,63 @@ void
 Wire::print_wire()
 {
 
-  cout << "\nWire Properties:\n\n";
-  cout << "  Delay Optimal\n\tRepeater size - "<< global.area.h <<
+  *out_file << "\nWire Properties:\n\n";
+  *out_file << "  Delay Optimal\n\tRepeater size - "<< global.area.h <<
     " \n\tRepeater spacing - " << global.area.w*1e3 << " (mm)"
     " \n\tDelay - " << global.delay*1e6 <<  " (ns/mm)"
     " \n\tPowerD - " << global.power.readOp.dynamic *1e6<< " (nJ/mm)"
     " \n\tPowerL - " << global.power.readOp.leakage << " (mW/mm)"
     " \n\tPowerLgate - " << global.power.readOp.gate_leakage << " (mW/mm)\n";
-  cout << "\tWire width - " <<wire_width_init*1e6 << " microns\n";
-  cout << "\tWire spacing - " <<wire_spacing_init*1e6 << " microns\n";
-  cout <<endl;
+  *out_file << "\tWire width - " <<wire_width_init*1e6 << " microns\n";
+  *out_file << "\tWire spacing - " <<wire_spacing_init*1e6 << " microns\n";
+  *out_file <<endl;
 
-  cout << "  5% Overhead\n\tRepeater size - "<< global_5.area.h <<
+  *out_file << "  5% Overhead\n\tRepeater size - "<< global_5.area.h <<
     " \n\tRepeater spacing - " << global_5.area.w*1e3 << " (mm)"
     " \n\tDelay - " << global_5.delay *1e6<<  " (ns/mm)"
     " \n\tPowerD - " << global_5.power.readOp.dynamic *1e6<< " (nJ/mm)"
     " \n\tPowerL - " << global_5.power.readOp.leakage << " (mW/mm)"
     " \n\tPowerLgate - " << global_5.power.readOp.gate_leakage << " (mW/mm)\n";
-  cout << "\tWire width - " <<wire_width_init*1e6 << " microns\n";
-  cout << "\tWire spacing - " <<wire_spacing_init*1e6 << " microns\n";
-  cout <<endl;
-  cout << "  10% Overhead\n\tRepeater size - "<< global_10.area.h <<
+  *out_file << "\tWire width - " <<wire_width_init*1e6 << " microns\n";
+  *out_file << "\tWire spacing - " <<wire_spacing_init*1e6 << " microns\n";
+  *out_file <<endl;
+  *out_file << "  10% Overhead\n\tRepeater size - "<< global_10.area.h <<
     " \n\tRepeater spacing - " << global_10.area.w*1e3 << " (mm)"
     " \n\tDelay - " << global_10.delay *1e6<<  " (ns/mm)"
     " \n\tPowerD - " << global_10.power.readOp.dynamic *1e6<< " (nJ/mm)"
     " \n\tPowerL - " << global_10.power.readOp.leakage << " (mW/mm)"
     " \n\tPowerLgate - " << global_10.power.readOp.gate_leakage << " (mW/mm)\n";
-  cout << "\tWire width - " <<wire_width_init*1e6 << " microns\n";
-  cout << "\tWire spacing - " <<wire_spacing_init*1e6 << " microns\n";
-  cout <<endl;
-  cout << "  20% Overhead\n\tRepeater size - "<< global_20.area.h <<
+  *out_file << "\tWire width - " <<wire_width_init*1e6 << " microns\n";
+  *out_file << "\tWire spacing - " <<wire_spacing_init*1e6 << " microns\n";
+  *out_file <<endl;
+  *out_file << "  20% Overhead\n\tRepeater size - "<< global_20.area.h <<
     " \n\tRepeater spacing - " << global_20.area.w*1e3 << " (mm)"
     " \n\tDelay - " << global_20.delay *1e6<<  " (ns/mm)"
     " \n\tPowerD - " << global_20.power.readOp.dynamic *1e6<< " (nJ/mm)"
     " \n\tPowerL - " << global_20.power.readOp.leakage << " (mW/mm)"
     " \n\tPowerLgate - " << global_20.power.readOp.gate_leakage << " (mW/mm)\n";
-  cout << "\tWire width - " <<wire_width_init*1e6 << " microns\n";
-  cout << "\tWire spacing - " <<wire_spacing_init*1e6 << " microns\n";
-  cout <<endl;
-  cout << "  30% Overhead\n\tRepeater size - "<< global_30.area.h <<
+  *out_file << "\tWire width - " <<wire_width_init*1e6 << " microns\n";
+  *out_file << "\tWire spacing - " <<wire_spacing_init*1e6 << " microns\n";
+  *out_file <<endl;
+  *out_file << "  30% Overhead\n\tRepeater size - "<< global_30.area.h <<
     " \n\tRepeater spacing - " << global_30.area.w*1e3 << " (mm)"
     " \n\tDelay - " << global_30.delay *1e6<<  " (ns/mm)"
     " \n\tPowerD - " << global_30.power.readOp.dynamic *1e6<< " (nJ/mm)"
     " \n\tPowerL - " << global_30.power.readOp.leakage << " (mW/mm)"
     " \n\tPowerLgate - " << global_30.power.readOp.gate_leakage << " (mW/mm)\n";
-  cout << "\tWire width - " <<wire_width_init*1e6 << " microns\n";
-  cout << "\tWire spacing - " <<wire_spacing_init*1e6 << " microns\n";
-  cout <<endl;
-  cout << "  Low-swing wire (1 mm) - Note: Unlike repeated wires, \n\tdelay and power "
+  *out_file << "\tWire width - " <<wire_width_init*1e6 << " microns\n";
+  *out_file << "\tWire spacing - " <<wire_spacing_init*1e6 << " microns\n";
+  *out_file <<endl;
+  *out_file << "  Low-swing wire (1 mm) - Note: Unlike repeated wires, \n\tdelay and power "
             "values of low-swing wires do not\n\thave a linear relationship with length." <<
       " \n\tdelay - " << low_swing.delay *1e9<<  " (ns)"
       " \n\tpowerD - " << low_swing.power.readOp.dynamic *1e9<< " (nJ)"
       " \n\tPowerL - " << low_swing.power.readOp.leakage << " (mW)"
       " \n\tPowerLgate - " << low_swing.power.readOp.gate_leakage << " (mW)\n";
-  cout << "\tWire width - " <<wire_width_init * 2 /* differential */<< " microns\n";
-  cout << "\tWire spacing - " <<wire_spacing_init * 2 /* differential */<< " microns\n";
-  cout <<endl;
-  cout <<endl;
+  *out_file << "\tWire width - " <<wire_width_init * 2 /* differential */<< " microns\n";
+  *out_file << "\tWire spacing - " <<wire_spacing_init * 2 /* differential */<< " microns\n";
+  *out_file <<endl;
+  *out_file <<endl;
 
 }
 

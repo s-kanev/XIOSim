@@ -40,6 +40,7 @@
  *------------------------------------------------------------*/
 
 #include "arbiter.h"
+#include "globalvar.h"
 
 Arbiter::Arbiter(
     double n_req,
@@ -131,10 +132,10 @@ Arbiter::transmission_buf_ctrcap() {
 
 void Arbiter::print_arbiter()
 {
-  cout << "\nArbiter Stats ("   << R << " input arbiter" << ")\n\n";
-  cout << "Flit size        : " << flit_size << " bits" << endl;
-  cout << "Dynamic Power    : " << power.readOp.dynamic*1e9 << " (nJ)" << endl;
-  cout << "Leakage Power    : " << power.readOp.leakage*1e3 << " (mW)" << endl;
+  *out_file << "\nArbiter Stats ("   << R << " input arbiter" << ")\n\n";
+  *out_file << "Flit size        : " << flit_size << " bits" << endl;
+  *out_file << "Dynamic Power    : " << power.readOp.dynamic*1e9 << " (nJ)" << endl;
+  *out_file << "Leakage Power    : " << power.readOp.leakage*1e3 << " (mW)" << endl;
 }
 
 

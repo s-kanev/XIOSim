@@ -58,7 +58,7 @@
 #include <assert.h>
 #include "iocontrollers.h"
 #include "basic_components.h"
-
+#include "globalvar.h"
 
 /*
 SUN Niagara 2 I/O power analysis:
@@ -193,15 +193,15 @@ void NIUController::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 
 	if (is_tdp)
 	{
-		cout << "NIU:" << endl;
-		cout << indent_str<< "Area = " << area.get_area()*1e-6<< " mm^2" << endl;
-		cout << indent_str << "Peak Dynamic = " << power.readOp.dynamic*niup.clockRate  << " W" << endl;
-		cout << indent_str<< "Subthreshold Leakage = "
+		*out_file << "NIU:" << endl;
+		*out_file << indent_str<< "Area = " << area.get_area()*1e-6<< " mm^2" << endl;
+		*out_file << indent_str << "Peak Dynamic = " << power.readOp.dynamic*niup.clockRate  << " W" << endl;
+		*out_file << indent_str<< "Subthreshold Leakage = "
 			<< (long_channel? power.readOp.longer_channel_leakage:power.readOp.leakage) <<" W" << endl;
-		//cout << indent_str<< "Subthreshold Leakage = " << power.readOp.longer_channel_leakage <<" W" << endl;
-		cout << indent_str<< "Gate Leakage = " << power.readOp.gate_leakage << " W" << endl;
-		cout << indent_str << "Runtime Dynamic = " << rt_power.readOp.dynamic*niup.clockRate << " W" << endl;
-		cout<<endl;
+		//*out_file << indent_str<< "Subthreshold Leakage = " << power.readOp.longer_channel_leakage <<" W" << endl;
+		*out_file << indent_str<< "Gate Leakage = " << power.readOp.gate_leakage << " W" << endl;
+		*out_file << indent_str << "Runtime Dynamic = " << rt_power.readOp.dynamic*niup.clockRate << " W" << endl;
+		*out_file<<endl;
 	}
 	else
 	{
@@ -322,15 +322,15 @@ void PCIeController::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 
 	if (is_tdp)
 	{
-		cout << "PCIe:" << endl;
-		cout << indent_str<< "Area = " << area.get_area()*1e-6<< " mm^2" << endl;
-		cout << indent_str << "Peak Dynamic = " << power.readOp.dynamic*pciep.clockRate  << " W" << endl;
-		cout << indent_str<< "Subthreshold Leakage = "
+		*out_file << "PCIe:" << endl;
+		*out_file << indent_str<< "Area = " << area.get_area()*1e-6<< " mm^2" << endl;
+		*out_file << indent_str << "Peak Dynamic = " << power.readOp.dynamic*pciep.clockRate  << " W" << endl;
+		*out_file << indent_str<< "Subthreshold Leakage = "
 			<< (long_channel? power.readOp.longer_channel_leakage:power.readOp.leakage) <<" W" << endl;
-		//cout << indent_str<< "Subthreshold Leakage = " << power.readOp.longer_channel_leakage <<" W" << endl;
-		cout << indent_str<< "Gate Leakage = " << power.readOp.gate_leakage << " W" << endl;
-		cout << indent_str << "Runtime Dynamic = " << rt_power.readOp.dynamic*pciep.clockRate << " W" << endl;
-		cout<<endl;
+		//*out_file << indent_str<< "Subthreshold Leakage = " << power.readOp.longer_channel_leakage <<" W" << endl;
+		*out_file << indent_str<< "Gate Leakage = " << power.readOp.gate_leakage << " W" << endl;
+		*out_file << indent_str << "Runtime Dynamic = " << rt_power.readOp.dynamic*pciep.clockRate << " W" << endl;
+		*out_file<<endl;
 	}
 	else
 	{
@@ -372,7 +372,7 @@ FlashController::FlashController(ParseXML *XML_interface,InputParameter* interfa
 	  set_fc_param();
 	  if (fcp.type == 0) //high performance NIU
 	  {
-		  cout<<"Current McPAT does not support high performance flash contorller since even low power designs are enough for maintain throughput"<<endl;
+		  *out_file<<"Current McPAT does not support high performance flash contorller since even low power designs are enough for maintain throughput"<<endl;
 		  exit(0);
 		  NMOS_sizing 	  = 5*g_tp.min_w_nmos_;
 		  PMOS_sizing	  = 5*g_tp.min_w_nmos_*pmos_to_nmos_sizing_r;
@@ -430,15 +430,15 @@ void FlashController::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 
 	if (is_tdp)
 	{
-		cout << "Flash Controller:" << endl;
-		cout << indent_str<< "Area = " << area.get_area()*1e-6<< " mm^2" << endl;
-		cout << indent_str << "Peak Dynamic = " << power.readOp.dynamic << " W" << endl;//no multiply of clock since this is power already
-		cout << indent_str<< "Subthreshold Leakage = "
+		*out_file << "Flash Controller:" << endl;
+		*out_file << indent_str<< "Area = " << area.get_area()*1e-6<< " mm^2" << endl;
+		*out_file << indent_str << "Peak Dynamic = " << power.readOp.dynamic << " W" << endl;//no multiply of clock since this is power already
+		*out_file << indent_str<< "Subthreshold Leakage = "
 			<< (long_channel? power.readOp.longer_channel_leakage:power.readOp.leakage) <<" W" << endl;
-		//cout << indent_str<< "Subthreshold Leakage = " << power.readOp.longer_channel_leakage <<" W" << endl;
-		cout << indent_str<< "Gate Leakage = " << power.readOp.gate_leakage << " W" << endl;
-		cout << indent_str << "Runtime Dynamic = " << rt_power.readOp.dynamic << " W" << endl;
-		cout<<endl;
+		//*out_file << indent_str<< "Subthreshold Leakage = " << power.readOp.longer_channel_leakage <<" W" << endl;
+		*out_file << indent_str<< "Gate Leakage = " << power.readOp.gate_leakage << " W" << endl;
+		*out_file << indent_str << "Runtime Dynamic = " << rt_power.readOp.dynamic << " W" << endl;
+		*out_file<<endl;
 	}
 	else
 	{

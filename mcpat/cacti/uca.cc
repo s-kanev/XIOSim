@@ -109,8 +109,8 @@ UCA::UCA(const DynamicParameter & dyn_p)
   area.h = htree_in_data->area.h;
 
   area_all_dataramcells = bank.mat.subarray.get_total_cell_area() * dp.num_subarrays * g_ip->nbanks;
-//  cout<<"area cell"<<area_all_dataramcells<<endl;
-//  cout<<area.get_area()<<endl;
+//  *out_file<<"area cell"<<area_all_dataramcells<<endl;
+//  *out_file<<area.get_area()<<endl;
   // delay calculation
   double inrisetime = 0.0;
   compute_delays(inrisetime);

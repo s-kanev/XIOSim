@@ -763,7 +763,7 @@ double shortcircuit_simple(
 //	t2=pow(velocity_index,2.0);
 //	t3=pow(2.0,3*vt_to_vdd_ratio*vt_to_vdd_ratio);
 //	t4=t1/t2/t3;
-//	cout <<t1<<"t1\n"<<t2<<"t2\n"<<t3<<"t3\n"<<t4<<"t4\n"<<fanout<<endl;
+//	*out_file <<t1<<"t1\n"<<t2<<"t2\n"<<t3<<"t3\n"<<t4<<"t4\n"<<fanout<<endl;
 
 	p_short_circuit_discharge_high 	= pow(((vdd-vt)-vt_to_vdd_ratio),1.5)*c_in*vdd*vdd*fo_p/10/pow(2, 3*vt_to_vdd_ratio+2*velocity_index);
 	p_short_circuit_charge_high 	= pow(((vdd-vt)-vt_to_vdd_ratio),1.5)*c_in*vdd*vdd*fo_n/10/pow(2, 3*vt_to_vdd_ratio+2*velocity_index);
@@ -771,7 +771,7 @@ double shortcircuit_simple(
 //	t1=pow(((vdd-vt)-vt_to_vdd_ratio),1.5);
 //	t2=pow(2, 3*vt_to_vdd_ratio+2*velocity_index);
 //	t3=t1/t2;
-//	cout <<t1<<"t1\n"<<t2<<"t2\n"<<t3<<"t3\n"<<t4<<"t4\n"<<fanout<<endl;
+//	*out_file <<t1<<"t1\n"<<t2<<"t2\n"<<t3<<"t3\n"<<t4<<"t4\n"<<fanout<<endl;
 //	p_short_circuit_discharge = 1.0/(1.0/p_short_circuit_discharge_low + 1.0/p_short_circuit_discharge_high);
 //	p_short_circuit_charge = 1/(1/p_short_circuit_charge_low + 1/p_short_circuit_charge_high); //harmmoic mean cannot be applied simple formulas.
 
@@ -820,7 +820,7 @@ double shortcircuit(
 //	t3=pow(2.0,3*vt_to_vdd_ratio*vt_to_vdd_ratio);
 //	t4=t1/t2/t3;
 //
-//	cout <<t1<<"t1\n"<<t2<<"t2\n"<<t3<<"t3\n"<<t4<<"t4\n"<<fanout<<endl;
+//	*out_file <<t1<<"t1\n"<<t2<<"t2\n"<<t3<<"t3\n"<<t4<<"t4\n"<<fanout<<endl;
 //
 //
 //	p_short_circuit_discharge_high 	= pow(((vdd-vt)-vt_to_vdd_ratio),1.5)*c_in*vdd*vdd*fo_p/10/pow(2, 3*vt_to_vdd_ratio+2*velocity_index);

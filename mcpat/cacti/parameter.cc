@@ -47,6 +47,7 @@
 
 #include "parameter.h"
 #include "area.h"
+#include "globalvar.h"
 
 using namespace std;
 
@@ -60,23 +61,23 @@ void TechnologyParameter::DeviceType::display(uint32_t indent)
 {
   string indent_str(indent, ' ');
 
-  cout << indent_str << "C_g_ideal = " << setw(12) << C_g_ideal << " F/um" << endl;
-  cout << indent_str << "C_fringe  = " << setw(12) << C_fringe  << " F/um" << endl;
-  cout << indent_str << "C_overlap = " << setw(12) << C_overlap << " F/um" << endl;
-  cout << indent_str << "C_junc    = " << setw(12) << C_junc    << " F/um^2" << endl;
-  cout << indent_str << "l_phy     = " << setw(12) << l_phy     << " um" << endl;
-  cout << indent_str << "l_elec    = " << setw(12) << l_elec    << " um" << endl;
-  cout << indent_str << "R_nch_on  = " << setw(12) << R_nch_on  << " ohm-um" << endl;
-  cout << indent_str << "R_pch_on  = " << setw(12) << R_pch_on  << " ohm-um" << endl;
-  cout << indent_str << "Vdd       = " << setw(12) << Vdd       << " V" << endl;
-  cout << indent_str << "Vth       = " << setw(12) << Vth       << " V" << endl;
-  cout << indent_str << "I_on_n    = " << setw(12) << I_on_n    << " A/um" << endl;
-  cout << indent_str << "I_on_p    = " << setw(12) << I_on_p    << " A/um" << endl;
-  cout << indent_str << "I_off_n   = " << setw(12) << I_off_n   << " A/um" << endl;
-  cout << indent_str << "I_off_p   = " << setw(12) << I_off_p   << " A/um" << endl;
-  cout << indent_str << "C_ox      = " << setw(12) << C_ox      << " F/um^2" << endl;
-  cout << indent_str << "t_ox      = " << setw(12) << t_ox      << " um" << endl;
-  cout << indent_str << "n_to_p_eff_curr_drv_ratio = " << n_to_p_eff_curr_drv_ratio << endl;
+  *out_file << indent_str << "C_g_ideal = " << setw(12) << C_g_ideal << " F/um" << endl;
+  *out_file << indent_str << "C_fringe  = " << setw(12) << C_fringe  << " F/um" << endl;
+  *out_file << indent_str << "C_overlap = " << setw(12) << C_overlap << " F/um" << endl;
+  *out_file << indent_str << "C_junc    = " << setw(12) << C_junc    << " F/um^2" << endl;
+  *out_file << indent_str << "l_phy     = " << setw(12) << l_phy     << " um" << endl;
+  *out_file << indent_str << "l_elec    = " << setw(12) << l_elec    << " um" << endl;
+  *out_file << indent_str << "R_nch_on  = " << setw(12) << R_nch_on  << " ohm-um" << endl;
+  *out_file << indent_str << "R_pch_on  = " << setw(12) << R_pch_on  << " ohm-um" << endl;
+  *out_file << indent_str << "Vdd       = " << setw(12) << Vdd       << " V" << endl;
+  *out_file << indent_str << "Vth       = " << setw(12) << Vth       << " V" << endl;
+  *out_file << indent_str << "I_on_n    = " << setw(12) << I_on_n    << " A/um" << endl;
+  *out_file << indent_str << "I_on_p    = " << setw(12) << I_on_p    << " A/um" << endl;
+  *out_file << indent_str << "I_off_n   = " << setw(12) << I_off_n   << " A/um" << endl;
+  *out_file << indent_str << "I_off_p   = " << setw(12) << I_off_p   << " A/um" << endl;
+  *out_file << indent_str << "C_ox      = " << setw(12) << C_ox      << " F/um^2" << endl;
+  *out_file << indent_str << "t_ox      = " << setw(12) << t_ox      << " um" << endl;
+  *out_file << indent_str << "n_to_p_eff_curr_drv_ratio = " << n_to_p_eff_curr_drv_ratio << endl;
 }
 
 
@@ -85,29 +86,29 @@ void TechnologyParameter::InterconnectType::display(uint32_t indent)
 {
   string indent_str(indent, ' ');
 
-  cout << indent_str << "pitch    = " << setw(12) << pitch    << " um" << endl;
-  cout << indent_str << "R_per_um = " << setw(12) << R_per_um << " ohm/um" << endl;
-  cout << indent_str << "C_per_um = " << setw(12) << C_per_um << " F/um" << endl;
+  *out_file << indent_str << "pitch    = " << setw(12) << pitch    << " um" << endl;
+  *out_file << indent_str << "R_per_um = " << setw(12) << R_per_um << " ohm/um" << endl;
+  *out_file << indent_str << "C_per_um = " << setw(12) << C_per_um << " F/um" << endl;
 }
 
 void TechnologyParameter::ScalingFactor::display(uint32_t indent)
 {
   string indent_str(indent, ' ');
 
-  cout << indent_str << "logic_scaling_co_eff    = " << setw(12) << logic_scaling_co_eff << endl;
-  cout << indent_str << "curr_core_tx_density = " << setw(12) << core_tx_density << " # of tx/um^2" << endl;
+  *out_file << indent_str << "logic_scaling_co_eff    = " << setw(12) << logic_scaling_co_eff << endl;
+  *out_file << indent_str << "curr_core_tx_density = " << setw(12) << core_tx_density << " # of tx/um^2" << endl;
 }
 
 void TechnologyParameter::MemoryType::display(uint32_t indent)
 {
   string indent_str(indent, ' ');
 
-  cout << indent_str << "b_w         = " << setw(12) << b_w << " um" << endl;
-  cout << indent_str << "b_h         = " << setw(12) << b_h << " um" << endl;
-  cout << indent_str << "cell_a_w    = " << setw(12) << cell_a_w << " um" << endl;
-  cout << indent_str << "cell_pmos_w = " << setw(12) << cell_pmos_w << " um" << endl;
-  cout << indent_str << "cell_nmos_w = " << setw(12) << cell_nmos_w << " um" << endl;
-  cout << indent_str << "Vbitpre     = " << setw(12) << Vbitpre << " V" << endl;
+  *out_file << indent_str << "b_w         = " << setw(12) << b_w << " um" << endl;
+  *out_file << indent_str << "b_h         = " << setw(12) << b_h << " um" << endl;
+  *out_file << indent_str << "cell_a_w    = " << setw(12) << cell_a_w << " um" << endl;
+  *out_file << indent_str << "cell_pmos_w = " << setw(12) << cell_pmos_w << " um" << endl;
+  *out_file << indent_str << "cell_nmos_w = " << setw(12) << cell_nmos_w << " um" << endl;
+  *out_file << indent_str << "Vbitpre     = " << setw(12) << Vbitpre << " V" << endl;
 }
 
 
@@ -116,80 +117,80 @@ void TechnologyParameter::display(uint32_t indent)
 {
   string indent_str(indent, ' ');
 
-  cout << indent_str << "ram_wl_stitching_overhead_ = " << setw(12) << ram_wl_stitching_overhead_ << " um" << endl;
-  cout << indent_str << "min_w_nmos_                = " << setw(12) << min_w_nmos_                << " um" << endl;
-  cout << indent_str << "max_w_nmos_                = " << setw(12) << max_w_nmos_                << " um" << endl;
-  cout << indent_str << "unit_len_wire_del          = " << setw(12) << unit_len_wire_del          << " s/um^2" << endl;
-  cout << indent_str << "FO4                        = " << setw(12) << FO4                        << " s" << endl;
-  cout << indent_str << "kinv                       = " << setw(12) << kinv                       << " s" << endl;
-  cout << indent_str << "vpp                        = " << setw(12) << vpp                        << " V" << endl;
-  cout << indent_str << "w_sense_en                 = " << setw(12) << w_sense_en                 << " um" << endl;
-  cout << indent_str << "w_sense_n                  = " << setw(12) << w_sense_n                  << " um" << endl;
-  cout << indent_str << "w_sense_p                  = " << setw(12) << w_sense_p                  << " um" << endl;
-  cout << indent_str << "w_iso                      = " << setw(12) << w_iso                      << " um" << endl;
-  cout << indent_str << "w_poly_contact             = " << setw(12) << w_poly_contact             << " um" << endl;
-  cout << indent_str << "spacing_poly_to_poly       = " << setw(12) << spacing_poly_to_poly       << " um" << endl;
-  cout << indent_str << "spacing_poly_to_contact    = " << setw(12) << spacing_poly_to_contact    << " um" << endl;
-  cout << endl;
-  cout << indent_str << "w_comp_inv_p1              = " << setw(12) << w_comp_inv_p1 << " um" << endl;
-  cout << indent_str << "w_comp_inv_p2              = " << setw(12) << w_comp_inv_p2 << " um" << endl;
-  cout << indent_str << "w_comp_inv_p3              = " << setw(12) << w_comp_inv_p3 << " um" << endl;
-  cout << indent_str << "w_comp_inv_n1              = " << setw(12) << w_comp_inv_n1 << " um" << endl;
-  cout << indent_str << "w_comp_inv_n2              = " << setw(12) << w_comp_inv_n2 << " um" << endl;
-  cout << indent_str << "w_comp_inv_n3              = " << setw(12) << w_comp_inv_n3 << " um" << endl;
-  cout << indent_str << "w_eval_inv_p               = " << setw(12) << w_eval_inv_p  << " um" << endl;
-  cout << indent_str << "w_eval_inv_n               = " << setw(12) << w_eval_inv_n  << " um" << endl;
-  cout << indent_str << "w_comp_n                   = " << setw(12) << w_comp_n      << " um" << endl;
-  cout << indent_str << "w_comp_p                   = " << setw(12) << w_comp_p      << " um" << endl;
-  cout << endl;
-  cout << indent_str << "dram_cell_I_on             = " << setw(12) << dram_cell_I_on << " A/um" << endl;
-  cout << indent_str << "dram_cell_Vdd              = " << setw(12) << dram_cell_Vdd  << " V" << endl;
-  cout << indent_str << "dram_cell_I_off_worst_case_len_temp = " << setw(12) << dram_cell_I_off_worst_case_len_temp << " A/um" << endl;
-  cout << indent_str << "dram_cell_C                = " << setw(12) << dram_cell_C               << " F" << endl;
-  cout << indent_str << "gm_sense_amp_latch         = " << setw(12) << gm_sense_amp_latch        << " F/s" << endl;
-  cout << endl;
-  cout << indent_str << "w_nmos_b_mux               = " << setw(12) << w_nmos_b_mux              << " um" << endl;
-  cout << indent_str << "w_nmos_sa_mux              = " << setw(12) << w_nmos_sa_mux             << " um" << endl;
-  cout << indent_str << "w_pmos_bl_precharge        = " << setw(12) << w_pmos_bl_precharge       << " um" << endl;
-  cout << indent_str << "w_pmos_bl_eq               = " << setw(12) << w_pmos_bl_eq              << " um" << endl;
-  cout << indent_str << "MIN_GAP_BET_P_AND_N_DIFFS  = " << setw(12) << MIN_GAP_BET_P_AND_N_DIFFS << " um" << endl;
-  cout << indent_str << "HPOWERRAIL                 = " << setw(12) << HPOWERRAIL                << " um" << endl;
-  cout << indent_str << "cell_h_def                 = " << setw(12) << cell_h_def                << " um" << endl;
+  *out_file << indent_str << "ram_wl_stitching_overhead_ = " << setw(12) << ram_wl_stitching_overhead_ << " um" << endl;
+  *out_file << indent_str << "min_w_nmos_                = " << setw(12) << min_w_nmos_                << " um" << endl;
+  *out_file << indent_str << "max_w_nmos_                = " << setw(12) << max_w_nmos_                << " um" << endl;
+  *out_file << indent_str << "unit_len_wire_del          = " << setw(12) << unit_len_wire_del          << " s/um^2" << endl;
+  *out_file << indent_str << "FO4                        = " << setw(12) << FO4                        << " s" << endl;
+  *out_file << indent_str << "kinv                       = " << setw(12) << kinv                       << " s" << endl;
+  *out_file << indent_str << "vpp                        = " << setw(12) << vpp                        << " V" << endl;
+  *out_file << indent_str << "w_sense_en                 = " << setw(12) << w_sense_en                 << " um" << endl;
+  *out_file << indent_str << "w_sense_n                  = " << setw(12) << w_sense_n                  << " um" << endl;
+  *out_file << indent_str << "w_sense_p                  = " << setw(12) << w_sense_p                  << " um" << endl;
+  *out_file << indent_str << "w_iso                      = " << setw(12) << w_iso                      << " um" << endl;
+  *out_file << indent_str << "w_poly_contact             = " << setw(12) << w_poly_contact             << " um" << endl;
+  *out_file << indent_str << "spacing_poly_to_poly       = " << setw(12) << spacing_poly_to_poly       << " um" << endl;
+  *out_file << indent_str << "spacing_poly_to_contact    = " << setw(12) << spacing_poly_to_contact    << " um" << endl;
+  *out_file << endl;
+  *out_file << indent_str << "w_comp_inv_p1              = " << setw(12) << w_comp_inv_p1 << " um" << endl;
+  *out_file << indent_str << "w_comp_inv_p2              = " << setw(12) << w_comp_inv_p2 << " um" << endl;
+  *out_file << indent_str << "w_comp_inv_p3              = " << setw(12) << w_comp_inv_p3 << " um" << endl;
+  *out_file << indent_str << "w_comp_inv_n1              = " << setw(12) << w_comp_inv_n1 << " um" << endl;
+  *out_file << indent_str << "w_comp_inv_n2              = " << setw(12) << w_comp_inv_n2 << " um" << endl;
+  *out_file << indent_str << "w_comp_inv_n3              = " << setw(12) << w_comp_inv_n3 << " um" << endl;
+  *out_file << indent_str << "w_eval_inv_p               = " << setw(12) << w_eval_inv_p  << " um" << endl;
+  *out_file << indent_str << "w_eval_inv_n               = " << setw(12) << w_eval_inv_n  << " um" << endl;
+  *out_file << indent_str << "w_comp_n                   = " << setw(12) << w_comp_n      << " um" << endl;
+  *out_file << indent_str << "w_comp_p                   = " << setw(12) << w_comp_p      << " um" << endl;
+  *out_file << endl;
+  *out_file << indent_str << "dram_cell_I_on             = " << setw(12) << dram_cell_I_on << " A/um" << endl;
+  *out_file << indent_str << "dram_cell_Vdd              = " << setw(12) << dram_cell_Vdd  << " V" << endl;
+  *out_file << indent_str << "dram_cell_I_off_worst_case_len_temp = " << setw(12) << dram_cell_I_off_worst_case_len_temp << " A/um" << endl;
+  *out_file << indent_str << "dram_cell_C                = " << setw(12) << dram_cell_C               << " F" << endl;
+  *out_file << indent_str << "gm_sense_amp_latch         = " << setw(12) << gm_sense_amp_latch        << " F/s" << endl;
+  *out_file << endl;
+  *out_file << indent_str << "w_nmos_b_mux               = " << setw(12) << w_nmos_b_mux              << " um" << endl;
+  *out_file << indent_str << "w_nmos_sa_mux              = " << setw(12) << w_nmos_sa_mux             << " um" << endl;
+  *out_file << indent_str << "w_pmos_bl_precharge        = " << setw(12) << w_pmos_bl_precharge       << " um" << endl;
+  *out_file << indent_str << "w_pmos_bl_eq               = " << setw(12) << w_pmos_bl_eq              << " um" << endl;
+  *out_file << indent_str << "MIN_GAP_BET_P_AND_N_DIFFS  = " << setw(12) << MIN_GAP_BET_P_AND_N_DIFFS << " um" << endl;
+  *out_file << indent_str << "HPOWERRAIL                 = " << setw(12) << HPOWERRAIL                << " um" << endl;
+  *out_file << indent_str << "cell_h_def                 = " << setw(12) << cell_h_def                << " um" << endl;
 
-  cout << endl;
-  cout << indent_str << "SRAM cell transistor: " << endl;
+  *out_file << endl;
+  *out_file << indent_str << "SRAM cell transistor: " << endl;
   sram_cell.display(indent + 2);
 
-  cout << endl;
-  cout << indent_str << "DRAM access transistor: " << endl;
+  *out_file << endl;
+  *out_file << indent_str << "DRAM access transistor: " << endl;
   dram_acc.display(indent + 2);
 
-  cout << endl;
-  cout << indent_str << "DRAM wordline transistor: " << endl;
+  *out_file << endl;
+  *out_file << indent_str << "DRAM wordline transistor: " << endl;
   dram_wl.display(indent + 2);
 
-  cout << endl;
-  cout << indent_str << "peripheral global transistor: " << endl;
+  *out_file << endl;
+  *out_file << indent_str << "peripheral global transistor: " << endl;
   peri_global.display(indent + 2);
 
-  cout << endl;
-  cout << indent_str << "wire local" << endl;
+  *out_file << endl;
+  *out_file << indent_str << "wire local" << endl;
   wire_local.display(indent + 2);
 
-  cout << endl;
-  cout << indent_str << "wire inside mat" << endl;
+  *out_file << endl;
+  *out_file << indent_str << "wire inside mat" << endl;
   wire_inside_mat.display(indent + 2);
 
-  cout << endl;
-  cout << indent_str << "wire outside mat" << endl;
+  *out_file << endl;
+  *out_file << indent_str << "wire outside mat" << endl;
   wire_outside_mat.display(indent + 2);
 
-  cout << endl;
-  cout << indent_str << "SRAM" << endl;
+  *out_file << endl;
+  *out_file << indent_str << "SRAM" << endl;
   sram.display(indent + 2);
 
-  cout << endl;
-  cout << indent_str << "DRAM" << endl;
+  *out_file << endl;
+  *out_file << indent_str << "DRAM" << endl;
   dram.display(indent + 2);
 }
 
@@ -300,7 +301,7 @@ DynamicParameter::DynamicParameter(
 		  else
 		  {
 			  tagbits = int(ceil((ADDRESS_BITS + EXTRA_TAG_BITS)/8.0)*8);
-//			  cout<<"Pure CAM needs tag width to be specified"<<endl;
+//			  *out_file<<"Pure CAM needs tag width to be specified"<<endl;
 //			  exit(0);
 		  }
 		  //tagbits = (((tagbits + 3) >> 2) << 2);
@@ -322,7 +323,7 @@ DynamicParameter::DynamicParameter(
 		  }
 		  else
 		  {
-			  tagbits = ADDRESS_BITS + EXTRA_TAG_BITS - _log2(g_ip->block_sz);//TODO: should be the page_offset=log2(page size), but this info is not avail with CACTI, for McPAT this is no problem.
+			  tagbits = ADDRESS_BITS + EXTRA_TAG_BITS - _log2(g_ip->block_sz);//TODO: should be the page_offset=logtwo(page size), but this info is not avail with CACTI, for McPAT this is no problem.
 		  }
 		  tagbits = (((tagbits + 3) >> 2) << 2);
 
@@ -455,7 +456,7 @@ DynamicParameter::DynamicParameter(
   {
 	    switch (Ndbl) {
 	      case (0):
-	        cout <<  "   Invalid Ndbl \n"<<endl;
+	        *out_file <<  "   Invalid Ndbl \n"<<endl;
 	        exit(0);
 	        break;
 	      case (1):
@@ -479,7 +480,7 @@ DynamicParameter::DynamicParameter(
 	    }
 	    else
 	    {
-	    	num_so_b_mat = int(ceil(log2(num_r_subarray)) + ceil(log2(num_subarrays)));//the address contains the matched data
+	    	num_so_b_mat = int(ceil(logtwo(num_r_subarray)) + ceil(logtwo(num_subarrays)));//the address contains the matched data
 	    	num_do_b_mat = tagbits;
 	    }
   }
@@ -548,7 +549,7 @@ DynamicParameter::DynamicParameter(
 	  }
 	  else
 	  {
-		  num_so_b_subbank = int(ceil(log2(num_r_subarray)) + ceil(log2(num_subarrays)));//the address contains the matched data
+		  num_so_b_subbank = int(ceil(logtwo(num_r_subarray)) + ceil(logtwo(num_subarrays)));//the address contains the matched data
 		  num_do_b_subbank = tag_num_c_subarray;
 	  }
 
@@ -645,7 +646,7 @@ DynamicParameter::DynamicParameter(
   if  ((fully_assoc ||pure_cam))
 	  num_addr_b_row_dec     +=_log2(num_subarrays/num_mats);
   int number_subbanks        = num_mats / num_act_mats_hor_dir;
-  number_subbanks_decode = _log2(number_subbanks);//TODO: add log2(num_subarray_per_bank) to FA/CAM
+  number_subbanks_decode = _log2(number_subbanks);//TODO: add logtwo(num_subarray_per_bank) to FA/CAM
 
   num_rw_ports = g_ip->num_rw_ports;
   num_rd_ports = g_ip->num_rd_ports;
@@ -691,7 +692,7 @@ DynamicParameter::DynamicParameter(
 		  num_di_b_bank_per_port = tagbits;
 		  num_si_b_bank_per_port = tagbits;
 		  num_do_b_bank_per_port = tagbits;
-		  num_so_b_bank_per_port = int(ceil(log2(num_r_subarray)) + ceil(log2(num_subarrays)));
+		  num_so_b_bank_per_port = int(ceil(logtwo(num_r_subarray)) + ceil(logtwo(num_subarrays)));
 	  }
   }
 

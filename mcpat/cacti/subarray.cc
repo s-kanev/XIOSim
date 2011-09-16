@@ -55,7 +55,7 @@ Subarray::Subarray(const DynamicParameter & dp_, bool is_fa_):
   cell(dp.cell), cam_cell(dp.cam_cell), is_fa(is_fa_)
 {
 	//num_cols=7;
-	//cout<<"num_cols ="<< num_cols <<endl;
+	//*out_file<<"num_cols ="<< num_cols <<endl;
   if (!(is_fa || dp.pure_cam))
   {
 	  num_cols +=(g_ip->add_ecc_b_ ? (int)ceil(num_cols / num_bits_per_ecc_b_) : 0);   // ECC overhead
@@ -66,7 +66,7 @@ Subarray::Subarray(const DynamicParameter & dp_, bool is_fa_):
 	  area.h = cell.h * num_rows;
 
 	  area.w = cell.w * num_cols +
-	  ceil(num_cols / ram_num_cells_wl_stitching) * g_tp.ram_wl_stitching_overhead_;  // stitching overhead
+	  ceil((double)num_cols / (double)ram_num_cells_wl_stitching) * g_tp.ram_wl_stitching_overhead_;  // stitching overhead
   }
   else  //cam fa
   {
@@ -87,7 +87,7 @@ Subarray::Subarray(const DynamicParameter & dp_, bool is_fa_):
 
 	  area.h = cam_cell.h * (num_rows + 1);//height of subarray is decided by CAM array. blank space in sram array are filled with dummy cells
 	  area.w = cam_cell.w * num_cols_fa_cam + cell.w * num_cols_fa_ram
-	  + ceil((num_cols_fa_cam + num_cols_fa_ram) / sram_num_cells_wl_stitching_)*g_tp.ram_wl_stitching_overhead_
+	  + ceil((double)(num_cols_fa_cam + num_cols_fa_ram) / (double)sram_num_cells_wl_stitching_)*g_tp.ram_wl_stitching_overhead_
 	  + 16*g_tp.wire_local.pitch //the overhead for the NAND gate to connect the two halves
 	  + 128*g_tp.wire_local.pitch;//the overhead for the drivers from matchline to wordline of RAM
   }
@@ -117,7 +117,7 @@ double Subarray::get_total_cell_area()
     else if (is_fa)
     { //for FA, this area includes the dummy cells in SRAM arrays.
       //return (cam_cell.get_area()*(num_rows+1)*(num_cols_fa_cam + num_cols_fa_ram));
-      //cout<<"diff" <<cam_cell.get_area()*(num_rows+1)*(num_cols_fa_cam + num_cols_fa_ram)- cam_cell.h*(num_rows+1)*(cam_cell.w*num_cols_fa_cam + cell.w*num_cols_fa_ram)<<endl;
+      //*out_file<<"diff" <<cam_cell.get_area()*(num_rows+1)*(num_cols_fa_cam + num_cols_fa_ram)- cam_cell.h*(num_rows+1)*(cam_cell.w*num_cols_fa_cam + cell.w*num_cols_fa_ram)<<endl;
       return (cam_cell.h*(num_rows+1)*(cam_cell.w*num_cols_fa_cam + cell.w*num_cols_fa_ram));
     }
     else

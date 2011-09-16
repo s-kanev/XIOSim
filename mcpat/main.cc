@@ -64,7 +64,8 @@ int main(int argc,char *argv[])
 	bool infile_specified     = false;
 	int  plevel               = 2;
 	opt_for_clk	=true;
-	//cout.precision(10);
+	out_file = &cout;
+   //*out_file.precision(10);
 	if (argc <= 1 || argv[1] == string("-h") || argv[1] == string("--help"))
 	{
 		print_usage(argv[0]);
@@ -96,8 +97,8 @@ int main(int argc,char *argv[])
 		print_usage(argv[0]);
 	}
 
-
-	cout<<"McPAT (version "<< VER_MAJOR <<"."<< VER_MINOR
+   
+	*out_file<<"McPAT (version "<< VER_MAJOR <<"."<< VER_MINOR
 		<< " of " << VER_UPDATE << ") is computing the target processor...\n "<<endl;
 
 	//parse XML-based interface

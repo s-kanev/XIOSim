@@ -51,7 +51,6 @@
 #include "cacti_interface.h"
 #include "Ucache.h"
 
-#include <pthread.h>
 #include <iostream>
 #include <algorithm>
 

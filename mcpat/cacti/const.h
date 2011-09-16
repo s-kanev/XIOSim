@@ -119,7 +119,7 @@ const double WmuxdrvNANDp = 0;
 #define RISE 1
 #define FALL 0
 #define NCH  1
-#define PCH  0
+#define _PCH  0
 
 
 #define EPSILON 0.5 //v4.1: This constant is being used in order to fix floating point -> integer
