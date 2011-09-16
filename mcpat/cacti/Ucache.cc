@@ -56,7 +56,9 @@
 #include "uca.h"
 #include "globalvar.h"
 
+#ifndef PIN
 #include <pthread.h>
+#endif
 #include <iostream>
 #include <algorithm>
 #include <list>
@@ -234,7 +236,9 @@ void * calc_time_mt_wrapper(void * void_obj)
   data_arr.pop_back();
   tag_arr.pop_back();
 
+#ifndef PIN
   pthread_exit(NULL);
+#endif
 }
 
 
@@ -712,7 +716,9 @@ void solve(uca_org_t *fin_res)
 
   // distribute calculate_time() execution to multiple threads
   calc_time_mt_wrapper_struct * calc_array = new calc_time_mt_wrapper_struct[nthreads];
+#ifndef PIN
   pthread_t threads[nthreads];
+#endif
 
   for (uint32_t t = 0; t < nthreads; t++)
   {
@@ -739,13 +745,18 @@ void solve(uca_org_t *fin_res)
       calc_array[t].is_tag      = is_tag;
       calc_array[t].is_main_mem = false;
       calc_array[t].Nspd_min    = 0.125;
+#ifndef PIN
       pthread_create(&threads[t], NULL, calc_time_mt_wrapper, (void *)(&(calc_array[t])));
+#else
+      calc_time_mt_wrapper((void *)&calc_array[t]);
+#endif
     }
+#ifndef PIN
     for (uint32_t t = 0; t < nthreads; t++)
     {
        pthread_join(threads[t], NULL);
     }
-
+#endif
     for (uint32_t t = 0; t < nthreads; t++)
     {
       calc_array[t].data_arr.sort(mem_array::lt);
@@ -777,14 +788,18 @@ void solve(uca_org_t *fin_res)
     	  calc_array[t].Nspd_min    = 1;
       }
 
+#ifndef PIN
       pthread_create(&threads[t], NULL, calc_time_mt_wrapper, (void *)(&(calc_array[t])));
+#else
+      calc_time_mt_wrapper((void *)&calc_array[t]);
+#endif
     }
-
+#ifndef PIN
     for (uint32_t t = 0; t < nthreads; t++)
     {
        pthread_join(threads[t], NULL);
     }
-
+#endif
     data_arr.clear();
     for (uint32_t t = 0; t < nthreads; t++)
     {

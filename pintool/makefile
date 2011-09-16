@@ -101,10 +101,10 @@ $(OBJDIR)%.o : %.C
 $(OBJDIR)%.o : %.cpp
 	$(CXX) -c $(CXXFLAGS) $(PIN_CXXFLAGS) ${OUTOPT}$@ $<
 
-$(TOOLS): $(PIN_LIBNAMES) $(TOOL_OBJS) $(ZESTO_HOME)/libsim.a
+$(TOOLS): $(PIN_LIBNAMES) $(TOOL_OBJS) $(ZESTO_HOME)/libsim.a $(ZESTO_HOME)/mcpat/mcpat.a
 
 $(TOOLS): %$(PINTOOL_SUFFIX) : %.o 
-	${PIN_LD} -g $(PIN_LDFLAGS) -I$(ZESTO_HOME) -L$(ZESTO_HOME) $(LINK_DEBUG) ${LINK_OUT} $@ $< ${PIN_LPATHS} $(TOOL_OBJS) $(ZESTO_HOME)/libsim.a $(PIN_LIBS) $(DBG) -g
+	${PIN_LD} -g $(PIN_LDFLAGS) -I$(ZESTO_HOME) -L$(ZESTO_HOME) $(LINK_DEBUG) ${LINK_OUT} $@ $< ${PIN_LPATHS} $(TOOL_OBJS) $(ZESTO_HOME)/libsim.a $(ZESTO_HOME)/mcpat/mcpat.a $(PIN_LIBS) $(DBG) -g
 
 
 ## cleaning

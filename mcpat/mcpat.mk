@@ -2,8 +2,10 @@ SHELL = /bin/sh
 .PHONY: all depend clean
 .SUFFIXES: .cc .o
 
-ifndef NTHREADS
-  NTHREADS = 4
+ifeq ($(TGT),lib)
+  NTHREADS?= 1
+else
+  NTHREADS?= 4
 endif
 
 
