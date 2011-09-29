@@ -64,6 +64,7 @@ void mcpat_initialize(ParseXML* p1, ostream *_out_file, int _print_level) {
    out_file = _out_file;
 
    proc = new Processor(p1);
+   proc->compute();
 }
 
 void mcpat_compute_energy(bool print_power, double * cores_rtp, double * uncore_rtp) {
@@ -89,7 +90,8 @@ void mcpat_compute_energy(bool print_power, double * cores_rtp, double * uncore_
 
    /* Similarly for those components, even though we don't care about their power for now */
    //XXX: Here we call set_*_param because they are quite short and don't overwrite anything important
-   proc->mc->set_mc_param();
+   if (proc->XML->sys.mc.number_mcs > 0)
+       proc->mc->set_mc_param();
    if (proc->flashcontroller)
       proc->flashcontroller->set_fc_param();
    if (proc->niu)
@@ -99,6 +101,7 @@ void mcpat_compute_energy(bool print_power, double * cores_rtp, double * uncore_
    for (i=0; i<proc->numNOC; i++)
       proc->nocs[i]->set_noc_param();
 
+
    /* Finally, compute power */
    proc->compute();
    
@@ -106,9 +109,12 @@ void mcpat_compute_energy(bool print_power, double * cores_rtp, double * uncore_
       proc->displayEnergy(2, print_level);
 
    /* Set return values */
-   for (i=0; i<proc->numCore; i++)
-      cores_rtp[i] = proc->cores[i]->rt_power.readOp.dynamic/proc->cores[i]->coredynp.executionTime;
-   *uncore_rtp = proc->rt_power.readOp.dynamic - proc->core.rt_power.readOp.dynamic;
+   if (cores_rtp)
+      for (i=0; i<proc->numCore; i++)
+         cores_rtp[i] = proc->cores[i]->rt_power.readOp.dynamic/proc->cores[i]->coredynp.executionTime;
+
+   if (uncore_rtp)
+      *uncore_rtp = proc->rt_power.readOp.dynamic - proc->core.rt_power.readOp.dynamic;
 }
 
 void mcpat_finalize() {

@@ -1,0 +1,28 @@
+#ifndef ZESTO_POWER_INCLUDED
+#define ZESTO_POWER_INCLUDE
+
+void init_power(void);
+void deinit_power(void);
+void compute_power(void);
+
+#include "XML_Parse.h"
+
+class core_power_t {
+
+  public:
+  core_power_t(void);
+  ~core_power_t(void);
+
+  double rt_power;
+
+  virtual void translate_params(system_core *core_params) = 0;
+  virtual void translate_stats(system_core* core_stats) = 0;
+
+  protected:
+  struct  core_t *core;
+};
+
+void power_reg_options(struct opt_odb_t *odb, struct core_knobs_t * knobs);
+class core_power_t * power_create(const char * power_opt_string, struct core_t * core);
+
+#endif /*ZESTO_POWER*/

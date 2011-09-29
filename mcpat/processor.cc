@@ -122,6 +122,7 @@ Processor::Processor(ParseXML *XML_interface)
 
   for (i = 0;i < numCore; i++)
   {
+
 		  cores.push_back(new Core(XML,i, &interface_ip));
 		  cores[i]->computeEnergy();
 		  cores[i]->computeEnergy(false);

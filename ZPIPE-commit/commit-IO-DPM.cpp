@@ -339,6 +339,11 @@ core_commit_IO_DPM_t::reg_stats(struct stat_sdb_t * const sdb)
                                            /* index map */NULL,
                                            /* scale_me */TRUE,
                                            /* print fn */NULL);
+
+  sprintf(buf,"c%d.regfile_writes",arch->id);
+  stat_reg_counter(sdb, true, buf, "number of register file writes", &core->stat.regfile_writes, 0, TRUE, NULL);
+  sprintf(buf,"c%d.fp_regfile_writes",arch->id);
+  stat_reg_counter(sdb, true, buf, "number of fp refister file writes", &core->stat.fp_regfile_writes, 0, TRUE, NULL);
 }
 
 void core_commit_IO_DPM_t::update_occupancy(void)
@@ -571,6 +576,11 @@ void core_commit_IO_DPM_t::IO_step(void)
 
         zesto_assert(uop->timing.when_exec != TICK_T_MAX,(void)0);
       }
+
+      if(REG_IS_GPR(uop->decode.odep_name))
+        core->stat.regfile_writes++;
+      else if(REG_IS_FPR(uop->decode.odep_name))
+        core->stat.fp_regfile_writes++;
 
       /* this cleans up idep/odep ptrs, register mappings, and
          commit stores to the real (non-spec) memory system */

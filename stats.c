@@ -1115,11 +1115,28 @@ stat_print_stats(struct stat_sdb_t *sdb,/* stat database */
 stat_find_stat(struct stat_sdb_t *sdb,	/* stat database */
     const char *stat_name)		/* stat name */
 {
-  struct stat_stat_t *stat;
+  struct stat_stat_t *stat = NULL;
 
   for (stat = sdb->stats; stat != NULL; stat = stat->next)
   {
     if (!strcmp(stat->name, stat_name))
+      break;
+  }
+  return stat;
+}
+
+  struct stat_stat_t *
+stat_find_core_stat(struct stat_sdb_t *sdb,
+    int core_id,
+    const char *stat_name)
+{
+  struct stat_stat_t *stat = NULL;
+  static char name[64];
+
+  snprintf(name, 64, "c%d.%s", core_id, stat_name);
+  for (stat = sdb->stats; stat != NULL; stat = stat->next)
+  {
+    if (!strcmp(stat->name, name))
       break;
   }
   return stat;

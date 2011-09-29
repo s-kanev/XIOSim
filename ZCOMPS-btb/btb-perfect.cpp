@@ -58,6 +58,9 @@ class BTB_perfect_t:public BTB_t
     }
   }
 
+  int get_num_entries(void) { return 0; }
+  int get_tag_width(void) { return 0; }
+  int get_num_ways(void) { return 0; }
 };
 
 #endif /* BTB_PARSE_ARGS */

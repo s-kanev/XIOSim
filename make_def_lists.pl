@@ -13,6 +13,8 @@ $comps{"prefetch"}  = "ZCOMPS-prefetch";
 $comps{"dram"}  = "ZCOMPS-dram";
 $comps{"MC"}  = "ZCOMPS-MC";
 
+$comps{"power"} = "ZCORE-power";
+
 $component = $ARGV[0];
 
 unless(defined $component) { die "must specify a component name"; }

@@ -86,6 +86,12 @@ debug:	tools
 tools: $(OBJDIR) $(TOOLS) $(OBJDIR)cp-pin.exe
 test: $(OBJDIR) $(TOOL_ROOTS:%=%.test)
 
+$(ZESTO_HOME)/libsim.a:
+	$(MAKE) -C $(ZESTO_HOME) lib
+
+$(ZESTO_HOME)/mcpat/mcpat.a:
+	$(MAKE) -C $(ZESTO_HOME)/mcpat lib
+
 MyPinTool.test: $(OBJDIR)cp-pin.exe
       $(MAKE) -k -C feeder_zesto PIN_HOME=$(PIN_HOME)
 

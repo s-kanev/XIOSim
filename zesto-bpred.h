@@ -165,6 +165,11 @@ class bpred_t
   class bpred_state_cache_t * get_state_cache(void);
   void   return_state_cache(class bpred_state_cache_t * const /* state cache being returned */);
 
+  /* Accessors */
+  class RAS_t* get_ras(void) { return ras; }
+  class BTB_t* get_dir_btb(void) { return dirjmp_BTB; }
+  class bpred_dir_t** get_dir_bpred(void) { return bpreds; }
+
   private: /* called from constructor/destructor */
   void   init_state_cache_pool(int /* initial pool size */);
   void   destroy_state_cache_pool(void);
@@ -243,6 +248,13 @@ class bpred_dir_t
   virtual class bpred_sc_t * get_cache(void);
 
   virtual void ret_cache(class bpred_sc_t * const scvp);
+
+  virtual int get_local_size(void) { return 0; };
+  virtual int get_local_width(int lev) { return 0; };
+  virtual int get_global_size(void) { return 0; };
+  virtual int get_global_width(void) { return 0; };
+  virtual int get_chooser_size(void) { return 0; };
+  virtual int get_chooser_width(void) { return 0; };
 };
 
 class fusion_sc_t:public bpred_sc_t
@@ -383,6 +395,10 @@ class BTB_t
   virtual class BTB_sc_t * get_cache(void);
 
   virtual void ret_cache(class BTB_sc_t * const scvp);
+
+  virtual int get_num_entries(void) = 0;
+  virtual int get_tag_width(void) = 0;
+  virtual int get_num_ways(void) = 0;
 };
 
 /* subroutine return address predictor */
@@ -449,7 +465,7 @@ class RAS_t
       const md_addr_t tPC,
       const md_addr_t oPC);
 
-
+  virtual int get_size(void) = 0;
 };
 
 /* This is analogous to the various update_ptr's in the original

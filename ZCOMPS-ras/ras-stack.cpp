@@ -61,6 +61,11 @@ class RAS_stack_t:public RAS_t
     free(type); type = NULL;
   }
 
+  int get_size(void)
+  {
+    return size;
+  }
+
   /* PUSH */
   RAS_PUSH_HEADER
   {

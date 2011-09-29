@@ -130,6 +130,11 @@ core_alloc_IO_DPM_t::reg_stats(struct stat_sdb_t * const sdb)
                                           /* index map */alloc_stall_str,
                                           /* scale_me */TRUE,
                                           /* print fn */NULL);
+
+  sprintf(buf,"c%d.regfile_reads",arch->id);
+  stat_reg_counter(sdb, true, buf, "number of register file reads", &core->stat.regfile_reads, 0, TRUE, NULL);
+  sprintf(buf,"c%d.fp_regfile_reads",arch->id);
+  stat_reg_counter(sdb, true, buf, "number of fp refister file reads", &core->stat.fp_regfile_reads, 0, TRUE, NULL);
 }
 
 /************************/
@@ -341,6 +346,14 @@ void core_alloc_IO_DPM_t::step(void)
                 odep->aflags = (uop->decode.idep_name[j] == DCREG(MD_REG_AFLAGS));
                 odep->op_num = j;
               }
+            }
+
+            for(int j=0;j<MAX_IDEPS;j++)
+            {
+              if(REG_IS_GPR(uop->decode.idep_name[j]))
+                core->stat.regfile_reads++;
+              else if(REG_IS_FPR(uop->decode.idep_name[j]))
+                core->stat.fp_regfile_reads++;
             }
 
             /* check "scoreboard" for operand readiness (we're not actually

@@ -36,6 +36,11 @@ class RAS_perfect_t:public RAS_t
     if(type) free(type); type = NULL;
   }
 
+  int get_size(void)
+  {
+    return 0;
+  }
+
   /* POP */
   RAS_POP_HEADER
   {

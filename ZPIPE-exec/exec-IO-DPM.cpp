@@ -48,6 +48,7 @@ class core_exec_IO_DPM_t:public core_exec_t
     int issue_rate; /* number of cycles between issuing independent instructions on this ALU */
     tick_t when_scheduleable; /* cycle when next instruction can be scheduled for this ALU */
     tick_t when_executable; /* cycle when next instruction can actually start executing on this ALU */
+    counter_t total_occupancy;
   };
 
   public:
@@ -593,6 +594,13 @@ core_exec_IO_DPM_t::reg_stats(struct stat_sdb_t * const sdb)
     stat_reg_formula(sdb, true, buf, "average issue occupancy", buf2, NULL);
   }
 
+  sprintf(buf,"c%d.int_FU_occupancy",arch->id);
+  stat_reg_counter(sdb, true, buf, "int FUs occupancy", &core->stat.int_FU_occupancy, 0, TRUE, NULL);
+  sprintf(buf,"c%d.fp_FU_occupancy",arch->id);
+  stat_reg_counter(sdb, true, buf, "fp FUs occupancy", &core->stat.fp_FU_occupancy, 0, TRUE, NULL);
+  sprintf(buf,"c%d.mul_FU_occupancy",arch->id);
+  stat_reg_counter(sdb, true, buf, "mul FUs occupancy", &core->stat.mul_FU_occupancy, 0, TRUE, NULL);
+
   memdep->reg_stats(sdb, core);
 
   stat_reg_note(sdb,"\n#### DATA CACHE STATS ####");
@@ -634,7 +642,34 @@ void core_exec_IO_DPM_t::update_occupancy(void)
     core->stat.STQ_empty_cycles++;
 
   for(int i=0; i<core->knobs->exec.num_exec_ports; i++)
+  {
     port[i].issue_occupancy += port[i].occupancy;
+
+    for(int j=0; j<NUM_FU_CLASSES; j++)
+      if(port[i].FU[j])
+      {
+        switch(j)
+        {
+          case FU_IEU:
+          case FU_JEU:
+          case FU_SHIFT:
+            core->stat.int_FU_occupancy += port[i].FU[j]->occupancy;
+            break;
+          case FU_FADD:
+          case FU_FMUL:
+          case FU_FDIV:
+          case FU_FCPLX:
+            core->stat.fp_FU_occupancy += port[i].FU[j]->occupancy;
+            break;
+          case FU_IMUL:
+          case FU_IDIV:
+            core->stat.mul_FU_occupancy += port[i].FU[j]->occupancy;
+            break;
+          default:
+            break;
+        }
+      }
+  }
 }
 
 void core_exec_IO_DPM_t::reset_execution(void)

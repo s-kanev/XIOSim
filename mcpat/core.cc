@@ -116,7 +116,6 @@ InstFetchU::InstFetchU(ParseXML* XML_interface, int ithCore_, InputParameter* in
 	  area.set_area(area.get_area()+ icache.caches->local_result.area);
 	  //output_data_csv(icache.caches.local_result);
 
-
 	  /*
 	   *iCache controllers
 	   *miss buffer Each MSHR contains enough state
@@ -399,47 +398,51 @@ BranchPredictor::BranchPredictor(ParseXML* XML_interface, int ithCore_, InputPar
 	L1_localBPT->area.set_area(L1_localBPT->area.get_area()+ L1_localBPT->local_result.area);
 	area.set_area(area.get_area()+ L1_localBPT->local_result.area);
 
+    if (XML->sys.core[ithCore].predictor.local_predictor_size[1] > 0) {
 	//Local BPT (Level 2)
-	data							 = int(ceil(XML->sys.core[ithCore].predictor.local_predictor_size[1]/8.0));
-	interface_ip.line_sz             = data;
-	interface_ip.cache_sz            = data*XML->sys.core[ithCore].predictor.local_predictor_entries;
-	interface_ip.nbanks              = 1;
-	interface_ip.out_w               = interface_ip.line_sz*8;
-	interface_ip.access_mode         = 2;
-	interface_ip.throughput          = 1.0/clockRate;
-	interface_ip.latency             = 1.0/clockRate;
-	interface_ip.obj_func_dyn_energy = 0;
-	interface_ip.obj_func_dyn_power  = 0;
-	interface_ip.obj_func_leak_power = 0;
-	interface_ip.obj_func_cycle_t    = 1;
-	interface_ip.num_rw_ports    = 0;
-	interface_ip.num_rd_ports    = coredynp->predictionW;
-	interface_ip.num_wr_ports    = coredynp->predictionW;
-	interface_ip.num_se_rd_ports = 0;
-	L2_localBPT = new ArrayST(&interface_ip, "L2 local Predictor", Core_device, coredynp->opt_local, coredynp->core_ty);
-	L2_localBPT->area.set_area(L2_localBPT->area.get_area()+ L2_localBPT->local_result.area);
-	area.set_area(area.get_area()+ L2_localBPT->local_result.area);
+        data							 = int(ceil(XML->sys.core[ithCore].predictor.local_predictor_size[1]/8.0));
+        interface_ip.line_sz             = data;
+        interface_ip.cache_sz            = data*XML->sys.core[ithCore].predictor.local_predictor_entries;
+        interface_ip.nbanks              = 1;
+        interface_ip.out_w               = interface_ip.line_sz*8;
+        interface_ip.access_mode         = 2;
+        interface_ip.throughput          = 1.0/clockRate;
+        interface_ip.latency             = 1.0/clockRate;
+        interface_ip.obj_func_dyn_energy = 0;
+        interface_ip.obj_func_dyn_power  = 0;
+        interface_ip.obj_func_leak_power = 0;
+        interface_ip.obj_func_cycle_t    = 1;
+        interface_ip.num_rw_ports    = 0;
+        interface_ip.num_rd_ports    = coredynp->predictionW;
+        interface_ip.num_wr_ports    = coredynp->predictionW;
+        interface_ip.num_se_rd_ports = 0;
+        L2_localBPT = new ArrayST(&interface_ip, "L2 local Predictor", Core_device, coredynp->opt_local, coredynp->core_ty);
+        L2_localBPT->area.set_area(L2_localBPT->area.get_area()+ L2_localBPT->local_result.area);
+        area.set_area(area.get_area()+ L2_localBPT->local_result.area);
+    }
 
+    if (XML->sys.core[ithCore].predictor.chooser_predictor_entries > 0) {
 	//Chooser
-	data							 = int(ceil(XML->sys.core[ithCore].predictor.chooser_predictor_bits/8.0));
-	interface_ip.line_sz             = data;
-	interface_ip.cache_sz            = data*XML->sys.core[ithCore].predictor.chooser_predictor_entries;
-	interface_ip.nbanks              = 1;
-	interface_ip.out_w               = interface_ip.line_sz*8;
-	interface_ip.access_mode         = 2;
-	interface_ip.throughput          = 1.0/clockRate;
-	interface_ip.latency             = 1.0/clockRate;
-	interface_ip.obj_func_dyn_energy = 0;
-	interface_ip.obj_func_dyn_power  = 0;
-	interface_ip.obj_func_leak_power = 0;
-	interface_ip.obj_func_cycle_t    = 1;
-	interface_ip.num_rw_ports    = 0;
-	interface_ip.num_rd_ports    = coredynp->predictionW;
-	interface_ip.num_wr_ports    = coredynp->predictionW;
-	interface_ip.num_se_rd_ports = 0;
-	chooser = new ArrayST(&interface_ip, "Predictor Chooser", Core_device, coredynp->opt_local, coredynp->core_ty);
-	chooser->area.set_area(chooser->area.get_area()+ chooser->local_result.area);
-	area.set_area(area.get_area()+ chooser->local_result.area);
+        data							 = int(ceil(XML->sys.core[ithCore].predictor.chooser_predictor_bits/8.0));
+        interface_ip.line_sz             = data;
+        interface_ip.cache_sz            = data*XML->sys.core[ithCore].predictor.chooser_predictor_entries;
+        interface_ip.nbanks              = 1;
+        interface_ip.out_w               = interface_ip.line_sz*8;
+        interface_ip.access_mode         = 2;
+        interface_ip.throughput          = 1.0/clockRate;
+        interface_ip.latency             = 1.0/clockRate;
+        interface_ip.obj_func_dyn_energy = 0;
+        interface_ip.obj_func_dyn_power  = 0;
+        interface_ip.obj_func_leak_power = 0;
+        interface_ip.obj_func_cycle_t    = 1;
+        interface_ip.num_rw_ports    = 0;
+        interface_ip.num_rd_ports    = coredynp->predictionW;
+        interface_ip.num_wr_ports    = coredynp->predictionW;
+        interface_ip.num_se_rd_ports = 0;
+        chooser = new ArrayST(&interface_ip, "Predictor Chooser", Core_device, coredynp->opt_local, coredynp->core_ty);
+        chooser->area.set_area(chooser->area.get_area()+ chooser->local_result.area);
+        area.set_area(area.get_area()+ chooser->local_result.area);
+    }
 
 	//RAS return address stacks are Duplicated for each thread.
 	interface_ip.is_cache			 = false;
@@ -746,6 +749,7 @@ LoadStoreU::LoadStoreU(ParseXML* XML_interface, int ithCore_, InputParameter* in
 	  area.set_area(area.get_area()+ dcache.caches->local_result.area);
 	  //output_data_csv(dcache.caches.local_result);
 
+
 	  //dCache controllers
 	  //miss buffer
 	  tag							   = XML->sys.physical_address_width + EXTRA_TAG_BITS;
@@ -964,6 +968,7 @@ MemManU::MemManU(ParseXML* XML_interface, int ithCore_, InputParameter* interfac
 	  itlb->area.set_area(itlb->area.get_area()+ itlb->local_result.area);
 	  area.set_area(area.get_area()+ itlb->local_result.area);
 	  //output_data_csv(itlb.tlb.local_result);
+
 
 	  //dtlb
 	  tag							   = XML->sys.virtual_address_width- int(floor(logtwo(XML->sys.virtual_memory_page_size))) +int(ceil(logtwo(XML->sys.core[ithCore].number_hardware_threads)))+ EXTRA_TAG_BITS;
@@ -1865,13 +1870,19 @@ void BranchPredictor::computeEnergy(bool is_tdp)
     	L1_localBPT->stats_t.writeAc.access = w_access;
     	L1_localBPT->tdp_stats = L1_localBPT->stats_t;
 
-    	L2_localBPT->stats_t.readAc.access  = r_access;
-    	L2_localBPT->stats_t.writeAc.access = w_access;
-    	L2_localBPT->tdp_stats = L2_localBPT->stats_t;
+        if (L2_localBPT)
+        {
+    		L2_localBPT->stats_t.readAc.access  = r_access;
+    		L2_localBPT->stats_t.writeAc.access = w_access;
+    		L2_localBPT->tdp_stats = L2_localBPT->stats_t;
+        }
 
-    	chooser->stats_t.readAc.access  = r_access;
-    	chooser->stats_t.writeAc.access = w_access;
-    	chooser->tdp_stats = chooser->stats_t;
+        if (chooser)
+        {
+    	    chooser->stats_t.readAc.access  = r_access;
+    	    chooser->stats_t.writeAc.access = w_access;
+    	    chooser->tdp_stats = chooser->stats_t;
+        }
 
     	RAS->stats_t.readAc.access  = r_access;
     	RAS->stats_t.writeAc.access = w_access;
@@ -1891,13 +1902,19 @@ void BranchPredictor::computeEnergy(bool is_tdp)
     	L1_localBPT->stats_t.writeAc.access = w_access;
     	L1_localBPT->rtp_stats = L1_localBPT->stats_t;
 
-    	L2_localBPT->stats_t.readAc.access  = r_access;
-    	L2_localBPT->stats_t.writeAc.access = w_access;
-    	L2_localBPT->rtp_stats = L2_localBPT->stats_t;
+        if (L2_localBPT)
+        {
+            L2_localBPT->stats_t.readAc.access  = r_access;
+            L2_localBPT->stats_t.writeAc.access = w_access;
+            L2_localBPT->rtp_stats = L2_localBPT->stats_t;
+        }
 
-    	chooser->stats_t.readAc.access  = r_access;
-    	chooser->stats_t.writeAc.access = w_access;
-    	chooser->rtp_stats = chooser->stats_t;
+        if (chooser)
+        {
+            chooser->stats_t.readAc.access  = r_access;
+            chooser->stats_t.writeAc.access = w_access;
+            chooser->rtp_stats = chooser->stats_t;
+        }
 
     	RAS->stats_t.readAc.access  = XML->sys.core[ithCore].function_calls;
     	RAS->stats_t.writeAc.access = XML->sys.core[ithCore].function_calls;
@@ -1906,8 +1923,10 @@ void BranchPredictor::computeEnergy(bool is_tdp)
 
 	globalBPT->power_t.reset();
 	L1_localBPT->power_t.reset();
-	L2_localBPT->power_t.reset();
-	chooser->power_t.reset();
+    if (L2_localBPT)
+    	L2_localBPT->power_t.reset();
+    if (chooser)
+    	chooser->power_t.reset();
 	RAS->power_t.reset();
 
     globalBPT->power_t.readOp.dynamic   +=  globalBPT->local_result.power.readOp.dynamic*globalBPT->stats_t.readAc.access +
@@ -1915,11 +1934,13 @@ void BranchPredictor::computeEnergy(bool is_tdp)
     L1_localBPT->power_t.readOp.dynamic   +=  L1_localBPT->local_result.power.readOp.dynamic*L1_localBPT->stats_t.readAc.access +
                 L1_localBPT->stats_t.writeAc.access*L1_localBPT->local_result.power.writeOp.dynamic;
 
-    L2_localBPT->power_t.readOp.dynamic   +=  L2_localBPT->local_result.power.readOp.dynamic*L2_localBPT->stats_t.readAc.access +
-                L2_localBPT->stats_t.writeAc.access*L2_localBPT->local_result.power.writeOp.dynamic;
+    if (L2_localBPT)
+        L2_localBPT->power_t.readOp.dynamic   +=  L2_localBPT->local_result.power.readOp.dynamic*L2_localBPT->stats_t.readAc.access +
+                    L2_localBPT->stats_t.writeAc.access*L2_localBPT->local_result.power.writeOp.dynamic;
 
-    chooser->power_t.readOp.dynamic   +=  chooser->local_result.power.readOp.dynamic*chooser->stats_t.readAc.access +
-                chooser->stats_t.writeAc.access*chooser->local_result.power.writeOp.dynamic;
+    if (chooser)
+        chooser->power_t.readOp.dynamic   +=  chooser->local_result.power.readOp.dynamic*chooser->stats_t.readAc.access +
+                    chooser->stats_t.writeAc.access*chooser->local_result.power.writeOp.dynamic;
     RAS->power_t.readOp.dynamic   +=  RAS->local_result.power.readOp.dynamic*RAS->stats_t.readAc.access +
                 RAS->stats_t.writeAc.access*RAS->local_result.power.writeOp.dynamic;
 
@@ -1927,20 +1948,28 @@ void BranchPredictor::computeEnergy(bool is_tdp)
     {
     	globalBPT->power = globalBPT->power_t + globalBPT->local_result.power*pppm_lkg;
     	L1_localBPT->power = L1_localBPT->power_t + L1_localBPT->local_result.power*pppm_lkg;
-    	L2_localBPT->power = L2_localBPT->power_t + L2_localBPT->local_result.power*pppm_lkg;
-    	chooser->power = chooser->power_t + chooser->local_result.power*pppm_lkg;
+        if (L2_localBPT)
+        	L2_localBPT->power = L2_localBPT->power_t + L2_localBPT->local_result.power*pppm_lkg;
+        if (chooser)
+           	chooser->power = chooser->power_t + chooser->local_result.power*pppm_lkg;
     	RAS->power = RAS->power_t + RAS->local_result.power*coredynp->pppm_lkg_multhread;
 
-    	power = power + globalBPT->power + L1_localBPT->power + chooser->power + RAS->power;
+    	power = power + globalBPT->power + L1_localBPT->power +  RAS->power;
+        if (chooser)
+            power = power + chooser->power;
     }
     else
     {
     	globalBPT->rt_power = globalBPT->power_t + globalBPT->local_result.power*pppm_lkg;
     	L1_localBPT->rt_power = L1_localBPT->power_t + L1_localBPT->local_result.power*pppm_lkg;
-    	L2_localBPT->rt_power = L2_localBPT->power_t + L2_localBPT->local_result.power*pppm_lkg;
-    	chooser->rt_power = chooser->power_t + chooser->local_result.power*pppm_lkg;
+        if (L2_localBPT)
+        	L2_localBPT->rt_power = L2_localBPT->power_t + L2_localBPT->local_result.power*pppm_lkg;
+        if (chooser)
+           	chooser->rt_power = chooser->power_t + chooser->local_result.power*pppm_lkg;
     	RAS->rt_power = RAS->power_t + RAS->local_result.power*coredynp->pppm_lkg_multhread;
-    	rt_power = rt_power + globalBPT->rt_power + L1_localBPT->rt_power + chooser->rt_power + RAS->rt_power;
+    	rt_power = rt_power + globalBPT->rt_power + L1_localBPT->rt_power + RAS->rt_power;
+        if (chooser)
+            rt_power = rt_power + chooser->rt_power;
     }
 }
 
@@ -1969,23 +1998,26 @@ void BranchPredictor::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 		*out_file << indent_str_next << "Gate Leakage = " << L1_localBPT->power.readOp.gate_leakage  << " W" << endl;
 		*out_file << indent_str_next << "Runtime Dynamic = " << L1_localBPT->rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
 		*out_file <<endl;
-		*out_file << indent_str << "L2_Local Predictor:" << endl;
-		*out_file << indent_str_next << "Area = " << L2_localBPT->area.get_area() *1e-6 << " mm^2" << endl;
-		*out_file << indent_str_next << "Peak Dynamic = " << L2_localBPT->power.readOp.dynamic*coredynp->clockRate  << " W" << endl;
-		*out_file << indent_str_next << "Subthreshold Leakage = "
-			<< (long_channel? L2_localBPT->power.readOp.longer_channel_leakage:L2_localBPT->power.readOp.leakage)  << " W" << endl;
-		*out_file << indent_str_next << "Gate Leakage = " << L2_localBPT->power.readOp.gate_leakage  << " W" << endl;
-		*out_file << indent_str_next << "Runtime Dynamic = " << L2_localBPT->rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
-		*out_file <<endl;
-
-		*out_file << indent_str << "Chooser:" << endl;
-		*out_file << indent_str_next << "Area = " << chooser->area.get_area()  *1e-6 << " mm^2" << endl;
-		*out_file << indent_str_next << "Peak Dynamic = " << chooser->power.readOp.dynamic*coredynp->clockRate  << " W" << endl;
-		*out_file << indent_str_next << "Subthreshold Leakage = "
-			<< (long_channel? chooser->power.readOp.longer_channel_leakage:chooser->power.readOp.leakage)  << " W" << endl;
-		*out_file << indent_str_next << "Gate Leakage = " << chooser->power.readOp.gate_leakage  << " W" << endl;
-		*out_file << indent_str_next << "Runtime Dynamic = " << chooser->rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
-		*out_file <<endl;
+        if (L2_localBPT) {
+            *out_file << indent_str << "L2_Local Predictor:" << endl;
+            *out_file << indent_str_next << "Area = " << L2_localBPT->area.get_area() *1e-6 << " mm^2" << endl;
+            *out_file << indent_str_next << "Peak Dynamic = " << L2_localBPT->power.readOp.dynamic*coredynp->clockRate  << " W" << endl;
+            *out_file << indent_str_next << "Subthreshold Leakage = "
+                << (long_channel? L2_localBPT->power.readOp.longer_channel_leakage:L2_localBPT->power.readOp.leakage)  << " W" << endl;
+            *out_file << indent_str_next << "Gate Leakage = " << L2_localBPT->power.readOp.gate_leakage  << " W" << endl;
+            *out_file << indent_str_next << "Runtime Dynamic = " << L2_localBPT->rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
+            *out_file <<endl;
+        }
+        if (chooser) {
+            *out_file << indent_str << "Chooser:" << endl;
+            *out_file << indent_str_next << "Area = " << chooser->area.get_area()  *1e-6 << " mm^2" << endl;
+            *out_file << indent_str_next << "Peak Dynamic = " << chooser->power.readOp.dynamic*coredynp->clockRate  << " W" << endl;
+            *out_file << indent_str_next << "Subthreshold Leakage = "
+                << (long_channel? chooser->power.readOp.longer_channel_leakage:chooser->power.readOp.leakage)  << " W" << endl;
+            *out_file << indent_str_next << "Gate Leakage = " << chooser->power.readOp.gate_leakage  << " W" << endl;
+            *out_file << indent_str_next << "Runtime Dynamic = " << chooser->rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
+            *out_file <<endl;
+        }
 		*out_file << indent_str << "RAS:" << endl;
 		*out_file << indent_str_next << "Area = " << RAS->area.get_area() *1e-6 << " mm^2" << endl;
 		*out_file << indent_str_next << "Peak Dynamic = " << RAS->power.readOp.dynamic*coredynp->clockRate  << " W" << endl;
@@ -3141,7 +3173,6 @@ void LoadStoreU::computeEnergy(bool is_tdp)
     {
     	LSQ->power_t.readOp.dynamic  +=  LSQ->stats_t.readAc.access*(LSQ->local_result.power.searchOp.dynamic + LSQ->local_result.power.readOp.dynamic)
     		        + LSQ->stats_t.writeAc.access*LSQ->local_result.power.writeOp.dynamic;//every memory access invloves at least two operations on LSQ
-
     }
 
     if (is_tdp)
