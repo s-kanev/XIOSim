@@ -744,7 +744,7 @@ void core_commit_IO_DPM_t::step()
   /* Compatibility: Simulation can call this */
 }
 
-/* squashes a uop, reardless in which stage it is; deallocates from LDQ and STQ; other structures and stats should be updated by the caller; retutns fused length;
+/* squashes a uop, reardless in which stage it is; deallocates from LDQ and STQ; other structures and stats should be updated by the caller; retutns effective ROB entries;
    Because of clearing dependency pointers, should be called in program order, from oldest to youngest */
 int core_commit_IO_DPM_t::squash_uop(struct uop_t * const uop)
 {
@@ -755,12 +755,14 @@ int core_commit_IO_DPM_t::squash_uop(struct uop_t * const uop)
     dead_uop = dead_uop->decode.fusion_head;
 //    zesto_assert(dead_uop->decode.is_fusion_head,0);
 
-  int fusion_size = 1;
+  int num_eff_ROB = 0;
   while(dead_uop)
   {
     /* squash this instruction - this invalidates all in-flight actions (e.g., uop execution, cache accesses) */
     dead_uop->exec.action_id = core->new_action_id();
 
+    if(dead_uop->alloc.ROB_index > 0)
+      num_eff_ROB++;
 
     /* In the following, we have to check if the uop has even been allocated yet... this has
        to do with our non-atomic implementation of allocation for fused-uops */
@@ -841,14 +843,9 @@ int core_commit_IO_DPM_t::squash_uop(struct uop_t * const uop)
     if(!dead_uop->decode.in_fusion)
       dead_uop = NULL;
     else
-    {
       dead_uop = dead_uop->decode.fusion_next;
-
-      if(dead_uop)
-        fusion_size++;
-    }
   }
-  return fusion_size;
+  return num_eff_ROB;
 }
 
 

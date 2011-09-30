@@ -2393,7 +2393,10 @@ void core_exec_IO_DPM_t::step()
              uop->timing.when_completed = sim_cycle;
           }
 
-          core->commit->pre_commit_insert(uop);
+          if((!uop->decode.in_fusion) || uop->decode.is_fusion_head)
+             core->commit->pre_commit_insert(uop);
+          else
+             core->commit->pre_commit_fused_insert(uop);
 
           /* loads can be safely removed from load queue */
           if(uop->decode.is_load)
