@@ -761,7 +761,7 @@ int core_commit_IO_DPM_t::squash_uop(struct uop_t * const uop)
     /* squash this instruction - this invalidates all in-flight actions (e.g., uop execution, cache accesses) */
     dead_uop->exec.action_id = core->new_action_id();
 
-    if(dead_uop->alloc.ROB_index > 0)
+    if(dead_uop->alloc.ROB_index >= 0)
       num_eff_ROB++;
 
     /* In the following, we have to check if the uop has even been allocated yet... this has
