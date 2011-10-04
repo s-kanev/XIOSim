@@ -15,8 +15,8 @@ class core_power_t {
 
   double rt_power;
 
-  virtual void translate_params(system_core *core_params) = 0;
-  virtual void translate_stats(system_core* core_stats) = 0;
+  virtual void translate_params(system_core *core_params);
+  virtual void translate_stats(system_core *core_stats);
 
   protected:
   struct  core_t *core;
