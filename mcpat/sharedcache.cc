@@ -161,7 +161,6 @@ SharedCache::SharedCache(ParseXML* XML_interface, int ithCache_, InputParameter*
   unicache.area.set_area(unicache.area.get_area()+ unicache.caches->local_result.area);
   area.set_area(area.get_area()+ unicache.caches->local_result.area);
   interface_ip.force_cache_config  =false;
-
   if (!((cachep.dir_ty==ST&& cacheL==L1Directory)||(cachep.dir_ty==ST&& cacheL==L2Directory)))
   {
 	  tag							   = XML->sys.physical_address_width + EXTRA_TAG_BITS;

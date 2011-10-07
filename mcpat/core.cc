@@ -967,7 +967,7 @@ MemManU::MemManU(ParseXML* XML_interface, int ithCore_, InputParameter* interfac
 	  itlb = new ArrayST(&interface_ip, "ITLB", Core_device, coredynp->opt_local, coredynp->core_ty);
 	  itlb->area.set_area(itlb->area.get_area()+ itlb->local_result.area);
 	  area.set_area(area.get_area()+ itlb->local_result.area);
-	  //output_data_csv(itlb.tlb.local_result);
+	  //output_data_csv(itlb->local_result);
 
 
 	  //dtlb
@@ -995,7 +995,7 @@ MemManU::MemManU(ParseXML* XML_interface, int ithCore_, InputParameter* interfac
 	  dtlb = new ArrayST(&interface_ip, "DTLB", Core_device, coredynp->opt_local, coredynp->core_ty);
 	  dtlb->area.set_area(dtlb->area.get_area()+ dtlb->local_result.area);
 	  area.set_area(area.get_area()+ dtlb->local_result.area);
-	  //output_data_csv(dtlb.tlb.local_result);
+	  //output_data_csv(dtlb->local_result);
 
 }
 

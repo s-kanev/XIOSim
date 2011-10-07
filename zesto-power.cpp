@@ -65,7 +65,7 @@ void init_power(void)
     fprintf(stderr, "%f ", XML->sys.L2[0].L2_config[2]);
     XML->sys.L2[0].L2_config[3] = uncore->LLC->banks;
     fprintf(stderr, "%f ", XML->sys.L2[0].L2_config[3]);
-    XML->sys.L2[0].L2_config[4] = 1;//16;//8;//core->memory.IL1->; //XXX
+    XML->sys.L2[0].L2_config[4] = 1;
     fprintf(stderr, "%f ", XML->sys.L2[0].L2_config[4]);
     XML->sys.L2[0].L2_config[5] = uncore->LLC->latency;
     fprintf(stderr, "%f ", XML->sys.L2[0].L2_config[5]);
@@ -75,10 +75,16 @@ void init_power(void)
     fprintf(stderr, "%f\n", XML->sys.L2[0].L2_config[7]);
 
     XML->sys.L2[0].ports[0] = 1;
-    XML->sys.L2[0].ports[1] = 1;
-    XML->sys.L2[0].ports[2] = 1;
+    XML->sys.L2[0].ports[1] = 0;
+    XML->sys.L2[0].ports[2] = 0;
 
-    XML->sys.L2[0].clockrate = 400; //Somehow arbitrary, set me
+    XML->sys.L2[0].buffer_sizes[0] = 1;
+    XML->sys.L2[0].buffer_sizes[1] = 2;
+    XML->sys.L2[0].buffer_sizes[2] = 2;
+    XML->sys.L2[0].buffer_sizes[3] = 2;
+
+    XML->sys.L2[0].clockrate = 800; //Somehow arbitrary, set me
+    XML->sys.L2[0].device_type = 2;
   } else if (uncore->LLC) // LLC is L3
   {
     XML->sys.L3[0].L3_config[0] = uncore->LLC->sets * uncore->LLC->assoc * uncore->LLC->linesize;
@@ -89,7 +95,7 @@ void init_power(void)
     fprintf(stderr, "%f ", XML->sys.L3[0].L3_config[2]);
     XML->sys.L3[0].L3_config[3] = uncore->LLC->banks;
     fprintf(stderr, "%f ", XML->sys.L3[0].L3_config[3]);
-    XML->sys.L3[0].L3_config[4] = 1;//16;//8;//core->memory.IL1->; //XXX
+    XML->sys.L3[0].L3_config[4] = 1;
     fprintf(stderr, "%f ", XML->sys.L3[0].L3_config[4]);
     XML->sys.L3[0].L3_config[5] = uncore->LLC->latency;
     fprintf(stderr, "%f ", XML->sys.L3[0].L3_config[5]);
@@ -102,7 +108,7 @@ void init_power(void)
     XML->sys.L3[0].ports[1] = 1;
     XML->sys.L3[0].ports[2] = 1;
 
-    XML->sys.L3[0].clockrate = 400; //Somehow arbitrary, set me
+    XML->sys.L3[0].clockrate = 800; //Somehow arbitrary, set me
   }
 
   XML->sys.mc.number_mcs = 0;
@@ -195,9 +201,10 @@ void core_power_t::translate_params(system_core *core_params)
     fprintf(stderr, "%f ", core_params->dcache.dcache_config[1]);
     core_params->dcache.dcache_config[2] = core->memory.DL1->assoc;
     fprintf(stderr, "%f ", core_params->dcache.dcache_config[2]);
-    core_params->dcache.dcache_config[3] = core->memory.DL1->banks;
+    // Hardcode banks to 1, McPAT adds big overhead for multibanked caches
+    core_params->dcache.dcache_config[3] = 1;
     fprintf(stderr, "%f ", core_params->dcache.dcache_config[3]);
-    core_params->dcache.dcache_config[4] = 1;//core->memory.DL1->;
+    core_params->dcache.dcache_config[4] = 1;
     fprintf(stderr, "%f ", core_params->dcache.dcache_config[4]);
     core_params->dcache.dcache_config[5] = core->memory.DL1->latency;
     fprintf(stderr, "%f ", core_params->dcache.dcache_config[5]);
@@ -207,10 +214,10 @@ void core_power_t::translate_params(system_core *core_params)
     fprintf(stderr, "%f\n", core_params->dcache.dcache_config[7]);
 
 
-    core_params->dcache.buffer_sizes[0] = core->memory.DL1->MSHR_size;
-    core_params->dcache.buffer_sizes[1] = 2;//core->memory.DL1->fill_num[0]; //XXX
-    core_params->dcache.buffer_sizes[2] = core->memory.DL1->PFF_size;
-    core_params->dcache.buffer_sizes[3] = core->memory.DL1->WBB_size;
+    core_params->dcache.buffer_sizes[0] = 4;//core->memory.DL1->MSHR_size;
+    core_params->dcache.buffer_sizes[1] = 4;//core->memory.DL1->fill_num[0]; //XXX
+    core_params->dcache.buffer_sizes[2] = 4;//core->memory.DL1->PFF_size;
+    core_params->dcache.buffer_sizes[3] = 4;//core->memory.DL1->WBB_size;
   }
 
   if (core->memory.IL1)
@@ -221,21 +228,22 @@ void core_power_t::translate_params(system_core *core_params)
     fprintf(stderr, "%f ", core_params->icache.icache_config[1]);
     core_params->icache.icache_config[2] = core->memory.IL1->assoc;
     fprintf(stderr, "%f ", core_params->icache.icache_config[2]);
-    core_params->icache.icache_config[3] = core->memory.IL1->banks;
+    // Hardcode banks to 1, McPAT adds big overhead for multibanked caches
+    core_params->icache.icache_config[3] = 1;
     fprintf(stderr, "%f ", core_params->icache.icache_config[3]);
-    core_params->icache.icache_config[4] = 1;//core->memory.IL1->; //XXX
+    core_params->icache.icache_config[4] = 1;
     fprintf(stderr, "%f ", core_params->icache.icache_config[4]);
     core_params->icache.icache_config[5] = core->memory.IL1->latency;
     fprintf(stderr, "%f ", core_params->icache.icache_config[5]);
     core_params->icache.icache_config[6] = core->memory.IL1->bank_width;
     fprintf(stderr, "%f ", core_params->icache.icache_config[6]);
-    core_params->icache.icache_config[7] = (core->memory.IL1->write_policy == WRITE_THROUGH) ? 0 : 1;
+    core_params->icache.icache_config[7] = 1;//(core->memory.IL1->write_policy == WRITE_THROUGH) ? 0 : 1;
     fprintf(stderr, "%f\n", core_params->icache.icache_config[7]);
 
-    core_params->icache.buffer_sizes[0] = core->memory.IL1->MSHR_size;
+    core_params->icache.buffer_sizes[0] = 2;//core->memory.IL1->MSHR_size;
     core_params->icache.buffer_sizes[1] = 2;//core->memory.IL1->fill_num[0]; //XXX
-    core_params->icache.buffer_sizes[2] = core->memory.IL1->PFF_size;
-    core_params->icache.buffer_sizes[3] = core->memory.IL1->WBB_size;
+    core_params->icache.buffer_sizes[2] = 2;//core->memory.IL1->PFF_size;
+    core_params->icache.buffer_sizes[3] = 2;//core->memory.IL1->WBB_size;
   }
 
   if (core->memory.ITLB)
@@ -383,8 +391,9 @@ void core_power_t::translate_stats(system_core *core_stats)
 #include "ZCORE-power.list"
 
 /* default constructor */
-core_power_t::core_power_t(void):
-  rt_power(0.0)
+core_power_t::core_power_t(struct core_t * _core):
+  rt_power(0.0),
+  core(_core)
 {
 }
 
