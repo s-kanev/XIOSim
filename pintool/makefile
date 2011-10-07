@@ -112,10 +112,11 @@ $(TOOLS): $(PIN_LIBNAMES) $(TOOL_OBJS) $(ZESTO_HOME)/libsim.a $(ZESTO_HOME)/mcpa
 $(TOOLS): %$(PINTOOL_SUFFIX) : %.o 
 	${PIN_LD} -g $(PIN_LDFLAGS) -I$(ZESTO_HOME) -L$(ZESTO_HOME) $(LINK_DEBUG) ${LINK_OUT} $@ $< ${PIN_LPATHS} $(TOOL_OBJS) $(ZESTO_HOME)/libsim.a $(ZESTO_HOME)/mcpat/mcpat.a $(PIN_LIBS) $(DBG) -g
 
-
 ## cleaning
 clean:
 	-rm -rf $(OBJDIR) *.out *.tested *.failed makefile.copy
+	$(MAKE) -C $(ZESTO_HOME) clean
+	$(MAKE) -C $(ZESTO_HOME)/mcpat clean
 
 install:
 	cp $(TOOLS) $(INSTALL_DIR)

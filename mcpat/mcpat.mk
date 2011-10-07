@@ -30,10 +30,13 @@ RANLIB = ranlib
 
 VPATH = cacti
 
+EXE_TARGET=mcpat
+LIB_TARGET=mcpat.a
+
 ifeq ($(TGT),lib)
-  TARGET = mcpat.a
+  TARGET = $(LIB_TARGET)
 else
-  TARGET = mcpat
+  TARGET = $(EXE_TARGET)
 endif
 
 
@@ -87,7 +90,6 @@ obj_$(TAG)/$(TARGET) : $(OBJS)
 ifeq ($(TGT),exe)
 	$(CXX) $(OBJS) -o $@ $(INCS) $(CXXFLAGS) $(LIBS) -pthread
 else
-	echo $(TARGET)
 	$(AR) $@ $(OBJS) 
 	$(RANLIB) $@
 endif
@@ -99,6 +101,6 @@ obj_$(TAG)/%.o : %.cc
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 clean:
-	-rm -f *.o $(TARGET)
+	-rm -f *.o $(EXE_TARGET) $(LIB_TARGET)
 
 
