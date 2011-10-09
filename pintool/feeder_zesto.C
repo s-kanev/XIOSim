@@ -76,17 +76,6 @@ ICOUNT icount;
 // Contains knobs and instrumentation to recognize start/stop points
 CONTROL control;
 
-/* ========================================================================== */
-/* Execution mode allows easy querying of exactly what the pin tool is doing at
- * a given time, and also helps ensuring that certain parts of the code are run
- * in only certain modes. */
-enum EXECUTION_MODE
-{
-    EXECUTION_MODE_FASTFORWARD,
-    EXECUTION_MODE_SIMULATE,
-    EXECUTION_MODE_INVALID
-};
-
 EXECUTION_MODE ExecMode = EXECUTION_MODE_INVALID;
 
 typedef pair <UINT32, CHAR **> SSARGS;

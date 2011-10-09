@@ -58,6 +58,18 @@ class thread_state_t
 };
 thread_state_t* get_tls(ADDRINT tid);
 
+/* ========================================================================== */
+/* Execution mode allows easy querying of exactly what the pin tool is doing at
+ * a given time, and also helps ensuring that certain parts of the code are run
+ * in only certain modes. */
+enum EXECUTION_MODE
+{
+    EXECUTION_MODE_FASTFORWARD,
+    EXECUTION_MODE_SIMULATE,
+    EXECUTION_MODE_INVALID
+};
+extern EXECUTION_MODE ExecMode;
+
 VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREADID tid);
 
 #endif /*__FEEDER_ZESTO__ */

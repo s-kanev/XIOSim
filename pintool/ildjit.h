@@ -57,6 +57,7 @@ VOID ILDJIT_ThreadStarting(THREADID tid)
     ILDJIT_executorCreation = false;
 
     ILDJIT_executionStarted = true;
+    ExecMode = EXECUTION_MODE_SIMULATE;
     CODECACHE_FlushCache();
 
 #ifdef ZESTO_PIN_DBG

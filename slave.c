@@ -374,8 +374,16 @@ void Zesto_UpdateBrk(unsigned int brk_end, bool do_mmap)
   core->current_thread->loader.brk_point = brk_end;
 }
 
+bool stopped = true;
 void Zesto_Destroy()
 {
+  if(!stopped)
+  {     
+    fprintf(stderr, "XXX: Fix ugly hack with ildjit and no slices\n");
+    stopped = true;
+    end_slice(0, 0, 100000);
+  }
+
   /* scale stats if running multiple simulation slices */
   scale_all_slices();
 
@@ -403,7 +411,6 @@ static void sim_drain_pipe(void)
    core->current_thread->rep_sequence = 0;
 }
 
-bool stopped = true;
 void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool slice_start, bool slice_end)
 {
    //TODO: Widen hanshake to include thread id
