@@ -7,7 +7,6 @@
 #else
 
 extern class uncore_t * uncore;
-extern struct stat_sdb_t *sim_sdb;
 
 class core_power_IO_DPM_t : public core_power_t {
 
@@ -15,7 +14,7 @@ class core_power_IO_DPM_t : public core_power_t {
   core_power_IO_DPM_t(struct core_t * _core);
 
   void translate_params(system_core *core_params, system_L2 *L2_params);
-  void translate_stats(system_core *core_params, system_L2 *L2_stats);
+  void translate_stats(struct stat_sdb_t* sdb, system_core *core_params, system_L2 *L2_stats);
 };
 
 core_power_IO_DPM_t::core_power_IO_DPM_t(struct core_t * _core):
@@ -50,9 +49,9 @@ void core_power_IO_DPM_t::translate_params(system_core *core_params, system_L2 *
 
 }
 
-void core_power_IO_DPM_t::translate_stats(system_core *core_stats, system_L2 *L2_stats)
+void core_power_IO_DPM_t::translate_stats(struct stat_sdb_t* sdb, system_core *core_stats, system_L2 *L2_stats)
 {
-  core_power_t::translate_stats(core_stats, L2_stats);
+  core_power_t::translate_stats(sdb, core_stats, L2_stats);
 
   core_stats->int_instructions = core_stats->total_instructions; // XXX: only used for inst window, for which we don't care in this pipe
   core_stats->fp_instructions = 0;

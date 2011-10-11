@@ -280,7 +280,8 @@ Zesto_SlaveInit(int argc, char **argv)
   sim_aux_config(stderr);
   fprintf(stderr, "\n");
 
-  init_power();
+  if(cores[0]->knobs->power.compute)
+    init_power();
 
   /* omit option dump time from rate stats */
   sim_start_time = time((time_t *)NULL);
@@ -375,10 +376,11 @@ void Zesto_Destroy()
 
   /* print simulator stats */
   sim_print_stats(stderr);
-
-
-  compute_power();
-  deinit_power();
+  if(cores[0]->knobs->power.compute)
+  {
+    compute_power(sim_sdb, true);
+    deinit_power();
+  }
 }
 
 

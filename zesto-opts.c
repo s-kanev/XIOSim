@@ -156,6 +156,12 @@ sim_reg_options(struct opt_odb_t *odb)
       &ztrace_filename, /*default*/ NULL, /*print*/true,/*format*/NULL);
 #endif
 
+  opt_reg_flag(odb, "-power", "simulate power",
+      &knobs.power.compute, /*default*/ false, /*print*/true,/*format*/NULL);
+
+  opt_reg_int(odb, "-power:rtp_interval", "number of cycles between power computation",
+      &knobs.power.rtp_interval, /* default */0, /* print */true, /* format */NULL);
+
   fetch_reg_options(odb,&knobs);
   decode_reg_options(odb,&knobs);
   alloc_reg_options(odb,&knobs);

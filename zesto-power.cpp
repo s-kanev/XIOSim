@@ -15,9 +15,8 @@ class ParseXML *XML = NULL; //Interface to McPAT
 
 extern tick_t sim_cycle;
 extern int num_threads;
-extern struct stat_sdb_t *sim_sdb;
-double *cores_rtp = NULL;
 double uncore_rtp;
+double *cores_rtp;
 bool private_l2 = false;
 
 void init_power(void)
@@ -150,7 +149,7 @@ void deinit_power(void)
   mcpat_finalize();
 }
 
-void translate_uncore_stats(root_system* stats)
+void translate_uncore_stats(struct stat_sdb_t* sdb, root_system* stats)
 {
   struct stat_stat_t* curr_stat = NULL;
 
@@ -158,40 +157,40 @@ void translate_uncore_stats(root_system* stats)
   {
     if (!private_l2)
     {
-      curr_stat = stat_find_stat(sim_sdb, "LLC.load_lookups");
+      curr_stat = stat_find_stat(sdb, "LLC.load_lookups");
       stats->L2[0].read_accesses = *curr_stat->variant.for_int.var;
-      curr_stat = stat_find_stat(sim_sdb, "LLC.load_misses");
+      curr_stat = stat_find_stat(sdb, "LLC.load_misses");
       stats->L2[0].read_misses = *curr_stat->variant.for_int.var;
-      curr_stat = stat_find_stat(sim_sdb, "LLC.store_lookups");
+      curr_stat = stat_find_stat(sdb, "LLC.store_lookups");
       stats->L2[0].write_accesses = *curr_stat->variant.for_int.var;
-      curr_stat = stat_find_stat(sim_sdb, "LLC.store_misses");
+      curr_stat = stat_find_stat(sdb, "LLC.store_misses");
       stats->L2[0].write_misses = *curr_stat->variant.for_int.var;
     }
     else {
-      curr_stat = stat_find_stat(sim_sdb, "LLC.load_lookups");
+      curr_stat = stat_find_stat(sdb, "LLC.load_lookups");
       stats->L3[0].read_accesses = *curr_stat->variant.for_int.var;
-      curr_stat = stat_find_stat(sim_sdb, "LLC.load_misses");
+      curr_stat = stat_find_stat(sdb, "LLC.load_misses");
       stats->L3[0].read_misses = *curr_stat->variant.for_int.var;
-      curr_stat = stat_find_stat(sim_sdb, "LLC.store_lookups");
+      curr_stat = stat_find_stat(sdb, "LLC.store_lookups");
       stats->L3[0].write_accesses = *curr_stat->variant.for_int.var;
-      curr_stat = stat_find_stat(sim_sdb, "LLC.store_misses");
+      curr_stat = stat_find_stat(sdb, "LLC.store_misses");
       stats->L3[0].write_misses = *curr_stat->variant.for_int.var;
     }
   }
 
-  curr_stat = stat_find_stat(sim_sdb, "sim_cycle");
+  curr_stat = stat_find_stat(sdb, "sim_cycle");
   stats->total_cycles = *curr_stat->variant.for_int.var;
 }
 
-void compute_power(void)
+void compute_power(struct stat_sdb_t* sdb, bool print_power)
 {
-  translate_uncore_stats(&XML->sys);
+  translate_uncore_stats(sdb, &XML->sys);
+
 
   for(int i=0; i<num_threads; i++)
-    cores[i]->power->translate_stats(&XML->sys.core[i], &XML->sys.L2[i]);
+    cores[i]->power->translate_stats(sdb, &XML->sys.core[i], &XML->sys.L2[i]);
 
-//  mcpat_compute_energy(false, cores_rtp, &uncore_rtp);
-  mcpat_compute_energy(true, cores_rtp, &uncore_rtp);
+  mcpat_compute_energy(print_power, cores_rtp, &uncore_rtp);
 }
 
 void core_power_t::translate_params(system_core *core_params, system_L2 *L2_params)
@@ -329,49 +328,49 @@ void core_power_t::translate_params(system_core *core_params, system_L2 *L2_para
   core_params->FPU_cdb_duty_cycle = 0.3;
 }
 
-void core_power_t::translate_stats(system_core *core_stats, system_L2 *L2_stats)
+void core_power_t::translate_stats(struct stat_sdb_t* sdb, system_core *core_stats, system_L2 *L2_stats)
 {
   struct stat_stat_t *stat;
   int coreID = core->id;
 
   (void) L2_stats;
 
-  stat = stat_find_core_stat(sim_sdb, coreID, "oracle_total_uops");
+  stat = stat_find_core_stat(sdb, coreID, "oracle_total_uops");
   core_stats->total_instructions = *stat->variant.for_int.var;
 
-  stat = stat_find_core_stat(sim_sdb, coreID, "oracle_total_branches");
+  stat = stat_find_core_stat(sdb, coreID, "oracle_total_branches");
   core_stats->branch_instructions = *stat->variant.for_int.var;
-  stat = stat_find_core_stat(sim_sdb, coreID, "num_jeclear");
+  stat = stat_find_core_stat(sdb, coreID, "num_jeclear");
   core_stats->branch_mispredictions = *stat->variant.for_int.var;
-  stat = stat_find_core_stat(sim_sdb, coreID, "oracle_total_loads");
+  stat = stat_find_core_stat(sdb, coreID, "oracle_total_loads");
   core_stats->load_instructions = *stat->variant.for_int.var;
-  stat = stat_find_core_stat(sim_sdb, coreID, "oracle_total_refs");
+  stat = stat_find_core_stat(sdb, coreID, "oracle_total_refs");
   core_stats->store_instructions = *stat->variant.for_int.var - core_stats->load_instructions;
-  stat = stat_find_core_stat(sim_sdb, coreID, "oracle_num_uops");
+  stat = stat_find_core_stat(sdb, coreID, "oracle_num_uops");
   core_stats->committed_instructions = *stat->variant.for_int.var;
 
-  stat = stat_find_stat(sim_sdb, "sim_cycle");
+  stat = stat_find_stat(sdb, "sim_cycle");
   core_stats->total_cycles = *stat->variant.for_int.var;
   core_stats->idle_cycles = 0;
   core_stats->busy_cycles = core_stats->total_cycles - core_stats->idle_cycles;
 
-  stat = stat_find_core_stat(sim_sdb, coreID, "regfile_reads");
+  stat = stat_find_core_stat(sdb, coreID, "regfile_reads");
   core_stats->int_regfile_reads = *stat->variant.for_int.var;
-  stat = stat_find_core_stat(sim_sdb, coreID, "fp_regfile_reads");
+  stat = stat_find_core_stat(sdb, coreID, "fp_regfile_reads");
   core_stats->float_regfile_reads = *stat->variant.for_int.var;
-  stat = stat_find_core_stat(sim_sdb, coreID, "regfile_writes");
+  stat = stat_find_core_stat(sdb, coreID, "regfile_writes");
   core_stats->int_regfile_writes = *stat->variant.for_int.var;
-  stat = stat_find_core_stat(sim_sdb, coreID, "fp_regfile_writes");
+  stat = stat_find_core_stat(sdb, coreID, "fp_regfile_writes");
   core_stats->float_regfile_writes = *stat->variant.for_int.var;
 
-  stat = stat_find_core_stat(sim_sdb, coreID, "oracle_total_calls");
+  stat = stat_find_core_stat(sdb, coreID, "oracle_total_calls");
   core_stats->function_calls = *stat->variant.for_int.var;
 
-  stat = stat_find_core_stat(sim_sdb, coreID, "int_FU_occupancy");
+  stat = stat_find_core_stat(sdb, coreID, "int_FU_occupancy");
   core_stats->cdb_alu_accesses = *stat->variant.for_int.var;
-  stat = stat_find_core_stat(sim_sdb, coreID, "fp_FU_occupancy");
+  stat = stat_find_core_stat(sdb, coreID, "fp_FU_occupancy");
   core_stats->cdb_fpu_accesses = *stat->variant.for_int.var;
-  stat = stat_find_core_stat(sim_sdb, coreID, "mul_FU_occupancy");
+  stat = stat_find_core_stat(sdb, coreID, "mul_FU_occupancy");
   core_stats->cdb_mul_accesses = *stat->variant.for_int.var;
   core_stats->ialu_accesses = core_stats->cdb_alu_accesses;
   core_stats->fpu_accesses = core_stats->cdb_fpu_accesses;
@@ -379,47 +378,47 @@ void core_power_t::translate_stats(system_core *core_stats, system_L2 *L2_stats)
 
   if (core->memory.ITLB)
   {
-    stat = stat_find_core_stat(sim_sdb, coreID, "ITLB.lookups");
+    stat = stat_find_core_stat(sdb, coreID, "ITLB.lookups");
     core_stats->itlb.total_accesses = *stat->variant.for_int.var;
-    stat = stat_find_core_stat(sim_sdb, coreID, "ITLB.misses");
+    stat = stat_find_core_stat(sdb, coreID, "ITLB.misses");
     core_stats->itlb.total_misses = *stat->variant.for_int.var;
   }
 
   if (core->memory.DTLB)
   {
-    stat = stat_find_core_stat(sim_sdb, coreID, "DTLB.lookups");
+    stat = stat_find_core_stat(sdb, coreID, "DTLB.lookups");
     core_stats->dtlb.total_accesses = *stat->variant.for_int.var;
-    stat = stat_find_core_stat(sim_sdb, coreID, "DTLB.misses");
+    stat = stat_find_core_stat(sdb, coreID, "DTLB.misses");
     core_stats->dtlb.total_misses = *stat->variant.for_int.var;
   }
   
   if (core->memory.IL1)
   {
-    stat = stat_find_core_stat(sim_sdb, coreID, "IL1.lookups");
+    stat = stat_find_core_stat(sdb, coreID, "IL1.lookups");
     core_stats->icache.read_accesses = *stat->variant.for_int.var;
-    stat = stat_find_core_stat(sim_sdb, coreID, "IL1.misses");
+    stat = stat_find_core_stat(sdb, coreID, "IL1.misses");
     core_stats->icache.read_misses = *stat->variant.for_int.var;
   }
 
   if (core->memory.DL1)
   {
-    stat = stat_find_core_stat(sim_sdb, coreID, "DL1.load_lookups");
+    stat = stat_find_core_stat(sdb, coreID, "DL1.load_lookups");
     core_stats->dcache.read_accesses = *stat->variant.for_int.var;
-    stat = stat_find_core_stat(sim_sdb, coreID, "DL1.load_misses");
+    stat = stat_find_core_stat(sdb, coreID, "DL1.load_misses");
     core_stats->dcache.read_misses = *stat->variant.for_int.var;
-    stat = stat_find_core_stat(sim_sdb, coreID, "DL1.store_lookups");
+    stat = stat_find_core_stat(sdb, coreID, "DL1.store_lookups");
     core_stats->dcache.write_accesses = *stat->variant.for_int.var;
-    stat = stat_find_core_stat(sim_sdb, coreID, "DL1.store_misses");
+    stat = stat_find_core_stat(sdb, coreID, "DL1.store_misses");
     core_stats->dcache.write_misses = *stat->variant.for_int.var;
   }
 
   if (core->fetch->bpred->get_dir_btb())
   {
-    stat = stat_find_core_stat(sim_sdb, coreID, "BTB.lookups");
+    stat = stat_find_core_stat(sdb, coreID, "BTB.lookups");
     core_stats->BTB.read_accesses = *stat->variant.for_int.var;
-    stat = stat_find_core_stat(sim_sdb, coreID, "BTB.updates");
+    stat = stat_find_core_stat(sdb, coreID, "BTB.updates");
     core_stats->BTB.write_accesses = *stat->variant.for_int.var;
-    stat = stat_find_core_stat(sim_sdb, coreID, "BTB.spec_updates");
+    stat = stat_find_core_stat(sdb, coreID, "BTB.spec_updates");
     core_stats->BTB.write_accesses += *stat->variant.for_int.var;
   }
 }

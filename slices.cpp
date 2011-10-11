@@ -7,6 +7,7 @@
 #include "interface.h"
 #include "thread.h"
 #include "zesto-core.h"
+#include "zesto-power.h"
 
 extern struct stat_sdb_t *sim_sdb;
 extern void sim_reg_stats(struct thread_t ** threads, struct stat_sdb_t *sdb);
@@ -48,6 +49,8 @@ void end_slice(unsigned int slice_num, unsigned long long feeder_slice_length, u
 {
    int i = 0;
 
+   core_knobs_t *knobs = cores[i]->knobs;
+
    struct stat_sdb_t* curr_sdb = all_stats.back();
 
    slice_end_cycle = sim_cycle;
@@ -77,12 +80,21 @@ void end_slice(unsigned int slice_num, unsigned long long feeder_slice_length, u
    {
      char curr_filename[PATH_MAX];
      sprintf(curr_filename, "%s.slice.%d", sim_simout, slice_num);
-     FILE* curr_fd = fopen(curr_filename, "w");
+     FILE* curr_fd = freopen(curr_filename, "w", stderr);
      if (curr_fd != NULL)
      {
-       stat_print_stats(curr_sdb, curr_fd);
+       stat_print_stats(curr_sdb, stderr);
+       if(knobs->power.compute)
+         compute_power(curr_sdb, true);
        fclose(curr_fd);
      }
+     // Restore stderr redirection
+     if(sim_simout)
+       curr_fd = freopen(sim_simout, "a", stderr);
+     else
+       curr_fd = fopen("/dev/tty", "a");
+     if(curr_fd == NULL)
+        panic("couldn't restore stderr redicrection");
    }
 
    double n_cycles = (double)sim_cycle;
