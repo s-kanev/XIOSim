@@ -2,6 +2,7 @@
 
 #include "stats.h"
 #include "zesto-power.h"
+#include "zesto-oracle.h"
 #include "zesto-core.h"
 #include "zesto-fetch.h"
 #include "zesto-bpred.h"
@@ -12,10 +13,12 @@
 
 class ParseXML *XML = NULL; //Interface to McPAT
 
+extern tick_t sim_cycle;
 extern int num_threads;
 extern struct stat_sdb_t *sim_sdb;
 double *cores_rtp = NULL;
 double uncore_rtp;
+bool private_l2 = false;
 
 void init_power(void)
 {
@@ -33,21 +36,30 @@ void init_power(void)
   XML->sys.core_tech_node = 45;
   XML->sys.target_core_clockrate = uncore->cpu_speed;
   XML->sys.temperature = 380; // K
-  XML->sys.device_type = 2;// Low operating power
+  XML->sys.interconnect_projection_type = 0; // aggressive
+  XML->sys.longer_channel_device = 1; // use when appropirate
   XML->sys.machine_bits = 64;
   XML->sys.virtual_address_width = 64;
   XML->sys.physical_address_width = 52;
   XML->sys.virtual_memory_page_size = 4096;
 
-  // If any core has a private L2, we assume L3 is LLC
-  bool private_l2 = false;
   int num_l2 = 0;
+  bool has_hp_core = false;
   for (int i=0; i<num_threads; i++)
+  {
+    // If any core has a private L2, we assume L3 is LLC
     if(cores[i]->memory.DL2)
     {
       private_l2 = true;
       num_l2++;
-    }     
+    }
+
+    // If any core is not in-order, we assume high speed devices
+    if(strcmp(cores[i]->knobs->model, "IO-DPM"))
+      has_hp_core = true;
+  } 
+
+  XML->sys.device_type = has_hp_core ? 0 /*HP*/: 2 /*LOP*/;
 
   XML->sys.Private_L2 = private_l2;
   XML->sys.number_of_L2s = private_l2 ? num_l2 : 1;
@@ -93,7 +105,7 @@ void init_power(void)
     fprintf(stderr, "%f ", XML->sys.L3[0].L3_config[1]);
     XML->sys.L3[0].L3_config[2] = uncore->LLC->assoc;
     fprintf(stderr, "%f ", XML->sys.L3[0].L3_config[2]);
-    XML->sys.L3[0].L3_config[3] = uncore->LLC->banks;
+    XML->sys.L3[0].L3_config[3] = 1;//uncore->LLC->banks;
     fprintf(stderr, "%f ", XML->sys.L3[0].L3_config[3]);
     XML->sys.L3[0].L3_config[4] = 1;
     fprintf(stderr, "%f ", XML->sys.L3[0].L3_config[4]);
@@ -105,10 +117,16 @@ void init_power(void)
     fprintf(stderr, "%f\n", XML->sys.L3[0].L3_config[7]);
 
     XML->sys.L3[0].ports[0] = 1;
-    XML->sys.L3[0].ports[1] = 1;
-    XML->sys.L3[0].ports[2] = 1;
+    XML->sys.L3[0].ports[1] = 0;
+    XML->sys.L3[0].ports[2] = 0;
+
+    XML->sys.L3[0].buffer_sizes[0] = 1;
+    XML->sys.L3[0].buffer_sizes[1] = 2;
+    XML->sys.L3[0].buffer_sizes[2] = 2;
+    XML->sys.L3[0].buffer_sizes[3] = 2;
 
     XML->sys.L3[0].clockrate = 800; //Somehow arbitrary, set me
+    XML->sys.L3[0].device_type = 0;
   }
 
   XML->sys.mc.number_mcs = 0;
@@ -117,7 +135,7 @@ void init_power(void)
   XML->sys.pcie.number_units = 0;
 
   for (int i=0; i<num_threads; i++)
-    cores[i]->power->translate_params(&XML->sys.core[i]);
+    cores[i]->power->translate_params(&XML->sys.core[i], &XML->sys.L2[i]);
 
   mcpat_initialize(XML, &cerr, 5);
 
@@ -138,14 +156,27 @@ void translate_uncore_stats(root_system* stats)
 
   if (uncore->LLC)
   {
-    curr_stat = stat_find_stat(sim_sdb, "LLC.load_lookups");
-    stats->L2[0].read_accesses = *curr_stat->variant.for_int.var;
-    curr_stat = stat_find_stat(sim_sdb, "LLC.load_misses");
-    stats->L2[0].read_misses = *curr_stat->variant.for_int.var;
-    curr_stat = stat_find_stat(sim_sdb, "LLC.store_lookups");
-    stats->L2[0].write_accesses = *curr_stat->variant.for_int.var;
-    curr_stat = stat_find_stat(sim_sdb, "LLC.store_misses");
-    stats->L2[0].write_misses = *curr_stat->variant.for_int.var;
+    if (!private_l2)
+    {
+      curr_stat = stat_find_stat(sim_sdb, "LLC.load_lookups");
+      stats->L2[0].read_accesses = *curr_stat->variant.for_int.var;
+      curr_stat = stat_find_stat(sim_sdb, "LLC.load_misses");
+      stats->L2[0].read_misses = *curr_stat->variant.for_int.var;
+      curr_stat = stat_find_stat(sim_sdb, "LLC.store_lookups");
+      stats->L2[0].write_accesses = *curr_stat->variant.for_int.var;
+      curr_stat = stat_find_stat(sim_sdb, "LLC.store_misses");
+      stats->L2[0].write_misses = *curr_stat->variant.for_int.var;
+    }
+    else {
+      curr_stat = stat_find_stat(sim_sdb, "LLC.load_lookups");
+      stats->L3[0].read_accesses = *curr_stat->variant.for_int.var;
+      curr_stat = stat_find_stat(sim_sdb, "LLC.load_misses");
+      stats->L3[0].read_misses = *curr_stat->variant.for_int.var;
+      curr_stat = stat_find_stat(sim_sdb, "LLC.store_lookups");
+      stats->L3[0].write_accesses = *curr_stat->variant.for_int.var;
+      curr_stat = stat_find_stat(sim_sdb, "LLC.store_misses");
+      stats->L3[0].write_misses = *curr_stat->variant.for_int.var;
+    }
   }
 
   curr_stat = stat_find_stat(sim_sdb, "sim_cycle");
@@ -157,14 +188,15 @@ void compute_power(void)
   translate_uncore_stats(&XML->sys);
 
   for(int i=0; i<num_threads; i++)
-    cores[i]->power->translate_stats(&XML->sys.core[i]);
+    cores[i]->power->translate_stats(&XML->sys.core[i], &XML->sys.L2[i]);
 
 //  mcpat_compute_energy(false, cores_rtp, &uncore_rtp);
   mcpat_compute_energy(true, cores_rtp, &uncore_rtp);
 }
 
-void core_power_t::translate_params(system_core *core_params)
+void core_power_t::translate_params(system_core *core_params, system_L2 *L2_params)
 {
+  (void) L2_params;
   struct core_knobs_t *knobs = core->knobs;
 
   core_params->clock_rate = uncore->cpu_speed;
@@ -179,7 +211,8 @@ void core_power_t::translate_params(system_core *core_params)
 
   core_params->fetch_width = knobs->fetch.width;
   core_params->decode_width = knobs->decode.width;
-  core_params->issue_width = knobs->alloc.width;
+  core_params->issue_width = knobs->exec.num_exec_ports;
+  core_params->peak_issue_width = knobs->exec.num_exec_ports;
   core_params->commit_width = knobs->commit.width;
 
   core_params->ALU_per_core = knobs->exec.port_binding[FU_IEU].num_FUs;
@@ -281,6 +314,8 @@ void core_power_t::translate_params(system_core *core_params)
     core_params->predictor.chooser_predictor_bits  = pred->get_chooser_width();
   }
 
+  core_params->pipeline_duty_cycle = 1;
+
   // AF for max power computation
   core_params->IFU_duty_cycle = 1.0;
   core_params->LSU_duty_cycle = 0.5;
@@ -294,10 +329,12 @@ void core_power_t::translate_params(system_core *core_params)
   core_params->FPU_cdb_duty_cycle = 0.3;
 }
 
-void core_power_t::translate_stats(system_core *core_stats)
+void core_power_t::translate_stats(system_core *core_stats, system_L2 *L2_stats)
 {
   struct stat_stat_t *stat;
   int coreID = core->id;
+
+  (void) L2_stats;
 
   stat = stat_find_core_stat(sim_sdb, coreID, "oracle_total_uops");
   core_stats->total_instructions = *stat->variant.for_int.var;

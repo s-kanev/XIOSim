@@ -23,8 +23,8 @@ endif
 
 #CXXFLAGS = -Wall -Wno-unknown-pragmas -Winline $(DBG) $(OPT) 
 CXXFLAGS = -Wno-unknown-pragmas $(DBG) $(OPT) 
-CXX = g++ -m32
-CC  = gcc -m32
+CXX = g++ -m32 -g
+CC  = gcc -m32 -g
 AR = ar rs
 RANLIB = ranlib
 

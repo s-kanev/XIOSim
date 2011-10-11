@@ -14,8 +14,8 @@ class core_power_IO_DPM_t : public core_power_t {
   public:
   core_power_IO_DPM_t(struct core_t * _core);
 
-  void translate_params(system_core *core_params);
-  void translate_stats(system_core *core_params);
+  void translate_params(system_core *core_params, system_L2 *L2_params);
+  void translate_stats(system_core *core_params, system_L2 *L2_stats);
 };
 
 core_power_IO_DPM_t::core_power_IO_DPM_t(struct core_t * _core):
@@ -23,9 +23,9 @@ core_power_IO_DPM_t::core_power_IO_DPM_t(struct core_t * _core):
 {
 }
 
-void core_power_IO_DPM_t::translate_params(system_core *core_params)
+void core_power_IO_DPM_t::translate_params(system_core *core_params, system_L2 *L2_params)
 {
-  core_power_t::translate_params(core_params);
+  core_power_t::translate_params(core_params, L2_params);
 
   core_params->machine_type = 1; // In-order
   core_params->number_hardware_threads = 2;
@@ -50,14 +50,10 @@ void core_power_IO_DPM_t::translate_params(system_core *core_params)
 
 }
 
-void core_power_IO_DPM_t::translate_stats(system_core *core_stats)
+void core_power_IO_DPM_t::translate_stats(system_core *core_stats, system_L2 *L2_stats)
 {
-  core_power_t::translate_stats(core_stats);
+  core_power_t::translate_stats(core_stats, L2_stats);
 
-  struct stat_stat_t *stat;
-  int coreID = core->id;
-
-  stat = stat_find_core_stat(sim_sdb, coreID, "oracle_total_uops");
   core_stats->int_instructions = core_stats->total_instructions; // XXX: only used for inst window, for which we don't care in this pipe
   core_stats->fp_instructions = 0;
 

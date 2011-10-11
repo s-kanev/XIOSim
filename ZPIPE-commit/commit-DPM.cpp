@@ -297,6 +297,10 @@ core_commit_DPM_t::reg_stats(struct stat_sdb_t * const sdb)
   sprintf(buf,"c%d.avg_eff_flowlen",arch->id);
   sprintf(buf2,"c%d.commit_eff_uops/c%d.commit_insn",arch->id,arch->id);
   stat_reg_formula(sdb, true, buf, "average effective uops per instruction", buf2, NULL);
+  sprintf(buf,"c%d.regfile_writes",arch->id);
+  stat_reg_counter(sdb, true, buf, "number of register file writes", &core->stat.regfile_writes, 0, TRUE, NULL);
+  sprintf(buf,"c%d.fp_regfile_writes",arch->id);
+  stat_reg_counter(sdb, true, buf, "number of fp refister file writes", &core->stat.fp_regfile_writes, 0, TRUE, NULL);
   sprintf(buf,"c%d.flow_lengths",core->current_thread->id);
   core->stat.flow_histo = stat_reg_dist(sdb, buf,
                                            "histogram of uop flow lengths",
@@ -516,6 +520,11 @@ void core_commit_DPM_t::step(void)
 
         zesto_assert(uop->timing.when_exec != TICK_T_MAX,(void)0);
       }
+
+      if(REG_IS_GPR(uop->decode.odep_name))
+        core->stat.regfile_writes++;
+      else if(REG_IS_FPR(uop->decode.odep_name))
+        core->stat.fp_regfile_writes++;
 
       /* this cleans up idep/odep ptrs, register mappings, and
          commit stores to the real (non-spec) memory system */

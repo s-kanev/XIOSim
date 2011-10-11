@@ -582,6 +582,13 @@ core_exec_DPM_t::reg_stats(struct stat_sdb_t * const sdb)
   sprintf(buf2,"c%d.STQ_full/c%d.sim_cycle",arch->id,arch->id);
   stat_reg_formula(sdb, true, buf, "fraction of cycles STQ was full", buf2, NULL);
 
+  sprintf(buf,"c%d.int_FU_occupancy",arch->id);
+  stat_reg_counter(sdb, true, buf, "int FUs occupancy", &core->stat.int_FU_occupancy, 0, TRUE, NULL);
+  sprintf(buf,"c%d.fp_FU_occupancy",arch->id);
+  stat_reg_counter(sdb, true, buf, "fp FUs occupancy", &core->stat.fp_FU_occupancy, 0, TRUE, NULL);
+  sprintf(buf,"c%d.mul_FU_occupancy",arch->id);
+  stat_reg_counter(sdb, true, buf, "mul FUs occupancy", &core->stat.mul_FU_occupancy, 0, TRUE, NULL);
+
   memdep->reg_stats(sdb, core);
 
   stat_reg_note(sdb,"\n#### DATA CACHE STATS ####");
@@ -621,6 +628,34 @@ void core_exec_DPM_t::update_occupancy(void)
     core->stat.STQ_full_cycles++;
   if(STQ_num <= 0)
     core->stat.STQ_empty_cycles++;
+
+  for(int i=0; i<core->knobs->exec.num_exec_ports; i++)
+  {
+    for(int j=0; j<NUM_FU_CLASSES; j++)
+      if(port[i].FU[j])
+      {
+        switch(j)
+        {
+          case FU_IEU:
+          case FU_JEU:
+          case FU_SHIFT:
+            core->stat.int_FU_occupancy += port[i].FU[j]->occupancy;
+            break;
+          case FU_FADD:
+          case FU_FMUL:
+          case FU_FDIV:
+          case FU_FCPLX:
+            core->stat.fp_FU_occupancy += port[i].FU[j]->occupancy;
+            break;
+          case FU_IMUL:
+          case FU_IDIV:
+            core->stat.mul_FU_occupancy += port[i].FU[j]->occupancy;
+            break;
+          default:
+            break;
+        }
+      }
+  }
 }
 
 void core_exec_DPM_t::reset_execution(void)
@@ -1768,6 +1803,8 @@ void core_exec_DPM_t::ALU_exec(void)
           {
             if(needs_bypass)
               port[i].when_bypass_used = sim_cycle;
+
+            ZESTO_STAT(core->stat.ROB_writes++;)
 
             if(uop->decode.is_load) /* loads need to be processed differently */
             {

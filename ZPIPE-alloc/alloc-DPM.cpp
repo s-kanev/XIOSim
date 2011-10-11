@@ -112,6 +112,13 @@ core_alloc_DPM_t::reg_stats(struct stat_sdb_t * const sdb)
   sprintf(buf2,"c%d.alloc_eff_uops/c%d.sim_cycle",arch->id,arch->id);
   stat_reg_formula(sdb, true, buf, "effective uPC at alloc", buf2, NULL);
 
+  sprintf(buf,"c%d.regfile_reads",arch->id);
+  stat_reg_counter(sdb, true, buf, "number of register file reads", &core->stat.regfile_reads, 0, TRUE, NULL);
+  sprintf(buf,"c%d.fp_regfile_reads",arch->id);
+  stat_reg_counter(sdb, true, buf, "number of fp refister file reads", &core->stat.fp_regfile_reads, 0, TRUE, NULL);
+
+  sprintf(buf,"c%d.ROB_writes",arch->id);
+  stat_reg_counter(sdb, true, buf, "number of write accesses to ROB", &core->stat.ROB_writes, 0, TRUE, NULL);
   sprintf(buf,"c%d.alloc_stall",core->current_thread->id);
   core->stat.alloc_stall = stat_reg_dist(sdb, buf,
                                           "breakdown of stalls at alloc",
@@ -275,6 +282,15 @@ void core_alloc_DPM_t::step(void)
                 }
               }
 
+              /* Update read stats */
+              for(int j=0;j<MAX_IDEPS;j++)
+              {
+                if(REG_IS_GPR(uop->decode.idep_name[j]))
+                  core->stat.regfile_reads++;
+                else if(REG_IS_FPR(uop->decode.idep_name[j]))
+                  core->stat.fp_regfile_reads++;
+              }
+
               /* check "scoreboard" for operand readiness (we're not actually
                  explicitly implementing a scoreboard); if value is ready, read
                  it into data-capture window or payload RAM. */
@@ -369,6 +385,8 @@ void core_alloc_DPM_t::step(void)
             ZESTO_STAT(core->stat.alloc_eff_uops += uop->decode.fusion_size;)
           else
             ZESTO_STAT(core->stat.alloc_eff_uops++;)
+
+          ZESTO_STAT(core->stat.ROB_writes++;)
 
           /* remove from alloc pipe */
           pipe[stage][i] = NULL;

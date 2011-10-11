@@ -325,7 +325,6 @@ sim_aux_stats(FILE *stream)        /* output stream */
   void
 sim_uninit(void)
 {
-  deinit_power();
 }
 
 

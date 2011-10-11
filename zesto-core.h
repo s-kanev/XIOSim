@@ -249,6 +249,7 @@ class core_t {
     counter_t alloc_eff_uops;
     counter_t regfile_reads;
     counter_t fp_regfile_reads;
+    counter_t ROB_writes;
     struct stat_stat_t *alloc_stall;
 
     /* exec stage */

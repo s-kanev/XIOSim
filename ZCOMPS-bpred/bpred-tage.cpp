@@ -480,6 +480,10 @@ class bpred_tage_t:public bpred_dir_t
     return sc;
   }
 
+  int get_local_size(void) { return (num_tables-1)*table_size; }
+  int get_local_width(int lev) { return lev ? 0 : tag_width + 4; } //bits 4 == 2 (bimod) + 2 (counter)
+  int get_global_size(void) { return bim_size; }
+  int get_global_width(void) { return 2; } //assuming base is a bimodal predictor
 };
 
 
