@@ -372,6 +372,10 @@ stat_print_stats(struct stat_sdb_t *sdb,/* stat database */
 struct stat_stat_t *
 stat_find_stat(struct stat_sdb_t *sdb,	/* stat database */
 	       const char *stat_name);	/* stat name */
+struct stat_stat_t *
+stat_find_core_stat(struct stat_sdb_t *sdb,
+           int core_id,
+           const char *stat_name);
 	       
 
 /* print a sparse array distribution */

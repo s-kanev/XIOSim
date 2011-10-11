@@ -424,6 +424,11 @@ struct core_knobs_t
     int branch_limit; /* maximum number of branches committed per cycle */
     int pre_commit_depth;
   } commit;
+
+  struct {
+    bool compute;
+    int rtp_interval;
+  } power;
 };
 
 extern struct core_t ** cores;

@@ -355,6 +355,9 @@ class BTB_2levbtac_t:public BTB_t
     return sc;
   }
 
+  int get_num_entries(void) { return num_entries; }
+  int get_tag_width(void) { return tag_width; }
+  int get_num_ways(void) { return num_ways; }
 };
 
 

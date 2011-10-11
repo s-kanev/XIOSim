@@ -37,7 +37,7 @@
 #include "zesto-dram.h"
 #include "zesto-uncore.h"
 #include "zesto-MC.h"
-
+#include "zesto-power.h"
 
 extern void sim_main_slave_pre_pin();
 extern void sim_main_slave_post_pin();
@@ -129,14 +129,6 @@ Zesto_SlaveInit(int argc, char **argv)
 {
   char *s;
   int i, exit_code;
-
-  /* catch SIGUSR1 and dump intermediate stats */
-//SK: Used by PIN
-//  signal(SIGUSR1, signal_sim_stats);
-
-  /* catch SIGUSR2 and dump final stats and exit */
-//SK: Used by PIN
-//  signal(SIGUSR2, signal_exit_now);
 
   /* register an error handler */
   fatal_hook(sim_print_stats);
@@ -288,6 +280,9 @@ Zesto_SlaveInit(int argc, char **argv)
   sim_aux_config(stderr);
   fprintf(stderr, "\n");
 
+  if(cores[0]->knobs->power.compute)
+    init_power();
+
   /* omit option dump time from rate stats */
   sim_start_time = time((time_t *)NULL);
 
@@ -389,6 +384,11 @@ void Zesto_Destroy()
 
   /* print simulator stats */
   sim_print_stats(stderr);
+  if(cores[0]->knobs->power.compute)
+  {
+    compute_power(sim_sdb, true);
+    deinit_power();
+  }
 }
 
 

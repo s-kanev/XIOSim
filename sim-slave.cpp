@@ -106,6 +106,7 @@
 #include "zesto-dram.h"
 #include "zesto-uncore.h"
 #include "zesto-MC.h"
+#include "zesto-power.h"
 
 
 extern int start_pos;
@@ -300,6 +301,7 @@ sim_post_init(void)
     cores[i]->alloc  = alloc_create(knobs.model,cores[i]);
     cores[i]->decode  = decode_create(knobs.model,cores[i]);
     cores[i]->fetch  = fetch_create(knobs.model,cores[i]);
+    cores[i]->power = power_create(knobs.model,cores[i]);
 
     cores[i]->current_thread->active = true;
   }
@@ -323,7 +325,6 @@ sim_aux_stats(FILE *stream)        /* output stream */
   void
 sim_uninit(void)
 {
-  /* nada */
 }
 
 

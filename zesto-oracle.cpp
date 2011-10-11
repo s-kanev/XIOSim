@@ -280,7 +280,6 @@ core_oracle_t::reg_stats(struct stat_sdb_t * const sdb)
   sprintf(buf,"c%d.oracle_num_branches",arch->id);
   stat_reg_counter(sdb, true, buf, "total number of branches executed by oracle", &core->stat.oracle_num_branches, 0, TRUE, NULL);
 
-
   sprintf(buf,"c%d.oracle_total_refs",arch->id);
   stat_reg_counter(sdb, true, buf, "total number of loads and stores executed by oracle, including wrong-path", &core->stat.oracle_total_refs, 0, TRUE, NULL);
   sprintf(buf,"c%d.oracle_total_loads",arch->id);
@@ -290,6 +289,8 @@ core_oracle_t::reg_stats(struct stat_sdb_t * const sdb)
   stat_reg_formula(sdb, true, buf, "total number of stores executed by oracle, including wrong-path", buf2, "%12.0f");
   sprintf(buf,"c%d.oracle_total_branches",arch->id);
   stat_reg_counter(sdb, true, buf, "total number of branches executed by oracle, including wrong-path", &core->stat.oracle_total_branches, 0, TRUE, NULL);
+  sprintf(buf,"c%d.oracle_total_calls",arch->id);
+  stat_reg_counter(sdb, true, buf, "total number of function calls executed by oracle, including wrong-path", &core->stat.oracle_total_calls, 0, TRUE, NULL);
   sprintf(buf,"c%d.MopQ_occupancy",arch->id);
   stat_reg_counter(sdb, true, buf, "total oracle MopQ occupancy", &core->stat.MopQ_occupancy, 0, TRUE, NULL);
   sprintf(buf,"c%d.MopQ_avg",arch->id);
@@ -1357,13 +1358,15 @@ core_oracle_t::exec(const md_addr_t requested_PC)
           ZESTO_STAT(core->stat.oracle_num_loads++;)
       }
     }
-
     flow_index += MD_INC_FLOW;
   }
 
   /* Do FP-stack adjustments if necessary */
   if(Mop->decode.fpstack_op != fpstk_nop)
     FPSTACK_IMPL(Mop->decode.fpstack_op);
+
+  if(MD_IS_CALL(Mop->decode.opflags))
+    ZESTO_STAT(core->stat.oracle_total_calls++;)
 
   /* update register mappings, inter-uop dependencies */
   /* NOTE: this occurs in its own loop because the above loop

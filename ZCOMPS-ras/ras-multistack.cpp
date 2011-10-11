@@ -79,6 +79,11 @@ class RAS_multistack_t:public RAS_t
     free(type); type = NULL;
   }
 
+  int get_size(void)
+  {
+     return real_size + spec_size;
+  }
+
   /* PUSH */
   RAS_REAL_PUSH
   {

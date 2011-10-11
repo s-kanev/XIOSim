@@ -192,6 +192,7 @@ class core_t {
   class core_alloc_t * alloc;
   class core_exec_t * exec;
   class core_commit_t * commit;
+  class core_power_t * power;
 
   struct core_memory_t {
     struct cache_t * IL1;
@@ -246,6 +247,9 @@ class core_t {
     counter_t alloc_insn;
     counter_t alloc_uops;
     counter_t alloc_eff_uops;
+    counter_t regfile_reads;
+    counter_t fp_regfile_reads;
+    counter_t ROB_writes;
     struct stat_stat_t *alloc_stall;
 
     /* exec stage */
@@ -261,6 +265,9 @@ class core_t {
     counter_t load_nukes; /* pipe-flushes due to load-order violation */
     counter_t wp_load_nukes;
     counter_t DL1_load_split_accesses;
+    counter_t int_FU_occupancy;
+    counter_t fp_FU_occupancy;
+    counter_t mul_FU_occupancy;
 
     /* commit stage */
     counter_t commit_bytes;
@@ -279,6 +286,8 @@ class core_t {
     counter_t commit_UROM_uops;
     counter_t commit_UROM_eff_uops;
     counter_t DL1_store_split_accesses;
+    counter_t regfile_writes;
+    counter_t fp_regfile_writes;
 
     counter_t eio_commit_insn; /* num instructions consumed in EIO file */
 
@@ -326,6 +335,7 @@ class core_t {
     counter_t oracle_total_refs;
     counter_t oracle_total_loads;
     counter_t oracle_total_branches;
+    counter_t oracle_total_calls;
     counter_t oracle_num_refs;
     counter_t oracle_num_loads;
     counter_t oracle_num_branches;

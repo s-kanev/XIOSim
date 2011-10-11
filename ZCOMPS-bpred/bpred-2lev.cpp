@@ -178,6 +178,11 @@ class bpred_2lev_t:public bpred_dir_t
     return sc;
   }
 
+
+  int get_local_size(void) { return pht_size; }
+  int get_local_width(int lev) { return lev ? 0 : 20; } //bits
+  int get_global_size(void) { return bht_size; }
+  int get_global_width(void) { return history_length; }
 };
 
 #endif /* BPRED_PARSE_ARGS */
