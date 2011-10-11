@@ -820,7 +820,7 @@ void init_tech_params(double technology, bool is_tag)
       //ITRS HP device type
       SENSE_AMP_D = .04e-9; // s
       SENSE_AMP_P = 2.7e-15; // J
-      vdd[0] = 1.0;
+      vdd[0] = 1.2;
       Lphy[0] = 0.018;
       Lelec[0] = 0.01345;
       t_ox[0] = 0.65e-3;
