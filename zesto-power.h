@@ -11,7 +11,7 @@ class core_power_t {
 
   public:
   core_power_t(struct core_t * _core);
-  ~core_power_t(void);
+  virtual ~core_power_t(void);
 
   double rt_power;
 
