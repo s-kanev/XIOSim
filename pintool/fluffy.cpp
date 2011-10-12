@@ -26,6 +26,7 @@ VOID FLUFFY_Init()
     ifstream annotation_file(KnobFluffy.Value().c_str());
 
     ADDRINT start, end, id;
+    double weight;
     std::string command;
     char ch;
     while (true)
@@ -45,21 +46,17 @@ VOID FLUFFY_Init()
             annotation_file >> end;
             stop_counts.push_back(end);
         }
+        else if (command == "Weight")
+        {
+            do { annotation_file >> ch; } while (ch != ':');
+            annotation_file >> weight;
+            slice_weights_times_1000.push_back((ADDRINT)(weight*1000*100));
+        }
         else
             ASSERTX(false);
     }
     ASSERTX(start_counts.size() == stop_counts.size());
     ADDRINT npoints = start_counts.size();
-
-//XXX: Change protocol so we don't need to do that and this is in annotation file
-    ifstream weight_file("weights");
-    ASSERTX(!weight_file.fail());
-    double weight;
-    int jnk;
-    for(ADDRINT i=0; i<npoints; i++) {
-        weight_file >> weight >> jnk;
-        slice_weights_times_1000.push_back((ADDRINT)(weight*1000*100));
-    }
 
     for(ADDRINT i=0; i<npoints; i++) {
 #ifdef ZESTO_PIN_DBG
