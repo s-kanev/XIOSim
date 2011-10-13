@@ -111,6 +111,8 @@
 
 extern int start_pos;
 extern int heartbeat_count;
+/* power stats database */
+extern struct stat_sdb_t *rtp_sdb;
 
 /* architected state */
 struct thread_t ** threads = NULL;
@@ -398,8 +400,6 @@ void sim_main_slave_post_pin()
     }
     heartbeat_count = 0;
   }
-
-
 }
 
 void sim_main_slave_pre_pin()
@@ -416,6 +416,15 @@ void sim_main_slave_pre_pin()
   for(i=0;i<num_threads;i++)
     if(cores[i]->current_thread->active)
       cores[i]->stat.final_sim_cycle = sim_cycle;
+
+  /* power computation */
+  if(knobs.power.compute && (knobs.power.rtp_interval > 0) && 
+     (sim_cycle % knobs.power.rtp_interval == 0))
+  {
+    stat_save_stats_delta(rtp_sdb);   // Store delta values for translation
+    compute_power(rtp_sdb, false);
+    stat_save_stats(rtp_sdb);         // Create new checkpoint for next delta
+  }
 
   /*********************************************/
   /* step through pipe stages in reverse order */

@@ -396,6 +396,10 @@ stat_save_stats(struct stat_sdb_t *sdb);
 void
 stat_scale_stats(struct stat_sdb_t *sdb);
 
+/* store the difference between the current and stored value in a database */
+void
+stat_save_stats_delta(struct stat_sdb_t *sdb);
+
 /* scale a stat variable by a fixed weight metric
    (note possible loss of precission for integral types) */
 void

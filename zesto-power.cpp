@@ -15,8 +15,11 @@ class ParseXML *XML = NULL; //Interface to McPAT
 
 extern tick_t sim_cycle;
 extern int num_threads;
+
 double uncore_rtp;
 double *cores_rtp;
+FILE *rtp_file = NULL;
+
 bool private_l2 = false;
 
 void init_power(void)
@@ -24,6 +27,8 @@ void init_power(void)
   XML = new ParseXML();
   XML->initialize();
 
+
+  /* Translate uncore params */
   XML->sys.number_of_cores = num_threads;
   XML->sys.number_of_L1Directories = 0;
   XML->sys.number_of_L2Directories = 0;
@@ -69,21 +74,13 @@ void init_power(void)
   if (uncore->LLC && !private_l2)
   {
     XML->sys.L2[0].L2_config[0] = uncore->LLC->sets * uncore->LLC->assoc * uncore->LLC->linesize;
-    fprintf(stderr, "LLC: %f ", XML->sys.L2[0].L2_config[0]);
     XML->sys.L2[0].L2_config[1] = uncore->LLC->linesize;
-    fprintf(stderr, "%f ", XML->sys.L2[0].L2_config[1]);
     XML->sys.L2[0].L2_config[2] = uncore->LLC->assoc;
-    fprintf(stderr, "%f ", XML->sys.L2[0].L2_config[2]);
     XML->sys.L2[0].L2_config[3] = uncore->LLC->banks;
-    fprintf(stderr, "%f ", XML->sys.L2[0].L2_config[3]);
     XML->sys.L2[0].L2_config[4] = 1;
-    fprintf(stderr, "%f ", XML->sys.L2[0].L2_config[4]);
     XML->sys.L2[0].L2_config[5] = uncore->LLC->latency;
-    fprintf(stderr, "%f ", XML->sys.L2[0].L2_config[5]);
     XML->sys.L2[0].L2_config[6] = uncore->LLC->bank_width;
-    fprintf(stderr, "%f ", XML->sys.L2[0].L2_config[6]);
     XML->sys.L2[0].L2_config[7] = (uncore->LLC->write_policy == WRITE_THROUGH) ? 0 : 1;
-    fprintf(stderr, "%f\n", XML->sys.L2[0].L2_config[7]);
 
     XML->sys.L2[0].ports[0] = 1;
     XML->sys.L2[0].ports[1] = 0;
@@ -99,21 +96,13 @@ void init_power(void)
   } else if (uncore->LLC) // LLC is L3
   {
     XML->sys.L3[0].L3_config[0] = uncore->LLC->sets * uncore->LLC->assoc * uncore->LLC->linesize;
-    fprintf(stderr, "LLC: %f ", XML->sys.L3[0].L3_config[0]);
     XML->sys.L3[0].L3_config[1] = uncore->LLC->linesize;
-    fprintf(stderr, "%f ", XML->sys.L3[0].L3_config[1]);
     XML->sys.L3[0].L3_config[2] = uncore->LLC->assoc;
-    fprintf(stderr, "%f ", XML->sys.L3[0].L3_config[2]);
     XML->sys.L3[0].L3_config[3] = 1;//uncore->LLC->banks;
-    fprintf(stderr, "%f ", XML->sys.L3[0].L3_config[3]);
     XML->sys.L3[0].L3_config[4] = 1;
-    fprintf(stderr, "%f ", XML->sys.L3[0].L3_config[4]);
     XML->sys.L3[0].L3_config[5] = uncore->LLC->latency;
-    fprintf(stderr, "%f ", XML->sys.L3[0].L3_config[5]);
     XML->sys.L3[0].L3_config[6] = uncore->LLC->bank_width;
-    fprintf(stderr, "%f ", XML->sys.L3[0].L3_config[6]);
     XML->sys.L3[0].L3_config[7] = (uncore->LLC->write_policy == WRITE_THROUGH) ? 0 : 1;
-    fprintf(stderr, "%f\n", XML->sys.L3[0].L3_config[7]);
 
     XML->sys.L3[0].ports[0] = 1;
     XML->sys.L3[0].ports[1] = 0;
@@ -141,11 +130,23 @@ void init_power(void)
   cores_rtp = (double*)calloc(num_threads, sizeof(*cores_rtp));
   if (cores_rtp == NULL)
     fatal("couldn't allocate memory");
+
+  core_knobs_t* knobs = cores[0]->knobs;
+
+  if (knobs->power.rtp_interval > 0)
+  {
+    assert(knobs->power.rtp_filename);
+    rtp_file = fopen(knobs->power.rtp_filename, "w");
+    if (rtp_file == NULL)
+      fatal("couldn't open rtp power file: %s", knobs->power.rtp_filename);
+  }
 }
 
 void deinit_power(void)
 {
   free(cores_rtp);
+  if (rtp_file)
+    fclose(rtp_file);
   mcpat_finalize();
 }
 
@@ -158,39 +159,45 @@ void translate_uncore_stats(struct stat_sdb_t* sdb, root_system* stats)
     if (!private_l2)
     {
       curr_stat = stat_find_stat(sdb, "LLC.load_lookups");
-      stats->L2[0].read_accesses = *curr_stat->variant.for_int.var;
+      stats->L2[0].read_accesses = curr_stat->variant.for_sqword.end_val;
       curr_stat = stat_find_stat(sdb, "LLC.load_misses");
-      stats->L2[0].read_misses = *curr_stat->variant.for_int.var;
+      stats->L2[0].read_misses = curr_stat->variant.for_sqword.end_val;
       curr_stat = stat_find_stat(sdb, "LLC.store_lookups");
-      stats->L2[0].write_accesses = *curr_stat->variant.for_int.var;
+      stats->L2[0].write_accesses = curr_stat->variant.for_sqword.end_val;
       curr_stat = stat_find_stat(sdb, "LLC.store_misses");
-      stats->L2[0].write_misses = *curr_stat->variant.for_int.var;
+      stats->L2[0].write_misses = curr_stat->variant.for_sqword.end_val;
     }
     else {
       curr_stat = stat_find_stat(sdb, "LLC.load_lookups");
-      stats->L3[0].read_accesses = *curr_stat->variant.for_int.var;
+      stats->L3[0].read_accesses = curr_stat->variant.for_sqword.end_val;
       curr_stat = stat_find_stat(sdb, "LLC.load_misses");
-      stats->L3[0].read_misses = *curr_stat->variant.for_int.var;
+      stats->L3[0].read_misses = curr_stat->variant.for_sqword.end_val;
       curr_stat = stat_find_stat(sdb, "LLC.store_lookups");
-      stats->L3[0].write_accesses = *curr_stat->variant.for_int.var;
+      stats->L3[0].write_accesses = curr_stat->variant.for_sqword.end_val;
       curr_stat = stat_find_stat(sdb, "LLC.store_misses");
-      stats->L3[0].write_misses = *curr_stat->variant.for_int.var;
+      stats->L3[0].write_misses = curr_stat->variant.for_sqword.end_val;
     }
   }
 
   curr_stat = stat_find_stat(sdb, "sim_cycle");
-  stats->total_cycles = *curr_stat->variant.for_int.var;
+  stats->total_cycles = curr_stat->variant.for_sqword.end_val;
 }
 
 void compute_power(struct stat_sdb_t* sdb, bool print_power)
 {
+  /* Get necessary simualtor stats */
   translate_uncore_stats(sdb, &XML->sys);
-
-
   for(int i=0; i<num_threads; i++)
     cores[i]->power->translate_stats(sdb, &XML->sys.core[i], &XML->sys.L2[i]);
 
+  /* Invoke mcpat */
   mcpat_compute_energy(print_power, cores_rtp, &uncore_rtp);
+
+  /* Print power trace */
+  if (rtp_file)
+    for(int i=0; i<num_threads; i++)
+        fprintf(rtp_file, "%.4f ", cores_rtp[i]);
+    fprintf(rtp_file, "%.4f\n", uncore_rtp);
 }
 
 void core_power_t::translate_params(system_core *core_params, system_L2 *L2_params)
@@ -228,22 +235,14 @@ void core_power_t::translate_params(system_core *core_params, system_L2 *L2_para
   if (core->memory.DL1)
   {
     core_params->dcache.dcache_config[0] = core->memory.DL1->sets * core->memory.DL1->assoc * core->memory.DL1->linesize;
-    fprintf(stderr, "DL: %f ", core_params->dcache.dcache_config[0]);
     core_params->dcache.dcache_config[1] = core->memory.DL1->linesize;
-    fprintf(stderr, "%f ", core_params->dcache.dcache_config[1]);
     core_params->dcache.dcache_config[2] = core->memory.DL1->assoc;
-    fprintf(stderr, "%f ", core_params->dcache.dcache_config[2]);
     // Hardcode banks to 1, McPAT adds big overhead for multibanked caches
     core_params->dcache.dcache_config[3] = 1;
-    fprintf(stderr, "%f ", core_params->dcache.dcache_config[3]);
     core_params->dcache.dcache_config[4] = 1;
-    fprintf(stderr, "%f ", core_params->dcache.dcache_config[4]);
     core_params->dcache.dcache_config[5] = core->memory.DL1->latency;
-    fprintf(stderr, "%f ", core_params->dcache.dcache_config[5]);
     core_params->dcache.dcache_config[6] = core->memory.DL1->bank_width;
-    fprintf(stderr, "%f ", core_params->dcache.dcache_config[6]);
     core_params->dcache.dcache_config[7] = (core->memory.DL1->write_policy == WRITE_THROUGH) ? 0 : 1;
-    fprintf(stderr, "%f\n", core_params->dcache.dcache_config[7]);
 
 
     core_params->dcache.buffer_sizes[0] = 4;//core->memory.DL1->MSHR_size;
@@ -255,22 +254,14 @@ void core_power_t::translate_params(system_core *core_params, system_L2 *L2_para
   if (core->memory.IL1)
   {
     core_params->icache.icache_config[0] = core->memory.IL1->sets * core->memory.IL1->assoc * core->memory.IL1->linesize;
-    fprintf(stderr, "IL: %f ", core_params->icache.icache_config[0]);
     core_params->icache.icache_config[1] = core->memory.IL1->linesize;
-    fprintf(stderr, "%f ", core_params->icache.icache_config[1]);
     core_params->icache.icache_config[2] = core->memory.IL1->assoc;
-    fprintf(stderr, "%f ", core_params->icache.icache_config[2]);
     // Hardcode banks to 1, McPAT adds big overhead for multibanked caches
     core_params->icache.icache_config[3] = 1;
-    fprintf(stderr, "%f ", core_params->icache.icache_config[3]);
     core_params->icache.icache_config[4] = 1;
-    fprintf(stderr, "%f ", core_params->icache.icache_config[4]);
     core_params->icache.icache_config[5] = core->memory.IL1->latency;
-    fprintf(stderr, "%f ", core_params->icache.icache_config[5]);
     core_params->icache.icache_config[6] = core->memory.IL1->bank_width;
-    fprintf(stderr, "%f ", core_params->icache.icache_config[6]);
     core_params->icache.icache_config[7] = 1;//(core->memory.IL1->write_policy == WRITE_THROUGH) ? 0 : 1;
-    fprintf(stderr, "%f\n", core_params->icache.icache_config[7]);
 
     core_params->icache.buffer_sizes[0] = 2;//core->memory.IL1->MSHR_size;
     core_params->icache.buffer_sizes[1] = 2;//core->memory.IL1->fill_num[0]; //XXX
@@ -336,42 +327,42 @@ void core_power_t::translate_stats(struct stat_sdb_t* sdb, system_core *core_sta
   (void) L2_stats;
 
   stat = stat_find_core_stat(sdb, coreID, "oracle_total_uops");
-  core_stats->total_instructions = *stat->variant.for_int.var;
+  core_stats->total_instructions = stat->variant.for_sqword.end_val;
 
   stat = stat_find_core_stat(sdb, coreID, "oracle_total_branches");
-  core_stats->branch_instructions = *stat->variant.for_int.var;
+  core_stats->branch_instructions = stat->variant.for_sqword.end_val;
   stat = stat_find_core_stat(sdb, coreID, "num_jeclear");
-  core_stats->branch_mispredictions = *stat->variant.for_int.var;
+  core_stats->branch_mispredictions = stat->variant.for_sqword.end_val;
   stat = stat_find_core_stat(sdb, coreID, "oracle_total_loads");
-  core_stats->load_instructions = *stat->variant.for_int.var;
+  core_stats->load_instructions = stat->variant.for_sqword.end_val;
   stat = stat_find_core_stat(sdb, coreID, "oracle_total_refs");
-  core_stats->store_instructions = *stat->variant.for_int.var - core_stats->load_instructions;
+  core_stats->store_instructions = stat->variant.for_sqword.end_val - core_stats->load_instructions;
   stat = stat_find_core_stat(sdb, coreID, "oracle_num_uops");
-  core_stats->committed_instructions = *stat->variant.for_int.var;
+  core_stats->committed_instructions = stat->variant.for_sqword.end_val;
 
   stat = stat_find_stat(sdb, "sim_cycle");
-  core_stats->total_cycles = *stat->variant.for_int.var;
+  core_stats->total_cycles = stat->variant.for_sqword.end_val;
   core_stats->idle_cycles = 0;
   core_stats->busy_cycles = core_stats->total_cycles - core_stats->idle_cycles;
 
   stat = stat_find_core_stat(sdb, coreID, "regfile_reads");
-  core_stats->int_regfile_reads = *stat->variant.for_int.var;
+  core_stats->int_regfile_reads = stat->variant.for_sqword.end_val;
   stat = stat_find_core_stat(sdb, coreID, "fp_regfile_reads");
-  core_stats->float_regfile_reads = *stat->variant.for_int.var;
+  core_stats->float_regfile_reads = stat->variant.for_sqword.end_val;
   stat = stat_find_core_stat(sdb, coreID, "regfile_writes");
-  core_stats->int_regfile_writes = *stat->variant.for_int.var;
+  core_stats->int_regfile_writes = stat->variant.for_sqword.end_val;
   stat = stat_find_core_stat(sdb, coreID, "fp_regfile_writes");
-  core_stats->float_regfile_writes = *stat->variant.for_int.var;
+  core_stats->float_regfile_writes = stat->variant.for_sqword.end_val;
 
   stat = stat_find_core_stat(sdb, coreID, "oracle_total_calls");
-  core_stats->function_calls = *stat->variant.for_int.var;
+  core_stats->function_calls = stat->variant.for_sqword.end_val;
 
   stat = stat_find_core_stat(sdb, coreID, "int_FU_occupancy");
-  core_stats->cdb_alu_accesses = *stat->variant.for_int.var;
+  core_stats->cdb_alu_accesses = stat->variant.for_sqword.end_val;
   stat = stat_find_core_stat(sdb, coreID, "fp_FU_occupancy");
-  core_stats->cdb_fpu_accesses = *stat->variant.for_int.var;
+  core_stats->cdb_fpu_accesses = stat->variant.for_sqword.end_val;
   stat = stat_find_core_stat(sdb, coreID, "mul_FU_occupancy");
-  core_stats->cdb_mul_accesses = *stat->variant.for_int.var;
+  core_stats->cdb_mul_accesses = stat->variant.for_sqword.end_val;
   core_stats->ialu_accesses = core_stats->cdb_alu_accesses;
   core_stats->fpu_accesses = core_stats->cdb_fpu_accesses;
   core_stats->mul_accesses = core_stats->cdb_mul_accesses;
@@ -379,47 +370,47 @@ void core_power_t::translate_stats(struct stat_sdb_t* sdb, system_core *core_sta
   if (core->memory.ITLB)
   {
     stat = stat_find_core_stat(sdb, coreID, "ITLB.lookups");
-    core_stats->itlb.total_accesses = *stat->variant.for_int.var;
+    core_stats->itlb.total_accesses = stat->variant.for_sqword.end_val;
     stat = stat_find_core_stat(sdb, coreID, "ITLB.misses");
-    core_stats->itlb.total_misses = *stat->variant.for_int.var;
+    core_stats->itlb.total_misses = stat->variant.for_sqword.end_val;
   }
 
   if (core->memory.DTLB)
   {
     stat = stat_find_core_stat(sdb, coreID, "DTLB.lookups");
-    core_stats->dtlb.total_accesses = *stat->variant.for_int.var;
+    core_stats->dtlb.total_accesses = stat->variant.for_sqword.end_val;
     stat = stat_find_core_stat(sdb, coreID, "DTLB.misses");
-    core_stats->dtlb.total_misses = *stat->variant.for_int.var;
+    core_stats->dtlb.total_misses = stat->variant.for_sqword.end_val;
   }
   
   if (core->memory.IL1)
   {
     stat = stat_find_core_stat(sdb, coreID, "IL1.lookups");
-    core_stats->icache.read_accesses = *stat->variant.for_int.var;
+    core_stats->icache.read_accesses = stat->variant.for_sqword.end_val;
     stat = stat_find_core_stat(sdb, coreID, "IL1.misses");
-    core_stats->icache.read_misses = *stat->variant.for_int.var;
+    core_stats->icache.read_misses = stat->variant.for_sqword.end_val;
   }
 
   if (core->memory.DL1)
   {
     stat = stat_find_core_stat(sdb, coreID, "DL1.load_lookups");
-    core_stats->dcache.read_accesses = *stat->variant.for_int.var;
+    core_stats->dcache.read_accesses = stat->variant.for_sqword.end_val;
     stat = stat_find_core_stat(sdb, coreID, "DL1.load_misses");
-    core_stats->dcache.read_misses = *stat->variant.for_int.var;
+    core_stats->dcache.read_misses = stat->variant.for_sqword.end_val;
     stat = stat_find_core_stat(sdb, coreID, "DL1.store_lookups");
-    core_stats->dcache.write_accesses = *stat->variant.for_int.var;
+    core_stats->dcache.write_accesses = stat->variant.for_sqword.end_val;
     stat = stat_find_core_stat(sdb, coreID, "DL1.store_misses");
-    core_stats->dcache.write_misses = *stat->variant.for_int.var;
+    core_stats->dcache.write_misses = stat->variant.for_sqword.end_val;
   }
 
   if (core->fetch->bpred->get_dir_btb())
   {
     stat = stat_find_core_stat(sdb, coreID, "BTB.lookups");
-    core_stats->BTB.read_accesses = *stat->variant.for_int.var;
+    core_stats->BTB.read_accesses = stat->variant.for_sqword.end_val;
     stat = stat_find_core_stat(sdb, coreID, "BTB.updates");
-    core_stats->BTB.write_accesses = *stat->variant.for_int.var;
+    core_stats->BTB.write_accesses = stat->variant.for_sqword.end_val;
     stat = stat_find_core_stat(sdb, coreID, "BTB.spec_updates");
-    core_stats->BTB.write_accesses += *stat->variant.for_int.var;
+    core_stats->BTB.write_accesses += stat->variant.for_sqword.end_val;
   }
 }
 

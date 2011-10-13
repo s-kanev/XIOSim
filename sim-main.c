@@ -131,6 +131,7 @@ struct opt_odb_t *sim_odb;
 
 /* stats database */
 struct stat_sdb_t *sim_sdb;
+struct stat_sdb_t *rtp_sdb;
 
 /* EIO interfaces */
 char *sim_eio_fname[MAX_CORES];

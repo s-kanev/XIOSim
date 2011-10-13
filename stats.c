@@ -1302,3 +1302,61 @@ void stat_accum_stat(struct stat_stat_t *dst, const struct stat_stat_t *src)
        break;
    }
 }
+
+/* store the difference between the current and stored value of a stat */
+static void stat_save_delta(struct stat_stat_t *stat)
+{
+   if (stat == NULL)
+     return;
+
+   switch(stat->sc)
+   {
+     case sc_int:
+       stat->variant.for_int.end_val = *stat->variant.for_int.var - stat->variant.for_int.end_val;
+       break;
+     case sc_uint:
+       stat->variant.for_uint.end_val = *stat->variant.for_uint.var - stat->variant.for_uint.end_val;
+       break;
+     case sc_qword:
+       stat->variant.for_qword.end_val = *stat->variant.for_qword.var - stat->variant.for_qword.end_val;
+       break;
+     case sc_sqword:
+       stat->variant.for_sqword.end_val = *stat->variant.for_sqword.var - stat->variant.for_sqword.end_val;
+       break;
+     case sc_float:
+       stat->variant.for_float.end_val = *stat->variant.for_float.var - stat->variant.for_float.end_val;
+       break;
+     case sc_double:
+       stat->variant.for_double.end_val = *stat->variant.for_double.var - stat->variant.for_double.end_val;
+       break;
+     case sc_string:
+     case sc_note:
+       /* These are generally const string and not expected to change */
+       break;
+     case sc_dist:
+       for(unsigned int i=0; i<stat->variant.for_dist.arr_sz; i++)
+         stat->variant.for_dist.end_arr[i] = stat->variant.for_dist.arr[i] - stat->variant.for_dist.end_arr[i];
+       break;
+     case sc_formula:
+       /* If individual terms are saved, this should be fine too. We'll just recompute */
+       break;
+     default: 
+       fprintf(stderr, "Unsupported stat type for save_stat: %d (%s)\n", stat->sc, stat->name);
+       break;
+   }
+}
+
+/* store the difference between the current and stored value in a database */
+void stat_save_stats_delta(struct stat_sdb_t *sdb)
+{
+   if (sdb == NULL)
+     return;
+
+   struct stat_stat_t *stat = sdb->stats;
+   while(stat)
+   {
+     stat_save_delta(stat);
+     stat = stat->next;
+   }
+}
+

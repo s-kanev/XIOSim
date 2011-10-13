@@ -52,21 +52,13 @@ void core_power_DPM_t::translate_params(system_core *core_params, system_L2 *L2_
     zesto_assert(L2_params != NULL, (void)0);
 
     L2_params->L2_config[0] = core->memory.DL2->sets * core->memory.DL2->assoc * core->memory.DL2->linesize;
-    fprintf(stderr, "DL2: %f ", L2_params->L2_config[0]);
     L2_params->L2_config[1] = core->memory.DL2->linesize;
-    fprintf(stderr, "%f ", L2_params->L2_config[1]);
     L2_params->L2_config[2] = core->memory.DL2->assoc;
-    fprintf(stderr, "%f ", L2_params->L2_config[2]);
     L2_params->L2_config[3] = core->memory.DL2->banks;
-    fprintf(stderr, "%f ", L2_params->L2_config[3]);
     L2_params->L2_config[4] = 1;
-    fprintf(stderr, "%f ", L2_params->L2_config[4]);
     L2_params->L2_config[5] = core->memory.DL2->latency;
-    fprintf(stderr, "%f ", L2_params->L2_config[5]);
     L2_params->L2_config[6] = core->memory.DL2->bank_width;
-    fprintf(stderr, "%f ", L2_params->L2_config[6]);
     L2_params->L2_config[7] = (core->memory.DL2->write_policy == WRITE_THROUGH) ? 0 : 1;
-    fprintf(stderr, "%f\n", L2_params->L2_config[7]);
 
     L2_params->device_type = XML->sys.device_type;
 
@@ -89,50 +81,50 @@ void core_power_DPM_t::translate_stats(struct stat_sdb_t* sdb, system_core *core
   int coreID = core->id;
 
   stat = stat_find_core_stat(sdb, coreID, "fetch_uops");
-  core_stats->int_instructions = *stat->variant.for_int.var; 
+  core_stats->int_instructions = stat->variant.for_sqword.end_val; 
   core_stats->fp_instructions = 0;
 
   stat = stat_find_core_stat(sdb, coreID, "commit_uops");
-  core_stats->committed_int_instructions = *stat->variant.for_int.var;
+  core_stats->committed_int_instructions = stat->variant.for_sqword.end_val;
   core_stats->committed_fp_instructions = 0;
 
   stat = stat_find_core_stat(sdb, coreID, "commit_uops");
-  core_stats->ROB_reads = *stat->variant.for_int.var;
+  core_stats->ROB_reads = stat->variant.for_sqword.end_val;
   stat = stat_find_core_stat(sdb, coreID, "ROB_writes");
-  core_stats->ROB_writes = *stat->variant.for_int.var;
+  core_stats->ROB_writes = stat->variant.for_sqword.end_val;
   stat = stat_find_core_stat(sdb, coreID, "regfile_reads");
-  core_stats->rename_reads = *stat->variant.for_int.var;
+  core_stats->rename_reads = stat->variant.for_sqword.end_val;
   stat = stat_find_core_stat(sdb, coreID, "regfile_writes");
-  core_stats->rename_writes = *stat->variant.for_int.var;
+  core_stats->rename_writes = stat->variant.for_sqword.end_val;
   stat = stat_find_core_stat(sdb, coreID, "fp_regfile_reads");
-  core_stats->fp_rename_reads = *stat->variant.for_int.var;
+  core_stats->fp_rename_reads = stat->variant.for_sqword.end_val;
   stat = stat_find_core_stat(sdb, coreID, "fp_regfile_writes");
-  core_stats->fp_rename_writes = *stat->variant.for_int.var;
+  core_stats->fp_rename_writes = stat->variant.for_sqword.end_val;
 
   stat = stat_find_core_stat(sdb, coreID, "alloc_uops");
-  core_stats->inst_window_reads = *stat->variant.for_int.var;
+  core_stats->inst_window_reads = stat->variant.for_sqword.end_val;
   stat = stat_find_core_stat(sdb, coreID, "alloc_uops");
-  core_stats->inst_window_writes = *stat->variant.for_int.var;
+  core_stats->inst_window_writes = stat->variant.for_sqword.end_val;
   core_stats->inst_window_wakeup_accesses = 0;
   core_stats->fp_inst_window_reads = 0;
   core_stats->fp_inst_window_writes = 0;
   core_stats->fp_inst_window_wakeup_accesses = 0;
 
   stat = stat_find_core_stat(sdb, coreID, "oracle_total_calls");
-  core_stats->context_switches = *stat->variant.for_int.var;
+  core_stats->context_switches = stat->variant.for_sqword.end_val;
 
   if (core->memory.DL2)
   {
     zesto_assert(L2_stats != NULL, (void)0);
 
     stat = stat_find_core_stat(sdb, coreID, "DL2.load_lookups");
-    L2_stats->read_accesses = *stat->variant.for_int.var;
+    L2_stats->read_accesses = stat->variant.for_sqword.end_val;
     stat = stat_find_core_stat(sdb, coreID, "DL2.load_misses");
-    L2_stats->read_misses = *stat->variant.for_int.var;
+    L2_stats->read_misses = stat->variant.for_sqword.end_val;
     stat = stat_find_core_stat(sdb, coreID, "DL2.store_lookups");
-    L2_stats->write_accesses = *stat->variant.for_int.var;
+    L2_stats->write_accesses = stat->variant.for_sqword.end_val;
     stat = stat_find_core_stat(sdb, coreID, "DL2.store_misses");
-    L2_stats->write_misses = *stat->variant.for_int.var;
+    L2_stats->write_misses = stat->variant.for_sqword.end_val;
   }
 }
 #endif

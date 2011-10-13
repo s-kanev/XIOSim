@@ -77,6 +77,9 @@ extern struct opt_odb_t *sim_odb;
 /* stats database */
 extern struct stat_sdb_t *sim_sdb;
 
+/* power stats database */
+extern struct stat_sdb_t *rtp_sdb;
+
 /* EIO interfaces */
 extern char *sim_eio_fname[MAX_CORES];
 extern FILE *sim_eio_fd[MAX_CORES];
@@ -262,6 +265,11 @@ Zesto_SlaveInit(int argc, char **argv)
   sim_sdb = stat_new();
   sim_reg_stats(threads,sim_sdb);
 
+  /* stat database for power computation */
+  rtp_sdb = stat_new();
+  sim_reg_stats(threads,rtp_sdb);
+  stat_save_stats(rtp_sdb);
+
   /* record start of execution time, used in rate stats */
   sim_start_time = time((time_t *)NULL);
 
@@ -386,6 +394,7 @@ void Zesto_Destroy()
   sim_print_stats(stderr);
   if(cores[0]->knobs->power.compute)
   {
+    stat_save_stats(sim_sdb);
     compute_power(sim_sdb, true);
     deinit_power();
   }

@@ -428,6 +428,7 @@ struct core_knobs_t
   struct {
     bool compute;
     int rtp_interval;
+    const char * rtp_filename;
   } power;
 };
 

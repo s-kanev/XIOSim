@@ -162,6 +162,9 @@ sim_reg_options(struct opt_odb_t *odb)
   opt_reg_int(odb, "-power:rtp_interval", "number of cycles between power computation",
       &knobs.power.rtp_interval, /* default */0, /* print */true, /* format */NULL);
 
+  opt_reg_string(odb, "-power:rtp_file", "file to store runtime power trace",
+      &knobs.power.rtp_filename, /* default */NULL, /* print */true, /* format */NULL);
+
   fetch_reg_options(odb,&knobs);
   decode_reg_options(odb,&knobs);
   alloc_reg_options(odb,&knobs);
