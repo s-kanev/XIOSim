@@ -195,15 +195,10 @@ usage(FILE *fd, int argc, char **argv)
   opt_print_help(sim_odb, fd);
 }
 
-int running = FALSE;
-
 /* print all simulator stats */
 void
 sim_print_stats(FILE *fd)		/* output stream */
 {
-  if (!running)
-    return;
-
   /* get stats time */
   sim_end_time = time((time_t *)NULL);
   sim_elapsed_time = MAX(sim_end_time - sim_start_time, 1);

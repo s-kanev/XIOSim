@@ -310,7 +310,7 @@ VOID ExitOnMaxIns()
 
     Fini(EXIT_SUCCESS, 0);
 
-    exit(EXIT_SUCCESS);
+    PIN_ExitProcess(EXIT_SUCCESS);
 }
 
 /* ========================================================================== */
@@ -970,10 +970,12 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
 
       case __NR_mprotect:
         if(retval != (ADDRINT)-1)
+        {
             if ((tstate->last_syscall_arg3 & PROT_READ) == 0)
                 ASSERTX( Zesto_Notify_Munmap(0/*coreID*/, tstate->last_syscall_arg1, tstate->last_syscall_arg2, false) );
             else
                 ASSERTX( Zesto_Notify_Mmap(0/*coreID*/, tstate->last_syscall_arg1, tstate->last_syscall_arg2, false) );
+        }
         break;
 
 #ifdef TIME_TRANSPARENCY
