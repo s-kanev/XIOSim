@@ -1494,7 +1494,7 @@ core_oracle_t::commit(const struct Mop_t * const commit_Mop)
   if(MopQ_num <= 0) /* nothing to commit */
     fatal("attempt to commit when MopQ is empty");
 
-  assert(Mop == commit_Mop);
+  zesto_assert(Mop == commit_Mop, (void)0);
 
   /* TODO: add checker support */
 

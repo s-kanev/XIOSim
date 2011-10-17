@@ -168,10 +168,10 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
         else
         {
             /* There will be no further instructions instrumented, make sure we invoke Zesto_Resume with slice_end */
-            tstate->handshake.slice_num = 0;
-            tstate->handshake.feeder_slice_length = SimOrgInsCount;
-            tstate->handshake.slice_weight_times_1000 = 100000;
-            Zesto_Resume(&tstate->handshake, false, true);
+            tstate->slice_num = 0;
+            tstate->slice_length = SimOrgInsCount;
+            tstate->slice_weight_times_1000 = 100000;
+            //Zesto_Resume(&tstate->handshake, false, true); XXX: intermediate exec mode?
         }
 //        if (ctxt) PIN_ExecuteAt(ctxt);
         break;
@@ -389,6 +389,7 @@ VOID SimulatorLoop(VOID* arg)
             isLastInsn = false;
 
         SimOrgInsCount++;
+        ExitOnMaxIns();
 
 #ifdef TIME_TRANSPARENCY
         ins_delta_time = rdtsc() - ins_delta_time;
@@ -477,8 +478,8 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
 
     // Let simulator consume instruction from SimulatorLoop
     handshake->valid = true;
+//    cerr << SimOrgInsCount << endl;
     ReleaseLock(&simbuffer_lock);
-    ExitOnMaxIns();
 }
 /*======================================================== */
 //Check if instruction requires FPState

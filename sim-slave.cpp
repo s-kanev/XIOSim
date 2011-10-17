@@ -284,9 +284,9 @@ sim_post_init(void)
   lk_init(&pre_fetch_lock);
   lk_init(&cache_prefetch_lock);
 
-  sem_init(&cycle_sem, 0, num_threads); // means global_step will execute first
+  sem_init(&cycle_sem, 0, 0);//num_threads); // means global_step will execute first
   sem_init(&cycle_end_sem, 0, 0);
-  sem_init(&LLC_prefetch_sem, 0, 0);
+  sem_init(&LLC_prefetch_sem, 0, 0);//num_threads);
   sem_init(&LLC_prefetch_end_sem, 0, 0);
 
   /* initialize architected state(s) */
@@ -540,19 +540,24 @@ void sim_main_slave_pre_pin(int coreID)
 
   step_core_PF_controllers(cores[coreID]);
 
+  cores[coreID]->commit->IO_step(); /* IO cores only */ //UGLY UGLY UGLY
+
   /* all memory processed here */
   //XXX: RR
   lk_lock(&ldst_lock);
   cores[coreID]->exec->LDST_exec();
   lk_unlock(&ldst_lock);
 
-  cores[coreID]->commit->step();
+  cores[coreID]->commit->step();  /* OoO cores only */
 
-  cores[coreID]->commit->pre_commit_step();
+  cores[coreID]->commit->pre_commit_step(); /* IO cores only */
 
-  cores[coreID]->exec->step();
+  cores[coreID]->exec->step();      /* IO cores only */
+  cores[coreID]->exec->ALU_exec();  /* OoO cores only */
 
   cores[coreID]->exec->LDQ_schedule();
+
+  cores[coreID]->exec->RS_schedule();  /* OoO cores only */
 
   cores[coreID]->alloc->step();
 
@@ -648,7 +653,6 @@ void global_step(void* arg)
       }
       heartbeat_count = 0;
     }
-
 
     ZPIN_TRACE("###Cycle%s\n"," ");
 
