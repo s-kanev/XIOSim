@@ -111,8 +111,6 @@ extern int orphan_fn(int i, int argc, char **argv);
 extern void banner(FILE *fd, int argc, char **argv);
 extern  void usage(FILE *fd, int argc, char **argv);
 
-extern int running;
-
 extern void sim_print_stats(FILE *fd);
 extern void exit_now(int exit_code);
 
@@ -296,8 +294,6 @@ Zesto_SlaveInit(int argc, char **argv)
 
   if (init_quit)
     exit_now(0);
-
-  running = TRUE;
 
   /* Run all stages after fetch for first cycle */
   sim_main_slave_pre_pin();
