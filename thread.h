@@ -48,6 +48,7 @@ struct thread_t {
 #else
   int active;
 #endif
+  bool finished_cycle;
 };
 
 /* architected state for each simulated thread/process */

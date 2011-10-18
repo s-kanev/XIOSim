@@ -1116,24 +1116,6 @@ INT32 main(INT32 argc, CHAR **argv)
     return 0;
 }
 
-/* ========================================================================== */
-/* Wrappers for PIN-locking, so we can build Zesto as a standalone lib */
-
-void lk_lock(int32_t* lk)
-{
-    GetLock(lk, 1);
-}
-
-int32_t lk_unlock(int32_t* lk)
-{
-    return ReleaseLock(lk);
-}
-
-void lk_init(int32_t* lk)
-{
-    InitLock(lk);
-}
-
 void spawn_new_thread(void entry_point(void*), void* arg)
 {
     PIN_SpawnInternalThread(entry_point, arg, 0, NULL);

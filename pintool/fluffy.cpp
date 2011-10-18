@@ -9,13 +9,13 @@
 
 //XXX: This is single-threaded for now. Move to TLS for multithreading.
 
-std::vector<ADDRINT> start_counts;
-std::vector<ADDRINT> stop_counts;
+static std::vector<ADDRINT> start_counts;
+static std::vector<ADDRINT> stop_counts;
 
-std::vector<ADDRINT> curr_start_counts;
-std::vector<ADDRINT> curr_stop_counts;
+static std::vector<ADDRINT> curr_start_counts;
+static std::vector<ADDRINT> curr_stop_counts;
 
-std::vector<ADDRINT> slice_weights_times_1000;
+static std::vector<ADDRINT> slice_weights_times_1000;
 
 /* ========================================================================== */
 VOID FLUFFY_Init()

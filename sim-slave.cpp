@@ -82,7 +82,6 @@
 #include <unistd.h>
 #include <sys/time.h>
 #include <sys/io.h>
-#include <semaphore.h>
 
 
 #include "host.h"
@@ -92,7 +91,6 @@
 #include "version.h"
 #include "options.h"
 #include "stats.h"
-#include "interface.h"
 #include "loader.h"
 #include "sim.h"
 
@@ -110,22 +108,15 @@
 #include "zesto-MC.h"
 #include "zesto-power.h"
 
+#include "interface.h"
+#include "synchronization.h"
 
-
-extern void lk_lock(int32_t* lk);
-extern int32_t lk_unlock(int32_t* lk);
-extern void lk_init(int32_t* lk);
-
+int32_t cycle_lock;
 int32_t fetch_lock;
 int32_t ldst_lock;
 int32_t post_fetch_lock;
 int32_t pre_fetch_lock;
 int32_t cache_prefetch_lock;
-
-sem_t cycle_sem;
-sem_t cycle_end_sem;
-sem_t LLC_prefetch_sem;
-sem_t LLC_prefetch_end_sem;
 
 extern int start_pos;
 extern int heartbeat_count;
@@ -279,15 +270,12 @@ sim_post_init(void)
   assert(num_threads > 0);
 
   /* Initialize synchronization primitives */
+  lk_init(&cycle_lock);
   lk_init(&fetch_lock);
+  lk_init(&ldst_lock);
   lk_init(&post_fetch_lock);
   lk_init(&pre_fetch_lock);
   lk_init(&cache_prefetch_lock);
-
-  sem_init(&cycle_sem, 0, 0);//num_threads); // means global_step will execute first
-  sem_init(&cycle_end_sem, 0, 0);
-  sem_init(&LLC_prefetch_sem, 0, 0);//num_threads);
-  sem_init(&LLC_prefetch_end_sem, 0, 0);
 
   /* initialize architected state(s) */
   threads = (struct thread_t **)calloc(num_threads,sizeof(*threads));
@@ -323,6 +311,7 @@ sim_post_init(void)
       threads[i]->mem = mem_create(buf);
       mem_init(threads[i]->mem);
     }
+    threads[i]->finished_cycle = false;
   }
 
   /* initialize microarchitecture state */
@@ -527,16 +516,98 @@ void sim_main_slave_pre_pin()
 
 }
 
+static void global_step(void)
+{
+    if((heartbeat_frequency > 0) && (heartbeat_count >= heartbeat_frequency))
+    {
+      fprintf(stderr,"##HEARTBEAT## %lld: {",sim_cycle);
+      for(int i=0;i<num_threads;i++)
+      {
+        if(i < (num_threads-1))
+          myfprintf(stderr,"%lld, ",cores[i]->stat.commit_insn);
+        else
+          myfprintf(stderr,"%lld}\n",cores[i]->stat.commit_insn);
+      }
+      heartbeat_count = 0;
+    }
+
+    ZPIN_TRACE("###Cycle%s\n"," ");
+
+    if(sim_cycle == 0)
+      myfprintf(stderr, "### starting timing simulation \n");
+
+    sim_cycle++;
+    heartbeat_count++;
+    for(int i=0;i<num_threads;i++)
+      if(cores[i]->current_thread->active)
+        cores[i]->stat.final_sim_cycle = sim_cycle;
+
+    /*********************************************/
+    /* step through pipe stages in reverse order */
+    /*********************************************/
+
+    dram->refresh();
+    uncore->MC->step();
+
+    step_LLC_PF_controller(uncore);
+}
+
 void sim_main_slave_pre_pin(int coreID)
 {
+  int i;
+  volatile int cores_finished_cycle = 0;
+
   if(cores[coreID]->current_thread->active)
     cores[coreID]->stat.final_sim_cycle = sim_cycle;
 
-  // Allow shared code to advance cycle counter
-  sem_post(&cycle_sem);
+  /* Thread is joining in serial region. Mark it as finished this cycle */
+  /* Spin if serial region stil hasn't finished
+   * XXX: SK: Is this just me being paranoid? After all, serial region
+   * updates finished_cycle atomically for all thread and none can
+   * race through to here before that update is finished.
+   */
+  lk_lock(&cycle_lock);
+  do {
+    lk_unlock(&cycle_lock);
+    /* Spin, spin, spin */
+    lk_lock(&cycle_lock);
+  } while(cores[coreID]->current_thread->finished_cycle);
+  cores[coreID]->current_thread->finished_cycle = true;
+  lk_unlock(&cycle_lock);
 
-  // ... and wait until shared code is complete
-  sem_wait(&cycle_end_sem);
+  /* Core 0 -- Wait for all cores to be finished and
+     update global state */
+  if (coreID == 0)
+  {
+    lk_lock(&cycle_lock);
+    do {
+      lk_unlock(&cycle_lock);
+      /* Spin, spin, spin */
+      lk_lock(&cycle_lock);
+      /* Check if all cores finished this cycle. */
+      cores_finished_cycle = 0;
+      for(i=0; i<num_threads; i++)
+        if(cores[i]->current_thread->finished_cycle)
+            cores_finished_cycle++;
+    } while(cores_finished_cycle < num_threads);
+    /* Process shared state once all cores are gathered here. */
+    global_step();
+    /* Unblock other cores to keep crunching. */
+    for(i=0; i<num_threads; i++)
+      cores[i]->current_thread->finished_cycle = false; 
+    lk_unlock(&cycle_lock);
+  }
+  /* All other cores -- spin until global state update is finished */
+  else
+  {
+    lk_lock(&cycle_lock);
+    do {
+      lk_unlock(&cycle_lock);
+      /* Spin, spin, spin */
+      lk_lock(&cycle_lock);
+    } while(cores[coreID]->current_thread->finished_cycle);
+    lk_unlock(&cycle_lock);
+  }
 
   step_core_PF_controllers(cores[coreID]);
 
@@ -571,24 +642,6 @@ void sim_main_slave_pre_pin(int coreID)
   lk_unlock(&post_fetch_lock);
 }
 
-void sim_main_prefetch_LLC(void* arg)
-{
-  int i;
-  (void) arg;
-  while(sim_slave_running)
-  {
-    // gather all threads until this stage
-    for(i=0; i<num_threads;i++)
-      sem_wait(&LLC_prefetch_sem);
-
-    prefetch_LLC(uncore);
-
-    // ... and let them progress
-    for(i=0; i<num_threads;i++)
-      sem_post(&LLC_prefetch_end_sem);
-  }
-}
-
 void sim_main_slave_post_pin(int coreID)
 {
 
@@ -599,10 +652,13 @@ void sim_main_slave_post_pin(int coreID)
   cores[coreID]->fetch->pre_fetch();
   lk_unlock(&pre_fetch_lock);
 
-  /* this is done last so that prefetch requests have the lowest
-     priority when competing for queues, buffers, etc. */
-  sem_post(&LLC_prefetch_sem);  //unblock prefetch_LLC thread
-  sem_wait(&LLC_prefetch_end_sem); //... and wait until it finishes
+  /* this is done last in the cycle so that prefetch requests have the
+     lowest priority when competing for queues, buffers, etc. */
+  /* XXX: SK: It appears that it is safe to call this from a single
+   * thread only without gathering all threads because it only affects
+   * the LLC. TODO: Revisit this assumption, sounds very weak! */
+  if(coreID == 0)
+    prefetch_LLC(uncore);
 
   /* process prefetch requests in reverse order as L1/L2; i.e., whoever
      got the lowest priority for L1/L2 processing gets highest priority
@@ -628,56 +684,6 @@ void sim_main_slave_post_pin(int coreID)
   /* check to see if all cores are "ok" */
   if(cores[coreID]->oracle->hosed)
     fatal("Core %d got hosed, quitting."); 
-}
-
-void global_step(void* arg)
-{
-  int i;
-  (void) arg;
-
-  while(sim_slave_running)
-  {
-    // Wait until all cores are ready to advance cycle
-    for(i=0;i<num_threads;i++)
-      sem_wait(&cycle_sem);
-
-    if((heartbeat_frequency > 0) && (heartbeat_count >= heartbeat_frequency))
-    {
-      fprintf(stderr,"##HEARTBEAT## %lld: {",sim_cycle);
-      for(i=0;i<num_threads;i++)
-      {
-        if(i < (num_threads-1))
-          myfprintf(stderr,"%lld, ",cores[i]->stat.commit_insn);
-        else
-          myfprintf(stderr,"%lld}\n",cores[i]->stat.commit_insn);
-      }
-      heartbeat_count = 0;
-    }
-
-    ZPIN_TRACE("###Cycle%s\n"," ");
-
-    if(sim_cycle == 0)
-      myfprintf(stderr, "### starting timing simulation \n");
-
-    sim_cycle++;
-    heartbeat_count++;
-    for(i=0;i<num_threads;i++)
-      if(cores[i]->current_thread->active)
-        cores[i]->stat.final_sim_cycle = sim_cycle;
-
-    /*********************************************/
-    /* step through pipe stages in reverse order */
-    /*********************************************/
-
-    dram->refresh();
-    uncore->MC->step();
-
-    step_LLC_PF_controller(uncore);
-
-    // Let individual core threads continue
-    for(i=0;i<num_threads;i++)
-      sem_post(&cycle_end_sem);
-  }
 }
 
 /*void sim_main_slave_step()

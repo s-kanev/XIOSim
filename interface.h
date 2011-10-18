@@ -9,6 +9,7 @@
 #include "pin.h"
 #include "machine.h"
 
+/* Calls from feeder to Zesto */
 int Zesto_SlaveInit(int argc, char **argv);
 void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool start_slice, bool end_slice);
 void Zesto_Destroy();

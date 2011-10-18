@@ -311,7 +311,7 @@ sim-slave.o: options.h memory.h stats.h eval.h loader.h thread.h syscall.h
 sim-slave.o: sim.h zesto-opts.h zesto-core.h zesto-oracle.h zesto-fetch.h
 sim-slave.o: zesto-decode.h zesto-bpred.h zesto-alloc.h zesto-exec.h
 sim-slave.o: zesto-commit.h zesto-dram.h zesto-cache.h zesto-uncore.h
-sim-slave.o: zesto-MC.h interface.h callbacks.h
+sim-slave.o: zesto-MC.h interface.h callbacks.h synchronization.h
 memory.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h
 memory.o: options.h stats.h eval.h memory.h interface.h callbacks.h
 misc.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h options.h
@@ -359,7 +359,7 @@ libsim.a: options.h memory.h stats.h eval.h loader.h thread.h syscall.h
 libsim.a: sim.h zesto-opts.h zesto-core.h zesto-oracle.h zesto-fetch.h
 libsim.a: zesto-decode.h zesto-bpred.h zesto-alloc.h zesto-exec.h
 libsim.a: zesto-commit.h zesto-dram.h zesto-cache.h zesto-uncore.h
-libsim.a: zesto-MC.h interface.h callbacks.h
+libsim.a: zesto-MC.h interface.h callbacks.h synchronization.h
 zesto-core.o: zesto-core.h zesto-structs.h machine.h host.h misc.h
 zesto-core.o: machine.def regs.h options.h
 zesto-opts.o: thread.h machine.h host.h misc.h machine.def zesto-structs.h

@@ -40,7 +40,9 @@
 #include "zesto-power.h"
 
 extern void sim_main_slave_pre_pin(int coreID);
+extern void sim_main_slave_pre_pin();
 extern void sim_main_slave_post_pin(int coreID);
+extern void sim_main_slave_post_pin(void);
 extern bool sim_main_slave_fetch_insn(int coreID);
 
 
@@ -121,10 +123,6 @@ extern tick_t sim_cycle;
 extern void start_slice(unsigned int slice_num);
 extern void end_slice(unsigned int slice_num, unsigned long long slice_length, unsigned long long slice_weight_times_1000);
 extern void scale_all_slices(void);
-
-extern void spawn_new_thread(void entry_point(void*), void* arg);
-extern void global_step(void* arg);
-extern void sim_main_prefetch_LLC(void* arg); 
 
 struct thread_flags_t {
   bool consumed;
@@ -296,11 +294,7 @@ Zesto_SlaveInit(int argc, char **argv)
 
   sim_slave_running = true;
 
-  // Launch threads that deal with global (not per-core) state
-  spawn_new_thread(global_step, NULL);
-  spawn_new_thread(sim_main_prefetch_LLC, NULL);
-
-//XXX
+  //XXX: Zeroth cycle pre_pin missing in parallel version here. There's a good chance we don't need it though.
   /* return control to Pin and wait for first instruction */
   return 0;
 }
@@ -375,7 +369,6 @@ void Zesto_UpdateBrk(int coreID, unsigned int brk_end, bool do_mmap)
   core->current_thread->loader.brk_point = brk_end;
 }
 
-bool stopped = true;
 void Zesto_Destroy()
 {
   sim_slave_running = false;
@@ -540,8 +533,10 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool slice_start, bool slice
        }
       
        sim_main_slave_post_pin(coreID);
+//       sim_main_slave_post_pin();
 
        sim_main_slave_pre_pin(coreID);
+//       sim_main_slave_pre_pin();
        fetch_more = true;
 
        if(core->oracle->num_Mops_nuked == 0)
@@ -584,9 +579,11 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool slice_start, bool slice
          }
         
          sim_main_slave_post_pin(coreID);
+//         sim_main_slave_post_pin();
 
          /* Next cycle */ 
          sim_main_slave_pre_pin(coreID);
+//         sim_main_slave_pre_pin();
 
          if(!consumed)
          {
@@ -606,7 +603,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool slice_start, bool slice
 
          /* After recovering from spec and/or REP, nuke -> go to nuke recovery loop */
          if(thread->rep_sequence == 0 && !spec && core->oracle->num_Mops_nuked > 0)
-        {
+         {
             ZPIN_TRACE("Going from spec loop to nuke loop. PC: %x\n",core->fetch->PC);
             break;
          }
@@ -628,11 +625,12 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool slice_start, bool slice
        }
     
        sim_main_slave_post_pin(coreID);
+//       sim_main_slave_post_pin();
 
        /* This is already next cycle, up to fetch */
        sim_main_slave_pre_pin(coreID);
+//       sim_main_slave_pre_pin();
      }
    }
-
    zesto_assert(core->fetch->PC == NPC, (void)0);
 }
