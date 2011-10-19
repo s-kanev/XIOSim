@@ -48,8 +48,11 @@ KNOB<BOOL> KnobILDJIT(KNOB_MODE_WRITEONCE,      "pintool",
         "ildjit", "false", "Application run is ildjit");
 KNOB<string> KnobFluffy(KNOB_MODE_WRITEONCE,      "pintool",
         "fluffy_annotations", "", "Annotation file that specifies fluffy ROI");
+KNOB<BOOL> KnobPipelineInstrumentation(KNOB_MODE_WRITEONCE, "pintool",
+        "pipeline_instrumentation", "false", "Overlap instrumentation and simulation threads (still unstable)");
 
 map<ADDRINT, UINT8> sanity_writes;
+BOOL sim_release_handshake;
 
 #ifdef TIME_TRANSPARENCY
 // Tracks the time we spend in simulation and tries to subtract it from timing calls
@@ -344,6 +347,28 @@ VOID SanityMemCheck()
         ASSERTX(written_val == *addr);
     }
 }
+
+/* ========================================================================== 
+ * Called from simulator once handshake is free to be reused. 
+ * This allows to pipeline instrumentation and simulation.
+ * Assumes we are holding simbuffer_lock. */
+VOID ReleaseHandshake(THREADID instrument_tid)
+{
+    //XXX: This is called with coreID from simulator! Instantiate an explicit mapping!
+    if (isFirstInsn)
+        isFirstInsn = false;
+
+    if (isLastInsn)
+        isLastInsn = false;
+
+    SimOrgInsCount++;
+
+    handshake_container_t* handshake = handshake_buffer[instrument_tid];
+    handshake->valid = false;   // Let pin instrument instruction
+
+    ReleaseLock(&simbuffer_lock);
+}
+
 /* ========================================================================== */
 VOID SimulatorLoop(VOID* arg)
 {
@@ -394,6 +419,9 @@ VOID SimulatorLoop(VOID* arg)
         // Actual simulation happens here
         Zesto_Resume(&handshake->handshake, isFirstInsn, isLastInsn);
 
+        if(!KnobPipelineInstrumentation.Value())
+            ReleaseHandshake(instrument_tid);
+
         // XXX: We are not holding simbuffer_lock here any more!
 
 #ifdef TIME_TRANSPARENCY
@@ -401,28 +429,6 @@ VOID SimulatorLoop(VOID* arg)
         sim_time += ins_delta_time;
 #endif
     }
-}
-
-/* ========================================================================== 
- * Called from simulator once handshake is free to be reused. 
- * This allows to pipeline instrumentation and simulation.
- * Assumes we are holding simbuffer_lock. */
-VOID ReleaseHandshake(THREADID instrument_tid)
-{
-    //XXX: This is called with coreID! Instantiate an explicit mapping!
-
-    if (isFirstInsn)
-        isFirstInsn = false;
-
-    if (isLastInsn)
-        isLastInsn = false;
-
-    SimOrgInsCount++;
-
-    handshake_container_t* handshake = handshake_buffer[instrument_tid];
-    handshake->valid = false;   // Let pin instrument instruction
-
-    ReleaseLock(&simbuffer_lock);
 }
 
 /* ========================================================================== */
@@ -698,7 +704,7 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
 //    if (KnobILDJIT.Value() && !ILDJIT_IsCreatingExecutor())
 //        return;
 
-    GetLock(&test, 1);
+    GetLock(&simbuffer_lock, 1);
 
     cerr << "Thread start. ID: " << dec << threadIndex << endl;
 
@@ -777,10 +783,10 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
         tstate->coreID = nextCoreID++;
 
         // Create new buffer to store thread context
-        GetLock(&simbuffer_lock, threadIndex+1);
+        //GetLock(&simbuffer_lock, threadIndex+1);
         handshake_container_t* new_handshake = new handshake_container_t();
         handshake_buffer[threadIndex] = new_handshake;
-        ReleaseLock(&simbuffer_lock);
+        //ReleaseLock(&simbuffer_lock);
 
         // Mark simulation as running (only matters for first thread)
         sim_running = true;
@@ -791,7 +797,7 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
         ReleaseLock(&instrument_tid_lock);
     }
 
-    ReleaseLock(&test);
+    ReleaseLock(&simbuffer_lock);
 }
 
 //from linux/arch/x86/ia32/sys_ia32.c
@@ -818,7 +824,7 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, V
     // ILDJIT is minding its own bussiness
 //    if (KnobILDJIT.Value() && !ILDJIT_IsExecuting())
 //        return;
-    GetLock(&test, threadIndex+1);
+    GetLock(&simbuffer_lock, threadIndex+1);
 
     ADDRINT syscall_num = PIN_GetSyscallNumber(ictxt, std);
     ADDRINT arg1 = PIN_GetSyscallArgument(ictxt, std, 0);
@@ -911,7 +917,7 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, V
 #endif
         break;
     }
-    ReleaseLock(&test);
+    ReleaseLock(&simbuffer_lock);
 }
 
 /* ========================================================================== */
@@ -921,7 +927,7 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
 //    if (KnobILDJIT.Value() && !ILDJIT_IsExecuting())
 //        return;
 
-    GetLock(&test, threadIndex+1);
+    GetLock(&simbuffer_lock, threadIndex+1);
     ADDRINT retval = PIN_GetSyscallReturn(ictxt, std);
 
     thread_state_t* tstate = get_tls(threadIndex);
@@ -1031,7 +1037,7 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
       default:
         break;
     }
-    ReleaseLock(&test);
+    ReleaseLock(&simbuffer_lock);
 }
 
 /* ========================================================================== */
@@ -1124,6 +1130,7 @@ INT32 main(INT32 argc, CHAR **argv)
 
     if(KnobSanity.Value())
         Zesto_Add_WriteByteCallback(Zesto_WriteByteCallback);
+    sim_release_handshake = KnobPipelineInstrumentation.Value();
 
     Zesto_SlaveInit(ssargs.first, ssargs.second);
 

@@ -421,7 +421,8 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool slice_start, bool slice
 
    if (!thread->active && !slice_start) {
      fprintf(stderr, "DEBUG DEBUG: Start/stop out of sync? PC: %x\n", handshake->pc);
-     ReleaseHandshake(coreID);
+     if(sim_release_handshake)
+       ReleaseHandshake(coreID);
      return;
    }
 
@@ -450,7 +451,8 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool slice_start, bool slice
       end_slice(handshake->slice_num, handshake->feeder_slice_length, handshake->slice_weight_times_1000);
       if (!slice_start) {//start and end markers can be the same
         thread->active = false;
-        ReleaseHandshake(coreID);
+        if(sim_release_handshake)
+          ReleaseHandshake(coreID);
         return;
       }*/
    }
@@ -507,7 +509,8 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool slice_start, bool slice
      regs->regs_NPC = handshake->pc;
    }
 
-   ReleaseHandshake(coreID);
+   if(sim_release_handshake)
+     ReleaseHandshake(coreID);
  
    bool fetch_more = true;
    consumed = false;

@@ -22,5 +22,7 @@ void Zesto_Add_WriteByteCallback(ZESTO_WRITE_BYTE_CALLBACK callback);
 
 void Zesto_Slice_End(int coreID, unsigned int slice_num, unsigned long long feeder_slice_length, unsigned long long slice_weight_times_1000);
 
+extern bool sim_release_handshake;
+
 #endif /*__PIN_ZESTO_INTERFACE__*/
 
