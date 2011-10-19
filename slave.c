@@ -16,6 +16,7 @@
 #include <sys/io.h>
 
 #include "interface.h"
+#include "callbacks.h"
 #include "host.h"
 #include "misc.h"
 #include "machine.h"
@@ -403,6 +404,15 @@ static void sim_drain_pipe(int coreID)
    core->current_thread->rep_sequence = 0;
 }
 
+void Zesto_Slice_End(int coreID, unsigned int slice_num, unsigned long long feeder_slice_length, unsigned long long slice_weight_times_1000)
+{
+  // Blow away any instructions executing
+  sim_drain_pipe(coreID); 
+  // Record stats values
+  end_slice(slice_num, feeder_slice_length, slice_weight_times_1000);
+  cores[coreID]->current_thread->active = false;
+}
+
 void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool slice_start, bool slice_end)
 {
    struct core_t * core = cores[handshake->coreID];
@@ -411,6 +421,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool slice_start, bool slice
 
    if (!thread->active && !slice_start) {
      fprintf(stderr, "DEBUG DEBUG: Start/stop out of sync? PC: %x\n", handshake->pc);
+     ReleaseHandshake(coreID);
      return;
    }
 
@@ -434,12 +445,14 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool slice_start, bool slice
 
    if(slice_end)
    {
-      sim_drain_pipe(coreID); // blow away any instructions executing
+//XXX: This needs to be fixed for the pinpoints case
+/*      sim_drain_pipe(coreID); // blow away any instructions executing
       end_slice(handshake->slice_num, handshake->feeder_slice_length, handshake->slice_weight_times_1000);
       if (!slice_start) {//start and end markers can be the same
         thread->active = false;
+        ReleaseHandshake(coreID);
         return;
-      }
+      }*/
    }
 
    if(slice_start)
@@ -493,6 +506,8 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool slice_start, bool slice
      regs->regs_PC = handshake->pc;
      regs->regs_NPC = handshake->pc;
    }
+
+   ReleaseHandshake(coreID);
  
    bool fetch_more = true;
    consumed = false;
@@ -558,7 +573,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool slice_start, bool slice
      /*XXX: here oracle still doesn't know if we're speculating or not. But if we predicted 
      the wrong path, we'd better not return to Pin, because that will mess the state up */
      else if((!repping && (core->fetch->PC != NPC || core->oracle->spec_mode)) ||
-               //&& core->fetch->PC != handshake->pc) || //Not trapped
+               //&& core->fetch->PC != core->fetch->feeder_PC) || //Not trapped
               repping) 
      {
        bool spec = false;
@@ -571,7 +586,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool slice_start, bool slice
 
             spec = (core->oracle->spec_mode || (core->fetch->PC != regs->regs_NPC));
             /* If fetch can tolerate more insns, but needs to get them from PIN (f.e. after finishing a REP-ed instruction) */
-            if(fetch_more && !spec && thread->rep_sequence == 0 && core->fetch->PC != handshake->pc && core->oracle->num_Mops_nuked == 0)
+            if(fetch_more && !spec && thread->rep_sequence == 0 && core->fetch->PC != core->fetch->feeder_PC && core->oracle->num_Mops_nuked == 0)
             {
                zesto_assert(core->fetch->PC == NPC, (void)0);
                return;
@@ -595,7 +610,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool slice_start, bool slice
          spec = (core->oracle->spec_mode || (core->fetch->PC != regs->regs_NPC));
 
          /* After recovering from spec and/or REP, we find no nukes -> great, get control back to PIN */
-         if(thread->rep_sequence == 0 && core->fetch->PC != handshake->pc && !spec && core->oracle->num_Mops_nuked == 0)
+         if(thread->rep_sequence == 0 && core->fetch->PC != core->fetch->feeder_PC && !spec && core->oracle->num_Mops_nuked == 0)
          {
             zesto_assert(core->fetch->PC == NPC, (void)0);
             return;

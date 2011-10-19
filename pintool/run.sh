@@ -14,7 +14,7 @@ set MEMCFG = ../dram-config/DDR2-800-5-5-5.cfg
 set MAX = 1000000
 #set MAX = -1
 
-set CMD_LINE = "setarch i686 -3BL $PIN -pause_tool 1 -injection child -xyzzy -t $PINTOOL -length $MAX -maxins $MAX -sanity -s -config $ZESTOCFG -config $MEMCFG -- $PROGRAM"
+set CMD_LINE = "setarch i686 -3BL $PIN -pause_tool 1 -injection child -xyzzy -t $PINTOOL -length $MAX -sanity -s -config $ZESTOCFG -config $MEMCFG -- $PROGRAM"
 echo $CMD_LINE
 $CMD_LINE
 

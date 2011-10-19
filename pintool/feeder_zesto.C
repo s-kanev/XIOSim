@@ -38,8 +38,6 @@ using namespace std;
 
 CHAR sim_name[] = "Zesto";
 
-KNOB<UINT64> KnobMaxSimIns(KNOB_MODE_WRITEONCE,    "pintool",
-        "maxins", "0", "Max. # of instructions to simulate (0 == till end of program");
 KNOB<string> KnobInsTraceFile(KNOB_MODE_WRITEONCE,   "pintool",
         "trace", "", "File where instruction trace is written");
 KNOB<string> KnobSanityInsTraceFile(KNOB_MODE_WRITEONCE,   "pintool",
@@ -65,6 +63,7 @@ BOOL isFirstInsn = true;
 BOOL isLastInsn = false;
 
 BOOL sim_running = false;
+BOOL sim_stopped = false;
 
 // Used to access thread-local storage
 static TLS_KEY tls_key;
@@ -153,13 +152,14 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
 
       case CONTROL_STOP:
         cerr << "Stop" << endl;
-        ExecMode = EXECUTION_MODE_FASTFORWARD;
-        CODECACHE_FlushCache();
-//        PIN_RemoveInstrumentation();
-        isLastInsn = true;
-
         if(control.PinPointsActive())
         {
+    //        if (ctxt) PIN_ExecuteAt(ctxt);
+            ExecMode = EXECUTION_MODE_FASTFORWARD;
+            CODECACHE_FlushCache();
+    //        PIN_RemoveInstrumentation();
+            isLastInsn = true;
+
             cerr << "PinPoint: " << control.CurrentPp(tid) << endl;
             tstate->slice_num = control.CurrentPp(tid);
             tstate->slice_length = control.CurrentPpLength(tid);
@@ -167,13 +167,31 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
         }
         else
         {
-            /* There will be no further instructions instrumented, make sure we invoke Zesto_Resume with slice_end */
-            tstate->slice_num = 0;
-            tstate->slice_length = SimOrgInsCount;
-            tstate->slice_weight_times_1000 = 100000;
-            //Zesto_Resume(&tstate->handshake, false, true); XXX: intermediate exec mode?
+            /* There will be no further instructions instrumented.
+             * Make sure to end the simulation appropriately. */
+
+            GetLock(&simbuffer_lock, tid+1);
+            /* This will stop SimulatorLoop */
+            sim_running = false;
+            ReleaseLock(&simbuffer_lock);
+
+            /* Spin until SimulatorLoop actually finishes */
+            volatile bool is_stopped;
+            do {
+                GetLock(&simbuffer_lock, tid+1);
+                is_stopped = sim_stopped;
+                ReleaseLock(&simbuffer_lock);
+            } while(!is_stopped);
+
+            /* Reaching this ensures SimulatorLoop is not in the middle
+             * of simulating an instruction. We can safely blow away
+             * the pipeline and end the simulation. */
+            Zesto_Slice_End(tid, 0, SimOrgInsCount, 100000);
+            Zesto_Destroy();
+            Fini(EXIT_SUCCESS, NULL);
+            PIN_ExitProcess(EXIT_SUCCESS);
         }
-//        if (ctxt) PIN_ExecuteAt(ctxt);
+
         break;
 
       default:
@@ -286,31 +304,11 @@ VOID Fini(INT32 exitCode, VOID *v)
     // Stops simulator threads (good idea to lock around this?)
     sim_running = false;
 
-    Zesto_Destroy();
-
     cerr << "Total simulated ins = " << dec << SimOrgInsCount << endl;
 
     if (exitCode != EXIT_SUCCESS)
         cerr << "ERROR! Exit code = " << dec << exitCode << endl;
     cerr << "Total ins: " << icount.Count(0) << endl;
-}
-
-/* ========================================================================== */
-VOID ExitOnMaxIns()
-{
-    if(KnobMaxSimIns.Value() == 0)
-        return;
-
-    if (KnobMaxSimIns.Value() && (SimOrgInsCount < KnobMaxSimIns.Value()))
-        return;
-
-#ifdef ZESTO_PIN_DBG
-    cerr << "TotalIns = " << dec << SimOrgInsCount << endl;
-#endif
-
-    Fini(EXIT_SUCCESS, 0);
-
-    PIN_ExitProcess(EXIT_SUCCESS);
 }
 
 /* ========================================================================== */
@@ -355,19 +353,28 @@ VOID SimulatorLoop(VOID* arg)
     while (true)
     {
         GetLock(&simbuffer_lock, tid+1);
-        if (!sim_running)
+        if (!sim_running || PIN_IsProcessExiting())
         {
+            sim_stopped = true;
             ReleaseLock(&simbuffer_lock);
-            break;
+            return;
         }
 
         handshake_container_t* handshake = handshake_buffer[instrument_tid];
 
+        /* Wait for instruction instrumentation */
         while (!handshake->valid)
         {
             ReleaseLock(&simbuffer_lock);
             PIN_Yield();
             GetLock(&simbuffer_lock, tid+1);
+            /* We must recheck if sumulation was stopped, or we can deadlock */
+            if (!sim_running || PIN_IsProcessExiting())
+            {
+                sim_stopped = true;
+                ReleaseLock(&simbuffer_lock);
+                return;
+            }
         }
 
         ADDRINT pc = handshake->handshake.pc;
@@ -379,30 +386,43 @@ VOID SimulatorLoop(VOID* arg)
         // Capture time spent in simulation to ensure time syscall transparency
         UINT64 ins_delta_time = rdtsc();
 #endif
+        // Perform memory sanity checks for values touched by simulator
+        // on previous instruction
+        if (KnobSanity.Value())
+            SanityMemCheck();
+
         // Actual simulation happens here
         Zesto_Resume(&handshake->handshake, isFirstInsn, isLastInsn);
 
-        if (isFirstInsn)
-            isFirstInsn = false;
-
-        if (isLastInsn)
-            isLastInsn = false;
-
-        SimOrgInsCount++;
-        ExitOnMaxIns();
+        // XXX: We are not holding simbuffer_lock here any more!
 
 #ifdef TIME_TRANSPARENCY
         ins_delta_time = rdtsc() - ins_delta_time;
         sim_time += ins_delta_time;
 #endif
-        // Perform memory sanity checks for values touched by simulator
-        if (KnobSanity.Value())
-            SanityMemCheck();
-
-        handshake->valid = false;   // Let pin instrument instruction
-
-        ReleaseLock(&simbuffer_lock);
     }
+}
+
+/* ========================================================================== 
+ * Called from simulator once handshake is free to be reused. 
+ * This allows to pipeline instrumentation and simulation.
+ * Assumes we are holding simbuffer_lock. */
+VOID ReleaseHandshake(THREADID instrument_tid)
+{
+    //XXX: This is called with coreID! Instantiate an explicit mapping!
+
+    if (isFirstInsn)
+        isFirstInsn = false;
+
+    if (isLastInsn)
+        isLastInsn = false;
+
+    SimOrgInsCount++;
+
+    handshake_container_t* handshake = handshake_buffer[instrument_tid];
+    handshake->valid = false;   // Let pin instrument instruction
+
+    ReleaseLock(&simbuffer_lock);
 }
 
 /* ========================================================================== */
