@@ -75,8 +75,6 @@ extern int sim_swap_bytes;
 extern int sim_swap_words;
 
 /* execution start/end times */
-extern time_t sim_start_time;
-extern time_t sim_end_time;
 extern int sim_elapsed_time;
 
 /* options database */

@@ -15,10 +15,13 @@ extern void sim_print_stats(FILE *fd);
 
 extern tick_t sim_cycle;
 extern const char *sim_simout;
+extern int sim_elapsed_time;
 
 static unsigned long long slice_start_cycle = 0;
 static unsigned long long slice_end_cycle = 0;
 static unsigned long long slice_start_icount = 0;
+
+static time_t slice_start_time;
 
 static std::vector<struct stat_sdb_t*> all_stats;
 
@@ -40,6 +43,7 @@ void start_slice(unsigned int slice_num)
    cores[i]->stat.final_sim_cycle = slice_end_cycle;
    slice_start_cycle = sim_cycle;
    slice_start_icount = thread->stat.num_insn;
+   slice_start_time = time((time_t *)NULL);
 }
 
 //XXX: REMOVE ME
@@ -54,6 +58,8 @@ void end_slice(unsigned int slice_num, unsigned long long feeder_slice_length, u
    struct stat_sdb_t* curr_sdb = all_stats.back();
 
    slice_end_cycle = sim_cycle;
+   time_t slice_end_time = time((time_t*)NULL);
+   sim_elapsed_time = MAX(slice_end_time - slice_start_time, 1);
 
    /* Ugh, this feels very dirty. Have to make sure we don't forget a cycle stat.
       The reason for doing this is that cycle counts increasing monotonously is

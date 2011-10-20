@@ -109,8 +109,6 @@ signal_exit_now(int sigtype)
 }
 
 /* execution start/end times */
-time_t sim_start_time;
-time_t sim_end_time;
 int sim_elapsed_time;
 
 /* byte/word swapping required to execute target executable on this host */
@@ -199,10 +197,6 @@ usage(FILE *fd, int argc, char **argv)
 void
 sim_print_stats(FILE *fd)		/* output stream */
 {
-  /* get stats time */
-  sim_end_time = time((time_t *)NULL);
-  sim_elapsed_time = MAX(sim_end_time - sim_start_time, 1);
-
   /* print simulation stats */
   fprintf(fd, "\nsim: ** simulation statistics **\n");
   stat_print_stats(sim_sdb, fd);
