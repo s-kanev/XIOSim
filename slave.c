@@ -52,12 +52,6 @@ extern void signal_sim_stats(int sigtype);
 /* exit signal handler */
 extern void signal_exit_now(int sigtype);
 
-
-/* execution start/end times */
-extern time_t sim_start_time;
-extern time_t sim_end_time;
-extern int sim_elapsed_time;
-
 /* byte/word swapping required to execute target executable on this host */
 extern int sim_swap_bytes;
 extern int sim_swap_words;
@@ -269,7 +263,7 @@ Zesto_SlaveInit(int argc, char **argv)
   stat_save_stats(rtp_sdb);
 
   /* record start of execution time, used in rate stats */
-  sim_start_time = time((time_t *)NULL);
+  time_t sim_start_time = time((time_t *)NULL);
 
   /* emit the command line for later reuse */
   fprintf(stderr, "sim: command line: ");
@@ -288,9 +282,6 @@ Zesto_SlaveInit(int argc, char **argv)
 
   if(cores[0]->knobs->power.compute)
     init_power();
-
-  /* omit option dump time from rate stats */
-  sim_start_time = time((time_t *)NULL);
 
   if (init_quit)
     exit_now(0);
