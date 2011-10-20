@@ -26,6 +26,7 @@
 #include "stats.h"
 #include "loader.h"
 #include "sim.h"
+#include "synchronization.h"
 
 #include "zesto-core.h"
 #include "zesto-fetch.h"
@@ -124,6 +125,8 @@ extern tick_t sim_cycle;
 extern void start_slice(unsigned int slice_num);
 extern void end_slice(unsigned int slice_num, unsigned long long slice_length, unsigned long long slice_weight_times_1000);
 extern void scale_all_slices(void);
+
+extern int32_t fetch_lock;
 
 struct thread_flags_t {
   bool consumed;
@@ -319,7 +322,9 @@ int Zesto_Notify_Mmap(int coreID, unsigned int addr, unsigned int length, bool m
   md_addr_t page_addr = ROUND_DOWN((md_addr_t)addr, MD_PAGE_SIZE);
   unsigned int page_length = ROUND_UP(length, MD_PAGE_SIZE);
 
+  lk_lock(&fetch_lock);
   md_addr_t retval = mem_newmap2(mem, page_addr, page_addr, page_length, 1);
+  lk_unlock(&fetch_lock);
 
 //   myfprintf(stderr, "New memory mapping at addr: %x, length: %x ,endaddr: %x \n",addr, length, addr+length);
   ZPIN_TRACE("New memory mapping at addr: %x, length: %x ,endaddr: %x \n",addr, length, addr+length);
@@ -340,7 +345,9 @@ int Zesto_Notify_Munmap(int coreID, unsigned int addr, unsigned int length, bool
   struct mem_t * mem = cores[coreID]->current_thread->mem;
   zesto_assert((num_threads == 1) || multi_threaded, 0);
 
+  lk_lock(&fetch_lock);
   mem_delmap(mem, ROUND_UP((md_addr_t)addr, MD_PAGE_SIZE), length);
+  lk_unlock(&fetch_lock);
 
 //  myfprintf(stderr, "Memory un-mapping at addr: %x, len: %x\n",addr, length);
   ZPIN_TRACE("Memory un-mapping at addr: %x, len: %x\n",addr, length);

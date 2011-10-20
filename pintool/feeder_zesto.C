@@ -479,6 +479,12 @@ VOID MakeSSRequest(THREADID tid, ADDRINT pc, ADDRINT npc, ADDRINT tpc, BOOL brta
 VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDRINT tpc, const CONTEXT *ictxt)
 {
     GetLock(&simbuffer_lock, tid+1);
+/*    if (handshake_buffer.size() < (unsigned int) num_threads)
+    {
+        ReleaseLock(&simbuffer_lock);
+        return;
+    }*/
+
     handshake_container_t* handshake  = handshake_buffer[tid];
 
     while (handshake->valid)
@@ -722,7 +728,7 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
 //    if (KnobILDJIT.Value() && !ILDJIT_IsCreatingExecutor())
 //        return;
 
-    GetLock(&simbuffer_lock, 1);
+    GetLock(&test, 1);
 
     cerr << "Thread start. ID: " << dec << threadIndex << endl;
 
@@ -801,10 +807,10 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
         tstate->coreID = nextCoreID++;
 
         // Create new buffer to store thread context
-        //GetLock(&simbuffer_lock, threadIndex+1);
+        GetLock(&simbuffer_lock, threadIndex+1);
         handshake_container_t* new_handshake = new handshake_container_t();
         handshake_buffer[threadIndex] = new_handshake;
-        //ReleaseLock(&simbuffer_lock);
+        ReleaseLock(&simbuffer_lock);
 
         // Mark simulation as running (only matters for first thread)
         sim_running = true;
@@ -815,7 +821,7 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
         ReleaseLock(&instrument_tid_lock);
     }
 
-    ReleaseLock(&simbuffer_lock);
+    ReleaseLock(&test);
 }
 
 //from linux/arch/x86/ia32/sys_ia32.c
@@ -842,7 +848,7 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, V
     // ILDJIT is minding its own bussiness
 //    if (KnobILDJIT.Value() && !ILDJIT_IsExecuting())
 //        return;
-    GetLock(&simbuffer_lock, threadIndex+1);
+    GetLock(&test, threadIndex+1);
 
     ADDRINT syscall_num = PIN_GetSyscallNumber(ictxt, std);
     ADDRINT arg1 = PIN_GetSyscallArgument(ictxt, std, 0);
@@ -935,7 +941,7 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, V
 #endif
         break;
     }
-    ReleaseLock(&simbuffer_lock);
+    ReleaseLock(&test);
 }
 
 /* ========================================================================== */
@@ -945,7 +951,7 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
 //    if (KnobILDJIT.Value() && !ILDJIT_IsExecuting())
 //        return;
 
-    GetLock(&simbuffer_lock, threadIndex+1);
+    GetLock(&test, threadIndex+1);
     ADDRINT retval = PIN_GetSyscallReturn(ictxt, std);
 
     thread_state_t* tstate = get_tls(threadIndex);
@@ -1055,7 +1061,7 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
       default:
         break;
     }
-    ReleaseLock(&simbuffer_lock);
+    ReleaseLock(&test);
 }
 
 /* ========================================================================== */
