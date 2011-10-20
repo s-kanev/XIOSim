@@ -99,7 +99,7 @@ void end_slice(unsigned int slice_num, unsigned long long feeder_slice_length, u
 
    double n_cycles = (double)sim_cycle;
    double n_insn = (double)(cores[0]->current_thread->stat.num_insn - slice_start_icount);
-   double n_pin_n_insn = (double)slice_length;
+   double n_pin_n_insn = (double)feeder_slice_length;
    double curr_cpi = weight * n_cycles / n_insn;
    double curr_ipc = 1.0 / curr_cpi;
 

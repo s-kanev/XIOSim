@@ -136,6 +136,7 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
         cerr <<  dec << " Inst. Count " << icount.Count(tid) << " ";
 
     thread_state_t* tstate = get_tls(tid);
+    volatile handshake_container_t* handshake;
 
     switch(ev)
     {
@@ -161,12 +162,28 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
             ExecMode = EXECUTION_MODE_FASTFORWARD;
             CODECACHE_FlushCache();
     //        PIN_RemoveInstrumentation();
+            GetLock(&simbuffer_lock, tid+1);
             isLastInsn = true;
-
-            cerr << "PinPoint: " << control.CurrentPp(tid) << endl;
+            /* Update thread state while holding the simbuffer lock.
+             * There are two orderings: (1) this is executed before
+             * instrumenting the instruction marked as a Stop point.
+             * Then, updating tstate is enough. */
             tstate->slice_num = control.CurrentPp(tid);
             tstate->slice_length = control.CurrentPpLength(tid);
             tstate->slice_weight_times_1000 = control.CurrentPpWeightTimesThousand(tid);
+            /* (2) This instrumentation routine is executed after
+             * instrumenting the Stop point. Then, we need to update
+             * the handshake buffer that gets passed to the simulator
+             * directly.
+             * In either case, this is executed before SimulateLoop on
+             * the Stop point? */
+            handshake = handshake_buffer[tid];
+            handshake->handshake.slice_num = tstate->slice_num;
+            handshake->handshake.feeder_slice_length = tstate->slice_length;
+            handshake->handshake.slice_num = tstate->slice_weight_times_1000;
+            ReleaseLock(&simbuffer_lock);
+
+            cerr << "PinPoint: " << control.CurrentPp(tid) << endl;
         }
         else
         {
@@ -190,7 +207,6 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
              * of simulating an instruction. We can safely blow away
              * the pipeline and end the simulation. */
             Zesto_Slice_End(tid, 0, SimOrgInsCount, 100000);
-            Zesto_Destroy();
             Fini(EXIT_SUCCESS, NULL);
             PIN_ExitProcess(EXIT_SUCCESS);
         }
@@ -304,6 +320,8 @@ VOID MakeSSContext(const CONTEXT *ictxt, const FPSTATE* fpstate, ADDRINT pc, ADD
 /* ========================================================================== */
 VOID Fini(INT32 exitCode, VOID *v)
 {
+    Zesto_Destroy();
+
     // Stops simulator threads (good idea to lock around this?)
     sim_running = false;
 

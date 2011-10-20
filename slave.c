@@ -446,15 +446,14 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool slice_start, bool slice
 
    if(slice_end)
    {
-//XXX: This needs to be fixed for the pinpoints case
-/*      sim_drain_pipe(coreID); // blow away any instructions executing
-      end_slice(handshake->slice_num, handshake->feeder_slice_length, handshake->slice_weight_times_1000);
-      if (!slice_start) {//start and end markers can be the same
-        thread->active = false;
+      Zesto_Slice_End(coreID, handshake->slice_num, handshake->feeder_slice_length, handshake->slice_weight_times_1000);
+
+      if(!slice_start) {//start and end markers can be the same
         if(sim_release_handshake)
           ReleaseHandshake(coreID);
         return;
-      }*/
+      } else
+        thread->active = true;
    }
 
    if(slice_start)
