@@ -111,12 +111,9 @@
 #include "interface.h"
 #include "synchronization.h"
 
+int32_t memory_lock;
 int32_t cycle_lock;
-int32_t fetch_lock;
-int32_t ldst_lock;
-int32_t post_fetch_lock;
-int32_t pre_fetch_lock;
-int32_t cache_prefetch_lock;
+int32_t cache_lock;
 
 extern int start_pos;
 extern int heartbeat_count;
@@ -271,11 +268,8 @@ sim_post_init(void)
 
   /* Initialize synchronization primitives */
   lk_init(&cycle_lock);
-  lk_init(&fetch_lock);
-  lk_init(&ldst_lock);
-  lk_init(&post_fetch_lock);
-  lk_init(&pre_fetch_lock);
-  lk_init(&cache_prefetch_lock);
+  lk_init(&memory_lock);
+  lk_init(&cache_lock);
 
   /* initialize architected state(s) */
   threads = (struct thread_t **)calloc(num_threads,sizeof(*threads));
@@ -312,6 +306,9 @@ sim_post_init(void)
       mem_init(threads[i]->mem);
     }
     threads[i]->finished_cycle = false;
+    threads[i]->consumed = false;
+    threads[i]->first_insn = true;
+    threads[i]->fetches_since_feeder = 0;
   }
 
   /* initialize microarchitecture state */
@@ -368,9 +365,10 @@ bool sim_main_slave_fetch_insn(int coreID)
 {
   volatile bool res;
   //XXX: Round-robin!
-  lk_lock(&fetch_lock);
+  // Oracle gets executed here. Grab lock to main application memory.
+  lk_lock(&memory_lock);    
   res = cores[coreID]->fetch->do_fetch();
-  lk_unlock(&fetch_lock);
+  lk_unlock(&memory_lock);
   return res;
 }
 
@@ -563,7 +561,7 @@ void sim_main_slave_pre_pin(int coreID)
   /* Thread is joining in serial region. Mark it as finished this cycle */
   /* Spin if serial region stil hasn't finished
    * XXX: SK: Is this just me being paranoid? After all, serial region
-   * updates finished_cycle atomically for all thread and none can
+   * updates finished_cycle atomically for all threads and none can
    * race through to here before that update is finished.
    */
   lk_lock(&cycle_lock);
@@ -609,15 +607,17 @@ void sim_main_slave_pre_pin(int coreID)
     lk_unlock(&cycle_lock);
   }
 
+  lk_lock(&cache_lock);
   step_core_PF_controllers(cores[coreID]);
+  lk_unlock(&cache_lock);
 
   cores[coreID]->commit->IO_step(); /* IO cores only */ //UGLY UGLY UGLY
 
   /* all memory processed here */
   //XXX: RR
-  lk_lock(&ldst_lock);
+  lk_lock(&cache_lock);
   cores[coreID]->exec->LDST_exec();
-  lk_unlock(&ldst_lock);
+  lk_unlock(&cache_lock);
 
   cores[coreID]->commit->step();  /* OoO cores only */
 
@@ -637,9 +637,9 @@ void sim_main_slave_pre_pin(int coreID)
   /* round-robin on which cache to process first so that one core
      doesn't get continual priority over the others for L2 access */
   //XXX: RR
-  lk_lock(&post_fetch_lock);
+  lk_lock(&cache_lock);
   cores[coreID]->fetch->post_fetch();
-  lk_unlock(&post_fetch_lock);
+  lk_unlock(&cache_lock);
 }
 
 void sim_main_slave_post_pin(int coreID)
@@ -648,9 +648,9 @@ void sim_main_slave_post_pin(int coreID)
   /* round-robin on which cache to process first so that one core
      doesn't get continual priority over the others for L2 access */
   //XXX: RR
-  lk_lock(&pre_fetch_lock);
+  lk_lock(&memory_lock);
   cores[coreID]->fetch->pre_fetch();
-  lk_unlock(&pre_fetch_lock);
+  lk_unlock(&memory_lock);
 
   /* this is done last in the cycle so that prefetch requests have the
      lowest priority when competing for queues, buffers, etc. */
@@ -658,15 +658,19 @@ void sim_main_slave_post_pin(int coreID)
    * thread only without gathering all threads because it only affects
    * the LLC. TODO: Revisit this assumption, sounds very weak! */
   if(coreID == 0)
+  {
+    lk_lock(&cache_lock);
     prefetch_LLC(uncore);
+    lk_unlock(&cache_lock);
+  }
 
   /* process prefetch requests in reverse order as L1/L2; i.e., whoever
      got the lowest priority for L1/L2 processing gets highest priority
      for prefetch processing */
   //XXX: RR
-  lk_lock(&cache_prefetch_lock);
+  lk_lock(&cache_lock);
   prefetch_core_caches(cores[coreID]);
-  lk_unlock(&cache_prefetch_lock);
+  lk_unlock(&cache_lock);
 
   /*******************/
   /* occupancy stats */

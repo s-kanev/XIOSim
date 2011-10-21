@@ -366,6 +366,7 @@ class core_t {
 
   seq_t global_action_id; /* tag for squashable "actions" */
 
+  static int32_t pools_lock;
   static bool static_members_initialized;
   static seq_t global_seq; /* This is shared among all cores */
   /* to reduce overhead of constantly malloc/freeing arrays to

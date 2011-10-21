@@ -122,16 +122,6 @@ extern void scale_all_slices(void);
 
 extern int32_t fetch_lock;
 
-struct thread_flags_t {
-  bool consumed;
-  bool first_insn;
-  long long fetches_since_feeder;
-};
-
-bool consumed = false;
-bool first_insn = true;
-long long fetches_since_feeder = 0;
-
 int
 Zesto_SlaveInit(int argc, char **argv)
 {
@@ -299,7 +289,7 @@ void Zesto_SetBOS(int coreID, unsigned int stack_base)
   assert(coreID < num_threads);
 
   cores[coreID]->current_thread->loader.stack_base = (md_addr_t)stack_base;
-  myfprintf(stderr, "Stack base: %x; \n", cores[coreID]->current_thread->loader.stack_base);
+  myfprintf(stderr, "Stack base[%d]: %x; \n", coreID, cores[coreID]->current_thread->loader.stack_base);
 
 }
 
@@ -313,9 +303,9 @@ int Zesto_Notify_Mmap(int coreID, unsigned int addr, unsigned int length, bool m
   md_addr_t page_addr = ROUND_DOWN((md_addr_t)addr, MD_PAGE_SIZE);
   unsigned int page_length = ROUND_UP(length, MD_PAGE_SIZE);
 
-  lk_lock(&fetch_lock);
+  lk_lock(&memory_lock);
   md_addr_t retval = mem_newmap2(mem, page_addr, page_addr, page_length, 1);
-  lk_unlock(&fetch_lock);
+  lk_unlock(&memory_lock);
 
 //   myfprintf(stderr, "New memory mapping at addr: %x, length: %x ,endaddr: %x \n",addr, length, addr+length);
   ZPIN_TRACE("New memory mapping at addr: %x, length: %x ,endaddr: %x \n",addr, length, addr+length);
@@ -336,9 +326,9 @@ int Zesto_Notify_Munmap(int coreID, unsigned int addr, unsigned int length, bool
   struct mem_t * mem = cores[coreID]->current_thread->mem;
   zesto_assert((num_threads == 1) || multi_threaded, 0);
 
-  lk_lock(&fetch_lock);
+  lk_lock(&memory_lock);
   mem_delmap(mem, ROUND_UP((md_addr_t)addr, MD_PAGE_SIZE), length);
-  lk_unlock(&fetch_lock);
+  lk_unlock(&memory_lock);
 
 //  myfprintf(stderr, "Memory un-mapping at addr: %x, len: %x\n",addr, length);
   ZPIN_TRACE("Memory un-mapping at addr: %x, len: %x\n",addr, length);
@@ -405,7 +395,8 @@ static void sim_drain_pipe(int coreID)
 void Zesto_Slice_End(int coreID, unsigned int slice_num, unsigned long long feeder_slice_length, unsigned long long slice_weight_times_1000)
 {
   // Blow away any instructions executing
-  sim_drain_pipe(coreID); 
+  sim_drain_pipe(coreID);
+  fprintf(stderr, "YADA\n"); 
   // Record stats values
   end_slice(slice_num, feeder_slice_length, slice_weight_times_1000);
   cores[coreID]->current_thread->active = false;
@@ -435,11 +426,11 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool slice_start, bool slice
    core->fetch->feeder_NPC = NPC;
    core->fetch->feeder_PC = handshake->pc;
 
-   if(first_insn) 
+   if(thread->first_insn) 
    {  
       thread->loader.prog_entry = handshake->pc;
 
-      first_insn= false;
+      thread->first_insn= false;
    }
 
    if(slice_end)
@@ -481,7 +472,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool slice_start, bool slice
    }
 
    ZPIN_TRACE("PIN -> PC: %x, NPC: %x \n", handshake->pc, NPC);
-   fetches_since_feeder = 0;
+   thread->fetches_since_feeder = 0;
 
    /* Copy architectural state from pin
       XXX: This is arch state BEFORE executed the instruction we're about to simulate*/
@@ -510,13 +501,13 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool slice_start, bool slice
      ReleaseHandshake(coreID);
  
    bool fetch_more = true;
-   consumed = false;
+   thread->consumed = false;
    bool repping = false;
 
-   while(!consumed || repping || core->oracle->num_Mops_nuked > 0)
+   while(!thread->consumed || repping || core->oracle->num_Mops_nuked > 0)
    {
      fetch_more = sim_main_slave_fetch_insn(coreID);
-     fetches_since_feeder++;
+     thread->fetches_since_feeder++;
 
      repping = thread->rep_sequence != 0;
 
@@ -527,7 +518,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool slice_start, bool slice
              !core->oracle->spec_mode)
        {       
          fetch_more = sim_main_slave_fetch_insn(coreID);
-         fetches_since_feeder++;
+         thread->fetches_since_feeder++;
 
          //Fetch can get more insns this cycle, but they are needed from PIN
          if(fetch_more && core->oracle->num_Mops_nuked == 0
@@ -543,7 +534,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool slice_start, bool slice
        //Fetch can get more insns this cycle, but not on nuke path 
        if(fetch_more)
        {
-          consumed = false;
+          thread->consumed = false;
           continue;
        }
       
@@ -559,7 +550,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool slice_start, bool slice
          //Nuke recovery instruction is a mispredicted branch or REP-ed
          if(core->fetch->PC != NPC || regs->regs_NPC != NPC)
          {
-            consumed = false;
+            thread->consumed = false;
             continue;
          }
          else //fetching from the correct addres, go back to Pin for instruction
@@ -582,7 +573,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool slice_start, bool slice
          while(fetch_more) 
          {
             fetch_more = sim_main_slave_fetch_insn(coreID);
-            fetches_since_feeder++;
+            thread->fetches_since_feeder++;
 
             spec = (core->oracle->spec_mode || (core->fetch->PC != regs->regs_NPC));
             /* If fetch can tolerate more insns, but needs to get them from PIN (f.e. after finishing a REP-ed instruction) */
@@ -600,7 +591,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool slice_start, bool slice
          sim_main_slave_pre_pin(coreID);
 //         sim_main_slave_pre_pin();
 
-         if(!consumed)
+         if(!thread->consumed)
          {
             fetch_more = true;
             continue;

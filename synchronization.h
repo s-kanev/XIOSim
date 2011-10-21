@@ -27,3 +27,9 @@ inline void lk_init(int32_t* lk)
 }
 
 extern void spawn_new_thread(void entry_point(void*), void* arg);
+
+/* Protecting shared state among cores */
+
+/* Memory lock should be acquired before functional accesses to
+ * the simulated application memory. */
+extern int32_t memory_lock;

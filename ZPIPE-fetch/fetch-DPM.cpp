@@ -9,10 +9,6 @@
     return new core_fetch_DPM_t(core);
 #else
 
-#ifdef ZESTO_PIN
-extern bool consumed;
-#endif
-
 class core_fetch_DPM_t:public core_fetch_t
 {
   enum fetch_stall_t {FSTALL_byteQ_FULL, /* byteQ is full */
@@ -734,7 +730,7 @@ bool core_fetch_DPM_t::do_fetch(void)
 
   core->oracle->consume(Mop);
 #ifdef ZESTO_PIN
-  consumed = true;
+  core->current_thread->consumed = true;
 #endif
 
   /* figure out where to fetch from next */

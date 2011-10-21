@@ -62,9 +62,6 @@ UINT64 sim_time = 0;
 ofstream trace_file;
 ifstream sanity_trace;
 
-BOOL isFirstInsn = true;
-BOOL isLastInsn = false;
-
 BOOL sim_running = false;
 BOOL sim_stopped = false;
 
@@ -81,7 +78,9 @@ static queue<THREADID> instrument_tid_queue;
 static PIN_LOCK instrument_tid_lock;
 
 // The core where a new thread will be started
-UINT32 nextCoreID = 0;
+static UINT32 nextCoreID = 0;
+// A mapping storing which thread runs on which core
+static map<UINT32, THREADID> core_threads;
 
 /* ========================================================================== */
 /* Pinpoint related */
@@ -137,6 +136,7 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
 
     thread_state_t* tstate = get_tls(tid);
     volatile handshake_container_t* handshake;
+    UINT32 coreID;
 
     switch(ev)
     {
@@ -145,7 +145,10 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
         ExecMode = EXECUTION_MODE_SIMULATE;
         CODECACHE_FlushCache();
 //        PIN_RemoveInstrumentation();
-        isFirstInsn = true;
+        GetLock(&simbuffer_lock, tid+1);
+        handshake = handshake_buffer[tid];
+        handshake->isFirstInsn = true;
+        ReleaseLock(&simbuffer_lock);
 
         if(control.PinPointsActive())
         {
@@ -163,7 +166,6 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
             CODECACHE_FlushCache();
     //        PIN_RemoveInstrumentation();
             GetLock(&simbuffer_lock, tid+1);
-            isLastInsn = true;
             /* Update thread state while holding the simbuffer lock.
              * There are two orderings: (1) this is executed before
              * instrumenting the instruction marked as a Stop point.
@@ -181,6 +183,8 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
             handshake->handshake.slice_num = tstate->slice_num;
             handshake->handshake.feeder_slice_length = tstate->slice_length;
             handshake->handshake.slice_num = tstate->slice_weight_times_1000;
+
+            handshake->isLastInsn = true;
             ReleaseLock(&simbuffer_lock);
 
             cerr << "PinPoint: " << control.CurrentPp(tid) << endl;
@@ -193,6 +197,8 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
             GetLock(&simbuffer_lock, tid+1);
             /* This will stop SimulatorLoop */
             sim_running = false;
+            handshake = handshake_buffer[tid];
+            coreID = handshake->handshake.coreID;
             ReleaseLock(&simbuffer_lock);
 
             /* Spin until SimulatorLoop actually finishes */
@@ -206,7 +212,7 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
             /* Reaching this ensures SimulatorLoop is not in the middle
              * of simulating an instruction. We can safely blow away
              * the pipeline and end the simulation. */
-            Zesto_Slice_End(tid, 0, SimOrgInsCount, 100000);
+            Zesto_Slice_End(coreID, 0, SimOrgInsCount, 100000);
             Fini(EXIT_SUCCESS, NULL);
             PIN_ExitProcess(EXIT_SUCCESS);
         }
@@ -370,18 +376,19 @@ VOID SanityMemCheck()
  * Called from simulator once handshake is free to be reused. 
  * This allows to pipeline instrumentation and simulation.
  * Assumes we are holding simbuffer_lock. */
-VOID ReleaseHandshake(THREADID instrument_tid)
+VOID ReleaseHandshake(UINT32 coreID)
 {
-    //XXX: This is called with coreID from simulator! Instantiate an explicit mapping!
-    if (isFirstInsn)
-        isFirstInsn = false;
+    THREADID instrument_tid = core_threads[coreID];
+    handshake_container_t* handshake = handshake_buffer[instrument_tid];
 
-    if (isLastInsn)
-        isLastInsn = false;
+    if (handshake->isFirstInsn)
+        handshake->isFirstInsn = false;
+
+    if (handshake->isLastInsn)
+        handshake->isLastInsn = false;
 
     SimOrgInsCount++;
 
-    handshake_container_t* handshake = handshake_buffer[instrument_tid];
     handshake->valid = false;   // Let pin instrument instruction
 
     ReleaseLock(&simbuffer_lock);
@@ -435,10 +442,10 @@ VOID SimulatorLoop(VOID* arg)
             SanityMemCheck();
 
         // Actual simulation happens here
-        Zesto_Resume(&handshake->handshake, isFirstInsn, isLastInsn);
+        Zesto_Resume(&handshake->handshake, handshake->isFirstInsn, handshake->isLastInsn);
 
         if(!KnobPipelineInstrumentation.Value())
-            ReleaseHandshake(instrument_tid);
+            ReleaseHandshake(handshake->handshake.coreID);
 
         // XXX: We are not holding simbuffer_lock here any more!
 
@@ -479,11 +486,11 @@ VOID MakeSSRequest(THREADID tid, ADDRINT pc, ADDRINT npc, ADDRINT tpc, BOOL brta
 VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDRINT tpc, const CONTEXT *ictxt)
 {
     GetLock(&simbuffer_lock, tid+1);
-/*    if (handshake_buffer.size() < (unsigned int) num_threads)
+    if (handshake_buffer.size() < (unsigned int) num_threads)
     {
         ReleaseLock(&simbuffer_lock);
         return;
-    }*/
+    }
 
     handshake_container_t* handshake  = handshake_buffer[tid];
 
@@ -513,10 +520,10 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
         ASSERTX(sanity_pc == pc);
     }
 
-    if (isFirstInsn)
+    if (handshake->isFirstInsn)
     {
         thread_state_t* tstate = get_tls(tid);
-        Zesto_SetBOS(0/*coreID*/, tstate->bos);
+        Zesto_SetBOS(tstate->coreID, tstate->bos);
     }
 
     // Populate handshake buffer
@@ -810,6 +817,8 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
         GetLock(&simbuffer_lock, threadIndex+1);
         handshake_container_t* new_handshake = new handshake_container_t();
         handshake_buffer[threadIndex] = new_handshake;
+        // Add new thread to the respective core
+        core_threads[tstate->coreID] = threadIndex;
         ReleaseLock(&simbuffer_lock);
 
         // Mark simulation as running (only matters for first thread)
@@ -822,6 +831,41 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
     }
 
     ReleaseLock(&test);
+}
+
+VOID ThreadFini(THREADID threadIndex, const CONTEXT *ctxt, INT32 code, VOID *v)
+{
+    cout << "Thread exit. ID: " << threadIndex << endl;
+
+
+    // XXX: Testing! Remove me!!
+    handshake_container_t *handshake;
+    UINT32 coreID;
+    /* There will be no further instructions instrumented.
+     * Make sure to end the simulation appropriately. */
+
+    GetLock(&simbuffer_lock, threadIndex+1);
+    /* This will stop SimulatorLoop */
+    sim_running = false;
+    handshake = handshake_buffer[threadIndex];
+    coreID = handshake->handshake.coreID;
+    ReleaseLock(&simbuffer_lock);
+
+    /* Spin until SimulatorLoop actually finishes */
+    volatile bool is_stopped;
+    do {
+        GetLock(&simbuffer_lock, threadIndex+1);
+        is_stopped = sim_stopped;
+        ReleaseLock(&simbuffer_lock);
+    } while(!is_stopped);
+
+    /* Reaching this ensures SimulatorLoop is not in the middle
+     * of simulating an instruction. We can safely blow away
+     * the pipeline and end the simulation. */
+    Zesto_Slice_End(coreID, 0, SimOrgInsCount, 100000);
+    cerr << "TEST" << endl;
+    Fini(EXIT_SUCCESS, NULL);
+    PIN_ExitProcess(EXIT_SUCCESS);
 }
 
 //from linux/arch/x86/ia32/sys_ia32.c
@@ -1145,6 +1189,7 @@ INT32 main(INT32 argc, CHAR **argv)
     }
 
     PIN_AddThreadStartFunction(ThreadStart, NULL);  
+    PIN_AddThreadFiniFunction(ThreadFini, NULL);  
     IMG_AddUnloadFunction(ImageUnload, 0);
     IMG_AddInstrumentFunction(ImageLoad, 0);
     PIN_AddSyscallEntryFunction(SyscallEntry, 0);

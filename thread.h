@@ -48,7 +48,12 @@ struct thread_t {
 #else
   int active;
 #endif
-  bool finished_cycle;
+#ifdef ZESTO_PIN
+  bool finished_cycle;      /* Ready to advance to next cycle? */
+  bool consumed;            /* Did fetching get an instruction back? */
+  bool first_insn;          /* Excuted at least an istruction? */
+  long long fetches_since_feeder; /* Instructions since last pin call */
+#endif
 };
 
 /* architected state for each simulated thread/process */

@@ -584,7 +584,9 @@ void core_commit_IO_DPM_t::IO_step(void)
 
       /* this cleans up idep/odep ptrs, register mappings, and
          commit stores to the real (non-spec) memory system */
+      lk_lock(&memory_lock);
       core->oracle->commit_uop(uop);
+      lk_unlock(&memory_lock);
 
       /* mark uop as committed in Mop */
       Mop->commit.commit_index += uop->decode.has_imm ? 3 : 1;

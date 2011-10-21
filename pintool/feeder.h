@@ -73,6 +73,8 @@ class handshake_container_t
         memzero(&regstate, sizeof(regs_t));
         memzero(&handshake, sizeof(P2Z_HANDSHAKE));
         valid = FALSE;
+        isFirstInsn = TRUE;
+        isLastInsn = FALSE;
     }
 
     // Did we finish dumping context
@@ -83,6 +85,9 @@ class handshake_container_t
 
     // Handshake information that gets passed on to Zesto
     struct P2Z_HANDSHAKE handshake;
+
+    BOOL isFirstInsn;
+    BOOL isLastInsn;
 };
 
 VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREADID tid);

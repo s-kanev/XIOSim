@@ -266,6 +266,7 @@ class core_oracle_t {
   int MopQ_size;
   struct Mop_t * current_Mop; /* pointer to track a Mop that has been executed but not consumed (i.e. due to fetch stall) */
 
+  static int32_t pools_lock;
   static struct map_node_t * map_free_pool;  /* for decode.dep_map */
   static int map_free_pool_debt;
   static struct spec_byte_t * spec_mem_free_pool; /* for oracle spec-memory map */
