@@ -396,7 +396,6 @@ void Zesto_Slice_End(int coreID, unsigned int slice_num, unsigned long long feed
 {
   // Blow away any instructions executing
   sim_drain_pipe(coreID);
-  fprintf(stderr, "YADA\n"); 
   // Record stats values
   end_slice(slice_num, feeder_slice_length, slice_weight_times_1000);
   cores[coreID]->current_thread->active = false;

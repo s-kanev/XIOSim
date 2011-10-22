@@ -1041,11 +1041,13 @@ void core_exec_STM_t::LDST_exec(void)
     }
   }
 
+  lk_lock(&cache_lock);
   if(core->memory.DTLB->check_for_work) cache_process(core->memory.DTLB);
   if((core->current_thread->id == 0) && !(sim_cycle&uncore->LLC_cycle_mask) && uncore->LLC->check_for_work)
     cache_process(uncore->LLC);
   if(core->memory.DL2 && core->memory.DL2->check_for_work) cache_process(core->memory.DL2);
   if(core->memory.DL1->check_for_work) cache_process(core->memory.DL1);
+  lk_unlock(&cache_lock);
 }
 
 /* Schedule load uops to execute from the LDQ.  Load execution occurs in a two-step

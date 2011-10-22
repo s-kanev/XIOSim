@@ -607,17 +607,13 @@ void sim_main_slave_pre_pin(int coreID)
     lk_unlock(&cycle_lock);
   }
 
-  lk_lock(&cache_lock);
   step_core_PF_controllers(cores[coreID]);
-  lk_unlock(&cache_lock);
 
   cores[coreID]->commit->IO_step(); /* IO cores only */ //UGLY UGLY UGLY
 
   /* all memory processed here */
   //XXX: RR
-  lk_lock(&cache_lock);
   cores[coreID]->exec->LDST_exec();
-  lk_unlock(&cache_lock);
 
   cores[coreID]->commit->step();  /* OoO cores only */
 
@@ -637,9 +633,9 @@ void sim_main_slave_pre_pin(int coreID)
   /* round-robin on which cache to process first so that one core
      doesn't get continual priority over the others for L2 access */
   //XXX: RR
-  lk_lock(&cache_lock);
+//  lk_lock(&cache_lock);
   cores[coreID]->fetch->post_fetch();
-  lk_unlock(&cache_lock);
+//  lk_unlock(&cache_lock);
 }
 
 void sim_main_slave_post_pin(int coreID)
@@ -648,6 +644,9 @@ void sim_main_slave_post_pin(int coreID)
   /* round-robin on which cache to process first so that one core
      doesn't get continual priority over the others for L2 access */
   //XXX: RR
+  /* We grab the memory lock here because pre_fetch() puts requests
+   * icache/itlb, which requires v2p translations, which must be
+   * protected. */
   lk_lock(&memory_lock);
   cores[coreID]->fetch->pre_fetch();
   lk_unlock(&memory_lock);
@@ -668,9 +667,7 @@ void sim_main_slave_post_pin(int coreID)
      got the lowest priority for L1/L2 processing gets highest priority
      for prefetch processing */
   //XXX: RR
-  lk_lock(&cache_lock);
   prefetch_core_caches(cores[coreID]);
-  lk_unlock(&cache_lock);
 
   /*******************/
   /* occupancy stats */

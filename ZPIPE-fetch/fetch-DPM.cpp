@@ -452,8 +452,10 @@ void core_fetch_DPM_t::post_fetch(void)
 
   /* This gets processed here, so that demand misses from the DL1 get higher
      priority for accessing the L2 */
+  lk_lock(&cache_lock);
   if(core->memory.ITLB->check_for_work) cache_process(core->memory.ITLB);
   if(core->memory.IL1->check_for_work) cache_process(core->memory.IL1);
+  lk_unlock(&cache_lock);
 
   /* check predecode pipe's last stage for instructions to put into the IQ */
   for(i=0;(i<knobs->fetch.width) && (IQ_num < knobs->fetch.IQ_size);i++)

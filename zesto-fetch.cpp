@@ -73,6 +73,7 @@
  */
 
 #include "thread.h"
+#include "synchronization.h"
 
 #include "zesto-core.h"
 #include "zesto-opts.h"

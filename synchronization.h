@@ -29,7 +29,15 @@ inline void lk_init(int32_t* lk)
 extern void spawn_new_thread(void entry_point(void*), void* arg);
 
 /* Protecting shared state among cores */
+/* Lock acquire order (outmost to inmost):
+ - cache_lock
+ - memory_lock
+ - pool_lock (in oracle and core)
+ */
 
 /* Memory lock should be acquired before functional accesses to
  * the simulated application memory. */
 extern int32_t memory_lock;
+/* Cahche lock should be acquired before any access to the shared
+ * caches (including enqueuing requests from lower-level caches). */
+extern int32_t cache_lock;
