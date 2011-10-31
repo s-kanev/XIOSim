@@ -573,6 +573,7 @@ Output          = namd.stdout
 Error           = namd.err
 ExePath         = $(InitialDir)/../../exe/namd_$(SpecTune).$(SpecExt)
 OutputPrefix    = $(OutputDir)/$(App).$(InputName)
+PPFile          = $(App).$(InputName).pintool.1.pp
 Arguments       = $(Prefix) -oprefix $(OutputPrefix) -ppfile $(PPFile) -s -config $(ZestoCFG)  -redir:sim $(OutputPrefix).zesto -- $(ExePath) --input namd.input --iterations 38 --output namd.out
 Queue
 
