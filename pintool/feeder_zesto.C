@@ -298,7 +298,7 @@ VOID ExitOnMaxIns()
 
     Fini(EXIT_SUCCESS, 0);
 
-    exit(EXIT_SUCCESS);
+    PIN_ExitProcess(EXIT_SUCCESS);
 }
 
 /* ========================================================================== */
@@ -859,7 +859,8 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
         cerr << "Ret syscall munmap(" << dec << tstate->last_syscall_number << ") addr: 0x" 
              << hex << tstate->last_syscall_arg1 << " length: " << tstate->last_syscall_arg2 << dec << endl;
 #endif
-        Zesto_Notify_Munmap(tstate->last_syscall_arg1, tstate->last_syscall_arg2, false);
+        if(retval != (ADDRINT)-1)
+            Zesto_Notify_Munmap(tstate->last_syscall_arg1, tstate->last_syscall_arg2, false);
         break;
 
       case __NR_mmap: //oldmap
@@ -867,8 +868,8 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
         cerr << "Ret syscall oldmmap(" << dec << tstate->last_syscall_number << ") addr: 0x" 
              << hex << retval << " length: " << tstate->last_syscall_arg1 << dec << endl;
 #endif
-
-        ASSERTX( Zesto_Notify_Mmap(retval, tstate->last_syscall_arg1, false) );
+        if(retval != (ADDRINT)-1)
+            ASSERTX( Zesto_Notify_Mmap(retval, tstate->last_syscall_arg1, false) );
         break;
 
       case __NR_mmap2:
@@ -877,7 +878,8 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
              << hex << retval << " length: " << tstate->last_syscall_arg1 << dec << endl;
 #endif
 
-        ASSERTX( Zesto_Notify_Mmap(retval, tstate->last_syscall_arg1, false) );
+        if(retval != (ADDRINT)-1)
+            ASSERTX( Zesto_Notify_Mmap(retval, tstate->last_syscall_arg1, false) );
         break;
 
       case __NR_mremap:
@@ -889,16 +891,21 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
              << " new_length: " << tstate->last_syscall_arg3 << dec << endl;
 #endif
 
-        ASSERTX( Zesto_Notify_Munmap(tstate->last_syscall_arg1, tstate->last_syscall_arg2, false) );
-        ASSERTX( Zesto_Notify_Mmap(retval, tstate->last_syscall_arg3, false) );
+        if(retval != (ADDRINT)-1)
+        {
+            ASSERTX( Zesto_Notify_Munmap(tstate->last_syscall_arg1, tstate->last_syscall_arg2, false) );
+            ASSERTX( Zesto_Notify_Mmap(retval, tstate->last_syscall_arg3, false) );
+        }
         break;
 
       case __NR_mprotect:
-        if ((tstate->last_syscall_arg3 & PROT_READ) == 0)
-            ASSERTX( Zesto_Notify_Munmap(tstate->last_syscall_arg1, tstate->last_syscall_arg2, false) );
-        else
-            ASSERTX( Zesto_Notify_Mmap(tstate->last_syscall_arg1, tstate->last_syscall_arg2, false) );
-
+        if(retval != (ADDRINT)-1)
+        {
+            if ((tstate->last_syscall_arg3 & PROT_READ) == 0)
+                ASSERTX( Zesto_Notify_Munmap(tstate->last_syscall_arg1, tstate->last_syscall_arg2, false) );
+            else
+                ASSERTX( Zesto_Notify_Mmap(tstate->last_syscall_arg1, tstate->last_syscall_arg2, false) );
+        }
         break;
 
 #ifdef TIME_TRANSPARENCY

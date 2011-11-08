@@ -2,7 +2,7 @@
 
 #set PROGRAM = ../tests/fib
 #set PROGRAM = /home/skanev/ubench/fib
-set PROGRAM = /home/skanev/cpuburn-1.4/burnP5
+set PROGRAM = /home/skanev/cpuburn/burnP5
 #set PROGRAM = /home/skanev/misc/tests/st_test/st_test
 #set PROGRAM = /home/skanev/pfmwrapper/main
 set PIN = /home/skanev/pin/pin-2.8-36111-gcc.3.4.6-ia32_intel64-linux/ia32/bin/pinbin

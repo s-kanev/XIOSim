@@ -109,8 +109,6 @@ signal_exit_now(int sigtype)
 }
 
 /* execution start/end times */
-time_t sim_start_time;
-time_t sim_end_time;
 int sim_elapsed_time;
 
 /* byte/word swapping required to execute target executable on this host */
@@ -131,6 +129,7 @@ struct opt_odb_t *sim_odb;
 
 /* stats database */
 struct stat_sdb_t *sim_sdb;
+struct stat_sdb_t *rtp_sdb;
 
 /* EIO interfaces */
 char *sim_eio_fname[MAX_CORES];
@@ -194,19 +193,10 @@ usage(FILE *fd, int argc, char **argv)
   opt_print_help(sim_odb, fd);
 }
 
-int running = FALSE;
-
 /* print all simulator stats */
 void
 sim_print_stats(FILE *fd)		/* output stream */
 {
-  if (!running)
-    return;
-
-  /* get stats time */
-  sim_end_time = time((time_t *)NULL);
-  sim_elapsed_time = MAX(sim_end_time - sim_start_time, 1);
-
   /* print simulation stats */
   fprintf(fd, "\nsim: ** simulation statistics **\n");
   stat_print_stats(sim_sdb, fd);

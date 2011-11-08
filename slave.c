@@ -52,12 +52,6 @@ extern void signal_sim_stats(int sigtype);
 /* exit signal handler */
 extern void signal_exit_now(int sigtype);
 
-
-/* execution start/end times */
-extern time_t sim_start_time;
-extern time_t sim_end_time;
-extern int sim_elapsed_time;
-
 /* byte/word swapping required to execute target executable on this host */
 extern int sim_swap_bytes;
 extern int sim_swap_words;
@@ -76,6 +70,9 @@ extern struct opt_odb_t *sim_odb;
 
 /* stats database */
 extern struct stat_sdb_t *sim_sdb;
+
+/* power stats database */
+extern struct stat_sdb_t *rtp_sdb;
 
 /* EIO interfaces */
 extern char *sim_eio_fname[MAX_CORES];
@@ -107,8 +104,6 @@ extern int nice_priority;
 extern int orphan_fn(int i, int argc, char **argv);
 extern void banner(FILE *fd, int argc, char **argv);
 extern  void usage(FILE *fd, int argc, char **argv);
-
-extern int running;
 
 extern void sim_print_stats(FILE *fd);
 extern void exit_now(int exit_code);
@@ -262,8 +257,13 @@ Zesto_SlaveInit(int argc, char **argv)
   sim_sdb = stat_new();
   sim_reg_stats(threads,sim_sdb);
 
+  /* stat database for power computation */
+  rtp_sdb = stat_new();
+  sim_reg_stats(threads,rtp_sdb);
+  stat_save_stats(rtp_sdb);
+
   /* record start of execution time, used in rate stats */
-  sim_start_time = time((time_t *)NULL);
+  time_t sim_start_time = time((time_t *)NULL);
 
   /* emit the command line for later reuse */
   fprintf(stderr, "sim: command line: ");
@@ -283,13 +283,8 @@ Zesto_SlaveInit(int argc, char **argv)
   if(cores[0]->knobs->power.compute)
     init_power();
 
-  /* omit option dump time from rate stats */
-  sim_start_time = time((time_t *)NULL);
-
   if (init_quit)
     exit_now(0);
-
-  running = TRUE;
 
   /* Run all stages after fetch for first cycle */
   sim_main_slave_pre_pin();
@@ -386,6 +381,7 @@ void Zesto_Destroy()
   sim_print_stats(stderr);
   if(cores[0]->knobs->power.compute)
   {
+    stat_save_stats(sim_sdb);
     compute_power(sim_sdb, true);
     deinit_power();
   }

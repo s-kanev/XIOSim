@@ -970,9 +970,6 @@ sim_main(void)
   if(fastfwd)
     sim_fastfwd(cores,fastfwd);
 
-  /* exclude fastforwarding from the simulation wall-clock time */
-  sim_start_time = time((time_t *)NULL);
-
   myfprintf(stderr, "### starting timing simulation \n");
 
   int start_pos = 0;
