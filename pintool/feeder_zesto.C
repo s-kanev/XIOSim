@@ -156,7 +156,7 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
             tstate->slice_length = control.CurrentPpLength(tid);
             tstate->slice_weight_times_1000 = control.CurrentPpWeightTimesThousand(tid);
         }
-        else
+        else if(KnobFluffy.Value().empty())
         {
             /* There will be no further instructions instrumented, make sure we invoke Zesto_Resume with slice_end */
             tstate->handshake.slice_num = 0;
@@ -725,6 +725,7 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, V
     // ILDJIT is minding its own bussiness
 //    if (KnobILDJIT.Value() && !ILDJIT_IsExecuting())
 //        return;
+
     GetLock(&test, threadIndex+1);
 
     ADDRINT syscall_num = PIN_GetSyscallNumber(ictxt, std);

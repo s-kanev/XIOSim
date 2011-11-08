@@ -57,8 +57,11 @@ VOID ILDJIT_ThreadStarting(THREADID tid)
     ILDJIT_executorCreation = false;
 
     ILDJIT_executionStarted = true;
-    ExecMode = EXECUTION_MODE_SIMULATE;
-    CODECACHE_FlushCache();
+    if (KnobFluffy.Value().empty())
+    {
+        ExecMode = EXECUTION_MODE_SIMULATE;
+        CODECACHE_FlushCache();
+    }
 
 #ifdef ZESTO_PIN_DBG
     cerr << "Starting execution, TID: " << tid << endl;
@@ -73,7 +76,8 @@ VOID ILDJIT_ThreadStopping(THREADID tid)
     GetLock(&ildjit_lock, 1);
 
     ILDJIT_executionStarted = false;
-    CODECACHE_FlushCache();
+    if (KnobFluffy.Value().empty())
+        CODECACHE_FlushCache();
 
 #ifdef ZESTO_PIN_DBG
     cerr << "Stopping execution, TID: " << tid << endl;
