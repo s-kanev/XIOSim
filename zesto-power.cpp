@@ -195,9 +195,11 @@ void compute_power(struct stat_sdb_t* sdb, bool print_power)
 
   /* Print power trace */
   if (rtp_file)
+  {
     for(int i=0; i<num_threads; i++)
         fprintf(rtp_file, "%.4f ", cores_rtp[i]);
     fprintf(rtp_file, "%.4f\n", uncore_rtp);
+  }
 }
 
 void core_power_t::translate_params(system_core *core_params, system_L2 *L2_params)
