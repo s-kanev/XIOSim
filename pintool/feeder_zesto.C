@@ -49,6 +49,8 @@ KNOB<BOOL> KnobILDJIT(KNOB_MODE_WRITEONCE,      "pintool",
         "ildjit", "false", "Application run is ildjit");
 KNOB<string> KnobFluffy(KNOB_MODE_WRITEONCE,      "pintool",
         "fluffy_annotations", "", "Annotation file that specifies fluffy ROI");
+KNOB<BOOL> KnobWarmLLC(KNOB_MODE_WRITEONCE,      "pintool",
+        "warm_llc", "false", "Warm LLC while fast-forwarding");
 
 map<ADDRINT, UINT8> sanity_writes;
 
@@ -479,15 +481,51 @@ ADDRINT returnArg(BOOL arg)
    return arg;
 }
 
+VOID WarmCacheRead(VOID * addr)
+{
+    Zesto_WarmLLC((ADDRINT)addr, true);
+}
+
+VOID WarmCacheWrite(VOID * addr)
+{
+    Zesto_WarmLLC((ADDRINT)addr, true);
+}
+
 /* ========================================================================== */
 VOID Instrument(INS ins, VOID *v)
 {
-    if (ExecMode != EXECUTION_MODE_SIMULATE)
-        return;
-
     // ILDJIT is doing its initialization/compilation/...
     if (KnobILDJIT.Value() && !ILDJIT_IsExecuting())
         return;
+
+    // Not executing yet, only warm caches, if needed
+    if (ExecMode != EXECUTION_MODE_SIMULATE)
+    {
+        if (KnobWarmLLC.Value())
+        {
+            UINT32 memOperands = INS_MemoryOperandCount(ins);
+
+            // Iterate over each memory operand of the instruction.
+            for (UINT32 memOp = 0; memOp < memOperands; memOp++)
+            {
+                if (INS_MemoryOperandIsRead(ins, memOp))
+                {
+                    INS_InsertPredicatedCall(
+                        ins, IPOINT_BEFORE, (AFUNPTR)WarmCacheRead,
+                        IARG_MEMORYOP_EA, memOp,
+                        IARG_END);
+                }
+                if (INS_MemoryOperandIsWritten(ins, memOp))
+                {
+                    INS_InsertPredicatedCall(
+                        ins, IPOINT_BEFORE, (AFUNPTR)WarmCacheWrite,
+                        IARG_MEMORYOP_EA, memOp,
+                        IARG_END);
+                }
+            }
+        }
+        return;
+    }
 
     // Tracing
     if (!KnobInsTraceFile.Value().empty()) {
