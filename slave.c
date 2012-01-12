@@ -639,3 +639,18 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool slice_start, bool slice
    }
    zesto_assert(core->fetch->PC == NPC, (void)0);
 }
+
+void Zesto_WarmLLC(unsigned int addr, bool is_write)
+{
+  int threadID = 0;
+  struct core_t * core = cores[threadID];
+
+  enum cache_command cmd = is_write ? CACHE_WRITE : CACHE_READ;
+  md_paddr_t paddr = v2p_translate(threadID,addr);
+  if(!cache_is_hit(uncore->LLC,cmd,paddr,core))
+  {
+    struct cache_line_t * p = cache_get_evictee(uncore->LLC,paddr,core);
+    p->dirty = p->valid = false;
+    cache_insert_block(uncore->LLC,cmd,paddr,core);
+  }
+}

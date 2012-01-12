@@ -50,6 +50,8 @@ KNOB<string> KnobFluffy(KNOB_MODE_WRITEONCE,      "pintool",
         "fluffy_annotations", "", "Annotation file that specifies fluffy ROI");
 KNOB<BOOL> KnobPipelineInstrumentation(KNOB_MODE_WRITEONCE, "pintool",
         "pipeline_instrumentation", "false", "Overlap instrumentation and simulation threads (still unstable)");
+KNOB<BOOL> KnobWarmLLC(KNOB_MODE_WRITEONCE,      "pintool",
+        "warm_llc", "false", "Warm LLC while fast-forwarding");
 
 map<ADDRINT, UINT8> sanity_writes;
 BOOL sim_release_handshake;
@@ -189,7 +191,7 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
 
             cerr << "PinPoint: " << control.CurrentPp(tid) << endl;
         }
-        else
+        else if(KnobFluffy.Value().empty())
         {
             /* There will be no further instructions instrumented.
              * Make sure to end the simulation appropriately. */
@@ -587,15 +589,51 @@ ADDRINT returnArg(BOOL arg)
    return arg;
 }
 
+VOID WarmCacheRead(VOID * addr)
+{
+    Zesto_WarmLLC((ADDRINT)addr, true);
+}
+
+VOID WarmCacheWrite(VOID * addr)
+{
+    Zesto_WarmLLC((ADDRINT)addr, true);
+}
+
 /* ========================================================================== */
 VOID Instrument(INS ins, VOID *v)
 {
-    if (ExecMode != EXECUTION_MODE_SIMULATE)
-        return;
-
     // ILDJIT is doing its initialization/compilation/...
     if (KnobILDJIT.Value() && !ILDJIT_IsExecuting())
         return;
+
+    // Not executing yet, only warm caches, if needed
+    if (ExecMode != EXECUTION_MODE_SIMULATE)
+    {
+        if (KnobWarmLLC.Value())
+        {
+            UINT32 memOperands = INS_MemoryOperandCount(ins);
+
+            // Iterate over each memory operand of the instruction.
+            for (UINT32 memOp = 0; memOp < memOperands; memOp++)
+            {
+                if (INS_MemoryOperandIsRead(ins, memOp))
+                {
+                    INS_InsertPredicatedCall(
+                        ins, IPOINT_BEFORE, (AFUNPTR)WarmCacheRead,
+                        IARG_MEMORYOP_EA, memOp,
+                        IARG_END);
+                }
+                if (INS_MemoryOperandIsWritten(ins, memOp))
+                {
+                    INS_InsertPredicatedCall(
+                        ins, IPOINT_BEFORE, (AFUNPTR)WarmCacheWrite,
+                        IARG_MEMORYOP_EA, memOp,
+                        IARG_END);
+                }
+            }
+        }
+        return;
+    }
 
     // Tracing
     if (!KnobInsTraceFile.Value().empty()) {
@@ -903,6 +941,7 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, V
     // ILDJIT is minding its own bussiness
 //    if (KnobILDJIT.Value() && !ILDJIT_IsExecuting())
 //        return;
+
     GetLock(&test, threadIndex+1);
 
     ADDRINT syscall_num = PIN_GetSyscallNumber(ictxt, std);
