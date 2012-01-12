@@ -835,12 +835,23 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
 
 VOID ThreadFini(THREADID threadIndex, const CONTEXT *ctxt, INT32 code, VOID *v)
 {
-    cout << "Thread exit. ID: " << threadIndex << endl;
+    cerr << "Thread exit. ID: " << threadIndex << endl;
 
+    GetLock(&test, 1);
+    thread_state_t* tstate = get_tls(threadIndex);
+
+    ADDRINT coreID = tstate->coreID;
+
+    /* Not assigned to a core -- assume it's a maintenance thread
+     * (maybe an ILDJIT one) and let it exit */
+    // XXX: This will not hold once we allow nThreads > nCores!
+    if (coreID == (ADDRINT)-1) {
+        ReleaseLock(&test);
+        return;
+    }
 
     // XXX: Testing! Remove me!!
     handshake_container_t *handshake;
-    UINT32 coreID;
     /* There will be no further instructions instrumented.
      * Make sure to end the simulation appropriately. */
 
@@ -848,7 +859,6 @@ VOID ThreadFini(THREADID threadIndex, const CONTEXT *ctxt, INT32 code, VOID *v)
     /* This will stop SimulatorLoop */
     sim_running = false;
     handshake = handshake_buffer[threadIndex];
-    coreID = handshake->handshake.coreID;
     ReleaseLock(&simbuffer_lock);
 
     /* Spin until SimulatorLoop actually finishes */
@@ -864,6 +874,7 @@ VOID ThreadFini(THREADID threadIndex, const CONTEXT *ctxt, INT32 code, VOID *v)
      * the pipeline and end the simulation. */
     Zesto_Slice_End(coreID, 0, SimOrgInsCount, 100000);
     cerr << "TEST" << endl;
+    ReleaseLock(&test);
     Fini(EXIT_SUCCESS, NULL);
     PIN_ExitProcess(EXIT_SUCCESS);
 }
