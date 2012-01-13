@@ -46,7 +46,7 @@ BOOL ILDJIT_IsCreatingExecutor()
 }
 
 /* ========================================================================== */
-VOID ILDJIT_ThreadStarting(THREADID tid)
+VOID ILDJIT_ThreadStarting(THREADID tid, ADDRINT ip)
 {
     GetLock(&ildjit_lock, 1);
 
@@ -58,31 +58,29 @@ VOID ILDJIT_ThreadStarting(THREADID tid)
     ILDJIT_executorCreation = false;
 
     ILDJIT_executionStarted = true;
-    if (KnobFluffy.Value().empty())
-    {
-        ExecMode = EXECUTION_MODE_SIMULATE;
-        CODECACHE_FlushCache();
-    }
 
-#ifdef ZESTO_PIN_DBG
+    if (KnobFluffy.Value().empty())
+        PPointHandler(CONTROL_START, NULL, NULL, (VOID*)ip, tid);
+
+//#ifdef ZESTO_PIN_DBG
     cerr << "Starting execution, TID: " << tid << endl;
-#endif
+//#endif
 
     ReleaseLock(&ildjit_lock);
 }
 
 /* ========================================================================== */
-VOID ILDJIT_ThreadStopping(THREADID tid)
+VOID ILDJIT_ThreadStopping(THREADID tid, ADDRINT ip)
 {
     GetLock(&ildjit_lock, 1);
 
     ILDJIT_executionStarted = false;
     if (KnobFluffy.Value().empty())
-        CODECACHE_FlushCache();
+        PPointHandler(CONTROL_STOP, NULL, NULL, (VOID*)ip, tid);
 
-#ifdef ZESTO_PIN_DBG
+//#ifdef ZESTO_PIN_DBG
     cerr << "Stopping execution, TID: " << tid << endl;
-#endif
+//#endif
 
     ReleaseLock(&ildjit_lock);
 }
@@ -94,9 +92,9 @@ VOID ILDJIT_ExecutorCreate(THREADID tid)
 
     ILDJIT_executorCreation = true;
 
-#ifdef ZESTO_PIN_DBG
+//#ifdef ZESTO_PIN_DBG
     cerr << "Starting creation, TID: " << tid << endl;
-#endif
+//#endif
 
     ReleaseLock(&ildjit_lock);
 }
@@ -125,6 +123,7 @@ VOID AddILDJITCallbacks(IMG img)
         
         RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_ThreadStarting),
                        IARG_THREAD_ID,
+                       IARG_INST_PTR,
                        IARG_END);
 
         RTN_Close(rtn);
@@ -140,6 +139,7 @@ VOID AddILDJITCallbacks(IMG img)
         
         RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_ThreadStopping),
                        IARG_THREAD_ID,
+                       IARG_INST_PTR,
                        IARG_END);
 
         RTN_Close(rtn);

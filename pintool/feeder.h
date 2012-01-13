@@ -75,6 +75,7 @@ class handshake_container_t
         valid = FALSE;
         isFirstInsn = TRUE;
         isLastInsn = FALSE;
+        killThread = FALSE;
     }
 
     // Did we finish dumping context
@@ -88,10 +89,14 @@ class handshake_container_t
 
     BOOL isFirstInsn;
     BOOL isLastInsn;
+
+    // Time to let simulator thread exit?
+    BOOL killThread;
 };
 
 VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREADID tid);
 VOID SimulatorLoop(VOID* arg);
 VOID Fini(INT32 exitCode, VOID *v);
+VOID ScheduleRunQueue(VOID);
 
 #endif /*__FEEDER_ZESTO__ */
