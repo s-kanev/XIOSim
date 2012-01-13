@@ -483,7 +483,7 @@ ADDRINT returnArg(BOOL arg)
 
 VOID WarmCacheRead(VOID * addr)
 {
-    Zesto_WarmLLC((ADDRINT)addr, true);
+    Zesto_WarmLLC((ADDRINT)addr, false);
 }
 
 VOID WarmCacheWrite(VOID * addr)
