@@ -455,8 +455,6 @@ VOID SimulatorLoop(VOID* arg)
         if (KnobSanity.Value())
             SanityMemCheck();
 
-        cerr << " RESUME, tid: " << instrument_tid << endl;
-
         // Actual simulation happens here
         Zesto_Resume(&handshake->handshake, handshake->isFirstInsn, handshake->isLastInsn);
 
@@ -921,6 +919,7 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
     ReleaseLock(&test);
 }
 
+/* ========================================================================== */
 VOID ThreadFini(THREADID threadIndex, const CONTEXT *ctxt, INT32 code, VOID *v)
 {
     cerr << "Thread exit. ID: " << threadIndex << endl;
@@ -928,28 +927,17 @@ VOID ThreadFini(THREADID threadIndex, const CONTEXT *ctxt, INT32 code, VOID *v)
     GetLock(&test, 1);
     thread_state_t* tstate = get_tls(threadIndex);
 
-    ADDRINT coreID = tstate->coreID;
+    /* No need to schedule this thread any more */
+    RemoveRunQueueThread(threadIndex);
 
-    /* Not assigned to a core -- assume it's a maintenance thread
-     * (maybe an ILDJIT one) and let it exit */
-    // XXX: This will not hold once we allow nThreads > nCores!
-    if (coreID == (ADDRINT)-1) {
-        RemoveRunQueueThread(threadIndex);
-        delete tstate;
-        ReleaseLock(&test);
-        return;
-    }
-
-    handshake_container_t *handshake;
     /* There will be no further instructions instrumented (on this thread).
-     * Make sure to kill the simulator thread. */
-
+     * Make sure to kill the simulator thread (if any). */
     GetLock(&simbuffer_lock, threadIndex+1);
-    handshake = handshake_buffer[threadIndex];
-    handshake->killThread = true;
+    handshake_container_t *handshake = handshake_buffer[threadIndex];
+    if (handshake)
+        handshake->killThread = true;
     ReleaseLock(&simbuffer_lock);
 
-    cerr << "TEST" << endl;
     delete tstate;
     ReleaseLock(&test);
 }
