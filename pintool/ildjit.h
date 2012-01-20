@@ -59,12 +59,12 @@ VOID ILDJIT_ThreadStarting(THREADID tid, ADDRINT ip)
 
     ILDJIT_executionStarted = true;
 
-    if (KnobFluffy.Value().empty())
-        PPointHandler(CONTROL_START, NULL, NULL, (VOID*)ip, tid);
-
 //#ifdef ZESTO_PIN_DBG
     cerr << "Starting execution, TID: " << tid << endl;
 //#endif
+
+    if (KnobFluffy.Value().empty())
+        PPointHandler(CONTROL_START, NULL, NULL, (VOID*)ip, tid);
 
     ReleaseLock(&ildjit_lock);
 }
@@ -75,12 +75,13 @@ VOID ILDJIT_ThreadStopping(THREADID tid, ADDRINT ip)
     GetLock(&ildjit_lock, 1);
 
     ILDJIT_executionStarted = false;
-    if (KnobFluffy.Value().empty())
-        PPointHandler(CONTROL_STOP, NULL, NULL, (VOID*)ip, tid);
 
 //#ifdef ZESTO_PIN_DBG
     cerr << "Stopping execution, TID: " << tid << endl;
 //#endif
+
+    if (KnobFluffy.Value().empty())
+        PPointHandler(CONTROL_STOP, NULL, NULL, (VOID*)ip, tid);
 
     ReleaseLock(&ildjit_lock);
 }

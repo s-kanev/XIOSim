@@ -366,7 +366,7 @@ bool sim_main_slave_fetch_insn(int coreID)
   volatile bool res;
   //XXX: Round-robin!
   // Oracle gets executed here. Grab lock to main application memory.
-  lk_lock(&memory_lock);    
+  lk_lock(&memory_lock, coreID+1);    
   res = cores[coreID]->fetch->do_fetch();
   lk_unlock(&memory_lock);
   return res;
@@ -564,12 +564,13 @@ void sim_main_slave_pre_pin(int coreID)
    * updates finished_cycle atomically for all threads and none can
    * race through to here before that update is finished.
    */
-  lk_lock(&cycle_lock);
-  do {
+  lk_lock(&cycle_lock, coreID+1);
+  while(cores[coreID]->current_thread->finished_cycle) {
     lk_unlock(&cycle_lock);
     /* Spin, spin, spin */
-    lk_lock(&cycle_lock);
-  } while(cores[coreID]->current_thread->finished_cycle);
+    yield();
+    lk_lock(&cycle_lock, coreID+1);
+  }
   cores[coreID]->current_thread->finished_cycle = true;
   lk_unlock(&cycle_lock);
 
@@ -577,11 +578,12 @@ void sim_main_slave_pre_pin(int coreID)
      update global state */
   if (coreID == 0)
   {
-    lk_lock(&cycle_lock);
+    lk_lock(&cycle_lock, coreID+1);
     do {
       lk_unlock(&cycle_lock);
       /* Spin, spin, spin */
-      lk_lock(&cycle_lock);
+      yield();
+      lk_lock(&cycle_lock, coreID+1);
       /* Check if all cores finished this cycle. */
       cores_finished_cycle = 0;
       for(i=0; i<num_threads; i++)
@@ -598,12 +600,13 @@ void sim_main_slave_pre_pin(int coreID)
   /* All other cores -- spin until global state update is finished */
   else
   {
-    lk_lock(&cycle_lock);
-    do {
+    lk_lock(&cycle_lock, coreID+1);
+    while(cores[coreID]->current_thread->finished_cycle) {
       lk_unlock(&cycle_lock);
       /* Spin, spin, spin */
-      lk_lock(&cycle_lock);
-    } while(cores[coreID]->current_thread->finished_cycle);
+      yield();
+      lk_lock(&cycle_lock, coreID+1);
+    }
     lk_unlock(&cycle_lock);
   }
 
@@ -622,7 +625,9 @@ void sim_main_slave_pre_pin(int coreID)
   cores[coreID]->exec->step();      /* IO cores only */
   cores[coreID]->exec->ALU_exec();  /* OoO cores only */
 
+  lk_lock(&memory_lock, coreID+1);
   cores[coreID]->exec->LDQ_schedule();
+  lk_unlock(&memory_lock);
 
   cores[coreID]->exec->RS_schedule();  /* OoO cores only */
 
@@ -633,7 +638,7 @@ void sim_main_slave_pre_pin(int coreID)
   /* round-robin on which cache to process first so that one core
      doesn't get continual priority over the others for L2 access */
   //XXX: RR
-//  lk_lock(&cache_lock);
+//  lk_lock(&cache_lock, coreID+1);
   cores[coreID]->fetch->post_fetch();
 //  lk_unlock(&cache_lock);
 }
@@ -647,7 +652,7 @@ void sim_main_slave_post_pin(int coreID)
   /* We grab the memory lock here because pre_fetch() puts requests
    * icache/itlb, which requires v2p translations, which must be
    * protected. */
-  lk_lock(&memory_lock);
+  lk_lock(&memory_lock, coreID+1);
   cores[coreID]->fetch->pre_fetch();
   lk_unlock(&memory_lock);
 
@@ -658,7 +663,7 @@ void sim_main_slave_post_pin(int coreID)
    * the LLC. TODO: Revisit this assumption, sounds very weak! */
   if(coreID == 0)
   {
-    lk_lock(&cache_lock);
+    lk_lock(&cache_lock, coreID+1);
     prefetch_LLC(uncore);
     lk_unlock(&cache_lock);
   }

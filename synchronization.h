@@ -11,9 +11,13 @@ extern int32_t ReleaseLock(int32_t* lk);
 extern void InitLock(int32_t* lk);
 }
 
-inline void lk_lock(int32_t* lk)
+namespace LEVEL_PINCLIENT {
+extern void PIN_Yield();
+}
+
+inline void lk_lock(int32_t* lk, int32_t cid)
 {
-    LEVEL_BASE::GetLock(lk, 1);
+    LEVEL_BASE::GetLock(lk, cid);
 }
 
 inline int32_t lk_unlock(int32_t* lk)
@@ -24,6 +28,11 @@ inline int32_t lk_unlock(int32_t* lk)
 inline void lk_init(int32_t* lk)
 {
     LEVEL_BASE::InitLock(lk);
+}
+
+inline void yield()
+{
+    LEVEL_PINCLIENT::PIN_Yield();
 }
 
 extern void spawn_new_thread(void entry_point(void*), void* arg);

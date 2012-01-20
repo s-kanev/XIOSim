@@ -1512,7 +1512,7 @@ void core_exec_IO_DPM_t::LDST_exec(void)
     }
   }
 
-  lk_lock(&cache_lock);
+  lk_lock(&cache_lock, core->id+1);
   if(core->memory.DTLB2 && core->memory.DTLB2->check_for_work) cache_process(core->memory.DTLB2);
   if(core->memory.DTLB->check_for_work) cache_process(core->memory.DTLB);
   if((core->current_thread->id == 0) && !(sim_cycle&uncore->LLC_cycle_mask) && uncore->LLC->check_for_work)

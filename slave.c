@@ -303,7 +303,7 @@ int Zesto_Notify_Mmap(int coreID, unsigned int addr, unsigned int length, bool m
   md_addr_t page_addr = ROUND_DOWN((md_addr_t)addr, MD_PAGE_SIZE);
   unsigned int page_length = ROUND_UP(length, MD_PAGE_SIZE);
 
-  lk_lock(&memory_lock);
+  lk_lock(&memory_lock, coreID+1);
   md_addr_t retval = mem_newmap2(mem, page_addr, page_addr, page_length, 1);
   lk_unlock(&memory_lock);
 
@@ -326,7 +326,7 @@ int Zesto_Notify_Munmap(int coreID, unsigned int addr, unsigned int length, bool
   struct mem_t * mem = cores[coreID]->current_thread->mem;
   zesto_assert((num_threads == 1) || multi_threaded, 0);
 
-  lk_lock(&memory_lock);
+  lk_lock(&memory_lock, coreID+1);
   mem_delmap(mem, ROUND_UP((md_addr_t)addr, MD_PAGE_SIZE), length);
   lk_unlock(&memory_lock);
 
@@ -498,7 +498,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool slice_start, bool slice
 
    if(sim_release_handshake)
      ReleaseHandshake(coreID);
- 
+
    bool fetch_more = true;
    thread->consumed = false;
    bool repping = false;

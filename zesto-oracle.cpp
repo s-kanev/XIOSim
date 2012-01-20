@@ -1981,7 +1981,7 @@ flags:
 struct core_oracle_t::map_node_t * core_oracle_t::get_map_node(void)
 {
   struct map_node_t * p = NULL;
-  lk_lock(&pools_lock);
+  lk_lock(&pools_lock, core->id+1);
   if(map_free_pool)
   {
     p = map_free_pool;
@@ -2003,7 +2003,7 @@ struct core_oracle_t::map_node_t * core_oracle_t::get_map_node(void)
 
 void core_oracle_t::return_map_node(struct map_node_t * const p)
 {
-  lk_lock(&pools_lock);
+  lk_lock(&pools_lock, core->id+1);
   p->next = map_free_pool;
   map_free_pool = p;
   p->uop = NULL;
@@ -2121,7 +2121,7 @@ void core_oracle_t::undo_dependencies(struct uop_t * const uop)
 struct spec_byte_t * core_oracle_t::get_spec_mem_node(void)
 {
   struct spec_byte_t * p;
-  lk_lock(&pools_lock);
+  lk_lock(&pools_lock, core->id+1);
   if(spec_mem_free_pool)
   {
     p = spec_mem_free_pool;
@@ -2163,7 +2163,7 @@ struct spec_byte_t * core_oracle_t::get_spec_mem_node(void)
 void core_oracle_t::return_spec_mem_node(struct spec_byte_t * const p)
 {
   assert(p);
-  lk_lock(&pools_lock);
+  lk_lock(&pools_lock, core->id+1);
   p->next = spec_mem_free_pool;
   spec_mem_free_pool = p;
   p->prev = NULL;
