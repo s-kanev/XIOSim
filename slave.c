@@ -646,7 +646,7 @@ void Zesto_WarmLLC(unsigned int addr, bool is_write)
   struct core_t * core = cores[threadID];
 
   enum cache_command cmd = is_write ? CACHE_WRITE : CACHE_READ;
-  md_paddr_t paddr = v2p_translate(threadID,addr);
+  md_paddr_t paddr = v2p_translate_safe(threadID,addr);
   if(!cache_is_hit(uncore->LLC,cmd,paddr,core))
   {
     struct cache_line_t * p = cache_get_evictee(uncore->LLC,paddr,core);

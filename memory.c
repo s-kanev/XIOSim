@@ -127,6 +127,7 @@
 #include "options.h"
 #include "stats.h"
 #include "memory.h"
+#include "synchronization.h"
 
 /* FYI, the following functions are used to emulate unaligned quadword
    memory accesses on architectures that require aligned quadword
@@ -434,6 +435,16 @@ md_paddr_t v2p_translate(int thread_id, md_addr_t virt_addr)
 
   /* construct the final physical page number */
   return (p->ppn << PAGE_SHIFT) + (virt_addr & (PAGE_SIZE-1));
+}
+
+/* Wrapper around v2p_translate, to be called without holding the memory_lock */
+md_paddr_t v2p_translate_safe(int thread_id, md_addr_t virt_addr)
+{
+  md_paddr_t res;
+  lk_lock(&memory_lock, thread_id+1);
+  res = v2p_translate(thread_id, virt_addr);
+  lk_unlock(&memory_lock);
+  return res;
 }
 
 /* Inverse lookup: given a physical page, returns the core-id of

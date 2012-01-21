@@ -477,6 +477,8 @@ mem_bcopy(
 
 /* maps each (core-id,virtual-address) pair to a simulated physical address */
 md_paddr_t v2p_translate(int core_id, md_addr_t virt_addr);
+/* Wrapper around v2p_translate, to be called without holding the memory_lock */
+md_paddr_t v2p_translate_safe(int thread_id, md_addr_t virt_addr);
 /* given a physical address, return the corresponding core-id */
 int page_owner(md_paddr_t paddr);
 

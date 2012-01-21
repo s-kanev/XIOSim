@@ -625,9 +625,7 @@ void sim_main_slave_pre_pin(int coreID)
   cores[coreID]->exec->step();      /* IO cores only */
   cores[coreID]->exec->ALU_exec();  /* OoO cores only */
 
-  lk_lock(&memory_lock, coreID+1);
   cores[coreID]->exec->LDQ_schedule();
-  lk_unlock(&memory_lock);
 
   cores[coreID]->exec->RS_schedule();  /* OoO cores only */
 
@@ -649,12 +647,7 @@ void sim_main_slave_post_pin(int coreID)
   /* round-robin on which cache to process first so that one core
      doesn't get continual priority over the others for L2 access */
   //XXX: RR
-  /* We grab the memory lock here because pre_fetch() puts requests
-   * icache/itlb, which requires v2p translations, which must be
-   * protected. */
-  lk_lock(&memory_lock, coreID+1);
   cores[coreID]->fetch->pre_fetch();
-  lk_unlock(&memory_lock);
 
   /* this is done last in the cycle so that prefetch requests have the
      lowest priority when competing for queues, buffers, etc. */

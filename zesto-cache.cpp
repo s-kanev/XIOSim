@@ -1285,7 +1285,7 @@ int cache_enqueuable(
   if(thread_id == DO_NOT_TRANSLATE)
     paddr = addr;
   else
-    paddr = v2p_translate(thread_id,addr);
+    paddr = v2p_translate_safe(thread_id,addr);
   const int bank = GET_BANK(paddr);
   if(cp->pipe_num[bank] < cp->latency)
     return true;
@@ -1316,7 +1316,7 @@ void cache_enqueue(
   if(thread_id == DO_NOT_TRANSLATE)
     paddr = addr;
   else
-    paddr = v2p_translate(thread_id,addr); /* for the IL1/DL1, we need a virtual-to-physical translation */
+    paddr = v2p_translate_safe(thread_id,addr); /* for the IL1/DL1, we need a virtual-to-physical translation */
   const int bank = GET_BANK(paddr);
 
   /* heap initial insertion position */
