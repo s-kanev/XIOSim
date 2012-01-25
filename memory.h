@@ -271,7 +271,7 @@ typedef enum md_fault_type
 #define MEM_READ(MEM, ADDR, TYPE)           \
    ({ ZPIN_TRACE("Read at addr 0x%x", (ADDR)); \
      byte_t _tmp = _MEM_READ(MEM, ADDR, TYPE); \
-     ZPIN_TRACE("returns 0x%x\n", _tmp); \
+     ZPIN_TRACE(" returns 0x%x\n", _tmp); \
      _tmp; \
    })
 

@@ -163,7 +163,6 @@ int core_oracle_t::map_free_pool_debt = 0;
 /* for oracle spec-memory map */
 struct spec_byte_t * core_oracle_t::spec_mem_free_pool = NULL;
 int core_oracle_t::spec_mem_pool_debt = 0;
-int32_t core_oracle_t::pools_lock;
 
 /* CONSTRUCTOR */
 core_oracle_t::core_oracle_t(struct core_t * const arg_core):
@@ -183,7 +182,7 @@ core_oracle_t::core_oracle_t(struct core_t * const arg_core):
 
   if(!static_members_initialized)
   {
-    lk_init(&pools_lock);
+    lk_init(&oracle_pools_lock);
     static_members_initialized = true;
   }
 
@@ -1981,7 +1980,7 @@ flags:
 struct core_oracle_t::map_node_t * core_oracle_t::get_map_node(void)
 {
   struct map_node_t * p = NULL;
-  lk_lock(&pools_lock, core->id+1);
+  lk_lock(&oracle_pools_lock, core->id+1);
   if(map_free_pool)
   {
     p = map_free_pool;
@@ -1997,20 +1996,20 @@ struct core_oracle_t::map_node_t * core_oracle_t::get_map_node(void)
   p->next = NULL;
   /* other fields were cleared when p was "return"ed (see below) */
   map_free_pool_debt++;
-  lk_unlock(&pools_lock);
+  lk_unlock(&oracle_pools_lock);
   return p;
 }
 
 void core_oracle_t::return_map_node(struct map_node_t * const p)
 {
-  lk_lock(&pools_lock, core->id+1);
+  lk_lock(&oracle_pools_lock, core->id+1);
   p->next = map_free_pool;
   map_free_pool = p;
   p->uop = NULL;
   p->prev = NULL;
   map_free_pool_debt--;
   /* p->next used for free list, will be cleared on "get" */
-  lk_unlock(&pools_lock);
+  lk_unlock(&oracle_pools_lock);
 }
 
 
@@ -2121,7 +2120,7 @@ void core_oracle_t::undo_dependencies(struct uop_t * const uop)
 struct spec_byte_t * core_oracle_t::get_spec_mem_node(void)
 {
   struct spec_byte_t * p;
-  lk_lock(&pools_lock, core->id+1);
+  lk_lock(&oracle_pools_lock, core->id+1);
   if(spec_mem_free_pool)
   {
     p = spec_mem_free_pool;
@@ -2137,7 +2136,7 @@ struct spec_byte_t * core_oracle_t::get_spec_mem_node(void)
     assert(p->uop == NULL);
 #endif
 
-    lk_unlock(&pools_lock);
+    lk_unlock(&oracle_pools_lock);
     return p;
   }
   else
@@ -2155,7 +2154,7 @@ struct spec_byte_t * core_oracle_t::get_spec_mem_node(void)
     assert(p->uop == NULL);
 #endif
 
-    lk_unlock(&pools_lock);
+    lk_unlock(&oracle_pools_lock);
     return p;
   }
 }
@@ -2163,7 +2162,7 @@ struct spec_byte_t * core_oracle_t::get_spec_mem_node(void)
 void core_oracle_t::return_spec_mem_node(struct spec_byte_t * const p)
 {
   assert(p);
-  lk_lock(&pools_lock, core->id+1);
+  lk_lock(&oracle_pools_lock, core->id+1);
   p->next = spec_mem_free_pool;
   spec_mem_free_pool = p;
   p->prev = NULL;
@@ -2174,7 +2173,7 @@ void core_oracle_t::return_spec_mem_node(struct spec_byte_t * const p)
   p->prev_val_valid = false;
   p->uop = NULL;
 #endif
-  lk_unlock(&pools_lock);
+  lk_unlock(&oracle_pools_lock);
 }
 
 /* similar to commit_write_byte, but remove the tail entry

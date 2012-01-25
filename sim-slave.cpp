@@ -111,10 +111,6 @@
 #include "interface.h"
 #include "synchronization.h"
 
-int32_t memory_lock;
-int32_t cycle_lock;
-int32_t cache_lock;
-
 extern int start_pos;
 extern int heartbeat_count;
 /* power stats database */

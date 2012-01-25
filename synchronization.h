@@ -5,27 +5,29 @@
  * Copyright, Svilen Kanev, 2011
  */
 
+
 namespace LEVEL_BASE {
-extern void GetLock(int32_t* lk, int32_t tid);
-extern int32_t ReleaseLock(int32_t* lk);
-extern void InitLock(int32_t* lk);
+struct PIN_LOCK;
+extern void GetLock(PIN_LOCK* lk, int32_t tid);
+extern int32_t ReleaseLock(PIN_LOCK* lk);
+extern void InitLock(PIN_LOCK* lk);
 }
 
 namespace LEVEL_PINCLIENT {
 extern void PIN_Yield();
 }
 
-inline void lk_lock(int32_t* lk, int32_t cid)
+inline void lk_lock(LEVEL_BASE::PIN_LOCK* lk, int32_t cid)
 {
     LEVEL_BASE::GetLock(lk, cid);
 }
 
-inline int32_t lk_unlock(int32_t* lk)
+inline int32_t lk_unlock(LEVEL_BASE::PIN_LOCK* lk)
 {
     return LEVEL_BASE::ReleaseLock(lk);
 }
 
-inline void lk_init(int32_t* lk)
+inline void lk_init(LEVEL_BASE::PIN_LOCK* lk)
 {
     LEVEL_BASE::InitLock(lk);
 }
@@ -46,7 +48,18 @@ extern void spawn_new_thread(void entry_point(void*), void* arg);
 
 /* Memory lock should be acquired before functional accesses to
  * the simulated application memory. */
-extern int32_t memory_lock;
-/* Cahche lock should be acquired before any access to the shared
+extern LEVEL_BASE::PIN_LOCK memory_lock;
+
+/* Cache lock should be acquired before any access to the shared
  * caches (including enqueuing requests from lower-level caches). */
-extern int32_t cache_lock;
+extern LEVEL_BASE::PIN_LOCK cache_lock;
+
+/* Cycle lock is used to synchronize global state (cycle counter)
+ * and not let a core advance in time without increasing cycle. */
+extern LEVEL_BASE::PIN_LOCK cycle_lock;
+
+/* Protects static pools in core_t class. */
+extern LEVEL_BASE::PIN_LOCK core_pools_lock;
+
+/* Protects static pools in core_oracle_t class. */
+extern LEVEL_BASE::PIN_LOCK oracle_pools_lock;

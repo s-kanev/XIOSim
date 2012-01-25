@@ -25,7 +25,6 @@
 #endif
 
 #include "feeder.h"
-#include "fpstate.h"
 #include "ildjit.h"
 
 
@@ -250,7 +249,7 @@ VOID ImageLoad(IMG img, VOID *v)
 
 /* ========================================================================== */
 /* The last parameter is a  pointer to static data that is overwritten with each call */
-VOID MakeSSContext(const CONTEXT *ictxt, const FPSTATE* fpstate, ADDRINT pc, ADDRINT npc, regs_t *ssregs)
+VOID MakeSSContext(const CONTEXT *ictxt, FPSTATE* fpstate, ADDRINT pc, ADDRINT npc, regs_t *ssregs)
 {
     CONTEXT ssctxt;
     memset(&ssctxt, 0x0, sizeof(ssctxt));
@@ -300,8 +299,7 @@ VOID MakeSSContext(const CONTEXT *ictxt, const FPSTATE* fpstate, ADDRINT pc, ADD
     // the required information into the SS-specific (and Zesto-inherited)
     // data structure
     ASSERTX(PIN_ContextContainsState(&ssctxt, PROCESSOR_STATE_X87));
-    //XXX: fpstate is passed from earlier routines, so we don't need to
-    // (potentially) call fxsave multiple times
+    PIN_GetContextFPState(ictxt, fpstate);
 
     //Copy the floating point control word
     memcpy(&ssregs->regs_C.cwd, &fpstate->fxsave_legacy._fcw, 2);
@@ -312,20 +310,18 @@ VOID MakeSSContext(const CONTEXT *ictxt, const FPSTATE* fpstate, ADDRINT pc, ADD
     //Copy floating point tag word specifying which regsiters hold valid values
     memcpy(&ssregs->regs_C.ftw, &fpstate->fxsave_legacy._ftw, 1);
 
-    #define FXSAVE_STx_OFFSET(arr, st) ((arr) + ((st) * 16))
-
     //For Zesto, regs_F is indexed by physical register, not stack-based
     #define ST2P(num) ((FSW_TOP(ssregs->regs_C.fsw) + (num)) & 0x7)
 
     // Copy actual extended fp registers
-    memcpy(&ssregs->regs_F.e[ST2P(MD_REG_ST0)], FXSAVE_STx_OFFSET(fpstate->fxsave_legacy._st, MD_REG_ST0), MD_FPR_SIZE);
-    memcpy(&ssregs->regs_F.e[ST2P(MD_REG_ST1)], FXSAVE_STx_OFFSET(fpstate->fxsave_legacy._st, MD_REG_ST1), MD_FPR_SIZE);
-    memcpy(&ssregs->regs_F.e[ST2P(MD_REG_ST2)], FXSAVE_STx_OFFSET(fpstate->fxsave_legacy._st, MD_REG_ST2), MD_FPR_SIZE);
-    memcpy(&ssregs->regs_F.e[ST2P(MD_REG_ST3)], FXSAVE_STx_OFFSET(fpstate->fxsave_legacy._st, MD_REG_ST3), MD_FPR_SIZE);
-    memcpy(&ssregs->regs_F.e[ST2P(MD_REG_ST4)], FXSAVE_STx_OFFSET(fpstate->fxsave_legacy._st, MD_REG_ST4), MD_FPR_SIZE);
-    memcpy(&ssregs->regs_F.e[ST2P(MD_REG_ST5)], FXSAVE_STx_OFFSET(fpstate->fxsave_legacy._st, MD_REG_ST5), MD_FPR_SIZE);
-    memcpy(&ssregs->regs_F.e[ST2P(MD_REG_ST6)], FXSAVE_STx_OFFSET(fpstate->fxsave_legacy._st, MD_REG_ST6), MD_FPR_SIZE);
-    memcpy(&ssregs->regs_F.e[ST2P(MD_REG_ST7)], FXSAVE_STx_OFFSET(fpstate->fxsave_legacy._st, MD_REG_ST7), MD_FPR_SIZE);
+    memcpy(&ssregs->regs_F.e[ST2P(MD_REG_ST0)], &fpstate->fxsave_legacy._sts[MD_REG_ST0], MD_FPR_SIZE);
+    memcpy(&ssregs->regs_F.e[ST2P(MD_REG_ST1)], &fpstate->fxsave_legacy._sts[MD_REG_ST1], MD_FPR_SIZE);
+    memcpy(&ssregs->regs_F.e[ST2P(MD_REG_ST2)], &fpstate->fxsave_legacy._sts[MD_REG_ST2], MD_FPR_SIZE);
+    memcpy(&ssregs->regs_F.e[ST2P(MD_REG_ST3)], &fpstate->fxsave_legacy._sts[MD_REG_ST3], MD_FPR_SIZE);
+    memcpy(&ssregs->regs_F.e[ST2P(MD_REG_ST4)], &fpstate->fxsave_legacy._sts[MD_REG_ST4], MD_FPR_SIZE);
+    memcpy(&ssregs->regs_F.e[ST2P(MD_REG_ST5)], &fpstate->fxsave_legacy._sts[MD_REG_ST5], MD_FPR_SIZE);
+    memcpy(&ssregs->regs_F.e[ST2P(MD_REG_ST6)], &fpstate->fxsave_legacy._sts[MD_REG_ST6], MD_FPR_SIZE);
+    memcpy(&ssregs->regs_F.e[ST2P(MD_REG_ST7)], &fpstate->fxsave_legacy._sts[MD_REG_ST7], MD_FPR_SIZE);
 }
 
 /* ========================================================================== */
@@ -564,47 +560,6 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
 //    cerr << SimOrgInsCount << endl;
     ReleaseLock(&simbuffer_lock);
 }
-/*======================================================== */
-//Check if instruction requires FPState
-BOOL TouchesFPState(INS ins)
-{
-    xed_extension_enum_t ext = static_cast<xed_extension_enum_t>(INS_Extension(ins));
-    switch (ext) {
-      case XED_EXTENSION_3DNOW:
-      case XED_EXTENSION_AES:
-      case XED_EXTENSION_AVX:
-      case XED_EXTENSION_MMX:
-      case XED_EXTENSION_PCLMULQDQ:
-      case XED_EXTENSION_SSE:
-      case XED_EXTENSION_SSE2:
-      case XED_EXTENSION_SSE3:
-      case XED_EXTENSION_SSE4:
-      case XED_EXTENSION_SSE4A:
-      case XED_EXTENSION_SSSE3:
-      case XED_EXTENSION_X87:
-      case XED_EXTENSION_XSAVE:
-      case XED_EXTENSION_XSAVEOPT:
-        return true;
-      default:
-        return false;
-    }
-}
-
-/*======================================================== */
-//Save FP state on the actual hardware
-VOID SaveFPState(THREADID tid)
-{
-    thread_state_t *tstate = get_tls(tid);
-    fxsave(reinterpret_cast<char*>(&tstate->fpstate_buf.fxsave_legacy));
-}
-
-/*======================================================== */
-//Restore FP state on the actual hardware
-VOID RestoreFPState(THREADID tid)
-{
-    thread_state_t *tstate = get_tls(tid);
-    fxrstor(reinterpret_cast<char*>(&tstate->fpstate_buf.fxsave_legacy));
-}
 
 /* ========================================================================== */
 //Trivial call to let us do conditional instrumentation based on an argument
@@ -670,14 +625,6 @@ VOID Instrument(INS ins, VOID *v)
              trace_file << endl;
     }
 
-    // Save FP state since SimulateInstruction may corrupt it
-    // Note: PIN ensures proper order of instrument functions
-    // Note: MakeSSContext relies this was called, so don't make
-    // it conditional
-    INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) SaveFPState,
-                    IARG_THREAD_ID,
-                    IARG_END);
-
     if (! INS_IsBranchOrCall(ins))
     {
         // REP-ed instruction: only instrument first iteration
@@ -691,7 +638,7 @@ VOID Instrument(INS ins, VOID *v)
                        IARG_BOOL, 0, 
                        IARG_ADDRINT, INS_NextAddress(ins),
                        IARG_FALLTHROUGH_ADDR, 
-                       IARG_CONTEXT,
+                       IARG_CONST_CONTEXT,
                        IARG_END);
         }
         else
@@ -702,7 +649,7 @@ VOID Instrument(INS ins, VOID *v)
                        IARG_BOOL, 0, 
                        IARG_ADDRINT, INS_NextAddress(ins),
                        IARG_FALLTHROUGH_ADDR, 
-                       IARG_CONTEXT,
+                       IARG_CONST_CONTEXT,
                        IARG_END);
     }
     else 
@@ -714,17 +661,9 @@ VOID Instrument(INS ins, VOID *v)
                    IARG_BRANCH_TAKEN, 
                    IARG_ADDRINT, INS_NextAddress(ins),
                    IARG_BRANCH_TARGET_ADDR, 
-                   IARG_CONTEXT,
+                   IARG_CONST_CONTEXT,
                    IARG_END);
     }
-
-    
-    // Now restore FP state, so we don't corrupt user application state
-    // TODO: this is costly, so only do if ins will need correct fpstate
-//    if (TouchesFPState(ins))
-        INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) RestoreFPState,
-                       IARG_THREAD_ID,
-                       IARG_END); 
 }
 
 /* ========================================================================== */
