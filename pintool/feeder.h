@@ -96,7 +96,8 @@ class handshake_container_t
 
 VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREADID tid);
 VOID SimulatorLoop(VOID* arg);
+VOID ThreadFini(THREADID threadIndex, const CONTEXT *ctxt, INT32 code, VOID *v);
 VOID Fini(INT32 exitCode, VOID *v);
-VOID ScheduleRunQueue(VOID);
+VOID ScheduleRunQueue();
 
 #endif /*__FEEDER_ZESTO__ */

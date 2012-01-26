@@ -138,7 +138,6 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
 
     thread_state_t* tstate = get_tls(tid);
     volatile handshake_container_t* handshake;
-    UINT32 coreID;
 
     switch(ev)
     {
@@ -195,30 +194,8 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
         }
         else if(KnobFluffy.Value().empty())
         {
-            /* There will be no further instructions instrumented.
-             * Make sure to end the simulation appropriately. */
-
-            GetLock(&simbuffer_lock, tid+1);
-            /* This will stop SimulatorLoop */
-            sim_running = false;
-            handshake = handshake_buffer[tid];
-            coreID = handshake->handshake.coreID;
-            ReleaseLock(&simbuffer_lock);
-
-            /* Spin until SimulatorLoop actually finishes */
-            volatile bool is_stopped;
-            do {
-                GetLock(&simbuffer_lock, tid+1);
-                is_stopped = sim_stopped;
-                ReleaseLock(&simbuffer_lock);
-            } while(!is_stopped);
-
-            /* Reaching this ensures SimulatorLoop is not in the middle
-             * of simulating an instruction. We can safely blow away
-             * the pipeline and end the simulation. */
-            Zesto_Slice_End(coreID, 0, SimOrgInsCount, 100000);
-            Fini(EXIT_SUCCESS, NULL);
-            PIN_ExitProcess(EXIT_SUCCESS);
+            // Should be handled at ThreadFini
+            ASSERTX(false);
         }
 
         break;
@@ -873,9 +850,35 @@ VOID ThreadFini(THREADID threadIndex, const CONTEXT *ctxt, INT32 code, VOID *v)
      * Make sure to kill the simulator thread (if any). */
     GetLock(&simbuffer_lock, threadIndex+1);
     handshake_container_t *handshake = handshake_buffer[threadIndex];
+    UINT32 coreID = handshake->handshake.coreID;
     if (handshake)
         handshake->killThread = true;
     ReleaseLock(&simbuffer_lock);
+
+    if (!run_queue.empty()) {
+        cerr << "NYI: Thread rescheduling" << endl;
+        PIN_ExitProcess(1);
+    }
+    else {
+        GetLock(&simbuffer_lock, threadIndex+1);
+        sim_running = false;
+        ReleaseLock(&simbuffer_lock);
+
+        /* Spin until SimulatorLoop actually finishes */
+        volatile bool is_stopped;
+        do {
+            GetLock(&simbuffer_lock, threadIndex+1);
+            is_stopped = sim_stopped;
+            ReleaseLock(&simbuffer_lock);
+        } while(!is_stopped);
+
+        /* Reaching this ensures SimulatorLoop is not in the middle
+         * of simulating an instruction. We can safely blow away
+         * the pipeline and end the simulation. */
+        Zesto_Slice_End(coreID, 0, SimOrgInsCount, 100000);
+        Fini(EXIT_SUCCESS, NULL);
+        PIN_ExitProcess(EXIT_SUCCESS);
+    }
 
     delete tstate;
     ReleaseLock(&test);

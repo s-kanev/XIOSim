@@ -81,7 +81,7 @@ VOID ILDJIT_ThreadStopping(THREADID tid, ADDRINT ip)
 //#endif
 
     if (KnobFluffy.Value().empty())
-        PPointHandler(CONTROL_STOP, NULL, NULL, (VOID*)ip, tid);
+        ThreadFini(tid, NULL, 0, NULL);
 
     ReleaseLock(&ildjit_lock);
 }
