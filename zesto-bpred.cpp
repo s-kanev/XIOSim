@@ -884,6 +884,7 @@ bpred_t::bpred_t(
   num_uncond = 0;
   num_dir_hits = 0;  /* for *all* branches, conditional or not */
   num_addr_hits = 0; /* ditto */
+  num_hits = 0;
   frozen = false;
 
   init_state_cache_pool(32);
@@ -1000,6 +1001,7 @@ bpred_t::update(
   BPRED_STAT(num_updates++;)
   BPRED_STAT(num_dir_hits += (sc->our_pred == outcome);)
   BPRED_STAT(num_addr_hits += (sc->our_target == oraclePC);)
+  BPRED_STAT(num_hits += ((sc->our_pred == outcome) && (sc->our_target == oraclePC));)
 
   if(!MD_IS_RETURN(opflags)) /* RETN's already speculatively handled */
   {
@@ -1158,6 +1160,9 @@ bpred_t::reg_stats(
   sprintf(buf,"c%d.bpred_addr_hits",id);
   sprintf(buf2,"total branch predictor addr_hits (non-speculative)");
   stat_reg_counter(sdb, true, buf, buf2, &num_addr_hits, 0, TRUE, NULL);
+  sprintf(buf,"c%d.bpred_hits",id);
+  sprintf(buf2,"total branch predictor hits (non-speculative)");
+  stat_reg_counter(sdb, true, buf, buf2, &num_hits, 0, TRUE, NULL);
   sprintf(buf,"c%d.bpred_dir_rate",id);
   sprintf(buf2,"overall branch direction prediction rate");
   sprintf(buf3,"c%d.bpred_dir_hits/c%d.bpred_updates",id,id);
@@ -1165,6 +1170,10 @@ bpred_t::reg_stats(
   sprintf(buf,"c%d.bpred_addr_rate",id);
   sprintf(buf2,"overall branch address prediction rate");
   sprintf(buf3,"c%d.bpred_addr_hits/c%d.bpred_updates",id,id);
+  stat_reg_formula(sdb, true, buf, buf2, buf3, NULL);
+  sprintf(buf,"c%d.bpred_rate",id);
+  sprintf(buf2,"overall branch prediction rate");
+  sprintf(buf3,"c%d.bpred_hits/c%d.bpred_updates",id,id);
   stat_reg_formula(sdb, true, buf, buf2, buf3, NULL);
   sprintf(buf,"c%d.bpred_dir_MPKI",id);
   sprintf(buf2,"overall branch direction mispredictions per Kinst");
@@ -1207,6 +1216,7 @@ void bpred_t::reset_stats(void)
   num_uncond = 0;
   num_dir_hits = 0;
   num_addr_hits = 0;
+  num_hits = 0;
 }
 
 /* tell the branch predictor components that their stats should now be frozen */
