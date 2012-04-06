@@ -115,20 +115,20 @@ ZSRCS = \
 sim-zesto.cpp zesto-core.cpp zesto-opts.c zesto-oracle.cpp zesto-fetch.cpp         \
 zesto-decode.cpp zesto-alloc.cpp zesto-exec.cpp zesto-commit.cpp zesto-cache.cpp   \
 zesto-dram.cpp zesto-bpred.cpp zesto-memdep.cpp zesto-prefetch.cpp                 \
-zesto-uncore.cpp zesto-MC.cpp zesto-dumps.cpp zesto-power.cpp
+zesto-uncore.cpp zesto-MC.cpp zesto-dumps.cpp zesto-power.cpp mem-repeater.cpp
 
 ZHDRS = \
 zesto-structs.h zesto-core.h zesto-opts.h zesto-oracle.h zesto-fetch.h             \
 zesto-decode.h zesto-alloc.h zesto-exec.h zesto-commit.h zesto-cache.h             \
 zesto-dram.h zesto-bpred.h zesto-memdep.h zesto-prefetch.h zesto-uncore.h          \
-zesto-MC.h zesto-dumps.h zesto-power.h
+zesto-MC.h zesto-dumps.h zesto-power.h mem-repeater.h
 
 ZOBJS = \
 zesto-opts.$(OEXT) zesto-core.$(OEXT) zesto-oracle.$(OEXT) zesto-fetch.$(OEXT)     \
 zesto-decode.$(OEXT) zesto-alloc.$(OEXT) zesto-exec.$(OEXT) zesto-commit.$(OEXT)   \
 zesto-cache.$(OEXT) zesto-dram.$(OEXT) zesto-bpred.$(OEXT) zesto-memdep.$(OEXT)    \
 zesto-prefetch.$(OEXT) zesto-uncore.$(OEXT) zesto-MC.$(OEXT) zesto-dumps.$(OEXT)   \
-zesto-power.$(OEXT)
+zesto-power.$(OEXT) mem-repeater.$(OEXT)
 
 EXOOBJS = \
 libexo/libexo.$(OEXT) libexo/exolex.$(OEXT)
@@ -312,6 +312,7 @@ sim-slave.o: sim.h zesto-opts.h zesto-core.h zesto-oracle.h zesto-fetch.h
 sim-slave.o: zesto-decode.h zesto-bpred.h zesto-alloc.h zesto-exec.h
 sim-slave.o: zesto-commit.h zesto-dram.h zesto-cache.h zesto-uncore.h
 sim-slave.o: zesto-MC.h interface.h callbacks.h synchronization.h
+sim-slave.o: mem-repeater.h
 memory.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h
 memory.o: options.h stats.h eval.h memory.h interface.h callbacks.h
 misc.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h options.h
@@ -360,13 +361,15 @@ libsim.a: sim.h zesto-opts.h zesto-core.h zesto-oracle.h zesto-fetch.h
 libsim.a: zesto-decode.h zesto-bpred.h zesto-alloc.h zesto-exec.h
 libsim.a: zesto-commit.h zesto-dram.h zesto-cache.h zesto-uncore.h
 libsim.a: zesto-MC.h interface.h callbacks.h synchronization.h
+libsim.a: mem-repeater.h
+mem-repeater.o: machine.h host.h zesto-cache.h mem-repeater.h
 zesto-core.o: zesto-core.h zesto-structs.h machine.h host.h misc.h
 zesto-core.o: machine.def regs.h options.h
 zesto-opts.o: thread.h machine.h host.h misc.h machine.def zesto-structs.h
 zesto-opts.o: regs.h options.h memory.h stats.h eval.h loader.h zesto-opts.h
 zesto-opts.o: zesto-core.h zesto-oracle.h zesto-fetch.h zesto-decode.h
 zesto-opts.o: zesto-alloc.h zesto-exec.h zesto-cache.h zesto-commit.h
-zesto-opts.o: zesto-dram.h zesto-uncore.h zesto-MC.h
+zesto-opts.o: zesto-dram.h zesto-uncore.h zesto-MC.h mem-repeater.h
 zesto-oracle.o: misc.h thread.h machine.h host.h machine.def zesto-structs.h
 zesto-oracle.o: regs.h options.h memory.h stats.h eval.h syscall.h loader.h
 zesto-oracle.o: zesto-core.h zesto-opts.h zesto-oracle.h zesto-fetch.h
@@ -389,12 +392,12 @@ zesto-exec.o: thread.h machine.h host.h misc.h machine.def zesto-structs.h
 zesto-exec.o: regs.h options.h memory.h stats.h eval.h zesto-core.h
 zesto-exec.o: zesto-opts.h zesto-oracle.h zesto-alloc.h zesto-exec.h
 zesto-exec.o: zesto-memdep.h zesto-prefetch.h zesto-cache.h zesto-uncore.h
-zesto-exec.o: zesto-MC.h
+zesto-exec.o: zesto-MC.h mem-repeater.h
 zesto-commit.o: sim.h options.h stats.h host.h machine.h misc.h machine.def
 zesto-commit.o: zesto-structs.h regs.h eval.h memory.h thread.h zesto-core.h
 zesto-commit.o: zesto-opts.h zesto-oracle.h zesto-fetch.h zesto-decode.h
 zesto-commit.o: zesto-alloc.h zesto-exec.h zesto-cache.h zesto-commit.h
-zesto-commit.o: zesto-bpred.h zesto-dumps.h
+zesto-commit.o: zesto-bpred.h zesto-dumps.h mem-repeater.h
 zesto-power.o: sim.h options.h stats.h host.h machine.h misc.h machine.def
 zesto-power.o: zesto-structs.h regs.h eval.h memory.h thread.h zesto-core.h
 zesto-power.o: zesto-opts.h zesto-oracle.h zesto-fetch.h zesto-decode.h
