@@ -17,6 +17,7 @@ PROJROOT="/group/brooks/xan/Molecool"
 
 PROGRAM="/home/skanev/iljit_regression/test0/test.cil"
 ARGS="200000"
+#ARGS="2"
 
 PIN=PIN_HOME + "/ia32/bin/pinbin"
 PINTOOL="%s/bin/feeder_zesto.so" % PROJROOT
@@ -37,7 +38,11 @@ class XIOSimDriver(object):
 
     def AddPinOptions(self):
         self.cmd += PIN + " "
-        self.cmd += "-xyzzy -separate_memory -pause_tool 1 -t "
+#        self.cmd += "-xyzzy -profile 1 -statistic 1 -profile_period 10000 "
+#        self.cmd += "-mesgon stats -mesgon phase "
+#        self.cmd += "-xyzzy -ctxt_fp 0 "
+        self.cmd += "-xyzzy -allow_AVX_support 0 "
+        self.cmd += "-separate_memory -pause_tool 1 -t "
         self.cmd += PINTOOL + " "
 
     def AddMolecoolOptions(self):
@@ -83,7 +88,8 @@ class XIOSimDriver(object):
             print "Failed! Error code: %d" % retcode
 
 def RunScalingTest():
-    for ncores in (1, 2, 4, 8, 16):
+#    for ncores in [1, 2, 4, 8, 16]:
+    for ncores in [16]:
         xios = XIOSimDriver()
         xios.AddCleanArch()
         env = ENVIRONMENT + "PARALLELIZER_THREADS=%d " % ncores

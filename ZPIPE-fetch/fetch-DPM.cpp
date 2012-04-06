@@ -631,7 +631,9 @@ bool core_fetch_DPM_t::do_fetch(void)
 
   ZPIN_TRACE("Fetch PC: %x, rep_seq: %d\n", PC, core->current_thread->rep_sequence);
 
+  lk_lock(&memory_lock, core->id+1);
   Mop = core->oracle->exec(PC);
+  lk_unlock(&memory_lock);
 
   ZPIN_TRACE("After. PC: %x, nuked_Mops: %d, rep_seq: %d\n", PC, core->oracle->num_Mops_nuked, core->current_thread->rep_sequence);
   if(Mop && ((PC >> PAGE_SHIFT) == 0))

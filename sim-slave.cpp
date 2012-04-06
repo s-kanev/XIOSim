@@ -359,13 +359,7 @@ sim_uninit(void)
 //Returns true if another instruction can be fetched in the same cycle
 bool sim_main_slave_fetch_insn(int coreID)
 {
-  volatile bool res;
-  //XXX: Round-robin!
-  // Oracle gets executed here. Grab lock to main application memory.
-  lk_lock(&memory_lock, coreID+1);    
-  res = cores[coreID]->fetch->do_fetch();
-  lk_unlock(&memory_lock);
-  return res;
+    return cores[coreID]->fetch->do_fetch();
 }
 
 void sim_main_slave_post_pin()
@@ -561,12 +555,12 @@ void sim_main_slave_pre_pin(int coreID)
    * race through to here before that update is finished.
    */
   lk_lock(&cycle_lock, coreID+1);
-  while(cores[coreID]->current_thread->finished_cycle) {
-    lk_unlock(&cycle_lock);
+//while(cores[coreID]->current_thread->finished_cycle) {
+//  lk_unlock(&cycle_lock);
     /* Spin, spin, spin */
-    yield();
-    lk_lock(&cycle_lock, coreID+1);
-  }
+//  yield();
+//  lk_lock(&cycle_lock, coreID+1);
+//}
   cores[coreID]->current_thread->finished_cycle = true;
   lk_unlock(&cycle_lock);
 
@@ -575,17 +569,26 @@ void sim_main_slave_pre_pin(int coreID)
   if (coreID == 0)
   {
     lk_lock(&cycle_lock, coreID+1);
-    do {
+
+    /* Check if all cores finished this cycle. */
+    cores_finished_cycle = 0;
+    for(i=0; i<num_threads; i++)
+      if(cores[i]->current_thread->finished_cycle)
+        cores_finished_cycle++;
+
+    while(cores_finished_cycle < num_threads) {
       lk_unlock(&cycle_lock);
       /* Spin, spin, spin */
       yield();
       lk_lock(&cycle_lock, coreID+1);
-      /* Check if all cores finished this cycle. */
+
+      /* Re-check if all cores finished this cycle. */
       cores_finished_cycle = 0;
       for(i=0; i<num_threads; i++)
         if(cores[i]->current_thread->finished_cycle)
-            cores_finished_cycle++;
-    } while(cores_finished_cycle < num_threads);
+          cores_finished_cycle++;
+    }
+
     /* Process shared state once all cores are gathered here. */
     global_step();
     /* Unblock other cores to keep crunching. */
@@ -652,9 +655,9 @@ void sim_main_slave_post_pin(int coreID)
    * the LLC. TODO: Revisit this assumption, sounds very weak! */
   if(coreID == 0)
   {
-    lk_lock(&cache_lock, coreID+1);
+//    lk_lock(&cache_lock, coreID+1);
     prefetch_LLC(uncore);
-    lk_unlock(&cache_lock);
+//    lk_unlock(&cache_lock);
   }
 
   /* process prefetch requests in reverse order as L1/L2; i.e., whoever
