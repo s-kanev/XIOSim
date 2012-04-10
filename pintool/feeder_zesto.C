@@ -850,9 +850,11 @@ VOID ThreadFini(THREADID threadIndex, const CONTEXT *ctxt, INT32 code, VOID *v)
      * Make sure to kill the simulator thread (if any). */
     GetLock(&simbuffer_lock, threadIndex+1);
     handshake_container_t *handshake = handshake_buffer[threadIndex];
-    UINT32 coreID = handshake->handshake.coreID;
-    if (handshake)
+    INT32 coreID = -1;
+    if (handshake) {
+        coreID = handshake->handshake.coreID;
         handshake->killThread = true;
+    }
     ReleaseLock(&simbuffer_lock);
 
     if (!run_queue.empty()) {
@@ -861,23 +863,29 @@ VOID ThreadFini(THREADID threadIndex, const CONTEXT *ctxt, INT32 code, VOID *v)
     }
     else {
         GetLock(&simbuffer_lock, threadIndex+1);
-        sim_running = false;
-        ReleaseLock(&simbuffer_lock);
 
-        /* Spin until SimulatorLoop actually finishes */
-        volatile bool is_stopped;
-        do {
-            GetLock(&simbuffer_lock, threadIndex+1);
-            is_stopped = sim_stopped;
+        if (sim_running) {
+            sim_running = false;
             ReleaseLock(&simbuffer_lock);
-        } while(!is_stopped);
 
-        /* Reaching this ensures SimulatorLoop is not in the middle
-         * of simulating an instruction. We can safely blow away
-         * the pipeline and end the simulation. */
-        Zesto_Slice_End(coreID, 0, SimOrgInsCount, 100000);
-        Fini(EXIT_SUCCESS, NULL);
-        PIN_ExitProcess(EXIT_SUCCESS);
+            /* Spin until SimulatorLoop actually finishes */
+            volatile bool is_stopped;
+            do {
+                GetLock(&simbuffer_lock, threadIndex+1);
+                is_stopped = sim_stopped;
+                ReleaseLock(&simbuffer_lock);
+            } while(!is_stopped);
+
+            /* Reaching this ensures SimulatorLoop is not in the middle
+             * of simulating an instruction. We can safely blow away
+             * the pipeline and end the simulation. */
+            if (coreID != -1)
+                Zesto_Slice_End(coreID, 0, SimOrgInsCount, 100000);
+            Fini(EXIT_SUCCESS, NULL);
+            PIN_ExitProcess(EXIT_SUCCESS);
+        }
+        else
+            ReleaseLock(&simbuffer_lock);
     }
 
     delete tstate;
@@ -993,6 +1001,12 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, V
 #ifdef ZESTO_PIN_DBG
     case __NR_open:
         cerr << "Syscall open (" << dec << syscall_num << ") path: " << (char*)arg1 << endl;
+        break;
+#endif
+
+#ifdef ZESTO_PIN_DBG
+    case __NR_exit:
+        cerr << "Syscall exit (" << dec << syscall_num << ") code: " << arg1 << endl;
         break;
 #endif
 
