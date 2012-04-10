@@ -373,6 +373,13 @@ md_decode(const byte_t mode, struct md_inst_t *inst, const int set_nop)
       inst->rep = REP_REP;
   }
 
+  /* rep is ignored for non-string instrutions */
+  if (inst->rep != REP_NONE)
+  {
+      if ((flags & F_REPABLE) == 0)
+        inst->rep = REP_NONE;
+  }
+
   inst->modrm = !(flags & F_NOMOD);
   assert (modrm == !(flags & F_NOMOD));
 
