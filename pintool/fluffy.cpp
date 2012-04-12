@@ -3,9 +3,10 @@
  * Copyright, Svilen Kanev, 2011
  */
 
-#include "feeder.h"
-
 #include <vector>
+#include <map>
+
+#include "feeder.h"
 
 //XXX: This is single-threaded for now. Move to TLS for multithreading.
 

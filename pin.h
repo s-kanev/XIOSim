@@ -15,8 +15,6 @@ typedef struct P2Z_HANDSHAKE {
     unsigned int tpc;                   /* Next address Pin will execute */
     int brtaken;                        /* Taken or Not-Taken for branch instructions */
     const struct regs_t *ctxt;          /* Register context */
-    int orig;                           /* Original program instruction */
-    int icount;                         /* Dynamic program instruction sequence id */
     unsigned char ins[16];              /* Instruction bytes */
 
     unsigned int slice_num;                         /* Execution slice id */

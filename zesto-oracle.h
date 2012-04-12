@@ -159,9 +159,6 @@
 }
 #endif
 
-//#ifdef DEBUG
-//#define zesto_assert(cond, retval) assert(cond)
-//#elif ZESTO_PIN
 #ifdef ZESTO_PIN
 #define zesto_assert(cond, retval) { \
   if(!(cond)) { \
@@ -189,6 +186,8 @@
   } \
 }
 #endif
+
+#include <map>
 
 class core_oracle_t {
 
@@ -235,6 +234,10 @@ class core_oracle_t {
   int next_index(const int index);
   struct Mop_t * get_oldest_Mop();
 
+#ifdef ZESTO_PIN
+  byte_t non_spec_read_byte(const md_addr_t addr);
+  std::map<uint32_t, uint8_t> mem_requests;
+#endif
   bool spec_read_byte(const md_addr_t addr, byte_t * const valp, bool no_tail=false);
   struct spec_byte_t * spec_write_byte(const md_addr_t addr, const byte_t val,  struct uop_t * uop);
 

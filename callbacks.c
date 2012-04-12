@@ -3,6 +3,8 @@
  * Copyright, Svilen Kanev, 2011
 */
 
+#include <map>
+#include "interface.h"
 #include "callbacks.h"
 
 static ZESTO_WRITE_BYTE_CALLBACK write_byte_call = NULL;

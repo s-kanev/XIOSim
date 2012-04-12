@@ -420,6 +420,7 @@ void sim_main_slave_post_pin()
       else
         myfprintf(stderr,"%lld}\n",cores[i]->stat.commit_insn);
     }
+    fflush(stderr);
     heartbeat_count = 0;
   }
 }
@@ -635,9 +636,7 @@ void sim_main_slave_pre_pin(int coreID)
   /* round-robin on which cache to process first so that one core
      doesn't get continual priority over the others for L2 access */
   //XXX: RR
-//  lk_lock(&cache_lock, coreID+1);
   cores[coreID]->fetch->post_fetch();
-//  lk_unlock(&cache_lock);
 }
 
 void sim_main_slave_post_pin(int coreID)

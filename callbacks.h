@@ -6,8 +6,6 @@
 #ifndef __PIN_ZESTO_CALLBACKS__
 #define __PIN_ZESTO_CALLBACKS__
 
-#include "interface.h"
-
 /* Called on every write to program memory */
 extern "C" void Zesto_Call_WriteByteCallback(unsigned int addr, unsigned char val_to_write);
 
