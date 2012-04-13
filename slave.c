@@ -424,9 +424,6 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
    zesto_assert(!core->oracle->spec_mode, (void)0);
    zesto_assert(thread->rep_sequence == 0, (void)0);
 
-   core->fetch->feeder_NPC = NPC;
-   core->fetch->feeder_PC = handshake->pc;
-
    if(thread->first_insn) 
    {  
       thread->loader.prog_entry = handshake->pc;
@@ -471,6 +468,15 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
       regs->regs_NPC = handshake->pc;
       core->fetch->PC = handshake->pc;
    }
+
+   if (handshake->sleep_thread)
+   {
+      thread->active = false;
+      return;
+   }
+
+   core->fetch->feeder_NPC = NPC;
+   core->fetch->feeder_PC = handshake->pc;
 
    ZPIN_TRACE("PIN -> PC: %x, NPC: %x \n", handshake->pc, NPC);
    thread->fetches_since_feeder = 0;

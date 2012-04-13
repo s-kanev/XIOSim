@@ -16,6 +16,7 @@ typedef struct P2Z_HANDSHAKE {
     int brtaken;                        /* Taken or Not-Taken for branch instructions */
     const struct regs_t *ctxt;          /* Register context */
     unsigned char ins[16];              /* Instruction bytes */
+    int sleep_thread;                   /* Is thread active */
 
     unsigned int slice_num;                         /* Execution slice id */
     unsigned long long feeder_slice_length;         /* Slice length as seen by pin */

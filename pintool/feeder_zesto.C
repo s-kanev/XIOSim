@@ -421,7 +421,6 @@ VOID SimulatorLoop(VOID* arg)
         ADDRINT pc = handshake->handshake.pc;
 
         MakeInsCopy(&handshake->handshake, pc);
-        ASSERT(handshake->handshake.orig, "Must execute real instruction in this function");
 
 #ifdef TIME_TRANSPARENCY
         // Capture time spent in simulation to ensure time syscall transparency
@@ -465,6 +464,7 @@ VOID MakeSSRequest(THREADID tid, ADDRINT pc, ADDRINT npc, ADDRINT tpc, BOOL brta
     hshake->handshake.tpc = tpc;
     hshake->handshake.brtaken = brtaken;
     hshake->handshake.ctxt = &hshake->regstate;
+    hshake->handshake.sleep_thread = FALSE;
 
     hshake->handshake.slice_num = tstate->slice_num;
     hshake->handshake.feeder_slice_length = tstate->slice_length;

@@ -545,6 +545,7 @@ void sim_main_slave_pre_pin(int coreID)
 {
   int i;
   volatile int cores_finished_cycle = 0;
+  volatile int cores_active = 0;
 
   if(cores[coreID]->current_thread->active)
     cores[coreID]->stat.final_sim_cycle = sim_cycle;
@@ -573,11 +574,14 @@ void sim_main_slave_pre_pin(int coreID)
 
     /* Check if all cores finished this cycle. */
     cores_finished_cycle = 0;
-    for(i=0; i<num_threads; i++)
+    for(i=0; i<num_threads; i++) {
       if(cores[i]->current_thread->finished_cycle)
         cores_finished_cycle++;
+      if(cores[i]->current_thread->active)
+        cores_active++;
+    }
 
-    while(cores_finished_cycle < num_threads) {
+    while(cores_finished_cycle < cores_active) {
       lk_unlock(&cycle_lock);
       /* Spin, spin, spin */
       yield();
