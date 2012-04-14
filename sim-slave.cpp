@@ -653,14 +653,11 @@ void sim_main_slave_post_pin(int coreID)
 
   /* this is done last in the cycle so that prefetch requests have the
      lowest priority when competing for queues, buffers, etc. */
-  /* XXX: SK: It appears that it is safe to call this from a single
-   * thread only without gathering all threads because it only affects
-   * the LLC. TODO: Revisit this assumption, sounds very weak! */
   if(coreID == 0)
   {
-//    lk_lock(&cache_lock, coreID+1);
+    lk_lock(&cache_lock, coreID+1);
     prefetch_LLC(uncore);
-//    lk_unlock(&cache_lock);
+    lk_unlock(&cache_lock);
   }
 
   /* process prefetch requests in reverse order as L1/L2; i.e., whoever
