@@ -323,6 +323,9 @@ sim_post_init(void)
     cores[i]->knobs = &knobs;
   }
 
+  // Needs to be called before creating core->exec
+  repeater_init();
+
   for(i=0;i<num_threads;i++)
   {
     cores[i]->oracle  = new core_oracle_t(cores[i]);
@@ -335,8 +338,6 @@ sim_post_init(void)
 
     cores[i]->current_thread->active = true;
   }
-
-  repeater_init();
 }
 
 /* print simulator-specific configuration information */
