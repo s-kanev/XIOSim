@@ -94,6 +94,8 @@
 #include "loader.h"
 #include "sim.h"
 
+#include "zesto-cache.h"
+#include "mem-repeater.h"
 #include "zesto-opts.h"
 #include "zesto-core.h"
 #include "zesto-fetch.h"
@@ -333,6 +335,8 @@ sim_post_init(void)
 
     cores[i]->current_thread->active = true;
   }
+
+  repeater_init();
 }
 
 /* print simulator-specific configuration information */
