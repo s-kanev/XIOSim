@@ -75,6 +75,8 @@
 #include "thread.h"
 #include "synchronization.h"
 
+#include "zesto-cache.h"
+#include "mem-repeater.h"
 #include "zesto-core.h"
 #include "zesto-opts.h"
 #include "zesto-oracle.h"
