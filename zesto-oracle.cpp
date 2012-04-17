@@ -1328,6 +1328,7 @@ core_oracle_t::exec(const md_addr_t requested_PC)
       Mop->uop[prev_uop_index].decode.mem_size = uop->decode.mem_size;
       if(!spec_mode)
         assert(uop->oracle.virt_addr && uop->decode.mem_size);
+      uop->oracle.is_repeated = true;
     }
 
     if (uop->oracle.fault != md_fault_none)
