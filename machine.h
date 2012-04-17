@@ -495,24 +495,24 @@ extern const enum md_fu_class md_op2fu[];
 extern const char *md_fu2name[];
 
 /* instruction flags */
-#define F_ICOMP        0x00000001    /* integer computation */
-#define F_FCOMP        0x00000002    /* FP computation */
+#define F_ICOMP       0x00000001    /* integer computation */
+#define F_FCOMP       0x00000002    /* FP computation */
 #define F_CTRL        0x00000004    /* control inst */
-#define F_UNCOND    0x00000008    /*   unconditional change */
+#define F_UNCOND      0x00000008    /*   unconditional change */
 #define F_COND        0x00000010    /*   conditional change */
-#define F_MEM        0x00000020    /* memory access inst */
+#define F_MEM         0x00000020    /* memory access inst */
 #define F_LOAD        0x00000040    /*   load inst */
-#define F_STORE        0x00000080    /*   store inst */
+#define F_STORE       0x00000080    /*   store inst */
 #define F_DISP        0x00000100    /*   displaced (R+C) addr mode */
-#define F_RR        0x00000200    /*   R+R addr mode */
-#define F_DIRECT    0x00000400    /*   direct addressing mode */
+#define F_RR          0x00000200    /*   R+R addr mode */
+#define F_DIRECT      0x00000400    /*   direct addressing mode */
 #define F_TRAP        0x00000800    /* traping inst */
-#define F_LONGLAT    0x00001000    /* long latency inst (for sched) */
-#define F_DIRJMP    0x00002000    /* direct jump */
+#define F_LONGLAT     0x00001000    /* long latency inst (for sched) */
+#define F_DIRJMP      0x00002000    /* direct jump */
 #define F_INDIRJMP    0x00004000    /* indirect jump */
 #define F_CALL        0x00008000    /* function call */
-#define F_FPCOND    0x00010000    /* FP conditional branch */
-#define F_IMM        0x00020000    /* instruction has immediate operand */
+#define F_FPCOND      0x00010000    /* FP conditional branch */
+#define F_IMM         0x00020000    /* instruction has immediate operand */
 #define F_CISC        0x00040000    /* CISC instruction */
 #define F_AGEN        0x00080000    /* AGEN micro-instruction */
 #define F_IMMB        0x00100000    /* inst has 1-byte immediate */
@@ -521,12 +521,13 @@ extern const char *md_fu2name[];
 #define F_IMMV        0x00400000    /* inst has 1-byte immediate */
 #define F_IMMA        0x00500000    /* inst has 1-byte immediate */
 #define F_UIMM        0x01000000    /* immediate operand is unsigned */
-#define F_NOMOD        0x02000000    /* no modrm byte */
-#define F_REP        0x04000000    /* no zero check during repeat */
-#define F_UCODE         0x08000000      /* instruction produces ucode  */
-#define F_RTS           0x10000000      /* run-time support instruction */
-#define F_SPEC          0x20000000      /* speculative instruction (hint) */
-#define F_RETN          0x40000000      /* subroutine return */
+#define F_NOMOD       0x02000000    /* no modrm byte */
+#define F_REP         0x04000000    /* no zero check during repeat */
+#define F_UCODE       0x08000000    /* instruction produces ucode  */
+#define F_RTS         0x10000000    /* run-time support instruction */
+#define F_SPEC        0x20000000    /* speculative instruction (hint) */
+#define F_RETN        0x40000000    /* subroutine return */
+#define F_REPABLE     0x80000000    /* inst cares about REP prefixes */
 
 /* non-zero if instruction has an immediate operand */
 #define F_HASIMM    0x00f00000

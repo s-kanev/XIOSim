@@ -4,6 +4,8 @@
  * Copyright, Svilen Kanev, 2012
  */
 
+#include <map>
+
 #include "feeder.h"
 
 // Declared and used in ../synchronization.h

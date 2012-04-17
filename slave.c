@@ -15,6 +15,8 @@
 #include <sys/time.h>
 #include <sys/io.h>
 
+#include <map>
+
 #include "interface.h"
 #include "callbacks.h"
 #include "host.h"
@@ -401,7 +403,7 @@ void Zesto_Slice_End(int coreID, unsigned int slice_num, unsigned long long feed
   cores[coreID]->current_thread->active = false;
 }
 
-void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool slice_start, bool slice_end)
+void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsigned char> * mem_buffer, bool slice_start, bool slice_end)
 {
    struct core_t * core = cores[handshake->coreID];
    int coreID = handshake->coreID;
@@ -421,9 +423,6 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool slice_start, bool slice
    zesto_assert(core->oracle->num_Mops_nuked == 0, (void)0);
    zesto_assert(!core->oracle->spec_mode, (void)0);
    zesto_assert(thread->rep_sequence == 0, (void)0);
-
-   core->fetch->feeder_NPC = NPC;
-   core->fetch->feeder_PC = handshake->pc;
 
    if(thread->first_insn) 
    {  
@@ -470,6 +469,15 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool slice_start, bool slice
       core->fetch->PC = handshake->pc;
    }
 
+   if (handshake->sleep_thread)
+   {
+      thread->active = false;
+      return;
+   }
+
+   core->fetch->feeder_NPC = NPC;
+   core->fetch->feeder_PC = handshake->pc;
+
    ZPIN_TRACE("PIN -> PC: %x, NPC: %x \n", handshake->pc, NPC);
    thread->fetches_since_feeder = 0;
 
@@ -495,6 +503,9 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, bool slice_start, bool slice
      regs->regs_PC = handshake->pc;
      regs->regs_NPC = handshake->pc;
    }
+
+   core->oracle->mem_requests.clear();
+   core->oracle->mem_requests.insert(mem_buffer->begin(), mem_buffer->end());
 
    if(sim_release_handshake)
      ReleaseHandshake(coreID);

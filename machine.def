@@ -1005,13 +1005,13 @@ CONNECT(TOPLEV)
 
   DEFLINK(IMUL_RvEvIb_LINK, 0x6b, "imul_rvevib_link", 6, 0x03)
 
-  /* FIXME: TODO 0x6c: insb: F_NOMOD|F_REP */
+  /* FIXME: TODO 0x6c: insb: F_NOMOD|F_REP|F_REPABLE */
 
-  /* FIXME: TODO 0x6d: insv: F_NOMOD|F_REP */
+  /* FIXME: TODO 0x6d: insv: F_NOMOD|F_REP|F_REPABLE */
 
-  /* FIXME: TODO 0x6e: outsb: F_NOMOD|F_REP */
+  /* FIXME: TODO 0x6e: outsb: F_NOMOD|F_REP|F_REPABLE */
 
-  /* FIXME: TODO 0x6f: outsv: F_NOMOD|F_REP */
+  /* FIXME: TODO 0x6f: outsv: F_NOMOD|F_REP|F_REPABLE */
 
 #define JCC_Jb_IMPL              \
 {                  \
@@ -1461,7 +1461,7 @@ CONNECT(TOPLEV)
 }
   DEFINST(MOVSB_XbYb,    0xa4,
       "movsb",    "%Xb,%Yb",
-      FU_INVALID,                 F_MEM|F_LOAD|F_STORE|F_NOMOD|F_REP|F_UCODE,
+      FU_INVALID,                 F_MEM|F_LOAD|F_STORE|F_NOMOD|F_REP|F_REPABLE|F_UCODE,
       DNA,
       DNA, DNA, DNA,
       DNA, DNA)
@@ -1497,7 +1497,7 @@ CONNECT(TOPLEV)
 }
   DEFINST(MOVSB_XvYv,    0xa5,
       "movsv",    "%Xv,%Yv",
-      FU_INVALID,                 F_MEM|F_LOAD|F_STORE|F_NOMOD|F_REP|F_UCODE,
+      FU_INVALID,                 F_MEM|F_LOAD|F_STORE|F_NOMOD|F_REP|F_REPABLE|F_UCODE,
       DNA,
       DNA, DNA, DNA,
       DNA, DNA)
@@ -1534,7 +1534,7 @@ CONNECT(TOPLEV)
 }
   DEFINST(CMPSB_XbYb,    0xa6,
       "cmpsb",    "%Xb,%Yb",
-      FU_INVALID,                 F_ICOMP|F_MEM|F_LOAD|F_NOMOD|F_UCODE,
+      FU_INVALID,                 F_ICOMP|F_MEM|F_LOAD|F_NOMOD|F_UCODE|F_REPABLE,
       DNA,
       DNA, DNA, DNA,
       DNA, DNA)
@@ -1571,7 +1571,7 @@ CONNECT(TOPLEV)
 }
   DEFINST(CMPSB_XvYv,    0xa7,
       "cmpsv",    "%Xv,%Yv",
-      FU_INVALID,                 F_ICOMP|F_MEM|F_LOAD|F_NOMOD|F_UCODE,
+      FU_INVALID,                 F_ICOMP|F_MEM|F_LOAD|F_NOMOD|F_UCODE|F_REPABLE,
       DNA,
       DNA, DNA, DNA,
       DNA, DNA)
@@ -1631,7 +1631,7 @@ CONNECT(TOPLEV)
 }
   DEFINST(STOSB_ALYb,    0xaa,
       "stosb",    "AL,%Yb",
-      FU_INVALID,                 F_MEM|F_STORE|F_NOMOD|F_REP|F_UCODE,
+      FU_INVALID,                 F_MEM|F_STORE|F_NOMOD|F_REP|F_REPABLE|F_UCODE,
       DNA,
       DNA, DNA, DNA,
       DNA, DNA)
@@ -1659,7 +1659,7 @@ CONNECT(TOPLEV)
 }
   DEFINST(STOSV_eAXYv,    0xab,
       "stosv",    "%eA,%Yv",
-      FU_INVALID,                 F_MEM|F_STORE|F_NOMOD|F_REP|F_UCODE,
+      FU_INVALID,                 F_MEM|F_STORE|F_NOMOD|F_REP|F_REPABLE|F_UCODE,
       DNA,
       DNA, DNA, DNA,
       DNA, DNA)
@@ -1688,7 +1688,7 @@ CONNECT(TOPLEV)
 }
   DEFINST(LODSB_ALXb,    0xac,
       "lodsb",    "AL,%Xb",
-      FU_INVALID,                 F_MEM|F_LOAD|F_NOMOD|F_REP|F_UCODE,
+      FU_INVALID,                 F_MEM|F_LOAD|F_NOMOD|F_REP|F_REPABLE|F_UCODE,
       DNA,
       DNA, DNA, DNA,
       DNA, DNA)
@@ -1717,7 +1717,7 @@ CONNECT(TOPLEV)
 }
   DEFINST(LODSV_eAXXv,    0xad,
       "lodsv",    "%eA,%Xv",
-      FU_INVALID,                 F_MEM|F_LOAD|F_NOMOD|F_REP|F_UCODE,
+      FU_INVALID,                 F_MEM|F_LOAD|F_NOMOD|F_REP|F_UCODE|F_REPABLE,
       DNA,
       DNA, DNA, DNA,
       DNA, DNA)
@@ -1748,7 +1748,7 @@ CONNECT(TOPLEV)
 }
   DEFINST(SCASB_Yb,    0xae,
       "scasb",    "%Yb",
-      FU_INVALID,                 F_MEM|F_LOAD|F_NOMOD|F_UCODE,
+      FU_INVALID,                 F_MEM|F_LOAD|F_NOMOD|F_UCODE|F_REPABLE,
       DNA,
       DNA, DNA, DNA,
       DNA, DNA)
@@ -1779,7 +1779,7 @@ CONNECT(TOPLEV)
 }
   DEFINST(SCASV_Yv,    0xaf,
       "scasv",    "%Yv",
-      FU_INVALID,                 F_MEM|F_LOAD|F_NOMOD|F_UCODE,
+      FU_INVALID,                 F_MEM|F_LOAD|F_NOMOD|F_UCODE|F_REPABLE,
       DNA,
       DNA, DNA, DNA,
       DNA, DNA)

@@ -76,6 +76,7 @@ class handshake_container_t
         isFirstInsn = TRUE;
         isLastInsn = FALSE;
         killThread = FALSE;
+        mem_released = TRUE;
     }
 
     // Did we finish dumping context
@@ -86,6 +87,10 @@ class handshake_container_t
 
     // Handshake information that gets passed on to Zesto
     struct P2Z_HANDSHAKE handshake;
+
+    std::map<UINT32, UINT8> mem_buffer;
+
+    BOOL mem_released;
 
     BOOL isFirstInsn;
     BOOL isLastInsn;

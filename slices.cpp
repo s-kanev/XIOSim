@@ -2,6 +2,7 @@
 #include <limits.h>
 #include <math.h>
 #include <vector>
+#include <map>
 
 #include "stats.h"
 #include "interface.h"

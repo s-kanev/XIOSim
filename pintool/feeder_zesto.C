@@ -367,6 +367,9 @@ VOID ReleaseHandshake(UINT32 coreID)
 
     SimOrgInsCount++;
 
+    handshake->mem_buffer.clear();
+    handshake->mem_released = true;
+
     handshake->valid = false;   // Let pin instrument instruction
 
     ReleaseLock(&simbuffer_lock);
@@ -389,6 +392,7 @@ VOID SimulatorLoop(VOID* arg)
         }
 
         handshake_container_t* handshake = handshake_buffer[instrument_tid];
+        ASSERTX(handshake != NULL);
         /* Instrumentation thread has exited. Time to die, too
          * (and to clean the handshake buffer */
         if (handshake->killThread)
@@ -417,7 +421,6 @@ VOID SimulatorLoop(VOID* arg)
         ADDRINT pc = handshake->handshake.pc;
 
         MakeInsCopy(&handshake->handshake, pc);
-        ASSERT(handshake->handshake.orig, "Must execute real instruction in this function");
 
 #ifdef TIME_TRANSPARENCY
         // Capture time spent in simulation to ensure time syscall transparency
@@ -429,7 +432,7 @@ VOID SimulatorLoop(VOID* arg)
             SanityMemCheck();
 
         // Actual simulation happens here
-        Zesto_Resume(&handshake->handshake, handshake->isFirstInsn, handshake->isLastInsn);
+        Zesto_Resume(&handshake->handshake, &handshake->mem_buffer, handshake->isFirstInsn, handshake->isLastInsn);
 
         if(!KnobPipelineInstrumentation.Value())
             ReleaseHandshake(handshake->handshake.coreID);
@@ -461,12 +464,40 @@ VOID MakeSSRequest(THREADID tid, ADDRINT pc, ADDRINT npc, ADDRINT tpc, BOOL brta
     hshake->handshake.tpc = tpc;
     hshake->handshake.brtaken = brtaken;
     hshake->handshake.ctxt = &hshake->regstate;
-    hshake->handshake.orig = TRUE;
-    hshake->handshake.icount = 0;
+    hshake->handshake.sleep_thread = FALSE;
 
     hshake->handshake.slice_num = tstate->slice_num;
     hshake->handshake.feeder_slice_length = tstate->slice_length;
     hshake->handshake.slice_weight_times_1000 = tstate->slice_weight_times_1000; 
+}
+
+/* ========================================================================== */
+VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size)
+{
+    GetLock(&simbuffer_lock, tid+1);
+    if (handshake_buffer.size() < (unsigned int) num_threads)
+    {
+        ReleaseLock(&simbuffer_lock);
+        return;
+    }
+
+    handshake_container_t* handshake  = handshake_buffer[tid];
+
+    ASSERTX(handshake != NULL);
+
+    while (!handshake->mem_released)
+    {
+        ReleaseLock(&simbuffer_lock);
+        PIN_Yield();
+        GetLock(&simbuffer_lock, tid+1);
+    }
+
+    UINT8 val;
+    for(UINT32 i=0; i < size; i++) {
+        PIN_SafeCopy(&val, (VOID*) (addr+i), 1);
+        handshake->mem_buffer.insert(pair<UINT32, UINT8>(addr + i,val));
+    }
+    ReleaseLock(&simbuffer_lock);
 }
 
 /* ========================================================================== */
@@ -481,12 +512,18 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
 
     handshake_container_t* handshake  = handshake_buffer[tid];
 
+    ASSERTX(handshake != NULL);
+
     while (handshake->valid)
     {
         ReleaseLock(&simbuffer_lock);
         PIN_Yield();
         GetLock(&simbuffer_lock, tid+1);
     }
+
+    // This relies on the order of analysis routines -- 
+    // GrabInstMemReads should be finished by here
+    handshake->mem_released = false;
 
     // Tracing
 //    if (!KnobInsTraceFile.Value().empty())
@@ -589,6 +626,23 @@ VOID Instrument(INS ins, VOID *v)
             }
         }
         return;
+    }
+
+    UINT32 memOperands = INS_MemoryOperandCount(ins);
+
+    for (UINT32 memOp = 0; memOp < memOperands; memOp++)
+    {
+        if (INS_MemoryOperandIsRead(ins, memOp))
+        {
+            UINT32 memSize = INS_MemoryOperandSize(ins, memOp);
+
+            INS_InsertPredicatedCall(
+                ins, IPOINT_BEFORE, (AFUNPTR)GrabInstMemReads,
+                IARG_THREAD_ID,
+                IARG_MEMORYOP_EA, memOp,
+                IARG_UINT32, memSize,
+                IARG_END);
+        }
     }
 
     // Tracing
@@ -708,14 +762,16 @@ SSARGS MakeSimpleScalarArgcArgv(UINT32 argc, CHAR *argv[])
 
 
 /* ========================================================================== */
-static VOID RemoveRunQueueThread(THREADID tid)
+/* Returns true if thread was scheduled to run */
+static BOOL RemoveRunQueueThread(THREADID tid)
 {
     list<THREADID>::iterator it;
     for (it = run_queue.begin(); it != run_queue.end(); it++)
         if (*it == tid) {
             run_queue.erase(it);
-            break;
+            return true;
         }
+    return false;
 }
 
 /* ========================================================================== */
@@ -844,15 +900,24 @@ VOID ThreadFini(THREADID threadIndex, const CONTEXT *ctxt, INT32 code, VOID *v)
     thread_state_t* tstate = get_tls(threadIndex);
 
     /* No need to schedule this thread any more */
-    RemoveRunQueueThread(threadIndex);
+    BOOL was_scheduled = RemoveRunQueueThread(threadIndex);
+
+    /* Ignore threads which we weren't going to simulate */
+    if (!was_scheduled) {
+        delete tstate;
+        ReleaseLock(&test);
+        return;
+    }
 
     /* There will be no further instructions instrumented (on this thread).
      * Make sure to kill the simulator thread (if any). */
     GetLock(&simbuffer_lock, threadIndex+1);
     handshake_container_t *handshake = handshake_buffer[threadIndex];
-    UINT32 coreID = handshake->handshake.coreID;
-    if (handshake)
+    INT32 coreID = -1;
+    if (handshake) {
+        coreID = handshake->handshake.coreID;
         handshake->killThread = true;
+    }
     ReleaseLock(&simbuffer_lock);
 
     if (!run_queue.empty()) {
@@ -861,23 +926,29 @@ VOID ThreadFini(THREADID threadIndex, const CONTEXT *ctxt, INT32 code, VOID *v)
     }
     else {
         GetLock(&simbuffer_lock, threadIndex+1);
-        sim_running = false;
-        ReleaseLock(&simbuffer_lock);
 
-        /* Spin until SimulatorLoop actually finishes */
-        volatile bool is_stopped;
-        do {
-            GetLock(&simbuffer_lock, threadIndex+1);
-            is_stopped = sim_stopped;
+        if (sim_running) {
+            sim_running = false;
             ReleaseLock(&simbuffer_lock);
-        } while(!is_stopped);
 
-        /* Reaching this ensures SimulatorLoop is not in the middle
-         * of simulating an instruction. We can safely blow away
-         * the pipeline and end the simulation. */
-        Zesto_Slice_End(coreID, 0, SimOrgInsCount, 100000);
-        Fini(EXIT_SUCCESS, NULL);
-        PIN_ExitProcess(EXIT_SUCCESS);
+            /* Spin until SimulatorLoop actually finishes */
+            volatile bool is_stopped;
+            do {
+                GetLock(&simbuffer_lock, threadIndex+1);
+                is_stopped = sim_stopped;
+                ReleaseLock(&simbuffer_lock);
+            } while(!is_stopped);
+
+            /* Reaching this ensures SimulatorLoop is not in the middle
+             * of simulating an instruction. We can safely blow away
+             * the pipeline and end the simulation. */
+            if (coreID != -1)
+                Zesto_Slice_End(coreID, 0, SimOrgInsCount, 100000);
+            Fini(EXIT_SUCCESS, NULL);
+            PIN_ExitProcess(EXIT_SUCCESS);
+        }
+        else
+            ReleaseLock(&simbuffer_lock);
     }
 
     delete tstate;
@@ -993,6 +1064,12 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, V
 #ifdef ZESTO_PIN_DBG
     case __NR_open:
         cerr << "Syscall open (" << dec << syscall_num << ") path: " << (char*)arg1 << endl;
+        break;
+#endif
+
+#ifdef ZESTO_PIN_DBG
+    case __NR_exit:
+        cerr << "Syscall exit (" << dec << syscall_num << ") code: " << arg1 << endl;
         break;
 #endif
 

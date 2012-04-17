@@ -425,6 +425,7 @@ void sim_main_slave_post_pin()
       else
         myfprintf(stderr,"%lld}\n",cores[i]->stat.commit_insn);
     }
+    fflush(stderr);
     heartbeat_count = 0;
   }
 }
@@ -549,6 +550,7 @@ void sim_main_slave_pre_pin(int coreID)
 {
   int i;
   volatile int cores_finished_cycle = 0;
+  volatile int cores_active = 0;
 
   if(cores[coreID]->current_thread->active)
     cores[coreID]->stat.final_sim_cycle = sim_cycle;
@@ -577,11 +579,14 @@ void sim_main_slave_pre_pin(int coreID)
 
     /* Check if all cores finished this cycle. */
     cores_finished_cycle = 0;
-    for(i=0; i<num_threads; i++)
+    for(i=0; i<num_threads; i++) {
       if(cores[i]->current_thread->finished_cycle)
         cores_finished_cycle++;
+      if(cores[i]->current_thread->active)
+        cores_active++;
+    }
 
-    while(cores_finished_cycle < num_threads) {
+    while(cores_finished_cycle < cores_active) {
       lk_unlock(&cycle_lock);
       /* Spin, spin, spin */
       yield();
@@ -640,9 +645,7 @@ void sim_main_slave_pre_pin(int coreID)
   /* round-robin on which cache to process first so that one core
      doesn't get continual priority over the others for L2 access */
   //XXX: RR
-//  lk_lock(&cache_lock, coreID+1);
   cores[coreID]->fetch->post_fetch();
-//  lk_unlock(&cache_lock);
 }
 
 void sim_main_slave_post_pin(int coreID)
@@ -655,14 +658,11 @@ void sim_main_slave_post_pin(int coreID)
 
   /* this is done last in the cycle so that prefetch requests have the
      lowest priority when competing for queues, buffers, etc. */
-  /* XXX: SK: It appears that it is safe to call this from a single
-   * thread only without gathering all threads because it only affects
-   * the LLC. TODO: Revisit this assumption, sounds very weak! */
   if(coreID == 0)
   {
-//    lk_lock(&cache_lock, coreID+1);
+    lk_lock(&cache_lock, coreID+1);
     prefetch_LLC(uncore);
-//    lk_unlock(&cache_lock);
+    lk_unlock(&cache_lock);
   }
 
   /* process prefetch requests in reverse order as L1/L2; i.e., whoever

@@ -439,6 +439,16 @@ struct spec_byte_t * core_oracle_t::spec_write_byte(
   return p;
 }
 
+#ifdef ZESTO_PIN
+byte_t core_oracle_t::non_spec_read_byte(const md_addr_t addr)
+{
+    std::map<uint32_t, uint8_t>::iterator it = mem_requests.find(addr);
+    if (it != mem_requests.end())
+        return it->second;
+    return 0;
+}
+#endif
+
 /* return true/false if byte is in table (read from most recent).
    If present, store value in valp. */
 bool core_oracle_t::spec_read_byte(
@@ -2182,6 +2192,8 @@ void core_oracle_t::squash_write_byte(struct spec_byte_t * const p)
 {
   const int index = p->addr & MEM_HASH_MASK;
   assert(spec_mem_map.hash[index].tail == p);
+
+  ZPIN_TRACE("Squashing spec mem write at addr: %x, val: %x\n", p->addr, p->val);
 
   if(p->prev)
     p->prev->next = NULL;
