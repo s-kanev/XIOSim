@@ -115,20 +115,28 @@ ZSRCS = \
 sim-zesto.cpp zesto-core.cpp zesto-opts.c zesto-oracle.cpp zesto-fetch.cpp         \
 zesto-decode.cpp zesto-alloc.cpp zesto-exec.cpp zesto-commit.cpp zesto-cache.cpp   \
 zesto-dram.cpp zesto-bpred.cpp zesto-memdep.cpp zesto-prefetch.cpp                 \
-zesto-uncore.cpp zesto-MC.cpp zesto-dumps.cpp zesto-power.cpp mem-repeater.cpp
+zesto-uncore.cpp zesto-MC.cpp zesto-dumps.cpp zesto-power.cpp mem-repeater.cpp     \
+mem-repeater-link.cpp mem-repeater-request.cpp mem-repeater-manager.cpp            \
+mem-repeater-buffer.cpp mem-repeater-memory.cpp
 
 ZHDRS = \
 zesto-structs.h zesto-core.h zesto-opts.h zesto-oracle.h zesto-fetch.h             \
 zesto-decode.h zesto-alloc.h zesto-exec.h zesto-commit.h zesto-cache.h             \
 zesto-dram.h zesto-bpred.h zesto-memdep.h zesto-prefetch.h zesto-uncore.h          \
-zesto-MC.h zesto-dumps.h zesto-power.h mem-repeater.h
+zesto-MC.h zesto-dumps.h zesto-power.h mem-repeater.h                              \
+mem-repeater-link.h mem-repeater-request.h mem-repeater-manager.h                  \
+mem-repeater-buffer.h mem-repeater-memory.h                                      \
+mem-repeater-defines.h
+
 
 ZOBJS = \
-zesto-opts.$(OEXT) zesto-core.$(OEXT) zesto-oracle.$(OEXT) zesto-fetch.$(OEXT)     \
-zesto-decode.$(OEXT) zesto-alloc.$(OEXT) zesto-exec.$(OEXT) zesto-commit.$(OEXT)   \
-zesto-cache.$(OEXT) zesto-dram.$(OEXT) zesto-bpred.$(OEXT) zesto-memdep.$(OEXT)    \
-zesto-prefetch.$(OEXT) zesto-uncore.$(OEXT) zesto-MC.$(OEXT) zesto-dumps.$(OEXT)   \
-zesto-power.$(OEXT) mem-repeater.$(OEXT)
+zesto-opts.$(OEXT) zesto-core.$(OEXT) zesto-oracle.$(OEXT) zesto-fetch.$(OEXT)      \
+zesto-decode.$(OEXT) zesto-alloc.$(OEXT) zesto-exec.$(OEXT) zesto-commit.$(OEXT)    \
+zesto-cache.$(OEXT) zesto-dram.$(OEXT) zesto-bpred.$(OEXT) zesto-memdep.$(OEXT)     \
+zesto-prefetch.$(OEXT) zesto-uncore.$(OEXT) zesto-MC.$(OEXT) zesto-dumps.$(OEXT)    \
+zesto-power.$(OEXT) mem-repeater.$(OEXT)                                            \
+mem-repeater-link.$(OEXT) mem-repeater-request.$(OEXT) mem-repeater-manager.$(OEXT) \
+mem-repeater-buffer.$(OEXT) mem-repeater-memory.$(OEXT)
 
 EXOOBJS = \
 libexo/libexo.$(OEXT) libexo/exolex.$(OEXT)
