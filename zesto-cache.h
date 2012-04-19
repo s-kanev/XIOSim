@@ -85,7 +85,7 @@
 
 /* CACHE_WRITEBACK is the same as CACHE_WRITE, except that CACHE_WRITEBACK does
    not cause the cache's replacement information/state to get updated. */
-enum cache_command { CACHE_NOP, CACHE_READ, CACHE_WRITE, CACHE_WRITEBACK, CACHE_PREFETCH };
+enum cache_command { CACHE_NOP, CACHE_READ, CACHE_WRITE, CACHE_WRITEBACK, CACHE_PREFETCH, CACHE_WAIT, CACHE_SIGNAL };
 enum repl_policy_t { REPLACE_LRU, REPLACE_MRU, REPLACE_RANDOM, REPLACE_NMRU, REPLACE_PLRU, REPLACE_CLOCK };
 enum alloc_policy_t { WRITE_ALLOC, NO_WRITE_ALLOC };
 enum write_policy_t { WRITE_THROUGH, WRITE_BACK };
