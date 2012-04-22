@@ -69,7 +69,7 @@ endif
 
 TOOL_ROOTS = feeder_zesto
 
-TOOL_OBJS = $(OBJDIR)fluffy.o $(OBJDIR)lib.o
+TOOL_OBJS = $(OBJDIR)ildjit.o $(OBJDIR)fluffy.o $(OBJDIR)lib.o
 
 TOOLS = $(TOOL_ROOTS:%=$(OBJDIR)%$(PINTOOL_SUFFIX))
 
