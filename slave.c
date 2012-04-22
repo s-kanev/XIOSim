@@ -124,6 +124,8 @@ extern void scale_all_slices(void);
 
 extern int32_t fetch_lock;
 
+extern int min_coreID;
+
 int
 Zesto_SlaveInit(int argc, char **argv)
 {
@@ -378,6 +380,16 @@ void Zesto_Destroy()
 }
 
 
+void deactivate_core(int coreID)
+{
+  cores[coreID]->current_thread->active = false;
+  lk_lock(&cycle_lock, coreID+1);
+  for (int i=num_threads-1; i >= 0; i--)
+    if (cores[i]->current_thread->active)
+      min_coreID = i;
+  lk_unlock(&cycle_lock);
+}
+
 static void sim_drain_pipe(int coreID)
 {
    struct core_t * core = cores[coreID];
@@ -400,7 +412,6 @@ void Zesto_Slice_End(int coreID, unsigned int slice_num, unsigned long long feed
   sim_drain_pipe(coreID);
   // Record stats values
   end_slice(slice_num, feeder_slice_length, slice_weight_times_1000);
-  cores[coreID]->current_thread->active = false;
 }
 
 void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsigned char> * mem_buffer, bool slice_start, bool slice_end)
@@ -471,7 +482,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
 
    if (handshake->sleep_thread)
    {
-      thread->active = false;
+      deactivate_core(coreID);
       return;
    }
 

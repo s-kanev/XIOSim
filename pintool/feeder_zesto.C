@@ -65,7 +65,7 @@ ofstream trace_file;
 ifstream sanity_trace;
 
 BOOL sim_running = false;
-BOOL sim_stopped = false;
+map<THREADID, BOOL> sim_stopped;
 
 // Used to access thread-local storage
 static TLS_KEY tls_key;
@@ -359,6 +359,11 @@ VOID ReleaseHandshake(UINT32 coreID)
     THREADID instrument_tid = core_threads[coreID];
     handshake_container_t* handshake = handshake_buffer[instrument_tid];
 
+    // We are finishing simulation, kill the simulator thread
+    if (handshake->isLastInsn && !handshake->isFirstInsn && 
+        ExecMode == EXECUTION_MODE_INVALID)
+        handshake->killThread = true;
+
     if (handshake->isFirstInsn)
         handshake->isFirstInsn = false;
 
@@ -383,22 +388,25 @@ VOID SimulatorLoop(VOID* arg)
 
     while (true)
     {
+        handshake_container_t* handshake = handshake_buffer[instrument_tid];
+        ASSERTX(handshake != NULL);
+
         GetLock(&simbuffer_lock, tid+1);
         if (!sim_running || PIN_IsProcessExiting())
         {
-            sim_stopped = true;
+            sim_stopped[instrument_tid] = true;
+            deactivate_core(handshake->handshake.coreID);
             ReleaseLock(&simbuffer_lock);
             return;
         }
 
-        handshake_container_t* handshake = handshake_buffer[instrument_tid];
-        ASSERTX(handshake != NULL);
         /* Instrumentation thread has exited. Time to die, too
-         * (and to clean the handshake buffer */
+         * (and to clean the handshake buffer) */
         if (handshake->killThread)
         {
             delete handshake;
             handshake_buffer[instrument_tid] = NULL;
+            sim_stopped[instrument_tid] = true;
             ReleaseLock(&simbuffer_lock);
             return;
         }
@@ -412,7 +420,7 @@ VOID SimulatorLoop(VOID* arg)
             /* We must recheck if sumulation was stopped, or we can deadlock */
             if (!sim_running || PIN_IsProcessExiting())
             {
-                sim_stopped = true;
+                sim_stopped[instrument_tid] = true;
                 ReleaseLock(&simbuffer_lock);
                 return;
             }
@@ -763,7 +771,7 @@ SSARGS MakeSimpleScalarArgcArgv(UINT32 argc, CHAR *argv[])
 
 /* ========================================================================== */
 /* Returns true if thread was scheduled to run */
-static BOOL RemoveRunQueueThread(THREADID tid)
+/*static BOOL RemoveRunQueueThread(THREADID tid)
 {
     list<THREADID>::iterator it;
     for (it = run_queue.begin(); it != run_queue.end(); it++)
@@ -772,7 +780,7 @@ static BOOL RemoveRunQueueThread(THREADID tid)
             return true;
         }
     return false;
-}
+}*/
 
 /* ========================================================================== */
 VOID ScheduleRunQueue()
@@ -787,6 +795,8 @@ VOID ScheduleRunQueue()
     for (nextCoreID = 0; nextCoreID < num_threads; nextCoreID++, it++) {
         core_threads[nextCoreID] = *it;
     }
+
+    run_queue.clear();
 }
 
 /* ========================================================================== */
@@ -892,6 +902,47 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
 }
 
 /* ========================================================================== */
+VOID StopSimulation(THREADID tid)
+{
+    GetLock(&simbuffer_lock, tid + 1);
+
+    map<THREADID, handshake_container_t*>::iterator it;
+
+    // XXX: DEADLOCK!
+    for(it = handshake_buffer.begin(); it != handshake_buffer.end(); it++) {
+        while (it->second->valid)
+        {
+            ReleaseLock(&simbuffer_lock);
+            PIN_Yield();
+            GetLock(&simbuffer_lock, tid+1);
+        }
+        //it->second->isLastInsn = true;
+    }
+    //ExecMode = EXECUTION_MODE_INVALID;
+    //CODECACHE_FlushCache();
+    sim_running = false;
+    ReleaseLock(&simbuffer_lock);
+    //return;
+
+    /* Spin until SimulatorLoop actually finishes */
+    volatile bool is_stopped;
+    do {
+        GetLock(&simbuffer_lock, tid+1);
+        is_stopped = true;
+        for(it = handshake_buffer.begin(); it != handshake_buffer.end(); it++) {
+            is_stopped &= sim_stopped[it->first];
+        }
+        ReleaseLock(&simbuffer_lock);
+    } while(!is_stopped);
+
+    /* Reaching this ensures SimulatorLoop is not in the middle
+     * of simulating an instruction. We can safely blow away
+     * the pipeline and end the simulation. */
+    Fini(EXIT_SUCCESS, NULL);
+    PIN_ExitProcess(EXIT_SUCCESS);
+}
+
+/* ========================================================================== */
 VOID ThreadFini(THREADID threadIndex, const CONTEXT *ctxt, INT32 code, VOID *v)
 {
     cerr << "Thread exit. ID: " << threadIndex << endl;
@@ -900,11 +951,14 @@ VOID ThreadFini(THREADID threadIndex, const CONTEXT *ctxt, INT32 code, VOID *v)
     thread_state_t* tstate = get_tls(threadIndex);
 
     /* No need to schedule this thread any more */
-    BOOL was_scheduled = RemoveRunQueueThread(threadIndex);
+    //RemoveRunQueueThread(threadIndex);
+
+    BOOL was_scheduled = handshake_buffer.find(threadIndex) != handshake_buffer.end();
 
     /* Ignore threads which we weren't going to simulate */
     if (!was_scheduled) {
         delete tstate;
+        cerr << "FADA" << endl;
         ReleaseLock(&test);
         return;
     }
@@ -929,13 +983,20 @@ VOID ThreadFini(THREADID threadIndex, const CONTEXT *ctxt, INT32 code, VOID *v)
 
         if (sim_running) {
             sim_running = false;
+
             ReleaseLock(&simbuffer_lock);
 
+            map<THREADID, handshake_container_t*>::iterator it;
             /* Spin until SimulatorLoop actually finishes */
             volatile bool is_stopped;
             do {
                 GetLock(&simbuffer_lock, threadIndex+1);
-                is_stopped = sim_stopped;
+                is_stopped = true;
+                for(it = handshake_buffer.begin(); it != handshake_buffer.end(); it++) {
+                    is_stopped &= sim_stopped[it->first];
+                    cerr << it->first << " " << sim_stopped[it->first] << " ";
+                }
+                cerr << endl;
                 ReleaseLock(&simbuffer_lock);
             } while(!is_stopped);
 

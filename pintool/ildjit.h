@@ -74,14 +74,14 @@ VOID ILDJIT_ThreadStopping(THREADID tid, ADDRINT ip)
 {
     GetLock(&ildjit_lock, 1);
 
-    ILDJIT_executionStarted = false;
+    //ILDJIT_executionStarted = false;
 
 //#ifdef ZESTO_PIN_DBG
     cerr << "Stopping execution, TID: " << tid << endl;
 //#endif
 
     if (KnobFluffy.Value().empty())
-        ThreadFini(tid, NULL, 0, NULL);
+        StopSimulation(tid);
 
     ReleaseLock(&ildjit_lock);
 }
