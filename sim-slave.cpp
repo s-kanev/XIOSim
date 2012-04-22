@@ -136,6 +136,9 @@ tick_t sim_cycle = 0;
 
 bool sim_slave_running = false;
 
+/* Minimum ID of an active core. Used to simplify synchronization. */
+int min_coreID;
+
 /* initialize simulator data structures - called before any command-line options have been parsed! */
 void
 sim_pre_init(void)
@@ -338,6 +341,8 @@ sim_post_init(void)
 
     cores[i]->current_thread->active = true;
   }
+
+  min_coreID = 0;
 }
 
 /* print simulator-specific configuration information */
@@ -571,12 +576,14 @@ void sim_main_slave_pre_pin(int coreID)
   cores[coreID]->current_thread->finished_cycle = true;
   lk_unlock(&cycle_lock);
 
-  /* Core 0 -- Wait for all cores to be finished and
+  /* Active core with smallest id -- Wait for all cores to be finished and
      update global state */
-  if (coreID == 0)
+  if (coreID == min_coreID)
   {
     lk_lock(&cycle_lock, coreID+1);
 
+test_test:
+    cores_active = 0;
     /* Check if all cores finished this cycle. */
     cores_finished_cycle = 0;
     for(i=0; i<num_threads; i++) {
@@ -611,6 +618,38 @@ void sim_main_slave_pre_pin(int coreID)
   {
     lk_lock(&cycle_lock, coreID+1);
     while(cores[coreID]->current_thread->finished_cycle) {
+      if (coreID == min_coreID) {
+//        cores_active = 0;
+        /* Check if all cores finished this cycle. */
+//        cores_finished_cycle = 0;
+//        for(i=0; i<num_threads; i++) {
+//          if(cores[i]->current_thread->finished_cycle)
+//           cores_finished_cycle++;
+//          if(cores[i]->current_thread->active)
+//            cores_active++;
+//        }
+
+//        while(cores_finished_cycle < cores_active) {
+//          lk_unlock(&cycle_lock);
+//          /* Spin, spin, spin */
+//          yield();
+//          lk_lock(&cycle_lock, coreID+1);
+
+          /* Re-check if all cores finished this cycle. */
+//          cores_finished_cycle = 0;
+//          for(i=0; i<num_threads; i++)
+//            if(cores[i]->current_thread->finished_cycle)
+//              cores_finished_cycle++;
+//        }
+
+        /* Process shared state once all cores are gathered here. */
+        //global_step();
+        /* Unblock other cores to keep crunching. */
+        for(i=0; i<num_threads; i++)
+          cores[i]->current_thread->finished_cycle = false; 
+        //lk_unlock(&cycle_lock);
+        break;
+      }
       lk_unlock(&cycle_lock);
       /* Spin, spin, spin */
       yield();
@@ -658,7 +697,7 @@ void sim_main_slave_post_pin(int coreID)
 
   /* this is done last in the cycle so that prefetch requests have the
      lowest priority when competing for queues, buffers, etc. */
-  if(coreID == 0)
+  if(coreID == min_coreID)
   {
     lk_lock(&cache_lock, coreID+1);
     prefetch_LLC(uncore);

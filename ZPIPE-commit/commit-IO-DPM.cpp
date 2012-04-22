@@ -377,7 +377,7 @@ void core_commit_IO_DPM_t::IO_step(void)
      attempt to un-wedge the processor.  If the processor then
      deadlocks again without having first made any more forward
      progress, we give up and kill the simulator. */
-  if((sim_cycle - core->exec->last_completed) > deadlock_threshold)
+  if(core->current_thread->active && ((sim_cycle - core->exec->last_completed) > deadlock_threshold))
   {
     if(core->exec->last_completed_count == core->stat.eio_commit_insn)
     {
