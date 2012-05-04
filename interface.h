@@ -6,8 +6,8 @@
 #ifndef __PIN_ZESTO_INTERFACE__
 #define __PIN_ZESTO_INTERFACE__
 
-#include "pin.h"
 #include "machine.h"
+#include "pin.h"
 
 /* Calls from feeder to Zesto */
 int Zesto_SlaveInit(int argc, char **argv);

@@ -4,6 +4,7 @@
  */
 
 #include <map>
+#include <queue>
 #include "feeder.h"
 #include "ildjit.h"
 #include "fluffy.h"
@@ -108,36 +109,141 @@ VOID ILDJIT_ExecutorCreateEnd(THREADID tid)
 /* ========================================================================== */
 VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT loop)
 {
+    // For now, do nothing
 }
 
 /* ========================================================================== */
 VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop)
 {
+    // For now, do nothing
 }
 
 /* ========================================================================== */
 VOID ILDJIT_startIteration(THREADID tid)
 {
+    // For now, do nothing
 }
 
 /* ========================================================================== */
-VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID)
+VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID, ADDRINT pc)
 {
+    GetLock(&simbuffer_lock, tid+1);
+    ignore[tid] = true;
+    cerr << tid <<": Before Wait " << hex << pc << dec << endl;
+
+    ASSERTX(!inserted_pool[tid].empty());
+    handshake_container_t* handshake = inserted_pool[tid].front();
+
+    handshake->isFirstInsn = false;
+    handshake->handshake.sleep_thread = true;
+    handshake->handshake.resume_thread = false;
+    handshake->handshake.real = false;
+    thread_state_t* tstate = get_tls(tid);
+    handshake->handshake.coreID = tstate->coreID;
+    handshake->valid = true;
+
+    handshake_buffer[tid].push(handshake);
+    inserted_pool[tid].pop();
+    ReleaseLock(&simbuffer_lock);
 }
 
 /* ========================================================================== */
-VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID)
+VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT pc)
 {
+    GetLock(&simbuffer_lock, tid+1);
+    ignore[tid] = false;
+    cerr << tid <<": After Wait "<< hex << pc << dec  << endl;
+
+    /* HACKEDY HACKEDY HACK */
+    /* We are not simulating and the core still hasn't consumed the wait.
+     * Find the dummy handshake in the simulation queue and remove it. */
+    if (ExecMode != EXECUTION_MODE_SIMULATE
+        && inserted_pool[tid].empty())
+    {
+        ASSERTX(!handshake_buffer[tid].empty());
+        handshake_container_t* hshake = handshake_buffer[tid].front();
+        ASSERTX(hshake->handshake.real == false);
+        handshake_buffer[tid].pop();
+        inserted_pool[tid].push(hshake);
+        ReleaseLock(&simbuffer_lock);
+        return;
+    }
+
+    ASSERTX(!inserted_pool[tid].empty());
+    handshake_container_t* handshake = inserted_pool[tid].front();
+
+    handshake->isFirstInsn = false;
+    handshake->handshake.sleep_thread = false;
+    handshake->handshake.resume_thread = true;
+    handshake->handshake.real = false;
+    thread_state_t* tstate = get_tls(tid);
+    handshake->handshake.coreID = tstate->coreID;
+    handshake->valid = true;
+
+    handshake_buffer[tid].push(handshake);
+    inserted_pool[tid].pop();
+    ReleaseLock(&simbuffer_lock);
 }
 
 /* ========================================================================== */
-VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID)
+VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
 {
+    GetLock(&simbuffer_lock, tid+1);
+    ignore[tid] = true;
+    cerr << tid <<": Before Signal " << hex << pc << dec << endl;
+
+    ASSERTX(!inserted_pool[tid].empty());
+    handshake_container_t* handshake = inserted_pool[tid].front();
+
+    handshake->isFirstInsn = false;
+    handshake->handshake.sleep_thread = true;
+    handshake->handshake.resume_thread = false;
+    handshake->handshake.real = false;
+    thread_state_t* tstate = get_tls(tid);
+    handshake->handshake.coreID = tstate->coreID;
+    handshake->valid = true;
+
+    handshake_buffer[tid].push(handshake);
+    inserted_pool[tid].pop();
+    ReleaseLock(&simbuffer_lock);
 }
 
 /* ========================================================================== */
-VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID)
+VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
 {
+    GetLock(&simbuffer_lock, tid+1);
+    ignore[tid] = false;
+    cerr << tid <<": After Signal " << hex << pc << dec << endl;
+
+    /* HACKEDY HACKEDY HACK */
+    /* We are not simulating and the core still hasn't consumed the wait.
+     * Find the dummy handshake in the simulation queue and remove it. */
+    if (ExecMode != EXECUTION_MODE_SIMULATE
+        && inserted_pool[tid].empty())
+    {
+        ASSERTX(!handshake_buffer[tid].empty());
+        handshake_container_t* hshake = handshake_buffer[tid].front();
+        ASSERTX(hshake->handshake.real == false);
+        handshake_buffer[tid].pop();
+        inserted_pool[tid].push(hshake);
+        ReleaseLock(&simbuffer_lock);
+        return;
+    }
+
+    ASSERTX(!inserted_pool[tid].empty());
+    handshake_container_t* handshake = inserted_pool[tid].front();
+
+    handshake->isFirstInsn = false;
+    handshake->handshake.sleep_thread = false;
+    handshake->handshake.resume_thread = true;
+    handshake->handshake.real = false;
+    thread_state_t* tstate = get_tls(tid);
+    handshake->handshake.coreID = tstate->coreID;
+    handshake->valid = true;
+
+    handshake_buffer[tid].push(handshake);
+    inserted_pool[tid].pop();
+    ReleaseLock(&simbuffer_lock);
 }
 
 
@@ -232,7 +338,7 @@ VOID AddILDJITCallbacks(IMG img)
         RTN_Close(rtn);
     }
 
-    rtn = RTN_FindByName(img, "MOLECOOL_startIteration");
+/*    rtn = RTN_FindByName(img, "MOLECOOL_startIteration");
     if (RTN_Valid(rtn))
     {
 #ifdef ZESTO_PIN_DBG
@@ -244,7 +350,7 @@ VOID AddILDJITCallbacks(IMG img)
                        IARG_END);
         RTN_Close(rtn);
     }
-
+*/
     rtn = RTN_FindByName(img, "MOLECOOL_startSimulation");
     if (RTN_Valid(rtn))
     {
@@ -282,6 +388,8 @@ VOID AddILDJITCallbacks(IMG img)
         RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeWait),
                        IARG_THREAD_ID,
                        IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+                       IARG_INST_PTR,
+                       IARG_CALL_ORDER, CALL_ORDER_FIRST,
                        IARG_END);
         RTN_Close(rtn);
     }
@@ -293,9 +401,12 @@ VOID AddILDJITCallbacks(IMG img)
         cerr << "MOLECOOL_afterWait ";
 #endif
         RTN_Open(rtn);
-        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_afterWait),
+        RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterWait),
                        IARG_THREAD_ID,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+//                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+                       IARG_ADDRINT, 0,
+                       IARG_INST_PTR,
+                       IARG_CALL_ORDER, CALL_ORDER_LAST,
                        IARG_END);
         RTN_Close(rtn);
     }
@@ -310,6 +421,8 @@ VOID AddILDJITCallbacks(IMG img)
         RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeSignal),
                        IARG_THREAD_ID,
                        IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+                       IARG_INST_PTR,
+                       IARG_CALL_ORDER, CALL_ORDER_FIRST,
                        IARG_END);
         RTN_Close(rtn);
     }
@@ -321,9 +434,12 @@ VOID AddILDJITCallbacks(IMG img)
         cerr << "MOLECOOL_afterSignal ";
 #endif
         RTN_Open(rtn);
-        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_afterSignal),
+        RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterSignal),
                        IARG_THREAD_ID,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+//                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+                       IARG_ADDRINT, 0,
+                       IARG_INST_PTR,
+                       IARG_CALL_ORDER, CALL_ORDER_LAST,
                        IARG_END);
         RTN_Close(rtn);
     }

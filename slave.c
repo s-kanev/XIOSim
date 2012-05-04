@@ -382,11 +382,33 @@ void Zesto_Destroy()
 
 void deactivate_core(int coreID)
 {
-  cores[coreID]->current_thread->active = false;
+  assert(coreID >= 0 && coreID < num_threads);
+  fprintf(stderr, "deactivate %d\n", coreID);
+  ZPIN_TRACE("deactivate %d\n", coreID);
+  fflush(stderr);
   lk_lock(&cycle_lock, coreID+1);
-  for (int i=num_threads-1; i >= 0; i--)
-    if (cores[i]->current_thread->active)
+  cores[coreID]->current_thread->active = false;
+  int i;
+  for (i=0; i < num_threads; i++)
+    if (cores[i]->current_thread->active) {
       min_coreID = i;
+      break;
+    }
+  if (i == num_threads)
+    min_coreID = MAX_CORES;
+  lk_unlock(&cycle_lock);
+}
+
+void activate_core(int coreID)
+{
+  assert(coreID >= 0 && coreID < num_threads);
+  fprintf(stderr, "activate %d\n", coreID);
+  ZPIN_TRACE("activate %d\n", coreID);
+  fflush(stderr);
+  lk_lock(&cycle_lock, coreID+1);
+  cores[coreID]->current_thread->active = true;
+    if (coreID < min_coreID)
+      min_coreID = coreID;
   lk_unlock(&cycle_lock);
 }
 
@@ -414,14 +436,17 @@ void Zesto_Slice_End(int coreID, unsigned int slice_num, unsigned long long feed
   end_slice(slice_num, feeder_slice_length, slice_weight_times_1000);
 }
 
+static bool very_first_insn = true;
+
 void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsigned char> * mem_buffer, bool slice_start, bool slice_end)
 {
+   assert(handshake->coreID >= 0 && handshake->coreID < num_threads);
    struct core_t * core = cores[handshake->coreID];
    int coreID = handshake->coreID;
    thread_t * thread = core->current_thread;
 
-   if (!thread->active && !slice_start) {
-     fprintf(stderr, "DEBUG DEBUG: Start/stop out of sync? PC: %x\n", handshake->pc);
+   if (!thread->active && !(slice_start || handshake->resume_thread || handshake->sleep_thread)) {
+//     fprintf(stderr, "DEBUG DEBUG: Start/stop out of sync? %d PC: %x\n", coreID, handshake->pc);
      if(sim_release_handshake)
        ReleaseHandshake(coreID);
      return;
@@ -435,11 +460,20 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
    zesto_assert(!core->oracle->spec_mode, (void)0);
    zesto_assert(thread->rep_sequence == 0, (void)0);
 
-   if(thread->first_insn) 
-   {  
-      thread->loader.prog_entry = handshake->pc;
+   if (handshake->sleep_thread)
+   {
+      deactivate_core(coreID);
+      if(sim_release_handshake)
+        ReleaseHandshake(coreID);
+      return;
+   }
 
-      thread->first_insn= false;
+   if (handshake->resume_thread)
+   {
+      activate_core(coreID);
+      if(sim_release_handshake)
+        ReleaseHandshake(coreID);
+      return;
    }
 
    if(slice_end)
@@ -451,18 +485,24 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
           ReleaseHandshake(coreID);
         return;
       } else
-        thread->active = true;
+        activate_core(coreID);
    }
 
    if(slice_start)
    {
-      thread->active = true;
+      activate_core(coreID);
       zesto_assert(thread->loader.stack_base, (void)0);
 
-      start_slice(handshake->slice_num);
+      /* HACKEDY HACKEDY HACK */
+      /* start_slice messes with global state for now. Until we fix it, only call
+       * it the first time on some core */
+      if (very_first_insn) {
+        start_slice(handshake->slice_num);
+        very_first_insn = false;
+      }
 
       /* Init stack pointer */
-      md_addr_t sp = handshake->ctxt->regs_R.dw[MD_REG_ESP]; 
+      md_addr_t sp = handshake->ctxt.regs_R.dw[MD_REG_ESP]; 
       thread->loader.stack_size = thread->loader.stack_base-sp;
       thread->loader.stack_min = (md_addr_t)sp;
 
@@ -480,11 +520,21 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
       core->fetch->PC = handshake->pc;
    }
 
-   if (handshake->sleep_thread)
-   {
-      deactivate_core(coreID);
+   if(thread->first_insn) 
+   {  
+      thread->loader.prog_entry = handshake->pc;
+
+      thread->first_insn= false;
+   }
+
+   //XXX: Ignore signal handshakes for now
+   if (!handshake->real) {
+      if(sim_release_handshake)
+        ReleaseHandshake(coreID);
       return;
    }
+
+   zesto_assert(handshake->real, (void)0);
 
    core->fetch->feeder_NPC = NPC;
    core->fetch->feeder_PC = handshake->pc;
@@ -495,16 +545,16 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
    /* Copy architectural state from pin
       XXX: This is arch state BEFORE executed the instruction we're about to simulate*/
 
-   regs->regs_R = handshake->ctxt->regs_R;
-   regs->regs_C = handshake->ctxt->regs_C;
-   regs->regs_S = handshake->ctxt->regs_S;
-   regs->regs_SD = handshake->ctxt->regs_SD;
+   regs->regs_R = handshake->ctxt.regs_R;
+   regs->regs_C = handshake->ctxt.regs_C;
+   regs->regs_S = handshake->ctxt.regs_S;
+   regs->regs_SD = handshake->ctxt.regs_SD;
 
    /* Copy only valid FP registers (PIN uses invalid ones and they may differ) */
    int j;
    for(j=0; j< MD_NUM_ARCH_FREGS; j++)
-     if(FPR_VALID(handshake->ctxt->regs_C.ftw, j))
-       memcpy(&regs->regs_F.e[j], &handshake->ctxt->regs_F.e[j], MD_FPR_SIZE);
+     if(FPR_VALID(handshake->ctxt.regs_C.ftw, j))
+       memcpy(&regs->regs_F.e[j], &handshake->ctxt.regs_F.e[j], MD_FPR_SIZE);
 
    if(!slice_start && core->fetch->PC != handshake->pc)
    {
