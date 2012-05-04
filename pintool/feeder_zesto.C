@@ -377,6 +377,12 @@ VOID ReleaseHandshake(UINT32 coreID)
     if (handshake->isLastInsn)
         handshake->isLastInsn = false;
 
+    if (handshake->handshake.sleep_thread)
+        ignore[instrument_tid] = true;
+
+    if (handshake->handshake.resume_thread)
+        ignore[instrument_tid] = false;
+
     SimOrgInsCount++;
 
     handshake->mem_buffer.clear();
@@ -404,16 +410,16 @@ VOID SimulatorLoop(VOID* arg)
     while (true)
     {
         GetLock(&simbuffer_lock, tid+1);
-        if (!sim_running || PIN_IsProcessExiting())
-        {
-            sim_stopped[instrument_tid] = true;
-            deactivate_core(coreID);
-            ReleaseLock(&simbuffer_lock);
-            return;
-        }
-
         while (handshake_buffer[instrument_tid].empty())
         {
+            if (!sim_running || PIN_IsProcessExiting())
+            {
+                sim_stopped[instrument_tid] = true;
+                deactivate_core(coreID);
+                ReleaseLock(&simbuffer_lock);
+                return;
+            }
+
             ReleaseLock(&simbuffer_lock);
             PIN_Yield();
             GetLock(&simbuffer_lock, tid+1);
@@ -570,6 +576,11 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL is_call)
         }
     } while (!mem_released);
 
+    if (ignore[tid]) {
+        ReleaseLock(&simbuffer_lock);
+        return;
+    }
+
     if (first_read)
     {
         handshake_pool[tid].pop();
@@ -603,6 +614,12 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
             PIN_Yield();
             GetLock(&simbuffer_lock, tid+1);
         }
+        
+        if (ignore[tid]) {
+            ReleaseLock(&simbuffer_lock);
+            return;
+        }
+
         handshake = handshake_pool[tid].front();
         handshake_pool[tid].pop();
         handshake_buffer[tid].push(const_cast<handshake_container_t*>(handshake));
@@ -612,6 +629,11 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
 //        while (handshake_buffer[tid].empty() ||
 //               (!handshake_buffer[tid].empty() &&
 //                !handshake_buffer[tid].back()->handshake.real))
+        if (ignore[tid]) {
+            ReleaseLock(&simbuffer_lock);
+            return;
+        }
+
         do
         {
             if (!handshake_buffer[tid].empty())
@@ -623,6 +645,7 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
             GetLock(&simbuffer_lock, tid+1);
         } while (true);
         handshake = handshake_buffer[tid].back();
+
     }
 
     ASSERTX(handshake != NULL);

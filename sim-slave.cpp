@@ -598,6 +598,12 @@ void sim_main_slave_pre_pin(int coreID)
       yield();
       lk_lock(&cycle_lock, coreID+1);
 
+      if (coreID != min_coreID) {
+        assert(cores[coreID]->current_thread->finished_cycle == false);
+        lk_unlock(&cycle_lock);
+        goto next_cycle;
+      }
+
       /* Re-check if all cores finished this cycle. */
       cores_finished_cycle = 0;
       cores_active = 0;
@@ -622,6 +628,8 @@ void sim_main_slave_pre_pin(int coreID)
     lk_lock(&cycle_lock, coreID+1);
     while(cores[coreID]->current_thread->finished_cycle) {
       if (coreID == min_coreID) {
+
+        global_step();
         /* If we become the "master core", unblock other cores to keep crunching. */
         for(i=0; i<num_threads; i++)
           cores[i]->current_thread->finished_cycle = false; 
@@ -635,6 +643,8 @@ void sim_main_slave_pre_pin(int coreID)
     lk_unlock(&cycle_lock);
   }
 
+
+next_cycle:
   step_core_PF_controllers(cores[coreID]);
 
   cores[coreID]->commit->IO_step(); /* IO cores only */ //UGLY UGLY UGLY

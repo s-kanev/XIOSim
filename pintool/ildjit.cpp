@@ -128,7 +128,7 @@ VOID ILDJIT_startIteration(THREADID tid)
 VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID, ADDRINT pc)
 {
     GetLock(&simbuffer_lock, tid+1);
-    ignore[tid] = true;
+//    ignore[tid] = true;
     cerr << tid <<": Before Wait " << hex << pc << dec << endl;
 
     ASSERTX(!inserted_pool[tid].empty());
@@ -151,7 +151,7 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID, ADDRINT pc)
 VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT pc)
 {
     GetLock(&simbuffer_lock, tid+1);
-    ignore[tid] = false;
+//    ignore[tid] = false;
     cerr << tid <<": After Wait "<< hex << pc << dec  << endl;
 
     /* HACKEDY HACKEDY HACK */
@@ -189,7 +189,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT pc)
 VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
 {
     GetLock(&simbuffer_lock, tid+1);
-    ignore[tid] = true;
+//    ignore[tid] = true;
     cerr << tid <<": Before Signal " << hex << pc << dec << endl;
 
     ASSERTX(!inserted_pool[tid].empty());
@@ -212,7 +212,7 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
 VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
 {
     GetLock(&simbuffer_lock, tid+1);
-    ignore[tid] = false;
+//    ignore[tid] = false;
     cerr << tid <<": After Signal " << hex << pc << dec << endl;
 
     /* HACKEDY HACKEDY HACK */
