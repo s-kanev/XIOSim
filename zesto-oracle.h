@@ -225,6 +225,8 @@ class core_oracle_t {
   bool hosed; /* set to TRUE when something in the architected state (core->arch_state) has been seriously
                 corrupted. */
 
+  byte_t ins_bytes[MD_MAX_ILEN]; /* buffer containing instruction bytes */
+
   core_oracle_t(struct core_t * const core);
   void reg_stats(struct stat_sdb_t * const sdb);
   void update_occupancy(void);

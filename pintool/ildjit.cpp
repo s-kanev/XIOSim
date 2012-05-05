@@ -129,7 +129,7 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID, ADDRINT pc)
 {
     GetLock(&simbuffer_lock, tid+1);
 //    ignore[tid] = true;
-    cerr << tid <<": Before Wait " << hex << pc << dec << endl;
+    //cerr << tid <<": Before Wait " << hex << pc << dec << endl;
 
     ASSERTX(!inserted_pool[tid].empty());
     handshake_container_t* handshake = inserted_pool[tid].front();
@@ -147,12 +147,39 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID, ADDRINT pc)
     ReleaseLock(&simbuffer_lock);
 }
 
+const UINT8 ld_template[] = {0xa1, 0x78, 0x56, 0x34, 0x12};
+
 /* ========================================================================== */
 VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT pc)
 {
     GetLock(&simbuffer_lock, tid+1);
 //    ignore[tid] = false;
-    cerr << tid <<": After Wait "<< hex << pc << dec  << endl;
+    GetLock(&printing_lock, tid+1);
+//    cerr << tid <<": After Wait "<< hex << pc << dec  << endl;
+    ReleaseLock(&printing_lock);
+
+    ASSERTX(!inserted_pool[tid].empty());
+    handshake_container_t* handshake = inserted_pool[tid].front();
+
+    handshake->isFirstInsn = false;
+    handshake->handshake.sleep_thread = false;
+    handshake->handshake.resume_thread = false;
+    handshake->handshake.real = false;
+    thread_state_t* tstate = get_tls(tid);
+    handshake->handshake.coreID = tstate->coreID;
+    handshake->valid = true;
+
+    handshake->handshake.pc = pc;
+    handshake->handshake.npc = pc + sizeof(ld_template);
+    handshake->handshake.tpc = pc + sizeof(ld_template);
+    handshake->handshake.brtaken = false;
+    memcpy(handshake->handshake.ins, ld_template, sizeof(ld_template));
+
+    GetLock(&printing_lock, tid+1);
+    cerr << tid << ": Vodoo load instruction " << hex << pc << dec << endl;
+    ReleaseLock(&printing_lock);
+    handshake_buffer[tid].push(handshake);
+    inserted_pool[tid].pop();
 
     /* HACKEDY HACKEDY HACK */
     /* We are not simulating and the core still hasn't consumed the wait.
@@ -163,6 +190,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT pc)
         ASSERTX(!handshake_buffer[tid].empty());
         handshake_container_t* hshake = handshake_buffer[tid].front();
         ASSERTX(hshake->handshake.real == false);
+        ASSERTX(hshake->handshake.sleep_thread == true);
         handshake_buffer[tid].pop();
         inserted_pool[tid].push(hshake);
         ReleaseLock(&simbuffer_lock);
@@ -170,18 +198,18 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT pc)
     }
 
     ASSERTX(!inserted_pool[tid].empty());
-    handshake_container_t* handshake = inserted_pool[tid].front();
+    handshake = inserted_pool[tid].front();
 
     handshake->isFirstInsn = false;
     handshake->handshake.sleep_thread = false;
     handshake->handshake.resume_thread = true;
     handshake->handshake.real = false;
-    thread_state_t* tstate = get_tls(tid);
     handshake->handshake.coreID = tstate->coreID;
     handshake->valid = true;
 
     handshake_buffer[tid].push(handshake);
     inserted_pool[tid].pop();
+
     ReleaseLock(&simbuffer_lock);
 }
 
@@ -190,7 +218,7 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
 {
     GetLock(&simbuffer_lock, tid+1);
 //    ignore[tid] = true;
-    cerr << tid <<": Before Signal " << hex << pc << dec << endl;
+//    cerr << tid <<": Before Signal " << hex << pc << dec << endl;
 
     ASSERTX(!inserted_pool[tid].empty());
     handshake_container_t* handshake = inserted_pool[tid].front();
@@ -213,7 +241,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
 {
     GetLock(&simbuffer_lock, tid+1);
 //    ignore[tid] = false;
-    cerr << tid <<": After Signal " << hex << pc << dec << endl;
+//    cerr << tid <<": After Signal " << hex << pc << dec << endl;
 
     /* HACKEDY HACKEDY HACK */
     /* We are not simulating and the core still hasn't consumed the wait.

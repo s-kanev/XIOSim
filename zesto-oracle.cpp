@@ -870,8 +870,13 @@ core_oracle_t::exec(const md_addr_t requested_PC)
   thread->regs.regs_PC = requested_PC;
 
   /* get the next instruction to execute */
-  /* read raw bytes from virtual memory */
-  MD_FETCH_INST(Mop->fetch.inst, thread->mem, thread->regs.regs_PC);
+  if (!core->fetch->fake_insn)
+    /* read raw bytes from virtual memory */
+    MD_FETCH_INST(Mop->fetch.inst, thread->mem, thread->regs.regs_PC);
+  else
+    /* read fake encoding supplied to oracle */
+    memcpy(&Mop->fetch.inst.code, this->ins_bytes, MD_MAX_ILEN);
+
   /* then decode the instruction */
   MD_SET_OPCODE_DURING_FETCH(Mop->decode.op, Mop->fetch.inst);
 
@@ -1310,6 +1315,7 @@ core_oracle_t::exec(const md_addr_t requested_PC)
     {
       //zesto_assert(uop->oracle.virt_addr != 0 || uop->Mop->oracle.spec_mode,NULL);
       uop->oracle.phys_addr = v2p_translate(thread->id, uop->oracle.virt_addr);
+      uop->oracle.is_repeated = core->current_thread->is_in_parallel_loop;
     }
     else if(uop->decode.is_std)
     {
@@ -1328,7 +1334,7 @@ core_oracle_t::exec(const md_addr_t requested_PC)
       Mop->uop[prev_uop_index].decode.mem_size = uop->decode.mem_size;
       if(!spec_mode)
         assert(uop->oracle.virt_addr && uop->decode.mem_size);
-      uop->oracle.is_repeated = true;
+      uop->oracle.is_repeated = core->current_thread->is_in_parallel_loop;
     }
 
     if (uop->oracle.fault != md_fault_none)

@@ -1030,8 +1030,10 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
         GetLock(&simbuffer_lock, threadIndex+1);
         handshake_container_t* new_handshake = new handshake_container_t();
         handshake_pool[threadIndex].push(new_handshake);
-        new_handshake = new handshake_container_t();
-        inserted_pool[threadIndex].push(new_handshake);
+        for (int i=0; i < 2; i++) { //TOOD: Shared pool?
+          new_handshake = new handshake_container_t();
+          inserted_pool[threadIndex].push(new_handshake);
+        }
         run_queue.push_back(threadIndex);
         ignore[threadIndex] = false;
         ReleaseLock(&simbuffer_lock);

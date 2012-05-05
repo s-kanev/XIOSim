@@ -383,9 +383,9 @@ void Zesto_Destroy()
 void deactivate_core(int coreID)
 {
   assert(coreID >= 0 && coreID < num_threads);
-  fprintf(stderr, "deactivate %d\n", coreID);
+//  fprintf(stderr, "deactivate %d\n", coreID);
   ZPIN_TRACE("deactivate %d\n", coreID);
-  fflush(stderr);
+//  fflush(stderr);
   lk_lock(&cycle_lock, coreID+1);
   cores[coreID]->current_thread->active = false;
   int i;
@@ -402,9 +402,9 @@ void deactivate_core(int coreID)
 void activate_core(int coreID)
 {
   assert(coreID >= 0 && coreID < num_threads);
-  fprintf(stderr, "activate %d\n", coreID);
+//  fprintf(stderr, "activate %d\n", coreID);
   ZPIN_TRACE("activate %d\n", coreID);
-  fflush(stderr);
+//  fflush(stderr);
   lk_lock(&cycle_lock, coreID+1);
   cores[coreID]->current_thread->active = true;
     if (coreID < min_coreID)
@@ -528,33 +528,39 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
    }
 
    //XXX: Ignore signal handshakes for now
-   if (!handshake->real) {
+   if (!handshake->real && 
+        (handshake->resume_thread || handshake->sleep_thread)) {
       if(sim_release_handshake)
         ReleaseHandshake(coreID);
       return;
    }
 
-   zesto_assert(handshake->real, (void)0);
+//   zesto_assert(handshake->real, (void)0);
 
    core->fetch->feeder_NPC = NPC;
    core->fetch->feeder_PC = handshake->pc;
+   core->fetch->fake_insn = !handshake->real;
+   thread->fetches_since_feeder = 0;
 
    ZPIN_TRACE("PIN -> PC: %x, NPC: %x \n", handshake->pc, NPC);
-   thread->fetches_since_feeder = 0;
+
+   if (handshake->real) {
 
    /* Copy architectural state from pin
       XXX: This is arch state BEFORE executed the instruction we're about to simulate*/
+     regs->regs_R = handshake->ctxt.regs_R;
+     regs->regs_C = handshake->ctxt.regs_C;
+     regs->regs_S = handshake->ctxt.regs_S;
+     regs->regs_SD = handshake->ctxt.regs_SD;
 
-   regs->regs_R = handshake->ctxt.regs_R;
-   regs->regs_C = handshake->ctxt.regs_C;
-   regs->regs_S = handshake->ctxt.regs_S;
-   regs->regs_SD = handshake->ctxt.regs_SD;
-
-   /* Copy only valid FP registers (PIN uses invalid ones and they may differ) */
-   int j;
-   for(j=0; j< MD_NUM_ARCH_FREGS; j++)
-     if(FPR_VALID(handshake->ctxt.regs_C.ftw, j))
-       memcpy(&regs->regs_F.e[j], &handshake->ctxt.regs_F.e[j], MD_FPR_SIZE);
+     /* Copy only valid FP registers (PIN uses invalid ones and they may differ) */
+     int j;
+     for(j=0; j< MD_NUM_ARCH_FREGS; j++)
+       if(FPR_VALID(handshake->ctxt.regs_C.ftw, j))
+         memcpy(&regs->regs_F.e[j], &handshake->ctxt.regs_F.e[j], MD_FPR_SIZE);
+   }
+   else
+     memcpy(core->oracle->ins_bytes, handshake->ins, MD_MAX_ILEN);
 
    if(!slice_start && core->fetch->PC != handshake->pc)
    {
@@ -651,6 +657,8 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
             if(fetch_more && !spec && thread->rep_sequence == 0 && core->fetch->PC != core->fetch->feeder_PC && core->oracle->num_Mops_nuked == 0)
             {
                zesto_assert(core->fetch->PC == NPC, (void)0);
+   if (core->fetch->fake_insn)
+     zesto_assert(false, (void)0);
                return;
             }
          }
@@ -675,6 +683,8 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
          if(thread->rep_sequence == 0 && core->fetch->PC != core->fetch->feeder_PC && !spec && core->oracle->num_Mops_nuked == 0)
          {
             zesto_assert(core->fetch->PC == NPC, (void)0);
+   if (core->fetch->fake_insn)
+     zesto_assert(false, (void)0);
             return;
          }
 
@@ -698,6 +708,8 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
        if(fetch_more)
        {
           zesto_assert(core->fetch->PC == NPC, (void)0);
+   if (core->fetch->fake_insn)
+     zesto_assert(false, (void)0);
           return;
        }
     
@@ -709,6 +721,8 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
 //       sim_main_slave_pre_pin();
      }
    }
+   if (core->fetch->fake_insn)
+     zesto_assert(false, (void)0);
    zesto_assert(core->fetch->PC == NPC, (void)0);
 }
 

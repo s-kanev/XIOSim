@@ -15,3 +15,5 @@ PIN_LOCK cache_lock;
 PIN_LOCK cycle_lock;
 PIN_LOCK core_pools_lock;
 PIN_LOCK oracle_pools_lock;
+
+PIN_LOCK printing_lock;

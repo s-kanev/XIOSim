@@ -519,13 +519,13 @@ static void global_step(void)
 {
     if((heartbeat_frequency > 0) && (heartbeat_count >= heartbeat_frequency))
     {
-      fprintf(stderr,"##HEARTBEAT## %lld: {",sim_cycle);
+//      fprintf(stderr,"##HEARTBEAT## %lld: {",sim_cycle);
       for(int i=0;i<num_threads;i++)
       {
-        if(i < (num_threads-1))
-          myfprintf(stderr,"%lld, ",cores[i]->stat.commit_insn);
-        else
-          myfprintf(stderr,"%lld}\n",cores[i]->stat.commit_insn);
+//        if(i < (num_threads-1))
+//          myfprintf(stderr,"%lld, ",cores[i]->stat.commit_insn);
+//        else
+//          myfprintf(stderr,"%lld}\n",cores[i]->stat.commit_insn);
       }
       heartbeat_count = 0;
     }
