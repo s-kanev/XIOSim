@@ -83,6 +83,8 @@ class core_fetch_t {
 #ifdef ZESTO_PIN
   md_addr_t feeder_NPC; // What the instruction feeder sends us as next pc
   md_addr_t feeder_PC;  // Same for current pc
+  bool fake_insn;       // Instruction that we artificially injected
+  bool prev_insn_fake;  // Same for previously fetched instruction
 #endif
   bool bogus; /* TRUE if oracle is on wrong path and encountered an invalid inst */
   bool invalid; /* TRUE if oracle encounters an instruction it doesn't know (which is fine if we are running under an instruction feeder */

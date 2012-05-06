@@ -1638,10 +1638,14 @@ void core_exec_IO_DPM_t::LDST_exec(void)
   lk_lock(&cache_lock, core->id+1);
   if(core->memory.DTLB2 && core->memory.DTLB2->check_for_work) cache_process(core->memory.DTLB2);
   if(core->memory.DTLB->check_for_work) cache_process(core->memory.DTLB);
-  if((core->current_thread->id == 0) && !(sim_cycle&uncore->LLC_cycle_mask) && uncore->LLC->check_for_work)
+  if((core->current_thread->id == min_coreID) && !(sim_cycle&uncore->LLC_cycle_mask) && uncore->LLC->check_for_work)
     cache_process(uncore->LLC);
   if(core->memory.DL2 && core->memory.DL2->check_for_work) cache_process(core->memory.DL2);
   if(core->memory.mem_repeater) repeater_step(core->memory.mem_repeater);
+  if(core->current_thread->id == min_coreID)
+    for (int i=0; i < num_threads; i++)
+      if (!cores[i]->current_thread->active)
+        repeater_step(cores[i]->memory.mem_repeater);
   if(core->memory.DL1->check_for_work) cache_process(core->memory.DL1);
   lk_unlock(&cache_lock);
 }
@@ -1679,7 +1683,8 @@ void core_exec_IO_DPM_t::LDQ_schedule(void)
                 cache_enqueue(core,core->memory.DTLB,NULL,CACHE_READ,core->current_thread->id,uop->Mop->fetch.PC,PAGE_TABLE_ADDR(core->current_thread->id,uop->oracle.virt_addr),uop->exec.action_id,0,NO_MSHR,uop,DTLB_callback,load_miss_reschedule,NULL,get_uop_action_id);
                 cache_enqueue(core,core->memory.DL1,NULL,CACHE_READ,core->current_thread->id,uop->Mop->fetch.PC,uop->oracle.virt_addr,uop->exec.action_id,0,NO_MSHR,uop,DL1_callback,load_miss_reschedule,translated_callback,get_uop_action_id);
                 if(uop->oracle.is_repeated)
-                  repeater_enqueue(core->memory.mem_repeater, CACHE_READ, core->current_thread->id, uop->oracle.virt_addr, uop, repeater_callback);
+                  repeater_enqueue(core->memory.mem_repeater, uop->oracle.is_sync_op ? CACHE_WAIT : CACHE_READ, 
+                                   core->current_thread->id, uop->oracle.virt_addr, uop, repeater_callback);
 
                 port[uop->alloc.port_assignment].STQ->pipe[0].uop = uop;
                 port[uop->alloc.port_assignment].STQ->pipe[0].action_id = uop->exec.action_id;
@@ -1767,7 +1772,8 @@ void core_exec_IO_DPM_t::LDQ_schedule(void)
                 ZESTO_STAT(core->stat.DL1_load_split_accesses++;)
                 cache_enqueue(core,core->memory.DL1,NULL,CACHE_READ,core->current_thread->id,uop->Mop->fetch.PC,uop->oracle.virt_addr+uop->decode.mem_size,uop->exec.action_id,0,NO_MSHR,uop,DL1_split_callback,load_miss_reschedule,translated_callback,get_uop_action_id);
                 if(uop->oracle.is_repeated)
-                  repeater_enqueue(core->memory.mem_repeater, CACHE_READ, core->current_thread->id, uop->oracle.virt_addr+uop->decode.mem_size, uop, repeater_split_callback);
+                  repeater_enqueue(core->memory.mem_repeater, uop->oracle.is_sync_op ? CACHE_WAIT: CACHE_READ,
+                                   core->current_thread->id, uop->oracle.virt_addr+uop->decode.mem_size, uop, repeater_split_callback);
                 LDQ[index].last_byte_requested = true;
                 LDQ[index].when_issued = sim_cycle;
                 /* XXX: we should probably do some rescheduling, too */
@@ -2182,7 +2188,8 @@ bool core_exec_IO_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
     return false;
   /* Repeated stores always go to the memory repeater instead of DL1 */
   if(uop->oracle.is_repeated) {
-    if(!repeater_enqueuable(core->memory.mem_repeater, CACHE_WRITE, core->current_thread->id, uop->oracle.virt_addr))
+    if(!repeater_enqueuable(core->memory.mem_repeater, uop->oracle.is_sync_op ? CACHE_SIGNAL : CACHE_WRITE,
+                            core->current_thread->id, uop->oracle.virt_addr))
     return false;
   } else if(!cache_enqueuable(core->memory.DL1,core->current_thread->id,uop->oracle.virt_addr))
     return false;
@@ -2217,7 +2224,8 @@ bool core_exec_IO_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
 
     cache_enqueue(core,tlb,NULL,CACHE_READ,core->current_thread->id,uop->Mop->fetch.PC,PAGE_TABLE_ADDR(core->current_thread->id,uop->oracle.virt_addr),dtlb_uop->exec.action_id,0,NO_MSHR,dtlb_uop,store_dtlb_callback,NULL,NULL,get_uop_action_id);
     if(uop->oracle.is_repeated)
-      repeater_enqueue(core->memory.mem_repeater, CACHE_WRITE, core->current_thread->id, uop->oracle.virt_addr, dl1_uop, repeater_store_callback);
+      repeater_enqueue(core->memory.mem_repeater, uop->oracle.is_sync_op ? CACHE_SIGNAL : CACHE_WRITE,
+                       core->current_thread->id, uop->oracle.virt_addr, dl1_uop, repeater_store_callback);
     else
       cache_enqueue(core,core->memory.DL1,NULL,CACHE_WRITE,core->current_thread->id,uop->Mop->fetch.PC,uop->oracle.virt_addr,dl1_uop->exec.action_id,0,NO_MSHR,dl1_uop,store_dl1_callback,NULL,store_translated_callback,get_uop_action_id);
 
@@ -2238,7 +2246,8 @@ bool core_exec_IO_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
     ZESTO_STAT(core->stat.DL1_store_split_accesses++;)
 
     if(uop->oracle.is_repeated) {
-      if(!repeater_enqueuable(core->memory.mem_repeater, CACHE_WRITE, core->current_thread->id, uop->oracle.virt_addr+uop->decode.mem_size))
+      if(!repeater_enqueuable(core->memory.mem_repeater, uop->oracle.is_sync_op ? CACHE_SIGNAL : CACHE_WRITE,
+                              core->current_thread->id, uop->oracle.virt_addr+uop->decode.mem_size))
       return false;
     } else if(!cache_enqueuable(core->memory.DL1,core->current_thread->id,uop->oracle.virt_addr+uop->decode.mem_size))
       return false;
@@ -2253,7 +2262,7 @@ bool core_exec_IO_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
     /* XXX: similar to split-access loads, we're not handling the translation of both
        pages in the case that the access crosses page boundaries. */
     if(uop->oracle.is_repeated)
-      repeater_enqueue(core->memory.mem_repeater, CACHE_WRITE, core->current_thread->id, uop->oracle.virt_addr+uop->decode.mem_size, dl1_split_uop, repeater_split_store_callback);
+      repeater_enqueue(core->memory.mem_repeater, uop->oracle.is_sync_op ? CACHE_SIGNAL : CACHE_WRITE, core->current_thread->id, uop->oracle.virt_addr+uop->decode.mem_size, dl1_split_uop, repeater_split_store_callback);
     else
       cache_enqueue(core,core->memory.DL1,NULL,CACHE_WRITE,core->current_thread->id,uop->Mop->fetch.PC,uop->oracle.virt_addr+uop->decode.mem_size,dl1_split_uop->exec.action_id,0,NO_MSHR,dl1_split_uop,store_dl1_split_callback,NULL,store_translated_callback,get_uop_action_id);
 

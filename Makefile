@@ -327,6 +327,7 @@ sim-slave.o: mem-repeater.h
 memory.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h
 memory.o: options.h stats.h eval.h memory.h interface.h callbacks.h
 misc.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h options.h
+misc.o: synchronization.h
 options.o: host.h misc.h options.h
 range.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h options.h
 range.o: symbol.h loader.h memory.h stats.h eval.h thread.h range.h
