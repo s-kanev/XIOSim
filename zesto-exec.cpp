@@ -295,6 +295,7 @@ void core_exec_t::update_last_completed(tick_t now)
   last_completed = now;
 }
 
+extern int min_coreID;
 
 /* load in all definitions */
 #include "ZPIPE-exec.list"

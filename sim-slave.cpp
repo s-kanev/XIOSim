@@ -519,13 +519,13 @@ static void global_step(void)
 {
     if((heartbeat_frequency > 0) && (heartbeat_count >= heartbeat_frequency))
     {
-      fprintf(stderr,"##HEARTBEAT## %lld: {",sim_cycle);
+//      fprintf(stderr,"##HEARTBEAT## %lld: {",sim_cycle);
       for(int i=0;i<num_threads;i++)
       {
-        if(i < (num_threads-1))
-          myfprintf(stderr,"%lld, ",cores[i]->stat.commit_insn);
-        else
-          myfprintf(stderr,"%lld}\n",cores[i]->stat.commit_insn);
+//        if(i < (num_threads-1))
+//          myfprintf(stderr,"%lld, ",cores[i]->stat.commit_insn);
+//        else
+//          myfprintf(stderr,"%lld}\n",cores[i]->stat.commit_insn);
       }
       heartbeat_count = 0;
     }
@@ -582,7 +582,6 @@ void sim_main_slave_pre_pin(int coreID)
   {
     lk_lock(&cycle_lock, coreID+1);
 
-test_test:
     cores_active = 0;
     /* Check if all cores finished this cycle. */
     cores_finished_cycle = 0;
@@ -599,11 +598,21 @@ test_test:
       yield();
       lk_lock(&cycle_lock, coreID+1);
 
+      if (coreID != min_coreID) {
+        assert(cores[coreID]->current_thread->finished_cycle == false);
+        lk_unlock(&cycle_lock);
+        goto next_cycle;
+      }
+
       /* Re-check if all cores finished this cycle. */
       cores_finished_cycle = 0;
-      for(i=0; i<num_threads; i++)
+      cores_active = 0;
+      for(i=0; i<num_threads; i++) {
         if(cores[i]->current_thread->finished_cycle)
           cores_finished_cycle++;
+        if(cores[i]->current_thread->active)
+          cores_active++;
+      }
     }
 
     /* Process shared state once all cores are gathered here. */
@@ -619,35 +628,11 @@ test_test:
     lk_lock(&cycle_lock, coreID+1);
     while(cores[coreID]->current_thread->finished_cycle) {
       if (coreID == min_coreID) {
-//        cores_active = 0;
-        /* Check if all cores finished this cycle. */
-//        cores_finished_cycle = 0;
-//        for(i=0; i<num_threads; i++) {
-//          if(cores[i]->current_thread->finished_cycle)
-//           cores_finished_cycle++;
-//          if(cores[i]->current_thread->active)
-//            cores_active++;
-//        }
 
-//        while(cores_finished_cycle < cores_active) {
-//          lk_unlock(&cycle_lock);
-//          /* Spin, spin, spin */
-//          yield();
-//          lk_lock(&cycle_lock, coreID+1);
-
-          /* Re-check if all cores finished this cycle. */
-//          cores_finished_cycle = 0;
-//          for(i=0; i<num_threads; i++)
-//            if(cores[i]->current_thread->finished_cycle)
-//              cores_finished_cycle++;
-//        }
-
-        /* Process shared state once all cores are gathered here. */
-        //global_step();
-        /* Unblock other cores to keep crunching. */
+        global_step();
+        /* If we become the "master core", unblock other cores to keep crunching. */
         for(i=0; i<num_threads; i++)
           cores[i]->current_thread->finished_cycle = false; 
-        //lk_unlock(&cycle_lock);
         break;
       }
       lk_unlock(&cycle_lock);
@@ -658,6 +643,8 @@ test_test:
     lk_unlock(&cycle_lock);
   }
 
+
+next_cycle:
   step_core_PF_controllers(cores[coreID]);
 
   cores[coreID]->commit->IO_step(); /* IO cores only */ //UGLY UGLY UGLY
@@ -689,7 +676,6 @@ test_test:
 
 void sim_main_slave_post_pin(int coreID)
 {
-
   /* round-robin on which cache to process first so that one core
      doesn't get continual priority over the others for L2 access */
   //XXX: RR

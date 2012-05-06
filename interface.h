@@ -6,8 +6,8 @@
 #ifndef __PIN_ZESTO_INTERFACE__
 #define __PIN_ZESTO_INTERFACE__
 
-#include "pin.h"
 #include "machine.h"
+#include "pin.h"
 
 /* Calls from feeder to Zesto */
 int Zesto_SlaveInit(int argc, char **argv);
@@ -22,6 +22,8 @@ void Zesto_Add_WriteByteCallback(ZESTO_WRITE_BYTE_CALLBACK callback);
 void Zesto_WarmLLC(unsigned int addr, bool is_write);
 
 void Zesto_Slice_End(int coreID, unsigned int slice_num, unsigned long long feeder_slice_length, unsigned long long slice_weight_times_1000);
+
+void Zesto_Start_Parallel_Loop();
 
 void deactivate_core(int coreID);
 extern bool sim_release_handshake;

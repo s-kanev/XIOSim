@@ -6,6 +6,9 @@
  */
 
 
+#ifndef __SYNCHRONIZATION_H__
+#define __SYNCHRONIZATION_H__
+
 namespace LEVEL_BASE {
 struct PIN_LOCK;
 extern void GetLock(PIN_LOCK* lk, int32_t tid);
@@ -63,3 +66,8 @@ extern LEVEL_BASE::PIN_LOCK core_pools_lock;
 
 /* Protects static pools in core_oracle_t class. */
 extern LEVEL_BASE::PIN_LOCK oracle_pools_lock;
+
+/* Make sure printing to the console is deadlock-free */
+extern LEVEL_BASE::PIN_LOCK printing_lock;
+
+#endif // __SYNCHRONIZATION_H__

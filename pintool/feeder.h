@@ -12,8 +12,15 @@ using namespace INSTLIB;
 
 #include "../interface.h" 
 
+class handshake_container_t;
+typedef queue<handshake_container_t*> handshake_queue_t;
 extern KNOB<BOOL> KnobILDJIT;
 extern KNOB<string> KnobFluffy;
+extern map<THREADID, BOOL> ignore;
+extern map<THREADID, handshake_queue_t> handshake_buffer;
+extern map<THREADID, handshake_queue_t> inserted_pool;
+extern PIN_LOCK simbuffer_lock;
+extern PIN_LOCK printing_lock;
 
 /* ========================================================================== */
 // Thread-private state that we need to preserve between different instrumentation calls
@@ -30,6 +37,7 @@ class thread_state_t
         slice_length = 0;
         slice_weight_times_1000 = 0;
         coreID = -1;
+        firstWait = true;
     }
 
     // Buffer to store the fpstate that the simulator may corrupt
@@ -51,6 +59,9 @@ class thread_state_t
 
     // Which simulated core this thread runs on
     ADDRINT coreID;
+
+    // Have we executed a wait on this thread
+    BOOL firstWait;
 };
 thread_state_t* get_tls(ADDRINT tid);
 
@@ -70,32 +81,28 @@ class handshake_container_t
 {
   public:
     handshake_container_t() {
-        memzero(&regstate, sizeof(regs_t));
         memzero(&handshake, sizeof(P2Z_HANDSHAKE));
+        handshake.real = true;
         valid = FALSE;
-        isFirstInsn = TRUE;
-        isLastInsn = FALSE;
-        killThread = FALSE;
-        mem_released = TRUE;
+        isFirstInsn = true;
+        isLastInsn = false;
+        killThread = false;
+        mem_released = true;
     }
 
     // Did we finish dumping context
     BOOL valid;
-
-    // Register state as seen by Zesto
-    regs_t regstate;
-
     // Handshake information that gets passed on to Zesto
     struct P2Z_HANDSHAKE handshake;
 
-    std::map<UINT32, UINT8> mem_buffer;
-
+    // Did we finish dumping memory info
     BOOL mem_released;
+    // Memory reads and writes to be passed on to Zesto
+    std::map<UINT32, UINT8> mem_buffer;
 
     BOOL isFirstInsn;
     BOOL isLastInsn;
 
-    // Time to let simulator thread exit?
     BOOL killThread;
 };
 

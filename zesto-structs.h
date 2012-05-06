@@ -209,14 +209,15 @@ struct uop_t
 
     md_ctrl_t ictrl;		/* control regs input values */
     md_ctrl_t octrl;		/* control regs output values */
-    int dummy1; /* padding */
 
     /* memory information */
     md_addr_t virt_addr;
     md_paddr_t phys_addr;
     enum md_fault_type fault;
     union val_t mem_value;
+    // XXX: Clean-up
     int is_repeated; /* uses cache hierarchy or mem-repater */
+    int is_sync_op;  /* repeater-bound ops -- are they wait/signal */
 
     struct spec_byte_t * spec_mem[12]; /* 12 for FSTE */
 

@@ -5,6 +5,7 @@
 
 #include <vector>
 #include <map>
+#include <queue>
 
 #include "feeder.h"
 
