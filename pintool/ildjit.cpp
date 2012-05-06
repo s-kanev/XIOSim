@@ -196,6 +196,8 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT pc)
         return;
     }
 
+//        ReleaseLock(&simbuffer_lock);
+//        return;
     /* Insert wait instruction in pipeline */
     ASSERTX(!inserted_pool[tid].empty());
     handshake = inserted_pool[tid].front();
@@ -265,6 +267,8 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
         return;
     }
 
+//        ReleaseLock(&simbuffer_lock);
+//        return;
     ASSERTX(!inserted_pool[tid].empty());
     handshake_container_t* handshake = inserted_pool[tid].front();
 

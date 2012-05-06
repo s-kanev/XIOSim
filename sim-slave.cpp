@@ -535,6 +535,10 @@ static void global_step(void)
     if(sim_cycle == 0)
       myfprintf(stderr, "### starting timing simulation \n");
 
+//    struct core_t* core = cores[0];
+//    if(sim_cycle == 3000)
+//      zesto_assert(0, (void)0);
+
     sim_cycle++;
     heartbeat_count++;
     for(int i=0;i<num_threads;i++)
