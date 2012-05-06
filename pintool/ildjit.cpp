@@ -109,7 +109,7 @@ VOID ILDJIT_ExecutorCreateEnd(THREADID tid)
 /* ========================================================================== */
 VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT loop)
 {
-    // For now, do nothing
+    Zesto_Start_Parallel_Loop();
 }
 
 /* ========================================================================== */
@@ -147,39 +147,15 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID, ADDRINT pc)
     ReleaseLock(&simbuffer_lock);
 }
 
-const UINT8 ld_template[] = {0xa1, 0x78, 0x56, 0x34, 0x12};
+const UINT8 ld_template[] = {0xa1, 0xad, 0xfb, 0xca, 0xde};
+const UINT8 st_template[] = {0xc7, 0x05, 0xad, 0xfb, 0xca, 0xde, 0x00, 0x00, 0x00, 0x00 };
 
 /* ========================================================================== */
 VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT pc)
 {
     GetLock(&simbuffer_lock, tid+1);
 //    ignore[tid] = false;
-    GetLock(&printing_lock, tid+1);
 //    cerr << tid <<": After Wait "<< hex << pc << dec  << endl;
-    ReleaseLock(&printing_lock);
-
-    ASSERTX(!inserted_pool[tid].empty());
-    handshake_container_t* handshake = inserted_pool[tid].front();
-
-    handshake->isFirstInsn = false;
-    handshake->handshake.sleep_thread = false;
-    handshake->handshake.resume_thread = false;
-    handshake->handshake.real = false;
-    thread_state_t* tstate = get_tls(tid);
-    handshake->handshake.coreID = tstate->coreID;
-    handshake->valid = true;
-
-    handshake->handshake.pc = pc;
-    handshake->handshake.npc = pc + sizeof(ld_template);
-    handshake->handshake.tpc = pc + sizeof(ld_template);
-    handshake->handshake.brtaken = false;
-    memcpy(handshake->handshake.ins, ld_template, sizeof(ld_template));
-
-    GetLock(&printing_lock, tid+1);
-    cerr << tid << ": Vodoo load instruction " << hex << pc << dec << endl;
-    ReleaseLock(&printing_lock);
-    handshake_buffer[tid].push(handshake);
-    inserted_pool[tid].pop();
 
     /* HACKEDY HACKEDY HACK */
     /* We are not simulating and the core still hasn't consumed the wait.
@@ -198,8 +174,9 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT pc)
     }
 
     ASSERTX(!inserted_pool[tid].empty());
-    handshake = inserted_pool[tid].front();
+    handshake_container_t* handshake = inserted_pool[tid].front();
 
+    thread_state_t* tstate = get_tls(tid);
     handshake->isFirstInsn = false;
     handshake->handshake.sleep_thread = false;
     handshake->handshake.resume_thread = true;
@@ -207,6 +184,36 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT pc)
     handshake->handshake.coreID = tstate->coreID;
     handshake->valid = true;
 
+    handshake_buffer[tid].push(handshake);
+    inserted_pool[tid].pop();
+
+    /* Ignore injecting first wait so we can start simulating */
+    if (tstate->firstWait && /*HACKEDY HACKEDY HACK */ tid == 15)
+    {
+        cerr << "TEST TEST TEST" << endl;
+        tstate->firstWait = false;
+        ReleaseLock(&simbuffer_lock);
+        return;
+    }
+
+    /* Insert wait instruction in pipeline */
+    ASSERTX(!inserted_pool[tid].empty());
+    handshake = inserted_pool[tid].front();
+
+    handshake->isFirstInsn = false;
+    handshake->handshake.sleep_thread = false;
+    handshake->handshake.resume_thread = false;
+    handshake->handshake.real = false;
+    handshake->handshake.coreID = tstate->coreID;
+    handshake->valid = true;
+
+    handshake->handshake.pc = pc;
+    handshake->handshake.npc = pc + sizeof(ld_template);
+    handshake->handshake.tpc = pc + sizeof(ld_template);
+    handshake->handshake.brtaken = false;
+    memcpy(handshake->handshake.ins, ld_template, sizeof(ld_template));
+
+    cerr << tid << ": Vodoo load instruction " << hex << pc << dec << endl;
     handshake_buffer[tid].push(handshake);
     inserted_pool[tid].pop();
 
@@ -271,6 +278,28 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
 
     handshake_buffer[tid].push(handshake);
     inserted_pool[tid].pop();
+
+    /* Insert wait instruction in pipeline */
+    ASSERTX(!inserted_pool[tid].empty());
+    handshake = inserted_pool[tid].front();
+
+    handshake->isFirstInsn = false;
+    handshake->handshake.sleep_thread = false;
+    handshake->handshake.resume_thread = false;
+    handshake->handshake.real = false;
+    handshake->handshake.coreID = tstate->coreID;
+    handshake->valid = true;
+
+    handshake->handshake.pc = pc;
+    handshake->handshake.npc = pc + sizeof(st_template);
+    handshake->handshake.tpc = pc + sizeof(st_template);
+    handshake->handshake.brtaken = false;
+    memcpy(handshake->handshake.ins, st_template, sizeof(st_template));
+
+    cerr << tid << ": Vodoo store instruction " << hex << pc << dec << endl;
+    handshake_buffer[tid].push(handshake);
+    inserted_pool[tid].pop();
+
     ReleaseLock(&simbuffer_lock);
 }
 

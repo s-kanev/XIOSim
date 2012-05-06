@@ -187,6 +187,7 @@
 }
 #endif
 
+#include <stdint.h>
 #include <map>
 
 class core_oracle_t {

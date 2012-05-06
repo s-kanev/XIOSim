@@ -23,6 +23,8 @@ void Zesto_WarmLLC(unsigned int addr, bool is_write);
 
 void Zesto_Slice_End(int coreID, unsigned int slice_num, unsigned long long feeder_slice_length, unsigned long long slice_weight_times_1000);
 
+void Zesto_Start_Parallel_Loop();
+
 void deactivate_core(int coreID);
 extern bool sim_release_handshake;
 extern int num_threads;

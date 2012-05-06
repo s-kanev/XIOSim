@@ -15,7 +15,7 @@ typedef struct P2Z_HANDSHAKE {
     unsigned int tpc;                   /* Next address Pin will execute */
     int brtaken;                        /* Taken or Not-Taken for branch instructions */
     struct regs_t ctxt;                 /* Register context */
-    unsigned char ins[6];               /* Instruction bytes */
+    unsigned char ins[16];              /* Instruction bytes */
     bool sleep_thread;                  /* Deactivate core */
     bool resume_thread;                 /* Re-activate core */
     bool real;                          /* Is this a real instruction */

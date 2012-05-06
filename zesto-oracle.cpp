@@ -360,7 +360,12 @@ void core_oracle_t::write_spec_byte_to_mem(
 {
      bool _read_succ = false;
      // Previous memory value in case we need to restore on another nuke
-     byte_t prev_val = MEM_READ_SUCC_NON_SPEC(core->current_thread->mem,p->addr,byte_t);
+     byte_t prev_val;
+     if (!uop->oracle.is_sync_op)
+       prev_val = MEM_READ_SUCC_NON_SPEC(core->current_thread->mem,p->addr,byte_t);
+     else
+       // Ignore instructions that just pretend to be mem
+       prev_val = 0;
 
      ZPIN_TRACE(" prev_val: %d(%d)\n", prev_val, _read_succ);
 
@@ -1272,6 +1277,13 @@ core_oracle_t::exec(const md_addr_t requested_PC)
     }
     uop->oracle.ictrl = thread->regs.regs_C;
 
+    /* Fill mem repeater fields */
+    if (uop->decode.is_load || uop->decode.is_std)
+    {
+      uop->oracle.is_repeated = core->current_thread->is_in_parallel_loop;
+      uop->oracle.is_sync_op = core->fetch->fake_insn;
+    }
+
     /* execute the instruction */
     switch (uop->decode.op)
     {
@@ -1315,7 +1327,6 @@ core_oracle_t::exec(const md_addr_t requested_PC)
     {
       //zesto_assert(uop->oracle.virt_addr != 0 || uop->Mop->oracle.spec_mode,NULL);
       uop->oracle.phys_addr = v2p_translate(thread->id, uop->oracle.virt_addr);
-      uop->oracle.is_repeated = core->current_thread->is_in_parallel_loop;
     }
     else if(uop->decode.is_std)
     {
@@ -1334,7 +1345,6 @@ core_oracle_t::exec(const md_addr_t requested_PC)
       Mop->uop[prev_uop_index].decode.mem_size = uop->decode.mem_size;
       if(!spec_mode)
         assert(uop->oracle.virt_addr && uop->decode.mem_size);
-      uop->oracle.is_repeated = core->current_thread->is_in_parallel_loop;
     }
 
     if (uop->oracle.fault != md_fault_none)
