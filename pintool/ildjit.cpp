@@ -112,7 +112,7 @@ VOID ILDJIT_ExecutorCreateEnd(THREADID tid)
 /* ========================================================================== */
 VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT loop)
 {
-    Zesto_Start_Parallel_Loop();
+    // For now, do nothing
 }
 
 /* ========================================================================== */
@@ -184,7 +184,10 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
     handshake->handshake.resume_thread = true;
     handshake->handshake.real = false;
     handshake->handshake.coreID = tstate->coreID;
+    handshake->handshake.in_critical_section = (tstate->unmatchedWaits > 0);
     handshake->valid = true;
+
+    tstate->unmatchedWaits++;
 
     handshake_buffer[tid].push(handshake);
     inserted_pool[tid].pop();
@@ -272,8 +275,10 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT pc)
         return;
     }
 
-        ReleaseLock(&simbuffer_lock);
-        return;
+    thread_state_t* tstate = get_tls(tid);
+    tstate->unmatchedWaits--;
+    ASSERTX(tstate->unmatchedWaits >= 0);
+
     ASSERTX(!inserted_pool[tid].empty());
     handshake_container_t* handshake = inserted_pool[tid].front();
 
@@ -281,12 +286,15 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT pc)
     handshake->handshake.sleep_thread = false;
     handshake->handshake.resume_thread = true;
     handshake->handshake.real = false;
-    thread_state_t* tstate = get_tls(tid);
     handshake->handshake.coreID = tstate->coreID;
+    handshake->handshake.in_critical_section = (tstate->unmatchedWaits > 0);
     handshake->valid = true;
 
     handshake_buffer[tid].push(handshake);
     inserted_pool[tid].pop();
+
+        ReleaseLock(&simbuffer_lock);
+        return;
 
     /* Insert signal instruction in pipeline */
     ASSERTX(!inserted_pool[tid].empty());

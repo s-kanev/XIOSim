@@ -53,7 +53,7 @@ struct thread_t {
   bool consumed;            /* Did fetching get an instruction back? */
   bool first_insn;          /* Excuted at least an istruction? */
   long long fetches_since_feeder; /* Instructions since last pin call */
-  bool is_in_parallel_loop; /* Are we executing a HELIX parallel loop? */
+  bool in_critical_section; /* Are we executing a HELIX sequential cut? */
 #endif
 };
 

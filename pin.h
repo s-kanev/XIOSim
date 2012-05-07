@@ -19,6 +19,7 @@ typedef struct P2Z_HANDSHAKE {
     bool sleep_thread;                  /* Deactivate core */
     bool resume_thread;                 /* Re-activate core */
     bool real;                          /* Is this a real instruction */
+    bool in_critical_section;           /* Thread executing a sequential cut? */
 
     unsigned int slice_num;                         /* Execution slice id */
     unsigned long long feeder_slice_length;         /* Slice length as seen by pin */

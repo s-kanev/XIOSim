@@ -412,14 +412,6 @@ void activate_core(int coreID)
   lk_unlock(&cycle_lock);
 }
 
-void Zesto_Start_Parallel_Loop()
-{
-   lk_lock(&cycle_lock, 1);
-   for (int i=0; i<num_threads; i++)
-     cores[i]->current_thread->is_in_parallel_loop = true;
-   lk_unlock(&cycle_lock);
-}
-
 static void sim_drain_pipe(int coreID)
 {
    struct core_t * core = cores[coreID];
@@ -478,6 +470,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
 
    if (handshake->resume_thread)
    {
+      thread->in_critical_section = handshake->in_critical_section;
       activate_core(coreID);
       if(sim_release_handshake)
         ReleaseHandshake(coreID);

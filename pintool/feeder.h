@@ -39,6 +39,7 @@ class thread_state_t
         coreID = -1;
         firstWait = true;
         lastSignalID = 0xdecafbad;
+        unmatchedWaits = 0;
     }
 
     // Buffer to store the fpstate that the simulator may corrupt
@@ -66,6 +67,9 @@ class thread_state_t
 
     // ID of the last signal executed
     ADDRINT lastSignalID;
+
+    // Critical section counter
+    INT32 unmatchedWaits;
 };
 thread_state_t* get_tls(ADDRINT tid);
 
