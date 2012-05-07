@@ -200,8 +200,6 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
         return;
     }
 
-        ReleaseLock(&simbuffer_lock);
-        return;
     /* Insert wait instruction in pipeline */
     ASSERTX(!inserted_pool[tid].empty());
     handshake = inserted_pool[tid].front();
@@ -292,9 +290,6 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT pc)
 
     handshake_buffer[tid].push(handshake);
     inserted_pool[tid].pop();
-
-        ReleaseLock(&simbuffer_lock);
-        return;
 
     /* Insert signal instruction in pipeline */
     ASSERTX(!inserted_pool[tid].empty());
