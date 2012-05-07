@@ -193,7 +193,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
     inserted_pool[tid].pop();
 
     /* Ignore injecting first wait so we can start simulating */
-    if (tstate->firstWait && /*HACKEDY HACKEDY HACK */ tid == 15)
+    if (tstate->firstWait)// && /*HACKEDY HACKEDY HACK */ tid == 13)
     {
         tstate->firstWait = false;
         ReleaseLock(&simbuffer_lock);

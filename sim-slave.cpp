@@ -606,11 +606,8 @@ master_core:
       yield();
       lk_lock(&cycle_lock, coreID+1);
 
-      if (coreID != min_coreID) {
-        assert(cores[coreID]->current_thread->finished_cycle == false);
-        lk_unlock(&cycle_lock);
-        goto next_cycle;
-      }
+      if (coreID != min_coreID)
+        goto non_master_core;
     } while(true); 
 
     /* Process shared state once all cores are gathered here. */
@@ -629,6 +626,7 @@ master_core:
         /* If we become the "master core", make sure everyone is at critical section. */
         goto master_core;
 
+non_master_core:
       /* Spin, spin, spin */
       lk_unlock(&cycle_lock);
       yield();
