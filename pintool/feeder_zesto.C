@@ -929,10 +929,10 @@ SSARGS MakeSimpleScalarArgcArgv(UINT32 argc, CHAR *argv[])
 /* ========================================================================== */
 VOID ScheduleRunQueue()
 {
+    cerr << "RQ size: " << run_queue.size() << endl;
+
     // XXX: Conservative for now -- assume nThreads == nCores
     ASSERTX(run_queue.size() == (unsigned int)num_threads);
-
-    cerr << "RQ size: " << run_queue.size() << endl;
 
     list<THREADID>::iterator it = run_queue.begin();
     INT32 nextCoreID;
@@ -1271,6 +1271,14 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, V
         break;
 #endif
 
+/*
+    case __NR_sysconf:
+#ifdef ZESTO_PIN_DBG
+        cerr << "Syscall sysconf (" << dec << syscall_num << ") arg: " << arg1 << endl;
+#endif
+        tstate->last_syscall_arg1 = arg1;
+        break;
+*/
       default:
 #ifdef ZESTO_PIN_DBG
         cerr << "Syscall " << dec << syscall_num << endl;
@@ -1363,6 +1371,18 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
                 ASSERTX( Zesto_Notify_Mmap(0/*coreID*/, tstate->last_syscall_arg1, tstate->last_syscall_arg2, false) );
         }
         break;
+
+    /* Present ourself as if we have num_threads cores */
+/*    case __NR_sysconf:
+#ifdef ZESTO_PIN_DBG
+        cerr << "Syscall sysconf (" << dec << syscall_num << ") ret" << endl;
+#endif
+        if (tstate->last_syscall_arg1 == _SC_NPROCESSORS_ONLN)
+            if ((INT32)retval != - 1) {
+                PIN_SetContextReg(ictxt, REG_EAX, num_threads);
+                PIN_ExecuteAt(ictxt);
+            }
+        break;*/
 
 #ifdef TIME_TRANSPARENCY
       case __NR_times:
