@@ -43,6 +43,8 @@
 #include "zesto-MC.h"
 #include "zesto-power.h"
 
+#include "mem-repeater.h"
+
 extern void sim_main_slave_pre_pin(int coreID);
 extern void sim_main_slave_pre_pin();
 extern void sim_main_slave_post_pin(int coreID);
@@ -377,6 +379,8 @@ void Zesto_Destroy()
     compute_power(sim_sdb, true);
     deinit_power();
   }
+
+  repeater_shutdown();
 }
 
 
