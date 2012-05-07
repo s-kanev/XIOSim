@@ -938,6 +938,7 @@ VOID ScheduleRunQueue()
     INT32 nextCoreID;
     for (nextCoreID = 0; nextCoreID < num_threads; nextCoreID++, it++) {
         core_threads[nextCoreID] = *it;
+        cerr << "Core: " << nextCoreID << " " << *it << endl;
     }
 
     run_queue.clear();

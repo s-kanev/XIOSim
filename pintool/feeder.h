@@ -38,6 +38,7 @@ class thread_state_t
         slice_weight_times_1000 = 0;
         coreID = -1;
         firstWait = true;
+        lastSignalID = 0xdecafbad;
     }
 
     // Buffer to store the fpstate that the simulator may corrupt
@@ -62,6 +63,9 @@ class thread_state_t
 
     // Have we executed a wait on this thread
     BOOL firstWait;
+
+    // ID of the last signal executed
+    ADDRINT lastSignalID;
 };
 thread_state_t* get_tls(ADDRINT tid);
 

@@ -17,6 +17,9 @@ BOOL ILDJIT_executorCreation = false;
 
 PIN_LOCK ildjit_lock;
 
+const UINT8 ld_template[] = {0xa1, 0xad, 0xfb, 0xca, 0xde};
+const UINT8 st_template[] = {0xc7, 0x05, 0xad, 0xfb, 0xca, 0xde, 0x00, 0x00, 0x00, 0x00 };
+
 /* ========================================================================== */
 VOID MOLECOOL_Init()
 {
@@ -142,16 +145,15 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID, ADDRINT pc)
     handshake->handshake.coreID = tstate->coreID;
     handshake->valid = true;
 
+    tstate->lastSignalID = ssID;
+
     handshake_buffer[tid].push(handshake);
     inserted_pool[tid].pop();
     ReleaseLock(&simbuffer_lock);
 }
 
-const UINT8 ld_template[] = {0xa1, 0xad, 0xfb, 0xca, 0xde};
-const UINT8 st_template[] = {0xc7, 0x05, 0xad, 0xfb, 0xca, 0xde, 0x00, 0x00, 0x00, 0x00 };
-
 /* ========================================================================== */
-VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT pc)
+VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
 {
     GetLock(&simbuffer_lock, tid+1);
 //    ignore[tid] = false;
@@ -190,14 +192,13 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT pc)
     /* Ignore injecting first wait so we can start simulating */
     if (tstate->firstWait && /*HACKEDY HACKEDY HACK */ tid == 15)
     {
-        cerr << "TEST TEST TEST" << endl;
         tstate->firstWait = false;
         ReleaseLock(&simbuffer_lock);
         return;
     }
 
-//        ReleaseLock(&simbuffer_lock);
-//        return;
+        ReleaseLock(&simbuffer_lock);
+        return;
     /* Insert wait instruction in pipeline */
     ASSERTX(!inserted_pool[tid].empty());
     handshake = inserted_pool[tid].front();
@@ -214,8 +215,10 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT pc)
     handshake->handshake.tpc = pc + sizeof(ld_template);
     handshake->handshake.brtaken = false;
     memcpy(handshake->handshake.ins, ld_template, sizeof(ld_template));
+    // Address comes right after opcode byte
+    *(INT32*)(&handshake->handshake.ins[1]) = tstate->lastSignalID;
 
-    cerr << tid << ": Vodoo load instruction " << hex << pc << dec << endl;
+    cerr << tid << ": Vodoo load instruction " << hex << pc <<  " ID: " << tstate->lastSignalID << dec << endl;
     handshake_buffer[tid].push(handshake);
     inserted_pool[tid].pop();
 
@@ -240,13 +243,15 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
     handshake->handshake.coreID = tstate->coreID;
     handshake->valid = true;
 
+    tstate->lastSignalID = ssID;
+
     handshake_buffer[tid].push(handshake);
     inserted_pool[tid].pop();
     ReleaseLock(&simbuffer_lock);
 }
 
 /* ========================================================================== */
-VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
+VOID ILDJIT_afterSignal(THREADID tid, ADDRINT pc)
 {
     GetLock(&simbuffer_lock, tid+1);
 //    ignore[tid] = false;
@@ -267,8 +272,8 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
         return;
     }
 
-//        ReleaseLock(&simbuffer_lock);
-//        return;
+        ReleaseLock(&simbuffer_lock);
+        return;
     ASSERTX(!inserted_pool[tid].empty());
     handshake_container_t* handshake = inserted_pool[tid].front();
 
@@ -283,7 +288,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
     handshake_buffer[tid].push(handshake);
     inserted_pool[tid].pop();
 
-    /* Insert wait instruction in pipeline */
+    /* Insert signal instruction in pipeline */
     ASSERTX(!inserted_pool[tid].empty());
     handshake = inserted_pool[tid].front();
 
@@ -299,8 +304,10 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
     handshake->handshake.tpc = pc + sizeof(st_template);
     handshake->handshake.brtaken = false;
     memcpy(handshake->handshake.ins, st_template, sizeof(st_template));
+    // Address comes right after opcode and MoodRM bytes
+    *(INT32*)(&handshake->handshake.ins[2]) = tstate->lastSignalID;
 
-    cerr << tid << ": Vodoo store instruction " << hex << pc << dec << endl;
+    cerr << tid << ": Vodoo store instruction " << hex << pc << " ID: " << tstate->lastSignalID << dec << endl;
     handshake_buffer[tid].push(handshake);
     inserted_pool[tid].pop();
 
@@ -464,8 +471,6 @@ VOID AddILDJITCallbacks(IMG img)
         RTN_Open(rtn);
         RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterWait),
                        IARG_THREAD_ID,
-//                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
-                       IARG_ADDRINT, 0,
                        IARG_INST_PTR,
                        IARG_CALL_ORDER, CALL_ORDER_LAST,
                        IARG_END);
@@ -497,8 +502,6 @@ VOID AddILDJITCallbacks(IMG img)
         RTN_Open(rtn);
         RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterSignal),
                        IARG_THREAD_ID,
-//                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
-                       IARG_ADDRINT, 0,
                        IARG_INST_PTR,
                        IARG_CALL_ORDER, CALL_ORDER_LAST,
                        IARG_END);

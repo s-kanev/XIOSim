@@ -1163,9 +1163,9 @@ void core_exec_IO_DPM_t::repeater_callback(void * const op, bool is_hit)
   struct core_t * core = uop->core;
   class core_exec_IO_DPM_t * E = (core_exec_IO_DPM_t*)uop->core->exec;
 
-  zesto_assert(uop->oracle.is_repeated, (void)0);
   if(uop->alloc.LDQ_index != -1)
   {
+    zesto_assert(uop->oracle.is_repeated, (void)0);
 #ifdef ZTRACE
     ztrace_print(uop,"e|load|returned from repeater (hit: %d)", is_hit);
 #endif
@@ -1208,15 +1208,17 @@ void core_exec_IO_DPM_t::repeater_split_callback(void * const op, bool is_hit)
   struct uop_t * uop = (struct uop_t*) op;
   struct core_t * core = uop->core;
   class core_exec_IO_DPM_t * E = (core_exec_IO_DPM_t*)uop->core->exec;
+
+  /* The second response on a repeater miss should be ignored */
+  if (!is_hit)
+      return;
+
   zesto_assert(uop->oracle.is_repeated, (void)0);
   if(uop->alloc.LDQ_index != -1)
   {
 #ifdef ZTRACE
     ztrace_print(uop,"e|load|split returned from repeater (hit:%d)", is_hit);
 #endif
-    /* The second response on a repeater miss should be ignored */
-    if (!is_hit)
-        return;
 
     zesto_assert(E->LDQ[uop->alloc.LDQ_index].repeater_arrived, (void)0);
 
@@ -1289,7 +1291,10 @@ void core_exec_IO_DPM_t::load_miss_reschedule(void * const op, const int new_pre
   struct core_exec_IO_DPM_t * E = (core_exec_IO_DPM_t*)core->exec;
   struct core_knobs_t * knobs = core->knobs;
   zesto_assert(uop->decode.is_load,(void)0);
-  zesto_assert((uop->alloc.LDQ_index >= 0) && (uop->alloc.LDQ_index < knobs->exec.LDQ_size),(void)0);
+
+  /* Hit in repeater was already processed */
+  if (uop->alloc.LDQ_index == -1)
+    return;
 
   /* if we've speculatively woken up our dependents, we need to
      snatch them back out of the execution pipeline and replay them
@@ -2258,6 +2263,8 @@ bool core_exec_IO_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
     dl1_split_uop->exec.action_id = STQ[STQ_head].action_id;
     dl1_split_uop->decode.Mop_seq = uop->decode.Mop_seq;
     dl1_split_uop->decode.uop_seq = uop->decode.uop_seq;
+    dl1_split_uop->oracle.is_repeated = uop->oracle.is_repeated;
+    dl1_split_uop->oracle.is_sync_op = uop->oracle.is_sync_op;
 
     /* XXX: similar to split-access loads, we're not handling the translation of both
        pages in the case that the access crosses page boundaries. */
