@@ -1646,11 +1646,11 @@ void core_exec_IO_DPM_t::LDST_exec(void)
   if((core->current_thread->id == min_coreID) && !(sim_cycle&uncore->LLC_cycle_mask) && uncore->LLC->check_for_work)
     cache_process(uncore->LLC);
   if(core->memory.DL2 && core->memory.DL2->check_for_work) cache_process(core->memory.DL2);
-  if(core->memory.mem_repeater) repeater_step(core->memory.mem_repeater);
-  if(core->current_thread->id == min_coreID)
-    for (int i=0; i < num_threads; i++)
-      if (!cores[i]->current_thread->active)
-        repeater_step(cores[i]->memory.mem_repeater);
+//  if(core->memory.mem_repeater) repeater_step(core->memory.mem_repeater);
+//  if(core->current_thread->id == min_coreID)
+//    for (int i=0; i < num_threads; i++)
+//      if (!cores[i]->current_thread->active)
+//        repeater_step(cores[i]->memory.mem_repeater);
   if(core->memory.DL1->check_for_work) cache_process(core->memory.DL1);
   lk_unlock(&cache_lock);
 }
