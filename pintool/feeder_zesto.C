@@ -533,7 +533,7 @@ VOID MakeSSRequest(THREADID tid, ADDRINT pc, ADDRINT npc, ADDRINT tpc, BOOL brta
 }
 
 /* ========================================================================== */
-VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL is_call)
+VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size)
 {
     GetLock(&simbuffer_lock, tid+1);
     if (handshake_buffer.size() < (unsigned int) num_threads)
@@ -596,7 +596,7 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL is_call)
 }
 
 /* ========================================================================== */
-VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDRINT tpc, const CONTEXT *ictxt, BOOL has_memory, BOOL is_call)
+VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDRINT tpc, const CONTEXT *ictxt, BOOL has_memory)
 {
     GetLock(&simbuffer_lock, tid+1);
     if (handshake_buffer.size() < (unsigned int) num_threads)

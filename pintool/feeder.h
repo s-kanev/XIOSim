@@ -37,7 +37,7 @@ class thread_state_t
         slice_length = 0;
         slice_weight_times_1000 = 0;
         coreID = -1;
-        firstWait = false;
+        firstIteration = false;
         lastSignalID = 0xdecafbad;
         unmatchedWaits = 0;
     }
@@ -63,7 +63,7 @@ class thread_state_t
     ADDRINT coreID;
 
     // Have we executed a wait on this thread
-    BOOL firstWait;
+    BOOL firstIteration;
 
     // ID of the last signal executed
     ADDRINT lastSignalID;

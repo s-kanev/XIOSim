@@ -70,7 +70,7 @@ VOID ILDJIT_startSimulation(THREADID tid, ADDRINT ip)
      * can actually start simulating and unblock everyone else.
      */
     thread_state_t* tstate = get_tls(tid);
-    tstate->firstWait = true;
+    tstate->firstIteration = true;
 
     if (KnobFluffy.Value().empty())
         PPointHandler(CONTROL_START, NULL, NULL, (VOID*)ip, tid);
@@ -154,6 +154,9 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
 
     tstate->lastSignalID = ssID_addr;
 
+    if ((ssID == 0) && (ExecMode == EXECUTION_MODE_SIMULATE))
+        tstate->firstIteration = false;
+
     handshake_buffer[tid].push(handshake);
     inserted_pool[tid].pop();
     ReleaseLock(&simbuffer_lock);
@@ -200,10 +203,10 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
     handshake_buffer[tid].push(handshake);
     inserted_pool[tid].pop();
 
-    /* Ignore injecting first wait so we can start simulating */
-    if (tstate->firstWait)
+    /* Ignore injecting waits until the end of the first iteration,
+     * so we can start simulating */
+    if (tstate->firstIteration)
     {
-        tstate->firstWait = false;
         ReleaseLock(&simbuffer_lock);
         return;
     }
@@ -236,7 +239,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
 }
 
 /* ========================================================================== */
-VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
+VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc)
 {
     GetLock(&simbuffer_lock, tid+1);
 //    ignore[tid] = true;
@@ -251,10 +254,10 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
     handshake->handshake.real = false;
     thread_state_t* tstate = get_tls(tid);
     handshake->handshake.coreID = tstate->coreID;
-    handshake->handshake.iteration_correction = false;
+    handshake->handshake.iteration_correction = (ssID == 0);
     handshake->valid = true;
 
-    tstate->lastSignalID = ssID;
+    tstate->lastSignalID = ssID_addr;
 
     handshake_buffer[tid].push(handshake);
     inserted_pool[tid].pop();
@@ -266,7 +269,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT pc)
 {
     GetLock(&simbuffer_lock, tid+1);
 //    ignore[tid] = false;
-//    cerr << tid <<": After Signal " << hex << pc << dec << endl;
+    cerr << tid <<": After Signal " << hex << pc << dec << endl;
 
     /* HACKEDY HACKEDY HACK */
     /* We are not simulating and the core still hasn't consumed the wait.
@@ -503,6 +506,7 @@ VOID AddILDJITCallbacks(IMG img)
         RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeSignal),
                        IARG_THREAD_ID,
                        IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
                        IARG_INST_PTR,
                        IARG_CALL_ORDER, CALL_ORDER_FIRST,
                        IARG_END);

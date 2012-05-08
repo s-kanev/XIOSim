@@ -467,6 +467,10 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
    bool iteration_correction = handshake->iteration_correction &&
                                (core->num_signals_in_pipe > 0);
 
+   if (iteration_correction) {
+       fprintf(stderr, "%d: AHoly shmozef %d\n", coreID, core->num_signals_in_pipe);
+       fflush(stderr);
+   }
    if (handshake->sleep_thread && !iteration_correction)
    {
       deactivate_core(coreID);
@@ -589,8 +593,8 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
      else {
        fetch_more = false;
        /* HACKEDY HACKEDY HACK!!! */
-       //fprintf(stderr, "Holy shmozef %d\n", core->num_signals_in_pipe);
-       //fflush(stderr);
+       fprintf(stderr, "%d: Holy shmozef %d\n", coreID, core->num_signals_in_pipe);
+       fflush(stderr);
        if (core->num_signals_in_pipe == 0) {
          deactivate_core(coreID);
          return;
