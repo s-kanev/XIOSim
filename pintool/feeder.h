@@ -37,7 +37,7 @@ class thread_state_t
         slice_length = 0;
         slice_weight_times_1000 = 0;
         coreID = -1;
-        firstWait = true;
+        firstWait = false;
         lastSignalID = 0xdecafbad;
         unmatchedWaits = 0;
     }

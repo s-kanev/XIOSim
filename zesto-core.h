@@ -348,6 +348,8 @@ class core_t {
   } stat;
 
 
+  int num_signals_in_pipe;
+
   /*************/
   /* FUNCTIONS */
   /*************/

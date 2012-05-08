@@ -1283,6 +1283,8 @@ core_oracle_t::exec(const md_addr_t requested_PC)
       uop->oracle.is_sync_op = core->fetch->fake_insn;
       uop->oracle.is_repeated = core->current_thread->in_critical_section ||
                                 uop->oracle.is_sync_op;
+      if (uop->oracle.is_sync_op && uop->decode.is_std)
+        core->num_signals_in_pipe++;
     }
 
     /* execute the instruction */

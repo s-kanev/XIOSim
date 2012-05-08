@@ -2226,6 +2226,8 @@ bool core_exec_IO_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
     dtlb_uop->decode.Mop_seq = uop->decode.Mop_seq;
     dl1_uop->decode.uop_seq = uop->decode.uop_seq;
     dtlb_uop->decode.uop_seq = uop->decode.uop_seq;
+    dl1_uop->oracle.is_repeated = uop->oracle.is_repeated;
+    dl1_uop->oracle.is_sync_op = uop->oracle.is_sync_op;
 
     cache_enqueue(core,tlb,NULL,CACHE_READ,core->current_thread->id,uop->Mop->fetch.PC,PAGE_TABLE_ADDR(core->current_thread->id,uop->oracle.virt_addr),dtlb_uop->exec.action_id,0,NO_MSHR,dtlb_uop,store_dtlb_callback,NULL,NULL,get_uop_action_id);
     if(uop->oracle.is_repeated)
@@ -2460,6 +2462,11 @@ void core_exec_IO_DPM_t::repeater_store_callback(void * const op, bool is_hit)
   zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
   if(uop->exec.action_id == E->STQ[uop->alloc.STQ_index].action_id)
   {
+    if (uop->oracle.is_sync_op)
+    {
+      core->num_signals_in_pipe--;
+      zesto_assert(core->num_signals_in_pipe >= 0, (void)0);
+    }
     E->STQ[uop->alloc.STQ_index].first_byte_written = true;
     if(E->STQ[uop->alloc.STQ_index].last_byte_written)
       E->STQ[uop->alloc.STQ_index].write_complete = true;
@@ -2483,6 +2490,11 @@ void core_exec_IO_DPM_t::repeater_split_store_callback(void * const op, bool is_
   zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
   if(uop->exec.action_id == E->STQ[uop->alloc.STQ_index].action_id)
   {
+    if (uop->oracle.is_sync_op)
+    {
+      core->num_signals_in_pipe--;
+      zesto_assert(core->num_signals_in_pipe >= 0, (void)0);
+    }
     E->STQ[uop->alloc.STQ_index].last_byte_written = true;
     if(E->STQ[uop->alloc.STQ_index].first_byte_written)
       E->STQ[uop->alloc.STQ_index].write_complete = true;

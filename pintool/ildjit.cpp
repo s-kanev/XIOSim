@@ -65,6 +65,12 @@ VOID ILDJIT_startSimulation(THREADID tid, ADDRINT ip)
 //#ifdef ZESTO_PIN_DBG
     cerr << "Starting execution, TID: " << tid << endl;
 //#endif
+    /* This is called from the middle of a wait spin loop.
+     * For this thread only, ignore the end of the wait, so we
+     * can actually start simulating and unblock everyone else.
+     */
+    thread_state_t* tstate = get_tls(tid);
+    tstate->firstWait = true;
 
     if (KnobFluffy.Value().empty())
         PPointHandler(CONTROL_START, NULL, NULL, (VOID*)ip, tid);
@@ -128,11 +134,11 @@ VOID ILDJIT_startIteration(THREADID tid)
 }
 
 /* ========================================================================== */
-VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID, ADDRINT pc)
+VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc)
 {
     GetLock(&simbuffer_lock, tid+1);
 //    ignore[tid] = true;
-    //cerr << tid <<": Before Wait " << hex << pc << dec << endl;
+    cerr << tid <<": Before Wait " << hex << ssID << dec << endl;
 
     ASSERTX(!inserted_pool[tid].empty());
     handshake_container_t* handshake = inserted_pool[tid].front();
@@ -143,9 +149,10 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID, ADDRINT pc)
     handshake->handshake.real = false;
     thread_state_t* tstate = get_tls(tid);
     handshake->handshake.coreID = tstate->coreID;
+    handshake->handshake.iteration_correction = (ssID == 0);
     handshake->valid = true;
 
-    tstate->lastSignalID = ssID;
+    tstate->lastSignalID = ssID_addr;
 
     handshake_buffer[tid].push(handshake);
     inserted_pool[tid].pop();
@@ -185,6 +192,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
     handshake->handshake.real = false;
     handshake->handshake.coreID = tstate->coreID;
     handshake->handshake.in_critical_section = (tstate->unmatchedWaits > 0);
+    handshake->handshake.iteration_correction = false;
     handshake->valid = true;
 
     tstate->unmatchedWaits++;
@@ -193,7 +201,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
     inserted_pool[tid].pop();
 
     /* Ignore injecting first wait so we can start simulating */
-    if (tstate->firstWait)// && /*HACKEDY HACKEDY HACK */ tid == 13)
+    if (tstate->firstWait)
     {
         tstate->firstWait = false;
         ReleaseLock(&simbuffer_lock);
@@ -209,6 +217,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
     handshake->handshake.resume_thread = false;
     handshake->handshake.real = false;
     handshake->handshake.coreID = tstate->coreID;
+    handshake->handshake.iteration_correction = false;
     handshake->valid = true;
 
     handshake->handshake.pc = pc;
@@ -231,7 +240,7 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
 {
     GetLock(&simbuffer_lock, tid+1);
 //    ignore[tid] = true;
-//    cerr << tid <<": Before Signal " << hex << pc << dec << endl;
+    cerr << tid <<": Before Signal " << hex << ssID << dec << endl;
 
     ASSERTX(!inserted_pool[tid].empty());
     handshake_container_t* handshake = inserted_pool[tid].front();
@@ -242,6 +251,7 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
     handshake->handshake.real = false;
     thread_state_t* tstate = get_tls(tid);
     handshake->handshake.coreID = tstate->coreID;
+    handshake->handshake.iteration_correction = false;
     handshake->valid = true;
 
     tstate->lastSignalID = ssID;
@@ -286,6 +296,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT pc)
     handshake->handshake.real = false;
     handshake->handshake.coreID = tstate->coreID;
     handshake->handshake.in_critical_section = (tstate->unmatchedWaits > 0);
+    handshake->handshake.iteration_correction = false;
     handshake->valid = true;
 
     handshake_buffer[tid].push(handshake);
@@ -300,6 +311,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT pc)
     handshake->handshake.resume_thread = false;
     handshake->handshake.real = false;
     handshake->handshake.coreID = tstate->coreID;
+    handshake->handshake.iteration_correction = false;
     handshake->valid = true;
 
     handshake->handshake.pc = pc;
@@ -459,6 +471,7 @@ VOID AddILDJITCallbacks(IMG img)
         RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeWait),
                        IARG_THREAD_ID,
                        IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
                        IARG_INST_PTR,
                        IARG_CALL_ORDER, CALL_ORDER_FIRST,
                        IARG_END);

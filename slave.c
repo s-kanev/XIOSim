@@ -464,7 +464,10 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
    zesto_assert(!core->oracle->spec_mode, (void)0);
    zesto_assert(thread->rep_sequence == 0, (void)0);
 
-   if (handshake->sleep_thread)
+   bool iteration_correction = handshake->iteration_correction &&
+                               (core->num_signals_in_pipe > 0);
+
+   if (handshake->sleep_thread && !iteration_correction)
    {
       deactivate_core(coreID);
       if(sim_release_handshake)
@@ -532,18 +535,6 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
       thread->first_insn= false;
    }
 
-   //XXX: Ignore signal handshakes for now
-   if (!handshake->real && 
-        (handshake->resume_thread || handshake->sleep_thread)) {
-      if(sim_release_handshake)
-        ReleaseHandshake(coreID);
-      return;
-   }
-
-//   zesto_assert(handshake->real, (void)0);
-//   if (handshake->real == false)
-//     NPC = *(int *)0;
-
    core->fetch->feeder_NPC = NPC;
    core->fetch->feeder_PC = handshake->pc;
    core->fetch->prev_insn_fake = core->fetch->fake_insn;
@@ -593,7 +584,18 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
 
    while(!thread->consumed || repping || core->oracle->num_Mops_nuked > 0)
    {
-     fetch_more = sim_main_slave_fetch_insn(coreID);
+     if (!iteration_correction)
+       fetch_more = sim_main_slave_fetch_insn(coreID);
+     else {
+       fetch_more = false;
+       /* HACKEDY HACKEDY HACK!!! */
+       //fprintf(stderr, "Holy shmozef %d\n", core->num_signals_in_pipe);
+       //fflush(stderr);
+       if (core->num_signals_in_pipe == 0) {
+         deactivate_core(coreID);
+         return;
+       }
+     }
      thread->fetches_since_feeder++;
 
      repping = thread->rep_sequence != 0;

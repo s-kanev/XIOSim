@@ -936,7 +936,7 @@ VOID ScheduleRunQueue()
 
     list<THREADID>::iterator it = run_queue.begin();
     INT32 nextCoreID;
-    for (nextCoreID = 0; nextCoreID < num_threads; nextCoreID++, it++) {
+    for (nextCoreID = num_threads-1; nextCoreID >= 0; nextCoreID--, it++) {
         core_threads[nextCoreID] = *it;
         cerr << "Core: " << nextCoreID << " " << *it << endl;
     }
