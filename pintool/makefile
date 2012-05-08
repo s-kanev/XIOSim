@@ -27,7 +27,7 @@
 PIN_HOME ?= /home/skanev/pin/pin-2.10-45467-gcc.3.4.6-ia32_intel64-linux
 ZESTO_HOME = ..
 TARGET = ia32
-INSTALL_DIR = /home/skanev
+INSTALL_DIR = /group/brooks/xan/Molecool/bin
 
 ##############################################################
 #
