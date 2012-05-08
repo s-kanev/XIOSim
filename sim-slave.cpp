@@ -553,6 +553,10 @@ static void global_step(void)
     uncore->MC->step();
 
     step_LLC_PF_controller(uncore);
+
+    for(int i=0;i<num_threads;i++)
+      if(cores[i]->memory.mem_repeater)
+        repeater_step(cores[i]->memory.mem_repeater);
 }
 
 void sim_main_slave_pre_pin(int coreID)
