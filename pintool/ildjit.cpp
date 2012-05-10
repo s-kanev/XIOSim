@@ -194,7 +194,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
     handshake->handshake.resume_thread = true;
     handshake->handshake.real = false;
     handshake->handshake.coreID = tstate->coreID;
-    handshake->handshake.in_critical_section = (tstate->unmatchedWaits > 0);
+    handshake->handshake.in_critical_section = (num_threads > 1) && (tstate->unmatchedWaits > 0);
     handshake->handshake.iteration_correction = false;
     handshake->valid = true;
 
@@ -207,6 +207,12 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
      * so we can start simulating */
     if (tstate->firstIteration)
     {
+        ReleaseLock(&simbuffer_lock);
+        return;
+    }
+
+    /* Don't insert waits in single-core mode */
+    if (num_threads < 2) {
         ReleaseLock(&simbuffer_lock);
         return;
     }
@@ -298,12 +304,18 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT pc)
     handshake->handshake.resume_thread = true;
     handshake->handshake.real = false;
     handshake->handshake.coreID = tstate->coreID;
-    handshake->handshake.in_critical_section = (tstate->unmatchedWaits > 0);
+    handshake->handshake.in_critical_section = (num_threads > 1) && (tstate->unmatchedWaits > 0);
     handshake->handshake.iteration_correction = false;
     handshake->valid = true;
 
     handshake_buffer[tid].push(handshake);
     inserted_pool[tid].pop();
+
+    /* Don't insert signals in single-core mode */
+    if (num_threads < 2) {
+        ReleaseLock(&simbuffer_lock);
+        return;
+    }
 
     /* Insert signal instruction in pipeline */
     ASSERTX(!inserted_pool[tid].empty());
