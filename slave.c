@@ -387,9 +387,9 @@ void Zesto_Destroy()
 void deactivate_core(int coreID)
 {
   assert(coreID >= 0 && coreID < num_threads);
-  fprintf(stderr, "deactivate %d\n", coreID);
+//  fprintf(stderr, "deactivate %d\n", coreID);
   ZPIN_TRACE("deactivate %d\n", coreID);
-  fflush(stderr);
+//  fflush(stderr);
   lk_lock(&cycle_lock, coreID+1);
   cores[coreID]->current_thread->active = false;
   int i;
@@ -406,9 +406,9 @@ void deactivate_core(int coreID)
 void activate_core(int coreID)
 {
   assert(coreID >= 0 && coreID < num_threads);
-  fprintf(stderr, "activate %d\n", coreID);
+//  fprintf(stderr, "activate %d\n", coreID);
   ZPIN_TRACE("activate %d\n", coreID);
-  fflush(stderr);
+//  fflush(stderr);
   lk_lock(&cycle_lock, coreID+1);
   cores[coreID]->current_thread->active = true;
     if (coreID < min_coreID)
@@ -468,8 +468,8 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
                                (core->num_signals_in_pipe > 0);
 
    if (iteration_correction) {
-       fprintf(stderr, "%d: AHoly shmozef %d\n", coreID, core->num_signals_in_pipe);
-       fflush(stderr);
+//       fprintf(stderr, "%d: AHoly shmozef %d\n", coreID, core->num_signals_in_pipe);
+//       fflush(stderr);
    }
    if (handshake->sleep_thread && !iteration_correction)
    {
@@ -593,8 +593,8 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
      else {
        fetch_more = false;
        /* HACKEDY HACKEDY HACK!!! */
-       fprintf(stderr, "%d: Holy shmozef %d\n", coreID, core->num_signals_in_pipe);
-       fflush(stderr);
+//       fprintf(stderr, "%d: Holy shmozef %d\n", coreID, core->num_signals_in_pipe);
+//       fflush(stderr);
        if (core->num_signals_in_pipe == 0) {
          deactivate_core(coreID);
          return;

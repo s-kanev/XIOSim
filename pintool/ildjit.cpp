@@ -138,7 +138,7 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
 {
     GetLock(&simbuffer_lock, tid+1);
 //    ignore[tid] = true;
-    cerr << tid <<": Before Wait " << hex << ssID << dec << endl;
+//    cerr << tid <<": Before Wait " << hex << ssID << dec << endl;
 
     ASSERTX(!inserted_pool[tid].empty());
     handshake_container_t* handshake = inserted_pool[tid].front();
@@ -231,7 +231,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
     // Address comes right after opcode byte
     *(INT32*)(&handshake->handshake.ins[1]) = tstate->lastSignalID;
 
-    cerr << tid << ": Vodoo load instruction " << hex << pc <<  " ID: " << tstate->lastSignalID << dec << endl;
+//    cerr << tid << ": Vodoo load instruction " << hex << pc <<  " ID: " << tstate->lastSignalID << dec << endl;
     handshake_buffer[tid].push(handshake);
     inserted_pool[tid].pop();
 
@@ -243,7 +243,7 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT 
 {
     GetLock(&simbuffer_lock, tid+1);
 //    ignore[tid] = true;
-    cerr << tid <<": Before Signal " << hex << ssID << dec << endl;
+//    cerr << tid <<": Before Signal " << hex << ssID << dec << endl;
 
     ASSERTX(!inserted_pool[tid].empty());
     handshake_container_t* handshake = inserted_pool[tid].front();
@@ -269,7 +269,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT pc)
 {
     GetLock(&simbuffer_lock, tid+1);
 //    ignore[tid] = false;
-    cerr << tid <<": After Signal " << hex << pc << dec << endl;
+//    cerr << tid <<": After Signal " << hex << pc << dec << endl;
 
     /* HACKEDY HACKEDY HACK */
     /* We are not simulating and the core still hasn't consumed the wait.
@@ -325,7 +325,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT pc)
     // Address comes right after opcode and MoodRM bytes
     *(INT32*)(&handshake->handshake.ins[2]) = tstate->lastSignalID;
 
-    cerr << tid << ": Vodoo store instruction " << hex << pc << " ID: " << tstate->lastSignalID << dec << endl;
+//    cerr << tid << ": Vodoo store instruction " << hex << pc << " ID: " << tstate->lastSignalID << dec << endl;
     handshake_buffer[tid].push(handshake);
     inserted_pool[tid].pop();
 
