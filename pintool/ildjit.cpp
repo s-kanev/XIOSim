@@ -354,8 +354,8 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT pc)
 /* ========================================================================== */
 VOID ILDJIT_setAffinity(THREADID tid, INT32 coreID)
 {
-    ASSERTX(coreID >= 0 && coreID < num_threads);
     cerr << tid << ": assigned to core " << coreID << endl;
+    ASSERTX(coreID >= 0 && coreID < num_threads);
     thread_state_t* tstate = get_tls(tid);
     tstate->coreID = coreID;
     core_threads[coreID] = tid;
