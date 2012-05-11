@@ -84,7 +84,7 @@ static queue<THREADID> instrument_tid_queue;
 static PIN_LOCK instrument_tid_lock;
 
 // A mapping storing which thread runs on which core
-static map<UINT32, THREADID> core_threads;
+map<UINT32, THREADID> core_threads;
 // Runque for threads (managed in FIFO order for simple fair scheduling)
 static list<THREADID> run_queue;
 
@@ -157,7 +157,7 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
         handshake->isFirstInsn = true;
         ReleaseLock(&simbuffer_lock);
 
-        ScheduleRunQueue();
+        //ScheduleRunQueue();
 
         if(control.PinPointsActive())
         {

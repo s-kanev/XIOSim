@@ -21,6 +21,7 @@ extern map<THREADID, handshake_queue_t> handshake_buffer;
 extern map<THREADID, handshake_queue_t> inserted_pool;
 extern PIN_LOCK simbuffer_lock;
 extern PIN_LOCK printing_lock;
+extern map<UINT32, THREADID> core_threads;
 
 /* ========================================================================== */
 // Thread-private state that we need to preserve between different instrumentation calls

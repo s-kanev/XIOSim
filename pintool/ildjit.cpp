@@ -72,6 +72,12 @@ VOID ILDJIT_startSimulation(THREADID tid, ADDRINT ip)
     thread_state_t* tstate = get_tls(tid);
     tstate->firstIteration = true;
 
+    /* This thread gets core 0 by convention. HELIX takes care of
+     * setting the rest of the core IDs. */
+    tstate->coreID = 0;
+    core_threads[0] = tid;
+    cerr << tid << ": assigned to core " << tstate->coreID << endl;
+
     if (KnobFluffy.Value().empty())
         PPointHandler(CONTROL_START, NULL, NULL, (VOID*)ip, tid);
 
@@ -346,6 +352,16 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT pc)
 
 
 /* ========================================================================== */
+VOID ILDJIT_setAffinity(THREADID tid, INT32 coreID)
+{
+    ASSERTX(coreID >= 0 && coreID < num_threads);
+    cerr << tid << ": assigned to core " << coreID << endl;
+    thread_state_t* tstate = get_tls(tid);
+    tstate->coreID = coreID;
+    core_threads[coreID] = tid;
+}
+
+/* ========================================================================== */
 VOID AddILDJITCallbacks(IMG img)
 {
 #ifdef ZESTO_PIN_DBG
@@ -536,6 +552,21 @@ VOID AddILDJITCallbacks(IMG img)
                        IARG_THREAD_ID,
                        IARG_INST_PTR,
                        IARG_CALL_ORDER, CALL_ORDER_LAST,
+                       IARG_END);
+        RTN_Close(rtn);
+    }
+
+    rtn = RTN_FindByName(img, "MOLECOOL_setAffinity");
+    if (RTN_Valid(rtn))
+    {
+#ifdef ZESTO_PIN_DBG
+        cerr << "MOLECOOL_setAffinity ";
+#endif
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_setAffinity),
+                       IARG_THREAD_ID,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+                       IARG_CALL_ORDER, CALL_ORDER_FIRST,
                        IARG_END);
         RTN_Close(rtn);
     }
