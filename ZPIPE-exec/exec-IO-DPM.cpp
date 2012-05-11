@@ -1126,7 +1126,7 @@ void core_exec_IO_DPM_t::DL1_split_callback(void * const op)
   if(uop->alloc.LDQ_index != -1)
   {
 #ifdef ZTRACE
-    ztrace_print(uop,"e|load|returned from cache/memory");
+    ztrace_print(uop,"e|load|split returned from cache/memory");
 #endif
 
     if(uop->oracle.is_repeated) {
