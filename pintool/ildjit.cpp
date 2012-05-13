@@ -153,6 +153,7 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
     handshake->handshake.sleep_thread = true;
     handshake->handshake.resume_thread = false;
     handshake->handshake.real = false;
+    handshake->handshake.pc = 0;
     thread_state_t* tstate = get_tls(tid);
     handshake->handshake.coreID = tstate->coreID;
     handshake->handshake.iteration_correction = (ssID == 0);
@@ -199,8 +200,9 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
     handshake->handshake.sleep_thread = false;
     handshake->handshake.resume_thread = true;
     handshake->handshake.real = false;
+    handshake->handshake.pc = 0;
     handshake->handshake.coreID = tstate->coreID;
-    handshake->handshake.in_critical_section = (num_threads > 1) && (tstate->unmatchedWaits > 0);
+    handshake->handshake.in_critical_section = (num_threads > 1);
     handshake->handshake.iteration_correction = false;
     handshake->valid = true;
 
@@ -264,6 +266,7 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT 
     handshake->handshake.sleep_thread = true;
     handshake->handshake.resume_thread = false;
     handshake->handshake.real = false;
+    handshake->handshake.pc = 0;
     thread_state_t* tstate = get_tls(tid);
     handshake->handshake.coreID = tstate->coreID;
     handshake->handshake.iteration_correction = (ssID == 0);
@@ -309,6 +312,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT pc)
     handshake->handshake.sleep_thread = false;
     handshake->handshake.resume_thread = true;
     handshake->handshake.real = false;
+    handshake->handshake.pc = 0;
     handshake->handshake.coreID = tstate->coreID;
     handshake->handshake.in_critical_section = (num_threads > 1) && (tstate->unmatchedWaits > 0);
     handshake->handshake.iteration_correction = false;
