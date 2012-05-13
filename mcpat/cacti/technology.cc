@@ -910,7 +910,7 @@ void init_tech_params(double technology, bool is_tag)
       I_g_on_n[1][100] = 9.47e-12;
 
       //ITRS LOP device type
-      vdd[2] = 1.0;//0.7;
+      vdd[2] = 0.7;
       Lphy[2] = 0.022;
       Lelec[2] = 0.016;
       t_ox[2] = 0.9e-3;

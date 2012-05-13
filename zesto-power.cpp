@@ -306,8 +306,6 @@ void core_power_t::translate_params(system_core *core_params, system_L2 *L2_para
     core_params->predictor.chooser_predictor_bits  = pred->get_chooser_width();
   }
 
-  core_params->pipeline_duty_cycle = 1;
-
   // AF for max power computation
   core_params->IFU_duty_cycle = 1.0;
   core_params->LSU_duty_cycle = 0.5;
@@ -326,6 +324,7 @@ void core_power_t::translate_stats(struct stat_sdb_t* sdb, system_core *core_sta
   struct stat_stat_t *stat;
   int coreID = core->id;
 
+  struct core_knobs_t* knobs = core->knobs;
   (void) L2_stats;
 
   stat = stat_find_core_stat(sdb, coreID, "oracle_total_uops");
@@ -368,6 +367,12 @@ void core_power_t::translate_stats(struct stat_sdb_t* sdb, system_core *core_sta
   core_stats->ialu_accesses = core_stats->cdb_alu_accesses;
   core_stats->fpu_accesses = core_stats->cdb_fpu_accesses;
   core_stats->mul_accesses = core_stats->cdb_mul_accesses;
+
+  stat = stat_find_core_stat(sdb, coreID, "commit_insn");
+  core_stats->pipeline_duty_cycle = (double) stat->variant.for_sqword.end_val;
+  stat = stat_find_core_stat(sdb, coreID, "sim_cycle");
+  core_stats->pipeline_duty_cycle /= stat->variant.for_sqword.end_val;
+  core_stats->pipeline_duty_cycle /= knobs->commit.width;
 
   if (core->memory.ITLB)
   {

@@ -107,6 +107,7 @@ class bpred_t
   counter_t num_uncond;
   counter_t num_dir_hits;  /* for *all* branches, conditional or not */
   counter_t num_addr_hits; /* ditto */
+  counter_t num_hits;
   bool frozen;
 
   public:
