@@ -30,6 +30,10 @@
 
 using namespace std;
 
+#include <sys/mman.h>
+
+
+
 /* ========================================================================== */
 /* ========================================================================== */
 /*                           ZESTO and PIN INTERFACE                          */
@@ -46,6 +50,8 @@ KNOB<BOOL> KnobSanity(KNOB_MODE_WRITEONCE,     "pintool",
         "sanity", "false", "Sanity-check if simulator corrupted memory (expensive)");
 KNOB<BOOL> KnobILDJIT(KNOB_MODE_WRITEONCE,      "pintool",
         "ildjit", "false", "Application run is ildjit");
+KNOB<BOOL> KnobAMDHack(KNOB_MODE_WRITEONCE,      "pintool",
+        "amd_hack", "false", "Using AMD syscall hack for use with hpc cluster");
 KNOB<string> KnobFluffy(KNOB_MODE_WRITEONCE,      "pintool",
         "fluffy_annotations", "", "Annotation file that specifies fluffy ROI");
 KNOB<BOOL> KnobPipelineInstrumentation(KNOB_MODE_WRITEONCE, "pintool",
@@ -1470,6 +1476,11 @@ INT32 main(INT32 argc, CHAR **argv)
     PIN_Init(argc, argv);
     PIN_InitSymbols();
 
+
+    if(KnobAMDHack.Value()) {
+      amd_hack();
+    }
+
     if (KnobILDJIT.Value())
         MOLECOOL_Init();
 
@@ -1527,4 +1538,25 @@ INT32 main(INT32 argc, CHAR **argv)
 void spawn_new_thread(void entry_point(void*), void* arg)
 {
     PIN_SpawnInternalThread(entry_point, arg, 0, NULL);
+}
+
+void amd_hack()
+{
+  void *vdso_begin, *vdso_end;
+
+  vdso_begin = (void*)0xffffe000;
+  vdso_end = (void*)0xfffff000;
+  
+  int returnval = mprotect(vdso_begin, 0x1000, PROT_EXEC | PROT_READ | PROT_WRITE);
+
+  if (returnval != 0) {
+    perror("mprotectss");
+  } else {
+    // printf("%d\n", returnval);
+  }
+
+  *(char *)((int)vdso_begin + 0x400) = 0xcd;
+  *(char *)((int)vdso_begin + 0x401) = 0x80;
+
+  *(char *)((int)vdso_begin + 0x402) = 0xc3;
 }
