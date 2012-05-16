@@ -139,12 +139,33 @@ VOID ILDJIT_startIteration(THREADID tid)
     // For now, do nothing
 }
 
+static map<THREADID, bool> ignored_before_wait;
+
 /* ========================================================================== */
 VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc)
 {
     GetLock(&simbuffer_lock, tid+1);
 //    ignore[tid] = true;
 //    cerr << tid <<": Before Wait " << hex << ssID << dec << endl;
+
+    thread_state_t* tstate = get_tls(tid);
+    if (tstate->pc_queue_valid &&
+        ignored_before_wait.find(tid) == ignored_before_wait.end())
+    {
+        // push Arg2 to stack
+        ignore_list[tid][tstate->get_queued_pc(2)] = true;
+        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(2) << dec << endl;
+
+        // push Arg1 to stack
+        ignore_list[tid][tstate->get_queued_pc(1)] = true;
+        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(1) << dec << endl;
+
+        // Call instruction to beforeWait
+        ignore_list[tid][tstate->get_queued_pc(0)] = true;
+        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(0) << dec << endl;
+
+        ignored_before_wait[tid] = true;
+    }
 
     ASSERTX(!inserted_pool[tid].empty());
     handshake_container_t* handshake = inserted_pool[tid].front();
@@ -154,7 +175,6 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
     handshake->handshake.resume_thread = false;
     handshake->handshake.real = false;
     handshake->handshake.pc = 0;
-    thread_state_t* tstate = get_tls(tid);
     handshake->handshake.coreID = tstate->coreID;
     handshake->handshake.iteration_correction = (ssID == 0);
     handshake->valid = true;
@@ -169,20 +189,12 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
     ReleaseLock(&simbuffer_lock);
 }
 
-static map<THREADID, bool> ignored_before_wait;
-
 /* ========================================================================== */
 VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
 {
     GetLock(&simbuffer_lock, tid+1);
 //    ignore[tid] = false;
 //    cerr << tid <<": After Wait "<< hex << pc << dec  << endl;
-
-    if (ignored_before_wait.find(tid) == ignored_before_wait.end())
-    {
-        ignore_list[tid][pc] = true;
-        ignored_before_wait[tid] = true;
-    }
 
     /* HACKEDY HACKEDY HACK */
     /* We are not simulating and the core still hasn't consumed the wait.
@@ -267,12 +279,32 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
     ReleaseLock(&simbuffer_lock);
 }
 
+static map<THREADID, bool> ignored_before_signal;
 /* ========================================================================== */
 VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc)
 {
     GetLock(&simbuffer_lock, tid+1);
 //    ignore[tid] = true;
 //    cerr << tid <<": Before Signal " << hex << ssID << dec << endl;
+
+    thread_state_t* tstate = get_tls(tid);
+    if (tstate->pc_queue_valid &&
+        ignored_before_signal.find(tid) == ignored_before_signal.end())
+    {
+        // push Arg2 to stack
+        ignore_list[tid][tstate->get_queued_pc(2)] = true;
+        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(2) << dec << endl;
+
+        // push Arg1 to stack
+        ignore_list[tid][tstate->get_queued_pc(1)] = true;
+        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(1) << dec << endl;
+
+        // Call instruction to beforeWait
+        ignore_list[tid][tstate->get_queued_pc(0)] = true;
+        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(0) << dec << endl;
+
+        ignored_before_signal[tid] = true;
+    }
 
     ASSERTX(!inserted_pool[tid].empty());
     handshake_container_t* handshake = inserted_pool[tid].front();
@@ -282,7 +314,6 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT 
     handshake->handshake.resume_thread = false;
     handshake->handshake.real = false;
     handshake->handshake.pc = 0;
-    thread_state_t* tstate = get_tls(tid);
     handshake->handshake.coreID = tstate->coreID;
     handshake->handshake.iteration_correction = (ssID == 0);
     handshake->valid = true;

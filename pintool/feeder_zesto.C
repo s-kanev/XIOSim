@@ -710,6 +710,8 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
         ASSERTX(tstate->coreID != (ADDRINT)-1);
     }
 
+    tstate->queue_pc(pc);
+
     if (handshake->isFirstInsn)
         Zesto_SetBOS(tstate->coreID, tstate->bos);
 
