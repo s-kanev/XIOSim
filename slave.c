@@ -595,6 +595,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
        /* HACKEDY HACKEDY HACK!!! */
 //       fprintf(stderr, "%d: Holy shmozef %d\n", coreID, core->num_signals_in_pipe);
 //       fflush(stderr);
+       core->stat.holy_schmozef_hack++;
        if (core->num_signals_in_pipe == 0) {
          deactivate_core(coreID);
          return;

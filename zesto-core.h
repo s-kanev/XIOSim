@@ -229,6 +229,7 @@ class core_t {
     counter_t IQ_eff_uop_occupancy;
     counter_t IQ_full_cycles;
     counter_t IQ_empty_cycles;
+    counter_t holy_schmozef_hack;
     struct stat_stat_t *fetch_stall;
 
     /* decode stage */

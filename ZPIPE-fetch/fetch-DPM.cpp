@@ -324,6 +324,8 @@ core_fetch_DPM_t::reg_stats(struct stat_sdb_t * const sdb)
   sprintf(buf,"c%d.IQ_frac_full",arch->id);
   sprintf(buf2,"c%d.IQ_full/c%d.sim_cycle",arch->id,arch->id);
   stat_reg_formula(sdb, true, buf, "fraction of cycles IQ was full", buf2, NULL);
+  sprintf(buf,"c%d.holy_schomzef_hack",arch->id);
+  stat_reg_counter(sdb, true, buf, "holy schmozef hack for deadlock avoidance on short loops", &core->stat.holy_schmozef_hack, 0, TRUE, NULL);
 }
 
 void core_fetch_DPM_t::update_occupancy(void)
