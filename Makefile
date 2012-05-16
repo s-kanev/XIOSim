@@ -118,7 +118,7 @@ zesto-dram.cpp zesto-bpred.cpp zesto-memdep.cpp zesto-prefetch.cpp              
 zesto-uncore.cpp zesto-MC.cpp zesto-dumps.cpp zesto-power.cpp mem-repeater.cpp     \
 mem-repeater-link.cpp mem-repeater-request.cpp mem-repeater-manager.cpp            \
 mem-repeater-buffer.cpp mem-repeater-memory.cpp mem-repeater-packet.cpp            \
-mem-repeater-array.cpp trace_scanner.cpp
+mem-repeater-array.cpp trace_scanner.cpp mem-repeater-request-factory.cpp
 
 ZHDRS = \
 zesto-structs.h zesto-core.h zesto-opts.h zesto-oracle.h zesto-fetch.h             \
@@ -139,7 +139,8 @@ zesto-prefetch.$(OEXT) zesto-uncore.$(OEXT) zesto-MC.$(OEXT) zesto-dumps.$(OEXT)
 zesto-power.$(OEXT) mem-repeater.$(OEXT)                                            \
 mem-repeater-link.$(OEXT) mem-repeater-request.$(OEXT) mem-repeater-manager.$(OEXT) \
 mem-repeater-buffer.$(OEXT) mem-repeater-memory.$(OEXT) mem-repeater-packet.$(OEXT) \
-mem-repeater-array.$(OEXT) trace_scanner.$(OEXT)
+mem-repeater-array.$(OEXT) trace_scanner.$(OEXT)                                    \
+mem-repeater-request-factory.$(OEXT)
 
 EXOOBJS = \
 libexo/libexo.$(OEXT) libexo/exolex.$(OEXT)
