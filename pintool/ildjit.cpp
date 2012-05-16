@@ -234,7 +234,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
     }
 
     /* Insert wait instruction in pipeline */
-    while(!inserted_pool[tid].empty())
+    while(inserted_pool[tid].empty())
     {
         ReleaseLock(&simbuffer_lock);
         PIN_Yield();
@@ -343,7 +343,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT pc)
     }
 
     /* Insert signal instruction in pipeline */
-    while(!inserted_pool[tid].empty())
+    while(inserted_pool[tid].empty())
     {
         ReleaseLock(&simbuffer_lock);
         PIN_Yield();
