@@ -169,12 +169,20 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
     ReleaseLock(&simbuffer_lock);
 }
 
+static map<THREADID, bool> ignored_before_wait;
+
 /* ========================================================================== */
 VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
 {
     GetLock(&simbuffer_lock, tid+1);
 //    ignore[tid] = false;
 //    cerr << tid <<": After Wait "<< hex << pc << dec  << endl;
+
+    if (ignored_before_wait.find(tid) == ignored_before_wait.end())
+    {
+        ignore_list[tid][pc] = true;
+        ignored_before_wait[tid] = true;
+    }
 
     /* HACKEDY HACKEDY HACK */
     /* We are not simulating and the core still hasn't consumed the wait.

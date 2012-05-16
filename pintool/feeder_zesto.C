@@ -84,6 +84,8 @@ static map<THREADID, handshake_queue_t> handshake_pool;
 map<THREADID, BOOL> ignore;
 map<THREADID, handshake_queue_t> inserted_pool;
 
+// Ignore list of instrutcions that we don't care about
+map<THREADID, map<ADDRINT, BOOL> > ignore_list;
 
 // Used to manage internal pin simulator threads
 static queue<THREADID> instrument_tid_queue;
@@ -484,9 +486,9 @@ VOID SimulatorLoop(VOID* arg)
             }
         }
 
+        ADDRINT pc = handshake->handshake.pc;
         if (handshake->handshake.real)
         {
-            ADDRINT pc = handshake->handshake.pc;
             MakeInsCopy(&handshake->handshake, pc);
         }
 
@@ -498,6 +500,13 @@ VOID SimulatorLoop(VOID* arg)
         // on previous instruction
         if (KnobSanity.Value())
             SanityMemCheck();
+
+        // Ignoring instruction
+        if (ignore_list[instrument_tid].find(pc) != ignore_list[instrument_tid].end())
+        {
+            ReleaseHandshake(handshake->handshake.coreID);
+            return;
+        }
 
         // Actual simulation happens here
         Zesto_Resume(&handshake->handshake, &handshake->mem_buffer, handshake->isFirstInsn, handshake->isLastInsn);
@@ -1542,21 +1551,24 @@ void spawn_new_thread(void entry_point(void*), void* arg)
 
 void amd_hack()
 {
-  void *vdso_begin, *vdso_end;
+    void *vdso_begin, *vdso_end;
 
-  vdso_begin = (void*)0xffffe000;
-  vdso_end = (void*)0xfffff000;
+    vdso_begin = (void*)0xffffe000;
+    vdso_end = (void*)0xfffff000;
+    (void) vdso_end;
   
-  int returnval = mprotect(vdso_begin, 0x1000, PROT_EXEC | PROT_READ | PROT_WRITE);
+    int returnval = mprotect(vdso_begin, 0x1000, PROT_EXEC | PROT_READ | PROT_WRITE);
 
-  if (returnval != 0) {
-    perror("mprotectss");
-  } else {
-    // printf("%d\n", returnval);
-  }
+    if (returnval != 0) {
+      perror("mprotectss");
+    } else {
+      // printf("%d\n", returnval);
+    }
 
-  *(char *)((int)vdso_begin + 0x400) = 0xcd;
-  *(char *)((int)vdso_begin + 0x401) = 0x80;
+    // wtrite int80 at the begining of __kernel_vsyscall()
+    *(char *)((int)vdso_begin + 0x400) = 0xcd;
+    *(char *)((int)vdso_begin + 0x401) = 0x80;
 
-  *(char *)((int)vdso_begin + 0x402) = 0xc3;
+    // ... and follow it by a ret
+    *(char *)((int)vdso_begin + 0x402) = 0xc3;
 }
