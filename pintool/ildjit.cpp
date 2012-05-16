@@ -180,7 +180,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
     /* We are not simulating and the core still hasn't consumed the wait.
      * Find the dummy handshake in the simulation queue and remove it. */
     if (ExecMode != EXECUTION_MODE_SIMULATE
-        && inserted_pool[tid].empty())
+        && !handshake_buffer[tid].empty())
     {
         ASSERTX(!handshake_buffer[tid].empty());
         handshake_container_t* hshake = handshake_buffer[tid].front();
@@ -226,7 +226,14 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
     }
 
     /* Insert wait instruction in pipeline */
-    ASSERTX(!inserted_pool[tid].empty());
+    while(!inserted_pool[tid].empty())
+    {
+        ReleaseLock(&simbuffer_lock);
+        PIN_Yield();
+        GetLock(&simbuffer_lock, tid+1);
+    }
+
+
     handshake = inserted_pool[tid].front();
 
     handshake->isFirstInsn = false;
@@ -290,7 +297,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT pc)
     /* We are not simulating and the core still hasn't consumed the wait.
      * Find the dummy handshake in the simulation queue and remove it. */
     if (ExecMode != EXECUTION_MODE_SIMULATE
-        && inserted_pool[tid].empty())
+        && !handshake_buffer[tid].empty())
     {
         ASSERTX(!handshake_buffer[tid].empty());
         handshake_container_t* hshake = handshake_buffer[tid].front();
@@ -328,7 +335,13 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT pc)
     }
 
     /* Insert signal instruction in pipeline */
-    ASSERTX(!inserted_pool[tid].empty());
+    while(!inserted_pool[tid].empty())
+    {
+        ReleaseLock(&simbuffer_lock);
+        PIN_Yield();
+        GetLock(&simbuffer_lock, tid+1);
+    }
+
     handshake = inserted_pool[tid].front();
 
     handshake->isFirstInsn = false;
