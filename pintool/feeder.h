@@ -122,4 +122,6 @@ VOID ThreadFini(THREADID threadIndex, const CONTEXT *ctxt, INT32 code, VOID *v);
 VOID Fini(INT32 exitCode, VOID *v);
 VOID ScheduleRunQueue();
 
+void amd_hack();
+
 #endif /*__FEEDER_ZESTO__ */
