@@ -505,7 +505,7 @@ VOID SimulatorLoop(VOID* arg)
         if (ignore_list[instrument_tid].find(pc) != ignore_list[instrument_tid].end())
         {
             ReleaseHandshake(handshake->handshake.coreID);
-            return;
+            continue;
         }
 
         // Actual simulation happens here
