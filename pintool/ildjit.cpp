@@ -20,6 +20,8 @@ PIN_LOCK ildjit_lock;
 const UINT8 ld_template[] = {0xa1, 0xad, 0xfb, 0xca, 0xde};
 const UINT8 st_template[] = {0xc7, 0x05, 0xad, 0xfb, 0xca, 0xde, 0x00, 0x00, 0x00, 0x00 };
 
+map<THREADID, INT32> lastWaitID;
+
 /* ========================================================================== */
 VOID MOLECOOL_Init()
 {
@@ -171,7 +173,8 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
     handshake->handshake.iteration_correction = (ssID == 0);
     handshake->valid = true;
 
-    tstate->lastSignalID = ssID_addr;
+    tstate->lastSignalAddr = ssID_addr;
+    lastWaitID[tid] = ssID;
 
     if ((ssID == 0) && (ExecMode == EXECUTION_MODE_SIMULATE) &&
         seen_ssID_zero)
@@ -190,7 +193,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
 {
     GetLock(&simbuffer_lock, tid+1);
 //    ignore[tid] = false;
-//    cerr << tid <<": After Wait "<< hex << pc << dec  << endl;
+//    cerr << tid <<": After Wait "<< hex << pc << dec  << " ID: " << lastWaitID[tid] << endl;
 
     /* HACKEDY HACKEDY HACK */
     /* We are not simulating and the core still hasn't consumed the wait.
@@ -266,9 +269,9 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
     handshake->handshake.brtaken = false;
     memcpy(handshake->handshake.ins, ld_template, sizeof(ld_template));
     // Address comes right after opcode byte
-    *(INT32*)(&handshake->handshake.ins[1]) = tstate->lastSignalID;
+    *(INT32*)(&handshake->handshake.ins[1]) = tstate->lastSignalAddr;
 
-//    cerr << tid << ": Vodoo load instruction " << hex << pc <<  " ID: " << tstate->lastSignalID << dec << endl;
+//    cerr << tid << ": Vodoo load instruction " << hex << pc <<  " ID: " << tstate->lastSignalAddr << dec << endl;
     handshake_buffer[tid].push(handshake);
     inserted_pool[tid].pop();
 
@@ -314,7 +317,7 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT 
     handshake->handshake.iteration_correction = (ssID == 0);
     handshake->valid = true;
 
-    tstate->lastSignalID = ssID_addr;
+    tstate->lastSignalAddr = ssID_addr;
 
     handshake_buffer[tid].push(handshake);
     inserted_pool[tid].pop();
@@ -393,9 +396,9 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT pc)
     handshake->handshake.brtaken = false;
     memcpy(handshake->handshake.ins, st_template, sizeof(st_template));
     // Address comes right after opcode and MoodRM bytes
-    *(INT32*)(&handshake->handshake.ins[2]) = tstate->lastSignalID;
+    *(INT32*)(&handshake->handshake.ins[2]) = tstate->lastSignalAddr;
 
-//    cerr << tid << ": Vodoo store instruction " << hex << pc << " ID: " << tstate->lastSignalID << dec << endl;
+//    cerr << tid << ": Vodoo store instruction " << hex << pc << " ID: " << tstate->lastSignalAddr << dec << endl;
     handshake_buffer[tid].push(handshake);
     inserted_pool[tid].pop();
 

@@ -23,6 +23,7 @@ extern PIN_LOCK simbuffer_lock;
 extern PIN_LOCK printing_lock;
 extern map<UINT32, THREADID> core_threads;
 extern map<THREADID, map<ADDRINT, BOOL> > ignore_list;
+extern map<THREADID, INT32> lastWaitID;
 
 /* ========================================================================== */
 // Thread-private state that we need to preserve between different instrumentation calls
@@ -40,7 +41,7 @@ class thread_state_t
         slice_weight_times_1000 = 0;
         coreID = -1;
         firstIteration = false;
-        lastSignalID = 0xdecafbad;
+        lastSignalAddr = 0xdecafbad;
         unmatchedWaits = 0;
 
         memset(pc_queue, 0, PC_QUEUE_SIZE*sizeof(INT32));
@@ -71,8 +72,8 @@ class thread_state_t
     // Have we executed a wait on this thread
     BOOL firstIteration;
 
-    // ID of the last signal executed
-    ADDRINT lastSignalID;
+    // Address of the last signal executed
+    ADDRINT lastSignalAddr;
 
     // Critical section counter
     INT32 unmatchedWaits;

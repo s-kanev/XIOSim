@@ -464,6 +464,7 @@ VOID SimulatorLoop(VOID* arg)
          * (and to clean the handshake buffer) */
         if (handshake->killThread)
         {
+            ASSERTX(false);
             delete handshake;
             handshake_buffer[instrument_tid].front() = NULL;
             sim_stopped[instrument_tid] = true;
@@ -481,6 +482,7 @@ VOID SimulatorLoop(VOID* arg)
             if (!sim_running || PIN_IsProcessExiting())
             {
                 sim_stopped[instrument_tid] = true;
+                deactivate_core(coreID);
                 ReleaseLock(&simbuffer_lock);
                 return;
             }
@@ -713,7 +715,10 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
     tstate->queue_pc(pc);
 
     if (handshake->isFirstInsn)
+    {
         Zesto_SetBOS(tstate->coreID, tstate->bos);
+        sim_stopped[tid] = false;
+    }
 
     // Populate handshake buffer
     MakeSSRequest(tid, pc, npc, tpc, taken, ictxt, const_cast<handshake_container_t*>(handshake));
@@ -1056,6 +1061,9 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
         ignore[threadIndex] = false;
         ReleaseLock(&simbuffer_lock);
 
+        // Will get clear on first simulated instruction
+        sim_stopped[threadIndex] = true;
+
         // Mark simulation as running (only matters for first thread)
         sim_running = true;
 
@@ -1071,7 +1079,24 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
 /* ========================================================================== */
 VOID StopSimulation(THREADID tid)
 {
-    GetLock(&simbuffer_lock, tid + 1);
+    /* Deactivate this core, so simulation doesn't wait on it */
+    thread_state_t* tstate = get_tls(tid);
+    deactivate_core(tstate->coreID);
+
+    /* Make sure all cores gather at signal ID 0 before killing any threads.
+     * The invariant is that all cores (other than this one) are waiting there. */
+    volatile bool done = false;
+    do {
+        GetLock(&simbuffer_lock, tid + 1);
+        done = true;
+        map<THREADID, handshake_queue_t>::iterator it;
+        for (it = handshake_buffer.begin(); it != handshake_buffer.end(); it++) {
+            if (it->first != tid)
+                done &= ignore[it->first] && (lastWaitID[it->first] == 0);
+        }
+        ReleaseLock(&simbuffer_lock);
+    } while (!done);
+
     sim_running = false;
     ReleaseLock(&simbuffer_lock);
 

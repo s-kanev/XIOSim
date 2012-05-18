@@ -602,7 +602,8 @@ master_core:
           cores_active++;
       }
 
-      if (cores_finished_cycle == cores_active)
+      /* Yeah, could be >, see StopSimulation in feeder_zesto.C */
+      if (cores_finished_cycle >= cores_active)
         break;
 
       lk_unlock(&cycle_lock);
