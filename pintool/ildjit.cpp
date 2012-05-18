@@ -78,9 +78,6 @@ VOID ILDJIT_startSimulation(THREADID tid, ADDRINT ip)
     core_threads[0] = tid;
     cerr << tid << ": assigned to core " << tstate->coreID << endl;
 
-    if (KnobFluffy.Value().empty())
-        PPointHandler(CONTROL_START, NULL, NULL, (VOID*)ip, tid);
-
     ReleaseLock(&ildjit_lock);
 }
 
@@ -90,13 +87,6 @@ VOID ILDJIT_endSimulation(THREADID tid, ADDRINT ip)
     GetLock(&ildjit_lock, 1);
 
     //ILDJIT_executionStarted = false;
-
-//#ifdef ZESTO_PIN_DBG
-    cerr << "Stopping execution, TID: " << tid << endl;
-//#endif
-
-    if (KnobFluffy.Value().empty())
-        StopSimulation(tid);
 
     ReleaseLock(&ildjit_lock);
 }
@@ -122,24 +112,26 @@ VOID ILDJIT_ExecutorCreateEnd(THREADID tid)
 }
 
 /* ========================================================================== */
-VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT loop)
+VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
 {
-    // For now, do nothing
+    cerr << "Starting simulation, TID: " << tid << endl;
+    if (KnobFluffy.Value().empty())
+        PPointHandler(CONTROL_START, NULL, NULL, (VOID*)ip, tid);
 }
 
 /* ========================================================================== */
 VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop)
 {
-    // For now, do nothing
-}
+//#ifdef ZESTO_PIN_DBG
+    cerr << "Stopping simulation, TID: " << tid << endl;
+//#endif
 
-/* ========================================================================== */
-VOID ILDJIT_startIteration(THREADID tid)
-{
-    // For now, do nothing
+    if (KnobFluffy.Value().empty())
+        StopSimulation(tid);
 }
 
 static map<THREADID, bool> ignored_before_wait;
+static BOOL seen_ssID_zero = false;
 
 /* ========================================================================== */
 VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc)
@@ -181,8 +173,12 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
 
     tstate->lastSignalID = ssID_addr;
 
-    if ((ssID == 0) && (ExecMode == EXECUTION_MODE_SIMULATE))
+    if ((ssID == 0) && (ExecMode == EXECUTION_MODE_SIMULATE) &&
+        seen_ssID_zero)
         tstate->firstIteration = false;
+
+    if ((ssID == 0) && (ExecMode == EXECUTION_MODE_SIMULATE))
+        seen_ssID_zero = true;
 
     handshake_buffer[tid].push(handshake);
     inserted_pool[tid].pop();
@@ -489,6 +485,7 @@ VOID AddILDJITCallbacks(IMG img)
         RTN_Open(rtn);
         RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_startParallelLoop),
                        IARG_THREAD_ID,
+                       IARG_INST_PTR,
                        IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
                        IARG_END);
         RTN_Close(rtn);
@@ -508,19 +505,6 @@ VOID AddILDJITCallbacks(IMG img)
         RTN_Close(rtn);
     }
 
-/*    rtn = RTN_FindByName(img, "MOLECOOL_startIteration");
-    if (RTN_Valid(rtn))
-    {
-#ifdef ZESTO_PIN_DBG
-        cerr << "MOLECOOL_startIteration ";
-#endif
-        RTN_Open(rtn);
-        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_startIteration),
-                       IARG_THREAD_ID,
-                       IARG_END);
-        RTN_Close(rtn);
-    }
-*/
     rtn = RTN_FindByName(img, "MOLECOOL_startSimulation");
     if (RTN_Valid(rtn))
     {
