@@ -24,6 +24,7 @@ extern PIN_LOCK printing_lock;
 extern map<UINT32, THREADID> core_threads;
 extern map<THREADID, map<ADDRINT, BOOL> > ignore_list;
 extern map<THREADID, INT32> lastWaitID;
+extern BOOL ignore_all;
 
 /* ========================================================================== */
 // Thread-private state that we need to preserve between different instrumentation calls
@@ -42,7 +43,6 @@ class thread_state_t
         coreID = -1;
         firstIteration = false;
         lastSignalAddr = 0xdecafbad;
-        unmatchedWaits = 0;
 
         memset(pc_queue, 0, PC_QUEUE_SIZE*sizeof(INT32));
         pc_queue_head = PC_QUEUE_SIZE-1;
@@ -74,9 +74,6 @@ class thread_state_t
 
     // Address of the last signal executed
     ADDRINT lastSignalAddr;
-
-    // Critical section counter
-    INT32 unmatchedWaits;
 
     ADDRINT get_queued_pc(INT32 index) {
         return pc_queue[(pc_queue_head + index) & (PC_QUEUE_SIZE - 1)];
@@ -146,6 +143,8 @@ VOID SimulatorLoop(VOID* arg);
 VOID ThreadFini(THREADID threadIndex, const CONTEXT *ctxt, INT32 code, VOID *v);
 VOID Fini(INT32 exitCode, VOID *v);
 VOID ScheduleRunQueue();
+VOID PauseSimulation(THREADID tid);
+VOID ResumeSimulation(THREADID tid);
 
 void amd_hack();
 
