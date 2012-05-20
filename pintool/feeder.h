@@ -43,7 +43,6 @@ class thread_state_t
         coreID = -1;
         firstIteration = false;
         lastSignalAddr = 0xdecafbad;
-        unmatchedWaits = 0;
 
         memset(pc_queue, 0, PC_QUEUE_SIZE*sizeof(INT32));
         pc_queue_head = PC_QUEUE_SIZE-1;
@@ -75,9 +74,6 @@ class thread_state_t
 
     // Address of the last signal executed
     ADDRINT lastSignalAddr;
-
-    // Critical section counter
-    INT32 unmatchedWaits;
 
     ADDRINT get_queued_pc(INT32 index) {
         return pc_queue[(pc_queue_head + index) & (PC_QUEUE_SIZE - 1)];
