@@ -81,8 +81,13 @@ static PIN_LOCK test;
 PIN_LOCK simbuffer_lock;
 map<THREADID, handshake_queue_t> handshake_buffer;
 static map<THREADID, handshake_queue_t> handshake_pool;
-map<THREADID, BOOL> ignore;
 map<THREADID, handshake_queue_t> inserted_pool;
+
+// Is thread X not instrumenting instructions
+map<THREADID, BOOL> ignore;
+
+// Master switch for ignoring all cores (during sequential code)
+BOOL ignore_all = false;
 
 // Ignore list of instrutcions that we don't care about
 map<THREADID, map<ADDRINT, BOOL> > ignore_list;
@@ -593,7 +598,7 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size)
         }
     } while (!mem_released);
 
-    if (ignore[tid]) {
+    if (ignore[tid] || ignore_all) {
         ReleaseLock(&simbuffer_lock);
         return;
     }
@@ -632,7 +637,7 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
             GetLock(&simbuffer_lock, tid+1);
         }
         
-        if (ignore[tid]) {
+        if (ignore[tid] || ignore_all) {
             ReleaseLock(&simbuffer_lock);
             return;
         }
@@ -646,7 +651,7 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
 //        while (handshake_buffer[tid].empty() ||
 //               (!handshake_buffer[tid].empty() &&
 //                !handshake_buffer[tid].back()->handshake.real))
-        if (ignore[tid]) {
+        if (ignore[tid] || ignore_all) {
             ReleaseLock(&simbuffer_lock);
             return;
         }
@@ -1076,6 +1081,62 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
     ReleaseLock(&test);
 }
 
+
+
+
+/* ========================================================================== */
+VOID PauseSimulation(THREADID tid)
+{
+    GetLock(&simbuffer_lock, tid+1);
+    thread_state_t* tstate = get_tls(tid);
+    /* Deactivate this core, so simulation doesn't wait on it */
+    ASSERTX(!inserted_pool[tid].empty());
+    handshake_container_t* handshake = inserted_pool[tid].front();
+
+    handshake->isFirstInsn = false;
+    handshake->handshake.sleep_thread = true;
+    handshake->handshake.resume_thread = false;
+    handshake->handshake.real = false;
+    handshake->handshake.pc = 0;
+    handshake->handshake.coreID = tstate->coreID;
+    handshake->handshake.iteration_correction = false;
+    handshake->valid = true;
+    lastWaitID[tid] = 0;
+
+    handshake_buffer[tid].push(handshake);
+    inserted_pool[tid].pop();
+    ReleaseLock(&simbuffer_lock);
+
+    /* Make sure all cores gather at signal ID 0 before pausing any threads.
+     * The invariant is that all cores (other than this one) are waiting there. */
+    volatile bool done = false;
+    do {
+        GetLock(&simbuffer_lock, tid + 1);
+        done = true;
+        map<THREADID, handshake_queue_t>::iterator it;
+        for (it = handshake_buffer.begin(); it != handshake_buffer.end(); it++) {
+            done &= ignore[it->first] && (lastWaitID[it->first] == 0);
+        }
+        ReleaseLock(&simbuffer_lock);
+    } while (!done);
+
+    GetLock(&simbuffer_lock, tid+1);
+    for (INT32 i = 0; i < num_threads; i++) {
+        sim_drain_pipe(i);
+    }
+    ignore_all = true;
+    ReleaseLock(&simbuffer_lock);
+}
+
+/* ========================================================================== */
+VOID ResumeSimulation(THREADID tid)
+{
+    GetLock(&simbuffer_lock, tid+1);
+    ignore_all = false;
+    ReleaseLock(&simbuffer_lock);
+}
+
+
 /* ========================================================================== */
 VOID StopSimulation(THREADID tid)
 {
@@ -1085,9 +1146,9 @@ VOID StopSimulation(THREADID tid)
 
     /* Make sure all cores gather at signal ID 0 before killing any threads.
      * The invariant is that all cores (other than this one) are waiting there. */
-    volatile bool done = false;
+/*    volatile bool done = false;
     do {
-        GetLock(&simbuffer_lock, tid + 1);
+        GetLock(&simbuffer_lock, tid+1);
         done = true;
         map<THREADID, handshake_queue_t>::iterator it;
         for (it = handshake_buffer.begin(); it != handshake_buffer.end(); it++) {
@@ -1096,7 +1157,8 @@ VOID StopSimulation(THREADID tid)
         }
         ReleaseLock(&simbuffer_lock);
     } while (!done);
-
+*/
+    GetLock(&simbuffer_lock, tid+1);
     sim_running = false;
     ReleaseLock(&simbuffer_lock);
 

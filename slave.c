@@ -416,7 +416,7 @@ void activate_core(int coreID)
   lk_unlock(&cycle_lock);
 }
 
-static void sim_drain_pipe(int coreID)
+void sim_drain_pipe(int coreID)
 {
    struct core_t * core = cores[coreID];
 
@@ -427,6 +427,8 @@ static void sim_drain_pipe(int coreID)
    core->alloc->recover();
    core->decode->recover();
    core->fetch->recover(core->current_thread->regs.regs_NPC);
+
+   repeater_flush(core->memory.mem_repeater, NULL);
 
    // Do this after fetch->recover, since the latest Mop might have had a rep prefix
    core->current_thread->rep_sequence = 0;

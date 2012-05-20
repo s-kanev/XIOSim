@@ -24,6 +24,7 @@ extern PIN_LOCK printing_lock;
 extern map<UINT32, THREADID> core_threads;
 extern map<THREADID, map<ADDRINT, BOOL> > ignore_list;
 extern map<THREADID, INT32> lastWaitID;
+extern BOOL ignore_all;
 
 /* ========================================================================== */
 // Thread-private state that we need to preserve between different instrumentation calls
@@ -146,6 +147,8 @@ VOID SimulatorLoop(VOID* arg);
 VOID ThreadFini(THREADID threadIndex, const CONTEXT *ctxt, INT32 code, VOID *v);
 VOID Fini(INT32 exitCode, VOID *v);
 VOID ScheduleRunQueue();
+VOID PauseSimulation(THREADID tid);
+VOID ResumeSimulation(THREADID tid);
 
 void amd_hack();
 

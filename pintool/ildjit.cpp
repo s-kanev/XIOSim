@@ -22,6 +22,11 @@ const UINT8 st_template[] = {0xc7, 0x05, 0xad, 0xfb, 0xca, 0xde, 0x00, 0x00, 0x0
 
 map<THREADID, INT32> lastWaitID;
 
+// has this thread already ignored call overhead for before_wait
+static map<THREADID, bool> ignored_before_wait;
+// has this thread already ignored call overhead for before_signal
+static map<THREADID, bool> ignored_before_signal;
+
 /* ========================================================================== */
 VOID MOLECOOL_Init()
 {
@@ -67,15 +72,10 @@ VOID ILDJIT_startSimulation(THREADID tid, ADDRINT ip)
 //#ifdef ZESTO_PIN_DBG
     cerr << "Starting execution, TID: " << tid << endl;
 //#endif
-    /* This is called from the middle of a wait spin loop.
-     * For this thread only, ignore the end of the wait, so we
-     * can actually start simulating and unblock everyone else.
-     */
-    thread_state_t* tstate = get_tls(tid);
-    tstate->firstIteration = true;
 
     /* This thread gets core 0 by convention. HELIX takes care of
      * setting the rest of the core IDs. */
+    thread_state_t* tstate = get_tls(tid);
     tstate->coreID = 0;
     core_threads[0] = tid;
     cerr << tid << ": assigned to core " << tstate->coreID << endl;
@@ -86,11 +86,13 @@ VOID ILDJIT_startSimulation(THREADID tid, ADDRINT ip)
 /* ========================================================================== */
 VOID ILDJIT_endSimulation(THREADID tid, ADDRINT ip)
 {
-    GetLock(&ildjit_lock, 1);
+    // If we reach this, we're done with all parallel loops, just exit
+//#ifdef ZESTO_PIN_DBG
+    cerr << "Stopping simulation, TID: " << tid << endl;
+//#endif
 
-    //ILDJIT_executionStarted = false;
-
-    ReleaseLock(&ildjit_lock);
+    if (KnobFluffy.Value().empty())
+        StopSimulation(tid);
 }
 
 /* ========================================================================== */
@@ -113,27 +115,47 @@ VOID ILDJIT_ExecutorCreateEnd(THREADID tid)
     //Dummy, actual work now done in ILDJIT_ThreadStarting
 }
 
+static BOOL firstLoop = true;
+static BOOL seen_ssID_zero = false;
+
 /* ========================================================================== */
 VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
 {
-    cerr << "Starting simulation, TID: " << tid << endl;
-    if (KnobFluffy.Value().empty())
-        PPointHandler(CONTROL_START, NULL, NULL, (VOID*)ip, tid);
+    /* This is called right before a wait spin loop.
+     * For this thread only, ignore the end of the wait, so we
+     * can actually start simulating and unblock everyone else.
+     */
+    thread_state_t* tstate = get_tls(tid);
+    tstate->firstIteration = true;
+    tstate->unmatchedWaits = 0;
+
+    ignored_before_wait.clear();
+    ignored_before_signal.clear();
+    seen_ssID_zero = false;
+
+    if (firstLoop) {
+        cerr << "Starting simulation, TID: " << tid << endl;
+        if (KnobFluffy.Value().empty())
+            PPointHandler(CONTROL_START, NULL, NULL, (VOID*)ip, tid);
+        firstLoop = false;
+    } else {
+        cerr << tid << ": resuming simulation" << endl;
+        ResumeSimulation(tid);
+    }
 }
 
 /* ========================================================================== */
 VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop)
 {
-//#ifdef ZESTO_PIN_DBG
-    cerr << "Stopping simulation, TID: " << tid << endl;
-//#endif
 
-    if (KnobFluffy.Value().empty())
-        StopSimulation(tid);
+    cerr << tid << ": Pausing simulation" << endl;
+
+    PauseSimulation(tid);
+
+    // if (phaseEnd)
+    //     cerr << "Stopping simulation, TID: " << tid << endl;
+    //     StopSimulation(tid);
 }
-
-static map<THREADID, bool> ignored_before_wait;
-static BOOL seen_ssID_zero = false;
 
 /* ========================================================================== */
 VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc)
@@ -198,7 +220,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
     /* HACKEDY HACKEDY HACK */
     /* We are not simulating and the core still hasn't consumed the wait.
      * Find the dummy handshake in the simulation queue and remove it. */
-    if (ExecMode != EXECUTION_MODE_SIMULATE
+    if ((ExecMode != EXECUTION_MODE_SIMULATE || ignore_all)
         && !handshake_buffer[tid].empty())
     {
         ASSERTX(!handshake_buffer[tid].empty());
@@ -278,7 +300,6 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
     ReleaseLock(&simbuffer_lock);
 }
 
-static map<THREADID, bool> ignored_before_signal;
 /* ========================================================================== */
 VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc)
 {
@@ -334,7 +355,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT pc)
     /* HACKEDY HACKEDY HACK */
     /* We are not simulating and the core still hasn't consumed the wait.
      * Find the dummy handshake in the simulation queue and remove it. */
-    if (ExecMode != EXECUTION_MODE_SIMULATE
+    if ((ExecMode != EXECUTION_MODE_SIMULATE || ignore_all)
         && !handshake_buffer[tid].empty())
     {
         ASSERTX(!handshake_buffer[tid].empty());
@@ -425,34 +446,6 @@ VOID AddILDJITCallbacks(IMG img)
 
     //Interface to ildjit
     RTN rtn;
-/*    rtn = RTN_FindByName(img, "MOLECOOL_executionStarted");
-    if (RTN_Valid(rtn))
-    {
-#ifdef ZESTO_PIN_DBG
-        cerr << "MOLECOOL_codeExecutionStarted ";
-#endif
-        RTN_Open(rtn);
-        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_ThreadStarting),
-                       IARG_THREAD_ID,
-                       IARG_INST_PTR,
-                       IARG_END);
-        RTN_Close(rtn);
-    }
-
-    rtn = RTN_FindByName(img, "MOLECOOL_executionStop");
-    if (RTN_Valid(rtn))
-    {
-#ifdef ZESTO_PIN_DBG
-        cerr << "MOLECOOL_codeExecutionStop ";
-#endif
-        RTN_Open(rtn);
-        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_ThreadStopping),
-                       IARG_THREAD_ID,
-                       IARG_INST_PTR,
-                       IARG_END);
-        RTN_Close(rtn);
-    }
-*/
     rtn = RTN_FindByName(img, "MOLECOOL_codeExecutorCreation");
     if (RTN_Valid(rtn))
     {
