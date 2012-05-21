@@ -129,6 +129,8 @@
 #include "memory.h"
 #include "synchronization.h"
 
+extern bool multi_threaded;
+
 /* FYI, the following functions are used to emulate unaligned quadword
    memory accesses on architectures that require aligned quadword
    memory accesses, e.g., ARM emulation on SPARC hardware... */
@@ -401,7 +403,9 @@ md_paddr_t v2p_translate(int thread_id, md_addr_t virt_addr)
 
   while(p)
   {
-    if((p->thread_id == thread_id) && (p->vpn == VPN))
+    if((p->vpn == VPN) &&
+       (multi_threaded || 
+        (!multi_threaded && (p->thread_id == thread_id))))
     {
       /* hit! */
       break;

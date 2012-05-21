@@ -111,7 +111,7 @@ VOID ILDJIT_startSimulation(THREADID tid, ADDRINT ip)
 /* ========================================================================== */
 VOID ILDJIT_endSimulation(THREADID tid, ADDRINT ip)
 {
-    if (strlen(end_loop) == 0)
+    if (strlen(end_loop) != 0)
         return;
 
     // If we reach this, we're done with all parallel loops, just exit
