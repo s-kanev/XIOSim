@@ -151,10 +151,10 @@ static BOOL seen_ssID_zero = false;
 /* ========================================================================== */
 VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
 {
-//#ifdef ZESTO_PIN_DBG
+#ifdef ZESTO_PIN_DBG
     CHAR* loop_name = (CHAR*) loop;
     cerr << "Starting loop: " << loop_name << endl;
-//#endif
+#endif
     invocation_counts[loop]++;
 
     /* Haven't started simulation and we encounter a loop we don't care
@@ -192,10 +192,10 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
 /* ========================================================================== */
 VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop)
 {
-//#ifdef ZESTO_PIN_DBG
+#ifdef ZESTO_PIN_DBG
     CHAR* loop_name = (CHAR*) loop;
     cerr << "Ending loop: " << loop_name << endl;
-//#endif
+#endif
 
     if (ExecMode == EXECUTION_MODE_SIMULATE) {
         cerr << tid << ": Pausing simulation" << endl;
