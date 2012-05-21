@@ -58,6 +58,8 @@ VOID MOLECOOL_Init()
         loop_file.getline(end_loop, 512);
         loop_file >> end_loop_invocation;
     }
+    cerr << start_loop << " " << start_loop_invocation << endl;
+    cerr << end_loop << " " << end_loop_invocation << endl;
 }
 
 /* ========================================================================== */
@@ -155,6 +157,12 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
 #endif
     invocation_counts[loop]++;
 
+    /* Haven't started simulation and we encounter a loop we don't care
+     * about */
+    if (ExecMode != EXECUTION_MODE_SIMULATE &&
+        strncmp(start_loop, (CHAR*)loop, 512) != 0)
+        return;
+
     /* This is called right before a wait spin loop.
      * For this thread only, ignore the end of the wait, so we
      * can actually start simulating and unblock everyone else.
@@ -189,9 +197,10 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop)
     cerr << "Ending loop: " << loop_name << endl;
 #endif
 
-    cerr << tid << ": Pausing simulation" << endl;
-
-    PauseSimulation(tid);
+    if (ExecMode == EXECUTION_MODE_SIMULATE) {
+        cerr << tid << ": Pausing simulation" << endl;
+        PauseSimulation(tid);
+    }
 
     if(strncmp(end_loop, (CHAR*)loop, 512) == 0 && invocation_counts[loop] == end_loop_invocation) {
         cerr << "LStopping simulation, TID: " << tid << endl;
@@ -267,15 +276,16 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
     /* HACKEDY HACKEDY HACK */
     /* We are not simulating and the core still hasn't consumed the wait.
      * Find the dummy handshake in the simulation queue and remove it. */
-    if ((ExecMode != EXECUTION_MODE_SIMULATE || ignore_all)
-        && !handshake_buffer[tid].empty())
+    if (ExecMode != EXECUTION_MODE_SIMULATE || ignore_all)
     {
-        ASSERTX(!handshake_buffer[tid].empty());
-        handshake_container_t* hshake = handshake_buffer[tid].front();
-        ASSERTX(hshake->handshake.real == false);
-        ASSERTX(hshake->handshake.sleep_thread == true);
-        handshake_buffer[tid].pop();
-        inserted_pool[tid].push(hshake);
+        if (!handshake_buffer[tid].empty())
+        {
+            handshake_container_t* hshake = handshake_buffer[tid].front();
+            ASSERTX(hshake->handshake.real == false);
+            ASSERTX(hshake->handshake.sleep_thread == true);
+            handshake_buffer[tid].pop();
+            inserted_pool[tid].push(hshake);
+        }
         ReleaseLock(&simbuffer_lock);
         return;
     }
@@ -412,14 +422,15 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT pc)
     /* HACKEDY HACKEDY HACK */
     /* We are not simulating and the core still hasn't consumed the wait.
      * Find the dummy handshake in the simulation queue and remove it. */
-    if ((ExecMode != EXECUTION_MODE_SIMULATE || ignore_all)
-        && !handshake_buffer[tid].empty())
+    if (ExecMode != EXECUTION_MODE_SIMULATE || ignore_all)
     {
-        ASSERTX(!handshake_buffer[tid].empty());
-        handshake_container_t* hshake = handshake_buffer[tid].front();
-        ASSERTX(hshake->handshake.real == false);
-        handshake_buffer[tid].pop();
-        inserted_pool[tid].push(hshake);
+        if (!handshake_buffer[tid].empty())
+        {
+            handshake_container_t* hshake = handshake_buffer[tid].front();
+            ASSERTX(hshake->handshake.real == false);
+            handshake_buffer[tid].pop();
+            inserted_pool[tid].push(hshake);
+        }
         ReleaseLock(&simbuffer_lock);
         return;
     }
