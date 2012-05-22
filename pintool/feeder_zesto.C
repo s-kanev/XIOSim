@@ -1132,6 +1132,32 @@ VOID PauseSimulation(THREADID tid)
 VOID ResumeSimulation(THREADID tid)
 {
     GetLock(&simbuffer_lock, tid+1);
+
+    while(inserted_pool[tid].empty())
+    {
+        ReleaseLock(&simbuffer_lock);
+        PIN_Yield();
+        GetLock(&simbuffer_lock, tid+1);
+    }
+    handshake_container_t* handshake = inserted_pool[tid].front();
+
+    thread_state_t* tstate = get_tls(tid);
+    handshake->isFirstInsn = false;
+    handshake->handshake.sleep_thread = false;
+    handshake->handshake.resume_thread = true;
+    handshake->handshake.real = false;
+    handshake->handshake.pc = 0;
+    handshake->handshake.coreID = tstate->coreID;
+    handshake->handshake.in_critical_section = (num_threads > 1);
+    handshake->handshake.iteration_correction = false;
+    handshake->valid = true;
+
+    inserted_pool[tid].pop();
+    handshake_buffer[tid].push(handshake);
+
+    //map<THREADID, handshake_queue_t>::iterator it;
+    //for (it = handshake_buffer.begin(); it != handshake_buffer.end(); it++) {
+    //}
     ignore_all = false;
     ReleaseLock(&simbuffer_lock);
 }
