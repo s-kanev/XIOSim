@@ -151,10 +151,10 @@ static BOOL seen_ssID_zero = false;
 /* ========================================================================== */
 VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
 {
-#ifdef ZESTO_PIN_DBG
+//#ifdef ZESTO_PIN_DBG
     CHAR* loop_name = (CHAR*) loop;
     cerr << "Starting loop: " << loop_name << endl;
-#endif
+//#endif
     invocation_counts[loop]++;
 
     /* Haven't started simulation and we encounter a loop we don't care
@@ -177,12 +177,19 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
     ignored_before_signal.clear();
     seen_ssID_zero = false;
 
-    if ((strlen(start_loop) == 0 && firstLoop) ||
-        (strncmp(start_loop, (CHAR*)loop, 512) == 0 && invocation_counts[loop] == start_loop_invocation)) {
+    if (strlen(start_loop) == 0 && firstLoop) {
         cerr << "Starting simulation, TID: " << tid << endl;
-        if (KnobFluffy.Value().empty())
-            PPointHandler(CONTROL_START, NULL, NULL, (VOID*)ip, tid);
+        PPointHandler(CONTROL_START, NULL, NULL, (VOID*)ip, tid);
         firstLoop = false;
+    } else if (strncmp(start_loop, (CHAR*)loop, 512) == 0) {
+        if (invocation_counts[loop] == start_loop_invocation) {
+            cerr << "Starting simulation, TID: " << tid << endl;
+            PPointHandler(CONTROL_START, NULL, NULL, (VOID*)ip, tid);
+            firstLoop = false;
+        } else if (invocation_counts[loop] > start_loop_invocation) {
+            cerr << tid << ": resuming simulation" << endl;
+            ResumeSimulation(tid);
+        }
     } else {
         cerr << tid << ": resuming simulation" << endl;
         ResumeSimulation(tid);
@@ -192,10 +199,10 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
 /* ========================================================================== */
 VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop)
 {
-#ifdef ZESTO_PIN_DBG
+//#ifdef ZESTO_PIN_DBG
     CHAR* loop_name = (CHAR*) loop;
     cerr << "Ending loop: " << loop_name << endl;
-#endif
+//#endif
 
     if (ExecMode == EXECUTION_MODE_SIMULATE) {
         cerr << tid << ": Pausing simulation" << endl;
