@@ -208,8 +208,8 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
 VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop)
 {
 //#ifdef ZESTO_PIN_DBG
-    CHAR* loop_name = (CHAR*) loop;
-    cerr << "Ending loop: " << loop_name << endl;
+//    CHAR* loop_name = (CHAR*) loop;
+    //    cerr << "Ending loop: " << loop_name << endl;
 //#endif
 
     if (ExecMode == EXECUTION_MODE_SIMULATE) {
