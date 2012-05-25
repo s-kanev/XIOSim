@@ -337,7 +337,6 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
      * so we can start simulating */
     if (tstate->firstIteration)
     {
-      cerr << "Skipping first wait " << endl;
         ReleaseLock(&simbuffer_lock);
         return;
     }
