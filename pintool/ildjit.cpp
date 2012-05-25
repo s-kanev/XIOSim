@@ -154,6 +154,7 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
 //#ifdef ZESTO_PIN_DBG
 //    CHAR* loop_name = (CHAR*) loop;
 
+
 //#endif
     invocation_counts[loop]++;
 
@@ -211,7 +212,7 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop)
 //    CHAR* loop_name = (CHAR*) loop;
     //    cerr << "Ending loop: " << loop_name << endl;
 //#endif
-
+  
     if (ExecMode == EXECUTION_MODE_SIMULATE) {
         cerr << tid << ": Pausing simulation" << endl;
         PauseSimulation(tid);
@@ -220,7 +221,7 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop)
     if(strncmp(end_loop, (CHAR*)loop, 512) == 0 && invocation_counts[loop] == end_loop_invocation) {
         cerr << "LStopping simulation, TID: " << tid << endl;
         StopSimulation(tid);
-    }
+    }    
 }
 
 /* ========================================================================== */
@@ -228,7 +229,6 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
 {
     GetLock(&simbuffer_lock, tid+1);
 //    ignore[tid] = true;
-//    cerr << tid <<": Before Wait " << hex << ssID << dec << endl;
 
     thread_state_t* tstate = get_tls(tid);
     if (tstate->pc_queue_valid &&
@@ -268,13 +268,17 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
 
     tstate->lastSignalAddr = ssID_addr;
     lastWaitID[tid] = ssID;
+        
+    if ((ExecMode == EXECUTION_MODE_SIMULATE) && (core_threads[0] != tid)) {
+      tstate->firstIteration = false;
+    }
+    if((ExecMode == EXECUTION_MODE_SIMULATE) && (core_threads[0] == tid) && (seen_ssID_zero)) {
+      tstate->firstIteration = false;
+    }
 
-    if ((ssID == 0) && (ExecMode == EXECUTION_MODE_SIMULATE) &&
-        seen_ssID_zero)
-        tstate->firstIteration = false;
-
-    if ((ssID == 0) && (ExecMode == EXECUTION_MODE_SIMULATE))
-        seen_ssID_zero = true;
+    if ((ssID == 0) && (ExecMode == EXECUTION_MODE_SIMULATE) && (core_threads[0] == tid)) {
+      seen_ssID_zero = true;
+    }
 
     handshake_buffer[tid].push(handshake);
     inserted_pool[tid].pop();
@@ -333,6 +337,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
      * so we can start simulating */
     if (tstate->firstIteration)
     {
+      cerr << "Skipping first wait " << endl;
         ReleaseLock(&simbuffer_lock);
         return;
     }
@@ -381,6 +386,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
 VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc)
 {
     GetLock(&simbuffer_lock, tid+1);
+
 //    ignore[tid] = true;
 //    cerr << tid <<": Before Signal " << hex << ssID << dec << endl;
 
