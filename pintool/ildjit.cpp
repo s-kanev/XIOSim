@@ -38,6 +38,8 @@ static INT32 end_loop_invocation;
 
 static map<THREADID, INT32> unmatchedWaits;
 
+VOID AddILDJITWaitSignalCallbacks();
+
 /* ========================================================================== */
 VOID MOLECOOL_Init()
 {
@@ -54,6 +56,7 @@ VOID MOLECOOL_Init()
         }
         loop_file.getline(start_loop, 512);
         loop_file >> start_loop_invocation;
+        assert(start_loop_invocation > 1);
         loop_file.get();
         loop_file.getline(end_loop, 512);
         loop_file >> end_loop_invocation;
@@ -153,9 +156,8 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
 {
 //#ifdef ZESTO_PIN_DBG
 //    CHAR* loop_name = (CHAR*) loop;
-
-
 //#endif
+
     invocation_counts[loop]++;
 
     /* Haven't started simulation and we encounter a loop we don't care
@@ -164,7 +166,12 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
       if(strncmp(start_loop, (CHAR*)loop, 512) != 0) {
         return;
       }
-      if(invocation_counts[loop] < start_loop_invocation) {
+      if(invocation_counts[loop] < start_loop_invocation) {        
+        if(invocation_counts[loop] == (start_loop_invocation - 1)) {          
+          cerr << "Doing the instrumentation for before/after wait/signal and endParallelLoop" << endl;
+          AddILDJITWaitSignalCallbacks();
+          CODECACHE_FlushCache();
+        }      
         return;
       }
     }
@@ -204,8 +211,8 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
         ResumeSimulation(tid);
     }
 }
-
 /* ========================================================================== */
+
 VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop)
 {
 //#ifdef ZESTO_PIN_DBG
@@ -228,6 +235,7 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop)
 VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc)
 {
     GetLock(&simbuffer_lock, tid+1);
+    //    cerr << tid <<": Before Wait "<< hex << pc << dec  << " ID: " << ssID << endl;
 //    ignore[tid] = true;
 
     thread_state_t* tstate = get_tls(tid);
@@ -290,7 +298,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
 {
     GetLock(&simbuffer_lock, tid+1);
 //    ignore[tid] = false;
-//    cerr << tid <<": After Wait "<< hex << pc << dec  << " ID: " << lastWaitID[tid] << endl;
+    cerr << tid <<": After Wait "<< hex << pc << dec  << " ID: " << lastWaitID[tid] << endl;
 
     /* HACKEDY HACKEDY HACK */
     /* We are not simulating and the core still hasn't consumed the wait.
@@ -519,7 +527,6 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT pc)
     ReleaseLock(&simbuffer_lock);
 }
 
-
 /* ========================================================================== */
 VOID ILDJIT_setAffinity(THREADID tid, INT32 coreID)
 {
@@ -580,20 +587,6 @@ VOID AddILDJITCallbacks(IMG img)
         RTN_Close(rtn);
     }
 
-    rtn = RTN_FindByName(img, "MOLECOOL_endParallelLoop");
-    if (RTN_Valid(rtn))
-    {
-#ifdef ZESTO_PIN_DBG
-        cerr << "MOLECOOL_endParallelLoop ";
-#endif
-        RTN_Open(rtn);
-        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_endParallelLoop),
-                       IARG_THREAD_ID,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
-                       IARG_END);
-        RTN_Close(rtn);
-    }
-
     rtn = RTN_FindByName(img, "MOLECOOL_startSimulation");
     if (RTN_Valid(rtn))
     {
@@ -620,70 +613,8 @@ VOID AddILDJITCallbacks(IMG img)
                        IARG_END);
         RTN_Close(rtn);
     }
-
-    rtn = RTN_FindByName(img, "MOLECOOL_beforeWait");
-    if (RTN_Valid(rtn))
-    {
-#ifdef ZESTO_PIN_DBG
-        cerr << "MOLECOOL_beforeWait ";
-#endif
-        RTN_Open(rtn);
-        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeWait),
-                       IARG_THREAD_ID,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
-                       IARG_INST_PTR,
-                       IARG_CALL_ORDER, CALL_ORDER_FIRST,
-                       IARG_END);
-        RTN_Close(rtn);
-    }
-
-    rtn = RTN_FindByName(img, "MOLECOOL_afterWait");
-    if (RTN_Valid(rtn))
-    {
-#ifdef ZESTO_PIN_DBG
-        cerr << "MOLECOOL_afterWait ";
-#endif
-        RTN_Open(rtn);
-        RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterWait),
-                       IARG_THREAD_ID,
-                       IARG_INST_PTR,
-                       IARG_CALL_ORDER, CALL_ORDER_LAST,
-                       IARG_END);
-        RTN_Close(rtn);
-    }
-
-    rtn = RTN_FindByName(img, "MOLECOOL_beforeSignal");
-    if (RTN_Valid(rtn))
-    {
-#ifdef ZESTO_PIN_DBG
-        cerr << "MOLECOOL_beforeSignal ";
-#endif
-        RTN_Open(rtn);
-        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeSignal),
-                       IARG_THREAD_ID,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
-                       IARG_INST_PTR,
-                       IARG_CALL_ORDER, CALL_ORDER_FIRST,
-                       IARG_END);
-        RTN_Close(rtn);
-    }
-
-    rtn = RTN_FindByName(img, "MOLECOOL_afterSignal");
-    if (RTN_Valid(rtn))
-    {
-#ifdef ZESTO_PIN_DBG
-        cerr << "MOLECOOL_afterSignal ";
-#endif
-        RTN_Open(rtn);
-        RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterSignal),
-                       IARG_THREAD_ID,
-                       IARG_INST_PTR,
-                       IARG_CALL_ORDER, CALL_ORDER_LAST,
-                       IARG_END);
-        RTN_Close(rtn);
-    }
+    
+    //    AddILDJITWaitSignalCallbacks(img);
 
     rtn = RTN_FindByName(img, "MOLECOOL_setAffinity");
     if (RTN_Valid(rtn))
@@ -743,3 +674,76 @@ VOID AddILDJITCallbacks(IMG img)
     cerr << endl;
 #endif
 }
+
+
+/* ========================================================================== */
+VOID AddILDJITWaitSignalCallbacks()
+{
+  PIN_LockClient();
+
+  for(IMG img = APP_ImgHead(); IMG_Valid(img); img = IMG_Next(img)) {
+    RTN rtn = RTN_FindByName(img, "MOLECOOL_beforeWait");
+    if (RTN_Valid(rtn))
+      {
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeWait),
+                       IARG_THREAD_ID,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
+                       IARG_INST_PTR,
+                       IARG_CALL_ORDER, CALL_ORDER_FIRST,
+                     IARG_END);
+        RTN_Close(rtn);
+      }
+    
+    rtn = RTN_FindByName(img, "MOLECOOL_afterWait");
+    
+    if (RTN_Valid(rtn))
+      {
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterWait),
+                       IARG_THREAD_ID,
+                       IARG_INST_PTR,
+                       IARG_CALL_ORDER, CALL_ORDER_LAST,
+                       IARG_END);
+        RTN_Close(rtn);
+      }
+    
+    rtn = RTN_FindByName(img, "MOLECOOL_beforeSignal");
+    if (RTN_Valid(rtn)) {
+      RTN_Open(rtn);
+      RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeSignal),
+                     IARG_THREAD_ID,
+                     IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+                     IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
+                     IARG_INST_PTR,
+                     IARG_CALL_ORDER, CALL_ORDER_FIRST,
+                     IARG_END);
+      RTN_Close(rtn);
+    }
+    
+    rtn = RTN_FindByName(img, "MOLECOOL_afterSignal");
+    if (RTN_Valid(rtn)) {
+      RTN_Open(rtn);
+      RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterSignal),
+                     IARG_THREAD_ID,
+                     IARG_INST_PTR,
+                     IARG_CALL_ORDER, CALL_ORDER_LAST,
+                     IARG_END);
+      RTN_Close(rtn);
+    }
+
+    rtn = RTN_FindByName(img, "MOLECOOL_endParallelLoop");
+    if (RTN_Valid(rtn))
+      {
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_endParallelLoop),
+                       IARG_THREAD_ID,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+                       IARG_END);
+        RTN_Close(rtn);
+      }
+  }
+  PIN_UnlockClient();
+}
+
