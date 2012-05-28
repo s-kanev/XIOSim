@@ -147,6 +147,7 @@ VOID ILDJIT_ExecutorCreateEnd(THREADID tid)
 
 static BOOL firstLoop = true;
 static BOOL seen_ssID_zero = false;
+static BOOL seen_ssID_zero_twice = false;
 
 /* ========================================================================== */
 VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
@@ -181,6 +182,7 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
     ignored_before_wait.clear();
     ignored_before_signal.clear();
     seen_ssID_zero = false;
+    seen_ssID_zero_twice = false;
 
     if (strlen(start_loop) == 0 && firstLoop) {
         cerr << "Starting simulation, TID: " << tid << endl;
@@ -228,7 +230,7 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
 {
     GetLock(&simbuffer_lock, tid+1);
 //    ignore[tid] = true;
-    cerr << tid <<":Before Wait "<< hex << pc << dec  << " ID: " << ssID << hex << " (" << ssID_addr <<")" << dec << endl;
+//    cerr << tid <<":Before Wait "<< hex << pc << dec  << " ID: " << ssID << hex << " (" << ssID_addr <<")" << dec << endl;
 
     thread_state_t* tstate = get_tls(tid);
     if (tstate->pc_queue_valid &&
@@ -268,11 +270,18 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
 
     tstate->lastSignalAddr = ssID_addr;
     lastWaitID[tid] = ssID;
-        
+
+    // XXX: HACKEDY HACKEDY HACK The ordering of these conditions matter        
     if ((ExecMode == EXECUTION_MODE_SIMULATE) && (core_threads[0] != tid)) {
       tstate->firstIteration = false;
     }
-    if((ExecMode == EXECUTION_MODE_SIMULATE) && (core_threads[0] == tid) && (seen_ssID_zero)) {
+
+    if ((ssID == 0) && (ExecMode == EXECUTION_MODE_SIMULATE) && (core_threads[0] == tid) &&
+        seen_ssID_zero) {
+      seen_ssID_zero_twice = true;
+    }
+
+    if ((ExecMode == EXECUTION_MODE_SIMULATE) && (core_threads[0] == tid) && (seen_ssID_zero_twice)) {
       tstate->firstIteration = false;
     }
 
@@ -290,7 +299,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
 {
     GetLock(&simbuffer_lock, tid+1);
 //    ignore[tid] = false;
-    cerr << tid <<": After Wait "<< hex << pc << dec  << " ID: " << lastWaitID[tid] << endl;
+//    cerr << tid <<": After Wait "<< hex << pc << dec  << " ID: " << lastWaitID[tid] << endl;
 
     /* HACKEDY HACKEDY HACK */
     /* We are not simulating and the core still hasn't consumed the wait.
@@ -387,7 +396,7 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT 
     GetLock(&simbuffer_lock, tid+1);
 
 //    ignore[tid] = true;
-    cerr << tid <<": Before Signal " << hex << ssID <<  " (" << ssID_addr << ")" << dec << endl;
+//    cerr << tid <<": Before Signal " << hex << ssID <<  " (" << ssID_addr << ")" << dec << endl;
 
     thread_state_t* tstate = get_tls(tid);
     if (tstate->pc_queue_valid &&
@@ -437,7 +446,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT pc)
 {
     GetLock(&simbuffer_lock, tid+1);
 //    ignore[tid] = false;
-    cerr << tid <<": After Signal " << hex << pc << dec << endl;
+//    cerr << tid <<": After Signal " << hex << pc << dec << endl;
 
     /* HACKEDY HACKEDY HACK */
     /* We are not simulating and the core still hasn't consumed the wait.

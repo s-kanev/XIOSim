@@ -1310,7 +1310,8 @@ void core_exec_IO_DPM_t::load_miss_reschedule(void * const op, const int new_pre
   zesto_assert(uop->decode.is_load,(void)0);
 
   /* Hit in repeater was already processed */
-  if (uop->alloc.LDQ_index == -1)
+  if (uop->alloc.LDQ_index == -1 || !uop->decode.is_load    // uop was alredy recycled
+      || uop->timing.when_completed != TICK_T_MAX)          // or not, but is already marked as completed
     return;
 
   /* if we've speculatively woken up our dependents, we need to
