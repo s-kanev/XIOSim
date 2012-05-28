@@ -1158,7 +1158,7 @@ void core_exec_IO_DPM_t::repeater_callback(void * const op, bool is_hit)
   if(uop->alloc.LDQ_index != -1)
   {
 #ifdef ZTRACE
-    ztrace_print(uop,"e|load|returned from repeater (hit: %d)", is_hit);
+    ztrace_print(uop,"e|load|returned from repeater (hit: %d) %d %d", is_hit, uop->exec.when_addr_translated, E->LDQ[uop->alloc.LDQ_index].repeater_last_arrived);
 #endif
     zesto_assert(uop->oracle.is_repeated, (void)0);
     E->LDQ[uop->alloc.LDQ_index].repeater_first_arrived = true;
@@ -1310,7 +1310,8 @@ void core_exec_IO_DPM_t::load_miss_reschedule(void * const op, const int new_pre
   zesto_assert(uop->decode.is_load,(void)0);
 
   /* Hit in repeater was already processed */
-  if (uop->alloc.LDQ_index == -1)
+  if (uop->alloc.LDQ_index == -1 || !uop->decode.is_load    // uop was alredy recycled
+      || uop->timing.when_completed != TICK_T_MAX)          // or not, but is already marked as completed
     return;
 
   /* if we've speculatively woken up our dependents, we need to
@@ -1704,7 +1705,11 @@ void core_exec_IO_DPM_t::LDQ_schedule(void)
               {
                 uop->exec.when_data_loaded = TICK_T_MAX;
                 uop->exec.when_addr_translated = TICK_T_MAX;
-                cache_enqueue(core,core->memory.DTLB,NULL,CACHE_READ,core->current_thread->id,uop->Mop->fetch.PC,PAGE_TABLE_ADDR(core->current_thread->id,uop->oracle.virt_addr),uop->exec.action_id,0,NO_MSHR,uop,DTLB_callback,load_miss_reschedule,NULL,get_uop_action_id);
+                if (!uop->oracle.is_sync_op)
+                  cache_enqueue(core,core->memory.DTLB,NULL,CACHE_READ,core->current_thread->id,uop->Mop->fetch.PC,PAGE_TABLE_ADDR(core->current_thread->id,uop->oracle.virt_addr),uop->exec.action_id,0,NO_MSHR,uop,DTLB_callback,load_miss_reschedule,NULL,get_uop_action_id);
+                else
+                  // The wait address is bogus, don't schedule a TLB translation
+                  uop->exec.when_addr_translated = sim_cycle;
                 cache_enqueue(core,core->memory.DL1,NULL,CACHE_READ,core->current_thread->id,uop->Mop->fetch.PC,uop->oracle.virt_addr,uop->exec.action_id,0,NO_MSHR,uop,DL1_callback,load_miss_reschedule,translated_callback,get_uop_action_id);
                 if(uop->oracle.is_repeated)
                   repeater_enqueue(core->memory.mem_repeater, uop->oracle.is_sync_op ? CACHE_WAIT : CACHE_READ, 
