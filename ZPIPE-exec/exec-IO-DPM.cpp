@@ -2263,7 +2263,8 @@ bool core_exec_IO_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
 
 
     /* not a split-line access */
-    if(((uop->oracle.virt_addr+uop->decode.mem_size)>>core->memory.DL1->addr_shift) == (uop->oracle.virt_addr>>core->memory.DL1->addr_shift))
+    if(uop->oracle.is_sync_op ||
+       (((uop->oracle.virt_addr+uop->decode.mem_size)>>core->memory.DL1->addr_shift) == (uop->oracle.virt_addr>>core->memory.DL1->addr_shift)))
     {
       STQ[STQ_head].last_byte_requested = true;
       STQ[STQ_head].last_byte_written = true;
