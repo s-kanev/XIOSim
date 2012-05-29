@@ -118,10 +118,6 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -136,6 +132,8 @@ extern "C" {
 #include "host.h"
 #include "misc.h"
 #include "machine.h"
+#include <stddef.h>
+#include "synchronization.h"
 
 #ifdef DEBUG
 /* active debug flag */
@@ -287,6 +285,7 @@ void trace(const char *fmt, ...)
 
 void vtrace(const char *fmt, va_list v)
 {
+  lk_lock(&printing_lock, 1);
   myvsprintf(tracebuff[tracebuff_tail], fmt, v);
 
   tracebuff_tail = modinc(tracebuff_tail, MAX_TRACEBUFF_ITEMS);
@@ -294,6 +293,7 @@ void vtrace(const char *fmt, va_list v)
     tracebuff_head = modinc(tracebuff_head, MAX_TRACEBUFF_ITEMS);
   else
     tracebuff_occupancy++;
+  lk_unlock(&printing_lock);
 }
 
 void flush_trace()
@@ -1469,9 +1469,3 @@ void memswap(void * p1, void * p2, size_t num_bytes)
     addr2++;
   }*/
 }
-
-
-#ifdef __cplusplus
-}
-#endif
-
