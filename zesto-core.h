@@ -334,6 +334,7 @@ class core_t {
     counter_t oracle_uop_undo;
     counter_t oracle_total_eff_uops;
     counter_t oracle_eff_uop_undo;
+    counter_t oracle_unknown_insn;
     counter_t oracle_total_refs;
     counter_t oracle_total_loads;
     counter_t oracle_total_branches;

@@ -231,6 +231,8 @@ core_oracle_t::reg_stats(struct stat_sdb_t * const sdb)
   stat_reg_counter(sdb, true, buf, "total number of instructions executed by oracle, including misspec", &core->stat.oracle_total_insn, 0, TRUE, NULL);
   sprintf(buf,"c%d.oracle_insn_undo",arch->id);
   stat_reg_counter(sdb, false, buf, "total number of instructions undone by oracle (misspeculated insts)", &core->stat.oracle_inst_undo, 0, TRUE, NULL);
+  sprintf(buf,"c%d.oracle_unknown_insn",arch->id);
+  stat_reg_counter(sdb, true, buf, "total number of unsupported instructions turned into NOPs by oracle", &core->stat.oracle_unknown_insn, 0, TRUE, NULL);
   sprintf(buf,"c%d.oracle_num_uops",arch->id);
   sprintf(buf2,"c%d.oracle_total_uops - c%d.oracle_uop_undo",arch->id,arch->id);
   stat_reg_formula(sdb, true, buf, "number of uops executed by oracle", buf2, "%12.0f");
@@ -1427,6 +1429,8 @@ core_oracle_t::exec(const md_addr_t requested_PC)
     /* If we can't handle isntruction, at least set NPC correctly, so that we don't corrupt fetch sequence */
     if(Mop->decode.op == NOP && !Mop->oracle.spec_mode)
     {  
+       ZPIN_TRACE("XXX: Ignoring unknown instruction at pc: %x\n", thread->regs.regs_PC);
+       ZESTO_STAT(core->stat.oracle_unknown_insn++;)
        Mop->uop[Mop->decode.last_uop_index].decode.EOM = true;
        thread->rep_sequence = 0;
        assert(core->fetch->invalid);
