@@ -1710,6 +1710,7 @@ void core_exec_IO_DPM_t::LDQ_schedule(void)
                 else
                   // The wait address is bogus, don't schedule a TLB translation
                   uop->exec.when_addr_translated = sim_cycle;
+
                 cache_enqueue(core,core->memory.DL1,NULL,CACHE_READ,core->current_thread->id,uop->Mop->fetch.PC,uop->oracle.virt_addr,uop->exec.action_id,0,NO_MSHR,uop,DL1_callback,load_miss_reschedule,translated_callback,get_uop_action_id);
                 if(uop->oracle.is_repeated)
                   repeater_enqueue(core->memory.mem_repeater, uop->oracle.is_sync_op ? CACHE_WAIT : CACHE_READ, 
@@ -1719,7 +1720,7 @@ void core_exec_IO_DPM_t::LDQ_schedule(void)
                 port[uop->alloc.port_assignment].STQ->pipe[0].action_id = uop->exec.action_id;
 
                 LDQ[index].first_byte_requested = true;
-                if(((uop->oracle.virt_addr+uop->decode.mem_size)>>core->memory.DL1->addr_shift) == (uop->oracle.virt_addr>>core->memory.DL1->addr_shift))
+                if((((uop->oracle.virt_addr+uop->decode.mem_size)>>core->memory.DL1->addr_shift) == (uop->oracle.virt_addr>>core->memory.DL1->addr_shift)) || uop->oracle.is_sync_op)
                 {
                   /* not a split-line access */
                   LDQ[index].last_byte_requested = true;
@@ -1792,7 +1793,7 @@ void core_exec_IO_DPM_t::LDQ_schedule(void)
               }
             }
 
-            if(LDQ[index].first_byte_requested && !LDQ[index].last_byte_requested)
+            if(LDQ[index].first_byte_requested && !LDQ[index].last_byte_requested && !uop->oracle.is_sync_op)
             {
               /* split-line access.  XXX: we're currently not handling the 2nd translation
                  for acceses that cross *pages*. */
@@ -1802,7 +1803,7 @@ void core_exec_IO_DPM_t::LDQ_schedule(void)
                 ZESTO_STAT(core->stat.DL1_load_split_accesses++;)
                 cache_enqueue(core,core->memory.DL1,NULL,CACHE_READ,core->current_thread->id,uop->Mop->fetch.PC,uop->oracle.virt_addr+uop->decode.mem_size,uop->exec.action_id,0,NO_MSHR,uop,DL1_split_callback,load_miss_reschedule,translated_callback,get_uop_action_id);
                 if(uop->oracle.is_repeated)
-                  repeater_enqueue(core->memory.mem_repeater, uop->oracle.is_sync_op ? CACHE_WAIT: CACHE_READ,
+                  repeater_enqueue(core->memory.mem_repeater, CACHE_READ,
                                    core->current_thread->id, uop->oracle.virt_addr+uop->decode.mem_size, uop, repeater_split_callback);
                 LDQ[index].last_byte_requested = true;
                 LDQ[index].when_issued = sim_cycle;
@@ -2516,11 +2517,8 @@ void core_exec_IO_DPM_t::repeater_split_store_callback(void * const op, bool is_
   zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
   if(uop->exec.action_id == E->STQ[uop->alloc.STQ_index].action_id)
   {
-    if (uop->oracle.is_sync_op)
-    {
-      core->num_signals_in_pipe--;
-      zesto_assert(core->num_signals_in_pipe >= 0, (void)0);
-    }
+    assert(!uop->oracle.is_sync_op);
+    
     E->STQ[uop->alloc.STQ_index].last_byte_written = true;
     if(E->STQ[uop->alloc.STQ_index].first_byte_written)
       E->STQ[uop->alloc.STQ_index].write_complete = true;
