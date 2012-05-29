@@ -155,11 +155,11 @@ static BOOL seen_ssID_zero_twice = false;
 /* ========================================================================== */
 VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
 {
-//#ifdef ZESTO_PIN_DBG
-//    CHAR* loop_name = (CHAR*) loop;
-//#endif
-
     invocation_counts[loop]++;
+//#ifdef ZESTO_PIN_DBG
+    CHAR* loop_name = (CHAR*) loop;
+    cerr << "Starting loop: " << loop_name << "[" << invocation_counts[loop] << "]" << endl;
+//#endif
 
     /* Haven't started simulation and we encounter a loop we don't care
      * about */
@@ -239,7 +239,8 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
     GetLock(&simbuffer_lock, tid+1);
     //    cerr << tid <<": Before Wait "<< hex << pc << dec  << " ID: " << ssID << endl;
 //    ignore[tid] = true;
-//    cerr << tid <<":Before Wait "<< hex << pc << dec  << " ID: " << ssID << hex << " (" << ssID_addr <<")" << dec << endl;
+    if (ExecMode == EXECUTION_MODE_SIMULATE)
+        cerr << tid <<":Before Wait "<< hex << pc << dec  << " ID: " << ssID << hex << " (" << ssID_addr <<")" << dec << endl;
 
     thread_state_t* tstate = get_tls(tid);
     if (tstate->pc_queue_valid &&
@@ -308,7 +309,8 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
 {
     GetLock(&simbuffer_lock, tid+1);
 //    ignore[tid] = false;
-    cerr << tid <<": After Wait "<< hex << pc << dec  << " ID: " << lastWaitID[tid] << endl;
+    if (ExecMode == EXECUTION_MODE_SIMULATE)
+        cerr << tid <<": After Wait "<< hex << pc << dec  << " ID: " << lastWaitID[tid] << endl;
 
     /* HACKEDY HACKEDY HACK */
     /* We are not simulating and the core still hasn't consumed the wait.
@@ -405,7 +407,8 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT 
     GetLock(&simbuffer_lock, tid+1);
 
 //    ignore[tid] = true;
-//    cerr << tid <<": Before Signal " << hex << ssID <<  " (" << ssID_addr << ")" << dec << endl;
+    if (ExecMode == EXECUTION_MODE_SIMULATE)
+        cerr << tid <<": Before Signal " << hex << ssID <<  " (" << ssID_addr << ")" << dec << endl;
 
     thread_state_t* tstate = get_tls(tid);
     if (tstate->pc_queue_valid &&
@@ -455,7 +458,8 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT pc)
 {
     GetLock(&simbuffer_lock, tid+1);
 //    ignore[tid] = false;
-//    cerr << tid <<": After Signal " << hex << pc << dec << endl;
+    if (ExecMode == EXECUTION_MODE_SIMULATE)
+        cerr << tid <<": After Signal " << hex << pc << dec << endl;
 
     /* HACKEDY HACKEDY HACK */
     /* We are not simulating and the core still hasn't consumed the wait.
