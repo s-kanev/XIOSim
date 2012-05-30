@@ -185,7 +185,7 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
     tstate->firstIteration = true;
     map<THREADID, handshake_queue_t>::iterator it;
     for (it = handshake_buffer.begin(); it != handshake_buffer.end(); it++)
-        unmatchedWaits[tid] = 0;
+        unmatchedWaits[it->first] = 0;
 
     ignored_before_wait.clear();
     ignored_before_signal.clear();
@@ -225,6 +225,7 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop)
     if (ExecMode == EXECUTION_MODE_SIMULATE) {
         cerr << tid << ": Pausing simulation" << endl;
         PauseSimulation(tid);
+        cerr << tid << ": Paused simulation!" << endl;
     }
 
     if(strncmp(end_loop, (CHAR*)loop, 512) == 0 && invocation_counts[loop] == end_loop_invocation) {
@@ -696,6 +697,7 @@ VOID AddILDJITWaitSignalCallbacks()
   PIN_LockClient();
 
   for(IMG img = APP_ImgHead(); IMG_Valid(img); img = IMG_Next(img)) {
+
     RTN rtn = RTN_FindByName(img, "MOLECOOL_beforeWait");
     if (RTN_Valid(rtn))
       {
@@ -710,7 +712,7 @@ VOID AddILDJITWaitSignalCallbacks()
         RTN_Close(rtn);
       }
     
-    rtn = RTN_FindByName(img, "MOLECOOL_afterWait");
+        rtn = RTN_FindByName(img, "MOLECOOL_afterWait");
     
     if (RTN_Valid(rtn))
       {
@@ -745,7 +747,7 @@ VOID AddILDJITWaitSignalCallbacks()
                      IARG_CALL_ORDER, CALL_ORDER_LAST,
                      IARG_END);
       RTN_Close(rtn);
-    }
+      }
 
     rtn = RTN_FindByName(img, "MOLECOOL_endParallelLoop");
     if (RTN_Valid(rtn))
