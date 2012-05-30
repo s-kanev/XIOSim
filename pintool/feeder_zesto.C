@@ -1148,7 +1148,7 @@ VOID ResumeSimulation(THREADID tid)
     handshake->handshake.real = false;
     handshake->handshake.pc = 0;
     handshake->handshake.coreID = tstate->coreID;
-    handshake->handshake.in_critical_section = (num_threads > 1);
+    handshake->handshake.in_critical_section = false;
     handshake->handshake.iteration_correction = false;
     handshake->valid = true;
 

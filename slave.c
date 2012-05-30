@@ -411,6 +411,7 @@ void activate_core(int coreID)
 //  fprintf(stderr, "activate %d\n", coreID);
   ZPIN_TRACE("activate %d\n", coreID);
 //  fflush(stderr);
+  cores[coreID]->exec->update_last_completed(sim_cycle);
   lk_lock(&cycle_lock, coreID+1);
   cores[coreID]->current_thread->active = true;
     if (coreID < min_coreID)
