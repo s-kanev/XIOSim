@@ -24,10 +24,10 @@
 #    Pin was installed. This can also be set on the command line,
 #    or as an environment variable.
 #
-PIN_HOME ?= /home/skanev/pin/pin-2.10-45467-gcc.3.4.6-ia32_intel64-linux
+PIN_HOME ?= /group/brooks/xan/Molecool/pin
 ZESTO_HOME = ..
 TARGET = ia32
-INSTALL_DIR = /group/brooks/xan/Molecool/bin
+INSTALL_DIR = /home/skanev
 
 ##############################################################
 #

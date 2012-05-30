@@ -381,6 +381,8 @@ void Zesto_Destroy()
   }
 
   repeater_shutdown();
+
+  flush_trace();
 }
 
 
@@ -597,6 +599,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
        /* HACKEDY HACKEDY HACK!!! */
 //       fprintf(stderr, "%d: Holy shmozef %d\n", coreID, core->num_signals_in_pipe);
 //       fflush(stderr);
+       ZPIN_TRACE("core %d: holy schmozef correction\n", coreID);
        core->stat.holy_schmozef_hack++;
        if (core->num_signals_in_pipe == 0) {
          deactivate_core(coreID);

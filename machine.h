@@ -153,19 +153,24 @@ enum md_fault_type {
 /* number of segment registers */
 #define MD_NUM_SREGS        6 // UCSD
 
+/* number of XMM registers. XXX: This is 32-bit mode only. */
+#define MD_NUM_SSEREGS      8
+
 /* total number of registers, excluding PC and NPC */
 #define MD_TOTAL_REGS                            \
-  (/*int*/MD_NUM_IREGS + /*fp*/MD_NUM_FREGS + /*misc*/MD_NUM_CREGS + /*seg*/MD_NUM_SREGS )
+  (/*int*/MD_NUM_IREGS + /*fp*/MD_NUM_FREGS + /*misc*/MD_NUM_CREGS + /*seg*/MD_NUM_SREGS + /*SSE*/MD_NUM_SSEREGS)
 
 #define GPR_OFFSET 0
 #define FPR_OFFSET MD_NUM_IREGS
 #define CREG_OFFSET (FPR_OFFSET+MD_NUM_FREGS)
 #define SEG_OFFSET (CREG_OFFSET+MD_NUM_CREGS)
+#define SSE_OFFSET (SEG_OFFSET+MD_NUM_SREGS)
 
 #define REG_IS_GPR(N) (((N) >= GPR_OFFSET) && ((N) < FPR_OFFSET))
 #define REG_IS_FPR(N) (((N) >= FPR_OFFSET) && ((N) < CREG_OFFSET))
 #define REG_IS_CREG(N) (((N) >= CREG_OFFSET) && ((N) < SREG_OFFSET))
-#define REG_IS_SEG(N) (((N) >= SEG_OFFSET) && ((N) < MD_TOTAL_REGS))
+#define REG_IS_SEG(N) (((N) >= SEG_OFFSET) && ((N) < SSE_OFFSET))
+#define REG_IS_SSE(N) (((N) >= SSE_OFFSET) && ((N) < MD_TOTAL_REGS))
 
 /* these macros map the architected register number to a unique number */
 /* NOTE: DFPR "renames" the FP regs based on the FP stack */
@@ -173,6 +178,7 @@ enum md_fault_type {
 #define DFPR(N) ((F2P(N))+FPR_OFFSET)
 #define DCREG(N) ((N)+CREG_OFFSET)
 #define DSEG(N) ((N == SEG_INV) ? (DNA) : ((N)+SEG_OFFSET))
+#define DSSE(N) ((N)+SSE_OFFSET)
 
 #define DGPR_B(N) ((_ARCH(N) ? (_ID(N)) : (N)) + GPR_OFFSET)
 #define DGPR_W(N) (N+GPR_OFFSET)
@@ -183,6 +189,7 @@ enum md_fault_type {
 #define _DFPR(N) ((N)-FPR_OFFSET)
 #define _DCREG(N) ((N)-CREG_OFFSET)
 #define _DSEG(N) ((N == DNA) ? (SEG_INV) : ((N)-SEG_OFFSET))
+#define _DSSE(N) ((N)-SSE_OFFSET)
 
 /* check the tag word for fp register valid bits (physical, not stack index) */
 #define FPR_VALID(FTW, N) (((FTW) & (1 << (N))) == (1 << (N)))
@@ -215,6 +222,11 @@ typedef struct {
   word_t fsw;            /* floating point status register */
   byte_t ftw;            /* floating points tag word */
 } md_ctrl_t;
+
+/* 128-bit XMM register file */
+typedef struct {
+  struct {double lo; double hi; } dw[MD_NUM_SSEREGS];
+} md_xmm_t;
 
 /* well known registers */
 enum md_reg_names {
