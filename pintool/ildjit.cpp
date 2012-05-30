@@ -164,7 +164,7 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
     /* Haven't started simulation and we encounter a loop we don't care
      * about */
     if (ExecMode != EXECUTION_MODE_SIMULATE) {
-      if(strncmp(start_loop, (CHAR*)loop, 512) != 0) {
+      if(strlen(start_loop) > 0 && strncmp(start_loop, (CHAR*)loop, 512) != 0) {
         return;
       }
       if(invocation_counts[loop] < start_loop_invocation) {        
@@ -194,12 +194,14 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
 
     if (strlen(start_loop) == 0 && firstLoop) {
         cerr << "Starting simulation, TID: " << tid << endl;
+        AddILDJITWaitSignalCallbacks();
         PPointHandler(CONTROL_START, NULL, NULL, (VOID*)ip, tid);
         firstLoop = false;
     } 
     else if (strncmp(start_loop, (CHAR*)loop, 512) == 0) {
       if (invocation_counts[loop] == start_loop_invocation) {
         cerr << "Starting simulation, TID: " << tid << endl;
+        AddILDJITWaitSignalCallbacks();
         PPointHandler(CONTROL_START, NULL, NULL, (VOID*)ip, tid);
         firstLoop = false;
       } 
