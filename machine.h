@@ -154,23 +154,23 @@ enum md_fault_type {
 #define MD_NUM_SREGS        6 // UCSD
 
 /* number of XMM registers. XXX: This is 32-bit mode only. */
-#define MD_NUM_SSEREGS      8
+#define MD_NUM_XMMREGS      (/* arch */4 + /* uarch */4)
 
 /* total number of registers, excluding PC and NPC */
 #define MD_TOTAL_REGS                            \
-  (/*int*/MD_NUM_IREGS + /*fp*/MD_NUM_FREGS + /*misc*/MD_NUM_CREGS + /*seg*/MD_NUM_SREGS + /*SSE*/MD_NUM_SSEREGS)
+  (/*int*/MD_NUM_IREGS + /*fp*/MD_NUM_FREGS + /*misc*/MD_NUM_CREGS + /*seg*/MD_NUM_SREGS + /*SSE*/MD_NUM_XMMREGS)
 
 #define GPR_OFFSET 0
 #define FPR_OFFSET MD_NUM_IREGS
 #define CREG_OFFSET (FPR_OFFSET+MD_NUM_FREGS)
 #define SEG_OFFSET (CREG_OFFSET+MD_NUM_CREGS)
-#define SSE_OFFSET (SEG_OFFSET+MD_NUM_SREGS)
+#define XMM_OFFSET (SEG_OFFSET+MD_NUM_SREGS)
 
 #define REG_IS_GPR(N) (((N) >= GPR_OFFSET) && ((N) < FPR_OFFSET))
 #define REG_IS_FPR(N) (((N) >= FPR_OFFSET) && ((N) < CREG_OFFSET))
 #define REG_IS_CREG(N) (((N) >= CREG_OFFSET) && ((N) < SREG_OFFSET))
-#define REG_IS_SEG(N) (((N) >= SEG_OFFSET) && ((N) < SSE_OFFSET))
-#define REG_IS_SSE(N) (((N) >= SSE_OFFSET) && ((N) < MD_TOTAL_REGS))
+#define REG_IS_SEG(N) (((N) >= SEG_OFFSET) && ((N) < XMM_OFFSET))
+#define REG_IS_XMM(N) (((N) >= XMM_OFFSET) && ((N) < MD_TOTAL_REGS))
 
 /* these macros map the architected register number to a unique number */
 /* NOTE: DFPR "renames" the FP regs based on the FP stack */
@@ -178,7 +178,7 @@ enum md_fault_type {
 #define DFPR(N) ((F2P(N))+FPR_OFFSET)
 #define DCREG(N) ((N)+CREG_OFFSET)
 #define DSEG(N) ((N == SEG_INV) ? (DNA) : ((N)+SEG_OFFSET))
-#define DSSE(N) ((N)+SSE_OFFSET)
+#define DXMM(N) ((N)+XMM_OFFSET)
 
 #define DGPR_B(N) ((_ARCH(N) ? (_ID(N)) : (N)) + GPR_OFFSET)
 #define DGPR_W(N) (N+GPR_OFFSET)
@@ -189,7 +189,7 @@ enum md_fault_type {
 #define _DFPR(N) ((N)-FPR_OFFSET)
 #define _DCREG(N) ((N)-CREG_OFFSET)
 #define _DSEG(N) ((N == DNA) ? (SEG_INV) : ((N)-SEG_OFFSET))
-#define _DSSE(N) ((N)-SSE_OFFSET)
+#define _DXMM(N) ((N)-XMM_OFFSET)
 
 /* check the tag word for fp register valid bits (physical, not stack index) */
 #define FPR_VALID(FTW, N) (((FTW) & (1 << (N))) == (1 << (N)))
@@ -225,7 +225,7 @@ typedef struct {
 
 /* 128-bit XMM register file */
 typedef struct {
-  struct {double lo; double hi; } dw[MD_NUM_SSEREGS];
+  struct {double lo; double hi; } dw[MD_NUM_XMMREGS];
 } md_xmm_t;
 
 /* well known registers */
@@ -309,6 +309,21 @@ enum md_creg_names {
   MD_REG_CWD = 1, 
   MD_REG_FSW = 2,
   MD_REG_FTW = 3
+};
+
+enum md_xmmreg_names {
+  MD_REG_XMM0 = 0,
+  MD_REG_XMM1 = 1,
+  MD_REG_XMM2 = 2,
+  MD_REG_XMM3 = 3,
+  MD_REG_XMM4 = 4,
+  MD_REG_XMM5 = 5,
+  MD_REG_XMM6 = 6,
+  MD_REG_XMM7 = 7,
+
+  MD_REG_XMMTMP0 = 8,
+  MD_REG_XMMTMP1 = 9,
+  MD_REG_XMMTMP2 = 10
 };
 
 /* Not used by x86, present for ARM compatibility */
@@ -1926,6 +1941,11 @@ enum md_xfield_t {
 
   /* FP temporary registers */
   XR_FTMP0, XR_FTMP1, XR_FTMP2,
+
+  /* XMM registers */
+  XR_XMM0, XR_XMM1, XR_XMM2, XR_XMM3, XR_XMM4, XR_XMM5, XR_XMM6, XR_XMM7, 
+  /* XMM temp registers */
+  XR_XMMTMP0, XR_XMMTMP1, XR_XMMTMP2,
 
   /* x86 bitfields */
   XF_RO, XF_R, XF_RM, XF_BASE, XF_INDEX, XF_SCALE, XF_STI,
