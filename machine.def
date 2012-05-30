@@ -2259,30 +2259,6 @@ CONNECT(TOPLEV)
 
   /* FIXME: TODO 0xf2: repne prefix */
 
-  DEFLINK(GRPD8_LINK, 0xd8, "grpd8_link", 3, 0x07)
-
-#define ADDSD_Rd_Md_IMPL              \
-{                                           \
-  dfloat_t _src1, _src2, _res;              \
-  md_addr_t _addr;                          \
-  enum md_fault_type _fault;                \
-  \
-  _src1 = SSE_??(RO);                       \
-  _addr = AGEN_A(SEG, BASE, INDEX, SCALE, DISP);        \
-  _src2 = READ_QWORD(_addr, _fault);        \
-  _res = _src1 + _src2;                     \
-  if (_fault != md_fault_none)              \
-  DECLARE_FAULT(_fault);                    \
-  \
-  SET_SSE_D(RO, _res);                      \
-}
-  DEFINST(ADDSD_Rd_Md,    0x0ff2,
-      "addsd",      "%Rd, %Md",
-      FU_INVALID,                 F_FCOMP|F_MEM|F_LOAD|F_UCODE,
-      DNA,
-      DNA, DNA, DNA,
-      DNA, DNA)
-
   /* FIXME: TODO 0xf3: repe prefix */
 
 #ifdef FIXME
@@ -9260,6 +9236,29 @@ DNA, DNA)
       DNA, DNA, DNA,
       DNA, DNA)
 
+CONNECT(SSE_LINK)
+
+#define ADDSD_Rd_Md_IMPL              \
+{                                           \
+  dfloat_t _src1, _src2, _res;              \
+  md_addr_t _addr;                          \
+  enum md_fault_type _fault;                \
+  \
+  _src1 = XMM_D_LO(R);                     \
+  _addr = AGEN_D(SEG, BASE, INDEX, SCALE, DISP);        \
+  _src2 = READ_QWORD(_addr, _fault);        \
+  _res = _src1 + _src2;                     \
+  if (_fault != md_fault_none)              \
+  DECLARE_FAULT(_fault);                    \
+  \
+  SET_XMM_D_LO(R, _res);                   \
+}
+  DEFINST(ADDSD_Rd_Md,    0x58,
+      "addsd",      "%Rd, %Md",
+      FU_INVALID,                 F_FCOMP|F_MEM|F_LOAD|F_UCODE,
+      DNA,
+      DNA, DNA, DNA,
+      DNA, DNA)
 
 CONNECT(CMOV_RvEv_LINK)
 

@@ -3456,3 +3456,8 @@
   if(!bogus) warn("OUT_DXeAX uop flow not implemented yet (%s:%d)",__FILE__,__LINE__); \
 }
 
+#define ADDSD_Rd_Md_FLOW			\
+{									\
+  UOP_R2(UV, MOVE, XR_ZERO, XR_ZERO, FUSION_NONE);		\
+}
+
