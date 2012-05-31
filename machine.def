@@ -9083,6 +9083,8 @@ DNA, DNA)
 
   DEFLINK(ADDSD_Rd_Ed_LINK, 0x58, "addsd_rd_ed_link", 6, 0x03)
 
+  DEFLINK(MULSD_Rd_Ed_LINK, 0x59, "mulsd_rd_ed_link", 6, 0x03)
+
 
 #define JCC_Jv_IMPL              \
 {                  \
@@ -9272,7 +9274,7 @@ CONNECT(MOVSD_Ed_Rd_LINK)
   \
   _addr = AGEN_D(SEG, BASE, INDEX, SCALE, DISP);        \
   _res = XMM_Q_LO(R);                       \
-  WRITE_QWORD(_res, _addr, _fault);         \
+  WRITE_QWORD((qword_t)_res, _addr, _fault);         \
   if (_fault != md_fault_none)              \
   DECLARE_FAULT(_fault);                    \
   \
@@ -9348,6 +9350,30 @@ CONNECT(ADDSD_Rd_Ed_LINK)
 }
   DEFINST(ADDSD_Rd_Md,    0x0200,
       "addsd",      "%Rd, %Md",
+      FU_INVALID,                 F_FCOMP|F_MEM|F_LOAD|F_UCODE,
+      DNA,
+      DNA, DNA, DNA,
+      DNA, DNA)
+
+CONNECT(MULSD_Rd_Ed_LINK)
+
+#define MULSD_Rd_Md_IMPL              \
+{                                           \
+  dfloat_t _src1, _src2, _res;              \
+  md_addr_t _addr;                          \
+  enum md_fault_type _fault;                \
+  \
+  _src1 = XMM_Q_LO(R);                     \
+  _addr = AGEN_D(SEG, BASE, INDEX, SCALE, DISP);        \
+  _src2 = READ_QWORD(_addr, _fault);        \
+  _res = _src1 * _src2;                     \
+  if (_fault != md_fault_none)              \
+  DECLARE_FAULT(_fault);                    \
+  \
+  SET_XMM_Q_LO(R, _res);                   \
+}
+  DEFINST(MULSD_Rd_Md,    0x0200,
+      "mulsd",      "%Rd, %Md",
       FU_INVALID,                 F_FCOMP|F_MEM|F_LOAD|F_UCODE,
       DNA,
       DNA, DNA, DNA,
@@ -18662,7 +18688,7 @@ CONNECT(FISTP_Mq_LINK)
   \
   _addr = GPR_D(URS);                   \
   _src = XMM_Q_LO(URD);                 \
-  WRITE_QWORD(_src, _addr, _fault);     \
+  WRITE_QWORD((qword_t)_src, _addr, _fault);     \
   if (_fault != md_fault_none)          \
   DECLARE_FAULT(_fault);                \
 }
@@ -18685,6 +18711,22 @@ CONNECT(FISTP_Mq_LINK)
   DEFUOP(SSE_ADDSD,      0x00,
       "sse_addsd",      "%De,%Se,%Te",
       FU_FADD,    F_FCOMP,
+      DFPR(URD),
+      DFPR(URS), DFPR(URT), DNA,
+      DNA, DNA)
+
+#define SSE_MULSD_IMPL              \
+{                  \
+  dfloat_t _res, _src1, _src2;          \
+  \
+  _src1 = XMM_Q_LO(URS);              \
+  _src2 = XMM_Q_LO(URT);              \
+  _res = _src1 * _src2;            \
+  SET_XMM_Q_LO(URD, _res);              \
+}
+  DEFUOP(SSE_MULSD,      0x00,
+      "sse_mulsd",      "%De,%Se,%Te",
+      FU_FMUL,    F_FCOMP,
       DFPR(URD),
       DFPR(URS), DFPR(URT), DNA,
       DNA, DNA)
