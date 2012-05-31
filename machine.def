@@ -18758,7 +18758,7 @@ CONNECT(FISTP_Mq_LINK)
       "sse_ucomisd",      "%De,%Se,%Te",
       FU_FADD,    F_FCOMP,
       DNA,
-      DFPR(URD), DFPR(URS), DNA,
+      DXMM(URD), DXMM(URS), DNA,
       DAFLAGS(OF|SF|ZF|AF|CF|PF), DNA)
 
 #define SSE_ADDSD_IMPL              \
@@ -18773,8 +18773,8 @@ CONNECT(FISTP_Mq_LINK)
   DEFUOP(SSE_ADDSD,      0x00,
       "sse_addsd",      "%De,%Se,%Te",
       FU_FADD,    F_FCOMP,
-      DFPR(URD),
-      DFPR(URS), DFPR(URT), DNA,
+      DXMM(URD),
+      DXMM(URS), DXMM(URT), DNA,
       DNA, DNA)
 
 #define SSE_MULSD_IMPL              \
@@ -18789,8 +18789,8 @@ CONNECT(FISTP_Mq_LINK)
   DEFUOP(SSE_MULSD,      0x00,
       "sse_mulsd",      "%De,%Se,%Te",
       FU_FMUL,    F_FCOMP,
-      DFPR(URD),
-      DFPR(URS), DFPR(URT), DNA,
+      DXMM(URD),
+      DXMM(URS), DXMM(URT), DNA,
       DNA, DNA)
 
   /*================================================================*/
