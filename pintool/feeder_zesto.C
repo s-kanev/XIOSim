@@ -87,7 +87,7 @@ map<THREADID, handshake_queue_t> inserted_pool;
 map<THREADID, BOOL> ignore;
 
 // Master switch for ignoring all cores (during sequential code)
-BOOL ignore_all = false;
+BOOL ignore_all = true;
 
 // Ignore list of instrutcions that we don't care about
 map<THREADID, map<ADDRINT, BOOL> > ignore_list;
@@ -168,6 +168,7 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
         handshake = handshake_pool[tid].front();
         ASSERTX(handshake != NULL);
         handshake->isFirstInsn = true;
+        ignore_all = false;
         ReleaseLock(&simbuffer_lock);
 
         //ScheduleRunQueue();
