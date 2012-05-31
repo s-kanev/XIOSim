@@ -9305,13 +9305,13 @@ CONNECT(UCOMISD_Rd_Ed_LINK)
   DECLARE_FAULT(_fault);                    \
   \
   if (_src1 != _src1 || _src2 != _src2)     \
-    _afl = 0x25;                            \
+    _afl = ZF|PF|CF;                        \
   else if (_res > 0)                        \
     _afl = 0x0;                             \
   else if (_res == 0)                       \
-    _afl = 0x20;                            \
+    _afl = ZF;                              \
   else                                      \
-    _afl = 0x01;                            \
+    _afl = CF;                              \
   \
   SET_AFLAGS(_afl, ZF|PF|CF|OF|AF|SF);      \
 }
@@ -18744,13 +18744,13 @@ CONNECT(FISTP_Mq_LINK)
   _src2 = XMM_Q_LO(URS);              \
   _res = _src1 - _src2;               \
   if (_src1 != _src1 || _src2 != _src2)     \
-    _afl = 0x25;                            \
+    _afl = ZF|PF|CF;                        \
   else if (_res > 0)                        \
     _afl = 0x0;                             \
   else if (_res == 0)                       \
-    _afl = 0x20;                            \
+    _afl = ZF;                              \
   else                                      \
-    _afl = 0x01;                            \
+    _afl = CF;                              \
   \
   SET_AFLAGS(_afl, ZF|PF|CF|OF|AF|SF);      \
 }
