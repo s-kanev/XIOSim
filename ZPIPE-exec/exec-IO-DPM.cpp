@@ -1798,13 +1798,14 @@ void core_exec_IO_DPM_t::LDQ_schedule(void)
 
             if(LDQ[index].first_byte_requested && !LDQ[index].last_byte_requested && !uop->oracle.is_sync_op)
             {
+              zesto_assert(!uop->oracle.is_sync_op, (void)0);
               /* split-line access.  XXX: we're currently not handling the 2nd translation
                  for acceses that cross *pages*. */
               if(cache_enqueuable(core->memory.DL1,core->current_thread->id,uop->oracle.virt_addr+uop->decode.mem_size) &&
                  (!uop->oracle.is_repeated || (uop->oracle.is_repeated && repeater_enqueuable(core->memory.mem_repeater, CACHE_READ, core->current_thread->id, uop->oracle.virt_addr+uop->decode.mem_size))))
               {
                 ZESTO_STAT(core->stat.DL1_load_split_accesses++;)
-                  zesto_assert(!uop->oracle.is_sync_op, (void)0);
+
                 cache_enqueue(core,core->memory.DL1,NULL,CACHE_READ,core->current_thread->id,uop->Mop->fetch.PC,uop->oracle.virt_addr+uop->decode.mem_size,uop->exec.action_id,0,NO_MSHR,uop,DL1_split_callback,load_miss_reschedule,translated_callback,get_uop_action_id);
                 if(uop->oracle.is_repeated)
                   repeater_enqueue(core->memory.mem_repeater, CACHE_READ,
@@ -2255,26 +2256,28 @@ bool core_exec_IO_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
     dl1_uop->oracle.is_sync_op = uop->oracle.is_sync_op;
 
     if(!uop->oracle.is_sync_op) {
-    struct uop_t * dtlb_uop = core->get_uop_array(1);
-    STQ[STQ_head].translation_complete = false;
-    dtlb_uop->core = core;
-    dtlb_uop->alloc.STQ_index = uop->alloc.STQ_index;
-    dtlb_uop->exec.action_id = STQ[STQ_head].action_id;
-    dtlb_uop->decode.Mop_seq = uop->decode.Mop_seq;
-    dtlb_uop->decode.uop_seq = uop->decode.uop_seq;
+      struct uop_t * dtlb_uop = core->get_uop_array(1);
+      STQ[STQ_head].translation_complete = false;
+      dtlb_uop->core = core;
+      dtlb_uop->alloc.STQ_index = uop->alloc.STQ_index;
+      dtlb_uop->exec.action_id = STQ[STQ_head].action_id;
+      dtlb_uop->decode.Mop_seq = uop->decode.Mop_seq;
+      dtlb_uop->decode.uop_seq = uop->decode.uop_seq;
       
-    cache_enqueue(core,tlb,NULL,CACHE_READ,core->current_thread->id,uop->Mop->fetch.PC,PAGE_TABLE_ADDR(core->current_thread->id,uop->oracle.virt_addr),dtlb_uop->exec.action_id,0,NO_MSHR,dtlb_uop,store_dtlb_callback,NULL,NULL,get_uop_action_id);
-  } 
-        else {
-          STQ[STQ_head].translation_complete = true;
-        }
+      cache_enqueue(core,tlb,NULL,CACHE_READ,core->current_thread->id,uop->Mop->fetch.PC,PAGE_TABLE_ADDR(core->current_thread->id,uop->oracle.virt_addr),dtlb_uop->exec.action_id,0,NO_MSHR,dtlb_uop,store_dtlb_callback,NULL,NULL,get_uop_action_id);
+    } 
+    else {
+      STQ[STQ_head].translation_complete = true;
+    }
     
-    if(uop->oracle.is_repeated)
+    if(uop->oracle.is_repeated) {
       repeater_enqueue(core->memory.mem_repeater, uop->oracle.is_sync_op ? CACHE_SIGNAL : CACHE_WRITE,
                        core->current_thread->id, uop->oracle.virt_addr, dl1_uop, repeater_store_callback);
-    else
+    }
+    else {
+      zesto_assert(!uop->oracle.is_sync_op,false)
       cache_enqueue(core,core->memory.DL1,NULL,CACHE_WRITE,core->current_thread->id,uop->Mop->fetch.PC,uop->oracle.virt_addr,dl1_uop->exec.action_id,0,NO_MSHR,dl1_uop,store_dl1_callback,NULL,store_translated_callback,get_uop_action_id);
-
+    }
 
     /* not a split-line access */
     if(uop->oracle.is_sync_op ||
@@ -2315,7 +2318,7 @@ bool core_exec_IO_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
     /* XXX: similar to split-access loads, we're not handling the translation of both
        pages in the case that the access crosses page boundaries. */
     if(uop->oracle.is_repeated) {
-      repeater_enqueue(core->memory.mem_repeater, uop->oracle.is_sync_op ? CACHE_SIGNAL : CACHE_WRITE, core->current_thread->id, uop->oracle.virt_addr+uop->decode.mem_size, dl1_split_uop, repeater_split_store_callback);
+      repeater_enqueue(core->memory.mem_repeater, CACHE_WRITE, core->current_thread->id, uop->oracle.virt_addr+uop->decode.mem_size, dl1_split_uop, repeater_split_store_callback);
     }
     else {
       cache_enqueue(core,core->memory.DL1,NULL,CACHE_WRITE,core->current_thread->id,uop->Mop->fetch.PC,uop->oracle.virt_addr+uop->decode.mem_size,dl1_split_uop->exec.action_id,0,NO_MSHR,dl1_split_uop,store_dl1_split_callback,NULL,store_translated_callback,get_uop_action_id);
