@@ -1711,8 +1711,10 @@ void core_exec_IO_DPM_t::LDQ_schedule(void)
                   // The wait address is bogus, don't schedule a TLB translation
                   uop->exec.when_addr_translated = sim_cycle;
                 
+                if (!uop->oracle.is_sync_op) {
+                   cache_enqueue(core,core->memory.DL1,NULL,CACHE_READ,core->current_thread->id,uop->Mop->fetch.PC,uop->oracle.virt_addr,uop->exec.action_id,0,NO_MSHR,uop,DL1_callback,load_miss_reschedule,translated_callback,get_uop_action_id);
+		}
 
-                cache_enqueue(core,core->memory.DL1,NULL,CACHE_READ,core->current_thread->id,uop->Mop->fetch.PC,uop->oracle.virt_addr,uop->exec.action_id,0,NO_MSHR,uop,DL1_callback,load_miss_reschedule,translated_callback,get_uop_action_id);
                 if(uop->oracle.is_repeated)
                   repeater_enqueue(core->memory.mem_repeater, uop->oracle.is_sync_op ? CACHE_WAIT : CACHE_READ, 
                                    core->current_thread->id, uop->oracle.virt_addr, uop, repeater_callback);
@@ -2230,7 +2232,6 @@ bool core_exec_IO_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
 
   if(!STQ[STQ_head].first_byte_requested)
   {
-    STQ[STQ_head].translation_complete = false;
     STQ[STQ_head].write_complete = false;
     /* These are just dummy placeholders, but we need them
        because the original uop pointers will be made invalid
@@ -2240,24 +2241,34 @@ bool core_exec_IO_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
        memory, but commit can proceed past this store once the
        request has entered into the cache hierarchy. */
     struct uop_t * dl1_uop = core->get_uop_array(1);
-    struct uop_t * dtlb_uop = core->get_uop_array(1);
-    dl1_uop->core = core;
-    dtlb_uop->core = core;
 
+    dl1_uop->core = core;
     dl1_uop->alloc.STQ_index = uop->alloc.STQ_index;
-    dtlb_uop->alloc.STQ_index = uop->alloc.STQ_index;
 
     STQ[STQ_head].action_id = core->new_action_id();
     dl1_uop->exec.action_id = STQ[STQ_head].action_id;
-    dtlb_uop->exec.action_id = STQ[STQ_head].action_id;
+
     dl1_uop->decode.Mop_seq = uop->decode.Mop_seq;
-    dtlb_uop->decode.Mop_seq = uop->decode.Mop_seq;
     dl1_uop->decode.uop_seq = uop->decode.uop_seq;
-    dtlb_uop->decode.uop_seq = uop->decode.uop_seq;
+
     dl1_uop->oracle.is_repeated = uop->oracle.is_repeated;
     dl1_uop->oracle.is_sync_op = uop->oracle.is_sync_op;
 
+    if(!uop->oracle.is_sync_op) {
+    struct uop_t * dtlb_uop = core->get_uop_array(1);
+    STQ[STQ_head].translation_complete = false;
+    dtlb_uop->core = core;
+    dtlb_uop->alloc.STQ_index = uop->alloc.STQ_index;
+    dtlb_uop->exec.action_id = STQ[STQ_head].action_id;
+    dtlb_uop->decode.Mop_seq = uop->decode.Mop_seq;
+    dtlb_uop->decode.uop_seq = uop->decode.uop_seq;
+      
     cache_enqueue(core,tlb,NULL,CACHE_READ,core->current_thread->id,uop->Mop->fetch.PC,PAGE_TABLE_ADDR(core->current_thread->id,uop->oracle.virt_addr),dtlb_uop->exec.action_id,0,NO_MSHR,dtlb_uop,store_dtlb_callback,NULL,NULL,get_uop_action_id);
+  } 
+        else {
+          STQ[STQ_head].translation_complete = true;
+        }
+    
     if(uop->oracle.is_repeated)
       repeater_enqueue(core->memory.mem_repeater, uop->oracle.is_sync_op ? CACHE_SIGNAL : CACHE_WRITE,
                        core->current_thread->id, uop->oracle.virt_addr, dl1_uop, repeater_store_callback);
@@ -2283,7 +2294,7 @@ bool core_exec_IO_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
     ZESTO_STAT(core->stat.DL1_store_split_accesses++;)
 
     if(uop->oracle.is_repeated) {
-      if(!repeater_enqueuable(core->memory.mem_repeater, uop->oracle.is_sync_op ? CACHE_SIGNAL : CACHE_WRITE,
+      if(!repeater_enqueuable(core->memory.mem_repeater, CACHE_WRITE,
                               core->current_thread->id, uop->oracle.virt_addr+uop->decode.mem_size)) {
         return false;
       }
