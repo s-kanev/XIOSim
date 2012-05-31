@@ -172,6 +172,9 @@ enum md_fault_type {
 #define REG_IS_SEG(N) (((N) >= SEG_OFFSET) && ((N) < XMM_OFFSET))
 #define REG_IS_XMM(N) (((N) >= XMM_OFFSET) && ((N) < MD_TOTAL_REGS))
 
+// XXX: Atom-specific
+#define REG_IS_IN_FP_UNIT(N) (REG_IS_FPR(N) || REG_IS_XMM(N))
+
 /* these macros map the architected register number to a unique number */
 /* NOTE: DFPR "renames" the FP regs based on the FP stack */
 #define DGPR(N) ((N)+GPR_OFFSET)

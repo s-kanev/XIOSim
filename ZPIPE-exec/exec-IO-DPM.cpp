@@ -1008,7 +1008,7 @@ void core_exec_IO_DPM_t::load_writeback(struct uop_t * const uop)
     ztrace_print(uop,"e|load|writeback from cache/writeback");
 #endif
 
-    int fp_penalty = REG_IS_FPR(uop->decode.odep_name)?knobs->exec.fp_penalty:0;
+    int fp_penalty = REG_IS_IN_FP_UNIT(uop->decode.odep_name)?knobs->exec.fp_penalty:0;
 
     port[uop->alloc.port_assignment].when_bypass_used = sim_cycle+fp_penalty;
     uop->exec.ovalue = uop->oracle.ovalue; /* XXX: just using oracle value for now */
@@ -1457,7 +1457,7 @@ void core_exec_IO_DPM_t::LDST_exec(void)
             {
               if(STQ[j].value_valid)
               {
-                int fp_penalty = REG_IS_FPR(uop->decode.odep_name)?knobs->exec.fp_penalty:0;
+                int fp_penalty = REG_IS_IN_FP_UNIT(uop->decode.odep_name)?knobs->exec.fp_penalty:0;
                 uop->exec.ovalue = STQ[j].value;
                 uop->exec.ovalue_valid = true;
                 //SK - No need to flush here, simply use the found value
@@ -2755,8 +2755,8 @@ void core_exec_IO_DPM_t::step()
       /* there's uop completing execution (hasn't been squashed) */
       if(!squashed)// && (!needs_bypass || bypass_available))
       {        
-         int fp_penalty = ((REG_IS_FPR(uop->decode.odep_name) && !(uop->decode.opflags & F_FCOMP)) ||
-                          (!REG_IS_FPR(uop->decode.odep_name) && (uop->decode.opflags & F_FCOMP)))?knobs->exec.fp_penalty:0;
+         int fp_penalty = ((REG_IS_IN_FP_UNIT(uop->decode.odep_name) && !(uop->decode.opflags & F_FCOMP)) ||
+                          (!REG_IS_IN_FP_UNIT(uop->decode.odep_name) && (uop->decode.opflags & F_FCOMP)))?knobs->exec.fp_penalty:0;
 
          
          if(uop->timing.when_completed == TICK_T_MAX)
@@ -3037,8 +3037,8 @@ void core_exec_IO_DPM_t::step()
 
                 if(!uop->decode.is_load)
                 {
-                   int fp_penalty = ((REG_IS_FPR(uop->decode.odep_name) && !(uop->decode.opflags & F_FCOMP)) ||
-                                    (!REG_IS_FPR(uop->decode.odep_name) && (uop->decode.opflags & F_FCOMP)))?knobs->exec.fp_penalty:0;
+                   int fp_penalty = ((REG_IS_IN_FP_UNIT(uop->decode.odep_name) && !(uop->decode.opflags & F_FCOMP)) ||
+                                    (!REG_IS_IN_FP_UNIT(uop->decode.odep_name) && (uop->decode.opflags & F_FCOMP)))?knobs->exec.fp_penalty:0;
                    uop->timing.when_otag_ready = sim_cycle + port[i].FU[uop->decode.FU_class]->latency + fp_penalty;
                 }
 
@@ -3316,8 +3316,8 @@ bool core_exec_IO_DPM_t::can_issue_IO(struct uop_t * const uop)
      && !uop->decode.is_nop && !uop->Mop->decode.is_trap
      && (uop->decode.opflags & F_AGEN) != F_AGEN)
   {
-    int fp_penalty = ((REG_IS_FPR(uop->decode.odep_name) && !(uop->decode.opflags & F_FCOMP)) ||
-                     (!REG_IS_FPR(uop->decode.odep_name) && (uop->decode.opflags & F_FCOMP)))?knobs->exec.fp_penalty:0;
+    int fp_penalty = ((REG_IS_IN_FP_UNIT(uop->decode.odep_name) && !(uop->decode.opflags & F_FCOMP)) ||
+                     (!REG_IS_IN_FP_UNIT(uop->decode.odep_name) && (uop->decode.opflags & F_FCOMP)))?knobs->exec.fp_penalty:0;
      when_otag_ready = sim_cycle + port[uop->alloc.port_assignment].FU[uop->decode.FU_class]->latency + fp_penalty;
   }
   else /* loads and stores go directly to pre_commit, as well as traps and nops */
@@ -3394,8 +3394,8 @@ bool core_exec_IO_DPM_t::can_issue_IO(struct uop_t * const uop)
                     when_curr_ready = TICK_T_MAX;
                  else
                  {
-                    int curr_fp_penalty = ((REG_IS_FPR(curr_uop->decode.odep_name) && !(curr_uop->decode.opflags & F_FCOMP)) ||
-                                          (!REG_IS_FPR(curr_uop->decode.odep_name) && (curr_uop->decode.opflags & F_FCOMP)))?knobs->exec.fp_penalty:0;
+                    int curr_fp_penalty = ((REG_IS_IN_FP_UNIT(curr_uop->decode.odep_name) && !(curr_uop->decode.opflags & F_FCOMP)) ||
+                                          (!REG_IS_IN_FP_UNIT(curr_uop->decode.odep_name) && (curr_uop->decode.opflags & F_FCOMP)))?knobs->exec.fp_penalty:0;
                     when_curr_ready = sim_cycle + port[curr_port].FU[curr_FU_class]->latency + curr_fp_penalty;
                  }
 
