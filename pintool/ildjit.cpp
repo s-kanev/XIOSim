@@ -695,7 +695,6 @@ VOID AddILDJITCallbacks(IMG img)
 /* ========================================================================== */
 VOID AddILDJITWaitSignalCallbacks()
 {
-  cerr << "TRADA" << endl;
   PIN_LockClient();
 
   for(IMG img = APP_ImgHead(); IMG_Valid(img); img = IMG_Next(img)) {

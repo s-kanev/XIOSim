@@ -381,8 +381,6 @@ void Zesto_Destroy()
   }
 
   repeater_shutdown();
-
-  flush_trace();
 }
 
 
