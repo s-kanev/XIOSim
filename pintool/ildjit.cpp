@@ -169,9 +169,10 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
       }
       if(invocation_counts[loop] < start_loop_invocation) {        
         if(invocation_counts[loop] == (start_loop_invocation - 1)) {          
-          cerr << "Doing the instrumentation for before/after wait/signal and endParallelLoop" << endl;
-          AddILDJITWaitSignalCallbacks();
-          CODECACHE_FlushCache();
+            cerr << "Doing the instrumentation for before/after wait/signal and endParallelLoop" << endl;
+            AddILDJITWaitSignalCallbacks();
+            CODECACHE_FlushCache();
+            cerr << "YADA" << endl;
         }      
         return;
       }
@@ -194,14 +195,12 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
 
     if (strlen(start_loop) == 0 && firstLoop) {
         cerr << "Starting simulation, TID: " << tid << endl;
-        AddILDJITWaitSignalCallbacks();
         PPointHandler(CONTROL_START, NULL, NULL, (VOID*)ip, tid);
         firstLoop = false;
     } 
     else if (strncmp(start_loop, (CHAR*)loop, 512) == 0) {
       if (invocation_counts[loop] == start_loop_invocation) {
         cerr << "Starting simulation, TID: " << tid << endl;
-        AddILDJITWaitSignalCallbacks();
         PPointHandler(CONTROL_START, NULL, NULL, (VOID*)ip, tid);
         firstLoop = false;
       } 
@@ -696,6 +695,7 @@ VOID AddILDJITCallbacks(IMG img)
 /* ========================================================================== */
 VOID AddILDJITWaitSignalCallbacks()
 {
+  cerr << "TRADA" << endl;
   PIN_LockClient();
 
   for(IMG img = APP_ImgHead(); IMG_Valid(img); img = IMG_Next(img)) {

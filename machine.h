@@ -154,7 +154,7 @@ enum md_fault_type {
 #define MD_NUM_SREGS        6 // UCSD
 
 /* number of XMM registers. XXX: This is 32-bit mode only. */
-#define MD_NUM_XMMREGS      (/* arch */4 + /* uarch */4)
+#define MD_NUM_XMMREGS      (/* arch */8 + /* uarch */8)
 
 /* total number of registers, excluding PC and NPC */
 #define MD_TOTAL_REGS                            \
@@ -225,7 +225,7 @@ typedef struct {
 
 /* 128-bit XMM register file */
 typedef struct {
-  struct {double lo; double hi; } dw[MD_NUM_XMMREGS];
+  struct {double lo; double hi; } qw[MD_NUM_XMMREGS];
 } md_xmm_t;
 
 /* well known registers */
@@ -1943,7 +1943,7 @@ enum md_xfield_t {
   XR_FTMP0, XR_FTMP1, XR_FTMP2,
 
   /* XMM registers */
-  XR_XMM0, XR_XMM1, XR_XMM2, XR_XMM3, XR_XMM4, XR_XMM5, XR_XMM6, XR_XMM7, 
+  XR_XMM0, XR_XMM1, XR_XMM2, XR_XMM3, XR_XMM4, XR_XMM5, XR_XMM6, XR_XMM7,
   /* XMM temp registers */
   XR_XMMTMP0, XR_XMMTMP1, XR_XMMTMP2,
 

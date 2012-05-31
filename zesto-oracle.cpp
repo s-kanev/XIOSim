@@ -699,10 +699,10 @@ seq_t core_oracle_t::syscall_get_action_id(void * const op)
   panic("bogus FP stack operation");                \
 }
 
-#define XMM_D_LO(N)        (thread->regs.regs_XMM.dw[(N)].lo)
-#define XMM_D_HI(N)        (thread->regs.regs_XMM.dw[(N)].hi)
-#define SET_XMM_D_LO(N, VAL)    (thread->regs.regs_XMM.dw[(N)].lo = (VAL))
-#define SET_XMM_D_HI(N, VAL)    (thread->regs.regs_XMM.dw[(N)].hi = (VAL))
+#define XMM_Q_LO(N)        (thread->regs.regs_XMM.qw[(N)].lo)
+#define XMM_Q_HI(N)        (thread->regs.regs_XMM.qw[(N)].hi)
+#define SET_XMM_Q_LO(N, VAL)    (thread->regs.regs_XMM.qw[(N)].lo = (VAL))
+#define SET_XMM_Q_HI(N, VAL)    (thread->regs.regs_XMM.qw[(N)].hi = (VAL))
 
 #else
 #error No ISA target defined (only x86 supported) ...
