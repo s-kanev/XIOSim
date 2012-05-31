@@ -9042,6 +9042,8 @@ CONNECT(TWOESC_LINK)
 
   /* FIXME: TODO 0x23: MOV_DdRd */
 
+  DEFLINK(UCOMISD_Rd_Ed_LINK, 0x2e, "addsd_rd_ed_link", 6, 0x03)
+
   /* FIXME: TODO 0x30: WRMSR: F_NOMOD */
 
   // cristiano
@@ -9282,6 +9284,40 @@ CONNECT(MOVSD_Ed_Rd_LINK)
   DEFINST(MOVSD_Md_Rd,    0x0200,
       "movsd",      "%Md, %Rd",
       FU_INVALID,                 F_MEM|F_STORE|F_UCODE,
+      DNA,
+      DNA, DNA, DNA,
+      DNA, DNA)
+
+CONNECT(UCOMISD_Rd_Ed_LINK)
+
+#define UCOMISD_Rd_Md_IMPL              \
+{                                           \
+  dfloat_t _src1, _src2, _res;              \
+  dword_t _afl;                             \
+  md_addr_t _addr;                          \
+  enum md_fault_type _fault;                \
+  \
+  _src1 = XMM_Q_LO(R);                     \
+  _addr = AGEN_D(SEG, BASE, INDEX, SCALE, DISP);        \
+  _src2 = READ_QWORD(_addr, _fault);        \
+  _res = _src1 - _src2;                     \
+  if (_fault != md_fault_none)              \
+  DECLARE_FAULT(_fault);                    \
+  \
+  if (_src1 != _src1 || _src2 != _src2)     \
+    _afl = 0x25;                            \
+  else if (_res > 0)                        \
+    _afl = 0x0;                             \
+  else if (_res == 0)                       \
+    _afl = 0x20;                            \
+  else                                      \
+    _afl = 0x01;                            \
+  \
+  SET_AFLAGS(_afl, ZF|PF|CF|OF|AF|SF);      \
+}
+  DEFINST(UCOMISD_Rd_Md,    0x0200,
+      "ucomisd",      "%Rd, %Md",
+      FU_INVALID,                 F_FCOMP|F_MEM|F_LOAD|F_UCODE,
       DNA,
       DNA, DNA, DNA,
       DNA, DNA)
@@ -18698,6 +18734,32 @@ CONNECT(FISTP_Mq_LINK)
       DNA,
       DGPR_D(URS), DXMM(URD), DNA,
       DNA, DNA)
+
+#define SSE_UCOMISD_IMPL              \
+{                  \
+  dfloat_t _res, _src1, _src2;          \
+  dword_t _afl;                      \
+  \
+  _src1 = XMM_Q_LO(URD);              \
+  _src2 = XMM_Q_LO(URS);              \
+  _res = _src1 - _src2;               \
+  if (_src1 != _src1 || _src2 != _src2)     \
+    _afl = 0x25;                            \
+  else if (_res > 0)                        \
+    _afl = 0x0;                             \
+  else if (_res == 0)                       \
+    _afl = 0x20;                            \
+  else                                      \
+    _afl = 0x01;                            \
+  \
+  SET_AFLAGS(_afl, ZF|PF|CF|OF|AF|SF);      \
+}
+  DEFUOP(SSE_UCOMISD,      0x00,
+      "sse_ucomisd",      "%De,%Se,%Te",
+      FU_FADD,    F_FCOMP,
+      DNA,
+      DFPR(URD), DFPR(URS), DNA,
+      DAFLAGS(OF|SF|ZF|AF|CF|PF), DNA)
 
 #define SSE_ADDSD_IMPL              \
 {                  \
