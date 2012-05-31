@@ -417,22 +417,38 @@ void activate_core(int coreID)
   lk_unlock(&cycle_lock);
 }
 
+bool is_core_active(int coreID)
+{
+  assert(coreID >= 0 && coreID < num_threads);
+  return cores[coreID]->current_thread->active;
+}
+
 void sim_drain_pipe(int coreID)
 {
+  cerr << "[KEVIN]: Starting sim_drain_pipe(" << coreID << ")" << endl;
    struct core_t * core = cores[coreID];
 
    /* Just flush anything left */
+   cerr << "[KEVIN]: Starting oracle flush" << endl;
    core->oracle->complete_flush();
+   cerr << "[KEVIN]: Starting commit recover" << endl;
    core->commit->recover();
+   cerr << "[KEVIN]: Starting exec recover" << endl;
    core->exec->recover();
+   cerr << "[KEVIN]: Starting alloc recover" << endl;
    core->alloc->recover();
+   cerr << "[KEVIN]: Starting decode recover" << endl;
    core->decode->recover();
+   cerr << "[KEVIN]: Starting fetch recover" << endl;
    core->fetch->recover(core->current_thread->regs.regs_NPC);
 
+   cerr << "[KEVIN]: Starting repeater flush" << endl;
    repeater_flush(core->memory.mem_repeater, NULL);
+   cerr << "[KEVIN]: Done repeater flush" << endl;
 
    // Do this after fetch->recover, since the latest Mop might have had a rep prefix
    core->current_thread->rep_sequence = 0;
+   cerr << "[KEVIN]: Leaving sim_drain_pipe(" << coreID << ")" << endl;
 }
 
 void Zesto_Slice_End(int coreID, unsigned int slice_num, unsigned long long feeder_slice_length, unsigned long long slice_weight_times_1000)

@@ -22,6 +22,7 @@ extern map<THREADID, handshake_queue_t> inserted_pool;
 extern PIN_LOCK simbuffer_lock;
 extern PIN_LOCK printing_lock;
 extern map<UINT32, THREADID> core_threads;
+extern map<THREADID, UINT32> thread_cores;
 extern map<THREADID, map<ADDRINT, BOOL> > ignore_list;
 extern map<THREADID, INT32> lastWaitID;
 extern BOOL ignore_all;
