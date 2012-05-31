@@ -1373,6 +1373,19 @@ md_uop_reg(const enum md_xfield_t xval, const struct Mop_t * Mop, bool * bogus)
     case XR_FTMP1:	res = MD_REG_FTMP1; break;
     case XR_FTMP2:	res = MD_REG_FTMP2; break;
 
+    case XR_XMM0:   res = MD_REG_XMM0; break;
+    case XR_XMM1:   res = MD_REG_XMM1; break;
+    case XR_XMM2:   res = MD_REG_XMM2; break;
+    case XR_XMM3:   res = MD_REG_XMM3; break;
+    case XR_XMM4:   res = MD_REG_XMM4; break;
+    case XR_XMM5:   res = MD_REG_XMM5; break;
+    case XR_XMM6:   res = MD_REG_XMM6; break;
+    case XR_XMM7:   res = MD_REG_XMM7; break;
+
+    case XR_XMMTMP0:   res = MD_REG_XMMTMP0; break;
+    case XR_XMMTMP1:   res = MD_REG_XMMTMP1; break;
+    case XR_XMMTMP2:   res = MD_REG_XMMTMP2; break;
+
     case XF_RO:		res = RO; break;
     case XF_R:		res = R; break;
     case XF_RM:		res = RM; break;

@@ -104,6 +104,7 @@ struct regs_t {
   md_addr_t regs_NPC;		/* next-cycle program counter */
   md_seg_t regs_S;  		/* segment register file */ // UCSD
   md_seg_base_t regs_SD;    /* segment bases (part of hidden state) */
+  md_xmm_t regs_XMM;        /* 128-bit register file */
 };
 
 /* create a register file */

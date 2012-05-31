@@ -699,6 +699,11 @@ seq_t core_oracle_t::syscall_get_action_id(void * const op)
   panic("bogus FP stack operation");                \
 }
 
+#define XMM_Q_LO(N)        (thread->regs.regs_XMM.qw[(N)].lo)
+#define XMM_Q_HI(N)        (thread->regs.regs_XMM.qw[(N)].hi)
+#define SET_XMM_Q_LO(N, VAL)    (thread->regs.regs_XMM.qw[(N)].lo = (VAL))
+#define SET_XMM_Q_HI(N, VAL)    (thread->regs.regs_XMM.qw[(N)].hi = (VAL))
+
 #else
 #error No ISA target defined (only x86 supported) ...
 #endif
@@ -1349,7 +1354,7 @@ core_oracle_t::exec(const md_addr_t requested_PC)
       Mop->uop[prev_uop_index].oracle.phys_addr = uop->oracle.phys_addr;
       Mop->uop[prev_uop_index].decode.mem_size = uop->decode.mem_size;
       if(!spec_mode)
-        assert(uop->oracle.virt_addr && uop->decode.mem_size);
+        zesto_assert(uop->oracle.virt_addr && uop->decode.mem_size, NULL);
     }
 
     if (uop->oracle.fault != md_fault_none)

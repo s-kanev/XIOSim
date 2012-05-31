@@ -574,6 +574,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
      regs->regs_C = handshake->ctxt.regs_C;
      regs->regs_S = handshake->ctxt.regs_S;
      regs->regs_SD = handshake->ctxt.regs_SD;
+     regs->regs_XMM = handshake->ctxt.regs_XMM;
 
      /* Copy only valid FP registers (PIN uses invalid ones and they may differ) */
      int j;
@@ -614,6 +615,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
        /* HACKEDY HACKEDY HACK!!! */
 //       fprintf(stderr, "%d: Holy shmozef %d\n", coreID, core->num_signals_in_pipe);
 //       fflush(stderr);
+       ZPIN_TRACE("core %d: holy schmozef correction\n", coreID);
        core->stat.holy_schmozef_hack++;
        if (core->num_signals_in_pipe == 0) {
          deactivate_core(coreID);

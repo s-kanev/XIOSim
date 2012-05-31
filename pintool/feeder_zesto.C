@@ -87,7 +87,7 @@ map<THREADID, handshake_queue_t> inserted_pool;
 map<THREADID, BOOL> ignore;
 
 // Master switch for ignoring all cores (during sequential code)
-BOOL ignore_all = false;
+BOOL ignore_all = true;
 
 // Ignore list of instrutcions that we don't care about
 map<THREADID, map<ADDRINT, BOOL> > ignore_list;
@@ -171,6 +171,7 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
         handshake = handshake_pool[tid].front();
         ASSERTX(handshake != NULL);
         handshake->isFirstInsn = true;
+        ignore_all = false;
         ReleaseLock(&simbuffer_lock);
 
         //ScheduleRunQueue();
@@ -321,6 +322,18 @@ VOID MakeSSContext(const CONTEXT *ictxt, FPSTATE* fpstate, ADDRINT pc, ADDRINT n
     memcpy(&ssregs->regs_F.e[ST2P(MD_REG_ST5)], &fpstate->fxsave_legacy._sts[MD_REG_ST5], MD_FPR_SIZE);
     memcpy(&ssregs->regs_F.e[ST2P(MD_REG_ST6)], &fpstate->fxsave_legacy._sts[MD_REG_ST6], MD_FPR_SIZE);
     memcpy(&ssregs->regs_F.e[ST2P(MD_REG_ST7)], &fpstate->fxsave_legacy._sts[MD_REG_ST7], MD_FPR_SIZE);
+
+    ASSERTX(PIN_ContextContainsState(&ssctxt, PROCESSOR_STATE_XMM));
+
+    // Copy lower part of XMMM (XXX: Extend once we care about HI too)
+    memcpy(&ssregs->regs_XMM.qw[MD_REG_XMM0].lo, &fpstate->fxsave_legacy._xmms[MD_REG_XMM0], 8);
+    memcpy(&ssregs->regs_XMM.qw[MD_REG_XMM1].lo, &fpstate->fxsave_legacy._xmms[MD_REG_XMM1], 8);
+    memcpy(&ssregs->regs_XMM.qw[MD_REG_XMM2].lo, &fpstate->fxsave_legacy._xmms[MD_REG_XMM2], 8);
+    memcpy(&ssregs->regs_XMM.qw[MD_REG_XMM3].lo, &fpstate->fxsave_legacy._xmms[MD_REG_XMM3], 8);
+    memcpy(&ssregs->regs_XMM.qw[MD_REG_XMM4].lo, &fpstate->fxsave_legacy._xmms[MD_REG_XMM4], 8);
+    memcpy(&ssregs->regs_XMM.qw[MD_REG_XMM5].lo, &fpstate->fxsave_legacy._xmms[MD_REG_XMM5], 8);
+    memcpy(&ssregs->regs_XMM.qw[MD_REG_XMM6].lo, &fpstate->fxsave_legacy._xmms[MD_REG_XMM6], 8);
+    memcpy(&ssregs->regs_XMM.qw[MD_REG_XMM7].lo, &fpstate->fxsave_legacy._xmms[MD_REG_XMM7], 8);
 }
 
 /* ========================================================================== */
@@ -1067,7 +1080,7 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
           inserted_pool[threadIndex].push(new_handshake);
         }
         run_queue.push_back(threadIndex);
-        ignore[threadIndex] = false;
+        ignore[threadIndex] = true;
         ReleaseLock(&simbuffer_lock);
 
         // Will get clear on first simulated instruction
