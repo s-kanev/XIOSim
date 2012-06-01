@@ -9379,6 +9379,25 @@ CONNECT(ADDSD_Rd_Ed_LINK)
       DNA, DNA, DNA,
       DNA, DNA)
 
+#define ADDSD_Rd_Rd_IMPL              \
+{                                           \
+  dfloat_t _src1, _src2, _res;              \
+  md_addr_t _addr;                          \
+  \
+  _src1 = XMM_Q_LO(RM);                     \
+  _src2 = XMM_Q_LO(R);                     \
+  _res = _src1 + _src2;                     \
+  \
+  SET_XMM_Q_LO(RM, _res);                   \
+}
+  DEFINST(ADDSD_Rd_Rd,    0x03,
+      "addsd",      "%Rd, %Rd",
+      FU_INVALID,                 F_FCOMP|F_UCODE,
+      DNA,
+      DNA, DNA, DNA,
+      DNA, DNA)
+
+
 CONNECT(DIVSD_Rd_Ed_LINK)
 
 #define DIVSD_Rd_Md_IMPL              \
