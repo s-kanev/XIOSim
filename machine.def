@@ -9081,8 +9081,11 @@ DNA, DNA)
 
   DEFLINK(CMOV_RvEv_LINK, 0x4f40, "cmov_rvev_link", 6, 0x03)
 
+  DEFLINK(SQRTSD_Rd_Ed_LINK, 0x51, "sqrtsd_rd_ed_link", 6, 0x03)
+
   DEFLINK(ADDSD_Rd_Ed_LINK, 0x58, "addsd_rd_ed_link", 6, 0x03)
 
+  DEFLINK(DIVSD_Rd_Ed_LINK, 0x5e, "divsd_rd_ed_link", 6, 0x03)
 
 #define JCC_Jv_IMPL              \
 {                  \
@@ -9329,6 +9332,29 @@ CONNECT(CMOV_RvEv_LINK)
       DNA, DNA, DNA,
       DNA, DNA)
 
+CONNECT(SQRTSD_Rd_Ed_LINK)
+
+#define SQRTSD_Rd_Md_IMPL              \
+{                                           \
+  dfloat_t _src1, _res;              \
+  md_addr_t _addr;                          \
+  enum md_fault_type _fault;                \
+  \
+  _addr = AGEN_D(SEG, BASE, INDEX, SCALE, DISP);        \
+  _src1 = READ_QWORD(_addr, _fault);        \
+  _res = sqrt(_src1);                     \
+  if (_fault != md_fault_none)              \
+  DECLARE_FAULT(_fault);                    \
+  \
+  SET_XMM_Q_LO(R, _res);                   \
+}
+  DEFINST(SQRTSD_Rd_Md,    0x0200,
+      "sqrtsd",      "%Rd, %Md",
+      FU_INVALID,                 F_FCOMP|F_MEM|F_LOAD|F_UCODE,
+      DNA,
+      DNA, DNA, DNA,
+      DNA, DNA)
+
 CONNECT(ADDSD_Rd_Ed_LINK)
 
 #define ADDSD_Rd_Md_IMPL              \
@@ -9348,6 +9374,30 @@ CONNECT(ADDSD_Rd_Ed_LINK)
 }
   DEFINST(ADDSD_Rd_Md,    0x0200,
       "addsd",      "%Rd, %Md",
+      FU_INVALID,                 F_FCOMP|F_MEM|F_LOAD|F_UCODE,
+      DNA,
+      DNA, DNA, DNA,
+      DNA, DNA)
+
+CONNECT(DIVSD_Rd_Ed_LINK)
+
+#define DIVSD_Rd_Md_IMPL              \
+{                                           \
+  dfloat_t _src1, _src2, _res;              \
+  md_addr_t _addr;                          \
+  enum md_fault_type _fault;                \
+  \
+  _src1 = XMM_Q_LO(R);                     \
+  _addr = AGEN_D(SEG, BASE, INDEX, SCALE, DISP);        \
+  _src2 = READ_QWORD(_addr, _fault);        \
+  _res = _src1 / _src2;                     \
+  if (_fault != md_fault_none)              \
+  DECLARE_FAULT(_fault);                    \
+  \
+  SET_XMM_Q_LO(R, _res);                   \
+}
+  DEFINST(DIVSD_Rd_Md,    0x0200,
+      "divsd",      "%Rd, %Md",
       FU_INVALID,                 F_FCOMP|F_MEM|F_LOAD|F_UCODE,
       DNA,
       DNA, DNA, DNA,
@@ -18687,6 +18737,37 @@ CONNECT(FISTP_Mq_LINK)
       FU_FADD,    F_FCOMP,
       DFPR(URD),
       DFPR(URS), DFPR(URT), DNA,
+      DNA, DNA)
+
+#define SSE_DIVSD_IMPL              \
+{                  \
+  dfloat_t _res, _src1, _src2;          \
+  \
+  _src1 = XMM_Q_LO(URS);              \
+  _src2 = XMM_Q_LO(URT);              \
+  _res = _src1 / _src2;            \
+  SET_XMM_Q_LO(URD, _res);              \
+}
+  DEFUOP(SSE_DIVSD,      0x00,
+      "sse_divsd",      "%De,%Se,%Te",
+      FU_FDIV,    F_FCOMP,
+      DXMM(URD),
+      DXMM(URS), DXMM(URT), DNA,
+      DNA, DNA)
+
+#define SSE_SQRTSD_IMPL              \
+{                  \
+  dfloat_t _res, _src1;          \
+  \
+  _src1 = XMM_Q_LO(URS);              \
+  _res = sqrt(_src1);            \
+  SET_XMM_Q_LO(URD, _res);              \
+}
+  DEFUOP(SSE_SQRTSD,      0x00,
+      "sse_sqrtsd",      "%De,%Se,%Te",
+      FU_FCPLX,    F_FCOMP,
+      DXMM(URD),
+      DXMM(URS), DNA, DNA,
       DNA, DNA)
 
   /*================================================================*/
