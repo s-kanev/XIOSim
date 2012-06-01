@@ -108,6 +108,7 @@ VOID ILDJIT_startSimulation(THREADID tid, ADDRINT ip)
     thread_state_t* tstate = get_tls(tid);
     tstate->coreID = 0;
     core_threads[0] = tid;
+    thread_cores[tid] = 0;
     cerr << tid << ": assigned to core " << tstate->coreID << endl;
 
     ReleaseLock(&ildjit_lock);
@@ -456,7 +457,7 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT 
 }
 
 /* ========================================================================== */
-VOID ILDJIT_afterSignal(THREADID tid, ADDRINT pc)
+VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc)
 {
     GetLock(&simbuffer_lock, tid+1);
 //    ignore[tid] = false;
@@ -505,7 +506,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT pc)
     inserted_pool[tid].pop();
 
     /* Don't insert signals in single-core mode */
-    if (num_threads < 2) {
+    if (num_threads < 2) { //|| (ssID == 0)) {
         ReleaseLock(&simbuffer_lock);
         return;
     }
@@ -551,6 +552,7 @@ VOID ILDJIT_setAffinity(THREADID tid, INT32 coreID)
     thread_state_t* tstate = get_tls(tid);
     tstate->coreID = coreID;
     core_threads[coreID] = tid;
+    thread_cores[tid] = coreID;
 }
 
 /* ========================================================================== */
@@ -695,7 +697,6 @@ VOID AddILDJITCallbacks(IMG img)
 /* ========================================================================== */
 VOID AddILDJITWaitSignalCallbacks()
 {
-  cerr << "TRADA" << endl;
   PIN_LockClient();
 
   for(IMG img = APP_ImgHead(); IMG_Valid(img); img = IMG_Next(img)) {
@@ -745,6 +746,8 @@ VOID AddILDJITWaitSignalCallbacks()
       RTN_Open(rtn);
       RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterSignal),
                      IARG_THREAD_ID,
+                     IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+                     IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
                      IARG_INST_PTR,
                      IARG_CALL_ORDER, CALL_ORDER_LAST,
                      IARG_END);

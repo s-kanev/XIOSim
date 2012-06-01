@@ -98,6 +98,9 @@ static PIN_LOCK instrument_tid_lock;
 
 // A mapping storing which thread runs on which core
 map<UINT32, THREADID> core_threads;
+// The reverse mapping (also stored in tstate_t, but that's supposed to be thread-private)
+map<THREADID, UINT32> thread_cores;
+
 // Runque for threads (managed in FIFO order for simple fair scheduling)
 static list<THREADID> run_queue;
 
@@ -978,6 +981,7 @@ VOID ScheduleRunQueue()
     INT32 nextCoreID;
     for (nextCoreID = num_threads-1; nextCoreID >= 0; nextCoreID--, it++) {
         core_threads[nextCoreID] = *it;
+        thread_cores[*it] = nextCoreID;
         cerr << "Core: " << nextCoreID << " " << *it << endl;
     }
 
@@ -1119,24 +1123,53 @@ VOID PauseSimulation(THREADID tid)
     handshake_buffer[tid].push(handshake);
     inserted_pool[tid].pop();
     ReleaseLock(&simbuffer_lock);
-
+    
     /* Make sure all cores gather at signal ID 0 before pausing any threads.
      * The invariant is that all cores (other than this one) are waiting there. */
+    cerr << "[" << sim_cycle << ":KEVIN]: Waiting for all sleepy cores" << endl; 
     volatile bool done = false;
     do {
         GetLock(&simbuffer_lock, tid + 1);
         done = true;
         map<THREADID, handshake_queue_t>::iterator it;
         for (it = handshake_buffer.begin(); it != handshake_buffer.end(); it++) {
-            done &= ignore[it->first] && (lastWaitID[it->first] == 0);
+            done &= (!is_core_active(thread_cores[it->first])) && (lastWaitID[it->first] == 0);
         }
         ReleaseLock(&simbuffer_lock);
     } while (!done);
+    cerr << "[" << sim_cycle << "KEVIN]: Done waiting for sleepy cores" << endl; 
+
+    /* Here, we know that all threads are sleeping. But there can still
+     * be a handshake left in a handshake buffer, which will cause us a
+     * lot of trouble once we wake up for the next loop. So, blow away all
+     * handshake buffers and return them to appropriate pools. */
 
     GetLock(&simbuffer_lock, tid+1);
-    for (INT32 i = 0; i < num_threads; i++) {
-        sim_drain_pipe(i);
+    map<THREADID, handshake_queue_t>::iterator it;
+    for (it = handshake_buffer.begin(); it != handshake_buffer.end(); it++) {
+        while (!it->second.empty()) {
+            cerr << "HOLY MANOLY Concition at thread: " << it->first << endl;
+            handshake_container_t* hshake = it->second.front();
+            hshake->mem_buffer.clear();
+            hshake->mem_released = true;
+            hshake->valid = false;
+            if (hshake->handshake.real)
+                handshake_pool[it->first].push(hshake);
+            else
+                inserted_pool[it->first].push(hshake);
+            it->second.pop();
+        }
     }
+    ReleaseLock(&simbuffer_lock);
+
+    GetLock(&simbuffer_lock, tid+1);
+    cerr << "[" << sim_cycle << "KEVIN]: Starting pipe drains" << endl; 
+    for (INT32 i = 0; i < num_threads; i++) {
+      cerr << "[" << sim_cycle << "KEVIN]: Starting pipe drain for tid: " << i << endl; 
+      sim_drain_pipe(i);
+      cerr << "[" << sim_cycle << "KEVIN]: Done pipe drain for tid: " << i << endl; 
+    }
+    cerr << "[" << sim_cycle << "KEVIN]: Done pipe drains" << endl; 
     ignore_all = true;
     ReleaseLock(&simbuffer_lock);
 }

@@ -24,9 +24,11 @@ void Zesto_WarmLLC(unsigned int addr, bool is_write);
 void Zesto_Slice_End(int coreID, unsigned int slice_num, unsigned long long feeder_slice_length, unsigned long long slice_weight_times_1000);
 
 void deactivate_core(int coreID);
+bool is_core_active(int coreID);
 void sim_drain_pipe(int coreID);
 extern bool sim_release_handshake;
 extern int num_threads;
+extern tick_t sim_cycle;
 
 #endif /*__PIN_ZESTO_INTERFACE__*/
 

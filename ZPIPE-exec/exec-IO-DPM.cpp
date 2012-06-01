@@ -1008,7 +1008,7 @@ void core_exec_IO_DPM_t::load_writeback(struct uop_t * const uop)
     ztrace_print(uop,"e|load|writeback from cache/writeback");
 #endif
 
-    int fp_penalty = REG_IS_FPR(uop->decode.odep_name)?knobs->exec.fp_penalty:0;
+    int fp_penalty = REG_IS_IN_FP_UNIT(uop->decode.odep_name)?knobs->exec.fp_penalty:0;
 
     port[uop->alloc.port_assignment].when_bypass_used = sim_cycle+fp_penalty;
     uop->exec.ovalue = uop->oracle.ovalue; /* XXX: just using oracle value for now */
@@ -1457,7 +1457,7 @@ void core_exec_IO_DPM_t::LDST_exec(void)
             {
               if(STQ[j].value_valid)
               {
-                int fp_penalty = REG_IS_FPR(uop->decode.odep_name)?knobs->exec.fp_penalty:0;
+                int fp_penalty = REG_IS_IN_FP_UNIT(uop->decode.odep_name)?knobs->exec.fp_penalty:0;
                 uop->exec.ovalue = STQ[j].value;
                 uop->exec.ovalue_valid = true;
                 //SK - No need to flush here, simply use the found value
@@ -1710,8 +1710,11 @@ void core_exec_IO_DPM_t::LDQ_schedule(void)
                 else
                   // The wait address is bogus, don't schedule a TLB translation
                   uop->exec.when_addr_translated = sim_cycle;
+                
+                if (!uop->oracle.is_sync_op) {
+                   cache_enqueue(core,core->memory.DL1,NULL,CACHE_READ,core->current_thread->id,uop->Mop->fetch.PC,uop->oracle.virt_addr,uop->exec.action_id,0,NO_MSHR,uop,DL1_callback,load_miss_reschedule,translated_callback,get_uop_action_id);
+		}
 
-                cache_enqueue(core,core->memory.DL1,NULL,CACHE_READ,core->current_thread->id,uop->Mop->fetch.PC,uop->oracle.virt_addr,uop->exec.action_id,0,NO_MSHR,uop,DL1_callback,load_miss_reschedule,translated_callback,get_uop_action_id);
                 if(uop->oracle.is_repeated)
                   repeater_enqueue(core->memory.mem_repeater, uop->oracle.is_sync_op ? CACHE_WAIT : CACHE_READ, 
                                    core->current_thread->id, uop->oracle.virt_addr, uop, repeater_callback);
@@ -1795,12 +1798,14 @@ void core_exec_IO_DPM_t::LDQ_schedule(void)
 
             if(LDQ[index].first_byte_requested && !LDQ[index].last_byte_requested && !uop->oracle.is_sync_op)
             {
+              zesto_assert(!uop->oracle.is_sync_op, (void)0);
               /* split-line access.  XXX: we're currently not handling the 2nd translation
                  for acceses that cross *pages*. */
               if(cache_enqueuable(core->memory.DL1,core->current_thread->id,uop->oracle.virt_addr+uop->decode.mem_size) &&
                  (!uop->oracle.is_repeated || (uop->oracle.is_repeated && repeater_enqueuable(core->memory.mem_repeater, CACHE_READ, core->current_thread->id, uop->oracle.virt_addr+uop->decode.mem_size))))
               {
                 ZESTO_STAT(core->stat.DL1_load_split_accesses++;)
+
                 cache_enqueue(core,core->memory.DL1,NULL,CACHE_READ,core->current_thread->id,uop->Mop->fetch.PC,uop->oracle.virt_addr+uop->decode.mem_size,uop->exec.action_id,0,NO_MSHR,uop,DL1_split_callback,load_miss_reschedule,translated_callback,get_uop_action_id);
                 if(uop->oracle.is_repeated)
                   repeater_enqueue(core->memory.mem_repeater, CACHE_READ,
@@ -2228,7 +2233,6 @@ bool core_exec_IO_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
 
   if(!STQ[STQ_head].first_byte_requested)
   {
-    STQ[STQ_head].translation_complete = false;
     STQ[STQ_head].write_complete = false;
     /* These are just dummy placeholders, but we need them
        because the original uop pointers will be made invalid
@@ -2238,30 +2242,42 @@ bool core_exec_IO_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
        memory, but commit can proceed past this store once the
        request has entered into the cache hierarchy. */
     struct uop_t * dl1_uop = core->get_uop_array(1);
-    struct uop_t * dtlb_uop = core->get_uop_array(1);
-    dl1_uop->core = core;
-    dtlb_uop->core = core;
 
+    dl1_uop->core = core;
     dl1_uop->alloc.STQ_index = uop->alloc.STQ_index;
-    dtlb_uop->alloc.STQ_index = uop->alloc.STQ_index;
 
     STQ[STQ_head].action_id = core->new_action_id();
     dl1_uop->exec.action_id = STQ[STQ_head].action_id;
-    dtlb_uop->exec.action_id = STQ[STQ_head].action_id;
+
     dl1_uop->decode.Mop_seq = uop->decode.Mop_seq;
-    dtlb_uop->decode.Mop_seq = uop->decode.Mop_seq;
     dl1_uop->decode.uop_seq = uop->decode.uop_seq;
-    dtlb_uop->decode.uop_seq = uop->decode.uop_seq;
+
     dl1_uop->oracle.is_repeated = uop->oracle.is_repeated;
     dl1_uop->oracle.is_sync_op = uop->oracle.is_sync_op;
 
-    cache_enqueue(core,tlb,NULL,CACHE_READ,core->current_thread->id,uop->Mop->fetch.PC,PAGE_TABLE_ADDR(core->current_thread->id,uop->oracle.virt_addr),dtlb_uop->exec.action_id,0,NO_MSHR,dtlb_uop,store_dtlb_callback,NULL,NULL,get_uop_action_id);
-    if(uop->oracle.is_repeated)
+    if(!uop->oracle.is_sync_op) {
+      struct uop_t * dtlb_uop = core->get_uop_array(1);
+      STQ[STQ_head].translation_complete = false;
+      dtlb_uop->core = core;
+      dtlb_uop->alloc.STQ_index = uop->alloc.STQ_index;
+      dtlb_uop->exec.action_id = STQ[STQ_head].action_id;
+      dtlb_uop->decode.Mop_seq = uop->decode.Mop_seq;
+      dtlb_uop->decode.uop_seq = uop->decode.uop_seq;
+      
+      cache_enqueue(core,tlb,NULL,CACHE_READ,core->current_thread->id,uop->Mop->fetch.PC,PAGE_TABLE_ADDR(core->current_thread->id,uop->oracle.virt_addr),dtlb_uop->exec.action_id,0,NO_MSHR,dtlb_uop,store_dtlb_callback,NULL,NULL,get_uop_action_id);
+    } 
+    else {
+      STQ[STQ_head].translation_complete = true;
+    }
+    
+    if(uop->oracle.is_repeated) {
       repeater_enqueue(core->memory.mem_repeater, uop->oracle.is_sync_op ? CACHE_SIGNAL : CACHE_WRITE,
                        core->current_thread->id, uop->oracle.virt_addr, dl1_uop, repeater_store_callback);
-    else
+    }
+    else {
+      zesto_assert(!uop->oracle.is_sync_op,false)
       cache_enqueue(core,core->memory.DL1,NULL,CACHE_WRITE,core->current_thread->id,uop->Mop->fetch.PC,uop->oracle.virt_addr,dl1_uop->exec.action_id,0,NO_MSHR,dl1_uop,store_dl1_callback,NULL,store_translated_callback,get_uop_action_id);
-
+    }
 
     /* not a split-line access */
     if(uop->oracle.is_sync_op ||
@@ -2277,14 +2293,18 @@ bool core_exec_IO_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
   /* split-line access */
   if(STQ[STQ_head].first_byte_requested && !STQ[STQ_head].last_byte_requested)
   {
+    zesto_assert(!uop->oracle.is_sync_op, 0);
     ZESTO_STAT(core->stat.DL1_store_split_accesses++;)
 
     if(uop->oracle.is_repeated) {
-      if(!repeater_enqueuable(core->memory.mem_repeater, uop->oracle.is_sync_op ? CACHE_SIGNAL : CACHE_WRITE,
-                              core->current_thread->id, uop->oracle.virt_addr+uop->decode.mem_size))
+      if(!repeater_enqueuable(core->memory.mem_repeater, CACHE_WRITE,
+                              core->current_thread->id, uop->oracle.virt_addr+uop->decode.mem_size)) {
+        return false;
+      }
+    } 
+    else if(!cache_enqueuable(core->memory.DL1,core->current_thread->id,uop->oracle.virt_addr+uop->decode.mem_size)) {
       return false;
-    } else if(!cache_enqueuable(core->memory.DL1,core->current_thread->id,uop->oracle.virt_addr+uop->decode.mem_size))
-      return false;
+    }
 
     struct uop_t * dl1_split_uop = core->get_uop_array(1);
     dl1_split_uop->core = core;
@@ -2297,10 +2317,12 @@ bool core_exec_IO_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
 
     /* XXX: similar to split-access loads, we're not handling the translation of both
        pages in the case that the access crosses page boundaries. */
-    if(uop->oracle.is_repeated)
-      repeater_enqueue(core->memory.mem_repeater, uop->oracle.is_sync_op ? CACHE_SIGNAL : CACHE_WRITE, core->current_thread->id, uop->oracle.virt_addr+uop->decode.mem_size, dl1_split_uop, repeater_split_store_callback);
-    else
+    if(uop->oracle.is_repeated) {
+      repeater_enqueue(core->memory.mem_repeater, CACHE_WRITE, core->current_thread->id, uop->oracle.virt_addr+uop->decode.mem_size, dl1_split_uop, repeater_split_store_callback);
+    }
+    else {
       cache_enqueue(core,core->memory.DL1,NULL,CACHE_WRITE,core->current_thread->id,uop->Mop->fetch.PC,uop->oracle.virt_addr+uop->decode.mem_size,dl1_split_uop->exec.action_id,0,NO_MSHR,dl1_split_uop,store_dl1_split_callback,NULL,store_translated_callback,get_uop_action_id);
+    }
 
     STQ[STQ_head].last_byte_requested = true;
   }
@@ -2517,7 +2539,7 @@ void core_exec_IO_DPM_t::repeater_split_store_callback(void * const op, bool is_
   zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
   if(uop->exec.action_id == E->STQ[uop->alloc.STQ_index].action_id)
   {
-    assert(!uop->oracle.is_sync_op);
+    zesto_assert(!uop->oracle.is_sync_op, (void)0);
     
     E->STQ[uop->alloc.STQ_index].last_byte_written = true;
     if(E->STQ[uop->alloc.STQ_index].first_byte_written)
@@ -2733,8 +2755,8 @@ void core_exec_IO_DPM_t::step()
       /* there's uop completing execution (hasn't been squashed) */
       if(!squashed)// && (!needs_bypass || bypass_available))
       {        
-         int fp_penalty = ((REG_IS_FPR(uop->decode.odep_name) && !(uop->decode.opflags & F_FCOMP)) ||
-                          (!REG_IS_FPR(uop->decode.odep_name) && (uop->decode.opflags & F_FCOMP)))?knobs->exec.fp_penalty:0;
+         int fp_penalty = ((REG_IS_IN_FP_UNIT(uop->decode.odep_name) && !(uop->decode.opflags & F_FCOMP)) ||
+                          (!REG_IS_IN_FP_UNIT(uop->decode.odep_name) && (uop->decode.opflags & F_FCOMP)))?knobs->exec.fp_penalty:0;
 
          
          if(uop->timing.when_completed == TICK_T_MAX)
@@ -3015,8 +3037,8 @@ void core_exec_IO_DPM_t::step()
 
                 if(!uop->decode.is_load)
                 {
-                   int fp_penalty = ((REG_IS_FPR(uop->decode.odep_name) && !(uop->decode.opflags & F_FCOMP)) ||
-                                    (!REG_IS_FPR(uop->decode.odep_name) && (uop->decode.opflags & F_FCOMP)))?knobs->exec.fp_penalty:0;
+                   int fp_penalty = ((REG_IS_IN_FP_UNIT(uop->decode.odep_name) && !(uop->decode.opflags & F_FCOMP)) ||
+                                    (!REG_IS_IN_FP_UNIT(uop->decode.odep_name) && (uop->decode.opflags & F_FCOMP)))?knobs->exec.fp_penalty:0;
                    uop->timing.when_otag_ready = sim_cycle + port[i].FU[uop->decode.FU_class]->latency + fp_penalty;
                 }
 
@@ -3294,8 +3316,8 @@ bool core_exec_IO_DPM_t::can_issue_IO(struct uop_t * const uop)
      && !uop->decode.is_nop && !uop->Mop->decode.is_trap
      && (uop->decode.opflags & F_AGEN) != F_AGEN)
   {
-    int fp_penalty = ((REG_IS_FPR(uop->decode.odep_name) && !(uop->decode.opflags & F_FCOMP)) ||
-                     (!REG_IS_FPR(uop->decode.odep_name) && (uop->decode.opflags & F_FCOMP)))?knobs->exec.fp_penalty:0;
+    int fp_penalty = ((REG_IS_IN_FP_UNIT(uop->decode.odep_name) && !(uop->decode.opflags & F_FCOMP)) ||
+                     (!REG_IS_IN_FP_UNIT(uop->decode.odep_name) && (uop->decode.opflags & F_FCOMP)))?knobs->exec.fp_penalty:0;
      when_otag_ready = sim_cycle + port[uop->alloc.port_assignment].FU[uop->decode.FU_class]->latency + fp_penalty;
   }
   else /* loads and stores go directly to pre_commit, as well as traps and nops */
@@ -3372,8 +3394,8 @@ bool core_exec_IO_DPM_t::can_issue_IO(struct uop_t * const uop)
                     when_curr_ready = TICK_T_MAX;
                  else
                  {
-                    int curr_fp_penalty = ((REG_IS_FPR(curr_uop->decode.odep_name) && !(curr_uop->decode.opflags & F_FCOMP)) ||
-                                          (!REG_IS_FPR(curr_uop->decode.odep_name) && (curr_uop->decode.opflags & F_FCOMP)))?knobs->exec.fp_penalty:0;
+                    int curr_fp_penalty = ((REG_IS_IN_FP_UNIT(curr_uop->decode.odep_name) && !(curr_uop->decode.opflags & F_FCOMP)) ||
+                                          (!REG_IS_IN_FP_UNIT(curr_uop->decode.odep_name) && (curr_uop->decode.opflags & F_FCOMP)))?knobs->exec.fp_penalty:0;
                     when_curr_ready = sim_cycle + port[curr_port].FU[curr_FU_class]->latency + curr_fp_penalty;
                  }
 
