@@ -2469,6 +2469,10 @@ void core_exec_IO_DPM_t::step()
           port[i].occupancy--;
           zesto_assert(port[i].occupancy >= 0, (void)0);
 
+#ifdef ZTRACE
+          ztrace_print(uop, "e|payload|goint straight to commit");
+#endif
+
           if(uop->decode.is_nop || uop->Mop->decode.is_trap)
           {
              uop->timing.when_exec = sim_cycle;
