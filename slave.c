@@ -392,6 +392,7 @@ void deactivate_core(int coreID)
 //  fflush(stderr);
   lk_lock(&cycle_lock, coreID+1);
   cores[coreID]->current_thread->active = false;
+  cores[coreID]->current_thread->last_active_cycle = sim_cycle;
   int i;
   for (i=0; i < num_threads; i++)
     if (cores[i]->current_thread->active) {
@@ -410,6 +411,7 @@ void activate_core(int coreID)
   ZPIN_TRACE("activate %d\n", coreID);
 //  fflush(stderr);
   cores[coreID]->exec->update_last_completed(sim_cycle);
+  cores[coreID]->exec->update_execution_otags(cores[coreID]->current_thread->last_active_cycle);
   lk_lock(&cycle_lock, coreID+1);
   cores[coreID]->current_thread->active = true;
     if (coreID < min_coreID)

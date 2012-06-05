@@ -84,6 +84,7 @@ class core_exec_DPM_t:public core_exec_t
   virtual void exec_insert(struct uop_t * const uop);
   virtual bool port_available(int port_ind);
   virtual bool exec_fused_ST(struct uop_t * const uop);
+  virtual void update_execution_otags(tick_t old_sim_cycle);
 
   protected:
   struct readyQ_node_t * readyQ_free_pool; /* for scheduling readyQ's */
@@ -2625,5 +2626,8 @@ bool core_exec_DPM_t::exec_empty(void)
   fatal("shouldn't be called");
 }
 
-
+void core_exec_DPM_t::update_execution_otags(tick_t old_sim_cycle)
+{
+  fatal("shouldn't be called");
+}
 #endif

@@ -159,6 +159,7 @@ class core_exec_t
   virtual void exec_insert(struct uop_t * const uop) = 0;
   virtual bool port_available(int port_ind) = 0;
   virtual bool exec_fused_ST(struct uop_t * const uop) = 0;
+  virtual void update_execution_otags(tick_t old_sim_cycle) = 0;
  
   protected:
   struct core_t * core;

@@ -54,6 +54,7 @@ struct thread_t {
   bool first_insn;          /* Excuted at least an istruction? */
   long long fetches_since_feeder; /* Instructions since last pin call */
   bool in_critical_section; /* Are we executing a HELIX sequential cut? */
+  tick_t last_active_cycle; /* Last time this core was active */
 #endif
 };
 
