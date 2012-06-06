@@ -39,6 +39,8 @@ static INT32 end_loop_invocation;
 static map<THREADID, INT32> unmatchedWaits;
 
 VOID AddILDJITWaitSignalCallbacks();
+extern VOID doLateInstInstrumentation();
+
 
 /* ========================================================================== */
 VOID MOLECOOL_Init()
@@ -88,6 +90,8 @@ BOOL ILDJIT_IsCreatingExecutor()
 /* ========================================================================== */
 VOID ILDJIT_startSimulation(THREADID tid, ADDRINT ip)
 {
+    doLateILDJITInstrumentation()
+ 
     GetLock(&ildjit_lock, 1);
 
     /* We are stopping thread creation here, beacuse we can capture the real
@@ -158,8 +162,8 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
 {
     invocation_counts[loop]++;
 //#ifdef ZESTO_PIN_DBG
-    CHAR* loop_name = (CHAR*) loop;
-    cerr << "Starting loop: " << loop_name << "[" << invocation_counts[loop] << "]" << endl;
+//    CHAR* loop_name = (CHAR*) loop;
+    //    cerr << "Starting loop: " << loop_name << "[" << invocation_counts[loop] << "]" << endl;
 //#endif
 
     /* Haven't started simulation and we encounter a loop we don't care
@@ -631,8 +635,6 @@ VOID AddILDJITCallbacks(IMG img)
                        IARG_END);
         RTN_Close(rtn);
     }
-    
-    //    AddILDJITWaitSignalCallbacks(img);
 
     rtn = RTN_FindByName(img, "MOLECOOL_setAffinity");
     if (RTN_Valid(rtn))
@@ -697,6 +699,10 @@ VOID AddILDJITCallbacks(IMG img)
 /* ========================================================================== */
 VOID AddILDJITWaitSignalCallbacks()
 {
+  static bool calledAlready = false;
+  
+  ASSERTX(!calledAlready); 
+
   PIN_LockClient();
 
   for(IMG img = APP_ImgHead(); IMG_Valid(img); img = IMG_Next(img)) {
@@ -766,5 +772,7 @@ VOID AddILDJITWaitSignalCallbacks()
       }
   }
   PIN_UnlockClient();
+
+  calledAlready = true;
 }
 
