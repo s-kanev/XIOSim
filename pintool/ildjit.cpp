@@ -58,7 +58,7 @@ VOID MOLECOOL_Init()
         }
         loop_file.getline(start_loop, 512);
         loop_file >> start_loop_invocation;
-        assert(start_loop_invocation > 1);
+
         loop_file.get();
         loop_file.getline(end_loop, 512);
         loop_file >> end_loop_invocation;
@@ -90,6 +90,13 @@ BOOL ILDJIT_IsCreatingExecutor()
 /* ========================================================================== */
 VOID ILDJIT_startSimulation(THREADID tid, ADDRINT ip)
 {
+    if(start_loop_invocation == 1) {
+      cerr << "[KEVIN]: Can't delay before/after wait/signal instrumentation ";
+      cerr << "since phase starts on invocation 1 of a loop" << endl;
+
+      AddILDJITWaitSignalCallbacks();
+    }
+  
     doLateILDJITInstrumentation()
  
     GetLock(&ildjit_lock, 1);
@@ -176,7 +183,6 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
         if(invocation_counts[loop] == (start_loop_invocation - 1)) {          
             cerr << "Doing the instrumentation for before/after wait/signal and endParallelLoop" << endl;
             AddILDJITWaitSignalCallbacks();
-            CODECACHE_FlushCache();
             cerr << "YADA" << endl;
         }      
         return;
@@ -774,6 +780,9 @@ VOID AddILDJITWaitSignalCallbacks()
         RTN_Close(rtn);
       }
   }
+
+  CODECACHE_FlushCache();
+  
   PIN_UnlockClient();
 
   calledAlready = true;
