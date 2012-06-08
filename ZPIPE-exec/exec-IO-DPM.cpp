@@ -2383,22 +2383,27 @@ void core_exec_IO_DPM_t::update_execution_otags(tick_t old_sim_cycle)
       struct ALU_t * FU = port[i].FU[FU_type];
       if(FU && (FU->occupancy > 0))
       {
-        int stage = FU->latency-1;
-        uop = FU->pipe[stage].uop;
-
-        if(!uop)
-          continue;
-
-        /* Update direct dependants timing information */
-        struct odep_t * odep = uop->exec.odep_uop;
-        while(odep)
+        for (int stage = FU->latency-1; stage >= 0; stage--)
         {
-          odep->uop->timing.when_ival_ready[odep->op_num] += cycle_diff;
-          odep = odep->next;
-        }
+          uop = FU->pipe[stage].uop;
 
-        /* This will make sure indirect dependants don't issue out-of-order */
-        uop->timing.when_otag_ready += cycle_diff;
+          if(!uop)
+            continue;
+
+#ifdef ZTRACE
+          ztrace_print(uop, "e|ALU|correcting otag with %lld delta", cycle_diff);
+#endif
+          /* Update direct dependants timing information */
+          struct odep_t * odep = uop->exec.odep_uop;
+          while(odep)
+          {
+            odep->uop->timing.when_ival_ready[odep->op_num] += cycle_diff;
+            odep = odep->next;
+          }
+
+          /* This will make sure indirect dependants don't issue out-of-order */
+          uop->timing.when_otag_ready += cycle_diff;
+        }
       }
     }
   }
@@ -2521,6 +2526,33 @@ void core_exec_IO_DPM_t::step()
 #ifdef ZTRACE
           ztrace_print(uop, "e|payload|goint straight to commit");
 #endif
+
+          for(int k=0;k<knobs->exec.num_exec_ports;k++)
+          {
+            for(int t=0;t<port[k].num_FU_types;t++)
+            {
+               enum md_fu_class FU_type = port[k].FU_types[t];
+               struct ALU_t * FU = port[k].FU[FU_type];
+               if(FU && (FU->occupancy > 0))
+               {
+                  for (int stage = FU->latency-1; stage >= 0; stage--) {
+                    struct uop_t * old_uop = FU->pipe[stage].uop;
+
+                    if(!old_uop)
+                      continue;
+
+                    if(old_uop->decode.uop_seq < uop->decode.uop_seq) {
+                       fprintf(stderr, "REORDERING!!!! Attach a debugger!\n");
+                       fprintf(stderr, " old_uop: %lld, uop: %lld\n", old_uop->decode.uop_seq, uop->decode.uop_seq);
+                       dump_uop_timing(old_uop);
+                       dump_uop_timing(uop);
+                       flush_trace();
+                       while(1);
+                    }
+                  }
+               }
+            }
+          }
 
           if(uop->decode.is_nop || uop->Mop->decode.is_trap)
           {
@@ -2723,6 +2755,9 @@ void core_exec_IO_DPM_t::step()
             {
               if((FU->pipe[stage].uop == NULL) && FU->pipe[stage-1].uop)
               {
+#ifdef ZTRACE
+                ztrace_print(FU->pipe[stage-1].uop, "e|ALU|stepping to stage %d", stage);
+#endif
                 FU->pipe[stage] = FU->pipe[stage-1];
                 FU->pipe[stage-1].uop = NULL;
               }

@@ -21,6 +21,10 @@ void dump_uop_timing(struct uop_t * uop)
 {
    fprintf(stderr, "when_decoded: %lld\n", uop->timing.when_decoded);
    fprintf(stderr, "when_allocated: %lld\n", uop->timing.when_allocated);
+   fprintf(stderr, "when_itag_ready: ");
+   for(int i = 0; i<MAX_IDEPS; i++)
+    fprintf(stderr, "%lld ", uop->timing.when_itag_ready[i]);
+   fprintf(stderr, "\n");
    fprintf(stderr, "when_ivals_ready: ");
    for(int i = 0; i<MAX_IDEPS; i++)
     fprintf(stderr, "%lld ", uop->timing.when_ival_ready[i]);

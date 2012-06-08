@@ -634,6 +634,7 @@ master_core:
       /* All cores got deactivated, just return and make sure we 
        * go back to PIN */
       if (min_coreID == MAX_CORES) {
+        ZPIN_TRACE("Returning from step loop looking suspicious %d", coreID);
         cores[coreID]->current_thread->consumed = true;
         lk_unlock(&cycle_lock);
         return;

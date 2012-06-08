@@ -155,6 +155,7 @@
 #include "zesto-exec.h"
 #include "zesto-commit.h"
 #include "zesto-cache.h"
+#include "zesto-dumps.h"
 
 bool core_oracle_t::static_members_initialized = false;
  /* for decode.dep_map */
@@ -1540,6 +1541,14 @@ core_oracle_t::commit(const struct Mop_t * const commit_Mop)
   if(MopQ_num <= 0) /* nothing to commit */
     fatal("attempt to commit when MopQ is empty");
 
+  if (Mop != commit_Mop) {
+    flush_trace();
+    dump_uop_timing(&Mop->uop[0]);
+    dump_uop_timing(&Mop->uop[3]);
+    fprintf(stderr, "Attach me...\n");
+    fflush(stderr);
+    while(1);
+  }
   zesto_assert(Mop == commit_Mop, (void)0);
 
   /* TODO: add checker support */
