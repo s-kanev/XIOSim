@@ -97,7 +97,7 @@ VOID ILDJIT_startSimulation(THREADID tid, ADDRINT ip)
       AddILDJITWaitSignalCallbacks();
     }
   
-    doLateILDJITInstrumentation()
+    doLateILDJITInstrumentation();
  
     GetLock(&ildjit_lock, 1);
 
