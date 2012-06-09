@@ -32,6 +32,7 @@ using namespace std;
 
 #include <sys/mman.h>
 
+VOID doLateInstInstrumentation();
 
 
 /* ========================================================================== */
@@ -1680,14 +1681,19 @@ INT32 main(INT32 argc, CHAR **argv)
         }
         sanity_trace >> hex;
     }
+    
+    // Delay this instrumentation until startSimulation call in ILDJIT.
+    // This cuts down HELIX compilation noticably for integer benchmarks.
+    if(!KnobILDJIT.Value()) {
+      INS_AddInstrumentFunction(Instrument, 0);
+    }
 
     PIN_AddThreadStartFunction(ThreadStart, NULL);  
     PIN_AddThreadFiniFunction(ThreadFini, NULL);  
     IMG_AddUnloadFunction(ImageUnload, 0);
     IMG_AddInstrumentFunction(ImageLoad, 0);
     PIN_AddSyscallEntryFunction(SyscallEntry, 0);
-    PIN_AddSyscallExitFunction(SyscallExit, 0);
-    INS_AddInstrumentFunction(Instrument, 0);
+    PIN_AddSyscallExitFunction(SyscallExit, 0);          
     PIN_AddFiniFunction(Fini, 0);
 
     if(KnobSanity.Value())
@@ -1710,7 +1716,7 @@ void spawn_new_thread(void entry_point(void*), void* arg)
     PIN_SpawnInternalThread(entry_point, arg, 0, NULL);
 }
 
-void amd_hack()
+VOID amd_hack()
 {
     void *vdso_begin, *vdso_end;
 
@@ -1722,14 +1728,26 @@ void amd_hack()
 
     if (returnval != 0) {
       perror("mprotectss");
-    } else {
-      // printf("%d\n", returnval);
     }
 
-    // wtrite int80 at the begining of __kernel_vsyscall()
+    // write int80 at the begining of __kernel_vsyscall()
     *(char *)((int)vdso_begin + 0x400) = 0xcd;
     *(char *)((int)vdso_begin + 0x401) = 0x80;
 
     // ... and follow it by a ret
     *(char *)((int)vdso_begin + 0x402) = 0xc3;
+}
+
+VOID doLateILDJITInstrumentation()
+{
+  static bool calledAlready = false;
+   
+  ASSERTX(!calledAlready); 
+
+  PIN_LockClient();
+  INS_AddInstrumentFunction(Instrument, 0);
+  CODECACHE_FlushCache();
+  PIN_UnlockClient();  
+
+  calledAlready = true;
 }

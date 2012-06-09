@@ -39,6 +39,8 @@ static INT32 end_loop_invocation;
 static map<THREADID, INT32> unmatchedWaits;
 
 VOID AddILDJITWaitSignalCallbacks();
+extern VOID doLateInstInstrumentation();
+
 
 /* ========================================================================== */
 VOID MOLECOOL_Init()
@@ -56,7 +58,7 @@ VOID MOLECOOL_Init()
         }
         loop_file.getline(start_loop, 512);
         loop_file >> start_loop_invocation;
-        assert(start_loop_invocation > 1);
+
         loop_file.get();
         loop_file.getline(end_loop, 512);
         loop_file >> end_loop_invocation;
@@ -88,6 +90,15 @@ BOOL ILDJIT_IsCreatingExecutor()
 /* ========================================================================== */
 VOID ILDJIT_startSimulation(THREADID tid, ADDRINT ip)
 {
+    if(start_loop_invocation == 1) {
+      cerr << "[KEVIN]: Can't delay before/after wait/signal instrumentation ";
+      cerr << "since phase starts on invocation 1 of a loop" << endl;
+
+      AddILDJITWaitSignalCallbacks();
+    }
+  
+    doLateILDJITInstrumentation();
+ 
     GetLock(&ildjit_lock, 1);
 
     /* We are stopping thread creation here, beacuse we can capture the real
@@ -158,8 +169,8 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
 {
     invocation_counts[loop]++;
 //#ifdef ZESTO_PIN_DBG
-    CHAR* loop_name = (CHAR*) loop;
-    cerr << "Starting loop: " << loop_name << "[" << invocation_counts[loop] << "]" << endl;
+//    CHAR* loop_name = (CHAR*) loop;
+    //    cerr << "Starting loop: " << loop_name << "[" << invocation_counts[loop] << "]" << endl;
 //#endif
 
     /* Haven't started simulation and we encounter a loop we don't care
@@ -172,7 +183,6 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
         if(invocation_counts[loop] == (start_loop_invocation - 1)) {          
             cerr << "Doing the instrumentation for before/after wait/signal and endParallelLoop" << endl;
             AddILDJITWaitSignalCallbacks();
-            CODECACHE_FlushCache();
             cerr << "YADA" << endl;
         }      
         return;
@@ -240,10 +250,10 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop)
 VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc)
 {
     GetLock(&simbuffer_lock, tid+1);
-    //    cerr << tid <<": Before Wait "<< hex << pc << dec  << " ID: " << ssID << endl;
 //    ignore[tid] = true;
-    if (ExecMode == EXECUTION_MODE_SIMULATE)
-        cerr << tid <<":Before Wait "<< hex << pc << dec  << " ID: " << ssID << hex << " (" << ssID_addr <<")" << dec << endl;
+
+//    if (ExecMode == EXECUTION_MODE_SIMULATE)
+//        cerr << tid <<":Before Wait "<< hex << pc << dec  << " ID: " << ssID << hex << " (" << ssID_addr <<")" << dec << endl;
 
     thread_state_t* tstate = get_tls(tid);
     if (tstate->pc_queue_valid &&
@@ -251,15 +261,15 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
     {
         // push Arg2 to stack
         ignore_list[tid][tstate->get_queued_pc(2)] = true;
-        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(2) << dec << endl;
+        //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(2) << dec << endl;
 
         // push Arg1 to stack
         ignore_list[tid][tstate->get_queued_pc(1)] = true;
-        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(1) << dec << endl;
+        //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(1) << dec << endl;
 
         // Call instruction to beforeWait
         ignore_list[tid][tstate->get_queued_pc(0)] = true;
-        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(0) << dec << endl;
+        //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(0) << dec << endl;
 
         ignored_before_wait[tid] = true;
     }
@@ -312,8 +322,9 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
 {
     GetLock(&simbuffer_lock, tid+1);
 //    ignore[tid] = false;
-    if (ExecMode == EXECUTION_MODE_SIMULATE)
-        cerr << tid <<": After Wait "<< hex << pc << dec  << " ID: " << lastWaitID[tid] << endl;
+
+//    if (ExecMode == EXECUTION_MODE_SIMULATE)
+//        cerr << tid <<": After Wait "<< hex << pc << dec  << " ID: " << lastWaitID[tid] << endl;
 
     /* HACKEDY HACKEDY HACK */
     /* We are not simulating and the core still hasn't consumed the wait.
@@ -410,8 +421,9 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT 
     GetLock(&simbuffer_lock, tid+1);
 
 //    ignore[tid] = true;
-    if (ExecMode == EXECUTION_MODE_SIMULATE)
-        cerr << tid <<": Before Signal " << hex << ssID <<  " (" << ssID_addr << ")" << dec << endl;
+
+//    if (ExecMode == EXECUTION_MODE_SIMULATE)
+//        cerr << tid <<": Before Signal " << hex << ssID <<  " (" << ssID_addr << ")" << dec << endl;
 
     thread_state_t* tstate = get_tls(tid);
     if (tstate->pc_queue_valid &&
@@ -419,15 +431,15 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT 
     {
         // push Arg2 to stack
         ignore_list[tid][tstate->get_queued_pc(2)] = true;
-        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(2) << dec << endl;
+        //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(2) << dec << endl;
 
         // push Arg1 to stack
         ignore_list[tid][tstate->get_queued_pc(1)] = true;
-        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(1) << dec << endl;
+        //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(1) << dec << endl;
 
         // Call instruction to beforeWait
         ignore_list[tid][tstate->get_queued_pc(0)] = true;
-        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(0) << dec << endl;
+        //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(0) << dec << endl;
 
         ignored_before_signal[tid] = true;
     }
@@ -461,8 +473,9 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT p
 {
     GetLock(&simbuffer_lock, tid+1);
 //    ignore[tid] = false;
-    if (ExecMode == EXECUTION_MODE_SIMULATE)
-        cerr << tid <<": After Signal " << hex << pc << dec << endl;
+
+//    if (ExecMode == EXECUTION_MODE_SIMULATE)
+//        cerr << tid <<": After Signal " << hex << pc << dec << endl;
 
     /* HACKEDY HACKEDY HACK */
     /* We are not simulating and the core still hasn't consumed the wait.
@@ -631,8 +644,6 @@ VOID AddILDJITCallbacks(IMG img)
                        IARG_END);
         RTN_Close(rtn);
     }
-    
-    //    AddILDJITWaitSignalCallbacks(img);
 
     rtn = RTN_FindByName(img, "MOLECOOL_setAffinity");
     if (RTN_Valid(rtn))
@@ -697,6 +708,10 @@ VOID AddILDJITCallbacks(IMG img)
 /* ========================================================================== */
 VOID AddILDJITWaitSignalCallbacks()
 {
+  static bool calledAlready = false;
+  
+  ASSERTX(!calledAlready); 
+
   PIN_LockClient();
 
   for(IMG img = APP_ImgHead(); IMG_Valid(img); img = IMG_Next(img)) {
@@ -765,6 +780,11 @@ VOID AddILDJITWaitSignalCallbacks()
         RTN_Close(rtn);
       }
   }
+
+  CODECACHE_FlushCache();
+  
   PIN_UnlockClient();
+
+  calledAlready = true;
 }
 

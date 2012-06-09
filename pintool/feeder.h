@@ -147,6 +147,7 @@ VOID ScheduleRunQueue();
 VOID PauseSimulation(THREADID tid);
 VOID ResumeSimulation(THREADID tid);
 
-void amd_hack();
+VOID amd_hack();
+VOID doLateILDJITInstrumentation();
 
 #endif /*__FEEDER_ZESTO__ */
