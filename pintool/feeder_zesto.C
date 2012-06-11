@@ -173,6 +173,11 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
         ASSERTX(handshake != NULL);
         handshake->isFirstInsn = true;
         ignore_all = false;
+	
+	if(num_threads == 1) {
+	  ignore[tid] = false;
+	}
+	
         ReleaseLock(&simbuffer_lock);
 
         //ScheduleRunQueue();
@@ -752,7 +757,7 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
     // Let simulator consume instruction from SimulatorLoop
     handshake->valid = true;
 //    cerr << SimOrgInsCount << endl;
-    ReleaseLock(&simbuffer_lock);
+    ReleaseLock(&simbuffer_lock);    
 }
 
 /* ========================================================================== */
@@ -1127,7 +1132,7 @@ VOID PauseSimulation(THREADID tid)
     
     /* Make sure all cores gather at signal ID 0 before pausing any threads.
      * The invariant is that all cores (other than this one) are waiting there. */
-    cerr << "[" << sim_cycle << ":KEVIN]: Waiting for all sleepy cores" << endl; 
+
     volatile bool done = false;
     do {
         GetLock(&simbuffer_lock, tid + 1);
@@ -1138,7 +1143,6 @@ VOID PauseSimulation(THREADID tid)
         }
         ReleaseLock(&simbuffer_lock);
     } while (!done);
-    cerr << "[" << sim_cycle << "KEVIN]: Done waiting for sleepy cores" << endl; 
 
     /* Here, we know that all threads are sleeping. But there can still
      * be a handshake left in a handshake buffer, which will cause us a
@@ -1164,13 +1168,10 @@ VOID PauseSimulation(THREADID tid)
     ReleaseLock(&simbuffer_lock);
 
     GetLock(&simbuffer_lock, tid+1);
-    cerr << "[" << sim_cycle << "KEVIN]: Starting pipe drains" << endl; 
+
     for (INT32 i = 0; i < num_threads; i++) {
-      cerr << "[" << sim_cycle << "KEVIN]: Starting pipe drain for tid: " << i << endl; 
       sim_drain_pipe(i);
-      cerr << "[" << sim_cycle << "KEVIN]: Done pipe drain for tid: " << i << endl; 
     }
-    cerr << "[" << sim_cycle << "KEVIN]: Done pipe drains" << endl; 
     ignore_all = true;
     ReleaseLock(&simbuffer_lock);
 }
