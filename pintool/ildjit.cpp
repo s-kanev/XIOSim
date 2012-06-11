@@ -169,8 +169,8 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
 {
     invocation_counts[loop]++;
 //#ifdef ZESTO_PIN_DBG
-//    CHAR* loop_name = (CHAR*) loop;
-    //    cerr << "Starting loop: " << loop_name << "[" << invocation_counts[loop] << "]" << endl;
+    CHAR* loop_name = (CHAR*) loop;
+//    cerr << "Starting loop: " << loop_name << "[" << invocation_counts[loop] << "]" << endl;
 //#endif
 
     /* Haven't started simulation and we encounter a loop we don't care
@@ -182,12 +182,14 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
       if(invocation_counts[loop] < start_loop_invocation) {        
         if(invocation_counts[loop] == (start_loop_invocation - 1)) {          
             cerr << "Doing the instrumentation for before/after wait/signal and endParallelLoop" << endl;
-            AddILDJITWaitSignalCallbacks();
+	    AddILDJITWaitSignalCallbacks();
             cerr << "YADA" << endl;
         }      
         return;
       }
     }
+    
+    cerr << "Starting loop: " << loop_name << "[" << invocation_counts[loop] << "]" << endl;
 
     /* This is called right before a wait spin loop.
      * For this thread only, ignore the end of the wait, so we
@@ -230,19 +232,21 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
 VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop)
 {
 //#ifdef ZESTO_PIN_DBG
-//    CHAR* loop_name = (CHAR*) loop;
-//    cerr << "Ending loop: " << loop_name << endl;
+    CHAR* loop_name = (CHAR*) loop;
 //#endif
   
     if (ExecMode == EXECUTION_MODE_SIMULATE) {
-        cerr << tid << ": Pausing simulation" << endl;
-        PauseSimulation(tid);
-        cerr << tid << ": Paused simulation!" << endl;
+      cerr << "Ending loop: " << loop_name << endl;
+      cerr << tid << ": Pausing simulation" << endl;
+      PauseSimulation(tid);
+      cerr << tid << ": Paused simulation!" << endl;
     }
 
     if(strncmp(end_loop, (CHAR*)loop, 512) == 0 && invocation_counts[loop] == end_loop_invocation) {
-        cerr << "LStopping simulation, TID: " << tid << endl;
-        StopSimulation(tid);
+      cerr << "Ending loop: " << loop_name << endl;
+      cerr << "LStopping simulation, TID: " << tid << endl;
+      StopSimulation(tid);
+      cerr << "[KEVIN] Stopped simulation! " << tid << endl;
     }    
 }
 
