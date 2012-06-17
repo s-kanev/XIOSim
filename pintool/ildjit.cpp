@@ -183,7 +183,6 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
         if(invocation_counts[loop] == (start_loop_invocation - 1)) {          
             cerr << "Doing the instrumentation for before/after wait/signal and endParallelLoop" << endl;
             AddILDJITWaitSignalCallbacks();
-            cerr << "YADA" << endl;
         }      
         return;
       }
@@ -250,10 +249,10 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop)
 VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc)
 {
     GetLock(&simbuffer_lock, tid+1);
-//    ignore[tid] = true;
+    ignore[tid] = true;
 
-//    if (ExecMode == EXECUTION_MODE_SIMULATE)
-//        cerr << tid <<":Before Wait "<< hex << pc << dec  << " ID: " << ssID << hex << " (" << ssID_addr <<")" << dec << endl;
+    if (ExecMode == EXECUTION_MODE_SIMULATE)
+        cerr << tid <<":Before Wait "<< hex << pc << dec  << " ID: " << ssID << hex << " (" << ssID_addr <<")" << dec << endl;
 
     thread_state_t* tstate = get_tls(tid);
     if (tstate->pc_queue_valid &&
@@ -273,23 +272,6 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
 
         ignored_before_wait[tid] = true;
     }
-
-    while(inserted_pool[tid].empty())
-    {
-        ReleaseLock(&simbuffer_lock);
-        PIN_Yield();
-        GetLock(&simbuffer_lock, tid+1);
-    }
-    handshake_container_t* handshake = inserted_pool[tid].front();
-
-    handshake->isFirstInsn = false;
-    handshake->handshake.sleep_thread = true;
-    handshake->handshake.resume_thread = false;
-    handshake->handshake.real = false;
-    handshake->handshake.pc = 0;
-    handshake->handshake.coreID = tstate->coreID;
-    handshake->handshake.iteration_correction = (ssID == 0);
-    handshake->valid = true;
 
     tstate->lastSignalAddr = ssID_addr;
     lastWaitID[tid] = ssID;
@@ -312,8 +294,7 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
       seen_ssID_zero = true;
     }
 
-    handshake_buffer[tid].push(handshake);
-    inserted_pool[tid].pop();
+//    handshake_buffer[tid].push(handshake);
     ReleaseLock(&simbuffer_lock);
 }
 
@@ -321,54 +302,23 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
 VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
 {
     GetLock(&simbuffer_lock, tid+1);
-//    ignore[tid] = false;
+    ignore[tid] = false;
 
-//    if (ExecMode == EXECUTION_MODE_SIMULATE)
-//        cerr << tid <<": After Wait "<< hex << pc << dec  << " ID: " << lastWaitID[tid] << endl;
+    if (ExecMode == EXECUTION_MODE_SIMULATE)
+        cerr << tid <<": After Wait "<< hex << pc << dec  << " ID: " << lastWaitID[tid] << endl;
 
-    /* HACKEDY HACKEDY HACK */
-    /* We are not simulating and the core still hasn't consumed the wait.
-     * Find the dummy handshake in the simulation queue and remove it. */
+    /* Not simulatiing -- just ignore. */
     if (ExecMode != EXECUTION_MODE_SIMULATE || ignore_all)
     {
-        if (!handshake_buffer[tid].empty())
-        {
-            handshake_container_t* hshake = handshake_buffer[tid].front();
-            ASSERTX(hshake->handshake.real == false);
-            ASSERTX(hshake->handshake.sleep_thread == true);
-            handshake_buffer[tid].pop();
-            inserted_pool[tid].push(hshake);
-        }
         ReleaseLock(&simbuffer_lock);
         return;
     }
 
-    while(inserted_pool[tid].empty())
-    {
-        ReleaseLock(&simbuffer_lock);
-        PIN_Yield();
-        GetLock(&simbuffer_lock, tid+1);
-    }
-    handshake_container_t* handshake = inserted_pool[tid].front();
-
-    thread_state_t* tstate = get_tls(tid);
-    handshake->isFirstInsn = false;
-    handshake->handshake.sleep_thread = false;
-    handshake->handshake.resume_thread = true;
-    handshake->handshake.real = false;
-    handshake->handshake.pc = 0;
-    handshake->handshake.coreID = tstate->coreID;
-    handshake->handshake.in_critical_section = (num_threads > 1);
-    handshake->handshake.iteration_correction = false;
-    handshake->valid = true;
-
     unmatchedWaits[tid]++;
-
-    handshake_buffer[tid].push(handshake);
-    inserted_pool[tid].pop();
 
     /* Ignore injecting waits until the end of the first iteration,
      * so we can start simulating */
+    thread_state_t* tstate = get_tls(tid);
     if (tstate->firstIteration)
     {
         ReleaseLock(&simbuffer_lock);
@@ -382,15 +332,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
     }
 
     /* Insert wait instruction in pipeline */
-    while(inserted_pool[tid].empty())
-    {
-        ReleaseLock(&simbuffer_lock);
-        PIN_Yield();
-        GetLock(&simbuffer_lock, tid+1);
-    }
-
-
-    handshake = inserted_pool[tid].front();
+    handshake_container_t* handshake = GrabPooledHandshake(tid, false);
 
     handshake->isFirstInsn = false;
     handshake->handshake.sleep_thread = false;
@@ -398,6 +340,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
     handshake->handshake.real = false;
     handshake->handshake.coreID = tstate->coreID;
     handshake->handshake.iteration_correction = false;
+    handshake->handshake.in_critical_section = (num_threads > 1);
     handshake->valid = true;
 
     handshake->handshake.pc = pc;
@@ -410,7 +353,6 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
 
 //    cerr << tid << ": Vodoo load instruction " << hex << pc <<  " ID: " << tstate->lastSignalAddr << dec << endl;
     handshake_buffer[tid].push(handshake);
-    inserted_pool[tid].pop();
 
     ReleaseLock(&simbuffer_lock);
 }
@@ -420,10 +362,10 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT 
 {
     GetLock(&simbuffer_lock, tid+1);
 
-//    ignore[tid] = true;
+    ignore[tid] = true;
 
-//    if (ExecMode == EXECUTION_MODE_SIMULATE)
-//        cerr << tid <<": Before Signal " << hex << ssID <<  " (" << ssID_addr << ")" << dec << endl;
+    if (ExecMode == EXECUTION_MODE_SIMULATE)
+        cerr << tid <<": Before Signal " << hex << pc << " ID: " << ssID <<  " (" << ssID_addr << ")" << dec << endl;
 
     thread_state_t* tstate = get_tls(tid);
     if (tstate->pc_queue_valid &&
@@ -444,27 +386,7 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT 
         ignored_before_signal[tid] = true;
     }
 
-    while(inserted_pool[tid].empty())
-    {
-        ReleaseLock(&simbuffer_lock);
-        PIN_Yield();
-        GetLock(&simbuffer_lock, tid+1);
-    }
-    handshake_container_t* handshake = inserted_pool[tid].front();
-
-    handshake->isFirstInsn = false;
-    handshake->handshake.sleep_thread = true;
-    handshake->handshake.resume_thread = false;
-    handshake->handshake.real = false;
-    handshake->handshake.pc = 0;
-    handshake->handshake.coreID = tstate->coreID;
-    handshake->handshake.iteration_correction = (ssID == 0);
-    handshake->valid = true;
-
     tstate->lastSignalAddr = ssID_addr;
-
-    handshake_buffer[tid].push(handshake);
-    inserted_pool[tid].pop();
     ReleaseLock(&simbuffer_lock);
 }
 
@@ -472,23 +394,14 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT 
 VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc)
 {
     GetLock(&simbuffer_lock, tid+1);
-//    ignore[tid] = false;
+    ignore[tid] = false;
 
-//    if (ExecMode == EXECUTION_MODE_SIMULATE)
-//        cerr << tid <<": After Signal " << hex << pc << dec << endl;
+    if (ExecMode == EXECUTION_MODE_SIMULATE)
+        cerr << tid <<": After Signal " << hex << pc << dec << endl;
 
-    /* HACKEDY HACKEDY HACK */
-    /* We are not simulating and the core still hasn't consumed the wait.
-     * Find the dummy handshake in the simulation queue and remove it. */
+    /* Not simulating -- just ignore. */
     if (ExecMode != EXECUTION_MODE_SIMULATE || ignore_all)
     {
-        if (!handshake_buffer[tid].empty())
-        {
-            handshake_container_t* hshake = handshake_buffer[tid].front();
-            ASSERTX(hshake->handshake.real == false);
-            handshake_buffer[tid].pop();
-            inserted_pool[tid].push(hshake);
-        }
         ReleaseLock(&simbuffer_lock);
         return;
     }
@@ -497,48 +410,21 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT p
     unmatchedWaits[tid]--;
     ASSERTX(unmatchedWaits[tid] >= 0);
 
-    while(inserted_pool[tid].empty())
-    {
-        ReleaseLock(&simbuffer_lock);
-        PIN_Yield();
-        GetLock(&simbuffer_lock, tid+1);
-    }
-    handshake_container_t* handshake = inserted_pool[tid].front();
-
-    handshake->isFirstInsn = false;
-    handshake->handshake.sleep_thread = false;
-    handshake->handshake.resume_thread = true;
-    handshake->handshake.real = false;
-    handshake->handshake.pc = 0;
-    handshake->handshake.coreID = tstate->coreID;
-    handshake->handshake.in_critical_section = (num_threads > 1) && (unmatchedWaits[tid] > 0);
-    handshake->handshake.iteration_correction = false;
-    handshake->valid = true;
-
-    handshake_buffer[tid].push(handshake);
-    inserted_pool[tid].pop();
-
     /* Don't insert signals in single-core mode */
-    if (num_threads < 2) { //|| (ssID == 0)) {
+    if (num_threads < 2) {
         ReleaseLock(&simbuffer_lock);
         return;
     }
 
     /* Insert signal instruction in pipeline */
-    while(inserted_pool[tid].empty())
-    {
-        ReleaseLock(&simbuffer_lock);
-        PIN_Yield();
-        GetLock(&simbuffer_lock, tid+1);
-    }
-
-    handshake = inserted_pool[tid].front();
+    handshake_container_t* handshake = GrabPooledHandshake(tid, false);
 
     handshake->isFirstInsn = false;
     handshake->handshake.sleep_thread = false;
     handshake->handshake.resume_thread = false;
     handshake->handshake.real = false;
     handshake->handshake.coreID = tstate->coreID;
+    handshake->handshake.in_critical_section = (num_threads > 1) && (unmatchedWaits[tid] > 0);
     handshake->handshake.iteration_correction = false;
     handshake->valid = true;
 
@@ -552,8 +438,6 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT p
 
 //    cerr << tid << ": Vodoo store instruction " << hex << pc << " ID: " << tstate->lastSignalAddr << dec << endl;
     handshake_buffer[tid].push(handshake);
-    inserted_pool[tid].pop();
-
     ReleaseLock(&simbuffer_lock);
 }
 

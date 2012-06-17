@@ -138,6 +138,8 @@ class handshake_container_t
     BOOL killThread;
 };
 
+handshake_container_t* GrabPooledHandshake(THREADID tid, BOOL real_inst);
+
 VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREADID tid);
 VOID StopSimulation(THREADID tid);
 VOID SimulatorLoop(VOID* arg);
