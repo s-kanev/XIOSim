@@ -581,60 +581,14 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, 
         return;
     }
 
-//    bool mem_released;
-//    bool first_read = false;
-    handshake_container_t* handshake;
-/*    do
-    {
-//        if (handshake_buffer[tid].empty() ||
-//            (!handshake_buffer[tid].empty() &&
-//             handshake_buffer[tid].back()->handshake.real))
-        if (handshake_buffer[tid].empty())
-        {
-            ASSERTX(!handshake_pool[tid].empty());
-            handshake = handshake_pool[tid].front();
-            ASSERTX(handshake != NULL);
-            mem_released = handshake->mem_released;
-            if(mem_released)
-                first_read = true;
-        }
-        else if (handshake_buffer[tid].back()->handshake.real)
-        {
-            handshake = handshake_buffer[tid].back();
-            ASSERTX(handshake != NULL);        
-            mem_released = handshake->mem_released;
-        }
-        else
-            mem_released = false;
-
-        if (!mem_released) {
-            ReleaseLock(&simbuffer_lock);
-            PIN_Yield();
-            GetLock(&simbuffer_lock, tid+1);
-        }
-    } while (!mem_released);
-
     if (ignore[tid] || ignore_all) {
         ReleaseLock(&simbuffer_lock);
         return;
     }
-
-    if (first_read)
-    {
-        handshake_pool[tid].pop();
-        handshake_buffer[tid].push(handshake);
-    }
-*/
-    if (ignore[tid] || ignore_all) {
-        ReleaseLock(&simbuffer_lock);
-        return;
-    }
-
-    cerr << "Instrumenting memory read PC: " << hex << pc << " addr: " << addr << " size: " << size << dec << endl;
 
     ASSERTX(first_read);
 
-    handshake = GrabPooledHandshake(tid, true);
+    handshake_container_t* handshake = GrabPooledHandshake(tid, true);
     ASSERTX(handshake->mem_released);
     handshake_buffer[tid].push(handshake);
 
@@ -656,50 +610,12 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
         return;
     }
 
-    handshake_container_t* handshake;
-//    if (!has_memory)
-//    {
-//        while (!handshake_buffer[tid].empty())
-//        {
-//            ReleaseLock(&simbuffer_lock);
-//            PIN_Yield();
-//            GetLock(&simbuffer_lock, tid+1);
-//        }
-        
-
-//        ASSERTX(!handshake_pool[tid].empty());
-//        handshake = handshake_pool[tid].front();
-//        handshake_pool[tid].pop();
-//        handshake_buffer[tid].push(const_cast<handshake_container_t*>(handshake));
-//    }
-//    else
-//    {
-//        while (handshake_buffer[tid].empty() ||
-//               (!handshake_buffer[tid].empty() &&
-//                !handshake_buffer[tid].back()->handshake.real))
-//        if (ignore[tid] || ignore_all) {
-//            ReleaseLock(&simbuffer_lock);
-//            return;
-//        }
-
-//        do
-//        {
-//            if (!handshake_buffer[tid].empty())
-//                if (handshake_buffer[tid].back()->handshake.real)
-//                    break;
-
-//            ReleaseLock(&simbuffer_lock);
-//            PIN_Yield();
-//            GetLock(&simbuffer_lock, tid+1);
-//        } while (true);
-//        handshake = handshake_buffer[tid].back();
-//    }
-
     if (ignore[tid] || ignore_all) {
         ReleaseLock(&simbuffer_lock);
         return;
     }
 
+    handshake_container_t* handshake;
     if (has_memory) {
         ASSERTX(!handshake_buffer[tid].empty());
         handshake = handshake_buffer[tid].back();
@@ -712,20 +628,10 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
 
     ASSERTX(handshake != NULL);
     ASSERTX(!handshake->valid);
-//    while (handshake->valid)
-//    {
-//        ReleaseLock(&simbuffer_lock);
-//        PIN_Yield();
-//        GetLock(&simbuffer_lock, tid+1);
-//    }
 
     // This relies on the order of analysis routines -- 
     // GrabInstMemReads should be finished by here
     handshake->mem_released = false;
-
-    // Tracing
-//    if (!KnobInsTraceFile.Value().empty())
-//         trace_file << pc << endl;
 
     // Sanity trace
     if (!KnobSanityInsTraceFile.Value().empty())
@@ -757,7 +663,6 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
         ASSERTX(tstate->coreID != (ADDRINT)-1);
     }
 
-    cerr << "TEST " << hex << pc << dec << endl;
     tstate->queue_pc(pc);
 
     if (handshake->isFirstInsn)
@@ -775,7 +680,6 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
 
     // Let simulator consume instruction from SimulatorLoop
     handshake->valid = true;
-//    cerr << SimOrgInsCount << endl;
     ReleaseLock(&simbuffer_lock);
 }
 
