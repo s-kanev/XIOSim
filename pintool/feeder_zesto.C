@@ -1046,14 +1046,17 @@ VOID PauseSimulation(THREADID tid)
     handshake_container_t *handshake;
 
     /* The context is that all cores functionally wait on signal 0,
-     * which means ignore[tid] is set and they emptying their handshake
+     * which means ignore[tid] is set and they are emptying their handshake
      * buffers. So, we push a deactivate for each core and put it to sleep.
      * To make sure we don't leave important instructions in the pipe,
      * a fake syscall drains it first. */
 
-    //XXX: Assert on ignore[tid]
-
     map<THREADID, handshake_queue_t>::iterator it;
+    for (it = handshake_buffer.begin(); it != handshake_buffer.end(); it++) {
+        if (tid != it->first)
+            ASSERTX(ignore[it->first]);
+    }
+
     for (it = handshake_buffer.begin(); it != handshake_buffer.end(); it++) {
         INT32 coreID = thread_cores[it->first];
 
