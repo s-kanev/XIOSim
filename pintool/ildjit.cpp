@@ -3,11 +3,15 @@
  * Copyright, Svilen Kanev, 2012
  */
 
+#include <stdlib.h>
+#include <unistd.h>
 #include <map>
 #include <queue>
 #include "feeder.h"
 #include "ildjit.h"
 #include "fluffy.h"
+
+extern tick_t sim_cycle;
 
 // True if ILDJIT has finished compilation and is executing user code
 BOOL ILDJIT_executionStarted = false;
@@ -38,6 +42,7 @@ static INT32 end_loop_invocation;
 
 static map<THREADID, INT32> unmatchedWaits;
 
+VOID printMemoryUsage();
 VOID AddILDJITWaitSignalCallbacks();
 extern VOID doLateInstInstrumentation();
 
@@ -90,6 +95,9 @@ BOOL ILDJIT_IsCreatingExecutor()
 /* ========================================================================== */
 VOID ILDJIT_startSimulation(THREADID tid, ADDRINT ip)
 {
+  // Check to see what current memory usage is post HELIX
+  printMemoryUsage();  
+
     if(start_loop_invocation == 1) {
       cerr << "[KEVIN]: Can't delay before/after wait/signal instrumentation ";
       cerr << "since phase starts on invocation 1 of a loop" << endl;
@@ -229,21 +237,21 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
 }
 /* ========================================================================== */
 
-VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop)
+VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
 {
 //#ifdef ZESTO_PIN_DBG
     CHAR* loop_name = (CHAR*) loop;
 //#endif
   
     if (ExecMode == EXECUTION_MODE_SIMULATE) {
-      cerr << "Ending loop: " << loop_name << endl;
+      cerr << "Ending loop: " << loop_name << " NumIterations:" << (UINT32)numIterations << endl;
       cerr << tid << ": Pausing simulation" << endl;
       PauseSimulation(tid);
       cerr << tid << ": Paused simulation!" << endl;
     }
 
     if(strncmp(end_loop, (CHAR*)loop, 512) == 0 && invocation_counts[loop] == end_loop_invocation) {
-      cerr << "Ending loop: " << loop_name << endl;
+      cerr << "Ending loop: " << loop_name << " NumIterations:" << (UINT32)numIterations << endl;
       cerr << "LStopping simulation, TID: " << tid << endl;
       StopSimulation(tid);
       cerr << "[KEVIN] Stopped simulation! " << tid << endl;
@@ -256,8 +264,8 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
     GetLock(&simbuffer_lock, tid+1);
 //    ignore[tid] = true;
 
-//    if (ExecMode == EXECUTION_MODE_SIMULATE)
-//        cerr << tid <<":Before Wait "<< hex << pc << dec  << " ID: " << ssID << hex << " (" << ssID_addr <<")" << dec << endl;
+    //  if (ExecMode == EXECUTION_MODE_SIMULATE)
+    //cerr << tid <<":Before Wait "<< hex << pc << dec  << " ID: " << ssID << hex << " (" << ssID_addr <<")" << dec << "  cycle: " << sim_cycle << endl;
 
     thread_state_t* tstate = get_tls(tid);
     if (tstate->pc_queue_valid &&
@@ -328,7 +336,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
 //    ignore[tid] = false;
 
 //    if (ExecMode == EXECUTION_MODE_SIMULATE)
-//        cerr << tid <<": After Wait "<< hex << pc << dec  << " ID: " << lastWaitID[tid] << endl;
+//      cerr << tid <<": After Wait "<< hex << pc << dec  << " ID: " << lastWaitID[tid] << "  cycle: " << sim_cycle << endl;
 
     /* HACKEDY HACKEDY HACK */
     /* We are not simulating and the core still hasn't consumed the wait.
@@ -780,6 +788,7 @@ VOID AddILDJITWaitSignalCallbacks()
         RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_endParallelLoop),
                        IARG_THREAD_ID,
                        IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+		       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
                        IARG_END);
         RTN_Close(rtn);
       }
@@ -792,3 +801,15 @@ VOID AddILDJITWaitSignalCallbacks()
   calledAlready = true;
 }
 
+VOID printMemoryUsage() 
+{
+  int myPid = getpid();
+  char str[50];
+  sprintf(str, "%d", myPid);
+  
+  FILE *fp = popen(("/bin/cat /proc/" + string(str) + "/status | /bin/grep VmSize").c_str(), "r");
+  char buff[1024];
+  char *line = fgets(buff, sizeof(buff), fp);
+  cerr << "Memory Usage post HELIX: " << line << endl;
+  pclose(fp);
+}
