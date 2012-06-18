@@ -9325,6 +9325,35 @@ CONNECT(UCOMISD_Rd_Ed_LINK)
       DNA, DNA, DNA,
       DNA, DNA)
 
+
+#define UCOMISD_Rd_Rd_IMPL              \
+{                                           \
+  dfloat_t _src1, _src2, _res;              \
+  dword_t _afl;                             \
+  \
+  _src1 = XMM_Q_LO(RM);                     \
+  _src2 = XMM_Q_LO(R);                     \
+  _res = _src1 - _src2;                     \
+  \
+  if (_src1 != _src1 || _src2 != _src2)     \
+    _afl = ZF|PF|CF;                        \
+  else if (_res > 0)                        \
+    _afl = 0x0;                             \
+  else if (_res == 0)                       \
+    _afl = ZF;                              \
+  else                                      \
+    _afl = CF;                              \
+  \
+  SET_AFLAGS(_afl, ZF|PF|CF|OF|AF|SF);      \
+}
+  DEFINST(UCOMISD_Rd_Rd,    0x03,
+      "ucomisd",      "%Rd, %Rd",
+      FU_INVALID,                 F_FCOMP|F_UCODE,
+      DNA,
+      DNA, DNA, DNA,
+      DNA, DNA)
+
+
 CONNECT(CMOV_RvEv_LINK)
 
 #define CMOV_RvMv_IMPL              \
@@ -9432,8 +9461,8 @@ CONNECT(ADDSD_Rd_Ed_LINK)
       FU_INVALID,                 F_FCOMP|F_UCODE,
       DNA,
       DNA, DNA, DNA,
-      DNA, DNA)
-
+      DNA, DNA
+)
 
 CONNECT(DIVSD_Rd_Ed_LINK)
 
@@ -9483,6 +9512,26 @@ CONNECT(MULSD_Rd_Ed_LINK)
       DNA,
       DNA, DNA, DNA,
       DNA, DNA)
+
+
+#define MULSD_Rd_Rd_IMPL              \
+{                                           \
+  dfloat_t _src1, _src2, _res;              \
+  \
+  _src1 = XMM_Q_LO(RM);                     \
+  _src2 = XMM_Q_LO(R);                     \
+  _res = _src1 * _src2;                     \
+  \
+  SET_XMM_Q_LO(RM, _res);                   \
+}
+  DEFINST(MULSD_Rd_Rd,    0x03,
+      "mulsd",      "%Rd, %Rd",
+      FU_INVALID,                 F_FCOMP|F_UCODE,
+      DNA,
+      DNA, DNA, DNA,
+      DNA, DNA)
+
+
 
 CONNECT(SETCC_Eb_LINK)
 
