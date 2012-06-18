@@ -1042,21 +1042,28 @@ UINT8 syscall_template[] = {0xcd, 0x80};
 /* ========================================================================== */
 VOID PauseSimulation(THREADID tid)
 {
+
+    /* The context is that all cores functionally have sent signal 0
+     * and unblocked the last iteration. We need to (i) wait for them
+     * to functionally reach wait 0, where they will wait until the end
+     * of the loop; (ii) drain all pipelines once cores are waiting. */
+
+    volatile bool done_with_iteration = false;
+    do {
+        GetLock(&simbuffer_lock, tid + 1);
+        done_with_iteration = true;
+        map<THREADID, handshake_queue_t>::iterator it;
+        for (it = handshake_buffer.begin(); it != handshake_buffer.end(); it++) {
+            if (it->first != tid)
+                done_with_iteration &= ignore[it->first] && (lastWaitID[it->first] == 0);
+        }
+        ReleaseLock(&simbuffer_lock);
+    } while (!done_with_iteration);
+
     GetLock(&simbuffer_lock, tid+1);
     handshake_container_t *handshake;
-
-    /* The context is that all cores functionally wait on signal 0,
-     * which means ignore[tid] is set and they are emptying their handshake
-     * buffers. So, we push a deactivate for each core and put it to sleep.
-     * To make sure we don't leave important instructions in the pipe,
-     * a fake syscall drains it first. */
-
+    /* Drainning all pipelines and deactivating cores. */
     map<THREADID, handshake_queue_t>::iterator it;
-    for (it = handshake_buffer.begin(); it != handshake_buffer.end(); it++) {
-        if (tid != it->first)
-            ASSERTX(ignore[it->first]);
-    }
-
     for (it = handshake_buffer.begin(); it != handshake_buffer.end(); it++) {
         INT32 coreID = thread_cores[it->first];
 
