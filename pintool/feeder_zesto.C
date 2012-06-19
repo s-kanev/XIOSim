@@ -412,11 +412,11 @@ VOID ReleaseHandshake(UINT32 coreID)
     if (handshake->isLastInsn)
         handshake->isLastInsn = false;
 
-    if (handshake->handshake.sleep_thread)
-        ignore[instrument_tid] = true;
+//    if (handshake->handshake.sleep_thread)
+//        ignore[instrument_tid] = true;
 
-    if (handshake->handshake.resume_thread)
-        ignore[instrument_tid] = false;
+//    if (handshake->handshake.resume_thread)
+//        ignore[instrument_tid] = false;
 
     SimOrgInsCount++;
 
@@ -577,7 +577,7 @@ VOID MakeSSRequest(THREADID tid, ADDRINT pc, ADDRINT npc, ADDRINT tpc, BOOL brta
 }
 
 /* ========================================================================== */
-VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size)
+VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, ADDRINT pc)
 {
     GetLock(&simbuffer_lock, tid+1);
     if (handshake_buffer.size() < (unsigned int) num_threads)
@@ -586,50 +586,16 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size)
         return;
     }
 
-
-    bool mem_released;
-    bool first_read = false;
-    handshake_container_t* handshake;
-    do
-    {
-//        if (handshake_buffer[tid].empty() ||
-//            (!handshake_buffer[tid].empty() &&
-//             handshake_buffer[tid].back()->handshake.real))
-        if (handshake_buffer[tid].empty())
-        {
-            ASSERTX(!handshake_pool[tid].empty());
-            handshake = handshake_pool[tid].front();
-            ASSERTX(handshake != NULL);
-            mem_released = handshake->mem_released;
-            if(mem_released)
-                first_read = true;
-        }
-        else if (handshake_buffer[tid].back()->handshake.real)
-        {
-            handshake = handshake_buffer[tid].back();
-            ASSERTX(handshake != NULL);        
-            mem_released = handshake->mem_released;
-        }
-        else
-            mem_released = false;
-
-        if (!mem_released) {
-            ReleaseLock(&simbuffer_lock);
-            PIN_Yield();
-            GetLock(&simbuffer_lock, tid+1);
-        }
-    } while (!mem_released);
-
     if (ignore[tid] || ignore_all) {
         ReleaseLock(&simbuffer_lock);
         return;
     }
 
-    if (first_read)
-    {
-        handshake_pool[tid].pop();
-        handshake_buffer[tid].push(handshake);
-    }
+    ASSERTX(first_read);
+
+    handshake_container_t* handshake = GrabPooledHandshake(tid, true);
+    ASSERTX(handshake->mem_released);
+    handshake_buffer[tid].push(handshake);
 
     UINT8 val;
     for(UINT32 i=0; i < size; i++) {
@@ -649,65 +615,28 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
         return;
     }
 
-    volatile handshake_container_t* handshake;
-    if (!has_memory)
-    {
-        while (!handshake_buffer[tid].empty())
-        {
-            ReleaseLock(&simbuffer_lock);
-            PIN_Yield();
-            GetLock(&simbuffer_lock, tid+1);
-        }
-        
-        if (ignore[tid] || ignore_all) {
-            ReleaseLock(&simbuffer_lock);
-            return;
-        }
-
-        handshake = handshake_pool[tid].front();
-        handshake_pool[tid].pop();
-        handshake_buffer[tid].push(const_cast<handshake_container_t*>(handshake));
+    if (ignore[tid] || ignore_all) {
+        ReleaseLock(&simbuffer_lock);
+        return;
     }
-    else
-    {
-//        while (handshake_buffer[tid].empty() ||
-//               (!handshake_buffer[tid].empty() &&
-//                !handshake_buffer[tid].back()->handshake.real))
-        if (ignore[tid] || ignore_all) {
-            ReleaseLock(&simbuffer_lock);
-            return;
-        }
 
-        do
-        {
-            if (!handshake_buffer[tid].empty())
-                if (handshake_buffer[tid].back()->handshake.real)
-                    break;
-
-            ReleaseLock(&simbuffer_lock);
-            PIN_Yield();
-            GetLock(&simbuffer_lock, tid+1);
-        } while (true);
+    handshake_container_t* handshake;
+    if (has_memory) {
+        ASSERTX(!handshake_buffer[tid].empty());
         handshake = handshake_buffer[tid].back();
-
+        ASSERTX(handshake->handshake.real);
+    }
+    else {
+        handshake = GrabPooledHandshake(tid, true);
+        handshake_buffer[tid].push(handshake);
     }
 
     ASSERTX(handshake != NULL);
-
-    while (handshake->valid)
-    {
-        ReleaseLock(&simbuffer_lock);
-        PIN_Yield();
-        GetLock(&simbuffer_lock, tid+1);
-    }
+    ASSERTX(!handshake->valid);
 
     // This relies on the order of analysis routines -- 
     // GrabInstMemReads should be finished by here
     handshake->mem_released = false;
-
-    // Tracing
-//    if (!KnobInsTraceFile.Value().empty())
-//         trace_file << pc << endl;
 
     // Sanity trace
     if (!KnobSanityInsTraceFile.Value().empty())
@@ -756,8 +685,9 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
 
     // Let simulator consume instruction from SimulatorLoop
     handshake->valid = true;
-//    cerr << SimOrgInsCount << endl;
-    ReleaseLock(&simbuffer_lock);    
+
+    ReleaseLock(&simbuffer_lock);
+
 }
 
 /* ========================================================================== */
@@ -829,6 +759,8 @@ VOID Instrument(INS ins, VOID *v)
                     IARG_THREAD_ID,
                     IARG_MEMORYOP_EA, memOp,
                     IARG_UINT32, memSize,
+                    IARG_BOOL, (memReads == 1),
+                    IARG_INST_PTR,
                     IARG_END);
             }
             else
@@ -838,6 +770,8 @@ VOID Instrument(INS ins, VOID *v)
                     IARG_THREAD_ID,
                     IARG_MEMORYOP_EA, memOp,
                     IARG_UINT32, memSize,
+                    IARG_BOOL, (memReads == 1),
+                    IARG_INST_PTR,
                     IARG_END);
             }
         }
@@ -1079,9 +1013,14 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
     {
         // Create new buffer to store thread context
         GetLock(&simbuffer_lock, threadIndex+1);
-        handshake_container_t* new_handshake = new handshake_container_t();
-        handshake_pool[threadIndex].push(new_handshake);
-        for (int i=0; i < 2; i++) { //TOOD: Shared pool?
+        handshake_container_t* new_handshake;
+        for (int i=0; i < 2000; i++) {
+            new_handshake = new handshake_container_t();
+            if (i > 0)
+                new_handshake->isFirstInsn = false;
+            handshake_pool[threadIndex].push(new_handshake);
+        }
+        for (int i=0; i < 2000; i++) { //TOOD: Shared pool?
           new_handshake = new handshake_container_t();
           inserted_pool[threadIndex].push(new_handshake);
         }
@@ -1105,33 +1044,72 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
 }
 
 
-
+UINT8 syscall_template[] = {0xcd, 0x80};
 
 /* ========================================================================== */
 VOID PauseSimulation(THREADID tid)
 {
+
+    /* The context is that all cores functionally have sent signal 0
+     * and unblocked the last iteration. We need to (i) wait for them
+     * to functionally reach wait 0, where they will wait until the end
+     * of the loop; (ii) drain all pipelines once cores are waiting. */
+
+    volatile bool done_with_iteration = false;
+    do {
+        GetLock(&simbuffer_lock, tid + 1);
+        done_with_iteration = true;
+        map<THREADID, handshake_queue_t>::iterator it;
+        for (it = handshake_buffer.begin(); it != handshake_buffer.end(); it++) {
+            if (it->first != tid)
+                done_with_iteration &= ignore[it->first] && (lastWaitID[it->first] == 0);
+        }
+        ReleaseLock(&simbuffer_lock);
+    } while (!done_with_iteration);
+
     GetLock(&simbuffer_lock, tid+1);
-    thread_state_t* tstate = get_tls(tid);
-    /* Deactivate this core, so simulation doesn't wait on it */
-    ASSERTX(!inserted_pool[tid].empty());
-    handshake_container_t* handshake = inserted_pool[tid].front();
+    handshake_container_t *handshake;
+    /* Drainning all pipelines and deactivating cores. */
+    map<THREADID, handshake_queue_t>::iterator it;
+    for (it = handshake_buffer.begin(); it != handshake_buffer.end(); it++) {
+        INT32 coreID = thread_cores[it->first];
 
-    handshake->isFirstInsn = false;
-    handshake->handshake.sleep_thread = true;
-    handshake->handshake.resume_thread = false;
-    handshake->handshake.real = false;
-    handshake->handshake.pc = 0;
-    handshake->handshake.coreID = tstate->coreID;
-    handshake->handshake.iteration_correction = false;
-    handshake->valid = true;
-    lastWaitID[tid] = 0;
+        /* Insert a trap. This will ensure that the pipe drains before
+         * consuming the next instruction.*/
+        handshake = GrabPooledHandshake(it->first, false);
+        handshake->isFirstInsn = false;
+        handshake->handshake.sleep_thread = false;
+        handshake->handshake.resume_thread = false;
+        handshake->handshake.real = false;
+        handshake->handshake.coreID = coreID;
+        handshake->handshake.iteration_correction = false;
+        handshake->valid = true;
 
-    handshake_buffer[tid].push(handshake);
-    inserted_pool[tid].pop();
+        handshake->handshake.pc = (ADDRINT) syscall_template;
+        handshake->handshake.npc = (ADDRINT) syscall_template + sizeof(syscall_template);
+        handshake->handshake.tpc = (ADDRINT) syscall_template + sizeof(syscall_template);
+        handshake->handshake.brtaken = false;
+        memcpy(handshake->handshake.ins, syscall_template, sizeof(syscall_template));
+        handshake_buffer[it->first].push(handshake);
+
+        /* Deactivate this core, so we can advance the cycle conunter of
+         * others without waiting on it */
+        handshake = GrabPooledHandshake(it->first, false);
+
+        handshake->isFirstInsn = false;
+        handshake->handshake.sleep_thread = true;
+        handshake->handshake.resume_thread = false;
+        handshake->handshake.real = false;
+        handshake->handshake.pc = 0;
+        handshake->handshake.coreID = coreID;
+        handshake->handshake.iteration_correction = false;
+        handshake->valid = true;
+        handshake_buffer[it->first].push(handshake);
+    }
     ReleaseLock(&simbuffer_lock);
     
-    /* Make sure all cores gather at signal ID 0 before pausing any threads.
-     * The invariant is that all cores (other than this one) are waiting there. */
+    /* Wait until all cores are done -- consumed their buffers. */
+    cerr << "[" << sim_cycle << ":KEVIN]: Waiting for all sleepy cores" << endl; 
 
     volatile bool done = false;
     do {
@@ -1139,33 +1117,10 @@ VOID PauseSimulation(THREADID tid)
         done = true;
         map<THREADID, handshake_queue_t>::iterator it;
         for (it = handshake_buffer.begin(); it != handshake_buffer.end(); it++) {
-            done &= (!is_core_active(thread_cores[it->first])) && (lastWaitID[it->first] == 0);
+            done &= handshake_buffer[it->first].empty();
         }
         ReleaseLock(&simbuffer_lock);
     } while (!done);
-
-    /* Here, we know that all threads are sleeping. But there can still
-     * be a handshake left in a handshake buffer, which will cause us a
-     * lot of trouble once we wake up for the next loop. So, blow away all
-     * handshake buffers and return them to appropriate pools. */
-
-    GetLock(&simbuffer_lock, tid+1);
-    map<THREADID, handshake_queue_t>::iterator it;
-    for (it = handshake_buffer.begin(); it != handshake_buffer.end(); it++) {
-        while (!it->second.empty()) {
-            cerr << "HOLY MANOLY Concition at thread: " << it->first << endl;
-            handshake_container_t* hshake = it->second.front();
-            hshake->mem_buffer.clear();
-            hshake->mem_released = true;
-            hshake->valid = false;
-            if (hshake->handshake.real)
-                handshake_pool[it->first].push(hshake);
-            else
-                inserted_pool[it->first].push(hshake);
-            it->second.pop();
-        }
-    }
-    ReleaseLock(&simbuffer_lock);
 
     GetLock(&simbuffer_lock, tid+1);
 
@@ -1181,31 +1136,24 @@ VOID ResumeSimulation(THREADID tid)
 {
     GetLock(&simbuffer_lock, tid+1);
 
-    while(inserted_pool[tid].empty())
-    {
-        ReleaseLock(&simbuffer_lock);
-        PIN_Yield();
-        GetLock(&simbuffer_lock, tid+1);
+    /* All cores were sleeping in between loops, wake them up now. */
+    map<THREADID, handshake_queue_t>::iterator it;
+    for (it = handshake_buffer.begin(); it != handshake_buffer.end(); it++) {
+        INT32 coreID = thread_cores[it->first];
+
+        handshake_container_t *handshake = GrabPooledHandshake(it->first, false);
+        handshake->isFirstInsn = false;
+        handshake->handshake.sleep_thread = false;
+        handshake->handshake.resume_thread = true;
+        handshake->handshake.real = false;
+        handshake->handshake.pc = 0;
+        handshake->handshake.coreID = coreID;
+        handshake->handshake.in_critical_section = false;
+        handshake->handshake.iteration_correction = false;
+        handshake->valid = true;
+
+        handshake_buffer[it->first].push(handshake);
     }
-    handshake_container_t* handshake = inserted_pool[tid].front();
-
-    thread_state_t* tstate = get_tls(tid);
-    handshake->isFirstInsn = false;
-    handshake->handshake.sleep_thread = false;
-    handshake->handshake.resume_thread = true;
-    handshake->handshake.real = false;
-    handshake->handshake.pc = 0;
-    handshake->handshake.coreID = tstate->coreID;
-    handshake->handshake.in_critical_section = false;
-    handshake->handshake.iteration_correction = false;
-    handshake->valid = true;
-
-    inserted_pool[tid].pop();
-    handshake_buffer[tid].push(handshake);
-
-    //map<THREADID, handshake_queue_t>::iterator it;
-    //for (it = handshake_buffer.begin(); it != handshake_buffer.end(); it++) {
-    //}
     ignore_all = false;
     ReleaseLock(&simbuffer_lock);
 }
@@ -1751,4 +1699,27 @@ VOID doLateILDJITInstrumentation()
   PIN_UnlockClient();  
 
   calledAlready = true;
+}
+
+/* ========================================================================== 
+ Get a handshake from one of the shared pools. Assumes caller is holding simbuffer_lock. */
+handshake_container_t* GrabPooledHandshake(THREADID tid, BOOL real_inst)
+{
+    handshake_queue_t *pool;
+    if (real_inst)
+        pool = &(handshake_pool[tid]);
+    else
+        pool = &(inserted_pool[tid]);
+
+    while(pool->empty())
+    {
+        ReleaseLock(&simbuffer_lock);
+        PIN_Yield();
+        GetLock(&simbuffer_lock, tid+1);
+    }
+
+    handshake_container_t* result = pool->front();
+    ASSERTX(result != NULL);
+    pool->pop();
+    return result;
 }

@@ -494,7 +494,6 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
 
    if (handshake->resume_thread)
    {
-      thread->in_critical_section = handshake->in_critical_section;
       activate_core(coreID);
       if(sim_release_handshake)
         ReleaseHandshake(coreID);
@@ -576,8 +575,10 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
        if(FPR_VALID(handshake->ctxt.regs_C.ftw, j))
          memcpy(&regs->regs_F.e[j], &handshake->ctxt.regs_F.e[j], MD_FPR_SIZE);
    }
-   else
+   else {
+     thread->in_critical_section = handshake->in_critical_section;
      memcpy(core->oracle->ins_bytes, handshake->ins, MD_MAX_ILEN);
+   }
 
    if(!slice_start && core->fetch->PC != handshake->pc)
    {
@@ -602,20 +603,21 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
 
    while(!thread->consumed || repping || core->oracle->num_Mops_nuked > 0)
    {
-     if (!iteration_correction)
+//     if (!iteration_correction) {
        fetch_more = sim_main_slave_fetch_insn(coreID);
-     else {
-       fetch_more = false;
+//     }
+//     else {
+//       fetch_more = false;
        /* HACKEDY HACKEDY HACK!!! */
 //       fprintf(stderr, "%d: Holy shmozef %d\n", coreID, core->num_signals_in_pipe);
 //       fflush(stderr);
-       ZPIN_TRACE("core %d: holy schmozef correction\n", coreID);
-       core->stat.holy_schmozef_hack++;
-       if (core->num_signals_in_pipe == 0) {
-         deactivate_core(coreID);
-         return;
-       }
-     }
+//       ZPIN_TRACE("core %d: holy schmozef correction\n", coreID);
+//       core->stat.holy_schmozef_hack++;
+//       if (core->num_signals_in_pipe == 0) {
+//         deactivate_core(coreID);
+//         return;
+//       }
+//     }
      thread->fetches_since_feeder++;
 
      repping = thread->rep_sequence != 0;
