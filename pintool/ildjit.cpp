@@ -20,6 +20,7 @@ PIN_LOCK ildjit_lock;
 const UINT8 ld_template[] = {0xa1, 0xad, 0xfb, 0xca, 0xde};
 const UINT8 st_template[] = {0xc7, 0x05, 0xad, 0xfb, 0xca, 0xde, 0x00, 0x00, 0x00, 0x00 };
 
+// Stores the ID of the wait between before and afterWait. -1 outside.
 map<THREADID, INT32> lastWaitID;
 
 // has this thread already ignored call overhead for before_wait
@@ -306,6 +307,9 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
 
     if (ExecMode == EXECUTION_MODE_SIMULATE)
         cerr << tid <<": After Wait "<< hex << pc << dec  << " ID: " << lastWaitID[tid] << endl;
+
+    // Indicated not in a wait any more
+    lastWaitID[tid] = -1;
 
     /* Not simulatiing -- just ignore. */
     if (ExecMode != EXECUTION_MODE_SIMULATE || ignore_all)
