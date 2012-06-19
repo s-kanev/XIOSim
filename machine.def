@@ -9042,7 +9042,7 @@ CONNECT(TWOESC_LINK)
 
   /* FIXME: TODO 0x23: MOV_DdRd */
 
-  DEFLINK(UCOMISD_Rd_Ed_LINK, 0x2e, "addsd_rd_ed_link", 6, 0x03)
+  DEFLINK(UCOMISD_Rd_Ed_LINK, 0x2e, "ucomisd_rd_ed_link", 6, 0x03)
 
   /* FIXME: TODO 0x30: WRMSR: F_NOMOD */
 
@@ -9088,6 +9088,8 @@ DNA, DNA)
   DEFLINK(ADDSD_Rd_Ed_LINK, 0x58, "addsd_rd_ed_link", 6, 0x03)
 
   DEFLINK(MULSD_Rd_Ed_LINK, 0x59, "mulsd_rd_ed_link", 6, 0x03)
+
+  DEFLINK(SUBSD_Rd_Ed_LINK, 0x5c, "subsd_rd_ed_link", 6, 0x03)
 
   DEFLINK(DIVSD_Rd_Ed_LINK, 0x5e, "divsd_rd_ed_link", 6, 0x03)
 
@@ -9422,6 +9424,24 @@ CONNECT(SQRTSD_Rd_Ed_LINK)
       DNA, DNA, DNA,
       DNA, DNA)
 
+#define SQRTSD_Rd_Rd_IMPL              \
+{                                           \
+  dfloat_t _src1, _res;              \
+  \
+  _src1 = XMM_Q_LO(RM);                     \
+  _res = sqrt(_src1);			    \
+  \
+  SET_XMM_Q_LO(RM, _res);                   \
+}
+  DEFINST(SQRTSD_Rd_Rd,    0x03,
+      "sqrtsd",      "%Rd, %Rd",
+      FU_INVALID,                 F_FCOMP|F_UCODE,
+      DNA,
+      DNA, DNA, DNA,
+      DNA, DNA
+)
+
+
 CONNECT(ADDSD_Rd_Ed_LINK)
 
 #define ADDSD_Rd_Md_IMPL              \
@@ -9464,6 +9484,48 @@ CONNECT(ADDSD_Rd_Ed_LINK)
       DNA, DNA
 )
 
+CONNECT(SUBSD_Rd_Ed_LINK)
+
+#define SUBSD_Rd_Md_IMPL              \
+{                                           \
+  dfloat_t _src1, _src2, _res;              \
+  md_addr_t _addr;                          \
+  enum md_fault_type _fault;                \
+  \
+  _src1 = XMM_Q_LO(R);                     \
+  _addr = AGEN_D(SEG, BASE, INDEX, SCALE, DISP);        \
+  _src2 = READ_QWORD(_addr, _fault);        \
+  _res = _src1 - _src2;                     \
+  if (_fault != md_fault_none)              \
+  DECLARE_FAULT(_fault);                    \
+  \
+  SET_XMM_Q_LO(R, _res);                   \
+}
+  DEFINST(SUBSD_Rd_Md,    0x0200,
+      "subsd",      "%Rd, %Md",
+      FU_INVALID,                 F_FCOMP|F_MEM|F_LOAD|F_UCODE,
+      DNA,
+      DNA, DNA, DNA,
+      DNA, DNA)
+
+#define SUBSD_Rd_Rd_IMPL              \
+{                                           \
+  dfloat_t _src1, _src2, _res;              \
+  \
+  _src1 = XMM_Q_LO(RM);                     \
+  _src2 = XMM_Q_LO(R);                     \
+  _res = _src1 - _src2;                     \
+  \
+  SET_XMM_Q_LO(RM, _res);                   \
+}
+  DEFINST(SUBSD_Rd_Rd,    0x03,
+      "subsd",      "%Rd, %Rd",
+      FU_INVALID,                 F_FCOMP|F_UCODE,
+      DNA,
+      DNA, DNA, DNA,
+      DNA, DNA
+)
+
 CONNECT(DIVSD_Rd_Ed_LINK)
 
 #define DIVSD_Rd_Md_IMPL              \
@@ -9488,6 +9550,25 @@ CONNECT(DIVSD_Rd_Ed_LINK)
       DNA,
       DNA, DNA, DNA,
       DNA, DNA)
+
+#define DIVSD_Rd_Rd_IMPL              \
+{                                           \
+  dfloat_t _src1, _src2, _res;              \
+  \
+  _src1 = XMM_Q_LO(RM);                     \
+  _src2 = XMM_Q_LO(R);                     \
+  _res = _src1 / _src2;                     \
+  \
+  SET_XMM_Q_LO(RM, _res);                   \
+}
+  DEFINST(DIVSD_Rd_Rd,    0x03,
+      "divsd",      "%Rd, %Rd",
+      FU_INVALID,                 F_FCOMP|F_UCODE,
+      DNA,
+      DNA, DNA, DNA,
+      DNA, DNA)
+
+
 
 CONNECT(MULSD_Rd_Ed_LINK)
 
@@ -13630,7 +13711,7 @@ CONNECT(FISTP_Mq_LINK)
       DSEG(URS), DGPR_D(URT), DNA,
       DAFLAGS(OF|SF|ZF|AF|CF|PF), DNA)
 
-
+/// Is ADDSD_IMPL uneeded? 
 #define ADDSD_IMPL              \
 {                  \
   dword_t _res, _src1, _src2;            \
@@ -14231,6 +14312,7 @@ CONNECT(FISTP_Mq_LINK)
       DGPR_W(URD),
       DGPR_W(URS), DGPR_W(URD)/*PRD*/, DNA,
       DAFLAGS(OF|SF|ZF|AF|CF|PF), DNA)
+
 
 #define SUBD_IMPL              \
 {                  \
@@ -18894,6 +18976,23 @@ CONNECT(FISTP_Mq_LINK)
       DXMM(URD),
       DXMM(URS), DXMM(URT), DNA,
       DNA, DNA)
+
+#define SSE_SUBSD_IMPL              \
+{                  \
+  dfloat_t _res, _src1, _src2;          \
+  \
+  _src1 = XMM_Q_LO(URS);              \
+  _src2 = XMM_Q_LO(URT);              \
+  _res = _src1 - _src2;            \
+  SET_XMM_Q_LO(URD, _res);              \
+}
+  DEFUOP(SSE_SUBSD,      0x00,
+      "sse_subsd",      "%De,%Se,%Te",
+      FU_FADD,    F_FCOMP,
+      DXMM(URD),
+      DXMM(URS), DXMM(URT), DNA,
+      DNA, DNA)
+
 
 #define SSE_MULSD_IMPL              \
 {                  \
