@@ -529,15 +529,15 @@ mem_translate(struct mem_t *mem,	/* memory space to access */
       else
       {
         /* update recency list */
-	//        assert(pte->lru_prev || (mem->recency_mru == pte));
-	//        assert(pte->lru_next || (mem->recency_lru == pte));
+	assert(pte->lru_prev || (mem->recency_mru == pte));
+	assert(pte->lru_next || (mem->recency_lru == pte));
 
-	if(pte->lru_prev || (mem->recency_mru == pte)) {
-	  cerr << "KEVIN skipping an assert in memory.c" << endl;
-	}
-	if(pte->lru_next || (mem->recency_lru == pte)) {
-	  cerr << "KEVIN skipping an assert in memory.c" << endl;
-	}
+	//	if(pte->lru_prev || (mem->recency_mru == pte)) {
+	//	  cerr << "KEVIN skipping an assert in memory.c" << endl;
+	//	}
+	//	if(pte->lru_next || (mem->recency_lru == pte)) {
+	//	  cerr << "KEVIN skipping an assert in memory.c" << endl;
+	//	}
       }
 
       if(mem->recency_mru != pte) /* don't need to move if alreayd in mru position */

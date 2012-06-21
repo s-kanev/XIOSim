@@ -448,10 +448,15 @@ void sim_drain_pipe(int coreID)
 void Zesto_Slice_End(int coreID, unsigned int slice_num, unsigned long long feeder_slice_length, unsigned long long slice_weight_times_1000)
 {
   // Blow away any instructions executing
+  cerr << "drain me pipe" << endl;
   sim_drain_pipe(coreID);
+  cerr << "drained me pipe" << endl;
 
   // Record stats values
+  cerr << "ending that slice" << endl;
+  cerr << slice_num << " " << feeder_slice_length  << " " << slice_weight_times_1000 << endl;
   end_slice(slice_num, feeder_slice_length, slice_weight_times_1000);
+  cerr << "ending that ending that slice" << endl;
 }
 
 static bool very_first_insn = true;
@@ -512,9 +517,10 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
       } else
         activate_core(coreID);
    }
-
+   cerr << "ANY SLICE START?" << endl;
    if(slice_start)
    {
+     cerr << "SLICE_START" << endl;
       activate_core(coreID);
       zesto_assert(thread->loader.stack_base, (void)0);
 
@@ -522,6 +528,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
       /* start_slice messes with global state for now. Until we fix it, only call
        * it the first time on some core */
       if (very_first_insn) {
+	cerr << "MY VERY FIRST INSN" << endl;
         start_slice(handshake->slice_num);
         very_first_insn = false;
       }

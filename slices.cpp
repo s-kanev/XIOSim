@@ -53,27 +53,32 @@ static double total_cpi = 0.0;
 void end_slice(unsigned int slice_num, unsigned long long feeder_slice_length, unsigned long long slice_weight_times_1000)
 {
    int i = 0;
-
+   cerr << "end_slice 0a" << endl;
+   cerr << cores << endl;
+   cerr << cores[i] << endl;
+   cerr << cores[i]->knobs << endl;
    core_knobs_t *knobs = cores[i]->knobs;
-
+   cerr << "end_slice 0b" << endl;
+   cerr << all_stats.size() << endl;
+   cerr << all_stats.back() << endl;
    struct stat_sdb_t* curr_sdb = all_stats.back();
-
+   cerr << "end_slice 1" << endl;
    slice_end_cycle = sim_cycle;
    time_t slice_end_time = time((time_t*)NULL);
    sim_elapsed_time = MAX(slice_end_time - slice_start_time, 1);
-
+   cerr << "end_slice 2" << endl;
    /* Ugh, this feels very dirty. Have to make sure we don't forget a cycle stat.
       The reason for doing this is that cycle counts increasing monotonously is
       an important invariant all around and reseting the cycle counts on every
       slice causes hell to break loose with caches an you name it */
    sim_cycle -= slice_start_cycle;
    cores[i]->stat.final_sim_cycle -= slice_start_cycle;
-
+   cerr << "end_slice 3" << endl;
    double weight = (double)slice_weight_times_1000 / 100000.0;
    curr_sdb->slice_weight = weight;
 
    unsigned long long slice_length = cores[i]->current_thread->stat.num_insn - slice_start_icount;
-
+   cerr << "end_slice 4" << endl;
    // Check if simulator and feeder measure instruction counts in the same way
    // (they may not count REP-s the same, f.e.)
    double slice_length_diff = 1.0 - ((double)slice_length/(double)feeder_slice_length);
@@ -81,7 +86,7 @@ void end_slice(unsigned int slice_num, unsigned long long feeder_slice_length, u
      fprintf(stderr, "Significant slice length different between sim and feeder! Slice: %u, sim_length: %llu, feeder_length: %llu\n", slice_num, slice_length, feeder_slice_length);
 
    stat_save_stats(curr_sdb);
-
+   cerr << "end_slice 5" << endl;
    /* Print slice stats separately */
    if (/*verbose && */ sim_simout != NULL)
    {

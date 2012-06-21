@@ -171,10 +171,11 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
         GetLock(&simbuffer_lock, tid+1);
 	//	assert(false); // TODO fix vvvvv
         ASSERTX(!handshake_pool[tid].empty());
-        handshake = handshake_buffer.getPooledHandshake(tid);
-//handshake_pool[tid].front();
+        
+	handshake = handshake_buffer.getPooledHandshake(tid, true);
+	//handshake_pool[tid].front();
 
-        ASSERTX(handshake != NULL);
+//        ASSERTX(handshake != NULL);
 	handshake->isFirstInsn = true;
         ignore_all = false;
 	
@@ -431,7 +432,7 @@ VOID ReleaseHandshake(UINT32 coreID)
 
     handshake_buffer.pop(instrument_tid);
     if (handshake->handshake.real)
-      ;//handshake_pool[instrument_tid].push(handshake);
+      handshake_buffer.releasePooledHandshake(instrument_tid, handshake);
     else
         inserted_pool[instrument_tid].push(handshake);
 
@@ -1175,7 +1176,9 @@ VOID StopSimulation(THREADID tid)
 {
     /* Deactivate this core, so simulation doesn't wait on it */
     thread_state_t* tstate = get_tls(tid);
+    cerr << "I start deactivate the core!" << endl;
     deactivate_core(tstate->coreID);
+    cerr << "I end deactivate the core!" << endl;
 
     /* Make sure all cores gather at signal ID 0 before killing any threads.
      * The invariant is that all cores (other than this one) are waiting there. */
@@ -1195,6 +1198,8 @@ VOID StopSimulation(THREADID tid)
     sim_running = false;
     ReleaseLock(&simbuffer_lock);
 
+    cerr << "I starting is_stopped" << endl;
+
     /* Spin until SimulatorLoop actually finishes */
     volatile bool is_stopped;
     do {
@@ -1206,8 +1211,13 @@ VOID StopSimulation(THREADID tid)
         }
         ReleaseLock(&simbuffer_lock);
     } while(!is_stopped);
-
+    
+    cerr << "I start slice end!" << endl;
+    
+    cerr << SimOrgInsCount << endl;
     Zesto_Slice_End(0, 0, SimOrgInsCount, 100000);
+
+    cerr << "I finish slice end!" << endl;
 
     /* Reaching this ensures SimulatorLoop is not in the middle
      * of simulating an instruction. We can safely blow away
