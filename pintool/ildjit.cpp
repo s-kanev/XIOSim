@@ -106,6 +106,8 @@ VOID ILDJIT_startSimulation(THREADID tid, ADDRINT ip)
       cerr << "since phase starts on invocation 1 of a loop" << endl;
 
       AddILDJITWaitSignalCallbacks();
+      
+      cerr << "[KEVIN] Added callbacks!" << endl;
     }
 
     //    doLateILDJITInstrumentation();

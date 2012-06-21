@@ -141,7 +141,6 @@ void BufferManager::pushToFile(THREADID tid, handshake_container_t** handshake)
     abort();
   }
   
-  cerr << "Pushing to file!" << endl;
   realPush(tid, handshake);
 
   close(pipeWriters_[tid]);
@@ -191,8 +190,6 @@ void BufferManager::realPush(THREADID tid, handshake_container_t** handshake)
 
 void BufferManager::popFromFile(THREADID tid, handshake_container_t** handshake)
 {
-  cerr << "Pop from file!" << endl;
-  
   pthread_mutex_lock(locks_[tid]);
   system(("/bin/rm -f " + bogusFileNames_[tid]).c_str());
   system(("/bin/touch " + bogusFileNames_[tid]).c_str());
@@ -310,12 +307,14 @@ if(bytesRead == -1) {
   pthread_mutex_unlock(locks_[tid]);
 }
 
-handshake_container_t* BufferManager::getPooledHandshake(THREADID tid, bool justFront)
+handshake_container_t* BufferManager::getPooledHandshake(THREADID tid)
 {
+  checkFirstAccess(tid);
+  
   handshake_queue_t *pool;
   pool = &(handshake_pool_[tid]);
 
-  long long int spins = 0;
+  long long int spins = 0;  
   while(pool->empty()) {
     ReleaseLock(&simbuffer_lock);
     PIN_Yield();
@@ -330,10 +329,8 @@ handshake_container_t* BufferManager::getPooledHandshake(THREADID tid, bool just
   handshake_container_t* result = pool->front();
   ASSERTX(result != NULL);
 
-  if(!justFront) {
-    pool->pop();
-  }
-
+  pool->pop();
+    
   return result;
 }
 

@@ -22,7 +22,7 @@ class BufferManager
   unsigned int size();
   void nullifyFront(THREADID tid);
 
-  handshake_container_t* getPooledHandshake(THREADID tid, bool justFront=false);
+  handshake_container_t* getPooledHandshake(THREADID tid);
   void releasePooledHandshake(THREADID tid, handshake_container_t* handshake);
 
  private:

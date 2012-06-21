@@ -169,9 +169,6 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
         CODECACHE_FlushCache();
 //        PIN_RemoveInstrumentation();
         GetLock(&simbuffer_lock, tid+1);
-
-	handshake = handshake_buffer.getPooledHandshake(tid, true);
-	ASSERTX(handshake != NULL);
         
 	ignore_all = false;
 	
