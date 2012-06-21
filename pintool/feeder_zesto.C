@@ -169,15 +169,11 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
         CODECACHE_FlushCache();
 //        PIN_RemoveInstrumentation();
         GetLock(&simbuffer_lock, tid+1);
-	//	assert(false); // TODO fix vvvvv
-        ASSERTX(!handshake_pool[tid].empty());
-        
-	handshake = handshake_buffer.getPooledHandshake(tid, true);
-	//handshake_pool[tid].front();
 
-//        ASSERTX(handshake != NULL);
-	handshake->isFirstInsn = true;
-        ignore_all = false;
+	handshake = handshake_buffer.getPooledHandshake(tid, true);
+	ASSERTX(handshake != NULL);
+        
+	ignore_all = false;
 	
 	if(num_threads == 1) {
 	  ignore[tid] = false;
