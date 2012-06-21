@@ -81,8 +81,7 @@ static PIN_LOCK test;
 // Used to access Zesto instruction buffer
 PIN_LOCK simbuffer_lock;
 BufferManager handshake_buffer;
-static map<THREADID, handshake_queue_t> handshake_pool;
-map<THREADID, handshake_queue_t> inserted_pool;
+vector<THREADID> thread_list;
 
 // Is thread X not instrumenting instructions
 map<THREADID, BOOL> ignore;
@@ -424,10 +423,7 @@ VOID ReleaseHandshake(UINT32 coreID)
     handshake->valid = false;   // Let pin instrument instruction
 
     handshake_buffer.pop(instrument_tid);
-    if (handshake->handshake.real)
-      handshake_buffer.releasePooledHandshake(instrument_tid, handshake);
-    else
-        inserted_pool[instrument_tid].push(handshake);
+    handshake_buffer.releasePooledHandshake(instrument_tid, handshake);
 
     ReleaseLock(&simbuffer_lock);
 }
@@ -1017,19 +1013,9 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
     {
         // Create new buffer to store thread context
         GetLock(&simbuffer_lock, threadIndex+1);
-        handshake_container_t* new_handshake;
-	cerr << "Making pool for tid:" << threadIndex << endl;
-        for (int i=0; i < 2000; i++) {
-            new_handshake = new handshake_container_t();
-            if (i > 0)
-                new_handshake->isFirstInsn = false;            
-	    handshake_pool[threadIndex].push(new_handshake);
 
-        }
-        for (int i=0; i < 2000; i++) { //TOOD: Shared pool?
-          new_handshake = new handshake_container_t();
-          inserted_pool[threadIndex].push(new_handshake);
-        }
+	thread_list.push_back(threadIndex);
+	       
         run_queue.push_back(threadIndex);
         ignore[threadIndex] = true;
         ReleaseLock(&simbuffer_lock);
@@ -1065,10 +1051,10 @@ VOID PauseSimulation(THREADID tid)
     do {
         GetLock(&simbuffer_lock, tid + 1);
         done_with_iteration = true;
-        map<THREADID, handshake_queue_t>::iterator it;
-        for (it = handshake_pool.begin(); it != handshake_pool.end(); it++) {
-            if (it->first != tid)
-                done_with_iteration &= ignore[it->first] && (lastWaitID[it->first] == 0);
+        vector<THREADID>::iterator it;
+        for (it = thread_list.begin(); it != thread_list.end(); it++) {        
+	  if ((*it) != tid)
+                done_with_iteration &= ignore[(*it)] && (lastWaitID[(*it)] == 0);
         }
         ReleaseLock(&simbuffer_lock);
     } while (!done_with_iteration);
@@ -1076,13 +1062,13 @@ VOID PauseSimulation(THREADID tid)
     GetLock(&simbuffer_lock, tid+1);
     handshake_container_t *handshake;
     /* Drainning all pipelines and deactivating cores. */
-    map<THREADID, handshake_queue_t>::iterator it;
-    for (it = handshake_pool.begin(); it != handshake_pool.end(); it++) {
-        INT32 coreID = thread_cores[it->first];
+    vector<THREADID>::iterator it;
+    for (it = thread_list.begin(); it != thread_list.end(); it++) {
+        INT32 coreID = thread_cores[(*it)];
 
         /* Insert a trap. This will ensure that the pipe drains before
          * consuming the next instruction.*/
-        handshake = GrabPooledHandshake(it->first, false);
+        handshake = GrabPooledHandshake((*it), false);
         handshake->isFirstInsn = false;
         handshake->handshake.sleep_thread = false;
         handshake->handshake.resume_thread = false;
@@ -1096,11 +1082,11 @@ VOID PauseSimulation(THREADID tid)
         handshake->handshake.tpc = (ADDRINT) syscall_template + sizeof(syscall_template);
         handshake->handshake.brtaken = false;
         memcpy(handshake->handshake.ins, syscall_template, sizeof(syscall_template));
-        handshake_buffer.push(it->first, handshake);
+        handshake_buffer.push((*it), handshake);
 
         /* Deactivate this core, so we can advance the cycle conunter of
          * others without waiting on it */
-        handshake = GrabPooledHandshake(it->first, false);
+        handshake = GrabPooledHandshake((*it), false);
 
         handshake->isFirstInsn = false;
         handshake->handshake.sleep_thread = true;
@@ -1110,7 +1096,7 @@ VOID PauseSimulation(THREADID tid)
         handshake->handshake.coreID = coreID;
         handshake->handshake.iteration_correction = false;
         handshake->valid = true;
-        handshake_buffer.push(it->first, handshake);
+        handshake_buffer.push((*it), handshake);
     }
     ReleaseLock(&simbuffer_lock);
     
@@ -1121,9 +1107,9 @@ VOID PauseSimulation(THREADID tid)
     do {
         GetLock(&simbuffer_lock, tid + 1);
         done = true;
-        map<THREADID, handshake_queue_t>::iterator it;
-        for (it = handshake_pool.begin(); it != handshake_pool.end(); it++) {
-            done &= handshake_buffer.empty(it->first);
+        vector<THREADID>::iterator it;
+        for (it = thread_list.begin(); it != thread_list.end(); it++) {
+            done &= handshake_buffer.empty((*it));
         }
         ReleaseLock(&simbuffer_lock);
     } while (!done);
@@ -1143,10 +1129,10 @@ VOID ResumeSimulation(THREADID tid)
     GetLock(&simbuffer_lock, tid+1);
 
     /* All cores were sleeping in between loops, wake them up now. */
-    map<THREADID, handshake_queue_t>::iterator it;
-    for (it = handshake_pool.begin(); it != handshake_pool.end(); it++) {
-        INT32 coreID = thread_cores[it->first];
-        handshake_container_t *handshake = GrabPooledHandshake(it->first, false);
+    vector<THREADID>::iterator it;
+    for (it = thread_list.begin(); it != thread_list.end(); it++) {
+        INT32 coreID = thread_cores[(*it)];
+        handshake_container_t *handshake = GrabPooledHandshake((*it), false);
         handshake->isFirstInsn = false;
         handshake->handshake.sleep_thread = false;
         handshake->handshake.resume_thread = true;
@@ -1157,7 +1143,7 @@ VOID ResumeSimulation(THREADID tid)
         handshake->handshake.iteration_correction = false;
         handshake->valid = true;
 
-        handshake_buffer.push(it->first, handshake);
+        handshake_buffer.push((*it), handshake);
     }
     ignore_all = false;
     ReleaseLock(&simbuffer_lock);
@@ -1195,9 +1181,9 @@ VOID StopSimulation(THREADID tid)
     do {
         GetLock(&simbuffer_lock, tid+1);
         is_stopped = true;
-        map<THREADID, handshake_queue_t>::iterator it;
-        for(it = handshake_pool.begin(); it != handshake_pool.end(); it++) {
-            is_stopped &= sim_stopped[it->first];
+        vector<THREADID>::iterator it;
+        for(it = thread_list.begin(); it != thread_list.end(); it++) {
+            is_stopped &= sim_stopped[(*it)];
         }
         ReleaseLock(&simbuffer_lock);
     } while(!is_stopped);
@@ -1256,15 +1242,15 @@ VOID ThreadFini(THREADID threadIndex, const CONTEXT *ctxt, INT32 code, VOID *v)
 
             ReleaseLock(&simbuffer_lock);
 
-            map<THREADID, handshake_queue_t>::iterator it;
+            vector<THREADID>::iterator it;
             /* Spin until SimulatorLoop actually finishes */
             volatile bool is_stopped;
             do {
                 GetLock(&simbuffer_lock, threadIndex+1);
                 is_stopped = true;
-                for(it = handshake_pool.begin(); it != handshake_pool.end(); it++) {
-                    is_stopped &= sim_stopped[it->first];
-                    cerr << it->first << " " << sim_stopped[it->first] << " ";
+                for(it = thread_list.begin(); it != thread_list.end(); it++) {
+                    is_stopped &= sim_stopped[(*it)];
+                    cerr << (*it) << " " << sim_stopped[(*it)] << " ";
                 }
                 cerr << endl;
                 ReleaseLock(&simbuffer_lock);
@@ -1714,6 +1700,12 @@ VOID doLateILDJITInstrumentation()
  Get a handshake from one of the shared pools. Assumes caller is holding simbuffer_lock. */
 handshake_container_t* GrabPooledHandshake(THREADID tid, BOOL real_inst)
 {
+  handshake_container_t* result = handshake_buffer.getPooledHandshake(tid);
+  result->mem_released = true;
+  result->valid = false;
+  return result;
+  
+  /*
   if(!real_inst) {
     handshake_queue_t *pool;
     if (real_inst)
@@ -1743,5 +1735,5 @@ handshake_container_t* GrabPooledHandshake(THREADID tid, BOOL real_inst)
     result->mem_released = true;
     result->valid = false;
     return result;
-  }  
+    } */ 
 }

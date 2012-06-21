@@ -211,9 +211,9 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
      */
     thread_state_t* tstate = get_tls(tid);
     tstate->firstIteration = true;
-    map<THREADID, handshake_queue_t>::iterator it;
-    for (it = inserted_pool.begin(); it != inserted_pool.end(); it++)
-        unmatchedWaits[it->first] = 0;
+    vector<THREADID>::iterator it;
+    for (it = thread_list.begin(); it != thread_list.end(); it++)
+      unmatchedWaits[(*it)] = 0;
 
     ignored_before_wait.clear();
     ignored_before_signal.clear();
