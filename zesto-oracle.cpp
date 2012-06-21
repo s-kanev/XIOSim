@@ -133,6 +133,8 @@
  */
 #define ZESTO_ORACLE_C
 
+#include <iostream>
+
 #include <stddef.h>
 #include <sys/io.h>
 #include "misc.h"
@@ -1435,6 +1437,7 @@ core_oracle_t::exec(const md_addr_t requested_PC)
     /* If we can't handle isntruction, at least set NPC correctly, so that we don't corrupt fetch sequence */
     if(Mop->decode.op == NOP && !Mop->oracle.spec_mode)
     {  
+      std::cerr << "[KEVIN-MISSING]:pc: " << std::hex << thread->regs.regs_PC << "\n";
        ZPIN_TRACE("XXX: Ignoring unknown instruction at pc: %x\n", thread->regs.regs_PC);
        ZESTO_STAT(core->stat.oracle_unknown_insn++;)
        Mop->uop[Mop->decode.last_uop_index].decode.EOM = true;

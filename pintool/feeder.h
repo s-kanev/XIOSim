@@ -17,7 +17,6 @@ typedef queue<handshake_container_t*> handshake_queue_t;
 extern KNOB<BOOL> KnobILDJIT;
 extern KNOB<string> KnobFluffy;
 extern map<THREADID, BOOL> ignore;
-extern map<THREADID, handshake_queue_t> handshake_buffer;
 extern map<THREADID, handshake_queue_t> inserted_pool;
 extern PIN_LOCK simbuffer_lock;
 extern PIN_LOCK printing_lock;

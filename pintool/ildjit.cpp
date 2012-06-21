@@ -10,8 +10,10 @@
 #include "feeder.h"
 #include "ildjit.h"
 #include "fluffy.h"
+#include "BufferManager.h"
 
 extern tick_t sim_cycle;
+extern BufferManager handshake_buffer;
 
 // True if ILDJIT has finished compilation and is executing user code
 BOOL ILDJIT_executionStarted = false;
@@ -45,7 +47,7 @@ static map<THREADID, INT32> unmatchedWaits;
 
 VOID printMemoryUsage();
 VOID AddILDJITWaitSignalCallbacks();
-extern VOID doLateInstInstrumentation();
+extern VOID doLateILDJITInstrumentation();
 
 
 /* ========================================================================== */
@@ -105,7 +107,7 @@ VOID ILDJIT_startSimulation(THREADID tid, ADDRINT ip)
 
       AddILDJITWaitSignalCallbacks();
     }
-  
+
     doLateILDJITInstrumentation();
  
     GetLock(&ildjit_lock, 1);
@@ -179,7 +181,7 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
     invocation_counts[loop]++;
 //#ifdef ZESTO_PIN_DBG
     CHAR* loop_name = (CHAR*) loop;
-//    cerr << "Starting loop: " << loop_name << "[" << invocation_counts[loop] << "]" << endl;
+    cerr << "Starting loop: " << loop_name << "[" << invocation_counts[loop] << "]" << endl;
 //#endif
 
     /* Haven't started simulation and we encounter a loop we don't care
@@ -206,7 +208,7 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
     thread_state_t* tstate = get_tls(tid);
     tstate->firstIteration = true;
     map<THREADID, handshake_queue_t>::iterator it;
-    for (it = handshake_buffer.begin(); it != handshake_buffer.end(); it++)
+    for (it = inserted_pool.begin(); it != inserted_pool.end(); it++)
         unmatchedWaits[it->first] = 0;
 
     ignored_before_wait.clear();
@@ -221,8 +223,9 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
     } 
     else if (strncmp(start_loop, (CHAR*)loop, 512) == 0) {
       if (invocation_counts[loop] == start_loop_invocation) {
-        cerr << "Starting simulation, TID: " << tid << endl;
+        cerr << "Starting simulation, TTID: " << tid << endl;
         PPointHandler(CONTROL_START, NULL, NULL, (VOID*)ip, tid);
+	cerr << "Starting simulation, TTID2: " << tid << endl;
         firstLoop = false;
       } 
       else if (invocation_counts[loop] > start_loop_invocation) {
@@ -234,6 +237,7 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
         cerr << tid << ": resuming simulation" << endl;
         ResumeSimulation(tid);
     }
+    cerr << "Leaving startparallelloop" << endl;
 }
 /* ========================================================================== */
 
@@ -265,7 +269,7 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
     ignore[tid] = true;
 
     if (ExecMode == EXECUTION_MODE_SIMULATE)
-        cerr << tid <<":Before Wait "<< hex << pc << dec  << " ID: " << ssID << hex << " (" << ssID_addr <<")" << dec << endl;
+      cerr << tid <<":Before Wait "<< hex << pc << dec  << " ID: " << ssID << hex << " (" << ssID_addr <<")" << dec << endl;
 
     thread_state_t* tstate = get_tls(tid);
     if (tstate->pc_queue_valid &&
@@ -318,7 +322,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
     ignore[tid] = false;
 
     if (ExecMode == EXECUTION_MODE_SIMULATE)
-        cerr << tid <<": After Wait "<< hex << pc << dec  << " ID: " << lastWaitID[tid] << endl;
+      cerr << tid <<": After Wait "<< hex << pc << dec  << " ID: " << lastWaitID[tid] << endl;
 
     // Indicated not in a wait any more
     lastWaitID[tid] = -1;
@@ -368,7 +372,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
     *(INT32*)(&handshake->handshake.ins[1]) = tstate->lastSignalAddr;
 
 //    cerr << tid << ": Vodoo load instruction " << hex << pc <<  " ID: " << tstate->lastSignalAddr << dec << endl;
-    handshake_buffer[tid].push(handshake);
+    handshake_buffer.push(tid, handshake);
 
     ReleaseLock(&simbuffer_lock);
 }
@@ -381,7 +385,7 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT 
     ignore[tid] = true;
 
     if (ExecMode == EXECUTION_MODE_SIMULATE)
-        cerr << tid <<": Before Signal " << hex << pc << " ID: " << ssID <<  " (" << ssID_addr << ")" << dec << endl;
+      cerr << tid <<": Before Signal " << hex << pc << " ID: " << ssID <<  " (" << ssID_addr << ")" << dec << endl;
 
     thread_state_t* tstate = get_tls(tid);
     if (tstate->pc_queue_valid &&
@@ -413,7 +417,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT p
     ignore[tid] = false;
 
     if (ExecMode == EXECUTION_MODE_SIMULATE)
-        cerr << tid <<": After Signal " << hex << pc << dec << endl;
+      cerr << tid <<": After Signal " << hex << pc << dec << endl;
 
     /* Not simulating -- just ignore. */
     if (ExecMode != EXECUTION_MODE_SIMULATE || ignore_all)
@@ -453,7 +457,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT p
     *(INT32*)(&handshake->handshake.ins[2]) = tstate->lastSignalAddr;
 
 //    cerr << tid << ": Vodoo store instruction " << hex << pc << " ID: " << tstate->lastSignalAddr << dec << endl;
-    handshake_buffer[tid].push(handshake);
+    handshake_buffer.push(tid, handshake);
     ReleaseLock(&simbuffer_lock);
 }
 

@@ -26,7 +26,7 @@
 
 #include "feeder.h"
 #include "ildjit.h"
-
+#include "BufferManager.h"
 
 using namespace std;
 
@@ -80,7 +80,7 @@ static PIN_LOCK test;
 
 // Used to access Zesto instruction buffer
 PIN_LOCK simbuffer_lock;
-map<THREADID, handshake_queue_t> handshake_buffer;
+BufferManager handshake_buffer;
 static map<THREADID, handshake_queue_t> handshake_pool;
 map<THREADID, handshake_queue_t> inserted_pool;
 
@@ -90,7 +90,7 @@ map<THREADID, BOOL> ignore;
 // Master switch for ignoring all cores (during sequential code)
 BOOL ignore_all = true;
 
-// Ignore list of instrutcions that we don't care about
+//Ignore list of instrutcions that we don't care about
 map<THREADID, map<ADDRINT, BOOL> > ignore_list;
 
 // Used to manage internal pin simulator threads
@@ -99,6 +99,7 @@ static PIN_LOCK instrument_tid_lock;
 
 // A mapping storing which thread runs on which core
 map<UINT32, THREADID> core_threads;
+
 // The reverse mapping (also stored in tstate_t, but that's supposed to be thread-private)
 map<THREADID, UINT32> thread_cores;
 
@@ -159,7 +160,7 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
 
     thread_state_t* tstate = get_tls(tid);
     volatile handshake_container_t* handshake;
-
+    
     switch(ev)
     {
       case CONTROL_START:
@@ -168,10 +169,13 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
         CODECACHE_FlushCache();
 //        PIN_RemoveInstrumentation();
         GetLock(&simbuffer_lock, tid+1);
+	//	assert(false); // TODO fix vvvvv
         ASSERTX(!handshake_pool[tid].empty());
-        handshake = handshake_pool[tid].front();
+        handshake = handshake_buffer.getPooledHandshake(tid);
+//handshake_pool[tid].front();
+
         ASSERTX(handshake != NULL);
-        handshake->isFirstInsn = true;
+	handshake->isFirstInsn = true;
         ignore_all = false;
 	
 	if(num_threads == 1) {
@@ -181,7 +185,6 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
         ReleaseLock(&simbuffer_lock);
 
         //ScheduleRunQueue();
-
         if(control.PinPointsActive())
         {
             cerr << "PinPoint: " << control.CurrentPp(tid) << " PhaseNo: " << control.CurrentPhase(tid) << endl;
@@ -211,7 +214,7 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
              * directly.
              * In either case, this is executed before SimulateLoop on
              * the Stop point? */
-            handshake = handshake_buffer[tid].front();
+            handshake = handshake_buffer.front(tid);
             handshake->handshake.slice_num = tstate->slice_num;
             handshake->handshake.feeder_slice_length = tstate->slice_length;
             handshake->handshake.slice_num = tstate->slice_weight_times_1000;
@@ -233,6 +236,7 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
         ASSERTX(false);
         break;
     }
+    cerr << "Leaving PPOINT" << endl;
 }
 
 /* ========================================================================== */
@@ -398,8 +402,8 @@ VOID SanityMemCheck()
 VOID ReleaseHandshake(UINT32 coreID)
 {
     THREADID instrument_tid = core_threads[coreID];
-    ASSERTX(!handshake_buffer[instrument_tid].empty());
-    handshake_container_t* handshake = handshake_buffer[instrument_tid].front();
+    ASSERTX(!handshake_buffer.empty(instrument_tid));
+    handshake_container_t* handshake = handshake_buffer.front(instrument_tid);
 
     // We are finishing simulation, kill the simulator thread
     if (handshake->isLastInsn && !handshake->isFirstInsn && 
@@ -425,9 +429,9 @@ VOID ReleaseHandshake(UINT32 coreID)
 
     handshake->valid = false;   // Let pin instrument instruction
 
-    handshake_buffer[instrument_tid].pop();
+    handshake_buffer.pop(instrument_tid);
     if (handshake->handshake.real)
-        handshake_pool[instrument_tid].push(handshake);
+      ;//handshake_pool[instrument_tid].push(handshake);
     else
         inserted_pool[instrument_tid].push(handshake);
 
@@ -445,7 +449,7 @@ VOID SimulatorLoop(VOID* arg)
     while (true)
     {
         GetLock(&simbuffer_lock, tid+1);
-        while (handshake_buffer[instrument_tid].empty())
+        while (handshake_buffer.empty(instrument_tid)) // KEVIN restore file 
         {
             if (!sim_running || PIN_IsProcessExiting())
             {
@@ -460,7 +464,7 @@ VOID SimulatorLoop(VOID* arg)
             GetLock(&simbuffer_lock, tid+1);
         }
 
-        handshake_container_t* handshake = handshake_buffer[instrument_tid].front();
+        handshake_container_t* handshake = handshake_buffer.front(instrument_tid);
         ASSERTX(handshake != NULL);
 
         /* Preserving coreID if we destroy handshake before coming in here,
@@ -493,7 +497,7 @@ VOID SimulatorLoop(VOID* arg)
         {
             ASSERTX(false);
             delete handshake;
-            handshake_buffer[instrument_tid].front() = NULL;
+	    handshake_buffer.nullifyFront(instrument_tid);
             sim_stopped[instrument_tid] = true;
             ReleaseLock(&simbuffer_lock);
             return;
@@ -579,6 +583,9 @@ VOID MakeSSRequest(THREADID tid, ADDRINT pc, ADDRINT npc, ADDRINT tpc, BOOL brta
 /* ========================================================================== */
 VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, ADDRINT pc)
 {
+  if(tid == 0) {
+    return;
+  }
     GetLock(&simbuffer_lock, tid+1);
     if (handshake_buffer.size() < (unsigned int) num_threads)
     {
@@ -595,8 +602,8 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, 
 
     handshake_container_t* handshake = GrabPooledHandshake(tid, true);
     ASSERTX(handshake->mem_released);
-    handshake_buffer[tid].push(handshake);
-
+    handshake_buffer.push(tid, handshake);    
+    
     UINT8 val;
     for(UINT32 i=0; i < size; i++) {
         PIN_SafeCopy(&val, (VOID*) (addr+i), 1);
@@ -608,6 +615,9 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, 
 /* ========================================================================== */
 VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDRINT tpc, const CONTEXT *ictxt, BOOL has_memory)
 {
+  if(tid == 0) {
+    return;
+  }
     GetLock(&simbuffer_lock, tid+1);
     if (handshake_buffer.size() < (unsigned int) num_threads)
     {
@@ -622,13 +632,13 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
 
     handshake_container_t* handshake;
     if (has_memory) {
-        ASSERTX(!handshake_buffer[tid].empty());
-        handshake = handshake_buffer[tid].back();
+        ASSERTX(!handshake_buffer.empty(tid));
+        handshake = handshake_buffer.back(tid);
         ASSERTX(handshake->handshake.real);
     }
     else {
         handshake = GrabPooledHandshake(tid, true);
-        handshake_buffer[tid].push(handshake);
+        handshake_buffer.push(tid, handshake);
     }
 
     ASSERTX(handshake != NULL);
@@ -712,7 +722,7 @@ VOID Instrument(INS ins, VOID *v)
 {
     // ILDJIT is doing its initialization/compilation/...
     if (KnobILDJIT.Value() && !ILDJIT_IsExecuting())
-        return;
+        return;    
 
     // Not executing yet, only warm caches, if needed
     if (ExecMode != EXECUTION_MODE_SIMULATE)
@@ -1014,11 +1024,13 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
         // Create new buffer to store thread context
         GetLock(&simbuffer_lock, threadIndex+1);
         handshake_container_t* new_handshake;
+	cerr << "Making pool for tid:" << threadIndex << endl;
         for (int i=0; i < 2000; i++) {
             new_handshake = new handshake_container_t();
             if (i > 0)
-                new_handshake->isFirstInsn = false;
-            handshake_pool[threadIndex].push(new_handshake);
+                new_handshake->isFirstInsn = false;            
+	    handshake_pool[threadIndex].push(new_handshake);
+
         }
         for (int i=0; i < 2000; i++) { //TOOD: Shared pool?
           new_handshake = new handshake_container_t();
@@ -1060,7 +1072,7 @@ VOID PauseSimulation(THREADID tid)
         GetLock(&simbuffer_lock, tid + 1);
         done_with_iteration = true;
         map<THREADID, handshake_queue_t>::iterator it;
-        for (it = handshake_buffer.begin(); it != handshake_buffer.end(); it++) {
+        for (it = handshake_pool.begin(); it != handshake_pool.end(); it++) {
             if (it->first != tid)
                 done_with_iteration &= ignore[it->first] && (lastWaitID[it->first] == 0);
         }
@@ -1071,7 +1083,7 @@ VOID PauseSimulation(THREADID tid)
     handshake_container_t *handshake;
     /* Drainning all pipelines and deactivating cores. */
     map<THREADID, handshake_queue_t>::iterator it;
-    for (it = handshake_buffer.begin(); it != handshake_buffer.end(); it++) {
+    for (it = handshake_pool.begin(); it != handshake_pool.end(); it++) {
         INT32 coreID = thread_cores[it->first];
 
         /* Insert a trap. This will ensure that the pipe drains before
@@ -1090,7 +1102,7 @@ VOID PauseSimulation(THREADID tid)
         handshake->handshake.tpc = (ADDRINT) syscall_template + sizeof(syscall_template);
         handshake->handshake.brtaken = false;
         memcpy(handshake->handshake.ins, syscall_template, sizeof(syscall_template));
-        handshake_buffer[it->first].push(handshake);
+        handshake_buffer.push(it->first, handshake);
 
         /* Deactivate this core, so we can advance the cycle conunter of
          * others without waiting on it */
@@ -1104,7 +1116,7 @@ VOID PauseSimulation(THREADID tid)
         handshake->handshake.coreID = coreID;
         handshake->handshake.iteration_correction = false;
         handshake->valid = true;
-        handshake_buffer[it->first].push(handshake);
+        handshake_buffer.push(it->first, handshake);
     }
     ReleaseLock(&simbuffer_lock);
     
@@ -1116,8 +1128,8 @@ VOID PauseSimulation(THREADID tid)
         GetLock(&simbuffer_lock, tid + 1);
         done = true;
         map<THREADID, handshake_queue_t>::iterator it;
-        for (it = handshake_buffer.begin(); it != handshake_buffer.end(); it++) {
-            done &= handshake_buffer[it->first].empty();
+        for (it = handshake_pool.begin(); it != handshake_pool.end(); it++) {
+            done &= handshake_buffer.empty(it->first);
         }
         ReleaseLock(&simbuffer_lock);
     } while (!done);
@@ -1138,9 +1150,8 @@ VOID ResumeSimulation(THREADID tid)
 
     /* All cores were sleeping in between loops, wake them up now. */
     map<THREADID, handshake_queue_t>::iterator it;
-    for (it = handshake_buffer.begin(); it != handshake_buffer.end(); it++) {
+    for (it = handshake_pool.begin(); it != handshake_pool.end(); it++) {
         INT32 coreID = thread_cores[it->first];
-
         handshake_container_t *handshake = GrabPooledHandshake(it->first, false);
         handshake->isFirstInsn = false;
         handshake->handshake.sleep_thread = false;
@@ -1152,7 +1163,7 @@ VOID ResumeSimulation(THREADID tid)
         handshake->handshake.iteration_correction = false;
         handshake->valid = true;
 
-        handshake_buffer[it->first].push(handshake);
+        handshake_buffer.push(it->first, handshake);
     }
     ignore_all = false;
     ReleaseLock(&simbuffer_lock);
@@ -1190,7 +1201,7 @@ VOID StopSimulation(THREADID tid)
         GetLock(&simbuffer_lock, tid+1);
         is_stopped = true;
         map<THREADID, handshake_queue_t>::iterator it;
-        for(it = handshake_buffer.begin(); it != handshake_buffer.end(); it++) {
+        for(it = handshake_pool.begin(); it != handshake_pool.end(); it++) {
             is_stopped &= sim_stopped[it->first];
         }
         ReleaseLock(&simbuffer_lock);
@@ -1216,7 +1227,7 @@ VOID ThreadFini(THREADID threadIndex, const CONTEXT *ctxt, INT32 code, VOID *v)
     /* No need to schedule this thread any more */
     //RemoveRunQueueThread(threadIndex);
 
-    BOOL was_scheduled = handshake_buffer.find(threadIndex) != handshake_buffer.end();
+    BOOL was_scheduled = handshake_buffer.hasThread(threadIndex);
 
     /* Ignore threads which we weren't going to simulate */
     if (!was_scheduled) {
@@ -1229,7 +1240,7 @@ VOID ThreadFini(THREADID threadIndex, const CONTEXT *ctxt, INT32 code, VOID *v)
     /* There will be no further instructions instrumented (on this thread).
      * Make sure to kill the simulator thread (if any). */
     GetLock(&simbuffer_lock, threadIndex+1);
-    handshake_container_t *handshake = handshake_buffer[threadIndex].front();
+    handshake_container_t *handshake = handshake_buffer.front(threadIndex);
     INT32 coreID = -1;
     if (handshake) {
         coreID = handshake->handshake.coreID;
@@ -1255,7 +1266,7 @@ VOID ThreadFini(THREADID threadIndex, const CONTEXT *ctxt, INT32 code, VOID *v)
             do {
                 GetLock(&simbuffer_lock, threadIndex+1);
                 is_stopped = true;
-                for(it = handshake_buffer.begin(); it != handshake_buffer.end(); it++) {
+                for(it = handshake_pool.begin(); it != handshake_pool.end(); it++) {
                     is_stopped &= sim_stopped[it->first];
                     cerr << it->first << " " << sim_stopped[it->first] << " ";
                 }
@@ -1705,21 +1716,34 @@ VOID doLateILDJITInstrumentation()
  Get a handshake from one of the shared pools. Assumes caller is holding simbuffer_lock. */
 handshake_container_t* GrabPooledHandshake(THREADID tid, BOOL real_inst)
 {
+  if(!real_inst) {
     handshake_queue_t *pool;
     if (real_inst)
         pool = &(handshake_pool[tid]);
     else
         pool = &(inserted_pool[tid]);
 
+    int spins = 0;
     while(pool->empty())
     {
         ReleaseLock(&simbuffer_lock);
         PIN_Yield();
         GetLock(&simbuffer_lock, tid+1);
+	spins++;
+	if(spins >= 500000) {
+	  assert(false);
+	}
     }
 
     handshake_container_t* result = pool->front();
     ASSERTX(result != NULL);
     pool->pop();
     return result;
+  }
+  else {
+    handshake_container_t* result = handshake_buffer.getPooledHandshake(tid);
+    result->mem_released = true;
+    result->valid = false;
+    return result;
+  }  
 }

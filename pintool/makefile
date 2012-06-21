@@ -27,7 +27,7 @@
 PIN_HOME ?= /group/brooks/xan/Molecool/pin
 ZESTO_HOME = ..
 TARGET = ia32
-INSTALL_DIR = /home/skanev
+INSTALL_DIR = /group/brooks/xan/Molecool/bin
 
 ##############################################################
 #
@@ -69,7 +69,7 @@ endif
 
 TOOL_ROOTS = feeder_zesto
 
-TOOL_OBJS = $(OBJDIR)ildjit.o $(OBJDIR)fluffy.o $(OBJDIR)lib.o
+TOOL_OBJS = $(OBJDIR)BufferManager.o $(OBJDIR)ildjit.o $(OBJDIR)fluffy.o $(OBJDIR)lib.o
 
 TOOLS = $(TOOL_ROOTS:%=$(OBJDIR)%$(PINTOOL_SUFFIX))
 

@@ -295,7 +295,7 @@ void Zesto_SetBOS(int coreID, unsigned int stack_base)
   assert(coreID < num_threads);
 
   cores[coreID]->current_thread->loader.stack_base = (md_addr_t)stack_base;
-  myfprintf(stderr, "Stack base[%d]: %x; \n", coreID, cores[coreID]->current_thread->loader.stack_base);
+  //  myfprintf(stderr, "Stack base[%d]: %x; \n", coreID, cores[coreID]->current_thread->loader.stack_base);
 
 }
 
@@ -386,6 +386,7 @@ void Zesto_Destroy()
 
 void deactivate_core(int coreID)
 {
+  fprintf(stderr, "deactivate %d\n", coreID);
   assert(coreID >= 0 && coreID < num_threads);
 //  fprintf(stderr, "deactivate %d\n", coreID);
   ZPIN_TRACE("deactivate %d\n", coreID);
@@ -584,7 +585,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
    {
      if (handshake->real && !core->fetch->prev_insn_fake) {
        ZPIN_TRACE("PIN->PC (0x%x) different from fetch->PC (0x%x). Overwriting with Pin value!\n", handshake->pc, core->fetch->PC);
-       info("PIN->PC (0x%x) different from fetch->PC (0x%x). Overwriting with Pin value!\n", handshake->pc, core->fetch->PC);
+       //       info("PIN->PC (0x%x) different from fetch->PC (0x%x). Overwriting with Pin value!\n", handshake->pc, core->fetch->PC);
      }
      core->fetch->PC = handshake->pc;
      regs->regs_PC = handshake->pc;
