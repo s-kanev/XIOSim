@@ -14,43 +14,78 @@ BufferManager::BufferManager()
 
 handshake_container_t* BufferManager::front(THREADID tid)
 {
-  checkFirstAccess(tid);    
-  return handshake_buffer_[tid].front();
+  checkFirstAccess(tid);
+  return queueFronts_[tid];
 }
 
 handshake_container_t* BufferManager::back(THREADID tid)
 {
-  checkFirstAccess(tid);    
-  return handshake_buffer_[tid].back();
+  checkFirstAccess(tid);
+  assert(queueSizes_[tid] > 0);
+
+  if(queueBacks_[tid] != NULL) {
+    return queueBacks_[tid];
+  }
+  
+  // if only one element in queue, it will be in queueFronts, 
+  // even though it is back()
+  assert(queueFronts_[tid] != NULL);
+  return queueFronts_[tid];
 }
 
 bool BufferManager::empty(THREADID tid)
 {
   checkFirstAccess(tid);    
+  return queueSizes_[tid] == 0;
   return handshake_buffer_[tid].empty();
 }
 
 void BufferManager::push(THREADID tid, handshake_container_t* handshake)
 { 
   checkFirstAccess(tid);
-  handshake_buffer_[tid].push(handshake);
+  if(queueSizes_[tid] == 0) {
+    queueFronts_[tid] = handshake;
+  }
+  else if(queueSizes_[tid] == 1) {
+    queueBacks_[tid] = handshake;
+  }
+  else {
+    assert(queueBacks_[tid] != NULL);
+    pushToFile(tid, &(queueBacks_[tid]));
+    queueBacks_[tid] = handshake;
+  }
+
+  queueBacks_[tid] = handshake;
+  queueSizes_[tid]++;
 }
 
 void BufferManager::pop(THREADID tid)
 {
-  checkFirstAccess(tid);    
-  handshake_buffer_[tid].pop();
+  checkFirstAccess(tid);
+  assert(queueSizes_[tid] > 0);
+  
+  if(queueSizes_[tid] == 1) {
+    queueFronts_[tid] = NULL;
+  }
+  else if(queueSizes_[tid] == 2) {
+    queueFronts_[tid] = queueBacks_[tid];
+    queueBacks_[tid] = NULL;
+  }
+  else {
+    popFromFile(tid, &(queueFronts_[tid]));
+  }
+  
+  queueSizes_[tid]--;
 }
 
 bool BufferManager::hasThread(THREADID tid) 
 {
-  checkFirstAccess(tid);    
-  return handshake_buffer_.count(tid) != 0;
+  return (queueSizes_.count(tid) != 0);
 }
 
 unsigned int BufferManager::size()
 {
-  return handshake_buffer_.size();
+  return queueSizes_.size();
 }
 
 void BufferManager::nullifyFront(THREADID tid)
@@ -66,12 +101,22 @@ void BufferManager::nullifyFront(THREADID tid)
 void BufferManager::checkFirstAccess(THREADID tid)
 {
   if(queueSizes_.count(tid) == 0) {
-    handshake_container_t* new_handshake;
+    char str[50];
+    sprintf(str, "%d", tid);
     
-    queueSizes_[tid] = 0;
+    fileNames_[tid] = tempnam("/dev/shm/", "sima");
+    bogusFileNames_[tid] = tempnam("/dev/shm/", "simb");
 
+    system(("/bin/rm -f " + fileNames_[tid]).c_str());
+    system(("/bin/touch " + fileNames_[tid]).c_str());
+    system(("/bin/chmod 777 " + fileNames_[tid]).c_str());
+
+    queueSizes_[tid] = 0;
+    queueFronts_[tid] = NULL;
+    queueBacks_[tid] = NULL;
+    
     for (int i=0; i < 2000; i++) {
-      new_handshake = new handshake_container_t();
+      handshake_container_t* new_handshake = new handshake_container_t();
       if (i > 0) {
 	new_handshake->isFirstInsn = false;            
       }
@@ -80,12 +125,14 @@ void BufferManager::checkFirstAccess(THREADID tid)
       }
       handshake_pool_[tid].push(new_handshake);      
     }
+
+    locks_[tid] = new pthread_mutex_t();
+    pthread_mutex_init(locks_[tid], 0);
   }
 }
 
 void BufferManager::pushToFile(THREADID tid, handshake_container_t** handshake)
 {
-  assert(false);
   pthread_mutex_lock(locks_[tid]);
   pipeWriters_[tid] = open(fileNames_[tid].c_str(), O_WRONLY | O_APPEND);
   if(pipeWriters_[tid] == -1) {
@@ -94,6 +141,7 @@ void BufferManager::pushToFile(THREADID tid, handshake_container_t** handshake)
     abort();
   }
   
+  cerr << "Pushing to file!" << endl;
   realPush(tid, handshake);
 
   close(pipeWriters_[tid]);
@@ -102,7 +150,6 @@ void BufferManager::pushToFile(THREADID tid, handshake_container_t** handshake)
 
 void BufferManager::realPush(THREADID tid, handshake_container_t** handshake)
 {
-  assert(false);
   int bytesWritten = write(pipeWriters_[tid], &((*handshake)->handshake), sizeof(P2Z_HANDSHAKE));
   if(bytesWritten == -1) {
     cerr << "Pipe write error: " << bytesWritten << " Errcode:" << strerror(errno) << endl;
@@ -144,7 +191,8 @@ void BufferManager::realPush(THREADID tid, handshake_container_t** handshake)
 
 void BufferManager::popFromFile(THREADID tid, handshake_container_t** handshake)
 {
-    assert(false);
+  cerr << "Pop from file!" << endl;
+  
   pthread_mutex_lock(locks_[tid]);
   system(("/bin/rm -f " + bogusFileNames_[tid]).c_str());
   system(("/bin/touch " + bogusFileNames_[tid]).c_str());
@@ -273,10 +321,9 @@ handshake_container_t* BufferManager::getPooledHandshake(THREADID tid, bool just
     PIN_Yield();
     GetLock(&simbuffer_lock, tid+1);
     spins++;
-    if(spins >= 7000000000LL) {
+    if(spins >= 70000LL) {
       cerr << "[getPooledHandshake()]: That's a lot of spins!" << endl;
       spins = 0;
-      //assert(false);
     }
   }
 
