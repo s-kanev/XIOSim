@@ -108,9 +108,11 @@ VOID ILDJIT_startSimulation(THREADID tid, ADDRINT ip)
       AddILDJITWaitSignalCallbacks();
     }
 
-    doLateILDJITInstrumentation();
- 
+    //    doLateILDJITInstrumentation();
+    
+    cerr << "Grabbin that fatass lock" << endl;
     GetLock(&ildjit_lock, 1);
+    cerr << "No more fatasslock" << endl;
 
     /* We are stopping thread creation here, beacuse we can capture the real
      * thread creation in Pin only on starting the thread (first insn), which

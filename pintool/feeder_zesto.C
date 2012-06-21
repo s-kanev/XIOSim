@@ -1643,9 +1643,10 @@ INT32 main(INT32 argc, CHAR **argv)
     
     // Delay this instrumentation until startSimulation call in ILDJIT.
     // This cuts down HELIX compilation noticably for integer benchmarks.
-    if(!KnobILDJIT.Value()) {
-      INS_AddInstrumentFunction(Instrument, 0);
-    }
+    
+    //    if(!KnobILDJIT.Value()) {
+    INS_AddInstrumentFunction(Instrument, 0);
+    //    }
 
     PIN_AddThreadStartFunction(ThreadStart, NULL);  
     PIN_AddThreadFiniFunction(ThreadFini, NULL);  
@@ -1699,6 +1700,7 @@ VOID amd_hack()
 
 VOID doLateILDJITInstrumentation()
 {
+  assert(false);
   static bool calledAlready = false;
    
   ASSERTX(!calledAlready); 
