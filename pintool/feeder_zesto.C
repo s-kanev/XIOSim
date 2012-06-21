@@ -1172,9 +1172,7 @@ VOID StopSimulation(THREADID tid)
 {
     /* Deactivate this core, so simulation doesn't wait on it */
     thread_state_t* tstate = get_tls(tid);
-    cerr << "I start deactivate the core!" << endl;
     deactivate_core(tstate->coreID);
-    cerr << "I end deactivate the core!" << endl;
 
     /* Make sure all cores gather at signal ID 0 before killing any threads.
      * The invariant is that all cores (other than this one) are waiting there. */
@@ -1194,7 +1192,6 @@ VOID StopSimulation(THREADID tid)
     sim_running = false;
     ReleaseLock(&simbuffer_lock);
 
-    cerr << "I starting is_stopped" << endl;
 
     /* Spin until SimulatorLoop actually finishes */
     volatile bool is_stopped;
@@ -1208,12 +1205,8 @@ VOID StopSimulation(THREADID tid)
         ReleaseLock(&simbuffer_lock);
     } while(!is_stopped);
     
-    cerr << "I start slice end!" << endl;
-    
     cerr << SimOrgInsCount << endl;
     Zesto_Slice_End(0, 0, SimOrgInsCount, 100000);
-
-    cerr << "I finish slice end!" << endl;
 
     /* Reaching this ensures SimulatorLoop is not in the middle
      * of simulating an instruction. We can safely blow away
