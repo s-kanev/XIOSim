@@ -59,9 +59,9 @@ void BufferManager::push(THREADID tid, handshake_container_t* handshake)
   queueSizes_[tid]++;
 }
 
-void push_new(THREADID tid, handshake_container_t* handshake)
+void BufferManager::push_new(THREADID tid, handshake_container_t* handshake)
 {
-  handshake_container_t* free = getPooledHandshake(THREADID tid);
+  handshake_container_t* free = getPooledHandshake(tid);
   
   free->valid = handshake->valid;
   free->mem_released = handshake->mem_released;
