@@ -144,6 +144,7 @@ void BufferManager::pushToFile(THREADID tid, handshake_container_t** handshake)
   realPush(tid, handshake);
 
   close(pipeWriters_[tid]);
+  sync();
   pthread_mutex_unlock(locks_[tid]);
 }
 
@@ -299,18 +300,20 @@ if(bytesRead == -1) {
     count++;    
   }
   
-  close(pipeReaders_[tid]);
+  close(pipeReaders_[tid]);    
+  
+  sync();
   
   string cmd = "/bin/cp -rf " +bogusFileNames_[tid] + " " + fileNames_[tid];
   system(cmd.c_str());
-
+  
+  sync();
+  
   pthread_mutex_unlock(locks_[tid]);
 }
 
 handshake_container_t* BufferManager::getPooledHandshake(THREADID tid)
 {
-  checkFirstAccess(tid);
-  
   handshake_queue_t *pool;
   pool = &(handshake_pool_[tid]);
 
