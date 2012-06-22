@@ -522,6 +522,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
       /* start_slice messes with global state for now. Until we fix it, only call
        * it the first time on some core */
       if (very_first_insn) {
+	cerr << "VERY_FIRST_INSN" << endl;
         start_slice(handshake->slice_num);
         very_first_insn = false;
       }

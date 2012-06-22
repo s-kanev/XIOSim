@@ -623,14 +623,15 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
     }
 
     handshake_container_t* handshake;
+    handshake_container_t handshake_real;
+
     if (has_memory) {
         ASSERTX(!handshake_buffer.empty(tid));
         handshake = handshake_buffer.back(tid);
         ASSERTX(handshake->handshake.real);
     }
     else {
-        handshake = GrabPooledHandshake(tid, true);
-        handshake_buffer.push(tid, handshake);
+      handshake = &handshake_real;
     }
 
     ASSERTX(handshake != NULL);
@@ -687,6 +688,10 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
 
     // Let simulator consume instruction from SimulatorLoop
     handshake->valid = true;
+
+    if(!has_memory) {
+      handshake_buffer.push_new(tid, handshake);
+    }
 
     ReleaseLock(&simbuffer_lock);
 

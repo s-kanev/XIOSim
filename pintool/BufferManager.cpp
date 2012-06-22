@@ -29,6 +29,7 @@ handshake_container_t* BufferManager::back(THREADID tid)
   
   // if only one element in queue, it will be in queueFronts, 
   // even though it is back()
+  assert(queueSizes_[tid] == 1);	   
   assert(queueFronts_[tid] != NULL);
   return queueFronts_[tid];
 }
@@ -140,7 +141,7 @@ void BufferManager::checkFirstAccess(THREADID tid)
     queueFronts_[tid] = NULL;
     queueBacks_[tid] = NULL;
     
-    for (int i=0; i < 2000; i++) {
+    for (int i=0; i < 10; i++) {
       handshake_container_t* new_handshake = new handshake_container_t();
       if (i > 0) {
 	new_handshake->isFirstInsn = false;            
