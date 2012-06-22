@@ -591,16 +591,15 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, 
 
     ASSERTX(first_read);
 
-    handshake_container_t* handshake = GrabPooledHandshake(tid, true);   
-    handshake_buffer.push(tid, handshake);    
+    handshake_container_t handshake;
 
     UINT8 val;
     for(UINT32 i=0; i < size; i++) {
         PIN_SafeCopy(&val, (VOID*) (addr+i), 1);
-        handshake->mem_buffer.insert(pair<UINT32, UINT8>(addr + i,val));
+        handshake.mem_buffer.insert(pair<UINT32, UINT8>(addr + i,val));
     }
 
-    //    handshake_buffer.push_new(tid, (&handshake));
+    handshake_buffer.push_new(tid, (&handshake));
     
     ReleaseLock(&simbuffer_lock);
 }
