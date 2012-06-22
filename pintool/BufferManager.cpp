@@ -59,6 +59,21 @@ void BufferManager::push(THREADID tid, handshake_container_t* handshake)
   queueSizes_[tid]++;
 }
 
+void push_new(THREADID tid, handshake_container_t* handshake)
+{
+  handshake_container_t* free = getPooledHandshake(THREADID tid);
+  
+  free->valid = handshake->valid;
+  free->mem_released = handshake->mem_released;
+  free->mem_buffer = handshake->mem_buffer;
+  free->isFirstInsn = handshake->isFirstInsn;
+  free->isLastInsn = handshake->isLastInsn;
+  free->killThread = handshake->killThread;
+  memcpy(&(free->handshake), &(handshake->handshake), sizeof(P2Z_HANDSHAKE));
+  
+  push(tid, free);
+}
+
 void BufferManager::pop(THREADID tid)
 {
   checkFirstAccess(tid);
@@ -76,6 +91,12 @@ void BufferManager::pop(THREADID tid)
   }
   
   queueSizes_[tid]--;
+}
+
+void BufferManager::pop_new(THREADID tid, handshake_container_t* handshake)
+{
+  pop(tid);
+  releasePooledHandshake(tid, handshake);
 }
 
 bool BufferManager::hasThread(THREADID tid) 

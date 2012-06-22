@@ -15,9 +15,13 @@ class BufferManager
   handshake_container_t* front(THREADID tid);
   handshake_container_t* back(THREADID tid);
   bool empty(THREADID tid);
+
   void push(THREADID tid, handshake_container_t* handshake);
   void pop(THREADID tid);
-  
+
+  void push_new(THREADID tid, handshake_container_t* handshake);
+  void pop_new(THREADID tid, handshake_container_t* handshake);
+
   bool hasThread(THREADID tid);
   unsigned int size();
   void nullifyFront(THREADID tid);

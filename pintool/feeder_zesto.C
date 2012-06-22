@@ -422,8 +422,9 @@ VOID ReleaseHandshake(UINT32 coreID)
 
     handshake->valid = false;   // Let pin instrument instruction
 
-    handshake_buffer.pop(instrument_tid);
-    handshake_buffer.releasePooledHandshake(instrument_tid, handshake);
+    handshake_buffer.pop_new(instrument_tid, handshake);
+    //    handshake_buffer.pop(instrument_tid);
+    //    handshake_buffer.releasePooledHandshake(instrument_tid, handshake);
 
     ReleaseLock(&simbuffer_lock);
 }
