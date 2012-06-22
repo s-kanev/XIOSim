@@ -1062,7 +1062,6 @@ VOID PauseSimulation(THREADID tid)
     } while (!done_with_iteration);
 
     GetLock(&simbuffer_lock, tid+1);
-    handshake_container_t *handshake;
     /* Drainning all pipelines and deactivating cores. */
     vector<THREADID>::iterator it;
     for (it = thread_list.begin(); it != thread_list.end(); it++) {
@@ -1070,35 +1069,35 @@ VOID PauseSimulation(THREADID tid)
 
         /* Insert a trap. This will ensure that the pipe drains before
          * consuming the next instruction.*/
-        handshake = GrabPooledHandshake((*it), false);
-        handshake->isFirstInsn = false;
-        handshake->handshake.sleep_thread = false;
-        handshake->handshake.resume_thread = false;
-        handshake->handshake.real = false;
-        handshake->handshake.coreID = coreID;
-        handshake->handshake.iteration_correction = false;
-        handshake->valid = true;
+	handshake_container_t handshake;
+        handshake.isFirstInsn = false;
+        handshake.handshake.sleep_thread = false;
+        handshake.handshake.resume_thread = false;
+        handshake.handshake.real = false;
+        handshake.handshake.coreID = coreID;
+        handshake.handshake.iteration_correction = false;
+        handshake.valid = true;
 
-        handshake->handshake.pc = (ADDRINT) syscall_template;
-        handshake->handshake.npc = (ADDRINT) syscall_template + sizeof(syscall_template);
-        handshake->handshake.tpc = (ADDRINT) syscall_template + sizeof(syscall_template);
-        handshake->handshake.brtaken = false;
-        memcpy(handshake->handshake.ins, syscall_template, sizeof(syscall_template));
-        handshake_buffer.push((*it), handshake);
+        handshake.handshake.pc = (ADDRINT) syscall_template;
+        handshake.handshake.npc = (ADDRINT) syscall_template + sizeof(syscall_template);
+        handshake.handshake.tpc = (ADDRINT) syscall_template + sizeof(syscall_template);
+        handshake.handshake.brtaken = false;
+        memcpy(handshake.handshake.ins, syscall_template, sizeof(syscall_template));
+        handshake_buffer.push_new((*it), &handshake);
 
         /* Deactivate this core, so we can advance the cycle conunter of
          * others without waiting on it */
-        handshake = GrabPooledHandshake((*it), false);
+	handshake_container_t handshake_2;
 
-        handshake->isFirstInsn = false;
-        handshake->handshake.sleep_thread = true;
-        handshake->handshake.resume_thread = false;
-        handshake->handshake.real = false;
-        handshake->handshake.pc = 0;
-        handshake->handshake.coreID = coreID;
-        handshake->handshake.iteration_correction = false;
-        handshake->valid = true;
-        handshake_buffer.push((*it), handshake);
+        handshake_2.isFirstInsn = false;
+        handshake_2.handshake.sleep_thread = true;
+        handshake_2.handshake.resume_thread = false;
+        handshake_2.handshake.real = false;
+        handshake_2.handshake.pc = 0;
+        handshake_2.handshake.coreID = coreID;
+        handshake_2.handshake.iteration_correction = false;
+        handshake_2.valid = true;
+        handshake_buffer.push_new((*it), &handshake_2);
     }
     ReleaseLock(&simbuffer_lock);
     
