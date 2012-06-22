@@ -1134,18 +1134,19 @@ VOID ResumeSimulation(THREADID tid)
     vector<THREADID>::iterator it;
     for (it = thread_list.begin(); it != thread_list.end(); it++) {
         INT32 coreID = thread_cores[(*it)];
-        handshake_container_t *handshake = GrabPooledHandshake((*it), false);
-        handshake->isFirstInsn = false;
-        handshake->handshake.sleep_thread = false;
-        handshake->handshake.resume_thread = true;
-        handshake->handshake.real = false;
-        handshake->handshake.pc = 0;
-        handshake->handshake.coreID = coreID;
-        handshake->handshake.in_critical_section = false;
-        handshake->handshake.iteration_correction = false;
-        handshake->valid = true;
 
-        handshake_buffer.push((*it), handshake);
+        handshake_container_t handshake;
+        handshake.isFirstInsn = false;
+        handshake.handshake.sleep_thread = false;
+        handshake.handshake.resume_thread = true;
+        handshake.handshake.real = false;
+        handshake.handshake.pc = 0;
+        handshake.handshake.coreID = coreID;
+        handshake.handshake.in_critical_section = false;
+        handshake.handshake.iteration_correction = false;
+        handshake.valid = true;
+
+        handshake_buffer.push_new((*it), (&handshake));
     }
     ignore_all = false;
     ReleaseLock(&simbuffer_lock);

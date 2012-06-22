@@ -63,6 +63,8 @@ void BufferManager::push_new(THREADID tid, handshake_container_t* handshake)
 {
   handshake_container_t* free = getPooledHandshake(tid);
   
+  bool isFirstInsn = free->isFirstInsn;
+  
   free->valid = handshake->valid;
   free->mem_released = handshake->mem_released;
   free->mem_buffer = handshake->mem_buffer;
@@ -71,6 +73,8 @@ void BufferManager::push_new(THREADID tid, handshake_container_t* handshake)
   free->killThread = handshake->killThread;
   memcpy(&(free->handshake), &(handshake->handshake), sizeof(P2Z_HANDSHAKE));
   
+  free->isFirstInsn = isFirstInsn;
+
   push(tid, free);
 }
 
