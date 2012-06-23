@@ -12,6 +12,7 @@ class BufferManager
 {
  public:
   BufferManager();
+  ~BufferManager();
 
   handshake_container_t* front(THREADID tid);
   handshake_container_t* back(THREADID tid);

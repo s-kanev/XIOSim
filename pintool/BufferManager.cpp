@@ -12,13 +12,21 @@ BufferManager::BufferManager()
 {  
 }
 
+BufferManager::~BufferManager()
+{
+  map<THREADID, string>::iterator it;
+  for(it = fileNames_.begin(); it != fileNames_.end(); it++) {
+    system(("/bin/rm -f " + fileNames_[it->first]).c_str());
+    system(("/bin/rm -f " + bogusNames_[it->first]).c_str());
+  }
+}
+
 handshake_container_t* BufferManager::front(THREADID tid)
 {
   checkFirstAccess(tid);
   assert(queueSizes_[tid] > 0);
 
   if(consumeBuffer_[tid]->size() > 0) {
-    cerr << "Returning from fronttop() " << tid << " with pc=" << consumeBuffer_[tid]->front()->handshake.pc << endl;
     consumeBuffer_[tid]->front()->valid = true;
     return consumeBuffer_[tid]->front();
   }
@@ -36,7 +44,6 @@ handshake_container_t* BufferManager::front(THREADID tid)
   }
 
   readFileIntoConsumeBuffer(tid);
-  cerr << "Returning from frontbot() " << tid << " with pc=" << consumeBuffer_[tid]->front()->handshake.pc << endl;
   consumeBuffer_[tid]->front()->valid = true;
   assert(consumeBuffer_[tid]->size() > 0);
   return consumeBuffer_[tid]->front();
@@ -59,8 +66,6 @@ bool BufferManager::empty(THREADID tid)
 
 void BufferManager::push(THREADID tid, handshake_container_t* handshake, bool fromILDJIT)
 {
-  cerr << "Pushing on " << tid << " with pc=" << handshake->handshake.pc << endl;
-  
   checkFirstAccess(tid);
 
   if((didFirstInsn_.count(tid) == 0) && (!fromILDJIT)) {    
@@ -76,6 +81,13 @@ void BufferManager::push(THREADID tid, handshake_container_t* handshake, bool fr
   
   if(produceBuffer_[tid]->full()) {
     writeProduceBufferIntoFile(tid);
+
+    cerr << "slowing it down..." << endl;
+    long long int spins = 0;
+    for(int i = 0; i < queueSizes_[tid] * 10; i++) {
+      spins++;
+    }
+    cerr << "slowed it down..." << endl;
   }
 }
 
@@ -103,7 +115,6 @@ void BufferManager::pop(THREADID tid)
   handshake_container_t* handshake = front(tid);
   handshake->isFirstInsn = false;
  
-  cerr << "Popping on " << tid  << " with pc=" << handshake->handshake.pc << endl;
   consumeBuffer_[tid]->pop();
   
   queueSizes_[tid]--;
@@ -123,9 +134,9 @@ void BufferManager::checkFirstAccess(THREADID tid)
 {
   if(queueSizes_.count(tid) == 0) {
     
-    PIN_Yield();
-    sleep(5);
-    PIN_Yield();
+    //PIN_Yield();
+    //    sleep(30);
+    //PIN_Yield();
         
     fileNames_[tid] = tempnam("/dev/shm/", "HEXA");
     bogusNames_[tid] = tempnam("/dev/shm/", "HEXB");
@@ -149,7 +160,7 @@ void BufferManager::checkFirstAccess(THREADID tid)
 void BufferManager::writeProduceBufferIntoFile(THREADID tid, bool all)
 {
   cerr << "Writing buffer to file: " << tid << endl;
-  //  pthread_mutex_lock(locks_[tid]);
+  pthread_mutex_lock(locks_[tid]);
   handshake_container_t* handshake;
   
   int fd = open(fileNames_[tid].c_str(), O_WRONLY | O_APPEND);
@@ -176,13 +187,12 @@ void BufferManager::writeProduceBufferIntoFile(THREADID tid, bool all)
   fileEntryCount_[tid] += count;
   cerr << "File entry count: " << fileEntryCount_[tid] << endl;
   assert(fileEntryCount_[tid] >= 0);
-  //  pthread_mutex_unlock(locks_[tid]);
+  pthread_mutex_unlock(locks_[tid]);
 }
 
 void BufferManager::readFileIntoConsumeBuffer(THREADID tid)
 {
-  //  pthread_mutex_lock(locks_[tid]);
-  cerr << "Read file into buffer after_lock: " << tid << endl;
+  pthread_mutex_lock(locks_[tid]);
   
   int fd = open(fileNames_[tid].c_str(), O_RDONLY);
   if(fd == -1) {
@@ -197,13 +207,12 @@ void BufferManager::readFileIntoConsumeBuffer(THREADID tid)
     handshake_container_t handshake;
     bool validRead = readHandshake(fd, &handshake);
     if(validRead == false) {
-      cerr << "I break!" << endl;
       break;
     }
     consumeBuffer_[tid]->push(&(handshake));
     count++;
   }
-  cerr << "how many?" << endl;
+
   system(("/bin/rm -f " + bogusNames_[tid]).c_str());
   system(("/bin/touch " + bogusNames_[tid]).c_str());
   system(("/bin/chmod 777 " + bogusNames_[tid]).c_str());
@@ -236,7 +245,7 @@ void BufferManager::readFileIntoConsumeBuffer(THREADID tid)
   cerr << "File entry count: " << fileEntryCount_[tid] << endl;
 
   assert(fileEntryCount_[tid] >= 0);
-  //  pthread_mutex_unlock(locks_[tid]);
+  pthread_mutex_unlock(locks_[tid]);
 }
 
 void BufferManager::writeHandshake(int fd, handshake_container_t* handshake)
