@@ -546,10 +546,8 @@ VOID SimulatorLoop(VOID* arg)
             continue;
         }
 
-	cerr << tid << " Entering the actual simulation " << endl;
         // Actual simulation happens here
         Zesto_Resume(&handshake->handshake, &handshake->mem_buffer, handshake->isFirstInsn, handshake->isLastInsn);
-	cerr << tid << " Leaving the actual simulation " << endl;
 
         if(!KnobPipelineInstrumentation.Value())
             ReleaseHandshake(handshake->handshake.coreID);
@@ -1077,6 +1075,8 @@ VOID PauseSimulation(THREADID tid)
      * to functionally reach wait 0, where they will wait until the end
      * of the loop; (ii) drain all pipelines once cores are waiting. */
 
+  cerr << tid << " Starting first pause phase " << endl;
+
     volatile bool done_with_iteration = false;
     do {
         GetLock(&simbuffer_lock, tid + 1);
@@ -1090,6 +1090,8 @@ VOID PauseSimulation(THREADID tid)
     } while (!done_with_iteration);
 
     GetLock(&simbuffer_lock, tid+1);
+
+    cerr << tid << " Starting second pause phase " << endl;
     /* Drainning all pipelines and deactivating cores. */
     vector<THREADID>::iterator it;
     for (it = thread_list.begin(); it != thread_list.end(); it++) {
@@ -1130,7 +1132,7 @@ VOID PauseSimulation(THREADID tid)
     ReleaseLock(&simbuffer_lock);
     
     /* Wait until all cores are done -- consumed their buffers. */
-    cerr << "[" << sim_cycle << ":KEVIN]: Waiting for all sleepy cores" << endl; 
+    cerr << tid << " [" << sim_cycle << ":KEVIN]: Waiting for all sleepy cores" << endl; 
 
     volatile bool done = false;
     do {

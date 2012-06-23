@@ -131,6 +131,11 @@ void BufferManager::nullifyFront(THREADID tid)
 void BufferManager::checkFirstAccess(THREADID tid)
 {
   if(queueSizes_.count(tid) == 0) {
+    
+    PIN_Yield();
+    sleep(5);
+    PIN_Yield();
+    
     char str[50];
     sprintf(str, "%d", tid);
     
@@ -145,7 +150,7 @@ void BufferManager::checkFirstAccess(THREADID tid)
     queueFronts_[tid] = NULL;
     queueBacks_[tid] = NULL;
     
-    for (int i=0; i < 10; i++) {
+    for (int i=0; i < 100; i++) {
       handshake_container_t* new_handshake = new handshake_container_t();
       if (i > 0) {
 	new_handshake->isFirstInsn = false;            
@@ -356,7 +361,7 @@ handshake_container_t* BufferManager::getPooledHandshake(THREADID tid, bool from
     GetLock(&simbuffer_lock, tid+1);
     spins++;
     if(spins >= 7000000LL) {
-      cerr << "[getPooledHandshake()]: That's a lot of spins!" << endl;
+      cerr << tid << " [getPooledHandshake()]: That's a lot of spins!" << endl;
       spins = 0;
     }
   }
@@ -373,10 +378,10 @@ handshake_container_t* BufferManager::getPooledHandshake(THREADID tid, bool from
   else {// this else might be wrong...
     result->isFirstInsn = false;
   }
-  
+
   result->mem_released = true;
   result->valid = false;
-
+  
   return result;
 }
 
