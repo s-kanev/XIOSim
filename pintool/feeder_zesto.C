@@ -422,9 +422,7 @@ VOID ReleaseHandshake(UINT32 coreID)
 
     handshake->valid = false;   // Let pin instrument instruction
 
-    handshake_buffer.pop_new(instrument_tid, handshake);
-    //    handshake_buffer.pop(instrument_tid);
-    //    handshake_buffer.releasePooledHandshake(instrument_tid, handshake);
+    handshake_buffer.pop(instrument_tid, handshake);
 
     ReleaseLock(&simbuffer_lock);
 }
@@ -613,7 +611,7 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, 
         handshake.mem_buffer.insert(pair<UINT32, UINT8>(addr + i,val));
     }
 
-    handshake_buffer.push_new(tid, (&handshake));
+    handshake_buffer.push(tid, (&handshake));
     
     ReleaseLock(&simbuffer_lock);
 }
@@ -711,7 +709,7 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
     handshake->valid = true;
 
     if(!has_memory) {
-      handshake_buffer.push_new(tid, handshake);
+      handshake_buffer.push(tid, handshake);
     }
 
     ReleaseLock(&simbuffer_lock);
@@ -1113,7 +1111,7 @@ VOID PauseSimulation(THREADID tid)
         handshake.handshake.tpc = (ADDRINT) syscall_template + sizeof(syscall_template);
         handshake.handshake.brtaken = false;
         memcpy(handshake.handshake.ins, syscall_template, sizeof(syscall_template));
-        handshake_buffer.push_new((*it), &handshake);
+        handshake_buffer.push((*it), &handshake);
 
         /* Deactivate this core, so we can advance the cycle conunter of
          * others without waiting on it */
@@ -1127,7 +1125,7 @@ VOID PauseSimulation(THREADID tid)
         handshake_2.handshake.coreID = coreID;
         handshake_2.handshake.iteration_correction = false;
         handshake_2.valid = true;
-        handshake_buffer.push_new((*it), &handshake_2);
+        handshake_buffer.push((*it), &handshake_2);
     }
     ReleaseLock(&simbuffer_lock);
     
@@ -1175,7 +1173,7 @@ VOID ResumeSimulation(THREADID tid)
         handshake.handshake.iteration_correction = false;
         handshake.valid = true;
 
-        handshake_buffer.push_new((*it), (&handshake));
+        handshake_buffer.push((*it), (&handshake));
     }
     ignore_all = false;
     ReleaseLock(&simbuffer_lock);

@@ -374,7 +374,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
     *(INT32*)(&handshake.handshake.ins[1]) = tstate->lastSignalAddr;
 
 //    cerr << tid << ": Vodoo load instruction " << hex << pc <<  " ID: " << tstate->lastSignalAddr << dec << endl;
-    handshake_buffer.push_new(tid, &handshake, true);
+    handshake_buffer.push(tid, &handshake, true);
 
     ReleaseLock(&simbuffer_lock);
 }
@@ -459,7 +459,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT p
     *(INT32*)(&handshake.handshake.ins[2]) = tstate->lastSignalAddr;
 
 //    cerr << tid << ": Vodoo store instruction " << hex << pc << " ID: " << tstate->lastSignalAddr << dec << endl;
-    handshake_buffer.push_new(tid, &handshake, true);
+    handshake_buffer.push(tid, &handshake, true);
     ReleaseLock(&simbuffer_lock);
 }
 

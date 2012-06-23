@@ -41,26 +41,7 @@ bool BufferManager::empty(THREADID tid)
   return handshake_buffer_[tid].empty();
 }
 
-void BufferManager::push(THREADID tid, handshake_container_t* handshake)
-{ 
-  checkFirstAccess(tid);
-  if(queueSizes_[tid] == 0) {
-    queueFronts_[tid] = handshake;
-  }
-  else if(queueSizes_[tid] == 1) {
-    queueBacks_[tid] = handshake;
-  }
-  else {
-    assert(queueBacks_[tid] != NULL);
-    pushToFile(tid, &(queueBacks_[tid]));
-    queueBacks_[tid] = handshake;
-  }
-
-  queueBacks_[tid] = handshake;
-  queueSizes_[tid]++;
-}
-
-void BufferManager::push_new(THREADID tid, handshake_container_t* handshake, bool fromILDJIT)
+void BufferManager::push(THREADID tid, handshake_container_t* handshake, bool fromILDJIT)
 {
   checkFirstAccess(tid);
   handshake_container_t* free = getPooledHandshake(tid, fromILDJIT);
@@ -76,13 +57,27 @@ void BufferManager::push_new(THREADID tid, handshake_container_t* handshake, boo
   memcpy(&(free->handshake), &(handshake->handshake), sizeof(P2Z_HANDSHAKE));
   
   free->isFirstInsn = isFirstInsn;
+  
+  if(queueSizes_[tid] == 0) {
+    queueFronts_[tid] = free;
+  }
+  else if(queueSizes_[tid] == 1) {
+    queueBacks_[tid] = free;
+  }
+  else {
+    assert(queueBacks_[tid] != NULL);
+    pushToFile(tid, &(queueBacks_[tid]));
+    queueBacks_[tid] = free;
+  }
 
-  push(tid, free);
+  queueBacks_[tid] = free;
+  queueSizes_[tid]++;
 }
 
-void BufferManager::pop(THREADID tid)
+void BufferManager::pop(THREADID tid, handshake_container_t* handshake)
 {
   checkFirstAccess(tid);
+
   assert(queueSizes_[tid] > 0);
   
   if(queueSizes_[tid] == 1) {
@@ -93,18 +88,14 @@ void BufferManager::pop(THREADID tid)
     queueBacks_[tid] = NULL;
   }
   else {
-    handshake_container_t * handshake = new handshake_container_t();
+    handshake_container_t * handshake_new = new handshake_container_t();
     queueFronts_[tid] = NULL;
-    popFromFile(tid, &handshake);
-    queueFronts_[tid] = handshake;
+    popFromFile(tid, &handshake_new);
+    queueFronts_[tid] = handshake_new;
   }
   
   queueSizes_[tid]--;
-}
 
-void BufferManager::pop_new(THREADID tid, handshake_container_t* handshake)
-{
-  pop(tid);
   releasePooledHandshake(tid, handshake);
 }
 
