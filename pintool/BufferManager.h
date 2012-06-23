@@ -22,7 +22,6 @@ class BufferManager
   bool hasThread(THREADID tid);
   unsigned int size();
   bool isFirstInsn(THREADID tid);
-  void nullifyFront(THREADID tid);
 
  private:
   map<THREADID, string> fileNames_;

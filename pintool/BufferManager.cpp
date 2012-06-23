@@ -109,16 +109,6 @@ unsigned int BufferManager::size()
   return queueSizes_.size();
 }
 
-void BufferManager::nullifyFront(THREADID tid)
-{
-  assert(false);
-  checkFirstAccess(tid);    
-  //  handshake_buffer_[tid].front() = NULL;
-
-  // TODO: grab new front from file i guess
-}
-
-
 void BufferManager::checkFirstAccess(THREADID tid)
 {
   if(queueSizes_.count(tid) == 0) {

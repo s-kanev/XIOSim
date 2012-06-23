@@ -494,7 +494,7 @@ VOID SimulatorLoop(VOID* arg)
         {
             ASSERTX(false);
             delete handshake;
-	    handshake_buffer.nullifyFront(instrument_tid);
+	    //handshake_buffer.nullifyFront(instrument_tid);
             sim_stopped[instrument_tid] = true;
             ReleaseLock(&simbuffer_lock);
             return;
