@@ -270,8 +270,8 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
     GetLock(&simbuffer_lock, tid+1);
     ignore[tid] = true;
 
-    if (ExecMode == EXECUTION_MODE_SIMULATE)
-      cerr << tid <<":Before Wait "<< hex << pc << dec  << " ID: " << ssID << hex << " (" << ssID_addr <<")" << dec << endl;
+    //    if (ExecMode == EXECUTION_MODE_SIMULATE)
+    //cerr << tid <<":Before Wait "<< hex << pc << dec  << " ID: " << ssID << hex << " (" << ssID_addr <<")" << dec << endl;
 
     thread_state_t* tstate = get_tls(tid);
     if (tstate->pc_queue_valid &&
@@ -323,8 +323,8 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
     GetLock(&simbuffer_lock, tid+1);
     ignore[tid] = false;
 
-    if (ExecMode == EXECUTION_MODE_SIMULATE)
-      cerr << tid <<": After Wait "<< hex << pc << dec  << " ID: " << lastWaitID[tid] << endl;
+    //    if (ExecMode == EXECUTION_MODE_SIMULATE)
+      //      cerr << tid <<": After Wait "<< hex << pc << dec  << " ID: " << lastWaitID[tid] << endl;
 
     // Indicated not in a wait any more
     lastWaitID[tid] = -1;
@@ -386,8 +386,8 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT 
 
     ignore[tid] = true;
 
-    if (ExecMode == EXECUTION_MODE_SIMULATE)
-      cerr << tid <<": Before Signal " << hex << pc << " ID: " << ssID <<  " (" << ssID_addr << ")" << dec << endl;
+    //    if (ExecMode == EXECUTION_MODE_SIMULATE)
+    //      cerr << tid <<": Before Signal " << hex << pc << " ID: " << ssID <<  " (" << ssID_addr << ")" << dec << endl;
 
     thread_state_t* tstate = get_tls(tid);
     if (tstate->pc_queue_valid &&
@@ -418,8 +418,8 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT p
     GetLock(&simbuffer_lock, tid+1);
     ignore[tid] = false;
 
-    if (ExecMode == EXECUTION_MODE_SIMULATE)
-      cerr << tid <<": After Signal " << hex << pc << dec << endl;
+    //    if (ExecMode == EXECUTION_MODE_SIMULATE)
+    //cerr << tid <<": After Signal " << hex << pc << dec << endl;
 
     /* Not simulating -- just ignore. */
     if (ExecMode != EXECUTION_MODE_SIMULATE || ignore_all)

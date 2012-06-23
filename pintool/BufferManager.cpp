@@ -82,13 +82,26 @@ void BufferManager::push(THREADID tid, handshake_container_t* handshake, bool fr
   if(produceBuffer_[tid]->full()) {
     writeProduceBufferIntoFile(tid);
 
-    cerr << "slowing it down..." << endl;
-    long long int spins = 0;
-    for(int i = 0; i < queueSizes_[tid] * 10; i++) {
-      spins++;
-    }
-    cerr << "slowed it down..." << endl;
+    //    cerr << "slowing it down..." << endl;
+    // long long int spins = 0;
+    //for(int i = 0; i < queueSizes_[tid] * 10; i++) {
+    //  spins++;
+    // }
+    //cerr << "slowed it down..." << endl;
   }
+  
+  long long int spins = 0;
+  while(fileEntryCount_[tid] >= 100000) {
+    ReleaseLock(&simbuffer_lock);
+    PIN_Yield();
+    GetLock(&simbuffer_lock, tid+1);
+    spins++;
+    if(spins >= 70000000LL) {
+      cerr << tid << "[handshake_buffer.push()]: That's a lot of spins!" << endl;
+      spins = 0;
+    }
+  }
+
 }
 
 void BufferManager::flushBuffers(THREADID tid)
@@ -159,7 +172,6 @@ void BufferManager::checkFirstAccess(THREADID tid)
 
 void BufferManager::writeProduceBufferIntoFile(THREADID tid, bool all)
 {
-  cerr << "Writing buffer to file: " << tid << endl;
   pthread_mutex_lock(locks_[tid]);
   handshake_container_t* handshake;
   
@@ -182,16 +194,16 @@ void BufferManager::writeProduceBufferIntoFile(THREADID tid, bool all)
   close(fd);
   sync();
 
-  cerr << "Wrote " << count << " items to file for tid:" << tid << endl;
-  cerr << "File entry count: " << fileEntryCount_[tid] << endl;
+  //  cerr << tid << " Wrote " << count << " items into file" << endl;
+  //  cerr << tid << " File size: " << fileEntryCount_[tid] << endl;
+  
   fileEntryCount_[tid] += count;
-  cerr << "File entry count: " << fileEntryCount_[tid] << endl;
   assert(fileEntryCount_[tid] >= 0);
   pthread_mutex_unlock(locks_[tid]);
 }
 
 void BufferManager::readFileIntoConsumeBuffer(THREADID tid)
-{
+{  
   pthread_mutex_lock(locks_[tid]);
   
   int fd = open(fileNames_[tid].c_str(), O_RDONLY);
@@ -238,11 +250,9 @@ void BufferManager::readFileIntoConsumeBuffer(THREADID tid)
   system(("/bin/cp -rf " + bogusNames_[tid] + " " + fileNames_[tid]).c_str());
   sync();
 
+  //  cerr << tid << " Read " << count << " items into read buffer" << endl;
+  //  cerr << tid << " File size: " << fileEntryCount_[tid] << endl;
   fileEntryCount_[tid] -= count;
-
-  cerr << "Read " << count << " items from file for tid:" << tid << endl;
-  cerr << "Copied " << copyCount << " items from file to file for tid:" << tid << endl;
-  cerr << "File entry count: " << fileEntryCount_[tid] << endl;
 
   assert(fileEntryCount_[tid] >= 0);
   pthread_mutex_unlock(locks_[tid]);

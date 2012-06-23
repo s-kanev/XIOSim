@@ -444,7 +444,7 @@ VOID SimulatorLoop(VOID* arg)
         while (handshake_buffer.empty(instrument_tid)) // KEVIN restore file 
         {
 	  spins++;
-	  if(spins >= 7000000LL) {
+	  if(spins >= 700000000LL) {
 	    cerr << tid << " Spinning waiting for non empty handshake buffer!" << endl;
 	    spins = 0;
 	  }
@@ -505,7 +505,7 @@ VOID SimulatorLoop(VOID* arg)
         while (!handshake->valid)
         {
 	  spins++;
-	  if(spins >= 7000000LL) {
+	  if(spins >= 70000000LL) {
 	    cerr << tid << " Spinning waiting for valid handshake" << endl;
 	    spins = 0;
 	  }
