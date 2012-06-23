@@ -422,7 +422,7 @@ VOID ReleaseHandshake(UINT32 coreID)
 
     handshake->valid = false;   // Let pin instrument instruction
 
-    handshake_buffer.pop(instrument_tid, handshake);
+    handshake_buffer.pop(instrument_tid);
 
     ReleaseLock(&simbuffer_lock);
 }
@@ -1089,6 +1089,8 @@ VOID PauseSimulation(THREADID tid)
 
     GetLock(&simbuffer_lock, tid+1);
 
+    handshake_buffer.flushBuffers(tid);
+
     cerr << tid << " Starting second pause phase " << endl;
     /* Drainning all pipelines and deactivating cores. */
     vector<THREADID>::iterator it;
@@ -1129,6 +1131,8 @@ VOID PauseSimulation(THREADID tid)
     }
     ReleaseLock(&simbuffer_lock);
     
+    handshake_buffer.flushBuffers(tid);
+
     /* Wait until all cores are done -- consumed their buffers. */
     cerr << tid << " [" << sim_cycle << ":KEVIN]: Waiting for all sleepy cores" << endl; 
 
