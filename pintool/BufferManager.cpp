@@ -98,6 +98,7 @@ void BufferManager::push(THREADID tid, handshake_container_t* handshake, bool fr
     spins++;
     if(spins >= 70000000LL) {
       cerr << tid << "[handshake_buffer.push()]: That's a lot of spins!" << endl;
+      break;
       spins = 0;
     }
   }
