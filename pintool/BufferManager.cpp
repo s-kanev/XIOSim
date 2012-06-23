@@ -355,7 +355,7 @@ handshake_container_t* BufferManager::getPooledHandshake(THREADID tid, bool from
     PIN_Yield();
     GetLock(&simbuffer_lock, tid+1);
     spins++;
-    if(spins >= 70000000LL) {
+    if(spins >= 7000000LL) {
       cerr << "[getPooledHandshake()]: That's a lot of spins!" << endl;
       spins = 0;
     }
@@ -373,6 +373,9 @@ handshake_container_t* BufferManager::getPooledHandshake(THREADID tid, bool from
   else {// this else might be wrong...
     result->isFirstInsn = false;
   }
+  
+  result->mem_released = true;
+  result->valid = false;
 
   return result;
 }

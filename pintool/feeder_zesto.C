@@ -437,11 +437,19 @@ VOID SimulatorLoop(VOID* arg)
 
     INT32 coreID = -1;
 
+    long long int spins = 0;
+
     while (true)
     {
+      spins = 0;
         GetLock(&simbuffer_lock, tid+1);
         while (handshake_buffer.empty(instrument_tid)) // KEVIN restore file 
         {
+	  spins++;
+	  if(spins >= 7000000LL) {
+	    cerr << tid << " Spinning waiting for non empty handshake buffer!" << endl;
+	    spins = 0;
+	  }
             if (!sim_running || PIN_IsProcessExiting())
             {
                 sim_stopped[instrument_tid] = true;
@@ -495,8 +503,14 @@ VOID SimulatorLoop(VOID* arg)
         }
 
         /* Wait for instruction instrumentation */
+	spins = 0;
         while (!handshake->valid)
         {
+	  spins++;
+	  if(spins >= 7000000LL) {
+	    cerr << tid << " Spinning waiting for valid handshake" << endl;
+	    spins = 0;
+	  }
             ReleaseLock(&simbuffer_lock);
             PIN_Yield();
             GetLock(&simbuffer_lock, tid+1);
@@ -532,8 +546,10 @@ VOID SimulatorLoop(VOID* arg)
             continue;
         }
 
+	cerr << tid << " Entering the actual simulation " << endl;
         // Actual simulation happens here
         Zesto_Resume(&handshake->handshake, &handshake->mem_buffer, handshake->isFirstInsn, handshake->isLastInsn);
+	cerr << tid << " Leaving the actual simulation " << endl;
 
         if(!KnobPipelineInstrumentation.Value())
             ReleaseHandshake(handshake->handshake.coreID);
