@@ -27,9 +27,6 @@ class BufferManager
   bool isFirstInsn(THREADID tid);
   void nullifyFront(THREADID tid);
 
-  handshake_container_t* getPooledHandshake(THREADID tid, bool fromILDJIT=true);
-  void releasePooledHandshake(THREADID tid, handshake_container_t* handshake);
-
  private:
   map<THREADID, string> fileNames_;
   map<THREADID, string> bogusFileNames_;
@@ -49,6 +46,9 @@ class BufferManager
   void pushToFile(THREADID tid, handshake_container_t** handshake);
   void realPush(THREADID tid, handshake_container_t** handshake);
   void popFromFile(THREADID tid, handshake_container_t** handshake);
+
+  handshake_container_t* getPooledHandshake(THREADID tid, bool fromILDJIT=true);
+  void releasePooledHandshake(THREADID tid, handshake_container_t* handshake);
 
   std::map<THREADID, handshake_queue_t> handshake_buffer_;
 };
