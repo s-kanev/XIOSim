@@ -567,64 +567,8 @@ VOID AddILDJITCallbacks(IMG img)
                        IARG_END);
         RTN_Close(rtn);
     }
-
-//==========================================================
-//FLUFFY-related
-    if (!KnobFluffy.Value().empty())
-    {
-
-        rtn = RTN_FindByName(img, "step3_start_inst");
-        if (RTN_Valid(rtn))
-        {
-#ifdef ZESTO_PIN_DBG
-            cerr << "FLUFFY_step3_start_inst ";
-#endif
-            RTN_Open(rtn);
-            
-            RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(FLUFFY_StartInsn),
-                           IARG_THREAD_ID,
-                           IARG_INST_PTR,
-                           IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
-                           IARG_END);
-
-            RTN_Close(rtn);
-        }
-
-        rtn = RTN_FindByName(img, "step3_end_inst");
-        if (RTN_Valid(rtn))
-        {
-#ifdef ZESTO_PIN_DBG
-            cerr << "FLUFFY_step3_end_inst ";
-#endif
-            RTN_Open(rtn);
-            
-            RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(FLUFFY_StopInsn),
-                           IARG_THREAD_ID,
-                           IARG_INST_PTR,
-                           IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
-                           IARG_END);
-
-            RTN_Close(rtn);
-        }
-    }
-#ifdef ZESTO_PIN_DBG
-    cerr << endl;
-#endif
-}
-
-
-/* ========================================================================== */
-VOID AddILDJITWaitSignalCallbacks()
-{
-  static bool calledAlready = false;
-  
-  ASSERTX(!calledAlready); 
-
-  PIN_LockClient();
-
-  for(IMG img = APP_ImgHead(); IMG_Valid(img); img = IMG_Next(img)) {
-
-    RTN rtn = RTN_FindByName(img, "MOLECOOL_beforeWait");
+    /// WAIT SIGNAL
+rtn = RTN_FindByName(img, "MOLECOOL_beforeWait");
     if (RTN_Valid(rtn))
       {
         RTN_Open(rtn);
@@ -688,13 +632,73 @@ VOID AddILDJITWaitSignalCallbacks()
                        IARG_END);
         RTN_Close(rtn);
       }
-  }
 
+
+
+
+
+//==========================================================
+//FLUFFY-related
+    if (!KnobFluffy.Value().empty())
+    {
+
+        rtn = RTN_FindByName(img, "step3_start_inst");
+        if (RTN_Valid(rtn))
+        {
+#ifdef ZESTO_PIN_DBG
+            cerr << "FLUFFY_step3_start_inst ";
+#endif
+            RTN_Open(rtn);
+            
+            RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(FLUFFY_StartInsn),
+                           IARG_THREAD_ID,
+                           IARG_INST_PTR,
+                           IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+                           IARG_END);
+
+            RTN_Close(rtn);
+        }
+
+        rtn = RTN_FindByName(img, "step3_end_inst");
+        if (RTN_Valid(rtn))
+        {
+#ifdef ZESTO_PIN_DBG
+            cerr << "FLUFFY_step3_end_inst ";
+#endif
+            RTN_Open(rtn);
+            
+            RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(FLUFFY_StopInsn),
+                           IARG_THREAD_ID,
+                           IARG_INST_PTR,
+                           IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+                           IARG_END);
+
+            RTN_Close(rtn);
+        }
+    }
+#ifdef ZESTO_PIN_DBG
+    cerr << endl;
+#endif
+}
+
+
+/* ========================================================================== */
+VOID AddILDJITWaitSignalCallbacks()
+{
+  /* static bool calledAlready = false;
+  
+  ASSERTX(!calledAlready); 
+
+  PIN_LockClient();
+
+  for(IMG img = APP_ImgHead(); IMG_Valid(img); img = IMG_Next(img)) {
+
+    RTN 
   CODECACHE_FlushCache();
   
   PIN_UnlockClient();
 
-  calledAlready = true;
+  calledAlready = true;*/
 }
 
 VOID printMemoryUsage() 

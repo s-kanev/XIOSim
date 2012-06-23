@@ -24,9 +24,10 @@ class BufferManager
 
   bool hasThread(THREADID tid);
   unsigned int size();
+  bool isFirstInsn(THREADID tid);
   void nullifyFront(THREADID tid);
 
-  handshake_container_t* getPooledHandshake(THREADID tid);
+  handshake_container_t* getPooledHandshake(THREADID tid, bool fromILDJIT=true);
   void releasePooledHandshake(THREADID tid, handshake_container_t* handshake);
 
  private:
@@ -42,7 +43,7 @@ class BufferManager
   
   map<THREADID, handshake_queue_t> handshake_pool_;
 
-  map<THREADID, int> currentPointer_;
+  map<THREADID, int> didFirstInsn_;
 
   void checkFirstAccess(THREADID tid);
   void pushToFile(THREADID tid, handshake_container_t** handshake);

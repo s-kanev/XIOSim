@@ -62,7 +62,8 @@ void BufferManager::push(THREADID tid, handshake_container_t* handshake)
 
 void BufferManager::push_new(THREADID tid, handshake_container_t* handshake)
 {
-  handshake_container_t* free = getPooledHandshake(tid);
+  checkFirstAccess(tid);
+  handshake_container_t* free = getPooledHandshake(tid, false);
   
   bool isFirstInsn = free->isFirstInsn;
   
@@ -92,7 +93,10 @@ void BufferManager::pop(THREADID tid)
     queueBacks_[tid] = NULL;
   }
   else {
-    popFromFile(tid, &(queueFronts_[tid]));
+    handshake_container_t * handshake = new handshake_container_t();
+    queueFronts_[tid] = NULL;
+    popFromFile(tid, &handshake);
+    queueFronts_[tid] = handshake;
   }
   
   queueSizes_[tid]--;
@@ -338,8 +342,10 @@ if(bytesRead == -1) {
   pthread_mutex_unlock(locks_[tid]);
 }
 
-handshake_container_t* BufferManager::getPooledHandshake(THREADID tid)
+handshake_container_t* BufferManager::getPooledHandshake(THREADID tid, bool fromILDJIT)
 {
+  checkFirstAccess(tid);    
+
   handshake_queue_t *pool;
   pool = &(handshake_pool_[tid]);
 
@@ -349,7 +355,7 @@ handshake_container_t* BufferManager::getPooledHandshake(THREADID tid)
     PIN_Yield();
     GetLock(&simbuffer_lock, tid+1);
     spins++;
-    if(spins >= 70000LL) {
+    if(spins >= 70000000LL) {
       cerr << "[getPooledHandshake()]: That's a lot of spins!" << endl;
       spins = 0;
     }
@@ -359,7 +365,15 @@ handshake_container_t* BufferManager::getPooledHandshake(THREADID tid)
   ASSERTX(result != NULL);
 
   pool->pop();
-    
+  
+  if((didFirstInsn_.count(tid) == 0) && (!fromILDJIT)) {    
+    result->isFirstInsn = true;
+    didFirstInsn_[tid] = true;
+  }
+  else {// this else might be wrong...
+    result->isFirstInsn = false;
+  }
+
   return result;
 }
 
@@ -367,4 +381,11 @@ void BufferManager::releasePooledHandshake(THREADID tid, handshake_container_t* 
 {
   handshake_pool_[tid].push(handshake);
   return;
+}
+
+bool BufferManager::isFirstInsn(THREADID tid)
+{
+  bool isFirst = (didFirstInsn_.count(tid) == 0);
+  //  didFirstInsn_[tid] = true;
+  return isFirst;
 }

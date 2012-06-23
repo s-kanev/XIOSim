@@ -632,6 +632,12 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
     }
     else {
       handshake = &handshake_real;
+      if(handshake_buffer.isFirstInsn(tid)) {
+	handshake->isFirstInsn = true;
+      }
+      else {
+	handshake->isFirstInsn = false;
+      }
     }
 
     ASSERTX(handshake != NULL);
@@ -675,6 +681,7 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
 
     if (handshake->isFirstInsn)
     {
+      cerr << tid << " Found the first INSN!" << endl;
         Zesto_SetBOS(tstate->coreID, tstate->bos);
         sim_stopped[tid] = false;
     }
