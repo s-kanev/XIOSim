@@ -60,10 +60,10 @@ void BufferManager::push(THREADID tid, handshake_container_t* handshake)
   queueSizes_[tid]++;
 }
 
-void BufferManager::push_new(THREADID tid, handshake_container_t* handshake)
+void BufferManager::push_new(THREADID tid, handshake_container_t* handshake, bool fromILDJIT)
 {
   checkFirstAccess(tid);
-  handshake_container_t* free = getPooledHandshake(tid, false);
+  handshake_container_t* free = getPooledHandshake(tid, fromILDJIT);
   
   bool isFirstInsn = free->isFirstInsn;
   
