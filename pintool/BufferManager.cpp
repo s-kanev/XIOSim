@@ -12,12 +12,23 @@ BufferManager::BufferManager()
 {  
 }
 
+void BufferManager::threadDone(THREADID tid)
+{
+  string cmd = "/bin/rm -f " + fileNames_[tid];
+  cerr << "Executing " << cmd << endl;
+  system(cmd.c_str());
+  
+  cmd = "/bin/rm -f " + bogusNames_[tid];
+  cerr << "Executing " << cmd << endl;
+  system(cmd.c_str());
+}
+
 BufferManager::~BufferManager()
 {
+  cerr << "DESTRUCTING BUFFER MANAGER" << endl;
   map<THREADID, string>::iterator it;
   for(it = fileNames_.begin(); it != fileNames_.end(); it++) {
-    system(("/bin/rm -f " + fileNames_[it->first]).c_str());
-    system(("/bin/rm -f " + bogusNames_[it->first]).c_str());
+
   }
 }
 
@@ -98,7 +109,6 @@ void BufferManager::push(THREADID tid, handshake_container_t* handshake, bool fr
     spins++;
     if(spins >= 70000000LL) {
       cerr << tid << "[handshake_buffer.push()]: That's a lot of spins!" << endl;
-      break;
       spins = 0;
     }
   }
@@ -152,13 +162,18 @@ void BufferManager::checkFirstAccess(THREADID tid)
     //    sleep(30);
     //PIN_Yield();
         
-    fileNames_[tid] = tempnam("/dev/shm/", "HEXA");
-    bogusNames_[tid] = tempnam("/dev/shm/", "HEXB");
+    fileNames_[tid] = tempnam("/dev/shm/", "A");
+    bogusNames_[tid] = tempnam("/dev/shm/", "B");
 
-    system(("/bin/rm -f " + fileNames_[tid]).c_str());
-    system(("/bin/touch " + fileNames_[tid]).c_str());
-    system(("/bin/chmod 777 " + fileNames_[tid]).c_str());
-
+    int fd = open(fileNames_[tid].c_str(), O_WRONLY | O_CREAT, 0777);
+    int result = close(fd);
+    if(result == -1) {
+      cerr << "Close error: " << " Errcode:" << strerror(errno) << endl;  
+      abort();
+    }
+    sync();
+    
+    
     queueSizes_[tid] = 0;
 
     produceBuffer_[tid] = new Buffer();
@@ -173,9 +188,12 @@ void BufferManager::checkFirstAccess(THREADID tid)
 
 void BufferManager::writeProduceBufferIntoFile(THREADID tid, bool all)
 {
+  //  cerr << tid << " Writing produce buffer into file" << endl;
+  //  cerr << tid << " File has " << fileEntryCount_[tid] << " entries" << endl;
   pthread_mutex_lock(locks_[tid]);
   handshake_container_t* handshake;
-  
+  int result;
+
   int fd = open(fileNames_[tid].c_str(), O_WRONLY | O_APPEND);
   if(fd == -1) {
     cerr << "Opened to write: " << fileNames_[tid].c_str();
@@ -192,7 +210,11 @@ void BufferManager::writeProduceBufferIntoFile(THREADID tid, bool all)
     count++;
   }
 
-  close(fd);
+  result = close(fd);
+  if(result == -1) {
+    cerr << "Close error: " << " Errcode:" << strerror(errno) << endl;  
+    abort();
+  }
   sync();
 
   //  cerr << tid << " Wrote " << count << " items into file" << endl;
@@ -201,12 +223,17 @@ void BufferManager::writeProduceBufferIntoFile(THREADID tid, bool all)
   fileEntryCount_[tid] += count;
   assert(fileEntryCount_[tid] >= 0);
   pthread_mutex_unlock(locks_[tid]);
+  //  cerr << tid << " File has " << fileEntryCount_[tid] << " entries" << endl;
+  //  cerr << tid << " Done Writing produce buffer into file: " << count << " entries" <<endl;
 }
 
 void BufferManager::readFileIntoConsumeBuffer(THREADID tid)
 {  
+  //  cerr << tid << " Read file into produce buffer" << endl;
+  //  cerr << tid << " File has " << fileEntryCount_[tid] << " entries" << endl;
   pthread_mutex_lock(locks_[tid]);
-  
+  int result;
+
   int fd = open(fileNames_[tid].c_str(), O_RDONLY);
   if(fd == -1) {
     cerr << "Opened to read: " << fileNames_[tid].c_str();
@@ -214,41 +241,64 @@ void BufferManager::readFileIntoConsumeBuffer(THREADID tid)
     abort();
   }
 
+  int fd_bogus = open(bogusNames_[tid].c_str(), O_WRONLY | O_CREAT, 0777);
+  if(fd_bogus == -1) {
+    cerr << "Opened to write: " << bogusNames_[tid].c_str();
+    cerr << "Pipe open error: " << fd_bogus << " Errcode:" << strerror(errno) << endl;
+    abort();
+  }
+
   int count = 0;
-  bool doBreak = false;
-  while((!consumeBuffer_[tid]->full()) || doBreak) {
+  bool validRead = true;
+  while(!consumeBuffer_[tid]->full()) {
     handshake_container_t handshake;
-    bool validRead = readHandshake(fd, &handshake);
+    validRead = readHandshake(fd, &handshake);    
     if(validRead == false) {
       break;
     }
     consumeBuffer_[tid]->push(&(handshake));
     count++;
   }
+  
+  //  cerr << tid << " Read " << count << " entries into read buffer" << endl;
+  //  cerr << tid << " Starting the rest of file move into bogus file" << endl;
 
-  system(("/bin/rm -f " + bogusNames_[tid]).c_str());
-  system(("/bin/touch " + bogusNames_[tid]).c_str());
-  system(("/bin/chmod 777 " + bogusNames_[tid]).c_str());
-  int fd_bogus = open(bogusNames_[tid].c_str(), O_WRONLY | O_APPEND);
-  if(fd_bogus == -1) {
-    cerr << "Opened to write: " << bogusNames_[tid].c_str();
-    cerr << "Pipe open error: " << fd_bogus << " Errcode:" << strerror(errno) << endl;
+  int copyCount = 0;  
+
+  while(validRead) {
+    handshake_container_t handshake;
+    validRead = readHandshake(fd, &handshake);
+    if(validRead) {
+      writeHandshake(fd_bogus, &handshake);
+      copyCount++;
+    }
+    else {
+      break;
+    }
+  }
+
+  result = close(fd_bogus);
+  if(result == -1) {
+    cerr << "Close error: " << " Errcode:" << strerror(errno) << endl;  
+    abort();
+  }
+  result = close(fd);
+  if(result == -1) {
+    cerr << "Close error: " << " Errcode:" << strerror(errno) << endl;  
+    abort();
+  }
+
+  //  cerr << tid << " Copied " << copyCount << " items to bogus file" << endl;
+  //  cerr << tid << " Copy Move file back to real file" << endl;
+  
+  sync();
+  
+  result = rename(bogusNames_[tid].c_str(), fileNames_[tid].c_str());
+  if(result == -1) {
+    cerr << "Can't rename filesystem bridge files. " << " Errcode:" << strerror(errno) << endl;
     abort();
   }
   
-  handshake_container_t handshake;
-  bool validRead = readHandshake(fd, &handshake);
-  int copyCount = 0;  
-  while(validRead == true) {
-    writeHandshake(fd_bogus, &handshake);
-    validRead = readHandshake(fd, &handshake);
-    copyCount++;
-  }
-  close(fd_bogus);
-  close(fd);
-
-  sync();
-  system(("/bin/cp -rf " + bogusNames_[tid] + " " + fileNames_[tid]).c_str());
   sync();
 
   //  cerr << tid << " Read " << count << " items into read buffer" << endl;
@@ -257,6 +307,8 @@ void BufferManager::readFileIntoConsumeBuffer(THREADID tid)
 
   assert(fileEntryCount_[tid] >= 0);
   pthread_mutex_unlock(locks_[tid]);
+  //  cerr << tid << " File has " << fileEntryCount_[tid] << " entries" << endl;
+  //  cerr << tid << " Done Read file into produce buffer" << endl;
 }
 
 void BufferManager::writeHandshake(int fd, handshake_container_t* handshake)
@@ -349,6 +401,10 @@ bool BufferManager::readHandshake(int fd, handshake_container_t* handshake)
   assert(bytesRead == sizeof(P2Z_HANDSHAKE));    
   
   bytesRead = read(fd, &(handshake->valid), sizeof(BOOL));
+ 
+  if(bytesRead == 0) {
+    return false;
+  }  
   if(bytesRead == -1) {
     cerr << "Pipe read error: " << bytesRead << " Errcode:" << strerror(errno) << endl;
     abort();
@@ -356,20 +412,30 @@ bool BufferManager::readHandshake(int fd, handshake_container_t* handshake)
   assert(bytesRead == sizeof(BOOL));
   
   bytesRead = read(fd, &(handshake->mem_released), sizeof(BOOL));
+   
+  if(bytesRead == 0) {
+    return false;
+  }
   if(bytesRead == -1) {
     cerr << "Pipe read error: " << bytesRead << " Errcode:" << strerror(errno) << endl;
     abort();
   }    
   assert(bytesRead == sizeof(BOOL));
   
-  bytesRead = read(fd, &(handshake->isFirstInsn), sizeof(BOOL));
+  bytesRead = read(fd, &(handshake->isFirstInsn), sizeof(BOOL));   
+  if(bytesRead == 0) {
+    return false;
+  }
   if(bytesRead == -1) {
     cerr << "Pipe read error: " << bytesRead << " Errcode:" << strerror(errno) << endl;
     abort();
   }    
   assert(bytesRead == sizeof(BOOL));
   
-  bytesRead = read(fd, &(handshake->isLastInsn), sizeof(BOOL));
+  bytesRead = read(fd, &(handshake->isLastInsn), sizeof(BOOL));   
+  if(bytesRead == 0) {
+    return false;
+  }
   if(bytesRead == -1) {
     cerr << "Pipe read error: " << bytesRead << " Errcode:" << strerror(errno) << endl;
     abort();
@@ -377,12 +443,16 @@ bool BufferManager::readHandshake(int fd, handshake_container_t* handshake)
   assert(bytesRead == sizeof(BOOL));
   
   bytesRead = read(fd, &(handshake->killThread), sizeof(BOOL));
+  if(bytesRead == 0) {
+    return false;
+  }  
   if(bytesRead == -1) {
     cerr << "Pipe read error: " << bytesRead << " Errcode:" << strerror(errno) << endl;
     abort();
   }    
   assert(bytesRead == sizeof(BOOL));
   
+  static int maxMapSize = 0;
   int mapSize;
   bytesRead = read(fd, &(mapSize), sizeof(int));
   if(bytesRead == -1) {
@@ -391,11 +461,19 @@ bool BufferManager::readHandshake(int fd, handshake_container_t* handshake)
   }    
   assert(bytesRead == sizeof(int));
   
+  if(mapSize > maxMapSize) {
+    maxMapSize = mapSize;
+    cerr << "NEW MAX MAP:" << maxMapSize << endl;
+  }
+  
   for(int i = 0; i < mapSize; i++) {
     UINT32 first;
     UINT8 second;
     
     bytesRead = read(fd, &(first), sizeof(UINT32));
+    if(bytesRead == 0) {
+      return false;
+    }  
     if(bytesRead == -1) {
       cerr << "Pipe read error: " << bytesRead << " Errcode:" << strerror(errno) << endl;
       abort();
@@ -403,12 +481,14 @@ bool BufferManager::readHandshake(int fd, handshake_container_t* handshake)
     assert(bytesRead == sizeof(UINT32));
     
     bytesRead = read(fd, &(second), sizeof(UINT8));
+    if(bytesRead == 0) {
+      return false;
+    }      
     if(bytesRead == -1) {
       cerr << "Pipe read error: " << bytesRead << " Errcode:" << strerror(errno) << endl;
       abort();
     }      
-    assert(bytesRead == sizeof(UINT8));
-    
+    assert(bytesRead == sizeof(UINT8));    
     (handshake->mem_buffer)[first] = second;
   }
   

@@ -26,6 +26,7 @@ class BufferManager
   bool isFirstInsn(THREADID tid);
 
   void flushBuffers(THREADID tid);
+  void threadDone(THREADID tid);
 
  private:
   map<THREADID, string> fileNames_;

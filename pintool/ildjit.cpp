@@ -183,7 +183,7 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
     invocation_counts[loop]++;
 //#ifdef ZESTO_PIN_DBG
     CHAR* loop_name = (CHAR*) loop;
-    cerr << "Starting loop: " << loop_name << "[" << invocation_counts[loop] << "]" << endl;
+//    cerr << "Starting loop: " << loop_name << "[" << invocation_counts[loop] << "]" << endl;
 //#endif
 
     /* Haven't started simulation and we encounter a loop we don't care

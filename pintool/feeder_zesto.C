@@ -1225,6 +1225,8 @@ VOID StopSimulation(THREADID tid)
     cerr << SimOrgInsCount << endl;
     Zesto_Slice_End(0, 0, SimOrgInsCount, 100000);
 
+    handshake_buffer.threadDone(tid);
+
     /* Reaching this ensures SimulatorLoop is not in the middle
      * of simulating an instruction. We can safely blow away
      * the pipeline and end the simulation. */
