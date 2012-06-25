@@ -7,12 +7,6 @@ Buffer::Buffer()
 
   for (int i = 0; i < numPool_; i++) {
     handshake_container_t* newHandshake = new handshake_container_t();
-    if (i > 0) {
-      newHandshake->flags.isFirstInsn = false;            
-    }
-    else {
-      newHandshake->flags.isFirstInsn = true;
-    }
     handshakePool_[i] = newHandshake;      
   }
   head_ = 0;
@@ -25,13 +19,10 @@ void Buffer::push(handshake_container_t* handshake)
   assert(!full());
   
   handshake_container_t* copyTo = handshakePool_[head_];
-  bool isFirstInsn = copyTo->flags.isFirstInsn;
 
   copyTo->flags = handshake->flags;
   copyTo->mem_buffer = handshake->mem_buffer;
   copyTo->handshake = handshake->handshake;
-
-  copyTo->flags.isFirstInsn = isFirstInsn;
 
   head_++;
   if(head_ == numPool_) {

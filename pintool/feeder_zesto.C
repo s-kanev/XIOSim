@@ -694,8 +694,8 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
     if (handshake->flags.isFirstInsn)
     {
       cerr << tid << " Found the first INSN!" << endl;
-        Zesto_SetBOS(tstate->coreID, tstate->bos);
-        sim_stopped[tid] = false;
+      Zesto_SetBOS(tstate->coreID, tstate->bos);
+      sim_stopped[tid] = false;
     }
 
     // Populate handshake buffer

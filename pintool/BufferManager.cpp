@@ -107,7 +107,7 @@ void BufferManager::push(THREADID tid, handshake_container_t* handshake, bool fr
     PIN_Yield();
     GetLock(&simbuffer_lock, tid+1);
     spins++;
-    if(spins >= 70000000LL) {
+    if(spins >= 7000000LL) {
       cerr << tid << "[handshake_buffer.push()]: That's a lot of spins!" << endl;
       spins = 0;
     }
@@ -139,8 +139,8 @@ void BufferManager::pop(THREADID tid)
   checkFirstAccess(tid);
   
   handshake_container_t* handshake = front(tid);
-  handshake->flags.isFirstInsn = false;
- 
+  (void) handshake;
+  
   consumeBuffer_[tid]->pop();
   
   queueSizes_[tid]--;
@@ -207,7 +207,6 @@ void BufferManager::writeProduceBufferIntoFile(THREADID tid, bool all)
   while(produceBuffer_[tid]->size() > 1 || (produceBuffer_[tid]->size() > 0 && all)) {
     handshake = produceBuffer_[tid]->front();    
     writeHandshake(fd, handshake);
-    handshake->flags.isFirstInsn = false;
     produceBuffer_[tid]->pop();
     count++;
   }
