@@ -108,32 +108,36 @@ enum EXECUTION_MODE
 };
 extern EXECUTION_MODE ExecMode;
 
+struct handshake_flags_t 
+{
+  // Did we finish dumping context
+  BOOL valid;
+  
+  // Did we finish dumping memory info
+  BOOL mem_released;
+  BOOL isFirstInsn;
+  BOOL isLastInsn;
+  BOOL killThread;
+};
+
 class handshake_container_t
 {
   public:
     handshake_container_t() {
         memzero(&handshake, sizeof(P2Z_HANDSHAKE));
         handshake.real = true;
-        valid = FALSE;
-        isFirstInsn = true;
-        isLastInsn = false;
-        killThread = false;
-        mem_released = true;
+        flags.valid = FALSE;
+        flags.isFirstInsn = true;
+        flags.isLastInsn = false;
+        flags.killThread = false;
+        flags.mem_released = true;
     }
 
     // Handshake information that gets passed on to Zesto
     struct P2Z_HANDSHAKE handshake;
 
+    struct handshake_flags_t flags;
     
-    // Did we finish dumping context
-    BOOL valid;
-
-    // Did we finish dumping memory info
-    BOOL mem_released;
-    BOOL isFirstInsn;
-    BOOL isLastInsn;
-    BOOL killThread;
-
     // Memory reads and writes to be passed on to Zesto
     std::map<UINT32, UINT8> mem_buffer;
 };

@@ -8,10 +8,10 @@ Buffer::Buffer()
   for (int i = 0; i < numPool_; i++) {
     handshake_container_t* newHandshake = new handshake_container_t();
     if (i > 0) {
-      newHandshake->isFirstInsn = false;            
+      newHandshake->flags.isFirstInsn = false;            
     }
     else {
-      newHandshake->isFirstInsn = true;
+      newHandshake->flags.isFirstInsn = true;
     }
     handshakePool_[i] = newHandshake;      
   }
@@ -25,18 +25,13 @@ void Buffer::push(handshake_container_t* handshake)
   assert(!full());
   
   handshake_container_t* copyTo = handshakePool_[head_];
-  bool isFirstInsn = copyTo->isFirstInsn;
+  bool isFirstInsn = copyTo->flags.isFirstInsn;
 
-  copyTo->valid = handshake->valid;
-  copyTo->mem_released = handshake->mem_released;
+  copyTo->flags = handshake->flags;
   copyTo->mem_buffer = handshake->mem_buffer;
-  copyTo->isFirstInsn = handshake->isFirstInsn;
-  copyTo->isLastInsn = handshake->isLastInsn;
-  copyTo->killThread = handshake->killThread;
+  copyTo->handshake = handshake->handshake;
 
-  memcpy(&(copyTo->handshake), &(handshake->handshake), sizeof(P2Z_HANDSHAKE));
-
-  copyTo->isFirstInsn = isFirstInsn;
+  copyTo->flags.isFirstInsn = isFirstInsn;
 
   head_++;
   if(head_ == numPool_) {

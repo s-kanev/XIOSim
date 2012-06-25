@@ -212,7 +212,7 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
             handshake->handshake.feeder_slice_length = tstate->slice_length;
             handshake->handshake.slice_num = tstate->slice_weight_times_1000;
 
-            handshake->isLastInsn = true;
+            handshake->flags.isLastInsn = true;
             ReleaseLock(&simbuffer_lock);
 
             cerr << "PinPoint: " << control.CurrentPp(tid) << endl;
@@ -399,15 +399,15 @@ VOID ReleaseHandshake(UINT32 coreID)
     handshake_container_t* handshake = handshake_buffer.front(instrument_tid);
 
     // We are finishing simulation, kill the simulator thread
-    if (handshake->isLastInsn && !handshake->isFirstInsn && 
+    if (handshake->flags.isLastInsn && !handshake->flags.isFirstInsn && 
         ExecMode == EXECUTION_MODE_INVALID)
-        handshake->killThread = true;
+        handshake->flags.killThread = true;
 
-    if (handshake->isFirstInsn)
-        handshake->isFirstInsn = false;
+    if (handshake->flags.isFirstInsn)
+        handshake->flags.isFirstInsn = false;
 
-    if (handshake->isLastInsn)
-        handshake->isLastInsn = false;
+    if (handshake->flags.isLastInsn)
+        handshake->flags.isLastInsn = false;
 
 //    if (handshake->handshake.sleep_thread)
 //        ignore[instrument_tid] = true;
@@ -418,9 +418,9 @@ VOID ReleaseHandshake(UINT32 coreID)
     SimOrgInsCount++;
 
     handshake->mem_buffer.clear();
-    handshake->mem_released = true;
+    handshake->flags.mem_released = true;
 
-    handshake->valid = false;   // Let pin instrument instruction
+    handshake->flags.valid = false;   // Let pin instrument instruction
 
     handshake_buffer.pop(instrument_tid);
 
@@ -490,7 +490,7 @@ VOID SimulatorLoop(VOID* arg)
 
         /* Instrumentation thread has exited. Time to die, too
          * (and to clean the handshake buffer) */
-        if (handshake->killThread)
+        if (handshake->flags.killThread)
         {
             ASSERTX(false);
             delete handshake;
@@ -502,7 +502,7 @@ VOID SimulatorLoop(VOID* arg)
 
         /* Wait for instruction instrumentation */
 	spins = 0;
-        while (!handshake->valid)
+        while (!handshake->flags.valid)
         {
 	  spins++;
 	  if(spins >= 70000000LL) {
@@ -545,7 +545,7 @@ VOID SimulatorLoop(VOID* arg)
         }
 
         // Actual simulation happens here
-        Zesto_Resume(&handshake->handshake, &handshake->mem_buffer, handshake->isFirstInsn, handshake->isLastInsn);
+        Zesto_Resume(&handshake->handshake, &handshake->mem_buffer, handshake->flags.isFirstInsn, handshake->flags.isLastInsn);
 
         if(!KnobPipelineInstrumentation.Value())
             ReleaseHandshake(handshake->handshake.coreID);
@@ -645,19 +645,19 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
     else {
       handshake = &handshake_real;
       if(handshake_buffer.isFirstInsn(tid)) {
-	handshake->isFirstInsn = true;
+	handshake->flags.isFirstInsn = true;
       }
       else {
-	handshake->isFirstInsn = false;
+	handshake->flags.isFirstInsn = false;
       }
     }
 
     ASSERTX(handshake != NULL);
-    ASSERTX(!handshake->valid);
+    ASSERTX(!handshake->flags.valid);
 
     // This relies on the order of analysis routines -- 
     // GrabInstMemReads should be finished by here
-    handshake->mem_released = false;
+    handshake->flags.mem_released = false;
 
     // Sanity trace
     if (!KnobSanityInsTraceFile.Value().empty())
@@ -691,7 +691,7 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
 
     tstate->queue_pc(pc);
 
-    if (handshake->isFirstInsn)
+    if (handshake->flags.isFirstInsn)
     {
       cerr << tid << " Found the first INSN!" << endl;
         Zesto_SetBOS(tstate->coreID, tstate->bos);
@@ -706,7 +706,7 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
         sanity_writes.clear();
 
     // Let simulator consume instruction from SimulatorLoop
-    handshake->valid = true;
+    handshake->flags.valid = true;
 
     if(!has_memory) {
       handshake_buffer.push(tid, handshake);
@@ -1100,13 +1100,13 @@ VOID PauseSimulation(THREADID tid)
         /* Insert a trap. This will ensure that the pipe drains before
          * consuming the next instruction.*/
 	handshake_container_t handshake;
-        handshake.isFirstInsn = false;
+        handshake.flags.isFirstInsn = false;
         handshake.handshake.sleep_thread = false;
         handshake.handshake.resume_thread = false;
         handshake.handshake.real = false;
         handshake.handshake.coreID = coreID;
         handshake.handshake.iteration_correction = false;
-        handshake.valid = true;
+        handshake.flags.valid = true;
 
         handshake.handshake.pc = (ADDRINT) syscall_template;
         handshake.handshake.npc = (ADDRINT) syscall_template + sizeof(syscall_template);
@@ -1119,14 +1119,14 @@ VOID PauseSimulation(THREADID tid)
          * others without waiting on it */
 	handshake_container_t handshake_2;
 
-        handshake_2.isFirstInsn = false;
+        handshake_2.flags.isFirstInsn = false;
         handshake_2.handshake.sleep_thread = true;
         handshake_2.handshake.resume_thread = false;
         handshake_2.handshake.real = false;
         handshake_2.handshake.pc = 0;
         handshake_2.handshake.coreID = coreID;
         handshake_2.handshake.iteration_correction = false;
-        handshake_2.valid = true;
+        handshake_2.flags.valid = true;
         handshake_buffer.push((*it), &handshake_2);
     }
     
@@ -1168,7 +1168,7 @@ VOID ResumeSimulation(THREADID tid)
         INT32 coreID = thread_cores[(*it)];
 
         handshake_container_t handshake;
-        handshake.isFirstInsn = false;
+        handshake.flags.isFirstInsn = false;
         handshake.handshake.sleep_thread = false;
         handshake.handshake.resume_thread = true;
         handshake.handshake.real = false;
@@ -1176,7 +1176,7 @@ VOID ResumeSimulation(THREADID tid)
         handshake.handshake.coreID = coreID;
         handshake.handshake.in_critical_section = false;
         handshake.handshake.iteration_correction = false;
-        handshake.valid = true;
+        handshake.flags.valid = true;
 
         handshake_buffer.push((*it), (&handshake));
     }
@@ -1263,7 +1263,7 @@ VOID ThreadFini(THREADID threadIndex, const CONTEXT *ctxt, INT32 code, VOID *v)
     INT32 coreID = -1;
     if (handshake) {
         coreID = handshake->handshake.coreID;
-        handshake->killThread = true;
+        handshake->flags.killThread = true;
     }
     ReleaseLock(&simbuffer_lock);
 

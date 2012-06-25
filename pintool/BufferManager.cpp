@@ -38,7 +38,7 @@ handshake_container_t* BufferManager::front(THREADID tid)
   assert(queueSizes_[tid] > 0);
 
   if(consumeBuffer_[tid]->size() > 0) {
-    consumeBuffer_[tid]->front()->valid = true;
+    consumeBuffer_[tid]->front()->flags.valid = true;
     return consumeBuffer_[tid]->front();
   }
   
@@ -55,7 +55,7 @@ handshake_container_t* BufferManager::front(THREADID tid)
   }
 
   readFileIntoConsumeBuffer(tid);
-  consumeBuffer_[tid]->front()->valid = true;
+  consumeBuffer_[tid]->front()->flags.valid = true;
   assert(consumeBuffer_[tid]->size() > 0);
   return consumeBuffer_[tid]->front();
 
@@ -80,11 +80,11 @@ void BufferManager::push(THREADID tid, handshake_container_t* handshake, bool fr
   checkFirstAccess(tid);
 
   if((didFirstInsn_.count(tid) == 0) && (!fromILDJIT)) {    
-    handshake->isFirstInsn = true;
+    handshake->flags.isFirstInsn = true;
     didFirstInsn_[tid] = true;
   }
   else {// this else might be wrong...
-    handshake->isFirstInsn = false;
+    handshake->flags.isFirstInsn = false;
   }
 
   produceBuffer_[tid]->push(handshake);
@@ -139,7 +139,7 @@ void BufferManager::pop(THREADID tid)
   checkFirstAccess(tid);
   
   handshake_container_t* handshake = front(tid);
-  handshake->isFirstInsn = false;
+  handshake->flags.isFirstInsn = false;
  
   consumeBuffer_[tid]->pop();
   
@@ -207,7 +207,7 @@ void BufferManager::writeProduceBufferIntoFile(THREADID tid, bool all)
   while(produceBuffer_[tid]->size() > 1 || (produceBuffer_[tid]->size() > 0 && all)) {
     handshake = produceBuffer_[tid]->front();    
     writeHandshake(fd, handshake);
-    handshake->isFirstInsn = false;
+    handshake->flags.isFirstInsn = false;
     produceBuffer_[tid]->pop();
     count++;
   }
@@ -333,35 +333,35 @@ void BufferManager::writeHandshake(int fd, handshake_container_t* handshake)
   }
   assert(bytesWritten == sizeof(P2Z_HANDSHAKE));
  
-  bytesWritten = write(fd, &(handshake->valid), sizeof(BOOL));
+  bytesWritten = write(fd, &(handshake->flags.valid), sizeof(BOOL));
   if(bytesWritten == -1) {
     cerr << "Pipe write error: " << bytesWritten << " Errcode:" << strerror(errno) << endl;
     abort();
   }
   assert(bytesWritten == sizeof(BOOL));
 
-  bytesWritten = write(fd, &(handshake->mem_released), sizeof(BOOL));
+  bytesWritten = write(fd, &(handshake->flags.mem_released), sizeof(BOOL));
   if(bytesWritten == -1) {
     cerr << "Pipe write error: " << bytesWritten << " Errcode:" << strerror(errno) << endl;
     abort();
   }
   assert(bytesWritten == sizeof(BOOL));
 
-  bytesWritten = write(fd, &(handshake->isFirstInsn), sizeof(BOOL));
+  bytesWritten = write(fd, &(handshake->flags.isFirstInsn), sizeof(BOOL));
   if(bytesWritten == -1) {
     cerr << "Pipe write error: " << bytesWritten << " Errcode:" << strerror(errno) << endl;
     abort();
   }
   assert(bytesWritten == sizeof(BOOL));
 
-  bytesWritten = write(fd, &(handshake->isLastInsn), sizeof(BOOL));
+  bytesWritten = write(fd, &(handshake->flags.isLastInsn), sizeof(BOOL));
   if(bytesWritten == -1) {
     cerr << "Pipe write error: " << bytesWritten << " Errcode:" << strerror(errno) << endl;
     abort();
   }
   assert(bytesWritten == sizeof(BOOL));
 
-  bytesWritten = write(fd, &(handshake->killThread), sizeof(BOOL));
+  bytesWritten = write(fd, &(handshake->flags.killThread), sizeof(BOOL));
   if(bytesWritten == -1) {
     cerr << "Pipe write error: " << bytesWritten << " Errcode:" << strerror(errno) << endl;
     abort();
@@ -410,7 +410,7 @@ bool BufferManager::readHandshake(int fd, handshake_container_t* handshake)
   
   assert(bytesRead == sizeof(P2Z_HANDSHAKE));    
   
-  bytesRead = read(fd, &(handshake->valid), sizeof(BOOL));
+  bytesRead = read(fd, &(handshake->flags.valid), sizeof(BOOL));
  
   if(bytesRead == 0) {
     return false;
@@ -421,7 +421,7 @@ bool BufferManager::readHandshake(int fd, handshake_container_t* handshake)
   }    
   assert(bytesRead == sizeof(BOOL));
   
-  bytesRead = read(fd, &(handshake->mem_released), sizeof(BOOL));
+  bytesRead = read(fd, &(handshake->flags.mem_released), sizeof(BOOL));
    
   if(bytesRead == 0) {
     return false;
@@ -432,7 +432,7 @@ bool BufferManager::readHandshake(int fd, handshake_container_t* handshake)
   }    
   assert(bytesRead == sizeof(BOOL));
   
-  bytesRead = read(fd, &(handshake->isFirstInsn), sizeof(BOOL));   
+  bytesRead = read(fd, &(handshake->flags.isFirstInsn), sizeof(BOOL));   
   if(bytesRead == 0) {
     return false;
   }
@@ -442,7 +442,7 @@ bool BufferManager::readHandshake(int fd, handshake_container_t* handshake)
   }    
   assert(bytesRead == sizeof(BOOL));
   
-  bytesRead = read(fd, &(handshake->isLastInsn), sizeof(BOOL));   
+  bytesRead = read(fd, &(handshake->flags.isLastInsn), sizeof(BOOL));   
   if(bytesRead == 0) {
     return false;
   }
@@ -452,7 +452,7 @@ bool BufferManager::readHandshake(int fd, handshake_container_t* handshake)
   }    
   assert(bytesRead == sizeof(BOOL));
   
-  bytesRead = read(fd, &(handshake->killThread), sizeof(BOOL));
+  bytesRead = read(fd, &(handshake->flags.killThread), sizeof(BOOL));
   if(bytesRead == 0) {
     return false;
   }  
