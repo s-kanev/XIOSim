@@ -15,11 +15,11 @@ void BufferManager::threadDone(THREADID tid)
 {
   string cmd = "/bin/rm -f " + fileNames_[tid];
   cerr << "Executing " << cmd << endl;
-  system(cmd.c_str());
+  assert(system(cmd.c_str()) == 0);
   
   cmd = "/bin/rm -f " + bogusNames_[tid];
   cerr << "Executing " << cmd << endl;
-  system(cmd.c_str());
+  assert(system(cmd.c_str()) == 0);
 }
 
 BufferManager::~BufferManager()
