@@ -265,6 +265,9 @@ void BufferManager::readFileIntoConsumeBuffer(THREADID tid)
   //  cerr << tid << " Read " << count << " entries into read buffer" << endl;
   //  cerr << tid << " Starting the rest of file move into bogus file" << endl;
 
+  // optimize and don't allocate new handshake every time
+  // need to clear the membuffer
+  // same with writing
   int copyCount = 0;  
   while(validRead) {
     handshake_container_t handshake;
@@ -323,232 +326,105 @@ void BufferManager::readFileIntoConsumeBuffer(THREADID tid)
 
 void BufferManager::writeHandshake(int fd, handshake_container_t* handshake)
 {
-  int bytesWritten = write(fd, &(handshake->handshake), sizeof(P2Z_HANDSHAKE));
-  if(bytesWritten == -1) {
-    cerr << "Pipe write error: " << bytesWritten << " Errcode:" << strerror(errno) << endl;
-    abort();
-  }
-  if(bytesWritten != sizeof(P2Z_HANDSHAKE)) {
-    cerr << "Pipe write error: " << bytesWritten << endl;
-  }
-  assert(bytesWritten == sizeof(P2Z_HANDSHAKE));
- 
-  bytesWritten = write(fd, &(handshake->flags.valid), sizeof(BOOL));
-  if(bytesWritten == -1) {
-    cerr << "Pipe write error: " << bytesWritten << " Errcode:" << strerror(errno) << endl;
-    abort();
-  }
-  assert(bytesWritten == sizeof(BOOL));
+  int mapSize = handshake->mem_buffer.size();    
+  const int handshakeBytes = sizeof(P2Z_HANDSHAKE);
+  const int flagBytes = sizeof(handshake_flags_t);
+  const int mapEntryBytes = sizeof(UINT32) + sizeof(UINT8);
+  int mapBytes = mapSize * mapEntryBytes;
+  int totalBytes = sizeof(int) + handshakeBytes + flagBytes + mapBytes;
+  
+  void * writeBuffer = (void*)malloc(totalBytes);
+  void * buffPosition = writeBuffer;
 
-  bytesWritten = write(fd, &(handshake->flags.mem_released), sizeof(BOOL));
-  if(bytesWritten == -1) {
-    cerr << "Pipe write error: " << bytesWritten << " Errcode:" << strerror(errno) << endl;
-    abort();
-  }
-  assert(bytesWritten == sizeof(BOOL));
+  //  snprintf((char*)buffPosition, sizeof(int), "%d", mapSize);
+  memcpy((char*)buffPosition, &(mapSize), sizeof(int));
+  buffPosition = (char*)buffPosition + sizeof(int);
 
-  bytesWritten = write(fd, &(handshake->flags.isFirstInsn), sizeof(BOOL));
-  if(bytesWritten == -1) {
-    cerr << "Pipe write error: " << bytesWritten << " Errcode:" << strerror(errno) << endl;
-    abort();
-  }
-  assert(bytesWritten == sizeof(BOOL));
+  memcpy((char*)buffPosition, &(handshake->handshake), handshakeBytes);
+  buffPosition = (char*)buffPosition + handshakeBytes;
 
-  bytesWritten = write(fd, &(handshake->flags.isLastInsn), sizeof(BOOL));
-  if(bytesWritten == -1) {
-    cerr << "Pipe write error: " << bytesWritten << " Errcode:" << strerror(errno) << endl;
-    abort();
-  }
-  assert(bytesWritten == sizeof(BOOL));
-
-  bytesWritten = write(fd, &(handshake->flags.killThread), sizeof(BOOL));
-  if(bytesWritten == -1) {
-    cerr << "Pipe write error: " << bytesWritten << " Errcode:" << strerror(errno) << endl;
-    abort();
-  }
-  assert(bytesWritten == sizeof(BOOL));
-
-  int mapSize = handshake->mem_buffer.size();
-  bytesWritten = write(fd, &(mapSize), sizeof(int));
-  if(bytesWritten == -1) {
-    cerr << "Pipe write error: " << bytesWritten << " Errcode:" << strerror(errno) << endl;
-    abort();
-  }
-  assert(bytesWritten == sizeof(int)); 
+  memcpy((char*)buffPosition, &(handshake->flags), flagBytes);
+  buffPosition = (char*)buffPosition + flagBytes;
   
   map<UINT32, UINT8>::iterator it;
   for(it = handshake->mem_buffer.begin(); it != handshake->mem_buffer.end(); it++) {
-    bytesWritten = write(fd, &(it->first), sizeof(UINT32));
-    if(bytesWritten == -1) {
-      cerr << "Pipe write error: " << bytesWritten << " Errcode:" << strerror(errno) << endl;
-      abort();
-    }
-    assert(bytesWritten == sizeof(UINT32));
+    memcpy((char*)buffPosition, &(it->first), sizeof(UINT32));
+    buffPosition = (char*)buffPosition + sizeof(UINT32);
     
-    bytesWritten = write(fd, &(it->second), sizeof(UINT8));
-    if(bytesWritten == -1) {
-      cerr << "Pipe write error: " << bytesWritten << " Errcode:" << strerror(errno) << endl;
-      abort();
-    }
-    assert(bytesWritten == sizeof(UINT8));
-  } 
+    memcpy((char*)buffPosition, &(it->second), sizeof(UINT8));
+    buffPosition = (char*)buffPosition + sizeof(UINT8);
+  }
+  
+  assert(((unsigned long long int)writeBuffer) + totalBytes == ((unsigned long long int)buffPosition));
+  
+  int bytesWritten = write(fd, writeBuffer, totalBytes);
+  if(bytesWritten == -1) {
+    cerr << "Pipe write error: " << bytesWritten << " Errcode:" << strerror(errno) << endl;
+    abort();
+  }
+  if(bytesWritten != totalBytes) {
+    cerr << "File write error: " << bytesWritten << " expected:" << totalBytes << endl;
+    abort();
+  }  
+  free(writeBuffer);
 }
 
 bool BufferManager::readHandshake(int fd, handshake_container_t* handshake)
 {
-  int bytesRead = -1;
+  const int handshakeBytes = sizeof(P2Z_HANDSHAKE);
+  const int flagBytes = sizeof(handshake_flags_t);
+  const int mapEntryBytes = sizeof(UINT32) + sizeof(UINT8);
   
-  bytesRead = read(fd, &(handshake->handshake), sizeof(P2Z_HANDSHAKE));
-  
-  if(bytesRead == 0) {
-    return false;
-  }
-  if(bytesRead == -1) {
-    cerr << "Pipe read error: " << bytesRead << " Errcode:" << strerror(errno) << endl;
-    abort();
-  }
-  
-  assert(bytesRead == sizeof(P2Z_HANDSHAKE));    
-  
-  bytesRead = read(fd, &(handshake->flags.valid), sizeof(BOOL));
- 
-  if(bytesRead == 0) {
-    return false;
-  }  
-  if(bytesRead == -1) {
-    cerr << "Pipe read error: " << bytesRead << " Errcode:" << strerror(errno) << endl;
-    abort();
-  }    
-  assert(bytesRead == sizeof(BOOL));
-  
-  bytesRead = read(fd, &(handshake->flags.mem_released), sizeof(BOOL));
-   
-  if(bytesRead == 0) {
-    return false;
-  }
-  if(bytesRead == -1) {
-    cerr << "Pipe read error: " << bytesRead << " Errcode:" << strerror(errno) << endl;
-    abort();
-  }    
-  assert(bytesRead == sizeof(BOOL));
-  
-  bytesRead = read(fd, &(handshake->flags.isFirstInsn), sizeof(BOOL));   
-  if(bytesRead == 0) {
-    return false;
-  }
-  if(bytesRead == -1) {
-    cerr << "Pipe read error: " << bytesRead << " Errcode:" << strerror(errno) << endl;
-    abort();
-  }    
-  assert(bytesRead == sizeof(BOOL));
-  
-  bytesRead = read(fd, &(handshake->flags.isLastInsn), sizeof(BOOL));   
-  if(bytesRead == 0) {
-    return false;
-  }
-  if(bytesRead == -1) {
-    cerr << "Pipe read error: " << bytesRead << " Errcode:" << strerror(errno) << endl;
-    abort();
-  }    
-  assert(bytesRead == sizeof(BOOL));
-  
-  bytesRead = read(fd, &(handshake->flags.killThread), sizeof(BOOL));
-  if(bytesRead == 0) {
-    return false;
-  }  
-  if(bytesRead == -1) {
-    cerr << "Pipe read error: " << bytesRead << " Errcode:" << strerror(errno) << endl;
-    abort();
-  }    
-  assert(bytesRead == sizeof(BOOL));
-  
-  static int maxMapSize = 0;
   int mapSize;
-  bytesRead = read(fd, &(mapSize), sizeof(int));
-  if(bytesRead == -1) {
-    cerr << "Pipe read error: " << bytesRead << " Errcode:" << strerror(errno) << endl;
-    abort();
-  }    
-  assert(bytesRead == sizeof(int));
-  
-  if(mapSize > maxMapSize) {
-    maxMapSize = mapSize;
-    cerr << "NEW MAX MAP:" << maxMapSize << endl;
+  int bytesRead = read(fd, &(mapSize), sizeof(int));
+  if(bytesRead == 0) {
+    return false;
   }
+  if(bytesRead == -1) {
+    cerr << "File read error: " << bytesRead << " Errcode:" << strerror(errno) << endl;
+    abort();
+  }
+  assert(bytesRead == sizeof(int));    
+    
+  int mapBytes = mapSize * mapEntryBytes;
+  int totalBytes = handshakeBytes + flagBytes + mapBytes;
+
+  void * readBuffer = (void*)malloc(totalBytes);
+
+  bytesRead = read(fd, readBuffer, totalBytes);
+  if(bytesRead == -1) {
+    cerr << "File read error: " << bytesRead << " Errcode:" << strerror(errno) << endl;    
+    abort();
+  }  
+  assert(bytesRead == totalBytes);    
+    
+  void * buffPosition = readBuffer;
+  memcpy(&(handshake->handshake), buffPosition, handshakeBytes);
+  buffPosition = (char*)buffPosition + handshakeBytes;  
   
+  memcpy(&(handshake->flags), buffPosition, flagBytes);
+  buffPosition = (char*)buffPosition + flagBytes;
+
   for(int i = 0; i < mapSize; i++) {
     UINT32 first;
     UINT8 second;
     
-    bytesRead = read(fd, &(first), sizeof(UINT32));
-    if(bytesRead == 0) {
-      return false;
-    }  
-    if(bytesRead == -1) {
-      cerr << "Pipe read error: " << bytesRead << " Errcode:" << strerror(errno) << endl;
-      abort();
-    }      
-    assert(bytesRead == sizeof(UINT32));
+    first = *((UINT32*)buffPosition);
+    buffPosition = (char*)buffPosition + sizeof(UINT32);
     
-    bytesRead = read(fd, &(second), sizeof(UINT8));
-    if(bytesRead == 0) {
-      return false;
-    }      
-    if(bytesRead == -1) {
-      cerr << "Pipe read error: " << bytesRead << " Errcode:" << strerror(errno) << endl;
-      abort();
-    }      
-    assert(bytesRead == sizeof(UINT8));    
+    second = *((UINT8*)buffPosition);
+    buffPosition = (char*)buffPosition + sizeof(UINT8);
+    
     (handshake->mem_buffer)[first] = second;
   }
   
+  assert(((unsigned long long int)readBuffer) + totalBytes == ((unsigned long long int)buffPosition));
+  
+  free(readBuffer);
+
   return true;
 }
 
-/*handshake_container_t* BufferManager::getPooledHandshake(THREADID tid, bool fromILDJIT)
-{
-  checkFirstAccess(tid);    
-
-  handshake_queue_t *pool;
-  pool = &(handshake_pool_[tid]);
-
-  long long int spins = 0;  
-  while(pool->empty()) {
-    ReleaseLock(&simbuffer_lock);
-    PIN_Yield();
-    GetLock(&simbuffer_lock, tid+1);
-    spins++;
-    if(spins >= 7000000LL) {
-      cerr << tid << " [getPooledHandshake()]: That's a lot of spins!" << endl;
-      spins = 0;
-    }
-  }
-
-  handshake_container_t* result = pool->front();
-  ASSERTX(result != NULL);
-
-  pool->pop();
-  
-  if((didFirstInsn_.count(tid) == 0) && (!fromILDJIT)) {    
-    result->isFirstInsn = true;
-    didFirstInsn_[tid] = true;
-  }
-  else {// this else might be wrong...
-    result->isFirstInsn = false;
-  }
-
-  result->mem_released = true;
-  result->valid = false;
-  
-  return result;
-}
-
-void BufferManager::releasePooledHandshake(THREADID tid, handshake_container_t* handshake)
-{
-  handshake_pool_[tid].push(handshake);
-  return;
-}
-*/
 bool BufferManager::isFirstInsn(THREADID tid)
 {
   bool isFirst = (didFirstInsn_.count(tid) == 0);
