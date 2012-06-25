@@ -8,6 +8,22 @@
 #include <errno.h>
 #include <pthread.h>
 
+void BufferManager::signalHandler(int signum) 
+{
+  cerr << "CAUGHT SIGNAL:" << signum << endl;
+  map<THREADID, string>::iterator it;
+  for(it = fileNames_.begin(); it != fileNames_.end(); it++) {
+    string cmd = "/bin/rm -f " + it->second;
+    system(cmd.c_str());
+  }
+
+  for(it = bogusNames_.begin(); it != bogusNames_.end(); it++) {
+    string cmd = "/bin/rm -f " + it->second;
+    system(cmd.c_str());
+  }
+  exit(1);
+}
+
 BufferManager::BufferManager()
 {  
 }
@@ -28,7 +44,13 @@ BufferManager::~BufferManager()
   cerr << "DESTRUCTING BUFFER MANAGER" << endl;
   map<THREADID, string>::iterator it;
   for(it = fileNames_.begin(); it != fileNames_.end(); it++) {
+    string cmd = "/bin/rm -f " + it->second;
+    system(cmd.c_str());
+  }
 
+  for(it = bogusNames_.begin(); it != bogusNames_.end(); it++) {
+    string cmd = "/bin/rm -f " + it->second;
+    system(cmd.c_str());
   }
 }
 
@@ -102,7 +124,7 @@ void BufferManager::push(THREADID tid, handshake_container_t* handshake, bool fr
   }
   
   long long int spins = 0;
-  while(fileEntryCount_[tid] >= 100000) {
+  while(fileEntryCount_[tid] >= 250000) {
     ReleaseLock(&simbuffer_lock);
     PIN_Yield();
     GetLock(&simbuffer_lock, tid+1);
@@ -166,6 +188,8 @@ void BufferManager::checkFirstAccess(THREADID tid)
         
     fileNames_[tid] = tempnam("/dev/shm/", "A");
     bogusNames_[tid] = tempnam("/dev/shm/", "B");
+
+    cerr << "Created " << fileNames_[tid] << " and " << bogusNames_[tid] << endl;
 
     int fd = open(fileNames_[tid].c_str(), O_WRONLY | O_CREAT, 0777);
     int result = close(fd);

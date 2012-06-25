@@ -34,7 +34,6 @@ using namespace std;
 
 VOID doLateInstInstrumentation();
 
-
 /* ========================================================================== */
 /* ========================================================================== */
 /*                           ZESTO and PIN INTERFACE                          */
@@ -1732,4 +1731,3 @@ VOID doLateILDJITInstrumentation()
 
   calledAlready = true;
 }
-

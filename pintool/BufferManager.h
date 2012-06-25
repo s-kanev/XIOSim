@@ -14,6 +14,8 @@ class BufferManager
   BufferManager();
   ~BufferManager();
 
+  void signalHandler(int signum);
+  
   handshake_container_t* front(THREADID tid);
   handshake_container_t* back(THREADID tid);
   bool empty(THREADID tid);

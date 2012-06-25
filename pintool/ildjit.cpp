@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <map>
 #include <queue>
+#include <signal.h>
 #include "feeder.h"
 #include "ildjit.h"
 #include "fluffy.h"
@@ -47,6 +48,7 @@ static map<THREADID, INT32> unmatchedWaits;
 
 VOID printMemoryUsage();
 VOID AddILDJITWaitSignalCallbacks();
+VOID signalHandler(int signum);
 extern VOID doLateILDJITInstrumentation();
 
 
@@ -56,6 +58,14 @@ VOID MOLECOOL_Init()
     InitLock(&ildjit_lock);
 
     FLUFFY_Init();
+
+    // callbacks so we can delete temporary files in /dev/shm
+    signal(SIGINT, signalHandler);
+    signal(SIGABRT, signalHandler);
+    signal(SIGSEGV, signalHandler);
+    signal(SIGTERM, signalHandler);
+    signal(SIGFPE, signalHandler);
+    signal(SIGILL, signalHandler);
 
     if (!KnobLoopIDFile.Value().empty()) {
         ifstream loop_file;
@@ -710,4 +720,10 @@ VOID printMemoryUsage()
   char *line = fgets(buff, sizeof(buff), fp);
   cerr << "Memory Usage post HELIX: " << line << endl;
   pclose(fp);
+}
+
+VOID signalHandler(int signum) 
+{
+  handshake_buffer.signalHandler(signum);
+  exit(signum);
 }
