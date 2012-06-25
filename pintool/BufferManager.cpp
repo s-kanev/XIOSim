@@ -267,9 +267,9 @@ void BufferManager::readFileIntoConsumeBuffer(THREADID tid)
   // optimize and don't allocate new handshake every time
   // need to clear the membuffer
   // same with writing
-  int copyCount = 0;  
+  int copyCount = 0;
+  handshake_container_t handshake;
   while(validRead) {
-    handshake_container_t handshake;
     validRead = readHandshake(fd, &handshake);
     if(validRead) {
       writeHandshake(fd_bogus, &handshake);
@@ -403,7 +403,8 @@ bool BufferManager::readHandshake(int fd, handshake_container_t* handshake)
   
   memcpy(&(handshake->flags), buffPosition, flagBytes);
   buffPosition = (char*)buffPosition + flagBytes;
-
+  
+  handshake->mem_buffer.clear();
   for(int i = 0; i < mapSize; i++) {
     UINT32 first;
     UINT8 second;
