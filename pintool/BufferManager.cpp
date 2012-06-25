@@ -6,7 +6,6 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <errno.h>
-#include <pthread.h>
 
 BufferManager::BufferManager()
 {  
@@ -27,9 +26,6 @@ BufferManager::~BufferManager()
 {
   cerr << "DESTRUCTING BUFFER MANAGER" << endl;
   map<THREADID, string>::iterator it;
-  for(it = fileNames_.begin(); it != fileNames_.end(); it++) {
-
-  }
 }
 
 handshake_container_t* BufferManager::front(THREADID tid)
@@ -181,8 +177,8 @@ void BufferManager::checkFirstAccess(THREADID tid)
     
     fileEntryCount_[tid] = 0;
     
-    locks_[tid] = new pthread_mutex_t();
-    pthread_mutex_init(locks_[tid], 0);
+    locks_[tid] = new PIN_LOCK();
+    InitLock(locks_[tid]);
   }
 }
 
@@ -190,7 +186,7 @@ void BufferManager::writeProduceBufferIntoFile(THREADID tid, bool all)
 {
   //  cerr << tid << " Writing produce buffer into file" << endl;
   //  cerr << tid << " File has " << fileEntryCount_[tid] << " entries" << endl;
-  pthread_mutex_lock(locks_[tid]);
+  GetLock(locks_[tid], tid+1);
   handshake_container_t* handshake;
   int result;
 
@@ -222,7 +218,7 @@ void BufferManager::writeProduceBufferIntoFile(THREADID tid, bool all)
   
   fileEntryCount_[tid] += count;
   assert(fileEntryCount_[tid] >= 0);
-  pthread_mutex_unlock(locks_[tid]);
+  ReleaseLock(locks_[tid]);
   //  cerr << tid << " File has " << fileEntryCount_[tid] << " entries" << endl;
   //  cerr << tid << " Done Writing produce buffer into file: " << count << " entries" <<endl;
 }
@@ -231,7 +227,7 @@ void BufferManager::readFileIntoConsumeBuffer(THREADID tid)
 {  
   //  cerr << tid << " Read file into produce buffer" << endl;
   //  cerr << tid << " File has " << fileEntryCount_[tid] << " entries" << endl;
-  pthread_mutex_lock(locks_[tid]);
+  GetLock(locks_[tid], tid+1);
   int result;
 
   int fd = open(fileNames_[tid].c_str(), O_RDONLY);
@@ -306,7 +302,7 @@ void BufferManager::readFileIntoConsumeBuffer(THREADID tid)
   fileEntryCount_[tid] -= count;
 
   assert(fileEntryCount_[tid] >= 0);
-  pthread_mutex_unlock(locks_[tid]);
+  ReleaseLock(locks_[tid]);
   //  cerr << tid << " File has " << fileEntryCount_[tid] << " entries" << endl;
   //  cerr << tid << " Done Read file into produce buffer" << endl;
 }

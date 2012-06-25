@@ -4,7 +4,6 @@
 #include <map>
 #include <queue>
 #include <assert.h>
-#include <pthread.h>
 #include "Buffer.h"
 #include "feeder.h"
 
@@ -39,7 +38,7 @@ class BufferManager
   map<THREADID, int> didFirstInsn_;
   map<THREADID, int> fileEntryCount_;
 
-  map<THREADID, pthread_mutex_t*> locks_;
+  map<THREADID, PIN_LOCK*> locks_;
 
   void checkFirstAccess(THREADID tid);
   void writeProduceBufferIntoFile(THREADID tid, bool all=false);
