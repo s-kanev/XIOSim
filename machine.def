@@ -5206,6 +5206,27 @@ CONNECT(XOR_EvIb_LINK)
       DNA, DNA, DNA,
       DNA, DNA)
 
+#define PXOR_Rd_Rd_IMPL              \
+{                  \
+  dword_t _src1, _src2, _src3, _src4, _res1, _res2;	\
+  \
+  _src1 = (dword_t)XMM_Q_LO(URS);     \
+  _src2 = (dword_t)XMM_Q_LO(URT);              \
+  _src3 = (dword_t)XMM_Q_HI(URS);              \
+  _src4 = (dword_t)XMM_Q_HI(URT);              \
+  _res1 = _src1 ^ _src2;            \
+  _res2 = _src3 ^ _src4;            \
+  SET_XMM_Q_LO(URD, (dfloat_t)_res1);		\
+  SET_XMM_Q_HI(URD, (dfloat_t)_res2);		\
+}
+  DEFINST(PXOR_Rd_Rd,    0x03,
+      "pxor",      "%Rd, %Rd",
+      FU_INVALID,                 F_ICOMP|F_UCODE,
+      DNA,
+      DNA, DNA, DNA,
+      DNA, DNA)
+
+
 
 CONNECT(CMP_EvIb_LINK)
 
@@ -5483,6 +5504,21 @@ CONNECT(MOV_EvRv_LINK)
   DEFINST(MOV_MvRv,    0x0200,
       "mov",      "%Mv,%Rv",
       FU_INVALID,                 F_MEM|F_STORE|F_UCODE,
+      DNA,
+      DNA, DNA, DNA,
+      DNA, DNA)
+
+#define MOVAPS_RdRd_IMPL              \
+{                  \
+  dfloat_t _src1, _src2; \
+  _src1 = XMM_Q_LO(R);	\
+  _src2 = XMM_Q_HI(R);		  \
+  SET_XMM_Q_LO(RM, _src1);	  \
+  SET_XMM_Q_HI(RM, _src2);	  \
+}
+  DEFINST(MOVAPS_RdRd,    0x03,
+      "movaps",      "%Nv,%Rv",
+      FU_INVALID,                 F_ICOMP|F_UCODE,
       DNA,
       DNA, DNA, DNA,
       DNA, DNA)
@@ -14466,6 +14502,27 @@ CONNECT(FISTP_Mq_LINK)
       DGPR_D(URS), DNA, DNA,
       DAFLAGS(OF|SF|ZF|AF|CF|PF), DNA)
 
+#define PXOR_IMPL              \
+{                  \
+  dword_t _src1, _src2, _src3, _src4, _res1, _res2;	\
+  \
+  _src1 = (dword_t)XMM_Q_LO(URS);     \
+  _src2 = (dword_t)XMM_Q_LO(URT);              \
+  _src3 = (dword_t)XMM_Q_HI(URS);              \
+  _src4 = (dword_t)XMM_Q_HI(URT);              \
+  _res1 = _src1 ^ _src2;            \
+  _res2 = _src3 ^ _src4;            \
+  SET_XMM_Q_LO(URD, (dfloat_t)_res1);		\
+  SET_XMM_Q_HI(URD, (dfloat_t)_res2);		\
+}
+  DEFUOP(PXOR,      0x00,
+      "pxor",      "%De,%Se,%Te",
+      FU_IEU,    F_ICOMP,
+      DXMM(URD),
+      DXMM(URS), DXMM(URT), DNA,
+      DNA, DNA)
+
+
 #define INCB_IMPL              \
 {                  \
   byte_t _res, _src;              \
@@ -17815,6 +17872,22 @@ CONNECT(FISTP_Mq_LINK)
       DGPR_W(URD),
       DGPR_W(URD)/*PRD*/, DNA, DNA,
       DNA, DAFLAGS(UIMMW))
+
+#define MOVAPS_IMPL              \
+{                  \
+  dfloat_t _src1, _src2; \
+  _src1 = XMM_Q_LO(R);	\
+  _src2 = XMM_Q_HI(R);		  \
+  SET_XMM_Q_LO(RM, _src1);	  \
+  SET_XMM_Q_HI(RM, _src2);	  \
+}
+  DEFUOP(MOVAPS,    0x00,
+      "movaps",      "%Dv,%Sv",
+      FU_IEU,                 F_FCOMP,
+      DNA,
+      DNA, DNA, DNA,
+      DNA, DNA)
+
 
 
   /* non-architectural widgets */

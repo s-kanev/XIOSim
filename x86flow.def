@@ -1019,6 +1019,16 @@
   UOP_R3(UV, XORB, XF_RM, XF_RM, XF_R, FUSION_NONE);				\
 }
 
+#define PXOR_Rd_Rd_FLOW							\
+{                                                                       \
+  UOP_R3(UV, PXOR, XF_RM, XF_RM, XF_R, FUSION_NONE);				\
+}
+
+#define PXOR_Rd_Rd_FLOW							\
+{                                                                       \
+  UOP_R3(UV, PXOR, XF_RM, XF_RM, XF_R, FUSION_NONE);				\
+}                                                                        \
+
 #define XOR_MvRv_FLOW							\
 {									\
   UOP_RLI_OV(UV, XAXV(LD), XR_TMP1, XF_SEG, XF_BASE, XF_INDEX, XF_SCALE, XF_DISP, FUSION_NONE);\
@@ -1490,6 +1500,11 @@
 {									\
   UOP_R3(UP, XV(ADD), XF_RM, XF_R, XR_ZERO, FUSION_NONE);				\
 }
+
+#define MOVAPS_RdRd_FLOW							\
+{                                                                       \
+  UOP_R3(UV, MOVAPS, XF_RM, XF_R, XR_ZERO, FUSION_NONE);				\
+} 
 
 #define MOV_RbMb_FLOW							\
 {									\
