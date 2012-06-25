@@ -20,12 +20,12 @@ Buffer::Buffer()
   size_ = 0;
 }
 
-handshake_container_t* Buffer::push()
+void Buffer::push(handshake_container_t* handshake)
 {
   assert(!full());
   
-  return handshakePool_[head_];
-/*  bool isFirstInsn = copyTo->isFirstInsn;
+  handshake_container_t* copyTo = handshakePool_[head_];
+  bool isFirstInsn = copyTo->isFirstInsn;
 
   copyTo->valid = handshake->valid;
   copyTo->mem_released = handshake->mem_released;
@@ -36,7 +36,7 @@ handshake_container_t* Buffer::push()
 
   memcpy(&(copyTo->handshake), &(handshake->handshake), sizeof(P2Z_HANDSHAKE));
 
-  copyTo->isFirstInsn = isFirstInsn;*/
+  copyTo->isFirstInsn = isFirstInsn;
 
   head_++;
   if(head_ == numPool_) {

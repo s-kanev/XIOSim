@@ -11,7 +11,7 @@ class Buffer
  public:
   Buffer();
   
-  handshake_container_t* push();
+  void push(handshake_container_t* handshake);
   void pop();
   
   handshake_container_t* front();

@@ -17,7 +17,7 @@ class BufferManager
   handshake_container_t* back(THREADID tid);
   bool empty(THREADID tid);
 
-  handshake_container_t* push(THREADID tid, bool fromILDJIT=false);
+  void push(THREADID tid, handshake_container_t* handshake, bool fromILDJIT=false);
   void pop(THREADID tid);
 
   bool hasThread(THREADID tid);

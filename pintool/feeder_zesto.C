@@ -603,13 +603,15 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, 
 
     ASSERTX(first_read);
 
-    handshake_container_t* handshake = handshake_buffer.push(tid);
+    handshake_container_t handshake;
 
     UINT8 val;
     for(UINT32 i=0; i < size; i++) {
         PIN_SafeCopy(&val, (VOID*) (addr+i), 1);
-        handshake->mem_buffer.insert(pair<UINT32, UINT8>(addr + i,val));
+        handshake.mem_buffer.insert(pair<UINT32, UINT8>(addr + i,val));
     }
+
+    handshake_buffer.push(tid, (&handshake));
     
     ReleaseLock(&simbuffer_lock);
 }
@@ -633,6 +635,7 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
     }
 
     handshake_container_t* handshake;
+    handshake_container_t handshake_real;
 
     if (has_memory) {
         ASSERTX(!handshake_buffer.empty(tid));
@@ -640,14 +643,13 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
         ASSERTX(handshake->handshake.real);
     }
     else {
-        handshake = handshake_buffer.push(tid);
-
-        if(handshake_buffer.isFirstInsn(tid)) {
-            handshake->isFirstInsn = true;
-        }
-        else {
-            handshake->isFirstInsn = false;
-        }
+      handshake = &handshake_real;
+      if(handshake_buffer.isFirstInsn(tid)) {
+	handshake->isFirstInsn = true;
+      }
+      else {
+	handshake->isFirstInsn = false;
+      }
     }
 
     ASSERTX(handshake != NULL);
@@ -705,6 +707,10 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
 
     // Let simulator consume instruction from SimulatorLoop
     handshake->valid = true;
+
+    if(!has_memory) {
+      handshake_buffer.push(tid, handshake);
+    }
 
     ReleaseLock(&simbuffer_lock);
 
@@ -1034,7 +1040,7 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
         // Create new buffer to store thread context
         GetLock(&simbuffer_lock, threadIndex+1);
 
-        thread_list.push_back(threadIndex);
+	thread_list.push_back(threadIndex);
 	       
         run_queue.push_back(threadIndex);
         ignore[threadIndex] = true;
@@ -1093,33 +1099,35 @@ VOID PauseSimulation(THREADID tid)
 
         /* Insert a trap. This will ensure that the pipe drains before
          * consuming the next instruction.*/
-        handshake_container_t* handshake = handshake_buffer.push(*it);
-        handshake->isFirstInsn = false;
-        handshake->handshake.sleep_thread = false;
-        handshake->handshake.resume_thread = false;
-        handshake->handshake.real = false;
-        handshake->handshake.coreID = coreID;
-        handshake->handshake.iteration_correction = false;
-        handshake->valid = true;
+	handshake_container_t handshake;
+        handshake.isFirstInsn = false;
+        handshake.handshake.sleep_thread = false;
+        handshake.handshake.resume_thread = false;
+        handshake.handshake.real = false;
+        handshake.handshake.coreID = coreID;
+        handshake.handshake.iteration_correction = false;
+        handshake.valid = true;
 
-        handshake->handshake.pc = (ADDRINT) syscall_template;
-        handshake->handshake.npc = (ADDRINT) syscall_template + sizeof(syscall_template);
-        handshake->handshake.tpc = (ADDRINT) syscall_template + sizeof(syscall_template);
-        handshake->handshake.brtaken = false;
-        memcpy(handshake->handshake.ins, syscall_template, sizeof(syscall_template));
+        handshake.handshake.pc = (ADDRINT) syscall_template;
+        handshake.handshake.npc = (ADDRINT) syscall_template + sizeof(syscall_template);
+        handshake.handshake.tpc = (ADDRINT) syscall_template + sizeof(syscall_template);
+        handshake.handshake.brtaken = false;
+        memcpy(handshake.handshake.ins, syscall_template, sizeof(syscall_template));
+        handshake_buffer.push((*it), &handshake);
 
         /* Deactivate this core, so we can advance the cycle conunter of
          * others without waiting on it */
-        handshake_container_t* handshake_2 = handshake_buffer.push(*it);
+	handshake_container_t handshake_2;
 
-        handshake_2->isFirstInsn = false;
-        handshake_2->handshake.sleep_thread = true;
-        handshake_2->handshake.resume_thread = false;
-        handshake_2->handshake.real = false;
-        handshake_2->handshake.pc = 0;
-        handshake_2->handshake.coreID = coreID;
-        handshake_2->handshake.iteration_correction = false;
-        handshake_2->valid = true;
+        handshake_2.isFirstInsn = false;
+        handshake_2.handshake.sleep_thread = true;
+        handshake_2.handshake.resume_thread = false;
+        handshake_2.handshake.real = false;
+        handshake_2.handshake.pc = 0;
+        handshake_2.handshake.coreID = coreID;
+        handshake_2.handshake.iteration_correction = false;
+        handshake_2.valid = true;
+        handshake_buffer.push((*it), &handshake_2);
     }
     ReleaseLock(&simbuffer_lock);
     
@@ -1158,16 +1166,18 @@ VOID ResumeSimulation(THREADID tid)
     for (it = thread_list.begin(); it != thread_list.end(); it++) {
         INT32 coreID = thread_cores[(*it)];
 
-        handshake_container_t* handshake = handshake_buffer.push(*it);
-        handshake->isFirstInsn = false;
-        handshake->handshake.sleep_thread = false;
-        handshake->handshake.resume_thread = true;
-        handshake->handshake.real = false;
-        handshake->handshake.pc = 0;
-        handshake->handshake.coreID = coreID;
-        handshake->handshake.in_critical_section = false;
-        handshake->handshake.iteration_correction = false;
-        handshake->valid = true;
+        handshake_container_t handshake;
+        handshake.isFirstInsn = false;
+        handshake.handshake.sleep_thread = false;
+        handshake.handshake.resume_thread = true;
+        handshake.handshake.real = false;
+        handshake.handshake.pc = 0;
+        handshake.handshake.coreID = coreID;
+        handshake.handshake.in_critical_section = false;
+        handshake.handshake.iteration_correction = false;
+        handshake.valid = true;
+
+        handshake_buffer.push((*it), (&handshake));
     }
     ignore_all = false;
     ReleaseLock(&simbuffer_lock);
