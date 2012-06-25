@@ -354,27 +354,26 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
     }
 
     /* Insert wait instruction in pipeline */
-    handshake_container_t handshake;
+    handshake_container_t* handshake = handshake_buffer.push(tid, true);
 
-    handshake.isFirstInsn = false;
-    handshake.handshake.sleep_thread = false;
-    handshake.handshake.resume_thread = false;
-    handshake.handshake.real = false;
-    handshake.handshake.coreID = tstate->coreID;
-    handshake.handshake.iteration_correction = false;
-    handshake.handshake.in_critical_section = (num_threads > 1);
-    handshake.valid = true;
+    handshake->isFirstInsn = false;
+    handshake->handshake.sleep_thread = false;
+    handshake->handshake.resume_thread = false;
+    handshake->handshake.real = false;
+    handshake->handshake.coreID = tstate->coreID;
+    handshake->handshake.iteration_correction = false;
+    handshake->handshake.in_critical_section = (num_threads > 1);
+    handshake->valid = true;
 
-    handshake.handshake.pc = pc;
-    handshake.handshake.npc = pc + sizeof(ld_template);
-    handshake.handshake.tpc = pc + sizeof(ld_template);
-    handshake.handshake.brtaken = false;
-    memcpy(handshake.handshake.ins, ld_template, sizeof(ld_template));
+    handshake->handshake.pc = pc;
+    handshake->handshake.npc = pc + sizeof(ld_template);
+    handshake->handshake.tpc = pc + sizeof(ld_template);
+    handshake->handshake.brtaken = false;
+    memcpy(handshake->handshake.ins, ld_template, sizeof(ld_template));
     // Address comes right after opcode byte
-    *(INT32*)(&handshake.handshake.ins[1]) = tstate->lastSignalAddr;
+    *(INT32*)(&handshake->handshake.ins[1]) = tstate->lastSignalAddr;
 
 //    cerr << tid << ": Vodoo load instruction " << hex << pc <<  " ID: " << tstate->lastSignalAddr << dec << endl;
-    handshake_buffer.push(tid, &handshake, true);
 
     ReleaseLock(&simbuffer_lock);
 }
@@ -439,27 +438,26 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT p
     }
 
     /* Insert signal instruction in pipeline */
-    handshake_container_t handshake;
+    handshake_container_t* handshake = handshake_buffer.push(tid, true);
 
-    handshake.isFirstInsn = false;
-    handshake.handshake.sleep_thread = false;
-    handshake.handshake.resume_thread = false;
-    handshake.handshake.real = false;
-    handshake.handshake.coreID = tstate->coreID;
-    handshake.handshake.in_critical_section = (num_threads > 1) && (unmatchedWaits[tid] > 0);
-    handshake.handshake.iteration_correction = false;
-    handshake.valid = true;
+    handshake->isFirstInsn = false;
+    handshake->handshake.sleep_thread = false;
+    handshake->handshake.resume_thread = false;
+    handshake->handshake.real = false;
+    handshake->handshake.coreID = tstate->coreID;
+    handshake->handshake.in_critical_section = (num_threads > 1) && (unmatchedWaits[tid] > 0);
+    handshake->handshake.iteration_correction = false;
+    handshake->valid = true;
 
-    handshake.handshake.pc = pc;
-    handshake.handshake.npc = pc + sizeof(st_template);
-    handshake.handshake.tpc = pc + sizeof(st_template);
-    handshake.handshake.brtaken = false;
-    memcpy(handshake.handshake.ins, st_template, sizeof(st_template));
+    handshake->handshake.pc = pc;
+    handshake->handshake.npc = pc + sizeof(st_template);
+    handshake->handshake.tpc = pc + sizeof(st_template);
+    handshake->handshake.brtaken = false;
+    memcpy(handshake->handshake.ins, st_template, sizeof(st_template));
     // Address comes right after opcode and MoodRM bytes
-    *(INT32*)(&handshake.handshake.ins[2]) = tstate->lastSignalAddr;
+    *(INT32*)(&handshake->handshake.ins[2]) = tstate->lastSignalAddr;
 
 //    cerr << tid << ": Vodoo store instruction " << hex << pc << " ID: " << tstate->lastSignalAddr << dec << endl;
-    handshake_buffer.push(tid, &handshake, true);
     ReleaseLock(&simbuffer_lock);
 }
 
