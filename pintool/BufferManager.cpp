@@ -107,12 +107,12 @@ void BufferManager::push(THREADID tid, handshake_container_t* handshake, bool fr
     PIN_Yield();
     GetLock(&simbuffer_lock, tid+1);
     spins++;
-    if(spins >= 7000000LL) {
+    if(spins >= 70000000LL) {
       cerr << tid << "[handshake_buffer.push()]: That's a lot of spins!" << endl;
       spins = 0;
+      break;
     }
   }
-
 }
 
 void BufferManager::flushBuffers(THREADID tid)
