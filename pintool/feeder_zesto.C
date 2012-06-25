@@ -1129,9 +1129,10 @@ VOID PauseSimulation(THREADID tid)
         handshake_2.valid = true;
         handshake_buffer.push((*it), &handshake_2);
     }
-    ReleaseLock(&simbuffer_lock);
     
     handshake_buffer.flushBuffers(tid);
+
+    ReleaseLock(&simbuffer_lock);
 
     /* Wait until all cores are done -- consumed their buffers. */
     cerr << tid << " [" << sim_cycle << ":KEVIN]: Waiting for all sleepy cores" << endl; 

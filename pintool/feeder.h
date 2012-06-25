@@ -121,20 +121,21 @@ class handshake_container_t
         mem_released = true;
     }
 
-    // Did we finish dumping context
-    BOOL valid;
     // Handshake information that gets passed on to Zesto
     struct P2Z_HANDSHAKE handshake;
 
+    
+    // Did we finish dumping context
+    BOOL valid;
+
     // Did we finish dumping memory info
     BOOL mem_released;
-    // Memory reads and writes to be passed on to Zesto
-    std::map<UINT32, UINT8> mem_buffer;
-
     BOOL isFirstInsn;
     BOOL isLastInsn;
-
     BOOL killThread;
+
+    // Memory reads and writes to be passed on to Zesto
+    std::map<UINT32, UINT8> mem_buffer;
 };
 
 VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREADID tid);

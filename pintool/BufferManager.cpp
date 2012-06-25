@@ -121,7 +121,9 @@ void BufferManager::flushBuffers(THREADID tid)
   map<THREADID, string>::iterator it;
   for(it = fileNames_.begin(); it != fileNames_.end(); it++) {
     cerr << "FLUSHWRITE:" << it->first << endl;
+    sync();
     writeProduceBufferIntoFile(it->first, true);
+    sync();
   }
   /*  for(it = fileNames_.begin(); it != fileNames_.end(); it++) {
     cerr << "FLUSHREAD1:" << it->first << endl;
@@ -264,7 +266,6 @@ void BufferManager::readFileIntoConsumeBuffer(THREADID tid)
   //  cerr << tid << " Starting the rest of file move into bogus file" << endl;
 
   int copyCount = 0;  
-
   while(validRead) {
     handshake_container_t handshake;
     validRead = readHandshake(fd, &handshake);
@@ -305,7 +306,16 @@ void BufferManager::readFileIntoConsumeBuffer(THREADID tid)
   //  cerr << tid << " File size: " << fileEntryCount_[tid] << endl;
   fileEntryCount_[tid] -= count;
 
-  assert(fileEntryCount_[tid] >= 0);
+  if(fileEntryCount_[tid] < 0) {
+    cerr << tid << " WARNING: fileEntryCount_[tid] < 0!!" << endl;
+    cerr << "Count:" << count << endl;
+    cerr << "CopyCount:" << copyCount << endl;
+    cerr << "FileEntryCount_[tid]: " << fileEntryCount_[tid] << endl;
+    cerr << "ConsumeBuffer Size:" << consumeBuffer_[tid]->size() << endl;
+    cerr << "ProduceBuffer Size:" << produceBuffer_[tid]->size() << endl;
+    cerr << endl;
+  }
+  //  assert(fileEntryCount_[tid] >= 0);
   pthread_mutex_unlock(locks_[tid]);
   //  cerr << tid << " File has " << fileEntryCount_[tid] << " entries" << endl;
   //  cerr << tid << " Done Read file into produce buffer" << endl;
