@@ -6,7 +6,6 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <errno.h>
-#include <pthread.h>
 
 void BufferManager::signalHandler(int signum) 
 {
@@ -32,17 +31,18 @@ void BufferManager::threadDone(THREADID tid)
 {
   string cmd = "/bin/rm -f " + fileNames_[tid];
   cerr << "Executing " << cmd << endl;
-  system(cmd.c_str());
+  assert(system(cmd.c_str()) == 0);
   
   cmd = "/bin/rm -f " + bogusNames_[tid];
   cerr << "Executing " << cmd << endl;
-  system(cmd.c_str());
+  assert(system(cmd.c_str()) == 0);
 }
 
 BufferManager::~BufferManager()
 {
   cerr << "DESTRUCTING BUFFER MANAGER" << endl;
   map<THREADID, string>::iterator it;
+
   for(it = fileNames_.begin(); it != fileNames_.end(); it++) {
     string cmd = "/bin/rm -f " + it->second;
     system(cmd.c_str());
@@ -207,8 +207,8 @@ void BufferManager::checkFirstAccess(THREADID tid)
     
     fileEntryCount_[tid] = 0;
     
-    locks_[tid] = new pthread_mutex_t();
-    pthread_mutex_init(locks_[tid], 0);
+    locks_[tid] = new PIN_LOCK();
+    InitLock(locks_[tid]);
   }
 }
 
@@ -216,7 +216,7 @@ void BufferManager::writeProduceBufferIntoFile(THREADID tid, bool all)
 {
   //  cerr << tid << " Writing produce buffer into file" << endl;
   //  cerr << tid << " File has " << fileEntryCount_[tid] << " entries" << endl;
-  pthread_mutex_lock(locks_[tid]);
+  GetLock(locks_[tid], tid+1);
   handshake_container_t* handshake;
   int result;
 
@@ -247,7 +247,7 @@ void BufferManager::writeProduceBufferIntoFile(THREADID tid, bool all)
   
   fileEntryCount_[tid] += count;
   assert(fileEntryCount_[tid] >= 0);
-  pthread_mutex_unlock(locks_[tid]);
+  ReleaseLock(locks_[tid]);
   //  cerr << tid << " File has " << fileEntryCount_[tid] << " entries" << endl;
   //  cerr << tid << " Done Writing produce buffer into file: " << count << " entries" <<endl;
 }
@@ -256,7 +256,7 @@ void BufferManager::readFileIntoConsumeBuffer(THREADID tid)
 {  
   //  cerr << tid << " Read file into produce buffer" << endl;
   //  cerr << tid << " File has " << fileEntryCount_[tid] << " entries" << endl;
-  pthread_mutex_lock(locks_[tid]);
+  GetLock(locks_[tid], tid+1);
   int result;
 
   int fd = open(fileNames_[tid].c_str(), O_RDONLY);
@@ -332,17 +332,8 @@ void BufferManager::readFileIntoConsumeBuffer(THREADID tid)
   //  cerr << tid << " File size: " << fileEntryCount_[tid] << endl;
   fileEntryCount_[tid] -= count;
 
-  if(fileEntryCount_[tid] < 0) {
-    cerr << tid << " WARNING: fileEntryCount_[tid] < 0!!" << endl;
-    cerr << "Count:" << count << endl;
-    cerr << "CopyCount:" << copyCount << endl;
-    cerr << "FileEntryCount_[tid]: " << fileEntryCount_[tid] << endl;
-    cerr << "ConsumeBuffer Size:" << consumeBuffer_[tid]->size() << endl;
-    cerr << "ProduceBuffer Size:" << produceBuffer_[tid]->size() << endl;
-    cerr << endl;
-  }
-  //  assert(fileEntryCount_[tid] >= 0);
-  pthread_mutex_unlock(locks_[tid]);
+  assert(fileEntryCount_[tid] >= 0);
+  ReleaseLock(locks_[tid]);
   //  cerr << tid << " File has " << fileEntryCount_[tid] << " entries" << endl;
   //  cerr << tid << " Done Read file into produce buffer" << endl;
 }

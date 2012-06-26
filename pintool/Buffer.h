@@ -4,7 +4,6 @@
 #include <map>
 #include <queue>
 #include <assert.h>
-#include <pthread.h>
 #include "feeder.h"
 
 class Buffer
