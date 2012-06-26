@@ -147,6 +147,9 @@ enum md_fault_type {
 /* size in bytes of fp registers */
 #define MD_FPR_SIZE         10
 
+/* size in bytes of XMM registers */
+#define MD_XMM_SIZE         16
+
 /* number of control registers */
 #define MD_NUM_CREGS        4
 
@@ -227,8 +230,10 @@ typedef struct {
 } md_ctrl_t;
 
 /* 128-bit XMM register file */
-typedef struct {
-  struct {double lo; double hi; } qw[MD_NUM_XMMREGS];
+typedef union {
+  sfloat_t f[MD_NUM_XMMREGS][MD_XMM_SIZE / sizeof(sfloat_t)];
+  struct {dfloat_t lo; dfloat_t hi; } d[MD_NUM_XMMREGS];
+  struct {qword_t lo; qword_t hi; } qw[MD_NUM_XMMREGS];
 } md_xmm_t;
 
 /* well known registers */

@@ -5206,27 +5206,6 @@ CONNECT(XOR_EvIb_LINK)
       DNA, DNA, DNA,
       DNA, DNA)
 
-#define PXOR_Rd_Rd_IMPL              \
-{                  \
-  dword_t _src1, _src2, _src3, _src4, _res1, _res2;	\
-  \
-  _src1 = (dword_t)XMM_Q_LO(URS);     \
-  _src2 = (dword_t)XMM_Q_LO(URT);              \
-  _src3 = (dword_t)XMM_Q_HI(URS);              \
-  _src4 = (dword_t)XMM_Q_HI(URT);              \
-  _res1 = _src1 ^ _src2;            \
-  _res2 = _src3 ^ _src4;            \
-  SET_XMM_Q_LO(URD, (dfloat_t)_res1);		\
-  SET_XMM_Q_HI(URD, (dfloat_t)_res2);		\
-}
-  DEFINST(PXOR_Rd_Rd,    0x03,
-      "pxor",      "%Rd, %Rd",
-      FU_INVALID,                 F_ICOMP|F_UCODE,
-      DNA,
-      DNA, DNA, DNA,
-      DNA, DNA)
-
-
 
 CONNECT(CMP_EvIb_LINK)
 
@@ -5504,21 +5483,6 @@ CONNECT(MOV_EvRv_LINK)
   DEFINST(MOV_MvRv,    0x0200,
       "mov",      "%Mv,%Rv",
       FU_INVALID,                 F_MEM|F_STORE|F_UCODE,
-      DNA,
-      DNA, DNA, DNA,
-      DNA, DNA)
-
-#define MOVAPS_RdRd_IMPL              \
-{                  \
-  dfloat_t _src1, _src2; \
-  _src1 = XMM_Q_LO(R);	\
-  _src2 = XMM_Q_HI(R);		  \
-  SET_XMM_Q_LO(RM, _src1);	  \
-  SET_XMM_Q_HI(RM, _src2);	  \
-}
-  DEFINST(MOVAPS_RdRd,    0x03,
-      "movaps",      "%Nv,%Rv",
-      FU_INVALID,                 F_ICOMP|F_UCODE,
       DNA,
       DNA, DNA, DNA,
       DNA, DNA)
@@ -9078,6 +9042,10 @@ CONNECT(TWOESC_LINK)
 
   /* FIXME: TODO 0x23: MOV_DdRd */
 
+  DEFLINK(MOVAPS_Rx_Ex_LINK, 0x28, "movaps_rx_ex_link", 6, 0x03)
+
+  DEFLINK(MOVAPS_Ex_Rx_LINK, 0x29, "movaps_ex_rx_link", 6, 0x03)
+
   DEFLINK(UCOMISD_Rd_Ed_LINK, 0x2e, "ucomisd_rd_ed_link", 6, 0x03)
 
   /* FIXME: TODO 0x30: WRMSR: F_NOMOD */
@@ -9271,6 +9239,8 @@ DNA, DNA)
 
   DEFLINK(XADD_EvRv_LINK, 0xc1, "xadd_evrv_link", 6, 0x03)
 
+  DEFLINK(PXOR_Rx_Ex_LINK, 0xef, "pxor_rx_ex_link", 6, 0x03)
+
 #define BSWAP_ROd_IMPL              \
 {                  \
   dword_t _src, _res;              \
@@ -9290,7 +9260,7 @@ CONNECT(MOVSD_Rd_Ed_LINK)
 
 #define MOVSD_Rd_Md_IMPL              \
 {                                           \
-  dfloat_t _res;                            \
+  qword_t _res;                            \
   md_addr_t _addr;                          \
   enum md_fault_type _fault;                \
   \
@@ -9298,7 +9268,7 @@ CONNECT(MOVSD_Rd_Ed_LINK)
   _res = READ_QWORD(_addr, _fault);         \
   if (_fault != md_fault_none)              \
   DECLARE_FAULT(_fault);                    \
-  SET_XMM_Q_LO(R, _res);                    \
+  SET_XMM_QW_LO(R, _res);                    \
 }
   DEFINST(MOVSD_Rd_Md,    0x0200,
       "movsd",      "%Rd, %Md",
@@ -9311,13 +9281,13 @@ CONNECT(MOVSD_Ed_Rd_LINK)
 
 #define MOVSD_Md_Rd_IMPL              \
 {                                           \
-  dfloat_t _res;                            \
+  qword_t _res;                            \
   md_addr_t _addr;                          \
   enum md_fault_type _fault;                \
   \
   _addr = AGEN_D(SEG, BASE, INDEX, SCALE, DISP);        \
-  _res = XMM_Q_LO(R);                       \
-  WRITE_QWORD((qword_t)_res, _addr, _fault);         \
+  _res = XMM_QW_LO(R);                       \
+  WRITE_QWORD(_res, _addr, _fault);         \
   if (_fault != md_fault_none)              \
   DECLARE_FAULT(_fault);                    \
   \
@@ -9338,7 +9308,7 @@ CONNECT(UCOMISD_Rd_Ed_LINK)
   md_addr_t _addr;                          \
   enum md_fault_type _fault;                \
   \
-  _src1 = XMM_Q_LO(R);                     \
+  _src1 = XMM_D_LO(R);                     \
   _addr = AGEN_D(SEG, BASE, INDEX, SCALE, DISP);        \
   _src2 = READ_QWORD(_addr, _fault);        \
   _res = _src1 - _src2;                     \
@@ -9369,8 +9339,8 @@ CONNECT(UCOMISD_Rd_Ed_LINK)
   dfloat_t _src1, _src2, _res;              \
   dword_t _afl;                             \
   \
-  _src1 = XMM_Q_LO(RM);                     \
-  _src2 = XMM_Q_LO(R);                     \
+  _src1 = XMM_D_LO(RM);                     \
+  _src2 = XMM_D_LO(R);                     \
   _res = _src1 - _src2;                     \
   \
   if (_src1 != _src1 || _src2 != _src2)     \
@@ -9387,6 +9357,40 @@ CONNECT(UCOMISD_Rd_Ed_LINK)
   DEFINST(UCOMISD_Rd_Rd,    0x03,
       "ucomisd",      "%Rd, %Rd",
       FU_INVALID,                 F_FCOMP|F_UCODE,
+      DNA,
+      DNA, DNA, DNA,
+      DNA, DNA)
+
+CONNECT(MOVAPS_Rx_Ex_LINK)
+
+#define MOVAPS_Rx_RMx_IMPL              \
+{                  \
+  sfloat_t _src; \
+  for (unsigned int _i = 0; _i < MD_XMM_SIZE / sizeof(sfloat_t); _i++) {\
+    _src = XMM_F(R, _i);         \
+    SET_XMM_F(RM, _i, _src);     \
+  }                             \
+}
+  DEFINST(MOVAPS_Rx_RMx,    0x03,
+      "movaps",      "%Nv,%Rv",
+      FU_INVALID,                 F_ICOMP|F_UCODE,
+      DNA,
+      DNA, DNA, DNA,
+      DNA, DNA)
+
+CONNECT(MOVAPS_Ex_Rx_LINK)
+
+#define MOVAPS_RMx_Rx_IMPL              \
+{                  \
+  sfloat_t _src; \
+  for (unsigned int _i = 0; _i < MD_XMM_SIZE / sizeof(sfloat_t); _i++) {\
+    _src = XMM_F(R, _i);         \
+    SET_XMM_F(RM, _i, _src);     \
+  }                             \
+}
+  DEFINST(MOVAPS_RMx_Rx,    0x03,
+      "movaps",      "%Nv,%Rv",
+      FU_INVALID,                 F_ICOMP|F_UCODE,
       DNA,
       DNA, DNA, DNA,
       DNA, DNA)
@@ -9451,7 +9455,7 @@ CONNECT(SQRTSD_Rd_Ed_LINK)
   if (_fault != md_fault_none)              \
   DECLARE_FAULT(_fault);                    \
   \
-  SET_XMM_Q_LO(R, _res);                   \
+  SET_XMM_D_LO(R, _res);                   \
 }
   DEFINST(SQRTSD_Rd_Md,    0x0200,
       "sqrtsd",      "%Rd, %Md",
@@ -9464,10 +9468,10 @@ CONNECT(SQRTSD_Rd_Ed_LINK)
 {                                           \
   dfloat_t _src1, _res;              \
   \
-  _src1 = XMM_Q_LO(RM);                     \
+  _src1 = XMM_D_LO(RM);                     \
   _res = sqrt(_src1);			    \
   \
-  SET_XMM_Q_LO(RM, _res);                   \
+  SET_XMM_D_LO(RM, _res);                   \
 }
   DEFINST(SQRTSD_Rd_Rd,    0x03,
       "sqrtsd",      "%Rd, %Rd",
@@ -9486,14 +9490,14 @@ CONNECT(ADDSD_Rd_Ed_LINK)
   md_addr_t _addr;                          \
   enum md_fault_type _fault;                \
   \
-  _src1 = XMM_Q_LO(R);                     \
+  _src1 = XMM_D_LO(R);                     \
   _addr = AGEN_D(SEG, BASE, INDEX, SCALE, DISP);        \
   _src2 = READ_QWORD(_addr, _fault);        \
   _res = _src1 + _src2;                     \
   if (_fault != md_fault_none)              \
   DECLARE_FAULT(_fault);                    \
   \
-  SET_XMM_Q_LO(R, _res);                   \
+  SET_XMM_D_LO(R, _res);                   \
 }
   DEFINST(ADDSD_Rd_Md,    0x0200,
       "addsd",      "%Rd, %Md",
@@ -9506,11 +9510,11 @@ CONNECT(ADDSD_Rd_Ed_LINK)
 {                                           \
   dfloat_t _src1, _src2, _res;              \
   \
-  _src1 = XMM_Q_LO(RM);                     \
-  _src2 = XMM_Q_LO(R);                     \
+  _src1 = XMM_D_LO(RM);                     \
+  _src2 = XMM_D_LO(R);                     \
   _res = _src1 + _src2;                     \
   \
-  SET_XMM_Q_LO(RM, _res);                   \
+  SET_XMM_D_LO(RM, _res);                   \
 }
   DEFINST(ADDSD_Rd_Rd,    0x03,
       "addsd",      "%Rd, %Rd",
@@ -9528,14 +9532,14 @@ CONNECT(SUBSD_Rd_Ed_LINK)
   md_addr_t _addr;                          \
   enum md_fault_type _fault;                \
   \
-  _src1 = XMM_Q_LO(R);                     \
+  _src1 = XMM_D_LO(R);                     \
   _addr = AGEN_D(SEG, BASE, INDEX, SCALE, DISP);        \
   _src2 = READ_QWORD(_addr, _fault);        \
   _res = _src1 - _src2;                     \
   if (_fault != md_fault_none)              \
   DECLARE_FAULT(_fault);                    \
   \
-  SET_XMM_Q_LO(R, _res);                   \
+  SET_XMM_D_LO(R, _res);                   \
 }
   DEFINST(SUBSD_Rd_Md,    0x0200,
       "subsd",      "%Rd, %Md",
@@ -9548,11 +9552,11 @@ CONNECT(SUBSD_Rd_Ed_LINK)
 {                                           \
   dfloat_t _src1, _src2, _res;              \
   \
-  _src1 = XMM_Q_LO(RM);                     \
-  _src2 = XMM_Q_LO(R);                     \
+  _src1 = XMM_D_LO(RM);                     \
+  _src2 = XMM_D_LO(R);                     \
   _res = _src1 - _src2;                     \
   \
-  SET_XMM_Q_LO(RM, _res);                   \
+  SET_XMM_D_LO(RM, _res);                   \
 }
   DEFINST(SUBSD_Rd_Rd,    0x03,
       "subsd",      "%Rd, %Rd",
@@ -9570,14 +9574,14 @@ CONNECT(DIVSD_Rd_Ed_LINK)
   md_addr_t _addr;                          \
   enum md_fault_type _fault;                \
   \
-  _src1 = XMM_Q_LO(R);                     \
+  _src1 = XMM_D_LO(R);                     \
   _addr = AGEN_D(SEG, BASE, INDEX, SCALE, DISP);        \
   _src2 = READ_QWORD(_addr, _fault);        \
   _res = _src1 / _src2;                     \
   if (_fault != md_fault_none)              \
   DECLARE_FAULT(_fault);                    \
   \
-  SET_XMM_Q_LO(R, _res);                   \
+  SET_XMM_D_LO(R, _res);                   \
 }
 
   DEFINST(DIVSD_Rd_Md,    0x0200,
@@ -9591,11 +9595,11 @@ CONNECT(DIVSD_Rd_Ed_LINK)
 {                                           \
   dfloat_t _src1, _src2, _res;              \
   \
-  _src1 = XMM_Q_LO(RM);                     \
-  _src2 = XMM_Q_LO(R);                     \
+  _src1 = XMM_D_LO(RM);                     \
+  _src2 = XMM_D_LO(R);                     \
   _res = _src1 / _src2;                     \
   \
-  SET_XMM_Q_LO(RM, _res);                   \
+  SET_XMM_D_LO(RM, _res);                   \
 }
   DEFINST(DIVSD_Rd_Rd,    0x03,
       "divsd",      "%Rd, %Rd",
@@ -9614,14 +9618,14 @@ CONNECT(MULSD_Rd_Ed_LINK)
   md_addr_t _addr;                          \
   enum md_fault_type _fault;                \
   \
-  _src1 = XMM_Q_LO(R);                     \
+  _src1 = XMM_D_LO(R);                     \
   _addr = AGEN_D(SEG, BASE, INDEX, SCALE, DISP);        \
   _src2 = READ_QWORD(_addr, _fault);        \
   _res = _src1 * _src2;                     \
   if (_fault != md_fault_none)              \
   DECLARE_FAULT(_fault);                    \
   \
-  SET_XMM_Q_LO(R, _res);                   \
+  SET_XMM_D_LO(R, _res);                   \
 }
   DEFINST(MULSD_Rd_Md,    0x0200,
       "mulsd",      "%Rd, %Md",
@@ -9635,11 +9639,11 @@ CONNECT(MULSD_Rd_Ed_LINK)
 {                                           \
   dfloat_t _src1, _src2, _res;              \
   \
-  _src1 = XMM_Q_LO(RM);                     \
-  _src2 = XMM_Q_LO(R);                     \
+  _src1 = XMM_D_LO(RM);                     \
+  _src2 = XMM_D_LO(R);                     \
   _res = _src1 * _src2;                     \
   \
-  SET_XMM_Q_LO(RM, _res);                   \
+  SET_XMM_D_LO(RM, _res);                   \
 }
   DEFINST(MULSD_Rd_Rd,    0x03,
       "mulsd",      "%Rd, %Rd",
@@ -9648,6 +9652,30 @@ CONNECT(MULSD_Rd_Ed_LINK)
       DNA, DNA, DNA,
       DNA, DNA)
 
+
+CONNECT(PXOR_Rx_Ex_LINK)
+
+#define PXOR_Rx_Rx_IMPL              \
+{                  \
+  qword_t _src1_hi, _src1_lo;        \
+  qword_t _src2_hi, _src2_lo;	     \
+  qword_t _res_hi, _res_lo;  	     \
+  \
+  _src1_lo = XMM_QW_LO(RM);     \
+  _src1_hi = XMM_QW_HI(RM);     \
+  _src2_lo = XMM_QW_LO(R);      \
+  _src2_hi = XMM_QW_HI(R);      \
+  _res_lo = _src1_lo ^ _src2_lo;        \
+  _res_hi = _src1_hi ^ _src2_hi;        \
+  SET_XMM_QW_LO(RM, _res_lo);		\
+  SET_XMM_QW_HI(RM, _res_hi);		\
+}
+  DEFINST(PXOR_Rx_Rx,    0x03,
+      "pxor",      "%Rd, %Rd",
+      FU_INVALID,                 F_ICOMP|F_UCODE,
+      DNA,
+      DNA, DNA, DNA,
+      DNA, DNA)
 
 
 CONNECT(SETCC_Eb_LINK)
@@ -14502,26 +14530,6 @@ CONNECT(FISTP_Mq_LINK)
       DGPR_D(URS), DNA, DNA,
       DAFLAGS(OF|SF|ZF|AF|CF|PF), DNA)
 
-#define PXOR_IMPL              \
-{                  \
-  dword_t _src1, _src2, _src3, _src4, _res1, _res2;	\
-  \
-  _src1 = (dword_t)XMM_Q_LO(URS);     \
-  _src2 = (dword_t)XMM_Q_LO(URT);              \
-  _src3 = (dword_t)XMM_Q_HI(URS);              \
-  _src4 = (dword_t)XMM_Q_HI(URT);              \
-  _res1 = _src1 ^ _src2;            \
-  _res2 = _src3 ^ _src4;            \
-  SET_XMM_Q_LO(URD, (dfloat_t)_res1);		\
-  SET_XMM_Q_HI(URD, (dfloat_t)_res2);		\
-}
-  DEFUOP(PXOR,      0x00,
-      "pxor",      "%De,%Se,%Te",
-      FU_IEU,    F_ICOMP,
-      DXMM(URD),
-      DXMM(URS), DXMM(URT), DNA,
-      DNA, DNA)
-
 
 #define INCB_IMPL              \
 {                  \
@@ -17873,22 +17881,6 @@ CONNECT(FISTP_Mq_LINK)
       DGPR_W(URD)/*PRD*/, DNA, DNA,
       DNA, DAFLAGS(UIMMW))
 
-#define MOVAPS_IMPL              \
-{                  \
-  dfloat_t _src1, _src2; \
-  _src1 = XMM_Q_LO(R);	\
-  _src2 = XMM_Q_HI(R);		  \
-  SET_XMM_Q_LO(RM, _src1);	  \
-  SET_XMM_Q_HI(RM, _src2);	  \
-}
-  DEFUOP(MOVAPS,    0x00,
-      "movaps",      "%Dv,%Sv",
-      FU_IEU,                 F_FCOMP,
-      DNA,
-      DNA, DNA, DNA,
-      DNA, DNA)
-
-
 
   /* non-architectural widgets */
 
@@ -18969,7 +18961,7 @@ CONNECT(FISTP_Mq_LINK)
 #define SSE_LDD_IMPL              \
 {                  \
   enum md_fault_type _fault;            \
-  dfloat_t _res;              \
+  qword_t _res;              \
   dword_t _base, _index;            \
   md_addr_t _addr;              \
   \
@@ -18980,7 +18972,7 @@ CONNECT(FISTP_Mq_LINK)
   _res = READ_QWORD(_addr, _fault);          \
   if (_fault != md_fault_none)          \
   DECLARE_FAULT(_fault);            \
-  SET_XMM_Q_LO(URD, _res);              \
+  SET_XMM_QW_LO(URD, _res);              \
 }
   DEFUOP(SSE_LDD,      0x00,
       "sse_ldd",      "%Dd,%Sd",
@@ -18992,12 +18984,12 @@ CONNECT(FISTP_Mq_LINK)
 #define SSE_STD_IMPL              \
 {                  \
   enum md_fault_type _fault;            \
-  dfloat_t _src;                        \
+  qword_t _src;                        \
   md_addr_t _addr;                      \
   \
   _addr = GPR_D(URS);                   \
-  _src = XMM_Q_LO(URD);                 \
-  WRITE_QWORD((qword_t)_src, _addr, _fault);     \
+  _src = XMM_QW_LO(URD);                 \
+  WRITE_QWORD(_src, _addr, _fault);     \
   if (_fault != md_fault_none)          \
   DECLARE_FAULT(_fault);                \
 }
@@ -19013,8 +19005,8 @@ CONNECT(FISTP_Mq_LINK)
   dfloat_t _res, _src1, _src2;          \
   dword_t _afl;                      \
   \
-  _src1 = XMM_Q_LO(URD);              \
-  _src2 = XMM_Q_LO(URS);              \
+  _src1 = XMM_D_LO(URD);              \
+  _src2 = XMM_D_LO(URS);              \
   _res = _src1 - _src2;               \
   if (_src1 != _src1 || _src2 != _src2)     \
     _afl = ZF|PF|CF;                        \
@@ -19038,10 +19030,10 @@ CONNECT(FISTP_Mq_LINK)
 {                  \
   dfloat_t _res, _src1, _src2;          \
   \
-  _src1 = XMM_Q_LO(URS);              \
-  _src2 = XMM_Q_LO(URT);              \
+  _src1 = XMM_D_LO(URS);              \
+  _src2 = XMM_D_LO(URT);              \
   _res = _src1 + _src2;            \
-  SET_XMM_Q_LO(URD, _res);              \
+  SET_XMM_D_LO(URD, _res);              \
 }
   DEFUOP(SSE_ADDSD,      0x00,
       "sse_addsd",      "%De,%Se,%Te",
@@ -19054,10 +19046,10 @@ CONNECT(FISTP_Mq_LINK)
 {                  \
   dfloat_t _res, _src1, _src2;          \
   \
-  _src1 = XMM_Q_LO(URS);              \
-  _src2 = XMM_Q_LO(URT);              \
+  _src1 = XMM_D_LO(URS);              \
+  _src2 = XMM_D_LO(URT);              \
   _res = _src1 - _src2;            \
-  SET_XMM_Q_LO(URD, _res);              \
+  SET_XMM_D_LO(URD, _res);              \
 }
   DEFUOP(SSE_SUBSD,      0x00,
       "sse_subsd",      "%De,%Se,%Te",
@@ -19071,10 +19063,10 @@ CONNECT(FISTP_Mq_LINK)
 {                  \
   dfloat_t _res, _src1, _src2;          \
   \
-  _src1 = XMM_Q_LO(URS);              \
-  _src2 = XMM_Q_LO(URT);              \
+  _src1 = XMM_D_LO(URS);              \
+  _src2 = XMM_D_LO(URT);              \
   _res = _src1 * _src2;            \
-  SET_XMM_Q_LO(URD, _res);              \
+  SET_XMM_D_LO(URD, _res);              \
 }
   DEFUOP(SSE_MULSD,      0x00,
       "sse_mulsd",      "%De,%Se,%Te",
@@ -19087,10 +19079,10 @@ CONNECT(FISTP_Mq_LINK)
 {                  \
   dfloat_t _res, _src1, _src2;          \
   \
-  _src1 = XMM_Q_LO(URS);              \
-  _src2 = XMM_Q_LO(URT);              \
+  _src1 = XMM_D_LO(URS);              \
+  _src2 = XMM_D_LO(URT);              \
   _res = _src1 / _src2;            \
-  SET_XMM_Q_LO(URD, _res);              \
+  SET_XMM_D_LO(URD, _res);              \
 }
   DEFUOP(SSE_DIVSD,      0x00,
       "sse_divsd",      "%De,%Se,%Te",
@@ -19103,13 +19095,50 @@ CONNECT(FISTP_Mq_LINK)
 {                  \
   dfloat_t _res, _src1;          \
   \
-  _src1 = XMM_Q_LO(URS);              \
+  _src1 = XMM_D_LO(URS);              \
   _res = sqrt(_src1);            \
-  SET_XMM_Q_LO(URD, _res);              \
+  SET_XMM_D_LO(URD, _res);              \
 }
   DEFUOP(SSE_SQRTSD,      0x00,
       "sse_sqrtsd",      "%De,%Se,%Te",
       FU_FCPLX,    F_FCOMP,
+      DXMM(URD),
+      DXMM(URS), DNA, DNA,
+      DNA, DNA)
+
+#define SSE_PXOR_IMPL              \
+{                  \
+  qword_t _src1_hi, _src1_lo;       \
+  qword_t _src2_hi, _src2_lo;       \
+  qword_t _res_hi, _res_lo;     	\
+  \
+  _src1_lo = XMM_QW_LO(URS);     \
+  _src1_hi = XMM_QW_HI(URS);     \
+  _src2_lo = XMM_QW_LO(URT);     \
+  _src2_hi = XMM_QW_HI(URT);     \
+  _res_lo = _src1_lo ^ _src2_lo; \
+  _res_hi = _src1_hi ^ _src2_hi; \
+  SET_XMM_QW_LO(URD, _res_lo);   \
+  SET_XMM_QW_HI(URD, _res_hi);   \
+}
+  DEFUOP(SSE_PXOR,      0x00,
+      "sse_pxor",      "%De,%Se,%Te",
+      FU_IEU,    F_ICOMP,
+      DXMM(URD),
+      DXMM(URS), DXMM(URT), DNA,
+      DNA, DNA)
+
+#define SSE_MOVAPS_IMPL          \
+{                  \
+  sfloat_t _src; \
+  for (unsigned int _i = 0; _i < MD_XMM_SIZE / sizeof(sfloat_t); _i++) {\
+    _src = XMM_F(URS, _i);         \
+    SET_XMM_F(URD, _i, _src);      \
+  }                             \
+}
+  DEFUOP(SSE_MOVAPS,    0x00,
+      "sse_movaps",      "%De,%Se",
+      FU_IEU,                 F_ICOMP,
       DXMM(URD),
       DXMM(URS), DNA, DNA,
       DNA, DNA)
