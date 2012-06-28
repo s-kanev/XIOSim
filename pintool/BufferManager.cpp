@@ -41,71 +41,98 @@ BufferManager::BufferManager()
 
 handshake_container_t* BufferManager::front(THREADID tid)
 {
+  GetLock(locks_[tid], tid+1);
   checkFirstAccess(tid);
-  assert(handshake_buffer_[tid]->size() > 0);
-  return handshake_buffer_[tid]->front();
+  assert(queueSizes_[tid] > 0);
+  assert(consumeBuffer_[tid]->size() > 0);
+
+  ReleaseLock(locks_[tid]);
+  return consumeBuffer_[tid]->front();
 }
 
 handshake_container_t* BufferManager::back(THREADID tid)
 {
+  GetLock(locks_[tid], tid+1);
   checkFirstAccess(tid);
-  assert(handshake_buffer_[tid]->size() > 0);
-  return handshake_buffer_[tid]->back();
+  assert(queueSizes_[tid] > 0);
+  assert(produceBuffer_[tid]->size() > 0);
+  ReleaseLock(locks_[tid]);
+  return produceBuffer_[tid]->back();
 }
 
 bool BufferManager::empty(THREADID tid)
 {
-  checkFirstAccess(tid);    
-  return handshake_buffer_[tid]->size() == 0;
+  GetLock(locks_[tid], tid+1);
+  checkFirstAccess(tid);   
+  bool result = queueSizes_[tid] == 0;
+  ReleaseLock(locks_[tid]);
+  return result;
 }
 
 void BufferManager::push(THREADID tid, handshake_container_t* handshake, bool fromILDJIT)
 {
+  GetLock(locks_[tid], tid+1);
   checkFirstAccess(tid);    
   
   handshake_container_t* free = getPooledHandshake(tid, fromILDJIT);  
   bool first = free->isFirstInsn;
   *free = *handshake;  
   free->isFirstInsn = first;
-  handshake_buffer_[tid]->push(free);
+
+  produceBuffer_[tid]->push(free);
+  queueSizes_[tid]++;
+  ReleaseLock(locks_[tid]);
 }
 
 void BufferManager::pop(THREADID tid, handshake_container_t* handshake)
 {
+  GetLock(locks_[tid], tid+1);
   checkFirstAccess(tid);
 
-  assert(handshake_buffer_[tid]->size() > 0);
-  handshake_buffer_[tid]->pop();
+  assert(queueSizes_[tid] > 0);
+  assert(consumeBuffer_[tid]->size() > 0);
+  consumeBuffer_[tid]->pop();
+
   releasePooledHandshake(tid, handshake);
+  queueSizes_[tid]--;
+  ReleaseLock(locks_[tid]);
 }
 
 bool BufferManager::hasThread(THREADID tid) 
 {
-  return (handshake_buffer_.count(tid) != 0);
+  GetLock(locks_[tid], tid+1);
+  bool result = queueSizes_.count(tid);
+  ReleaseLock(locks_[tid]);
+  return (result != 0);
 }
 
 unsigned int BufferManager::size()
 {
-  return handshake_buffer_.size();
+  GetLock(locks_[tid], tid+1);
+  unsigned int result = queueSizes_.size();
+  ReleaseLock(locks_[tid]);
+  return result;
 }
 
 void BufferManager::checkFirstAccess(THREADID tid)
 {
-  if(handshake_buffer_.count(tid) == 0) {
+  if(queueSizes_.count(tid) == 0) {
     
     PIN_Yield();
     sleep(5);
     PIN_Yield();
     
-    handshake_buffer_[tid] = new Buffer();
+    queueSizes_[tid] = 0;
+    consumeBuffer_[tid] = new Buffer();
+    produceBuffer_[tid] = new Buffer();
     
     for (int i=0; i < 50000; i++) {
       handshake_container_t* new_handshake = new handshake_container_t();
       handshake_pool_[tid].push(new_handshake);      
     }
-
-    locks_[tid] = new pthread_mutex_t();
-    pthread_mutex_init(locks_[tid], 0);
+    
+    locks_[tid] = new PIN_LOCK();
+    InitLock(locks_[tid]);
     
     char s_tid[100];
     sprintf(s_tid, "%d", tid);
@@ -153,12 +180,14 @@ handshake_container_t* BufferManager::getPooledHandshake(THREADID tid, bool from
 
 void BufferManager::releasePooledHandshake(THREADID tid, handshake_container_t* handshake)
 {
-  handshake_pool_[tid].push(handshake);
+  handshake_pool_[tid].push(handshake);  
   return;
 }
 
 bool BufferManager::isFirstInsn(THREADID tid)
 {
+  GetLock(locks_[tid], tid+1);
   bool isFirst = (didFirstInsn_.count(tid) == 0);
+  ReleaseLock(locks_[tid]);
   return isFirst;
 }

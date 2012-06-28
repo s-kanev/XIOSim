@@ -27,7 +27,7 @@ class BufferManager
   friend ostream& operator<< (ostream &out, handshake_container_t &hand);
 
  private:
-  map<THREADID, pthread_mutex_t*> locks_;
+  map<THREADID, PIN_LOCK*> locks_;
   
   map<THREADID, handshake_queue_t> handshake_pool_;
 
@@ -38,8 +38,10 @@ class BufferManager
   void checkFirstAccess(THREADID tid);
   handshake_container_t* getPooledHandshake(THREADID tid, bool fromILDJIT=true);
   void releasePooledHandshake(THREADID tid, handshake_container_t* handshake);
-
-  std::map<THREADID, Buffer*> handshake_buffer_;
+  
+  std::map<THREADID, int> queueSizes_;
+  std::map<THREADID, Buffer*> consumeBuffer_;
+  std::map<THREADID, Buffer*> produceBuffer_;
 };
 
 #endif
