@@ -97,14 +97,8 @@ void BufferManager::checkFirstAccess(THREADID tid)
     sleep(5);
     PIN_Yield();
     
-    for (int i=0; i < 250000; i++) {
+    for (int i=0; i < 50000; i++) {
       handshake_container_t* new_handshake = new handshake_container_t();
-      if (i > 0) {
-	new_handshake->isFirstInsn = false;            
-      }
-      else {
-	new_handshake->isFirstInsn = true;
-      }
       handshake_pool_[tid].push(new_handshake);      
     }
 
