@@ -41,9 +41,9 @@ BufferManager::BufferManager()
 
 handshake_container_t* BufferManager::front(THREADID tid)
 {
+  checkFirstAccess(tid);
   GetLock(locks_[tid], tid+1);
 
-  checkFirstAccess(tid);
   assert(queueSizes_[tid] > 0);
   
   if(consumeBuffer_[tid]->size() > 0) {
@@ -61,8 +61,8 @@ handshake_container_t* BufferManager::front(THREADID tid)
 
 handshake_container_t* BufferManager::back(THREADID tid)
 {
-  GetLock(locks_[tid], tid+1);
   checkFirstAccess(tid);
+  GetLock(locks_[tid], tid+1);
   assert(queueSizes_[tid] > 0);
   assert(produceBuffer_[tid]->size() > 0);
   ReleaseLock(locks_[tid]);
@@ -71,8 +71,8 @@ handshake_container_t* BufferManager::back(THREADID tid)
 
 bool BufferManager::empty(THREADID tid)
 {
-  GetLock(locks_[tid], tid+1);
   checkFirstAccess(tid);   
+  GetLock(locks_[tid], tid+1);
   bool result = queueSizes_[tid] == 0;
   ReleaseLock(locks_[tid]);
   return result;
@@ -80,9 +80,9 @@ bool BufferManager::empty(THREADID tid)
 
 void BufferManager::push(THREADID tid, handshake_container_t* handshake, bool fromILDJIT)
 {
-  GetLock(locks_[tid], tid+1);
   checkFirstAccess(tid);    
-  
+  GetLock(locks_[tid], tid+1);
+ 
   handshake_container_t* free = getPooledHandshake(tid, fromILDJIT);  
   bool first = free->isFirstInsn;
   *free = *handshake;  
@@ -95,8 +95,8 @@ void BufferManager::push(THREADID tid, handshake_container_t* handshake, bool fr
 
 void BufferManager::pop(THREADID tid, handshake_container_t* handshake)
 {
-  GetLock(locks_[tid], tid+1);
   checkFirstAccess(tid);
+  GetLock(locks_[tid], tid+1);
 
   assert(queueSizes_[tid] > 0);
   assert(consumeBuffer_[tid]->size() > 0);
