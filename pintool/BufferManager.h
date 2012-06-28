@@ -38,7 +38,8 @@ class BufferManager
   void checkFirstAccess(THREADID tid);
   handshake_container_t* getPooledHandshake(THREADID tid, bool fromILDJIT=true);
   void releasePooledHandshake(THREADID tid, handshake_container_t* handshake);
-  
+  void copyProducerToConsumer(THREADID tid, bool all);
+
   std::map<THREADID, int> queueSizes_;
   std::map<THREADID, Buffer*> consumeBuffer_;
   std::map<THREADID, Buffer*> produceBuffer_;

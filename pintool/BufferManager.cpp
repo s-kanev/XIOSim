@@ -42,9 +42,18 @@ BufferManager::BufferManager()
 handshake_container_t* BufferManager::front(THREADID tid)
 {
   GetLock(locks_[tid], tid+1);
+
   checkFirstAccess(tid);
   assert(queueSizes_[tid] > 0);
-  assert(consumeBuffer_[tid]->size() > 0);
+  
+  if(consumeBuffer_[tid]->size() > 0) {
+    ReleaseLock(locks_[tid]);
+    return consumeBuffer_[tid]->front();
+  }
+
+  assert(produceBuffer_[tid]->size() > 0);
+
+  copyProducerToConsumer(tid, true);
 
   ReleaseLock(locks_[tid]);
   return consumeBuffer_[tid]->front();
@@ -139,6 +148,7 @@ void BufferManager::checkFirstAccess(THREADID tid)
     logs_[tid] = new ofstream();
     (*(logs_[tid])).open(logName.c_str());    
   }
+  assert((consumeBuffer_[tid]->size() + produceBuffer_[tid]->size()) == queueSizes_[tid]);
 }
 
 handshake_container_t* BufferManager::getPooledHandshake(THREADID tid, bool fromILDJIT)
@@ -188,4 +198,17 @@ bool BufferManager::isFirstInsn(THREADID tid)
   bool isFirst = (didFirstInsn_.count(tid) == 0);
   ReleaseLock(locks_[tid]);
   return isFirst;
+}
+
+void BufferManager::copyProducerToConsumer(THREADID tid, bool all)
+{
+  while(produceBuffer_[tid]->size() > 1 || (produceBuffer_[tid]->size() > 0 && all)) {
+    if(consumeBuffer_[tid]->full()) {
+      break;
+    }
+
+    assert(produceBuffer_[tid]->front()->valid == true);
+    consumeBuffer_[tid]->push(produceBuffer_[tid]->front());
+    produceBuffer_[tid]->pop();
+  }
 }
