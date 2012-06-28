@@ -61,25 +61,17 @@ bool BufferManager::empty(THREADID tid)
 
 void BufferManager::push(THREADID tid, handshake_container_t* handshake, bool fromILDJIT)
 {
-  //  (*(logs_[tid])) << "pushing:" << (*handshake) << " with old size:" << handshake_buffer_[tid].size() << " " << fromILDJIT << endl;
   checkFirstAccess(tid);    
   
-  handshake_container_t* free = getPooledHandshake(tid, fromILDJIT);
-  
-  free->valid = handshake->valid;
-  free->mem_released = handshake->mem_released;
-  free->mem_buffer = handshake->mem_buffer;
-  //  free->isFirstInsn = handshake->isFirstInsn;
-  free->isLastInsn = handshake->isLastInsn;
-  free->killThread = handshake->killThread;
-  memcpy(&(free->handshake), &(handshake->handshake), sizeof(P2Z_HANDSHAKE));
-  
+  handshake_container_t* free = getPooledHandshake(tid, fromILDJIT);  
+  bool first = free->isFirstInsn;
+  *free = *handshake;  
+  free->isFirstInsn = first;
   handshake_buffer_[tid].push(free);
 }
 
 void BufferManager::pop(THREADID tid, handshake_container_t* handshake)
 {
-  //  (*(logs_[tid])) << "popping:" << handshake << ":" << (*handshake) << " with old size:" << handshake_buffer_[tid].size() << endl;
   checkFirstAccess(tid);
 
   assert(handshake_buffer_[tid].size() > 0);
@@ -156,7 +148,7 @@ handshake_container_t* BufferManager::getPooledHandshake(THREADID tid, bool from
     result->isFirstInsn = true;
     didFirstInsn_[tid] = true;
   }
-  else {// this else might be wrong...
+  else {
     result->isFirstInsn = false;
   }
   
@@ -172,6 +164,5 @@ void BufferManager::releasePooledHandshake(THREADID tid, handshake_container_t* 
 bool BufferManager::isFirstInsn(THREADID tid)
 {
   bool isFirst = (didFirstInsn_.count(tid) == 0);
-  //  didFirstInsn_[tid] = true;
   return isFirst;
 }
