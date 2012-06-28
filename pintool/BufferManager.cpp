@@ -108,9 +108,7 @@ bool BufferManager::hasThread(THREADID tid)
 
 unsigned int BufferManager::size()
 {
-  GetLock(locks_[tid], tid+1);
   unsigned int result = queueSizes_.size();
-  ReleaseLock(locks_[tid]);
   return result;
 }
 
