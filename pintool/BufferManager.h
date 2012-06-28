@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <pthread.h>
 #include "feeder.h"
+#include "Buffer.h"
 
 class BufferManager
 {
@@ -38,7 +39,7 @@ class BufferManager
   handshake_container_t* getPooledHandshake(THREADID tid, bool fromILDJIT=true);
   void releasePooledHandshake(THREADID tid, handshake_container_t* handshake);
 
-  std::map<THREADID, handshake_queue_t> handshake_buffer_;
+  std::map<THREADID, Buffer*> handshake_buffer_;
 };
 
 #endif
