@@ -8,6 +8,33 @@
 #include <errno.h>
 #include <pthread.h>
 
+ostream& operator<< (ostream &out, handshake_container_t &hand)
+{
+  out << "hand:" << " ";
+  out << hand.valid;
+  out << hand.mem_released;
+  out << hand.isFirstInsn;
+  out << hand.isLastInsn;
+  out << hand.killThread;
+  out << " ";
+  out << hand.mem_buffer.size();
+  out << " ";
+  out << "pc:" << hand.handshake.pc << " "; 
+  out << "coreid:" << hand.handshake.coreID << " "; 
+  out << "npc:" << hand.handshake.npc << " "; 
+  out << "tpc:" << hand.handshake.tpc << " "; 
+  out << "brtaken:" << hand.handshake.brtaken << " "; 
+  out << "ins:" << hand.handshake.ins << " ";
+  out << "flags:" << hand.handshake.sleep_thread << hand.handshake.resume_thread;
+  out << hand.handshake.iteration_correction << hand.handshake.real;
+  out << hand.handshake.in_critical_section;
+  out << " slicenum:" << hand.handshake.slice_num << " ";
+  out << "feederslicelen:" << hand.handshake.feeder_slice_length << " ";
+  out << "feedersliceweight:" << hand.handshake.slice_weight_times_1000 << " ";
+  out.flush();
+  return out;
+}
+
 BufferManager::BufferManager()
 {  
 }
@@ -15,123 +42,70 @@ BufferManager::BufferManager()
 handshake_container_t* BufferManager::front(THREADID tid)
 {
   checkFirstAccess(tid);
-  return queueFronts_[tid];
+  assert(handshake_buffer_[tid].size() > 0);
+  return handshake_buffer_[tid].front();
 }
 
 handshake_container_t* BufferManager::back(THREADID tid)
 {
   checkFirstAccess(tid);
-  assert(queueSizes_[tid] > 0);
-
-  if(queueBacks_[tid] != NULL) {
-    return queueBacks_[tid];
-  }
-  
-  // if only one element in queue, it will be in queueFronts, 
-  // even though it is back()
-  assert(queueSizes_[tid] == 1);	   
-  assert(queueFronts_[tid] != NULL);
-  return queueFronts_[tid];
+  assert(handshake_buffer_[tid].size() > 0);
+  return handshake_buffer_[tid].back();
 }
 
 bool BufferManager::empty(THREADID tid)
 {
   checkFirstAccess(tid);    
-  return queueSizes_[tid] == 0;
-  return handshake_buffer_[tid].empty();
+  return handshake_buffer_[tid].size() == 0;
 }
 
 void BufferManager::push(THREADID tid, handshake_container_t* handshake, bool fromILDJIT)
 {
-  checkFirstAccess(tid);
-  handshake_container_t* free = getPooledHandshake(tid, fromILDJIT);
+  (*(logs_[tid])) << "pushing:" << (*handshake) << " with old size:" << handshake_buffer_[tid].size() << " " << fromILDJIT << endl;
+  checkFirstAccess(tid);    
   
-  bool isFirstInsn = free->isFirstInsn;
+  handshake_container_t* free = getPooledHandshake(tid, fromILDJIT);
   
   free->valid = handshake->valid;
   free->mem_released = handshake->mem_released;
   free->mem_buffer = handshake->mem_buffer;
-  free->isFirstInsn = handshake->isFirstInsn;
+  //  free->isFirstInsn = handshake->isFirstInsn;
   free->isLastInsn = handshake->isLastInsn;
   free->killThread = handshake->killThread;
   memcpy(&(free->handshake), &(handshake->handshake), sizeof(P2Z_HANDSHAKE));
   
-  free->isFirstInsn = isFirstInsn;
-  
-  if(queueSizes_[tid] == 0) {
-    queueFronts_[tid] = free;
-  }
-  else if(queueSizes_[tid] == 1) {
-    queueBacks_[tid] = free;
-  }
-  else {
-    assert(queueBacks_[tid] != NULL);
-    pushToFile(tid, &(queueBacks_[tid]));
-    queueBacks_[tid] = free;
-  }
-
-  queueBacks_[tid] = free;
-  queueSizes_[tid]++;
+  handshake_buffer_[tid].push(free);
 }
 
 void BufferManager::pop(THREADID tid, handshake_container_t* handshake)
 {
+  (*(logs_[tid])) << "popping:" << handshake << ":" << (*handshake) << " with old size:" << handshake_buffer_[tid].size() << endl;
   checkFirstAccess(tid);
 
-  assert(queueSizes_[tid] > 0);
-  
-  if(queueSizes_[tid] == 1) {
-    queueFronts_[tid] = NULL;
-  }
-  else if(queueSizes_[tid] == 2) {
-    queueFronts_[tid] = queueBacks_[tid];
-    queueBacks_[tid] = NULL;
-  }
-  else {
-    handshake_container_t * handshake_new = new handshake_container_t();
-    queueFronts_[tid] = NULL;
-    popFromFile(tid, &handshake_new);
-    queueFronts_[tid] = handshake_new;
-  }
-  
-  queueSizes_[tid]--;
-
+  assert(handshake_buffer_[tid].size() > 0);
+  handshake_buffer_[tid].pop();
   releasePooledHandshake(tid, handshake);
 }
 
 bool BufferManager::hasThread(THREADID tid) 
 {
-  return (queueSizes_.count(tid) != 0);
+  return (handshake_buffer_.count(tid) != 0);
 }
 
 unsigned int BufferManager::size()
 {
-  return queueSizes_.size();
+  return handshake_buffer_.size();
 }
 
 void BufferManager::checkFirstAccess(THREADID tid)
 {
-  if(queueSizes_.count(tid) == 0) {
+  if(handshake_buffer_.count(tid) == 0) {
     
     PIN_Yield();
     sleep(5);
     PIN_Yield();
     
-    char str[50];
-    sprintf(str, "%d", tid);
-    
-    fileNames_[tid] = tempnam("/dev/shm/", "sima");
-    bogusFileNames_[tid] = tempnam("/dev/shm/", "simb");
-
-    system(("/bin/rm -f " + fileNames_[tid]).c_str());
-    system(("/bin/touch " + fileNames_[tid]).c_str());
-    system(("/bin/chmod 777 " + fileNames_[tid]).c_str());
-
-    queueSizes_[tid] = 0;
-    queueFronts_[tid] = NULL;
-    queueBacks_[tid] = NULL;
-    
-    for (int i=0; i < 100; i++) {
+    for (int i=0; i < 150000; i++) {
       handshake_container_t* new_handshake = new handshake_container_t();
       if (i > 0) {
 	new_handshake->isFirstInsn = false;            
@@ -144,188 +118,14 @@ void BufferManager::checkFirstAccess(THREADID tid)
 
     locks_[tid] = new pthread_mutex_t();
     pthread_mutex_init(locks_[tid], 0);
+    
+    char s_tid[100];
+    sprintf(s_tid, "%d", tid);
+
+    string logName = "./output_ring_cache/handshake_" + string(s_tid) + ".log"; 
+    logs_[tid] = new ofstream();
+    (*(logs_[tid])).open(logName.c_str());    
   }
-}
-
-void BufferManager::pushToFile(THREADID tid, handshake_container_t** handshake)
-{
-  pthread_mutex_lock(locks_[tid]);
-  pipeWriters_[tid] = open(fileNames_[tid].c_str(), O_WRONLY | O_APPEND);
-  if(pipeWriters_[tid] == -1) {
-    cerr << "Opened to write: " << fileNames_[tid].c_str();
-    cerr << "Pipe open error: " << pipeWriters_[tid] << " Errcode:" << strerror(errno) << endl;
-    abort();
-  }
-  
-  realPush(tid, handshake);
-
-  close(pipeWriters_[tid]);
-  sync();
-  pthread_mutex_unlock(locks_[tid]);
-}
-
-void BufferManager::realPush(THREADID tid, handshake_container_t** handshake)
-{
-  int bytesWritten = write(pipeWriters_[tid], &((*handshake)->handshake), sizeof(P2Z_HANDSHAKE));
-  if(bytesWritten == -1) {
-    cerr << "Pipe write error: " << bytesWritten << " Errcode:" << strerror(errno) << endl;
-    abort();
-  }
-  if(bytesWritten != sizeof(P2Z_HANDSHAKE)) {
-    cerr << "Pipe write error: " << bytesWritten << endl;
-  }
-  assert(bytesWritten == sizeof(P2Z_HANDSHAKE));
- 
-  bytesWritten = write(pipeWriters_[tid], &((*handshake)->valid), sizeof(BOOL));
-  assert(bytesWritten == sizeof(BOOL));
-
-  bytesWritten = write(pipeWriters_[tid], &((*handshake)->mem_released), sizeof(BOOL));
-  assert(bytesWritten == sizeof(BOOL));
-
-  bytesWritten = write(pipeWriters_[tid], &((*handshake)->isFirstInsn), sizeof(BOOL));
-  assert(bytesWritten == sizeof(BOOL));
-
-  bytesWritten = write(pipeWriters_[tid], &((*handshake)->isLastInsn), sizeof(BOOL));
-  assert(bytesWritten == sizeof(BOOL));
-
-  bytesWritten = write(pipeWriters_[tid], &((*handshake)->killThread), sizeof(BOOL));
-  assert(bytesWritten == sizeof(BOOL));
-
-  int mapSize = (*handshake)->mem_buffer.size();
-  bytesWritten = write(pipeWriters_[tid], &(mapSize), sizeof(int));
-  assert(bytesWritten == sizeof(int));
-  
-  map<UINT32, UINT8>::iterator it;
-  for(it = (*handshake)->mem_buffer.begin(); it != (*handshake)->mem_buffer.end(); it++) {
-    bytesWritten = write(pipeWriters_[tid], &(it->first), sizeof(UINT32));
-    assert(bytesWritten == sizeof(UINT32));
-    
-    bytesWritten = write(pipeWriters_[tid], &(it->second), sizeof(UINT8));
-    assert(bytesWritten == sizeof(UINT8));
-  } 
-}
-
-void BufferManager::popFromFile(THREADID tid, handshake_container_t** handshake)
-{
-  pthread_mutex_lock(locks_[tid]);
-  system(("/bin/rm -f " + bogusFileNames_[tid]).c_str());
-  system(("/bin/touch " + bogusFileNames_[tid]).c_str());
-  system(("/bin/chmod 777 " + bogusFileNames_[tid]).c_str());
-
-  pipeReaders_[tid] = open(fileNames_[tid].c_str(), O_RDONLY);
-  if(pipeReaders_[tid] == -1) {
-    cerr << "Opened to read: " << fileNames_[tid].c_str();
-    cerr << "Pipe open error: " << pipeReaders_[tid] << " Errcode:" << strerror(errno) << endl;
-    abort();
-  }
-
-  int bytesRead = -1;
-  handshake_container_t** readHandshake;
-  handshake_container_t bogusHandshake;
-  handshake_container_t* bogusHandshakePointer = &bogusHandshake;
-  int count = 0;
-
-  while(true) {
-    if(count == 0) {
-      readHandshake = handshake;
-    }
-    else {
-      readHandshake = &(bogusHandshakePointer);
-    }
-    bytesRead = read(pipeReaders_[tid], &((*readHandshake)->handshake), sizeof(P2Z_HANDSHAKE));
-    if(bytesRead == 0) {
-      break;
-    }    
-    if(bytesRead == -1) {
-      cerr << "Pipe read error: " << bytesRead << " Errcode:" << strerror(errno) << endl;
-      abort();
-    }
-
-    assert(bytesRead == sizeof(P2Z_HANDSHAKE));    
-
-    bytesRead = read(pipeReaders_[tid], &((*readHandshake)->valid), sizeof(BOOL));
-if(bytesRead == -1) {
-      cerr << "Pipe read error: " << bytesRead << " Errcode:" << strerror(errno) << endl;
-      abort();
-    }    
-assert(bytesRead == sizeof(BOOL));
-
-    bytesRead = read(pipeReaders_[tid], &((*readHandshake)->mem_released), sizeof(BOOL));
-if(bytesRead == -1) {
-      cerr << "Pipe read error: " << bytesRead << " Errcode:" << strerror(errno) << endl;
-      abort();
-    }    
-assert(bytesRead == sizeof(BOOL));
-    
-    bytesRead = read(pipeReaders_[tid], &((*readHandshake)->isFirstInsn), sizeof(BOOL));
-if(bytesRead == -1) {
-      cerr << "Pipe read error: " << bytesRead << " Errcode:" << strerror(errno) << endl;
-      abort();
-    }    
-assert(bytesRead == sizeof(BOOL));
-    
-    bytesRead = read(pipeReaders_[tid], &((*readHandshake)->isLastInsn), sizeof(BOOL));
-if(bytesRead == -1) {
-      cerr << "Pipe read error: " << bytesRead << " Errcode:" << strerror(errno) << endl;
-      abort();
-    }    
-assert(bytesRead == sizeof(BOOL));
-    
-    bytesRead = read(pipeReaders_[tid], &((*readHandshake)->killThread), sizeof(BOOL));
-if(bytesRead == -1) {
-      cerr << "Pipe read error: " << bytesRead << " Errcode:" << strerror(errno) << endl;
-      abort();
-    }    
-assert(bytesRead == sizeof(BOOL));
-
-    int mapSize;
-    bytesRead = read(pipeReaders_[tid], &(mapSize), sizeof(int));
-if(bytesRead == -1) {
-      cerr << "Pipe read error: " << bytesRead << " Errcode:" << strerror(errno) << endl;
-      abort();
-    }    
-assert(bytesRead == sizeof(int));
-    
-    for(int i = 0; i < mapSize; i++) {
-      UINT32 first;
-      UINT8 second;
-      
-      bytesRead = read(pipeReaders_[tid], &(first), sizeof(UINT32));
-if(bytesRead == -1) {
-      cerr << "Pipe read error: " << bytesRead << " Errcode:" << strerror(errno) << endl;
-      abort();
-    }      
-assert(bytesRead == sizeof(UINT32));
-      
-      bytesRead = read(pipeReaders_[tid], &(second), sizeof(UINT8));
-if(bytesRead == -1) {
-      cerr << "Pipe read error: " << bytesRead << " Errcode:" << strerror(errno) << endl;
-      abort();
-    }      
- assert(bytesRead == sizeof(UINT8));
-      
-      ((*readHandshake)->mem_buffer)[first] = second;
-    }    
-    
-    if(count > 0) {
-      pipeWriters_[tid] = open(bogusFileNames_[tid].c_str(), O_WRONLY | O_APPEND);
-      realPush(tid, readHandshake);
-      close(pipeWriters_[tid]);
-    }
-    
-    count++;    
-  }
-  
-  close(pipeReaders_[tid]);    
-  
-  sync();
-  
-  string cmd = "/bin/cp -rf " +bogusFileNames_[tid] + " " + fileNames_[tid];
-  system(cmd.c_str());
-  
-  sync();
-  
-  pthread_mutex_unlock(locks_[tid]);
 }
 
 handshake_container_t* BufferManager::getPooledHandshake(THREADID tid, bool fromILDJIT)
@@ -359,9 +159,6 @@ handshake_container_t* BufferManager::getPooledHandshake(THREADID tid, bool from
   else {// this else might be wrong...
     result->isFirstInsn = false;
   }
-
-  result->mem_released = true;
-  result->valid = false;
   
   return result;
 }

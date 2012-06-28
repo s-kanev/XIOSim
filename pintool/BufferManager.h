@@ -23,26 +23,18 @@ class BufferManager
   unsigned int size();
   bool isFirstInsn(THREADID tid);
 
- private:
-  map<THREADID, string> fileNames_;
-  map<THREADID, string> bogusFileNames_;
+  friend ostream& operator<< (ostream &out, handshake_container_t &hand);
 
-  map<THREADID, int> queueSizes_;
-  map<THREADID, handshake_container_t*> queueFronts_;
-  map<THREADID, handshake_container_t*> queueBacks_;
-  map<THREADID, int> pipeReaders_;
-  map<THREADID, int> pipeWriters_;
+ private:
   map<THREADID, pthread_mutex_t*> locks_;
   
   map<THREADID, handshake_queue_t> handshake_pool_;
 
   map<THREADID, int> didFirstInsn_;
 
-  void checkFirstAccess(THREADID tid);
-  void pushToFile(THREADID tid, handshake_container_t** handshake);
-  void realPush(THREADID tid, handshake_container_t** handshake);
-  void popFromFile(THREADID tid, handshake_container_t** handshake);
+  map<THREADID, ofstream*> logs_;
 
+  void checkFirstAccess(THREADID tid);
   handshake_container_t* getPooledHandshake(THREADID tid, bool fromILDJIT=true);
   void releasePooledHandshake(THREADID tid, handshake_container_t* handshake);
 
