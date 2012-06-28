@@ -61,7 +61,7 @@ bool BufferManager::empty(THREADID tid)
 
 void BufferManager::push(THREADID tid, handshake_container_t* handshake, bool fromILDJIT)
 {
-  (*(logs_[tid])) << "pushing:" << (*handshake) << " with old size:" << handshake_buffer_[tid].size() << " " << fromILDJIT << endl;
+  //  (*(logs_[tid])) << "pushing:" << (*handshake) << " with old size:" << handshake_buffer_[tid].size() << " " << fromILDJIT << endl;
   checkFirstAccess(tid);    
   
   handshake_container_t* free = getPooledHandshake(tid, fromILDJIT);
@@ -79,7 +79,7 @@ void BufferManager::push(THREADID tid, handshake_container_t* handshake, bool fr
 
 void BufferManager::pop(THREADID tid, handshake_container_t* handshake)
 {
-  (*(logs_[tid])) << "popping:" << handshake << ":" << (*handshake) << " with old size:" << handshake_buffer_[tid].size() << endl;
+  //  (*(logs_[tid])) << "popping:" << handshake << ":" << (*handshake) << " with old size:" << handshake_buffer_[tid].size() << endl;
   checkFirstAccess(tid);
 
   assert(handshake_buffer_[tid].size() > 0);
@@ -105,7 +105,7 @@ void BufferManager::checkFirstAccess(THREADID tid)
     sleep(5);
     PIN_Yield();
     
-    for (int i=0; i < 150000; i++) {
+    for (int i=0; i < 250000; i++) {
       handshake_container_t* new_handshake = new handshake_container_t();
       if (i > 0) {
 	new_handshake->isFirstInsn = false;            
