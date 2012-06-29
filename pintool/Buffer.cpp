@@ -14,15 +14,15 @@ Buffer::Buffer()
   size_ = 0;
 }
 
-void Buffer::push(handshake_container_t* handshake)
+handshake_container_t* Buffer::get_buffer()
 {
   assert(!full());
-  
-  handshake_container_t* copyTo = handshakePool_[head_];
+  return handshakePool_[head_];
+}
 
-  copyTo->flags = handshake->flags;
-  copyTo->mem_buffer = handshake->mem_buffer;
-  copyTo->handshake = handshake->handshake;
+void Buffer::push_done()
+{
+  assert(!full());
 
   head_++;
   if(head_ == numPool_) {
@@ -33,7 +33,9 @@ void Buffer::push(handshake_container_t* handshake)
 
 void Buffer::pop()
 {
-  front();
+  handshake_container_t* handshake = front();
+  handshake->clear();
+
   tail_++;
   if(tail_ == numPool_) {
     tail_ = 0;

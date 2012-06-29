@@ -113,8 +113,6 @@ struct handshake_flags_t
   // Did we finish dumping context
   BOOL valid;
   
-  // Did we finish dumping memory info
-  BOOL mem_released;
   BOOL isFirstInsn;
   BOOL isLastInsn;
   BOOL killThread;
@@ -124,13 +122,18 @@ class handshake_container_t
 {
   public:
     handshake_container_t() {
+        clear();
+    }
+
+    void clear() {
         memzero(&handshake, sizeof(P2Z_HANDSHAKE));
         handshake.real = true;
-        flags.valid = FALSE;
-        flags.isFirstInsn = true;
+        flags.valid = false;
+        flags.isFirstInsn = false;
         flags.isLastInsn = false;
         flags.killThread = false;
-        flags.mem_released = true;
+
+        mem_buffer.clear();
     }
 
     // Handshake information that gets passed on to Zesto

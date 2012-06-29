@@ -19,12 +19,19 @@ class BufferManager
   handshake_container_t* back(THREADID tid);
   bool empty(THREADID tid);
 
-  void push(THREADID tid, handshake_container_t* handshake, bool fromILDJIT=false);
+  // The two steps of a push -- get a buffer, do magic with
+  // it, and call producer_done once it can be consumed / flushed
+  // In between, back() will return a pointer to that buffer
+  handshake_container_t* get_buffer(THREADID tid);
+  // By assumption, we call producer_done() once we have a completely
+  // instrumented, valid handshake, so that we don't need to handle
+  // intermediate cases
+  void producer_done(THREADID tid);
+
   void pop(THREADID tid);
 
   bool hasThread(THREADID tid);
   unsigned int size();
-  bool isFirstInsn(THREADID tid);
 
   void flushBuffers(THREADID tid);
   void threadDone(THREADID tid);
@@ -37,19 +44,15 @@ class BufferManager
   map<THREADID, Buffer*> produceBuffer_;
   map<THREADID, Buffer*> consumeBuffer_;
    
-  map<THREADID, int> didFirstInsn_;
   map<THREADID, int> fileEntryCount_;
 
   map<THREADID, PIN_LOCK*> locks_;
 
   void checkFirstAccess(THREADID tid);
-  void writeProduceBufferIntoFile(THREADID tid, bool all=false);
+  void writeProduceBufferIntoFile(THREADID tid);
   void readFileIntoConsumeBuffer(THREADID tid);
   void writeHandshake(int fd, handshake_container_t* handshake);
   bool readHandshake(int fd, handshake_container_t* handshake);
-
-  handshake_container_t* getPooledHandshake(THREADID tid, bool fromILDJIT=true);
-  void releasePooledHandshake(THREADID tid, handshake_container_t* handshake);
 
   std::map<THREADID, handshake_queue_t> handshake_buffer_;
 };

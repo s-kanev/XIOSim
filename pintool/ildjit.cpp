@@ -237,7 +237,7 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
       if (invocation_counts[loop] == start_loop_invocation) {
         cerr << "Starting simulation, TTID: " << tid << endl;
         PPointHandler(CONTROL_START, NULL, NULL, (VOID*)ip, tid);
-	cerr << "Starting simulation, TTID2: " << tid << endl;
+        cerr << "Starting simulation, TTID2: " << tid << endl;
         firstLoop = false;
       } 
       else if (invocation_counts[loop] > start_loop_invocation) {
@@ -323,7 +323,6 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
       seen_ssID_zero = true;
     }
 
-//    handshake_buffer[tid].push(handshake);
     ReleaseLock(&simbuffer_lock);
 }
 
@@ -364,27 +363,27 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
     }
 
     /* Insert wait instruction in pipeline */
-    handshake_container_t handshake;
+    handshake_container_t* handshake = handshake_buffer.get_buffer(tid);
 
-    handshake.flags.isFirstInsn = false;
-    handshake.handshake.sleep_thread = false;
-    handshake.handshake.resume_thread = false;
-    handshake.handshake.real = false;
-    handshake.handshake.coreID = tstate->coreID;
-    handshake.handshake.iteration_correction = false;
-    handshake.handshake.in_critical_section = (num_threads > 1);
-    handshake.flags.valid = true;
+    handshake->flags.isFirstInsn = false;
+    handshake->handshake.sleep_thread = false;
+    handshake->handshake.resume_thread = false;
+    handshake->handshake.real = false;
+    handshake->handshake.coreID = tstate->coreID;
+    handshake->handshake.iteration_correction = false;
+    handshake->handshake.in_critical_section = (num_threads > 1);
+    handshake->flags.valid = true;
 
-    handshake.handshake.pc = pc;
-    handshake.handshake.npc = pc + sizeof(ld_template);
-    handshake.handshake.tpc = pc + sizeof(ld_template);
-    handshake.handshake.brtaken = false;
-    memcpy(handshake.handshake.ins, ld_template, sizeof(ld_template));
+    handshake->handshake.pc = pc;
+    handshake->handshake.npc = pc + sizeof(ld_template);
+    handshake->handshake.tpc = pc + sizeof(ld_template);
+    handshake->handshake.brtaken = false;
+    memcpy(handshake->handshake.ins, ld_template, sizeof(ld_template));
     // Address comes right after opcode byte
-    *(INT32*)(&handshake.handshake.ins[1]) = tstate->lastSignalAddr;
+    *(INT32*)(&handshake->handshake.ins[1]) = tstate->lastSignalAddr;
 
 //    cerr << tid << ": Vodoo load instruction " << hex << pc <<  " ID: " << tstate->lastSignalAddr << dec << endl;
-    handshake_buffer.push(tid, &handshake, true);
+    handshake_buffer.producer_done(tid);
 
     ReleaseLock(&simbuffer_lock);
 }
@@ -449,27 +448,27 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT p
     }
 
     /* Insert signal instruction in pipeline */
-    handshake_container_t handshake;
+    handshake_container_t* handshake = handshake_buffer.get_buffer(tid);
 
-    handshake.flags.isFirstInsn = false;
-    handshake.handshake.sleep_thread = false;
-    handshake.handshake.resume_thread = false;
-    handshake.handshake.real = false;
-    handshake.handshake.coreID = tstate->coreID;
-    handshake.handshake.in_critical_section = (num_threads > 1) && (unmatchedWaits[tid] > 0);
-    handshake.handshake.iteration_correction = false;
-    handshake.flags.valid = true;
+    handshake->flags.isFirstInsn = false;
+    handshake->handshake.sleep_thread = false;
+    handshake->handshake.resume_thread = false;
+    handshake->handshake.real = false;
+    handshake->handshake.coreID = tstate->coreID;
+    handshake->handshake.in_critical_section = (num_threads > 1) && (unmatchedWaits[tid] > 0);
+    handshake->handshake.iteration_correction = false;
+    handshake->flags.valid = true;
 
-    handshake.handshake.pc = pc;
-    handshake.handshake.npc = pc + sizeof(st_template);
-    handshake.handshake.tpc = pc + sizeof(st_template);
-    handshake.handshake.brtaken = false;
-    memcpy(handshake.handshake.ins, st_template, sizeof(st_template));
+    handshake->handshake.pc = pc;
+    handshake->handshake.npc = pc + sizeof(st_template);
+    handshake->handshake.tpc = pc + sizeof(st_template);
+    handshake->handshake.brtaken = false;
+    memcpy(handshake->handshake.ins, st_template, sizeof(st_template));
     // Address comes right after opcode and MoodRM bytes
-    *(INT32*)(&handshake.handshake.ins[2]) = tstate->lastSignalAddr;
+    *(INT32*)(&handshake->handshake.ins[2]) = tstate->lastSignalAddr;
 
 //    cerr << tid << ": Vodoo store instruction " << hex << pc << " ID: " << tstate->lastSignalAddr << dec << endl;
-    handshake_buffer.push(tid, &handshake, true);
+    handshake_buffer.producer_done(tid);
     ReleaseLock(&simbuffer_lock);
 }
 
@@ -578,7 +577,7 @@ VOID AddILDJITCallbacks(IMG img)
     /// WAIT SIGNAL
 rtn = RTN_FindByName(img, "MOLECOOL_beforeWait");
     if (RTN_Valid(rtn))
-      {
+    {
         RTN_Open(rtn);
         RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeWait),
                        IARG_THREAD_ID,
@@ -586,14 +585,14 @@ rtn = RTN_FindByName(img, "MOLECOOL_beforeWait");
                        IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
                        IARG_INST_PTR,
                        IARG_CALL_ORDER, CALL_ORDER_FIRST,
-                     IARG_END);
+                       IARG_END);
         RTN_Close(rtn);
-      }
+    }
     
         rtn = RTN_FindByName(img, "MOLECOOL_afterWait");
     
     if (RTN_Valid(rtn))
-      {
+    {
         RTN_Open(rtn);
         RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterWait),
                        IARG_THREAD_ID,
@@ -601,49 +600,47 @@ rtn = RTN_FindByName(img, "MOLECOOL_beforeWait");
                        IARG_CALL_ORDER, CALL_ORDER_LAST,
                        IARG_END);
         RTN_Close(rtn);
-      }
+    }
     
     rtn = RTN_FindByName(img, "MOLECOOL_beforeSignal");
-    if (RTN_Valid(rtn)) {
-      RTN_Open(rtn);
-      RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeSignal),
-                     IARG_THREAD_ID,
-                     IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
-                     IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
-                     IARG_INST_PTR,
-                     IARG_CALL_ORDER, CALL_ORDER_FIRST,
-                     IARG_END);
-      RTN_Close(rtn);
+    if (RTN_Valid(rtn))
+    {
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeSignal),
+                       IARG_THREAD_ID,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
+                       IARG_INST_PTR,
+                       IARG_CALL_ORDER, CALL_ORDER_FIRST,
+                       IARG_END);
+        RTN_Close(rtn);
     }
     
     rtn = RTN_FindByName(img, "MOLECOOL_afterSignal");
-    if (RTN_Valid(rtn)) {
-      RTN_Open(rtn);
-      RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterSignal),
-                     IARG_THREAD_ID,
-                     IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
-                     IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
-                     IARG_INST_PTR,
-                     IARG_CALL_ORDER, CALL_ORDER_LAST,
-                     IARG_END);
-      RTN_Close(rtn);
-      }
+    if (RTN_Valid(rtn))
+    {
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterSignal),
+                       IARG_THREAD_ID,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
+                       IARG_INST_PTR,
+                       IARG_CALL_ORDER, CALL_ORDER_LAST,
+                       IARG_END);
+        RTN_Close(rtn);
+    }
 
     rtn = RTN_FindByName(img, "MOLECOOL_endParallelLoop");
     if (RTN_Valid(rtn))
-      {
+    {
         RTN_Open(rtn);
         RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_endParallelLoop),
                        IARG_THREAD_ID,
                        IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
-		       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
                        IARG_END);
         RTN_Close(rtn);
-      }
-
-
-
-
+    }
 
 //==========================================================
 //FLUFFY-related

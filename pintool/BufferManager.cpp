@@ -60,7 +60,6 @@ handshake_container_t* BufferManager::front(THREADID tid)
   assert(queueSizes_[tid] > 0);
 
   if(consumeBuffer_[tid]->size() > 0) {
-    consumeBuffer_[tid]->front()->flags.valid = true;
     return consumeBuffer_[tid]->front();
   }
   
@@ -77,7 +76,6 @@ handshake_container_t* BufferManager::front(THREADID tid)
   }
 
   readFileIntoConsumeBuffer(tid);
-  consumeBuffer_[tid]->front()->flags.valid = true;
   assert(consumeBuffer_[tid]->size() > 0);
   return consumeBuffer_[tid]->front();
 
@@ -97,21 +95,28 @@ bool BufferManager::empty(THREADID tid)
   return queueSizes_[tid] == 0;
 }
 
-void BufferManager::push(THREADID tid, handshake_container_t* handshake, bool fromILDJIT)
+//XXX: Assumes we are holding simbuffer_lock
+handshake_container_t* BufferManager::get_buffer(THREADID tid)
 {
   checkFirstAccess(tid);
 
-  if((didFirstInsn_.count(tid) == 0) && (!fromILDJIT)) {    
-    handshake->flags.isFirstInsn = true;
-    didFirstInsn_[tid] = true;
-  }
-  else {// this else might be wrong...
-    handshake->flags.isFirstInsn = false;
-  }
-
-  produceBuffer_[tid]->push(handshake);
+  // Push is guaranteed to succeed because each call to
+  // this->get_buffer() is followed by a call to this->producer_done()
+  // which will make space if full
+  handshake_container_t* result = produceBuffer_[tid]->get_buffer();
+  produceBuffer_[tid]->push_done();
   queueSizes_[tid]++;
-  
+
+  return result;
+}
+
+//XXX: Assumes we are holding simbuffer_lock
+void BufferManager::producer_done(THREADID tid)
+{
+  ASSERTX(!produceBuffer_[tid]->empty());
+  handshake_container_t* last = produceBuffer_[tid]->back();
+  ASSERTX(last->flags.valid);
+
   if(produceBuffer_[tid]->full()) {
     writeProduceBufferIntoFile(tid);
 
@@ -144,7 +149,7 @@ void BufferManager::flushBuffers(THREADID tid)
   for(it = fileNames_.begin(); it != fileNames_.end(); it++) {
     cerr << "FLUSHWRITE:" << it->first << endl;
     sync();
-    writeProduceBufferIntoFile(it->first, true);
+    writeProduceBufferIntoFile(it->first);
     sync();
   }
   /*  for(it = fileNames_.begin(); it != fileNames_.end(); it++) {
@@ -203,6 +208,7 @@ void BufferManager::checkFirstAccess(THREADID tid)
     queueSizes_[tid] = 0;
 
     produceBuffer_[tid] = new Buffer();
+    produceBuffer_[tid]->get_buffer()->flags.isFirstInsn = true;
     consumeBuffer_[tid] = new Buffer();       
     
     fileEntryCount_[tid] = 0;
@@ -212,7 +218,7 @@ void BufferManager::checkFirstAccess(THREADID tid)
   }
 }
 
-void BufferManager::writeProduceBufferIntoFile(THREADID tid, bool all)
+void BufferManager::writeProduceBufferIntoFile(THREADID tid)
 {
   //  cerr << tid << " Writing produce buffer into file" << endl;
   //  cerr << tid << " File has " << fileEntryCount_[tid] << " entries" << endl;
@@ -228,7 +234,7 @@ void BufferManager::writeProduceBufferIntoFile(THREADID tid, bool all)
   }
 
   int count = 0;
-  while(produceBuffer_[tid]->size() > 1 || (produceBuffer_[tid]->size() > 0 && all)) {
+  while(produceBuffer_[tid]->size() > 0) {
     handshake = produceBuffer_[tid]->front();    
     writeHandshake(fd, handshake);
     produceBuffer_[tid]->pop();
@@ -276,12 +282,13 @@ void BufferManager::readFileIntoConsumeBuffer(THREADID tid)
   int count = 0;
   bool validRead = true;
   while(!consumeBuffer_[tid]->full()) {
-    handshake_container_t handshake;
-    validRead = readHandshake(fd, &handshake);    
+    handshake_container_t* handshake = consumeBuffer_[tid]->get_buffer();
+    validRead = readHandshake(fd, handshake);    
     if(validRead == false) {
+      handshake->clear();
       break;
     }
-    consumeBuffer_[tid]->push(&(handshake));
+    consumeBuffer_[tid]->push_done();
     count++;
   }
   
@@ -438,11 +445,4 @@ bool BufferManager::readHandshake(int fd, handshake_container_t* handshake)
   free(readBuffer);
 
   return true;
-}
-
-bool BufferManager::isFirstInsn(THREADID tid)
-{
-  bool isFirst = (didFirstInsn_.count(tid) == 0);
-  //  didFirstInsn_[tid] = true;
-  return isFirst;
 }
