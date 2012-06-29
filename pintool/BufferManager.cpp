@@ -63,15 +63,18 @@ handshake_container_t* BufferManager::front(THREADID tid)
     if(spins >= 7000000LL) {
       cerr << tid << " [front()]: That's a lot of spins!" << endl;
       cerr << consumeBuffer_[tid]->size() << endl;
+      cerr << fakeFile_[tid]->size() << endl;
       cerr << produceBuffer_[tid]->size() << endl;
       cerr << tid << "WARNING: FORCING COPY" << endl;
       spins = 0;
       copyFileToConsumer(tid);
       copyProducerToFile(tid, true);
+      copyFileToConsumer(tid);
     }
   }
 
   assert(consumeBuffer_[tid]->size() > 0);
+  assert(consumeBuffer_[tid]->front()->valid);
   assert(queueSizes_[tid] > 0);
   ReleaseLock(locks_[tid]);
   return consumeBuffer_[tid]->front();
@@ -118,6 +121,7 @@ void BufferManager::push(THREADID tid, handshake_container_t* handshake, bool fr
   if(produceBuffer_[tid]->full()) {
     copyFileToConsumer(tid);
     copyProducerToFile(tid, true);
+    copyFileToConsumer(tid);
   }
  
   assert(!produceBuffer_[tid]->full());
