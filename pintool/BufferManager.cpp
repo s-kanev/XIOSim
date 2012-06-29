@@ -166,8 +166,8 @@ void BufferManager::checkFirstAccess(THREADID tid)
     queueSizes_[tid] = 0;
     consumeBuffer_[tid] = new Buffer();
     produceBuffer_[tid] = new Buffer();    
-    pool_[tid] = 0;
-    
+    pool_[tid] = 150000;
+
     cerr << tid << " Allocating locks!" << endl;
     locks_[tid] = new PIN_LOCK();
     InitLock(locks_[tid]);
@@ -186,10 +186,8 @@ void BufferManager::getPooledHandshake(THREADID tid, bool fromILDJIT)
 {
   checkFirstAccess(tid);    
 
-  const int totalAvailable = 100000;
-
   long long int spins = 0;  
-  while(pool_[tid] == totalAvailable) {    
+  while(pool_[tid] == 0) {    
     ReleaseLock(&simbuffer_lock);
     ReleaseLock(locks_[tid]);
     PIN_Yield();
