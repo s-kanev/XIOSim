@@ -30,6 +30,7 @@ class BufferManager
   map<THREADID, PIN_LOCK*> locks_;
   
   map<THREADID, handshake_queue_t> handshake_pool_;
+  map<THREADID, handshake_queue_t> busyPool_;
 
   map<THREADID, int> didFirstInsn_;
 

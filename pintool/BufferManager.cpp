@@ -39,6 +39,7 @@ BufferManager::BufferManager()
 {  
 }
 
+
 handshake_container_t* BufferManager::front(THREADID tid)
 {
   checkFirstAccess(tid);
@@ -51,10 +52,26 @@ handshake_container_t* BufferManager::front(THREADID tid)
     return consumeBuffer_[tid]->front();
   }
 
-  assert(produceBuffer_[tid]->size() > 0);
+  long long int spins = 0;  
+  while(consumeBuffer_[tid]->empty()) {
+    ReleaseLock(&simbuffer_lock);
+    ReleaseLock(locks_[tid]);    
+    PIN_Yield();
+    GetLock(&simbuffer_lock, tid+1);
+    GetLock(locks_[tid], tid+1);
+    spins++;
+    if(spins >= 7000000LL) {
+      cerr << tid << " [front()]: That's a lot of spins!" << endl;
+      cerr << consumeBuffer_[tid]->size() << endl;
+      cerr << produceBuffer_[tid]->size() << endl;
+      cerr << tid << "WARNING: FORCING COPY" << endl;
+      spins = 0;
+      copyProducerToConsumer(tid, true);
+    }
+  }
 
-  copyProducerToConsumer(tid, true);
-
+  assert(consumeBuffer_[tid]->size() > 0);
+  assert(queueSizes_[tid] > 0);
   ReleaseLock(locks_[tid]);
   return consumeBuffer_[tid]->front();
 }
@@ -80,16 +97,31 @@ bool BufferManager::empty(THREADID tid)
 
 void BufferManager::push(THREADID tid, handshake_container_t* handshake, bool fromILDJIT)
 {
-  checkFirstAccess(tid);    
+  checkFirstAccess(tid);
   GetLock(locks_[tid], tid+1);
- 
+
   handshake_container_t* free = getPooledHandshake(tid, fromILDJIT);  
+  
   bool first = free->isFirstInsn;
   *free = *handshake;  
   free->isFirstInsn = first;
+  
+  if(produceBuffer_[tid]->size() > 0) {
+    assert(produceBuffer_[tid]->back()->valid == true);
+  }
 
+  if(produceBuffer_[tid]->full()) {
+    copyProducerToConsumer(tid, true);
+  }
+  else if (!(consumeBuffer_[tid]->full())){
+    copyProducerToConsumer(tid, true);
+  }
+ 
   produceBuffer_[tid]->push(free);
-  queueSizes_[tid]++;
+  queueSizes_[tid]++;  
+
+  busyPool_[tid].push(free);
+
   ReleaseLock(locks_[tid]);
 }
 
@@ -102,16 +134,20 @@ void BufferManager::pop(THREADID tid, handshake_container_t* handshake)
   assert(consumeBuffer_[tid]->size() > 0);
   consumeBuffer_[tid]->pop();
 
-  releasePooledHandshake(tid, handshake);
+  busyPool_[tid].front()->mem_buffer.clear();
+  busyPool_[tid].front()->mem_released = true;
+  busyPool_[tid].front()->valid = false;   // Let pin instrument instruction
+
+  handshake_pool_[tid].push(busyPool_[tid].front());
+  busyPool_[tid].pop();
+
   queueSizes_[tid]--;
   ReleaseLock(locks_[tid]);
 }
 
 bool BufferManager::hasThread(THREADID tid) 
 {
-  GetLock(locks_[tid], tid+1);
   bool result = queueSizes_.count(tid);
-  ReleaseLock(locks_[tid]);
   return (result != 0);
 }
 
@@ -131,13 +167,14 @@ void BufferManager::checkFirstAccess(THREADID tid)
     
     queueSizes_[tid] = 0;
     consumeBuffer_[tid] = new Buffer();
-    produceBuffer_[tid] = new Buffer();
-    
+    produceBuffer_[tid] = new Buffer();    
+
     for (int i=0; i < 50000; i++) {
       handshake_container_t* new_handshake = new handshake_container_t();
       handshake_pool_[tid].push(new_handshake);      
     }
     
+    cerr << tid << " Allocating locks!" << endl;
     locks_[tid] = new PIN_LOCK();
     InitLock(locks_[tid]);
     
@@ -147,7 +184,7 @@ void BufferManager::checkFirstAccess(THREADID tid)
     string logName = "./output_ring_cache/handshake_" + string(s_tid) + ".log"; 
     logs_[tid] = new ofstream();
     (*(logs_[tid])).open(logName.c_str());    
-  }
+  } 
   assert((consumeBuffer_[tid]->size() + produceBuffer_[tid]->size()) == queueSizes_[tid]);
 }
 
@@ -159,10 +196,12 @@ handshake_container_t* BufferManager::getPooledHandshake(THREADID tid, bool from
   pool = &(handshake_pool_[tid]);
 
   long long int spins = 0;  
-  while(pool->empty()) {
+  while(pool->empty()) {    
     ReleaseLock(&simbuffer_lock);
+    ReleaseLock(locks_[tid]);
     PIN_Yield();
     GetLock(&simbuffer_lock, tid+1);
+    GetLock(locks_[tid], tid+1);
     spins++;
     if(spins >= 7000000LL) {
       cerr << tid << " [getPooledHandshake()]: That's a lot of spins!" << endl;
@@ -182,6 +221,8 @@ handshake_container_t* BufferManager::getPooledHandshake(THREADID tid, bool from
   else {
     result->isFirstInsn = false;
   }
+  
+  result->valid = false;
   
   return result;
 }
@@ -203,11 +244,14 @@ bool BufferManager::isFirstInsn(THREADID tid)
 void BufferManager::copyProducerToConsumer(THREADID tid, bool all)
 {
   while(produceBuffer_[tid]->size() > 1 || (produceBuffer_[tid]->size() > 0 && all)) {
-    if(consumeBuffer_[tid]->full()) {
+    if(consumeBuffer_[tid]->full()) {      
       break;
     }
 
-    assert(produceBuffer_[tid]->front()->valid == true);
+    if(produceBuffer_[tid]->front()->valid == false) {
+      break;
+    }
+
     consumeBuffer_[tid]->push(produceBuffer_[tid]->front());
     produceBuffer_[tid]->pop();
   }

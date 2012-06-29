@@ -419,7 +419,6 @@ VOID ReleaseHandshake(UINT32 coreID)
 
     handshake->mem_buffer.clear();
     handshake->mem_released = true;
-
     handshake->valid = false;   // Let pin instrument instruction
 
     handshake_buffer.pop(instrument_tid, handshake);
