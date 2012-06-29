@@ -66,8 +66,8 @@ handshake_container_t* BufferManager::front(THREADID tid)
       cerr << produceBuffer_[tid]->size() << endl;
       cerr << tid << "WARNING: FORCING COPY" << endl;
       spins = 0;
-      copyProducerToFile(tid, true);
       copyFileToConsumer(tid);
+      copyProducerToFile(tid, true);
     }
   }
 
@@ -116,10 +116,11 @@ void BufferManager::push(THREADID tid, handshake_container_t* handshake, bool fr
   }
 
   if(produceBuffer_[tid]->full()) {
-    copyProducerToFile(tid, true);
     copyFileToConsumer(tid);
+    copyProducerToFile(tid, true);
   }
  
+  assert(!produceBuffer_[tid]->full());
   produceBuffer_[tid]->push(handshake);
   queueSizes_[tid]++;  
 
