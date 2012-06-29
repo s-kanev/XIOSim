@@ -179,7 +179,7 @@ void BufferManager::checkFirstAccess(THREADID tid)
     logs_[tid] = new ofstream();
     (*(logs_[tid])).open(logName.c_str());    
   } 
-  assert((consumeBuffer_[tid]->size() + produceBuffer_[tid]->size()) == queueSizes_[tid]);
+  assert((consumeBuffer_[tid]->size() + produceBuffer_[tid]->size() + fakeFile_[tid]->size()) == queueSizes_[tid]);
 }
 
 void BufferManager::getPooledHandshake(THREADID tid, bool fromILDJIT)
