@@ -27,7 +27,7 @@
 PIN_HOME ?= /group/brooks/xan/Molecool/pin
 ZESTO_HOME = ..
 TARGET = ia32
-INSTALL_DIR = /group/brooks/xan/Molecool/binTest
+INSTALL_DIR = /group/brooks/xan/Molecool/binTestOld
 
 ##############################################################
 #

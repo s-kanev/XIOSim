@@ -66,7 +66,8 @@ handshake_container_t* BufferManager::front(THREADID tid)
       cerr << produceBuffer_[tid]->size() << endl;
       cerr << tid << "WARNING: FORCING COPY" << endl;
       spins = 0;
-      copyProducerToConsumer(tid, true);
+      copyProducerToFile(tid, true);
+      copyFileToConsumer(tid);
     }
   }
 
@@ -115,10 +116,8 @@ void BufferManager::push(THREADID tid, handshake_container_t* handshake, bool fr
   }
 
   if(produceBuffer_[tid]->full()) {
-    copyProducerToConsumer(tid, true);
-  }
-  else if (!(consumeBuffer_[tid]->full())){
-    copyProducerToConsumer(tid, true);
+    copyProducerToFile(tid, true);
+    copyFileToConsumer(tid);
   }
  
   produceBuffer_[tid]->push(handshake);
@@ -165,8 +164,9 @@ void BufferManager::checkFirstAccess(THREADID tid)
     
     queueSizes_[tid] = 0;
     consumeBuffer_[tid] = new Buffer();
+    fakeFile_[tid] = new Buffer();
     produceBuffer_[tid] = new Buffer();    
-    pool_[tid] = 150000;
+    pool_[tid] = 75000 * 3;
 
     cerr << tid << " Allocating locks!" << endl;
     locks_[tid] = new PIN_LOCK();
@@ -211,10 +211,10 @@ bool BufferManager::isFirstInsn(THREADID tid)
   return isFirst;
 }
 
-void BufferManager::copyProducerToConsumer(THREADID tid, bool all)
+void BufferManager::copyProducerToFile(THREADID tid, bool all)
 {
   while(produceBuffer_[tid]->size() > 1 || (produceBuffer_[tid]->size() > 0 && all)) {
-    if(consumeBuffer_[tid]->full()) {      
+    if(fakeFile_[tid]->full()) {      
       break;
     }
 
@@ -222,7 +222,22 @@ void BufferManager::copyProducerToConsumer(THREADID tid, bool all)
       break;
     }
 
-    consumeBuffer_[tid]->push(produceBuffer_[tid]->front());
+    fakeFile_[tid]->push(produceBuffer_[tid]->front());
     produceBuffer_[tid]->pop();
+  }
+}
+
+
+void BufferManager::copyFileToConsumer(THREADID tid)
+{
+  while(fakeFile_[tid]->size() > 0) {
+    if(consumeBuffer_[tid]->full()) {      
+      break;
+    }
+
+    assert(fakeFile_[tid]->front()->valid);
+
+    consumeBuffer_[tid]->push(fakeFile_[tid]->front());
+    fakeFile_[tid]->pop();
   }
 }

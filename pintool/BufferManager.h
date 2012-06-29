@@ -35,12 +35,15 @@ class BufferManager
   map<THREADID, ofstream*> logs_;
 
   void checkFirstAccess(THREADID tid);
-  void copyProducerToConsumer(THREADID tid, bool all);
   void getPooledHandshake(THREADID tid, bool fromILDJIT=false);
+
+  void copyProducerToFile(THREADID tid, bool all);
+  void copyFileToConsumer(THREADID tid);
 
   std::map<THREADID, int> queueSizes_;
   std::map<THREADID, Buffer*> consumeBuffer_;
   std::map<THREADID, Buffer*> produceBuffer_;
+  std::map<THREADID, Buffer*> fakeFile_;
 };
 
 #endif
