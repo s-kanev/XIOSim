@@ -27,6 +27,7 @@ class BufferManager
   friend ostream& operator<< (ostream &out, handshake_container_t &hand);
 
  private:
+  bool useRealFile_;
   map<THREADID, PIN_LOCK*> locks_;
   
   map<THREADID, int> didFirstInsn_;
@@ -35,15 +36,31 @@ class BufferManager
   map<THREADID, ofstream*> logs_;
 
   void checkFirstAccess(THREADID tid);
-  void getPooledHandshake(THREADID tid, bool fromILDJIT=false);
+
+  void reserveHandshake(THREADID tid, bool fromILDJIT=false);
 
   void copyProducerToFile(THREADID tid, bool all);
   void copyFileToConsumer(THREADID tid);
 
+  void copyProducerToFileReal(THREADID tid, bool all);
+  void copyFileToConsumerReal(THREADID tid);
+
+  void copyProducerToFileFake(THREADID tid, bool all);
+  void copyFileToConsumerFake(THREADID tid);
+
+  bool readHandshake(int fd, handshake_container_t* handshake);
+  void writeHandshake(int fd, handshake_container_t* handshake);
+  
   std::map<THREADID, int> queueSizes_;
   std::map<THREADID, Buffer*> consumeBuffer_;
   std::map<THREADID, Buffer*> produceBuffer_;
   std::map<THREADID, Buffer*> fakeFile_;
+  std::map<THREADID, int> fileEntryCount_;
+
+  std::map<THREADID, string> fileNames_;
+  std::map<THREADID, string> bogusNames_;
+
+  
 };
 
 #endif
