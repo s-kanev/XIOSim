@@ -100,12 +100,16 @@ void BufferManager::push(THREADID tid, handshake_container_t* handshake, bool fr
   checkFirstAccess(tid);
   GetLock(locks_[tid], tid+1);
 
-  handshake_container_t* free = getPooledHandshake(tid, fromILDJIT);  
-  
-  bool first = free->isFirstInsn;
-  *free = *handshake;  
-  free->isFirstInsn = first;
-  
+  getPooledHandshake(tid, fromILDJIT);  
+
+  if((didFirstInsn_.count(tid) == 0) && (!fromILDJIT)) {    
+    handshake->isFirstInsn = true;
+    didFirstInsn_[tid] = true;
+  }
+  else {
+    handshake->isFirstInsn = false;
+  }
+
   if(produceBuffer_[tid]->size() > 0) {
     assert(produceBuffer_[tid]->back()->valid == true);
   }
@@ -117,10 +121,10 @@ void BufferManager::push(THREADID tid, handshake_container_t* handshake, bool fr
     copyProducerToConsumer(tid, true);
   }
  
-  produceBuffer_[tid]->push(free);
+  produceBuffer_[tid]->push(handshake);
   queueSizes_[tid]++;  
 
-  busyPool_[tid].push(free);
+  pool_[tid]--;
 
   ReleaseLock(locks_[tid]);
 }
@@ -134,13 +138,7 @@ void BufferManager::pop(THREADID tid, handshake_container_t* handshake)
   assert(consumeBuffer_[tid]->size() > 0);
   consumeBuffer_[tid]->pop();
 
-  busyPool_[tid].front()->mem_buffer.clear();
-  busyPool_[tid].front()->mem_released = true;
-  busyPool_[tid].front()->valid = false;   // Let pin instrument instruction
-
-  handshake_pool_[tid].push(busyPool_[tid].front());
-  busyPool_[tid].pop();
-
+  pool_[tid]++;
   queueSizes_[tid]--;
   ReleaseLock(locks_[tid]);
 }
@@ -168,11 +166,7 @@ void BufferManager::checkFirstAccess(THREADID tid)
     queueSizes_[tid] = 0;
     consumeBuffer_[tid] = new Buffer();
     produceBuffer_[tid] = new Buffer();    
-
-    for (int i=0; i < 100000; i++) {
-      handshake_container_t* new_handshake = new handshake_container_t();
-      handshake_pool_[tid].push(new_handshake);      
-    }
+    pool_[tid] = 0;
     
     cerr << tid << " Allocating locks!" << endl;
     locks_[tid] = new PIN_LOCK();
@@ -188,15 +182,14 @@ void BufferManager::checkFirstAccess(THREADID tid)
   assert((consumeBuffer_[tid]->size() + produceBuffer_[tid]->size()) == queueSizes_[tid]);
 }
 
-handshake_container_t* BufferManager::getPooledHandshake(THREADID tid, bool fromILDJIT)
+void BufferManager::getPooledHandshake(THREADID tid, bool fromILDJIT)
 {
   checkFirstAccess(tid);    
 
-  handshake_queue_t *pool;
-  pool = &(handshake_pool_[tid]);
+  const int totalAvailable = 100000;
 
   long long int spins = 0;  
-  while(pool->empty()) {    
+  while(pool_[tid] == totalAvailable) {    
     ReleaseLock(&simbuffer_lock);
     ReleaseLock(locks_[tid]);
     PIN_Yield();
@@ -210,29 +203,6 @@ handshake_container_t* BufferManager::getPooledHandshake(THREADID tid, bool from
       spins = 0;
     }
   }
-
-  handshake_container_t* result = pool->front();
-  ASSERTX(result != NULL);
-
-  pool->pop();
-  
-  if((didFirstInsn_.count(tid) == 0) && (!fromILDJIT)) {    
-    result->isFirstInsn = true;
-    didFirstInsn_[tid] = true;
-  }
-  else {
-    result->isFirstInsn = false;
-  }
-  
-  result->valid = false;
-  
-  return result;
-}
-
-void BufferManager::releasePooledHandshake(THREADID tid, handshake_container_t* handshake)
-{
-  handshake_pool_[tid].push(handshake);  
-  return;
 }
 
 bool BufferManager::isFirstInsn(THREADID tid)

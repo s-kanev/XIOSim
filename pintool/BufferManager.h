@@ -29,17 +29,14 @@ class BufferManager
  private:
   map<THREADID, PIN_LOCK*> locks_;
   
-  map<THREADID, handshake_queue_t> handshake_pool_;
-  map<THREADID, handshake_queue_t> busyPool_;
-
   map<THREADID, int> didFirstInsn_;
+  map<THREADID, int> pool_;
 
   map<THREADID, ofstream*> logs_;
 
   void checkFirstAccess(THREADID tid);
-  handshake_container_t* getPooledHandshake(THREADID tid, bool fromILDJIT=true);
-  void releasePooledHandshake(THREADID tid, handshake_container_t* handshake);
   void copyProducerToConsumer(THREADID tid, bool all);
+  void getPooledHandshake(THREADID tid, bool fromILDJIT=false);
 
   std::map<THREADID, int> queueSizes_;
   std::map<THREADID, Buffer*> consumeBuffer_;
