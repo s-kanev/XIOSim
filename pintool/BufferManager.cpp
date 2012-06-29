@@ -169,7 +169,7 @@ void BufferManager::checkFirstAccess(THREADID tid)
     consumeBuffer_[tid] = new Buffer();
     produceBuffer_[tid] = new Buffer();    
 
-    for (int i=0; i < 50000; i++) {
+    for (int i=0; i < 100000; i++) {
       handshake_container_t* new_handshake = new handshake_container_t();
       handshake_pool_[tid].push(new_handshake);      
     }
@@ -205,6 +205,8 @@ handshake_container_t* BufferManager::getPooledHandshake(THREADID tid, bool from
     spins++;
     if(spins >= 7000000LL) {
       cerr << tid << " [getPooledHandshake()]: That's a lot of spins!" << endl;
+      cerr << consumeBuffer_[tid]->size();
+      cerr << produceBuffer_[tid]->size();
       spins = 0;
     }
   }
