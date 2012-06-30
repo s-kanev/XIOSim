@@ -12,6 +12,7 @@ class BufferManager
 {
  public:
   BufferManager();
+  ~BufferManager();
 
   handshake_container_t* front(THREADID tid);
   handshake_container_t* back(THREADID tid);
@@ -24,6 +25,8 @@ class BufferManager
   unsigned int size();
   bool isFirstInsn(THREADID tid);
 
+  void signalCallback(int signum);
+  
   friend ostream& operator<< (ostream &out, handshake_container_t &hand);
 
  private:
@@ -39,13 +42,13 @@ class BufferManager
 
   void reserveHandshake(THREADID tid, bool fromILDJIT=false);
 
-  void copyProducerToFile(THREADID tid, bool all);
+  void copyProducerToFile(THREADID tid);
   void copyFileToConsumer(THREADID tid);
 
-  void copyProducerToFileReal(THREADID tid, bool all);
+  void copyProducerToFileReal(THREADID tid);
   void copyFileToConsumerReal(THREADID tid);
 
-  void copyProducerToFileFake(THREADID tid, bool all);
+  void copyProducerToFileFake(THREADID tid);
   void copyFileToConsumerFake(THREADID tid);
 
   bool readHandshake(int fd, handshake_container_t* handshake);

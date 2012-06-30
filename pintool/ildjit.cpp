@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <map>
+#include <signal.h>
 #include <queue>
 #include "feeder.h"
 #include "ildjit.h"
@@ -47,6 +48,8 @@ static map<THREADID, INT32> unmatchedWaits;
 
 VOID printMemoryUsage();
 VOID AddILDJITWaitSignalCallbacks();
+VOID signalCallback(int signum);
+
 extern VOID doLateILDJITInstrumentation();
 
 
@@ -71,6 +74,13 @@ VOID MOLECOOL_Init()
         loop_file.getline(end_loop, 512);
         loop_file >> end_loop_invocation;
     }
+    signal(SIGINT, signalCallback);
+    signal(SIGABRT, signalCallback);
+    signal(SIGFPE, signalCallback);
+    signal(SIGILL, signalCallback);
+    signal(SIGSEGV, signalCallback);
+    signal(SIGTERM, signalCallback);
+    
     cerr << start_loop << " " << start_loop_invocation << endl;
     cerr << end_loop << " " << end_loop_invocation << endl;
 }
@@ -710,4 +720,9 @@ VOID printMemoryUsage()
   char *line = fgets(buff, sizeof(buff), fp);
   cerr << "Memory Usage post HELIX: " << line << endl;
   pclose(fp);
+}
+
+VOID signalCallback(int signum)
+{
+  handshake_buffer.signalCallback(signum);
 }

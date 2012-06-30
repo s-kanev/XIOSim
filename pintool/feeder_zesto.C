@@ -34,7 +34,6 @@ using namespace std;
 
 VOID doLateInstInstrumentation();
 
-
 /* ========================================================================== */
 /* ========================================================================== */
 /*                           ZESTO and PIN INTERFACE                          */
@@ -394,7 +393,13 @@ VOID SanityMemCheck()
  * Assumes we are holding simbuffer_lock. */
 VOID ReleaseHandshake(UINT32 coreID)
 {
-    THREADID instrument_tid = core_threads[coreID];
+  SimOrgInsCount++;
+  THREADID instrument_tid = core_threads[coreID];
+  ASSERTX(!handshake_buffer.empty(instrument_tid));
+  handshake_buffer.pop(instrument_tid, NULL);
+
+
+  /*    THREADID instrument_tid = core_threads[coreID];
     ASSERTX(!handshake_buffer.empty(instrument_tid));
     handshake_container_t* handshake = handshake_buffer.front(instrument_tid);
 
@@ -409,13 +414,13 @@ VOID ReleaseHandshake(UINT32 coreID)
     if (handshake->flags.isLastInsn)
         handshake->flags.isLastInsn = false;
 
-//    if (handshake->handshake.sleep_thread)
+//    if (handshake->handshake.slee_pthread)
 //        ignore[instrument_tid] = true;
 
 //    if (handshake->handshake.resume_thread)
 //        ignore[instrument_tid] = false;
 
-    SimOrgInsCount++;
+
 
     handshake->mem_buffer.clear();
     handshake->flags.mem_released = true;
@@ -423,7 +428,7 @@ VOID ReleaseHandshake(UINT32 coreID)
 
     handshake_buffer.pop(instrument_tid, handshake);
 
-    ReleaseLock(&simbuffer_lock);
+    ReleaseLock(&simbuffer_lock);*/
 }
 
 /* ========================================================================== */
@@ -437,7 +442,7 @@ VOID SimulatorLoop(VOID* arg)
     long long int spins = 0;
 
     while (true)
-    {
+    {	cerr << tid << " loop -2" << endl;
       spins = 0;
         GetLock(&simbuffer_lock, tid+1);
         while (handshake_buffer.empty(instrument_tid)) // KEVIN restore file 
@@ -455,14 +460,17 @@ VOID SimulatorLoop(VOID* arg)
                 return;
             }
 
+
             ReleaseLock(&simbuffer_lock);
             PIN_Yield();
             GetLock(&simbuffer_lock, tid+1);
         }
-
+	cerr << tid << " loop -1" << endl;
         handshake_container_t* handshake = handshake_buffer.front(instrument_tid);
-        ASSERTX(handshake != NULL);
-
+	ReleaseLock(&simbuffer_lock);
+        // OMG OMG
+	ASSERTX(handshake != NULL);
+	cerr << tid << " loop 0" << endl;
         /* Preserving coreID if we destroy handshake before coming in here,
          * so we know which core to deactivate. */
         coreID = handshake->handshake.coreID;
@@ -498,7 +506,7 @@ VOID SimulatorLoop(VOID* arg)
             ReleaseLock(&simbuffer_lock);
             return;
         }
-
+	cerr << tid << " loop 1" << endl;
         /* Wait for instruction instrumentation */
 	spins = 0;
         while (!handshake->flags.valid)
@@ -514,13 +522,14 @@ VOID SimulatorLoop(VOID* arg)
             /* We must recheck if sumulation was stopped, or we can deadlock */
             if (!sim_running || PIN_IsProcessExiting())
             {
+	      cerr << tid << " rehecked!" << endl;
                 sim_stopped[instrument_tid] = true;
                 deactivate_core(coreID);
                 ReleaseLock(&simbuffer_lock);
                 return;
             }
         }
-
+	cerr << tid << " loop 2" << endl;
         ADDRINT pc = handshake->handshake.pc;
         if (handshake->handshake.real)
         {
@@ -544,8 +553,9 @@ VOID SimulatorLoop(VOID* arg)
         }
 
         // Actual simulation happens here
+	cerr << tid << " loop 3" << endl;
         Zesto_Resume(&handshake->handshake, &handshake->mem_buffer, handshake->flags.isFirstInsn, handshake->flags.isLastInsn);
-
+	cerr << tid << " loop 4" << endl;
         if(!KnobPipelineInstrumentation.Value())
             ReleaseHandshake(handshake->handshake.coreID);
 
@@ -597,6 +607,7 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, 
 
     if (ignore[tid] || ignore_all) {
         ReleaseLock(&simbuffer_lock);
+	PIN_Yield();
         return;
     }
 
@@ -630,7 +641,8 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
 
     if (ignore[tid] || ignore_all) {
         ReleaseLock(&simbuffer_lock);
-        return;
+        PIN_Yield();
+	return;
     }
 
     handshake_container_t* handshake;
@@ -707,7 +719,7 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
     // Let simulator consume instruction from SimulatorLoop
     handshake->flags.valid = true;
 
-    if(!has_memory) {
+    if(!has_memory) {     
       handshake_buffer.push(tid, handshake);
     }
 
@@ -1142,10 +1154,14 @@ VOID PauseSimulation(THREADID tid)
         ReleaseLock(&simbuffer_lock);
     } while (!done);
 
+    cerr << tid << " [" << sim_cycle << ":KEVIN]: All cores have empty buffers" << endl; 
+
     GetLock(&simbuffer_lock, tid+1);
 
     for (INT32 i = 0; i < num_threads; i++) {
+      cerr << "draining " << i << endl;
       sim_drain_pipe(i);
+      cerr << "done draining " << i << endl;
     }
     ignore_all = true;
     ReleaseLock(&simbuffer_lock);
@@ -1676,8 +1692,8 @@ INT32 main(INT32 argc, CHAR **argv)
 
     // The only safe way to spawn internal pin threads is from main() 
     // or other internal threads, so we create a thread spawner here
-    PIN_SpawnInternalThread(SimulatorThreadSpawner, NULL, 0, NULL);
-
+    PIN_SpawnInternalThread(SimulatorThreadSpawner, NULL, 0, NULL);    
+    
     PIN_StartProgram();
 
     return 0;

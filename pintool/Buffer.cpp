@@ -2,7 +2,7 @@
 
 Buffer::Buffer()
 {
-  numPool_ = 75000;
+  numPool_ = 25000;
   handshakePool_ = new handshake_container_t* [numPool_];
 
   for (int i = 0; i < numPool_; i++) {

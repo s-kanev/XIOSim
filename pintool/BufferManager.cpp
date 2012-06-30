@@ -40,45 +40,87 @@ BufferManager::BufferManager()
   useRealFile_ = true;
 }
 
+BufferManager::~BufferManager()
+{
+  map<THREADID, string>::iterator it;
+  for(it = fileNames_.begin(); it != fileNames_.end(); it++) {
+    string cmd = "/bin/rm -rf " + fileNames_[it->first] + " " + bogusNames_[it->first];
+    system(cmd.c_str());
+  }
+}
 
 handshake_container_t* BufferManager::front(THREADID tid)
 {
   checkFirstAccess(tid);
+  (*logs_[tid]) << "front before lock" << endl;
   GetLock(locks_[tid], tid+1);
+  (*logs_[tid]) << "front after lock" << endl;
 
   assert(queueSizes_[tid] > 0);
-  
-  if(consumeBuffer_[tid]->size() > 0) {
-    ReleaseLock(locks_[tid]);
-    return consumeBuffer_[tid]->front();
-  }
 
+  if(consumeBuffer_[tid]->size() > 0) {
+    handshake_container_t* returnVal = consumeBuffer_[tid]->front();
+    ReleaseLock(locks_[tid]);
+    return returnVal;
+  }
+  assert(fileEntryCount_[tid] > 0 || produceBuffer_[tid]->size() > 0);
+
+  if(fileEntryCount_[tid] > 0) {
+    copyFileToConsumer(tid);
+    assert(!consumeBuffer_[tid]->empty());    
+    handshake_container_t* returnVal = consumeBuffer_[tid]->front();
+    ReleaseLock(locks_[tid]);
+    return returnVal;
+  }
+  assert(fileEntryCount_[tid] == 0);
+  assert(consumeBuffer_[tid]->empty());
+  (*logs_[tid]) << "start spins" << endl;
   long long int spins = 0;  
   while(consumeBuffer_[tid]->empty()) {
+    (*logs_[tid]) << "s:0" << endl;
+    ReleaseLock(locks_[tid]);    	
     ReleaseLock(&simbuffer_lock);
-    ReleaseLock(locks_[tid]);    
+    (*logs_[tid]) << "s:1" << endl;
     PIN_Yield();
+    (*logs_[tid]) << "s:2" << endl;
     GetLock(&simbuffer_lock, tid+1);
+    (*logs_[tid]) << "s:3" << endl;
     GetLock(locks_[tid], tid+1);
+    (*logs_[tid]) << "s:4" << endl;
     spins++;
     if(spins >= 7000000LL) {
       cerr << tid << " [front()]: That's a lot of spins!" << endl;
-      cerr << consumeBuffer_[tid]->size() << endl;
-      cerr << fakeFile_[tid]->size() << endl;
-      cerr << produceBuffer_[tid]->size() << endl;
-      cerr << tid << "WARNING: FORCING COPY" << endl;
       spins = 0;
+      cerr << "psize:" << produceBuffer_[tid]->size() << endl;
+      cerr << "fsize:" << fileEntryCount_[tid] << endl;
+      cerr << "csize:" << consumeBuffer_[tid]->size() << endl;
+      copyProducerToFile(tid);
+      cerr << "midcopy" << endl;
       copyFileToConsumer(tid);
-      copyProducerToFile(tid, true);
-      copyFileToConsumer(tid);
+      cerr << "after copy" << endl;
+      cerr << "psize:" << produceBuffer_[tid]->size() << endl;
+      cerr << "fsize:" << fileEntryCount_[tid] << endl;
+      cerr << "csize:" << consumeBuffer_[tid]->size() << endl;
+      
+      int tmptid = 13;
+      if(tid == 13) {
+	tmptid = 15;
+      }
+      cerr << "extra for other core:" << endl;
+      cerr << "psize:" << produceBuffer_[tmptid]->size() << endl;
+      cerr << "fsize:" << fileEntryCount_[tmptid] << endl;
+      cerr << "csize:" << consumeBuffer_[tmptid]->size() << endl;
+      cerr << endl;
     }
+    (*logs_[tid]) << "s:5" << endl;
   }
-
+  (*logs_[tid]) << "end spins" << endl;
   assert(consumeBuffer_[tid]->size() > 0);
   assert(consumeBuffer_[tid]->front()->flags.valid);
   assert(queueSizes_[tid] > 0);
+  handshake_container_t* resultVal = consumeBuffer_[tid]->front();
   ReleaseLock(locks_[tid]);
-  return consumeBuffer_[tid]->front();
+  return resultVal;
 }
 
 handshake_container_t* BufferManager::back(THREADID tid)
@@ -87,8 +129,9 @@ handshake_container_t* BufferManager::back(THREADID tid)
   GetLock(locks_[tid], tid+1);
   assert(queueSizes_[tid] > 0);
   assert(produceBuffer_[tid]->size() > 0);
+  handshake_container_t* returnVal = produceBuffer_[tid]->back();
   ReleaseLock(locks_[tid]);
-  return produceBuffer_[tid]->back();
+  return returnVal;
 }
 
 bool BufferManager::empty(THREADID tid)
@@ -102,9 +145,9 @@ bool BufferManager::empty(THREADID tid)
 
 void BufferManager::push(THREADID tid, handshake_container_t* handshake, bool fromILDJIT)
 {
+  cerr << tid << "push" << endl;
   checkFirstAccess(tid);
   GetLock(locks_[tid], tid+1);
-
   reserveHandshake(tid, fromILDJIT);  
 
   if((didFirstInsn_.count(tid) == 0) && (!fromILDJIT)) {    
@@ -120,18 +163,21 @@ void BufferManager::push(THREADID tid, handshake_container_t* handshake, bool fr
   }
 
   if(produceBuffer_[tid]->full()) {
-    copyFileToConsumer(tid);
-    copyProducerToFile(tid, true);
-    copyFileToConsumer(tid);
+    int produceSize = produceBuffer_[tid]->size();
+    copyProducerToFile(tid);
+    assert(fileEntryCount_[tid] > 0);
+    assert(fileEntryCount_[tid] >= produceSize);
+    assert(produceBuffer_[tid]->size() == 0);
   }
  
   assert(!produceBuffer_[tid]->full());
+
   produceBuffer_[tid]->push(handshake);
   queueSizes_[tid]++;  
-
   pool_[tid]--;
 
   ReleaseLock(locks_[tid]);
+  cerr << tid << "push end" << endl;
 }
 
 void BufferManager::pop(THREADID tid, handshake_container_t* handshake)
@@ -173,7 +219,7 @@ void BufferManager::checkFirstAccess(THREADID tid)
     consumeBuffer_[tid] = new Buffer();
     fakeFile_[tid] = new Buffer();
     produceBuffer_[tid] = new Buffer();    
-    pool_[tid] = 75000 * 3;
+    pool_[tid] = 100000;
 
     cerr << tid << " Allocating locks!" << endl;
     locks_[tid] = new PIN_LOCK();
@@ -201,31 +247,43 @@ void BufferManager::checkFirstAccess(THREADID tid)
     sync(); 
   } 
 
+  GetLock(locks_[tid], tid+1);
   if(useRealFile_) {
     assert((consumeBuffer_[tid]->size() + produceBuffer_[tid]->size() + fileEntryCount_[tid]) == queueSizes_[tid]);
   }
   else {
     assert((consumeBuffer_[tid]->size() + produceBuffer_[tid]->size() + fakeFile_[tid]->size()) == queueSizes_[tid]);
   }
-
+  ReleaseLock(locks_[tid]);
 }
 
 void BufferManager::reserveHandshake(THREADID tid, bool fromILDJIT)
 {
-  checkFirstAccess(tid);    
-
+  //  checkFirstAccess(tid);    
+  
   long long int spins = 0;  
+  bool somethingConsumed = false;
+  int lastSize = queueSizes_[tid];
+
   while(pool_[tid] == 0) {    
-    ReleaseLock(&simbuffer_lock);
     ReleaseLock(locks_[tid]);
+    ReleaseLock(&simbuffer_lock);
     PIN_Yield();
     GetLock(&simbuffer_lock, tid+1);
     GetLock(locks_[tid], tid+1);
     spins++;
-    if(spins >= 7000000LL) {
-      cerr << tid << " [reserveHandshake()]: That's a lot of spins!" << endl;
-      cerr << consumeBuffer_[tid]->size();
-      cerr << produceBuffer_[tid]->size();
+    int newSize = queueSizes_[tid];
+    assert(newSize <= lastSize);
+    somethingConsumed = (newSize != lastSize);
+    lastSize = newSize;
+
+    if(spins >= 70000000LL) {
+      assert(queueSizes_[tid] > 0);
+      pool_[tid] += queueSizes_[tid];
+      cerr << tid << " [reserveHandshake()]: Increasing file up to " << queueSizes_[tid] + pool_[tid] << endl;
+      break;
+    }
+    if(somethingConsumed) {      
       spins = 0;
     }
   }
@@ -239,13 +297,14 @@ bool BufferManager::isFirstInsn(THREADID tid)
   return isFirst;
 }
 
-void BufferManager::copyProducerToFile(THREADID tid, bool all)
+void BufferManager::copyProducerToFile(THREADID tid)
 {
   if(useRealFile_) {
-    copyProducerToFileReal(tid, all);
+    copyProducerToFileReal(tid);
   }
   else {
-    copyProducerToFileFake(tid, all);
+    assert(false);
+    copyProducerToFileFake(tid);
   }
 }
 
@@ -255,13 +314,14 @@ void BufferManager::copyFileToConsumer(THREADID tid)
     copyFileToConsumerReal(tid);
   }
   else {
+    assert(false);
     copyFileToConsumerFake(tid);
   }
 }
 
-void BufferManager::copyProducerToFileFake(THREADID tid, bool all)
+void BufferManager::copyProducerToFileFake(THREADID tid)
 {
-  while(produceBuffer_[tid]->size() > 1 || (produceBuffer_[tid]->size() > 0 && all)) {
+  while(produceBuffer_[tid]->size() > 0) {
     if(fakeFile_[tid]->full()) {      
       break;
     }
@@ -291,7 +351,7 @@ void BufferManager::copyFileToConsumerFake(THREADID tid)
 }
 
 
-void BufferManager::copyProducerToFileReal(THREADID tid, bool all)
+void BufferManager::copyProducerToFileReal(THREADID tid)
 {
   int result;
 
@@ -303,15 +363,16 @@ void BufferManager::copyProducerToFileReal(THREADID tid, bool all)
   }
 
   int count = 0;
-  while(produceBuffer_[tid]->size() > 1 || (produceBuffer_[tid]->size() > 0 && all)) {
-
+  while(produceBuffer_[tid]->size() > 0) {
     if(produceBuffer_[tid]->front()->flags.valid == false) {
+      assert(produceBuffer_[tid]->size() == 1);
       break;
     }
     
     writeHandshake(fd, produceBuffer_[tid]->front());
     produceBuffer_[tid]->pop();
     count++;
+    fileEntryCount_[tid]++;
   }
 
   result = close(fd);
@@ -322,7 +383,7 @@ void BufferManager::copyProducerToFileReal(THREADID tid, bool all)
 
   sync();
 
-  fileEntryCount_[tid] += count;
+  assert(produceBuffer_[tid]->size() == 1 || produceBuffer_[tid]->size() == 0);
   assert(fileEntryCount_[tid] >= 0);
 }
 
@@ -353,11 +414,10 @@ void BufferManager::copyFileToConsumerReal(THREADID tid)
       break;
     }
     validRead = readHandshake(fd, &handshake);    
-    if(validRead == false) {
-      break;
-    }
+    assert(validRead);
     consumeBuffer_[tid]->push(&(handshake));
     count++;
+    fileEntryCount_[tid]--;
   }
   
   
@@ -365,14 +425,21 @@ void BufferManager::copyFileToConsumerReal(THREADID tid)
   while(validRead) {
     handshake_container_t handshake;
     validRead = readHandshake(fd, &handshake);
-    if(validRead) {
-      writeHandshake(fd_bogus, &handshake);
-      copyCount++;
-    }
-    else {
+    if(!validRead) {
       break;
     }
+    writeHandshake(fd_bogus, &handshake);
+    copyCount++;
   }
+  
+  {
+    handshake_container_t handshake;
+    assert(!readHandshake(fd, &handshake));
+    struct stat buf;
+    fstat(fd_bogus, &buf);
+    int size = buf.st_size;
+    assert(consumeBuffer_[tid]->full() || (copyCount == 0 && (size == 0)));
+ }
 
   result = close(fd_bogus);
   if(result == -1) {
@@ -394,8 +461,6 @@ void BufferManager::copyFileToConsumerReal(THREADID tid)
   }
   
   sync();
-
-  fileEntryCount_[tid] -= count;
 
   assert(fileEntryCount_[tid] >= 0);
 }
@@ -500,4 +565,14 @@ bool BufferManager::readHandshake(int fd, handshake_container_t* handshake)
   free(readBuffer);
 
   return true;
+}
+
+void BufferManager::signalCallback(int signum)
+{
+  cerr << "BufferManager caught signal:" << signum << endl;
+  map<THREADID, string>::iterator it;
+  for(it = fileNames_.begin(); it != fileNames_.end(); it++) {
+    string cmd = "rm -rf " + fileNames_[it->first] + " " + bogusNames_[it->first];
+    system(cmd.c_str());
+  }
 }
