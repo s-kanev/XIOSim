@@ -52,15 +52,16 @@ BufferManager::~BufferManager()
 handshake_container_t* BufferManager::front(THREADID tid)
 {
   checkFirstAccess(tid);
-  (*logs_[tid]) << "front before lock" << endl;
+  //  (*logs_[tid]) << "front before lock" << endl;
   GetLock(locks_[tid], tid+1);
-  (*logs_[tid]) << "front after lock" << endl;
+  //  (*logs_[tid]) << "front after lock" << endl;
 
   assert(queueSizes_[tid] > 0);
 
   if(consumeBuffer_[tid]->size() > 0) {
     handshake_container_t* returnVal = consumeBuffer_[tid]->front();
     ReleaseLock(locks_[tid]);
+    //    GetLock(&simbuffer_lock, tid+1);
     return returnVal;
   }
   assert(fileEntryCount_[tid] > 0 || produceBuffer_[tid]->size() > 0);
@@ -70,30 +71,31 @@ handshake_container_t* BufferManager::front(THREADID tid)
     assert(!consumeBuffer_[tid]->empty());    
     handshake_container_t* returnVal = consumeBuffer_[tid]->front();
     ReleaseLock(locks_[tid]);
+    //    GetLock(&simbuffer_lock, tid+1);
     return returnVal;
   }
   assert(fileEntryCount_[tid] == 0);
   assert(consumeBuffer_[tid]->empty());
-  (*logs_[tid]) << "start spins" << endl;
+  //  (*logs_[tid]) << "start spins" << endl;
   long long int spins = 0;  
   while(consumeBuffer_[tid]->empty()) {
-    (*logs_[tid]) << "s:0" << endl;
+    // (*logs_[tid]) << "s:0" << endl;
     ReleaseLock(locks_[tid]);    	
-    ReleaseLock(&simbuffer_lock);
-    (*logs_[tid]) << "s:1" << endl;
+    //    ReleaseLock(&simbuffer_lock);
+    //    (*logs_[tid]) << "s:1" << endl;
     PIN_Yield();
-    (*logs_[tid]) << "s:2" << endl;
-    GetLock(&simbuffer_lock, tid+1);
-    (*logs_[tid]) << "s:3" << endl;
+    //    (*logs_[tid]) << "s:2" << endl;
+    //    GetLock(&simbuffer_lock, tid+1);
+    //    (*logs_[tid]) << "s:3" << endl;
     GetLock(locks_[tid], tid+1);
-    (*logs_[tid]) << "s:4" << endl;
+    //    (*logs_[tid]) << "s:4" << endl;
     spins++;
-    if(spins >= 7000000LL) {
+    if(spins >= 10LL) {
       cerr << tid << " [front()]: That's a lot of spins!" << endl;
       spins = 0;
-      cerr << "psize:" << produceBuffer_[tid]->size() << endl;
-      cerr << "fsize:" << fileEntryCount_[tid] << endl;
-      cerr << "csize:" << consumeBuffer_[tid]->size() << endl;
+      //  cerr << "psize:" << produceBuffer_[tid]->size() << endl;
+      // cerr << "fsize:" << fileEntryCount_[tid] << endl;
+      //cerr << "csize:" << consumeBuffer_[tid]->size() << endl;
       copyProducerToFile(tid);
       cerr << "midcopy" << endl;
       copyFileToConsumer(tid);
@@ -102,7 +104,7 @@ handshake_container_t* BufferManager::front(THREADID tid)
       cerr << "fsize:" << fileEntryCount_[tid] << endl;
       cerr << "csize:" << consumeBuffer_[tid]->size() << endl;
       
-      int tmptid = 13;
+      /*      int tmptid = 13;
       if(tid == 13) {
 	tmptid = 15;
       }
@@ -110,16 +112,18 @@ handshake_container_t* BufferManager::front(THREADID tid)
       cerr << "psize:" << produceBuffer_[tmptid]->size() << endl;
       cerr << "fsize:" << fileEntryCount_[tmptid] << endl;
       cerr << "csize:" << consumeBuffer_[tmptid]->size() << endl;
-      cerr << endl;
+      cerr << endl;*/
     }
-    (*logs_[tid]) << "s:5" << endl;
+    //    (*logs_[tid]) << "s:5" << endl;
   }
-  (*logs_[tid]) << "end spins" << endl;
+  //  (*logs_[tid]) << "end spins" << endl;
   assert(consumeBuffer_[tid]->size() > 0);
   assert(consumeBuffer_[tid]->front()->flags.valid);
   assert(queueSizes_[tid] > 0);
   handshake_container_t* resultVal = consumeBuffer_[tid]->front();
   ReleaseLock(locks_[tid]);
+  PIN_Yield();
+  //  GetLock(&simbuffer_lock, tid+1);
   return resultVal;
 }
 
@@ -145,8 +149,10 @@ bool BufferManager::empty(THREADID tid)
 
 void BufferManager::push(THREADID tid, handshake_container_t* handshake, bool fromILDJIT)
 {
-  cerr << tid << "push" << endl;
+  //  cerr << tid << "push" << endl;
   checkFirstAccess(tid);
+  ///  ReleaseLock(&simbuffer_lock);
+  PIN_Yield();
   GetLock(locks_[tid], tid+1);
   reserveHandshake(tid, fromILDJIT);  
 
@@ -177,7 +183,9 @@ void BufferManager::push(THREADID tid, handshake_container_t* handshake, bool fr
   pool_[tid]--;
 
   ReleaseLock(locks_[tid]);
-  cerr << tid << "push end" << endl;
+  PIN_Yield();
+  //  GetLock(&simbuffer_lock, tid+1);
+  //  cerr << tid << "push end" << endl;
 }
 
 void BufferManager::pop(THREADID tid, handshake_container_t* handshake)
@@ -267,9 +275,9 @@ void BufferManager::reserveHandshake(THREADID tid, bool fromILDJIT)
 
   while(pool_[tid] == 0) {    
     ReleaseLock(locks_[tid]);
-    ReleaseLock(&simbuffer_lock);
+    //    ReleaseLock(&simbuffer_lock);
     PIN_Yield();
-    GetLock(&simbuffer_lock, tid+1);
+    //    GetLock(&simbuffer_lock, tid+1);
     GetLock(locks_[tid], tid+1);
     spins++;
     int newSize = queueSizes_[tid];
@@ -477,7 +485,6 @@ void BufferManager::writeHandshake(int fd, handshake_container_t* handshake)
   void * writeBuffer = (void*)malloc(totalBytes);
   void * buffPosition = writeBuffer;
 
-  //  snprintf((char*)buffPosition, sizeof(int), "%d", mapSize);
   memcpy((char*)buffPosition, &(mapSize), sizeof(int));
   buffPosition = (char*)buffPosition + sizeof(int);
 
@@ -575,4 +582,5 @@ void BufferManager::signalCallback(int signum)
     string cmd = "rm -rf " + fileNames_[it->first] + " " + bogusNames_[it->first];
     system(cmd.c_str());
   }
+  exit(1);
 }

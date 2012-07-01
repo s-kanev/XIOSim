@@ -206,13 +206,18 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
              * directly.
              * In either case, this is executed before SimulateLoop on
              * the Stop point? */
+	    
+	    int slice_num = tstate->slice_num;
+	    int slice_length = tstate->slice_length;
+	    int slice_weight_times = tstate->slice_weight_times_1000;
+	    ReleaseLock(&simbuffer_lock);
+	    
             handshake = handshake_buffer.front(tid);
-            handshake->handshake.slice_num = tstate->slice_num;
-            handshake->handshake.feeder_slice_length = tstate->slice_length;
-            handshake->handshake.slice_num = tstate->slice_weight_times_1000;
+            handshake->handshake.slice_num = slice_num;
+            handshake->handshake.feeder_slice_length = slice_length;
+            handshake->handshake.slice_num = slice_weight_times; 
 
             handshake->flags.isLastInsn = true;
-            ReleaseLock(&simbuffer_lock);
 
             cerr << "PinPoint: " << control.CurrentPp(tid) << endl;
         }
@@ -394,41 +399,29 @@ VOID SanityMemCheck()
 VOID ReleaseHandshake(UINT32 coreID)
 {
   SimOrgInsCount++;
+
   THREADID instrument_tid = core_threads[coreID];
   ASSERTX(!handshake_buffer.empty(instrument_tid));
-  handshake_buffer.pop(instrument_tid, NULL);
-
-
-  /*    THREADID instrument_tid = core_threads[coreID];
-    ASSERTX(!handshake_buffer.empty(instrument_tid));
-    handshake_container_t* handshake = handshake_buffer.front(instrument_tid);
-
-    // We are finishing simulation, kill the simulator thread
-    if (handshake->flags.isLastInsn && !handshake->flags.isFirstInsn && 
-        ExecMode == EXECUTION_MODE_INVALID)
-        handshake->flags.killThread = true;
-
-    if (handshake->flags.isFirstInsn)
-        handshake->flags.isFirstInsn = false;
-
-    if (handshake->flags.isLastInsn)
-        handshake->flags.isLastInsn = false;
-
-//    if (handshake->handshake.slee_pthread)
-//        ignore[instrument_tid] = true;
-
-//    if (handshake->handshake.resume_thread)
-//        ignore[instrument_tid] = false;
-
-
-
+  handshake_container_t* handshake = handshake_buffer.front(instrument_tid);
+  
+  // We are finishing simulation, kill the simulator thread
+  if (handshake->flags.isLastInsn && !handshake->flags.isFirstInsn && 
+      ExecMode == EXECUTION_MODE_INVALID)
+    handshake->flags.killThread = true;
+  
+  if (handshake->flags.isFirstInsn)
+    handshake->flags.isFirstInsn = false;
+  
+  if (handshake->flags.isLastInsn)
+    handshake->flags.isLastInsn = false;
+  
     handshake->mem_buffer.clear();
     handshake->flags.mem_released = true;
     handshake->flags.valid = false;   // Let pin instrument instruction
 
     handshake_buffer.pop(instrument_tid, handshake);
 
-    ReleaseLock(&simbuffer_lock);*/
+    ReleaseLock(&simbuffer_lock);
 }
 
 /* ========================================================================== */
@@ -442,7 +435,7 @@ VOID SimulatorLoop(VOID* arg)
     long long int spins = 0;
 
     while (true)
-    {	cerr << tid << " loop -2" << endl;
+      {	//cerr << tid << " loop -2" << endl;
       spins = 0;
         GetLock(&simbuffer_lock, tid+1);
         while (handshake_buffer.empty(instrument_tid)) // KEVIN restore file 
@@ -465,12 +458,11 @@ VOID SimulatorLoop(VOID* arg)
             PIN_Yield();
             GetLock(&simbuffer_lock, tid+1);
         }
-	cerr << tid << " loop -1" << endl;
+	//cerr << tid << " loop -1" << endl;
         handshake_container_t* handshake = handshake_buffer.front(instrument_tid);
-	ReleaseLock(&simbuffer_lock);
-        // OMG OMG
+
 	ASSERTX(handshake != NULL);
-	cerr << tid << " loop 0" << endl;
+	//cerr << tid << " loop 0" << endl;
         /* Preserving coreID if we destroy handshake before coming in here,
          * so we know which core to deactivate. */
         coreID = handshake->handshake.coreID;
@@ -506,7 +498,7 @@ VOID SimulatorLoop(VOID* arg)
             ReleaseLock(&simbuffer_lock);
             return;
         }
-	cerr << tid << " loop 1" << endl;
+	//cerr << tid << " loop 1" << endl;
         /* Wait for instruction instrumentation */
 	spins = 0;
         while (!handshake->flags.valid)
@@ -529,7 +521,7 @@ VOID SimulatorLoop(VOID* arg)
                 return;
             }
         }
-	cerr << tid << " loop 2" << endl;
+	//cerr << tid << " loop 2" << endl;
         ADDRINT pc = handshake->handshake.pc;
         if (handshake->handshake.real)
         {
@@ -553,9 +545,9 @@ VOID SimulatorLoop(VOID* arg)
         }
 
         // Actual simulation happens here
-	cerr << tid << " loop 3" << endl;
+	//cerr << tid << " loop 3" << endl;
         Zesto_Resume(&handshake->handshake, &handshake->mem_buffer, handshake->flags.isFirstInsn, handshake->flags.isLastInsn);
-	cerr << tid << " loop 4" << endl;
+	//cerr << tid << " loop 4" << endl;
         if(!KnobPipelineInstrumentation.Value())
             ReleaseHandshake(handshake->handshake.coreID);
 

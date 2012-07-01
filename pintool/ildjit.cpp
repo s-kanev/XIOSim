@@ -277,7 +277,7 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
 /* ========================================================================== */
 VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc)
 {
-    GetLock(&simbuffer_lock, tid+1);
+  GetLock(&simbuffer_lock, tid+1);
     ignore[tid] = true;
 
     if (ExecMode == EXECUTION_MODE_SIMULATE)
@@ -330,7 +330,7 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
 /* ========================================================================== */
 VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
 {
-    GetLock(&simbuffer_lock, tid+1);
+  GetLock(&simbuffer_lock, tid+1);
     ignore[tid] = false;
 
     if (ExecMode == EXECUTION_MODE_SIMULATE)
@@ -342,7 +342,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
     /* Not simulatiing -- just ignore. */
     if (ExecMode != EXECUTION_MODE_SIMULATE || ignore_all)
     {
-        ReleaseLock(&simbuffer_lock);
+      ReleaseLock(&simbuffer_lock);
         return;
     }
 
@@ -353,13 +353,13 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
     thread_state_t* tstate = get_tls(tid);
     if (tstate->firstIteration)
     {
-        ReleaseLock(&simbuffer_lock);
+      ReleaseLock(&simbuffer_lock);
         return;
     }
 
     /* Don't insert waits in single-core mode */
     if (num_threads < 2) {
-        ReleaseLock(&simbuffer_lock);
+      ReleaseLock(&simbuffer_lock);
         return;
     }
 
@@ -385,14 +385,14 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
 
 //    cerr << tid << ": Vodoo load instruction " << hex << pc <<  " ID: " << tstate->lastSignalAddr << dec << endl;
     handshake_buffer.push(tid, &handshake, true);
-
     ReleaseLock(&simbuffer_lock);
+    
 }
 
 /* ========================================================================== */
 VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc)
 {
-    GetLock(&simbuffer_lock, tid+1);
+  GetLock(&simbuffer_lock, tid+1);
 
     ignore[tid] = true;
 
@@ -425,7 +425,7 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT 
 /* ========================================================================== */
 VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc)
 {
-    GetLock(&simbuffer_lock, tid+1);
+  GetLock(&simbuffer_lock, tid+1);
     ignore[tid] = false;
 
     if (ExecMode == EXECUTION_MODE_SIMULATE)
@@ -434,7 +434,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT p
     /* Not simulating -- just ignore. */
     if (ExecMode != EXECUTION_MODE_SIMULATE || ignore_all)
     {
-        ReleaseLock(&simbuffer_lock);
+      ReleaseLock(&simbuffer_lock);
         return;
     }
 
@@ -444,8 +444,8 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT p
 
     /* Don't insert signals in single-core mode */
     if (num_threads < 2) {
-        ReleaseLock(&simbuffer_lock);
-        return;
+      ReleaseLock(&simbuffer_lock);
+      return;
     }
 
     /* Insert signal instruction in pipeline */
@@ -467,10 +467,12 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT p
     memcpy(handshake.handshake.ins, st_template, sizeof(st_template));
     // Address comes right after opcode and MoodRM bytes
     *(INT32*)(&handshake.handshake.ins[2]) = tstate->lastSignalAddr;
+    
 
 //    cerr << tid << ": Vodoo store instruction " << hex << pc << " ID: " << tstate->lastSignalAddr << dec << endl;
     handshake_buffer.push(tid, &handshake, true);
-    ReleaseLock(&simbuffer_lock);
+
+    ReleaseLock(&simbuffer_lock);    
 }
 
 /* ========================================================================== */
