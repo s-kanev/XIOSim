@@ -574,61 +574,6 @@ VOID AddILDJITCallbacks(IMG img)
                        IARG_END);
         RTN_Close(rtn);
     }
-    /// WAIT SIGNAL
-rtn = RTN_FindByName(img, "MOLECOOL_beforeWait");
-    if (RTN_Valid(rtn))
-    {
-        RTN_Open(rtn);
-        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeWait),
-                       IARG_THREAD_ID,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
-                       IARG_INST_PTR,
-                       IARG_CALL_ORDER, CALL_ORDER_FIRST,
-                       IARG_END);
-        RTN_Close(rtn);
-    }
-    
-        rtn = RTN_FindByName(img, "MOLECOOL_afterWait");
-    
-    if (RTN_Valid(rtn))
-    {
-        RTN_Open(rtn);
-        RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterWait),
-                       IARG_THREAD_ID,
-                       IARG_INST_PTR,
-                       IARG_CALL_ORDER, CALL_ORDER_LAST,
-                       IARG_END);
-        RTN_Close(rtn);
-    }
-    
-    rtn = RTN_FindByName(img, "MOLECOOL_beforeSignal");
-    if (RTN_Valid(rtn))
-    {
-        RTN_Open(rtn);
-        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeSignal),
-                       IARG_THREAD_ID,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
-                       IARG_INST_PTR,
-                       IARG_CALL_ORDER, CALL_ORDER_FIRST,
-                       IARG_END);
-        RTN_Close(rtn);
-    }
-    
-    rtn = RTN_FindByName(img, "MOLECOOL_afterSignal");
-    if (RTN_Valid(rtn))
-    {
-        RTN_Open(rtn);
-        RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterSignal),
-                       IARG_THREAD_ID,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
-                       IARG_INST_PTR,
-                       IARG_CALL_ORDER, CALL_ORDER_LAST,
-                       IARG_END);
-        RTN_Close(rtn);
-    }
 
     rtn = RTN_FindByName(img, "MOLECOOL_endParallelLoop");
     if (RTN_Valid(rtn))
@@ -690,7 +635,7 @@ rtn = RTN_FindByName(img, "MOLECOOL_beforeWait");
 /* ========================================================================== */
 VOID AddILDJITWaitSignalCallbacks()
 {
-  /* static bool calledAlready = false;
+  static bool calledAlready = false;
   
   ASSERTX(!calledAlready); 
 
@@ -698,12 +643,66 @@ VOID AddILDJITWaitSignalCallbacks()
 
   for(IMG img = APP_ImgHead(); IMG_Valid(img); img = IMG_Next(img)) {
 
-    RTN 
+    RTN rtn = RTN_FindByName(img, "MOLECOOL_beforeWait");
+    if (RTN_Valid(rtn))
+    {
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeWait),
+                       IARG_THREAD_ID,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
+                       IARG_INST_PTR,
+                       IARG_CALL_ORDER, CALL_ORDER_FIRST,
+                       IARG_END);
+        RTN_Close(rtn);
+    }
+    
+        rtn = RTN_FindByName(img, "MOLECOOL_afterWait");
+    
+    if (RTN_Valid(rtn))
+    {
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterWait),
+                       IARG_THREAD_ID,
+                       IARG_INST_PTR,
+                       IARG_CALL_ORDER, CALL_ORDER_LAST,
+                       IARG_END);
+        RTN_Close(rtn);
+    }
+    
+    rtn = RTN_FindByName(img, "MOLECOOL_beforeSignal");
+    if (RTN_Valid(rtn))
+    {
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeSignal),
+                       IARG_THREAD_ID,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
+                       IARG_INST_PTR,
+                       IARG_CALL_ORDER, CALL_ORDER_FIRST,
+                       IARG_END);
+        RTN_Close(rtn);
+    }
+    
+    rtn = RTN_FindByName(img, "MOLECOOL_afterSignal");
+    if (RTN_Valid(rtn))
+    {
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterSignal),
+                       IARG_THREAD_ID,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
+                       IARG_INST_PTR,
+                       IARG_CALL_ORDER, CALL_ORDER_LAST,
+                       IARG_END);
+        RTN_Close(rtn);
+    }
+  }
   CODECACHE_FlushCache();
   
   PIN_UnlockClient();
 
-  calledAlready = true;*/
+  calledAlready = true;
 }
 
 VOID printMemoryUsage() 
