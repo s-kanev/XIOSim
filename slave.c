@@ -595,7 +595,8 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
 
    core->oracle->mem_requests.clear();
    core->oracle->mem_requests.insert(mem_buffer->begin(), mem_buffer->end());
-
+   
+   // Release the simbuffer_lock in feeder_zesto.cpp
    if(sim_release_handshake)
      ReleaseHandshake(coreID);
 

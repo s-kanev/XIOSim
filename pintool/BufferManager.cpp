@@ -127,6 +127,19 @@ handshake_container_t* BufferManager::front(THREADID tid)
   return resultVal;
 }
 
+bool BufferManager::validFront(THREADID tid) 
+{
+  if(queueSizes_[tid] == 0) {
+    return false;
+  }
+
+  if((queueSizes_[tid] == 1) && (produceBuffer_[tid]->size() == 1)) {
+    return produceBuffer_[tid]->back()->flags.valid;
+  }
+
+  return true;
+}
+
 handshake_container_t* BufferManager::back(THREADID tid)
 {
   checkFirstAccess(tid);

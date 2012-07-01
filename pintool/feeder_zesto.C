@@ -434,38 +434,38 @@ VOID SimulatorLoop(VOID* arg)
 
     long long int spins = 0;
 
-    while (true)
-      {	//cerr << tid << " loop -2" << endl;
+    while (true) {
+      //cerr << tid << " loop -2" << endl;
       spins = 0;
-        GetLock(&simbuffer_lock, tid+1);
-        while (handshake_buffer.empty(instrument_tid)) // KEVIN restore file 
-        {
-	  spins++;
-	  if(spins >= 7000000LL) {
-	    cerr << tid << " Spinning waiting for non empty handshake buffer!" << endl;
-	    spins = 0;
-	  }
-            if (!sim_running || PIN_IsProcessExiting())
-            {
-                sim_stopped[instrument_tid] = true;
-                deactivate_core(coreID);
-                ReleaseLock(&simbuffer_lock);
-                return;
-            }
+      while (handshake_buffer.empty(instrument_tid) || (!handshake_buffer.validFront(instrument_tid))) {
+	spins++;
+	if(spins >= 7000000LL) {
+	  cerr << tid << " Spinning waiting for non empty handshake buffer!" << endl;
+	  spins = 0;
+	}
+	
+	GetLock(&simbuffer_lock, tid+1);
+	if (!sim_running || PIN_IsProcessExiting()) {	  
+	  sim_stopped[instrument_tid] = true;
+	  deactivate_core(coreID);
+	  ReleaseLock(&simbuffer_lock);
+	  return;
+	}	   
+	ReleaseLock(&simbuffer_lock);
+	PIN_Yield();
+      }
 
-
-            ReleaseLock(&simbuffer_lock);
-            PIN_Yield();
-            GetLock(&simbuffer_lock, tid+1);
-        }
-	//cerr << tid << " loop -1" << endl;
-        handshake_container_t* handshake = handshake_buffer.front(instrument_tid);
-
-	ASSERTX(handshake != NULL);
-	//cerr << tid << " loop 0" << endl;
-        /* Preserving coreID if we destroy handshake before coming in here,
-         * so we know which core to deactivate. */
-        coreID = handshake->handshake.coreID;
+      //cerr << tid << " loop -1" << endl;
+      handshake_container_t* handshake = handshake_buffer.front(instrument_tid);
+      assert(handshake->flags.valid);
+      ASSERTX(handshake != NULL);
+      
+      GetLock(&simbuffer_lock, tid+1);
+      
+      //cerr << tid << " loop 0" << endl;
+      /* Preserving coreID if we destroy handshake before coming in here,
+       * so we know which core to deactivate. */
+      coreID = handshake->handshake.coreID;
 
         /* Thread scheduling still hasn't happened. Bummer. Check the core->thread 
          * mapping and spin until thread gets assigned to a core. */
@@ -503,6 +503,7 @@ VOID SimulatorLoop(VOID* arg)
 	spins = 0;
         while (!handshake->flags.valid)
         {
+	  assert(false);
 	  spins++;
 	  if(spins >= 7000000LL) {
 	    cerr << tid << " Spinning waiting for valid handshake" << endl;
