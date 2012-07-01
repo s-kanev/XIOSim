@@ -1136,18 +1136,13 @@ VOID ResumeSimulation(THREADID tid)
     for (it = thread_list.begin(); it != thread_list.end(); it++) {
         INT32 coreID = thread_cores[*it];
 
-        handshake_container_t* handshake = handshake_buffer.get_buffer(*it);
-        handshake->flags.isFirstInsn = true;
-        handshake->handshake.sleep_thread = false;
-        handshake->handshake.resume_thread = true;
-        handshake->handshake.real = false;
-        handshake->handshake.pc = 0;
-        handshake->handshake.coreID = coreID;
-        handshake->handshake.in_critical_section = false;
-        handshake->handshake.iteration_correction = false;
-        handshake->flags.valid = true;
-
-        handshake_buffer.producer_done(*it);
+        /* Wake up cores right away without going through the handshake
+         * buffer (which should be empty anyway).
+         * If we do go through it, there are no guarantees for when the 
+         * resume is consumed, which can lead to nasty races of who gets
+         * to resume first. */
+        ASSERTX(handshake_buffer.empty(tid));
+        activate_core(coreID);
     }
     ignore_all = false;
     ReleaseLock(&simbuffer_lock);
