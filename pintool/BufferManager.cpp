@@ -148,9 +148,7 @@ void BufferManager::flushBuffers(THREADID tid)
   map<THREADID, string>::iterator it;
   for(it = fileNames_.begin(); it != fileNames_.end(); it++) {
     cerr << "FLUSHWRITE:" << it->first << endl;
-    sync();
     writeProduceBufferIntoFile(it->first);
-    sync();
   }
   /*  for(it = fileNames_.begin(); it != fileNames_.end(); it++) {
     cerr << "FLUSHREAD1:" << it->first << endl;
@@ -202,7 +200,6 @@ void BufferManager::checkFirstAccess(THREADID tid)
       cerr << "Close error: " << " Errcode:" << strerror(errno) << endl;  
       abort();
     }
-    sync();
     
     
     queueSizes_[tid] = 0;
@@ -246,7 +243,6 @@ void BufferManager::writeProduceBufferIntoFile(THREADID tid)
     cerr << "Close error: " << " Errcode:" << strerror(errno) << endl;  
     abort();
   }
-  sync();
 
   //  cerr << tid << " Wrote " << count << " items into file" << endl;
   //  cerr << tid << " File size: " << fileEntryCount_[tid] << endl;
@@ -325,16 +321,12 @@ void BufferManager::readFileIntoConsumeBuffer(THREADID tid)
   //  cerr << tid << " Copied " << copyCount << " items to bogus file" << endl;
   //  cerr << tid << " Copy Move file back to real file" << endl;
   
-  sync();
-  
   result = rename(bogusNames_[tid].c_str(), fileNames_[tid].c_str());
   if(result == -1) {
     cerr << "Can't rename filesystem bridge files. " << " Errcode:" << strerror(errno) << endl;
     abort();
   }
   
-  sync();
-
   //  cerr << tid << " Read " << count << " items into read buffer" << endl;
   //  cerr << tid << " File size: " << fileEntryCount_[tid] << endl;
   fileEntryCount_[tid] -= count;
