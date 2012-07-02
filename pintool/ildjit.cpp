@@ -8,6 +8,7 @@
 #include <map>
 #include <signal.h>
 #include <queue>
+#include <signal.h>
 #include "feeder.h"
 #include "ildjit.h"
 #include "fluffy.h"
@@ -74,6 +75,8 @@ VOID MOLECOOL_Init()
         loop_file.getline(end_loop, 512);
         loop_file >> end_loop_invocation;
     }
+
+    // callbacks so we can delete temporary files in /dev/shm
     signal(SIGINT, signalCallback);
     signal(SIGABRT, signalCallback);
     signal(SIGFPE, signalCallback);
@@ -193,7 +196,7 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
     invocation_counts[loop]++;
 //#ifdef ZESTO_PIN_DBG
     CHAR* loop_name = (CHAR*) loop;
-    cerr << "Starting loop: " << loop_name << "[" << invocation_counts[loop] << "]" << endl;
+//    cerr << "Starting loop: " << loop_name << "[" << invocation_counts[loop] << "]" << endl;
 //#endif
 
     /* Haven't started simulation and we encounter a loop we don't care
@@ -237,7 +240,7 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
       if (invocation_counts[loop] == start_loop_invocation) {
         cerr << "Starting simulation, TTID: " << tid << endl;
         PPointHandler(CONTROL_START, NULL, NULL, (VOID*)ip, tid);
-	cerr << "Starting simulation, TTID2: " << tid << endl;
+        cerr << "Starting simulation, TTID2: " << tid << endl;
         firstLoop = false;
       } 
       else if (invocation_counts[loop] > start_loop_invocation) {
@@ -280,8 +283,8 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
   GetLock(&simbuffer_lock, tid+1);
     ignore[tid] = true;
 
-    if (ExecMode == EXECUTION_MODE_SIMULATE)
-      cerr << tid <<":Before Wait "<< hex << pc << dec  << " ID: " << ssID << hex << " (" << ssID_addr <<")" << dec << endl;
+    //    if (ExecMode == EXECUTION_MODE_SIMULATE)
+    //cerr << tid <<":Before Wait "<< hex << pc << dec  << " ID: " << ssID << hex << " (" << ssID_addr <<")" << dec << endl;
 
     thread_state_t* tstate = get_tls(tid);
     if (tstate->pc_queue_valid &&
@@ -323,7 +326,6 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
       seen_ssID_zero = true;
     }
 
-//    handshake_buffer[tid].push(handshake);
     ReleaseLock(&simbuffer_lock);
 }
 
@@ -333,8 +335,8 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
   GetLock(&simbuffer_lock, tid+1);
     ignore[tid] = false;
 
-    if (ExecMode == EXECUTION_MODE_SIMULATE)
-      cerr << tid <<": After Wait "<< hex << pc << dec  << " ID: " << lastWaitID[tid] << endl;
+    //    if (ExecMode == EXECUTION_MODE_SIMULATE)
+      //      cerr << tid <<": After Wait "<< hex << pc << dec  << " ID: " << lastWaitID[tid] << endl;
 
     // Indicated not in a wait any more
     lastWaitID[tid] = -1;
@@ -364,29 +366,29 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
     }
 
     /* Insert wait instruction in pipeline */
-    handshake_container_t handshake;
+    handshake_container_t* handshake = handshake_buffer.get_buffer(tid);
 
-    handshake.flags.isFirstInsn = false;
-    handshake.handshake.sleep_thread = false;
-    handshake.handshake.resume_thread = false;
-    handshake.handshake.real = false;
-    handshake.handshake.coreID = tstate->coreID;
-    handshake.handshake.iteration_correction = false;
-    handshake.handshake.in_critical_section = (num_threads > 1);
-    handshake.flags.valid = true;
+    handshake->flags.isFirstInsn = false;
+    handshake->handshake.sleep_thread = false;
+    handshake->handshake.resume_thread = false;
+    handshake->handshake.real = false;
+    handshake->handshake.coreID = tstate->coreID;
+    handshake->handshake.iteration_correction = false;
+    handshake->handshake.in_critical_section = (num_threads > 1);
+    handshake->flags.valid = true;
 
-    handshake.handshake.pc = pc;
-    handshake.handshake.npc = pc + sizeof(ld_template);
-    handshake.handshake.tpc = pc + sizeof(ld_template);
-    handshake.handshake.brtaken = false;
-    memcpy(handshake.handshake.ins, ld_template, sizeof(ld_template));
+    handshake->handshake.pc = pc;
+    handshake->handshake.npc = pc + sizeof(ld_template);
+    handshake->handshake.tpc = pc + sizeof(ld_template);
+    handshake->handshake.brtaken = false;
+    memcpy(handshake->handshake.ins, ld_template, sizeof(ld_template));
     // Address comes right after opcode byte
-    *(INT32*)(&handshake.handshake.ins[1]) = tstate->lastSignalAddr;
+    *(INT32*)(&handshake->handshake.ins[1]) = tstate->lastSignalAddr;
 
 //    cerr << tid << ": Vodoo load instruction " << hex << pc <<  " ID: " << tstate->lastSignalAddr << dec << endl;
-    handshake_buffer.push(tid, &handshake, true);
+    handshake_buffer.producer_done(tid);
+
     ReleaseLock(&simbuffer_lock);
-    
 }
 
 /* ========================================================================== */
@@ -396,8 +398,8 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT 
 
     ignore[tid] = true;
 
-    if (ExecMode == EXECUTION_MODE_SIMULATE)
-      cerr << tid <<": Before Signal " << hex << pc << " ID: " << ssID <<  " (" << ssID_addr << ")" << dec << endl;
+    //    if (ExecMode == EXECUTION_MODE_SIMULATE)
+    //      cerr << tid <<": Before Signal " << hex << pc << " ID: " << ssID <<  " (" << ssID_addr << ")" << dec << endl;
 
     thread_state_t* tstate = get_tls(tid);
     if (tstate->pc_queue_valid &&
@@ -428,8 +430,8 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT p
   GetLock(&simbuffer_lock, tid+1);
     ignore[tid] = false;
 
-    if (ExecMode == EXECUTION_MODE_SIMULATE)
-      cerr << tid <<": After Signal " << hex << pc << dec << endl;
+    //    if (ExecMode == EXECUTION_MODE_SIMULATE)
+    //cerr << tid <<": After Signal " << hex << pc << dec << endl;
 
     /* Not simulating -- just ignore. */
     if (ExecMode != EXECUTION_MODE_SIMULATE || ignore_all)
@@ -449,30 +451,28 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT p
     }
 
     /* Insert signal instruction in pipeline */
-    handshake_container_t handshake;
+    handshake_container_t* handshake = handshake_buffer.get_buffer(tid);
 
-    handshake.flags.isFirstInsn = false;
-    handshake.handshake.sleep_thread = false;
-    handshake.handshake.resume_thread = false;
-    handshake.handshake.real = false;
-    handshake.handshake.coreID = tstate->coreID;
-    handshake.handshake.in_critical_section = (num_threads > 1) && (unmatchedWaits[tid] > 0);
-    handshake.handshake.iteration_correction = false;
-    handshake.flags.valid = true;
+    handshake->flags.isFirstInsn = false;
+    handshake->handshake.sleep_thread = false;
+    handshake->handshake.resume_thread = false;
+    handshake->handshake.real = false;
+    handshake->handshake.coreID = tstate->coreID;
+    handshake->handshake.in_critical_section = (num_threads > 1) && (unmatchedWaits[tid] > 0);
+    handshake->handshake.iteration_correction = false;
+    handshake->flags.valid = true;
 
-    handshake.handshake.pc = pc;
-    handshake.handshake.npc = pc + sizeof(st_template);
-    handshake.handshake.tpc = pc + sizeof(st_template);
-    handshake.handshake.brtaken = false;
-    memcpy(handshake.handshake.ins, st_template, sizeof(st_template));
+    handshake->handshake.pc = pc;
+    handshake->handshake.npc = pc + sizeof(st_template);
+    handshake->handshake.tpc = pc + sizeof(st_template);
+    handshake->handshake.brtaken = false;
+    memcpy(handshake->handshake.ins, st_template, sizeof(st_template));
     // Address comes right after opcode and MoodRM bytes
-    *(INT32*)(&handshake.handshake.ins[2]) = tstate->lastSignalAddr;
-    
+    *(INT32*)(&handshake->handshake.ins[2]) = tstate->lastSignalAddr;
 
 //    cerr << tid << ": Vodoo store instruction " << hex << pc << " ID: " << tstate->lastSignalAddr << dec << endl;
-    handshake_buffer.push(tid, &handshake, true);
-
-    ReleaseLock(&simbuffer_lock);    
+    handshake_buffer.producer_done(tid);
+    ReleaseLock(&simbuffer_lock);
 }
 
 /* ========================================================================== */
@@ -577,75 +577,18 @@ VOID AddILDJITCallbacks(IMG img)
                        IARG_END);
         RTN_Close(rtn);
     }
-    /// WAIT SIGNAL
-rtn = RTN_FindByName(img, "MOLECOOL_beforeWait");
-    if (RTN_Valid(rtn))
-      {
-        RTN_Open(rtn);
-        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeWait),
-                       IARG_THREAD_ID,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
-                       IARG_INST_PTR,
-                       IARG_CALL_ORDER, CALL_ORDER_FIRST,
-                     IARG_END);
-        RTN_Close(rtn);
-      }
-    
-        rtn = RTN_FindByName(img, "MOLECOOL_afterWait");
-    
-    if (RTN_Valid(rtn))
-      {
-        RTN_Open(rtn);
-        RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterWait),
-                       IARG_THREAD_ID,
-                       IARG_INST_PTR,
-                       IARG_CALL_ORDER, CALL_ORDER_LAST,
-                       IARG_END);
-        RTN_Close(rtn);
-      }
-    
-    rtn = RTN_FindByName(img, "MOLECOOL_beforeSignal");
-    if (RTN_Valid(rtn)) {
-      RTN_Open(rtn);
-      RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeSignal),
-                     IARG_THREAD_ID,
-                     IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
-                     IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
-                     IARG_INST_PTR,
-                     IARG_CALL_ORDER, CALL_ORDER_FIRST,
-                     IARG_END);
-      RTN_Close(rtn);
-    }
-    
-    rtn = RTN_FindByName(img, "MOLECOOL_afterSignal");
-    if (RTN_Valid(rtn)) {
-      RTN_Open(rtn);
-      RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterSignal),
-                     IARG_THREAD_ID,
-                     IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
-                     IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
-                     IARG_INST_PTR,
-                     IARG_CALL_ORDER, CALL_ORDER_LAST,
-                     IARG_END);
-      RTN_Close(rtn);
-      }
 
     rtn = RTN_FindByName(img, "MOLECOOL_endParallelLoop");
     if (RTN_Valid(rtn))
-      {
+    {
         RTN_Open(rtn);
         RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_endParallelLoop),
                        IARG_THREAD_ID,
                        IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
-		       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
                        IARG_END);
         RTN_Close(rtn);
-      }
-
-
-
-
+    }
 
 //==========================================================
 //FLUFFY-related
@@ -695,7 +638,7 @@ rtn = RTN_FindByName(img, "MOLECOOL_beforeWait");
 /* ========================================================================== */
 VOID AddILDJITWaitSignalCallbacks()
 {
-  /* static bool calledAlready = false;
+  static bool calledAlready = false;
   
   ASSERTX(!calledAlready); 
 
@@ -703,12 +646,66 @@ VOID AddILDJITWaitSignalCallbacks()
 
   for(IMG img = APP_ImgHead(); IMG_Valid(img); img = IMG_Next(img)) {
 
-    RTN 
+    RTN rtn = RTN_FindByName(img, "MOLECOOL_beforeWait");
+    if (RTN_Valid(rtn))
+    {
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeWait),
+                       IARG_THREAD_ID,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
+                       IARG_INST_PTR,
+                       IARG_CALL_ORDER, CALL_ORDER_FIRST,
+                       IARG_END);
+        RTN_Close(rtn);
+    }
+    
+        rtn = RTN_FindByName(img, "MOLECOOL_afterWait");
+    
+    if (RTN_Valid(rtn))
+    {
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterWait),
+                       IARG_THREAD_ID,
+                       IARG_INST_PTR,
+                       IARG_CALL_ORDER, CALL_ORDER_LAST,
+                       IARG_END);
+        RTN_Close(rtn);
+    }
+    
+    rtn = RTN_FindByName(img, "MOLECOOL_beforeSignal");
+    if (RTN_Valid(rtn))
+    {
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeSignal),
+                       IARG_THREAD_ID,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
+                       IARG_INST_PTR,
+                       IARG_CALL_ORDER, CALL_ORDER_FIRST,
+                       IARG_END);
+        RTN_Close(rtn);
+    }
+    
+    rtn = RTN_FindByName(img, "MOLECOOL_afterSignal");
+    if (RTN_Valid(rtn))
+    {
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterSignal),
+                       IARG_THREAD_ID,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
+                       IARG_INST_PTR,
+                       IARG_CALL_ORDER, CALL_ORDER_LAST,
+                       IARG_END);
+        RTN_Close(rtn);
+    }
+  }
   CODECACHE_FlushCache();
   
   PIN_UnlockClient();
 
-  calledAlready = true;*/
+  calledAlready = true;
 }
 
 VOID printMemoryUsage() 

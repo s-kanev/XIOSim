@@ -6,7 +6,7 @@ Buffer::Buffer()
   handshakePool_ = new handshake_container_t* [numPool_];
 
   for (int i = 0; i < numPool_; i++) {
-    handshake_container_t* newHandshake = new handshake_container_t();    
+    handshake_container_t* newHandshake = new handshake_container_t();
     handshakePool_[i] = newHandshake;      
   }
   head_ = 0;
@@ -14,14 +14,16 @@ Buffer::Buffer()
   size_ = 0;
 }
 
-void Buffer::push(handshake_container_t* handshake)
+handshake_container_t* Buffer::get_buffer()
 {
   assert(!full());
-  
-  handshake_container_t* copyTo = handshakePool_[head_];
+  return handshakePool_[head_];
+}
 
-  *copyTo = *handshake;
-  
+void Buffer::push_done()
+{
+  assert(!full());
+
   head_++;
   if(head_ == numPool_) {
     head_ = 0;
@@ -32,12 +34,13 @@ void Buffer::push(handshake_container_t* handshake)
 
 void Buffer::pop()
 {
-  front();
+  handshake_container_t* handshake = front();
+  handshake->Clear();
+
   tail_++;
   if(tail_ == numPool_) {
     tail_ = 0;
   }
-  assert(size_ > 0);
   size_--;
 }
 

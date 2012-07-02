@@ -6,13 +6,11 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <errno.h>
-#include <pthread.h>
 
 ostream& operator<< (ostream &out, handshake_container_t &hand)
 {
   out << "hand:" << " ";
   out << hand.flags.valid;
-  out << hand.flags.mem_released;
   out << hand.flags.isFirstInsn;
   out << hand.flags.isLastInsn;
   out << hand.flags.killThread;
@@ -45,7 +43,7 @@ BufferManager::~BufferManager()
   map<THREADID, string>::iterator it;
   for(it = fileNames_.begin(); it != fileNames_.end(); it++) {
     string cmd = "/bin/rm -rf " + fileNames_[it->first] + " " + bogusNames_[it->first];
-    system(cmd.c_str());
+    assert(system(cmd.c_str()) == 0);
   }
 }
 
@@ -61,7 +59,6 @@ handshake_container_t* BufferManager::front(THREADID tid)
   if(consumeBuffer_[tid]->size() > 0) {
     handshake_container_t* returnVal = consumeBuffer_[tid]->front();
     ReleaseLock(locks_[tid]);
-    //    GetLock(&simbuffer_lock, tid+1);
     return returnVal;
   }
   assert(fileEntryCount_[tid] > 0 || produceBuffer_[tid]->size() > 0);
@@ -71,7 +68,6 @@ handshake_container_t* BufferManager::front(THREADID tid)
     assert(!consumeBuffer_[tid]->empty());    
     handshake_container_t* returnVal = consumeBuffer_[tid]->front();
     ReleaseLock(locks_[tid]);
-    //    GetLock(&simbuffer_lock, tid+1);
     return returnVal;
   }
   assert(fileEntryCount_[tid] == 0);
@@ -97,22 +93,7 @@ handshake_container_t* BufferManager::front(THREADID tid)
       // cerr << "fsize:" << fileEntryCount_[tid] << endl;
       //cerr << "csize:" << consumeBuffer_[tid]->size() << endl;
       copyProducerToFile(tid);
-      cerr << "midcopy" << endl;
       copyFileToConsumer(tid);
-      cerr << "after copy" << endl;
-      cerr << "psize:" << produceBuffer_[tid]->size() << endl;
-      cerr << "fsize:" << fileEntryCount_[tid] << endl;
-      cerr << "csize:" << consumeBuffer_[tid]->size() << endl;
-      
-      /*      int tmptid = 13;
-      if(tid == 13) {
-	tmptid = 15;
-      }
-      cerr << "extra for other core:" << endl;
-      cerr << "psize:" << produceBuffer_[tmptid]->size() << endl;
-      cerr << "fsize:" << fileEntryCount_[tmptid] << endl;
-      cerr << "csize:" << consumeBuffer_[tmptid]->size() << endl;
-      cerr << endl;*/
     }
     //    (*logs_[tid]) << "s:5" << endl;
   }
@@ -122,8 +103,6 @@ handshake_container_t* BufferManager::front(THREADID tid)
   assert(queueSizes_[tid] > 0);
   handshake_container_t* resultVal = consumeBuffer_[tid]->front();
   ReleaseLock(locks_[tid]);
-  PIN_Yield();
-  //  GetLock(&simbuffer_lock, tid+1);
   return resultVal;
 }
 
@@ -160,26 +139,33 @@ bool BufferManager::empty(THREADID tid)
   return result;
 }
 
-void BufferManager::push(THREADID tid, handshake_container_t* handshake, bool fromILDJIT)
+handshake_container_t* BufferManager::get_buffer(THREADID tid)
 {
-  //  cerr << tid << "push" << endl;
   checkFirstAccess(tid);
-  ///  ReleaseLock(&simbuffer_lock);
-  PIN_Yield();
   GetLock(locks_[tid], tid+1);
-  reserveHandshake(tid, fromILDJIT);  
+  // Push is guaranteed to succeed because each call to
+  // this->get_buffer() is followed by a call to this->producer_done()
+  // which will make space if full
+  handshake_container_t* result = produceBuffer_[tid]->get_buffer();
+  produceBuffer_[tid]->push_done();
+  queueSizes_[tid]++;
+  assert(pool_[tid] > 0);
+  pool_[tid]--;
 
-  if((didFirstInsn_.count(tid) == 0) && (!fromILDJIT)) {    
-    handshake->flags.isFirstInsn = true;
-    didFirstInsn_[tid] = true;
-  }
-  else {
-    handshake->flags.isFirstInsn = false;
-  }
+  ReleaseLock(locks_[tid]);
+  return result;
+}
 
-  if(produceBuffer_[tid]->size() > 0) {
-    assert(produceBuffer_[tid]->back()->flags.valid == true);
-  }
+void BufferManager::producer_done(THREADID tid)
+{
+  checkFirstAccess(tid);
+  GetLock(locks_[tid], tid+1);
+
+  ASSERTX(!produceBuffer_[tid]->empty());
+  handshake_container_t* last = produceBuffer_[tid]->back();
+  ASSERTX(last->flags.valid);
+
+  reserveHandshake(tid);
 
   if(produceBuffer_[tid]->full()) {
     int produceSize = produceBuffer_[tid]->size();
@@ -191,17 +177,27 @@ void BufferManager::push(THREADID tid, handshake_container_t* handshake, bool fr
  
   assert(!produceBuffer_[tid]->full());
 
-  produceBuffer_[tid]->push(handshake);
-  queueSizes_[tid]++;  
-  pool_[tid]--;
-
   ReleaseLock(locks_[tid]);
-  PIN_Yield();
-  //  GetLock(&simbuffer_lock, tid+1);
-  //  cerr << tid << "push end" << endl;
 }
 
-void BufferManager::pop(THREADID tid, handshake_container_t* handshake)
+void BufferManager::flushBuffers(THREADID tid)
+{
+  cerr << "FLUSH_BUFFERS:" << tid << endl;
+  map<THREADID, string>::iterator it;
+  for(it = fileNames_.begin(); it != fileNames_.end(); it++) {
+    cerr << "FLUSHWRITE:" << it->first << endl;
+    copyProducerToFile(it->first);
+  }
+  /*  for(it = fileNames_.begin(); it != fileNames_.end(); it++) {
+    cerr << "FLUSHREAD1:" << it->first << endl;
+    if(fileEntryCount_[tid] > 0) {
+      cerr << "FLUSHREAD2:" << fileEntryCount_[tid] << " " << it->first << endl;
+      readFileIntoConsumeBuffer(it->first);
+    }
+    }*/
+}
+
+void BufferManager::pop(THREADID tid)
 {
   checkFirstAccess(tid);
   GetLock(locks_[tid], tid+1);
@@ -229,30 +225,23 @@ unsigned int BufferManager::size()
 
 void BufferManager::checkFirstAccess(THREADID tid)
 {
-  if(queueSizes_.count(tid) == 0) {
-    
-    PIN_Yield();
-    sleep(5);
-    PIN_Yield();
-    
     queueSizes_[tid] = 0;
     fileEntryCount_[tid] = 0;
     consumeBuffer_[tid] = new Buffer();
     fakeFile_[tid] = new Buffer();
     produceBuffer_[tid] = new Buffer();    
+    produceBuffer_[tid]->get_buffer()->flags.isFirstInsn = true;
     pool_[tid] = 100000;
 
     cerr << tid << " Allocating locks!" << endl;
     locks_[tid] = new PIN_LOCK();
     InitLock(locks_[tid]);
     
-    char s_tid[100];
+/*    char s_tid[100];
     sprintf(s_tid, "%d", tid);
-
     string logName = "./output_ring_cache/handshake_" + string(s_tid) + ".log"; 
     logs_[tid] = new ofstream();
-    (*(logs_[tid])).open(logName.c_str());    
- 
+    (*(logs_[tid])).open(logName.c_str());*/
 
     fileNames_[tid] = tempnam("/dev/shm/", "A");
     bogusNames_[tid] = tempnam("/dev/shm/", "B");
@@ -265,8 +254,6 @@ void BufferManager::checkFirstAccess(THREADID tid)
       cerr << "Close error: " << " Errcode:" << strerror(errno) << endl;  
       abort();
     }
-    sync(); 
-  } 
 
   GetLock(locks_[tid], tid+1);
   if(useRealFile_) {
@@ -278,7 +265,7 @@ void BufferManager::checkFirstAccess(THREADID tid)
   ReleaseLock(locks_[tid]);
 }
 
-void BufferManager::reserveHandshake(THREADID tid, bool fromILDJIT)
+void BufferManager::reserveHandshake(THREADID tid)
 {
   //  checkFirstAccess(tid);    
   
@@ -288,9 +275,7 @@ void BufferManager::reserveHandshake(THREADID tid, bool fromILDJIT)
 
   while(pool_[tid] == 0) {    
     ReleaseLock(locks_[tid]);
-    //    ReleaseLock(&simbuffer_lock);
     PIN_Yield();
-    //    GetLock(&simbuffer_lock, tid+1);
     GetLock(locks_[tid], tid+1);
     spins++;
     int newSize = queueSizes_[tid];
@@ -308,14 +293,6 @@ void BufferManager::reserveHandshake(THREADID tid, bool fromILDJIT)
       spins = 0;
     }
   }
-}
-
-bool BufferManager::isFirstInsn(THREADID tid)
-{
-  GetLock(locks_[tid], tid+1);
-  bool isFirst = (didFirstInsn_.count(tid) == 0);
-  ReleaseLock(locks_[tid]);
-  return isFirst;
 }
 
 void BufferManager::copyProducerToFile(THREADID tid)
@@ -351,7 +328,9 @@ void BufferManager::copyProducerToFileFake(THREADID tid)
       break;
     }
 
-    fakeFile_[tid]->push(produceBuffer_[tid]->front());
+    handshake_container_t* handshake = fakeFile_[tid]->get_buffer();
+    produceBuffer_[tid]->front()->CopyTo(handshake);
+    fakeFile_[tid]->push_done();
     produceBuffer_[tid]->pop();
   }
 }
@@ -366,7 +345,9 @@ void BufferManager::copyFileToConsumerFake(THREADID tid)
 
     assert(fakeFile_[tid]->front()->flags.valid);
 
-    consumeBuffer_[tid]->push(fakeFile_[tid]->front());
+    handshake_container_t* handshake = consumeBuffer_[tid]->get_buffer();
+    fakeFile_[tid]->front()->CopyTo(handshake);
+    consumeBuffer_[tid]->push_done();
     fakeFile_[tid]->pop();
   }
 }
@@ -385,11 +366,6 @@ void BufferManager::copyProducerToFileReal(THREADID tid)
 
   int count = 0;
   while(produceBuffer_[tid]->size() > 0) {
-    if(produceBuffer_[tid]->front()->flags.valid == false) {
-      assert(produceBuffer_[tid]->size() == 1);
-      break;
-    }
-    
     writeHandshake(fd, produceBuffer_[tid]->front());
     produceBuffer_[tid]->pop();
     count++;
@@ -402,9 +378,7 @@ void BufferManager::copyProducerToFileReal(THREADID tid)
     abort();
   }
 
-  sync();
-
-  assert(produceBuffer_[tid]->size() == 1 || produceBuffer_[tid]->size() == 0);
+  assert(produceBuffer_[tid]->size() == 0);
   assert(fileEntryCount_[tid] >= 0);
 }
 
@@ -430,13 +404,13 @@ void BufferManager::copyFileToConsumerReal(THREADID tid)
   int count = 0;
   bool validRead = true;
   while(fileEntryCount_[tid] > 0) {
-    handshake_container_t handshake;
     if(consumeBuffer_[tid]->full()) {      
       break;
     }
-    validRead = readHandshake(fd, &handshake);    
+    handshake_container_t* handshake = consumeBuffer_[tid]->get_buffer();
+    validRead = readHandshake(fd, handshake);    
     assert(validRead);
-    consumeBuffer_[tid]->push(&(handshake));
+    consumeBuffer_[tid]->push_done();
     count++;
     fileEntryCount_[tid]--;
   }
@@ -460,7 +434,7 @@ void BufferManager::copyFileToConsumerReal(THREADID tid)
     fstat(fd_bogus, &buf);
     int size = buf.st_size;
     assert(consumeBuffer_[tid]->full() || (copyCount == 0 && (size == 0)));
- }
+  }
 
   result = close(fd_bogus);
   if(result == -1) {
@@ -473,16 +447,12 @@ void BufferManager::copyFileToConsumerReal(THREADID tid)
     abort();
   }
 
-  sync();
-  
   result = rename(bogusNames_[tid].c_str(), fileNames_[tid].c_str());
   if(result == -1) {
     cerr << "Can't rename filesystem bridge files. " << " Errcode:" << strerror(errno) << endl;
     abort();
   }
   
-  sync();
-
   assert(fileEntryCount_[tid] >= 0);
 }
 
@@ -593,7 +563,7 @@ void BufferManager::signalCallback(int signum)
   map<THREADID, string>::iterator it;
   for(it = fileNames_.begin(); it != fileNames_.end(); it++) {
     string cmd = "rm -rf " + fileNames_[it->first] + " " + bogusNames_[it->first];
-    system(cmd.c_str());
+    assert(system(cmd.c_str()) == 0);
   }
   exit(1);
 }

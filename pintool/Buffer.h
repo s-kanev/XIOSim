@@ -10,8 +10,14 @@ class Buffer
 {
  public:
   Buffer();
-  
-  void push(handshake_container_t* handshake);
+ 
+  // Push is split in two phases: (i) a non-destructive get_buffer(),
+  // which returns a pointer to an internal storage element and (ii)
+  // push_done(), which markes the element as unavailable and occupying
+  // space.
+  handshake_container_t* get_buffer();
+  void push_done();
+
   void pop();
   
   handshake_container_t* front();

@@ -3532,3 +3532,19 @@
   UOP_RLI_OV(UP, STAD, XR_TMP0, XF_SEG, XF_BASE, XF_INDEX, XF_SCALE, XF_DISP, FUSION_NONE);\
   UOP_R2(UV, SSE_STD, XF_R, XR_TMP0, FUSION_STA_STD);		\
 }
+
+#define PXOR_Rx_Rx_FLOW							\
+{                                                                       \
+  UOP_R3(UV, SSE_PXOR, XF_RM, XF_RM, XF_R, FUSION_NONE);				\
+}                                                                        \
+
+#define MOVAPS_Rx_RMx_FLOW							\
+{                                                                       \
+  UOP_R2(UV, SSE_MOVAPS, XF_RM, XF_R, FUSION_NONE);				\
+} 
+
+#define MOVAPS_RMx_Rx_FLOW							\
+{                                                                       \
+  UOP_R2(UV, SSE_MOVAPS, XF_RM, XF_R, FUSION_NONE);				\
+} 
+

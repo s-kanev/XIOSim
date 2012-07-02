@@ -4,7 +4,7 @@
 #include <map>
 #include <queue>
 #include <assert.h>
-#include <pthread.h>
+#include "Buffer.h"
 #include "feeder.h"
 #include "Buffer.h"
 
@@ -19,12 +19,21 @@ class BufferManager
   handshake_container_t* back(THREADID tid);
   bool empty(THREADID tid);
 
-  void push(THREADID tid, handshake_container_t* handshake, bool fromILDJIT=false);
-  void pop(THREADID tid, handshake_container_t* handshake);
+  // The two steps of a push -- get a buffer, do magic with
+  // it, and call producer_done once it can be consumed / flushed
+  // In between, back() will return a pointer to that buffer
+  handshake_container_t* get_buffer(THREADID tid);
+  // By assumption, we call producer_done() once we have a completely
+  // instrumented, valid handshake, so that we don't need to handle
+  // intermediate cases
+  void producer_done(THREADID tid);
+
+  void pop(THREADID tid);
 
   bool hasThread(THREADID tid);
   unsigned int size();
-  bool isFirstInsn(THREADID tid);
+
+  void flushBuffers(THREADID tid);
 
   void signalCallback(int signum);
   
@@ -33,15 +42,14 @@ class BufferManager
  private:
   bool useRealFile_;
   map<THREADID, PIN_LOCK*> locks_;
-  
-  map<THREADID, int> didFirstInsn_;
+
   map<THREADID, int> pool_;
 
-  map<THREADID, ofstream*> logs_;
+  //map<THREADID, ofstream*> logs_;
 
   void checkFirstAccess(THREADID tid);
 
-  void reserveHandshake(THREADID tid, bool fromILDJIT=false);
+  void reserveHandshake(THREADID tid);
 
   void copyProducerToFile(THREADID tid);
   void copyFileToConsumer(THREADID tid);
@@ -54,7 +62,7 @@ class BufferManager
 
   bool readHandshake(int fd, handshake_container_t* handshake);
   void writeHandshake(int fd, handshake_container_t* handshake);
-  
+ 
   std::map<THREADID, int> queueSizes_;
   std::map<THREADID, Buffer*> consumeBuffer_;
   std::map<THREADID, Buffer*> produceBuffer_;
@@ -63,8 +71,6 @@ class BufferManager
 
   std::map<THREADID, string> fileNames_;
   std::map<THREADID, string> bogusNames_;
-
-  
 };
 
 #endif
