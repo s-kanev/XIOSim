@@ -1,16 +1,16 @@
 #ifndef __FEEDER_ZESTO__
 #define __FEEDER_ZESTO__
 
-/*                      
+/*
  * Molecool: Feeder to Zesto, fed itself by ILDJIT.
- * Copyright, Vijay Reddi, 2007 -- SimpleScalar feeder prototype 
+ * Copyright, Vijay Reddi, 2007 -- SimpleScalar feeder prototype
               Svilen Kanev, 2011
 */
 #include "pin.H"
 #include "instlib.H"
 using namespace INSTLIB;
 
-#include "../interface.h" 
+#include "../interface.h"
 
 class handshake_container_t;
 typedef queue<handshake_container_t*> handshake_queue_t;
@@ -108,11 +108,11 @@ enum EXECUTION_MODE
 };
 extern EXECUTION_MODE ExecMode;
 
-struct handshake_flags_t 
+struct handshake_flags_t
 {
   // Did we finish dumping context
   BOOL valid;
-  
+
   BOOL isFirstInsn;
   BOOL isLastInsn;
   BOOL killThread;
@@ -146,7 +146,7 @@ class handshake_container_t
     struct P2Z_HANDSHAKE handshake;
 
     struct handshake_flags_t flags;
-    
+
     // Memory reads and writes to be passed on to Zesto
     std::map<UINT32, UINT8> mem_buffer;
 };

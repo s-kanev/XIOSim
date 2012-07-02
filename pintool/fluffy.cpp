@@ -1,4 +1,4 @@
-/* 
+/*
  * Fluffy - looking for regions of interest when running under ILDJIT.
  * Copyright, Svilen Kanev, 2011
  */

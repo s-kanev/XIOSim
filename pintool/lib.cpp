@@ -1,6 +1,6 @@
-/* 
+/*
  * Pin-specific declarations, so that we can build Zesto as
- * a library and not link it with pin. 
+ * a library and not link it with pin.
  * Copyright, Svilen Kanev, 2012
  */
 

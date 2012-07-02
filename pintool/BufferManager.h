@@ -35,7 +35,7 @@ class BufferManager
   void flushBuffers(THREADID tid);
 
   void signalCallback(int signum);
-  
+
   friend ostream& operator<< (ostream &out, handshake_container_t &hand);
 
  private:
@@ -61,7 +61,7 @@ class BufferManager
 
   bool readHandshake(int fd, handshake_container_t* handshake);
   void writeHandshake(int fd, handshake_container_t* handshake);
- 
+
   std::map<THREADID, int> queueSizes_;
   std::map<THREADID, Buffer*> consumeBuffer_;
   std::map<THREADID, Buffer*> produceBuffer_;

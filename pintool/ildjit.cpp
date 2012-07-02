@@ -1,5 +1,5 @@
-/* 
- * ILDJIT-specific functions for zesto feeder 
+/*
+ * ILDJIT-specific functions for zesto feeder
  * Copyright, Svilen Kanev, 2012
  */
 
@@ -83,7 +83,7 @@ VOID MOLECOOL_Init()
     signal(SIGILL, signalCallback);
     signal(SIGSEGV, signalCallback);
     signal(SIGTERM, signalCallback);
-    
+
     cerr << start_loop << " " << start_loop_invocation << endl;
     cerr << end_loop << " " << end_loop_invocation << endl;
 }
@@ -111,26 +111,26 @@ BOOL ILDJIT_IsCreatingExecutor()
 /* ========================================================================== */
 VOID ILDJIT_startSimulation(THREADID tid, ADDRINT ip)
 {
-  // Check to see what current memory usage is post HELIX
-  printMemoryUsage();  
+    // Check to see what current memory usage is post HELIX
+    printMemoryUsage();
 
     if(start_loop_invocation == 1) {
       cerr << "[KEVIN]: Can't delay before/after wait/signal instrumentation ";
       cerr << "since phase starts on invocation 1 of a loop" << endl;
 
       AddILDJITWaitSignalCallbacks();
-      
+
       cerr << "[KEVIN] Added callbacks!" << endl;
     }
 
     //    doLateILDJITInstrumentation();
-    
+
     GetLock(&ildjit_lock, 1);
 
     /* We are stopping thread creation here, beacuse we can capture the real
      * thread creation in Pin only on starting the thread (first insn), which
      * happens after the actual syscalls.
-     * XXX: This way we can capture the creation of some compiler threads, 
+     * XXX: This way we can capture the creation of some compiler threads,
      * but this is generally fine, since they won't get executed */
     ILDJIT_executorCreation = false;
 
@@ -205,15 +205,15 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
       if(strlen(start_loop) > 0 && strncmp(start_loop, (CHAR*)loop, 512) != 0) {
         return;
       }
-      if(invocation_counts[loop] < start_loop_invocation) {        
-        if(invocation_counts[loop] == (start_loop_invocation - 1)) {          
+      if(invocation_counts[loop] < start_loop_invocation) {
+        if(invocation_counts[loop] == (start_loop_invocation - 1)) {
             cerr << "Doing the instrumentation for before/after wait/signal and endParallelLoop" << endl;
             AddILDJITWaitSignalCallbacks();
-        }      
+        }
         return;
       }
     }
-    
+
     cerr << "Starting loop: " << loop_name << "[" << invocation_counts[loop] << "]" << endl;
 
     /* This is called right before a wait spin loop.
@@ -235,19 +235,19 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
         cerr << "Starting simulation, TID: " << tid << endl;
         PPointHandler(CONTROL_START, NULL, NULL, (VOID*)ip, tid);
         firstLoop = false;
-    } 
+    }
     else if (strncmp(start_loop, (CHAR*)loop, 512) == 0) {
       if (invocation_counts[loop] == start_loop_invocation) {
         cerr << "Starting simulation, TTID: " << tid << endl;
         PPointHandler(CONTROL_START, NULL, NULL, (VOID*)ip, tid);
         cerr << "Starting simulation, TTID2: " << tid << endl;
         firstLoop = false;
-      } 
+      }
       else if (invocation_counts[loop] > start_loop_invocation) {
         cerr << tid << ": resuming simulation" << endl;
         ResumeSimulation(tid);
       }
-    } 
+    }
     else {
         cerr << tid << ": resuming simulation" << endl;
         ResumeSimulation(tid);
@@ -261,7 +261,7 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
 //#ifdef ZESTO_PIN_DBG
     CHAR* loop_name = (CHAR*) loop;
 //#endif
-  
+
     if (ExecMode == EXECUTION_MODE_SIMULATE) {
       cerr << "Ending loop: " << loop_name << " NumIterations:" << (UINT32)numIterations << endl;
       cerr << tid << ": Pausing simulation" << endl;
@@ -274,7 +274,7 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
       cerr << "LStopping simulation, TID: " << tid << endl;
       StopSimulation(tid);
       cerr << "[KEVIN] Stopped simulation! " << tid << endl;
-    }    
+    }
 }
 
 /* ========================================================================== */
@@ -308,7 +308,7 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
     tstate->lastSignalAddr = ssID_addr;
     lastWaitID[tid] = ssID;
 
-    // XXX: HACKEDY HACKEDY HACK The ordering of these conditions matter        
+    // XXX: HACKEDY HACKEDY HACK The ordering of these conditions matters
     if ((ExecMode == EXECUTION_MODE_SIMULATE) && (core_threads[0] != tid)) {
       tstate->firstIteration = false;
     }
@@ -490,7 +490,7 @@ VOID ILDJIT_setAffinity(THREADID tid, INT32 coreID)
 VOID AddILDJITCallbacks(IMG img)
 {
 #ifdef ZESTO_PIN_DBG
-    cerr << "Adding ILDJIT callbacks: "; 
+    cerr << "Adding ILDJIT callbacks: ";
 #endif
 
     //Interface to ildjit
@@ -602,7 +602,7 @@ VOID AddILDJITCallbacks(IMG img)
             cerr << "FLUFFY_step3_start_inst ";
 #endif
             RTN_Open(rtn);
-            
+
             RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(FLUFFY_StartInsn),
                            IARG_THREAD_ID,
                            IARG_INST_PTR,
@@ -619,7 +619,7 @@ VOID AddILDJITCallbacks(IMG img)
             cerr << "FLUFFY_step3_end_inst ";
 #endif
             RTN_Open(rtn);
-            
+
             RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(FLUFFY_StopInsn),
                            IARG_THREAD_ID,
                            IARG_INST_PTR,
@@ -639,8 +639,7 @@ VOID AddILDJITCallbacks(IMG img)
 VOID AddILDJITWaitSignalCallbacks()
 {
   static bool calledAlready = false;
-  
-  ASSERTX(!calledAlready); 
+  ASSERTX(!calledAlready);
 
   PIN_LockClient();
 
@@ -659,9 +658,8 @@ VOID AddILDJITWaitSignalCallbacks()
                        IARG_END);
         RTN_Close(rtn);
     }
-    
-        rtn = RTN_FindByName(img, "MOLECOOL_afterWait");
-    
+
+    rtn = RTN_FindByName(img, "MOLECOOL_afterWait");
     if (RTN_Valid(rtn))
     {
         RTN_Open(rtn);
@@ -672,7 +670,7 @@ VOID AddILDJITWaitSignalCallbacks()
                        IARG_END);
         RTN_Close(rtn);
     }
-    
+
     rtn = RTN_FindByName(img, "MOLECOOL_beforeSignal");
     if (RTN_Valid(rtn))
     {
@@ -686,7 +684,7 @@ VOID AddILDJITWaitSignalCallbacks()
                        IARG_END);
         RTN_Close(rtn);
     }
-    
+
     rtn = RTN_FindByName(img, "MOLECOOL_afterSignal");
     if (RTN_Valid(rtn))
     {
@@ -702,18 +700,18 @@ VOID AddILDJITWaitSignalCallbacks()
     }
   }
   CODECACHE_FlushCache();
-  
+
   PIN_UnlockClient();
 
   calledAlready = true;
 }
 
-VOID printMemoryUsage() 
+VOID printMemoryUsage()
 {
   int myPid = getpid();
   char str[50];
   sprintf(str, "%d", myPid);
-  
+
   FILE *fp = popen(("/bin/cat /proc/" + string(str) + "/status | /bin/grep VmSize").c_str(), "r");
   char buff[1024];
   char *line = fgets(buff, sizeof(buff), fp);

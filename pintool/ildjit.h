@@ -1,8 +1,8 @@
 #ifndef __MOLECOOL_PIN__
 #define __MOLECOOL_PIN__
 
-/* 
- * ILDJIT-specific functions for zesto feeder 
+/*
+ * ILDJIT-specific functions for zesto feeder
  * Copyright, Svilen Kanev, 2012
  */
 

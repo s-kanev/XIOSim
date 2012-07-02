@@ -7,7 +7,7 @@ Buffer::Buffer()
 
   for (int i = 0; i < numPool_; i++) {
     handshake_container_t* newHandshake = new handshake_container_t();
-    handshakePool_[i] = newHandshake;      
+    handshakePool_[i] = newHandshake;
   }
   head_ = 0;
   tail_ = 0;

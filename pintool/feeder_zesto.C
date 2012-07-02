@@ -1,8 +1,8 @@
 /* ========================================================================== */
 /* ========================================================================== */
-/*                      
+/*
  * Molecool: Feeder to Zesto, fed itself by ILDJIT.
- * Copyright, Vijay Reddi, 2007 -- SimpleScalar feeder prototype 
+ * Copyright, Vijay Reddi, 2007 -- SimpleScalar feeder prototype
               Svilen Kanev, 2011
 */
 /* ========================================================================== */
@@ -130,7 +130,7 @@ VOID MakeInsCopy(P2Z_HANDSHAKE* handshake, ADDRINT pc)
 /* ========================================================================== */
 thread_state_t* get_tls(THREADID threadid)
 {
-    thread_state_t* tstate = 
+    thread_state_t* tstate =
           static_cast<thread_state_t*>(PIN_GetThreadData(tls_key, threadid));
     return tstate;
 }
@@ -142,7 +142,7 @@ VOID ImageUnload(IMG img, VOID *v)
     ADDRINT length = IMG_HighAddress(img) - start;
 
 #ifdef ZESTO_PIN_DBG
-    cerr << "Image unload, addr: " << hex << start  
+    cerr << "Image unload, addr: " << hex << start
          << " len: " << length << " end_addr: " << start + length << endl;
 #endif
 
@@ -152,13 +152,13 @@ VOID ImageUnload(IMG img, VOID *v)
 /* ========================================================================== */
 VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREADID tid)
 {
-    cerr << "tid: " << dec << tid << " ip: " << hex << ip << " "; 
+    cerr << "tid: " << dec << tid << " ip: " << hex << ip << " ";
     if (tid < ISIMPOINT_MAX_THREADS)
         cerr <<  dec << " Inst. Count " << icount.Count(tid) << " ";
 
     thread_state_t* tstate = get_tls(tid);
     volatile handshake_container_t* handshake;
-    
+
     switch(ev)
     {
       case CONTROL_START:
@@ -167,12 +167,12 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
         CODECACHE_FlushCache();
 //        PIN_RemoveInstrumentation();
         GetLock(&simbuffer_lock, tid+1);
-        
+
         ignore_all = false;
         if(num_threads == 1) {
             ignore[tid] = false;
         }
-	
+
         ReleaseLock(&simbuffer_lock);
 
         //ScheduleRunQueue();
@@ -205,16 +205,16 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
              * directly.
              * In either case, this is executed before SimulateLoop on
              * the Stop point? */
-	    
+
             int slice_num = tstate->slice_num;
             int slice_length = tstate->slice_length;
             int slice_weight_times = tstate->slice_weight_times_1000;
             ReleaseLock(&simbuffer_lock);
-	    
+
             handshake = handshake_buffer.front(tid);
             handshake->handshake.slice_num = slice_num;
             handshake->handshake.feeder_slice_length = slice_length;
-            handshake->handshake.slice_num = slice_weight_times; 
+            handshake->handshake.slice_num = slice_weight_times;
 
             handshake->flags.isLastInsn = true;
 
@@ -242,7 +242,7 @@ VOID ImageLoad(IMG img, VOID *v)
     ADDRINT length = IMG_HighAddress(img) - start;
 
 #ifdef ZESTO_PIN_DBG
-    cerr << "Image load, addr: " << hex << start  
+    cerr << "Image load, addr: " << hex << start
          << " len: " << length << " end_addr: " << start + length << endl;
 #endif
 
@@ -264,7 +264,6 @@ VOID MakeSSContext(const CONTEXT *ictxt, FPSTATE* fpstate, ADDRINT pc, ADDRINT n
     // Must invalidate prior to use because previous invocation data still
     // resides in this statically allocated buffer
     memset(ssregs, 0x0, sizeof(regs_t));
-    
     ssregs->regs_PC = pc;
     ssregs->regs_NPC = npc;
 
@@ -390,8 +389,8 @@ VOID SanityMemCheck()
     }
 }
 
-/* ========================================================================== 
- * Called from simulator once handshake is free to be reused. 
+/* ==========================================================================
+ * Called from simulator once handshake is free to be reused.
  * This allows to pipeline instrumentation and simulation.
  * Assumes we are holding simbuffer_lock. */
 VOID ReleaseHandshake(UINT32 coreID)
@@ -401,7 +400,7 @@ VOID ReleaseHandshake(UINT32 coreID)
     handshake_container_t* handshake = handshake_buffer.front(instrument_tid);
 
     // We are finishing simulation, kill the simulator thread
-    if (handshake->flags.isLastInsn && !handshake->flags.isFirstInsn && 
+    if (handshake->flags.isLastInsn && !handshake->flags.isFirstInsn &&
         ExecMode == EXECUTION_MODE_INVALID)
         handshake->flags.killThread = true;
 
@@ -438,7 +437,7 @@ VOID SimulatorLoop(VOID* arg)
                     cerr << tid << " Spinning waiting for non empty handshake buffer!" << endl;
                 spins = 0;
             }
-	
+
             GetLock(&simbuffer_lock, tid+1);
             if (!sim_running || PIN_IsProcessExiting()) {
                 sim_stopped[instrument_tid] = true;
@@ -452,14 +451,14 @@ VOID SimulatorLoop(VOID* arg)
         handshake_container_t* handshake = handshake_buffer.front(instrument_tid);
         ASSERTX(handshake != NULL);
         ASSERTX(handshake->flags.valid);
-      
+
         GetLock(&simbuffer_lock, tid+1);
-      
+
         /* Preserving coreID if we destroy handshake before coming in here,
          * so we know which core to deactivate. */
         coreID = handshake->handshake.coreID;
 
-        /* Thread scheduling still hasn't happened. Bummer. Check the core->thread 
+        /* Thread scheduling still hasn't happened. Bummer. Check the core->thread
          * mapping and spin until thread gets assigned to a core. */
         // XXX: Not in recent HELIX, but keep around for merging in trunk
 //        if (coreID == -1)
@@ -534,7 +533,7 @@ VOID MakeSSRequest(THREADID tid, ADDRINT pc, ADDRINT npc, ADDRINT tpc, BOOL brta
 
     hshake->handshake.slice_num = tstate->slice_num;
     hshake->handshake.feeder_slice_length = tstate->slice_length;
-    hshake->handshake.slice_weight_times_1000 = tstate->slice_weight_times_1000; 
+    hshake->handshake.slice_weight_times_1000 = tstate->slice_weight_times_1000;
 }
 
 /* ========================================================================== */
@@ -615,7 +614,7 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
         ASSERTX(sanity_pc == pc);
     }
 
-    /* In case tls was not updated yet (because we can't touch it 
+    /* In case tls was not updated yet (because we can't touch it
      * from other threads), look up in reverse mapping */
     thread_state_t* tstate = get_tls(tid);
     if ((tstate->coreID == (ADDRINT)-1))
@@ -675,7 +674,7 @@ VOID Instrument(INS ins, VOID *v)
 {
     // ILDJIT is doing its initialization/compilation/...
     if (KnobILDJIT.Value() && !ILDJIT_IsExecuting())
-        return;    
+        return;
 
     // Not executing yet, only warm caches, if needed
     if (ExecMode != EXECUTION_MODE_SIMULATE)
@@ -758,37 +757,37 @@ VOID Instrument(INS ins, VOID *v)
         if(INS_HasRealRep(ins))
         {
            INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR) returnArg, IARG_FIRST_REP_ITERATION, IARG_END);
-           INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR) SimulateInstruction, 
+           INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR) SimulateInstruction,
                        IARG_THREAD_ID,
-                       IARG_INST_PTR, 
-                       IARG_BOOL, 0, 
+                       IARG_INST_PTR,
+                       IARG_BOOL, 0,
                        IARG_ADDRINT, INS_NextAddress(ins),
-                       IARG_FALLTHROUGH_ADDR, 
+                       IARG_FALLTHROUGH_ADDR,
                        IARG_CONST_CONTEXT,
                        IARG_BOOL, (memReads > 0),
                        IARG_END);
         }
         else
             // Non-REP-ed, non-branch instruction, use falltrough
-            INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) SimulateInstruction, 
+            INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) SimulateInstruction,
                        IARG_THREAD_ID,
-                       IARG_INST_PTR, 
-                       IARG_BOOL, 0, 
+                       IARG_INST_PTR,
+                       IARG_BOOL, 0,
                        IARG_ADDRINT, INS_NextAddress(ins),
-                       IARG_FALLTHROUGH_ADDR, 
+                       IARG_FALLTHROUGH_ADDR,
                        IARG_CONST_CONTEXT,
                        IARG_BOOL, (memReads > 0),
                        IARG_END);
     }
-    else 
+    else
     {
         // Branch, give instrumentation appropriate address
-        INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) SimulateInstruction, 
+        INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) SimulateInstruction,
                    IARG_THREAD_ID,
-                   IARG_INST_PTR, 
-                   IARG_BRANCH_TAKEN, 
+                   IARG_INST_PTR,
+                   IARG_BRANCH_TAKEN,
                    IARG_ADDRINT, INS_NextAddress(ins),
-                   IARG_BRANCH_TARGET_ADDR, 
+                   IARG_BRANCH_TARGET_ADDR,
                    IARG_CONST_CONTEXT,
                    IARG_BOOL, (memReads > 0),
                    IARG_END);
@@ -801,7 +800,7 @@ VOID Instrument(INS ins, VOID *v)
  * SimpleScalar's arguments otherwise it will barf; it'll expect KNOB
  * declarations for those arguments. Thereforce, we follow a convention that
  * anything declared past "-s" and before "--" on the command line must be
- * passed along as SimpleScalar's argument list. 
+ * passed along as SimpleScalar's argument list.
  *
  * SimpleScalar's arguments are extracted out of the command line in two steps:
  * First, we create a new argument vector that can be passed to SimpleScalar.
@@ -850,7 +849,7 @@ SSARGS MakeSimpleScalarArgcArgv(UINT32 argc, CHAR *argv[])
             ssArgv[ssArgIndex++] = const_cast <CHAR *> (argvCopy->c_str());
         }
     }
- 
+
     // Terminate the argv. Ending must terminate with a pointer *referencing* a
     // NULL. Simply terminating the end of argv[n] w/ NULL violates conventions
     ssArgv[ssArgIndex++] = new CHAR('\0');
@@ -956,7 +955,7 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
             bos = (ADDRINT) last_argv + strlen(last_argv)+1; //last_argv != NULLalways
 //        cerr << "bos: " << hex << bos << dec << endl;
 
-        // Reserve space for environment and arguments in case 
+        // Reserve space for environment and arguments in case
         // execution starts on another thread.
         ADDRINT tos_start = ROUND_DOWN(tos, MD_PAGE_SIZE);
         ADDRINT bos_end = ROUND_UP(bos, MD_PAGE_SIZE);
@@ -977,8 +976,8 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
         // Create new buffer to store thread context
         GetLock(&simbuffer_lock, threadIndex+1);
 
-	thread_list.push_back(threadIndex);
-	       
+        thread_list.push_back(threadIndex);
+
         run_queue.push_back(threadIndex);
         ignore[threadIndex] = true;
         ReleaseLock(&simbuffer_lock);
@@ -991,7 +990,7 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
 
         // This will trigger spawning a sim thread
         GetLock(&instrument_tid_lock, threadIndex+1);
-        instrument_tid_queue.push(threadIndex); 
+        instrument_tid_queue.push(threadIndex);
         ReleaseLock(&instrument_tid_lock);
     }
 
@@ -1069,7 +1068,7 @@ VOID PauseSimulation(THREADID tid)
     ReleaseLock(&simbuffer_lock);
 
     /* Wait until all cores are done -- consumed their buffers. */
-    cerr << tid << " [" << sim_cycle << ":KEVIN]: Waiting for all sleepy cores" << endl; 
+    cerr << tid << " [" << sim_cycle << ":KEVIN]: Waiting for all sleepy cores" << endl;
 
     volatile bool done = false;
     do {
@@ -1082,7 +1081,7 @@ VOID PauseSimulation(THREADID tid)
         ReleaseLock(&simbuffer_lock);
     } while (!done);
 
-    cerr << tid << " [" << sim_cycle << ":KEVIN]: All cores have empty buffers" << endl; 
+    cerr << tid << " [" << sim_cycle << ":KEVIN]: All cores have empty buffers" << endl;
 
     GetLock(&simbuffer_lock, tid+1);
 
@@ -1107,7 +1106,7 @@ VOID ResumeSimulation(THREADID tid)
 
         /* Wake up cores right away without going through the handshake
          * buffer (which should be empty anyway).
-         * If we do go through it, there are no guarantees for when the 
+         * If we do go through it, there are no guarantees for when the
          * resume is consumed, which can lead to nasty races of who gets
          * to resume first. */
         ASSERTX(handshake_buffer.empty(tid));
@@ -1155,7 +1154,7 @@ VOID StopSimulation(THREADID tid)
         }
         ReleaseLock(&simbuffer_lock);
     } while(!is_stopped);
-    
+
     cerr << SimOrgInsCount << endl;
     Zesto_Slice_End(0, 0, SimOrgInsCount, 100000);
 
@@ -1248,7 +1247,7 @@ struct mmap_arg_struct {
      UINT32 flags;
      UINT32 fd;
      UINT32 offset;
-}; 
+};
 
 //from times.h
 struct tms {
@@ -1289,7 +1288,7 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, V
       case __NR_munmap:
         arg2 = PIN_GetSyscallArgument(ictxt, std, 1);
 #ifdef ZESTO_PIN_DBG
-        cerr << "Syscall munmap(" << dec << syscall_num << ") addr: 0x" << hex << arg1 
+        cerr << "Syscall munmap(" << dec << syscall_num << ") addr: 0x" << hex << arg1
              << " length: " << arg2 << dec << endl;
 #endif
         tstate->last_syscall_arg1 = arg1;
@@ -1299,7 +1298,7 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, V
       case __NR_mmap: //oldmmap
         memcpy(&mmap_arg, (void*)arg1, sizeof(mmap_arg_struct));
 #ifdef ZESTO_PIN_DBG
-        cerr << "Syscall oldmmap(" << dec << syscall_num << ") addr: 0x" << hex << mmap_arg.addr 
+        cerr << "Syscall oldmmap(" << dec << syscall_num << ") addr: 0x" << hex << mmap_arg.addr
              << " length: " << mmap_arg.len << dec << endl;
 #endif
         tstate->last_syscall_arg1 = mmap_arg.len;
@@ -1308,7 +1307,7 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, V
       case __NR_mmap2:
         arg2 = PIN_GetSyscallArgument(ictxt, std, 1);
 #ifdef ZESTO_PIN_DBG
-        cerr << "Syscall mmap2(" << dec << syscall_num << ") addr: 0x" << hex << arg1 
+        cerr << "Syscall mmap2(" << dec << syscall_num << ") addr: 0x" << hex << arg1
              << " length: " << arg2 << dec << endl;
 #endif
         tstate->last_syscall_arg1 = arg2;
@@ -1318,7 +1317,7 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, V
         arg2 = PIN_GetSyscallArgument(ictxt, std, 1);
         arg3 = PIN_GetSyscallArgument(ictxt, std, 2);
 #ifdef ZESTO_PIN_DBG
-        cerr << "Syscall mremap(" << dec << syscall_num << ") old_addr: 0x" << hex << arg1 
+        cerr << "Syscall mremap(" << dec << syscall_num << ") old_addr: 0x" << hex << arg1
              << " old_length: " << arg2 << " new_length: " << arg3 << dec << endl;
 #endif
         tstate->last_syscall_arg1 = arg1;
@@ -1397,7 +1396,7 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
     {
       case __NR_brk:
 #ifdef ZESTO_PIN_DBG
-        cerr << "Ret syscall brk(" << dec << tstate->last_syscall_number << ") addr: 0x" 
+        cerr << "Ret syscall brk(" << dec << tstate->last_syscall_number << ") addr: 0x"
              << hex << retval << dec << endl;
 #endif
         if(tstate->last_syscall_arg1 != 0)
@@ -1409,7 +1408,7 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
 
       case __NR_munmap:
 #ifdef ZESTO_PIN_DBG
-        cerr << "Ret syscall munmap(" << dec << tstate->last_syscall_number << ") addr: 0x" 
+        cerr << "Ret syscall munmap(" << dec << tstate->last_syscall_number << ") addr: 0x"
              << hex << tstate->last_syscall_arg1 << " length: " << tstate->last_syscall_arg2 << dec << endl;
 #endif
         if(retval != (ADDRINT)-1)
@@ -1418,7 +1417,7 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
 
       case __NR_mmap: //oldmap
 #ifdef ZESTO_PIN_DBG
-        cerr << "Ret syscall oldmmap(" << dec << tstate->last_syscall_number << ") addr: 0x" 
+        cerr << "Ret syscall oldmmap(" << dec << tstate->last_syscall_number << ") addr: 0x"
              << hex << retval << " length: " << tstate->last_syscall_arg1 << dec << endl;
 #endif
         if(retval != (ADDRINT)-1)
@@ -1427,7 +1426,7 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
 
       case __NR_mmap2:
 #ifdef ZESTO_PIN_DBG
-        cerr << "Ret syscall mmap2(" << dec << tstate->last_syscall_number << ") addr: 0x" 
+        cerr << "Ret syscall mmap2(" << dec << tstate->last_syscall_number << ") addr: 0x"
              << hex << retval << " length: " << tstate->last_syscall_arg1 << dec << endl;
 #endif
         if(retval != (ADDRINT)-1)
@@ -1436,7 +1435,7 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
 
       case __NR_mremap:
 #ifdef ZESTO_PIN_DBG
-        cerr << "Ret syscall mremap(" << dec << tstate->last_syscall_number << ") " << hex 
+        cerr << "Ret syscall mremap(" << dec << tstate->last_syscall_number << ") " << hex
              << " old_addr: 0x" << tstate->last_syscall_arg1
              << " old_length: " << tstate->last_syscall_arg2
              << " new address: 0x" << retval
@@ -1477,8 +1476,8 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
         adj_time = retval - (clock_t) sim_time;
 #ifdef ZESTO_PIN_DBG
         cerr << "Ret syscall times(" << dec << tstate->last_syscall_number << ") old: "
-             << retval  << " adjusted: " << adj_time 
-             << " user: " << buf->tms_utime 
+             << retval  << " adjusted: " << adj_time
+             << " user: " << buf->tms_utime
              << " user_adj: " << (buf->tms_utime - sim_time)
              << " system: " << buf->tms_stime << endl;
 #endif
@@ -1591,20 +1590,20 @@ INT32 main(INT32 argc, CHAR **argv)
         }
         sanity_trace >> hex;
     }
-    
+
     // Delay this instrumentation until startSimulation call in ILDJIT.
     // This cuts down HELIX compilation noticably for integer benchmarks.
-    
+
     //    if(!KnobILDJIT.Value()) {
     INS_AddInstrumentFunction(Instrument, 0);
     //    }
 
-    PIN_AddThreadStartFunction(ThreadStart, NULL);  
-    PIN_AddThreadFiniFunction(ThreadFini, NULL);  
+    PIN_AddThreadStartFunction(ThreadStart, NULL);
+    PIN_AddThreadFiniFunction(ThreadFini, NULL);
     IMG_AddUnloadFunction(ImageUnload, 0);
     IMG_AddInstrumentFunction(ImageLoad, 0);
     PIN_AddSyscallEntryFunction(SyscallEntry, 0);
-    PIN_AddSyscallExitFunction(SyscallExit, 0);          
+    PIN_AddSyscallExitFunction(SyscallExit, 0);
     PIN_AddFiniFunction(Fini, 0);
 
     if(KnobSanity.Value())
@@ -1613,10 +1612,10 @@ INT32 main(INT32 argc, CHAR **argv)
 
     Zesto_SlaveInit(ssargs.first, ssargs.second);
 
-    // The only safe way to spawn internal pin threads is from main() 
+    // The only safe way to spawn internal pin threads is from main()
     // or other internal threads, so we create a thread spawner here
-    PIN_SpawnInternalThread(SimulatorThreadSpawner, NULL, 0, NULL);    
-    
+    PIN_SpawnInternalThread(SimulatorThreadSpawner, NULL, 0, NULL);
+
     PIN_StartProgram();
 
     return 0;
@@ -1634,7 +1633,7 @@ VOID amd_hack()
     vdso_begin = (void*)0xffffe000;
     vdso_end = (void*)0xfffff000;
     (void) vdso_end;
-  
+
     int returnval = mprotect(vdso_begin, 0x1000, PROT_EXEC | PROT_READ | PROT_WRITE);
 
     if (returnval != 0) {
@@ -1653,13 +1652,13 @@ VOID doLateILDJITInstrumentation()
 {
   assert(false);
   static bool calledAlready = false;
-   
-  ASSERTX(!calledAlready); 
+
+  ASSERTX(!calledAlready);
 
   PIN_LockClient();
   INS_AddInstrumentFunction(Instrument, 0);
   CODECACHE_FlushCache();
-  PIN_UnlockClient();  
+  PIN_UnlockClient();
 
   calledAlready = true;
 }
