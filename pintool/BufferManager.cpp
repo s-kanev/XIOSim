@@ -87,12 +87,13 @@ handshake_container_t* BufferManager::front(THREADID tid)
     //    (*logs_[tid]) << "s:4" << endl;
     spins++;
     if(spins >= 10LL) {
-      cerr << tid << " [front()]: That's a lot of spins!" << endl;
+      //cerr << tid << " [front()]: That's a lot of spins!" << endl;
       spins = 0;
       //  cerr << "psize:" << produceBuffer_[tid]->size() << endl;
       // cerr << "fsize:" << fileEntryCount_[tid] << endl;
       //cerr << "csize:" << consumeBuffer_[tid]->size() << endl;
-      copyProducerToFile(tid);
+      // XXX: commenting this out could break fake file?
+      //copyProducerToFile(tid);
       copyFileToConsumer(tid);
     }
     //    (*logs_[tid]) << "s:5" << endl;
@@ -106,25 +107,11 @@ handshake_container_t* BufferManager::front(THREADID tid)
   return resultVal;
 }
 
-bool BufferManager::validFront(THREADID tid) 
-{
-  if(queueSizes_[tid] == 0) {
-    return false;
-  }
-
-  if((queueSizes_[tid] == 1) && (produceBuffer_[tid]->size() == 1)) {
-    return produceBuffer_[tid]->back()->flags.valid;
-  }
-
-  return true;
-}
-
 handshake_container_t* BufferManager::back(THREADID tid)
 {
   checkFirstAccess(tid);
   GetLock(locks_[tid], tid+1);
   assert(queueSizes_[tid] > 0);
-  assert(produceBuffer_[tid]->size() > 0);
   handshake_container_t* returnVal = produceBuffer_[tid]->back();
   ReleaseLock(locks_[tid]);
   return returnVal;
@@ -225,6 +212,8 @@ unsigned int BufferManager::size()
 
 void BufferManager::checkFirstAccess(THREADID tid)
 {
+  if (queueSizes_.count(tid) == 0) {
+
     queueSizes_[tid] = 0;
     fileEntryCount_[tid] = 0;
     consumeBuffer_[tid] = new Buffer();
@@ -254,6 +243,7 @@ void BufferManager::checkFirstAccess(THREADID tid)
       cerr << "Close error: " << " Errcode:" << strerror(errno) << endl;  
       abort();
     }
+  }
 
   GetLock(locks_[tid], tid+1);
   if(useRealFile_) {

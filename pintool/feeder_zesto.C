@@ -431,10 +431,11 @@ VOID SimulatorLoop(VOID* arg)
 
     while (true) {
         spins = 0;
-        while (handshake_buffer.empty(instrument_tid) || (!handshake_buffer.validFront(instrument_tid))) {
+        while (handshake_buffer.empty(instrument_tid)) {
             spins++;
             if(spins >= 7000000LL) {
-                cerr << tid << " Spinning waiting for non empty handshake buffer!" << endl;
+                if (!ignore[instrument_tid])
+                    cerr << tid << " Spinning waiting for non empty handshake buffer!" << endl;
                 spins = 0;
             }
 	

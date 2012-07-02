@@ -15,7 +15,6 @@ class BufferManager
   ~BufferManager();
 
   handshake_container_t* front(THREADID tid);
-  bool validFront(THREADID tid);
   handshake_container_t* back(THREADID tid);
   bool empty(THREADID tid);
 
