@@ -9,7 +9,7 @@
 class Buffer
 {
  public:
-  Buffer();
+  Buffer(int size);
  
   // Push is split in two phases: (i) a non-destructive get_buffer(),
   // which returns a pointer to an internal storage element and (ii)
@@ -29,7 +29,7 @@ class Buffer
   int size();
   
  private:
-  handshake_container_t** handshakePool_;
+  handshake_container_t* handshakePool_;
   int head_;
   int tail_;
 

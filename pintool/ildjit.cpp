@@ -112,6 +112,7 @@ BOOL ILDJIT_IsCreatingExecutor()
 VOID ILDJIT_startSimulation(THREADID tid, ADDRINT ip)
 {
     // Check to see what current memory usage is post HELIX
+  cerr << "[KEVIN] ILDJIT called startSimulation()" << endl;
     printMemoryUsage();
 
     if(start_loop_invocation == 1) {
@@ -708,15 +709,14 @@ VOID AddILDJITWaitSignalCallbacks()
 
 VOID printMemoryUsage()
 {
+  return;
   int myPid = getpid();
   char str[50];
   sprintf(str, "%d", myPid);
 
-  FILE *fp = popen(("/bin/cat /proc/" + string(str) + "/status | /bin/grep VmSize").c_str(), "r");
-  char buff[1024];
-  char *line = fgets(buff, sizeof(buff), fp);
-  cerr << "Memory Usage post HELIX: " << line << endl;
-  pclose(fp);
+  cerr << myPid << " Memory Usage post HELIX:" << endl;
+  string cmd = "/bin/grep VmSize /proc/" + string(str) + "/status 1>&2";
+  system(cmd.c_str());
 }
 
 VOID signalCallback(int signum)

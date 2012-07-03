@@ -121,7 +121,7 @@ class core_commit_t
   protected:
 
   struct core_t * core;
-  static const int deadlock_threshold = 50000;
+  static const int deadlock_threshold = 5000000;
 };
 
 void commit_reg_options(struct opt_odb_t * odb, struct core_knobs_t * knobs);

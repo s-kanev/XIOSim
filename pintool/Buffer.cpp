@@ -1,14 +1,9 @@
 #include "Buffer.h"
 
-Buffer::Buffer()
+Buffer::Buffer(int size)
 {
-  numPool_ = 25000;
-  handshakePool_ = new handshake_container_t* [numPool_];
-
-  for (int i = 0; i < numPool_; i++) {
-    handshake_container_t* newHandshake = new handshake_container_t();
-    handshakePool_[i] = newHandshake;
-  }
+  numPool_ = size;
+  handshakePool_ = new handshake_container_t [numPool_];
   head_ = 0;
   tail_ = 0;
   size_ = 0;
@@ -17,7 +12,7 @@ Buffer::Buffer()
 handshake_container_t* Buffer::get_buffer()
 {
   assert(!full());
-  return handshakePool_[head_];
+  return &(handshakePool_[head_]);
 }
 
 void Buffer::push_done()
@@ -47,7 +42,7 @@ void Buffer::pop()
 handshake_container_t* Buffer::front()
 {
   assert(size_ > 0);
-  return handshakePool_[tail_];
+  return &(handshakePool_[tail_]);
 }
 
 handshake_container_t* Buffer::back()
@@ -57,7 +52,7 @@ handshake_container_t* Buffer::back()
   if(dex == -1 ) {
     dex = numPool_ - 1;
   }
-  return handshakePool_[dex];
+  return &(handshakePool_[dex]);
 }
 
 bool Buffer::empty()

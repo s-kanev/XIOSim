@@ -1,6 +1,6 @@
 #include "BufferManager.h"
 
-
+#include <stdlib.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -215,13 +215,11 @@ void BufferManager::checkFirstAccess(THREADID tid)
 
     queueSizes_[tid] = 0;
     fileEntryCount_[tid] = 0;
-    consumeBuffer_[tid] = new Buffer();
-    fakeFile_[tid] = new Buffer();
-    produceBuffer_[tid] = new Buffer();
+    consumeBuffer_[tid] = new Buffer(2);
+    //    fakeFile_[tid] = new Buffer(2);
+    produceBuffer_[tid] = new Buffer(2);
     produceBuffer_[tid]->get_buffer()->flags.isFirstInsn = true;
     pool_[tid] = 100000;
-
-    cerr << tid << " Allocating locks!" << endl;
     locks_[tid] = new PIN_LOCK();
     InitLock(locks_[tid]);
 
