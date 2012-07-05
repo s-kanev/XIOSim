@@ -49,7 +49,7 @@ static map<THREADID, INT32> unmatchedWaits;
 
 VOID printMemoryUsage();
 VOID AddILDJITWaitSignalCallbacks();
-VOID signalCallback(int signum);
+BOOL signalCallback(THREADID tid, INT32 sig, CONTEXT *ctxt, BOOL hasHandler, const EXCEPTION_INFO *pExceptInfo, VOID *v);
 
 extern VOID doLateILDJITInstrumentation();
 
@@ -77,13 +77,13 @@ VOID MOLECOOL_Init()
     }
 
     // callbacks so we can delete temporary files in /dev/shm
-    signal(SIGINT, signalCallback);
-    signal(SIGABRT, signalCallback);
-    signal(SIGFPE, signalCallback);
-    signal(SIGILL, signalCallback);
-    signal(SIGSEGV, signalCallback);
-    signal(SIGTERM, signalCallback);
-
+    PIN_InterceptSignal(SIGINT, signalCallback, NULL);
+    PIN_InterceptSignal(SIGABRT, signalCallback, NULL);
+    PIN_InterceptSignal(SIGFPE, signalCallback, NULL);
+    PIN_InterceptSignal(SIGILL, signalCallback, NULL);
+    PIN_InterceptSignal(SIGSEGV, signalCallback, NULL);
+    PIN_InterceptSignal(SIGTERM, signalCallback, NULL);
+    
     cerr << start_loop << " " << start_loop_invocation << endl;
     cerr << end_loop << " " << end_loop_invocation << endl;
 }
@@ -119,12 +119,10 @@ VOID ILDJIT_startSimulation(THREADID tid, ADDRINT ip)
       cerr << "[KEVIN]: Can't delay before/after wait/signal instrumentation ";
       cerr << "since phase starts on invocation 1 of a loop" << endl;
 
+      doLateILDJITInstrumentation();      
       AddILDJITWaitSignalCallbacks();
-
       cerr << "[KEVIN] Added callbacks!" << endl;
     }
-
-    //    doLateILDJITInstrumentation();
 
     GetLock(&ildjit_lock, 1);
 
@@ -197,7 +195,7 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
     invocation_counts[loop]++;
 //#ifdef ZESTO_PIN_DBG
     CHAR* loop_name = (CHAR*) loop;
-//    cerr << "Starting loop: " << loop_name << "[" << invocation_counts[loop] << "]" << endl;
+    //    cerr << "Starting loop: " << loop_name << "[" << invocation_counts[loop] << "]" << endl;
 //#endif
 
     /* Haven't started simulation and we encounter a loop we don't care
@@ -209,7 +207,8 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
       if(invocation_counts[loop] < start_loop_invocation) {
         if(invocation_counts[loop] == (start_loop_invocation - 1)) {
             cerr << "Doing the instrumentation for before/after wait/signal and endParallelLoop" << endl;
-            AddILDJITWaitSignalCallbacks();
+	    doLateILDJITInstrumentation();
+	    AddILDJITWaitSignalCallbacks();
         }
         return;
       }
@@ -579,18 +578,6 @@ VOID AddILDJITCallbacks(IMG img)
         RTN_Close(rtn);
     }
 
-    rtn = RTN_FindByName(img, "MOLECOOL_endParallelLoop");
-    if (RTN_Valid(rtn))
-    {
-        RTN_Open(rtn);
-        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_endParallelLoop),
-                       IARG_THREAD_ID,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
-                       IARG_END);
-        RTN_Close(rtn);
-    }
-
 //==========================================================
 //FLUFFY-related
     if (!KnobFluffy.Value().empty())
@@ -699,6 +686,18 @@ VOID AddILDJITWaitSignalCallbacks()
                        IARG_END);
         RTN_Close(rtn);
     }
+    
+    rtn = RTN_FindByName(img, "MOLECOOL_endParallelLoop");
+    if (RTN_Valid(rtn))
+    {
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_endParallelLoop),
+                       IARG_THREAD_ID,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
+                       IARG_END);
+        RTN_Close(rtn);
+    }
   }
   CODECACHE_FlushCache();
 
@@ -719,7 +718,9 @@ VOID printMemoryUsage()
   system(cmd.c_str());
 }
 
-VOID signalCallback(int signum)
+BOOL signalCallback(THREADID tid, INT32 sig, CONTEXT *ctxt, BOOL hasHandler, const EXCEPTION_INFO *pExceptInfo, VOID *v)
 {
-  handshake_buffer.signalCallback(signum);
+  handshake_buffer.signalCallback(sig);
+  PIN_ExitProcess(1);
+  return false;
 }

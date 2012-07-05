@@ -32,8 +32,6 @@ using namespace std;
 
 #include <sys/mman.h>
 
-VOID doLateInstInstrumentation();
-
 /* ========================================================================== */
 /* ========================================================================== */
 /*                           ZESTO and PIN INTERFACE                          */
@@ -427,8 +425,7 @@ VOID SimulatorLoop(VOID* arg)
     INT32 coreID = -1;
 
     long long int spins = 0;
-
-    while (true) {
+    while (true) {      
         spins = 0;
         while (handshake_buffer.empty(instrument_tid)) {
             spins++;
@@ -1514,8 +1511,9 @@ VOID SimulatorThreadSpawner(VOID* arg)
     while (true)
     {
         // Is it time to die?
-        if (PIN_IsProcessExiting())
-            break;
+      if (PIN_IsProcessExiting()) {	
+	break;
+      }
 
         // Check if there's an insturment thread without the appropriate simulator thread
         // and spawn one, if necessary
@@ -1594,9 +1592,9 @@ INT32 main(INT32 argc, CHAR **argv)
     // Delay this instrumentation until startSimulation call in ILDJIT.
     // This cuts down HELIX compilation noticably for integer benchmarks.
 
-    //    if(!KnobILDJIT.Value()) {
-    INS_AddInstrumentFunction(Instrument, 0);
-    //    }
+    if(!KnobILDJIT.Value()) {
+      INS_AddInstrumentFunction(Instrument, 0);
+    }
 
     PIN_AddThreadStartFunction(ThreadStart, NULL);
     PIN_AddThreadFiniFunction(ThreadFini, NULL);
@@ -1650,7 +1648,6 @@ VOID amd_hack()
 
 VOID doLateILDJITInstrumentation()
 {
-  assert(false);
   static bool calledAlready = false;
 
   ASSERTX(!calledAlready);
