@@ -93,7 +93,7 @@ handshake_container_t* BufferManager::front(THREADID tid)
       // cerr << "fsize:" << fileEntryCount_[tid] << endl;
       //cerr << "csize:" << consumeBuffer_[tid]->size() << endl;
       // XXX: commenting this out could break fake file?
-      //copyProducerToFile(tid);
+      //      copyProducerToFile(tid);
       copyFileToConsumer(tid);
     }
     //    (*logs_[tid]) << "s:5" << endl;
@@ -215,9 +215,9 @@ void BufferManager::checkFirstAccess(THREADID tid)
 
     queueSizes_[tid] = 0;
     fileEntryCount_[tid] = 0;
-    consumeBuffer_[tid] = new Buffer(2);
+    consumeBuffer_[tid] = new Buffer(50000);
     //    fakeFile_[tid] = new Buffer(2);
-    produceBuffer_[tid] = new Buffer(2);
+    produceBuffer_[tid] = new Buffer(1000);
     produceBuffer_[tid]->get_buffer()->flags.isFirstInsn = true;
     pool_[tid] = 100000;
     locks_[tid] = new PIN_LOCK();
@@ -232,7 +232,7 @@ void BufferManager::checkFirstAccess(THREADID tid)
     fileNames_[tid] = tempnam("/dev/shm/", "A");
     bogusNames_[tid] = tempnam("/dev/shm/", "B");
 
-    cerr << "Created " << fileNames_[tid] << " and " << bogusNames_[tid] << endl;
+    cerr << tid << " Created " << fileNames_[tid] << " and " << bogusNames_[tid] << endl;
 
     int fd = open(fileNames_[tid].c_str(), O_WRONLY | O_CREAT, 0777);
     int result = close(fd);
@@ -261,8 +261,10 @@ void BufferManager::reserveHandshake(THREADID tid)
   int lastSize = queueSizes_[tid];
 
   while(pool_[tid] == 0) {
+    ReleaseLock(&simbuffer_lock);
     ReleaseLock(locks_[tid]);
     PIN_Yield();
+    GetLock(&simbuffer_lock, tid+1);
     GetLock(locks_[tid], tid+1);
     spins++;
     int newSize = queueSizes_[tid];
@@ -272,9 +274,16 @@ void BufferManager::reserveHandshake(THREADID tid)
 
     if(spins >= 70000000LL) {
       assert(queueSizes_[tid] > 0);
-      pool_[tid] += queueSizes_[tid];
-      cerr << tid << " [reserveHandshake()]: Increasing file up to " << queueSizes_[tid] + pool_[tid] << endl;
-      break;
+      if(queueSizes_[tid] < 800001) {
+	pool_[tid] += queueSizes_[tid];
+	cerr << tid << " [reserveHandshake()]: Increasing file up to " << queueSizes_[tid] + pool_[tid] << endl;
+	spins = 0;
+	break;
+      }
+      else {
+	cerr << tid << " [reserveHandshake()]: File size too big :(" << queueSizes_[tid] << endl;
+	spins = 0;
+      }
     }
     if(somethingConsumed) {
       spins = 0;
@@ -549,8 +558,7 @@ void BufferManager::signalCallback(int signum)
   cerr << "BufferManager caught signal:" << signum << endl;
   map<THREADID, string>::iterator it;
   for(it = fileNames_.begin(); it != fileNames_.end(); it++) {
-    string cmd = "rm -rf " + fileNames_[it->first] + " " + bogusNames_[it->first];
+    string cmd = "/bin/rm -rf " + fileNames_[it->first] + " " + bogusNames_[it->first];
     assert(system(cmd.c_str()) == 0);
   }
-  exit(1);
 }
