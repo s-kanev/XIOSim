@@ -261,8 +261,8 @@ void BufferManager::reserveHandshake(THREADID tid)
   int lastSize = queueSizes_[tid];
 
   while(pool_[tid] == 0) {
-    ReleaseLock(&simbuffer_lock);
     ReleaseLock(locks_[tid]);
+    ReleaseLock(&simbuffer_lock);
     PIN_Yield();
     GetLock(&simbuffer_lock, tid+1);
     GetLock(locks_[tid], tid+1);
