@@ -3538,7 +3538,7 @@
   UOP_R3(UV, SSE_PXOR, XF_RM, XF_RM, XF_R, FUSION_NONE);				\
 }                                                                        \
 
-#define MOVAPS_Rx_RMx_FLOW							\
+/*#define MOVAPS_Rx_RMx_FLOW						\
 {                                                                       \
   UOP_R2(UV, SSE_MOVAPS, XF_RM, XF_R, FUSION_NONE);				\
 } 
@@ -3547,7 +3547,7 @@
 {                                                                       \
   UOP_R2(UV, SSE_MOVAPS, XF_RM, XF_R, FUSION_NONE);				\
 } 
-
+*/
 #define CVTSS2SD_Rd_Rd_FLOW                                  	\
 {                                                                       \
   UOP_R2(UV, SSE_CVTSS2SD, XF_RM, XF_R, FUSION_NONE);               	\

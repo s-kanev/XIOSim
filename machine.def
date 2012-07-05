@@ -9042,9 +9042,9 @@ CONNECT(TWOESC_LINK)
 
   /* FIXME: TODO 0x23: MOV_DdRd */
 
-  DEFLINK(MOVAPS_Rx_Ex_LINK, 0x28, "movaps_rx_ex_link", 6, 0x03)
+  //  DEFLINK(MOVAPS_Rx_Ex_LINK, 0x28, "movaps_rx_ex_link", 6, 0x03)
 
-  DEFLINK(MOVAPS_Ex_Rx_LINK, 0x29, "movaps_ex_rx_link", 6, 0x03)
+  //  DEFLINK(MOVAPS_Ex_Rx_LINK, 0x29, "movaps_ex_rx_link", 6, 0x03)
 
   DEFLINK(CVTSI2SS_Rd_Ed_LINK, 0x2a, "cvtsi2ss_rd_ed_link", 6, 0x03)
 
@@ -9407,7 +9407,7 @@ CONNECT(UCOMISD_Rd_Ed_LINK)
       DNA, DNA, DNA,
       DNA, DNA)
 
-CONNECT(MOVAPS_Rx_Ex_LINK)
+  /*  CONNECT(MOVAPS_Rx_Ex_LINK)
 
 #define MOVAPS_Rx_RMx_IMPL              \
 {                  \
@@ -9440,8 +9440,8 @@ CONNECT(MOVAPS_Ex_Rx_LINK)
       DNA,
       DNA, DNA, DNA,
       DNA, DNA)
-
-
+  
+  */
 CONNECT(CMOV_RvEv_LINK)
 
 #define CMOV_RvMv_IMPL              \
@@ -19194,7 +19194,7 @@ CONNECT(FISTP_Mq_LINK)
       DXMM(URS), DXMM(URT), DNA,
       DNA, DNA)
 
-#define SSE_MOVAPS_IMPL          \
+  /*#define SSE_MOVAPS_IMPL			\
 {                  \
   sfloat_t _src; \
   for (unsigned int _i = 0; _i < MD_XMM_SIZE / sizeof(sfloat_t); _i++) {\
@@ -19208,7 +19208,7 @@ CONNECT(FISTP_Mq_LINK)
       DXMM(URD),
       DXMM(URS), DNA, DNA,
       DNA, DNA)
-
+  */
 #define SSE_CVTSS2SD_IMPL          \
 {                  \
   sfloat_t _src; \
