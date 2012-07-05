@@ -9046,6 +9046,10 @@ CONNECT(TWOESC_LINK)
 
   DEFLINK(MOVAPS_Ex_Rx_LINK, 0x29, "movaps_ex_rx_link", 6, 0x03)
 
+  DEFLINK(CVTSI2SS_Rd_Ed_LINK, 0x2a, "cvtsi2ss_rd_ed_link", 6, 0x03)
+
+  DEFLINK(CVTSS2SI_Rd_Ed_LINK, 0x2d, "cvtss2si_rd_ed_link", 6, 0x03)
+
   DEFLINK(UCOMISD_Rd_Ed_LINK, 0x2e, "ucomisd_rd_ed_link", 6, 0x03)
 
   /* FIXME: TODO 0x30: WRMSR: F_NOMOD */
@@ -9092,6 +9096,8 @@ DNA, DNA)
   DEFLINK(ADDSD_Rd_Ed_LINK, 0x58, "addsd_rd_ed_link", 6, 0x03)
 
   DEFLINK(MULSD_Rd_Ed_LINK, 0x59, "mulsd_rd_ed_link", 6, 0x03)
+
+  DEFLINK(CVTSS2SD_Rd_Ed_LINK, 0x5a, "cvtss2sd_rd_ed_link", 6, 0x03)
 
   DEFLINK(SUBSD_Rd_Ed_LINK, 0x5c, "subsd_rd_ed_link", 6, 0x03)
 
@@ -9298,6 +9304,46 @@ CONNECT(MOVSD_Ed_Rd_LINK)
       DNA,
       DNA, DNA, DNA,
       DNA, DNA)
+
+CONNECT(CVTSI2SS_Rd_Ed_LINK)
+
+#define CVTSI2SS_Rd_Rd_IMPL              \
+{                                           \
+  dword_t _src;                            \
+  sfloat_t _res;                            \
+  \
+  _src = GPR_D(R);                      \
+  _res = (sfloat_t)_src;                    \
+  \
+  SET_XMM_F(RM, 0, _res);                    \
+}
+  DEFINST(CVTSI2SS_Rd_Rd,    0x03,
+      "cvtsi2ss",      "%Rd, %Rd",
+      FU_INVALID,                 F_FCOMP|F_UCODE,
+      DNA,
+      DNA, DNA, DNA,
+      DNA, DNA
+)
+
+CONNECT(CVTSS2SI_Rd_Ed_LINK)
+
+#define CVTSS2SI_Rd_Rd_IMPL              \
+{                                           \
+  sfloat_t _src;                            \
+  dword_t _res;                            \
+  \
+  _src = XMM_F(R, 0);                      \
+  _res = (dword_t)_src;                    \
+  \
+  SET_GPR_D(RM, _res);                    \
+}
+  DEFINST(CVTSS2SI_Rd_Rd,    0x03,
+      "cvtss2si",      "%Rd, %Rd",
+      FU_INVALID,                 F_FCOMP|F_UCODE,
+      DNA,
+      DNA, DNA, DNA,
+      DNA, DNA
+)
 
 CONNECT(UCOMISD_Rd_Ed_LINK)
 
@@ -9518,6 +9564,26 @@ CONNECT(ADDSD_Rd_Ed_LINK)
 }
   DEFINST(ADDSD_Rd_Rd,    0x03,
       "addsd",      "%Rd, %Rd",
+      FU_INVALID,                 F_FCOMP|F_UCODE,
+      DNA,
+      DNA, DNA, DNA,
+      DNA, DNA
+)
+
+CONNECT(CVTSS2SD_Rd_Ed_LINK)
+
+#define CVTSS2SD_Rd_Rd_IMPL              \
+{                                           \
+  sfloat_t _src;                            \
+  dfloat_t _res;                            \
+  \
+  _src = XMM_F(R, 0);                      \
+  _res = (dfloat_t)_src;                    \
+  \
+  SET_XMM_D_LO(RM, _res);                    \
+}
+  DEFINST(CVTSS2SD_Rd_Rd,    0x03,
+      "cvtss2sd",      "%Rd, %Rd",
       FU_INVALID,                 F_FCOMP|F_UCODE,
       DNA,
       DNA, DNA, DNA,
@@ -19141,6 +19207,45 @@ CONNECT(FISTP_Mq_LINK)
       FU_IEU,                 F_ICOMP,
       DXMM(URD),
       DXMM(URS), DNA, DNA,
+      DNA, DNA)
+
+#define SSE_CVTSS2SD_IMPL          \
+{                  \
+  sfloat_t _src; \
+  _src = XMM_F(URS, 0);         \
+  SET_XMM_D_LO(URD, (dfloat_t)_src);      \
+}
+  DEFUOP(SSE_CVTSS2SD,    0x00,
+      "sse_cvtss2sd",      "%De,%Se",
+      FU_FADD,                 F_FCOMP,
+      DXMM(URD),
+      DXMM(URS), DNA, DNA,
+      DNA, DNA)
+
+#define SSE_CVTSS2SI_IMPL          \
+{                  \
+  sfloat_t _src; \
+  _src = XMM_F(URS, 0);         \
+  SET_GPR(URD, (uint32_t)_src);      \
+}
+  DEFUOP(SSE_CVTSS2SI,    0x00,
+      "sse_cvtss2si",      "%De,%Se",
+      FU_FADD,                 F_FCOMP,
+      DGPR(URD),
+      DXMM(URS), DNA, DNA,
+      DNA, DNA)
+
+#define SSE_CVTSI2SS_IMPL          \
+{                  \
+  dword_t _src; \
+  _src = GPR_D(URS);               \
+  SET_XMM_F(URD, 0, (sfloat_t)_src);      \
+}
+  DEFUOP(SSE_CVTSI2SS,    0x00,
+      "sse_cvtsi2ss",      "%De,%Se",
+      FU_FADD,                 F_FCOMP,
+      DXMM(URD),
+      DGPR(URS), DNA, DNA,
       DNA, DNA)
 
   /*================================================================*/
