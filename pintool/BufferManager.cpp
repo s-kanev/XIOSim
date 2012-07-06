@@ -262,7 +262,6 @@ void BufferManager::reserveHandshake(THREADID tid)
 
   while(pool_[tid] == 0) {
     ReleaseLock(locks_[tid]);
-    GetLock(&simbuffer_lock, tid+1);
     //    ReleaseLock(&simbuffer_lock);
     PIN_Yield();    
     //    GetLock(&simbuffer_lock, tid+1);

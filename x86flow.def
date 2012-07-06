@@ -3464,7 +3464,7 @@
 
 #define UCOMISD_Rd_Rd_FLOW			\
 {									\
-  UOP_R2(UV, SSE_UCOMISD, XF_RM, XF_RM, FUSION_NONE);			\
+  UOP_R2(UV, SSE_UCOMISD, XF_R, XF_RM, FUSION_NONE);			\
 }
 
 #define ADDSD_Rd_Md_FLOW			\
@@ -3475,7 +3475,7 @@
 
 #define ADDSD_Rd_Rd_FLOW			\
 {									\
-  UOP_R3(UV, SSE_ADDSD, XF_RM, XF_RM, XF_R, FUSION_NONE);			\
+  UOP_R3(UV, SSE_ADDSD, XF_R, XF_R, XF_RM, FUSION_NONE);			\
 }
 
 #define SUBSD_Rd_Md_FLOW			\
@@ -3486,7 +3486,7 @@
 
 #define SUBSD_Rd_Rd_FLOW			\
 {									\
-  UOP_R3(UV, SSE_SUBSD, XF_RM, XF_RM, XF_R, FUSION_NONE);			\
+  UOP_R3(UV, SSE_SUBSD, XF_R, XF_R, XF_RM, FUSION_NONE);			\
 }
 
 #define DIVSD_Rd_Md_FLOW			\
@@ -3497,7 +3497,7 @@
 
 #define DIVSD_Rd_Rd_FLOW			\
 {									\
-  UOP_R3(UV, SSE_DIVSD, XF_RM, XF_RM, XF_R, FUSION_NONE);			\
+  UOP_R3(UV, SSE_DIVSD, XF_R, XF_R, XF_RM, FUSION_NONE);			\
 }
 
 #define SQRTSD_Rd_Md_FLOW			\
@@ -3508,7 +3508,7 @@
 
 #define SQRTSD_Rd_Rd_FLOW			\
 {									\
-  UOP_R2(UV, SSE_SQRTSD, XF_RM, XF_RM, FUSION_NONE);			\
+  UOP_R2(UV, SSE_SQRTSD, XF_R, XF_R, FUSION_NONE);			\
 }
 
 #define MULSD_Rd_Md_FLOW			\
@@ -3519,7 +3519,7 @@
 
 #define MULSD_Rd_Rd_FLOW			\
 {							   		\
-  UOP_R3(UV, SSE_MULSD, XF_RM, XF_RM, XF_R, FUSION_NONE);			\
+  UOP_R3(UV, SSE_MULSD, XF_R, XF_R, XF_RM, FUSION_NONE);			\
 }
 
 #define MOVSD_Rd_Md_FLOW			\
@@ -3535,7 +3535,7 @@
 
 #define PXOR_Rx_Rx_FLOW							\
 {                                                                       \
-  UOP_R3(UV, SSE_PXOR, XF_RM, XF_RM, XF_R, FUSION_NONE);				\
+  UOP_R3(UV, SSE_PXOR, XF_R, XF_R, XF_RM, FUSION_NONE);				\
 }                                                                        \
 
 #define MOVAPS_Rx_RMx_FLOW						\
