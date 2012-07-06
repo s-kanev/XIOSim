@@ -48,11 +48,13 @@ static INT32 end_loop_invocation;
 static map<THREADID, INT32> unmatchedWaits;
 
 VOID printMemoryUsage();
+VOID printElapsedTime();
 VOID AddILDJITWaitSignalCallbacks();
 BOOL signalCallback(THREADID tid, INT32 sig, CONTEXT *ctxt, BOOL hasHandler, const EXCEPTION_INFO *pExceptInfo, VOID *v);
 
 extern VOID doLateILDJITInstrumentation();
 
+time_t last_time;
 
 /* ========================================================================== */
 VOID MOLECOOL_Init()
@@ -83,6 +85,8 @@ VOID MOLECOOL_Init()
     PIN_InterceptSignal(SIGILL, signalCallback, NULL);
     PIN_InterceptSignal(SIGSEGV, signalCallback, NULL);
     PIN_InterceptSignal(SIGTERM, signalCallback, NULL);
+
+    last_time = time(NULL);
     
     cerr << start_loop << " " << start_loop_invocation << endl;
     cerr << end_loop << " " << end_loop_invocation << endl;
@@ -112,14 +116,18 @@ BOOL ILDJIT_IsCreatingExecutor()
 VOID ILDJIT_startSimulation(THREADID tid, ADDRINT ip)
 {
     // Check to see what current memory usage is post HELIX
+  
   cerr << "[KEVIN] ILDJIT called startSimulation()" << endl;
+  cerr << "HELIX runtime:"; 
+  printElapsedTime();  
+
     printMemoryUsage();
 
     if(start_loop_invocation == 1) {
       cerr << "[KEVIN]: Can't delay before/after wait/signal instrumentation ";
       cerr << "since phase starts on invocation 1 of a loop" << endl;
 
-      doLateILDJITInstrumentation();      
+      //      doLateILDJITInstrumentation();      
       AddILDJITWaitSignalCallbacks();
       cerr << "[KEVIN] Added callbacks!" << endl;
     }
@@ -207,7 +215,7 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
       if(invocation_counts[loop] < start_loop_invocation) {
         if(invocation_counts[loop] == (start_loop_invocation - 1)) {
             cerr << "Doing the instrumentation for before/after wait/signal and endParallelLoop" << endl;
-	    doLateILDJITInstrumentation();
+	    //   doLateILDJITInstrumentation();
 	    AddILDJITWaitSignalCallbacks();
         }
         return;
@@ -238,6 +246,9 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
     }
     else if (strncmp(start_loop, (CHAR*)loop, 512) == 0) {
       if (invocation_counts[loop] == start_loop_invocation) {
+	cerr << "FastForward runtime:"; 
+	printElapsedTime();  	
+	
         cerr << "Starting simulation, TTID: " << tid << endl;
         PPointHandler(CONTROL_START, NULL, NULL, (VOID*)ip, tid);
         cerr << "Starting simulation, TTID2: " << tid << endl;
@@ -270,6 +281,8 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
     }
 
     if(strncmp(end_loop, (CHAR*)loop, 512) == 0 && invocation_counts[loop] == end_loop_invocation) {
+      cerr << "Simulation runtime:"; 
+      printElapsedTime();  	
       cerr << "Ending loop: " << loop_name << " NumIterations:" << (UINT32)numIterations << endl;
       cerr << "LStopping simulation, TID: " << tid << endl;
       StopSimulation(tid);
@@ -723,4 +736,14 @@ BOOL signalCallback(THREADID tid, INT32 sig, CONTEXT *ctxt, BOOL hasHandler, con
   handshake_buffer.signalCallback(sig);
   PIN_ExitProcess(1);
   return false;
+}
+
+VOID printElapsedTime()
+{
+  time_t elapsed_time = time(NULL) - last_time;
+  time_t hours = elapsed_time / 3600;
+  time_t minutes = (elapsed_time % 3600) / 60;
+  time_t seconds = ((elapsed_time % 3600) % 60);
+  cerr << hours << "h" << minutes << "m" << seconds << "s" << endl; 
+  last_time = time(NULL);
 }

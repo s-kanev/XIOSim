@@ -262,9 +262,10 @@ void BufferManager::reserveHandshake(THREADID tid)
 
   while(pool_[tid] == 0) {
     ReleaseLock(locks_[tid]);
-    ReleaseLock(&simbuffer_lock);
-    PIN_Yield();
     GetLock(&simbuffer_lock, tid+1);
+    //    ReleaseLock(&simbuffer_lock);
+    PIN_Yield();    
+    //    GetLock(&simbuffer_lock, tid+1);
     GetLock(locks_[tid], tid+1);
     spins++;
     int newSize = queueSizes_[tid];
@@ -272,16 +273,16 @@ void BufferManager::reserveHandshake(THREADID tid)
     somethingConsumed = (newSize != lastSize);
     lastSize = newSize;
 
-    if(spins >= 70000000LL) {
+    if(spins >= 700000LL) {
       assert(queueSizes_[tid] > 0);
-      if(queueSizes_[tid] < 800001) {
+      if(queueSizes_[tid] < 40000001) {
 	pool_[tid] += queueSizes_[tid];
 	cerr << tid << " [reserveHandshake()]: Increasing file up to " << queueSizes_[tid] + pool_[tid] << endl;
 	spins = 0;
 	break;
       }
       else {
-	cerr << tid << " [reserveHandshake()]: File size too big :(" << queueSizes_[tid] << endl;
+	cerr << tid << " [reserveHandshake()]: File size too big to expand, keep on spinning:" << queueSizes_[tid] << endl;
 	spins = 0;
       }
     }

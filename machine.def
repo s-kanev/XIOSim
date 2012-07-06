@@ -9048,6 +9048,8 @@ CONNECT(TWOESC_LINK)
 
   DEFLINK(CVTSI2SS_Rd_Ed_LINK, 0x2a, "cvtsi2ss_rd_ed_link", 6, 0x03)
 
+  DEFLINK(CVTTSS2SI_Rd_Ed_LINK, 0x2c, "cvttss2si_rd_ed_link", 6, 0x03)
+
   DEFLINK(CVTSS2SI_Rd_Ed_LINK, 0x2d, "cvtss2si_rd_ed_link", 6, 0x03)
 
   DEFLINK(UCOMISD_Rd_Ed_LINK, 0x2e, "ucomisd_rd_ed_link", 6, 0x03)
@@ -9325,6 +9327,26 @@ CONNECT(CVTSI2SS_Rd_Ed_LINK)
       DNA, DNA
 )
 
+CONNECT(CVTTSS2SI_Rd_Ed_LINK)
+//SK: XXX: Blatantly ignoring the "truncate" part
+#define CVTTSS2SI_Rd_Rd_IMPL              \
+{                                           \
+  sfloat_t _src;                            \
+  dword_t _res;                            \
+  \
+  _src = XMM_F(R, 0);                      \
+  _res = (dword_t)_src;                    \
+  \
+  SET_GPR_D(RM, _res);                    \
+}
+  DEFINST(CVTTSS2SI_Rd_Rd,    0x03,
+      "cvttss2si",      "%Rd, %Rd",
+      FU_INVALID,                 F_FCOMP|F_UCODE,
+      DNA,
+      DNA, DNA, DNA,
+      DNA, DNA
+)
+
 CONNECT(CVTSS2SI_Rd_Ed_LINK)
 
 #define CVTSS2SI_Rd_Rd_IMPL              \
@@ -9413,8 +9435,8 @@ CONNECT(MOVAPS_Rx_Ex_LINK)
 {                  \
   sfloat_t _src; \
   for (unsigned int _i = 0; _i < MD_XMM_SIZE / sizeof(sfloat_t); _i++) {\
-    _src = XMM_F(R, _i);         \
-    SET_XMM_F(RM, _i, _src);     \
+    _src = XMM_F(RM, _i);         \
+    SET_XMM_F(R, _i, _src);     \
   }                             \
 }
   DEFINST(MOVAPS_Rx_RMx,    0x03,
@@ -9440,8 +9462,7 @@ CONNECT(MOVAPS_Ex_Rx_LINK)
       DNA,
       DNA, DNA, DNA,
       DNA, DNA)
-
-
+  
 CONNECT(CMOV_RvEv_LINK)
 
 #define CMOV_RvMv_IMPL              \
@@ -19194,7 +19215,7 @@ CONNECT(FISTP_Mq_LINK)
       DXMM(URS), DXMM(URT), DNA,
       DNA, DNA)
 
-#define SSE_MOVAPS_IMPL          \
+#define SSE_MOVAPS_IMPL			\
 {                  \
   sfloat_t _src; \
   for (unsigned int _i = 0; _i < MD_XMM_SIZE / sizeof(sfloat_t); _i++) {\

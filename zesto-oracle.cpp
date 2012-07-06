@@ -1817,7 +1817,7 @@ void core_oracle_t::commit_mapping(const struct uop_t * const uop)
     /* if you're committing this, it better be in the mapping */
     assert(p);
     /* if you're committing this, it better be the oldest one */
-    assert(uop == p->uop);
+    zesto_assert(uop == p->uop, (void)0);
 
     /* remove from head */
     dep_map.head[uop->decode.odep_name] = p->next;
