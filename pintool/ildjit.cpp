@@ -128,7 +128,7 @@ VOID ILDJIT_startSimulation(THREADID tid, ADDRINT ip)
       cerr << "since phase starts on invocation 1 of a loop" << endl;
 
       //      doLateILDJITInstrumentation();      
-      AddILDJITWaitSignalCallbacks();
+      //      AddILDJITWaitSignalCallbacks();
       cerr << "[KEVIN] Added callbacks!" << endl;
     }
 
@@ -215,8 +215,8 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
       if(invocation_counts[loop] < start_loop_invocation) {
         if(invocation_counts[loop] == (start_loop_invocation - 1)) {
             cerr << "Doing the instrumentation for before/after wait/signal and endParallelLoop" << endl;
-	    //   doLateILDJITInstrumentation();
-	    AddILDJITWaitSignalCallbacks();
+	    //	    doLateILDJITInstrumentation();
+	    //	    AddILDJITWaitSignalCallbacks();
         }
         return;
       }
@@ -549,6 +549,73 @@ VOID AddILDJITCallbacks(IMG img)
         RTN_Close(rtn);
     }
 
+    rtn = RTN_FindByName(img, "MOLECOOL_beforeWait");
+    if (RTN_Valid(rtn))
+    {
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeWait),
+                       IARG_THREAD_ID,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
+                       IARG_INST_PTR,
+                       IARG_CALL_ORDER, CALL_ORDER_FIRST,
+                       IARG_END);
+        RTN_Close(rtn);
+    }
+
+    rtn = RTN_FindByName(img, "MOLECOOL_afterWait");
+    if (RTN_Valid(rtn))
+    {
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterWait),
+                       IARG_THREAD_ID,
+                       IARG_INST_PTR,
+                       IARG_CALL_ORDER, CALL_ORDER_LAST,
+                       IARG_END);
+        RTN_Close(rtn);
+    }
+
+    rtn = RTN_FindByName(img, "MOLECOOL_beforeSignal");
+    if (RTN_Valid(rtn))
+    {
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeSignal),
+                       IARG_THREAD_ID,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
+                       IARG_INST_PTR,
+                       IARG_CALL_ORDER, CALL_ORDER_FIRST,
+                       IARG_END);
+        RTN_Close(rtn);
+    }
+
+    rtn = RTN_FindByName(img, "MOLECOOL_afterSignal");
+    if (RTN_Valid(rtn))
+    {
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterSignal),
+                       IARG_THREAD_ID,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
+                       IARG_INST_PTR,
+                       IARG_CALL_ORDER, CALL_ORDER_LAST,
+                       IARG_END);
+        RTN_Close(rtn);
+    }
+    
+    rtn = RTN_FindByName(img, "MOLECOOL_endParallelLoop");
+    if (RTN_Valid(rtn))
+    {
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_endParallelLoop),
+                       IARG_THREAD_ID,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
+                       IARG_END);
+        RTN_Close(rtn);
+    }
+    
+
     rtn = RTN_FindByName(img, "MOLECOOL_startSimulation");
     if (RTN_Valid(rtn))
     {
@@ -639,6 +706,7 @@ VOID AddILDJITCallbacks(IMG img)
 /* ========================================================================== */
 VOID AddILDJITWaitSignalCallbacks()
 {
+  assert(false);
   static bool calledAlready = false;
   ASSERTX(!calledAlready);
 
