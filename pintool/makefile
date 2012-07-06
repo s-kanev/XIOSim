@@ -79,7 +79,7 @@ TOOLS = $(TOOL_ROOTS:%=$(OBJDIR)%$(PINTOOL_SUFFIX))
 # build rules
 #
 ##############################################################
-
+all : CXXFLAGS += -D_FILE_OFFSET_BITS=64
 all: tools
 debug:	CXXFLAGS += -DZESTO_PIN_DBG -D_FILE_OFFSET_BITS=64
 debug:	tools

@@ -51,6 +51,7 @@ VOID printMemoryUsage();
 VOID printElapsedTime();
 VOID AddILDJITWaitSignalCallbacks();
 BOOL signalCallback(THREADID tid, INT32 sig, CONTEXT *ctxt, BOOL hasHandler, const EXCEPTION_INFO *pExceptInfo, VOID *v);
+void signalCallback2(int signum);
 
 extern VOID doLateILDJITInstrumentation();
 
@@ -85,6 +86,14 @@ VOID MOLECOOL_Init()
     PIN_InterceptSignal(SIGILL, signalCallback, NULL);
     PIN_InterceptSignal(SIGSEGV, signalCallback, NULL);
     PIN_InterceptSignal(SIGTERM, signalCallback, NULL);
+
+    signal(SIGINT, signalCallback2);
+    signal(SIGABRT, signalCallback2);
+    signal(SIGFPE, signalCallback2);
+    signal(SIGILL, signalCallback2);
+    signal(SIGSEGV, signalCallback2);
+    signal(SIGTERM, signalCallback2);
+
 
     last_time = time(NULL);
     
@@ -804,6 +813,12 @@ BOOL signalCallback(THREADID tid, INT32 sig, CONTEXT *ctxt, BOOL hasHandler, con
   handshake_buffer.signalCallback(sig);
   PIN_ExitProcess(1);
   return false;
+}
+
+void signalCallback2(int signum) 
+{
+  handshake_buffer.signalCallback(signum);
+  PIN_ExitProcess(1);
 }
 
 VOID printElapsedTime()

@@ -254,17 +254,15 @@ void BufferManager::checkFirstAccess(THREADID tid)
 
 void BufferManager::reserveHandshake(THREADID tid)
 {
-  //  checkFirstAccess(tid);
-
   long long int spins = 0;
   bool somethingConsumed = false;
   int lastSize = queueSizes_[tid];
 
   while(pool_[tid] == 0) {
     ReleaseLock(locks_[tid]);
-    //    ReleaseLock(&simbuffer_lock);
+    ReleaseLock(&simbuffer_lock);
     PIN_Yield();    
-    //    GetLock(&simbuffer_lock, tid+1);
+    GetLock(&simbuffer_lock, tid+1);
     GetLock(locks_[tid], tid+1);
     spins++;
     int newSize = queueSizes_[tid];
@@ -274,7 +272,7 @@ void BufferManager::reserveHandshake(THREADID tid)
 
     if(spins >= 700000LL) {
       assert(queueSizes_[tid] > 0);
-      if(queueSizes_[tid] < 40000001) {
+      if(queueSizes_[tid] < 800001) {
 	pool_[tid] += queueSizes_[tid];
 	cerr << tid << " [reserveHandshake()]: Increasing file up to " << queueSizes_[tid] + pool_[tid] << endl;
 	spins = 0;
@@ -558,7 +556,7 @@ void BufferManager::signalCallback(int signum)
   cerr << "BufferManager caught signal:" << signum << endl;
   map<THREADID, string>::iterator it;
   for(it = fileNames_.begin(); it != fileNames_.end(); it++) {
-    string cmd = "/bin/rm -rf " + fileNames_[it->first] + " " + bogusNames_[it->first];
+    string cmd = "/bin/rm -rf " + fileNames_[it->first] + " " + bogusNames_[it->first] + " &";
     assert(system(cmd.c_str()) == 0);
   }
 }
