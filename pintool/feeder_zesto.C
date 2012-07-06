@@ -1593,7 +1593,7 @@ INT32 main(INT32 argc, CHAR **argv)
     // This cuts down HELIX compilation noticably for integer benchmarks.
 
     //    if(!KnobILDJIT.Value()) {
-    INS_AddInstrumentFunction(Instrument, 0);
+      INS_AddInstrumentFunction(Instrument, 0);
       //    }
 
     PIN_AddThreadStartFunction(ThreadStart, NULL);
