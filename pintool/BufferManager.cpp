@@ -272,7 +272,7 @@ void BufferManager::reserveHandshake(THREADID tid)
 
     if(spins >= 700000LL) {
       assert(queueSizes_[tid] > 0);
-      if(queueSizes_[tid] < 800001) {
+      if(queueSizes_[tid] < 20000001) {
 	pool_[tid] += queueSizes_[tid];
 	cerr << tid << " [reserveHandshake()]: Increasing file up to " << queueSizes_[tid] + pool_[tid] << endl;
 	spins = 0;
