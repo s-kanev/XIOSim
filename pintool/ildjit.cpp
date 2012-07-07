@@ -205,11 +205,15 @@ VOID ILDJIT_ExecutorCreateEnd(THREADID tid)
 static BOOL firstLoop = true;
 static BOOL seen_ssID_zero = false;
 static BOOL seen_ssID_zero_twice = false;
+/* =========================================================================== */
+VOID ILDJIT_startLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
+{
+  invocation_counts[loop]++;
+}
 
 /* ========================================================================== */
 VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
 {
-    invocation_counts[loop]++;
 //#ifdef ZESTO_PIN_DBG
     CHAR* loop_name = (CHAR*) loop;
     //    cerr << "Starting loop: " << loop_name << "[" << invocation_counts[loop] << "]" << endl;
@@ -551,6 +555,21 @@ VOID AddILDJITCallbacks(IMG img)
 #endif
         RTN_Open(rtn);
         RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_startParallelLoop),
+                       IARG_THREAD_ID,
+                       IARG_INST_PTR,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+                       IARG_END);
+        RTN_Close(rtn);
+    }
+
+    rtn = RTN_FindByName(img, "MOLECOOL_startLoop");
+    if (RTN_Valid(rtn))
+    {
+#ifdef ZESTO_PIN_DBG
+        cerr << "MOLECOOL_startLoop ";
+#endif
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_startLoop),
                        IARG_THREAD_ID,
                        IARG_INST_PTR,
                        IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
