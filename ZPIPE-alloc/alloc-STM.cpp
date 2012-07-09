@@ -275,6 +275,7 @@ void core_alloc_STM_t::step(void)
         uop->timing.when_ready = sim_cycle;
         uop->timing.when_issued = sim_cycle;
         uop->timing.when_completed = sim_cycle;
+	zesto_assert(!uop->decode.is_load, (void)(0));
       }
 
       uop->timing.when_allocated = sim_cycle;

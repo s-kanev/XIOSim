@@ -798,7 +798,9 @@ void core_exec_IO_DPM_t::load_writeback(struct uop_t * const uop)
     port[uop->alloc.port_assignment].when_bypass_used = sim_cycle+fp_penalty;
     uop->exec.ovalue = uop->oracle.ovalue; /* XXX: just using oracle value for now */
     uop->exec.ovalue_valid = true;
+    
     zesto_assert(uop->timing.when_completed == TICK_T_MAX,(void)0);
+
     uop->timing.when_completed = sim_cycle+fp_penalty;
     last_completed = sim_cycle+fp_penalty; /* for deadlock detection */
     if(uop->decode.is_ctrl && (uop->Mop->oracle.NextPC != uop->Mop->fetch.pred_NPC)) /* XXX: for RETN */
@@ -882,9 +884,15 @@ void core_exec_IO_DPM_t::DL1_callback(void * const op)
 
     /* Access was a hit in repeater, or still waiting on a complete repeater
      * response, no need to do anything. */
-    if(uop->oracle.is_repeated)
+    if(uop->oracle.is_repeated) {
+#ifdef ZTRACE
+    ztrace_print(uop,"e|load|returned from cache/memory 2: is_repeated");
+#endif
       return;
-
+    }
+#ifdef ZTRACE
+    ztrace_print(uop,"e|load|returned from cache/memory 3: NOT is_repeated");
+#endif
     /* We don't care about the repeater (in general, or it has arrived with a  miss),
      * check for split load and TLB access */
     E->LDQ[uop->alloc.LDQ_index].first_byte_arrived = true;
@@ -916,16 +924,23 @@ void core_exec_IO_DPM_t::DL1_split_callback(void * const op)
 
     /* Access was a hit in repeater, or still waiting on a complete repeater
      * response, no need to do anything. */
-    if(uop->oracle.is_repeated)
+    if(uop->oracle.is_repeated) {
+#ifdef ZTRACE
+      ztrace_print(uop,"e|load|split returned from cache/memory 2: is_repeated");
+#endif
       return;
+    }
+#ifdef ZTRACE
+    ztrace_print(uop,"e|load|split returned from cache/memory 3: NOT is_repeated");
+#endif    
 
     /* We don't care about the repeater (in general, or it has arrived with a  miss),
      * check for split load and TLB access */
-    E->LDQ[uop->alloc.LDQ_index].last_byte_arrived = true;
     if((uop->exec.when_addr_translated <= sim_cycle) &&
         E->LDQ[uop->alloc.LDQ_index].first_byte_arrived &&
         !E->LDQ[uop->alloc.LDQ_index].hit_in_STQ) /* no match in STQ, so use cache value */
     {
+
       /* if load received value from STQ, it could have already
          committed by the time this gets called (esp. if we went to
          main memory) */
@@ -955,13 +970,17 @@ void core_exec_IO_DPM_t::repeater_callback(void * const op, bool is_hit)
         if (E->LDQ[uop->alloc.LDQ_index].first_byte_arrived &&
             (uop->exec.when_addr_translated <= sim_cycle) &&
             E->LDQ[uop->alloc.LDQ_index].last_byte_arrived &&
+	    E->LDQ[uop->alloc.LDQ_index].repeater_last_arrived &&	    
             !E->LDQ[uop->alloc.LDQ_index].hit_in_STQ) /* no match in STQ, so use cache value */
         {
           /* if load received value from STQ, it could have already
            * committed by the time this gets called (esp. if we went to
            * main memory) */
           uop->exec.when_data_loaded = sim_cycle;
-          E->load_writeback(uop);
+#ifdef ZTRACE
+	  ztrace_print(uop,"e|load|entering writeback 1");
+#endif
+          E->load_writeback(uop);	  
         }
         else {
           /* if this is not a split access, but we still wait on
@@ -980,6 +999,9 @@ void core_exec_IO_DPM_t::repeater_callback(void * const op, bool is_hit)
           !E->LDQ[uop->alloc.LDQ_index].hit_in_STQ) /* no match in STQ, so use cache value */
         {
           uop->exec.when_data_loaded = sim_cycle;
+#ifdef ZTRACE
+	  ztrace_print(uop,"e|load|entering writeback 2");
+#endif
           E->load_writeback(uop);
         }
     }
@@ -1502,7 +1524,7 @@ void core_exec_IO_DPM_t::LDQ_schedule(void)
                 port[uop->alloc.port_assignment].STQ->pipe[0].action_id = uop->exec.action_id;
 
                 LDQ[index].first_byte_requested = true;
-                if((((uop->oracle.virt_addr+uop->decode.mem_size)>>core->memory.DL1->addr_shift) == (uop->oracle.virt_addr>>core->memory.DL1->addr_shift)) || uop->oracle.is_sync_op)
+		if((((uop->oracle.virt_addr+uop->decode.mem_size)>>core->memory.DL1->addr_shift) == (uop->oracle.virt_addr>>core->memory.DL1->addr_shift)) || uop->oracle.is_sync_op)
                 {
                   /* not a split-line access */
                   LDQ[index].last_byte_requested = true;
@@ -1576,7 +1598,7 @@ void core_exec_IO_DPM_t::LDQ_schedule(void)
             }
 
             if(LDQ[index].first_byte_requested && !LDQ[index].last_byte_requested && !uop->oracle.is_sync_op)
-            {
+	      {
               zesto_assert(!uop->oracle.is_sync_op, (void)0);
               /* split-line access.  XXX: we're currently not handling the 2nd translation
                  for acceses that cross *pages*. */
