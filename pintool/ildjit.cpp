@@ -131,11 +131,11 @@ VOID ILDJIT_startSimulation(THREADID tid, ADDRINT ip)
   printElapsedTime();  
 
     printMemoryUsage();
+    CODECACHE_FlushCache();
 
     if(start_loop_invocation == 1) {
       cerr << "[KEVIN]: Can't delay before/after wait/signal instrumentation ";
       cerr << "since phase starts on invocation 1 of a loop" << endl;
-
       //      doLateILDJITInstrumentation();      
       //      AddILDJITWaitSignalCallbacks();
       cerr << "[KEVIN] Added callbacks!" << endl;
@@ -209,13 +209,20 @@ static BOOL seen_ssID_zero_twice = false;
 VOID ILDJIT_startLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
 {
   invocation_counts[loop]++;
+
+  if(strlen(start_loop) > 0 && strncmp(start_loop, (CHAR*)loop, 512) != 0) {
+        return;
+  }
+  if(invocation_counts[loop] == (start_loop_invocation)) {
+    CODECACHE_FlushCache();
+  }
 }
 
 /* ========================================================================== */
 VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
 {
 //#ifdef ZESTO_PIN_DBG
-    CHAR* loop_name = (CHAR*) loop;
+  CHAR* loop_name = (CHAR*) loop;
     //    cerr << "Starting loop: " << loop_name << "[" << invocation_counts[loop] << "]" << endl;
 //#endif
 
@@ -227,7 +234,7 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
       }
       if(invocation_counts[loop] < start_loop_invocation) {
         if(invocation_counts[loop] == (start_loop_invocation - 1)) {
-            cerr << "Doing the instrumentation for before/after wait/signal and endParallelLoop" << endl;
+	  cerr << "Doing the instrumentation for before/after wait/signal and endParallelLoop" << endl;
 	    //	    doLateILDJITInstrumentation();
 	    //	    AddILDJITWaitSignalCallbacks();
         }
@@ -554,7 +561,7 @@ VOID AddILDJITCallbacks(IMG img)
         cerr << "MOLECOOL_startParallelLoop ";
 #endif
         RTN_Open(rtn);
-        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_startParallelLoop),
+        RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_startParallelLoop),
                        IARG_THREAD_ID,
                        IARG_INST_PTR,
                        IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
