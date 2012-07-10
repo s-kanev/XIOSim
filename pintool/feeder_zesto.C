@@ -543,7 +543,8 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, 
 
     GetLock(&simbuffer_lock, tid+1);
     if (handshake_buffer.size() < (unsigned int) num_threads) {
-        ReleaseLock(&simbuffer_lock);
+        ReleaseLock(&simbuffer_lock);	
+	assert(false);
         return;
     }
 
@@ -551,10 +552,14 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, 
         ReleaseLock(&simbuffer_lock);
         return;
     }
-
-    ASSERTX(first_read);
-
-    handshake_container_t* handshake = handshake_buffer.get_buffer(tid);
+    
+    handshake_container_t* handshake;
+    if(first_read) {
+      handshake = handshake_buffer.get_buffer(tid);
+    }
+    else {
+      handshake = handshake_buffer.back(tid);
+    }
 
     UINT8 val;
     for(UINT32 i=0; i < size; i++) {
@@ -587,7 +592,7 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
 
     handshake_container_t* handshake;
     if (has_memory) {
-        handshake = handshake_buffer.back(tid);
+      handshake = handshake_buffer.back(tid);
     }
     else {
         handshake = handshake_buffer.get_buffer(tid);
@@ -1593,7 +1598,7 @@ INT32 main(INT32 argc, CHAR **argv)
     // This cuts down HELIX compilation noticably for integer benchmarks.
 
     //    if(!KnobILDJIT.Value()) {
-      INS_AddInstrumentFunction(Instrument, 0);
+    INS_AddInstrumentFunction(Instrument, 0);
       //    }
 
     PIN_AddThreadStartFunction(ThreadStart, NULL);
