@@ -78,22 +78,18 @@ handshake_container_t* BufferManager::front(THREADID tid)
     // (*logs_[tid]) << "s:0" << endl;
     ReleaseLock(locks_[tid]);    	
     //    ReleaseLock(&simbuffer_lock);
-    //    (*logs_[tid]) << "s:1" << endl;
     PIN_Yield();
-    //    (*logs_[tid]) << "s:2" << endl;
     //    GetLock(&simbuffer_lock, tid+1);
-    //    (*logs_[tid]) << "s:3" << endl;
     GetLock(locks_[tid], tid+1);
-    //    (*logs_[tid]) << "s:4" << endl;
     spins++;
-    if(spins >= 10LL) {
-      //cerr << tid << " [front()]: That's a lot of spins!" << endl;
+    if(spins >= 100000LL) {
+      //      cerr << tid << " [front()]: That's a lot of spins!" << endl;
       spins = 0;
-      //  cerr << "psize:" << produceBuffer_[tid]->size() << endl;
-      // cerr << "fsize:" << fileEntryCount_[tid] << endl;
-      //cerr << "csize:" << consumeBuffer_[tid]->size() << endl;
+      //      cerr << "psize:" << produceBuffer_[tid]->size() << endl;
+      //      cerr << "fsize:" << fileEntryCount_[tid] << endl;
+      //      cerr << "csize:" << consumeBuffer_[tid]->size() << endl;
       // XXX: commenting this out could break fake file?
-      //      copyProducerToFile(tid);
+      //copyProducerToFile(tid);
       copyFileToConsumer(tid);
     }
     //    (*logs_[tid]) << "s:5" << endl;
@@ -215,11 +211,11 @@ void BufferManager::checkFirstAccess(THREADID tid)
 
     queueSizes_[tid] = 0;
     fileEntryCount_[tid] = 0;
-    consumeBuffer_[tid] = new Buffer(50000);
+    consumeBuffer_[tid] = new Buffer(25000);
     //    fakeFile_[tid] = new Buffer(2);
     produceBuffer_[tid] = new Buffer(1000);
     produceBuffer_[tid]->get_buffer()->flags.isFirstInsn = true;
-    pool_[tid] = 100000;
+    pool_[tid] = 50000;
     locks_[tid] = new PIN_LOCK();
     InitLock(locks_[tid]);
 
@@ -273,7 +269,7 @@ void BufferManager::reserveHandshake(THREADID tid)
     if(spins >= 70000000LL) {
       assert(queueSizes_[tid] > 0);
       if(queueSizes_[tid] < 20000001) {
-	pool_[tid] += 100000;//queueSizes_[tid];
+	pool_[tid] += 25000;//queueSizes_[tid];
 	cerr << tid << " [reserveHandshake()]: Increasing file up to " << queueSizes_[tid] + pool_[tid] << endl;
 	spins = 0;
 	break;
