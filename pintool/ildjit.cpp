@@ -210,10 +210,7 @@ VOID ILDJIT_startLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
 {
   invocation_counts[loop]++;
 
-  if(strlen(start_loop) > 0 && strncmp(start_loop, (CHAR*)loop, 512) != 0) {
-        return;
-  }
-  if(invocation_counts[loop] == (start_loop_invocation)) {
+  if (ExecMode == EXECUTION_MODE_SIMULATE) {
     CODECACHE_FlushCache();
   }
 }
@@ -317,7 +314,7 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
     ignore[tid] = true;
 
     //    if (ExecMode == EXECUTION_MODE_SIMULATE)
-    //cerr << tid <<":Before Wait "<< hex << pc << dec  << " ID: " << ssID << hex << " (" << ssID_addr <<")" << dec << endl;
+    //      cerr << tid <<":Before Wait "<< hex << pc << dec  << " ID: " << ssID << hex << " (" << ssID_addr <<")" << dec << endl;
 
     thread_state_t* tstate = get_tls(tid);
     if (tstate->pc_queue_valid &&
@@ -369,7 +366,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
     ignore[tid] = false;
 
     //    if (ExecMode == EXECUTION_MODE_SIMULATE)
-      //      cerr << tid <<": After Wait "<< hex << pc << dec  << " ID: " << lastWaitID[tid] << endl;
+    //      cerr << tid <<": After Wait "<< hex << pc << dec  << " ID: " << lastWaitID[tid] << endl;
 
     // Indicated not in a wait any more
     lastWaitID[tid] = -1;
@@ -464,7 +461,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT p
     ignore[tid] = false;
 
     //    if (ExecMode == EXECUTION_MODE_SIMULATE)
-    //cerr << tid <<": After Signal " << hex << pc << dec << endl;
+    //      cerr << tid <<": After Signal " << hex << pc << dec << endl;
 
     /* Not simulating -- just ignore. */
     if (ExecMode != EXECUTION_MODE_SIMULATE || ignore_all)
