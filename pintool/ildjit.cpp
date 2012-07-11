@@ -47,7 +47,7 @@ static INT32 end_loop_invocation;
 
 static map<THREADID, INT32> unmatchedWaits;
 
-VOID printMemoryUsage();
+VOID printMemoryUsage(THREADID tid);
 VOID printElapsedTime();
 VOID AddILDJITWaitSignalCallbacks();
 BOOL signalCallback(THREADID tid, INT32 sig, CONTEXT *ctxt, BOOL hasHandler, const EXCEPTION_INFO *pExceptInfo, VOID *v);
@@ -129,8 +129,8 @@ VOID ILDJIT_startSimulation(THREADID tid, ADDRINT ip)
   cerr << "[KEVIN] ILDJIT called startSimulation()" << endl;
   cerr << "HELIX runtime:"; 
   printElapsedTime();  
-
-    printMemoryUsage();
+  cerr << "Memory Usage:"; printMemoryUsage(tid);
+  
     CODECACHE_FlushCache();
 
     if(start_loop_invocation == 1) {
@@ -211,6 +211,7 @@ VOID ILDJIT_startLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
   invocation_counts[loop]++;
 
   if (ExecMode == EXECUTION_MODE_SIMULATE) {
+    cerr << "Memory Usage startLoop():"; printMemoryUsage(tid);
     CODECACHE_FlushCache();
   }
 }
@@ -295,6 +296,7 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
       cerr << tid << ": Pausing simulation" << endl;
       PauseSimulation(tid);
       cerr << tid << ": Paused simulation!" << endl;
+      cerr << "Memory Usage endLoop():"; printMemoryUsage(tid);
     }
 
     if(strncmp(end_loop, (CHAR*)loop, 512) == 0 && invocation_counts[loop] == end_loop_invocation) {
@@ -819,18 +821,6 @@ VOID AddILDJITWaitSignalCallbacks()
   calledAlready = true;
 }
 
-VOID printMemoryUsage()
-{
-  return;
-  int myPid = getpid();
-  char str[50];
-  sprintf(str, "%d", myPid);
-
-  cerr << myPid << " Memory Usage post HELIX:" << endl;
-  string cmd = "/bin/grep VmSize /proc/" + string(str) + "/status 1>&2";
-  system(cmd.c_str());
-}
-
 BOOL signalCallback(THREADID tid, INT32 sig, CONTEXT *ctxt, BOOL hasHandler, const EXCEPTION_INFO *pExceptInfo, VOID *v)
 {
   handshake_buffer.signalCallback(sig);
@@ -852,4 +842,22 @@ VOID printElapsedTime()
   time_t seconds = ((elapsed_time % 3600) % 60);
   cerr << hours << "h" << minutes << "m" << seconds << "s" << endl; 
   last_time = time(NULL);
+}
+
+VOID printMemoryUsage(THREADID tid)
+{
+  int myPid = getpid();
+  char str[50];
+  sprintf(str, "%d", myPid);
+
+  ifstream fin;
+  fin.open(("/proc/" + string(str) + "/status").c_str());
+  string line;
+  while(getline(fin, line)) {
+    if(line.find("VmSize") != string::npos) {
+      cerr << tid << ":" << line << endl;
+      break;
+    }
+  }
+  fin.close();
 }
