@@ -558,6 +558,7 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, 
       handshake = handshake_buffer.get_buffer(tid);
     }
     else {
+      cerr << "[KEVIN WARNING]: Multiple GrabInstMemReads - should be rare" << endl;
       handshake = handshake_buffer.back(tid);
     }
 
@@ -1068,7 +1069,7 @@ VOID PauseSimulation(THREADID tid)
         handshake_buffer.flushBuffers(*it);
     }
     ReleaseLock(&simbuffer_lock);
-
+    
     /* Wait until all cores are done -- consumed their buffers. */
     cerr << tid << " [" << sim_cycle << ":KEVIN]: Waiting for all sleepy cores" << endl;
 
