@@ -157,6 +157,8 @@
 #include "zesto-cache.h"
 #include "zesto-dumps.h"
 
+#include <stack>
+
 bool core_oracle_t::static_members_initialized = false;
  /* for decode.dep_map */
 struct core_oracle_t::map_node_t * core_oracle_t::map_free_pool = NULL;
@@ -1650,6 +1652,7 @@ core_oracle_t::undo(struct Mop_t * const Mop, bool nuke)
 void
 core_oracle_t::recover(const struct Mop_t * const Mop)
 {
+  std::stack<struct uop_t *> to_delete;
   int idx = moddec(MopQ_tail,MopQ_size); //(MopQ_tail-1+MopQ_size) % MopQ_size;
 
 #ifdef ZESTO_PIN
@@ -1686,7 +1689,7 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
 
     undo(&MopQ[idx], nuke);
     MopQ[idx].valid = false;
-    core->return_uop_array(MopQ[idx].uop);
+    to_delete.push(MopQ[idx].uop);
     if(MopQ[idx].fetch.bpred_update)
     {
       core->fetch->bpred->flush(MopQ[idx].fetch.bpred_update);
@@ -1697,6 +1700,12 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
     MopQ_num --;
     MopQ_tail = idx;
     idx = moddec(idx,MopQ_size); //(idx-1+MopQ_size) % MopQ_size;
+  }
+
+  while(!to_delete.empty()) {
+    struct uop_t * uop_arr = to_delete.top();
+    to_delete.pop();
+    core->return_uop_array(uop_arr);
   }
 
   /* reset PC */
@@ -1750,6 +1759,7 @@ void core_oracle_t::pipe_flush(struct Mop_t * const Mop)
 void
 core_oracle_t::complete_flush(void)
 {
+  std::stack<struct uop_t *> to_delete;
   int idx = moddec(MopQ_tail,MopQ_size); //(MopQ_tail-1+MopQ_size) % MopQ_size;
   md_addr_t arch_PC = 0x00000000LL;
   while(MopQ_num)
@@ -1768,8 +1778,15 @@ core_oracle_t::complete_flush(void)
     MopQ_num --;
     MopQ_tail = idx;
     idx = moddec(idx,MopQ_size); //(idx-1+MopQ_size) % MopQ_size;
-    core->return_uop_array(MopQ[idx].uop);
+    to_delete.push(MopQ[idx].uop);
   }
+
+  while(!to_delete.empty()) {
+    struct uop_t * uop_arr = to_delete.top();
+    to_delete.pop();
+    core->return_uop_array(uop_arr);
+  }
+
   /* reset PC */
   core->current_thread->regs.regs_PC = arch_PC;
   core->current_thread->regs.regs_NPC = arch_PC;
