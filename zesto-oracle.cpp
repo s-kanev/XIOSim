@@ -1560,6 +1560,7 @@ core_oracle_t::commit(const struct Mop_t * const commit_Mop)
   MopQ_num--;
   assert(MopQ_num >= 0);
   core->return_uop_array(Mop->uop);
+  Mop->uop = NULL;
 }
 
 /* Undo the effects of the single Mop.  This function only affects the ISA-level
@@ -1689,8 +1690,10 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
 
     undo(&MopQ[idx], nuke);
     MopQ[idx].valid = false;
-    if(MopQ[idx].uop)
+    if(MopQ[idx].uop) {
       to_delete.push(MopQ[idx].uop);
+      MopQ[idx].uop = NULL;
+    }
     if(MopQ[idx].fetch.bpred_update)
     {
       core->fetch->bpred->flush(MopQ[idx].fetch.bpred_update);
@@ -1779,8 +1782,10 @@ core_oracle_t::complete_flush(void)
     MopQ_num --;
     MopQ_tail = idx;
     idx = moddec(idx,MopQ_size); //(idx-1+MopQ_size) % MopQ_size;
-    if (MopQ[idx].uop)
+    if (MopQ[idx].uop) {
       to_delete.push(MopQ[idx].uop);
+      MopQ[idx].uop = NULL;
+    }
   }
 
   while(!to_delete.empty()) {
