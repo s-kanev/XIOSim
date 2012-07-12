@@ -1689,7 +1689,8 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
 
     undo(&MopQ[idx], nuke);
     MopQ[idx].valid = false;
-    to_delete.push(MopQ[idx].uop);
+    if(MopQ[idx].uop)
+      to_delete.push(MopQ[idx].uop);
     if(MopQ[idx].fetch.bpred_update)
     {
       core->fetch->bpred->flush(MopQ[idx].fetch.bpred_update);
@@ -1778,7 +1779,8 @@ core_oracle_t::complete_flush(void)
     MopQ_num --;
     MopQ_tail = idx;
     idx = moddec(idx,MopQ_size); //(idx-1+MopQ_size) % MopQ_size;
-    to_delete.push(MopQ[idx].uop);
+    if (MopQ[idx].uop)
+      to_delete.push(MopQ[idx].uop);
   }
 
   while(!to_delete.empty()) {
