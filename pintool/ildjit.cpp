@@ -156,14 +156,6 @@ VOID ILDJIT_startSimulation(THREADID tid, ADDRINT ip)
     cerr << "Starting execution, TID: " << tid << endl;
 //#endif
 
-    /* This thread gets core 0 by convention. HELIX takes care of
-     * setting the rest of the core IDs. */
-    thread_state_t* tstate = get_tls(tid);
-    tstate->coreID = 0;
-    core_threads[0] = tid;
-    thread_cores[tid] = 0;
-    cerr << tid << ": assigned to core " << tstate->coreID << endl;
-
     ReleaseLock(&ildjit_lock);
 }
 

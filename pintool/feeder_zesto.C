@@ -536,15 +536,9 @@ VOID MakeSSRequest(THREADID tid, ADDRINT pc, ADDRINT npc, ADDRINT tpc, BOOL brta
 /* ========================================================================== */
 VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, ADDRINT pc)
 {
-    // XXX: CHECK ME! This shouldn't happen
-    if(tid == 0) {
-        return;
-    }
-
     GetLock(&simbuffer_lock, tid+1);
     if (handshake_buffer.size() < (unsigned int) num_threads) {
         ReleaseLock(&simbuffer_lock);	
-	assert(false);
         return;
     }
 
@@ -555,12 +549,11 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, 
     
     handshake_container_t* handshake;
     if(first_read) {
-      handshake = handshake_buffer.get_buffer(tid);
+        handshake = handshake_buffer.get_buffer(tid);
     }
     else {
-      cerr << "[KEVIN WARNING]: Multiple GrabInstMemReads - should be rare" << endl;
-      handshake = handshake_buffer.back(tid);
-      assert(handshake->handshake.pc == pc);
+        cerr << "[KEVIN WARNING]: Multiple GrabInstMemReads - should be rare" << endl;
+        handshake = handshake_buffer.back(tid);
     }
 
     UINT8 val;
@@ -575,11 +568,6 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, 
 /* ========================================================================== */
 VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDRINT tpc, const CONTEXT *ictxt, BOOL has_memory)
 {
-    // XXX: CHECK ME! This shouldn't happen
-    if(tid == 0) {
-        return;
-    }
-
     GetLock(&simbuffer_lock, tid+1);
     if (handshake_buffer.size() < (unsigned int) num_threads)
     {
@@ -594,8 +582,7 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
 
     handshake_container_t* handshake;
     if (has_memory) {
-      handshake = handshake_buffer.back(tid);
-      assert(handshake->handshake.pc == pc);
+        handshake = handshake_buffer.back(tid);
     }
     else {
         handshake = handshake_buffer.get_buffer(tid);
