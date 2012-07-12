@@ -1686,7 +1686,7 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
 
     undo(&MopQ[idx], nuke);
     MopQ[idx].valid = false;
-    core->return_uop_array(Mop->uop);
+    core->return_uop_array(MopQ[idx].uop);
     if(MopQ[idx].fetch.bpred_update)
     {
       core->fetch->bpred->flush(MopQ[idx].fetch.bpred_update);
