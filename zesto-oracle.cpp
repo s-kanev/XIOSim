@@ -866,11 +866,7 @@ core_oracle_t::exec(const md_addr_t requested_PC)
     return NULL;
   }
 
-  /* reset Mop state; we return the uop array here (rather than when the Mop is
-     committed) just to leave information around to help debug insts that have
-     already committed. */
-  if(Mop->uop)
-    core->return_uop_array(Mop->uop);
+  /* reset Mop state */
   core->zero_Mop(Mop);
   Mop->timing.when_fetch_started = TICK_T_MAX;
   Mop->timing.when_fetched = TICK_T_MAX;
@@ -1561,6 +1557,7 @@ core_oracle_t::commit(const struct Mop_t * const commit_Mop)
   MopQ_head = modinc(MopQ_head,MopQ_size); //(MopQ_head + 1) % MopQ_size;
   MopQ_num--;
   assert(MopQ_num >= 0);
+  core->return_uop_array(Mop->uop);
 }
 
 /* Undo the effects of the single Mop.  This function only affects the ISA-level
