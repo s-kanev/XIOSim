@@ -893,11 +893,11 @@ core_oracle_t::exec(const md_addr_t requested_PC)
   thread->regs.regs_PC = requested_PC;
 
   /* get the next instruction to execute */
-  if (!core->fetch->fake_insn)
-    /* read raw bytes from virtual memory */
+  if (spec_mode)
+    /* read raw bytes from (speculative) virtual memory */
     MD_FETCH_INST(Mop->fetch.inst, thread->mem, thread->regs.regs_PC);
   else
-    /* read fake encoding supplied to oracle */
+    /* read encoding supplied by feeder */
     memcpy(&Mop->fetch.inst.code, this->ins_bytes, MD_MAX_ILEN);
 
   /* then decode the instruction */
