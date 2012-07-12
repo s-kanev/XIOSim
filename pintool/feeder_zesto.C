@@ -560,6 +560,7 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, 
     else {
       cerr << "[KEVIN WARNING]: Multiple GrabInstMemReads - should be rare" << endl;
       handshake = handshake_buffer.back(tid);
+      assert(handshake->handshake.pc == pc);
     }
 
     UINT8 val;
@@ -594,6 +595,7 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
     handshake_container_t* handshake;
     if (has_memory) {
       handshake = handshake_buffer.back(tid);
+      assert(handshake->handshake.pc == pc);
     }
     else {
         handshake = handshake_buffer.get_buffer(tid);
