@@ -1686,6 +1686,7 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
 
     undo(&MopQ[idx], nuke);
     MopQ[idx].valid = false;
+    core->return_uop_array(Mop->uop);
     if(MopQ[idx].fetch.bpred_update)
     {
       core->fetch->bpred->flush(MopQ[idx].fetch.bpred_update);
@@ -1767,6 +1768,7 @@ core_oracle_t::complete_flush(void)
     MopQ_num --;
     MopQ_tail = idx;
     idx = moddec(idx,MopQ_size); //(idx-1+MopQ_size) % MopQ_size;
+    core->return_uop_array(MopQ[idx].uop);
   }
   /* reset PC */
   core->current_thread->regs.regs_PC = arch_PC;
