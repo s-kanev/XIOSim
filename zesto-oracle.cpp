@@ -860,6 +860,7 @@ core_oracle_t::exec(const md_addr_t requested_PC)
     assert(current_Mop->uop->timing.when_issued == TICK_T_MAX);
     assert(current_Mop->uop->timing.when_exec == TICK_T_MAX);
     assert(current_Mop->uop->timing.when_completed == TICK_T_MAX);
+    ZPIN_TRACE("THIS SHOULD HAPPEN NEAR TRAP EXACTLY ONCE???");
     return current_Mop;
   }
   else
