@@ -463,7 +463,8 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
    int coreID = handshake->coreID;
    thread_t * thread = core->current_thread;
 
-   if (!thread->active && !(slice_start || handshake->resume_thread || handshake->sleep_thread)) {
+   if (!thread->active && !(slice_start || handshake->resume_thread ||
+                            handshake->sleep_thread || handshake->flush_pipe)) {
      fprintf(stderr, "DEBUG DEBUG: Start/stop out of sync? %d PC: %x\n", coreID, handshake->pc);
      if(sim_release_handshake)
        ReleaseHandshake(coreID);
