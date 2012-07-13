@@ -1055,6 +1055,21 @@ VOID PauseSimulation(THREADID tid)
         handshake_2->flags.valid = true;
         handshake_buffer.producer_done(*it);
 
+        /* And finally, flush the core's pipelie to get rid of anything
+         * left over (including the trap) and flush the ring cache */
+        handshake_container_t* handshake_3 = handshake_buffer.get_buffer(*it);
+
+        handshake_3->flags.isFirstInsn = false;
+        handshake_3->handshake.sleep_thread = false;
+        handshake_3->handshake.resume_thread = false;
+        handshake_3->handshake.flush_pipe = true;
+        handshake_3->handshake.real = false;
+        handshake_3->handshake.pc = 0;
+        handshake_3->handshake.coreID = coreID;
+        handshake_3->handshake.iteration_correction = false;
+        handshake_3->flags.valid = true;
+        handshake_buffer.producer_done(*it);
+
         handshake_buffer.flushBuffers(*it);
     }
     ReleaseLock(&simbuffer_lock);
@@ -1076,12 +1091,6 @@ VOID PauseSimulation(THREADID tid)
     cerr << tid << " [" << sim_cycle << ":KEVIN]: All cores have empty buffers" << endl;
 
     GetLock(&simbuffer_lock, tid+1);
-
-    for (INT32 i = 0; i < num_threads; i++) {
-      cerr << "draining " << i << endl;
-      sim_drain_pipe(i);
-      cerr << "done draining " << i << endl;
-    }
     ignore_all = true;
     ReleaseLock(&simbuffer_lock);
 }

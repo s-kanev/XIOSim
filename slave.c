@@ -501,6 +501,13 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
       return;
    }
 
+   if(handshake->flush_pipe) {
+      sim_drain_pipe(coreID);
+      if(sim_release_handshake)
+        ReleaseHandshake(coreID);
+      return;
+   }
+
    if(slice_end)
    {
       Zesto_Slice_End(coreID, handshake->slice_num, handshake->feeder_slice_length, handshake->slice_weight_times_1000);
