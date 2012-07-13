@@ -848,8 +848,12 @@ core_oracle_t::exec(const md_addr_t requested_PC)
     if(current_Mop->decode.is_trap) /* this isn't necessary, but it saves us redecoding the trap over and over again */
     {
       /* make sure pipeline has drained */
-      if(MopQ_num > 1) /* 1 since the trap itself is in the MopQ */
+      if(MopQ_num > 1) { /* 1 since the trap itself is in the MopQ */
+#ifdef ZESTO_PIN
+        core->current_thread->consumed = false;
+#endif
         return NULL;
+      }
     }
     assert(current_Mop->uop->timing.when_ready == TICK_T_MAX);
     assert(current_Mop->uop->timing.when_issued == TICK_T_MAX);
@@ -923,8 +927,12 @@ core_oracle_t::exec(const md_addr_t requested_PC)
   if(Mop->decode.is_trap)
   {
     /* make sure pipeline has drained */
-    if(MopQ_num > 0)
+    if(MopQ_num > 0) {
+#ifdef ZESTO_PIN
+      core->current_thread->consumed = false;
+#endif
       return NULL;
+    }
     else
       assert(!spec_mode);
   }
