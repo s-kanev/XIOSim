@@ -851,6 +851,7 @@ core_oracle_t::exec(const md_addr_t requested_PC)
       if(MopQ_num > 1) { /* 1 since the trap itself is in the MopQ */
 #ifdef ZESTO_PIN
         core->current_thread->consumed = false;
+        ZPIN_TRACE("THIS SHOULD HAPPEN AT LEAST ONCE!");
 #endif
         return NULL;
       }
@@ -930,6 +931,7 @@ core_oracle_t::exec(const md_addr_t requested_PC)
     if(MopQ_num > 0) {
 #ifdef ZESTO_PIN
       core->current_thread->consumed = false;
+      ZPIN_TRACE("THIS SHOULD ALSO HAPPEN AT LEAST ONCE!");
 #endif
       return NULL;
     }
