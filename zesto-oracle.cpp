@@ -1783,6 +1783,10 @@ core_oracle_t::complete_flush(void)
     assert(MopQ[idx].valid);
     undo(&MopQ[idx],false);
     MopQ[idx].valid = false;
+    if (MopQ[idx].uop) {
+      to_delete.push(MopQ[idx].uop);
+      MopQ[idx].uop = NULL;
+    }
     if(MopQ[idx].fetch.bpred_update)
     {
       core->fetch->bpred->flush(MopQ[idx].fetch.bpred_update);
@@ -1793,10 +1797,6 @@ core_oracle_t::complete_flush(void)
     MopQ_num --;
     MopQ_tail = idx;
     idx = moddec(idx,MopQ_size); //(idx-1+MopQ_size) % MopQ_size;
-    if (MopQ[idx].uop) {
-      to_delete.push(MopQ[idx].uop);
-      MopQ[idx].uop = NULL;
-    }
   }
 
   while(!to_delete.empty()) {
