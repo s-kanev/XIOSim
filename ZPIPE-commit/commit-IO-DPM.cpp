@@ -838,6 +838,8 @@ int core_commit_IO_DPM_t::squash_uop(struct uop_t * const uop)
         odep = odep->next;
       }
 
+      zesto_assert(odep, 0);
+
       if(prev_odep != NULL)
         prev_odep->next = odep->next;
       else
