@@ -204,7 +204,7 @@ VOID ILDJIT_startLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
 
   if (ExecMode == EXECUTION_MODE_SIMULATE) {
     cerr << "Memory Usage startLoop():"; printMemoryUsage(tid);
-    CODECACHE_FlushCache();
+    //CODECACHE_FlushCache();
   }
 }
 
