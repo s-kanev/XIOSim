@@ -266,7 +266,7 @@ void BufferManager::reserveHandshake(THREADID tid)
     somethingConsumed = (newSize != lastSize);
     lastSize = newSize;
 
-    if(spins >= 70000000LL) {
+    if(spins >= 7000000LL) {
       assert(queueSizes_[tid] > 0);
       if(queueSizes_[tid] < 20000001) {
 	pool_[tid] += 25000;//queueSizes_[tid];

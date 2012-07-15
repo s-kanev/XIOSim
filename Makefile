@@ -23,17 +23,17 @@ CC = g++
 # Uncomment only one of the following OFLAGS, or make your own
 
 # For debug:
-OFLAGS = -O0 -g -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -Wall -DDEBUG -msse4a -mfpmath=sse
+OFLAGS = -O0 -g -m32 -DMIN_SYSCALL_MODE -Wall -DDEBUG
 OFLAGS_SAFE = $(OFLAGS)
 
 # Fully-optimized, but with profiling for gprof:
-#OFLAGS = -O3 -g -pg -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -Wall -static -fexpensive-optimizations -mtune=core2 -march=core2 -msse4a -mfpmath=sse -funroll-loops
+#OFLAGS = -O3 -g -pg -m32 -DMIN_SYSCALL_MODE -Wall -static -fexpensive-optimizations -mtune=core2 -march=core2 -msse4a -mfpmath=sse -funroll-loops
 
 # Fully-optimized:
-#OFLAGS = -O3 -m32 -g -DDEBUG -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -Wall -static -msse4a -mfpmath=sse 
+#OFLAGS = -O3 -m32 -g -DDEBUG -DMIN_SYSCALL_MODE -Wall -static -msse4a -mfpmath=sse 
 
 #Needed only by syscall.c because > O0 breaks it
-#OFLAGS_SAFE = -O0 -g -pg -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -Wall -static -mfpmath=sse -msse4a
+#OFLAGS_SAFE = -O0 -g -pg -m32 -DMIN_SYSCALL_MODE -Wall -static -mfpmath=sse -msse4a
 
 
 ##################################################################

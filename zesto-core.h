@@ -367,18 +367,18 @@ class core_t {
   static void zero_uop(struct uop_t * const uop);
   static void zero_Mop(struct Mop_t * const Mop);
 
-  protected:
+  private:
 
   seq_t global_action_id; /* tag for squashable "actions" */
 
-  static bool static_members_initialized;
+  bool static_members_initialized;
   static seq_t global_seq; /* This is shared among all cores */
   /* to reduce overhead of constantly malloc/freeing arrays to
      store the uop flows of all of the Mops, we just maintain our
      own free pool.  pool entry i contains arrays with length i. */
-  static struct uop_array_t * uop_array_pool[MD_MAX_FLOWLEN+2+1]; /* the extra +2+1 is for REP u-jump uops */
-  static struct odep_t * odep_free_pool;     /* for uop->odep links */
-  static int odep_free_pool_debt;
+  struct uop_array_t * uop_array_pool[MD_MAX_FLOWLEN+2+1]; /* the extra +2+1 is for REP u-jump uops */
+  struct odep_t * odep_free_pool;     /* for uop->odep links */
+  int odep_free_pool_debt;
 
   void uop_init(struct uop_t * const uop);
 };

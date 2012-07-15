@@ -1452,7 +1452,7 @@ void memswap(void * p1, void * p2, size_t num_bytes)
   }
 #else
   int rem = num_bytes;
-  char * tmp = alloca(num_bytes);
+  char * tmp = (char*)alloca(num_bytes);
 #endif
 
   // any remaining bytes

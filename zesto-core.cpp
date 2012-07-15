@@ -73,14 +73,17 @@
  *
  */
 
+#include <iostream>
 #include <stddef.h>
 #include "zesto-core.h"
 #include "synchronization.h"
 
-bool core_t::static_members_initialized = false;
-struct core_t::uop_array_t * core_t::uop_array_pool[MD_MAX_FLOWLEN+2+1];
-struct odep_t * core_t::odep_free_pool = NULL;
-int core_t::odep_free_pool_debt = 0;
+using namespace std;
+
+//bool core_t::static_members_initialized = false;
+//struct core_t::uop_array_t * core_t::uop_array_pool[MD_MAX_FLOWLEN+2+1];
+//struct odep_t * core_t::odep_free_pool = NULL;
+//int core_t::odep_free_pool_debt = 0;
 seq_t core_t::global_seq = 0;
 
 
@@ -147,6 +150,8 @@ struct uop_t * core_t::get_uop_array(const int size)
   /* initialize the uop array */
   for(int i=0;i<size;i++)
     uop_init(&p->uop[i]);
+
+  //  cerr << "uop:get:" << p << endl;
   return p->uop;
 }
 
@@ -156,6 +161,8 @@ void core_t::return_uop_array(struct uop_t * const p)
   byte_t * bp = (byte_t*)p;
   bp -= offsetof(struct uop_array_t,uop);
   ap = (struct uop_array_t *) bp;
+
+  //  cerr << "uop:return:" << ap << endl;
 
   assert(ap->next == NULL);
   lk_lock(&core_pools_lock, id+1);
@@ -203,7 +210,8 @@ void core_t::return_odep_link(struct odep_t * const p)
    uop is aligned to 16 bytes. */
 void core_t::zero_uop(struct uop_t * const uop)
 {
-#if USE_SSE_MOVE
+#ifdef USE_SSE_MOVE
+  assert(false);
   char * addr = (char*) uop;
   int bytes = sizeof(*uop);
   int remainder = bytes - (bytes>>7)*128;
