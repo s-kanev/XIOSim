@@ -113,6 +113,7 @@ CONTROL control;
 EXECUTION_MODE ExecMode = EXECUTION_MODE_INVALID;
 
 typedef pair <UINT32, CHAR **> SSARGS;
+map<ADDRINT, uint> seen_instructions; // protected by simbuffer lock (fyi)
 
 /* ========================================================================== */
 UINT64 SimOrgInsCount;                   // # of simulated instructions
@@ -546,6 +547,12 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, 
         ReleaseLock(&simbuffer_lock);
         return;
     }
+
+    bool is_smc = smc_check(pc);
+    if(is_smc) {
+      ReleaseLock(&simbuffer_lock);
+      return;
+    }
     
     handshake_container_t* handshake;
     if(first_read) {
@@ -578,6 +585,12 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
     if (ignore[tid] || ignore_all) {
         ReleaseLock(&simbuffer_lock);
         return;
+    }
+
+    bool is_smc = smc_check(pc);
+    if(is_smc) {
+      ReleaseLock(&simbuffer_lock);
+      return;
     }
 
     handshake_container_t* handshake;
@@ -1662,4 +1675,21 @@ VOID doLateILDJITInstrumentation()
   PIN_UnlockClient();
 
   calledAlready = true;
+}
+
+BOOL smc_check(ADDRINT pc)
+{
+  uint pc_content = *((uint*)pc);
+  
+  if(seen_instructions.count(pc) == 0) {
+    seen_instructions[pc] = pc_content;
+    return false;
+  }
+  
+  if(seen_instructions[pc] != pc_content) {
+    cerr << "[KEVIN-SMKEVIN]:" << seen_instructions[pc] << " " << pc_content << endl;
+    return true;
+  }
+  
+  return false;     
 }
