@@ -6,6 +6,7 @@
  * Copyright, Vijay Reddi, 2007 -- SimpleScalar feeder prototype
               Svilen Kanev, 2011
 */
+
 #include "pin.H"
 #include "instlib.H"
 using namespace INSTLIB;
