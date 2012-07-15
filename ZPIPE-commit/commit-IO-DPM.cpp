@@ -838,11 +838,7 @@ int core_commit_IO_DPM_t::squash_uop(struct uop_t * const uop)
         odep = odep->next;
       }
 
-      /* This can happen in some weird scenario (idep <> odep not reciprocal???)
-       * Ignore for now, possibly risking a small leak. XXX: DOUBLE-CHECK ME! */
       zesto_assert(odep != NULL, 0);
-      if (odep == NULL)
-        continue;
 
       if(prev_odep != NULL)
         prev_odep->next = odep->next;
