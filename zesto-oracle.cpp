@@ -1570,7 +1570,8 @@ core_oracle_t::commit(const struct Mop_t * const commit_Mop)
   MopQ_head = modinc(MopQ_head,MopQ_size); //(MopQ_head + 1) % MopQ_size;
   MopQ_num--;
   assert(MopQ_num >= 0);
-  core->return_uop_array(Mop->uop);
+  if(Mop->uop)
+    core->return_uop_array(Mop->uop);
   Mop->uop = NULL;
 }
 

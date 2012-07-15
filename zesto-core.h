@@ -367,7 +367,7 @@ class core_t {
   static void zero_uop(struct uop_t * const uop);
   static void zero_Mop(struct Mop_t * const Mop);
 
-  private:
+  protected:
 
   seq_t global_action_id; /* tag for squashable "actions" */
 
