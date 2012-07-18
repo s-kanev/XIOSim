@@ -72,18 +72,16 @@ handshake_container_t* BufferManager::front(THREADID tid)
   }
   assert(fileEntryCount_[tid] == 0);
   assert(consumeBuffer_[tid]->empty());
-  //  (*logs_[tid]) << "start spins" << endl;
+
   long long int spins = 0;
   while(consumeBuffer_[tid]->empty()) {
-    // (*logs_[tid]) << "s:0" << endl;
-    ReleaseLock(locks_[tid]);    	
-    //    ReleaseLock(&simbuffer_lock);
-    PIN_Yield();
-    //    GetLock(&simbuffer_lock, tid+1);
+    ReleaseLock(locks_[tid]);
+    ReleaseLock(&simbuffer_lock);
+    PIN_Yield();    
+    GetLock(&simbuffer_lock, tid+1);
     GetLock(locks_[tid], tid+1);
     spins++;
     if(spins >= 100000LL) {
-      //      cerr << tid << " [front()]: That's a lot of spins!" << endl;
       spins = 0;
       //      cerr << "psize:" << produceBuffer_[tid]->size() << endl;
       //      cerr << "fsize:" << fileEntryCount_[tid] << endl;
@@ -92,9 +90,8 @@ handshake_container_t* BufferManager::front(THREADID tid)
       //copyProducerToFile(tid);
       copyFileToConsumer(tid);
     }
-    //    (*logs_[tid]) << "s:5" << endl;
   }
-  //  (*logs_[tid]) << "end spins" << endl;
+
   assert(consumeBuffer_[tid]->size() > 0);
   assert(consumeBuffer_[tid]->front()->flags.valid);
   assert(queueSizes_[tid] > 0);
@@ -294,6 +291,7 @@ void BufferManager::copyProducerToFile(THREADID tid)
     assert(false);
     copyProducerToFileFake(tid);
   }
+  sync();
 }
 
 void BufferManager::copyFileToConsumer(THREADID tid)
@@ -305,6 +303,7 @@ void BufferManager::copyFileToConsumer(THREADID tid)
     assert(false);
     copyFileToConsumerFake(tid);
   }
+  sync();
 }
 
 void BufferManager::copyProducerToFileFake(THREADID tid)
@@ -367,7 +366,7 @@ void BufferManager::copyProducerToFileReal(THREADID tid)
     cerr << "Close error: " << " Errcode:" << strerror(errno) << endl;
     abort();
   }
-
+  sync();
   assert(produceBuffer_[tid]->size() == 0);
   assert(fileEntryCount_[tid] >= 0);
 }
@@ -405,7 +404,7 @@ void BufferManager::copyFileToConsumerReal(THREADID tid)
     fileEntryCount_[tid]--;
   }
 
-
+  sync();
   int copyCount = 0;
   while(validRead) {
     handshake_container_t handshake;
@@ -437,12 +436,13 @@ void BufferManager::copyFileToConsumerReal(THREADID tid)
     abort();
   }
 
+  sync();
   result = rename(bogusNames_[tid].c_str(), fileNames_[tid].c_str());
   if(result == -1) {
     cerr << "Can't rename filesystem bridge files. " << " Errcode:" << strerror(errno) << endl;
     abort();
   }
-
+  sync();
   assert(fileEntryCount_[tid] >= 0);
 }
 

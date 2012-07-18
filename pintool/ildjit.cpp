@@ -238,6 +238,7 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
      * For this thread only, ignore the end of the wait, so we
      * can actually start simulating and unblock everyone else.
      */
+    GetLock(&simbuffer_lock, tid+1);
     thread_state_t* tstate = get_tls(tid);
     tstate->firstIteration = true;
     vector<THREADID>::iterator it;
@@ -248,6 +249,7 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
     ignored_before_signal.clear();
     seen_ssID_zero = false;
     seen_ssID_zero_twice = false;
+    ReleaseLock(&simbuffer_lock);
 
     if (strlen(start_loop) == 0 && firstLoop) {
         cerr << "Starting simulation, TID: " << tid << endl;

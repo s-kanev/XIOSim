@@ -208,14 +208,16 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
             int slice_num = tstate->slice_num;
             int slice_length = tstate->slice_length;
             int slice_weight_times = tstate->slice_weight_times_1000;
-            ReleaseLock(&simbuffer_lock);
 
             handshake = handshake_buffer.front(tid);
+
             handshake->handshake.slice_num = slice_num;
             handshake->handshake.feeder_slice_length = slice_length;
             handshake->handshake.slice_num = slice_weight_times;
 
             handshake->flags.isLastInsn = true;
+
+	    ReleaseLock(&simbuffer_lock);
 
             cerr << "PinPoint: " << control.CurrentPp(tid) << endl;
         }
@@ -446,11 +448,13 @@ VOID SimulatorLoop(VOID* arg)
             ReleaseLock(&simbuffer_lock);
         }
 
+        GetLock(&simbuffer_lock, tid+1);
+
         handshake_container_t* handshake = handshake_buffer.front(instrument_tid);
         ASSERTX(handshake != NULL);
         ASSERTX(handshake->flags.valid);
 
-        GetLock(&simbuffer_lock, tid+1);
+
 
         /* Preserving coreID if we destroy handshake before coming in here,
          * so we know which core to deactivate. */
@@ -1678,7 +1682,7 @@ VOID doLateILDJITInstrumentation()
 }
 
 BOOL smc_check(ADDRINT pc)
-{
+{return false;
   uint pc_content = *((uint*)pc);
   
   if(seen_instructions.count(pc) == 0) {
