@@ -114,6 +114,7 @@ EXECUTION_MODE ExecMode = EXECUTION_MODE_INVALID;
 
 typedef pair <UINT32, CHAR **> SSARGS;
 map<ADDRINT, uint> seen_instructions; // protected by simbuffer lock (fyi)
+extern map<THREADID, INT32> invocationWaitZeros;
 
 /* ========================================================================== */
 UINT64 SimOrgInsCount;                   // # of simulated instructions
@@ -552,6 +553,12 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, 
         return;
     }
 
+    if(invocationWaitZeros[tid] == 0 && (num_threads > 1)) {
+      ReleaseLock(&simbuffer_lock);
+      return;
+    }
+
+
     bool is_smc = smc_check(pc);
     if(is_smc) {
       ReleaseLock(&simbuffer_lock);
@@ -590,6 +597,12 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
         ReleaseLock(&simbuffer_lock);
         return;
     }
+    
+    if(invocationWaitZeros[tid] == 0 && (num_threads > 1)) {
+      ReleaseLock(&simbuffer_lock);
+      return;
+    }
+
 
     bool is_smc = smc_check(pc);
     if(is_smc) {

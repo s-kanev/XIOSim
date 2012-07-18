@@ -46,6 +46,7 @@ static CHAR end_loop[512] = {0};
 static INT32 end_loop_invocation;
 
 static map<THREADID, INT32> unmatchedWaits;
+map<THREADID, INT32> invocationWaitZeros;
 
 VOID printMemoryUsage(THREADID tid);
 VOID printElapsedTime();
@@ -149,6 +150,11 @@ VOID ILDJIT_startSimulation(THREADID tid, ADDRINT ip)
      * XXX: This way we can capture the creation of some compiler threads,
      * but this is generally fine, since they won't get executed */
     ILDJIT_executorCreation = false;
+
+    vector<THREADID>::iterator it;
+    for (it = thread_list.begin(); it != thread_list.end(); it++) {
+      invocationWaitZeros[*it] = 0;
+    }
 
     ILDJIT_executionStarted = true;
 
@@ -290,6 +296,14 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
       cerr << tid << ": Pausing simulation" << endl;
       PauseSimulation(tid);
       cerr << tid << ": Paused simulation!" << endl;
+      
+      GetLock(&simbuffer_lock, tid+1);
+      vector<THREADID>::iterator it;
+      for (it = thread_list.begin(); it != thread_list.end(); it++) {
+	invocationWaitZeros[*it] = 0;
+      }
+      ReleaseLock(&simbuffer_lock);
+      
       cerr << "Memory Usage endLoop():"; printMemoryUsage(tid);
     }
 
@@ -309,6 +323,7 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
   GetLock(&simbuffer_lock, tid+1);
     ignore[tid] = true;
 
+    invocationWaitZeros[tid] += (ssID == 0);
     //    if (ExecMode == EXECUTION_MODE_SIMULATE)
     //      cerr << tid <<":Before Wait "<< hex << pc << dec  << " ID: " << ssID << hex << " (" << ssID_addr <<")" << dec << endl;
 
