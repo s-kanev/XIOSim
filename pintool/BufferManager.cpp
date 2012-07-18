@@ -6,6 +6,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <errno.h>
+#include <stack>
 
 ostream& operator<< (ostream &out, handshake_container_t &hand)
 {
@@ -83,12 +84,16 @@ handshake_container_t* BufferManager::front(THREADID tid)
     spins++;
     if(spins >= 100000LL) {
       spins = 0;
-      //      cerr << "psize:" << produceBuffer_[tid]->size() << endl;
-      //      cerr << "fsize:" << fileEntryCount_[tid] << endl;
-      //      cerr << "csize:" << consumeBuffer_[tid]->size() << endl;
+      //      cerr << "front copying" << endl;
+      /*      cerr << "psize:" << produceBuffer_[tid]->size() << endl;
+      cerr << "fsize:" << fileEntryCount_[tid] << endl;
+      cerr << "csize:" << consumeBuffer_[tid]->size() << endl;*/
       // XXX: commenting this out could break fake file?
       //copyProducerToFile(tid);
       copyFileToConsumer(tid);
+      /*      cerr << "psize:" << produceBuffer_[tid]->size() << endl;
+      cerr << "fsize:" << fileEntryCount_[tid] << endl;
+      cerr << "csize:" << consumeBuffer_[tid]->size() << endl;*/
     }
   }
 
@@ -346,27 +351,75 @@ void BufferManager::copyProducerToFileReal(THREADID tid)
 {
   int result;
 
-  int fd = open(fileNames_[tid].c_str(), O_WRONLY | O_APPEND);
+  int fd_bogus = open(bogusNames_[tid].c_str(), O_WRONLY | O_CREAT, 0777);
+  if(fd_bogus == -1) {
+    cerr << "Opened to write: " << bogusNames_[tid].c_str();
+    cerr << "Pipe open error: " << fd_bogus << " Errcode:" << strerror(errno) << endl;
+    abort();
+  }
+
+  for(int i = 0; i < produceBuffer_[tid]->size(); i++) {
+    assert(produceBuffer_[tid]->getElement(i)->flags.valid);
+    writeHandshake(fd_bogus, produceBuffer_[tid]->getElement(i));
+    fileEntryCount_[tid]++;
+  }
+  
+  while(produceBuffer_[tid]->size() > 0) {
+    produceBuffer_[tid]->pop();
+  }
+
+  sync();
+
+  int fd = open(fileNames_[tid].c_str(), O_RDONLY);
   if(fd == -1) {
     cerr << "Opened to write: " << fileNames_[tid].c_str();
     cerr << "Pipe open error: " << fd << " Errcode:" << strerror(errno) << endl;
     abort();
   }
 
-  int count = 0;
-  while(produceBuffer_[tid]->size() > 0) {
-    writeHandshake(fd, produceBuffer_[tid]->front());
-    produceBuffer_[tid]->pop();
-    count++;
-    fileEntryCount_[tid]++;
-  }
+  int sizeBuf = 1024 * 1024;
+  void* buf = malloc(sizeBuf);
+  memset(buf, 0, sizeBuf); 
+
+  int bytesRead;
+  do {
+    bytesRead = read(fd, buf, sizeBuf);
+    if(bytesRead == -1) {
+      cerr << "Read ptof error: " << " Errcode:" << strerror(errno) << endl;
+      abort();
+    }
+    if(bytesRead > 0) {
+      int bytesWritten = write(fd_bogus, buf, bytesRead);
+      if(bytesWritten != bytesRead) {
+	cerr << "Write ptof error: " << " Errcode:" << strerror(errno) << endl;
+	abort();
+      }
+    }
+  } while(bytesRead > 0);
+
+  free(buf);
 
   result = close(fd);
   if(result == -1) {
     cerr << "Close error: " << " Errcode:" << strerror(errno) << endl;
     abort();
   }
+
+  result = close(fd_bogus);
+  if(result == -1) {
+    cerr << "Close error: " << " Errcode:" << strerror(errno) << endl;
+    abort();
+  }
+
   sync();
+
+  result = rename(bogusNames_[tid].c_str(), fileNames_[tid].c_str());
+  if(result == -1) {
+    cerr << "Can't rename filesystem bridge files. " << " Errcode:" << strerror(errno) << endl;
+    abort();
+  }
+  sync();
+
   assert(produceBuffer_[tid]->size() == 0);
   assert(fileEntryCount_[tid] >= 0);
 }
@@ -376,17 +429,10 @@ void BufferManager::copyFileToConsumerReal(THREADID tid)
 {
   int result;
 
-  int fd = open(fileNames_[tid].c_str(), O_RDONLY);
+  int fd = open(fileNames_[tid].c_str(), O_RDWR);
   if(fd == -1) {
     cerr << "Opened to read: " << fileNames_[tid].c_str();
     cerr << "Pipe open error: " << fd << " Errcode:" << strerror(errno) << endl;
-    abort();
-  }
-
-  int fd_bogus = open(bogusNames_[tid].c_str(), O_WRONLY | O_CREAT, 0777);
-  if(fd_bogus == -1) {
-    cerr << "Opened to write: " << bogusNames_[tid].c_str();
-    cerr << "Pipe open error: " << fd_bogus << " Errcode:" << strerror(errno) << endl;
     abort();
   }
 
@@ -404,44 +450,12 @@ void BufferManager::copyFileToConsumerReal(THREADID tid)
     fileEntryCount_[tid]--;
   }
 
-  sync();
-  int copyCount = 0;
-  while(validRead) {
-    handshake_container_t handshake;
-    validRead = readHandshake(fd, &handshake);
-    if(!validRead) {
-      break;
-    }
-    writeHandshake(fd_bogus, &handshake);
-    copyCount++;
-  }
-
-  {
-    handshake_container_t handshake;
-    assert(!readHandshake(fd, &handshake));
-    struct stat buf;
-    fstat(fd_bogus, &buf);
-    int size = buf.st_size;
-    assert(consumeBuffer_[tid]->full() || (copyCount == 0 && (size == 0)));
-  }
-
-  result = close(fd_bogus);
-  if(result == -1) {
-    cerr << "Close error: " << " Errcode:" << strerror(errno) << endl;
-    abort();
-  }
   result = close(fd);
   if(result == -1) {
     cerr << "Close error: " << " Errcode:" << strerror(errno) << endl;
     abort();
   }
 
-  sync();
-  result = rename(bogusNames_[tid].c_str(), fileNames_[tid].c_str());
-  if(result == -1) {
-    cerr << "Can't rename filesystem bridge files. " << " Errcode:" << strerror(errno) << endl;
-    abort();
-  }
   sync();
   assert(fileEntryCount_[tid] >= 0);
 }
@@ -458,9 +472,6 @@ void BufferManager::writeHandshake(int fd, handshake_container_t* handshake)
   void * writeBuffer = (void*)malloc(totalBytes);
   void * buffPosition = writeBuffer;
 
-  memcpy((char*)buffPosition, &(mapSize), sizeof(int));
-  buffPosition = (char*)buffPosition + sizeof(int);
-
   memcpy((char*)buffPosition, &(handshake->handshake), handshakeBytes);
   buffPosition = (char*)buffPosition + handshakeBytes;
 
@@ -475,6 +486,9 @@ void BufferManager::writeHandshake(int fd, handshake_container_t* handshake)
     memcpy((char*)buffPosition, &(it->second), sizeof(UINT8));
     buffPosition = (char*)buffPosition + sizeof(UINT8);
   }
+
+  memcpy((char*)buffPosition, &(mapSize), sizeof(int));
+  buffPosition = (char*)buffPosition + sizeof(int);
 
   assert(((unsigned long long int)writeBuffer) + totalBytes == ((unsigned long long int)buffPosition));
 
@@ -496,21 +510,32 @@ bool BufferManager::readHandshake(int fd, handshake_container_t* handshake)
   const int flagBytes = sizeof(handshake_flags_t);
   const int mapEntryBytes = sizeof(UINT32) + sizeof(UINT8);
 
+  off_t offset = lseek(fd, 0, SEEK_END);
+  assert(offset > 0);
+  offset = lseek(fd, offset-(sizeof(int)), SEEK_SET);
+  if(offset == -1) {
+    cerr << "File seek error: " << " Errcode:" << strerror(errno) << endl;
+    abort();
+  } 
+  
   int mapSize;
   int bytesRead = read(fd, &(mapSize), sizeof(int));
-  if(bytesRead == 0) {
-    return false;
-  }
   if(bytesRead == -1) {
     cerr << "File read error: " << bytesRead << " Errcode:" << strerror(errno) << endl;
     abort();
-  }
+  } 
   assert(bytesRead == sizeof(int));
 
   int mapBytes = mapSize * mapEntryBytes;
   int totalBytes = handshakeBytes + flagBytes + mapBytes;
 
+  offset = lseek(fd, 0, SEEK_END);
+  offset = lseek(fd, offset-(totalBytes + sizeof(int)), SEEK_SET);
+  
+  assert((offset == 0) || (offset > sizeof(int)));
+
   void * readBuffer = (void*)malloc(totalBytes);
+  assert(readBuffer != NULL);
 
   bytesRead = read(fd, readBuffer, totalBytes);
   if(bytesRead == -1) {
@@ -543,6 +568,12 @@ bool BufferManager::readHandshake(int fd, handshake_container_t* handshake)
   assert(((unsigned long long int)readBuffer) + totalBytes == ((unsigned long long int)buffPosition));
 
   free(readBuffer);
+ 
+  int trunc_result = ftruncate(fd, offset);
+  if(trunc_result != 0) {
+    cerr << "File truncate error: " << offset << " Errcode:" << strerror(errno) << endl;
+    abort();
+  }
 
   return true;
 }

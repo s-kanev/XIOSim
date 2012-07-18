@@ -505,7 +505,8 @@ VOID SimulatorLoop(VOID* arg)
         }
 
         // Actual simulation happens here
-        Zesto_Resume(&handshake->handshake, &handshake->mem_buffer, handshake->flags.isFirstInsn, handshake->flags.isLastInsn);
+	Zesto_Resume(&handshake->handshake, &handshake->mem_buffer, handshake->flags.isFirstInsn, handshake->flags.isLastInsn);
+	//ReleaseHandshake(handshake->handshake.coreID);
 
         if(!KnobPipelineInstrumentation.Value())
             ReleaseHandshake(handshake->handshake.coreID);

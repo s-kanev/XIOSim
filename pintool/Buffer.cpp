@@ -69,3 +69,10 @@ int Buffer::size()
 {
   return size_;
 }
+
+handshake_container_t* Buffer::getElement(int i) 
+{
+  assert(i < size_);
+  int index = (head_ + numPool_ - i - 1) % numPool_;
+  return &(handshakePool_[index]);
+}
