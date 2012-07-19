@@ -28,6 +28,9 @@ class BufferManager
   void producer_done(THREADID tid);
 
   void pop(THREADID tid);
+  void applyConsumerChanges(THREADID tid, int numChanged);
+  int getConsumerSize(THREADID tid);
+  void allocateThread(THREADID tid);
 
   bool hasThread(THREADID tid);
   unsigned int size();
@@ -45,8 +48,6 @@ class BufferManager
   map<THREADID, int> pool_;
 
   //map<THREADID, ofstream*> logs_;
-
-  void checkFirstAccess(THREADID tid);
 
   void reserveHandshake(THREADID tid);
 

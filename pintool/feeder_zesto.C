@@ -399,19 +399,7 @@ VOID ReleaseHandshake(UINT32 coreID)
 {
     THREADID instrument_tid = core_threads[coreID];
     ASSERTX(!handshake_buffer.empty(instrument_tid));
-    handshake_container_t* handshake = handshake_buffer.front(instrument_tid);
-
-    // We are finishing simulation, kill the simulator thread
-    if (handshake->flags.isLastInsn && !handshake->flags.isFirstInsn &&
-        ExecMode == EXECUTION_MODE_INVALID)
-        handshake->flags.killThread = true;
-
-    if (handshake->flags.isFirstInsn)
-        handshake->flags.isFirstInsn = false;
-
-    if (handshake->flags.isLastInsn)
-        handshake->flags.isLastInsn = false;
-
+    
     SimOrgInsCount++;
 
     // pop() invalidates the buffer
@@ -449,74 +437,66 @@ VOID SimulatorLoop(VOID* arg)
             ReleaseLock(&simbuffer_lock);
         }
 
-        GetLock(&simbuffer_lock, tid+1);
+		
+	int consumerHandshakes = handshake_buffer.getConsumerSize(instrument_tid);	
+	if(consumerHandshakes == 0) {
+	  GetLock(&simbuffer_lock, tid+1);
+	  handshake_buffer.front(instrument_tid);
+	  ReleaseLock(&simbuffer_lock);
+	  consumerHandshakes = handshake_buffer.getConsumerSize(instrument_tid);
+	}	
+	assert(consumerHandshakes > 0);
 
-        handshake_container_t* handshake = handshake_buffer.front(instrument_tid);
-        ASSERTX(handshake != NULL);
-        ASSERTX(handshake->flags.valid);
-
-
-
-        /* Preserving coreID if we destroy handshake before coming in here,
-         * so we know which core to deactivate. */
-        coreID = handshake->handshake.coreID;
-
-        /* Thread scheduling still hasn't happened. Bummer. Check the core->thread
-         * mapping and spin until thread gets assigned to a core. */
-        // XXX: Not in recent HELIX, but keep around for merging in trunk
-//        if (coreID == -1)
-//        {
-//            map<UINT32,THREADID>::iterator it;
-//            for (it = core_threads.begin(); it != core_threads.end(); it++)
-//                if ((*it).second == instrument_tid)
-//                {
-//                    handshake->handshake.coreID = (*it).first;
-//                    coreID = (*it).first;
-//                    break;
-//                }
-//
-//            if (coreID == -1)
-//            {
-//                ReleaseLock(&simbuffer_lock);
-//                continue;
-//            }
-//        }
-
-        ADDRINT pc = handshake->handshake.pc;
-        if (handshake->handshake.real)
-        {
-            MakeInsCopy(&handshake->handshake, pc);
-        }
-
+	for(int i = 0; i < consumerHandshakes; i++) {
+	  
+	  handshake_container_t* handshake = handshake_buffer.front(instrument_tid);
+	  ASSERTX(handshake != NULL);
+	  ASSERTX(handshake->flags.valid);
+	  	  
+	  /* Preserving coreID if we destroy handshake before coming in here,
+	   * so we know which core to deactivate. */
+	  coreID = handshake->handshake.coreID;	  	 
+	  
+	  ADDRINT pc = handshake->handshake.pc;
+	  if (handshake->handshake.real) 
+	  {
+	    MakeInsCopy(&handshake->handshake, pc);
+	  }
+	  	  
 #ifdef TIME_TRANSPARENCY
-        // Capture time spent in simulation to ensure time syscall transparency
-        UINT64 ins_delta_time = rdtsc();
+	  // Capture time spent in simulation to ensure time syscall transparency
+	  UINT64 ins_delta_time = rdtsc();
 #endif
-        // Perform memory sanity checks for values touched by simulator
-        // on previous instruction
-        if (KnobSanity.Value())
+	  // Perform memory sanity checks for values touched by simulator
+	  // on previous instruction
+	  
+	  GetLock(&simbuffer_lock, tid+1);
+	  
+	  if (KnobSanity.Value())
             SanityMemCheck();
-
-        // Ignoring instruction
-        if (ignore_list[instrument_tid].find(pc) != ignore_list[instrument_tid].end())
-        {
+	  
+	  // Ignoring instruction
+	  if (ignore_list[instrument_tid].find(pc) != ignore_list[instrument_tid].end())
+	  {
             ReleaseHandshake(handshake->handshake.coreID);
             continue;
-        }
+	  }
 
-        // Actual simulation happens here
-	Zesto_Resume(&handshake->handshake, &handshake->mem_buffer, handshake->flags.isFirstInsn, handshake->flags.isLastInsn);
-	//ReleaseHandshake(handshake->handshake.coreID);
-
-        if(!KnobPipelineInstrumentation.Value())
+	  // Actual simulation happens here
+	  Zesto_Resume(&handshake->handshake, &handshake->mem_buffer, handshake->flags.isFirstInsn, handshake->flags.isLastInsn);
+	  //ReleaseHandshake(handshake->handshake.coreID);
+	  
+	  if(!KnobPipelineInstrumentation.Value())
             ReleaseHandshake(handshake->handshake.coreID);
-
-        // XXX: We are not holding simbuffer_lock here any more!
-
+	  
+	  // XXX: We are not holding simbuffer_lock here any more!
+	  
 #ifdef TIME_TRANSPARENCY
-        ins_delta_time = rdtsc() - ins_delta_time;
-        sim_time += ins_delta_time;
+	  ins_delta_time = rdtsc() - ins_delta_time;
+	  sim_time += ins_delta_time;
 #endif
+	}
+	handshake_buffer.applyConsumerChanges(instrument_tid, consumerHandshakes);
     }
 }
 
@@ -998,6 +978,8 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
     {
         // Create new buffer to store thread context
         GetLock(&simbuffer_lock, threadIndex+1);
+
+	handshake_buffer.allocateThread(threadIndex);
 
         thread_list.push_back(threadIndex);
 
