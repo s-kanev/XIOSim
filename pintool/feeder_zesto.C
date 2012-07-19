@@ -119,13 +119,6 @@ extern map<THREADID, INT32> invocationWaitZeros;
 /* ========================================================================== */
 UINT64 SimOrgInsCount;                   // # of simulated instructions
 
-/* ========================================================================== */
-VOID MakeInsCopy(P2Z_HANDSHAKE* handshake, ADDRINT pc)
-{
-    memset(handshake->ins, 0, sizeof(handshake->ins));
-    memcpy(handshake->ins, reinterpret_cast <VOID *> (pc), sizeof(handshake->ins));
-}
-
 // function to access thread-specific data
 /* ========================================================================== */
 thread_state_t* get_tls(THREADID threadid)
@@ -482,12 +475,6 @@ VOID SimulatorLoop(VOID* arg)
 //            }
 //        }
 
-        ADDRINT pc = handshake->handshake.pc;
-        if (handshake->handshake.real)
-        {
-            MakeInsCopy(&handshake->handshake, pc);
-        }
-
 #ifdef TIME_TRANSPARENCY
         // Capture time spent in simulation to ensure time syscall transparency
         UINT64 ins_delta_time = rdtsc();
@@ -498,6 +485,7 @@ VOID SimulatorLoop(VOID* arg)
             SanityMemCheck();
 
         // Ignoring instruction
+        ADDRINT pc = handshake->handshake.pc;
         if (ignore_list[instrument_tid].find(pc) != ignore_list[instrument_tid].end())
         {
             ReleaseHandshake(handshake->handshake.coreID);
@@ -533,6 +521,7 @@ VOID MakeSSRequest(THREADID tid, ADDRINT pc, ADDRINT npc, ADDRINT tpc, BOOL brta
     hshake->handshake.sleep_thread = FALSE;
     hshake->handshake.resume_thread = FALSE;
     hshake->handshake.real = TRUE;
+    PIN_SafeCopy(hshake->handshake.ins, (VOID*) pc, MD_MAX_ILEN);
 
     hshake->handshake.slice_num = tstate->slice_num;
     hshake->handshake.feeder_slice_length = tstate->slice_length;

@@ -587,8 +587,8 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
    }
    else {
      thread->in_critical_section = handshake->in_critical_section;
-     memcpy(core->oracle->ins_bytes, handshake->ins, MD_MAX_ILEN);
    }
+   memcpy(core->oracle->ins_bytes, handshake->ins, MD_MAX_ILEN);
 
    if(!slice_start && core->fetch->PC != handshake->pc)
    {
