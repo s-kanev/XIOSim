@@ -78,7 +78,7 @@ TOOLS = $(TOOL_ROOTS:%=$(OBJDIR)%$(PINTOOL_SUFFIX))
 # build rules
 #
 ##############################################################
-all : CXXFLAGS += -D_FILE_OFFSET_BITS=64
+all : CXXFLAGS += -DNDEBUG -D_FILE_OFFSET_BITS=64
 all: tools
 debug:	CXXFLAGS += -DZESTO_PIN_DBG -D_FILE_OFFSET_BITS=64
 debug:	tools
@@ -123,3 +123,4 @@ clean-tool:
 
 install:
 	cp $(TOOLS) $(COOL_INSTALL_DIR)
+	git log -1 --format="%H" > $(COOL_INSTALL_DIR)/version 

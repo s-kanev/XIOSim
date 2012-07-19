@@ -331,6 +331,9 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
     if (tstate->pc_queue_valid &&
         ignored_before_wait.find(tid) == ignored_before_wait.end())
     {
+        // push Arg3 to stack
+        ignore_list[tid][tstate->get_queued_pc(3)] = true;
+
         // push Arg2 to stack
         ignore_list[tid][tstate->get_queued_pc(2)] = true;
         //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(2) << dec << endl;
