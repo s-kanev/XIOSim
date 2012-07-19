@@ -28,6 +28,8 @@ class Buffer
   
   int size();
   
+  handshake_container_t* getElement(int i);
+
  private:
   handshake_container_t* handshakePool_;
   int head_;

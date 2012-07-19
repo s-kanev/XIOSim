@@ -6,6 +6,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <errno.h>
+#include <stack>
 
 ostream& operator<< (ostream &out, handshake_container_t &hand)
 {
@@ -49,18 +50,15 @@ BufferManager::~BufferManager()
 
 handshake_container_t* BufferManager::front(THREADID tid)
 {
-  checkFirstAccess(tid);
-  //  (*logs_[tid]) << "front before lock" << endl;
+  if(consumeBuffer_[tid]->size() > 0) {
+    handshake_container_t* returnVal = consumeBuffer_[tid]->front();
+    return returnVal;
+  }
+
   GetLock(locks_[tid], tid+1);
-  //  (*logs_[tid]) << "front after lock" << endl;
 
   assert(queueSizes_[tid] > 0);
 
-  if(consumeBuffer_[tid]->size() > 0) {
-    handshake_container_t* returnVal = consumeBuffer_[tid]->front();
-    ReleaseLock(locks_[tid]);
-    return returnVal;
-  }
   assert(fileEntryCount_[tid] > 0 || produceBuffer_[tid]->size() > 0);
 
   if(fileEntryCount_[tid] > 0) {
@@ -73,7 +71,7 @@ handshake_container_t* BufferManager::front(THREADID tid)
   assert(fileEntryCount_[tid] == 0);
   assert(consumeBuffer_[tid]->empty());
 
-  long long int spins = 0;
+  int spins = 0;
   while(consumeBuffer_[tid]->empty()) {
     ReleaseLock(locks_[tid]);
     ReleaseLock(&simbuffer_lock);
@@ -81,13 +79,11 @@ handshake_container_t* BufferManager::front(THREADID tid)
     GetLock(&simbuffer_lock, tid+1);
     GetLock(locks_[tid], tid+1);
     spins++;
-    if(spins >= 100000LL) {
+    if(spins >= 2) { // DONT CHANGE THIS MUST EQUAL 3
       spins = 0;
-      //      cerr << "psize:" << produceBuffer_[tid]->size() << endl;
-      //      cerr << "fsize:" << fileEntryCount_[tid] << endl;
-      //      cerr << "csize:" << consumeBuffer_[tid]->size() << endl;
-      // XXX: commenting this out could break fake file?
-      //copyProducerToFile(tid);
+      if(fileEntryCount_[tid] == 0) {
+	continue;
+      }
       copyFileToConsumer(tid);
     }
   }
@@ -102,7 +98,6 @@ handshake_container_t* BufferManager::front(THREADID tid)
 
 handshake_container_t* BufferManager::back(THREADID tid)
 {
-  checkFirstAccess(tid);
   GetLock(locks_[tid], tid+1);
   assert(queueSizes_[tid] > 0);
   handshake_container_t* returnVal = produceBuffer_[tid]->back();
@@ -112,7 +107,6 @@ handshake_container_t* BufferManager::back(THREADID tid)
 
 bool BufferManager::empty(THREADID tid)
 {
-  checkFirstAccess(tid);
   GetLock(locks_[tid], tid+1);
   bool result = queueSizes_[tid] == 0;
   ReleaseLock(locks_[tid]);
@@ -121,7 +115,6 @@ bool BufferManager::empty(THREADID tid)
 
 handshake_container_t* BufferManager::get_buffer(THREADID tid)
 {
-  checkFirstAccess(tid);
   GetLock(locks_[tid], tid+1);
   // Push is guaranteed to succeed because each call to
   // this->get_buffer() is followed by a call to this->producer_done()
@@ -138,7 +131,6 @@ handshake_container_t* BufferManager::get_buffer(THREADID tid)
 
 void BufferManager::producer_done(THREADID tid)
 {
-  checkFirstAccess(tid);
   GetLock(locks_[tid], tid+1);
 
   ASSERTX(!produceBuffer_[tid]->empty());
@@ -146,7 +138,9 @@ void BufferManager::producer_done(THREADID tid)
   ASSERTX(last->flags.valid);
 
   reserveHandshake(tid);
-
+  
+  ReleaseLock(&simbuffer_lock);
+  
   if(produceBuffer_[tid]->full()) {
     int produceSize = produceBuffer_[tid]->size();
     copyProducerToFile(tid);
@@ -158,6 +152,7 @@ void BufferManager::producer_done(THREADID tid)
   assert(!produceBuffer_[tid]->full());
 
   ReleaseLock(locks_[tid]);
+  GetLock(&simbuffer_lock, tid+1);
 }
 
 void BufferManager::flushBuffers(THREADID tid)
@@ -176,18 +171,27 @@ void BufferManager::flushBuffers(THREADID tid)
     }*/
 }
 
+int BufferManager::getConsumerSize(THREADID tid)
+{
+  return consumeBuffer_[tid]->size();
+}
+
+void BufferManager::applyConsumerChanges(THREADID tid, int numChanged)
+{
+  GetLock(locks_[tid], tid+1);
+  
+  pool_[tid] += numChanged;
+
+  assert(queueSizes_[tid] >= numChanged);
+  queueSizes_[tid] -= numChanged;
+
+  ReleaseLock(locks_[tid]);
+}
+
 void BufferManager::pop(THREADID tid)
 {
-  checkFirstAccess(tid);
-  GetLock(locks_[tid], tid+1);
-
-  assert(queueSizes_[tid] > 0);
   assert(consumeBuffer_[tid]->size() > 0);
   consumeBuffer_[tid]->pop();
-
-  pool_[tid]++;
-  queueSizes_[tid]--;
-  ReleaseLock(locks_[tid]);
 }
 
 bool BufferManager::hasThread(THREADID tid)
@@ -200,49 +204,6 @@ unsigned int BufferManager::size()
 {
   unsigned int result = queueSizes_.size();
   return result;
-}
-
-void BufferManager::checkFirstAccess(THREADID tid)
-{
-  if (queueSizes_.count(tid) == 0) {
-
-    queueSizes_[tid] = 0;
-    fileEntryCount_[tid] = 0;
-    consumeBuffer_[tid] = new Buffer(25000);
-    //    fakeFile_[tid] = new Buffer(2);
-    produceBuffer_[tid] = new Buffer(1000);
-    produceBuffer_[tid]->get_buffer()->flags.isFirstInsn = true;
-    pool_[tid] = 50000;
-    locks_[tid] = new PIN_LOCK();
-    InitLock(locks_[tid]);
-
-/*    char s_tid[100];
-    sprintf(s_tid, "%d", tid);
-    string logName = "./output_ring_cache/handshake_" + string(s_tid) + ".log";
-    logs_[tid] = new ofstream();
-    (*(logs_[tid])).open(logName.c_str());*/
-
-    fileNames_[tid] = tempnam("/dev/shm/", "A");
-    bogusNames_[tid] = tempnam("/dev/shm/", "B");
-
-    cerr << tid << " Created " << fileNames_[tid] << " and " << bogusNames_[tid] << endl;
-
-    int fd = open(fileNames_[tid].c_str(), O_WRONLY | O_CREAT, 0777);
-    int result = close(fd);
-    if(result == -1) {
-      cerr << "Close error: " << " Errcode:" << strerror(errno) << endl;
-      abort();
-    }
-  }
-
-  GetLock(locks_[tid], tid+1);
-  if(useRealFile_) {
-    assert((consumeBuffer_[tid]->size() + produceBuffer_[tid]->size() + fileEntryCount_[tid]) == queueSizes_[tid]);
-  }
-  else {
-    assert((consumeBuffer_[tid]->size() + produceBuffer_[tid]->size() + fakeFile_[tid]->size()) == queueSizes_[tid]);
-  }
-  ReleaseLock(locks_[tid]);
 }
 
 void BufferManager::reserveHandshake(THREADID tid)
@@ -265,7 +226,7 @@ void BufferManager::reserveHandshake(THREADID tid)
 
     if(spins >= 7000000LL) {
       assert(queueSizes_[tid] > 0);
-      if(queueSizes_[tid] < 20000001) {
+      if(queueSizes_[tid] < 2000001) {
 	pool_[tid] += 25000;//queueSizes_[tid];
 	cerr << tid << " [reserveHandshake()]: Increasing file up to " << queueSizes_[tid] + pool_[tid] << endl;
 	spins = 0;
@@ -346,27 +307,75 @@ void BufferManager::copyProducerToFileReal(THREADID tid)
 {
   int result;
 
-  int fd = open(fileNames_[tid].c_str(), O_WRONLY | O_APPEND);
+  int fd_bogus = open(bogusNames_[tid].c_str(), O_WRONLY | O_CREAT, 0777);
+  if(fd_bogus == -1) {
+    cerr << "Opened to write: " << bogusNames_[tid].c_str();
+    cerr << "Pipe open error: " << fd_bogus << " Errcode:" << strerror(errno) << endl;
+    abort();
+  }
+
+  for(int i = 0; i < produceBuffer_[tid]->size(); i++) {
+    assert(produceBuffer_[tid]->getElement(i)->flags.valid);
+    writeHandshake(fd_bogus, produceBuffer_[tid]->getElement(i));
+    fileEntryCount_[tid]++;
+  }
+  
+  while(produceBuffer_[tid]->size() > 0) {
+    produceBuffer_[tid]->pop();
+  }
+
+  sync();
+
+  int fd = open(fileNames_[tid].c_str(), O_RDONLY);
   if(fd == -1) {
     cerr << "Opened to write: " << fileNames_[tid].c_str();
     cerr << "Pipe open error: " << fd << " Errcode:" << strerror(errno) << endl;
     abort();
   }
 
-  int count = 0;
-  while(produceBuffer_[tid]->size() > 0) {
-    writeHandshake(fd, produceBuffer_[tid]->front());
-    produceBuffer_[tid]->pop();
-    count++;
-    fileEntryCount_[tid]++;
-  }
+  int sizeBuf = 1024 * 1024;
+  void* buf = malloc(sizeBuf);
+  memset(buf, 0, sizeBuf); 
+
+  int bytesRead;
+  do {
+    bytesRead = read(fd, buf, sizeBuf);
+    if(bytesRead == -1) {
+      cerr << "Read ptof error: " << " Errcode:" << strerror(errno) << endl;
+      abort();
+    }
+    if(bytesRead > 0) {
+      int bytesWritten = write(fd_bogus, buf, bytesRead);
+      if(bytesWritten != bytesRead) {
+	cerr << "Write ptof error: " << " Errcode:" << strerror(errno) << endl;
+	abort();
+      }
+    }
+  } while(bytesRead > 0);
+
+  free(buf);
 
   result = close(fd);
   if(result == -1) {
     cerr << "Close error: " << " Errcode:" << strerror(errno) << endl;
     abort();
   }
+
+  result = close(fd_bogus);
+  if(result == -1) {
+    cerr << "Close error: " << " Errcode:" << strerror(errno) << endl;
+    abort();
+  }
+
   sync();
+
+  result = rename(bogusNames_[tid].c_str(), fileNames_[tid].c_str());
+  if(result == -1) {
+    cerr << "Can't rename filesystem bridge files. " << " Errcode:" << strerror(errno) << endl;
+    abort();
+  }
+  sync();
+
   assert(produceBuffer_[tid]->size() == 0);
   assert(fileEntryCount_[tid] >= 0);
 }
@@ -376,17 +385,10 @@ void BufferManager::copyFileToConsumerReal(THREADID tid)
 {
   int result;
 
-  int fd = open(fileNames_[tid].c_str(), O_RDONLY);
+  int fd = open(fileNames_[tid].c_str(), O_RDWR);
   if(fd == -1) {
     cerr << "Opened to read: " << fileNames_[tid].c_str();
     cerr << "Pipe open error: " << fd << " Errcode:" << strerror(errno) << endl;
-    abort();
-  }
-
-  int fd_bogus = open(bogusNames_[tid].c_str(), O_WRONLY | O_CREAT, 0777);
-  if(fd_bogus == -1) {
-    cerr << "Opened to write: " << bogusNames_[tid].c_str();
-    cerr << "Pipe open error: " << fd_bogus << " Errcode:" << strerror(errno) << endl;
     abort();
   }
 
@@ -404,44 +406,12 @@ void BufferManager::copyFileToConsumerReal(THREADID tid)
     fileEntryCount_[tid]--;
   }
 
-  sync();
-  int copyCount = 0;
-  while(validRead) {
-    handshake_container_t handshake;
-    validRead = readHandshake(fd, &handshake);
-    if(!validRead) {
-      break;
-    }
-    writeHandshake(fd_bogus, &handshake);
-    copyCount++;
-  }
-
-  {
-    handshake_container_t handshake;
-    assert(!readHandshake(fd, &handshake));
-    struct stat buf;
-    fstat(fd_bogus, &buf);
-    int size = buf.st_size;
-    assert(consumeBuffer_[tid]->full() || (copyCount == 0 && (size == 0)));
-  }
-
-  result = close(fd_bogus);
-  if(result == -1) {
-    cerr << "Close error: " << " Errcode:" << strerror(errno) << endl;
-    abort();
-  }
   result = close(fd);
   if(result == -1) {
     cerr << "Close error: " << " Errcode:" << strerror(errno) << endl;
     abort();
   }
 
-  sync();
-  result = rename(bogusNames_[tid].c_str(), fileNames_[tid].c_str());
-  if(result == -1) {
-    cerr << "Can't rename filesystem bridge files. " << " Errcode:" << strerror(errno) << endl;
-    abort();
-  }
   sync();
   assert(fileEntryCount_[tid] >= 0);
 }
@@ -458,9 +428,6 @@ void BufferManager::writeHandshake(int fd, handshake_container_t* handshake)
   void * writeBuffer = (void*)malloc(totalBytes);
   void * buffPosition = writeBuffer;
 
-  memcpy((char*)buffPosition, &(mapSize), sizeof(int));
-  buffPosition = (char*)buffPosition + sizeof(int);
-
   memcpy((char*)buffPosition, &(handshake->handshake), handshakeBytes);
   buffPosition = (char*)buffPosition + handshakeBytes;
 
@@ -475,6 +442,9 @@ void BufferManager::writeHandshake(int fd, handshake_container_t* handshake)
     memcpy((char*)buffPosition, &(it->second), sizeof(UINT8));
     buffPosition = (char*)buffPosition + sizeof(UINT8);
   }
+
+  memcpy((char*)buffPosition, &(mapSize), sizeof(int));
+  buffPosition = (char*)buffPosition + sizeof(int);
 
   assert(((unsigned long long int)writeBuffer) + totalBytes == ((unsigned long long int)buffPosition));
 
@@ -496,21 +466,32 @@ bool BufferManager::readHandshake(int fd, handshake_container_t* handshake)
   const int flagBytes = sizeof(handshake_flags_t);
   const int mapEntryBytes = sizeof(UINT32) + sizeof(UINT8);
 
+  off_t offset = lseek(fd, 0, SEEK_END);
+  assert(offset > 0);
+  offset = lseek(fd, offset-(sizeof(int)), SEEK_SET);
+  if(offset == -1) {
+    cerr << "File seek error: " << " Errcode:" << strerror(errno) << endl;
+    abort();
+  } 
+  
   int mapSize;
   int bytesRead = read(fd, &(mapSize), sizeof(int));
-  if(bytesRead == 0) {
-    return false;
-  }
   if(bytesRead == -1) {
     cerr << "File read error: " << bytesRead << " Errcode:" << strerror(errno) << endl;
     abort();
-  }
+  } 
   assert(bytesRead == sizeof(int));
 
   int mapBytes = mapSize * mapEntryBytes;
   int totalBytes = handshakeBytes + flagBytes + mapBytes;
 
+  offset = lseek(fd, 0, SEEK_END);
+  offset = lseek(fd, offset-(totalBytes + sizeof(int)), SEEK_SET);
+  
+  assert((offset == 0) || (offset > sizeof(int)));
+
   void * readBuffer = (void*)malloc(totalBytes);
+  assert(readBuffer != NULL);
 
   bytesRead = read(fd, readBuffer, totalBytes);
   if(bytesRead == -1) {
@@ -543,6 +524,12 @@ bool BufferManager::readHandshake(int fd, handshake_container_t* handshake)
   assert(((unsigned long long int)readBuffer) + totalBytes == ((unsigned long long int)buffPosition));
 
   free(readBuffer);
+ 
+  int trunc_result = ftruncate(fd, offset);
+  if(trunc_result != 0) {
+    cerr << "File truncate error: " << offset << " Errcode:" << strerror(errno) << endl;
+    abort();
+  }
 
   return true;
 }
@@ -554,5 +541,38 @@ void BufferManager::signalCallback(int signum)
   for(it = fileNames_.begin(); it != fileNames_.end(); it++) {
     string cmd = "/bin/rm -rf " + fileNames_[it->first] + " " + bogusNames_[it->first] + " &";
     assert(system(cmd.c_str()) == 0);
+  }
+}
+
+void BufferManager::allocateThread(THREADID tid) 
+{
+  assert(queueSizes_.count(tid) == 0);
+  
+  queueSizes_[tid] = 0;
+  fileEntryCount_[tid] = 0;
+  consumeBuffer_[tid] = new Buffer(25000);
+  //    fakeFile_[tid] = new Buffer(2);
+  produceBuffer_[tid] = new Buffer(1000);
+  produceBuffer_[tid]->get_buffer()->flags.isFirstInsn = true;
+  pool_[tid] = 50000;
+  locks_[tid] = new PIN_LOCK();
+  InitLock(locks_[tid]);
+  
+  /*    char s_tid[100];
+	sprintf(s_tid, "%d", tid);
+    string logName = "./output_ring_cache/handshake_" + string(s_tid) + ".log";
+    logs_[tid] = new ofstream();
+    (*(logs_[tid])).open(logName.c_str());*/
+
+  fileNames_[tid] = tempnam("/dev/shm/", "A");
+  bogusNames_[tid] = tempnam("/dev/shm/", "B");
+  
+  cerr << tid << " Created " << fileNames_[tid] << " and " << bogusNames_[tid] << endl;
+  
+  int fd = open(fileNames_[tid].c_str(), O_WRONLY | O_CREAT, 0777);
+  int result = close(fd);
+  if(result == -1) {
+    cerr << "Close error: " << " Errcode:" << strerror(errno) << endl;
+    abort();
   }
 }

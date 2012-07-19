@@ -24,13 +24,13 @@ CC = g++
 
 # For debug:
 OFLAGS = -O0 -g -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -Wall -DDEBUG -msse4a -mfpmath=sse
-OFLAGS_SAFE = $(OFLAGS)
+#OFLAGS_SAFE = $(OFLAGS)
 
 # Fully-optimized, but with profiling for gprof:
 #OFLAGS = -O3 -g -pg -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -Wall -static -fexpensive-optimizations -mtune=core2 -march=core2 -msse4a -mfpmath=sse -funroll-loops
 
 # Fully-optimized:
-#OFLAGS = -O3 -m32 -g -DDEBUG -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -Wall -static -msse4a -mfpmath=sse 
+#OFLAGS = -O3 -m32 -g -DNDEBUG -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -Wall -static  -msse4a -mfpmath=sse
 
 #Needed only by syscall.c because > O0 breaks it
 #OFLAGS_SAFE = -O0 -g -pg -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -Wall -static -mfpmath=sse -msse4a
@@ -197,7 +197,7 @@ sim-zesto4$(EEXT):	sysprobe$(EEXT) sim-zesto.$(OEXT) $(OBJS) $(ZOBJS) $(EXOOBJS)
 	$(CC) -o sim-zesto4$(EEXT) $(CFLAGS) sim-zesto.$(OEXT) $(OBJS) $(ZOBJS) $(EXOOBJS) $(MLIBS)
 lib:	CFLAGS += $(SLAVE_CFLAGS)	
 lib:	sysprobe$(EEXT) sim-slave.$(OEXT) $(OBJS_SLAVE) $(ZOBJS) $(EXOOBJS)
-	ar rs libsim.a sim-slave.$(OEXT) $(OBJS_SLAVE) $(ZOBJS) $(EXOOBJS)
+	ar rs libsim.a sim-slave.$(OEXT) $(OBJS_SLAVE) $(ZOBJS) $(EXOOBJS)   
 	ranlib libsim.a
 libd:	CFLAGS += $(SLAVE_CFLAGS) -DZESTO_PIN_DBG -DZTRACE
 libd:	sysprobe$(EEXT) sim-slave.$(OEXT) $(OBJS_SLAVE) $(ZOBJS) $(EXOOBJS)
