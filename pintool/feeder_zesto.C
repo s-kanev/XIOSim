@@ -1078,6 +1078,9 @@ VOID PauseSimulation(THREADID tid)
     /* Wait until all cores are done -- consumed their buffers. */
     cerr << tid << " [" << sim_cycle << ":KEVIN]: Waiting for all sleepy cores" << endl;
 
+    cerr << "Memory Usage Sleepy:"; printMemoryUsage(tid);
+    
+    long long int spins = 0;
     volatile bool done = false;
     do {
         GetLock(&simbuffer_lock, tid + 1);
@@ -1087,6 +1090,12 @@ VOID PauseSimulation(THREADID tid)
             done &= handshake_buffer.empty((*it));
         }
         ReleaseLock(&simbuffer_lock);
+	spins++;
+	if(spins > 70000000LL) {
+	  spins = 0;
+	  cerr << "Memory Usage Sleepy:"; printMemoryUsage(tid);
+	}
+	
     } while (!done);
 
     cerr << tid << " [" << sim_cycle << ":KEVIN]: All cores have empty buffers" << endl;

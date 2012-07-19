@@ -10,5 +10,5 @@ VOID MOLECOOL_Init();
 VOID AddILDJITCallbacks(IMG img);
 BOOL ILDJIT_IsExecuting();
 BOOL ILDJIT_IsCreatingExecutor();
-
+VOID printMemoryUsage(THREADID tid);
 #endif /* __MOLECOOL_PIN__ */

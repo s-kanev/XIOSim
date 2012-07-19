@@ -141,7 +141,7 @@ void BufferManager::producer_done(THREADID tid)
   
   ReleaseLock(&simbuffer_lock);
   
-  if(produceBuffer_[tid]->full()) {    
+  if(produceBuffer_[tid]->full() || ( (consumeBuffer_[tid]->size() == 0) && (fileEntryCount_[tid] == 0)))) {    
 #ifdef DEBUG  
     int produceSize = produceBuffer_[tid]->size();
 #endif
@@ -552,7 +552,7 @@ void BufferManager::allocateThread(THREADID tid)
   
   queueSizes_[tid] = 0;
   fileEntryCount_[tid] = 0;
-  consumeBuffer_[tid] = new Buffer(50000);
+  consumeBuffer_[tid] = new Buffer(25000);
   //    fakeFile_[tid] = new Buffer(2);
   produceBuffer_[tid] = new Buffer(1000);
   produceBuffer_[tid]->get_buffer()->flags.isFirstInsn = true;
