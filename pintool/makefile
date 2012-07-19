@@ -27,7 +27,6 @@
 PIN_HOME ?= /group/brooks/xan/Molecool/pin
 ZESTO_HOME = ..
 TARGET = ia32
-INSTALL_DIR = /group/brooks/xan/Molecool/bin
 
 ##############################################################
 #
@@ -123,4 +122,4 @@ clean-tool:
 	-rm -rf $(OBJDIR) *.out *.tested *.failed makefile.copy
 
 install:
-	cp $(TOOLS) $(INSTALL_DIR)
+	cp $(TOOLS) $(COOL_INSTALL_DIR)
