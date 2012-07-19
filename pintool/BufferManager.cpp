@@ -552,7 +552,7 @@ void BufferManager::allocateThread(THREADID tid)
   
   queueSizes_[tid] = 0;
   fileEntryCount_[tid] = 0;
-  consumeBuffer_[tid] = new Buffer(25000);
+  consumeBuffer_[tid] = new Buffer(50000);
   //    fakeFile_[tid] = new Buffer(2);
   produceBuffer_[tid] = new Buffer(1000);
   produceBuffer_[tid]->get_buffer()->flags.isFirstInsn = true;
