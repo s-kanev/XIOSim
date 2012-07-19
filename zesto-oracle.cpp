@@ -1729,6 +1729,9 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
 
   spec_mode = Mop->oracle.spec_mode;
   current_Mop = NULL;
+
+  /* Force simulation to re-check feeder if needed */ 
+  core->current_thread->consumed = true;
 }
 
 /* flush everything after Mop */
@@ -1810,6 +1813,8 @@ core_oracle_t::complete_flush(void)
 
   spec_mode = false;
   current_Mop = NULL;
+  /* Force simulation to re-check feeder if needed */ 
+  core->current_thread->consumed = true;
 }
 
 /* This *completely* resets the oracle to restart execution all over
