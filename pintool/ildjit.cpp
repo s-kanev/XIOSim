@@ -374,7 +374,7 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
 }
 
 /* ========================================================================== */
-VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
+VOID ILDJIT_afterWait(THREADID tid, ADDRINT is_light, ADDRINT pc)
 {
   GetLock(&simbuffer_lock, tid+1);
     ignore[tid] = false;
@@ -408,6 +408,10 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
       ReleaseLock(&simbuffer_lock);
         return;
     }
+
+    //    if(is_light) {
+    //      return;
+    //    }
 
     /* Insert wait instruction in pipeline */
     handshake_container_t* handshake = handshake_buffer.get_buffer(tid);
@@ -616,6 +620,7 @@ VOID AddILDJITCallbacks(IMG img)
         RTN_Open(rtn);
         RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterWait),
                        IARG_THREAD_ID,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1, // CHANGE
                        IARG_INST_PTR,
                        IARG_CALL_ORDER, CALL_ORDER_LAST,
                        IARG_END);
@@ -747,92 +752,6 @@ VOID AddILDJITCallbacks(IMG img)
 #ifdef ZESTO_PIN_DBG
     cerr << endl;
 #endif
-}
-
-
-/* ========================================================================== */
-VOID AddILDJITWaitSignalCallbacks()
-{
-  assert(false);
-  static bool calledAlready = false;
-  ASSERTX(!calledAlready);
-
-  PIN_LockClient();
-
-  for(IMG img = APP_ImgHead(); IMG_Valid(img); img = IMG_Next(img)) {
-
-    RTN rtn = RTN_FindByName(img, "MOLECOOL_beforeWait");
-    if (RTN_Valid(rtn))
-    {
-        RTN_Open(rtn);
-        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeWait),
-                       IARG_THREAD_ID,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
-                       IARG_INST_PTR,
-                       IARG_CALL_ORDER, CALL_ORDER_FIRST,
-                       IARG_END);
-        RTN_Close(rtn);
-    }
-
-    rtn = RTN_FindByName(img, "MOLECOOL_afterWait");
-    if (RTN_Valid(rtn))
-    {
-        RTN_Open(rtn);
-        RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterWait),
-                       IARG_THREAD_ID,
-		       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
-                       IARG_INST_PTR,
-                       IARG_CALL_ORDER, CALL_ORDER_LAST,
-                       IARG_END);
-        RTN_Close(rtn);
-    }
-
-    rtn = RTN_FindByName(img, "MOLECOOL_beforeSignal");
-    if (RTN_Valid(rtn))
-    {
-        RTN_Open(rtn);
-        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeSignal),
-                       IARG_THREAD_ID,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
-                       IARG_INST_PTR,
-                       IARG_CALL_ORDER, CALL_ORDER_FIRST,
-                       IARG_END);
-        RTN_Close(rtn);
-    }
-
-    rtn = RTN_FindByName(img, "MOLECOOL_afterSignal");
-    if (RTN_Valid(rtn))
-    {
-        RTN_Open(rtn);
-        RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterSignal),
-                       IARG_THREAD_ID,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
-                       IARG_INST_PTR,
-                       IARG_CALL_ORDER, CALL_ORDER_LAST,
-                       IARG_END);
-        RTN_Close(rtn);
-    }
-    
-    rtn = RTN_FindByName(img, "MOLECOOL_endParallelLoop");
-    if (RTN_Valid(rtn))
-    {
-        RTN_Open(rtn);
-        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_endParallelLoop),
-                       IARG_THREAD_ID,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
-                       IARG_END);
-        RTN_Close(rtn);
-    }
-  }
-  CODECACHE_FlushCache();
-
-  PIN_UnlockClient();
-
-  calledAlready = true;
 }
 
 BOOL signalCallback(THREADID tid, INT32 sig, CONTEXT *ctxt, BOOL hasHandler, const EXCEPTION_INFO *pExceptInfo, VOID *v)
