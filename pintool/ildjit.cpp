@@ -409,9 +409,10 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT is_light, ADDRINT pc)
         return;
     }
 
-    //    if(is_light) {
-    //      return;
-    //    }
+    if(is_light) {
+      ReleaseLock(&simbuffer_lock);
+      return;
+    }
 
     /* Insert wait instruction in pipeline */
     handshake_container_t* handshake = handshake_buffer.get_buffer(tid);
@@ -620,7 +621,7 @@ VOID AddILDJITCallbacks(IMG img)
         RTN_Open(rtn);
         RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterWait),
                        IARG_THREAD_ID,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1, // CHANGE
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 2,
                        IARG_INST_PTR,
                        IARG_CALL_ORDER, CALL_ORDER_LAST,
                        IARG_END);
