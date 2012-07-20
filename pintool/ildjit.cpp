@@ -348,7 +348,8 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
         ignored_before_wait[tid] = true;
     }
 
-    tstate->lastSignalAddr = ssID_addr;
+    //    tstate->lastSignalAddr = ssID_addr;
+    tstate->lastSignalAddr = 0x7fff0000 + ssID;
     lastWaitID[tid] = ssID;
 
     // XXX: HACKEDY HACKEDY HACK The ordering of these conditions matters
@@ -463,7 +464,8 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT 
         ignored_before_signal[tid] = true;
     }
 
-    tstate->lastSignalAddr = ssID_addr;
+    tstate->lastSignalAddr = 0x7fff0000 + ssID;
+    //    tstate->lastSignalAddr = ssID_addr;
     ReleaseLock(&simbuffer_lock);
 }
 
@@ -779,6 +781,7 @@ VOID AddILDJITWaitSignalCallbacks()
         RTN_Open(rtn);
         RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterWait),
                        IARG_THREAD_ID,
+		       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
                        IARG_INST_PTR,
                        IARG_CALL_ORDER, CALL_ORDER_LAST,
                        IARG_END);

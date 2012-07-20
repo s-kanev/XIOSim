@@ -119,7 +119,8 @@ zesto-dram.cpp zesto-bpred.cpp zesto-memdep.cpp zesto-prefetch.cpp              
 zesto-uncore.cpp zesto-MC.cpp zesto-dumps.cpp zesto-power.cpp mem-repeater.cpp     \
 mem-repeater-link.cpp mem-repeater-request.cpp mem-repeater-manager.cpp            \
 mem-repeater-buffer.cpp mem-repeater-memory.cpp mem-repeater-packet.cpp            \
-mem-repeater-array.cpp trace_scanner.cpp mem-repeater-request-factory.cpp
+mem-repeater-array.cpp trace_scanner.cpp mem-repeater-request-factory.cpp          \
+mem-repeater-signal-cache.cpp 
 
 ZHDRS = \
 zesto-structs.h zesto-core.h zesto-opts.h zesto-oracle.h zesto-fetch.h             \
@@ -128,7 +129,7 @@ zesto-dram.h zesto-bpred.h zesto-memdep.h zesto-prefetch.h zesto-uncore.h       
 zesto-MC.h zesto-dumps.h zesto-power.h mem-repeater.h                              \
 mem-repeater-link.h mem-repeater-request.h mem-repeater-manager.h                  \
 mem-repeater-buffer.h mem-repeater-memory.h mem-repeater-packet.h                  \
-mem-repeater-array.h trace_scanner.h                                               \
+mem-repeater-array.h trace_scanner.h  mem-repeater-signal-cache.h                                              \
 mem-repeater-defines.h                                                             
 
 
@@ -141,7 +142,7 @@ zesto-power.$(OEXT) mem-repeater.$(OEXT)                                        
 mem-repeater-link.$(OEXT) mem-repeater-request.$(OEXT) mem-repeater-manager.$(OEXT) \
 mem-repeater-buffer.$(OEXT) mem-repeater-memory.$(OEXT) mem-repeater-packet.$(OEXT) \
 mem-repeater-array.$(OEXT) trace_scanner.$(OEXT)                                    \
-mem-repeater-request-factory.$(OEXT)
+mem-repeater-request-factory.$(OEXT) mem-repeater-signal-cache.$(OEXT)
 
 EXOOBJS = \
 libexo/libexo.$(OEXT) libexo/exolex.$(OEXT)
