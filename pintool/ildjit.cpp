@@ -229,12 +229,11 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
         return;
       }
       if(invocation_counts[loop] < start_loop_invocation) {
-        if(invocation_counts[loop] == (start_loop_invocation - 1)) {
-	  cerr << "Doing the instrumentation for before/after wait/signal and endParallelLoop" << endl;
-	    //	    doLateILDJITInstrumentation();
-	    //	    AddILDJITWaitSignalCallbacks();
-        }
         return;
+      }
+      if(invocation_counts[loop] == start_loop_invocation) {
+	doLateILDJITInstrumentation();
+	cerr << "Doing ildjit late instrumentation" << endl;
       }
     }
 

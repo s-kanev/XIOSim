@@ -141,7 +141,7 @@ void BufferManager::producer_done(THREADID tid)
   
   ReleaseLock(&simbuffer_lock);
   
-  if(produceBuffer_[tid]->full() || ( (consumeBuffer_[tid]->size() == 0) && (fileEntryCount_[tid] == 0)))) {    
+  if(produceBuffer_[tid]->full() || ( (consumeBuffer_[tid]->size() == 0) && (fileEntryCount_[tid] == 0))) {    
 #ifdef DEBUG  
     int produceSize = produceBuffer_[tid]->size();
 #endif
