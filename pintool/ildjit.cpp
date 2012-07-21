@@ -298,7 +298,7 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
       
       GetLock(&simbuffer_lock, tid+1);
       vector<THREADID>::iterator it;
-      for (it = thread_list.begin(); it != thread_list.end(); it++) {
+      for (it = thread_list.begin(); it != thread_list.end(); it++) {	
 	invocationWaitZeros[*it] = 0;
       }
       ReleaseLock(&simbuffer_lock);
@@ -323,6 +323,7 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
     ignore[tid] = true;
 
     invocationWaitZeros[tid] += (ssID == 0);
+    
     //    if (ExecMode == EXECUTION_MODE_SIMULATE)
     //      cerr << tid <<":Before Wait "<< hex << pc << dec  << " ID: " << ssID << hex << " (" << ssID_addr <<")" << dec << endl;
 
