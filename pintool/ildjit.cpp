@@ -407,6 +407,8 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT is_light, ADDRINT pc)
   GetLock(&simbuffer_lock, tid+1);
     ignore[tid] = false;
 
+    //is_light = false;
+
     if(!is_light) {
       lastCycles = sim_cycle;
     }
