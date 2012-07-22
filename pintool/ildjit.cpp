@@ -350,7 +350,7 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
         ignored_before_wait[tid] = true;
     }
 
-    ASSERTX(tstate->lastSignalAddr == 0xdecafbad);
+//    ASSERTX(tstate->lastSignalAddr == 0xdecafbad);
     tstate->lastSignalAddr = ssID_addr;
     lastWaitID[tid] = ssID;
 
@@ -378,6 +378,9 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
 /* ========================================================================== */
 VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
 {
+    thread_state_t* tstate = get_tls(tid);
+    handshake_container_t* handshake;
+
     GetLock(&simbuffer_lock, tid+1);
     ignore[tid] = false;
 
@@ -391,30 +394,21 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
 
     /* Not simulatiing -- just ignore. */
     if (ExecMode != EXECUTION_MODE_SIMULATE || ignore_all)
-    {
-      ReleaseLock(&simbuffer_lock);
-        return;
-    }
+        goto cleanup;
 
     unmatchedWaits[tid]++;
 
     /* Ignore injecting waits until the end of the first iteration,
      * so we can start simulating */
-    thread_state_t* tstate = get_tls(tid);
     if (tstate->firstIteration)
-    {
-      ReleaseLock(&simbuffer_lock);
-        return;
-    }
+        goto cleanup;
 
     /* Don't insert waits in single-core mode */
-    if (num_threads < 2) {
-      ReleaseLock(&simbuffer_lock);
-        return;
-    }
+    if (num_threads < 2)
+        goto cleanup;
 
     /* Insert wait instruction in pipeline */
-    handshake_container_t* handshake = handshake_buffer.get_buffer(tid);
+    handshake = handshake_buffer.get_buffer(tid);
 
     handshake->flags.isFirstInsn = false;
     handshake->handshake.sleep_thread = false;
@@ -431,11 +425,12 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
     handshake->handshake.brtaken = false;
     memcpy(handshake->handshake.ins, ld_template, sizeof(ld_template));
     // Address comes right after opcode byte
-    ASSERTX(tstate->lastSignalAddr != 0xdecafbad);
+//    ASSERTX(tstate->lastSignalAddr != 0xdecafbad);
     *(INT32*)(&handshake->handshake.ins[1]) = tstate->lastSignalAddr;
 
 //    cerr << tid << ": Vodoo load instruction " << hex << pc <<  " ID: " << tstate->lastSignalAddr << dec << endl;
     handshake_buffer.producer_done(tid);
+cleanup:
     tstate->lastSignalAddr = 0xdecafbad;
     ReleaseLock(&simbuffer_lock);
 }
@@ -471,7 +466,7 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT 
         ignored_before_signal[tid] = true;
     }
 
-    ASSERTX(tstate->lastSignalAddr == 0xdecafbad);
+//    ASSERTX(tstate->lastSignalAddr == 0xdecafbad);
     tstate->lastSignalAddr = ssID_addr;
     ReleaseLock(&simbuffer_lock);
 }
@@ -479,6 +474,9 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT 
 /* ========================================================================== */
 VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc)
 {
+    thread_state_t* tstate = get_tls(tid);
+    handshake_container_t* handshake;
+
     GetLock(&simbuffer_lock, tid+1);
     ignore[tid] = false;
 
@@ -489,23 +487,17 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT p
 
     /* Not simulating -- just ignore. */
     if (ExecMode != EXECUTION_MODE_SIMULATE || ignore_all)
-    {
-        ReleaseLock(&simbuffer_lock);
-        return;
-    }
+        goto cleanup;
 
-    thread_state_t* tstate = get_tls(tid);
     unmatchedWaits[tid]--;
     ASSERTX(unmatchedWaits[tid] >= 0);
 
     /* Don't insert signals in single-core mode */
-    if (num_threads < 2) {
-        ReleaseLock(&simbuffer_lock);
-        return;
-    }
+    if (num_threads < 2)
+        goto cleanup;
 
     /* Insert signal instruction in pipeline */
-    handshake_container_t* handshake = handshake_buffer.get_buffer(tid);
+    handshake = handshake_buffer.get_buffer(tid);
 
     handshake->flags.isFirstInsn = false;
     handshake->handshake.sleep_thread = false;
@@ -522,11 +514,13 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT p
     handshake->handshake.brtaken = false;
     memcpy(handshake->handshake.ins, st_template, sizeof(st_template));
     // Address comes right after opcode and MoodRM bytes
-    ASSERTX(tstate->lastSignalAddr != 0xdecafbad);
+//    ASSERTX(tstate->lastSignalAddr != 0xdecafbad);
     *(INT32*)(&handshake->handshake.ins[2]) = tstate->lastSignalAddr;
 
 //    cerr << tid << ": Vodoo store instruction " << hex << pc << " ID: " << tstate->lastSignalAddr << dec << endl;
     handshake_buffer.producer_done(tid);
+
+cleanup:
     tstate->lastSignalAddr = 0xdecafbad;
     ReleaseLock(&simbuffer_lock);
 }
