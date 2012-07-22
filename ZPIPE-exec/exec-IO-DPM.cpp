@@ -1022,7 +1022,7 @@ void core_exec_IO_DPM_t::repeater_split_callback(void * const op, bool is_hit)
 #endif
     zesto_assert(uop->oracle.is_repeated, (void)0);
 
-    zesto_assert(E->LDQ[uop->alloc.LDQ_index].repeater_first_arrived, (void)0);
+    //    zesto_assert(E->LDQ[uop->alloc.LDQ_index].repeater_first_arrived, (void)0);
     E->LDQ[uop->alloc.LDQ_index].repeater_last_arrived = true;
 
     /* Repeater hit, now check if first access and DTLB have arrived */
