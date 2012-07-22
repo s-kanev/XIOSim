@@ -49,6 +49,8 @@ extern void spawn_new_thread(void entry_point(void*), void* arg);
  - pool_lock (in oracle and core)
  */
 
+extern LEVEL_BASE::PIN_LOCK repeater_lock;
+
 /* Memory lock should be acquired before functional accesses to
  * the simulated application memory. */
 extern LEVEL_BASE::PIN_LOCK memory_lock;
