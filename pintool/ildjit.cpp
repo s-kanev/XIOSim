@@ -259,6 +259,7 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
       afterSignalCount[*it] = 0;
       afterWaitLightCount[*it] = 0;
       afterWaitHeavyCount[*it] = 0;
+      ignore[*it] = false;
     }
 
     ignored_before_wait.clear();
