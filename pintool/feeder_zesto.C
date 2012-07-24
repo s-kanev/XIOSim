@@ -1001,8 +1001,9 @@ VOID PauseSimulation(THREADID tid)
      * and unblocked the last iteration. We need to (i) wait for them
      * to functionally reach wait 0, where they will wait until the end
      * of the loop; (ii) drain all pipelines once cores are waiting. */
+  map<THREADID, tick_t> lastWaitZeros;
 
-    cerr << tid << " Starting first pause phase " << endl;
+  cerr << tid << " Starting first pause phase " << endl;
 
     volatile bool done_with_iteration = false;
     do {
@@ -1072,6 +1073,7 @@ VOID PauseSimulation(THREADID tid)
         handshake_buffer.producer_done(*it);
 
         handshake_buffer.flushBuffers(*it);
+	lastWaitZeros[*it] = 0;
     }
     ReleaseLock(&simbuffer_lock);
     
@@ -1080,6 +1082,7 @@ VOID PauseSimulation(THREADID tid)
 
     cerr << "Memory Usage Sleepy:"; printMemoryUsage(tid);
     
+   
     long long int spins = 0;
     volatile bool done = false;
     do {
@@ -1088,7 +1091,10 @@ VOID PauseSimulation(THREADID tid)
         vector<THREADID>::iterator it;
         for (it = thread_list.begin(); it != thread_list.end(); it++) {
             done &= handshake_buffer.empty((*it));
-        }
+	    if((lastWaitZeros[*it] == 0) && handshake_buffer.empty(*it)) {
+	      lastWaitZeros[*it] = sim_cycle; 
+	    }
+	}
         ReleaseLock(&simbuffer_lock);
 	spins++;
 	if(spins > 70000000LL) {
@@ -1099,6 +1105,10 @@ VOID PauseSimulation(THREADID tid)
     } while (!done);
 
     cerr << tid << " [" << sim_cycle << ":KEVIN]: All cores have empty buffers" << endl;
+
+    for (it = thread_list.begin(); it != thread_list.end(); it++) {	
+      cerr << thread_cores[*it] << ":OverlapCycles:" << sim_cycle - lastWaitZeros[*it] << endl;
+    }
 
     GetLock(&simbuffer_lock, tid+1);
     ignore_all = true;

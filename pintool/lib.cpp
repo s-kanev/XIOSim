@@ -17,3 +17,4 @@ PIN_LOCK core_pools_lock;
 PIN_LOCK oracle_pools_lock;
 
 PIN_LOCK printing_lock;
+PIN_LOCK repeater_lock;

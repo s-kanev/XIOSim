@@ -47,6 +47,12 @@ static INT32 end_loop_invocation;
 
 static map<THREADID, INT32> unmatchedWaits;
 map<THREADID, INT32> invocationWaitZeros;
+tick_t seqCycles;
+tick_t lastCycles;
+
+map<THREADID, int> afterSignalCount;
+map<THREADID, int> afterWaitLightCount;
+map<THREADID, int> afterWaitHeavyCount;
 
 VOID printMemoryUsage(THREADID tid);
 VOID printElapsedTime();
@@ -97,7 +103,9 @@ VOID MOLECOOL_Init()
 
 
     last_time = time(NULL);
-    
+    seqCycles = 0;
+    lastCycles = 0;
+
     cerr << start_loop << " " << start_loop_invocation << endl;
     cerr << end_loop << " " << end_loop_invocation << endl;
 }
@@ -238,7 +246,6 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
     }
 
     cerr << "Starting loop: " << loop_name << "[" << invocation_counts[loop] << "]" << endl;
-
     /* This is called right before a wait spin loop.
      * For this thread only, ignore the end of the wait, so we
      * can actually start simulating and unblock everyone else.
@@ -247,8 +254,12 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
     thread_state_t* tstate = get_tls(tid);
     tstate->firstIteration = true;
     vector<THREADID>::iterator it;
-    for (it = thread_list.begin(); it != thread_list.end(); it++)
+    for (it = thread_list.begin(); it != thread_list.end(); it++) {
       unmatchedWaits[(*it)] = 0;
+      afterSignalCount[*it] = 0;
+      afterWaitLightCount[*it] = 0;
+      afterWaitHeavyCount[*it] = 0;
+    }
 
     ignored_before_wait.clear();
     ignored_before_signal.clear();
@@ -298,9 +309,25 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
       
       GetLock(&simbuffer_lock, tid+1);
       vector<THREADID>::iterator it;
-      for (it = thread_list.begin(); it != thread_list.end(); it++) {
+      for (it = thread_list.begin(); it != thread_list.end(); it++) {	
 	invocationWaitZeros[*it] = 0;
+
+	cerr << thread_cores[*it] << ":AFTERSIGNALCOUNT:" <<  afterSignalCount[tid] << endl;
+	cerr << thread_cores[*it] << ":AFTERWAITLIGHTCOUNT:" <<  afterWaitLightCount[tid] << endl;
+	cerr << thread_cores[*it] << ":AFTERWAITHEAVYCOUNT:" <<  afterWaitHeavyCount[tid] << endl;
+	afterSignalCount[*it] = 0;
+	afterWaitLightCount[*it] = 0;
+	afterWaitHeavyCount[*it] = 0;
+
       }
+
+      if(num_threads < 2) {
+	cerr << "Sequential:" << seqCycles << endl;
+	seqCycles = 0;
+      }
+      
+
+      
       ReleaseLock(&simbuffer_lock);
       
       cerr << "Memory Usage endLoop():"; printMemoryUsage(tid);
@@ -351,7 +378,7 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
     }
 
 //    ASSERTX(tstate->lastSignalAddr == 0xdecafbad);
-    tstate->lastSignalAddr = ssID_addr;
+    tstate->lastSignalAddr = 0x7fff0000 + ssID;
     lastWaitID[tid] = ssID;
 
     // XXX: HACKEDY HACKEDY HACK The ordering of these conditions matters
@@ -376,7 +403,7 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
 }
 
 /* ========================================================================== */
-VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
+VOID ILDJIT_afterWait(THREADID tid, ADDRINT is_light, ADDRINT pc)
 {
     thread_state_t* tstate = get_tls(tid);
     handshake_container_t* handshake;
@@ -388,6 +415,13 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
     if (ExecMode == EXECUTION_MODE_SIMULATE)
         cerr << tid <<": After Wait "<< hex << pc << dec  << " ID: " << lastWaitID[tid] << endl;
 #endif
+
+    if(!is_light) {
+      lastCycles = sim_cycle;
+    }
+    else {
+      lastCycles = 0;
+    }
 
     // Indicated not in a wait any more
     lastWaitID[tid] = -1;
@@ -406,6 +440,16 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT pc)
     /* Don't insert waits in single-core mode */
     if (num_threads < 2)
         goto cleanup;
+
+
+
+    if(is_light) {
+      afterWaitLightCount[tid]++;
+      ReleaseLock(&simbuffer_lock);
+      return;
+    }
+
+    afterWaitHeavyCount[tid]++;
 
     /* Insert wait instruction in pipeline */
     handshake = handshake_buffer.get_buffer(tid);
@@ -439,6 +483,10 @@ cleanup:
 VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc)
 {
     GetLock(&simbuffer_lock, tid+1);
+  
+    if(lastCycles > 0) {
+        seqCycles += sim_cycle - lastCycles;
+    }
 
     ignore[tid] = true;
 
@@ -467,7 +515,7 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT 
     }
 
 //    ASSERTX(tstate->lastSignalAddr == 0xdecafbad);
-    tstate->lastSignalAddr = ssID_addr;
+    tstate->lastSignalAddr = 0x7fff0000 + ssID;
     ReleaseLock(&simbuffer_lock);
 }
 
@@ -496,6 +544,8 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT p
     if (num_threads < 2)
         goto cleanup;
 
+    afterSignalCount[tid]++;
+    
     /* Insert signal instruction in pipeline */
     handshake = handshake_buffer.get_buffer(tid);
 
@@ -621,6 +671,7 @@ VOID AddILDJITCallbacks(IMG img)
         RTN_Open(rtn);
         RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterWait),
                        IARG_THREAD_ID,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 2,
                        IARG_INST_PTR,
                        IARG_CALL_ORDER, CALL_ORDER_LAST,
                        IARG_END);
@@ -752,91 +803,6 @@ VOID AddILDJITCallbacks(IMG img)
 #ifdef ZESTO_PIN_DBG
     cerr << endl;
 #endif
-}
-
-
-/* ========================================================================== */
-VOID AddILDJITWaitSignalCallbacks()
-{
-  assert(false);
-  static bool calledAlready = false;
-  ASSERTX(!calledAlready);
-
-  PIN_LockClient();
-
-  for(IMG img = APP_ImgHead(); IMG_Valid(img); img = IMG_Next(img)) {
-
-    RTN rtn = RTN_FindByName(img, "MOLECOOL_beforeWait");
-    if (RTN_Valid(rtn))
-    {
-        RTN_Open(rtn);
-        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeWait),
-                       IARG_THREAD_ID,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
-                       IARG_INST_PTR,
-                       IARG_CALL_ORDER, CALL_ORDER_FIRST,
-                       IARG_END);
-        RTN_Close(rtn);
-    }
-
-    rtn = RTN_FindByName(img, "MOLECOOL_afterWait");
-    if (RTN_Valid(rtn))
-    {
-        RTN_Open(rtn);
-        RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterWait),
-                       IARG_THREAD_ID,
-                       IARG_INST_PTR,
-                       IARG_CALL_ORDER, CALL_ORDER_LAST,
-                       IARG_END);
-        RTN_Close(rtn);
-    }
-
-    rtn = RTN_FindByName(img, "MOLECOOL_beforeSignal");
-    if (RTN_Valid(rtn))
-    {
-        RTN_Open(rtn);
-        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeSignal),
-                       IARG_THREAD_ID,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
-                       IARG_INST_PTR,
-                       IARG_CALL_ORDER, CALL_ORDER_FIRST,
-                       IARG_END);
-        RTN_Close(rtn);
-    }
-
-    rtn = RTN_FindByName(img, "MOLECOOL_afterSignal");
-    if (RTN_Valid(rtn))
-    {
-        RTN_Open(rtn);
-        RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterSignal),
-                       IARG_THREAD_ID,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
-                       IARG_INST_PTR,
-                       IARG_CALL_ORDER, CALL_ORDER_LAST,
-                       IARG_END);
-        RTN_Close(rtn);
-    }
-    
-    rtn = RTN_FindByName(img, "MOLECOOL_endParallelLoop");
-    if (RTN_Valid(rtn))
-    {
-        RTN_Open(rtn);
-        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_endParallelLoop),
-                       IARG_THREAD_ID,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
-                       IARG_END);
-        RTN_Close(rtn);
-    }
-  }
-  CODECACHE_FlushCache();
-
-  PIN_UnlockClient();
-
-  calledAlready = true;
 }
 
 BOOL signalCallback(THREADID tid, INT32 sig, CONTEXT *ctxt, BOOL hasHandler, const EXCEPTION_INFO *pExceptInfo, VOID *v)
