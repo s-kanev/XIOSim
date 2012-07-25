@@ -163,6 +163,7 @@ void BufferManager::flushBuffers(THREADID tid)
   map<THREADID, string>::iterator it;
   cerr << "FLUSHWRITE:" << tid << endl;
   copyProducerToFile(tid);
+  cerr << "Done copy" << tid << endl;
   ReleaseLock(locks_[tid]);
   /*  for(it = fileNames_.begin(); it != fileNames_.end(); it++) {
     cerr << "FLUSHREAD1:" << it->first << endl;
