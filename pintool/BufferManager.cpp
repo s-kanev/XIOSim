@@ -129,7 +129,7 @@ handshake_container_t* BufferManager::get_buffer(THREADID tid)
   return result;
 }
 
-void BufferManager::producer_done(THREADID tid)
+void BufferManager::producer_done(THREADID tid, bool keepLock)
 {
   GetLock(locks_[tid], tid+1);
 
@@ -139,6 +139,11 @@ void BufferManager::producer_done(THREADID tid)
 
   reserveHandshake(tid);
   
+  if(keepLock) {
+    ReleaseLock(locks_[tid]);
+    return;
+  }
+
   ReleaseLock(&simbuffer_lock);
   
   if(produceBuffer_[tid]->full() || ( (consumeBuffer_[tid]->size() == 0) && (fileEntryCount_[tid] == 0))) {    
@@ -150,9 +155,9 @@ void BufferManager::producer_done(THREADID tid)
     assert(fileEntryCount_[tid] >= produceSize);
     assert(produceBuffer_[tid]->size() == 0);
   }
-
+  
   assert(!produceBuffer_[tid]->full());
-
+  
   ReleaseLock(locks_[tid]);
   GetLock(&simbuffer_lock, tid+1);
 }
@@ -336,8 +341,8 @@ void BufferManager::copyProducerToFileReal(THREADID tid)
     abort();
   }
 
-  int sizeBuf = 1024 * 1024;
-  void* buf = malloc(sizeBuf);
+  const int sizeBuf = 1024 * 1024;
+  void* buf[sizeBuf];
   memset(buf, 0, sizeBuf); 
 
   int bytesRead;
@@ -355,8 +360,6 @@ void BufferManager::copyProducerToFileReal(THREADID tid)
       }
     }
   } while(bytesRead > 0);
-
-  free(buf);
 
   result = close(fd);
   if(result == -1) {

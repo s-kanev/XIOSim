@@ -25,7 +25,7 @@ class BufferManager
   // By assumption, we call producer_done() once we have a completely
   // instrumented, valid handshake, so that we don't need to handle
   // intermediate cases
-  void producer_done(THREADID tid);
+  void producer_done(THREADID tid, bool keepLock=false);
 
   void pop(THREADID tid);
   void applyConsumerChanges(THREADID tid, int numChanged);

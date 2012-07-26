@@ -1043,7 +1043,7 @@ VOID PauseSimulation(THREADID tid)
         handshake->handshake.tpc = (ADDRINT) syscall_template + sizeof(syscall_template);
         handshake->handshake.brtaken = false;
         memcpy(handshake->handshake.ins, syscall_template, sizeof(syscall_template));
-        handshake_buffer.producer_done(*it);
+        handshake_buffer.producer_done(*it, true);
 
         /* Deactivate this core, so we can advance the cycle conunter of
          * others without waiting on it */
@@ -1057,7 +1057,7 @@ VOID PauseSimulation(THREADID tid)
         handshake_2->handshake.coreID = coreID;
         handshake_2->handshake.iteration_correction = false;
         handshake_2->flags.valid = true;
-        handshake_buffer.producer_done(*it);
+        handshake_buffer.producer_done(*it, true);
 
         /* And finally, flush the core's pipelie to get rid of anything
          * left over (including the trap) and flush the ring cache */
@@ -1072,7 +1072,7 @@ VOID PauseSimulation(THREADID tid)
         handshake_3->handshake.coreID = coreID;
         handshake_3->handshake.iteration_correction = false;
         handshake_3->flags.valid = true;
-        handshake_buffer.producer_done(*it);
+        handshake_buffer.producer_done(*it, true);
 
         handshake_buffer.flushBuffers(*it);
 	lastWaitZeros[*it] = 0;
