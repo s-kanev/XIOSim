@@ -139,12 +139,9 @@ void BufferManager::producer_done(THREADID tid, bool keepLock)
 
   reserveHandshake(tid);
   
-  if(keepLock) {
-    ReleaseLock(locks_[tid]);
-    return;
+  if(!keepLock) {
+    ReleaseLock(&simbuffer_lock);
   }
-
-  ReleaseLock(&simbuffer_lock);
   
   if(produceBuffer_[tid]->full() || ( (consumeBuffer_[tid]->size() == 0) && (fileEntryCount_[tid] == 0))) {    
 #ifdef DEBUG  
@@ -159,7 +156,11 @@ void BufferManager::producer_done(THREADID tid, bool keepLock)
   assert(!produceBuffer_[tid]->full());
   
   ReleaseLock(locks_[tid]);
-  GetLock(&simbuffer_lock, tid+1);
+
+  
+  if(!keepLock) {
+    GetLock(&simbuffer_lock, tid+1);
+  }
 }
 
 void BufferManager::flushBuffers(THREADID tid)
