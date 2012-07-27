@@ -8,6 +8,8 @@
 #include <errno.h>
 #include <stack>
 
+extern int num_threads;
+
 ostream& operator<< (ostream &out, handshake_container_t &hand)
 {
   out << "hand:" << " ";
@@ -171,13 +173,6 @@ void BufferManager::flushBuffers(THREADID tid)
   copyProducerToFile(tid);
   cerr << "Done copy" << tid << endl;
   ReleaseLock(locks_[tid]);
-  /*  for(it = fileNames_.begin(); it != fileNames_.end(); it++) {
-    cerr << "FLUSHREAD1:" << it->first << endl;
-    if(fileEntryCount_[tid] > 0) {
-      cerr << "FLUSHREAD2:" << fileEntryCount_[tid] << " " << it->first << endl;
-      readFileIntoConsumeBuffer(it->first);
-    }
-    }*/
 }
 
 int BufferManager::getConsumerSize(THREADID tid)
@@ -557,7 +552,7 @@ void BufferManager::allocateThread(THREADID tid)
   
   queueSizes_[tid] = 0;
   fileEntryCount_[tid] = 0;
-  consumeBuffer_[tid] = new Buffer(25000);
+  consumeBuffer_[tid] = new Buffer(400000 / num_threads);
   //    fakeFile_[tid] = new Buffer(2);
   produceBuffer_[tid] = new Buffer(1000);
   produceBuffer_[tid]->get_buffer()->flags.isFirstInsn = true;
