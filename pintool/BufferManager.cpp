@@ -411,7 +411,7 @@ void BufferManager::copyFileToConsumerReal(THREADID tid)
       break;
     }
     handshake_container_t* handshake = consumeBuffer_[tid]->get_buffer();
-    validRead = readHandshake(fd, handshake);
+    validRead = readHandshake(tid, fd, handshake);
     assert(validRead);
     consumeBuffer_[tid]->push_done();
     count++;
@@ -472,7 +472,7 @@ void BufferManager::writeHandshake(int fd, handshake_container_t* handshake)
   free(writeBuffer);
 }
 
-bool BufferManager::readHandshake(int fd, handshake_container_t* handshake)
+bool BufferManager::readHandshake(THREADID tid, int fd, handshake_container_t* handshake)
 {
   const int handshakeBytes = sizeof(P2Z_HANDSHAKE);
   const int flagBytes = sizeof(handshake_flags_t);
@@ -502,7 +502,7 @@ bool BufferManager::readHandshake(int fd, handshake_container_t* handshake)
   
   assert((offset == 0) || (offset > sizeof(int)));
 
-  void * readBuffer = (void*)malloc(totalBytes);
+  void * readBuffer = readBuffer_[tid];
   assert(readBuffer != NULL);
 
   bytesRead = read(fd, readBuffer, totalBytes);
@@ -535,8 +535,6 @@ bool BufferManager::readHandshake(int fd, handshake_container_t* handshake)
 
   assert(((unsigned long long int)readBuffer) + totalBytes == ((unsigned long long int)buffPosition));
 
-  free(readBuffer);
- 
   int trunc_result = ftruncate(fd, offset);
   if(trunc_result != 0) {
     cerr << "File truncate error: " << offset << " Errcode:" << strerror(errno) << endl;
@@ -592,4 +590,9 @@ void BufferManager::allocateThread(THREADID tid)
     cerr << "Close error: " << " Errcode:" << strerror(errno) << endl;
     this->abort();
   }
+
+  // Start with one page read buffer
+  readBufferSize_[tid] = 4096;
+  readBuffer_[tid] = malloc(4096);
+  assert(readBuffer_[tid]);
 }
