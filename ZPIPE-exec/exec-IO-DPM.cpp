@@ -1967,6 +1967,9 @@ void core_exec_IO_DPM_t::LDQ_squash(struct uop_t * const dead_uop)
   struct core_knobs_t * knobs = core->knobs;
   zesto_assert((dead_uop->alloc.LDQ_index >= 0) && (dead_uop->alloc.LDQ_index < knobs->exec.LDQ_size),(void)0);
   zesto_assert(LDQ[dead_uop->alloc.LDQ_index].uop == dead_uop,(void)0);
+  if (dead_uop->oracle.is_repeated)
+    repeater_cancel_request(core->memory.mem_repeater, core->id,
+                            dead_uop->oracle.virt_addr, dead_uop);
   //memset(&LDQ[dead_uop->alloc.LDQ_index],0,sizeof(LDQ[0]));
   memzero(&LDQ[dead_uop->alloc.LDQ_index],sizeof(LDQ[0]));
   LDQ_num --;
