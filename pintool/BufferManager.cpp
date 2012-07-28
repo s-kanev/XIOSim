@@ -6,6 +6,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <errno.h>
+#include <signal.h>
 #include <stack>
 
 extern int num_threads;
@@ -315,7 +316,7 @@ void BufferManager::copyProducerToFileReal(THREADID tid)
   if(fd_bogus == -1) {
     cerr << "Opened to write: " << bogusNames_[tid].c_str();
     cerr << "Pipe open error: " << fd_bogus << " Errcode:" << strerror(errno) << endl;
-    abort();
+    this->abort();
   }
 
   for(int i = 0; i < produceBuffer_[tid]->size(); i++) {
@@ -334,11 +335,11 @@ void BufferManager::copyProducerToFileReal(THREADID tid)
   if(fd == -1) {
     cerr << "Opened to write: " << fileNames_[tid].c_str();
     cerr << "Pipe open error: " << fd << " Errcode:" << strerror(errno) << endl;
-    abort();
+    this->abort();
   }
 
   const int sizeBuf = 1024 * 1024;
-  void* buf[sizeBuf];
+  uint8_t buf[sizeBuf];
   memset(buf, 0, sizeBuf); 
 
   int bytesRead;
@@ -346,13 +347,17 @@ void BufferManager::copyProducerToFileReal(THREADID tid)
     bytesRead = read(fd, buf, sizeBuf);
     if(bytesRead == -1) {
       cerr << "Read ptof error: " << " Errcode:" << strerror(errno) << endl;
-      abort();
+      this->abort();
     }
     if(bytesRead > 0) {
-      int bytesWritten = write(fd_bogus, buf, bytesRead);
-      if(bytesWritten != bytesRead) {
-	cerr << "Write ptof error: " << " Errcode:" << strerror(errno) << endl;
-	abort();
+      int bytesWritten = 0, writesAttempt = 0;
+      while (bytesWritten < bytesRead) {
+        bytesWritten += write(fd_bogus, buf, bytesRead);
+        writesAttempt++;
+        if (writesAttempt > 100000) {
+          cerr << "Write ptof error: " << " Errcode:" << strerror(errno) << endl;
+          this->abort();
+        }
       }
     }
   } while(bytesRead > 0);
@@ -360,13 +365,13 @@ void BufferManager::copyProducerToFileReal(THREADID tid)
   result = close(fd);
   if(result == -1) {
     cerr << "Close error: " << " Errcode:" << strerror(errno) << endl;
-    abort();
+    this->abort();
   }
 
   result = close(fd_bogus);
   if(result == -1) {
     cerr << "Close error: " << " Errcode:" << strerror(errno) << endl;
-    abort();
+    this->abort();
   }
 
   sync();
@@ -374,7 +379,7 @@ void BufferManager::copyProducerToFileReal(THREADID tid)
   result = rename(bogusNames_[tid].c_str(), fileNames_[tid].c_str());
   if(result == -1) {
     cerr << "Can't rename filesystem bridge files. " << " Errcode:" << strerror(errno) << endl;
-    abort();
+    this->abort();
   }
   sync();
 
@@ -391,7 +396,7 @@ void BufferManager::copyFileToConsumerReal(THREADID tid)
   if(fd == -1) {
     cerr << "Opened to read: " << fileNames_[tid].c_str();
     cerr << "Pipe open error: " << fd << " Errcode:" << strerror(errno) << endl;
-    abort();
+    this->abort();
   }
 
   int count = 0;
@@ -401,7 +406,7 @@ void BufferManager::copyFileToConsumerReal(THREADID tid)
       break;
     }
     handshake_container_t* handshake = consumeBuffer_[tid]->get_buffer();
-    validRead = readHandshake(fd, handshake);
+    validRead = readHandshake(tid, fd, handshake);
     assert(validRead);
     consumeBuffer_[tid]->push_done();
     count++;
@@ -411,7 +416,7 @@ void BufferManager::copyFileToConsumerReal(THREADID tid)
   result = close(fd);
   if(result == -1) {
     cerr << "Close error: " << " Errcode:" << strerror(errno) << endl;
-    abort();
+    this->abort();
   }
 
   sync();
@@ -453,16 +458,16 @@ void BufferManager::writeHandshake(int fd, handshake_container_t* handshake)
   int bytesWritten = write(fd, writeBuffer, totalBytes);
   if(bytesWritten == -1) {
     cerr << "Pipe write error: " << bytesWritten << " Errcode:" << strerror(errno) << endl;
-    abort();
+    this->abort();
   }
   if(bytesWritten != totalBytes) {
     cerr << "File write error: " << bytesWritten << " expected:" << totalBytes << endl;
-    abort();
+    this->abort();
   }
   free(writeBuffer);
 }
 
-bool BufferManager::readHandshake(int fd, handshake_container_t* handshake)
+bool BufferManager::readHandshake(THREADID tid, int fd, handshake_container_t* handshake)
 {
   const int handshakeBytes = sizeof(P2Z_HANDSHAKE);
   const int flagBytes = sizeof(handshake_flags_t);
@@ -473,14 +478,14 @@ bool BufferManager::readHandshake(int fd, handshake_container_t* handshake)
   offset = lseek(fd, offset-(sizeof(int)), SEEK_SET);
   if(offset == -1) {
     cerr << "File seek error: " << " Errcode:" << strerror(errno) << endl;
-    abort();
+    this->abort();
   } 
   
   int mapSize;
   int bytesRead = read(fd, &(mapSize), sizeof(int));
   if(bytesRead == -1) {
     cerr << "File read error: " << bytesRead << " Errcode:" << strerror(errno) << endl;
-    abort();
+    this->abort();
   } 
   assert(bytesRead == sizeof(int));
 
@@ -492,13 +497,13 @@ bool BufferManager::readHandshake(int fd, handshake_container_t* handshake)
   
   assert((offset == 0) || (offset > sizeof(int)));
 
-  void * readBuffer = (void*)malloc(totalBytes);
+  void * readBuffer = readBuffer_[tid];
   assert(readBuffer != NULL);
 
   bytesRead = read(fd, readBuffer, totalBytes);
   if(bytesRead == -1) {
     cerr << "File read error: " << bytesRead << " Errcode:" << strerror(errno) << endl;
-    abort();
+    this->abort();
   }
   assert(bytesRead == totalBytes);
 
@@ -525,15 +530,18 @@ bool BufferManager::readHandshake(int fd, handshake_container_t* handshake)
 
   assert(((unsigned long long int)readBuffer) + totalBytes == ((unsigned long long int)buffPosition));
 
-  free(readBuffer);
- 
   int trunc_result = ftruncate(fd, offset);
   if(trunc_result != 0) {
     cerr << "File truncate error: " << offset << " Errcode:" << strerror(errno) << endl;
-    abort();
+    this->abort();
   }
 
   return true;
+}
+
+void BufferManager::abort(){
+  this->signalCallback(SIGABRT);
+  abort();
 }
 
 void BufferManager::signalCallback(int signum)
@@ -575,6 +583,11 @@ void BufferManager::allocateThread(THREADID tid)
   int result = close(fd);
   if(result == -1) {
     cerr << "Close error: " << " Errcode:" << strerror(errno) << endl;
-    abort();
+    this->abort();
   }
+
+  // Start with one page read buffer
+  readBufferSize_[tid] = 4096;
+  readBuffer_[tid] = malloc(4096);
+  assert(readBuffer_[tid]);
 }

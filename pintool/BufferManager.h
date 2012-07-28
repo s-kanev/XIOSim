@@ -60,8 +60,10 @@ class BufferManager
   void copyProducerToFileFake(THREADID tid);
   void copyFileToConsumerFake(THREADID tid);
 
-  bool readHandshake(int fd, handshake_container_t* handshake);
+  bool readHandshake(THREADID tid, int fd, handshake_container_t* handshake);
   void writeHandshake(int fd, handshake_container_t* handshake);
+
+  void abort(void);
 
   std::map<THREADID, int> queueSizes_;
   std::map<THREADID, Buffer*> consumeBuffer_;
@@ -71,6 +73,9 @@ class BufferManager
 
   std::map<THREADID, string> fileNames_;
   std::map<THREADID, string> bogusNames_;
+
+  std::map<THREADID, int> readBufferSize_;
+  std::map<THREADID, void*> readBuffer_;
 };
 
 #endif
