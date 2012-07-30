@@ -433,7 +433,7 @@ VOID SimulatorLoop(VOID* arg)
 	int consumerHandshakes = handshake_buffer.getConsumerSize(instrument_tid);	
 	if(consumerHandshakes == 0) {
 	  GetLock(&simbuffer_lock, tid+1);
-	  handshake_buffer.front(instrument_tid);
+	  handshake_buffer.front(instrument_tid, false);
 	  ReleaseLock(&simbuffer_lock);
 	  consumerHandshakes = handshake_buffer.getConsumerSize(instrument_tid);
 	}	
@@ -441,7 +441,7 @@ VOID SimulatorLoop(VOID* arg)
 
 	for(int i = 0; i < consumerHandshakes; i++) {
 	  
-	  handshake_container_t* handshake = handshake_buffer.front(instrument_tid);
+	  handshake_container_t* handshake = handshake_buffer.front(instrument_tid, true);
 	  ASSERTX(handshake != NULL);
 	  ASSERTX(handshake->flags.valid);
 	  	  
@@ -1092,7 +1092,7 @@ VOID PauseSimulation(THREADID tid)
     long long int spins = 0;
     volatile bool done = false;
     do {
-        GetLock(&simbuffer_lock, tid + 1);
+      //        GetLock(&simbuffer_lock, tid + 1);
         done = true;
         vector<THREADID>::iterator it;
         for (it = thread_list.begin(); it != thread_list.end(); it++) {
@@ -1101,7 +1101,7 @@ VOID PauseSimulation(THREADID tid)
 	      lastWaitZeros[*it] = sim_cycle; 
 	    }
 	}
-        ReleaseLock(&simbuffer_lock);
+	//        ReleaseLock(&simbuffer_lock);
 	spins++;
 	if(spins > 70000000LL) {
 	  spins = 0;

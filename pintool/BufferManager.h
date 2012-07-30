@@ -14,7 +14,7 @@ class BufferManager
   BufferManager();
   ~BufferManager();
 
-  handshake_container_t* front(THREADID tid);
+  handshake_container_t* front(THREADID tid, bool isLocal=false);
   handshake_container_t* back(THREADID tid);
   bool empty(THREADID tid);
 

@@ -51,12 +51,15 @@ BufferManager::~BufferManager()
   }
 }
 
-handshake_container_t* BufferManager::front(THREADID tid)
+handshake_container_t* BufferManager::front(THREADID tid, bool isLocal)
 {
   if(consumeBuffer_[tid]->size() > 0) {
+    assert(isLocal);
     handshake_container_t* returnVal = consumeBuffer_[tid]->front();
     return returnVal;
   }
+
+  assert(!isLocal);
 
   GetLock(locks_[tid], tid+1);
 
@@ -139,13 +142,15 @@ void BufferManager::producer_done(THREADID tid, bool keepLock)
   ASSERTX(!produceBuffer_[tid]->empty());
   handshake_container_t* last = produceBuffer_[tid]->back();
   ASSERTX(last->flags.valid);
-
-  reserveHandshake(tid);
   
   if(!keepLock) {
+    reserveHandshake(tid);
     ReleaseLock(&simbuffer_lock);
   }
-  
+  else {
+    pool_[tid]++;
+  }
+
   if(produceBuffer_[tid]->full() || ( (consumeBuffer_[tid]->size() == 0) && (fileEntryCount_[tid] == 0))) {    
 #ifdef DEBUG  
     int produceSize = produceBuffer_[tid]->size();
@@ -171,8 +176,17 @@ void BufferManager::flushBuffers(THREADID tid)
   GetLock(locks_[tid], tid+1);
   map<THREADID, string>::iterator it;
   cerr << "FLUSHWRITE:" << tid << endl;
-  copyProducerToFile(tid);
-  cerr << "Done copy" << tid << endl;
+
+  if(produceBuffer_[tid]->size() > 0) {
+    cerr << produceBuffer_[tid]->size() << " " << fileEntryCount_[tid] << " " << consumeBuffer_[tid]->size() << endl;
+    copyProducerToFile(tid);
+    cerr << produceBuffer_[tid]->size() << " " << fileEntryCount_[tid] << " " << consumeBuffer_[tid]->size() << endl;
+    cerr << "Done copy" << tid << endl;
+  }
+  else {
+    cerr << "Skipped copy" << tid << endl;
+  }
+
   ReleaseLock(locks_[tid]);
 }
 
@@ -231,7 +245,7 @@ void BufferManager::reserveHandshake(THREADID tid)
 
     if(spins >= 7000000LL) {
       assert(queueSizes_[tid] > 0);
-      if(queueSizes_[tid] < 4000001) {
+      if(queueSizes_[tid] < 8000001) {
 	pool_[tid] += 25000;//queueSizes_[tid];
 	cerr << tid << " [reserveHandshake()]: Increasing file up to " << queueSizes_[tid] + pool_[tid] << endl;
 	spins = 0;
@@ -354,7 +368,7 @@ void BufferManager::copyProducerToFileReal(THREADID tid)
       while (bytesWritten < bytesRead) {
         bytesWritten += write(fd_bogus, buf, bytesRead);
         writesAttempt++;
-        if (writesAttempt > 100000) {
+        if (writesAttempt > 1) {
           cerr << "Write ptof error: " << " Errcode:" << strerror(errno) << endl;
           this->abort();
         }
@@ -560,7 +574,7 @@ void BufferManager::allocateThread(THREADID tid)
   
   queueSizes_[tid] = 0;
   fileEntryCount_[tid] = 0;
-  consumeBuffer_[tid] = new Buffer(400000 / num_threads);
+  consumeBuffer_[tid] = new Buffer(200000 / num_threads);
   //    fakeFile_[tid] = new Buffer(2);
   produceBuffer_[tid] = new Buffer(1000);
   produceBuffer_[tid]->get_buffer()->flags.isFirstInsn = true;
