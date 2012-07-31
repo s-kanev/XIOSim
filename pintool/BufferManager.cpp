@@ -115,6 +115,9 @@ bool BufferManager::empty(THREADID tid)
 {
   GetLock(locks_[tid], tid+1);
   bool result = queueSizes_[tid] == 0;
+  if(result) {
+    pool_[tid] = 50000;
+  }
   ReleaseLock(locks_[tid]);
   return result;
 }
@@ -243,10 +246,10 @@ void BufferManager::reserveHandshake(THREADID tid)
     somethingConsumed = (newSize != lastSize);
     lastSize = newSize;
 
-    if(spins >= 7000000LL) {
+    if(spins >= 700000LL) {
       assert(queueSizes_[tid] > 0);
-      if(queueSizes_[tid] < 8000001) {
-	pool_[tid] += 25000;//queueSizes_[tid];
+      if(queueSizes_[tid] < 10000001) {
+	pool_[tid] += 100000;
 	cerr << tid << " [reserveHandshake()]: Increasing file up to " << queueSizes_[tid] + pool_[tid] << endl;
 	spins = 0;
 	break;
@@ -555,6 +558,7 @@ bool BufferManager::readHandshake(THREADID tid, int fd, handshake_container_t* h
 
 void BufferManager::abort(){
   this->signalCallback(SIGABRT);
+  exit(1);
   abort();
 }
 
