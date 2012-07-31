@@ -47,7 +47,7 @@ class BufferManager
 
   map<THREADID, int> pool_;
 
-  //map<THREADID, ofstream*> logs_;
+  map<THREADID, ofstream*> logs_;
 
   void reserveHandshake(THREADID tid);
 
@@ -61,7 +61,7 @@ class BufferManager
   void copyFileToConsumerFake(THREADID tid);
 
   bool readHandshake(THREADID tid, int fd, handshake_container_t* handshake);
-  void writeHandshake(int fd, handshake_container_t* handshake);
+  void writeHandshake(THREADID tid, int fd, handshake_container_t* handshake);
 
   void abort(void);
 
@@ -76,6 +76,8 @@ class BufferManager
 
   std::map<THREADID, int> readBufferSize_;
   std::map<THREADID, void*> readBuffer_;
+  std::map<THREADID, int> writeBufferSize_;
+  std::map<THREADID, void*> writeBuffer_;
 };
 
 #endif

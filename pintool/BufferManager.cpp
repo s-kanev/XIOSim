@@ -338,7 +338,7 @@ void BufferManager::copyProducerToFileReal(THREADID tid)
 
   for(int i = 0; i < produceBuffer_[tid]->size(); i++) {
     assert(produceBuffer_[tid]->getElement(i)->flags.valid);
-    writeHandshake(fd_bogus, produceBuffer_[tid]->getElement(i));
+    writeHandshake(tid, fd_bogus, produceBuffer_[tid]->getElement(i));
     fileEntryCount_[tid]++;
   }
   
@@ -440,7 +440,7 @@ void BufferManager::copyFileToConsumerReal(THREADID tid)
   assert(fileEntryCount_[tid] >= 0);
 }
 
-void BufferManager::writeHandshake(int fd, handshake_container_t* handshake)
+void BufferManager::writeHandshake(THREADID tid, int fd, handshake_container_t* handshake)
 {
   int mapSize = handshake->mem_buffer.size();
   const int handshakeBytes = sizeof(P2Z_HANDSHAKE);
@@ -449,7 +449,7 @@ void BufferManager::writeHandshake(int fd, handshake_container_t* handshake)
   int mapBytes = mapSize * mapEntryBytes;
   int totalBytes = sizeof(int) + handshakeBytes + flagBytes + mapBytes;
 
-  void * writeBuffer = (void*)malloc(totalBytes);
+  void * writeBuffer = writeBuffer_[tid];
   void * buffPosition = writeBuffer;
 
   memcpy((char*)buffPosition, &(handshake->handshake), handshakeBytes);
@@ -481,7 +481,6 @@ void BufferManager::writeHandshake(int fd, handshake_container_t* handshake)
     cerr << "File write error: " << bytesWritten << " expected:" << totalBytes << endl;
     this->abort();
   }
-  free(writeBuffer);
 }
 
 bool BufferManager::readHandshake(THREADID tid, int fd, handshake_container_t* handshake)
@@ -608,4 +607,8 @@ void BufferManager::allocateThread(THREADID tid)
   readBufferSize_[tid] = 4096;
   readBuffer_[tid] = malloc(4096);
   assert(readBuffer_[tid]);
+
+  writeBufferSize_[tid] = 4096;
+  writeBuffer_[tid] = malloc(4096);
+  assert(writeBuffer_[tid]);
 }
