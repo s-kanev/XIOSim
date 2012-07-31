@@ -256,6 +256,7 @@ void BufferManager::reserveHandshake(THREADID tid)
       }
       else {
 	cerr << tid << " [reserveHandshake()]: File size too big to expand, keep on spinning:" << queueSizes_[tid] << endl;
+	this->abort();
 	spins = 0;
       }
     }
