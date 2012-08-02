@@ -116,7 +116,7 @@ bool BufferManager::empty(THREADID tid)
   GetLock(locks_[tid], tid+1);
   bool result = queueSizes_[tid] == 0;
   if(result) {
-    pool_[tid] = 50000;
+    pool_[tid] = consumeBuffer_[tid]->capacity() + (produceBuffer_[tid]->capacity() * 2);
   }
   ReleaseLock(locks_[tid]);
   return result;
@@ -212,6 +212,7 @@ void BufferManager::applyConsumerChanges(THREADID tid, int numChanged)
 
 void BufferManager::pop(THREADID tid)
 {
+  popped_ = true;
   assert(consumeBuffer_[tid]->size() > 0);
   consumeBuffer_[tid]->pop();
 }
@@ -231,8 +232,7 @@ unsigned int BufferManager::size()
 void BufferManager::reserveHandshake(THREADID tid)
 {
   long long int spins = 0;
-  bool somethingConsumed = false;
-  int lastSize = queueSizes_[tid];
+  bool popped_ = false;
 
   while(pool_[tid] == 0) {
     ReleaseLock(locks_[tid]);
@@ -241,26 +241,22 @@ void BufferManager::reserveHandshake(THREADID tid)
     GetLock(&simbuffer_lock, tid+1);
     GetLock(locks_[tid], tid+1);
     spins++;
-    int newSize = queueSizes_[tid];
-    assert(newSize <= lastSize);
-    somethingConsumed = (newSize != lastSize);
-    lastSize = newSize;
 
-    if(spins >= 700000LL) {
+    if(spins >= 7000000LL) {
       assert(queueSizes_[tid] > 0);
       if(queueSizes_[tid] < 10000001) {
-	pool_[tid] += 100000;
+	pool_[tid] += 50000;
 	cerr << tid << " [reserveHandshake()]: Increasing file up to " << queueSizes_[tid] + pool_[tid] << endl;
 	spins = 0;
 	break;
       }
       else {
-	cerr << tid << " [reserveHandshake()]: File size too big to expand, keep on spinning:" << queueSizes_[tid] << endl;
+	cerr << tid << " [reserveHandshake()]: File size too big to expand, abort():" << queueSizes_[tid] << endl;
 	this->abort();
-	spins = 0;
       }
     }
-    if(somethingConsumed) {
+    if(popped_) {
+      popped_ = false;
       spins = 0;
     }
   }
@@ -578,11 +574,11 @@ void BufferManager::allocateThread(THREADID tid)
   
   queueSizes_[tid] = 0;
   fileEntryCount_[tid] = 0;
-  consumeBuffer_[tid] = new Buffer(200000 / num_threads);
+  consumeBuffer_[tid] = new Buffer(1000000 / num_threads);
   //    fakeFile_[tid] = new Buffer(2);
   produceBuffer_[tid] = new Buffer(1000);
   produceBuffer_[tid]->get_buffer()->flags.isFirstInsn = true;
-  pool_[tid] = 50000;
+  pool_[tid] = consumeBuffer_[tid]->capacity() + (produceBuffer_[tid]->capacity() * 2);
   locks_[tid] = new PIN_LOCK();
   InitLock(locks_[tid]);
   

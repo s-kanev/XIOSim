@@ -27,6 +27,7 @@ class Buffer
   bool full();
   
   int size();
+  int capacity();
   
   handshake_container_t* getElement(int i);
 

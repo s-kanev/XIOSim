@@ -76,3 +76,8 @@ handshake_container_t* Buffer::getElement(int i)
   int index = (head_ + numPool_ - i - 1) % numPool_;
   return &(handshakePool_[index]);
 }
+
+int Buffer::capacity()
+{
+  return numPool_;
+}

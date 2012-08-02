@@ -43,6 +43,8 @@ class BufferManager
 
  private:
   bool useRealFile_;
+  bool popped_;
+  
   map<THREADID, PIN_LOCK*> locks_;
 
   map<THREADID, int> pool_;
