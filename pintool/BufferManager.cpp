@@ -365,8 +365,10 @@ void BufferManager::copyProducerToFileReal(THREADID tid)
     }
     if(bytesRead > 0) {
       int bytesWritten = 0, writesAttempt = 0;
+      uint8_t * buf_curr = buf;
       while (bytesWritten < bytesRead) {
-        bytesWritten += write(fd_bogus, buf, bytesRead);
+        bytesWritten += write(fd_bogus, buf_curr, bytesRead);
+        buf_curr += bytesWritten;
         writesAttempt++;
         if (writesAttempt > 1) {
           cerr << "Write ptof error: " << " Errcode:" << strerror(errno) << endl;
