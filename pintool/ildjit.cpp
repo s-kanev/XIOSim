@@ -33,6 +33,8 @@ map<THREADID, INT32> lastWaitID;
 
 // has this thread already ignored call overhead for before_wait
 static map<THREADID, bool> ignored_before_wait;
+// has this thread already ignored call overhead for after_wait (XXX: remove me one day)
+static map<THREADID, bool> ignored_after_wait;
 // has this thread already ignored call overhead for before_signal
 static map<THREADID, bool> ignored_before_signal;
 
@@ -263,6 +265,7 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
     }
 
     ignored_before_wait.clear();
+    ignored_after_wait.clear();
     ignored_before_signal.clear();
     seen_ssID_zero = false;
     seen_ssID_zero_twice = false;
@@ -398,6 +401,42 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
 
     if ((ssID == 0) && (ExecMode == EXECUTION_MODE_SIMULATE) && (core_threads[0] == tid)) {
       seen_ssID_zero = true;
+    }
+
+    ReleaseLock(&simbuffer_lock);
+}
+
+/* ========================================================================== 
+   This is temporary only for the baseline case where afterWait is called
+   for some reason. We make sure to ignore it, as well any parameter passing
+   instructions. */
+VOID ILDJIT_beforeAfterWait(THREADID tid, ADDRINT is_light, ADDRINT pc)
+{
+    ASSERTX(num_threads == 1);
+
+    GetLock(&simbuffer_lock, tid+1);
+    ignore[tid] = true;
+
+    thread_state_t* tstate = get_tls(tid);
+    if (tstate->pc_queue_valid &&
+        ignored_after_wait.find(tid) == ignored_after_wait.end())
+    {
+        // push Arg3 to stack
+        ignore_list[tid][tstate->get_queued_pc(3)] = true;
+
+        // push Arg2 to stack
+        ignore_list[tid][tstate->get_queued_pc(2)] = true;
+        //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(2) << dec << endl;
+
+        // push Arg1 to stack
+        ignore_list[tid][tstate->get_queued_pc(1)] = true;
+        //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(1) << dec << endl;
+
+        // Call instruction to beforeWait
+        ignore_list[tid][tstate->get_queued_pc(0)] = true;
+        //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(0) << dec << endl;
+
+        ignored_after_wait[tid] = true;
     }
 
     ReleaseLock(&simbuffer_lock);
@@ -664,6 +703,21 @@ VOID AddILDJITCallbacks(IMG img)
                        IARG_CALL_ORDER, CALL_ORDER_FIRST,
                        IARG_END);
         RTN_Close(rtn);
+    }
+
+    if (num_threads == 1)
+    {
+        rtn = RTN_FindByName(img, "MOLECOOL_afterWait");
+        if (RTN_Valid(rtn))
+        {
+            RTN_Open(rtn);
+            RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeAfterWait),
+                           IARG_THREAD_ID,
+                           IARG_INST_PTR,
+                           IARG_CALL_ORDER, CALL_ORDER_FIRST,
+                           IARG_END);
+            RTN_Close(rtn);
+        }
     }
 
     rtn = RTN_FindByName(img, "MOLECOOL_afterWait");
