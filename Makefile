@@ -23,7 +23,7 @@ CC = g++
 # Uncomment only one of the following OFLAGS, or make your own
 
 # For debug:
-OFLAGS = -O3 -g -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -Wall -DDEBUG -msse4a -mfpmath=sse
+OFLAGS = -O0 -g -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -Wall -DDEBUG -msse4a -mfpmath=sse
 OFLAGS_SAFE = $(OFLAGS)
 
 # Fully-optimized, but with profiling for gprof:
