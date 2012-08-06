@@ -809,7 +809,7 @@ VOID printElapsedTime()
 
 VOID printMemoryUsage(THREADID tid)
 {
-  return 0;
+  return;
   int myPid = getpid();
   char str[50];
   sprintf(str, "%d", myPid);
