@@ -370,7 +370,10 @@ void BufferManager::copyProducerToFileReal(THREADID tid)
         bytesWritten += write(fd_bogus, buf_curr, bytesRead);
         buf_curr += bytesWritten;
         writesAttempt++;
-        if (writesAttempt > 1) {
+        if (writesAttempt == 2) {
+	  cerr << "Write ptof error: " << " Errcode:" << strerror(errno) << " KEEP TRYING!" << endl;
+	}
+        if (writesAttempt >= 10000000) {
           cerr << "Write ptof error: " << " Errcode:" << strerror(errno) << endl;
           this->abort();
         }
