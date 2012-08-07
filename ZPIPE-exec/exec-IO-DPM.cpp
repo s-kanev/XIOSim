@@ -1524,7 +1524,7 @@ void core_exec_IO_DPM_t::LDQ_schedule(void)
                 port[uop->alloc.port_assignment].STQ->pipe[0].action_id = uop->exec.action_id;
 
                 LDQ[index].first_byte_requested = true;
-		if((((uop->oracle.virt_addr+uop->decode.mem_size)>>core->memory.DL1->addr_shift) == (uop->oracle.virt_addr>>core->memory.DL1->addr_shift)) || uop->oracle.is_sync_op)
+                if((((uop->oracle.virt_addr+uop->decode.mem_size)>>core->memory.DL1->addr_shift) == (uop->oracle.virt_addr>>core->memory.DL1->addr_shift)) || uop->oracle.is_sync_op)
                 {
                   /* not a split-line access */
                   LDQ[index].last_byte_requested = true;
@@ -1967,9 +1967,14 @@ void core_exec_IO_DPM_t::LDQ_squash(struct uop_t * const dead_uop)
   struct core_knobs_t * knobs = core->knobs;
   zesto_assert((dead_uop->alloc.LDQ_index >= 0) && (dead_uop->alloc.LDQ_index < knobs->exec.LDQ_size),(void)0);
   zesto_assert(LDQ[dead_uop->alloc.LDQ_index].uop == dead_uop,(void)0);
-  if (dead_uop->oracle.is_repeated)
+  if (dead_uop->oracle.is_repeated) {
     repeater_cancel_request(core->memory.mem_repeater, core->id,
                             dead_uop->oracle.virt_addr, dead_uop);
+    if (((dead_uop->oracle.virt_addr+dead_uop->decode.mem_size)>>core->memory.DL1->addr_shift) != 
+         (dead_uop->oracle.virt_addr>>core->memory.DL1->addr_shift)) // split access, cancel second part
+      repeater_cancel_request(core->memory.mem_repeater, core->id,
+                              dead_uop->oracle.virt_addr+dead_uop->decode.mem_size, dead_uop);
+  }
   //memset(&LDQ[dead_uop->alloc.LDQ_index],0,sizeof(LDQ[0]));
   memzero(&LDQ[dead_uop->alloc.LDQ_index],sizeof(LDQ[0]));
   LDQ_num --;
