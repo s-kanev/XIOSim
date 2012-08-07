@@ -1653,24 +1653,66 @@ void spawn_new_thread(void entry_point(void*), void* arg)
 
 VOID amd_hack()
 {
-    void *vdso_begin, *vdso_end;
+    // use kernel version to distinguish between RHEL5 and RHEL6
+    bool rhel6 = false;
 
-    vdso_begin = (void*)0xffffe000;
-    vdso_end = (void*)0xfffff000;
-    (void) vdso_end;
+    ifstream procversion("/proc/version");
+    string version((istreambuf_iterator<char>(procversion)), istreambuf_iterator<char>());
 
-    int returnval = mprotect(vdso_begin, 0x1000, PROT_EXEC | PROT_READ | PROT_WRITE);
-
-    if (returnval != 0) {
-      perror("mprotectss");
+    if (version.find(".el6.") != string::npos)
+      rhel6 = true;
+    else if (version.find(".el5 ") == string::npos) {
+      cerr << "ERROR! Neither .el5 nor .el6 occurs in /proc/version" << endl;
+      abort();
     }
 
+    // under RHEL6, the VDSO page location can vary from build to build
+    unsigned long vdso_begin, vdso_end = 0;
+
+    if (rhel6) {
+      ifstream maps("/proc/self/maps");
+      string line;
+
+      while (getline(maps, line))
+	if (line.find("[vdso]") != string::npos) {
+	  istringstream linestream(line);
+	  linestream >> hex;
+
+	  if (linestream >> vdso_begin &&
+	      linestream.get() == '-'  &&
+	      linestream >> vdso_end)
+	    break;
+	  cerr << "ERROR! Badly formatted [vdso] map line: " << line << endl;
+	  abort();
+	}
+
+      if (vdso_end == 0) {
+	cerr << "ERROR! No VDSO page map in /proc/self/maps" << endl;
+	abort();
+      } else if (vdso_end - vdso_begin != 0x1000) {
+	cerr << "ERROR! VDSO page size isn't 0x1000 in /proc/self/maps" << endl;
+	abort();
+      }
+    } else {
+      vdso_begin = 0xffffe000;
+    }
+
+    int returnval = mprotect((void *)vdso_begin, 0x1000, PROT_EXEC | PROT_READ | PROT_WRITE);
+    if (returnval != 0) {
+      perror("mprotect");
+      cerr << hex << "VDSO page is at " << vdso_begin << endl;
+      abort();
+    }
+
+    // offset of __kernel_vsyscall() is slightly later under RHEL6 than under RHEL5
+    unsigned vsyscall_offset = rhel6 ? 0x420 : 0x400;
+
     // write int80 at the begining of __kernel_vsyscall()
-    *(char *)((int)vdso_begin + 0x400) = 0xcd;
-    *(char *)((int)vdso_begin + 0x401) = 0x80;
+    *(char *)(vdso_begin + vsyscall_offset + 0) = 0xcd;
+    *(char *)(vdso_begin + vsyscall_offset + 1) = 0x80;
 
     // ... and follow it by a ret
-    *(char *)((int)vdso_begin + 0x402) = 0xc3;
+    *(char *)(vdso_begin + vsyscall_offset + 2) = 0xc3;
 }
 
 VOID doLateILDJITInstrumentation()
