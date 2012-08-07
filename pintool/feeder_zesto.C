@@ -1086,13 +1086,9 @@ VOID PauseSimulation(THREADID tid)
     cerr << tid << " [" << sim_cycle << ":KEVIN]: Waiting for all sleepy cores" << endl;
     cerr.flush();
     
-    cerr << "Memory Usage Sleepy:"; printMemoryUsage(tid);
-    cerr.flush();    
-   
     long long int spins = 0;
     volatile bool done = false;
     do {
-      //        GetLock(&simbuffer_lock, tid + 1);
         done = true;
         vector<THREADID>::iterator it;
         for (it = thread_list.begin(); it != thread_list.end(); it++) {
@@ -1101,11 +1097,10 @@ VOID PauseSimulation(THREADID tid)
 	      lastWaitZeros[*it] = sim_cycle; 
 	    }
 	}
-	//        ReleaseLock(&simbuffer_lock);
 	spins++;
 	if(spins > 70000000LL) {
 	  spins = 0;
-	  cerr << "Memory Usage Sleepy:"; printMemoryUsage(tid);
+	  cerr << "Spinning empty:" << endl;
 	  cerr.flush();
 	}
 	
