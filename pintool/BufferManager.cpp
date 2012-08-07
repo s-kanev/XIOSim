@@ -244,7 +244,7 @@ void BufferManager::reserveHandshake(THREADID tid)
 
     if(spins >= 7000000LL) {
       assert(queueSizes_[tid] > 0);
-      if(queueSizes_[tid] < 10000001) {
+      if(queueSizes_[tid] < 20000001) {
 	pool_[tid] += 50000;
 	cerr << tid << " [reserveHandshake()]: Increasing file up to " << queueSizes_[tid] + pool_[tid] << endl;
 	spins = 0;
@@ -576,9 +576,9 @@ void BufferManager::allocateThread(THREADID tid)
   
   queueSizes_[tid] = 0;
   fileEntryCount_[tid] = 0;
-  consumeBuffer_[tid] = new Buffer(1000000 / num_threads);
+  consumeBuffer_[tid] = new Buffer(160000 / num_threads);
   //    fakeFile_[tid] = new Buffer(2);
-  produceBuffer_[tid] = new Buffer(1000);
+  produceBuffer_[tid] = new Buffer(3500);
   produceBuffer_[tid]->get_buffer()->flags.isFirstInsn = true;
   pool_[tid] = consumeBuffer_[tid]->capacity() + (produceBuffer_[tid]->capacity() * 2);
   locks_[tid] = new PIN_LOCK();

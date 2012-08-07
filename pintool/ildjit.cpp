@@ -49,7 +49,6 @@ static INT32 end_loop_invocation;
 
 static map<THREADID, INT32> unmatchedWaits;
 map<THREADID, INT32> invocationWaitZeros;
-tick_t seqCycles;
 tick_t lastCycles;
 
 map<THREADID, int> afterSignalCount;
@@ -105,7 +104,6 @@ VOID MOLECOOL_Init()
 
 
     last_time = time(NULL);
-    seqCycles = 0;
     lastCycles = 0;
 
     cerr << start_loop << " " << start_loop_invocation << endl;
@@ -140,7 +138,6 @@ VOID ILDJIT_startSimulation(THREADID tid, ADDRINT ip)
   cerr << "[KEVIN] ILDJIT called startSimulation()" << endl;
   cerr << "HELIX runtime:"; 
   printElapsedTime();  
-  cerr << "Memory Usage:"; printMemoryUsage(tid);
   
     CODECACHE_FlushCache();
 
@@ -217,11 +214,6 @@ static BOOL seen_ssID_zero_twice = false;
 VOID ILDJIT_startLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
 {
   invocation_counts[loop]++;
-
-  if (ExecMode == EXECUTION_MODE_SIMULATE) {
-    cerr << "Memory Usage startLoop():"; printMemoryUsage(tid);
-    //CODECACHE_FlushCache();
-  }
 }
 
 /* ========================================================================== */
@@ -324,17 +316,8 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
 	afterWaitHeavyCount[*it] = 0;
 
       }
-
-      if(num_threads < 2) {
-	cerr << "Sequential:" << seqCycles << endl;
-	seqCycles = 0;
-      }
-      
-
-      
+                  
       ReleaseLock(&simbuffer_lock);
-      
-      cerr << "Memory Usage endLoop():"; printMemoryUsage(tid);
     }
 
     if(strncmp(end_loop, (CHAR*)loop, 512) == 0 && invocation_counts[loop] == end_loop_invocation) {
@@ -482,7 +465,6 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT is_light, ADDRINT pc)
         goto cleanup;
 
 
-
     if(is_light) {
       afterWaitLightCount[tid]++;
       ReleaseLock(&simbuffer_lock);
@@ -524,10 +506,6 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT 
 {
     GetLock(&simbuffer_lock, tid+1);
   
-    if(lastCycles > 0) {
-        seqCycles += sim_cycle - lastCycles;
-    }
-
     ignore[tid] = true;
 
 #ifdef PRINT_WAITS
@@ -885,6 +863,7 @@ VOID printElapsedTime()
 
 VOID printMemoryUsage(THREADID tid)
 {
+  return;
   int myPid = getpid();
   char str[50];
   sprintf(str, "%d", myPid);
