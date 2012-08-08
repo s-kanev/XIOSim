@@ -1078,14 +1078,10 @@ VOID PauseSimulation(THREADID tid)
 	lastWaitZeros[*it] = 0;
 	cerr.flush();
     }
-    cerr << "Releasing simbuffer_lock" << endl;
-    cerr.flush();
+
     ReleaseLock(&simbuffer_lock);
     
     /* Wait until all cores are done -- consumed their buffers. */
-    cerr << tid << " [" << sim_cycle << ":KEVIN]: Waiting for all sleepy cores" << endl;
-    cerr.flush();
-    
     long long int spins = 0;
     volatile bool done = false;
     do {
