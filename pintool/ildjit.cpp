@@ -65,6 +65,8 @@ extern VOID doLateILDJITInstrumentation();
 
 time_t last_time;
 
+bool use_ring_cache;
+
 /* ========================================================================== */
 VOID MOLECOOL_Init()
 {
@@ -217,7 +219,7 @@ VOID ILDJIT_startLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
 }
 
 /* ========================================================================== */
-VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
+VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc)
 {
 //#ifdef ZESTO_PIN_DBG
   CHAR* loop_name = (CHAR*) loop;
@@ -239,6 +241,8 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
       }
     }
 
+    use_ring_cache = (rc > 0);
+    
     cerr << "Starting loop: " << loop_name << "[" << invocation_counts[loop] << "]" << endl;
     /* This is called right before a wait spin loop.
      * For this thread only, ignore the end of the wait, so we
@@ -389,42 +393,6 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
     ReleaseLock(&simbuffer_lock);
 }
 
-/* ========================================================================== 
-   This is temporary only for the baseline case where afterWait is called
-   for some reason. We make sure to ignore it, as well any parameter passing
-   instructions. */
-VOID ILDJIT_beforeAfterWait(THREADID tid, ADDRINT is_light, ADDRINT pc)
-{
-    ASSERTX(num_threads == 1);
-
-    GetLock(&simbuffer_lock, tid+1);
-    ignore[tid] = true;
-
-    thread_state_t* tstate = get_tls(tid);
-    if (tstate->pc_queue_valid &&
-        ignored_after_wait.find(tid) == ignored_after_wait.end())
-    {
-        // push Arg3 to stack
-        ignore_list[tid][tstate->get_queued_pc(3)] = true;
-
-        // push Arg2 to stack
-        ignore_list[tid][tstate->get_queued_pc(2)] = true;
-        //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(2) << dec << endl;
-
-        // push Arg1 to stack
-        ignore_list[tid][tstate->get_queued_pc(1)] = true;
-        //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(1) << dec << endl;
-
-        // Call instruction to beforeWait
-        ignore_list[tid][tstate->get_queued_pc(0)] = true;
-        //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(0) << dec << endl;
-
-        ignored_after_wait[tid] = true;
-    }
-
-    ReleaseLock(&simbuffer_lock);
-}
-
 /* ========================================================================== */
 VOID ILDJIT_afterWait(THREADID tid, ADDRINT is_light, ADDRINT pc)
 {
@@ -463,7 +431,11 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT is_light, ADDRINT pc)
     /* Don't insert waits in single-core mode */
     if (num_threads < 2)
         goto cleanup;
-
+    
+    if(!use_ring_cache) {
+      ReleaseLock(&simbuffer_lock);
+      return;
+    }
 
     if(is_light) {
       afterWaitLightCount[tid]++;
@@ -561,6 +533,11 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT p
     /* Don't insert signals in single-core mode */
     if (num_threads < 2)
         goto cleanup;
+    
+    if(!use_ring_cache) {
+      ReleaseLock(&simbuffer_lock);
+      return;
+    }
 
     afterSignalCount[tid]++;
     
@@ -650,6 +627,7 @@ VOID AddILDJITCallbacks(IMG img)
                        IARG_THREAD_ID,
                        IARG_INST_PTR,
                        IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
                        IARG_END);
         RTN_Close(rtn);
     }
@@ -681,21 +659,6 @@ VOID AddILDJITCallbacks(IMG img)
                        IARG_CALL_ORDER, CALL_ORDER_FIRST,
                        IARG_END);
         RTN_Close(rtn);
-    }
-
-    if (num_threads == 1)
-    {
-        rtn = RTN_FindByName(img, "MOLECOOL_afterWait");
-        if (RTN_Valid(rtn))
-        {
-            RTN_Open(rtn);
-            RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeAfterWait),
-                           IARG_THREAD_ID,
-                           IARG_INST_PTR,
-                           IARG_CALL_ORDER, CALL_ORDER_FIRST,
-                           IARG_END);
-            RTN_Close(rtn);
-        }
     }
 
     rtn = RTN_FindByName(img, "MOLECOOL_afterWait");
