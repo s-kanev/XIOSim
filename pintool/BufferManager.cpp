@@ -234,6 +234,14 @@ void BufferManager::reserveHandshake(THREADID tid)
   long long int spins = 0;
   bool popped_ = false;
 
+  int queueLimit;
+  if(num_threads > 1) {
+    queueLimit = 20000001;
+  }
+  else {
+    queueLimit = 100001;
+  }
+
   while(pool_[tid] == 0) {
     ReleaseLock(locks_[tid]);
     ReleaseLock(&simbuffer_lock);
@@ -243,12 +251,15 @@ void BufferManager::reserveHandshake(THREADID tid)
     spins++;
 
     if(spins >= 7000000LL) {
-      assert(queueSizes_[tid] > 0);
-      if(queueSizes_[tid] < 20000001) {
+      assert(queueSizes_[tid] > 0);      
+      if(queueSizes_[tid] < queueLimit) {
 	pool_[tid] += 50000;
 	cerr << tid << " [reserveHandshake()]: Increasing file up to " << queueSizes_[tid] + pool_[tid] << endl;
 	spins = 0;
 	break;
+      }
+      else if (num_threads == 1) {
+	spins = 0;
       }
       else {
 	cerr << tid << " [reserveHandshake()]: File size too big to expand, abort():" << queueSizes_[tid] << endl;
@@ -366,8 +377,9 @@ void BufferManager::copyProducerToFileReal(THREADID tid)
     if(bytesRead > 0) {
       int bytesWritten = 0, writesAttempt = 0;
       uint8_t * buf_curr = buf;
+      
       while (bytesWritten < bytesRead) {
-        bytesWritten += write(fd_bogus, buf_curr, bytesRead);
+        bytesWritten += write(fd_bogus, buf_curr, bytesRead - bytesWritten);
         buf_curr += bytesWritten;
         writesAttempt++;
         if (writesAttempt == 2) {
