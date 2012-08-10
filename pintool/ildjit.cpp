@@ -96,6 +96,7 @@ VOID MOLECOOL_Init()
     PIN_InterceptSignal(SIGILL, signalCallback, NULL);
     PIN_InterceptSignal(SIGSEGV, signalCallback, NULL);
     PIN_InterceptSignal(SIGTERM, signalCallback, NULL);
+    PIN_InterceptSignal(SIGKILL, signalCallback, NULL);
 
     signal(SIGINT, signalCallback2);
     signal(SIGABRT, signalCallback2);
@@ -103,6 +104,7 @@ VOID MOLECOOL_Init()
     signal(SIGILL, signalCallback2);
     signal(SIGSEGV, signalCallback2);
     signal(SIGTERM, signalCallback2);
+    signal(SIGKILL, signalCallback2);
 
 
     last_time = time(NULL);
