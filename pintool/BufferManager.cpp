@@ -591,9 +591,9 @@ void BufferManager::allocateThread(THREADID tid)
   
   queueSizes_[tid] = 0;
   fileEntryCount_[tid] = 0;
-  consumeBuffer_[tid] = new Buffer(160000 / num_threads);
+  consumeBuffer_[tid] = new Buffer(400000 / num_threads);
   //    fakeFile_[tid] = new Buffer(2);
-  produceBuffer_[tid] = new Buffer(3500);
+  produceBuffer_[tid] = new Buffer(10000);
   produceBuffer_[tid]->get_buffer()->flags.isFirstInsn = true;
   pool_[tid] = consumeBuffer_[tid]->capacity() + (produceBuffer_[tid]->capacity() * 2);
   locks_[tid] = new PIN_LOCK();
