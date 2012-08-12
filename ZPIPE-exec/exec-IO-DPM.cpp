@@ -2034,41 +2034,45 @@ bool core_exec_IO_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
      DTLB2 (See "Intel 64 and IA-32 Architectures Optimization Reference
      Manual"). */
   struct cache_t * tlb = (core->memory.DTLB2)?core->memory.DTLB2:core->memory.DTLB;
+  /* Wait until we can submit to DTLB */
   if(!cache_enqueuable(tlb,core->current_thread->id,PAGE_TABLE_ADDR(core->current_thread->id,uop->oracle.virt_addr)))
     return false;
-  /* Repeated stores always go to the memory repeater instead of DL1 */
+  /* Wait until we can submit to DL1 */
+  if(!cache_enqueuable(core->memory.DL1,core->current_thread->id,uop->oracle.virt_addr))
+    return false;
+
+  /* Wait until we can submit to repeater */
   if(uop->oracle.is_repeated) {
     if(!repeater_enqueuable(core->memory.mem_repeater, uop->oracle.is_sync_op ? CACHE_SIGNAL : CACHE_WRITE,
                             core->current_thread->id, uop->oracle.virt_addr))
     return false;
-  } else if(!cache_enqueuable(core->memory.DL1,core->current_thread->id,uop->oracle.virt_addr))
-    return false;
-
+  }
 
   if(!STQ[STQ_head].first_byte_requested)
   {
     STQ[STQ_head].write_complete = false;
-    /* These are just dummy placeholders, but we need them
+    /* The uop structs are just dummy placeholders, but we need them
        because the original uop pointers will be made invalid
        when the Mop commits and the oracle reclaims the
        original uop-arrays.  The store continues to occupy STQ
        entries until the store actually finishes accessing
        memory, but commit can proceed past this store once the
        request has entered into the cache hierarchy. */
-    struct uop_t * dl1_uop = core->get_uop_array(1);
 
+    /* Send to DL1 */
+    struct uop_t * dl1_uop = core->get_uop_array(1);
     dl1_uop->core = core;
     dl1_uop->alloc.STQ_index = uop->alloc.STQ_index;
-
     STQ[STQ_head].action_id = core->new_action_id();
     dl1_uop->exec.action_id = STQ[STQ_head].action_id;
-
     dl1_uop->decode.Mop_seq = uop->decode.Mop_seq;
     dl1_uop->decode.uop_seq = uop->decode.uop_seq;
-
     dl1_uop->oracle.is_repeated = uop->oracle.is_repeated;
     dl1_uop->oracle.is_sync_op = uop->oracle.is_sync_op;
 
+    cache_enqueue(core,core->memory.DL1,NULL,CACHE_WRITE,core->current_thread->id,uop->Mop->fetch.PC,uop->oracle.virt_addr,dl1_uop->exec.action_id,0,NO_MSHR,dl1_uop,store_dl1_callback,NULL,store_translated_callback,get_uop_action_id);
+
+    /* Send to DTLB(2), if not a helix signal */
     if(!uop->oracle.is_sync_op) {
       struct uop_t * dtlb_uop = core->get_uop_array(1);
       STQ[STQ_head].translation_complete = false;
@@ -2083,14 +2087,20 @@ bool core_exec_IO_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
     else {
       STQ[STQ_head].translation_complete = true;
     }
-    
+   
+    /* Send to memory repeater */ 
     if(uop->oracle.is_repeated) {
+      struct uop_t * rep_uop = core->get_uop_array(1);
+      rep_uop->core = core;
+      rep_uop->alloc.STQ_index = uop->alloc.STQ_index;
+      rep_uop->exec.action_id = STQ[STQ_head].action_id;
+      rep_uop->decode.Mop_seq = uop->decode.Mop_seq;
+      rep_uop->decode.uop_seq = uop->decode.uop_seq;
+      rep_uop->oracle.is_repeated = uop->oracle.is_repeated;
+      rep_uop->oracle.is_sync_op = uop->oracle.is_sync_op;
+
       repeater_enqueue(core->memory.mem_repeater, uop->oracle.is_sync_op ? CACHE_SIGNAL : CACHE_WRITE,
-                       core->current_thread->id, uop->oracle.virt_addr, dl1_uop, repeater_store_callback);
-    }
-    else {
-      zesto_assert(!uop->oracle.is_sync_op,false)
-      cache_enqueue(core,core->memory.DL1,NULL,CACHE_WRITE,core->current_thread->id,uop->Mop->fetch.PC,uop->oracle.virt_addr,dl1_uop->exec.action_id,0,NO_MSHR,dl1_uop,store_dl1_callback,NULL,store_translated_callback,get_uop_action_id);
+                       core->current_thread->id, uop->oracle.virt_addr, rep_uop, repeater_store_callback);
     }
 
     /* not a split-line access */
@@ -2108,18 +2118,18 @@ bool core_exec_IO_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
   if(STQ[STQ_head].first_byte_requested && !STQ[STQ_head].last_byte_requested)
   {
     zesto_assert(!uop->oracle.is_sync_op, 0);
+    /* Wait until we can submit to DL1 */
+    if(!cache_enqueuable(core->memory.DL1,core->current_thread->id,uop->oracle.virt_addr+uop->decode.mem_size))
+      return false;
+    /* Wait until we can submit to repeater */
+    if(uop->oracle.is_repeated)
+      if(!repeater_enqueuable(core->memory.mem_repeater, CACHE_WRITE,
+                              core->current_thread->id, uop->oracle.virt_addr+uop->decode.mem_size))
+        return false;
+
     ZESTO_STAT(core->stat.DL1_store_split_accesses++;)
 
-    if(uop->oracle.is_repeated) {
-      if(!repeater_enqueuable(core->memory.mem_repeater, CACHE_WRITE,
-                              core->current_thread->id, uop->oracle.virt_addr+uop->decode.mem_size)) {
-        return false;
-      }
-    } 
-    else if(!cache_enqueuable(core->memory.DL1,core->current_thread->id,uop->oracle.virt_addr+uop->decode.mem_size)) {
-      return false;
-    }
-
+    /* Submit second access to DL1 */
     struct uop_t * dl1_split_uop = core->get_uop_array(1);
     dl1_split_uop->core = core;
     dl1_split_uop->alloc.STQ_index = uop->alloc.STQ_index;
@@ -2129,22 +2139,31 @@ bool core_exec_IO_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
     dl1_split_uop->oracle.is_repeated = uop->oracle.is_repeated;
     dl1_split_uop->oracle.is_sync_op = uop->oracle.is_sync_op;
 
-    /* XXX: similar to split-access loads, we're not handling the translation of both
-       pages in the case that the access crosses page boundaries. */
+    cache_enqueue(core,core->memory.DL1,NULL,CACHE_WRITE,core->current_thread->id,uop->Mop->fetch.PC,uop->oracle.virt_addr+uop->decode.mem_size,dl1_split_uop->exec.action_id,0,NO_MSHR,dl1_split_uop,store_dl1_split_callback,NULL,store_translated_callback,get_uop_action_id);
+
+    /* Submit second access to repeater */
     if(uop->oracle.is_repeated) {
-      repeater_enqueue(core->memory.mem_repeater, CACHE_WRITE, core->current_thread->id, uop->oracle.virt_addr+uop->decode.mem_size, dl1_split_uop, repeater_split_store_callback);
-    }
-    else {
-      cache_enqueue(core,core->memory.DL1,NULL,CACHE_WRITE,core->current_thread->id,uop->Mop->fetch.PC,uop->oracle.virt_addr+uop->decode.mem_size,dl1_split_uop->exec.action_id,0,NO_MSHR,dl1_split_uop,store_dl1_split_callback,NULL,store_translated_callback,get_uop_action_id);
+      struct uop_t * rep_split_uop = core->get_uop_array(1);
+      rep_split_uop->core = core;
+      rep_split_uop->alloc.STQ_index = uop->alloc.STQ_index;
+      rep_split_uop->exec.action_id = STQ[STQ_head].action_id;
+      rep_split_uop->decode.Mop_seq = uop->decode.Mop_seq;
+      rep_split_uop->decode.uop_seq = uop->decode.uop_seq;
+      rep_split_uop->oracle.is_repeated = uop->oracle.is_repeated;
+      rep_split_uop->oracle.is_sync_op = uop->oracle.is_sync_op;
+
+      repeater_enqueue(core->memory.mem_repeater, CACHE_WRITE, core->current_thread->id, uop->oracle.virt_addr+uop->decode.mem_size, rep_split_uop, repeater_split_store_callback);
     }
 
+    /* XXX: similar to split-access loads, we're not handling the translation of both
+       pages in the case that the access crosses page boundaries. */
     STQ[STQ_head].last_byte_requested = true;
   }
 
   if(STQ[STQ_head].first_byte_requested && STQ[STQ_head].last_byte_requested)
   {
 #ifdef ZTRACE
-    ztrace_print(uop,"c|store|store enqueued to DL1/DTLB");
+    ztrace_print(uop,"c|store|store enqueued to DL1/DTLB/repeater");
 #endif
 
     if(STQ[STQ_head].std != NULL)
@@ -2167,6 +2186,9 @@ void core_exec_IO_DPM_t::STQ_deallocate_senior(void)
   {
     STQ[STQ_senior_head].write_complete = false;
     STQ[STQ_senior_head].translation_complete = false;
+    /* In case request was fullfilled by only one of parallel caches (DL1 and repeater)
+     * get a new action_id, to ignore callbacks from the other one */
+    STQ[STQ_senior_head].action_id = core->new_action_id();
     STQ_senior_head = modinc(STQ_senior_head,knobs->exec.STQ_size); //(STQ_senior_head + 1) % knobs->exec.STQ_size;
     STQ_senior_num--;
     zesto_assert(STQ_senior_num >= 0,(void)0);
@@ -2248,11 +2270,14 @@ void core_exec_IO_DPM_t::store_dl1_callback(void * const op)
 #endif
 
   zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
-  if(uop->exec.action_id == E->STQ[uop->alloc.STQ_index].action_id)
+  if(!uop->oracle.is_repeated) /* repeater accesses always have precedence */
   {
-    E->STQ[uop->alloc.STQ_index].first_byte_written = true;
-    if(E->STQ[uop->alloc.STQ_index].last_byte_written)
-      E->STQ[uop->alloc.STQ_index].write_complete = true;
+    if(uop->exec.action_id == E->STQ[uop->alloc.STQ_index].action_id)
+    {
+      E->STQ[uop->alloc.STQ_index].first_byte_written = true;
+      if(E->STQ[uop->alloc.STQ_index].last_byte_written)
+        E->STQ[uop->alloc.STQ_index].write_complete = true;
+    }
   }
   core->return_uop_array(uop);
 }
@@ -2266,15 +2291,18 @@ void core_exec_IO_DPM_t::store_dl1_split_callback(void * const op)
   struct core_knobs_t * knobs = core->knobs;
 
 #ifdef ZTRACE
-  ztrace_print(uop,"c|store|written to cache/memory");
+  ztrace_print(uop,"c|store|split written to cache/memory");
 #endif
 
   zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
-  if(uop->exec.action_id == E->STQ[uop->alloc.STQ_index].action_id)
+  if(!uop->oracle.is_repeated) /* repeater accesses always have precedence */
   {
-    E->STQ[uop->alloc.STQ_index].last_byte_written = true;
-    if(E->STQ[uop->alloc.STQ_index].first_byte_written)
-      E->STQ[uop->alloc.STQ_index].write_complete = true;
+    if(uop->exec.action_id == E->STQ[uop->alloc.STQ_index].action_id)
+    {
+      E->STQ[uop->alloc.STQ_index].last_byte_written = true;
+      if(E->STQ[uop->alloc.STQ_index].first_byte_written)
+        E->STQ[uop->alloc.STQ_index].write_complete = true;
+    }
   }
   core->return_uop_array(uop);
 }
@@ -2320,6 +2348,7 @@ void core_exec_IO_DPM_t::repeater_store_callback(void * const op, bool is_hit)
   ztrace_print(uop,"c|store|written to repeater");
 #endif
 
+  zesto_assert(uop->oracle.is_repeated, (void)0);
   zesto_assert(is_hit, (void)0);
   zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
   if(uop->exec.action_id == E->STQ[uop->alloc.STQ_index].action_id)
@@ -2345,9 +2374,10 @@ void core_exec_IO_DPM_t::repeater_split_store_callback(void * const op, bool is_
   struct core_knobs_t * knobs = core->knobs;
 
 #ifdef ZTRACE
-  ztrace_print(uop,"c|store|written to repeater");
+  ztrace_print(uop,"c|store|split written to repeater");
 #endif
 
+  zesto_assert(uop->oracle.is_repeated, (void)0);
   zesto_assert(is_hit, (void)0);
   zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
   if(uop->exec.action_id == E->STQ[uop->alloc.STQ_index].action_id)
