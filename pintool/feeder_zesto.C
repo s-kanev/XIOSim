@@ -160,12 +160,7 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
         CODECACHE_FlushCache();
 //        PIN_RemoveInstrumentation();
         GetLock(&simbuffer_lock, tid+1);
-
         ignore_all = false;
-        if(num_threads == 1) {
-            ignore[tid] = false;
-        }
-
         ReleaseLock(&simbuffer_lock);
 
         //ScheduleRunQueue();
@@ -522,7 +517,7 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, 
         return;
     }
 
-    if(invocationWaitZeros[tid] == 0 && (num_threads > 1)) {
+    if(invocationWaitZeros[tid] == 0) {
       ReleaseLock(&simbuffer_lock);
       return;
     }
@@ -556,6 +551,7 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, 
 VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDRINT tpc, const CONTEXT *ictxt, BOOL has_memory)
 {
     GetLock(&simbuffer_lock, tid+1);
+
     if (handshake_buffer.size() < (unsigned int) num_threads)
     {
         ReleaseLock(&simbuffer_lock);
@@ -567,7 +563,7 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
         return;
     }
     
-    if(invocationWaitZeros[tid] == 0 && (num_threads > 1)) {
+    if(invocationWaitZeros[tid] == 0) {
       ReleaseLock(&simbuffer_lock);
       return;
     }

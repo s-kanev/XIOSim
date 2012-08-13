@@ -370,6 +370,11 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
         ignored_before_wait[tid] = true;
     }
 
+    if(num_threads == 1) {
+      ReleaseLock(&simbuffer_lock);
+      return;
+    } 
+
 //    ASSERTX(tstate->lastSignalAddr == 0xdecafbad);
     tstate->lastSignalAddr = 0x7fff0000 + ssID;
     lastWaitID[tid] = ssID;
@@ -409,6 +414,10 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT is_light, ADDRINT pc)
         cerr << tid <<": After Wait "<< hex << pc << dec  << " ID: " << lastWaitID[tid] << endl;
 #endif
 
+    /* Don't insert waits in single-core mode */
+    if (num_threads == 1)
+      goto cleanup;
+
     if(!is_light) {
       lastCycles = sim_cycle;
     }
@@ -428,10 +437,6 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT is_light, ADDRINT pc)
     /* Ignore injecting waits until the end of the first iteration,
      * so we can start simulating */
     if (tstate->firstIteration)
-        goto cleanup;
-
-    /* Don't insert waits in single-core mode */
-    if (num_threads < 2)
         goto cleanup;
     
     if(!use_ring_cache) {
@@ -467,9 +472,9 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT is_light, ADDRINT pc)
     // Address comes right after opcode byte
 //    ASSERTX(tstate->lastSignalAddr != 0xdecafbad);
     *(INT32*)(&handshake->handshake.ins[1]) = tstate->lastSignalAddr;
-
 //    cerr << tid << ": Vodoo load instruction " << hex << pc <<  " ID: " << tstate->lastSignalAddr << dec << endl;
     handshake_buffer.producer_done(tid);
+
 cleanup:
     tstate->lastSignalAddr = 0xdecafbad;
     ReleaseLock(&simbuffer_lock);
@@ -529,12 +534,12 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT p
     if (ExecMode != EXECUTION_MODE_SIMULATE || ignore_all)
         goto cleanup;
 
+    /* Don't insert signals in single-core mode */
+    if (num_threads == 1)
+        goto cleanup;
+
     unmatchedWaits[tid]--;
     ASSERTX(unmatchedWaits[tid] >= 0);
-
-    /* Don't insert signals in single-core mode */
-    if (num_threads < 2)
-        goto cleanup;
     
     if(!use_ring_cache) {
       ReleaseLock(&simbuffer_lock);
