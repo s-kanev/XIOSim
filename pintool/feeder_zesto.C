@@ -522,13 +522,6 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, 
       return;
     }
 
-
-    bool is_smc = smc_check(pc);
-    if(is_smc) {
-      ReleaseLock(&simbuffer_lock);
-      return;
-    }
-    
     handshake_container_t* handshake;
     if(first_read) {
         handshake = handshake_buffer.get_buffer(tid);
@@ -564,13 +557,6 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
     }
     
     if(invocationWaitZeros[tid] == 0) {
-      ReleaseLock(&simbuffer_lock);
-      return;
-    }
-
-
-    bool is_smc = smc_check(pc);
-    if(is_smc) {
       ReleaseLock(&simbuffer_lock);
       return;
     }
@@ -1719,21 +1705,4 @@ VOID doLateILDJITInstrumentation()
   PIN_UnlockClient();
 
   calledAlready = true;
-}
-
-BOOL smc_check(ADDRINT pc)
-{return false;
-  uint pc_content = *((uint*)pc);
-  
-  if(seen_instructions.count(pc) == 0) {
-    seen_instructions[pc] = pc_content;
-    return false;
-  }
-  
-  if(seen_instructions[pc] != pc_content) {
-    cerr << "[KEVIN-SMKEVIN]:" << seen_instructions[pc] << " " << pc_content << endl;
-    return true;
-  }
-  
-  return false;     
 }
