@@ -178,18 +178,12 @@ void BufferManager::flushBuffers(THREADID tid)
 {
   GetLock(locks_[tid], tid+1);
   map<THREADID, string>::iterator it;
-  cerr << "FLUSHWRITE:" << tid << endl;
 
   if(produceBuffer_[tid]->size() > 0) {
     cerr << produceBuffer_[tid]->size() << " " << fileEntryCount_[tid] << " " << consumeBuffer_[tid]->size() << endl;
     copyProducerToFile(tid);
     cerr << produceBuffer_[tid]->size() << " " << fileEntryCount_[tid] << " " << consumeBuffer_[tid]->size() << endl;
-    cerr << "Done copy" << tid << endl;
   }
-  else {
-    cerr << "Skipped copy" << tid << endl;
-  }
-
   ReleaseLock(locks_[tid]);
 }
 
@@ -593,7 +587,7 @@ void BufferManager::allocateThread(THREADID tid)
   fileEntryCount_[tid] = 0;
   consumeBuffer_[tid] = new Buffer(400000 / num_threads);
   //    fakeFile_[tid] = new Buffer(2);
-  produceBuffer_[tid] = new Buffer(10000);
+  produceBuffer_[tid] = new Buffer(int(7.5*10000));
   produceBuffer_[tid]->get_buffer()->flags.isFirstInsn = true;
   pool_[tid] = consumeBuffer_[tid]->capacity() + (produceBuffer_[tid]->capacity() * 2);
   locks_[tid] = new PIN_LOCK();

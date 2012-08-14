@@ -985,9 +985,6 @@ VOID PauseSimulation(THREADID tid)
      * of the loop; (ii) drain all pipelines once cores are waiting. */
   map<THREADID, tick_t> lastWaitZeros;
 
-  cerr << tid << " Starting first pause phase " << endl;
-  cerr.flush();
-
     volatile bool done_with_iteration = false;
     do {
         GetLock(&simbuffer_lock, tid + 1);
@@ -1002,8 +999,7 @@ VOID PauseSimulation(THREADID tid)
 
 
     GetLock(&simbuffer_lock, tid+1);
-    cerr << tid << " Starting second pause phase " << endl;
-    cerr.flush();
+
     /* Drainning all pipelines and deactivating cores. */
     vector<THREADID>::iterator it;
     for (it = thread_list.begin(); it != thread_list.end(); it++) {
@@ -1058,7 +1054,6 @@ VOID PauseSimulation(THREADID tid)
 
         handshake_buffer.flushBuffers(*it);
 	lastWaitZeros[*it] = 0;
-	cerr.flush();
     }
 
     ReleaseLock(&simbuffer_lock);
@@ -1078,8 +1073,6 @@ VOID PauseSimulation(THREADID tid)
 	spins++;
 	if(spins > 70000000LL) {
 	  spins = 0;
-	  cerr << "Spinning empty:" << endl;
-	  cerr.flush();
 	}
 	
     } while (!done);
