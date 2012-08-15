@@ -42,6 +42,10 @@ static map<ADDRINT, INT32> invocation_counts;
 
 KNOB<string> KnobLoopIDFile(KNOB_MODE_WRITEONCE, "pintool",
     "loopID", "", "File to get start/end loop IDs and invocation caounts");
+
+KNOB<BOOL> KnobDisableWaitSignal(KNOB_MODE_WRITEONCE,     "pintool",
+        "disable_wait_signal", "false", "Don't insert any waits or signals into the pipeline");
+
 static CHAR start_loop[512] = {0};
 static INT32 start_loop_invocation;
 static CHAR end_loop[512] = {0};
@@ -66,6 +70,7 @@ extern VOID doLateILDJITInstrumentation();
 time_t last_time;
 
 bool use_ring_cache;
+bool disable_wait_signal;
 
 /* ========================================================================== */
 VOID MOLECOOL_Init()
@@ -88,6 +93,8 @@ VOID MOLECOOL_Init()
         loop_file.getline(end_loop, 512);
         loop_file >> end_loop_invocation;
     }
+
+    disable_wait_signal = KnobDisableWaitSignal.Value();
 
     // callbacks so we can delete temporary files in /dev/shm
     PIN_InterceptSignal(SIGINT, signalCallback, NULL);
@@ -244,7 +251,11 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
     }
 
     use_ring_cache = (rc > 0);
-    
+        
+    if(disable_wait_signal) {
+      use_ring_cache = false;
+    } 
+
     cerr << "Starting loop: " << loop_name << "[" << invocation_counts[loop] << "]" << endl;
     /* This is called right before a wait spin loop.
      * For this thread only, ignore the end of the wait, so we
