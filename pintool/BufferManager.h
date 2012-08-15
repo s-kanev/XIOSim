@@ -51,6 +51,8 @@ class BufferManager
 
   map<THREADID, ofstream*> logs_;
 
+  string gpid_;
+  
   void reserveHandshake(THREADID tid);
 
   void copyProducerToFile(THREADID tid);
@@ -66,6 +68,8 @@ class BufferManager
   void writeHandshake(THREADID tid, int fd, handshake_container_t* handshake);
 
   void abort(void);
+
+  string genFileName();
 
   std::map<THREADID, int> queueSizes_;
   std::map<THREADID, Buffer*> consumeBuffer_;

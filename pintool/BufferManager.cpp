@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <signal.h>
 #include <stack>
+#include <sstream>
 
 extern int num_threads;
 
@@ -40,6 +41,11 @@ ostream& operator<< (ostream &out, handshake_container_t &hand)
 BufferManager::BufferManager()
 {
   useRealFile_ = true;
+  int pid = getpgrp();
+  ostringstream iss;
+  iss << pid;
+  gpid_ = iss.str();
+  assert(gpid_.length() <= 5);
 }
 
 BufferManager::~BufferManager()
@@ -598,9 +604,9 @@ void BufferManager::allocateThread(THREADID tid)
     string logName = "./output_ring_cache/handshake_" + string(s_tid) + ".log";
     logs_[tid] = new ofstream();
     (*(logs_[tid])).open(logName.c_str());*/
-
-  fileNames_[tid] = tempnam("/dev/shm/", "A");
-  bogusNames_[tid] = tempnam("/dev/shm/", "B");
+  
+  fileNames_[tid] = genFileName();
+  bogusNames_[tid] = genFileName();
   
   cerr << tid << " Created " << fileNames_[tid] << " and " << bogusNames_[tid] << endl;
   
@@ -619,4 +625,11 @@ void BufferManager::allocateThread(THREADID tid)
   writeBufferSize_[tid] = 4096;
   writeBuffer_[tid] = malloc(4096);
   assert(writeBuffer_[tid]);
+}
+
+string BufferManager::genFileName()
+{
+  string temp = tempnam("/dev/shm/", gpid_.c_str());
+  temp.insert(8 + gpid_.length() + 1, "_");
+  return temp;
 }
