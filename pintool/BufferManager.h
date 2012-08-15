@@ -77,8 +77,8 @@ class BufferManager
   std::map<THREADID, Buffer*> fakeFile_;
   std::map<THREADID, int> fileEntryCount_;
 
-  std::map<THREADID, string> fileNames_;
-  std::map<THREADID, string> bogusNames_;
+  std::map<THREADID, deque<string> > fileNames_;
+  std::map<THREADID, deque<int> > fileCounts_;
 
   std::map<THREADID, int> readBufferSize_;
   std::map<THREADID, void*> readBuffer_;
