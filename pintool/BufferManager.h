@@ -76,7 +76,7 @@ class BufferManager
   std::map<THREADID, int> queueSizes_;
   std::map<THREADID, Buffer*> consumeBuffer_;
   std::map<THREADID, Buffer*> produceBuffer_;
-  std::map<THREADID, Buffer*> fakeFile_;
+  std::map<THREADID, deque<handshake_container_t>  > fakeFile_;
   std::map<THREADID, int> fileEntryCount_;
 
   std::map<THREADID, deque<string> > fileNames_;

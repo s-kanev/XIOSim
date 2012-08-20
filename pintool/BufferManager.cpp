@@ -40,7 +40,6 @@ ostream& operator<< (ostream &out, handshake_container_t &hand)
 
 BufferManager::BufferManager()
 {
-  useRealFile_ = true;
   int pid = getpgrp();
   ostringstream iss;
   iss << pid;
@@ -314,7 +313,6 @@ void BufferManager::copyProducerToFile(THREADID tid)
     copyProducerToFileReal(tid);
   }
   else {
-    assert(false);
     copyProducerToFileFake(tid);
   }
   sync();
@@ -326,7 +324,6 @@ void BufferManager::copyFileToConsumer(THREADID tid)
     copyFileToConsumerReal(tid);
   }
   else {
-    assert(false);
     copyFileToConsumerFake(tid);
   }
   sync();
@@ -334,36 +331,27 @@ void BufferManager::copyFileToConsumer(THREADID tid)
 
 void BufferManager::copyProducerToFileFake(THREADID tid)
 {
-  while(produceBuffer_[tid]->size() > 0) {
-    if(fakeFile_[tid]->full()) {
-      break;
-    }
-
-    if(produceBuffer_[tid]->front()->flags.valid == false) {
-      break;
-    }
-
-    handshake_container_t* handshake = fakeFile_[tid]->get_buffer();
-    produceBuffer_[tid]->front()->CopyTo(handshake);
-    fakeFile_[tid]->push_done();
-    produceBuffer_[tid]->pop();
+  while(produceBuffer_[tid]->size() > 0) {    
+    handshake_container_t handshake = *(produceBuffer_[tid]->front());
+    produceBuffer_[tid]->pop(); 
+    fakeFile_[tid].push_back(handshake);
+    fileEntryCount_[tid]++;
   }
 }
 
 
 void BufferManager::copyFileToConsumerFake(THREADID tid)
 {
-  while(fakeFile_[tid]->size() > 0) {
+  while(fakeFile_[tid].size() > 0) {
     if(consumeBuffer_[tid]->full()) {
       break;
     }
 
-    assert(fakeFile_[tid]->front()->flags.valid);
-
     handshake_container_t* handshake = consumeBuffer_[tid]->get_buffer();
-    fakeFile_[tid]->front()->CopyTo(handshake);
+    *handshake = fakeFile_[tid].front();
     consumeBuffer_[tid]->push_done();
-    fakeFile_[tid]->pop();
+    fakeFile_[tid].pop_front();
+    fileEntryCount_[tid]--;
   }
 }
 
@@ -560,9 +548,16 @@ void BufferManager::allocateThread(THREADID tid)
   
   queueSizes_[tid] = 0;
   fileEntryCount_[tid] = 0;
+  if(num_threads > 1) {
+    useRealFile_ = true;
+  }
+  else {
+    useRealFile_ = false;
+  }
+  
   int bufferEntries = 640000;
   int bufferCapacity = bufferEntries / 2 / num_threads;
-
+  
   consumeBuffer_[tid] = new Buffer(bufferCapacity);
   produceBuffer_[tid] = new Buffer(bufferCapacity);
   assert(produceBuffer_[tid]->capacity() <= consumeBuffer_[tid]->capacity());
@@ -591,5 +586,9 @@ string BufferManager::genFileName()
 
 void BufferManager::resetPool(THREADID tid) 
 {
-  pool_[tid] = (consumeBuffer_[tid]->capacity() + produceBuffer_[tid]->capacity()) * 6;
+  int poolFactor = 1;
+  if(num_threads > 1) {
+    poolFactor = 6;
+  }
+  pool_[tid] = (consumeBuffer_[tid]->capacity() + produceBuffer_[tid]->capacity()) * poolFactor;
 }
