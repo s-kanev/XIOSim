@@ -34,6 +34,7 @@ class BufferManager
 
   bool hasThread(THREADID tid);
   unsigned int size();
+  unsigned int size(THREADID tid);
 
   void flushBuffers(THREADID tid);
 
@@ -68,7 +69,8 @@ class BufferManager
   void writeHandshake(THREADID tid, int fd, handshake_container_t* handshake);
 
   void abort(void);
-
+  
+  void resetPool(THREADID tid);
   string genFileName();
 
   std::map<THREADID, int> queueSizes_;

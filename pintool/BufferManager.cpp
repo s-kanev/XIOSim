@@ -120,7 +120,7 @@ bool BufferManager::empty(THREADID tid)
   GetLock(locks_[tid], tid+1);
   bool result = queueSizes_[tid] == 0;
   if(result) {
-    pool_[tid] = consumeBuffer_[tid]->capacity() + (produceBuffer_[tid]->capacity() * 2);
+    resetPool(tid);
   }
   ReleaseLock(locks_[tid]);
   return result;
@@ -227,6 +227,15 @@ unsigned int BufferManager::size()
   return result;
 }
 
+unsigned int BufferManager::size(THREADID tid)
+{
+  GetLock(locks_[tid], tid+1);
+  unsigned int result = queueSizes_[tid];
+  ReleaseLock(locks_[tid]);
+  return result;
+}
+
+
 void BufferManager::reserveHandshake(THREADID tid)
 {
   long long int spins = 0;
@@ -240,7 +249,7 @@ void BufferManager::reserveHandshake(THREADID tid)
     queueLimit = 100001;
   }
 
-  while(pool_[tid] == 0) {
+  while(pool_[tid] == 0) {           
     ReleaseLock(locks_[tid]);
     ReleaseLock(&simbuffer_lock);
     PIN_Yield();    
@@ -259,7 +268,7 @@ void BufferManager::reserveHandshake(THREADID tid)
       else if (num_threads == 1) {
 	spins = 0;
       }
-      else {
+       else {
 	cerr << tid << " [reserveHandshake()]: File size too big to expand, abort():" << queueSizes_[tid] << endl;
 	this->abort();
       }
@@ -268,6 +277,34 @@ void BufferManager::reserveHandshake(THREADID tid)
       popped_ = false;
       spins = 0;
     }
+  }
+  
+  while(pool_[tid] == 0) {
+    assert(queueSizes_[tid] > 0);
+    ReleaseLock(locks_[tid]);
+    ReleaseLock(&simbuffer_lock);
+
+    popped_ = false;
+    PIN_Sleep(1000);
+    
+    GetLock(&simbuffer_lock, tid+1);
+    GetLock(locks_[tid], tid+1);
+
+    if(popped_) {
+      continue;
+    }
+
+    if(num_threads == 1) {
+      continue;
+    }	
+    
+    if(queueSizes_[tid] < queueLimit) {
+      pool_[tid] += 50000;
+      cerr << tid << " [reserveHandshake()]: Increasing file up to " << queueSizes_[tid] + pool_[tid] << endl;
+      break;
+    }
+    cerr << tid << " [reserveHandshake()]: File size too big to expand, abort():" << queueSizes_[tid] << endl;
+    this->abort();
   }
 }
 
@@ -523,13 +560,14 @@ void BufferManager::allocateThread(THREADID tid)
   
   queueSizes_[tid] = 0;
   fileEntryCount_[tid] = 0;
+  int bufferEntries = 640000;
+  int bufferCapacity = bufferEntries / 2 / num_threads;
 
-  consumeBuffer_[tid] = new Buffer(400000 / num_threads);
-  produceBuffer_[tid] = new Buffer(20000);
-  assert(produceBuffer_[tid]->capacity() < consumeBuffer_[tid]->capacity());
-
+  consumeBuffer_[tid] = new Buffer(bufferCapacity);
+  produceBuffer_[tid] = new Buffer(bufferCapacity);
+  assert(produceBuffer_[tid]->capacity() <= consumeBuffer_[tid]->capacity());
+  resetPool(tid);
   produceBuffer_[tid]->get_buffer()->flags.isFirstInsn = true;
-  pool_[tid] = consumeBuffer_[tid]->capacity() + (produceBuffer_[tid]->capacity() * 2);
   locks_[tid] = new PIN_LOCK();
   InitLock(locks_[tid]);
     
@@ -549,4 +587,9 @@ string BufferManager::genFileName()
   string temp = tempnam("/dev/shm/", gpid_.c_str());
   temp.insert(8 + gpid_.length() + 1, "_");
   return temp;
+}
+
+void BufferManager::resetPool(THREADID tid) 
+{
+  pool_[tid] = (consumeBuffer_[tid]->capacity() + produceBuffer_[tid]->capacity()) * 6;
 }
