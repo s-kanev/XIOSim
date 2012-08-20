@@ -829,6 +829,11 @@ struct cache_line_t * cache_is_hit(
   struct cache_line_t * p = cp->blocks[index];
   struct cache_line_t * prev = NULL;
 
+  if(cache_magic) {
+    assert(p != NULL);    
+    return p;
+  }
+
   while(p) /* search all of the ways */
   {
     if(p->valid && (p->tag == block_addr)) /* hit */
@@ -2691,12 +2696,13 @@ void bus_reg_stats(
 }
 
 extern bool fsb_magic;
+extern bool cache_magic;
 
 /* Returns true is the bus is available */
 int bus_free(const struct bus_t * const bus)
 {
   /* HACEDY HACKEDY HACK -- magic FSB */
-  if(!strncmp(bus->name, "FSB", 3) && fsb_magic)
+  if(fsb_magic)
     return true;
   /* assume bus clock is locked to cpu clock (synchronous): only
      allow operations when cycle MOD bus-multiplier is zero */

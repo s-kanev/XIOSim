@@ -98,6 +98,7 @@ static int fsb_width;    /* in bytes */
 static bool fsb_DDR;     /* true if DDR */
 static double fsb_speed; /* in MHz */
 bool fsb_magic; /* ideal FSB flag */
+bool cache_magic; /* ideal cache flag */
 static const char * MC_opt_string = NULL;
 static const char * LLC_opt_str = "LLC:4096:16:64:16:64:9:L:W:B:8:1:8:C";
 static int LLC_bus_ratio = 1;
@@ -264,6 +265,8 @@ uncore_reg_options(struct opt_odb_t * const odb)
       &fsb_speed, /*default*/100.0,/*print*/true,/*format*/NULL);
   opt_reg_flag(odb, "-fsb:magic", "Unlimited, 0-latency FSB",
       &fsb_magic, /*default*/false, /*print*/true,/*format*/NULL);
+  opt_reg_flag(odb, "-cache:magic", "All caches always hit",
+      &cache_magic, /*default*/false, /*print*/true,/*format*/NULL);
   opt_reg_double(odb, "-cpu:speed", "CPU speed in MHz [DS]",
       &cpu_speed, /*default*/4000.0,/*print*/true,/*format*/NULL); 
   opt_reg_string(odb, "-MC", "memory controller configuration string [DS]",
