@@ -2690,9 +2690,14 @@ void bus_reg_stats(
   stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
 }
 
+extern bool fsb_magic;
+
 /* Returns true is the bus is available */
 int bus_free(const struct bus_t * const bus)
 {
+  /* HACEDY HACKEDY HACK -- magic FSB */
+  if(!strncmp(bus->name, "FSB", 3) && fsb_magic)
+    return true;
   /* assume bus clock is locked to cpu clock (synchronous): only
      allow operations when cycle MOD bus-multiplier is zero */
   if(sim_cycle % bus->ratio)
