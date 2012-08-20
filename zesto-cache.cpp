@@ -90,6 +90,9 @@
 #define GET_BANK(x) (((x)>>cp->bank_shift) & cp->bank_mask)
 #define GET_MSHR_BANK(x) (((x)>>cp->bank_shift) & cp->MSHR_mask)
 
+extern bool fsb_magic;
+extern bool cache_magic;
+
 struct cache_t * cache_create(
     struct core_t * const core,
     const char * const name,
@@ -2694,9 +2697,6 @@ void bus_reg_stats(
   sprintf(buf3,"%s%s.pf_utilization/sim_cycle",core_str,bus->name);
   stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
 }
-
-extern bool fsb_magic;
-extern bool cache_magic;
 
 /* Returns true is the bus is available */
 int bus_free(const struct bus_t * const bus)
