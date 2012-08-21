@@ -115,6 +115,7 @@ EXECUTION_MODE ExecMode = EXECUTION_MODE_INVALID;
 typedef pair <UINT32, CHAR **> SSARGS;
 map<ADDRINT, uint> seen_instructions; // protected by simbuffer lock (fyi)
 extern map<THREADID, INT32> invocationWaitZeros;
+map<THREADID, tick_t> lastConsumerApply;
 
 /* ========================================================================== */
 UINT64 SimOrgInsCount;                   // # of simulated instructions
@@ -478,6 +479,7 @@ VOID SimulatorLoop(VOID* arg)
 	sim_time += ins_delta_time;
 #endif
 	}
+	lastConsumerApply[instrument_tid] = sim_cycle;
 	handshake_buffer.applyConsumerChanges(instrument_tid, consumerHandshakes);
     }
 }
@@ -983,8 +985,6 @@ VOID PauseSimulation(THREADID tid)
      * and unblocked the last iteration. We need to (i) wait for them
      * to functionally reach wait 0, where they will wait until the end
      * of the loop; (ii) drain all pipelines once cores are waiting. */
-  map<THREADID, tick_t> lastWaitZeros;
-
     volatile bool done_with_iteration = false;
     do {
         GetLock(&simbuffer_lock, tid + 1);
@@ -1053,35 +1053,38 @@ VOID PauseSimulation(THREADID tid)
         handshake_buffer.producer_done(*it, true);
 
         handshake_buffer.flushBuffers(*it);
-	lastWaitZeros[*it] = 0;
     }
 
     ReleaseLock(&simbuffer_lock);
     
     /* Wait until all cores are done -- consumed their buffers. */
-    long long int spins = 0;
+    bool sleepEnabled = true;
     volatile bool done = false;
     do {
         done = true;
+	unsigned int numHandshakes = 0;
         vector<THREADID>::iterator it;
         for (it = thread_list.begin(); it != thread_list.end(); it++) {
             done &= handshake_buffer.empty((*it));
-	    if((lastWaitZeros[*it] == 0) && handshake_buffer.empty(*it)) {
-	      lastWaitZeros[*it] = sim_cycle; 
+	    if(sleepEnabled) {
+	      numHandshakes += handshake_buffer.size(*it);
 	    }
+	}	
+	if((!done) && sleepEnabled) {
+	  if(numHandshakes > 5000) {
+	    PIN_Sleep(1000); // one second
+	  }
+	  else {
+	    sleepEnabled = false;
+	  }
 	}
-	spins++;
-	if(spins > 70000000LL) {
-	  spins = 0;
-	}
-	
     } while (!done);
 
     cerr << tid << " [" << sim_cycle << ":KEVIN]: All cores have empty buffers" << endl;
     cerr.flush();
 
     for (it = thread_list.begin(); it != thread_list.end(); it++) {	
-      cerr << thread_cores[*it] << ":OverlapCycles:" << sim_cycle - lastWaitZeros[*it] << endl;
+      cerr << thread_cores[*it] << ":OverlapCycles:" << sim_cycle - lastConsumerApply[*it] << endl;
     }
 
     GetLock(&simbuffer_lock, tid+1);

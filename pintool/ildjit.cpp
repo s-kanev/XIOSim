@@ -315,7 +315,6 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
 //#endif
 
     if (ExecMode == EXECUTION_MODE_SIMULATE) {
-      cerr << "Ending loop: " << loop_name << " NumIterations:" << (UINT32)numIterations << endl;
       cerr << tid << ": Pausing simulation" << endl;
       PauseSimulation(tid);
       cerr << tid << ": Paused simulation!" << endl;
@@ -331,9 +330,8 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
 	afterSignalCount[*it] = 0;
 	afterWaitLightCount[*it] = 0;
 	afterWaitHeavyCount[*it] = 0;
-
       }
-                  
+      cerr << "Ending loop: " << loop_name << " NumIterations:" << (UINT32)numIterations << endl;
       ReleaseLock(&simbuffer_lock);
     }
 

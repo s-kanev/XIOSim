@@ -297,7 +297,7 @@ core_exec_IO_DPM_t::core_exec_IO_DPM_t(struct core_t * const arg_core):
     core->memory.DL2->PF_high_watermark = knobs->memory.DL2_high_watermark;
     core->memory.DL2->PF_sample_interval = knobs->memory.DL2_WMinterval;
 
-    core->memory.DL2_bus = bus_create("DL2_bus",core->memory.DL2->linesize,1);
+    core->memory.DL2_bus = bus_create("DL2_bus",core->memory.DL2->linesize*core->memory.DL2->banks,1);
   }
 
   /* per-core DL1 */
