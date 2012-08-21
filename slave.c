@@ -386,7 +386,6 @@ void Zesto_Destroy()
 
 void deactivate_core(int coreID)
 {
-  fprintf(stderr, "deactivate %d\n", coreID);
   assert(coreID >= 0 && coreID < num_threads);
 //  fprintf(stderr, "deactivate %d\n", coreID);
   ZPIN_TRACE("deactivate %d\n", coreID);
