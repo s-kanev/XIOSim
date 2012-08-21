@@ -560,7 +560,8 @@ void BufferManager::allocateThread(THREADID tid)
   int bufferCapacity = bufferEntries / 2 / num_threads;
 
   if(!useRealFile_) {
-    fakeFile_[tid] = new Buffer(bufferCapacity*2);
+    bufferCapacity /= 4;
+    fakeFile_[tid] = new Buffer(bufferCapacity*2 + 10);
   }
   
   consumeBuffer_[tid] = new Buffer(bufferCapacity);
