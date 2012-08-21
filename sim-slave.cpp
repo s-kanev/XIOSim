@@ -535,7 +535,7 @@ static void global_step(void)
         else
 	  myfprintf(stderr,"%lld, all=%lld}\n",cores[i]->stat.commit_insn, sum);
       }
-      lk_unlock(&printing_lock, 1);
+      lk_unlock(&printing_lock);
       heartbeat_count = 0;
     }
 
