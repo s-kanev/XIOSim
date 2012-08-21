@@ -183,9 +183,7 @@ void BufferManager::flushBuffers(THREADID tid)
   map<THREADID, string>::iterator it;
 
   if(produceBuffer_[tid]->size() > 0) {
-    cerr << produceBuffer_[tid]->size() << " " << fileEntryCount_[tid] << " " << consumeBuffer_[tid]->size() << endl;
     copyProducerToFile(tid);
-    cerr << produceBuffer_[tid]->size() << " " << fileEntryCount_[tid] << " " << consumeBuffer_[tid]->size() << endl;
   }
   ReleaseLock(locks_[tid]);
 }
@@ -267,7 +265,7 @@ void BufferManager::reserveHandshake(THREADID tid)
       else if (num_threads == 1) {
 	spins = 0;
       }
-       else {
+      else {
 	cerr << tid << " [reserveHandshake()]: File size too big to expand, abort():" << queueSizes_[tid] << endl;
 	this->abort();
       }
@@ -332,9 +330,12 @@ void BufferManager::copyFileToConsumer(THREADID tid)
 void BufferManager::copyProducerToFileFake(THREADID tid)
 {
   while(produceBuffer_[tid]->size() > 0) {    
-    handshake_container_t handshake = *(produceBuffer_[tid]->front());
-    produceBuffer_[tid]->pop(); 
-    fakeFile_[tid].push_back(handshake);
+    handshake_container_t* handshake = produceBuffer_[tid]->front();
+    handshake_container_t* handfake = fakeFile_[tid]->get_buffer();
+    handshake->CopyTo(handfake);
+    fakeFile_[tid]->push_done();
+
+    produceBuffer_[tid]->pop(); 	
     fileEntryCount_[tid]++;
   }
 }
@@ -342,15 +343,15 @@ void BufferManager::copyProducerToFileFake(THREADID tid)
 
 void BufferManager::copyFileToConsumerFake(THREADID tid)
 {
-  while(fakeFile_[tid].size() > 0) {
+  while(fakeFile_[tid]->size() > 0) {
     if(consumeBuffer_[tid]->full()) {
       break;
     }
 
     handshake_container_t* handshake = consumeBuffer_[tid]->get_buffer();
-    *handshake = fakeFile_[tid].front();
+    fakeFile_[tid]->front()->CopyTo(handshake);
     consumeBuffer_[tid]->push_done();
-    fakeFile_[tid].pop_front();
+    fakeFile_[tid]->pop();
     fileEntryCount_[tid]--;
   }
 }
@@ -554,9 +555,13 @@ void BufferManager::allocateThread(THREADID tid)
   else {
     useRealFile_ = false;
   }
-  
+
   int bufferEntries = 640000;
   int bufferCapacity = bufferEntries / 2 / num_threads;
+
+  if(!useRealFile_) {
+    fakeFile_[tid] = new Buffer(bufferCapacity*2);
+  }
   
   consumeBuffer_[tid] = new Buffer(bufferCapacity);
   produceBuffer_[tid] = new Buffer(bufferCapacity);
