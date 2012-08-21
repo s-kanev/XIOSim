@@ -152,14 +152,6 @@ VOID ILDJIT_startSimulation(THREADID tid, ADDRINT ip)
   
     CODECACHE_FlushCache();
 
-    if(start_loop_invocation == 1) {
-      cerr << "[KEVIN]: Can't delay before/after wait/signal instrumentation ";
-      cerr << "since phase starts on invocation 1 of a loop" << endl;
-      //      doLateILDJITInstrumentation();      
-      //      AddILDJITWaitSignalCallbacks();
-      cerr << "[KEVIN] Added callbacks!" << endl;
-    }
-
     GetLock(&ildjit_lock, 1);
 
     /* We are stopping thread creation here, beacuse we can capture the real
@@ -246,7 +238,6 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
       }
       if(invocation_counts[loop] == start_loop_invocation) {
 	doLateILDJITInstrumentation();
-	cerr << "Doing ildjit late instrumentation" << endl;
       }
     }
 
@@ -304,7 +295,6 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
         cerr << tid << ": resuming simulation" << endl;
         ResumeSimulation(tid);
     }
-    cerr << "Leaving startparallelloop" << endl;
 }
 /* ========================================================================== */
 
@@ -315,7 +305,6 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
 //#endif
 
     if (ExecMode == EXECUTION_MODE_SIMULATE) {
-      cerr << tid << ": Pausing simulation" << endl;
       PauseSimulation(tid);
       cerr << tid << ": Paused simulation!" << endl;
       
@@ -323,10 +312,6 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
       vector<THREADID>::iterator it;
       for (it = thread_list.begin(); it != thread_list.end(); it++) {	
 	invocationWaitZeros[*it] = 0;
-
-	cerr << thread_cores[*it] << ":AFTERSIGNALCOUNT:" <<  afterSignalCount[tid] << endl;
-	cerr << thread_cores[*it] << ":AFTERWAITLIGHTCOUNT:" <<  afterWaitLightCount[tid] << endl;
-	cerr << thread_cores[*it] << ":AFTERWAITHEAVYCOUNT:" <<  afterWaitHeavyCount[tid] << endl;
 	afterSignalCount[*it] = 0;
 	afterWaitLightCount[*it] = 0;
 	afterWaitHeavyCount[*it] = 0;
@@ -338,7 +323,6 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
     if(strncmp(end_loop, (CHAR*)loop, 512) == 0 && invocation_counts[loop] == end_loop_invocation) {
       cerr << "Simulation runtime:"; 
       printElapsedTime();  	
-      cerr << "Ending loop: " << loop_name << " NumIterations:" << (UINT32)numIterations << endl;
       cerr << "LStopping simulation, TID: " << tid << endl;
       StopSimulation(tid);
       cerr << "[KEVIN] Stopped simulation! " << tid << endl;
