@@ -556,7 +556,7 @@ void BufferManager::allocateThread(THREADID tid)
     useRealFile_ = false;
   }
 
-  int bufferEntries = 640000;
+  int bufferEntries = 640000 / 2;
   int bufferCapacity = bufferEntries / 2 / num_threads;
 
   if(!useRealFile_) {
