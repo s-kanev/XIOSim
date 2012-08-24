@@ -146,10 +146,6 @@ VOID ILDJIT_startSimulation(THREADID tid, ADDRINT ip)
 {
     // Check to see what current memory usage is post HELIX
   
-  cerr << "[KEVIN] ILDJIT called startSimulation()" << endl;
-  cerr << "HELIX runtime:"; 
-  printElapsedTime();  
-  
     CODECACHE_FlushCache();
 
     GetLock(&ildjit_lock, 1);
@@ -410,7 +406,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT is_light, ADDRINT pc)
     /* Don't insert waits in single-core mode */
     if (num_threads == 1)
       goto cleanup;
-
+    
     if(!is_light) {
       lastCycles = sim_cycle;
     }
@@ -573,7 +569,6 @@ cleanup:
 /* ========================================================================== */
 VOID ILDJIT_setAffinity(THREADID tid, INT32 coreID)
 {
-    cerr << tid << ": assigned to core " << coreID << endl;
     ASSERTX(coreID >= 0 && coreID < num_threads);
     thread_state_t* tstate = get_tls(tid);
     tstate->coreID = coreID;
