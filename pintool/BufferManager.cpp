@@ -237,46 +237,15 @@ unsigned int BufferManager::size(THREADID tid)
 
 void BufferManager::reserveHandshake(THREADID tid)
 {
-  //  long long int spins = 0;
   bool popped_ = false;
 
   int queueLimit;
   if(num_threads > 1) {
-    queueLimit = 30000001;
+    queueLimit = 50000001;
   }
   else {
     queueLimit = 100001;
   }
-
-  /*  while(pool_[tid] == 0) {           
-    ReleaseLock(locks_[tid]);
-    ReleaseLock(&simbuffer_lock);
-    PIN_Yield();    
-    GetLock(&simbuffer_lock, tid+1);
-    GetLock(locks_[tid], tid+1);
-    spins++;
-
-    if(spins >= 7000000LL) {
-      assert(queueSizes_[tid] > 0);      
-      if(queueSizes_[tid] < queueLimit) {
-	pool_[tid] += 50000;
-	cerr << tid << " [reserveHandshake()]: Increasing file up to " << queueSizes_[tid] + pool_[tid] << endl;
-	spins = 0;
-	break;
-      }
-      else if (num_threads == 1) {
-	spins = 0;
-      }
-      else {
-	cerr << tid << " [reserveHandshake()]: File size too big to expand, abort():" << queueSizes_[tid] << endl;
-	this->abort();
-      }
-    }
-    if(popped_) {
-      popped_ = false;
-      spins = 0;
-    }
-    }*/
   
   while(pool_[tid] == 0) {
     assert(queueSizes_[tid] > 0);
