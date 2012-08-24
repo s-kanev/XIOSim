@@ -237,18 +237,18 @@ unsigned int BufferManager::size(THREADID tid)
 
 void BufferManager::reserveHandshake(THREADID tid)
 {
-  long long int spins = 0;
+  //  long long int spins = 0;
   bool popped_ = false;
 
   int queueLimit;
   if(num_threads > 1) {
-    queueLimit = 20000001;
+    queueLimit = 30000001;
   }
   else {
     queueLimit = 100001;
   }
 
-  while(pool_[tid] == 0) {           
+  /*  while(pool_[tid] == 0) {           
     ReleaseLock(locks_[tid]);
     ReleaseLock(&simbuffer_lock);
     PIN_Yield();    
@@ -276,7 +276,7 @@ void BufferManager::reserveHandshake(THREADID tid)
       popped_ = false;
       spins = 0;
     }
-  }
+    }*/
   
   while(pool_[tid] == 0) {
     assert(queueSizes_[tid] > 0);
@@ -564,8 +564,8 @@ void BufferManager::allocateThread(THREADID tid)
   int bufferCapacity = bufferEntries / 2 / num_threads;
 
   if(!useRealFile_) {
-    bufferCapacity /= 4;
-    fakeFile_[tid] = new Buffer(bufferCapacity*2 + 10);
+    bufferCapacity /= 8;
+    fakeFile_[tid] = new Buffer(bufferCapacity*4 + 10);
   }
   
   consumeBuffer_[tid] = new Buffer(bufferCapacity);
