@@ -52,6 +52,7 @@ BufferManager::~BufferManager()
   map<THREADID, string>::iterator it;
   string cmd = "/bin/rm -rf /dev/shm/" + gpid_ + "_* &";
   int retVal = system(cmd.c_str());
+  (void)retVal;
   assert(retVal == 0);
 }
 
@@ -542,6 +543,7 @@ void BufferManager::signalCallback(int signum)
   map<THREADID, string>::iterator it;
   string cmd = "/bin/rm -rf /dev/shm/" + gpid_ + "_* &";
   int retVal = system(cmd.c_str());
+  (void)retVal;
   assert(retVal == 0);
 }
 
