@@ -874,8 +874,6 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
 
     GetLock(&test, 1);
 
-    cerr << "Thread start. ID: " << dec << threadIndex << endl;
-
     thread_state_t* tstate = new thread_state_t(threadIndex);
     if (control.PinPointsActive())
         tstate->slice_num = 1;      // PP slices aren't 0-indexed
