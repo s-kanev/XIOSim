@@ -51,7 +51,8 @@ BufferManager::~BufferManager()
 {
   map<THREADID, string>::iterator it;
   string cmd = "/bin/rm -rf /dev/shm/" + gpid_ + "_* &";
-  assert(system(cmd.c_str()) == 0);
+  int retVal = system(cmd.c_str())l
+  assert(retVal == 0);
 }
 
 handshake_container_t* BufferManager::front(THREADID tid, bool isLocal)
@@ -540,7 +541,8 @@ void BufferManager::signalCallback(int signum)
   cerr << "BufferManager caught signal:" << signum << endl;
   map<THREADID, string>::iterator it;
   string cmd = "/bin/rm -rf /dev/shm/" + gpid_ + "_* &";
-  assert(system(cmd.c_str()) == 0);
+  int retVal = system(cmd.c_str());
+  assert(retVal == 0);
 }
 
 void BufferManager::allocateThread(THREADID tid) 
