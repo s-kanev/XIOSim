@@ -159,8 +159,8 @@
 }
 #endif
 
-//#ifdef ZESTO_PIN 
-/*#define zesto_assert(cond, retval) {		\
+#ifdef ZESTO_PIN 
+#define zesto_assert(cond, retval) {		\
   if(!(cond)) { \
     core->oracle->hosed = TRUE; \
     fprintf(stderr,"assertion failed (%s,%d:thread %d): ",__FILE__,__LINE__,core->current_thread->id); \
@@ -172,11 +172,11 @@
     exit(6); \
     return (retval); \
   } \
-*/
-//}
-//#else
+
+}
+#else
 #define zesto_assert(cond, retval) { }//	\
-    /*if(!(cond)) {		     \
+    if(!(cond)) {		     \
     core->oracle->hosed = TRUE; \
     fprintf(stderr,"assertion failed (%s,%d:thread %d) (cycle: %lld):",__FILE__,__LINE__,core->current_thread->id,sim_cycle); \
     fprintf(stderr,"%s\n",#cond); \
@@ -184,9 +184,9 @@
     fprintf(stderr, "PC: %x, regs->NPC: %x\n", core->fetch->PC, core->current_thread->regs.regs_NPC); \
     fflush(stderr); \
     return (retval); \
-    } \*/
-//}
-//#endif
+    } \
+}
+#endif
 
 #include <stdint.h>
 #include <map>
