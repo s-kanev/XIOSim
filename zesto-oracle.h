@@ -172,10 +172,9 @@
     exit(6); \
     return (retval); \
   } \
-
 }
 #else
-#define zesto_assert(cond, retval) { }//	\
+#define zesto_assert(cond, retval) { }	\
     if(!(cond)) {		     \
     core->oracle->hosed = TRUE; \
     fprintf(stderr,"assertion failed (%s,%d:thread %d) (cycle: %lld):",__FILE__,__LINE__,core->current_thread->id,sim_cycle); \
