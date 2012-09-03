@@ -253,7 +253,7 @@ void BufferManager::reserveHandshake(THREADID tid)
     ReleaseLock(&simbuffer_lock);
 
     popped_ = false;
-    PIN_Sleep(1000);
+    PIN_Sleep(3000);
     
     GetLock(&simbuffer_lock, tid+1);
     GetLock(locks_[tid], tid+1);
