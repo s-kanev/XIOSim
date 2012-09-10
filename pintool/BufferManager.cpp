@@ -241,7 +241,7 @@ void BufferManager::reserveHandshake(THREADID tid)
 
   int queueLimit;
   if(num_threads > 1) {
-    queueLimit = 50000001;
+    queueLimit = 100000001;
   }
   else {
     queueLimit = 100001;
