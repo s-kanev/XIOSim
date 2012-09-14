@@ -45,15 +45,21 @@ BufferManager::BufferManager()
   iss << pid;
   gpid_ = iss.str();
   assert(gpid_.length() > 0);
+
+  bridgeDirs_.push_back("/dev/shm/");
+  bridgeDirs_.push_back("/tmp/");
+  bridgeDirs_.push_back("/group/brooks/brownell/tmp/");
+  bridgeDirs_.push_back("/group/vlsiarch/brownell/tmp/");
 }
 
 BufferManager::~BufferManager()
 {
-  map<THREADID, string>::iterator it;
-  string cmd = "/bin/rm -rf /dev/shm/" + gpid_ + "_* &";
-  int retVal = system(cmd.c_str());
-  (void)retVal;
-  assert(retVal == 0);
+  for(int i = 0; i < (int)bridgeDirs_.size(); i++) {
+    string cmd = "/bin/rm -rf " + bridgeDirs_[i] + gpid_ + "_* &";
+    int retVal = system(cmd.c_str());
+    (void)retVal;
+    assert(retVal == 0);        
+  }
 }
 
 handshake_container_t* BufferManager::front(THREADID tid, bool isLocal)
@@ -330,13 +336,22 @@ void BufferManager::copyFileToConsumerFake(THREADID tid)
 
 void BufferManager::copyProducerToFileReal(THREADID tid)
 {
-  
-  //  string cmd = "df /dev/shm/ | awk '{print $4}' | tail -1";
-  //  os.popen
-  
   int result;  
-
-  fileNames_[tid].push_back(genFileName());
+  bool madeFile = false;
+  for(int i = 0; i < (int)bridgeDirs_.size(); i++) {
+    int space = getKBFreeSpace(bridgeDirs_[i]);
+    if(space > 1000000) {
+      fileNames_[tid].push_back(genFileName(bridgeDirs_[i]));    
+      madeFile = true;
+      break;
+    }
+    cerr << "Out of space on " + bridgeDirs_[i] + " !!!" << endl;
+  }
+  if(madeFile == false) {
+    cerr << "Nowhere left for the poor file bridge :(" << endl;
+    this->abort();
+  }
+  
   fileCounts_[tid].push_back(0);
 
   int fd = open(fileNames_[tid].back().c_str(), O_WRONLY | O_CREAT, 0777);
@@ -514,10 +529,13 @@ void BufferManager::signalCallback(int signum)
 {
   cerr << "BufferManager caught signal:" << signum << endl;
   map<THREADID, string>::iterator it;
-  string cmd = "/bin/rm -rf /dev/shm/" + gpid_ + "_* &";
-  int retVal = system(cmd.c_str());
-  (void)retVal;
-  assert(retVal == 0);
+
+  for(int i = 0; i < (int)bridgeDirs_.size(); i++) {
+    string cmd = "/bin/rm -rf " + bridgeDirs_[i] + gpid_ + "_* &";
+    int retVal = system(cmd.c_str());
+    (void)retVal;
+    assert(retVal == 0);        
+  }
 }
 
 void BufferManager::allocateThread(THREADID tid) 
@@ -562,9 +580,9 @@ void BufferManager::allocateThread(THREADID tid)
   assert(writeBuffer_[tid]);
 }
 
-string BufferManager::genFileName()
+string BufferManager::genFileName(string path)
 {
-  string temp = tempnam("/dev/shm/", gpid_.c_str());
+  string temp = tempnam(path.c_str(), gpid_.c_str());
   temp.insert(8 + gpid_.length() + 1, "_");
   return temp;
 }
@@ -576,4 +594,14 @@ void BufferManager::resetPool(THREADID tid)
     poolFactor = 6;
   }
   pool_[tid] = (consumeBuffer_[tid]->capacity() + produceBuffer_[tid]->capacity()) * poolFactor;
+}
+
+int BufferManager::getKBFreeSpace(string path) 
+{
+  string cmd = "/bin/df " + path + " | awk '{print $4}' | tail -1";
+  FILE* availSpace = popen(cmd.c_str(), "r");
+  char buffer[1024];
+  char *line_p = fgets(buffer, sizeof(buffer), availSpace);
+  pclose(availSpace);
+  return atoi(line_p);
 }

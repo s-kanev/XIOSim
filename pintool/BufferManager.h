@@ -54,6 +54,8 @@ class BufferManager
 
   string gpid_;
   
+  vector<string> bridgeDirs_;
+
   void reserveHandshake(THREADID tid);
 
   void copyProducerToFile(THREADID tid);
@@ -71,7 +73,8 @@ class BufferManager
   void abort(void);
   
   void resetPool(THREADID tid);
-  string genFileName();
+  string genFileName(string path);
+  int getKBFreeSpace(string path);
 
   std::map<THREADID, int> queueSizes_;
   std::map<THREADID, Buffer*> fakeFile_;
