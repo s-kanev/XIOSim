@@ -37,7 +37,7 @@ inline void lk_init(LEVEL_BASE::PIN_LOCK* lk)
 
 inline void yield()
 {
-    LEVEL_PINCLIENT::PIN_Yield();
+  //    LEVEL_PINCLIENT::PIN_Yield();
 }
 
 extern void spawn_new_thread(void entry_point(void*), void* arg);

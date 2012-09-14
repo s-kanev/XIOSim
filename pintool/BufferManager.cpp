@@ -262,7 +262,7 @@ void BufferManager::reserveHandshake(THREADID tid)
       continue;
     }
 
-    if(num_threads == 1) {
+    if(num_threads == 1 || (!useRealFile_)) {
       continue;
     }	
     
@@ -330,7 +330,11 @@ void BufferManager::copyFileToConsumerFake(THREADID tid)
 
 void BufferManager::copyProducerToFileReal(THREADID tid)
 {
-  int result;
+  
+  //  string cmd = "df /dev/shm/ | awk '{print $4}' | tail -1";
+  //  os.popen
+  
+  int result;  
 
   fileNames_[tid].push_back(genFileName());
   fileCounts_[tid].push_back(0);
@@ -404,7 +408,7 @@ void BufferManager::copyFileToConsumerReal(THREADID tid)
   assert(fileEntryCount_[tid] >= 0);
 }
 
-void BufferManager::writeHandshake(THREADID tid, int fd, handshake_container_t* handshake)
+void  BufferManager::writeHandshake(THREADID tid, int fd, handshake_container_t* handshake)
 {
   int mapSize = handshake->mem_buffer.size();
   const int handshakeBytes = sizeof(P2Z_HANDSHAKE);
@@ -529,12 +533,14 @@ void BufferManager::allocateThread(THREADID tid)
     useRealFile_ = false;
   }
 
+  //  useRealFile_ = false;
+
   int bufferEntries = 640000 / 2;
   int bufferCapacity = bufferEntries / 2 / num_threads;
 
   if(!useRealFile_) {
     bufferCapacity /= 8;
-    fakeFile_[tid] = new Buffer(bufferCapacity*4 + 10);
+    fakeFile_[tid] = new Buffer(120000);
   }
   
   consumeBuffer_[tid] = new Buffer(bufferCapacity);

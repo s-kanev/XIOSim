@@ -405,17 +405,8 @@ VOID SimulatorLoop(VOID* arg)
 
     INT32 coreID = -1;
 
-    long long int spins = 0;
     while (true) {      
-        spins = 0;
         while (handshake_buffer.empty(instrument_tid)) {
-            spins++;
-            if(spins >= 7000000LL) {
-                if (!ignore[instrument_tid])
-                    cerr << tid << " Spinning waiting for non empty handshake buffer!" << endl;
-                spins = 0;
-            }
-
             GetLock(&simbuffer_lock, tid+1);
             if (!sim_running || PIN_IsProcessExiting()) {
                 sim_stopped[instrument_tid] = true;
