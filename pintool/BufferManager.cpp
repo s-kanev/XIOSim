@@ -93,7 +93,7 @@ handshake_container_t* BufferManager::front(THREADID tid, bool isLocal)
     if(spins >= 2) { // DONT CHANGE THIS MUST EQUAL 3
       spins = 0;
       if(fileEntryCount_[tid] == 0) {
-	continue;
+        continue;
       }
       copyFileToConsumer(tid);
     }
@@ -284,7 +284,6 @@ void BufferManager::copyProducerToFile(THREADID tid)
   else {
     copyProducerToFileFake(tid);
   }
-  sync();
 }
 
 void BufferManager::copyFileToConsumer(THREADID tid)
@@ -295,7 +294,6 @@ void BufferManager::copyFileToConsumer(THREADID tid)
   else {
     copyFileToConsumerFake(tid);
   }
-  sync();
 }
 
 void BufferManager::copyProducerToFileFake(THREADID tid)
@@ -349,15 +347,12 @@ void BufferManager::copyProducerToFileReal(THREADID tid)
     fileEntryCount_[tid]++;
   }
 
-  sync();
 
   result = close(fd);
   if(result == -1) {
     cerr << "Close error: " << " Errcode:" << strerror(errno) << endl;
     this->abort();
   }
-
-  sync();
 
   assert(produceBuffer_[tid]->size() == 0);
   assert(fileEntryCount_[tid] >= 0);
@@ -400,7 +395,6 @@ void BufferManager::copyFileToConsumerReal(THREADID tid)
   fileNames_[tid].pop_front();
   fileCounts_[tid].pop_front();
 
-  sync();
   assert(fileEntryCount_[tid] >= 0);
 }
 
