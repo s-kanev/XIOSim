@@ -30,8 +30,6 @@
 
 using namespace std;
 
-#include <sys/mman.h>
-
 /* ========================================================================== */
 /* ========================================================================== */
 /*                           ZESTO and PIN INTERFACE                          */
@@ -426,61 +424,60 @@ VOID SimulatorLoop(VOID* arg)
             ReleaseLock(&simbuffer_lock);
         }
 		
-	int consumerHandshakes = handshake_buffer.getConsumerSize(instrument_tid);	
-	if(consumerHandshakes == 0) {
-	  GetLock(&simbuffer_lock, tid+1);
-	  handshake_buffer.front(instrument_tid, false);
-	  ReleaseLock(&simbuffer_lock);
-	  consumerHandshakes = handshake_buffer.getConsumerSize(instrument_tid);
-	}	
-	assert(consumerHandshakes > 0);
+        int consumerHandshakes = handshake_buffer.getConsumerSize(instrument_tid);	
+        if(consumerHandshakes == 0) {
+            GetLock(&simbuffer_lock, tid+1);
+            handshake_buffer.front(instrument_tid, false);
+            ReleaseLock(&simbuffer_lock);
+            consumerHandshakes = handshake_buffer.getConsumerSize(instrument_tid);
+        }	
+        assert(consumerHandshakes > 0);
 
-	for(int i = 0; i < consumerHandshakes; i++) {
-	  
-	  handshake_container_t* handshake = handshake_buffer.front(instrument_tid, true);
-	  ASSERTX(handshake != NULL);
-	  ASSERTX(handshake->flags.valid);
-	  	  
-	  /* Preserving coreID if we destroy handshake before coming in here,
-	   * so we know which core to deactivate. */
-	  coreID = handshake->handshake.coreID;	  	 
-	  	  	  	  
+        for(int i = 0; i < consumerHandshakes; i++) {
+            handshake_container_t* handshake = handshake_buffer.front(instrument_tid, true);
+            ASSERTX(handshake != NULL);
+            ASSERTX(handshake->flags.valid);
+                  
+            /* Preserving coreID if we destroy handshake before coming in here,
+             * so we know which core to deactivate. */
+            coreID = handshake->handshake.coreID;	  	 
+                          
 #ifdef TIME_TRANSPARENCY
-	  // Capture time spent in simulation to ensure time syscall transparency
-	  UINT64 ins_delta_time = rdtsc();
+            // Capture time spent in simulation to ensure time syscall transparency
+            UINT64 ins_delta_time = rdtsc();
 #endif
-	  // Perform memory sanity checks for values touched by simulator
-	  // on previous instruction
-	  
-	  GetLock(&simbuffer_lock, tid+1);
-	  
-	  if (KnobSanity.Value())
-            SanityMemCheck();
+            // Perform memory sanity checks for values touched by simulator
+            // on previous instruction
+              
+            GetLock(&simbuffer_lock, tid+1);
+              
+            if (KnobSanity.Value())
+                SanityMemCheck();
 
-        // Ignoring instruction
-        ADDRINT pc = handshake->handshake.pc;
-        if (ignore_list[instrument_tid].find(pc) != ignore_list[instrument_tid].end())
-        {
-	  ReleaseHandshake(handshake->handshake.coreID);
-	  continue;
-	}
+            // Ignoring instruction
+            ADDRINT pc = handshake->handshake.pc;
+            if (ignore_list[instrument_tid].find(pc) != ignore_list[instrument_tid].end())
+            {
+                ReleaseHandshake(handshake->handshake.coreID);
+                continue;
+            }
 
-	// Actual simulation happens here
-	Zesto_Resume(&handshake->handshake, &handshake->mem_buffer, handshake->flags.isFirstInsn, handshake->flags.isLastInsn);
-	//ReleaseHandshake(handshake->handshake.coreID);
-	
-	if(!KnobPipelineInstrumentation.Value())
-	  ReleaseHandshake(handshake->handshake.coreID);
-	
-	// XXX: We are not holding simbuffer_lock here any more!
-	
+            // Actual simulation happens here
+            Zesto_Resume(&handshake->handshake, &handshake->mem_buffer, handshake->flags.isFirstInsn, handshake->flags.isLastInsn);
+            //ReleaseHandshake(handshake->handshake.coreID);
+            
+            if(!KnobPipelineInstrumentation.Value())
+              ReleaseHandshake(handshake->handshake.coreID);
+            
+            // XXX: We are not holding simbuffer_lock here any more!
+            
 #ifdef TIME_TRANSPARENCY
-	ins_delta_time = rdtsc() - ins_delta_time;
-	sim_time += ins_delta_time;
+            ins_delta_time = rdtsc() - ins_delta_time;
+            sim_time += ins_delta_time;
 #endif
-	}
-	lastConsumerApply[instrument_tid] = sim_cycle;
-	handshake_buffer.applyConsumerChanges(instrument_tid, consumerHandshakes);
+        }
+        lastConsumerApply[instrument_tid] = sim_cycle;
+        handshake_buffer.applyConsumerChanges(instrument_tid, consumerHandshakes);
     }
 }
 
@@ -520,8 +517,8 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, 
     }
 
     if(invocationWaitZeros[tid] == 0) {
-      ReleaseLock(&simbuffer_lock);
-      return;
+        ReleaseLock(&simbuffer_lock);
+        return;
     }
 
     handshake_container_t* handshake;
@@ -559,8 +556,8 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
     }
     
     if(invocationWaitZeros[tid] == 0) {
-      ReleaseLock(&simbuffer_lock);
-      return;
+        ReleaseLock(&simbuffer_lock);
+        return;
     }
 
     handshake_container_t* handshake;
@@ -949,7 +946,7 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
         // Create new buffer to store thread context
         GetLock(&simbuffer_lock, threadIndex+1);
 
-	handshake_buffer.allocateThread(threadIndex);
+        handshake_buffer.allocateThread(threadIndex);
 
         thread_list.push_back(threadIndex);
 
@@ -1060,7 +1057,7 @@ VOID PauseSimulation(THREADID tid)
     volatile bool done = false;
     do {
         done = true;
-	unsigned int numHandshakes = 0;
+        unsigned int numHandshakes = 0;
         vector<THREADID>::iterator it;
         for (it = thread_list.begin(); it != thread_list.end(); it++) {
             done &= handshake_buffer.empty((*it));

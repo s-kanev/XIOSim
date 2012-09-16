@@ -144,8 +144,6 @@ BOOL ILDJIT_IsCreatingExecutor()
 /* ========================================================================== */
 VOID ILDJIT_startSimulation(THREADID tid, ADDRINT ip)
 {
-    // Check to see what current memory usage is post HELIX
-  
     CODECACHE_FlushCache();
 
     GetLock(&ildjit_lock, 1);
@@ -226,21 +224,21 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
     /* Haven't started simulation and we encounter a loop we don't care
      * about */
     if (ExecMode != EXECUTION_MODE_SIMULATE) {
-      if(strlen(start_loop) > 0 && strncmp(start_loop, (CHAR*)loop, 512) != 0) {
-        return;
-      }
-      if(invocation_counts[loop] < start_loop_invocation) {
-        return;
-      }
-      if(invocation_counts[loop] == start_loop_invocation) {
-	doLateILDJITInstrumentation();
-      }
+        if(strlen(start_loop) > 0 && strncmp(start_loop, (CHAR*)loop, 512) != 0) {
+            return;
+        }
+        if(invocation_counts[loop] < start_loop_invocation) {
+            return;
+        }
+        if(invocation_counts[loop] == start_loop_invocation) {
+            doLateILDJITInstrumentation();
+        }
     }
 
     use_ring_cache = (rc > 0);
         
     if(disable_wait_signal) {
-      use_ring_cache = false;
+        use_ring_cache = false;
     } 
 
     cerr << "Starting loop: " << loop_name << "[" << invocation_counts[loop] << "]" << endl;
@@ -253,11 +251,11 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
     tstate->firstIteration = true;
     vector<THREADID>::iterator it;
     for (it = thread_list.begin(); it != thread_list.end(); it++) {
-      unmatchedWaits[(*it)] = 0;
-      afterSignalCount[*it] = 0;
-      afterWaitLightCount[*it] = 0;
-      afterWaitHeavyCount[*it] = 0;
-      ignore[*it] = false;
+        unmatchedWaits[(*it)] = 0;
+        afterSignalCount[*it] = 0;
+        afterWaitLightCount[*it] = 0;
+        afterWaitHeavyCount[*it] = 0;
+        ignore[*it] = false;
     }
 
     ignored_before_wait.clear();
@@ -273,19 +271,19 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
         firstLoop = false;
     }
     else if (strncmp(start_loop, (CHAR*)loop, 512) == 0) {
-      if (invocation_counts[loop] == start_loop_invocation) {
-	cerr << "FastForward runtime:"; 
-	printElapsedTime();  	
+        if (invocation_counts[loop] == start_loop_invocation) {
+            cerr << "FastForward runtime:"; 
+            printElapsedTime();  	
 	
-        cerr << "Starting simulation, TTID: " << tid << endl;
-        PPointHandler(CONTROL_START, NULL, NULL, (VOID*)ip, tid);
-        cerr << "Starting simulation, TTID2: " << tid << endl;
-        firstLoop = false;
-      }
-      else if (invocation_counts[loop] > start_loop_invocation) {
-        cerr << tid << ": resuming simulation" << endl;
-        ResumeSimulation(tid);
-      }
+            cerr << "Starting simulation, TTID: " << tid << endl;
+            PPointHandler(CONTROL_START, NULL, NULL, (VOID*)ip, tid);
+            cerr << "Starting simulation, TTID2: " << tid << endl;
+            firstLoop = false;
+        }
+        else if (invocation_counts[loop] > start_loop_invocation) {
+            cerr << tid << ": resuming simulation" << endl;
+            ResumeSimulation(tid);
+        }
     }
     else {
         cerr << tid << ": resuming simulation" << endl;
@@ -301,27 +299,27 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
 //#endif
 
     if (ExecMode == EXECUTION_MODE_SIMULATE) {
-      PauseSimulation(tid);
-      cerr << tid << ": Paused simulation!" << endl;
+        PauseSimulation(tid);
+        cerr << tid << ": Paused simulation!" << endl;
       
-      GetLock(&simbuffer_lock, tid+1);
-      vector<THREADID>::iterator it;
-      for (it = thread_list.begin(); it != thread_list.end(); it++) {	
-	invocationWaitZeros[*it] = 0;
-	afterSignalCount[*it] = 0;
-	afterWaitLightCount[*it] = 0;
-	afterWaitHeavyCount[*it] = 0;
-      }
-      cerr << "Ending loop: " << loop_name << " NumIterations:" << (UINT32)numIterations << endl;
-      ReleaseLock(&simbuffer_lock);
+        GetLock(&simbuffer_lock, tid+1);
+        vector<THREADID>::iterator it;
+        for (it = thread_list.begin(); it != thread_list.end(); it++) {	
+            invocationWaitZeros[*it] = 0;
+            afterSignalCount[*it] = 0;
+            afterWaitLightCount[*it] = 0;
+            afterWaitHeavyCount[*it] = 0;
+        }
+        cerr << "Ending loop: " << loop_name << " NumIterations:" << (UINT32)numIterations << endl;
+        ReleaseLock(&simbuffer_lock);
     }
 
     if(strncmp(end_loop, (CHAR*)loop, 512) == 0 && invocation_counts[loop] == end_loop_invocation) {
-      cerr << "Simulation runtime:"; 
-      printElapsedTime();  	
-      cerr << "LStopping simulation, TID: " << tid << endl;
-      StopSimulation(tid);
-      cerr << "[KEVIN] Stopped simulation! " << tid << endl;
+        cerr << "Simulation runtime:"; 
+        printElapsedTime();  	
+        cerr << "LStopping simulation, TID: " << tid << endl;
+        StopSimulation(tid);
+        cerr << "[KEVIN] Stopped simulation! " << tid << endl;
     }
 }
 
@@ -360,8 +358,8 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
     }
 
     if(num_threads == 1) {
-      ReleaseLock(&simbuffer_lock);
-      return;
+        ReleaseLock(&simbuffer_lock);
+        return;
     } 
 
 //    ASSERTX(tstate->lastSignalAddr == 0xdecafbad);
@@ -370,20 +368,20 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
 
     // XXX: HACKEDY HACKEDY HACK The ordering of these conditions matters
     if ((ExecMode == EXECUTION_MODE_SIMULATE) && (core_threads[0] != tid)) {
-      tstate->firstIteration = false;
+        tstate->firstIteration = false;
     }
 
     if ((ssID == 0) && (ExecMode == EXECUTION_MODE_SIMULATE) && (core_threads[0] == tid) &&
         seen_ssID_zero) {
-      seen_ssID_zero_twice = true;
+        seen_ssID_zero_twice = true;
     }
 
     if ((ExecMode == EXECUTION_MODE_SIMULATE) && (core_threads[0] == tid) && (seen_ssID_zero_twice)) {
-      tstate->firstIteration = false;
+        tstate->firstIteration = false;
     }
 
     if ((ssID == 0) && (ExecMode == EXECUTION_MODE_SIMULATE) && (core_threads[0] == tid)) {
-      seen_ssID_zero = true;
+        seen_ssID_zero = true;
     }
 
     ReleaseLock(&simbuffer_lock);
@@ -405,13 +403,13 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT is_light, ADDRINT pc)
 
     /* Don't insert waits in single-core mode */
     if (num_threads == 1)
-      goto cleanup;
+        goto cleanup;
     
     if(!is_light) {
-      lastCycles = sim_cycle;
+        lastCycles = sim_cycle;
     }
     else {
-      lastCycles = 0;
+        lastCycles = 0;
     }
 
     // Indicated not in a wait any more
@@ -429,14 +427,14 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT is_light, ADDRINT pc)
         goto cleanup;
     
     if(!use_ring_cache) {
-      ReleaseLock(&simbuffer_lock);
-      return;
+        ReleaseLock(&simbuffer_lock);
+        return;
     }
 
     if(is_light) {
-      afterWaitLightCount[tid]++;
-      ReleaseLock(&simbuffer_lock);
-      return;
+        afterWaitLightCount[tid]++;
+        ReleaseLock(&simbuffer_lock);
+        return;
     }
 
     afterWaitHeavyCount[tid]++;
@@ -531,8 +529,8 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT p
     ASSERTX(unmatchedWaits[tid] >= 0);
     
     if(!use_ring_cache) {
-      ReleaseLock(&simbuffer_lock);
-      return;
+        ReleaseLock(&simbuffer_lock);
+        return;
     }
 
     afterSignalCount[tid]++;
@@ -798,42 +796,42 @@ VOID AddILDJITCallbacks(IMG img)
 
 BOOL signalCallback(THREADID tid, INT32 sig, CONTEXT *ctxt, BOOL hasHandler, const EXCEPTION_INFO *pExceptInfo, VOID *v)
 {
-  handshake_buffer.signalCallback(sig);
-  PIN_ExitProcess(1);
-  return false;
+    handshake_buffer.signalCallback(sig);
+    PIN_ExitProcess(1);
+    return false;
 }
 
 void signalCallback2(int signum) 
 {
-  handshake_buffer.signalCallback(signum);
-  PIN_ExitProcess(1);
+    handshake_buffer.signalCallback(signum);
+    PIN_ExitProcess(1);
 }
 
 VOID printElapsedTime()
 {
-  time_t elapsed_time = time(NULL) - last_time;
-  time_t hours = elapsed_time / 3600;
-  time_t minutes = (elapsed_time % 3600) / 60;
-  time_t seconds = ((elapsed_time % 3600) % 60);
-  cerr << hours << "h" << minutes << "m" << seconds << "s" << endl; 
-  last_time = time(NULL);
+    time_t elapsed_time = time(NULL) - last_time;
+    time_t hours = elapsed_time / 3600;
+    time_t minutes = (elapsed_time % 3600) / 60;
+    time_t seconds = ((elapsed_time % 3600) % 60);
+    cerr << hours << "h" << minutes << "m" << seconds << "s" << endl; 
+    last_time = time(NULL);
 }
 
 VOID printMemoryUsage(THREADID tid)
 {
-  return;
-  int myPid = getpid();
-  char str[50];
-  sprintf(str, "%d", myPid);
+    return;
+    int myPid = getpid();
+    char str[50];
+    sprintf(str, "%d", myPid);
 
-  ifstream fin;
-  fin.open(("/proc/" + string(str) + "/status").c_str());
-  string line;
-  while(getline(fin, line)) {
-    if(line.find("VmSize") != string::npos) {
-      cerr << tid << ":" << line << endl;
-      break;
+    ifstream fin;
+    fin.open(("/proc/" + string(str) + "/status").c_str());
+    string line;
+    while(getline(fin, line)) {
+        if(line.find("VmSize") != string::npos) {
+            cerr << tid << ":" << line << endl;
+            break;
+        }
     }
-  }
-  fin.close();
+    fin.close();
 }
