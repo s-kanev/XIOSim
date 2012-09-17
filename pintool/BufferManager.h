@@ -58,10 +58,10 @@ class BufferManager
 
   void reserveHandshake(THREADID tid);
 
-  void copyProducerToFile(THREADID tid);
+  void copyProducerToFile(THREADID tid, bool checkSpace);
   void copyFileToConsumer(THREADID tid);
 
-  void copyProducerToFileReal(THREADID tid);
+  void copyProducerToFileReal(THREADID tid, bool checkSpace);
   void copyFileToConsumerReal(THREADID tid);
 
   void copyProducerToFileFake(THREADID tid);

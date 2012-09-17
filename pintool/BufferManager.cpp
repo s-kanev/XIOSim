@@ -169,7 +169,8 @@ void BufferManager::producer_done(THREADID tid, bool keepLock)
 #ifdef DEBUG  
     int produceSize = produceBuffer_[tid]->size();
 #endif
-    copyProducerToFile(tid);
+    bool checkSpace = !keepLock;
+    copyProducerToFile(tid, checkSpace);
     assert(fileEntryCount_[tid] > 0);
     assert(fileEntryCount_[tid] >= produceSize);
     assert(produceBuffer_[tid]->size() == 0);
@@ -191,7 +192,7 @@ void BufferManager::flushBuffers(THREADID tid)
   map<THREADID, string>::iterator it;
 
   if(produceBuffer_[tid]->size() > 0) {
-    copyProducerToFile(tid);
+    copyProducerToFile(tid, false);
   }
   ReleaseLock(locks_[tid]);
 }
@@ -282,10 +283,10 @@ void BufferManager::reserveHandshake(THREADID tid)
   }
 }
 
-void BufferManager::copyProducerToFile(THREADID tid)
+void BufferManager::copyProducerToFile(THREADID tid, bool checkSpace)
 {
   if(useRealFile_) {
-    copyProducerToFileReal(tid);
+    copyProducerToFileReal(tid, checkSpace);
   }
   else {
     copyProducerToFileFake(tid);
@@ -334,22 +335,27 @@ void BufferManager::copyFileToConsumerFake(THREADID tid)
 }
 
 
-void BufferManager::copyProducerToFileReal(THREADID tid)
+void BufferManager::copyProducerToFileReal(THREADID tid, bool checkSpace)
 {
   int result;  
   bool madeFile = false;
-  for(int i = 0; i < (int)bridgeDirs_.size(); i++) {
-    int space = getKBFreeSpace(bridgeDirs_[i]);
-    if(space > 1000000) {
-      fileNames_[tid].push_back(genFileName(bridgeDirs_[i]));    
-      madeFile = true;
-      break;
+  if(checkSpace) {
+    for(int i = 0; i < (int)bridgeDirs_.size(); i++) {
+      int space = getKBFreeSpace(bridgeDirs_[i]);
+      if(space > 1000000) {
+	fileNames_[tid].push_back(genFileName(bridgeDirs_[i]));    
+	madeFile = true;
+	break;
+      }
+      cerr << "Out of space on " + bridgeDirs_[i] + " !!!" << endl;
     }
-    cerr << "Out of space on " + bridgeDirs_[i] + " !!!" << endl;
+    if(madeFile == false) {
+      cerr << "Nowhere left for the poor file bridge :(" << endl;
+      this->abort();
+    }
   }
-  if(madeFile == false) {
-    cerr << "Nowhere left for the poor file bridge :(" << endl;
-    this->abort();
+  else {
+    fileNames_[tid].push_back(genFileName(bridgeDirs_[0]));    
   }
   
   fileCounts_[tid].push_back(0);
