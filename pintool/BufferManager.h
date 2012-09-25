@@ -33,7 +33,7 @@ class BufferManager
   void allocateThread(THREADID tid);
 
   bool hasThread(THREADID tid);
-  unsigned int size();
+  unsigned int numThreads();
   unsigned int size(THREADID tid);
 
   void flushBuffers(THREADID tid);
@@ -44,7 +44,6 @@ class BufferManager
 
  private:
   bool useRealFile_;
-  bool popped_;
   
   map<THREADID, PIN_LOCK*> locks_;
 
