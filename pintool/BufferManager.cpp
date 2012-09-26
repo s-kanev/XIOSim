@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #include <sys/types.h>
 #include <unistd.h>
 #include <errno.h>
@@ -291,7 +292,6 @@ void BufferManager::copyProducerToFile(THREADID tid, bool checkSpace)
   else {
     copyProducerToFileFake(tid);
   }
-  sync();
 }
 
 void BufferManager::copyFileToConsumer(THREADID tid)
@@ -302,7 +302,6 @@ void BufferManager::copyFileToConsumer(THREADID tid)
   else {
     copyFileToConsumerFake(tid);
   }
-  sync();
 }
 
 void BufferManager::copyProducerToFileFake(THREADID tid)
@@ -342,7 +341,7 @@ void BufferManager::copyProducerToFileReal(THREADID tid, bool checkSpace)
   if(checkSpace) {
     for(int i = 0; i < (int)bridgeDirs_.size(); i++) {
       int space = getKBFreeSpace(bridgeDirs_[i]);
-      if(space > 1000000) {
+      if(space > 2000000) { // 2 GB
 	fileNames_[tid].push_back(genFileName(bridgeDirs_[i]));    
 	madeFile = true;
 	break;
@@ -374,15 +373,16 @@ void BufferManager::copyProducerToFileReal(THREADID tid, bool checkSpace)
     fileEntryCount_[tid]++;
   }
 
-  sync();
-
   result = close(fd);
   if(result == -1) {
     cerr << "Close error: " << " Errcode:" << strerror(errno) << endl;
     this->abort();
   }
 
-  sync();
+  // sync() if we put the file somewhere besides /dev/shm
+  if(fileNames_[tid].back().find("shm") == string::npos) {
+    sync();
+  }
 
   assert(produceBuffer_[tid]->size() == 0);
   assert(fileEntryCount_[tid] >= 0);
@@ -425,7 +425,6 @@ void BufferManager::copyFileToConsumerReal(THREADID tid)
   fileNames_[tid].pop_front();
   fileCounts_[tid].pop_front();
 
-  sync();
   assert(fileEntryCount_[tid] >= 0);
 }
 
@@ -468,6 +467,7 @@ void  BufferManager::writeHandshake(THREADID tid, int fd, handshake_container_t*
   }
   if(bytesWritten != totalBytes) {
     cerr << "File write error: " << bytesWritten << " expected:" << totalBytes << endl;
+    cerr << fileNames_[tid].back() << endl;
     this->abort();
   }
 }
@@ -589,7 +589,7 @@ void BufferManager::allocateThread(THREADID tid)
 string BufferManager::genFileName(string path)
 {
   string temp = tempnam(path.c_str(), gpid_.c_str());
-  temp.insert(8 + gpid_.length() + 1, "_");
+  temp.insert(path.length() + gpid_.length(), "_");
   return temp;
 }
 
@@ -604,10 +604,7 @@ void BufferManager::resetPool(THREADID tid)
 
 int BufferManager::getKBFreeSpace(string path) 
 {
-  string cmd = "/bin/df " + path + " | awk '{print $4}' | tail -1";
-  FILE* availSpace = popen(cmd.c_str(), "r");
-  char buffer[1024];
-  char *line_p = fgets(buffer, sizeof(buffer), availSpace);
-  pclose(availSpace);
-  return atoi(line_p);
+  struct statvfs fsinfo;
+  statvfs(path.c_str(), &fsinfo);
+  return (fsinfo.f_bsize * fsinfo.f_bfree / 1024); 
 }
