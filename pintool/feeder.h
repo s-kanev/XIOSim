@@ -17,15 +17,10 @@ class handshake_container_t;
 typedef queue<handshake_container_t*> handshake_queue_t;
 extern KNOB<BOOL> KnobILDJIT;
 extern KNOB<string> KnobFluffy;
-extern map<THREADID, BOOL> ignore;
-extern PIN_LOCK simbuffer_lock;
 extern PIN_LOCK printing_lock;
 extern vector<THREADID> thread_list;
 extern map<UINT32, THREADID> core_threads;
 extern map<THREADID, UINT32> thread_cores;
-extern map<THREADID, map<ADDRINT, BOOL> > ignore_list;
-extern map<THREADID, INT32> lastWaitID;
-extern BOOL ignore_all;
 
 /* ========================================================================== */
 // Thread-private state that we need to preserve between different instrumentation calls
@@ -48,6 +43,21 @@ class thread_state_t
         memset(pc_queue, 0, PC_QUEUE_SIZE*sizeof(INT32));
         pc_queue_head = PC_QUEUE_SIZE-1;
         pc_queue_valid = false;
+
+        ignore = true;
+        ignore_all = true;
+        ignored_before_wait = false;
+        ignored_before_signal = false;
+
+        unmatchedWaits = 0;
+        afterSignalCount = 0;
+        afterWaitLightCount = 0;
+        afterWaitHeavyCount = 0;
+
+        is_running = true;
+        num_inst = 0;
+
+        InitLock(&lock);
     }
 
     // Buffer to store the fpstate that the simulator may corrupt
@@ -70,24 +80,54 @@ class thread_state_t
     // Which simulated core this thread runs on
     ADDRINT coreID;
 
+    // How many instructions have been produced
+    UINT64 num_inst;
+
     // Have we executed a wait on this thread
     BOOL firstIteration;
 
     // Address of the last signal executed
     ADDRINT lastSignalAddr;
 
+    // Handling a buffer of the last PC_QUEUE_SIZE instruction pointers
     ADDRINT get_queued_pc(INT32 index) {
         return pc_queue[(pc_queue_head + index) & (PC_QUEUE_SIZE - 1)];
     }
-
     VOID queue_pc(ADDRINT pc) {
         pc_queue_head = (pc_queue_head - 1) & (PC_QUEUE_SIZE - 1);
         pc_queue[pc_queue_head] = pc;
         pc_queue_valid = true;
     }
-
     BOOL pc_queue_valid;
 
+    PIN_LOCK lock;
+    // XXX: SHARED -- lock protects those
+    // Signal to the simulator thread to die
+    BOOL is_running;
+    // Set by simulator thread once it dies
+    BOOL sim_stopped;
+    // Is thread not instrumenting instructions ?
+    BOOL ignore;
+    // Similar effect to above, but produced differently for sequential code
+    BOOL ignore_all;
+    // Stores the ID of the wait between before and afterWait. -1 outside.
+    INT32 lastWaitID;
+
+    // These counts are reset each loop --> synchronization.
+    INT32 afterSignalCount;
+    INT32 afterWaitLightCount;
+    INT32 afterWaitHeavyCount;
+
+    //Ignore list of instrutcions that we don't care about
+    map<ADDRINT, BOOL> ignore_list;
+    // XXX: END SHARED
+
+    // has this thread already ignored call overhead for before_wait
+    BOOL ignored_before_wait;
+    // has this thread already ignored call overhead for before_signal
+    BOOL ignored_before_signal;
+
+    INT32 unmatchedWaits;
 private:
     // XXX: power of 2
     static const INT32 PC_QUEUE_SIZE = 4;
