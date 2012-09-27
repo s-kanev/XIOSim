@@ -92,15 +92,13 @@ handshake_container_t* BufferManager::front(THREADID tid, bool isLocal)
   int spins = 0;
   while(consumeBuffer_[tid]->empty()) {
     ReleaseLock(locks_[tid]);
-    ReleaseLock(&simbuffer_lock);
     PIN_Yield();    
-    GetLock(&simbuffer_lock, tid+1);
     GetLock(locks_[tid], tid+1);
     spins++;
-    if(spins >= 2) { // DONT CHANGE THIS MUST EQUAL 3
+    if(spins >= 2) {
       spins = 0;
       if(fileEntryCount_[tid] == 0) {
-	continue;
+        continue;
       }
       copyFileToConsumer(tid);
     }
@@ -134,6 +132,9 @@ bool BufferManager::empty(THREADID tid)
   return result;
 }
 
+/* On the producer side, get a buffer which we can start
+ * filling directly.
+ */
 handshake_container_t* BufferManager::get_buffer(THREADID tid)
 {
   GetLock(locks_[tid], tid+1);
@@ -150,6 +151,10 @@ handshake_container_t* BufferManager::get_buffer(THREADID tid)
   return result;
 }
 
+/* On the producer side, signal that we are done filling the
+ * current buffer. If we have ran out of space, make space
+ * for a new buffer, so get_buffer() cannot fail.
+ */
 void BufferManager::producer_done(THREADID tid, bool keepLock)
 {
   GetLock(locks_[tid], tid+1);
@@ -160,7 +165,6 @@ void BufferManager::producer_done(THREADID tid, bool keepLock)
   
   if(!keepLock) {
     reserveHandshake(tid);
-    ReleaseLock(&simbuffer_lock);
   }
   else {
     pool_[tid]++;
@@ -180,17 +184,14 @@ void BufferManager::producer_done(THREADID tid, bool keepLock)
   assert(!produceBuffer_[tid]->full());
   
   ReleaseLock(locks_[tid]);
-
-  
-  if(!keepLock) {
-    GetLock(&simbuffer_lock, tid+1);
-  }
 }
 
+/* On the producer side, flush all buffers associated
+ * with a thread to the backing file.
+ */
 void BufferManager::flushBuffers(THREADID tid)
 {
   GetLock(locks_[tid], tid+1);
-  map<THREADID, string>::iterator it;
 
   if(produceBuffer_[tid]->size() > 0) {
     copyProducerToFile(tid, false);
@@ -203,6 +204,9 @@ int BufferManager::getConsumerSize(THREADID tid)
   return consumeBuffer_[tid]->size();
 }
 
+/* On the consumer side, signal that we have consumed
+ * numChanged buffers that can go back to the core's pool.
+ */
 void BufferManager::applyConsumerChanges(THREADID tid, int numChanged)
 {
   GetLock(locks_[tid], tid+1);
@@ -217,7 +221,6 @@ void BufferManager::applyConsumerChanges(THREADID tid, int numChanged)
 
 void BufferManager::pop(THREADID tid)
 {
-  popped_ = true;
   assert(consumeBuffer_[tid]->size() > 0);
   consumeBuffer_[tid]->pop();
 }
@@ -228,10 +231,9 @@ bool BufferManager::hasThread(THREADID tid)
   return (result != 0);
 }
 
-unsigned int BufferManager::size()
+unsigned int BufferManager::numThreads()
 {
-  unsigned int result = queueSizes_.size();
-  return result;
+  return queueSizes_.size();
 }
 
 unsigned int BufferManager::size(THREADID tid)
@@ -243,10 +245,12 @@ unsigned int BufferManager::size(THREADID tid)
 }
 
 
+/* On the producer side, if we have filled up the in-memory
+ * buffer, wait until some of it gets consumed. If not,
+ * try and increase the backing file size.
+ */
 void BufferManager::reserveHandshake(THREADID tid)
 {
-  bool popped_ = false;
-
   int queueLimit;
   if(num_threads > 1) {
     queueLimit = 100000001;
@@ -258,17 +262,14 @@ void BufferManager::reserveHandshake(THREADID tid)
   while(pool_[tid] == 0) {
     assert(queueSizes_[tid] > 0);
     ReleaseLock(locks_[tid]);
-    ReleaseLock(&simbuffer_lock);
 
-    popped_ = false;
     PIN_Sleep(3000);
     
-    GetLock(&simbuffer_lock, tid+1);
     GetLock(locks_[tid], tid+1);
 
-    if(popped_) {
-      continue;
-    }
+    //    if(popped_) {
+    //      continue;
+    //    }
 
     if(num_threads == 1 || (!useRealFile_)) {
       continue;

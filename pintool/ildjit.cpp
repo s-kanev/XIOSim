@@ -28,16 +28,6 @@ PIN_LOCK ildjit_lock;
 const UINT8 ld_template[] = {0xa1, 0xad, 0xfb, 0xca, 0xde};
 const UINT8 st_template[] = {0xc7, 0x05, 0xad, 0xfb, 0xca, 0xde, 0x00, 0x00, 0x00, 0x00 };
 
-// Stores the ID of the wait between before and afterWait. -1 outside.
-map<THREADID, INT32> lastWaitID;
-
-// has this thread already ignored call overhead for before_wait
-static map<THREADID, bool> ignored_before_wait;
-// has this thread already ignored call overhead for after_wait (XXX: remove me one day)
-static map<THREADID, bool> ignored_after_wait;
-// has this thread already ignored call overhead for before_signal
-static map<THREADID, bool> ignored_before_signal;
-
 static map<ADDRINT, INT32> invocation_counts;
 
 KNOB<string> KnobLoopIDFile(KNOB_MODE_WRITEONCE, "pintool",
@@ -50,14 +40,6 @@ static CHAR start_loop[512] = {0};
 static INT32 start_loop_invocation;
 static CHAR end_loop[512] = {0};
 static INT32 end_loop_invocation;
-
-static map<THREADID, INT32> unmatchedWaits;
-map<THREADID, INT32> invocationWaitZeros;
-tick_t lastCycles;
-
-map<THREADID, int> afterSignalCount;
-map<THREADID, int> afterWaitLightCount;
-map<THREADID, int> afterWaitHeavyCount;
 
 VOID printMemoryUsage(THREADID tid);
 VOID printElapsedTime();
@@ -115,7 +97,6 @@ VOID MOLECOOL_Init()
 
 
     last_time = time(NULL);
-    lastCycles = 0;
 
     cerr << start_loop << " " << start_loop_invocation << endl;
     cerr << end_loop << " " << end_loop_invocation << endl;
@@ -144,8 +125,6 @@ BOOL ILDJIT_IsCreatingExecutor()
 /* ========================================================================== */
 VOID ILDJIT_startSimulation(THREADID tid, ADDRINT ip)
 {
-    // Check to see what current memory usage is post HELIX
-  
     CODECACHE_FlushCache();
 
     GetLock(&ildjit_lock, 1);
@@ -156,11 +135,6 @@ VOID ILDJIT_startSimulation(THREADID tid, ADDRINT ip)
      * XXX: This way we can capture the creation of some compiler threads,
      * but this is generally fine, since they won't get executed */
     ILDJIT_executorCreation = false;
-
-    vector<THREADID>::iterator it;
-    for (it = thread_list.begin(); it != thread_list.end(); it++) {
-      invocationWaitZeros[*it] = 0;
-    }
 
     ILDJIT_executionStarted = true;
 
@@ -218,54 +192,54 @@ VOID ILDJIT_startLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
 /* ========================================================================== */
 VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc)
 {
-//#ifdef ZESTO_PIN_DBG
-  CHAR* loop_name = (CHAR*) loop;
-    //    cerr << "Starting loop: " << loop_name << "[" << invocation_counts[loop] << "]" << endl;
-//#endif
-
     /* Haven't started simulation and we encounter a loop we don't care
      * about */
     if (ExecMode != EXECUTION_MODE_SIMULATE) {
-      if(strlen(start_loop) > 0 && strncmp(start_loop, (CHAR*)loop, 512) != 0) {
-        return;
-      }
-      if(invocation_counts[loop] < start_loop_invocation) {
-        return;
-      }
-      if(invocation_counts[loop] == start_loop_invocation) {
-	doLateILDJITInstrumentation();
-      }
+        if(strlen(start_loop) > 0 && strncmp(start_loop, (CHAR*)loop, 512) != 0) {
+            return;
+        }
+        if(invocation_counts[loop] < start_loop_invocation) {
+            return;
+        }
+        if(invocation_counts[loop] == start_loop_invocation) {
+            doLateILDJITInstrumentation();
+        }
     }
 
     use_ring_cache = (rc > 0);
         
     if(disable_wait_signal) {
-      use_ring_cache = false;
+        use_ring_cache = false;
     } 
 
+//#ifdef ZESTO_PIN_DBG
+    CHAR* loop_name = (CHAR*) loop;
     cerr << "Starting loop: " << loop_name << "[" << invocation_counts[loop] << "]" << endl;
-    /* This is called right before a wait spin loop.
-     * For this thread only, ignore the end of the wait, so we
-     * can actually start simulating and unblock everyone else.
-     */
-    GetLock(&simbuffer_lock, tid+1);
-    thread_state_t* tstate = get_tls(tid);
-    tstate->firstIteration = true;
+//#endif
     vector<THREADID>::iterator it;
     for (it = thread_list.begin(); it != thread_list.end(); it++) {
-      unmatchedWaits[(*it)] = 0;
-      afterSignalCount[*it] = 0;
-      afterWaitLightCount[*it] = 0;
-      afterWaitHeavyCount[*it] = 0;
-      ignore[*it] = false;
+        thread_state_t* curr_tstate = get_tls(*it);
+        GetLock(&curr_tstate->lock, tid+1);
+        /* This is called right before a wait spin loop.
+         * For this thread only, ignore the end of the wait, so we
+         * can actually start simulating and unblock everyone else.
+         */
+        if (*it == tid)
+            curr_tstate->firstIteration = true;
+        curr_tstate->unmatchedWaits = 0;
+        curr_tstate->afterSignalCount = 0;
+        curr_tstate->afterWaitLightCount = 0;
+        curr_tstate->afterWaitHeavyCount = 0;
+        curr_tstate->ignored_before_wait = false;
+        curr_tstate->ignored_before_signal = false;
+        ReleaseLock(&curr_tstate->lock);
     }
 
-    ignored_before_wait.clear();
-    ignored_after_wait.clear();
-    ignored_before_signal.clear();
+    thread_state_t* core0_tstate = get_tls(core_threads[0]);
+    GetLock(&core0_tstate->lock, tid+1);
     seen_ssID_zero = false;
     seen_ssID_zero_twice = false;
-    ReleaseLock(&simbuffer_lock);
+    ReleaseLock(&core0_tstate->lock);
 
     if (strlen(start_loop) == 0 && firstLoop) {
         cerr << "Starting simulation, TID: " << tid << endl;
@@ -273,19 +247,19 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
         firstLoop = false;
     }
     else if (strncmp(start_loop, (CHAR*)loop, 512) == 0) {
-      if (invocation_counts[loop] == start_loop_invocation) {
-	cerr << "FastForward runtime:"; 
-	printElapsedTime();  	
+        if (invocation_counts[loop] == start_loop_invocation) {
+            cerr << "FastForward runtime:"; 
+            printElapsedTime();  	
 	
-        cerr << "Starting simulation, TTID: " << tid << endl;
-        PPointHandler(CONTROL_START, NULL, NULL, (VOID*)ip, tid);
-        cerr << "Starting simulation, TTID2: " << tid << endl;
-        firstLoop = false;
-      }
-      else if (invocation_counts[loop] > start_loop_invocation) {
-        cerr << tid << ": resuming simulation" << endl;
-        ResumeSimulation(tid);
-      }
+            cerr << "Starting simulation, TTID: " << tid << endl;
+            PPointHandler(CONTROL_START, NULL, NULL, (VOID*)ip, tid);
+            cerr << "Starting simulation, TTID2: " << tid << endl;
+            firstLoop = false;
+        }
+        else if (invocation_counts[loop] > start_loop_invocation) {
+            cerr << tid << ": resuming simulation" << endl;
+            ResumeSimulation(tid);
+        }
     }
     else {
         cerr << tid << ": resuming simulation" << endl;
@@ -296,97 +270,96 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
 
 VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
 {
-//#ifdef ZESTO_PIN_DBG
-    CHAR* loop_name = (CHAR*) loop;
-//#endif
-
     if (ExecMode == EXECUTION_MODE_SIMULATE) {
-      PauseSimulation(tid);
-      cerr << tid << ": Paused simulation!" << endl;
+        PauseSimulation(tid);
+        cerr << tid << ": Paused simulation!" << endl;
       
-      GetLock(&simbuffer_lock, tid+1);
-      vector<THREADID>::iterator it;
-      for (it = thread_list.begin(); it != thread_list.end(); it++) {	
-	invocationWaitZeros[*it] = 0;
-	afterSignalCount[*it] = 0;
-	afterWaitLightCount[*it] = 0;
-	afterWaitHeavyCount[*it] = 0;
-      }
-      cerr << "Ending loop: " << loop_name << " NumIterations:" << (UINT32)numIterations << endl;
-      ReleaseLock(&simbuffer_lock);
+        vector<THREADID>::iterator it;
+        for (it = thread_list.begin(); it != thread_list.end(); it++) {	
+            thread_state_t* tstate = get_tls(*it);
+            GetLock(&tstate->lock, tid+1);
+            tstate->ignore = true;
+            tstate->afterSignalCount = 0;
+            tstate->afterWaitLightCount = 0;
+            tstate->afterWaitHeavyCount = 0;
+            ReleaseLock(&tstate->lock);
+        }
+//#ifdef ZESTO_PIN_DBG
+        CHAR* loop_name = (CHAR*) loop;
+        cerr << "Ending loop: " << loop_name << " NumIterations:" << (UINT32)numIterations << endl;
+//#endif
     }
 
     if(strncmp(end_loop, (CHAR*)loop, 512) == 0 && invocation_counts[loop] == end_loop_invocation) {
-      cerr << "Simulation runtime:"; 
-      printElapsedTime();  	
-      cerr << "LStopping simulation, TID: " << tid << endl;
-      StopSimulation(tid);
-      cerr << "[KEVIN] Stopped simulation! " << tid << endl;
+        cerr << "Simulation runtime:"; 
+        printElapsedTime();  	
+        cerr << "LStopping simulation, TID: " << tid << endl;
+        StopSimulation(tid);
+        cerr << "[KEVIN] Stopped simulation! " << tid << endl;
     }
 }
 
 /* ========================================================================== */
 VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc)
 {
-    GetLock(&simbuffer_lock, tid+1);
-    ignore[tid] = true;
-
-    invocationWaitZeros[tid] += (ssID == 0);
 #ifdef PRINT_WAITS
     if (ExecMode == EXECUTION_MODE_SIMULATE)
         cerr << tid <<" :Before Wait "<< hex << pc << dec  << " ID: " << ssID << hex << " (" << ssID_addr <<")" << dec << endl;
 #endif
 
     thread_state_t* tstate = get_tls(tid);
-    if (tstate->pc_queue_valid &&
-        ignored_before_wait.find(tid) == ignored_before_wait.end())
+    GetLock(&tstate->lock, tid+1);
+    tstate->ignore = true;
+
+    if (tstate->pc_queue_valid && !tstate->ignored_before_wait)
     {
         // push Arg3 to stack
-        ignore_list[tid][tstate->get_queued_pc(3)] = true;
+        tstate->ignore_list[tstate->get_queued_pc(3)] = true;
 
         // push Arg2 to stack
-        ignore_list[tid][tstate->get_queued_pc(2)] = true;
+        tstate->ignore_list[tstate->get_queued_pc(2)] = true;
         //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(2) << dec << endl;
 
         // push Arg1 to stack
-        ignore_list[tid][tstate->get_queued_pc(1)] = true;
+        tstate->ignore_list[tstate->get_queued_pc(1)] = true;
         //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(1) << dec << endl;
 
         // Call instruction to beforeWait
-        ignore_list[tid][tstate->get_queued_pc(0)] = true;
+        tstate->ignore_list[tstate->get_queued_pc(0)] = true;
         //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(0) << dec << endl;
 
-        ignored_before_wait[tid] = true;
+        tstate->ignored_before_wait = true;
     }
+    ReleaseLock(&tstate->lock);
 
     if(num_threads == 1) {
-      ReleaseLock(&simbuffer_lock);
-      return;
+        return;
     } 
 
 //    ASSERTX(tstate->lastSignalAddr == 0xdecafbad);
     tstate->lastSignalAddr = 0x7fff0000 + ssID;
-    lastWaitID[tid] = ssID;
+    tstate->lastWaitID = ssID;
 
     // XXX: HACKEDY HACKEDY HACK The ordering of these conditions matters
     if ((ExecMode == EXECUTION_MODE_SIMULATE) && (core_threads[0] != tid)) {
-      tstate->firstIteration = false;
+        tstate->firstIteration = false;
     }
 
-    if ((ssID == 0) && (ExecMode == EXECUTION_MODE_SIMULATE) && (core_threads[0] == tid) &&
-        seen_ssID_zero) {
-      seen_ssID_zero_twice = true;
-    }
+    if (core_threads[0] == tid) {
+        GetLock(&tstate->lock, tid+1);
+        if ((ssID == 0) && (ExecMode == EXECUTION_MODE_SIMULATE) && seen_ssID_zero) {
+            seen_ssID_zero_twice = true;
+        }
 
-    if ((ExecMode == EXECUTION_MODE_SIMULATE) && (core_threads[0] == tid) && (seen_ssID_zero_twice)) {
-      tstate->firstIteration = false;
-    }
+        if ((ExecMode == EXECUTION_MODE_SIMULATE) && seen_ssID_zero_twice) {
+            tstate->firstIteration = false;
+        }
 
-    if ((ssID == 0) && (ExecMode == EXECUTION_MODE_SIMULATE) && (core_threads[0] == tid)) {
-      seen_ssID_zero = true;
+        if ((ssID == 0) && (ExecMode == EXECUTION_MODE_SIMULATE)) {
+            seen_ssID_zero = true;
+        }
+        ReleaseLock(&tstate->lock);
     }
-
-    ReleaseLock(&simbuffer_lock);
 }
 
 /* ========================================================================== */
@@ -395,51 +368,48 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT is_light, ADDRINT pc)
     thread_state_t* tstate = get_tls(tid);
     handshake_container_t* handshake;
 
-    GetLock(&simbuffer_lock, tid+1);
-    ignore[tid] = false;
+    GetLock(&tstate->lock, tid+1);
+    tstate->ignore = false;
 
 #ifdef PRINT_WAITS
     if (ExecMode == EXECUTION_MODE_SIMULATE)
-        cerr << tid <<": After Wait "<< hex << pc << dec  << " ID: " << lastWaitID[tid] << endl;
+        cerr << tid <<": After Wait "<< hex << pc << dec  << " ID: " << tstate->lastWaitID << endl;
 #endif
+
+    // Indicates not in a wait any more
+    tstate->lastWaitID = -1;
+
+    /* Not simulatiing -- just ignore. */
+    if (tstate->ignore_all) {
+        ReleaseLock(&tstate->lock);
+        goto cleanup;
+    }
+
+    ReleaseLock(&tstate->lock);
+
+    if (ExecMode != EXECUTION_MODE_SIMULATE)
+        goto cleanup;
 
     /* Don't insert waits in single-core mode */
     if (num_threads == 1)
-      goto cleanup;
-    
-    if(!is_light) {
-      lastCycles = sim_cycle;
-    }
-    else {
-      lastCycles = 0;
-    }
-
-    // Indicated not in a wait any more
-    lastWaitID[tid] = -1;
-
-    /* Not simulatiing -- just ignore. */
-    if (ExecMode != EXECUTION_MODE_SIMULATE || ignore_all)
         goto cleanup;
-
-    unmatchedWaits[tid]++;
+    
+    tstate->unmatchedWaits++;
 
     /* Ignore injecting waits until the end of the first iteration,
      * so we can start simulating */
     if (tstate->firstIteration)
         goto cleanup;
     
-    if(!use_ring_cache) {
-      ReleaseLock(&simbuffer_lock);
-      return;
-    }
+    if(!use_ring_cache)
+        goto cleanup;
 
     if(is_light) {
-      afterWaitLightCount[tid]++;
-      ReleaseLock(&simbuffer_lock);
-      return;
+        tstate->afterWaitLightCount++;
+        goto cleanup;
     }
 
-    afterWaitHeavyCount[tid]++;
+    tstate->afterWaitHeavyCount++;
 
     /* Insert wait instruction in pipeline */
     handshake = handshake_buffer.get_buffer(tid);
@@ -466,43 +436,40 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT is_light, ADDRINT pc)
 
 cleanup:
     tstate->lastSignalAddr = 0xdecafbad;
-    ReleaseLock(&simbuffer_lock);
 }
 
 /* ========================================================================== */
 VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc)
 {
-    GetLock(&simbuffer_lock, tid+1);
-  
-    ignore[tid] = true;
+    thread_state_t* tstate = get_tls(tid);
+    GetLock(&tstate->lock, tid+1);
+    tstate->ignore = true;
 
 #ifdef PRINT_WAITS
     if (ExecMode == EXECUTION_MODE_SIMULATE)
         cerr << tid <<": Before Signal " << hex << pc << " ID: " << ssID <<  " (" << ssID_addr << ")" << dec << endl;
 #endif
 
-    thread_state_t* tstate = get_tls(tid);
-    if (tstate->pc_queue_valid &&
-        ignored_before_signal.find(tid) == ignored_before_signal.end())
+    if (tstate->pc_queue_valid && !tstate->ignored_before_signal)
     {
         // push Arg2 to stack
-        ignore_list[tid][tstate->get_queued_pc(2)] = true;
+        tstate->ignore_list[tstate->get_queued_pc(2)] = true;
         //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(2) << dec << endl;
 
         // push Arg1 to stack
-        ignore_list[tid][tstate->get_queued_pc(1)] = true;
+        tstate->ignore_list[tstate->get_queued_pc(1)] = true;
         //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(1) << dec << endl;
 
         // Call instruction to beforeWait
-        ignore_list[tid][tstate->get_queued_pc(0)] = true;
+        tstate->ignore_list[tstate->get_queued_pc(0)] = true;
         //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(0) << dec << endl;
 
-        ignored_before_signal[tid] = true;
+        tstate->ignored_before_signal = true;
     }
+    ReleaseLock(&tstate->lock);
 
 //    ASSERTX(tstate->lastSignalAddr == 0xdecafbad);
     tstate->lastSignalAddr = 0x7fff0000 + ssID;
-    ReleaseLock(&simbuffer_lock);
 }
 
 /* ========================================================================== */
@@ -511,8 +478,16 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT p
     thread_state_t* tstate = get_tls(tid);
     handshake_container_t* handshake;
 
-    GetLock(&simbuffer_lock, tid+1);
-    ignore[tid] = false;
+    GetLock(&tstate->lock, tid+1);
+    tstate->ignore = false;
+
+    /* Not simulating -- just ignore. */
+    if (tstate->ignore_all) {
+        ReleaseLock(&tstate->lock);
+        goto cleanup;
+    }
+
+    ReleaseLock(&tstate->lock);
 
 #ifdef PRINT_WAITS
     if (ExecMode == EXECUTION_MODE_SIMULATE)
@@ -520,22 +495,21 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT p
 #endif
 
     /* Not simulating -- just ignore. */
-    if (ExecMode != EXECUTION_MODE_SIMULATE || ignore_all)
+    if (ExecMode != EXECUTION_MODE_SIMULATE)
         goto cleanup;
 
     /* Don't insert signals in single-core mode */
     if (num_threads == 1)
         goto cleanup;
 
-    unmatchedWaits[tid]--;
-    ASSERTX(unmatchedWaits[tid] >= 0);
+    tstate->unmatchedWaits--;
+    ASSERTX(tstate->unmatchedWaits >= 0);
     
     if(!use_ring_cache) {
-      ReleaseLock(&simbuffer_lock);
-      return;
+        return;
     }
 
-    afterSignalCount[tid]++;
+    tstate->afterSignalCount++;
     
     /* Insert signal instruction in pipeline */
     handshake = handshake_buffer.get_buffer(tid);
@@ -545,7 +519,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT p
     handshake->handshake.resume_thread = false;
     handshake->handshake.real = false;
     handshake->handshake.coreID = tstate->coreID;
-    handshake->handshake.in_critical_section = (num_threads > 1) && (unmatchedWaits[tid] > 0);
+    handshake->handshake.in_critical_section = (num_threads > 1) && (tstate->unmatchedWaits > 0);
     handshake->handshake.iteration_correction = false;
     handshake->flags.valid = true;
 
@@ -563,7 +537,6 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT p
 
 cleanup:
     tstate->lastSignalAddr = 0xdecafbad;
-    ReleaseLock(&simbuffer_lock);
 }
 
 /* ========================================================================== */
@@ -798,42 +771,42 @@ VOID AddILDJITCallbacks(IMG img)
 
 BOOL signalCallback(THREADID tid, INT32 sig, CONTEXT *ctxt, BOOL hasHandler, const EXCEPTION_INFO *pExceptInfo, VOID *v)
 {
-  handshake_buffer.signalCallback(sig);
-  PIN_ExitProcess(1);
-  return false;
+    handshake_buffer.signalCallback(sig);
+    PIN_ExitProcess(1);
+    return false;
 }
 
 void signalCallback2(int signum) 
 {
-  handshake_buffer.signalCallback(signum);
-  PIN_ExitProcess(1);
+    handshake_buffer.signalCallback(signum);
+    PIN_ExitProcess(1);
 }
 
 VOID printElapsedTime()
 {
-  time_t elapsed_time = time(NULL) - last_time;
-  time_t hours = elapsed_time / 3600;
-  time_t minutes = (elapsed_time % 3600) / 60;
-  time_t seconds = ((elapsed_time % 3600) % 60);
-  cerr << hours << "h" << minutes << "m" << seconds << "s" << endl; 
-  last_time = time(NULL);
+    time_t elapsed_time = time(NULL) - last_time;
+    time_t hours = elapsed_time / 3600;
+    time_t minutes = (elapsed_time % 3600) / 60;
+    time_t seconds = ((elapsed_time % 3600) % 60);
+    cerr << hours << "h" << minutes << "m" << seconds << "s" << endl; 
+    last_time = time(NULL);
 }
 
 VOID printMemoryUsage(THREADID tid)
 {
-  return;
-  int myPid = getpid();
-  char str[50];
-  sprintf(str, "%d", myPid);
+    return;
+    int myPid = getpid();
+    char str[50];
+    sprintf(str, "%d", myPid);
 
-  ifstream fin;
-  fin.open(("/proc/" + string(str) + "/status").c_str());
-  string line;
-  while(getline(fin, line)) {
-    if(line.find("VmSize") != string::npos) {
-      cerr << tid << ":" << line << endl;
-      break;
+    ifstream fin;
+    fin.open(("/proc/" + string(str) + "/status").c_str());
+    string line;
+    while(getline(fin, line)) {
+        if(line.find("VmSize") != string::npos) {
+            cerr << tid << ":" << line << endl;
+            break;
+        }
     }
-  }
-  fin.close();
+    fin.close();
 }
