@@ -36,10 +36,13 @@ KNOB<string> KnobLoopIDFile(KNOB_MODE_WRITEONCE, "pintool",
 KNOB<BOOL> KnobDisableWaitSignal(KNOB_MODE_WRITEONCE,     "pintool",
         "disable_wait_signal", "false", "Don't insert any waits or signals into the pipeline");
 
-static CHAR start_loop[512] = {0};
-static INT32 start_loop_invocation;
-static CHAR end_loop[512] = {0};
-static INT32 end_loop_invocation;
+static string start_loop = "";
+static UINT64 start_loop_invocation = -1;
+static UINT64 start_loop_iteration = -1;
+
+static string end_loop = "";
+static UINT64 end_loop_invocation = -1;
+static UINT64 end_loop_iteration = -1;
 
 VOID printMemoryUsage(THREADID tid);
 VOID printElapsedTime();
@@ -68,12 +71,26 @@ VOID MOLECOOL_Init()
             cerr << "Couldn't open loop id file: " << KnobLoopIDFile.Value() << endl;
             PIN_ExitProcess(1);
         }
-        loop_file.getline(start_loop, 512);
-        loop_file >> start_loop_invocation;
 
-        loop_file.get();
-        loop_file.getline(end_loop, 512);
-        loop_file >> end_loop_invocation;
+	string line;		
+
+	// start phase info
+	getline(loop_file, start_loop);
+
+	getline(loop_file, line);
+	start_loop_invocation = Uint64FromString(line);
+	
+	getline(loop_file, line);
+	start_loop_iteration = Uint64FromString(line);
+
+	// end phase info
+	getline(loop_file, end_loop);
+
+	getline(loop_file, line);
+	end_loop_invocation = Uint64FromString(line);
+	
+	getline(loop_file, line);
+	end_loop_iteration = Uint64FromString(line);
     }
 
     disable_wait_signal = KnobDisableWaitSignal.Value();
@@ -94,7 +111,6 @@ VOID MOLECOOL_Init()
     signal(SIGSEGV, signalCallback2);
     signal(SIGTERM, signalCallback2);
     signal(SIGKILL, signalCallback2);
-
 
     last_time = time(NULL);
 
