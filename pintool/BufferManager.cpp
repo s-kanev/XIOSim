@@ -267,15 +267,13 @@ void BufferManager::reserveHandshake(THREADID tid)
     
     GetLock(locks_[tid], tid+1);
 
-<<<<<<< HEAD
+    /*<<<<<<< HEAD
     if(popped_) {
       continue;
     }
+    =======*/
 
     if(num_threads == 1 || (!useRealFile_)) {
-=======
-    if(num_threads == 1) {
->>>>>>> performance
       continue;
     }	
     
@@ -378,24 +376,17 @@ void BufferManager::copyProducerToFileReal(THREADID tid, bool checkSpace)
     fileEntryCount_[tid]++;
   }
 
-<<<<<<< HEAD
-=======
-
->>>>>>> performance
   result = close(fd);
   if(result == -1) {
     cerr << "Close error: " << " Errcode:" << strerror(errno) << endl;
     this->abort();
   }
 
-<<<<<<< HEAD
   // sync() if we put the file somewhere besides /dev/shm
   if(fileNames_[tid].back().find("shm") == string::npos) {
     sync();
   }
 
-=======
->>>>>>> performance
   assert(produceBuffer_[tid]->size() == 0);
   assert(fileEntryCount_[tid] >= 0);
 }
@@ -568,8 +559,6 @@ void BufferManager::allocateThread(THREADID tid)
   else {
     useRealFile_ = false;
   }
-
-  //  useRealFile_ = false;
 
   int bufferEntries = 640000 / 2;
   int bufferCapacity = bufferEntries / 2 / num_threads;
