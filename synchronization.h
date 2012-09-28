@@ -9,6 +9,17 @@
 #ifndef __SYNCHRONIZATION_H__
 #define __SYNCHRONIZATION_H__
 
+namespace LEVEL_PINCLIENT {
+extern void PIN_Yield();
+}
+
+inline void yield()
+{
+    LEVEL_PINCLIENT::PIN_Yield();
+}
+
+#ifdef USE_PIN_LOCK
+/* Wrappers around pin locks */
 namespace LEVEL_BASE {
 struct PIN_LOCK;
 extern void GetLock(PIN_LOCK* lk, int32_t tid);
@@ -16,31 +27,55 @@ extern int32_t ReleaseLock(PIN_LOCK* lk);
 extern void InitLock(PIN_LOCK* lk);
 }
 
-namespace LEVEL_PINCLIENT {
-extern void PIN_Yield();
-}
+typedef XIOSIM_LOCK XIOSIM_LOCK;
 
-inline void lk_lock(LEVEL_BASE::PIN_LOCK* lk, int32_t cid)
+inline void lk_lock(XIOSIM_LOCK* lk, int32_t cid)
 {
     LEVEL_BASE::GetLock(lk, cid);
 }
 
-inline int32_t lk_unlock(LEVEL_BASE::PIN_LOCK* lk)
+inline int32_t lk_unlock(XIOSIM_LOCK* lk)
 {
     return LEVEL_BASE::ReleaseLock(lk);
 }
 
-inline void lk_init(LEVEL_BASE::PIN_LOCK* lk)
+inline void lk_init(XIOSIM_LOCK* lk)
 {
     LEVEL_BASE::InitLock(lk);
 }
 
-inline void yield()
+#else
+/* Custom lock implementaion -- faster than the futeces that pin uses
+ * because it stays in userspace only */
+
+typedef struct { int32_t v; } __attribute__ ((aligned (64))) XIOSIM_LOCK;
+
+inline void lk_lock(XIOSIM_LOCK* lk, int32_t cid)
 {
-  //    LEVEL_PINCLIENT::PIN_Yield();
+    __asm__ __volatile__ (  "1:\n"
+                            "movl $0, %%eax\n"
+                            "lock cmpxchgl %[chg], %[mem]\n"
+                            "jnz 1b\n"
+                            : [mem] "=m" (lk->v)
+                            : [chg] "r" (cid)
+                            :"%eax");
 }
 
-extern void spawn_new_thread(void entry_point(void*), void* arg);
+inline int32_t lk_unlock(XIOSIM_LOCK* lk)
+{
+    __asm__ __volatile__ ("":::"memory");
+    lk->v = 0;
+    //XXX: return value is wrong! Implement with xchg!
+    return 0;
+}
+
+inline void lk_init(XIOSIM_LOCK* lk)
+{
+    __asm__ __volatile__ ("":::"memory");
+    lk->v = 0;
+}
+
+#endif
 
 /* Protecting shared state among cores */
 /* Lock acquire order (outmost to inmost):
@@ -49,27 +84,27 @@ extern void spawn_new_thread(void entry_point(void*), void* arg);
  - pool_lock (in oracle and core)
  */
 
-extern LEVEL_BASE::PIN_LOCK repeater_lock;
+extern XIOSIM_LOCK repeater_lock;
 
 /* Memory lock should be acquired before functional accesses to
  * the simulated application memory. */
-extern LEVEL_BASE::PIN_LOCK memory_lock;
+extern XIOSIM_LOCK memory_lock;
 
 /* Cache lock should be acquired before any access to the shared
  * caches (including enqueuing requests from lower-level caches). */
-extern LEVEL_BASE::PIN_LOCK cache_lock;
+extern XIOSIM_LOCK cache_lock;
 
 /* Cycle lock is used to synchronize global state (cycle counter)
  * and not let a core advance in time without increasing cycle. */
-extern LEVEL_BASE::PIN_LOCK cycle_lock;
+extern XIOSIM_LOCK cycle_lock;
 
 /* Protects static pools in core_t class. */
-extern LEVEL_BASE::PIN_LOCK core_pools_lock;
+extern XIOSIM_LOCK core_pools_lock;
 
 /* Protects static pools in core_oracle_t class. */
-extern LEVEL_BASE::PIN_LOCK oracle_pools_lock;
+extern XIOSIM_LOCK oracle_pools_lock;
 
 /* Make sure printing to the console is deadlock-free */
-extern LEVEL_BASE::PIN_LOCK printing_lock;
+extern XIOSIM_LOCK printing_lock;
 
 #endif // __SYNCHRONIZATION_H__

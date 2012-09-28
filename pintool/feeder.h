@@ -12,12 +12,12 @@
 using namespace INSTLIB;
 
 #include "../interface.h"
+#include "../synchronization.h"
 
 class handshake_container_t;
 typedef queue<handshake_container_t*> handshake_queue_t;
 extern KNOB<BOOL> KnobILDJIT;
 extern KNOB<string> KnobFluffy;
-extern PIN_LOCK printing_lock;
 extern vector<THREADID> thread_list;
 extern map<UINT32, THREADID> core_threads;
 extern map<THREADID, UINT32> thread_cores;
@@ -57,7 +57,7 @@ class thread_state_t
         is_running = true;
         num_inst = 0;
 
-        InitLock(&lock);
+        lk_init(&lock);
     }
 
     // Buffer to store the fpstate that the simulator may corrupt
@@ -100,7 +100,7 @@ class thread_state_t
     }
     BOOL pc_queue_valid;
 
-    PIN_LOCK lock;
+    XIOSIM_LOCK lock;
     // XXX: SHARED -- lock protects those
     // Signal to the simulator thread to die
     BOOL is_running;
