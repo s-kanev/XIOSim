@@ -7,14 +7,13 @@
 #include <map>
 #include <queue>
 
-#include "feeder.h"
+#include "../synchronization.h"
 
-// Declared and used in ../synchronization.h
-PIN_LOCK memory_lock;
-PIN_LOCK cache_lock;
-PIN_LOCK cycle_lock;
-PIN_LOCK core_pools_lock;
-PIN_LOCK oracle_pools_lock;
+XIOSIM_LOCK memory_lock;
+XIOSIM_LOCK cache_lock;
+XIOSIM_LOCK cycle_lock;
+XIOSIM_LOCK core_pools_lock;
+XIOSIM_LOCK oracle_pools_lock;
 
-PIN_LOCK printing_lock;
-PIN_LOCK repeater_lock;
+XIOSIM_LOCK printing_lock;
+XIOSIM_LOCK repeater_lock;

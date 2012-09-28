@@ -40,6 +40,7 @@ ostream& operator<< (ostream &out, handshake_container_t &hand)
 }
 
 BufferManager::BufferManager()
+  :numThreads_(0)
 {
   int pid = getpgrp();
   ostringstream iss;
@@ -59,7 +60,7 @@ BufferManager::~BufferManager()
     string cmd = "/bin/rm -rf " + bridgeDirs_[i] + gpid_ + "_* &";
     int retVal = system(cmd.c_str());
     (void)retVal;
-    assert(retVal == 0);        
+    assert(retVal == 0);
   }
 }
 
@@ -73,7 +74,7 @@ handshake_container_t* BufferManager::front(THREADID tid, bool isLocal)
 
   assert(!isLocal);
 
-  GetLock(locks_[tid], tid+1);
+  lk_lock(locks_[tid], tid+1);
 
   assert(queueSizes_[tid] > 0);
 
@@ -83,7 +84,7 @@ handshake_container_t* BufferManager::front(THREADID tid, bool isLocal)
     copyFileToConsumer(tid);
     assert(!consumeBuffer_[tid]->empty());
     handshake_container_t* returnVal = consumeBuffer_[tid]->front();
-    ReleaseLock(locks_[tid]);
+    lk_unlock(locks_[tid]);
     return returnVal;
   }
   assert(fileEntryCount_[tid] == 0);
@@ -91,9 +92,9 @@ handshake_container_t* BufferManager::front(THREADID tid, bool isLocal)
 
   int spins = 0;
   while(consumeBuffer_[tid]->empty()) {
-    ReleaseLock(locks_[tid]);
-    PIN_Yield();    
-    GetLock(locks_[tid], tid+1);
+    lk_unlock(locks_[tid]);
+    PIN_Yield();
+    lk_lock(locks_[tid], tid+1);
     spins++;
     if(spins >= 2) {
       spins = 0;
@@ -108,27 +109,27 @@ handshake_container_t* BufferManager::front(THREADID tid, bool isLocal)
   assert(consumeBuffer_[tid]->front()->flags.valid);
   assert(queueSizes_[tid] > 0);
   handshake_container_t* resultVal = consumeBuffer_[tid]->front();
-  ReleaseLock(locks_[tid]);
+  lk_unlock(locks_[tid]);
   return resultVal;
 }
 
 handshake_container_t* BufferManager::back(THREADID tid)
 {
-  GetLock(locks_[tid], tid+1);
+  lk_lock(locks_[tid], tid+1);
   assert(queueSizes_[tid] > 0);
   handshake_container_t* returnVal = produceBuffer_[tid]->back();
-  ReleaseLock(locks_[tid]);
+  lk_unlock(locks_[tid]);
   return returnVal;
 }
 
 bool BufferManager::empty(THREADID tid)
 {
-  GetLock(locks_[tid], tid+1);
+  lk_lock(locks_[tid], tid+1);
   bool result = queueSizes_[tid] == 0;
   if(result) {
     resetPool(tid);
   }
-  ReleaseLock(locks_[tid]);
+  lk_unlock(locks_[tid]);
   return result;
 }
 
@@ -137,7 +138,7 @@ bool BufferManager::empty(THREADID tid)
  */
 handshake_container_t* BufferManager::get_buffer(THREADID tid)
 {
-  GetLock(locks_[tid], tid+1);
+  lk_lock(locks_[tid], tid+1);
   // Push is guaranteed to succeed because each call to
   // this->get_buffer() is followed by a call to this->producer_done()
   // which will make space if full
@@ -147,7 +148,7 @@ handshake_container_t* BufferManager::get_buffer(THREADID tid)
   assert(pool_[tid] > 0);
   pool_[tid]--;
 
-  ReleaseLock(locks_[tid]);
+  lk_unlock(locks_[tid]);
   return result;
 }
 
@@ -157,12 +158,12 @@ handshake_container_t* BufferManager::get_buffer(THREADID tid)
  */
 void BufferManager::producer_done(THREADID tid, bool keepLock)
 {
-  GetLock(locks_[tid], tid+1);
+  lk_lock(locks_[tid], tid+1);
 
   ASSERTX(!produceBuffer_[tid]->empty());
   handshake_container_t* last = produceBuffer_[tid]->back();
   ASSERTX(last->flags.valid);
-  
+
   if(!keepLock) {
     reserveHandshake(tid);
   }
@@ -170,8 +171,8 @@ void BufferManager::producer_done(THREADID tid, bool keepLock)
     pool_[tid]++;
   }
 
-  if(produceBuffer_[tid]->full() || ( (consumeBuffer_[tid]->size() == 0) && (fileEntryCount_[tid] == 0))) {    
-#ifdef DEBUG  
+  if(produceBuffer_[tid]->full() || ( (consumeBuffer_[tid]->size() == 0) && (fileEntryCount_[tid] == 0))) {
+#ifdef DEBUG
     int produceSize = produceBuffer_[tid]->size();
 #endif
     bool checkSpace = !keepLock;
@@ -180,10 +181,10 @@ void BufferManager::producer_done(THREADID tid, bool keepLock)
     assert(fileEntryCount_[tid] >= produceSize);
     assert(produceBuffer_[tid]->size() == 0);
   }
-  
+
   assert(!produceBuffer_[tid]->full());
-  
-  ReleaseLock(locks_[tid]);
+
+  lk_unlock(locks_[tid]);
 }
 
 /* On the producer side, flush all buffers associated
@@ -191,12 +192,12 @@ void BufferManager::producer_done(THREADID tid, bool keepLock)
  */
 void BufferManager::flushBuffers(THREADID tid)
 {
-  GetLock(locks_[tid], tid+1);
+  lk_lock(locks_[tid], tid+1);
 
   if(produceBuffer_[tid]->size() > 0) {
     copyProducerToFile(tid, false);
   }
-  ReleaseLock(locks_[tid]);
+  lk_unlock(locks_[tid]);
 }
 
 int BufferManager::getConsumerSize(THREADID tid)
@@ -209,14 +210,14 @@ int BufferManager::getConsumerSize(THREADID tid)
  */
 void BufferManager::applyConsumerChanges(THREADID tid, int numChanged)
 {
-  GetLock(locks_[tid], tid+1);
-  
+  lk_lock(locks_[tid], tid+1);
+
   pool_[tid] += numChanged;
 
   assert(queueSizes_[tid] >= numChanged);
   queueSizes_[tid] -= numChanged;
 
-  ReleaseLock(locks_[tid]);
+  lk_unlock(locks_[tid]);
 }
 
 void BufferManager::pop(THREADID tid)
@@ -231,16 +232,11 @@ bool BufferManager::hasThread(THREADID tid)
   return (result != 0);
 }
 
-unsigned int BufferManager::numThreads()
-{
-  return queueSizes_.size();
-}
-
 unsigned int BufferManager::size(THREADID tid)
 {
-  GetLock(locks_[tid], tid+1);
+  lk_lock(locks_[tid], tid+1);
   unsigned int result = queueSizes_[tid];
-  ReleaseLock(locks_[tid]);
+  lk_unlock(locks_[tid]);
   return result;
 }
 
@@ -258,25 +254,23 @@ void BufferManager::reserveHandshake(THREADID tid)
   else {
     queueLimit = 100001;
   }
-  
+
   while(pool_[tid] == 0) {
     assert(queueSizes_[tid] > 0);
-    ReleaseLock(locks_[tid]);
+    lk_unlock(locks_[tid]);
 
     PIN_Sleep(3000);
-    
-    GetLock(locks_[tid], tid+1);
 
-    /*<<<<<<< HEAD
-    if(popped_) {
-      continue;
-    }
-    =======*/
+    lk_lock(locks_[tid], tid+1);
+
+    //    if(popped_) {
+    //      continue;
+    //    }
 
     if(num_threads == 1 || (!useRealFile_)) {
       continue;
-    }	
-    
+    }
+
     if(queueSizes_[tid] < queueLimit) {
       pool_[tid] += 50000;
       cerr << tid << " [reserveHandshake()]: Increasing file up to " << queueSizes_[tid] + pool_[tid] << endl;
@@ -309,13 +303,13 @@ void BufferManager::copyFileToConsumer(THREADID tid)
 
 void BufferManager::copyProducerToFileFake(THREADID tid)
 {
-  while(produceBuffer_[tid]->size() > 0) {    
+  while(produceBuffer_[tid]->size() > 0) {
     handshake_container_t* handshake = produceBuffer_[tid]->front();
     handshake_container_t* handfake = fakeFile_[tid]->get_buffer();
     handshake->CopyTo(handfake);
     fakeFile_[tid]->push_done();
 
-    produceBuffer_[tid]->pop(); 	
+    produceBuffer_[tid]->pop();
     fileEntryCount_[tid]++;
   }
 }
@@ -339,15 +333,15 @@ void BufferManager::copyFileToConsumerFake(THREADID tid)
 
 void BufferManager::copyProducerToFileReal(THREADID tid, bool checkSpace)
 {
-  int result;  
+  int result;
   bool madeFile = false;
   if(checkSpace) {
     for(int i = 0; i < (int)bridgeDirs_.size(); i++) {
       int space = getKBFreeSpace(bridgeDirs_[i]);
       if(space > 2000000) { // 2 GB
-	fileNames_[tid].push_back(genFileName(bridgeDirs_[i]));    
-	madeFile = true;
-	break;
+        fileNames_[tid].push_back(genFileName(bridgeDirs_[i]));
+        madeFile = true;
+        break;
       }
       cerr << "Out of space on " + bridgeDirs_[i] + " !!!" << endl;
     }
@@ -357,9 +351,9 @@ void BufferManager::copyProducerToFileReal(THREADID tid, bool checkSpace)
     }
   }
   else {
-    fileNames_[tid].push_back(genFileName(bridgeDirs_[0]));    
+    fileNames_[tid].push_back(genFileName(bridgeDirs_[0]));
   }
-  
+
   fileCounts_[tid].push_back(0);
 
   int fd = open(fileNames_[tid].back().c_str(), O_WRONLY | O_CREAT, 0777);
@@ -486,7 +480,7 @@ bool BufferManager::readHandshake(THREADID tid, int fd, handshake_container_t* h
   if(bytesRead == -1) {
     cerr << "File read error: " << bytesRead << " Errcode:" << strerror(errno) << endl;
     this->abort();
-  } 
+  }
   assert(bytesRead == sizeof(int));
 
   int mapBytes = mapSize * mapEntryBytes;
@@ -543,15 +537,16 @@ void BufferManager::signalCallback(int signum)
     string cmd = "/bin/rm -rf " + bridgeDirs_[i] + gpid_ + "_* &";
     int retVal = system(cmd.c_str());
     (void)retVal;
-    assert(retVal == 0);        
+    assert(retVal == 0);
   }
 }
 
-void BufferManager::allocateThread(THREADID tid) 
+void BufferManager::allocateThread(THREADID tid)
 {
   assert(queueSizes_.count(tid) == 0);
-  
+
   queueSizes_[tid] = 0;
+  numThreads_++;
   fileEntryCount_[tid] = 0;
   if(num_threads > 1) {
     useRealFile_ = true;
@@ -567,15 +562,15 @@ void BufferManager::allocateThread(THREADID tid)
     bufferCapacity /= 8;
     fakeFile_[tid] = new Buffer(120000);
   }
-  
+
   consumeBuffer_[tid] = new Buffer(bufferCapacity);
   produceBuffer_[tid] = new Buffer(bufferCapacity);
   assert(produceBuffer_[tid]->capacity() <= consumeBuffer_[tid]->capacity());
   resetPool(tid);
   produceBuffer_[tid]->get_buffer()->flags.isFirstInsn = true;
-  locks_[tid] = new PIN_LOCK();
-  InitLock(locks_[tid]);
-    
+  locks_[tid] = new XIOSIM_LOCK();
+  lk_init(locks_[tid]);
+
   cerr << tid << " Creating temp files with prefix "  << gpid_ << "_*" << endl;
   // Start with one page read buffer
   readBufferSize_[tid] = 4096;
@@ -594,7 +589,7 @@ string BufferManager::genFileName(string path)
   return temp;
 }
 
-void BufferManager::resetPool(THREADID tid) 
+void BufferManager::resetPool(THREADID tid)
 {
   int poolFactor = 1;
   if(num_threads > 1) {
@@ -603,9 +598,9 @@ void BufferManager::resetPool(THREADID tid)
   pool_[tid] = (consumeBuffer_[tid]->capacity() + produceBuffer_[tid]->capacity()) * poolFactor;
 }
 
-int BufferManager::getKBFreeSpace(string path) 
+int BufferManager::getKBFreeSpace(string path)
 {
   struct statvfs fsinfo;
   statvfs(path.c_str(), &fsinfo);
-  return (fsinfo.f_bsize * fsinfo.f_bfree / 1024); 
+  return (fsinfo.f_bsize * fsinfo.f_bfree / 1024);
 }

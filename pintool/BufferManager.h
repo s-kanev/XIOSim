@@ -33,7 +33,11 @@ class BufferManager
   void allocateThread(THREADID tid);
 
   bool hasThread(THREADID tid);
-  unsigned int numThreads();
+  inline unsigned int numThreads()
+  {
+    return numThreads_;
+  }
+
   unsigned int size(THREADID tid);
 
   void flushBuffers(THREADID tid);
@@ -44,8 +48,9 @@ class BufferManager
 
  private:
   bool useRealFile_;
+  int numThreads_;
   
-  map<THREADID, PIN_LOCK*> locks_;
+  map<THREADID, XIOSIM_LOCK*> locks_;
 
   map<THREADID, int> pool_;
 
