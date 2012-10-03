@@ -203,6 +203,5 @@ VOID ResumeSimulation(THREADID tid);
 
 VOID amd_hack();
 VOID doLateILDJITInstrumentation();
-BOOL smc_check(ADDRINT pc);
 
 #endif /*__FEEDER_ZESTO__ */

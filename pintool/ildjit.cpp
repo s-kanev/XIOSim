@@ -28,7 +28,7 @@ XIOSIM_LOCK ildjit_lock;
 const UINT8 ld_template[] = {0xa1, 0xad, 0xfb, 0xca, 0xde};
 const UINT8 st_template[] = {0xc7, 0x05, 0xad, 0xfb, 0xca, 0xde, 0x00, 0x00, 0x00, 0x00 };
 
-static map<ADDRINT, INT32> invocation_counts;
+static map<ADDRINT, UINT32> invocation_counts;
 
 KNOB<string> KnobLoopIDFile(KNOB_MODE_WRITEONCE, "pintool",
     "loopID", "", "File to get start/end loop IDs and invocation caounts");
@@ -37,16 +37,15 @@ KNOB<BOOL> KnobDisableWaitSignal(KNOB_MODE_WRITEONCE,     "pintool",
         "disable_wait_signal", "false", "Don't insert any waits or signals into the pipeline");
 
 static string start_loop = "";
-static UINT64 start_loop_invocation = -1;
-static UINT64 start_loop_iteration = -1;
+static UINT32 start_loop_invocation = -1;
+static UINT32 start_loop_iteration = -1;
 
 static string end_loop = "";
-static UINT64 end_loop_invocation = -1;
-static UINT64 end_loop_iteration = -1;
+static UINT32 end_loop_invocation = -1;
+static UINT32 end_loop_iteration = -1;
 
 VOID printMemoryUsage(THREADID tid);
 VOID printElapsedTime();
-VOID AddILDJITWaitSignalCallbacks();
 BOOL signalCallback(THREADID tid, INT32 sig, CONTEXT *ctxt, BOOL hasHandler, const EXCEPTION_INFO *pExceptInfo, VOID *v);
 void signalCallback2(int signum);
 
@@ -73,24 +72,27 @@ VOID MOLECOOL_Init()
         }
 
 	string line;		
-
 	// start phase info
 	getline(loop_file, start_loop);
 
+	getline(loop_file, line);	
+	start_loop_invocation = Uint32FromString(line);
+	assert((UINT64)start_loop_invocation == Uint64FromString(line));
+
 	getline(loop_file, line);
-	start_loop_invocation = Uint64FromString(line);
-	
-	getline(loop_file, line);
-	start_loop_iteration = Uint64FromString(line);
+	start_loop_iteration = Uint32FromString(line);
+	assert((UINT64)start_loop_iteration == Uint64FromString(line));
 
 	// end phase info
 	getline(loop_file, end_loop);
+	
+	getline(loop_file, line);	
+	end_loop_invocation = Uint32FromString(line);
+	assert((UINT64)end_loop_invocation == Uint64FromString(line));
 
 	getline(loop_file, line);
-	end_loop_invocation = Uint64FromString(line);
-	
-	getline(loop_file, line);
-	end_loop_iteration = Uint64FromString(line);
+	end_loop_iteration = Uint32FromString(line);
+	assert((UINT64)end_loop_iteration == Uint64FromString(line));
     }
 
     disable_wait_signal = KnobDisableWaitSignal.Value();
@@ -164,8 +166,8 @@ VOID ILDJIT_startSimulation(THREADID tid, ADDRINT ip)
 /* ========================================================================== */
 VOID ILDJIT_endSimulation(THREADID tid, ADDRINT ip)
 {
-    if (strlen(end_loop) != 0)
-        return;
+  if (end_loop.size() != 0)
+    return;
 
     // If we reach this, we're done with all parallel loops, just exit
 //#ifdef ZESTO_PIN_DBG
@@ -196,13 +198,45 @@ VOID ILDJIT_ExecutorCreateEnd(THREADID tid)
     //Dummy, actual work now done in ILDJIT_ThreadStarting
 }
 
+static UINT32 getSignalAddress(ADDRINT ssID);
+
 static BOOL firstLoop = true;
-static BOOL seen_ssID_zero = false;
-static BOOL seen_ssID_zero_twice = false;
+static BOOL first_invocation = true;
+static BOOL first_iteration = true;
+static THREADID thread_started_invocation = -1;
+
+static BOOL reached_start_invocation = false;
+static BOOL reached_start_iteration = false;
+//static BOOL reached_end_invocation = false;
+//static BOOL reached_end_iteration = false;
+
 /* =========================================================================== */
 VOID ILDJIT_startLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
 {
   invocation_counts[loop]++;
+
+  // If we are already simulating, return
+  if (ExecMode == EXECUTION_MODE_SIMULATE) {
+    return;
+  }
+
+  // If we already started the phase invocation, return
+  if(reached_start_invocation) {
+    return;
+  }
+
+  // If new loop is not the phase start loop, return
+  if(start_loop.length() > 0 && strncmp(start_loop.c_str(), (CHAR*)loop, 512) != 0) {
+    return;
+  }
+  
+  // If the start loop hasn't got to the correct invocation yet, return
+  if (invocation_counts[loop] != start_loop_invocation) {
+    return;
+  }
+
+  assert(invocation_counts[loop] == start_loop_invocation);
+  reached_start_invocation = true;
 }
 
 /* ========================================================================== */
@@ -211,21 +245,16 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
     /* Haven't started simulation and we encounter a loop we don't care
      * about */
     if (ExecMode != EXECUTION_MODE_SIMULATE) {
-        if(strlen(start_loop) > 0 && strncmp(start_loop, (CHAR*)loop, 512) != 0) {
-            return;
-        }
-        if(invocation_counts[loop] < start_loop_invocation) {
-            return;
-        }
-        if(invocation_counts[loop] == start_loop_invocation) {
-            doLateILDJITInstrumentation();
-        }
+      if(!reached_start_invocation) {
+	return;
+      }
+      doLateILDJITInstrumentation();
     }
 
     use_ring_cache = (rc > 0);
 
     if(disable_wait_signal) {
-        use_ring_cache = false;
+      use_ring_cache = false;
     }
 
 //#ifdef ZESTO_PIN_DBG
@@ -240,8 +269,6 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
          * For this thread only, ignore the end of the wait, so we
          * can actually start simulating and unblock everyone else.
          */
-        if (*it == tid)
-            curr_tstate->firstIteration = true;
         curr_tstate->unmatchedWaits = 0;
         curr_tstate->afterSignalCount = 0;
         curr_tstate->afterWaitLightCount = 0;
@@ -251,18 +278,12 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
         lk_unlock(&curr_tstate->lock);
     }
 
-    thread_state_t* core0_tstate = get_tls(core_threads[0]);
-    lk_lock(&core0_tstate->lock, tid+1);
-    seen_ssID_zero = false;
-    seen_ssID_zero_twice = false;
-    lk_unlock(&core0_tstate->lock);
-
-    if (strlen(start_loop) == 0 && firstLoop) {
+    if (start_loop.size() == 0 && firstLoop) {
         cerr << "Starting simulation, TID: " << tid << endl;
         PPointHandler(CONTROL_START, NULL, NULL, (VOID*)ip, tid);
         firstLoop = false;
     }
-    else if (strncmp(start_loop, (CHAR*)loop, 512) == 0) {
+    else if (strncmp(start_loop.c_str(), (CHAR*)loop, 512) == 0) {
         if (invocation_counts[loop] == start_loop_invocation) {
             cerr << "FastForward runtime:";
             printElapsedTime();
@@ -284,11 +305,56 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
 }
 /* ========================================================================== */
 
+// Assumes that start iteration calls _always_ happen in sequential order, 
+// in a thread safe manner!  Have to take Simon's word on this one for now...
+// Must be called from within the body of MOLECOOL_beforeWait!
+VOID ILDJIT_startIteration(THREADID tid, ADDRINT iteration_id)
+{
+  if(!reached_start_invocation) {
+    return;
+  }
+  assert(reached_start_invocation);
+  
+  if(reached_start_iteration) {
+    first_iteration = false;
+    return;
+  }
+  
+  if(iteration_id == start_loop_iteration) {
+    reached_start_iteration = true;
+    thread_started_invocation = tid;
+  }
+
+  /*
+    // XXX: HACKEDY HACKEDY HACK The ordering of these conditions matters
+    if ((ExecMode == EXECUTION_MODE_SIMULATE) && (core_threads[0] != tid)) {
+      tstate->firstIteration = false;
+    }
+
+    if (core_threads[0] == tid) {
+        lk_lock(&tstate->lock, tid+1);
+        if ((ssID == 0) && (ExecMode == EXECUTION_MODE_SIMULATE) && seen_ssID_zero) {
+            seen_ssID_zero_twice = true;
+        }
+
+        if ((ExecMode == EXECUTION_MODE_SIMULATE) && seen_ssID_zero_twice) {
+            tstate->firstIteration = false;
+        }
+
+        if ((ssID == 0) && (ExecMode == EXECUTION_MODE_SIMULATE)) {
+            seen_ssID_zero = true;
+        }
+        lk_unlock(&tstate->lock);
+	}*/
+}
+
+/* ========================================================================== */
 VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
 {
     if (ExecMode == EXECUTION_MODE_SIMULATE) {
         PauseSimulation(tid);
         cerr << tid << ": Paused simulation!" << endl;
+	first_invocation = false;
 
         vector<THREADID>::iterator it;
         for (it = thread_list.begin(); it != thread_list.end(); it++) {
@@ -306,7 +372,7 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
 //#endif
     }
 
-    if(strncmp(end_loop, (CHAR*)loop, 512) == 0 && invocation_counts[loop] == end_loop_invocation) {
+    if(strncmp(end_loop.c_str(), (CHAR*)loop, 512) == 0 && invocation_counts[loop] == end_loop_invocation) {
         cerr << "Simulation runtime:";
         printElapsedTime();
         cerr << "LStopping simulation, TID: " << tid << endl;
@@ -352,39 +418,23 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
         return;
     }
 
-//    ASSERTX(tstate->lastSignalAddr == 0xdecafbad);
-    tstate->lastSignalAddr = 0x7fff0000 + ssID;
     tstate->lastWaitID = ssID;
-
-    // XXX: HACKEDY HACKEDY HACK The ordering of these conditions matters
-    if ((ExecMode == EXECUTION_MODE_SIMULATE) && (core_threads[0] != tid)) {
-        tstate->firstIteration = false;
-    }
-
-    if (core_threads[0] == tid) {
-        lk_lock(&tstate->lock, tid+1);
-        if ((ssID == 0) && (ExecMode == EXECUTION_MODE_SIMULATE) && seen_ssID_zero) {
-            seen_ssID_zero_twice = true;
-        }
-
-        if ((ExecMode == EXECUTION_MODE_SIMULATE) && seen_ssID_zero_twice) {
-            tstate->firstIteration = false;
-        }
-
-        if ((ssID == 0) && (ExecMode == EXECUTION_MODE_SIMULATE)) {
-            seen_ssID_zero = true;
-        }
-        lk_unlock(&tstate->lock);
-    }
 }
 
 /* ========================================================================== */
-VOID ILDJIT_afterWait(THREADID tid, ADDRINT is_light, ADDRINT pc)
+VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc)
 {
     thread_state_t* tstate = get_tls(tid);
     handshake_container_t* handshake;
 
-    lk_lock(&tstate->lock, tid+1);
+    // Assumes all startIteration calls are sequential and within MOLECOOL_beforeWait()
+    // don't need lock
+    if(!reached_start_iteration) {
+      return;
+    }
+
+    lk_lock(&tstate->lock, tid+1);       
+    
     tstate->ignore = false;
 
 #ifdef PRINT_WAITS
@@ -414,7 +464,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT is_light, ADDRINT pc)
 
     /* Ignore injecting waits until the end of the first iteration,
      * so we can start simulating */
-    if (tstate->firstIteration)
+    if (first_iteration)
         goto cleanup;
 
     if(!use_ring_cache)
@@ -446,7 +496,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT is_light, ADDRINT pc)
     memcpy(handshake->handshake.ins, ld_template, sizeof(ld_template));
     // Address comes right after opcode byte
 //    ASSERTX(tstate->lastSignalAddr != 0xdecafbad);
-    *(INT32*)(&handshake->handshake.ins[1]) = tstate->lastSignalAddr;
+    *(INT32*)(&handshake->handshake.ins[1]) = getSignalAddress(ssID); 
 //    cerr << tid << ": Vodoo load instruction " << hex << pc <<  " ID: " << tstate->lastSignalAddr << dec << endl;
     handshake_buffer.producer_done(tid);
 
@@ -485,7 +535,6 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT 
     lk_unlock(&tstate->lock);
 
 //    ASSERTX(tstate->lastSignalAddr == 0xdecafbad);
-    tstate->lastSignalAddr = 0x7fff0000 + ssID;
 }
 
 /* ========================================================================== */
@@ -493,6 +542,12 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT p
 {
     thread_state_t* tstate = get_tls(tid);
     handshake_container_t* handshake;
+
+    // Assumes all startIteration calls are sequential and within MOLECOOL_beforeWait()
+    // don't need lock
+    if(!reached_start_iteration) {
+      return;
+    }
 
     lk_lock(&tstate->lock, tid+1);
     tstate->ignore = false;
@@ -546,7 +601,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT p
     memcpy(handshake->handshake.ins, st_template, sizeof(st_template));
     // Address comes right after opcode and MoodRM bytes
 //    ASSERTX(tstate->lastSignalAddr != 0xdecafbad);
-    *(INT32*)(&handshake->handshake.ins[2]) = tstate->lastSignalAddr;
+    *(INT32*)(&handshake->handshake.ins[2]) = getSignalAddress(ssID);
 
 //    cerr << tid << ": Vodoo store instruction " << hex << pc << " ID: " << tstate->lastSignalAddr << dec << endl;
     handshake_buffer.producer_done(tid);
@@ -631,6 +686,21 @@ VOID AddILDJITCallbacks(IMG img)
         RTN_Close(rtn);
     }
 
+    rtn = RTN_FindByName(img, "MOLECOOL_startIteration");
+    if (RTN_Valid(rtn))
+    {
+#ifdef ZESTO_PIN_DBG
+        cerr << "MOLECOOL_startIteration ";
+#endif
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_startIteration),
+                       IARG_THREAD_ID,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+                       IARG_END);
+        RTN_Close(rtn);
+    }
+
+
     rtn = RTN_FindByName(img, "MOLECOOL_beforeWait");
     if (RTN_Valid(rtn))
     {
@@ -651,6 +721,7 @@ VOID AddILDJITCallbacks(IMG img)
         RTN_Open(rtn);
         RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterWait),
                        IARG_THREAD_ID,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
                        IARG_FUNCARG_ENTRYPOINT_VALUE, 2,
                        IARG_INST_PTR,
                        IARG_CALL_ORDER, CALL_ORDER_LAST,
@@ -825,4 +896,16 @@ VOID printMemoryUsage(THREADID tid)
         }
     }
     fin.close();
+}
+
+UINT32 getSignalAddress(ADDRINT ssID)
+{
+  UINT32 firstCore = 0;
+  if(first_invocation) {
+    firstCore = thread_cores[thread_started_invocation];
+  }
+  assert(firstCore < 256);
+  assert(ssID < 256);
+
+  return 0x7fff0000 + (firstCore << 9) + ssID;
 }
