@@ -273,7 +273,9 @@ void BufferManager::reserveHandshake(THREADID tid)
 
     if(queueSizes_[tid] < queueLimit) {
       pool_[tid] += 50000;
+#ifdef ZESTO_PIN_DBG
       cerr << tid << " [reserveHandshake()]: Increasing file up to " << queueSizes_[tid] + pool_[tid] << endl;
+#endif
       break;
     }
     cerr << tid << " [reserveHandshake()]: File size too big to expand, abort():" << queueSizes_[tid] << endl;

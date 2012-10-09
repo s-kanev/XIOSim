@@ -17,6 +17,7 @@
 #include <sys/mman.h>
 #include <stdlib.h>
 #include <elf.h>
+#include <sched.h>
 
 #include <unistd.h>
 
@@ -54,6 +55,8 @@ KNOB<BOOL> KnobPipelineInstrumentation(KNOB_MODE_WRITEONCE, "pintool",
         "pipeline_instrumentation", "false", "Overlap instrumentation and simulation threads (still unstable)");
 KNOB<BOOL> KnobWarmLLC(KNOB_MODE_WRITEONCE,      "pintool",
         "warm_llc", "false", "Warm LLC while fast-forwarding");
+KNOB<BOOL> KnobGreedyCores(KNOB_MODE_WRITEONCE, "pintool",
+        "greedy_cores", "false", "Spread on all available machine cores");
 
 map<ADDRINT, UINT8> sanity_writes;
 BOOL sim_release_handshake;
@@ -383,6 +386,15 @@ VOID SimulatorLoop(VOID* arg)
     THREADID tid = PIN_ThreadId();
 
     INT32 coreID = -1;
+
+/*    if (KnobGreedyCores.Value()) {
+        INT32 host_cpus = get_nprocs_conf();
+        cpu_set_t mask;
+        CPU_ZERO(mask);
+        CPU_SET(coreID);
+        sched_setaffinity(0, sizeof (mask), &mask);
+    }
+*/
 
     while (true) {
         while (handshake_buffer.empty(instrument_tid)) {
@@ -924,6 +936,11 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
         lk_unlock(&instrument_tid_lock);
     }
 
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+    for (int i=0; i<8; i++)
+        CPU_SET(i, &mask);
+    sched_setaffinity(0, sizeof(cpu_set_t), &mask);
     lk_unlock(&test);
 }
 
@@ -1036,8 +1053,10 @@ VOID PauseSimulation(THREADID tid)
         }
     } while (!done);
 
+#ifdef ZESTO_PIN_DBG
     cerr << tid << " [" << sim_cycle << ":KEVIN]: All cores have empty buffers" << endl;
     cerr.flush();
+#endif
 
     /* Have thread ignore serial section after */
     /* XXX: Do we need this? A few lines above we set ignore_all! */
@@ -1130,7 +1149,6 @@ VOID ThreadFini(THREADID threadIndex, const CONTEXT *ctxt, INT32 code, VOID *v)
     /* Ignore threads which we weren't going to simulate */
     if (!was_scheduled) {
         delete tstate;
-        cerr << "FADA" << endl;
         lk_unlock(&test);
         return;
     }
