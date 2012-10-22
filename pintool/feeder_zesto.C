@@ -413,56 +413,46 @@ VOID SimulatorLoop(VOID* arg)
             lk_unlock(&tstate->lock);
         }
 
-        int consumerHandshakes = handshake_buffer.getConsumerSize(instrument_tid);
-        if(consumerHandshakes == 0) {
-            handshake_buffer.front(instrument_tid, false);
-            consumerHandshakes = handshake_buffer.getConsumerSize(instrument_tid);
-        }
-        assert(consumerHandshakes > 0);
+        handshake_container_t* handshake = handshake_buffer.front(instrument_tid, true);
+        ASSERTX(handshake != NULL);
+        ASSERTX(handshake->flags.valid);
 
-        for(int i = 0; i < consumerHandshakes; i++) {
-            handshake_container_t* handshake = handshake_buffer.front(instrument_tid, true);
-            ASSERTX(handshake != NULL);
-            ASSERTX(handshake->flags.valid);
-
-            /* Preserving coreID if we destroy handshake before coming in here,
-             * so we know which core to deactivate. */
-            coreID = handshake->handshake.coreID;
+        /* Preserving coreID if we destroy handshake before coming in here,
+         * so we know which core to deactivate. */
+        coreID = handshake->handshake.coreID;
 
 #ifdef TIME_TRANSPARENCY
-            // Capture time spent in simulation to ensure time syscall transparency
-            UINT64 ins_delta_time = rdtsc();
+        // Capture time spent in simulation to ensure time syscall transparency
+        UINT64 ins_delta_time = rdtsc();
 #endif
-            // Perform memory sanity checks for values touched by simulator
-            // on previous instruction
-            if (KnobSanity.Value())
-                SanityMemCheck();
+        // Perform memory sanity checks for values touched by simulator
+        // on previous instruction
+        if (KnobSanity.Value())
+            SanityMemCheck();
 
-            // Ignoring instruction
-            ADDRINT pc = handshake->handshake.pc;
-            thread_state_t* tstate = get_tls(instrument_tid);
-            lk_lock(&tstate->lock, tid+1);
-            if (tstate->ignore_list.find(pc) != tstate->ignore_list.end())
-            {
-                lk_unlock(&tstate->lock);
-                ReleaseHandshake(handshake->handshake.coreID);
-                continue;
-            }
-            tstate->num_inst++;
+        // Ignoring instruction
+        ADDRINT pc = handshake->handshake.pc;
+        thread_state_t* tstate = get_tls(instrument_tid);
+        lk_lock(&tstate->lock, tid+1);
+        if (tstate->ignore_list.find(pc) != tstate->ignore_list.end())
+        {
             lk_unlock(&tstate->lock);
+            ReleaseHandshake(handshake->handshake.coreID);
+            continue;
+        }
+        tstate->num_inst++;
+        lk_unlock(&tstate->lock);
 
-            // Actual simulation happens here
-            Zesto_Resume(&handshake->handshake, &handshake->mem_buffer, handshake->flags.isFirstInsn, handshake->flags.isLastInsn);
+        // Actual simulation happens here
+        Zesto_Resume(&handshake->handshake, &handshake->mem_buffer, handshake->flags.isFirstInsn, handshake->flags.isLastInsn);
 
-            if(!KnobPipelineInstrumentation.Value())
-                ReleaseHandshake(handshake->handshake.coreID);
+        if(!KnobPipelineInstrumentation.Value())
+            ReleaseHandshake(handshake->handshake.coreID);
 
 #ifdef TIME_TRANSPARENCY
-            ins_delta_time = rdtsc() - ins_delta_time;
-            sim_time += ins_delta_time;
+        ins_delta_time = rdtsc() - ins_delta_time;
+        sim_time += ins_delta_time;
 #endif
-        }
-        handshake_buffer.applyConsumerChanges(instrument_tid, consumerHandshakes);
     }
 }
 
@@ -938,7 +928,7 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
 
     cpu_set_t mask;
     CPU_ZERO(&mask);
-    for (int i=0; i<8; i++)
+    for (int i=0; i<16; i++)
         CPU_SET(i, &mask);
     sched_setaffinity(0, sizeof(cpu_set_t), &mask);
     lk_unlock(&test);
@@ -1031,26 +1021,15 @@ VOID PauseSimulation(THREADID tid)
     }
 
     /* Wait until all cores are done -- consumed their buffers. */
-    bool sleepEnabled = true;
     volatile bool done = false;
     do {
         done = true;
-        unsigned int numHandshakes = 0;
         vector<THREADID>::iterator it;
         for (it = thread_list.begin(); it != thread_list.end(); it++) {
             done &= handshake_buffer.empty((*it));
-            if(sleepEnabled) {
-                numHandshakes += handshake_buffer.size(*it);
-            }
         }
-        if((!done) && sleepEnabled) {
-            if(numHandshakes > 5000) {
-                PIN_Sleep(1000); // one second
-            }
-            else {
-                sleepEnabled = false;
-            }
-        }
+        if (!done)
+            PIN_Yield();
     } while (!done);
 
 #ifdef ZESTO_PIN_DBG
@@ -1063,6 +1042,7 @@ VOID PauseSimulation(THREADID tid)
     for (it = thread_list.begin(); it != thread_list.end(); it++) {
         thread_state_t* tstate = get_tls(*it);
         lk_lock(&tstate->lock, *it+1);
+        handshake_buffer.resetPool(*it);
         tstate->ignore = true;
         lk_unlock(&tstate->lock);
     }

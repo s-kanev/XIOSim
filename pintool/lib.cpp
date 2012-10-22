@@ -7,6 +7,7 @@
 #include <map>
 #include <queue>
 
+#include <stdint.h>
 #include "../synchronization.h"
 
 XIOSIM_LOCK memory_lock;
