@@ -44,6 +44,7 @@ class core_alloc_IO_DPM_t:public core_alloc_t
   int * occupancy;
   /* for load-balancing port binding */
   int * port_loading;
+  bool * can_alloc;
 
   static const char *alloc_stall_str[ASTALL_num];
   bool oldest_in_alloc(struct uop_t * uop);
@@ -93,6 +94,10 @@ core_alloc_IO_DPM_t::core_alloc_IO_DPM_t(struct core_t * const arg_core)
   port_loading = (int*) calloc(knobs->exec.num_exec_ports,sizeof(*port_loading));
   if(!port_loading)
     fatal("couldn't calloc allocation port-loading scoreboard");
+
+  can_alloc = (bool*) calloc(knobs->exec.num_exec_ports,sizeof(*can_alloc));
+  if(!can_alloc)
+    fatal("couldn't calloc can_alloc array");
 }
 
 void
@@ -140,12 +145,6 @@ core_alloc_IO_DPM_t::reg_stats(struct stat_sdb_t * const sdb)
 /************************/
 /* MAIN ALLOC FUNCTIONS */
 /************************/
-struct alloc_uop_t{
-  struct uop_t * uop;
-  int alloc_port;
-};
-
-
 bool core_alloc_IO_DPM_t::oldest_in_alloc(struct uop_t * uop)
 {
   struct core_knobs_t * knobs = core->knobs;
@@ -167,8 +166,8 @@ void core_alloc_IO_DPM_t::step(void)
   enum alloc_stall_t stall_reason = ASTALL_NONE;
 
 
-   list<struct alloc_uop_t *> alloced_uops;
-   list<struct alloc_uop_t *>::iterator it;
+  list<struct uop_t *> alloced_uops;
+  list<struct uop_t *>::iterator it;
   /*========================================================================*/
   /*== Dispatch insts to the appropriate execution ports ==*/
   stage = knobs->alloc.depth-1;
@@ -176,26 +175,29 @@ void core_alloc_IO_DPM_t::step(void)
   {
     for(i=0; i < knobs->alloc.width; i++) /* if so, scan all slots (width) of this stage */
     {
-      struct uop_t * uop = pipe[stage][i];
-      if(uop)
+       struct uop_t * uop = pipe[stage][i];
+       if(uop)
        {
-          struct alloc_uop_t * alloc_uop = new alloc_uop_t();
-          alloc_uop->uop = uop;
-          alloc_uop->alloc_port = i;
-
           for(it=alloced_uops.begin(); it!=alloced_uops.end(); it++)
           {
-             if((*it)->uop->decode.uop_seq > uop->decode.uop_seq)
+             if((*it)->decode.uop_seq > uop->decode.uop_seq)
                break;
           }
-          alloced_uops.insert(it, alloc_uop);
+          alloced_uops.insert(it, uop);
        }
     }
 
     for(it=alloced_uops.begin(); it!=alloced_uops.end(); it++)
     {
-      struct uop_t * uop = (*it)->uop;
-      i = (*it)->alloc_port;
+      struct uop_t * uop = *it;
+      i = -1;
+      for (int j=0; j < knobs->alloc.width; j++)
+        for (int k=0; k < knobs->alloc.depth; k++)
+          if (pipe[k][j] == uop) {
+            i = j;
+            break;
+          }
+      zesto_assert(i != -1, (void)0);
       int abort_alloc = false;
 
       if(!oldest_in_alloc(uop))
@@ -241,14 +243,8 @@ void core_alloc_IO_DPM_t::step(void)
               int index = -1;
               int j;
               struct uop_t * exec_uop = uop;
-              int *can_alloc;
-
-              can_alloc = (int*)calloc(knobs->exec.num_exec_ports,sizeof(int));
-              if(!can_alloc)
-                 fatal("couldn't alloc memory");
               for(j=0;j<knobs->exec.num_exec_ports;j++)
                  can_alloc[j] = true;
-
 
               /* fused uops should all go toghether - we look for a port that can execute the whole fusion */
               while(exec_uop)
@@ -291,8 +287,6 @@ void core_alloc_IO_DPM_t::step(void)
                     index = j;
                  }
               }
-
-              free(can_alloc);
 
               /* no available port */
               if(index == -1)
@@ -432,11 +426,6 @@ void core_alloc_IO_DPM_t::step(void)
   }
   else
     stall_reason = ASTALL_EMPTY;
-
-  for(it=alloced_uops.begin(); it!=alloced_uops.end(); it++)
-  {
-    delete (*it);
-  }
 
   /*=============================================*/
   /*== Shuffle uops down the rename/alloc pipe ==*/
