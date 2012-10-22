@@ -520,6 +520,7 @@ void sim_main_slave_pre_pin()
 
 }
 
+
 static void global_step(void)
 {
     if((heartbeat_frequency > 0) && (heartbeat_count >= heartbeat_frequency))
@@ -529,12 +530,13 @@ static void global_step(void)
       long long int sum = 0;
       for(int i=0;i<num_threads;i++)
       {
-	sum += cores[i]->stat.commit_insn;
+        sum += cores[i]->stat.commit_insn;
         if(i < (num_threads-1))
           myfprintf(stderr,"%lld, ",cores[i]->stat.commit_insn);
         else
-	  myfprintf(stderr,"%lld, all=%lld}\n",cores[i]->stat.commit_insn, sum);
+          myfprintf(stderr,"%lld, all=%lld}\n",cores[i]->stat.commit_insn, sum);
       }
+      fflush(stderr);
       lk_unlock(&printing_lock);
       heartbeat_count = 0;
     }
@@ -543,10 +545,6 @@ static void global_step(void)
 
     if(sim_cycle == 0)
       myfprintf(stderr, "### starting timing simulation \n");
-
-//    struct core_t* core = cores[0];
-//    if(sim_cycle == 3000)
-//      zesto_assert(0, (void)0);
 
     sim_cycle++;
     heartbeat_count++;
