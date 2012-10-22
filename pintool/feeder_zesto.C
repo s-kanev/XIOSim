@@ -501,6 +501,14 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, 
         handshake = handshake_buffer.back(tid);
     }
 
+    /* should be the common case */
+    if (first_read && size <= 4) {
+        handshake->handshake.mem_addr = addr;
+        PIN_SafeCopy(&handshake->handshake.mem_val, (VOID*)addr, size);
+        handshake->handshake.mem_size = size;
+        return;
+    }
+
     UINT8 val;
     for (UINT32 i=0; i < size; i++) {
         PIN_SafeCopy(&val, (VOID*) (addr+i), 1);
