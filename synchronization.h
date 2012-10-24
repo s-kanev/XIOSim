@@ -48,24 +48,41 @@ inline void lk_init(XIOSIM_LOCK* lk)
 /* Custom lock implementaion -- faster than the futeces that pin uses
  * because it stays in userspace only */
 
+/* This is a ticket lock. It provides fairness, but is also fast.
+ * Implicitly implements a queue with just two
+ * 16-bit values. Once we try to grab the lock, we atomically get the
+ * current value of the high-order word and increment it. We spin until
+ * the low-order word becomes equal to the stored copy. Each unlock
+ * increments the low-order word.
+ * Credit for this goes to  Nick Piggin (https://lwn.net/Articles/267968/)
+ */
+
 typedef struct { int32_t v; } __attribute__ ((aligned (64))) XIOSIM_LOCK;
 
 inline void lk_lock(XIOSIM_LOCK* lk, int32_t cid)
 {
-    __asm__ __volatile__ (  "1:\n"
-                            "movl $0, %%eax\n"
-                            "lock cmpxchgl %[chg], %[mem]\n"
-                            "jnz 1b\n"
-                            : [mem] "=m" (lk->v)
-                            : [chg] "r" (cid)
-                            :"%eax");
+    int32_t inc = 0x00010000;
+    int32_t tmp;
+    __asm__ __volatile__ (  "lock xaddl %0, %1\n"
+                            "movzwl %w0, %2\n"
+                            "shrl $16, %0\n"
+                            "1:\n"
+                            "cmpl %0, %2\n"
+                            "je 2f\n"
+                            "movzwl %1, %2\n"
+                            "jmp 1b\n"
+                            "2:\n"
+                            :"+Q" (inc), "+m" (lk->v), "=r" (tmp)
+                            :
+                            :"memory", "cc");
 }
 
 inline int32_t lk_unlock(XIOSIM_LOCK* lk)
 {
-    __asm__ __volatile__ ("":::"memory");
-    lk->v = 0;
-    //XXX: return value is wrong! Implement with xchg!
+    __asm__ __volatile ("incw %0"
+                        :"+m" (lk->v)
+                        :
+                        :"memory", "cc");
     return 0;
 }
 

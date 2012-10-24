@@ -290,10 +290,11 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
       use_ring_cache = false;
     }
 
-    //#ifdef ZESTO_PIN_DBG
+#ifdef ZESTO_PIN_DBG
     CHAR* loop_name = (CHAR*) loop;
     cerr << "Starting loop: " << loop_name << "[" << invocation_counts[loop] << "]" << endl;
-//#endif
+#endif
+
     vector<THREADID>::iterator it;
     for (it = thread_list.begin(); it != thread_list.end(); it++) {
         thread_state_t* curr_tstate = get_tls(*it);
@@ -374,6 +375,10 @@ VOID ILDJIT_startIteration(THREADID tid)
 /* ========================================================================== */
 VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
 {
+#ifdef ZESTO_PIN_DBG
+    cerr << tid << ": Pausing simulation!" << endl;
+#endif
+
     if (ExecMode == EXECUTION_MODE_SIMULATE) {
       PauseSimulation(tid);
         cerr << tid << ": Paused simulation!" << endl;
@@ -389,10 +394,10 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
             tstate->afterWaitHeavyCount = 0;
             lk_unlock(&tstate->lock);
         }
-//#ifdef ZESTO_PIN_DBG
+#ifdef ZESTO_PIN_DBG
         CHAR* loop_name = (CHAR*) loop;
         cerr << "Ending loop: " << loop_name << " NumIterations:" << (UINT32)numIterations << endl;
-//#endif
+#endif
     }
 
     /*    if(strncmp(end_loop.c_str(), (CHAR*)loop, 512) == 0 && invocation_counts[loop] == end_loop_invocation) {
@@ -823,7 +828,7 @@ VOID printElapsedTime()
 
 VOID printMemoryUsage(THREADID tid)
 {
-    return;
+    lk_lock(&printing_lock, tid+1);
     int myPid = getpid();
     char str[50];
     sprintf(str, "%d", myPid);
@@ -838,6 +843,7 @@ VOID printMemoryUsage(THREADID tid)
         }
     }
     fin.close();
+    lk_unlock(&printing_lock);
 }
 
 UINT32 getSignalAddress(ADDRINT ssID)

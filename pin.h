@@ -23,6 +23,11 @@ typedef struct P2Z_HANDSHAKE {
     bool real;                          /* Is this a real instruction */
     bool in_critical_section;           /* Thread executing a sequential cut? */
 
+                                        /* Shortcut for <= 4 byte mem reads */
+    unsigned char mem_size;             /* size of access */
+    unsigned long mem_addr;             /* adress of the access */
+    unsigned long mem_val;              /* value to be read */
+
     unsigned int slice_num;                         /* Execution slice id */
     unsigned long long feeder_slice_length;         /* Slice length as seen by pin */
     unsigned long long slice_weight_times_1000;     /* Slice weight in average */

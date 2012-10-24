@@ -17,6 +17,7 @@
 #include <sys/mman.h>
 #include <stdlib.h>
 #include <elf.h>
+#include <sched.h>
 
 #include <unistd.h>
 
@@ -54,6 +55,8 @@ KNOB<BOOL> KnobPipelineInstrumentation(KNOB_MODE_WRITEONCE, "pintool",
         "pipeline_instrumentation", "false", "Overlap instrumentation and simulation threads (still unstable)");
 KNOB<BOOL> KnobWarmLLC(KNOB_MODE_WRITEONCE,      "pintool",
         "warm_llc", "false", "Warm LLC while fast-forwarding");
+KNOB<BOOL> KnobGreedyCores(KNOB_MODE_WRITEONCE, "pintool",
+        "greedy_cores", "false", "Spread on all available machine cores");
 
 map<ADDRINT, UINT8> sanity_writes;
 BOOL sim_release_handshake;
@@ -384,6 +387,15 @@ VOID SimulatorLoop(VOID* arg)
 
     INT32 coreID = -1;
 
+/*    if (KnobGreedyCores.Value()) {
+        INT32 host_cpus = get_nprocs_conf();
+        cpu_set_t mask;
+        CPU_ZERO(mask);
+        CPU_SET(coreID);
+        sched_setaffinity(0, sizeof (mask), &mask);
+    }
+*/
+
     while (true) {
         while (handshake_buffer.empty(instrument_tid)) {
             PIN_Yield();
@@ -401,56 +413,46 @@ VOID SimulatorLoop(VOID* arg)
             lk_unlock(&tstate->lock);
         }
 
-        int consumerHandshakes = handshake_buffer.getConsumerSize(instrument_tid);
-        if(consumerHandshakes == 0) {
-            handshake_buffer.front(instrument_tid, false);
-            consumerHandshakes = handshake_buffer.getConsumerSize(instrument_tid);
-        }
-        assert(consumerHandshakes > 0);
+        handshake_container_t* handshake = handshake_buffer.front(instrument_tid, true);
+        ASSERTX(handshake != NULL);
+        ASSERTX(handshake->flags.valid);
 
-        for(int i = 0; i < consumerHandshakes; i++) {
-            handshake_container_t* handshake = handshake_buffer.front(instrument_tid, true);
-            ASSERTX(handshake != NULL);
-            ASSERTX(handshake->flags.valid);
-
-            /* Preserving coreID if we destroy handshake before coming in here,
-             * so we know which core to deactivate. */
-            coreID = handshake->handshake.coreID;
+        /* Preserving coreID if we destroy handshake before coming in here,
+         * so we know which core to deactivate. */
+        coreID = handshake->handshake.coreID;
 
 #ifdef TIME_TRANSPARENCY
-            // Capture time spent in simulation to ensure time syscall transparency
-            UINT64 ins_delta_time = rdtsc();
+        // Capture time spent in simulation to ensure time syscall transparency
+        UINT64 ins_delta_time = rdtsc();
 #endif
-            // Perform memory sanity checks for values touched by simulator
-            // on previous instruction
-            if (KnobSanity.Value())
-                SanityMemCheck();
+        // Perform memory sanity checks for values touched by simulator
+        // on previous instruction
+        if (KnobSanity.Value())
+            SanityMemCheck();
 
-            // Ignoring instruction
-            ADDRINT pc = handshake->handshake.pc;
-            thread_state_t* tstate = get_tls(instrument_tid);
-            lk_lock(&tstate->lock, tid+1);
-            if (tstate->ignore_list.find(pc) != tstate->ignore_list.end())
-            {
-                lk_unlock(&tstate->lock);
-                ReleaseHandshake(handshake->handshake.coreID);
-                continue;
-            }
-            tstate->num_inst++;
+        // Ignoring instruction
+        ADDRINT pc = handshake->handshake.pc;
+        thread_state_t* tstate = get_tls(instrument_tid);
+        lk_lock(&tstate->lock, tid+1);
+        if (tstate->ignore_list.find(pc) != tstate->ignore_list.end())
+        {
             lk_unlock(&tstate->lock);
+            ReleaseHandshake(handshake->handshake.coreID);
+            continue;
+        }
+        tstate->num_inst++;
+        lk_unlock(&tstate->lock);
 
-            // Actual simulation happens here
-            Zesto_Resume(&handshake->handshake, &handshake->mem_buffer, handshake->flags.isFirstInsn, handshake->flags.isLastInsn);
+        // Actual simulation happens here
+        Zesto_Resume(&handshake->handshake, &handshake->mem_buffer, handshake->flags.isFirstInsn, handshake->flags.isLastInsn);
 
-            if(!KnobPipelineInstrumentation.Value())
-                ReleaseHandshake(handshake->handshake.coreID);
+        if(!KnobPipelineInstrumentation.Value())
+            ReleaseHandshake(handshake->handshake.coreID);
 
 #ifdef TIME_TRANSPARENCY
-            ins_delta_time = rdtsc() - ins_delta_time;
-            sim_time += ins_delta_time;
+        ins_delta_time = rdtsc() - ins_delta_time;
+        sim_time += ins_delta_time;
 #endif
-        }
-        handshake_buffer.applyConsumerChanges(instrument_tid, consumerHandshakes);
     }
 }
 
@@ -497,6 +499,14 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, 
     else {
         cerr << "[KEVIN WARNING]: Multiple GrabInstMemReads - should be rare" << endl;
         handshake = handshake_buffer.back(tid);
+    }
+
+    /* should be the common case */
+    if (first_read && size <= 4) {
+        handshake->handshake.mem_addr = addr;
+        PIN_SafeCopy(&handshake->handshake.mem_val, (VOID*)addr, size);
+        handshake->handshake.mem_size = size;
+        return;
     }
 
     UINT8 val;
@@ -924,6 +934,11 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
         lk_unlock(&instrument_tid_lock);
     }
 
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+    for (int i=0; i<16; i++)
+        CPU_SET(i, &mask);
+    sched_setaffinity(0, sizeof(cpu_set_t), &mask);
     lk_unlock(&test);
 }
 
@@ -1014,36 +1029,28 @@ VOID PauseSimulation(THREADID tid)
     }
 
     /* Wait until all cores are done -- consumed their buffers. */
-    bool sleepEnabled = true;
     volatile bool done = false;
     do {
         done = true;
-        unsigned int numHandshakes = 0;
         vector<THREADID>::iterator it;
         for (it = thread_list.begin(); it != thread_list.end(); it++) {
             done &= handshake_buffer.empty((*it));
-            if(sleepEnabled) {
-                numHandshakes += handshake_buffer.size(*it);
-            }
         }
-        if((!done) && sleepEnabled) {
-            if(numHandshakes > 5000) {
-                PIN_Sleep(1000); // one second
-            }
-            else {
-                sleepEnabled = false;
-            }
-        }
+        if (!done)
+            PIN_Yield();
     } while (!done);
 
+#ifdef ZESTO_PIN_DBG
     cerr << tid << " [" << sim_cycle << ":KEVIN]: All cores have empty buffers" << endl;
     cerr.flush();
+#endif
 
     /* Have thread ignore serial section after */
     /* XXX: Do we need this? A few lines above we set ignore_all! */
     for (it = thread_list.begin(); it != thread_list.end(); it++) {
         thread_state_t* tstate = get_tls(*it);
         lk_lock(&tstate->lock, *it+1);
+        handshake_buffer.resetPool(*it);
         tstate->ignore = true;
         lk_unlock(&tstate->lock);
     }
@@ -1130,7 +1137,6 @@ VOID ThreadFini(THREADID threadIndex, const CONTEXT *ctxt, INT32 code, VOID *v)
     /* Ignore threads which we weren't going to simulate */
     if (!was_scheduled) {
         delete tstate;
-        cerr << "FADA" << endl;
         lk_unlock(&test);
         return;
     }

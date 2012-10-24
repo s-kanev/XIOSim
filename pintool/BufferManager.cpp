@@ -67,18 +67,19 @@ BufferManager::~BufferManager()
 handshake_container_t* BufferManager::front(THREADID tid, bool isLocal)
 {
   if(consumeBuffer_[tid]->size() > 0) {
-    assert(isLocal);
     handshake_container_t* returnVal = consumeBuffer_[tid]->front();
     return returnVal;
   }
-
-  assert(!isLocal);
 
   lk_lock(locks_[tid], tid+1);
 
   assert(queueSizes_[tid] > 0);
 
-  assert(fileEntryCount_[tid] > 0 || produceBuffer_[tid]->size() > 0);
+  while (fileEntryCount_[tid] == 0 && produceBuffer_[tid]->size() == 0) {
+    lk_unlock(locks_[tid]);
+    PIN_Yield();
+    lk_lock(locks_[tid], tid+1);
+  }
 
   if(fileEntryCount_[tid] > 0) {
     copyFileToConsumer(tid);
@@ -126,9 +127,6 @@ bool BufferManager::empty(THREADID tid)
 {
   lk_lock(locks_[tid], tid+1);
   bool result = queueSizes_[tid] == 0;
-  if(result) {
-    resetPool(tid);
-  }
   lk_unlock(locks_[tid]);
   return result;
 }
@@ -166,9 +164,6 @@ void BufferManager::producer_done(THREADID tid, bool keepLock)
 
   if(!keepLock) {
     reserveHandshake(tid);
-  }
-  else {
-    pool_[tid]++;
   }
 
   if(produceBuffer_[tid]->full() || ( (consumeBuffer_[tid]->size() == 0) && (fileEntryCount_[tid] == 0))) {
@@ -222,8 +217,16 @@ void BufferManager::applyConsumerChanges(THREADID tid, int numChanged)
 
 void BufferManager::pop(THREADID tid)
 {
+  lk_lock(locks_[tid], tid+1);
+
   assert(consumeBuffer_[tid]->size() > 0);
   consumeBuffer_[tid]->pop();
+
+  pool_[tid] += 1;
+  assert(queueSizes_[tid] > 0);
+  queueSizes_[tid] -= 1;
+
+  lk_unlock(locks_[tid]);
 }
 
 bool BufferManager::hasThread(THREADID tid)
@@ -273,7 +276,9 @@ void BufferManager::reserveHandshake(THREADID tid)
 
     if(queueSizes_[tid] < queueLimit) {
       pool_[tid] += 50000;
+#ifdef ZESTO_PIN_DBG
       cerr << tid << " [reserveHandshake()]: Increasing file up to " << queueSizes_[tid] + pool_[tid] << endl;
+#endif
       break;
     }
     cerr << tid << " [reserveHandshake()]: File size too big to expand, abort():" << queueSizes_[tid] << endl;
@@ -371,7 +376,7 @@ void BufferManager::copyProducerToFileReal(THREADID tid, bool checkSpace)
   }
 
   result = close(fd);
-  if(result == -1) {
+  if(result != 0) {
     cerr << "Close error: " << " Errcode:" << strerror(errno) << endl;
     this->abort();
   }
@@ -412,13 +417,18 @@ void BufferManager::copyFileToConsumerReal(THREADID tid)
   }
 
   result = close(fd);
-  if(result == -1) {
+  if(result != 0) {
     cerr << "Close error: " << " Errcode:" << strerror(errno) << endl;
     this->abort();
   }
 
   assert(fileCounts_[tid].front() == 0);
-  remove(fileNames_[tid].front().c_str());
+  result = remove(fileNames_[tid].front().c_str());
+  if(result != 0) {
+    cerr << "Remove error: " << " Errcode:" << strerror(errno) << endl;
+    this->abort();
+  }
+
   fileNames_[tid].pop_front();
   fileCounts_[tid].pop_front();
 
@@ -433,6 +443,8 @@ void  BufferManager::writeHandshake(THREADID tid, int fd, handshake_container_t*
   const int mapEntryBytes = sizeof(UINT32) + sizeof(UINT8);
   int mapBytes = mapSize * mapEntryBytes;
   int totalBytes = sizeof(int) + handshakeBytes + flagBytes + mapBytes;
+
+  assert(totalBytes <= 4096);
 
   void * writeBuffer = writeBuffer_[tid];
   void * buffPosition = writeBuffer;
@@ -584,9 +596,11 @@ void BufferManager::allocateThread(THREADID tid)
 
 string BufferManager::genFileName(string path)
 {
-  string temp = tempnam(path.c_str(), gpid_.c_str());
-  temp.insert(path.length() + gpid_.length(), "_");
-  return temp;
+  char* temp = tempnam(path.c_str(), gpid_.c_str());
+  string res = string(temp);
+  res.insert(path.length() + gpid_.length(), "_");
+  free(temp);
+  return res;
 }
 
 void BufferManager::resetPool(THREADID tid)

@@ -24,7 +24,7 @@
 #    Pin was installed. This can also be set on the command line,
 #    or as an environment variable.
 #
-PIN_HOME ?= /home/skanev/pin/2.11
+PIN_HOME ?= /home/skanev/pin/2.12
 ZESTO_HOME = ..
 TARGET = ia32
 

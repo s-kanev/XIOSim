@@ -44,6 +44,8 @@ class BufferManager
 
   void signalCallback(int signum);
 
+  void resetPool(THREADID tid);
+
   friend ostream& operator<< (ostream &out, handshake_container_t &hand);
 
  private:
@@ -76,7 +78,6 @@ class BufferManager
 
   void abort(void);
   
-  void resetPool(THREADID tid);
   string genFileName(string path);
   int getKBFreeSpace(string path);
 

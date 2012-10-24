@@ -602,7 +602,15 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
 
    core->oracle->mem_requests.clear();
    core->oracle->mem_requests.insert(mem_buffer->begin(), mem_buffer->end());
-   
+   /* Grab fast-path mem reads and break them up into byte-sized chunks to be read by oracle */
+   if (handshake->mem_size) {
+     for (uint32_t t=0; t < handshake->mem_size; t++) {
+        core->oracle->mem_requests.insert(pair<uint32_t, uint8_t>(
+            handshake->mem_addr+t,
+            (uint8_t)(handshake->mem_val >> 8*t)));
+     }
+   }
+
    // Release the simbuffer_lock in feeder_zesto.cpp
    if(sim_release_handshake)
      ReleaseHandshake(coreID);
