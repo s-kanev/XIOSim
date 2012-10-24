@@ -413,9 +413,23 @@ VOID SimulatorLoop(VOID* arg)
             lk_unlock(&tstate->lock);
         }
 
-        handshake_container_t* handshake = handshake_buffer.front(instrument_tid, true);
-        ASSERTX(handshake != NULL);
-        ASSERTX(handshake->flags.valid);
+	int consumerHandshakes = handshake_buffer.getConsumerSize(instrument_tid);
+        if(consumerHandshakes == 0) {
+	  handshake_buffer.front(instrument_tid, false);
+	  consumerHandshakes = handshake_buffer.getConsumerSize(instrument_tid);
+        }
+        assert(consumerHandshakes > 0);
+
+
+	//        handshake_container_t* handshake = handshake_buffer.front(instrument_tid, true);
+	//        ASSERTX(handshake != NULL);
+	//        ASSERTX(handshake->flags.valid);
+
+        for(int i = 0; i < consumerHandshakes; i++) {
+            handshake_container_t* handshake = handshake_buffer.front(instrument_tid, true);
+            ASSERTX(handshake != NULL);
+            ASSERTX(handshake->flags.valid);
+
 
         /* Preserving coreID if we destroy handshake before coming in here,
          * so we know which core to deactivate. */
@@ -444,15 +458,17 @@ VOID SimulatorLoop(VOID* arg)
         lk_unlock(&tstate->lock);
 
         // Actual simulation happens here
-        Zesto_Resume(&handshake->handshake, &handshake->mem_buffer, handshake->flags.isFirstInsn, handshake->flags.isLastInsn);
+	Zesto_Resume(&handshake->handshake, &handshake->mem_buffer, handshake->flags.isFirstInsn, handshake->flags.isLastInsn);
 
-        if(!KnobPipelineInstrumentation.Value())
+	if(!KnobPipelineInstrumentation.Value())
             ReleaseHandshake(handshake->handshake.coreID);
 
 #ifdef TIME_TRANSPARENCY
         ins_delta_time = rdtsc() - ins_delta_time;
         sim_time += ins_delta_time;
 #endif
+	}
+	handshake_buffer.applyConsumerChanges(instrument_tid, consumerHandshakes);
     }
 }
 

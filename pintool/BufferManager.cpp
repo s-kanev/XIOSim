@@ -134,6 +134,7 @@ bool BufferManager::empty(THREADID tid)
 /* On the producer side, get a buffer which we can start
  * filling directly.
  */
+
 handshake_container_t* BufferManager::get_buffer(THREADID tid)
 {
   lk_lock(locks_[tid], tid+1);
@@ -217,6 +218,8 @@ void BufferManager::applyConsumerChanges(THREADID tid, int numChanged)
 
 void BufferManager::pop(THREADID tid)
 {
+  consumeBuffer_[tid]->pop();
+  return;
   lk_lock(locks_[tid], tid+1);
 
   assert(consumeBuffer_[tid]->size() > 0);
@@ -262,7 +265,7 @@ void BufferManager::reserveHandshake(THREADID tid)
     assert(queueSizes_[tid] > 0);
     lk_unlock(locks_[tid]);
 
-    PIN_Sleep(3000);
+    //    PIN_Sleep(3000);
 
     lk_lock(locks_[tid], tid+1);
 

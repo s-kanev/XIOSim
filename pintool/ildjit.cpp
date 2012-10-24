@@ -224,6 +224,7 @@ static VOID checkEndLoop(ADDRINT loop)
   if (invocation_counts[loop] != end_loop_invocation) {
     return;
   }    
+  cerr << "SETTING END INVOCATIION: " << (CHAR*)loop << endl;
   reached_end_invocation = true;
 }
 
