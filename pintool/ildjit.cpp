@@ -51,7 +51,6 @@ BOOL signalCallback(THREADID tid, INT32 sig, CONTEXT *ctxt, BOOL hasHandler, con
 void signalCallback2(int signum);
 
 extern VOID doLateILDJITInstrumentation();
-static VOID doLateCallbacks();
 
 time_t last_time;
 
@@ -118,8 +117,8 @@ VOID MOLECOOL_Init()
 
     last_time = time(NULL);
 
-    cerr << start_loop << " " << start_loop_invocation << endl;
-    cerr << end_loop << " " << end_loop_invocation << endl;
+    cerr << start_loop << " " << start_loop_invocation << " " << start_loop_iteration << endl;
+    cerr << end_loop << " " << end_loop_invocation << " " << end_loop_iteration << endl;
 }
 
 /* ========================================================================== */
@@ -204,7 +203,7 @@ static UINT32 getSignalAddress(ADDRINT ssID);
 
 static BOOL firstLoop = true;
 static BOOL first_invocation = true;
-static BOOL first_iteration = true;
+static UINT32 simmed_iteration_count = 0;
 static THREADID thread_started_invocation = -1;
 
 static BOOL reached_start_invocation = false;
@@ -214,6 +213,7 @@ static BOOL reached_end_iteration = false;
 
 static BOOL ran_parallel_loop = false;
 static BOOL start_next_parallel_loop = false;
+static BOOL end_next_parallel_loop = false;
 
 /* =========================================================================== */
 static VOID checkEndLoop(ADDRINT loop)
@@ -236,8 +236,11 @@ VOID ILDJIT_startLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
     cerr << (CHAR*)loop << endl;
   }
 
-  if( (!ran_parallel_loop) && (reached_end_invocation)) {
-    reached_end_iteration = true;
+  if( (!ran_parallel_loop) && (reached_end_invocation) && (!reached_end_iteration) && (!end_next_parallel_loop)) {
+    end_next_parallel_loop = true;
+    //    reached_end_iteration = true;
+    //    cerr << "SETTING REACHED END ITERATION B:" << endl;
+    //    cerr << (CHAR*)loop << endl;
   }
 
   ran_parallel_loop = false;
@@ -274,6 +277,12 @@ VOID ILDJIT_startLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
 VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc)
 {
   ran_parallel_loop = true;
+  simmed_iteration_count = 0;
+
+  if(end_next_parallel_loop) {
+    reached_end_iteration = true;
+  }
+  
     /* Haven't started simulation and we encounter a loop we don't care
      * about */
     if (ExecMode != EXECUTION_MODE_SIMULATE) {
@@ -282,7 +291,7 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
       }
       cerr << "Do late!" << endl;
       doLateILDJITInstrumentation();
-      doLateCallbacks();
+      cerr << "Done late!" << endl;
     }
 
     use_ring_cache = (rc > 0);
@@ -291,10 +300,10 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
       use_ring_cache = false;
     }
 
-#ifdef ZESTO_PIN_DBG
+    //#ifdef ZESTO_PIN_DBG
     CHAR* loop_name = (CHAR*) loop;
     cerr << "Starting loop: " << loop_name << "[" << invocation_counts[loop] << "]" << endl;
-#endif
+    //#endif
 
     vector<THREADID>::iterator it;
     for (it = thread_list.begin(); it != thread_list.end(); it++) {
@@ -340,7 +349,7 @@ VOID ILDJIT_startIteration(THREADID tid)
   iteration_count++;
 
   if(reached_start_invocation && reached_start_iteration) {
-    first_iteration = false;
+    simmed_iteration_count++;
     
     if(reached_end_iteration) {
       PauseSimulation(tid);
@@ -353,6 +362,7 @@ VOID ILDJIT_startIteration(THREADID tid)
     }
       
     if(reached_end_invocation && (current_iteration == end_loop_iteration)) {
+      cerr << "SETTING REACHED END ITERATION A" << endl;
       reached_end_iteration = true;
     }
     return;
@@ -364,11 +374,13 @@ VOID ILDJIT_startIteration(THREADID tid)
 
   if( (current_iteration == start_loop_iteration) || (start_next_parallel_loop && ran_parallel_loop)) {
     reached_start_iteration = true;
+    simmed_iteration_count = 1;
     thread_started_invocation = tid;
     start_next_parallel_loop = false;
   }
   
   if(reached_end_invocation && (current_iteration == end_loop_iteration)) {
+    cerr << "SETTING REACHED END ITERATION B" << endl;
     reached_end_iteration = true;
   }
 }
@@ -395,20 +407,11 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
             tstate->afterWaitHeavyCount = 0;
             lk_unlock(&tstate->lock);
         }
-#ifdef ZESTO_PIN_DBG
+	//#ifdef ZESTO_PIN_DBG
         CHAR* loop_name = (CHAR*) loop;
         cerr << "Ending loop: " << loop_name << " NumIterations:" << (UINT32)numIterations << endl;
-#endif
+	//#endif
     }
-
-    /*    if(strncmp(end_loop.c_str(), (CHAR*)loop, 512) == 0 && invocation_counts[loop] == end_loop_invocation) {
-        cerr << "Simulation runtime:";
-	assert(0);
-        printElapsedTime();
-        cerr << "LStopping simulation, TID: " << tid << endl;
-        StopSimulation(tid);
-        cerr << "[KEVIN] Stopped simulation! " << tid << endl;
-	}*/
 }
 
 /* ========================================================================== */
@@ -494,7 +497,8 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc)
 
     /* Ignore injecting waits until the end of the first iteration,
      * so we can start simulating */
-    if (first_iteration)
+    assert(simmed_iteration_count > 0);
+    if (simmed_iteration_count == 1)
         goto cleanup;
 
     if(!use_ring_cache)
@@ -671,6 +675,99 @@ VOID AddILDJITCallbacks(IMG img)
                        IARG_END);
         RTN_Close(rtn);
     }
+
+    /**/
+
+    rtn = RTN_FindByName(img, "MOLECOOL_startIteration");
+    if (RTN_Valid(rtn))
+    {
+#ifdef ZESTO_PIN_DBG
+        cerr << "MOLECOOL_startIteration ";
+#endif
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_startIteration),
+                       IARG_THREAD_ID,
+                       IARG_END);
+        RTN_Close(rtn);
+    }
+
+
+    rtn = RTN_FindByName(img, "MOLECOOL_beforeWait");
+    if (RTN_Valid(rtn))
+    {
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeWait),
+                       IARG_THREAD_ID,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
+                       IARG_INST_PTR,
+                       IARG_CALL_ORDER, CALL_ORDER_FIRST,
+                       IARG_END);
+        RTN_Close(rtn);
+    }
+
+    rtn = RTN_FindByName(img, "MOLECOOL_afterWait");
+    if (RTN_Valid(rtn))
+    {
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterWait),
+                       IARG_THREAD_ID,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 2,
+                       IARG_INST_PTR,
+                       IARG_CALL_ORDER, CALL_ORDER_LAST,
+                       IARG_END);
+        RTN_Close(rtn);
+    }
+
+    rtn = RTN_FindByName(img, "MOLECOOL_beforeSignal");
+    if (RTN_Valid(rtn))
+    {
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeSignal),
+                       IARG_THREAD_ID,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
+                       IARG_INST_PTR,
+                       IARG_CALL_ORDER, CALL_ORDER_FIRST,
+                       IARG_END);
+        RTN_Close(rtn);
+    }
+
+    rtn = RTN_FindByName(img, "MOLECOOL_afterSignal");
+    if (RTN_Valid(rtn))
+    {
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterSignal),
+                       IARG_THREAD_ID,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
+                       IARG_INST_PTR,
+                       IARG_CALL_ORDER, CALL_ORDER_LAST,
+                       IARG_END);
+        RTN_Close(rtn);
+    }
+
+    rtn = RTN_FindByName(img, "MOLECOOL_endParallelLoop");
+    if (RTN_Valid(rtn))
+    {
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_endParallelLoop),
+                       IARG_THREAD_ID,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
+                       IARG_END);
+        RTN_Close(rtn);
+    }
+
+
+
+     /**/
+
+
+
+
+
 
     rtn = RTN_FindByName(img, "MOLECOOL_codeExecutorCreationEnd");
     if (RTN_Valid(rtn))
@@ -856,99 +953,18 @@ UINT32 getSignalAddress(ADDRINT ssID)
   assert(firstCore < 256);
   assert(ssID < 256);
 
-  return 0x7fff0000 + (firstCore << 9) + ssID;
+  return 0x7fff0000 + (firstCore << 8) + ssID;
   //  return 0x7fff0000 + (firstCore << 9) + ssID;
 }
 
-VOID doLateCallbacks()
+/*VOID doLateCallbacks()
 {
   PIN_LockClient();
-  for( IMG img= APP_ImgHead(); IMG_Valid(img); img = IMG_Next(img) ) {
-    RTN rtn;
-    rtn = RTN_FindByName(img, "MOLECOOL_startIteration");
-    if (RTN_Valid(rtn))
-    {
-#ifdef ZESTO_PIN_DBG
-        cerr << "MOLECOOL_startIteration ";
-#endif
-        RTN_Open(rtn);
-        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_startIteration),
-                       IARG_THREAD_ID,
-                       IARG_END);
-        RTN_Close(rtn);
-    }
-
-
-    rtn = RTN_FindByName(img, "MOLECOOL_beforeWait");
-    if (RTN_Valid(rtn))
-    {
-        RTN_Open(rtn);
-        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeWait),
-                       IARG_THREAD_ID,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
-                       IARG_INST_PTR,
-                       IARG_CALL_ORDER, CALL_ORDER_FIRST,
-                       IARG_END);
-        RTN_Close(rtn);
-    }
-
-    rtn = RTN_FindByName(img, "MOLECOOL_afterWait");
-    if (RTN_Valid(rtn))
-    {
-        RTN_Open(rtn);
-        RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterWait),
-                       IARG_THREAD_ID,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 2,
-                       IARG_INST_PTR,
-                       IARG_CALL_ORDER, CALL_ORDER_LAST,
-                       IARG_END);
-        RTN_Close(rtn);
-    }
-
-    rtn = RTN_FindByName(img, "MOLECOOL_beforeSignal");
-    if (RTN_Valid(rtn))
-    {
-        RTN_Open(rtn);
-        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeSignal),
-                       IARG_THREAD_ID,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
-                       IARG_INST_PTR,
-                       IARG_CALL_ORDER, CALL_ORDER_FIRST,
-                       IARG_END);
-        RTN_Close(rtn);
-    }
-
-    rtn = RTN_FindByName(img, "MOLECOOL_afterSignal");
-    if (RTN_Valid(rtn))
-    {
-        RTN_Open(rtn);
-        RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterSignal),
-                       IARG_THREAD_ID,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
-                       IARG_INST_PTR,
-                       IARG_CALL_ORDER, CALL_ORDER_LAST,
-                       IARG_END);
-        RTN_Close(rtn);
-    }
-
-    rtn = RTN_FindByName(img, "MOLECOOL_endParallelLoop");
-    if (RTN_Valid(rtn))
-    {
-        RTN_Open(rtn);
-        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_endParallelLoop),
-                       IARG_THREAD_ID,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
-                       IARG_END);
-        RTN_Close(rtn);
-    }
-  }
+  //  for( IMG img= APP_ImgHead(); IMG_Valid(img); img = IMG_Next(img) ) {
+  //    RTN rtn;
   
   CODECACHE_FlushCache();
   PIN_UnlockClient();
 
 }
+*/
