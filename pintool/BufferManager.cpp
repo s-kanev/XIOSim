@@ -47,6 +47,7 @@ BufferManager::BufferManager()
   iss << pid;
   gpid_ = iss.str();
   assert(gpid_.length() > 0);
+  popped_ = false;
 
   bridgeDirs_.push_back("/dev/shm/");
   bridgeDirs_.push_back("/tmp/");
@@ -219,6 +220,7 @@ void BufferManager::applyConsumerChanges(THREADID tid, int numChanged)
 void BufferManager::pop(THREADID tid)
 {
   consumeBuffer_[tid]->pop();
+  popped_ = true;
   return;
   lk_lock(locks_[tid], tid+1);
 
@@ -265,17 +267,18 @@ void BufferManager::reserveHandshake(THREADID tid)
     assert(queueSizes_[tid] > 0);
     lk_unlock(locks_[tid]);
 
-    //    PIN_Sleep(3000);
+    PIN_Sleep(500);
 
     lk_lock(locks_[tid], tid+1);
 
-    //    if(popped_) {
-    //      continue;
-    //    }
-
-    if(num_threads == 1 || (!useRealFile_)) {
+    if(popped_) {
+      popped_ = false;
       continue;
     }
+
+    //    if(num_threads == 1 || (!useRealFile_)) {
+    //      continue;
+    //    }
 
     if(queueSizes_[tid] < queueLimit) {
       pool_[tid] += 50000;
@@ -563,12 +566,12 @@ void BufferManager::allocateThread(THREADID tid)
   queueSizes_[tid] = 0;
   numThreads_++;
   fileEntryCount_[tid] = 0;
-  if(num_threads > 1) {
+  /*  if(num_threads > 1) {
     useRealFile_ = true;
-  }
-  else {
-    useRealFile_ = false;
-  }
+    }*/
+  //  else {
+  useRealFile_ = true;
+    //  }
 
   int bufferEntries = 640000 / 2;
   int bufferCapacity = bufferEntries / 2 / num_threads;

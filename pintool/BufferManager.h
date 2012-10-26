@@ -61,6 +61,7 @@ class BufferManager
   string gpid_;
   
   vector<string> bridgeDirs_;
+  bool popped_;
 
   void reserveHandshake(THREADID tid);
 
@@ -81,6 +82,7 @@ class BufferManager
   string genFileName(string path);
   int getKBFreeSpace(string path);
 
+ 
   std::map<THREADID, int> queueSizes_;
   std::map<THREADID, Buffer*> fakeFile_;
   std::map<THREADID, Buffer*> consumeBuffer_;
