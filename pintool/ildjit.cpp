@@ -430,7 +430,6 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT is_light, ADDRINT pc)
     handshake->handshake.resume_thread = false;
     handshake->handshake.real = false;
     handshake->handshake.coreID = tstate->coreID;
-    handshake->handshake.iteration_correction = false;
     handshake->handshake.in_critical_section = (num_threads > 1);
     handshake->flags.valid = true;
 
@@ -531,7 +530,6 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT p
     handshake->handshake.real = false;
     handshake->handshake.coreID = tstate->coreID;
     handshake->handshake.in_critical_section = (num_threads > 1) && (tstate->unmatchedWaits > 0);
-    handshake->handshake.iteration_correction = false;
     handshake->flags.valid = true;
 
     handshake->handshake.pc = pc;
