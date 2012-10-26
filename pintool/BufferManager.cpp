@@ -30,7 +30,7 @@ ostream& operator<< (ostream &out, handshake_container_t &hand)
   out << "brtaken:" << hand.handshake.brtaken << " ";
   out << "ins:" << hand.handshake.ins << " ";
   out << "flags:" << hand.handshake.sleep_thread << hand.handshake.resume_thread;
-  out << hand.handshake.iteration_correction << hand.handshake.real;
+  out  << hand.handshake.real;
   out << hand.handshake.in_critical_section;
   out << " slicenum:" << hand.handshake.slice_num << " ";
   out << "feederslicelen:" << hand.handshake.feeder_slice_length << " ";
