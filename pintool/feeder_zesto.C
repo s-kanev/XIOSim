@@ -1002,7 +1002,6 @@ VOID PauseSimulation(THREADID tid)
         handshake->handshake.resume_thread = false;
         handshake->handshake.real = false;
         handshake->handshake.coreID = coreID;
-        handshake->handshake.iteration_correction = false;
         handshake->flags.valid = true;
 
         handshake->handshake.pc = (ADDRINT) syscall_template;
@@ -1022,7 +1021,6 @@ VOID PauseSimulation(THREADID tid)
         handshake_2->handshake.real = false;
         handshake_2->handshake.pc = 0;
         handshake_2->handshake.coreID = coreID;
-        handshake_2->handshake.iteration_correction = false;
         handshake_2->flags.valid = true;
         handshake_buffer.producer_done(*it, true);
 
@@ -1037,7 +1035,6 @@ VOID PauseSimulation(THREADID tid)
         handshake_3->handshake.real = false;
         handshake_3->handshake.pc = 0;
         handshake_3->handshake.coreID = coreID;
-        handshake_3->handshake.iteration_correction = false;
         handshake_3->flags.valid = true;
         handshake_buffer.producer_done(*it, true);
 

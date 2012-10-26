@@ -478,14 +478,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
    zesto_assert(!core->oracle->spec_mode, (void)0);
    zesto_assert(thread->rep_sequence == 0, (void)0);
 
-   bool iteration_correction = handshake->iteration_correction &&
-                               (core->num_signals_in_pipe > 0);
-
-   if (iteration_correction) {
-//       fprintf(stderr, "%d: AHoly shmozef %d\n", coreID, core->num_signals_in_pipe);
-//       fflush(stderr);
-   }
-   if (handshake->sleep_thread && !iteration_correction)
+   if (handshake->sleep_thread)
    {
       deactivate_core(coreID);
       if(sim_release_handshake)
@@ -528,11 +521,15 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
       /* HACKEDY HACKEDY HACK */
       /* start_slice messes with global state for now. Until we fix it, only call
        * it the first time on some core */
+      /* HACK ^ 2 */
+      /* This is still global, so we better synchornize it if we don't want to mess up sim_cycle */
+      lk_lock(&cycle_lock, coreID+1);
       if (very_first_insn) {
         fprintf(stderr, "VERY_FIRST_INSN\n");
         start_slice(handshake->slice_num);
         very_first_insn = false;
       }
+      lk_unlock(&cycle_lock);
 
       /* Init stack pointer */
       md_addr_t sp = handshake->ctxt.regs_R.dw[MD_REG_ESP]; 
@@ -543,7 +540,9 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
       md_addr_t page_start = ROUND_DOWN(sp, MD_PAGE_SIZE);
       md_addr_t page_end = ROUND_UP(thread->loader.stack_base, MD_PAGE_SIZE);
 
+      lk_lock(&memory_lock, coreID+1);
       md_addr_t stack_addr = mem_newmap2(thread->mem, page_start, page_start, page_end-page_start, 1);
+      lk_unlock(&memory_lock);
       myfprintf(stderr, "Stack pointer: %x; \n", sp);
       zesto_assert(stack_addr == ROUND_DOWN(thread->loader.stack_min, MD_PAGE_SIZE), (void)0);
 
@@ -611,7 +610,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
      }
    }
 
-   // Release the simbuffer_lock in feeder_zesto.cpp
+   // The handshake can be consumed now
    if(sim_release_handshake)
      ReleaseHandshake(coreID);
 
@@ -621,21 +620,7 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
 
    while(!thread->consumed || repping || core->oracle->num_Mops_nuked > 0)
    {
-//     if (!iteration_correction) {
-       fetch_more = sim_main_slave_fetch_insn(coreID);
-//     }
-//     else {
-//       fetch_more = false;
-       /* HACKEDY HACKEDY HACK!!! */
-//       fprintf(stderr, "%d: Holy shmozef %d\n", coreID, core->num_signals_in_pipe);
-//       fflush(stderr);
-//       ZPIN_TRACE("core %d: holy schmozef correction\n", coreID);
-//       core->stat.holy_schmozef_hack++;
-//       if (core->num_signals_in_pipe == 0) {
-//         deactivate_core(coreID);
-//         return;
-//       }
-//     }
+     fetch_more = sim_main_slave_fetch_insn(coreID);
      thread->fetches_since_feeder++;
 
      repping = thread->rep_sequence != 0;
@@ -668,10 +653,8 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
        }
       
        sim_main_slave_post_pin(coreID);
-//       sim_main_slave_post_pin();
 
        sim_main_slave_pre_pin(coreID);
-//       sim_main_slave_pre_pin();
        fetch_more = true;
 
        if(core->oracle->num_Mops_nuked == 0)
@@ -709,18 +692,14 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
             if(fetch_more && !spec && thread->rep_sequence == 0 && core->fetch->PC != core->fetch->feeder_PC && core->oracle->num_Mops_nuked == 0)
             {
                zesto_assert(core->fetch->PC == NPC, (void)0);
-//   if (core->fetch->fake_insn)
-//     zesto_assert(false, (void)0);
                return;
             }
          }
         
          sim_main_slave_post_pin(coreID);
-//         sim_main_slave_post_pin();
 
          /* Next cycle */ 
          sim_main_slave_pre_pin(coreID);
-//         sim_main_slave_pre_pin();
 
          if(!thread->consumed)
          {
@@ -735,8 +714,6 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
          if(thread->rep_sequence == 0 && core->fetch->PC != core->fetch->feeder_PC && !spec && core->oracle->num_Mops_nuked == 0)
          {
             zesto_assert(core->fetch->PC == NPC, (void)0);
-//   if (core->fetch->fake_insn)
-//     zesto_assert(false, (void)0);
             return;
          }
 
@@ -760,21 +737,15 @@ void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsig
        if(fetch_more)
        {
           zesto_assert(core->fetch->PC == NPC, (void)0);
-//   if (core->fetch->fake_insn)
-//     zesto_assert(false, (void)0);
           return;
        }
     
        sim_main_slave_post_pin(coreID);
-//       sim_main_slave_post_pin();
 
        /* This is already next cycle, up to fetch */
        sim_main_slave_pre_pin(coreID);
-//       sim_main_slave_pre_pin();
      }
    }
-//   if (core->fetch->fake_insn)
-//     zesto_assert(false, (void)0);
    zesto_assert(core->fetch->PC == NPC, (void)0);
 }
 

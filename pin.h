@@ -19,7 +19,6 @@ typedef struct P2Z_HANDSHAKE {
     bool sleep_thread;                  /* Deactivate core */
     bool resume_thread;                 /* Re-activate core */
     bool flush_pipe;                    /* Flush core pipelie */
-    bool iteration_correction;          /* Correct for cross-iteration deadlock */
     bool real;                          /* Is this a real instruction */
     bool in_critical_section;           /* Thread executing a sequential cut? */
 
