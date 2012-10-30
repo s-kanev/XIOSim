@@ -56,6 +56,8 @@ time_t last_time;
 
 bool use_ring_cache;
 bool disable_wait_signal;
+UINT32* ildjit_ws_id;
+UINT32* ildjit_disable_ws;
 
 /* ========================================================================== */
 VOID MOLECOOL_Init()
@@ -165,6 +167,14 @@ VOID ILDJIT_startSimulation(THREADID tid, ADDRINT ip)
 }
 
 /* ========================================================================== */
+VOID ILDJIT_setupInterface(ADDRINT disable_ws, ADDRINT ws_id)
+{
+  ildjit_ws_id = (UINT32*)ws_id;
+  ildjit_disable_ws = (UINT32*)disable_ws;
+}
+
+/* ========================================================================== */
+
 VOID ILDJIT_endSimulation(THREADID tid, ADDRINT ip)
 {
   if (end_loop.size() != 0)
@@ -675,6 +685,21 @@ VOID AddILDJITCallbacks(IMG img)
     }
 
     /**/
+
+    rtn = RTN_FindByName(img, "MOLECOOL_setupInterface");
+    if (RTN_Valid(rtn))
+    {
+#ifdef ZESTO_PIN_DBG
+        cerr << "MOLECOOL_setupInterface ";
+#endif
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_setupInterface),
+                       IARG_THREAD_ID,
+                       IARG_END);
+        RTN_Close(rtn);
+    }
+
+
 
     rtn = RTN_FindByName(img, "MOLECOOL_startIteration");
     if (RTN_Valid(rtn))
