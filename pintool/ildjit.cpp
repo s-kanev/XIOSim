@@ -508,6 +508,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc)
     if (simmed_iteration_count == 1)
         goto cleanup;
 
+    // logic for do_dddg_analysis
     if(!use_ring_cache)
       goto cleanup;
 
@@ -616,6 +617,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT p
     tstate->unmatchedWaits--;
     ASSERTX(tstate->unmatchedWaits >= 0);
 
+    // logic for dddg analysis
     if(!use_ring_cache) {
       return;
     }
