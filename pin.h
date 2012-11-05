@@ -34,4 +34,6 @@ typedef struct P2Z_HANDSHAKE {
 
 typedef void (*ZESTO_WRITE_BYTE_CALLBACK) (unsigned int, unsigned char);
 
+extern bool do_dddg_analysis;
+
 #endif /*__PIN_ZESTO_H__*/
