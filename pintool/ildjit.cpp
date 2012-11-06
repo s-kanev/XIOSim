@@ -221,6 +221,7 @@ static BOOL reached_start_iteration = false;
 static BOOL reached_end_invocation = false;
 static BOOL reached_end_iteration = false;
 
+static BOOL simulating_parallel_loop = false;
 static BOOL ran_parallel_loop = false;
 static BOOL start_next_parallel_loop = false;
 static BOOL end_next_parallel_loop = false;
@@ -240,6 +241,21 @@ static VOID checkEndLoop(ADDRINT loop)
 
 VOID ILDJIT_startLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
 {
+  // This is for when there are serial loops within an executing parallel loop.
+  if (simulating_parallel_loop) {
+    thread_state_t* tstate = get_tls(tid);
+    lk_lock(&tstate->lock, tid+1);
+    tstate->ignore = true;
+    
+    if (tstate->pc_queue_valid) {
+        // push Arg1 to stack
+        tstate->ignore_list[tstate->get_queued_pc(1)] = true;
+        // Call instruction to startLoop
+        tstate->ignore_list[tstate->get_queued_pc(0)] = true;
+    }
+    lk_unlock(&tstate->lock);
+  }
+
   if( (!ran_parallel_loop) && (reached_start_invocation) && (!reached_start_iteration) && (!start_next_parallel_loop) ) {
     start_next_parallel_loop = true;
     cerr << "SETTING MISSED START ITERATION:" << endl;
@@ -281,6 +297,18 @@ VOID ILDJIT_startLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
   cerr << "Called startLoop() for the start invocation!:" << (CHAR*)loop << endl;
   reached_start_invocation = true;
   checkEndLoop(loop);
+}
+
+/* ========================================================================== */
+VOID ILDJIT_startLoop_after(THREADID tid, ADDRINT ip)
+{
+  // This is for when there are serial loops within an executing parallel loop.
+  if (simulating_parallel_loop) {
+    thread_state_t* tstate = get_tls(tid);
+    lk_lock(&tstate->lock, tid+1);
+    tstate->ignore = false;
+    lk_unlock(&tstate->lock);
+  }
 }
 
 /* ========================================================================== */
@@ -327,8 +355,6 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
         curr_tstate->afterSignalCount = 0;
         curr_tstate->afterWaitLightCount = 0;
         curr_tstate->afterWaitHeavyCount = 0;
-        curr_tstate->ignored_before_wait = false;
-        curr_tstate->ignored_before_signal = false;
         lk_unlock(&curr_tstate->lock);
     }
 
@@ -347,6 +373,7 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
       cerr << tid << ": resuming simulation" << endl;
       ResumeSimulation(tid);
     }
+    simulating_parallel_loop = true;
 }
 /* ========================================================================== */
 
@@ -422,6 +449,7 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
         cerr << "Ending loop: " << loop_name << " NumIterations:" << (UINT32)numIterations << endl;
 	//#endif
     }
+    simulating_parallel_loop = false;
 }
 
 /* ========================================================================== */
@@ -436,7 +464,7 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
     lk_lock(&tstate->lock, tid+1);
     tstate->ignore = true;
 
-    if (tstate->pc_queue_valid && !tstate->ignored_before_wait)
+    if (tstate->pc_queue_valid)
     {
         // push Arg2 to stack
         tstate->ignore_list[tstate->get_queued_pc(2)] = true;
@@ -449,8 +477,6 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
         // Call instruction to beforeWait
         tstate->ignore_list[tstate->get_queued_pc(0)] = true;
         //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(0) << dec << endl;
-
-        tstate->ignored_before_wait = true;
     }
     lk_unlock(&tstate->lock);
 
@@ -557,7 +583,7 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT 
         cerr << tid <<": Before Signal " << hex << pc << " ID: " << ssID <<  " (" << ssID_addr << ")" << dec << endl;
 #endif
 
-    if (tstate->pc_queue_valid && !tstate->ignored_before_signal)
+    if (tstate->pc_queue_valid)
     {
         // push Arg2 to stack
         tstate->ignore_list[tstate->get_queued_pc(2)] = true;
@@ -570,8 +596,6 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT 
         // Call instruction to beforeWait
         tstate->ignore_list[tstate->get_queued_pc(0)] = true;
         //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(0) << dec << endl;
-
-        tstate->ignored_before_signal = true;
     }
     lk_unlock(&tstate->lock);
 
@@ -831,6 +855,20 @@ VOID AddILDJITCallbacks(IMG img)
                        IARG_THREAD_ID,
                        IARG_INST_PTR,
                        IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+                       IARG_END);
+        RTN_Close(rtn);
+    }
+    
+    rtn = RTN_FindByName(img, "MOLECOOL_startLoop");
+    if (RTN_Valid(rtn))
+      {
+#ifdef ZESTO_PIN_DBG
+        cerr << "MOLECOOL_startLoop ";
+#endif
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_startLoop_after),
+                       IARG_THREAD_ID,
+                       IARG_INST_PTR,
                        IARG_END);
         RTN_Close(rtn);
     }
