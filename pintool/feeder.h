@@ -46,8 +46,6 @@ class thread_state_t
 
         ignore = true;
         ignore_all = true;
-        ignored_before_wait = false;
-        ignored_before_signal = false;
 
         unmatchedWaits = 0;
         afterSignalCount = 0;
@@ -121,11 +119,6 @@ class thread_state_t
     //Ignore list of instrutcions that we don't care about
     map<ADDRINT, BOOL> ignore_list;
     // XXX: END SHARED
-
-    // has this thread already ignored call overhead for before_wait
-    BOOL ignored_before_wait;
-    // has this thread already ignored call overhead for before_signal
-    BOOL ignored_before_signal;
 
     INT32 unmatchedWaits;
 private:
