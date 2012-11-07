@@ -86,6 +86,7 @@
 #include "zesto-commit.h"
 #include "zesto-dram.h"
 #include "zesto-uncore.h"
+#include "mem-repeater.h"
 
 #if defined(ZTRACE) && !defined(ZESTO_PIN_DBG)
 FILE * ztrace_fp = NULL;
@@ -142,6 +143,7 @@ sim_reg_options(struct opt_odb_t *odb)
       /* print */true, /* format */NULL);
   opt_reg_long_long(odb, "-max:cycles", "maximum number of cycles to execute",
       &max_cycles, /* default */0,
+
       /* print */true, /* format */NULL);
   opt_reg_int(odb, "-heartbeat", "frequency for which to print out simulator heartbeat",
       &heartbeat_frequency, /* default */0,
@@ -175,6 +177,7 @@ sim_reg_options(struct opt_odb_t *odb)
 
   uncore_reg_options(odb);
   dram_reg_options(odb);
+  repeater_reg_options(odb);
 }
 
 /* check simulator-specific option values */
