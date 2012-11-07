@@ -11,4 +11,13 @@ VOID AddILDJITCallbacks(IMG img);
 BOOL ILDJIT_IsExecuting();
 BOOL ILDJIT_IsCreatingExecutor();
 VOID printMemoryUsage(THREADID tid);
+
+class loop_state_t
+{
+ public:
+  int simmed_iteration_count;
+  bool use_ring_cache;
+  ADDRINT current_loop;
+};
+
 #endif /* __MOLECOOL_PIN__ */

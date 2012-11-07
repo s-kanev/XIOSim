@@ -51,7 +51,6 @@ extern void sim_main_slave_post_pin(int coreID);
 extern void sim_main_slave_post_pin(void);
 extern bool sim_main_slave_fetch_insn(int coreID);
 
-
 /* stats signal handler */
 extern void signal_sim_stats(int sigtype);
 

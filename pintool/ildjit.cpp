@@ -8,6 +8,7 @@
 #include <map>
 #include <signal.h>
 #include <queue>
+#include <stack>
 #include <signal.h>
 #include "feeder.h"
 #include "ildjit.h"
@@ -16,7 +17,7 @@
 
 extern tick_t sim_cycle;
 extern BufferManager handshake_buffer;
-
+extern bool consumers_sleep;
 // True if ILDJIT has finished compilation and is executing user code
 BOOL ILDJIT_executionStarted = false;
 
@@ -29,7 +30,7 @@ const UINT8 ld_template[] = {0xa1, 0xad, 0xfb, 0xca, 0xde};
 const UINT8 st_template[] = {0xc7, 0x05, 0xad, 0xfb, 0xca, 0xde, 0x00, 0x00, 0x00, 0x00 };
 
 static map<ADDRINT, UINT32> invocation_counts;
-static UINT32 iteration_count;
+static map<ADDRINT, UINT32> iteration_counts;
 
 KNOB<string> KnobLoopIDFile(KNOB_MODE_WRITEONCE, "pintool",
     "loopID", "", "File to get start/end loop IDs and invocation caounts");
@@ -54,7 +55,9 @@ extern VOID doLateILDJITInstrumentation();
 
 time_t last_time;
 
-bool use_ring_cache;
+stack<loop_state_t> loop_states;
+loop_state_t* loop_state;
+
 bool disable_wait_signal;
 
 /* ========================================================================== */
@@ -203,7 +206,6 @@ static UINT32 getSignalAddress(ADDRINT ssID);
 
 static BOOL firstLoop = true;
 static BOOL first_invocation = true;
-static UINT32 simmed_iteration_count = 0;
 static THREADID thread_started_invocation = -1;
 
 static BOOL reached_start_invocation = false;
@@ -304,8 +306,16 @@ VOID ILDJIT_startLoop_after(THREADID tid, ADDRINT ip)
 /* ========================================================================== */
 VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc)
 {
+  //  consumers_sleep = true;
+  consumers_sleep = false;
+  // create new loop state
+  loop_states.push(loop_state_t());
+  loop_state = &(loop_states.top());
+    
+  loop_state->simmed_iteration_count = 0;
+  loop_state->current_loop = loop;
+
   ran_parallel_loop = true;
-  simmed_iteration_count = 0;
 
   if(end_next_parallel_loop) {
     reached_end_iteration = true;
@@ -322,10 +332,10 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
       cerr << "Done late!" << endl;
     }
 
-    use_ring_cache = (rc > 0);
+    loop_state->use_ring_cache = (rc > 0);
 
     if(disable_wait_signal) {
-      use_ring_cache = false;
+      loop_state->use_ring_cache = false;
     }
 
     //#ifdef ZESTO_PIN_DBG
@@ -342,14 +352,11 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
          * can actually start simulating and unblock everyone else.
          */
         curr_tstate->unmatchedWaits = 0;
-        curr_tstate->afterSignalCount = 0;
-        curr_tstate->afterWaitLightCount = 0;
-        curr_tstate->afterWaitHeavyCount = 0;
         lk_unlock(&curr_tstate->lock);
     }
 
-    iteration_count = 0;    
-
+    iteration_counts[loop_state->current_loop] = 0;    
+    
     if(firstLoop) {
       if(start_loop.size() > 0) {
 	cerr << "FastForward runtime:";
@@ -372,11 +379,11 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
 // Must be called from within the body of MOLECOOL_beforeWait!
 VOID ILDJIT_startIteration(THREADID tid)
 {
-  UINT32 current_iteration = iteration_count;
-  iteration_count++;
+  UINT32 current_iteration = iteration_counts[loop_state->current_loop];
+  iteration_counts[loop_state->current_loop]++;
 
   if(reached_start_invocation && reached_start_iteration) {
-    simmed_iteration_count++;
+    loop_state->simmed_iteration_count++;
     
     if(reached_end_iteration) {
       PauseSimulation(tid);
@@ -401,7 +408,7 @@ VOID ILDJIT_startIteration(THREADID tid)
 
   if( (current_iteration == start_loop_iteration) || (start_next_parallel_loop && ran_parallel_loop)) {
     reached_start_iteration = true;
-    simmed_iteration_count = 1;
+    loop_state->simmed_iteration_count = 1;
     thread_started_invocation = tid;
     start_next_parallel_loop = false;
   }
@@ -429,9 +436,6 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
             thread_state_t* tstate = get_tls(*it);
             lk_lock(&tstate->lock, tid+1);
             tstate->ignore = true;
-            tstate->afterSignalCount = 0;
-            tstate->afterWaitLightCount = 0;
-            tstate->afterWaitHeavyCount = 0;
             lk_unlock(&tstate->lock);
         }
 	//#ifdef ZESTO_PIN_DBG
@@ -440,6 +444,8 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
 	//#endif
     }
     simulating_parallel_loop = false;
+    loop_states.pop();
+    loop_state = &(loop_states.top());
 }
 
 /* ========================================================================== */
@@ -520,19 +526,16 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc)
 
     /* Ignore injecting waits until the end of the first iteration,
      * so we can start simulating */
-    assert(simmed_iteration_count > 0);
-    if (simmed_iteration_count == 1)
+    assert(loop_state->simmed_iteration_count > 0);
+    if (loop_state->simmed_iteration_count == 1)
         goto cleanup;
 
-    if(!use_ring_cache)
+    if(!(loop_state->use_ring_cache))
       goto cleanup;
 
     if(is_light) {
-        tstate->afterWaitLightCount++;
         goto cleanup;
     }
-
-    tstate->afterWaitHeavyCount++;
 
     /* Insert wait instruction in pipeline */
     handshake = handshake_buffer.get_buffer(tid);
@@ -630,11 +633,9 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT p
     tstate->unmatchedWaits--;
     ASSERTX(tstate->unmatchedWaits >= 0);
 
-    if(!use_ring_cache) {
+    if(!(loop_state->use_ring_cache)) {
       return;
     }
-
-    tstate->afterSignalCount++;
 
     /* Insert signal instruction in pipeline */
     handshake = handshake_buffer.get_buffer(tid);

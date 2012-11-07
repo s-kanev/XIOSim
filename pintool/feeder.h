@@ -48,12 +48,11 @@ class thread_state_t
         ignore_all = true;
 
         unmatchedWaits = 0;
-        afterSignalCount = 0;
-        afterWaitLightCount = 0;
-        afterWaitHeavyCount = 0;
 
         is_running = true;
         num_inst = 0;
+
+	sleep_producer = false;
 
         lk_init(&lock);
     }
@@ -110,11 +109,8 @@ class thread_state_t
     BOOL ignore_all;
     // Stores the ID of the wait between before and afterWait. -1 outside.
     INT32 lastWaitID;
-
-    // These counts are reset each loop --> synchronization.
-    INT32 afterSignalCount;
-    INT32 afterWaitLightCount;
-    INT32 afterWaitHeavyCount;
+    // flag on whether to sleep the producer buffer
+    BOOL sleep_producer;
 
     //Ignore list of instrutcions that we don't care about
     map<ADDRINT, BOOL> ignore_list;

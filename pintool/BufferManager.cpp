@@ -12,6 +12,8 @@
 #include <sstream>
 
 extern int num_threads;
+extern bool sleep_all;
+extern bool consumers_sleep;
 
 ostream& operator<< (ostream &out, handshake_container_t &hand)
 {
@@ -44,6 +46,7 @@ BufferManager::BufferManager()
 {
   int pid = getpgrp();
   ostringstream iss;
+  sleep_all = false;
   iss << pid;
   gpid_ = iss.str();
   assert(gpid_.length() > 0);
@@ -67,6 +70,7 @@ BufferManager::~BufferManager()
 
 handshake_container_t* BufferManager::front(THREADID tid, bool isLocal)
 {
+  
   if(consumeBuffer_[tid]->size() > 0) {
     handshake_container_t* returnVal = consumeBuffer_[tid]->front();
     return returnVal;
@@ -168,7 +172,7 @@ void BufferManager::producer_done(THREADID tid, bool keepLock)
     reserveHandshake(tid);
   }
 
-  if(produceBuffer_[tid]->full() || ( (consumeBuffer_[tid]->size() == 0) && (fileEntryCount_[tid] == 0))) {
+  if(produceBuffer_[tid]->full()) {// || ( (consumeBuffer_[tid]->size() == 0) && (fileEntryCount_[tid] == 0))) {
 #ifdef DEBUG
     int produceSize = produceBuffer_[tid]->size();
 #endif
@@ -263,11 +267,19 @@ void BufferManager::reserveHandshake(THREADID tid)
     queueLimit = 100001;
   }
 
-  while(pool_[tid] == 0) {
+  if(pool_[tid] > 0) {
+    return;
+  }
+
+  //  while(pool_[tid] == 0) {
+  while(true) {
     assert(queueSizes_[tid] > 0);
     lk_unlock(locks_[tid]);
+    //    consumers_sleep = false;
 
-    PIN_Sleep(500);
+    sleep_all = true;
+    PIN_Sleep(1000);
+    sleep_all = false;
 
     lk_lock(locks_[tid], tid+1);
 
@@ -275,6 +287,7 @@ void BufferManager::reserveHandshake(THREADID tid)
       popped_ = false;
       continue;
     }
+    //    consumers_sleep = true;
 
     //    if(num_threads == 1 || (!useRealFile_)) {
     //      continue;
@@ -616,6 +629,7 @@ void BufferManager::resetPool(THREADID tid)
     poolFactor = 6;
   }
   pool_[tid] = (consumeBuffer_[tid]->capacity() + produceBuffer_[tid]->capacity()) * poolFactor;
+  //  pool_[tid] = 2000000000;
 }
 
 int BufferManager::getKBFreeSpace(string path)

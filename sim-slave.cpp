@@ -113,6 +113,7 @@
 #include "interface.h"
 #include "synchronization.h"
 
+extern bool consumers_sleep;
 extern int start_pos;
 extern int heartbeat_count;
 /* power stats database */
@@ -616,6 +617,9 @@ master_core:
       lk_unlock(&cycle_lock);
       /* Spin, spin, spin */
       yield();
+      while(consumers_sleep) {
+	sleep(1);
+      }
       lk_lock(&cycle_lock, coreID+1);
 
       if (coreID != min_coreID)
@@ -651,6 +655,9 @@ non_master_core:
       /* Spin, spin, spin */
       lk_unlock(&cycle_lock);
       yield();
+      while(consumers_sleep) {
+	sleep(1);
+      }
       lk_lock(&cycle_lock, coreID+1);
     }
     lk_unlock(&cycle_lock);

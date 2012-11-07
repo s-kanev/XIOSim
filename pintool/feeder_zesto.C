@@ -90,7 +90,8 @@ map<THREADID, UINT32> thread_cores;
 
 // Runque for threads (managed in FIFO order for simple fair scheduling)
 static list<THREADID> run_queue;
-
+bool sleep_all;
+bool consumers_sleep;
 /* ========================================================================== */
 /* Pinpoint related */
 // Track the number of instructions executed
@@ -399,6 +400,9 @@ VOID SimulatorLoop(VOID* arg)
     while (true) {
         while (handshake_buffer.empty(instrument_tid)) {
             PIN_Yield();
+	    while(consumers_sleep) {
+	      PIN_Sleep(1000);
+	    }
 
             /* Check kill flag */
             thread_state_t* tstate = get_tls(instrument_tid);
@@ -500,8 +504,19 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, 
         return;
     }
 
+    if(sleep_all) {
+      PIN_Sleep(2000);
+      return;
+    }
+
     thread_state_t* tstate = get_tls(tid);
     lk_lock(&tstate->lock, tid+1);
+
+    if (tstate->sleep_producer) {
+      lk_unlock(&tstate->lock);
+      PIN_Sleep(1000);
+      return;
+    }
     if (tstate->ignore || tstate->ignore_all) {
         lk_unlock(&tstate->lock);
         return;
@@ -539,8 +554,19 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
         return;
     }
 
+    if(sleep_all) {
+      PIN_Sleep(2000);
+      return;
+    }
+
     thread_state_t* tstate = get_tls(tid);
     lk_lock(&tstate->lock, tid+1);
+    if (tstate->sleep_producer) {
+      lk_unlock(&tstate->lock);
+      PIN_Sleep(1000);
+      return;
+    }
+    
     if (tstate->ignore || tstate->ignore_all) {
         lk_unlock(&tstate->lock);
         return;
@@ -950,11 +976,11 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
         lk_unlock(&instrument_tid_lock);
     }
 
-    cpu_set_t mask;
+    /*    cpu_set_t mask;
     CPU_ZERO(&mask);
-    for (int i=0; i<16; i++)
-        CPU_SET(i, &mask);
-    sched_setaffinity(0, sizeof(cpu_set_t), &mask);
+    for (int i=0; i<8; i++)
+      CPU_SET(i, &mask);
+      sched_setaffinity(0, sizeof(cpu_set_t), &mask);*/
     lk_unlock(&test);
 }
 
@@ -964,11 +990,11 @@ UINT8 syscall_template[] = {0xcd, 0x80};
 /* ========================================================================== */
 VOID PauseSimulation(THREADID tid)
 {
-
     /* The context is that all cores functionally have sent signal 0
      * and unblocked the last iteration. We need to (i) wait for them
      * to functionally reach wait 0, where they will wait until the end
      * of the loop; (ii) drain all pipelines once cores are waiting. */
+  cerr << "pausing..." << endl;
     volatile bool done_with_iteration = false;
     do {
         done_with_iteration = true;
@@ -982,13 +1008,17 @@ VOID PauseSimulation(THREADID tid)
                 /* Setting ignore_all here (while ignore is set) should be a race-free way
                  * of ignoring the serial portion outside the loop after the thread goes
                  * on an unsets ignore locally. */
-                if (curr_done)
+                if (curr_done) {
                     tstate->ignore_all = true;
+		    tstate->sleep_producer = true;
+		}
                 lk_unlock(&tstate->lock);
             }
         }
     } while (!done_with_iteration);
 
+    /* Here we have produced everything for this loop! */
+    consumers_sleep = false;
     /* Drainning all pipelines and deactivating cores. */
     vector<THREADID>::iterator it;
     for (it = thread_list.begin(); it != thread_list.end(); it++) {
@@ -1040,7 +1070,7 @@ VOID PauseSimulation(THREADID tid)
 
         handshake_buffer.flushBuffers(*it);
     }
-
+    consumers_sleep = false;
     /* Wait until all cores are done -- consumed their buffers. */
     volatile bool done = false;
     do {
@@ -1050,7 +1080,8 @@ VOID PauseSimulation(THREADID tid)
             done &= handshake_buffer.empty((*it));
         }
         if (!done)
-            PIN_Yield();
+	  PIN_Sleep(1000);
+	  //            PIN_Yield();
     } while (!done);
 
 #ifdef ZESTO_PIN_DBG
@@ -1065,6 +1096,7 @@ VOID PauseSimulation(THREADID tid)
         lk_lock(&tstate->lock, *it+1);
         handshake_buffer.resetPool(*it);
         tstate->ignore = true;
+	tstate->sleep_producer = false;
         lk_unlock(&tstate->lock);
     }
 }
