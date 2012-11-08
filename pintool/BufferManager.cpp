@@ -264,7 +264,7 @@ void BufferManager::reserveHandshake(THREADID tid)
     queueLimit = 100000001;
   }
   else {
-    queueLimit = 100001;
+    queueLimit = 100000001;
   }
 
   if(pool_[tid] > 0) {
@@ -275,11 +275,11 @@ void BufferManager::reserveHandshake(THREADID tid)
   while(true) {
     assert(queueSizes_[tid] > 0);
     lk_unlock(locks_[tid]);
-    //    consumers_sleep = false;
 
+    consumers_sleep = false;
     sleep_all = true;
+
     PIN_Sleep(1000);
-    sleep_all = false;
 
     lk_lock(locks_[tid], tid+1);
 
@@ -287,7 +287,9 @@ void BufferManager::reserveHandshake(THREADID tid)
       popped_ = false;
       continue;
     }
-    //    consumers_sleep = true;
+
+    sleep_all = false;
+    consumers_sleep = true;
 
     //    if(num_threads == 1 || (!useRealFile_)) {
     //      continue;

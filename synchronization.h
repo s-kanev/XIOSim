@@ -11,6 +11,12 @@
 
 namespace LEVEL_PINCLIENT {
 extern void PIN_Yield();
+extern void PIN_Sleep(uint msecs);
+}
+
+inline void xio_sleep(int msecs)
+{
+  LEVEL_PINCLIENT::PIN_Sleep(msecs);
 }
 
 inline void yield()

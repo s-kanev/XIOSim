@@ -316,8 +316,8 @@ VOID ILDJIT_startLoop_after(THREADID tid, ADDRINT ip)
 /* ========================================================================== */
 VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc)
 {
-  //  consumers_sleep = true;
-  consumers_sleep = false;
+  consumers_sleep = true;
+
   // create new loop state
   loop_states.push(loop_state_t());
   loop_state = &(loop_states.top());

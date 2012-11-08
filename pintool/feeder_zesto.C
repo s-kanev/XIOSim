@@ -401,7 +401,7 @@ VOID SimulatorLoop(VOID* arg)
         while (handshake_buffer.empty(instrument_tid)) {
             PIN_Yield();
 	    while(consumers_sleep) {
-	      PIN_Sleep(1000);
+	      PIN_Sleep(250);
 	    }
 
             /* Check kill flag */
@@ -505,7 +505,7 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, 
     }
 
     if(sleep_all) {
-      PIN_Sleep(2000);
+      PIN_Sleep(1000);
       return;
     }
 
@@ -555,7 +555,7 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
     }
 
     if(sleep_all) {
-      PIN_Sleep(2000);
+      PIN_Sleep(1000);
       return;
     }
 
