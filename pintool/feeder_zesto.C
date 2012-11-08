@@ -15,6 +15,7 @@
 #include <list>
 #include <syscall.h>
 #include <sys/mman.h>
+#include <sys/sysinfo.h>
 #include <stdlib.h>
 #include <elf.h>
 #include <sched.h>
@@ -90,8 +91,9 @@ map<THREADID, UINT32> thread_cores;
 
 // Runque for threads (managed in FIFO order for simple fair scheduling)
 static list<THREADID> run_queue;
-bool sleep_all;
-bool consumers_sleep;
+bool producers_sleep = false;
+bool consumers_sleep = false;
+INT32 host_cpus;
 /* ========================================================================== */
 /* Pinpoint related */
 // Track the number of instructions executed
@@ -504,7 +506,7 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, 
         return;
     }
 
-    if(sleep_all) {
+    if(producers_sleep) {
       PIN_Sleep(1000);
       return;
     }
@@ -554,7 +556,7 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
         return;
     }
 
-    if(sleep_all) {
+    if(producers_sleep) {
       PIN_Sleep(1000);
       return;
     }
@@ -1018,7 +1020,8 @@ VOID PauseSimulation(THREADID tid)
     } while (!done_with_iteration);
 
     /* Here we have produced everything for this loop! */
-    consumers_sleep = false;
+    enable_consumers();
+
     /* Drainning all pipelines and deactivating cores. */
     vector<THREADID>::iterator it;
     for (it = thread_list.begin(); it != thread_list.end(); it++) {
@@ -1070,7 +1073,9 @@ VOID PauseSimulation(THREADID tid)
 
         handshake_buffer.flushBuffers(*it);
     }
-    consumers_sleep = false;
+
+    enable_consumers();
+
     /* Wait until all cores are done -- consumed their buffers. */
     volatile bool done = false;
     do {
@@ -1618,6 +1623,11 @@ INT32 main(INT32 argc, CHAR **argv)
 
     Zesto_SlaveInit(ssargs.first, ssargs.second);
 
+    host_cpus = get_nprocs_conf();
+
+    enable_producers();
+    disable_consumers();
+
     // The only safe way to spawn internal pin threads is from main()
     // or other internal threads, so we create a thread spawner here
     PIN_SpawnInternalThread(SimulatorThreadSpawner, NULL, 0, NULL);
@@ -1708,4 +1718,28 @@ VOID doLateILDJITInstrumentation()
   PIN_UnlockClient();
 
   calledAlready = true;
+}
+
+VOID disable_consumers()
+{
+  if(host_cpus < num_threads * 2) {
+    consumers_sleep = true;
+  }
+}
+
+VOID disable_producers()
+{
+  if(host_cpus < num_threads * 2) {
+    producers_sleep = true;
+  }
+}
+
+VOID enable_consumers()
+{
+  consumers_sleep = false;
+}
+
+VOID enable_producers()
+{
+  producers_sleep = false;
 }

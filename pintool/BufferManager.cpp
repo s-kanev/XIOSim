@@ -12,8 +12,6 @@
 #include <sstream>
 
 extern int num_threads;
-extern bool sleep_all;
-extern bool consumers_sleep;
 
 ostream& operator<< (ostream &out, handshake_container_t &hand)
 {
@@ -46,7 +44,6 @@ BufferManager::BufferManager()
 {
   int pid = getpgrp();
   ostringstream iss;
-  sleep_all = false;
   iss << pid;
   gpid_ = iss.str();
   assert(gpid_.length() > 0);
@@ -276,8 +273,8 @@ void BufferManager::reserveHandshake(THREADID tid)
     assert(queueSizes_[tid] > 0);
     lk_unlock(locks_[tid]);
 
-    consumers_sleep = false;
-    sleep_all = true;
+    enable_consumers();
+    disable_producers();
 
     PIN_Sleep(1000);
 
@@ -288,8 +285,8 @@ void BufferManager::reserveHandshake(THREADID tid)
       continue;
     }
 
-    sleep_all = false;
-    consumers_sleep = true;
+    disable_consumers();
+    enable_producers();
 
     //    if(num_threads == 1 || (!useRealFile_)) {
     //      continue;

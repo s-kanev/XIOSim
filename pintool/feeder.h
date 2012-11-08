@@ -193,4 +193,9 @@ VOID ResumeSimulation(THREADID tid);
 VOID amd_hack();
 VOID doLateILDJITInstrumentation();
 
+VOID disable_consumers();
+VOID enable_consumers();
+VOID disable_producers();
+VOID enable_producers();
+
 #endif /*__FEEDER_ZESTO__ */

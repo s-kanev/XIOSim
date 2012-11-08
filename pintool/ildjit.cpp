@@ -17,7 +17,7 @@
 
 extern tick_t sim_cycle;
 extern BufferManager handshake_buffer;
-extern bool consumers_sleep;
+
 // True if ILDJIT has finished compilation and is executing user code
 BOOL ILDJIT_executionStarted = false;
 
@@ -316,7 +316,7 @@ VOID ILDJIT_startLoop_after(THREADID tid, ADDRINT ip)
 /* ========================================================================== */
 VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc)
 {
-  consumers_sleep = true;
+  disable_consumers();
 
   // create new loop state
   loop_states.push(loop_state_t());
