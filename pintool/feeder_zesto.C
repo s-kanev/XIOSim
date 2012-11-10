@@ -432,7 +432,11 @@ VOID SimulatorLoop(VOID* arg)
 	//        ASSERTX(handshake->flags.valid);
 
         for(int i = 0; i < consumerHandshakes; i++) {
-            handshake_container_t* handshake = handshake_buffer.front(instrument_tid, true);
+          while(consumers_sleep) {
+	      PIN_Sleep(250);
+	    }
+	  
+	  handshake_container_t* handshake = handshake_buffer.front(instrument_tid, true);
             ASSERTX(handshake != NULL);
             ASSERTX(handshake->flags.valid);
 
@@ -1723,6 +1727,7 @@ VOID doLateILDJITInstrumentation()
 VOID disable_consumers()
 {
   if(host_cpus < num_threads * 2) {
+    cerr << "Sleeping consumers" << endl;
     consumers_sleep = true;
   }
 }
@@ -1730,16 +1735,19 @@ VOID disable_consumers()
 VOID disable_producers()
 {
   if(host_cpus < num_threads * 2) {
+    cerr << "Sleeping producers" << endl;
     producers_sleep = true;
   }
 }
 
 VOID enable_consumers()
 {
+  cerr << "Waking consumers" << endl;
   consumers_sleep = false;
 }
 
 VOID enable_producers()
 {
+  cerr << "Waking producers" << endl;
   producers_sleep = false;
 }
