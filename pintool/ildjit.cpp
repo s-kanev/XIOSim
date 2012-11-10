@@ -361,7 +361,7 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
          * For this thread only, ignore the end of the wait, so we
          * can actually start simulating and unblock everyone else.
          */
-        curr_tstate->unmatchedWaits = 0;
+	curr_tstate->push_loop_state();
         lk_unlock(&curr_tstate->lock);
     }
 
@@ -416,14 +416,14 @@ VOID ILDJIT_startIteration(THREADID tid)
     return;
   }
 
-  if( (current_iteration == start_loop_iteration) || (start_next_parallel_loop && ran_parallel_loop)) {
+  if( ( (current_iteration == start_loop_iteration) && (string((CHAR*)loop_state->current_loop) == start_loop) ) || (start_next_parallel_loop && ran_parallel_loop)) {
     reached_start_iteration = true;
     loop_state->simmed_iteration_count = 1;
     thread_started_invocation = tid;
     start_next_parallel_loop = false;
   }
   
-  if(reached_end_invocation && (current_iteration == end_loop_iteration)) {
+  if(reached_end_invocation && (current_iteration == end_loop_iteration) && (string((CHAR*)loop_state->current_loop) == end_loop)) {
     cerr << "SETTING REACHED END ITERATION B" << endl;
     reached_end_iteration = true;
   }
@@ -446,7 +446,8 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
             thread_state_t* tstate = get_tls(*it);
             lk_lock(&tstate->lock, tid+1);
             tstate->ignore = true;
-            lk_unlock(&tstate->lock);
+	    tstate->pop_loop_state();
+	    lk_unlock(&tstate->lock);
         }
 	//#ifdef ZESTO_PIN_DBG
         CHAR* loop_name = (CHAR*) loop;
@@ -455,7 +456,9 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
     }
     simulating_parallel_loop = false;
     loop_states.pop();
-    loop_state = &(loop_states.top());
+    if(loop_states.size() > 0) {
+      loop_state = &(loop_states.top());
+    }
 }
 
 /* ========================================================================== */
@@ -532,7 +535,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc)
     if (num_threads == 1)
         goto cleanup;
 
-    tstate->unmatchedWaits++;
+    tstate->loop_state->unmatchedWaits++;
 
     /* Ignore injecting waits until the end of the first iteration,
      * so we can start simulating */
@@ -641,8 +644,8 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT p
     if (num_threads == 1)
         goto cleanup;
 
-    tstate->unmatchedWaits--;
-    ASSERTX(tstate->unmatchedWaits >= 0);
+    tstate->loop_state->unmatchedWaits--;
+    ASSERTX(tstate->loop_state->unmatchedWaits >= 0);
 
     if(!(loop_state->use_ring_cache)) {
       return;
@@ -656,7 +659,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT p
     handshake->handshake.resume_thread = false;
     handshake->handshake.real = false;
     handshake->handshake.coreID = tstate->coreID;
-    handshake->handshake.in_critical_section = (num_threads > 1) && (tstate->unmatchedWaits > 0);
+    handshake->handshake.in_critical_section = (num_threads > 1) && (tstate->loop_state->unmatchedWaits > 0);
     handshake->flags.valid = true;
 
     handshake->handshake.pc = pc;

@@ -9,6 +9,7 @@
 
 #include "pin.H"
 #include "instlib.H"
+#include <stack>
 using namespace INSTLIB;
 
 #include "../interface.h"
@@ -26,6 +27,15 @@ extern map<THREADID, UINT32> thread_cores;
 // Thread-private state that we need to preserve between different instrumentation calls
 class thread_state_t
 {
+  class per_loop_state_t {
+    public:
+      per_loop_state_t() {
+	unmatchedWaits = 0;
+      }
+      
+      INT32 unmatchedWaits;
+  };
+  
   public:
     thread_state_t(THREADID instrument_tid) {
         memzero(&fpstate_buf, sizeof(FPSTATE));
@@ -47,14 +57,26 @@ class thread_state_t
         ignore = true;
         ignore_all = true;
 
-        unmatchedWaits = 0;
-
         is_running = true;
         num_inst = 0;
 
 	sleep_producer = false;
 
         lk_init(&lock);
+    }
+    
+    VOID push_loop_state()
+    {
+      per_loop_stack.push(per_loop_state_t());
+      loop_state = &(per_loop_stack.top());
+    }        
+    
+    VOID pop_loop_state()
+    {
+      per_loop_stack.pop();
+      if(per_loop_stack.size()) {
+	loop_state = &(per_loop_stack.top());
+      }
     }
 
     // Buffer to store the fpstate that the simulator may corrupt
@@ -86,6 +108,10 @@ class thread_state_t
     // Address of the last signal executed
     ADDRINT lastSignalAddr;
 
+    // Per Loop State
+    per_loop_state_t* loop_state;
+
+
     // Handling a buffer of the last PC_QUEUE_SIZE instruction pointers
     ADDRINT get_queued_pc(INT32 index) {
         return pc_queue[(pc_queue_head + index) & (PC_QUEUE_SIZE - 1)];
@@ -116,8 +142,8 @@ class thread_state_t
     map<ADDRINT, BOOL> ignore_list;
     // XXX: END SHARED
 
-    INT32 unmatchedWaits;
 private:
+    std::stack<per_loop_state_t> per_loop_stack;
     // XXX: power of 2
     static const INT32 PC_QUEUE_SIZE = 4;
     // Latest several pc-s instrumented
