@@ -51,9 +51,7 @@ BufferManager::BufferManager()
   popped_ = false;
 
   bridgeDirs_.push_back("/dev/shm/");
-  bridgeDirs_.push_back("/tmp/");
-  bridgeDirs_.push_back("/group/brooks/brownell/tmp/");
-  bridgeDirs_.push_back("/group/vlsiarch/brownell/tmp/");
+  bridgeDirs_.push_back("./");
 }
 
 BufferManager::~BufferManager()
