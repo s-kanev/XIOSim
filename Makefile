@@ -126,10 +126,10 @@ ZHDRS = \
 zesto-structs.h zesto-core.h zesto-opts.h zesto-oracle.h zesto-fetch.h             \
 zesto-decode.h zesto-alloc.h zesto-exec.h zesto-commit.h zesto-cache.h             \
 zesto-dram.h zesto-bpred.h zesto-memdep.h zesto-prefetch.h zesto-uncore.h          \
-zesto-MC.h zesto-dumps.h zesto-power.h mem-repeater.h                              \
+zesto-MC.h zesto-dumps.h zesto-power.h mem-repeater.h zesto-coherence.h            \
 mem-repeater-link.h mem-repeater-request.h mem-repeater-manager.h                  \
 mem-repeater-buffer.h mem-repeater-memory.h mem-repeater-packet.h                  \
-mem-repeater-array.h trace_scanner.h  mem-repeater-signal-cache.h                                              \
+mem-repeater-array.h trace_scanner.h  mem-repeater-signal-cache.h                  \
 mem-repeater-oracle.h mem-repeater-defines.h                                                             
 
 
@@ -138,7 +138,7 @@ zesto-opts.$(OEXT) zesto-core.$(OEXT) zesto-oracle.$(OEXT) zesto-fetch.$(OEXT)  
 zesto-decode.$(OEXT) zesto-alloc.$(OEXT) zesto-exec.$(OEXT) zesto-commit.$(OEXT)    \
 zesto-cache.$(OEXT) zesto-dram.$(OEXT) zesto-bpred.$(OEXT) zesto-memdep.$(OEXT)     \
 zesto-prefetch.$(OEXT) zesto-uncore.$(OEXT) zesto-MC.$(OEXT) zesto-dumps.$(OEXT)    \
-zesto-power.$(OEXT) mem-repeater.$(OEXT)                                            \
+zesto-power.$(OEXT) mem-repeater.$(OEXT) zesto-coherence.$(OEXT)                    \
 mem-repeater-link.$(OEXT) mem-repeater-request.$(OEXT) mem-repeater-manager.$(OEXT) \
 mem-repeater-buffer.$(OEXT) mem-repeater-memory.$(OEXT) mem-repeater-packet.$(OEXT) \
 mem-repeater-array.$(OEXT) trace_scanner.$(OEXT)                                    \
@@ -254,6 +254,10 @@ zesto-MC.$(OEXT): zesto-MC.cpp zesto-MC.h ZCOMPS-MC
 	$(CC) $(CFLAGS) -c $*.cpp
 
 zesto-power.$(OEXT): zesto-power.cpp zesto-power.h ZCORE-power
+	perl make_def_lists.pl power
+	$(CC) $(CFLAGS) -c $*.cpp
+
+zesto-coherence.$(OEXT): zesto-coherence.cpp zesto-coherence.h ZCOMPS-coherence
 	perl make_def_lists.pl power
 	$(CC) $(CFLAGS) -c $*.cpp
 

@@ -14,6 +14,7 @@ $comps{"dram"}  = "ZCOMPS-dram";
 $comps{"MC"}  = "ZCOMPS-MC";
 
 $comps{"power"} = "ZCORE-power";
+$comps{"coherence"} = "ZCOMPS-coherence";
 
 $component = $ARGV[0];
 
