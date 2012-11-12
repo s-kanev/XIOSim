@@ -103,6 +103,7 @@ ICOUNT icount;
 CONTROL control;
 
 EXECUTION_MODE ExecMode = EXECUTION_MODE_INVALID;
+map<THREADID, tick_t> lastConsumerApply;
 
 typedef pair <UINT32, CHAR **> SSARGS;
 
@@ -478,6 +479,7 @@ VOID SimulatorLoop(VOID* arg)
         sim_time += ins_delta_time;
 #endif
 	}
+	lastConsumerApply[instrument_tid] = sim_cycle;
 	handshake_buffer.applyConsumerChanges(instrument_tid, consumerHandshakes);
     }
 }
@@ -1098,6 +1100,10 @@ VOID PauseSimulation(THREADID tid)
     cerr.flush();
 #endif
 
+    for (it = thread_list.begin(); it != thread_list.end(); it++) {	
+      cerr << thread_cores[*it] << ":OverlapCycles:" << sim_cycle - lastConsumerApply[*it] << endl;
+    }    
+
     /* Have thread ignore serial section after */
     /* XXX: Do we need this? A few lines above we set ignore_all! */
     for (it = thread_list.begin(); it != thread_list.end(); it++) {
@@ -1654,11 +1660,16 @@ VOID amd_hack()
     ifstream procversion("/proc/version");
     string version((istreambuf_iterator<char>(procversion)), istreambuf_iterator<char>());
 
-    if (version.find(".el6.") != string::npos)
+    if (version.find(".el6.") != string::npos) {
       rhel6 = true;
+    }
     else if (version.find(".el5 ") == string::npos) {
-      cerr << "ERROR! Neither .el5 nor .el6 occurs in /proc/version" << endl;
-      abort();
+      if (version.find(".el5.") == string::npos) {
+	if(version.find(".el5_") == string::npos) {
+	  cerr << "ERROR! Neither .el5 nor .el6 occurs in /proc/version" << endl;
+	  abort();
+	}
+      }
     }
 
     // under RHEL6, the VDSO page location can vary from build to build
