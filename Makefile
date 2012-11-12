@@ -258,7 +258,7 @@ zesto-power.$(OEXT): zesto-power.cpp zesto-power.h ZCORE-power
 	$(CC) $(CFLAGS) -c $*.cpp
 
 zesto-coherence.$(OEXT): zesto-coherence.cpp zesto-coherence.h ZCOMPS-coherence
-	perl make_def_lists.pl power
+	perl make_def_lists.pl coherence
 	$(CC) $(CFLAGS) -c $*.cpp
 
 .c.$(OEXT):

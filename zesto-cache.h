@@ -261,6 +261,9 @@ struct cache_t {
   bool check_for_MSHR_work;
   bool check_for_WBB_work;
 
+  /* coherency controllers */
+  struct cache_controller_t * controller;
+
   struct {
     counter_t load_lookups;
     counter_t load_misses;
