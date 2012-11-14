@@ -93,11 +93,16 @@ enum read_only_t { CACHE_READWRITE, CACHE_READONLY };
 
 enum PF_state_t { PF_REFRAIN, PF_OK };
 
+struct line_coherence_data_t {
+  qword_t v;
+};
+
 struct cache_line_t {
   md_paddr_t tag;
   struct core_t * core; /* originating core */
   int way; /* which physical column/way am I in? */
   qword_t meta; /* additional field for replacment policy meta data */
+  struct line_coherence_data_t coh; /* additional fields needed by coherence protocol */
   bool valid;
   bool dirty;
   bool victim;

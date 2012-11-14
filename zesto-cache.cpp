@@ -81,6 +81,7 @@
 #include "zesto-prefetch.h"
 #include "zesto-dram.h"
 #include "zesto-uncore.h"
+#include "zesto-coherence.h"
 
 #include "zesto-exec.h"
 #include "zesto-commit.h"
@@ -1406,6 +1407,39 @@ static void MSHR_WB_insert(
   cp->check_for_MSHR_WB_work = true;
 }
 
+/* Insert a regular miss request into the MSHR; assumes you already called MSHR_available
+   to make sure there's room. */
+static void MSHR_insert(
+    struct cache_t * const cp,
+    struct cache_action_t * const ca)
+{
+    struct cache_action_t * MSHR = MSHR_allocate(cp,ca->paddr,ca->cmd);
+    bool MSHR_linked = MSHR->MSHR_linked;
+    *MSHR = *ca;
+    MSHR->when_enqueued = sim_cycle;
+    MSHR->when_started = TICK_T_MAX;
+    MSHR->when_returned = TICK_T_MAX;
+    MSHR->core = ca->core;
+    MSHR->MSHR_linked = MSHR_linked;
+    MSHR->type = MSHR_MISS;
+    int this_bank = GET_MSHR_BANK(ca->paddr);
+    if(MSHR_linked)
+      MSHR->when_started = sim_cycle;
+    else
+    {
+      cp->MSHR_unprocessed_num[this_bank]++;
+      cache_assert(cp->MSHR_unprocessed_num[this_bank] <= cp->MSHR_size,(void)0);
+    }
+    cp->MSHR_fill_num[this_bank]++;
+    cache_assert(cp->MSHR_fill_num[this_bank] <= cp->MSHR_size,(void)0);
+
+    if(ca->cmd == CACHE_PREFETCH)
+    {
+      cp->MSHR_num_pf[MSHR->MSHR_bank]++;
+      cache_assert(cp->MSHR_num_pf[MSHR->MSHR_bank] <= cp->MSHR_size,(void)0);
+    }
+}
+
 /* Called when a cache miss gets serviced.  May be recursively called for
    other (higher) cache hierarchy levels. */
 void fill_arrived(
@@ -1588,8 +1622,58 @@ static inline void cache_fill(
   cp->check_for_fill_work = true;
 }
 
+/* update hit/miss stats for a request about to leave the pipeline. */
+static void update_request_stats(
+    struct cache_t * const cp,
+    struct cache_action_t * const ca,
+    struct cache_line_t * const line,
+    bool hit)
+{
+  /* LLC stats are per core */
+  if((cp == uncore->LLC) && (ca->core)) {
+    CACHE_STAT(cp->stat.core_lookups[ca->core->current_thread->id]++;)
+    if(!hit)
+      CACHE_STAT(cp->stat.core_misses[ca->core->current_thread->id]++;)
+  }
+
+  /* Per-request type stats */
+  switch(ca->cmd)
+  {
+    case CACHE_READ:
+      CACHE_STAT(cp->stat.load_lookups++;)
+      if(!hit)
+        CACHE_STAT(cp->stat.load_misses++;)
+      break;
+    case CACHE_PREFETCH:
+      CACHE_STAT(cp->stat.prefetch_lookups++;)
+      if(!hit)
+        CACHE_STAT(cp->stat.prefetch_misses++;)
+      break;
+    case CACHE_WRITE:
+      CACHE_STAT(cp->stat.store_lookups++;)
+      if(!hit)
+        CACHE_STAT(cp->stat.store_misses++;)
+      break;
+    case CACHE_WRITEBACK:
+      CACHE_STAT(cp->stat.writeback_lookups++;)
+      if(!hit)
+        CACHE_STAT(cp->stat.writeback_misses++;)
+      break;
+    default:
+      break;
+  }
+
+  /* Mark the line as prefetched */
+  if(hit && line && ca->cmd != CACHE_PREFETCH &&
+     line->prefetched && !line->prefetch_used)
+  {
+    line->prefetch_used = true;
+    CACHE_STAT(cp->stat.prefetch_useful_insertions++;)
+  }
+}
+
 /* simulate one cycle of sending MSHR writeback requests */
-void cache_process_MSHR_WB(struct cache_t * const cp, int start_point)
+static void cache_process_MSHR_WB(struct cache_t * const cp, int start_point)
 {
   int b;
   bool MSHR_WB_work_found = false;
@@ -1691,7 +1775,7 @@ void cache_process_MSHR_WB(struct cache_t * const cp, int start_point)
 }
 
 /* simulate one cycle of scheduling returned MSHR requests to fill pipe */
-void cache_process_MSHR_fill(struct cache_t * const cp, int start_point)
+static void cache_process_MSHR_fill(struct cache_t * const cp, int start_point)
 {
   int b;
   bool MSHR_fill_work_found = false;
@@ -1797,7 +1881,7 @@ void cache_process_MSHR_fill(struct cache_t * const cp, int start_point)
 }
 
 /* simulate one cycle of fills to the array */
-void cache_process_fills(struct cache_t * const cp, int start_point)
+static void cache_process_fills(struct cache_t * const cp, int start_point)
 {
   int b;
   bool fill_work_found = false;
@@ -1856,7 +1940,7 @@ void cache_process_fills(struct cache_t * const cp, int start_point)
 }
 
 /* simulate one cycle of the cache pipeline */
-void cache_process_pipe(struct cache_t * const cp, int start_point)
+static void cache_process_pipe(struct cache_t * const cp, int start_point)
 {
   int b;
   bool pipe_work_found = false;
@@ -1883,12 +1967,14 @@ void cache_process_pipe(struct cache_t * const cp, int start_point)
           if(ca->pipe_exit_time <= sim_cycle)
           {
             struct cache_line_t * line = cache_is_hit(cp,ca->cmd,ca->paddr,ca->core);
+            if(cp->controller && !cp->controller->is_array_hit(line))
+              line = NULL;
             if(line != NULL) /* if cache hit */
             {
               if((ca->cmd == CACHE_WRITE || ca->cmd == CACHE_WRITEBACK) && (cp->write_policy == WRITE_THROUGH))
               {
                 if(!MSHR_available(cp,ca->paddr))
-                  continue; /* can't go until WBB is available */
+                  continue; /* can't go until MSHR is available */
 
                 struct cache_line_t tmp_line;
                 tmp_line.core = ca->core;
@@ -1896,7 +1982,7 @@ void cache_process_pipe(struct cache_t * const cp, int start_point)
                 tmp_line.valid = true;
                 tmp_line.dirty = false;
 
-                /* on a write-through cache, use a WBB entry to send write to the next level */
+                /* on a write-through cache, use a MSHR entry to send write to the next level */
                 MSHR_WB_insert(cp,&tmp_line);
               }
 
@@ -1912,25 +1998,7 @@ void cache_process_pipe(struct cache_t * const cp, int start_point)
                 ca->cb(ca->op);
               }
 
-              if((cp == uncore->LLC) && (ca->core))
-                CACHE_STAT(cp->stat.core_lookups[ca->core->current_thread->id]++;)
-
-              if(ca->cmd == CACHE_PREFETCH)
-                CACHE_STAT(cp->stat.prefetch_lookups++;)
-              else
-              {
-                if(ca->cmd == CACHE_READ)
-                  CACHE_STAT(cp->stat.load_lookups++;)
-                else if(ca->cmd == CACHE_WRITE)
-                  CACHE_STAT(cp->stat.store_lookups++;)
-                else if(ca->cmd == CACHE_WRITEBACK)
-                  CACHE_STAT(cp->stat.writeback_lookups++;)
-                if(line->prefetched && !line->prefetch_used)
-                {
-                  line->prefetch_used = true;
-                  CACHE_STAT(cp->stat.prefetch_useful_insertions++;)
-                }
-              }
+              update_request_stats(cp, ca, line, true);
 
               /* fill previous level as appropriate */
               if(ca->prev_cp)
@@ -2009,17 +2077,7 @@ void cache_process_pipe(struct cache_t * const cp, int start_point)
                 if(!ca->prev_cp && ca->op && (ca->action_id == ca->get_action_id(ca->op)))
                   ca->cb(ca->op);
 
-                if((cp == uncore->LLC) && (ca->core))
-                  CACHE_STAT(cp->stat.core_lookups[ca->core->current_thread->id]++;)
-
-                if(ca->cmd == CACHE_READ)
-                  CACHE_STAT(cp->stat.load_lookups++;)
-                else if(ca->cmd == CACHE_PREFETCH)
-                  CACHE_STAT(cp->stat.prefetch_lookups++;)
-                else if(ca->cmd == CACHE_WRITE)
-                  CACHE_STAT(cp->stat.store_lookups++;)
-                else if(ca->cmd == CACHE_WRITEBACK)
-                  CACHE_STAT(cp->stat.writeback_lookups++;)
+                update_request_stats(cp, ca, NULL, true);
 
                 /* fill previous level as appropriate */
                 if(ca->prev_cp)
@@ -2030,60 +2088,16 @@ void cache_process_pipe(struct cache_t * const cp, int start_point)
                 /* place in MSHR */
                 do_prefetch = true;
 
-                if(MSHR_available(cp,ca->paddr))
-                {
-                  struct cache_action_t * MSHR = MSHR_allocate(cp,ca->paddr,ca->cmd);
-                  bool MSHR_linked = MSHR->MSHR_linked;
-                  *MSHR = *ca;
-                  MSHR->when_enqueued = sim_cycle;
-                  MSHR->when_started = TICK_T_MAX;
-                  MSHR->when_returned = TICK_T_MAX;
-                  MSHR->core = ca->core;
-                  MSHR->MSHR_linked = MSHR_linked;
-                  MSHR->type = MSHR_MISS;
-                  int this_bank = GET_MSHR_BANK(ca->paddr);
-                  if(MSHR_linked)
-                    MSHR->when_started = sim_cycle;
-                  else
-                  {
-                    cp->MSHR_unprocessed_num[this_bank]++;
-                    cache_assert(cp->MSHR_unprocessed_num[this_bank] <= cp->MSHR_size,(void)0);
-                  }
-                  cp->MSHR_fill_num[this_bank]++;
-                  cache_assert(cp->MSHR_fill_num[this_bank] <= cp->MSHR_size,(void)0);
+                if(!MSHR_available(cp,ca->paddr))
+                  /* this circumvents the "ca->cb = NULL" at the end of the loop, thereby
+                   * leaving the ca in the pipe */
+                  continue;
 
-                  /* update miss stats when requests *leaves* the cache pipeline to avoid double-counting */
-                  if((cp == uncore->LLC) && ca->core)
-                  {
-                    CACHE_STAT(cp->stat.core_lookups[ca->core->current_thread->id]++;)
-                    CACHE_STAT(cp->stat.core_misses[ca->core->current_thread->id]++;)
-                  }
+                MSHR_insert(cp, ca);
 
-                  if(ca->cmd == CACHE_READ)
-                  {
-                    CACHE_STAT(cp->stat.load_lookups++;)
-                    CACHE_STAT(cp->stat.load_misses++;)
-                  }
-                  else if(ca->cmd == CACHE_PREFETCH)
-                  {
-                    CACHE_STAT(cp->stat.prefetch_lookups++;)
-                    CACHE_STAT(cp->stat.prefetch_misses++;)
-                    cp->MSHR_num_pf[MSHR->MSHR_bank]++;
-                    cache_assert(cp->MSHR_num_pf[MSHR->MSHR_bank] <= cp->MSHR_size,(void)0);
-                  }
-                  else if(ca->cmd == CACHE_WRITE)
-                  {
-                    CACHE_STAT(cp->stat.store_lookups++;)
-                    CACHE_STAT(cp->stat.store_misses++;)
-                  }
-                  else if(ca->cmd == CACHE_WRITEBACK)
-                  {
-                    CACHE_STAT(cp->stat.writeback_lookups++;)
-                    CACHE_STAT(cp->stat.writeback_misses++;)
-                  }
-                }
-                else
-                  continue; /* this circumvents the "ca->cb = NULL" at the end of the loop, thereby leaving the ca in the pipe */
+                /* update miss stats when requests *leaves* the cache pipeline to avoid
+                 * double-counting */
+                update_request_stats(cp, ca, NULL, false);
               }
             }
 
@@ -2151,7 +2165,7 @@ void cache_process_pipe(struct cache_t * const cp, int start_point)
 }
 
 /* simulate one cycle of MSHR requests */
-void cache_process_MSHR(struct cache_t * const cp, int start_point)
+static void cache_process_MSHR(struct cache_t * const cp, int start_point)
 {
   int b;
   bool MSHR_work_found = false;

@@ -7,10 +7,8 @@ class cache_controller_t {
     struct core_t * const core,
     struct cache_t * const cache);
 
-  virtual bool is_hit (
-    struct cache_action_t * mshr_item,
-    const enum cache_command cmd,
-    const md_paddr_t addr) = 0;
+  virtual bool is_array_hit(struct cache_line_t * line) = 0;
+  virtual bool is_mshr_hit(struct cache_action_t * mshr_item) = 0;
 
   bool use_victim_cache;
 

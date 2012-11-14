@@ -365,7 +365,7 @@ core_exec_IO_DPM_t::core_exec_IO_DPM_t(struct core_t * const arg_core):
   core->memory.DL1->PF_high_watermark = knobs->memory.DL1_high_watermark;
   core->memory.DL1->PF_sample_interval = knobs->memory.DL1_WMinterval;
 
-  core->memory.DL1->controller = controller_create("none", core, core->memory.DL1);
+  core->memory.DL1->controller = controller_create(knobs->memory.DL1_controller_opt_str, core, core->memory.DL1);
 
   /* DTLBs */
 
