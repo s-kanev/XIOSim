@@ -380,6 +380,11 @@ void Zesto_Destroy()
   }
 
   repeater_shutdown();
+
+  for(int i=0; i<num_threads; i++)
+    if(cores[i]->stat.oracle_unknown_insn / (double) cores[i]->stat.oracle_total_insn > 0.02)
+      fprintf(stderr, "WARNING: [%d] More than 2%% instructions turned to NOPs (%lld out of %lld)\n",
+              i, cores[i]->stat.oracle_unknown_insn, cores[i]->stat.oracle_total_insn);
 }
 
 
@@ -456,7 +461,7 @@ static bool very_first_insn = true;
 
 void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsigned char> * mem_buffer, bool slice_start, bool slice_end)
 {
-   assert(handshake->coreID >= 0 && handshake->coreID < num_threads);
+   assert(handshake->coreID >= 0 && handshake->coreID < (unsigned int) num_threads);
    struct core_t * core = cores[handshake->coreID];
    int coreID = handshake->coreID;
    thread_t * thread = core->current_thread;
