@@ -88,6 +88,7 @@
 #include "zesto-prefetch.h"
 #include "zesto-uncore.h"
 #include "zesto-dumps.h"
+#include "zesto-coherence.h"
 
 
 void exec_reg_options(struct opt_odb_t * odb, struct core_knobs_t * knobs)

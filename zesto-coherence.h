@@ -8,9 +8,11 @@ class cache_controller_t {
     struct cache_t * const cache);
 
   virtual bool is_hit (
-    struct cache_line_t * array_line,
+    struct cache_action_t * mshr_item,
     const enum cache_command cmd,
     const md_paddr_t addr) = 0;
+
+  bool use_victim_cache;
 
   protected:
   struct cache_t * const cache;
@@ -21,5 +23,7 @@ class cache_controller_t {
 class LLC_controller_t {
 
 };
+
+class cache_controller_t * controller_create(const char * controller_opt_string, struct core_t * core, struct cache_t * cache);
 
 #endif /*ZESTO_COHERENCE*/

@@ -106,14 +106,17 @@ struct cache_line_t {
   struct cache_line_t * next;
 };
 
+enum mshr_entry_type_t { MSHR_MISS, MSHR_WRITEBACK };
+
 struct cache_action_t {
   struct core_t * core; /* originating core */
   void * op;
   seq_t action_id;
   md_addr_t PC;
   md_paddr_t paddr;
-  int MSHR_bank;
-  int MSHR_index;
+  mshr_entry_type_t type;
+  int MSHR_bank;    /* for lower level */
+  int MSHR_index;   /* for lower level */
   bool miss_cb_invoked;
   enum cache_command cmd;
   struct cache_t * prev_cp;
@@ -202,6 +205,9 @@ struct cache_t {
   int * fill_num; /* number of fill requests present in each bank */
 
   /* miss status handling registers */
+  /* MSHRs double down as writeback buffers.
+   * We do this so that there is a single point to communicate with higher levels of cache,
+   * which simplifies handling coherence. */
   int MSHR_banks; /* num MSHR banks */
   int MSHR_mask;
   int MSHR_size;
@@ -209,16 +215,10 @@ struct cache_t {
   int * MSHR_num; /* num MSHR entries occupied */
   int * MSHR_num_pf; /* num MSHR entries occupied by prefetch requests (from this level) */
   int * MSHR_fill_num; /* num MSHR entries pending to fill current level */
+  int * MSHR_WB_num; /* num MSHR entries pending to writeback to next level */
   int * MSHR_unprocessed_num; /* outstanding requests still waiting to go to next level */
   struct cache_action_t ** MSHR;
   int start_point;
-
-  /* write-back buffers (only for write-back caches) - these are banked if MSHR is banked */
-  int WBB_size;
-  int * WBB_num;
-  int * WBB_head;
-  int * WBB_tail;
-  struct cache_line_t ** WBB;
 
   /* prefetch FIFO */
   int PFF_size; /* PFB = PreFetch FIFO */
@@ -259,7 +259,7 @@ struct cache_t {
   bool check_for_fill_work;
   bool check_for_pipe_work;
   bool check_for_MSHR_work;
-  bool check_for_WBB_work;
+  bool check_for_MSHR_WB_work;
 
   /* coherency controllers */
   struct cache_controller_t * controller;

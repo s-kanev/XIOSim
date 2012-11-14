@@ -107,7 +107,6 @@ struct cache_t * cache_create(
     const int banks,
     const int bank_width, /* in bytes; i.e., the interleaving granularity */
     const int latency, /* in cycles */
-    const int WBB_size, /* writeback-buffer size, in cache lines (for evictions) */
     const int MSHR_size, /* MSHR size (per bank), in requests */
     const int MSHR_banks, /* number of MSHR banks */
     struct cache_t * const next_level_cache, /* e.g., for the DL1, this should point to the L2 */
@@ -167,7 +166,6 @@ struct cache_t * cache_create(
   cp->bank_mask = banks-1;
   cp->latency = latency;
   cp->write_combining = write_combining;
-  cp->WBB_size = WBB_size;
   cp->MSHR_size = MSHR_size;
   cp->MSHR_banks = MSHR_banks;
   cp->MSHR_mask = MSHR_banks-1;
@@ -253,26 +251,6 @@ struct cache_t * cache_create(
   cp->MSHR_unprocessed_num = (int*) calloc(MSHR_banks,sizeof(*cp->MSHR_unprocessed_num));
   if(!cp->MSHR_unprocessed_num)
     fatal("failed to calloc cp->MSHR_unprocessed_num");
-
-  cp->WBB_num = (int*) calloc(MSHR_banks,sizeof(*cp->WBB_num));
-  if(!cp->WBB_num)
-    fatal("failed to calloc cp->WBB_num");
-  cp->WBB_head = (int*) calloc(MSHR_banks,sizeof(*cp->WBB_head));
-  if(!cp->WBB_head)
-    fatal("failed to calloc cp->WBB_head");
-  cp->WBB_tail = (int*) calloc(MSHR_banks,sizeof(*cp->WBB_tail));
-  if(!cp->WBB_tail)
-    fatal("failed to calloc cp->WBB_tail");
-
-  cp->WBB = (struct cache_line_t**) calloc(MSHR_banks,sizeof(*cp->WBB));
-  if(!cp->WBB)
-    fatal("failed to calloc cp->WBB");
-  for(i=0;i<MSHR_banks;i++)
-  {
-    cp->WBB[i] = (struct cache_line_t*) calloc(WBB_size,sizeof(**cp->WBB));
-    if(!cp->WBB[i])
-      fatal("failed to calloc cp->WBB[%d] for %s",i,name);
-  }
 
   if(!strcasecmp(name,"LLC"))
   {
@@ -390,36 +368,6 @@ void cache_reg_stats(
     sprintf(buf2,"total miss rate in MPKC (no prefetches) for %s (misses/thousand cycles)",cp->name);
     sprintf(buf3,"((%s%s.load_misses + %s%s.store_misses) / c%d.sim_cycle) * 1000.0",core_str,cp->name,core_str,cp->name,id);
     stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
-
-    sprintf(buf,"%s%s.WBB_write_insertions",core_str,cp->name);
-    sprintf(buf2,"total number of write/writeback WBB insertions in %s",cp->name);
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_insertions, 0, TRUE, NULL);
-    sprintf(buf,"%s%s.WBB_victim_insertions",core_str,cp->name);
-    sprintf(buf2,"total number of non-dirty WBB insertions in %s",cp->name);
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_victim_insertions, 0, TRUE, NULL);
-    sprintf(buf,"%s%s.WBB_hits",core_str,cp->name);
-    sprintf(buf2,"total number hits in %s's WBB",cp->name);
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_hits, 0, TRUE, NULL);
-    sprintf(buf,"%s%s.WBB_write_hits",core_str,cp->name);
-    sprintf(buf2,"total write/writeback hits in %s (write-combining)",cp->name);
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_combines, 0, TRUE, NULL);
-    sprintf(buf,"%s%s.WBB_victim_hits",core_str,cp->name);
-    sprintf(buf2,"total number victim hits in %s's WBB",cp->name);
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_victim_hits, 0, TRUE, NULL);
-    sprintf(buf,"%s%s.WBB_total_occupancy",core_str,cp->name);
-    sprintf(buf2,"cumulative WBB occupancy in %s (dirty-lines only)",cp->name);
-    stat_reg_counter(sdb, false, buf, buf2, &cp->stat.WBB_occupancy, 0, TRUE, NULL);
-    sprintf(buf,"%s%s.WBB_avg_occupancy",core_str,cp->name);
-    sprintf(buf2,"average WBB entries in use in %s (dirty-lines only)",cp->name);
-    sprintf(buf3,"(%s%s.WBB_total_occupancy / %ssim_cycle)",core_str,cp->name,core_str);
-    stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
-    sprintf(buf,"%s%s.WBB_full_cycles",core_str,cp->name);
-    sprintf(buf2,"cycles WBB was full in %s (dirty-lines only)",cp->name);
-    stat_reg_counter(sdb, false, buf, buf2, &cp->stat.WBB_full_cycles, 0, TRUE, NULL);
-    sprintf(buf,"%s%s.WBB_frac_full",core_str,cp->name);
-    sprintf(buf2,"fraction of time WBBs are full in %s (dirty-lines only)",cp->name);
-    sprintf(buf3,"(%s%s.WBB_full_cycles / c%d.sim_cycle)",core_str,cp->name,id);
-    stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
   }
   else
   {
@@ -486,15 +434,6 @@ void cache_reg_stats(
     sprintf(buf2,"miss rate in MPKC (no prefetches) for %s",cp->name);
     sprintf(buf3,"(%s%s.misses / c%d.sim_cycle) * 1000.0",core_str,cp->name,id);
     stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
-    sprintf(buf,"%s%s.WBB_victim_insertions",core_str,cp->name);
-    sprintf(buf2,"total number of non-dirty WBB insertions in %s",cp->name);
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_victim_insertions, 0, TRUE, NULL);
-    sprintf(buf,"%s%s.WBB_hits",core_str,cp->name);
-    sprintf(buf2,"total number hits in %s's WBB",cp->name);
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_hits, 0, TRUE, NULL);
-    sprintf(buf,"%s%s.WBB_victim_hits",core_str,cp->name);
-    sprintf(buf2,"total number victim hits in %s's WBB",cp->name);
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_victim_hits, 0, TRUE, NULL);
   }
   sprintf(buf,"%s%s.MSHR_total_occupancy",core_str,cp->name);
   sprintf(buf2,"cumulative MSHR occupancy in %s",cp->name);
@@ -621,36 +560,6 @@ void LLC_reg_stats(
     sprintf(buf3,"((LLC.load_misses+LLC.store_misses+LLC.pf_misses) / sim_cycle) * 1000.0");
     stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
   }
-
-  sprintf(buf,"LLC.WBB_write_insertions");
-  sprintf(buf2,"total number of write/writeback insertions in LLC");
-  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_insertions, 0, TRUE, NULL);
-  sprintf(buf,"LLC.WBB_victim_insertions");
-  sprintf(buf2,"total number of non-dirty WBB insertions in LLC");
-  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_victim_insertions, 0, TRUE, NULL);
-  sprintf(buf,"LLC.WBB_hits");
-  sprintf(buf2,"total number hits in %s's WBB",cp->name);
-  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_hits, 0, TRUE, NULL);
-  sprintf(buf,"LLC.WBB_write_hits");
-  sprintf(buf2,"total write/writeback hits in %s's WBB (write-combining)",cp->name);
-  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_combines, 0, TRUE, NULL);
-  sprintf(buf,"LLC.WBB_victim_hits");
-  sprintf(buf2,"total number victim hits in %s's WBB",cp->name);
-  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.WBB_victim_hits, 0, TRUE, NULL);
-  sprintf(buf,"LLC.WBB_total_occupancy");
-  sprintf(buf2,"cumulative WBB occupancy in %s (dirty-lines only)",cp->name);
-  stat_reg_counter(sdb, false, buf, buf2, &cp->stat.WBB_occupancy, 0, TRUE, NULL);
-  sprintf(buf,"LLC.WBB_avg_occupancy");
-  sprintf(buf2,"average WBB entries in use in %s (dirty-lines only)",cp->name);
-  sprintf(buf3,"(LLC.WBB_total_occupancy / sim_cycle)");
-  stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
-  sprintf(buf,"LLC.WBB_full_cycles");
-  sprintf(buf2,"cycles WBB was full in %s (dirty-lines only)",cp->name);
-  stat_reg_counter(sdb, false, buf, buf2, &cp->stat.WBB_full_cycles, 0, TRUE, NULL);
-  sprintf(buf,"LLC.WBB_frac_full");
-  sprintf(buf2,"fraction of time WBBs are full in %s (dirty-lines only)",cp->name);
-  sprintf(buf3,"(LLC.WBB_full_cycles / sim_cycle)");
-  stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
 
   sprintf(buf,"LLC.MSHR_total_occupancy");
   sprintf(buf2,"cumulative MSHR occupancy in LLC");
@@ -1347,7 +1256,7 @@ void cache_enqueue(
   cp->pipe[bank][insert_position].get_action_id = get_action_id;
   cp->pipe[bank][insert_position].when_started = sim_cycle;
   cp->pipe[bank][insert_position].when_returned = TICK_T_MAX;
-
+  cp->pipe[bank][insert_position].type = MSHR_MISS;
 
   cp->pipe[bank][insert_position].pipe_exit_time = sim_cycle+cp->latency;
 
@@ -1364,96 +1273,10 @@ void cache_enqueue(
 
 }
 
-/* Returns true if there's at least one free entry in the write-back buffer */
-static inline int WBB_available(
-    const struct cache_t * const cp,
-    const md_paddr_t paddr)
+static void dummy_callback(void * p)
 {
-  const int bank = GET_MSHR_BANK(paddr);
-  return cp->WBB_num[bank] < cp->WBB_size;
-}
-
-/* Insert a writeback request into the WBB; assumes you already called WBB_available
-   to make sure there's room. */
-static void WBB_insert(
-    struct cache_t * const cp,
-    struct cache_line_t * const cache_block)
-{
-  /* don't need to cache invalid blocks */
-  if(!cache_block->valid)
-    return;
-
-  CACHE_STAT(cp->stat.WBB_insertions++;)
-  const int bank = GET_MSHR_BANK(cache_block->tag << cp->addr_shift);
-
-  if(cp->write_combining)
-  {
-    int i;
-    for(i=0;i<cp->WBB_num[bank];i++)
-    {
-      int index = mod2m(cp->WBB_head[bank]+i,cp->WBB_size); //(cp->WBB_head[bank] + i) % cp->WBB_size;
-      if(cp->WBB[bank][index].valid && (cp->WBB[bank][index].tag == cache_block->tag))
-      {
-        /* if can combine with another write that's already
-           waiting in the WBB, then don't need to add new request */
-        CACHE_STAT(cp->stat.WBB_combines++;)
-        return;
-      }
-    }
-  }
-
-  struct cache_line_t * p = &cp->WBB[bank][cp->WBB_tail[bank]];
-
-  p->core = cache_block->core;
-  p->tag = cache_block->tag;
-  p->valid = cache_block->valid;
-  p->dirty = cache_block->dirty;
-  p->victim = false;
-
-  cp->WBB_num[bank]++;
-  cache_assert(cp->WBB_num[bank] <= cp->WBB_size,(void)0);
-  cp->WBB_tail[bank] = modinc(cp->WBB_tail[bank],cp->WBB_size); //(cp->WBB_tail[bank] + 1) % cp->WBB_size;
-  cp->check_for_work = true;
-  cp->check_for_WBB_work = true;
-}
-
-/* insert if room, but this line doesn't need to be written back to next level */
-static void WBB_victim_insert(
-    struct cache_t * const cp,
-    struct cache_line_t * const cache_block)
-{
-  /* don't need to cache invalid blocks */
-  if(!cache_block->valid)
-    return;
-
-  const int bank = GET_MSHR_BANK(cache_block->tag << cp->addr_shift);
-
-  if(cp->WBB_num[bank] >= cp->WBB_size) /* can't do anything if full */
-    return;
-
-  const int num_available = cp->WBB_size - cp->WBB_num[bank];
-
-  /* random insertion among non-dirty lines */
-  int index = mod2m(cp->WBB_head[bank]+cp->WBB_num[bank],cp->WBB_size); // tail index
-  index += random() % num_available;
-  index = mod2m(index,cp->WBB_size);
-
-  struct cache_line_t * p = &cp->WBB[bank][index];
-
-  /* Victim lines written to can end up out-of-order with respect to the
-     regular circular queue order.  In this rare case, we just skip the
-     victim insertion because we cannot overwrite the dirty line.  One could
-     try to re-search for a non-dirty line, but that gets ugly. */
-  if(p->dirty)
-    return;
-
-  CACHE_STAT(cp->stat.WBB_victim_insertions++;)
-  p->core = cache_block->core;
-  p->tag = cache_block->tag;
-  p->valid = cache_block->valid;
-  cache_assert(!cache_block->dirty,(void)0);
-  p->dirty = false;
-  p->victim = true;
+  /* this is just a place holder for cast-out writebacks
+     in a write-back cache */
 }
 
 /* Returns true if at least one MSHR entry is free/available. */
@@ -1521,10 +1344,66 @@ static struct cache_action_t * MSHR_allocate(
   fatal("request for MSHR failed");
 }
 
-static void dummy_callback(void * p)
+static void MSHR_deallocate(
+    const struct cache_t * const cp,
+    const md_paddr_t paddr,
+    const int index)
 {
-  /* this is just a place holder for cast-out writebacks
-     in a write-back cache */
+    const int bank = GET_MSHR_BANK(paddr);
+    struct cache_action_t * MSHR = &cp->MSHR[bank][index];
+
+    cache_assert(MSHR->cb, (void)0);
+    MSHR->cb = NULL;
+
+    cp->MSHR_num[bank]--;
+    cache_assert(cp->MSHR_num[bank] >= 0,(void)0);
+
+    if(MSHR->cmd == CACHE_PREFETCH)
+    {
+      cp->MSHR_num_pf[bank]--;
+      cache_assert(cp->MSHR_num_pf[bank] >= 0,(void)0);
+    }
+
+    if(MSHR->type == MSHR_MISS)
+    {
+      cp->MSHR_fill_num[bank]--;
+      cache_assert(cp->MSHR_fill_num[bank] >= 0,(void)0);
+    }
+}
+
+/* Insert a writeback request into the MSHR; assumes you already called MSHR_available
+   to make sure there's room. */
+static void MSHR_WB_insert(
+    struct cache_t * const cp,
+    struct cache_line_t * const cache_block)
+{
+  md_paddr_t new_addr = cache_block->tag << cp->addr_shift;
+  struct cache_action_t * MSHR = MSHR_allocate(cp, new_addr, CACHE_WRITEBACK);
+  bool MSHR_linked = MSHR->MSHR_linked;
+  MSHR->core = cache_block->core;
+  MSHR->op = NULL;
+  MSHR->PC = 0;
+  MSHR->paddr = new_addr;
+  MSHR->type = MSHR_WRITEBACK;
+  MSHR->MSHR_bank = 0;
+  MSHR->MSHR_index = NO_MSHR;
+  MSHR->miss_cb_invoked = false;
+  MSHR->cmd = CACHE_WRITEBACK;
+  MSHR->prev_cp = NULL;
+  MSHR->cb = dummy_callback;
+  MSHR->miss_cb = NULL;
+  MSHR->translated_cb = NULL;
+  MSHR->get_action_id = NULL;
+  MSHR->when_enqueued = sim_cycle;
+  MSHR->when_started = TICK_T_MAX;
+  MSHR->when_returned = TICK_T_MAX;
+  MSHR->pipe_exit_time = TICK_T_MAX;
+  MSHR->MSHR_linked = MSHR_linked;
+  if(MSHR_linked)
+    MSHR->when_started = sim_cycle;
+
+  cp->check_for_work = true;
+  cp->check_for_MSHR_WB_work = true;
 }
 
 /* Called when a cache miss gets serviced.  May be recursively called for
@@ -1539,6 +1418,7 @@ void fill_arrived(
 
   cp->check_for_work = true;
   cp->check_for_MSHR_fill_work = true;
+  cp->check_for_MSHR_WB_work = true;
 
   if(MSHR->cb != NULL) /* original request was squashed */
     MSHR->when_returned = sim_cycle;
@@ -1708,47 +1588,63 @@ static inline void cache_fill(
   cp->check_for_fill_work = true;
 }
 
-/* simulate one cycle of the cache */
-void cache_process(struct cache_t * const cp)
+/* simulate one cycle of sending MSHR writeback requests */
+void cache_process_MSHR_WB(struct cache_t * const cp, int start_point)
 {
   int b;
+  bool MSHR_WB_work_found = false;
 
-  bool work_found = false;
-  bool MSHR_fill_work_found = false;
-  bool fill_work_found = false;
-  bool pipe_work_found = false;
-  bool MSHR_work_found = false;
-  bool WBB_work_found = false;
+  if(cp->check_for_MSHR_WB_work) {
 
-  //int start_point = random() & cp->bank_mask; /* randomized arbitration */
-  int start_point = cp->start_point; /* round-robin arbitration */
-  cp->start_point = modinc(cp->start_point,cp->banks);
-
-  /* process write-backs */
-  if(cp->check_for_WBB_work)
+    /* process write-backs in MSHR (in FIFO order) */
     for(b=0;b<cp->MSHR_banks;b++)
     {
       int bank = (start_point+b) & cp->MSHR_mask;
-      if(cp->WBB_num[bank]) /* there are cast-outs pending to be written back */
+      if(cp->MSHR_WB_num[bank]) /* there are cast-outs pending to be written back */
       {
-        struct cache_line_t * WBB = &cp->WBB[bank][cp->WBB_head[bank]];
+        struct cache_action_t * MSHR_WB;
+        tick_t oldest_time = TICK_T_MAX;
+        int oldest_index = -1;
+        for(int j=0; j < cp->MSHR_size; j++)
+        {
+          MSHR_WB = &cp->MSHR[bank][j];
+          if(MSHR_WB->cb == NULL)
+            continue;
 
-        work_found = true;
-        WBB_work_found = true;
+          if(MSHR_WB->type != MSHR_WRITEBACK)
+            continue;
+
+          if(MSHR_WB->when_started != TICK_T_MAX)
+            continue;
+
+          if(MSHR_WB->when_enqueued < oldest_time)
+          {
+            oldest_time = MSHR_WB->when_enqueued;
+            oldest_index = j;
+          }
+        }
+
+        if(oldest_index < 0)
+            continue;
+
+        MSHR_WB = &cp->MSHR[bank][oldest_index];
+
+        MSHR_WB_work_found = true;
         if(cp->next_level)
         {
           if(!cp->next_bus || bus_free(cp->next_bus))
           {
-            if(cache_enqueuable(cp->next_level,DO_NOT_TRANSLATE,WBB->tag << cp->addr_shift))
+            if(cache_enqueuable(cp->next_level,DO_NOT_TRANSLATE,MSHR_WB->paddr))
             {
-              cache_enqueue(WBB->core,cp->next_level,NULL,CACHE_WRITEBACK,DO_NOT_TRANSLATE,0,WBB->tag << cp->addr_shift,(seq_t)-1,0,NO_MSHR,NULL,dummy_callback,NULL,NULL,NULL);
+              cache_enqueue(MSHR_WB->core,cp->next_level,NULL,CACHE_WRITEBACK,DO_NOT_TRANSLATE,0,MSHR_WB->paddr,(seq_t)-1,0,NO_MSHR,NULL,dummy_callback,NULL,NULL,NULL);
               bus_use(cp->next_bus,cp->linesize,false);
 
               /* WBB entry remains valid to serve as victim cache */
-              WBB->dirty = false;
-              cp->WBB_num[bank] --;
-              cache_assert(cp->WBB_num[bank] >= 0,(void)0);
-              cp->WBB_head[bank] = modinc(cp->WBB_head[bank],cp->WBB_size); //(cp->WBB_head[bank] + 1) % cp->WBB_size;
+              // SK: not for now -- dificult to integrate with coherence
+              //MSHR_WB->dirty = false;
+              MSHR_WB->when_started = sim_cycle;
+              cp->MSHR_WB_num[bank] --;
+              cache_assert(cp->MSHR_WB_num[bank] >= 0,(void)0);
             }
           }
         }
@@ -1757,27 +1653,55 @@ void cache_process(struct cache_t * const cp)
           /* write back to main memory */
           if(bus_free(uncore->fsb) && uncore->MC->enqueuable())
           {
-            uncore->MC->enqueue(NULL,CACHE_WRITEBACK,WBB->tag << cp->addr_shift,cp->linesize,(md_paddr_t)-1,0,NO_MSHR,NULL,NULL,NULL);
+            uncore->MC->enqueue(NULL,CACHE_WRITEBACK,MSHR_WB->paddr,cp->linesize,(md_paddr_t)-1,0,NO_MSHR,NULL,NULL,NULL);
             bus_use(uncore->fsb,cp->linesize>>uncore->fsb_DDR,false);
 
             /* WBB entry remains valid to serve as victim cache */
-            WBB->dirty = false;
-            cp->WBB_num[bank] --;
-            cache_assert(cp->WBB_num[bank] >= 0,(void)0);
-            cp->WBB_head[bank] = modinc(cp->WBB_head[bank],cp->WBB_size); //(cp->WBB_head[bank] + 1) % cp->WBB_size;
+            // SK: not for now -- dificult to integrate with coherence
+            //MSHR_WB->dirty = false;
+            MSHR_WB->when_started = sim_cycle;
+            cp->MSHR_WB_num[bank] --;
+            cache_assert(cp->MSHR_WB_num[bank] >= 0,(void)0);
           }
         }
       }
     }
-  cp->check_for_WBB_work = WBB_work_found;
+
+    /* Drop fullfilled WB requests */
+    for(b=0;b<cp->MSHR_banks;b++)
+    {
+      int bank = (start_point+b) & cp->MSHR_mask;
+      struct cache_action_t * MSHR_WB;
+      for(int j=0; j < cp->MSHR_size; j++)
+      {
+        MSHR_WB = &cp->MSHR[bank][j];
+        if (MSHR_WB->cb == NULL)
+          continue;
+        if (MSHR_WB->type != MSHR_WRITEBACK)
+          continue;
+        if (MSHR_WB->when_started == TICK_T_MAX)
+          continue;
+        if (MSHR_WB->when_returned <= sim_cycle)
+          MSHR_deallocate(cp, MSHR_WB->paddr, j);
+      }
+    }
+
+  }
+  cp->check_for_MSHR_WB_work = MSHR_WB_work_found;
+}
+
+/* simulate one cycle of scheduling returned MSHR requests to fill pipe */
+void cache_process_MSHR_fill(struct cache_t * const cp, int start_point)
+{
+  int b;
+  bool MSHR_fill_work_found = false;
 
   if(cp->check_for_MSHR_fill_work)
-    for(int b=0;b<cp->MSHR_banks;b++)
+    for(b=0;b<cp->MSHR_banks;b++)
     {
       int bank = (start_point + b) & cp->MSHR_mask;
       if(cp->MSHR_fill_num[bank])
       {
-        work_found = true;
         MSHR_fill_work_found = true;
         tick_t oldest = TICK_T_MAX;
         int old_index = -1;
@@ -1786,6 +1710,9 @@ void cache_process(struct cache_t * const cp)
         for(int i=0;i<cp->MSHR_size;i++)
         {
           struct cache_action_t * MSHR = &cp->MSHR[bank][i];
+          if(MSHR->type == MSHR_WRITEBACK)
+            continue;
+
           if(MSHR->cb && (MSHR->when_returned <= sim_cycle) &&
                   cache_fillable(cp,MSHR->paddr))
           {
@@ -1862,21 +1789,18 @@ void cache_process(struct cache_t * const cp)
             fill_arrived(MSHR->prev_cp,MSHR->MSHR_bank,MSHR->MSHR_index);
           }
 
-          /* deallocate the MSHR */
-          if(MSHR->cmd == CACHE_PREFETCH)
-          {
-            cp->MSHR_num_pf[bank]--;
-            cache_assert(cp->MSHR_num_pf[bank] >= 0,(void)0);
-          }
-          MSHR->cb = NULL;
-          cp->MSHR_num[bank]--;
-          cp->MSHR_fill_num[bank]--;
-          cache_assert(cp->MSHR_num[bank] >= 0,(void)0);
-          cache_assert(cp->MSHR_fill_num[bank] >= 0,(void)0);
+          MSHR_deallocate(cp, MSHR->paddr, old_index);
         }
       }
     }
   cp->check_for_MSHR_fill_work = MSHR_fill_work_found;
+}
+
+/* simulate one cycle of fills to the array */
+void cache_process_fills(struct cache_t * const cp, int start_point)
+{
+  int b;
+  bool fill_work_found = false;
 
   /* process cache fills: */
   if(cp->check_for_fill_work)
@@ -1887,28 +1811,28 @@ void cache_process(struct cache_t * const cp)
       struct cache_fill_t * cf = &cp->fill_pipe[bank][1];
       if(cp->fill_num[bank])
       {
-        work_found = true;
         fill_work_found = true;
         if(cf->valid && cf->pipe_exit_time <= sim_cycle)
         {
           if(!cache_peek(cp,cf->paddr)) /* make sure hasn't been filled in the meantime */
           {
             struct cache_line_t * p = cache_get_evictee(cp,cf->paddr,cf->core);
+            md_paddr_t new_addr = p->tag << cp->addr_shift;
             if(p->valid)
             {
               if(p->dirty)
               {
                 if(cp->write_policy == WRITE_BACK)
                 {
-                  if(!WBB_available(cp,cf->paddr))
-                    goto no_WBB_available; /* can't go until WBB is available */
+                  if(!MSHR_available(cp, new_addr))
+                    goto no_MSHR_available;
 
-                  WBB_insert(cp,p);
+                  MSHR_WB_insert(cp, p);
                 }
               }
               else /* not dirty, insert in WBB just as victim */
               {
-                WBB_victim_insert(cp,p);
+                //MSHR_WB_victim_insert(cp,p);
               }
             }
 
@@ -1925,10 +1849,17 @@ void cache_process(struct cache_t * const cp)
           cache_assert(cp->fill_num[bank] >= 0,(void)0);
         }
       }
-    no_WBB_available:
+    no_MSHR_available:
       ;
     }
   cp->check_for_fill_work = fill_work_found;
+}
+
+/* simulate one cycle of the cache pipeline */
+void cache_process_pipe(struct cache_t * const cp, int start_point)
+{
+  int b;
+  bool pipe_work_found = false;
 
   /* check last stage of cache pipes, process accesses */
   if(cp->check_for_pipe_work)
@@ -1946,7 +1877,6 @@ void cache_process(struct cache_t * const cp)
         bool do_prefetch = !cp->prefetch_on_miss;
         bool request_dequeued = false;
 
-        work_found = true;
         pipe_work_found = true;
         if(ca->cb)
         {
@@ -1957,7 +1887,7 @@ void cache_process(struct cache_t * const cp)
             {
               if((ca->cmd == CACHE_WRITE || ca->cmd == CACHE_WRITEBACK) && (cp->write_policy == WRITE_THROUGH))
               {
-                if(!WBB_available(cp,ca->paddr))
+                if(!MSHR_available(cp,ca->paddr))
                   continue; /* can't go until WBB is available */
 
                 struct cache_line_t tmp_line;
@@ -1967,7 +1897,7 @@ void cache_process(struct cache_t * const cp)
                 tmp_line.dirty = false;
 
                 /* on a write-through cache, use a WBB entry to send write to the next level */
-                WBB_insert(cp,&tmp_line);
+                MSHR_WB_insert(cp,&tmp_line);
               }
 
               /* For L1 caches only: (L2/LLC handled by MSHR processing later)
@@ -2015,40 +1945,7 @@ void cache_process(struct cache_t * const cp)
                  ((ca->cmd == CACHE_WRITE || ca->cmd == CACHE_WRITEBACK) && cp->write_combining))
               {
                 /* last chance: check in WBBs - this implements something like a victim cache */
-                int j;
-
-                int this_bank = GET_MSHR_BANK(ca->paddr);
-                int index = cp->WBB_head[this_bank];
-                for(j=0;j<cp->WBB_size;j++)
-                {
-                  if(cp->WBB[this_bank][index].tag == (ca->paddr >> cp->addr_shift))
-                  {
-                    /* we're only write-combining with other existing writes;
-                       i.e., no combining with non-dirty victim entries.
-                       TODO: fix this by changing the WBB processing loop to
-                       not assume a circular queue organization but to just
-                       manually rescan the queue each time.
-                     */
-                    if(ca->cmd == CACHE_WRITE || ca->cmd == CACHE_WRITEBACK)
-                    {
-                      if(cp->WBB[this_bank][index].dirty)
-                      {
-                        CACHE_STAT(cp->stat.WBB_combines++;)
-                        last_chance_hit = true;
-                        break;
-                      }
-                    }
-                    else
-                    {
-                      CACHE_STAT(cp->stat.WBB_hits++;)
-                      CACHE_STAT(if(!cp->WBB[this_bank][index].victim) cp->stat.WBB_victim_hits++;)
-                      last_chance_hit = true;
-                      break;
-                    }
-                  }
-                  index = modinc(index,cp->WBB_size);
-                }
-
+                /* no WBBs now, just check prefetech buffer */
                 if(cp->PF_buffer && !last_chance_hit)
                 {
                   struct prefetch_buffer_t * p = cp->PF_buffer, * prev = NULL;
@@ -2072,13 +1969,13 @@ void cache_process(struct cache_t * const cp)
                     int ok_to_insert = true;
                     if((cp->write_policy == WRITE_BACK) && evictee->valid && evictee->dirty)
                     {
-                      if(WBB_available(cp,ca->paddr))
+                      if(MSHR_available(cp,ca->paddr))
                       {
-                        WBB_insert(cp,evictee);
+                        MSHR_WB_insert(cp,evictee);
                       }
                       else /* we'd like to insert the prefetched line into the cache, but
                               in order to do so, we need to writeback the evictee but
-                              we can't get a WBB.  */
+                              we can't get a MSHR.  */
                       {
                         ok_to_insert = false;
                       }
@@ -2143,6 +2040,7 @@ void cache_process(struct cache_t * const cp)
                   MSHR->when_returned = TICK_T_MAX;
                   MSHR->core = ca->core;
                   MSHR->MSHR_linked = MSHR_linked;
+                  MSHR->type = MSHR_MISS;
                   int this_bank = GET_MSHR_BANK(ca->paddr);
                   if(MSHR_linked)
                     MSHR->when_started = sim_cycle;
@@ -2250,6 +2148,13 @@ void cache_process(struct cache_t * const cp)
       }
     }
   cp->check_for_pipe_work = pipe_work_found;
+}
+
+/* simulate one cycle of MSHR requests */
+void cache_process_MSHR(struct cache_t * const cp, int start_point)
+{
+  int b;
+  bool MSHR_work_found = false;
 
   if(cp->check_for_MSHR_work)
   {
@@ -2269,7 +2174,6 @@ void cache_process(struct cache_t * const cp)
           int bank = (start_point+b) & cp->MSHR_mask;
           if(cp->MSHR_num[bank])
           {
-            work_found = true;
             MSHR_work_found = true;
             /* find oldest not-processed entry */
             if((!cp->next_bus || bus_free(cp->next_bus)) && (cp->MSHR_unprocessed_num[bank] > 0))
@@ -2279,6 +2183,8 @@ void cache_process(struct cache_t * const cp)
               for(int i=0;i<cp->MSHR_size;i++)
               {
                 struct cache_action_t * MSHR = &cp->MSHR[bank][i];
+                if(MSHR->type == MSHR_WRITEBACK)
+                  continue;
                 if(MSHR->cb && (MSHR->when_started == TICK_T_MAX) && (MSHR->when_enqueued < oldest_age) && (!MSHR->translated_cb || MSHR->translated_cb(MSHR->op,MSHR->action_id))) /* if DL1, don't go until translated */
                 {
                   oldest_age = MSHR->when_enqueued;
@@ -2373,7 +2279,6 @@ void cache_process(struct cache_t * const cp)
             int bank = (start_point+b) & cp->MSHR_mask;
             if(cp->MSHR_num[bank])
             {
-              work_found = true;
               MSHR_work_found = true;
               /* find oldest not-processed entry */
               if((!cp->next_bus || bus_free(cp->next_bus)) && (cp->MSHR_unprocessed_num[bank] > 0))
@@ -2384,6 +2289,8 @@ void cache_process(struct cache_t * const cp)
                 for(int i=0;i<cp->MSHR_size;i++)
                 {
                   struct cache_action_t * MSHR = &cp->MSHR[bank][i];
+                  if(MSHR->type == MSHR_WRITEBACK)
+                    continue;
                   if((MSHR->cmd == cmd) && MSHR->cb && (MSHR->when_started == TICK_T_MAX) && (!MSHR->translated_cb || MSHR->translated_cb(MSHR->op,MSHR->action_id))) /* if DL1, don't go until translated */
                   {
                     if(MSHR->when_enqueued < oldest_age)
@@ -2479,7 +2386,6 @@ void cache_process(struct cache_t * const cp)
         int bank = (start_point+b) & cp->MSHR_mask;
         if(cp->MSHR_num[bank])
         {
-          work_found = true;
           MSHR_work_found = true;
           break;
         }
@@ -2498,17 +2404,26 @@ void cache_process(struct cache_t * const cp)
   }
   CACHE_STAT(cp->stat.MSHR_occupancy += total_occ;)
   CACHE_STAT(cp->stat.MSHR_full_cycles += (total_occ == max_size);)
+}
 
-  max_size = cp->MSHR_banks * cp->WBB_size;
-  total_occ = 0;
-  for(bank=0;bank<cp->MSHR_banks;bank++)
-  {
-    total_occ += cp->WBB_num[bank];
-  }
-  CACHE_STAT(cp->stat.WBB_occupancy += total_occ;)
-  CACHE_STAT(cp->stat.WBB_full_cycles += (total_occ == max_size);)
+/* simulate one cycle of the cache */
+void cache_process(struct cache_t * const cp)
+{
+  //int start_point = random() & cp->bank_mask; /* randomized arbitration */
+  int start_point = cp->start_point; /* round-robin arbitration */
+  cp->start_point = modinc(cp->start_point,cp->banks);
 
-  cp->check_for_work = work_found;
+  cache_process_MSHR_WB(cp, start_point);
+  cache_process_MSHR_fill(cp, start_point);
+  cache_process_fills(cp, start_point);
+  cache_process_pipe(cp, start_point);
+  cache_process_MSHR(cp, start_point);
+
+  cp->check_for_work = cp->check_for_MSHR_WB_work ||
+                        cp->check_for_MSHR_fill_work ||
+                        cp->check_for_fill_work ||
+                        cp->check_for_pipe_work ||
+                        cp->check_for_MSHR_work;
 }
 
 /* Attempt to enqueue a prefetch request, based on the predicted
