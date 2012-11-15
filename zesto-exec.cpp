@@ -76,6 +76,7 @@
 #include "synchronization.h"
 
 #include "zesto-cache.h"
+#include "zesto-noc.h"
 #include "mem-repeater.h"
 #include "zesto-core.h"
 #include "zesto-opts.h"

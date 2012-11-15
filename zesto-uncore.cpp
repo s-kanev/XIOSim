@@ -83,6 +83,7 @@
 #include "zesto-uncore.h"
 #include "zesto-dram.h"
 #include "zesto-MC.h"
+#include "zesto-noc.h"
 
 
 /* The uncore class is just a wrapper around the last-level cache,

@@ -161,19 +161,6 @@ struct prefetch_filter_t {
   tick_t last_reset;
 };
 
-struct bus_t {
-  char * name;
-  int width; /* in bytes tranferrable per cycle */
-  int ratio; /* number of cpu cycles per bus cycle */
-  tick_t when_available;
-
-  struct {
-    counter_t accesses;
-    counter_t utilization; /* cumulative cycles in use */
-    counter_t prefetch_utilization; /* cumulative prefetch cycles in use */
-  } stat;
-};
-
 struct cache_t {
 
   struct core_t * core; /* to which core does this belong? NULL = shared */
@@ -387,23 +374,6 @@ void step_LLC_PF_controller(struct uncore_t * const uncore);
 void prefetch_LLC(struct uncore_t * const uncore);
 
 void cache_freeze_stats(struct core_t * const core);
-
-struct bus_t * bus_create(
-    const char * const name,
-    const int width,
-    const int ratio);
-
-void bus_reg_stats(
-    struct stat_sdb_t * const sdb,
-    struct core_t * const core,
-    struct bus_t * const bus);
-
-int bus_free(const struct bus_t * const bus);
-
-void bus_use(
-    struct bus_t * const bus,
-    const int transfer_size,
-    const int prefetch);
 
 /* since these cache functions cannot directly set the core->oracle.hosed
    bit, they just return and depend on the rest of the core state getting

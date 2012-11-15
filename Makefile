@@ -120,7 +120,7 @@ zesto-uncore.cpp zesto-MC.cpp zesto-dumps.cpp zesto-power.cpp mem-repeater.cpp  
 mem-repeater-link.cpp mem-repeater-request.cpp mem-repeater-manager.cpp            \
 mem-repeater-buffer.cpp mem-repeater-memory.cpp mem-repeater-packet.cpp            \
 mem-repeater-array.cpp trace_scanner.cpp mem-repeater-request-factory.cpp          \
-mem-repeater-signal-cache.cpp mem-repeater-oracle.cpp
+mem-repeater-signal-cache.cpp mem-repeater-oracle.cpp zesto-noc.cpp
 
 ZHDRS = \
 zesto-structs.h zesto-core.h zesto-opts.h zesto-oracle.h zesto-fetch.h             \
@@ -130,7 +130,7 @@ zesto-MC.h zesto-dumps.h zesto-power.h mem-repeater.h zesto-coherence.h         
 mem-repeater-link.h mem-repeater-request.h mem-repeater-manager.h                  \
 mem-repeater-buffer.h mem-repeater-memory.h mem-repeater-packet.h                  \
 mem-repeater-array.h trace_scanner.h  mem-repeater-signal-cache.h                  \
-mem-repeater-oracle.h mem-repeater-defines.h                                                             
+mem-repeater-oracle.h mem-repeater-defines.h zesto-noc.h
 
 
 ZOBJS = \
@@ -138,7 +138,7 @@ zesto-opts.$(OEXT) zesto-core.$(OEXT) zesto-oracle.$(OEXT) zesto-fetch.$(OEXT)  
 zesto-decode.$(OEXT) zesto-alloc.$(OEXT) zesto-exec.$(OEXT) zesto-commit.$(OEXT)    \
 zesto-cache.$(OEXT) zesto-dram.$(OEXT) zesto-bpred.$(OEXT) zesto-memdep.$(OEXT)     \
 zesto-prefetch.$(OEXT) zesto-uncore.$(OEXT) zesto-MC.$(OEXT) zesto-dumps.$(OEXT)    \
-zesto-power.$(OEXT) mem-repeater.$(OEXT) zesto-coherence.$(OEXT)                    \
+zesto-power.$(OEXT) mem-repeater.$(OEXT) zesto-coherence.$(OEXT) zesto-noc.$(OEXT)  \
 mem-repeater-link.$(OEXT) mem-repeater-request.$(OEXT) mem-repeater-manager.$(OEXT) \
 mem-repeater-buffer.$(OEXT) mem-repeater-memory.$(OEXT) mem-repeater-packet.$(OEXT) \
 mem-repeater-array.$(OEXT) trace_scanner.$(OEXT)                                    \
@@ -400,6 +400,7 @@ zesto-fetch.o: regs.h options.h memory.h stats.h eval.h zesto-core.h
 zesto-fetch.o: zesto-opts.h zesto-oracle.h zesto-fetch.h zesto-alloc.h
 zesto-fetch.o: zesto-cache.h zesto-decode.h zesto-prefetch.h zesto-bpred.h
 zesto-fetch.o: zesto-exec.h zesto-commit.h zesto-uncore.h zesto-MC.h
+zesto-fetch.o: zesto-coherence.h zesto-noc.h
 zesto-decode.o: thread.h machine.h host.h misc.h machine.def zesto-structs.h
 zesto-decode.o: regs.h options.h memory.h stats.h eval.h zesto-core.h
 zesto-decode.o: zesto-opts.h zesto-oracle.h zesto-decode.h zesto-fetch.h
@@ -412,7 +413,7 @@ zesto-exec.o: thread.h machine.h host.h misc.h machine.def zesto-structs.h
 zesto-exec.o: regs.h options.h memory.h stats.h eval.h zesto-core.h
 zesto-exec.o: zesto-opts.h zesto-oracle.h zesto-alloc.h zesto-exec.h
 zesto-exec.o: zesto-memdep.h zesto-prefetch.h zesto-cache.h zesto-uncore.h
-zesto-exec.o: zesto-MC.h mem-repeater.h
+zesto-exec.o: zesto-MC.h mem-repeater.h zesto-coherence.h zesto-noc.h
 zesto-commit.o: sim.h options.h stats.h host.h machine.h misc.h machine.def
 zesto-commit.o: zesto-structs.h regs.h eval.h memory.h thread.h zesto-core.h
 zesto-commit.o: zesto-opts.h zesto-oracle.h zesto-fetch.h zesto-decode.h
@@ -427,7 +428,15 @@ zesto-power.o: mcpat/XML_Parse.h
 zesto-cache.o: thread.h machine.h host.h misc.h machine.def zesto-structs.h
 zesto-cache.o: regs.h options.h memory.h stats.h eval.h zesto-core.h
 zesto-cache.o: zesto-opts.h zesto-cache.h zesto-prefetch.h zesto-dram.h
-zesto-cache.o: zesto-uncore.h zesto-MC.h
+zesto-cache.o: zesto-uncore.h zesto-MC.h zesto-coherence.h zesto-noc.h
+zesto-coherence.o: thread.h machine.h host.h misc.h machine.def zesto-structs.h
+zesto-coherence.o: regs.h options.h memory.h stats.h eval.h zesto-core.h
+zesto-coherence.o: zesto-opts.h zesto-cache.h zesto-prefetch.h zesto-dram.h
+zesto-coherence.o: zesto-uncore.h zesto-MC.h zesto-coherence.h zesto-noc.h
+zesto-noc.o: thread.h machine.h host.h misc.h machine.def zesto-structs.h
+zesto-noc.o: regs.h options.h memory.h stats.h eval.h zesto-core.h
+zesto-noc.o: zesto-opts.h zesto-cache.h zesto-prefetch.h zesto-dram.h
+zesto-noc.o: zesto-uncore.h zesto-MC.h zesto-coherence.h zesto-noc.h
 zesto-dram.o: thread.h machine.h host.h misc.h machine.def zesto-structs.h
 zesto-dram.o: regs.h options.h memory.h stats.h eval.h zesto-opts.h
 zesto-dram.o: zesto-cache.h zesto-dram.h zesto-uncore.h zesto-MC.h
@@ -444,10 +453,11 @@ zesto-prefetch.o: zesto-prefetch.h zesto-uncore.h zesto-MC.h
 zesto-uncore.o: thread.h machine.h host.h misc.h machine.def zesto-structs.h
 zesto-uncore.o: regs.h options.h memory.h stats.h eval.h zesto-core.h
 zesto-uncore.o: zesto-opts.h zesto-cache.h zesto-prefetch.h zesto-uncore.h
-zesto-uncore.o: zesto-MC.h zesto-dram.h
+zesto-uncore.o: zesto-MC.h zesto-dram.h zesto-noc.h zesto-coherence.h
 zesto-MC.o: thread.h machine.h host.h misc.h machine.def zesto-structs.h
 zesto-MC.o: regs.h options.h memory.h stats.h eval.h zesto-opts.h
 zesto-MC.o: zesto-cache.h zesto-uncore.h zesto-MC.h zesto-dram.h
+zesto-MC.o: zesto-coherence.h zesto-noc.h
 
 # SimpleScalar(TM) Tool Suite
 # Copyright (C) 1994-2002 by Todd M. Austin, Ph.D. and SimpleScalar, LLC.
