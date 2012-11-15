@@ -31,6 +31,9 @@ struct const_coherence_data : public line_coherence_data_t {
   bool is_used() { return v > 0; }
 };
 
+XIOSIM_LOCK cache_controller_const_t::lk_controller;
+std::map<md_paddr_t, unsigned> cache_controller_const_t::writers;
+
 cache_controller_const_t::cache_controller_const_t(struct core_t * const core, struct cache_t * const cache, const char * opt_string) :
   cache_controller_t(core, cache)
 {
