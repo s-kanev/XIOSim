@@ -13,6 +13,8 @@ class cache_controller_t {
   virtual controller_array_response_t check_array(struct cache_line_t * line) = 0;
   virtual controller_response_t check_MSHR(struct cache_action_t * MSHR_item) = 0;
 
+  virtual bool can_schedule_upstream() = 0;
+  virtual bool can_schedule_downstream(struct cache_t * const prev_cache) = 0;
   virtual bool on_new_MSHR(int bank, int MSHR_index, struct cache_action_t * MSHR) = 0;
 
   protected:

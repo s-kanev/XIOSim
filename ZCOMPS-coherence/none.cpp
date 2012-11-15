@@ -13,6 +13,8 @@ class cache_controller_none_t : public cache_controller_t {
   virtual controller_array_response_t check_array(struct cache_line_t * line);
   virtual controller_response_t check_MSHR(struct cache_action_t * MSHR_item);
 
+  virtual bool can_schedule_upstream();
+  virtual bool can_schedule_downstream(struct cache_t * const prev_cache);
   virtual bool on_new_MSHR(int bank, int MSHR_index, struct cache_action_t * MSHR);
 };
 
@@ -35,6 +37,18 @@ controller_response_t cache_controller_none_t::check_MSHR(struct cache_action_t 
   (void) MSHR_item;
 
   return MSHR_CHECK_ARRAY;
+}
+
+bool cache_controller_none_t::can_schedule_upstream()
+{
+  if (cache->next_level)
+    return (!cache->next_bus || bus_free(cache->next_bus));
+  return bus_free(uncore->fsb);
+}
+
+bool cache_controller_none_t::can_schedule_downstream(struct cache_t * const prev_cache)
+{
+  return (!prev_cache || bus_free(prev_cache->next_bus));
 }
 
 bool cache_controller_none_t::on_new_MSHR(int bank, int MSHR_index, struct cache_action_t * MSHR)

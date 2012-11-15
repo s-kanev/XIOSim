@@ -1687,13 +1687,7 @@ static void cache_process_MSHR_WB(struct cache_t * const cp, int start_point)
 
   if(cp->check_for_MSHR_WB_work) {
     /* Check if we can use bus to upper level */
-    int bus_available = false;
-    if(cp->next_level)
-      bus_available = bus_free(cp->next_bus);
-    else
-      bus_available = bus_free(uncore->fsb);
-
-    if(bus_available)
+    if(cp->controller->can_schedule_upstream())
     {
       /* process write-backs in MSHR (in FIFO order) */
       for(b=0;b<cp->MSHR_banks;b++)
@@ -1800,9 +1794,9 @@ static void cache_process_MSHR_fill(struct cache_t * const cp, int start_point)
 
         /* process returned MSHR requests that now need to fill the cache */
         struct cache_action_t * MSHR = &cp->MSHR[bank][old_index];
-        bool bus_available = !MSHR->prev_cp || bus_free(MSHR->prev_cp->next_bus);
 
-        if(MSHR->cb && (MSHR->when_returned <= sim_cycle) && bus_available)
+        if(MSHR->cb && (MSHR->when_returned <= sim_cycle) &&
+           cp->controller->can_schedule_downstream(MSHR->prev_cp))
         {
           if(!MSHR->MSHR_linked)
           {
@@ -2185,13 +2179,7 @@ static void cache_process_MSHR(struct cache_t * const cp, int start_point)
 
   if(cp->check_for_MSHR_work)
   {
-    int bus_available = false;
-    if(cp->next_level)
-      bus_available = bus_free(cp->next_bus);
-    else
-      bus_available = bus_free(uncore->fsb);
-
-    if(bus_available)
+    if(cp->controller->can_schedule_upstream())
     {
       if(cp->MSHR_cmd_order == NULL)
       {
@@ -2203,7 +2191,7 @@ static void cache_process_MSHR(struct cache_t * const cp, int start_point)
           {
             MSHR_work_found = true;
             /* find oldest not-processed entry */
-            if((!cp->next_bus || bus_free(cp->next_bus)) && (cp->MSHR_unprocessed_num[bank] > 0))
+            if(cp->MSHR_unprocessed_num[bank] > 0)
             {
               tick_t oldest_age = TICK_T_MAX;
               int index = -1;
@@ -2297,7 +2285,7 @@ static void cache_process_MSHR(struct cache_t * const cp, int start_point)
             {
               MSHR_work_found = true;
               /* find oldest not-processed entry */
-              if((!cp->next_bus || bus_free(cp->next_bus)) && (cp->MSHR_unprocessed_num[bank] > 0))
+              if(cp->MSHR_unprocessed_num[bank] > 0)
               {
                 tick_t oldest_age = TICK_T_MAX;
                 int index = -1;
