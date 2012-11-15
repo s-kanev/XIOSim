@@ -82,7 +82,7 @@
 #include <unistd.h>
 #include <sys/time.h>
 #include <sys/io.h>
-
+#include <stdint.h>
 
 #include "host.h"
 #include "machine.h"

@@ -138,7 +138,7 @@ uncore_t::uncore_t(
 {
   /* temp variables for option-string parsing */
   char name[256];
-  int sets, assoc, linesize, latency, banks, bank_width, MSHR_banks, MSHR_entries, WBB_entries;
+  int sets, assoc, linesize, latency, banks, bank_width, MSHR_banks, MSHR_entries;
   char rp, ap, wp, wc;
 
   fsb_width = arg_fsb_width;
@@ -152,12 +152,12 @@ uncore_t::uncore_t(
 
   /* Shared LLC */
   if(sscanf(LLC_opt_str,"%[^:]:%d:%d:%d:%d:%d:%d:%c:%c:%c:%d:%d:%d:%c",
-      name,&sets,&assoc,&linesize,&banks,&bank_width,&latency,&rp,&ap,&wp, &MSHR_entries, &MSHR_banks, &WBB_entries, &wc) != 14)
-    fatal("invalid LLC options: <name:sets:assoc:linesize:banks:bank-width:latency:repl-policy:alloc-policy:write-policy:num-MSHR:MSHR-banks:WB-buffers:write-combining>\n\t(%s)",LLC_opt_str);
+      name,&sets,&assoc,&linesize,&banks,&bank_width,&latency,&rp,&ap,&wp, &MSHR_entries, &MSHR_banks, &wc) != 13)
+    fatal("invalid LLC options: <name:sets:assoc:linesize:banks:bank-width:latency:repl-policy:alloc-policy:write-policy:num-MSHR:MSHR-banks:write-combining>\n\t(%s)",LLC_opt_str);
 
   LLC = cache_create(NULL,name,CACHE_READWRITE,sets,assoc,linesize,
                      rp,ap,wp,wc,banks,bank_width,latency,
-                     WBB_entries,MSHR_entries,MSHR_banks,NULL,fsb);
+                     MSHR_entries,MSHR_banks,NULL,fsb);
   if(!LLC_MSHR_cmd || !strcasecmp(LLC_MSHR_cmd,"fcfs"))
     LLC->MSHR_cmd_order = NULL;
   else

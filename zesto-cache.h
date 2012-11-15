@@ -301,7 +301,6 @@ struct cache_t * cache_create(
     const int banks,
     const int bank_width,
     const int latency,
-    const int WBB_size,
     const int MSHR_size,
     const int MSHR_banked,
     struct cache_t * const next_level_cache,

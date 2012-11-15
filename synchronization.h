@@ -8,10 +8,11 @@
 
 #ifndef __SYNCHRONIZATION_H__
 #define __SYNCHRONIZATION_H__
+#include <stdint.h>
 
 namespace LEVEL_PINCLIENT {
 extern void PIN_Yield();
-extern void PIN_Sleep(uint msecs);
+extern void PIN_Sleep(uint32_t msecs);
 }
 
 inline void xio_sleep(int msecs)

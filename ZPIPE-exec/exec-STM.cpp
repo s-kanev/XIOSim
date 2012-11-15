@@ -203,7 +203,7 @@ core_exec_STM_t::core_exec_STM_t(struct core_t * arg_core):
   /* Data cache parsing first, functional units after this */
   /*********************************************************/
   char name[256];
-  int sets, assoc, linesize, latency, banks, bank_width, MSHR_entries, WBB_entries;
+  int sets, assoc, linesize, latency, banks, bank_width, MSHR_entries;
   char rp, ap, wp, wc;
   
   /* note: caches must be instantiated from the level furthest from the core first (e.g., LLC) */
@@ -218,12 +218,12 @@ core_exec_STM_t::core_exec_STM_t(struct core_t * arg_core):
   }
   else
   {
-    if(sscanf(knobs->memory.DL2_opt_str,"%[^:]:%d:%d:%d:%d:%d:%d:%c:%c:%c:%d:%d:%c",
-        name,&sets,&assoc,&linesize,&banks,&bank_width,&latency,&rp,&ap,&wp, &MSHR_entries, &WBB_entries, &wc) != 13)
-      fatal("invalid DL2 options: <name:sets:assoc:linesize:banks:bank-width:latency:repl-policy:alloc-policy:write-policy:num-MSHR:WB-buffers:write-combining>\n\t(%s)",knobs->memory.DL2_opt_str);
+    if(sscanf(knobs->memory.DL2_opt_str,"%[^:]:%d:%d:%d:%d:%d:%d:%c:%c:%c:%d:%c",
+        name,&sets,&assoc,&linesize,&banks,&bank_width,&latency,&rp,&ap,&wp, &MSHR_entries, &wc) != 12)
+      fatal("invalid DL2 options: <name:sets:assoc:linesize:banks:bank-width:latency:repl-policy:alloc-policy:write-policy:num-MSHR:write-combining>\n\t(%s)",knobs->memory.DL2_opt_str);
     core->memory.DL2 = cache_create(core,name,CACHE_READWRITE,sets,assoc,linesize,
                              rp,ap,wp,wc,banks,bank_width,latency,
-                             WBB_entries,MSHR_entries,1,uncore->LLC,uncore->LLC_bus);
+                             MSHR_entries,1,uncore->LLC,uncore->LLC_bus);
 
     if(!knobs->memory.DL2_MSHR_cmd || !strcasecmp(knobs->memory.DL2_MSHR_cmd,"fcfs"))
       core->memory.DL2->MSHR_cmd_order = NULL;
@@ -279,18 +279,18 @@ core_exec_STM_t::core_exec_STM_t(struct core_t * arg_core):
   }
 
   /* per-core DL1 */
-  if(sscanf(knobs->memory.DL1_opt_str,"%[^:]:%d:%d:%d:%d:%d:%d:%c:%c:%c:%d:%d:%c",
-      name,&sets,&assoc,&linesize,&banks,&bank_width,&latency,&rp,&ap,&wp, &MSHR_entries, &WBB_entries, &wc) != 13)
-    fatal("invalid DL1 options: <name:sets:assoc:linesize:banks:bank-width:latency:repl-policy:alloc-policy:write-policy:num-MSHR:WB-buffers:write-combining>\n\t(%s)",knobs->memory.DL1_opt_str);
+  if(sscanf(knobs->memory.DL1_opt_str,"%[^:]:%d:%d:%d:%d:%d:%d:%c:%c:%c:%d:%c",
+      name,&sets,&assoc,&linesize,&banks,&bank_width,&latency,&rp,&ap,&wp, &MSHR_entries, &wc) != 12)
+    fatal("invalid DL1 options: <name:sets:assoc:linesize:banks:bank-width:latency:repl-policy:alloc-policy:write-policy:num-MSHR:write-combining>\n\t(%s)",knobs->memory.DL1_opt_str);
 
   if(core->memory.DL2)
     core->memory.DL1 = cache_create(core,name,CACHE_READWRITE,sets,assoc,linesize,
                              rp,ap,wp,wc,banks,bank_width,latency,
-                             WBB_entries,MSHR_entries,1,core->memory.DL2,core->memory.DL2_bus);
+                             MSHR_entries,1,core->memory.DL2,core->memory.DL2_bus);
   else
     core->memory.DL1 = cache_create(core,name,CACHE_READWRITE,sets,assoc,linesize,
                              rp,ap,wp,wc,banks,bank_width,latency,
-                             WBB_entries,MSHR_entries,1,uncore->LLC,uncore->LLC_bus);
+                             MSHR_entries,1,uncore->LLC,uncore->LLC_bus);
   if(!knobs->memory.DL1_MSHR_cmd || !strcasecmp(knobs->memory.DL1_MSHR_cmd,"fcfs"))
     core->memory.DL1->MSHR_cmd_order = NULL;
   else
@@ -354,9 +354,9 @@ core_exec_STM_t::core_exec_STM_t(struct core_t * arg_core):
     fatal("invalid DTLB options: <name:sets:assoc:banks:latency:repl-policy:num-MSHR>");
 
   if(core->memory.DL2)
-    core->memory.DTLB = cache_create(core,name,CACHE_READONLY,sets,assoc,1,rp,'w','t','n',banks,1,latency,4,MSHR_entries,1,core->memory.DL2,core->memory.DL2_bus);
+    core->memory.DTLB = cache_create(core,name,CACHE_READONLY,sets,assoc,1,rp,'w','t','n',banks,1,latency,MSHR_entries,1,core->memory.DL2,core->memory.DL2_bus);
   else
-    core->memory.DTLB = cache_create(core,name,CACHE_READONLY,sets,assoc,1,rp,'w','t','n',banks,1,latency,4,MSHR_entries,1,uncore->LLC,uncore->LLC_bus);
+    core->memory.DTLB = cache_create(core,name,CACHE_READONLY,sets,assoc,1,rp,'w','t','n',banks,1,latency,MSHR_entries,1,uncore->LLC,uncore->LLC_bus);
   core->memory.DTLB->MSHR_cmd_order = NULL;
 
   /*******************/
