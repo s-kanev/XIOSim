@@ -15,7 +15,8 @@ class cache_controller_none_t : public cache_controller_t {
 
   virtual bool can_schedule_upstream();
   virtual bool can_schedule_downstream(struct cache_t * const prev_cache);
-  virtual bool on_new_MSHR(int bank, int MSHR_index, struct cache_action_t * MSHR);
+  virtual bool send_request_upstream(int bank, int MSHR_index, struct cache_action_t * MSHR);
+  virtual void send_response_downstream(struct cache_action_t * const MSHR);
 };
 
 cache_controller_none_t::cache_controller_none_t(struct core_t * const core, struct cache_t * const cache, const char * opt_string) :
@@ -51,7 +52,7 @@ bool cache_controller_none_t::can_schedule_downstream(struct cache_t * const pre
   return (!prev_cache || bus_free(prev_cache->next_bus));
 }
 
-bool cache_controller_none_t::on_new_MSHR(int bank, int MSHR_index, struct cache_action_t * MSHR)
+bool cache_controller_none_t::send_request_upstream(int bank, int MSHR_index, struct cache_action_t * MSHR)
 {
   if(cache->next_level) /* enqueue the request to the next-level cache */
   {
@@ -74,6 +75,16 @@ bool cache_controller_none_t::on_new_MSHR(int bank, int MSHR_index, struct cache
 
   MSHR->when_started = sim_cycle;
   return true;
+}
+
+void cache_controller_none_t::send_response_downstream(struct cache_action_t * const MSHR)
+{
+  if(MSHR->prev_cp)
+  {
+    /* everyone but the response from a writeback transfers a full cache line */
+    bus_use(MSHR->prev_cp->next_bus, (MSHR->cmd == CACHE_WRITEBACK) ? 1 : MSHR->prev_cp->linesize, MSHR->cmd == CACHE_PREFETCH);
+    fill_arrived(MSHR->prev_cp, MSHR->MSHR_bank, MSHR->MSHR_index);
+  }
 }
 
 #endif /* ZESTO_PARSE_ARGS */

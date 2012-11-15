@@ -1724,7 +1724,7 @@ static void cache_process_MSHR_WB(struct cache_t * const cp, int start_point)
 
           MSHR_WB_work_found = true;
           /* Let controller handle sending a request to upper level */
-          if(cp->controller->on_new_MSHR(bank, oldest_index, MSHR_WB))
+          if(cp->controller->send_request_upstream(bank, oldest_index, MSHR_WB))
           {
             cp->MSHR_WB_num[bank] --;
             cache_assert(cp->MSHR_WB_num[bank] >= 0,(void)0);
@@ -1847,12 +1847,7 @@ static void cache_process_MSHR_fill(struct cache_t * const cp, int start_point)
           if(!MSHR->prev_cp && MSHR->cb && MSHR->op && (MSHR->action_id == MSHR->get_action_id(MSHR->op)))
             MSHR->cb(MSHR->op);
 
-          if(MSHR->prev_cp)
-          {
-            /* everyone but the response from a writeback transfers a full cache line */
-            bus_use(MSHR->prev_cp->next_bus,(MSHR->cmd==CACHE_WRITEBACK)?1:MSHR->prev_cp->linesize,MSHR->cmd==CACHE_PREFETCH);
-            fill_arrived(MSHR->prev_cp,MSHR->MSHR_bank,MSHR->MSHR_index);
-          }
+          cp->controller->send_response_downstream(MSHR);
 
           MSHR_deallocate(cp, MSHR->paddr, old_index);
         }
@@ -1978,18 +1973,22 @@ static void cache_process_pipe(struct cache_t * const cp, int start_point)
 
             if(line != NULL) /* if cache hit */
             {
-              if((ca->cmd == CACHE_WRITE || ca->cmd == CACHE_WRITEBACK) && (cp->write_policy == WRITE_THROUGH))
-              {
-                if(!MSHR_available(cp,ca->paddr))
-                  continue; /* can't go until MSHR is available */
+              bool needs_WB = (ca->cmd == CACHE_WRITE || ca->cmd == CACHE_WRITEBACK) && (cp->write_policy == WRITE_THROUGH);
+              if(needs_WB && !MSHR_available(cp,ca->paddr))
+                continue; /* can't go until MSHR is available */
 
+              if(!cp->controller->can_schedule_downstream(ca->prev_cp))
+                continue; /* or until controller says we can respond downstream */
+
+              /* on a write-through cache, use a MSHR entry to send write to the next level */
+              if(needs_WB)
+              {
                 struct cache_line_t tmp_line;
                 tmp_line.core = ca->core;
                 tmp_line.tag = ca->paddr >> cp->addr_shift;
                 tmp_line.valid = true;
                 tmp_line.dirty = false;
 
-                /* on a write-through cache, use a MSHR entry to send write to the next level */
                 MSHR_WB_insert(cp,&tmp_line);
               }
 
@@ -2008,8 +2007,7 @@ static void cache_process_pipe(struct cache_t * const cp, int start_point)
               update_request_stats(cp, ca, line, true);
 
               /* fill previous level as appropriate */
-              if(ca->prev_cp)
-                fill_arrived(ca->prev_cp,ca->MSHR_bank,ca->MSHR_index);
+              cp->controller->send_response_downstream(ca);
             }
             else /* miss in main data array */
             {
@@ -2079,6 +2077,9 @@ static void cache_process_pipe(struct cache_t * const cp, int start_point)
 
               if(last_chance_hit)
               {
+                // FIXME: This whole last_chance section needs to be reowrked!
+                cache_assert(cp->controller->can_schedule_downstream(ca->prev_cp), (void)0);
+
                 /* only invoke callback if this is an L1 cache (see earlier comment
                    for a regular cache hit. */
                 if(!ca->prev_cp && ca->op && (ca->action_id == ca->get_action_id(ca->op)))
@@ -2087,8 +2088,7 @@ static void cache_process_pipe(struct cache_t * const cp, int start_point)
                 update_request_stats(cp, ca, NULL, true);
 
                 /* fill previous level as appropriate */
-                if(ca->prev_cp)
-                  fill_arrived(ca->prev_cp,ca->MSHR_bank,ca->MSHR_index);
+                cp->controller->send_response_downstream(ca);
               }
               else /* ok, we really missed */
               {
@@ -2240,7 +2240,7 @@ static void cache_process_MSHR(struct cache_t * const cp, int start_point)
                 else
                 {
                   /* let controller handle next level request */
-                  if(cp->controller->on_new_MSHR(bank, index, MSHR))
+                  if(cp->controller->send_request_upstream(bank, index, MSHR))
                   {
                     cp->MSHR_unprocessed_num[bank]--;
                     cache_assert(cp->MSHR_unprocessed_num[bank] >= 0,(void)0);
@@ -2340,7 +2340,7 @@ static void cache_process_MSHR(struct cache_t * const cp, int start_point)
                 else
                 {
                   /* let controller handle next level request */
-                  if(cp->controller->on_new_MSHR(bank, index, MSHR))
+                  if(cp->controller->send_request_upstream(bank, index, MSHR))
                   {
                     cp->MSHR_unprocessed_num[bank]--;
                     cache_assert(cp->MSHR_unprocessed_num[bank] >= 0,(void)0);

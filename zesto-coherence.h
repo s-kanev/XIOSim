@@ -15,7 +15,8 @@ class cache_controller_t {
 
   virtual bool can_schedule_upstream() = 0;
   virtual bool can_schedule_downstream(struct cache_t * const prev_cache) = 0;
-  virtual bool on_new_MSHR(int bank, int MSHR_index, struct cache_action_t * MSHR) = 0;
+  virtual bool send_request_upstream(int bank, int MSHR_index, struct cache_action_t * MSHR) = 0;
+  virtual void send_response_downstream(struct cache_action_t * const MSHR) = 0;
 
   protected:
   struct cache_t * const cache;

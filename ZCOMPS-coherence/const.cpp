@@ -15,7 +15,8 @@ class cache_controller_const_t : public cache_controller_t {
 
   virtual bool can_schedule_upstream();
   virtual bool can_schedule_downstream(struct cache_t * const prev_cache);
-  virtual bool on_new_MSHR(int bank, int MSHR_index, struct cache_action_t * MSHR);
+  virtual bool send_request_upstream(int bank, int MSHR_index, struct cache_action_t * MSHR);
+  virtual void send_response_downstream(struct cache_action_t * const MSHR);
 };
 
 struct const_coherence_data : public line_coherence_data_t {
@@ -56,9 +57,14 @@ bool cache_controller_const_t::can_schedule_downstream(struct cache_t * const pr
   return (!prev_cache || bus_free(prev_cache->next_bus));
 }
 
-bool cache_controller_const_t::on_new_MSHR(int bank, int MSHR_index, struct cache_action_t * MSHR)
+bool cache_controller_const_t::send_request_upstream(int bank, int MSHR_index, struct cache_action_t * MSHR)
 {
   return true;
+}
+
+void cache_controller_const_t::send_response_downstream(struct cache_action_t * const MSHR)
+{
+  (void) MSHR;
 }
 
 #endif /* ZESTO_PARSE_ARGS */
