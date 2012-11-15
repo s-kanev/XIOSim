@@ -97,6 +97,10 @@ struct line_coherence_data_t {
   qword_t v;
 };
 
+struct action_coherence_data_t {
+  qword_t v;
+};
+
 struct cache_line_t {
   md_paddr_t tag;
   struct core_t * core; /* originating core */
@@ -124,6 +128,7 @@ struct cache_action_t {
   int MSHR_index;   /* for lower level */
   bool miss_cb_invoked;
   enum cache_command cmd;
+  struct action_coherence_data_t coh;
   struct cache_t * prev_cp;
   /* final call back on service-complete */
   void (*cb)(void * op); /* NULL = invalid/empty entry */
@@ -366,7 +371,8 @@ void cache_enqueue(
 void fill_arrived(
     struct cache_t * const cp,
     const int MSHR_bank,
-    const int MSHR_index);
+    const int MSHR_index,
+    const tick_t delay = 0);
 
 void step_core_PF_controllers(struct core_t * const core);
 void prefetch_core_caches(struct core_t * const core);

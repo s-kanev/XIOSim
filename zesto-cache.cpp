@@ -1452,7 +1452,8 @@ static void MSHR_insert(
 void fill_arrived(
     struct cache_t * const cp,
     const int MSHR_bank,
-    const int MSHR_index)
+    const int MSHR_index,
+    const tick_t delay)
 {
   struct cache_action_t * MSHR = &cp->MSHR[MSHR_bank][MSHR_index];
   cache_assert(!MSHR->MSHR_linked,(void)0);
@@ -1462,7 +1463,7 @@ void fill_arrived(
   cp->check_for_MSHR_WB_work = true;
 
   if(MSHR->cb != NULL) /* original request was squashed */
-    MSHR->when_returned = sim_cycle;
+    MSHR->when_returned = sim_cycle + delay;
 
   /* deal with combined/coalesced entries */
   struct cache_action_t * p = MSHR->MSHR_link, * next = NULL;
@@ -1471,7 +1472,7 @@ void fill_arrived(
     if((p->cb != NULL) && (p->when_returned == TICK_T_MAX))
     {
       cache_assert(p->MSHR_linked,(void)0);
-      p->when_returned = sim_cycle;
+      p->when_returned = sim_cycle + delay;
     }
     p->MSHR_linked = false;
     next = p->MSHR_link;

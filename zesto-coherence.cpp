@@ -1,8 +1,12 @@
+#include <map>
+
 #include "thread.h"
+#include "synchronization.h"
 
 #include "zesto-opts.h"
 #include "zesto-cache.h"
 #include "zesto-coherence.h"
+#include "zesto-core.h"
 #include "zesto-uncore.h"
 #include "zesto-noc.h"
 
