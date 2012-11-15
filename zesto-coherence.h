@@ -1,16 +1,19 @@
 #ifndef ZESTO_COHERENCE_INCLUDED
 #define ZESTO_COHERENCE_INCLUDED
 
+enum controller_response_t { MSHR_CHECK_ARRAY, MSHR_STALL };
+enum controller_array_response_t { ARRAY_HIT, ARRAY_MISS };
+
 class cache_controller_t {
   public:
   cache_controller_t (
     struct core_t * const core,
     struct cache_t * const cache);
 
-  virtual bool is_array_hit(struct cache_line_t * line) = 0;
-  virtual bool is_mshr_hit(struct cache_action_t * mshr_item) = 0;
+  virtual controller_array_response_t check_array(struct cache_line_t * line) = 0;
+  virtual controller_response_t check_MSHR(struct cache_action_t * MSHR_item) = 0;
 
-  bool use_victim_cache;
+  virtual bool on_new_MSHR(int bank, int MSHR_index, struct cache_action_t * MSHR) = 0;
 
   protected:
   struct cache_t * const cache;

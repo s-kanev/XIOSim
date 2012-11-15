@@ -1381,16 +1381,18 @@ static void MSHR_WB_insert(
   md_paddr_t new_addr = cache_block->tag << cp->addr_shift;
   struct cache_action_t * MSHR = MSHR_allocate(cp, new_addr, CACHE_WRITEBACK);
   bool MSHR_linked = MSHR->MSHR_linked;
+  int new_bank = GET_MSHR_BANK(new_addr);
+  int new_index = MSHR - cp->MSHR[new_bank];
   MSHR->core = cache_block->core;
   MSHR->op = NULL;
   MSHR->PC = 0;
   MSHR->paddr = new_addr;
   MSHR->type = MSHR_WRITEBACK;
-  MSHR->MSHR_bank = 0;
-  MSHR->MSHR_index = NO_MSHR;
+  MSHR->MSHR_bank = new_bank;
+  MSHR->MSHR_index = new_index;
   MSHR->miss_cb_invoked = false;
   MSHR->cmd = CACHE_WRITEBACK;
-  MSHR->prev_cp = NULL;
+  MSHR->prev_cp = cp;
   MSHR->cb = dummy_callback;
   MSHR->miss_cb = NULL;
   MSHR->translated_cb = NULL;
@@ -1402,6 +1404,11 @@ static void MSHR_WB_insert(
   MSHR->MSHR_linked = MSHR_linked;
   if(MSHR_linked)
     MSHR->when_started = sim_cycle;
+  else
+  {
+    cp->MSHR_WB_num[new_bank]++;
+    cache_assert(cp->MSHR_WB_num[new_bank] <= cp->MSHR_size, (void)0);
+  }
 
   cp->check_for_work = true;
   cp->check_for_MSHR_WB_work = true;
@@ -1679,71 +1686,52 @@ static void cache_process_MSHR_WB(struct cache_t * const cp, int start_point)
   bool MSHR_WB_work_found = false;
 
   if(cp->check_for_MSHR_WB_work) {
+    /* Check if we can use bus to upper level */
+    int bus_available = false;
+    if(cp->next_level)
+      bus_available = bus_free(cp->next_bus);
+    else
+      bus_available = bus_free(uncore->fsb);
 
-    /* process write-backs in MSHR (in FIFO order) */
-    for(b=0;b<cp->MSHR_banks;b++)
+    if(bus_available)
     {
-      int bank = (start_point+b) & cp->MSHR_mask;
-      if(cp->MSHR_WB_num[bank]) /* there are cast-outs pending to be written back */
+      /* process write-backs in MSHR (in FIFO order) */
+      for(b=0;b<cp->MSHR_banks;b++)
       {
-        struct cache_action_t * MSHR_WB;
-        tick_t oldest_time = TICK_T_MAX;
-        int oldest_index = -1;
-        for(int j=0; j < cp->MSHR_size; j++)
+        int bank = (start_point+b) & cp->MSHR_mask;
+        if(cp->MSHR_WB_num[bank]) /* there are cast-outs pending to be written back */
         {
-          MSHR_WB = &cp->MSHR[bank][j];
-          if(MSHR_WB->cb == NULL)
-            continue;
-
-          if(MSHR_WB->type != MSHR_WRITEBACK)
-            continue;
-
-          if(MSHR_WB->when_started != TICK_T_MAX)
-            continue;
-
-          if(MSHR_WB->when_enqueued < oldest_time)
+          struct cache_action_t * MSHR_WB;
+          tick_t oldest_time = TICK_T_MAX;
+          int oldest_index = -1;
+          for(int j=0; j < cp->MSHR_size; j++)
           {
-            oldest_time = MSHR_WB->when_enqueued;
-            oldest_index = j;
-          }
-        }
+            MSHR_WB = &cp->MSHR[bank][j];
+            if(MSHR_WB->cb == NULL)
+              continue;
 
-        if(oldest_index < 0)
-            continue;
+            if(MSHR_WB->type != MSHR_WRITEBACK)
+              continue;
 
-        MSHR_WB = &cp->MSHR[bank][oldest_index];
+            if(MSHR_WB->when_started != TICK_T_MAX)
+              continue;
 
-        MSHR_WB_work_found = true;
-        if(cp->next_level)
-        {
-          if(!cp->next_bus || bus_free(cp->next_bus))
-          {
-            if(cache_enqueuable(cp->next_level,DO_NOT_TRANSLATE,MSHR_WB->paddr))
+            if(MSHR_WB->when_enqueued < oldest_time)
             {
-              cache_enqueue(MSHR_WB->core,cp->next_level,NULL,CACHE_WRITEBACK,DO_NOT_TRANSLATE,0,MSHR_WB->paddr,(seq_t)-1,0,NO_MSHR,NULL,dummy_callback,NULL,NULL,NULL);
-              bus_use(cp->next_bus,cp->linesize,false);
-
-              /* WBB entry remains valid to serve as victim cache */
-              // SK: not for now -- dificult to integrate with coherence
-              //MSHR_WB->dirty = false;
-              MSHR_WB->when_started = sim_cycle;
-              cp->MSHR_WB_num[bank] --;
-              cache_assert(cp->MSHR_WB_num[bank] >= 0,(void)0);
+              oldest_time = MSHR_WB->when_enqueued;
+              oldest_index = j;
             }
           }
-        }
-        else
-        {
-          /* write back to main memory */
-          if(bus_free(uncore->fsb) && uncore->MC->enqueuable())
-          {
-            uncore->MC->enqueue(NULL,CACHE_WRITEBACK,MSHR_WB->paddr,cp->linesize,(md_paddr_t)-1,0,NO_MSHR,NULL,NULL,NULL);
-            bus_use(uncore->fsb,cp->linesize>>uncore->fsb_DDR,false);
 
-            /* WBB entry remains valid to serve as victim cache */
-            // SK: not for now -- dificult to integrate with coherence
-            //MSHR_WB->dirty = false;
-            MSHR_WB->when_started = sim_cycle;
+          if(oldest_index < 0)
+              continue;
+
+          MSHR_WB = &cp->MSHR[bank][oldest_index];
+
+          MSHR_WB_work_found = true;
+          /* Let controller handle sending a request to upper level */
+          if(cp->controller->on_new_MSHR(bank, oldest_index, MSHR_WB))
+          {
             cp->MSHR_WB_num[bank] --;
             cache_assert(cp->MSHR_WB_num[bank] >= 0,(void)0);
           }
@@ -1769,7 +1757,6 @@ static void cache_process_MSHR_WB(struct cache_t * const cp, int start_point)
           MSHR_deallocate(cp, MSHR_WB->paddr, j);
       }
     }
-
   }
   cp->check_for_MSHR_WB_work = MSHR_WB_work_found;
 }
@@ -1966,9 +1953,35 @@ static void cache_process_pipe(struct cache_t * const cp, int start_point)
         {
           if(ca->pipe_exit_time <= sim_cycle)
           {
+            /* Check if request isn't already in an MSHR */
+            int this_bank = GET_BANK(ca->paddr);
+            int MSHR_index = -1;
+            for(int j=0; j<cp->MSHR_size; j++)
+            {
+              struct cache_action_t * MSHR = &cp->MSHR[this_bank][j];
+              if(MSHR->cb && MSHR->paddr == ca->paddr)
+              {
+                MSHR_index = j;
+                break;
+              }
+            }
+
+            if(MSHR_index >= 0)
+            {
+              struct cache_action_t * MSHR = &cp->MSHR[this_bank][MSHR_index];
+              controller_response_t res = cp->controller->check_MSHR(MSHR);
+              /* Waiting on a coherence result / result from a higher level */
+              if(res == MSHR_STALL)
+                continue;
+            }
+
+            /* Check cache array and ask controller for an OK after hit there */
             struct cache_line_t * line = cache_is_hit(cp,ca->cmd,ca->paddr,ca->core);
-            if(cp->controller && !cp->controller->is_array_hit(line))
+
+            controller_array_response_t res = cp->controller->check_array(line);
+            if(res == ARRAY_MISS)
               line = NULL;
+
             if(line != NULL) /* if cache hit */
             {
               if((ca->cmd == CACHE_WRITE || ca->cmd == CACHE_WRITEBACK) && (cp->write_policy == WRITE_THROUGH))
@@ -2220,57 +2233,46 @@ static void cache_process_MSHR(struct cache_t * const cp, int start_point)
                 }
               }
 
-              if(index != -1)
+              if(index < 0)
+                continue;
+
+              struct cache_action_t * MSHR = &cp->MSHR[bank][index];
+              if(MSHR->cb)
               {
-                struct cache_action_t * MSHR = &cp->MSHR[bank][index];
-                if(MSHR->cb)
+                if(MSHR->MSHR_linked)
                 {
-                  if(MSHR->MSHR_linked)
+                  /* this entry combined/coalesced, but still need to invoke miss_cb */
+                  MSHR->when_started = sim_cycle;
+                  cp->MSHR_unprocessed_num[bank]--;
+                  cache_assert(cp->MSHR_unprocessed_num[bank] >= 0,(void)0);
+                  if(MSHR->miss_cb && MSHR->op && (MSHR->action_id == MSHR->get_action_id(MSHR->op)))
+                    MSHR->miss_cb(MSHR->op,cp->next_level->latency); /* restarts speculative scheduling */
+                  break;
+                }
+                else
+                {
+                  /* let controller handle next level request */
+                  if(cp->controller->on_new_MSHR(bank, index, MSHR))
                   {
-                    /* this entry combined/coalesced, but still need to invoke miss_cb */
-                    MSHR->when_started = sim_cycle;
                     cp->MSHR_unprocessed_num[bank]--;
                     cache_assert(cp->MSHR_unprocessed_num[bank] >= 0,(void)0);
-                    if(MSHR->miss_cb && MSHR->op && (MSHR->action_id == MSHR->get_action_id(MSHR->op)))
-                      MSHR->miss_cb(MSHR->op,cp->next_level->latency); /* restarts speculative scheduling */
-                    break;
-                  }
-                  else
-                  {
-                    cache_assert(!MSHR->MSHR_linked,(void)0);
-                    if(cp->next_level) /* enqueue the request to the next-level cache */
+                    /* Invoke miss callback to let core know about new expected latency */
+                    if(MSHR->miss_cb && MSHR->op &&
+                       (MSHR->action_id == MSHR->get_action_id(MSHR->op)))
                     {
-                      if(cache_enqueuable(cp->next_level,DO_NOT_TRANSLATE,MSHR->paddr))
+                      int miss_latency;
+                      if(cp->next_level)
+                        miss_latency = cp->next_level->latency;
+                      else
                       {
-                        cache_enqueue(MSHR->core,cp->next_level,cp,MSHR->cmd,DO_NOT_TRANSLATE,MSHR->PC,MSHR->paddr,MSHR->action_id,bank,index/*our MSHR index*/,MSHR->op,MSHR->cb,MSHR->miss_cb,NULL,MSHR->get_action_id);
-                        bus_use(cp->next_bus,(MSHR->cmd==CACHE_WRITE||MSHR->cmd==CACHE_WRITEBACK)?cp->linesize:1,MSHR->cmd==CACHE_PREFETCH);
-                        MSHR->when_started = sim_cycle;
-                        cp->MSHR_unprocessed_num[bank]--;
-                        cache_assert(cp->MSHR_unprocessed_num[bank] >= 0,(void)0);
-                        if(MSHR->miss_cb && MSHR->op && (MSHR->action_id == MSHR->get_action_id(MSHR->op)))
-                          MSHR->miss_cb(MSHR->op,cp->next_level->latency); /* restarts speculative scheduling */
-                        break;
-                      }
-                    }
-                    else /* or if there is no next level, enqueue to the memory controller */
-                    { 
-                      if(uncore->MC->enqueuable())
-                      {
-                        uncore->MC->enqueue(cp,MSHR->cmd,MSHR->paddr,cp->linesize,MSHR->action_id,bank/* our MSHR bank */,index/*our MSHR index*/,MSHR->op,MSHR->cb,MSHR->get_action_id);
-                        bus_use(uncore->fsb,(MSHR->cmd==CACHE_WRITE||MSHR->cmd==CACHE_WRITEBACK)?(cp->linesize>>uncore->fsb_DDR):1,MSHR->cmd==CACHE_PREFETCH);
-                        MSHR->when_started = sim_cycle;
-                        cp->MSHR_unprocessed_num[bank]--;
-                        cache_assert(cp->MSHR_unprocessed_num[bank] >= 0,(void)0);
-                        if(MSHR->miss_cb && MSHR->op && (MSHR->action_id == MSHR->get_action_id(MSHR->op)))
-                        {
+                        miss_latency = BIG_LATENCY;
 #ifdef ZTRACE
-                          ztrace_print("%s|miss",cp->name);
+                        ztrace_print("%s|miss",cp->name);
 #endif
-                          MSHR->miss_cb(MSHR->op,BIG_LATENCY);
-                        }
-                        break;
                       }
+                      MSHR->miss_cb(MSHR->op, miss_latency); /* restarts speculative scheduling */
                     }
+                    break;
                   }
                 }
               }
@@ -2315,75 +2317,63 @@ static void cache_process_MSHR(struct cache_t * const cp, int start_point)
                   }
                 }
 
-                if(index != -1)
+                if(index < 0)
+                  continue;
+
+                struct cache_action_t * MSHR = &cp->MSHR[bank][index];
+
+                /* If this operation is waiting on a TLB miss, it could take awhile. Invoke the miss
+                   callback function to reduce replays. */
+                if(!MSHR->miss_cb_invoked && (MSHR->translated_cb && !MSHR->translated_cb(MSHR->op,MSHR->action_id)))
                 {
-                  struct cache_action_t * MSHR = &cp->MSHR[bank][index];
-
-                  /* If this operation is waiting on a TLB miss, it could take awhile. Invoke the miss
-                     callback function to reduce replays. */
-                  if(!MSHR->miss_cb_invoked && (MSHR->translated_cb && !MSHR->translated_cb(MSHR->op,MSHR->action_id)))
+                  if(MSHR->miss_cb && MSHR->op && (MSHR->action_id == MSHR->get_action_id(MSHR->op)))
                   {
-                    if(MSHR->miss_cb && MSHR->op && (MSHR->action_id == MSHR->get_action_id(MSHR->op)))
-                    {
 #ifdef ZTRACE
-                      ztrace_print("%s|miss",cp->name);
+                    ztrace_print("%s|miss",cp->name);
 #endif
-                      MSHR->miss_cb_invoked = true;
-                      MSHR->miss_cb(MSHR->op,BIG_LATENCY);
-                    }
+                    MSHR->miss_cb_invoked = true;
+                    MSHR->miss_cb(MSHR->op,BIG_LATENCY);
                   }
+                }
 
-                  assert((MSHR->cmd == cmd) && MSHR->cb);
+                assert((MSHR->cmd == cmd) && MSHR->cb);
 
-                  if(MSHR->MSHR_linked)
+                if(MSHR->MSHR_linked)
+                {
+                  /* this entry combined/coalesced, but still need to invoke miss_cb */
+                  MSHR->when_started = sim_cycle;
+                  cp->MSHR_unprocessed_num[bank]--;
+                  cache_assert(cp->MSHR_unprocessed_num[bank] >= 0,(void)0);
+                  if(MSHR->miss_cb && MSHR->op && (MSHR->action_id == MSHR->get_action_id(MSHR->op)))
+                    MSHR->miss_cb(MSHR->op,cp->next_level->latency); /* restarts speculative scheduling */
+                  sent_something = true;
+                  break;
+                }
+                else
+                {
+                  /* let controller handle next level request */
+                  if(cp->controller->on_new_MSHR(bank, index, MSHR))
                   {
-                    /* this entry combined/coalesced, but still need to invoke miss_cb */
-                    MSHR->when_started = sim_cycle;
                     cp->MSHR_unprocessed_num[bank]--;
                     cache_assert(cp->MSHR_unprocessed_num[bank] >= 0,(void)0);
-                    if(MSHR->miss_cb && MSHR->op && (MSHR->action_id == MSHR->get_action_id(MSHR->op)))
-                      MSHR->miss_cb(MSHR->op,cp->next_level->latency); /* restarts speculative scheduling */
+                    /* Invoke miss callback to let core know about new expected latency */
+                    if(MSHR->miss_cb && MSHR->op &&
+                       (MSHR->action_id == MSHR->get_action_id(MSHR->op)))
+                    {
+                      int miss_latency;
+                      if(cp->next_level)
+                        miss_latency = cp->next_level->latency;
+                      else
+                      {
+                        miss_latency = BIG_LATENCY;
+#ifdef ZTRACE
+                        ztrace_print("%s|miss",cp->name);
+#endif
+                      }
+                      MSHR->miss_cb(MSHR->op, miss_latency); /* restarts speculative scheduling */
+                    }
                     sent_something = true;
                     break;
-                  }
-                  else
-                  {
-                    cache_assert(!MSHR->MSHR_linked,(void)0);
-                    if(cp->next_level) /* enqueue the request to the next-level cache */
-                    {
-                      if(cache_enqueuable(cp->next_level,DO_NOT_TRANSLATE,MSHR->paddr))
-                      {
-                        cache_enqueue(MSHR->core,cp->next_level,cp,MSHR->cmd,DO_NOT_TRANSLATE,MSHR->PC,MSHR->paddr,MSHR->action_id,bank,index/*our MSHR index*/,MSHR->op,MSHR->cb,MSHR->miss_cb,NULL,MSHR->get_action_id);
-                        bus_use(cp->next_bus,(MSHR->cmd==CACHE_WRITE||MSHR->cmd==CACHE_WRITEBACK)?cp->linesize:1,MSHR->cmd==CACHE_PREFETCH);
-                        MSHR->when_started = sim_cycle;
-                        cp->MSHR_unprocessed_num[bank]--;
-                        cache_assert(cp->MSHR_unprocessed_num[bank] >= 0,(void)0);
-                        if(MSHR->miss_cb && MSHR->op && (MSHR->action_id == MSHR->get_action_id(MSHR->op)))
-                          MSHR->miss_cb(MSHR->op,cp->next_level->latency); /* restarts speculative scheduling */
-                        sent_something = true;
-                        break;
-                      }
-                    }
-                    else /* or if there is no next level, enqueue to the memory controller */
-                    { 
-                      if(uncore->MC->enqueuable())
-                      {
-                        uncore->MC->enqueue(cp,MSHR->cmd,MSHR->paddr,cp->linesize,MSHR->action_id,bank/* our MSHR bank */,index/*our MSHR index*/,MSHR->op,MSHR->cb,MSHR->get_action_id);
-                        bus_use(uncore->fsb,(MSHR->cmd==CACHE_WRITE||MSHR->cmd==CACHE_WRITEBACK)?(cp->linesize>>uncore->fsb_DDR):1,MSHR->cmd==CACHE_PREFETCH);
-                        MSHR->when_started = sim_cycle;
-                        cp->MSHR_unprocessed_num[bank]--;
-                        cache_assert(cp->MSHR_unprocessed_num[bank] >= 0,(void)0);
-                        if(MSHR->miss_cb && MSHR->op && (MSHR->action_id == MSHR->get_action_id(MSHR->op)))
-                        {
-#ifdef ZTRACE
-                          ztrace_print("%s|miss",cp->name);
-#endif
-                          MSHR->miss_cb(MSHR->op,BIG_LATENCY);
-                        }
-                        sent_something = true;
-                        break;
-                      }
-                    }
                   }
                 }
               }

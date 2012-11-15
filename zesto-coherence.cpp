@@ -1,6 +1,10 @@
 #include "machine.h"
+#include "memory.h"
+
+#include "zesto-opts.h"
 #include "zesto-cache.h"
 #include "zesto-coherence.h"
+#include "zesto-uncore.h"
 
 /* load in all definitions */
 #include "ZCOMPS-coherence.list"
