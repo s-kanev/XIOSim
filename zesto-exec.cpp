@@ -273,8 +273,10 @@ void exec_reg_options(struct opt_odb_t * odb, struct core_knobs_t * knobs)
       &knobs->memory.warm_caches, /*default*/ false, /*print*/true,/*format*/NULL);
 
   /* Coherency options */
-  opt_reg_string(odb, "-dl1:coh_controller","1st-level data cache coherency controller configuration [DS]",
+  opt_reg_string(odb, "-dl1:controller","1st-level data cache coherency controller configuration [DS]",
       &knobs->memory.DL1_controller_opt_str, /*default*/ "none", /*print*/true,/*format*/NULL);
+  opt_reg_string(odb, "-dl2:controller","2nd-level data cache coherency controller configuration [DS]",
+      &knobs->memory.DL2_controller_opt_str, /*default*/ "none", /*print*/true,/*format*/NULL);
 
   /*******************************/
   /* memory dependence predictor */

@@ -416,6 +416,7 @@ struct core_knobs_t
     const char * DL2PF_opt_str[MAX_PREFETCHERS];
 
     const char * DL1_controller_opt_str;
+    const char * DL2_controller_opt_str;
 
     bool warm_caches;
     int syscall_memory_latency;

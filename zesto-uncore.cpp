@@ -83,6 +83,7 @@
 #include "zesto-uncore.h"
 #include "zesto-dram.h"
 #include "zesto-MC.h"
+#include "zesto-coherence.h"
 #include "zesto-noc.h"
 
 
@@ -102,6 +103,7 @@ bool fsb_magic; /* ideal FSB flag */
 bool cache_magic; /* ideal cache flag */
 static const char * MC_opt_string = NULL;
 static const char * LLC_opt_str = "LLC:4096:16:64:16:64:9:L:W:B:8:1:8:C";
+static const char * LLC_controller_str = "none";
 static int LLC_bus_ratio = 1;
 static int LLC_access_rate = 1;
 static const char * LLC_MSHR_cmd = "RPWB";
@@ -212,6 +214,7 @@ uncore_t::uncore_t(
     LLC->num_prefetchers = LLC_num_PF = 0;
 
   LLC_bus = bus_create("LLC_bus",LLC->linesize,LLC_bus_ratio);
+  LLC->controller = controller_create(LLC_controller_str, NULL, LLC);
 }
 
 /* destructor */
@@ -257,6 +260,8 @@ uncore_reg_options(struct opt_odb_t * const odb)
   opt_reg_flag(odb, "-LLC:pf:miss","generate LLC prefetches only from miss traffic [DS]",
       &LLC_PF_on_miss, /*default*/ false, /*print*/true,/*format*/NULL);
 
+  opt_reg_string(odb, "-LLC:controller","last-level cache controller string [DS]",
+      &LLC_controller_str, /*default*/ "none", /*print*/true,/*format*/NULL);
 
   opt_reg_int(odb, "-fsb:width", "front-side bus width (bytes) [DS]",
       &fsb_width, /* default */4, /* print */true, /* format */NULL);
