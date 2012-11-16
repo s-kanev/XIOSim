@@ -89,6 +89,8 @@
 #include "zesto-uncore.h"
 #include "zesto-MC.h"
 #include "zesto-dram.h"
+#include "zesto-noc.h"
+#include "zesto-coherence.h"
 
 
 void fetch_reg_options(struct opt_odb_t * odb, struct core_knobs_t * knobs)
@@ -155,6 +157,12 @@ void fetch_reg_options(struct opt_odb_t * odb, struct core_knobs_t * knobs)
 
   opt_reg_flag(odb, "-warm:bpred","warm branch predictors during functional fast-forwarding [DS]",
       &knobs->fetch.warm_bpred, /*default*/ false, /*print*/true,/*format*/NULL);
+
+  /* Coherency options */
+  opt_reg_string(odb, "-il1:controller","1st-level instruction cache coherency controller configuration [DS]",
+      &knobs->memory.IL1_controller_opt_str, /*default*/ "none", /*print*/true,/*format*/NULL);
+  opt_reg_string(odb, "-itlb:controller","1st-level ITLB coherency controller configuration [DS]",
+      &knobs->memory.ITLB_controller_opt_str, /*default*/ "none", /*print*/true,/*format*/NULL);
 }
 
 

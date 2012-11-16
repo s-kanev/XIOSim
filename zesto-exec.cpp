@@ -277,6 +277,10 @@ void exec_reg_options(struct opt_odb_t * odb, struct core_knobs_t * knobs)
       &knobs->memory.DL1_controller_opt_str, /*default*/ "none", /*print*/true,/*format*/NULL);
   opt_reg_string(odb, "-dl2:controller","2nd-level data cache coherency controller configuration [DS]",
       &knobs->memory.DL2_controller_opt_str, /*default*/ "none", /*print*/true,/*format*/NULL);
+  opt_reg_string(odb, "-dtlb:controller","1st-level TLB coherency controller configuration [DS]",
+      &knobs->memory.DTLB_controller_opt_str, /*default*/ "none", /*print*/true,/*format*/NULL);
+  opt_reg_string(odb, "-dtlb2:controller","2nd-level TLB cache coherency controller configuration [DS]",
+      &knobs->memory.DTLB2_controller_opt_str, /*default*/ "none", /*print*/true,/*format*/NULL);
 
   /*******************************/
   /* memory dependence predictor */
