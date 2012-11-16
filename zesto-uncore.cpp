@@ -102,7 +102,7 @@ static double fsb_speed; /* in MHz */
 bool fsb_magic; /* ideal FSB flag */
 bool cache_magic; /* ideal cache flag */
 static const char * MC_opt_string = NULL;
-static const char * LLC_opt_str = "LLC:4096:16:64:16:64:9:L:W:B:8:1:8:C";
+static const char * LLC_opt_str = "LLC:4096:16:64:16:64:9:L:W:B:8:1:C";
 static const char * LLC_controller_str = "none";
 static int LLC_bus_ratio = 1;
 static int LLC_access_rate = 1;
@@ -151,7 +151,7 @@ uncore_t::uncore_t(
   MC = MC_from_string(MC_opt_string);
 
   /* Shared LLC */
-  if(sscanf(LLC_opt_str,"%[^:]:%d:%d:%d:%d:%d:%d:%c:%c:%c:%d:%d:%d:%c",
+  if(sscanf(LLC_opt_str,"%[^:]:%d:%d:%d:%d:%d:%d:%c:%c:%c:%d:%d:%c",
       name,&sets,&assoc,&linesize,&banks,&bank_width,&latency,&rp,&ap,&wp, &MSHR_entries, &MSHR_banks, &wc) != 13)
     fatal("invalid LLC options: <name:sets:assoc:linesize:banks:bank-width:latency:repl-policy:alloc-policy:write-policy:num-MSHR:MSHR-banks:write-combining>\n\t(%s)",LLC_opt_str);
 

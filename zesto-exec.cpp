@@ -207,11 +207,11 @@ void exec_reg_options(struct opt_odb_t * odb, struct core_knobs_t * knobs)
   /* data caches */
   /***************/
   opt_reg_string(odb, "-dl1","1st-level data cache configuration string [DS]",
-      &knobs->memory.DL1_opt_str, /*default*/ "DL1:64:8:64:8:64:2:L:W:T:8:8:C", /*print*/true,/*format*/NULL);
+      &knobs->memory.DL1_opt_str, /*default*/ "DL1:64:8:64:8:64:2:L:W:T:8:C", /*print*/true,/*format*/NULL);
   opt_reg_string(odb, "-dl1:mshr_cmd","1st-level data cache MSHR scheduling policy [DS]",
       &knobs->memory.DL1_MSHR_cmd, /*default*/ knobs->memory.DL1_MSHR_cmd, /*print*/true,/*format*/NULL);
   opt_reg_string(odb, "-dl2","1st-level data cache configuration string [DS]",
-      &knobs->memory.DL2_opt_str, /*default*/ "DL2:512:8:64:8:64:9:L:W:T:8:8:C", /*print*/true,/*format*/NULL);
+      &knobs->memory.DL2_opt_str, /*default*/ "DL2:512:8:64:8:64:9:L:W:T:8:C", /*print*/true,/*format*/NULL);
   opt_reg_string(odb, "-dl2:mshr_cmd","1st-level data cache MSHR scheduling policy [DS]",
       &knobs->memory.DL2_MSHR_cmd, /*default*/ knobs->memory.DL2_MSHR_cmd, /*print*/true,/*format*/NULL);
 
