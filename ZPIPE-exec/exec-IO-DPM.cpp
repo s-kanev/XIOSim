@@ -1612,7 +1612,7 @@ void core_exec_IO_DPM_t::LDQ_schedule(void)
               zesto_assert(!uop->oracle.is_sync_op, (void)0);
               /* split-line access.  XXX: we're currently not handling the 2nd translation
                  for acceses that cross *pages*. */
-              if((send_to_dl1 && cache_enqueuable(core->memory.DL1,core->current_thread->id,uop->oracle.virt_addr+uop->decode.mem_size)) &&
+              if((!send_to_dl1 || (send_to_dl1 && cache_enqueuable(core->memory.DL1,core->current_thread->id,uop->oracle.virt_addr+uop->decode.mem_size))) &&
                  (!uop->oracle.is_repeated || (uop->oracle.is_repeated && repeater_enqueuable(core->memory.mem_repeater, CACHE_READ, core->current_thread->id, uop->oracle.virt_addr+uop->decode.mem_size))))
               {
                 if(send_to_dl1) {
