@@ -252,6 +252,9 @@ struct cache_t * cache_create(
   cp->MSHR_unprocessed_num = (int*) calloc(MSHR_banks,sizeof(*cp->MSHR_unprocessed_num));
   if(!cp->MSHR_unprocessed_num)
     fatal("failed to calloc cp->MSHR_unprocessed_num");
+  cp->MSHR_WB_num = (int*) calloc(MSHR_banks,sizeof(*cp->MSHR_num));
+  if(!cp->MSHR_WB_num)
+    fatal("failed to calloc cp->MSHR_num");
 
   if(!strcasecmp(name,"LLC"))
   {
@@ -1274,7 +1277,7 @@ void cache_enqueue(
 
 }
 
-static void dummy_callback(void * p)
+void dummy_callback(void * p)
 {
   /* this is just a place holder for cast-out writebacks
      in a write-back cache */
@@ -1685,7 +1688,7 @@ static void cache_process_MSHR_WB(struct cache_t * const cp, int start_point)
 {
   int b;
   bool MSHR_WB_work_found = false;
-
+  cache_assert(cp->controller, (void)0);
   if(cp->check_for_MSHR_WB_work) {
     /* Check if we can use bus to upper level */
     if(cp->controller->can_schedule_upstream())
@@ -1702,6 +1705,7 @@ static void cache_process_MSHR_WB(struct cache_t * const cp, int start_point)
           for(int j=0; j < cp->MSHR_size; j++)
           {
             MSHR_WB = &cp->MSHR[bank][j];
+            cache_assert(MSHR_WB, (void)0);
             if(MSHR_WB->cb == NULL)
               continue;
 
@@ -1722,6 +1726,7 @@ static void cache_process_MSHR_WB(struct cache_t * const cp, int start_point)
               continue;
 
           MSHR_WB = &cp->MSHR[bank][oldest_index];
+          cache_assert(MSHR_WB, (void)0);
 
           MSHR_WB_work_found = true;
           /* Let controller handle sending a request to upper level */
@@ -1742,6 +1747,7 @@ static void cache_process_MSHR_WB(struct cache_t * const cp, int start_point)
       for(int j=0; j < cp->MSHR_size; j++)
       {
         MSHR_WB = &cp->MSHR[bank][j];
+        cache_assert(MSHR_WB, (void)0);
         if (MSHR_WB->cb == NULL)
           continue;
         if (MSHR_WB->type != MSHR_WRITEBACK)
@@ -1944,12 +1950,13 @@ static void cache_process_pipe(struct cache_t * const cp, int start_point)
           if(ca->pipe_exit_time <= sim_cycle)
           {
             /* Check if request isn't already in an MSHR */
-            int this_bank = GET_BANK(ca->paddr);
+            int this_bank = GET_MSHR_BANK(ca->paddr);
             int MSHR_index = -1;
             for(int j=0; j<cp->MSHR_size; j++)
             {
               struct cache_action_t * MSHR = &cp->MSHR[this_bank][j];
-              if(MSHR->cb && MSHR->paddr == ca->paddr)
+              cache_assert(MSHR, (void)0);
+              if(MSHR->cb && (MSHR->paddr == ca->paddr))
               {
                 MSHR_index = j;
                 break;
@@ -2311,10 +2318,12 @@ static void cache_process_MSHR(struct cache_t * const cp, int start_point)
 
                 struct cache_action_t * MSHR = &cp->MSHR[bank][index];
 
+
                 /* If this operation is waiting on a TLB miss, it could take awhile. Invoke the miss
                    callback function to reduce replays. */
                 if(!MSHR->miss_cb_invoked && (MSHR->translated_cb && !MSHR->translated_cb(MSHR->op,MSHR->action_id)))
                 {
+                  cache_assert(MSHR->get_action_id, (void)0);
                   if(MSHR->miss_cb && MSHR->op && (MSHR->action_id == MSHR->get_action_id(MSHR->op)))
                   {
 #ifdef ZTRACE
