@@ -966,14 +966,11 @@ void core_exec_IO_DPM_t::repeater_callback(void * const op, bool is_hit)
       /* We don't have a parallel DL1 request */
       if(!knobs->memory.DL1_rep_req) {
         /* Schedule it to DL1 */
-        //LDQ_item->first_repeated = false;
         LDQ_item->uop->oracle.is_repeated = false;
         LDQ_item->when_issued = TICK_T_MAX;
-        LDQ_item->uop->exec.when_addr_translated = TICK_T_MAX;
         LDQ_item->first_byte_requested = false;
         LDQ_item->first_byte_arrived = false;
         LDQ_item->repeater_first_arrived = false;
-//        cache_enqueue(core,core->memory.DL1,NULL,CACHE_READ,core->current_thread->id,uop->Mop->fetch.PC,uop->oracle.virt_addr,uop->exec.action_id,0,NO_MSHR,uop,DL1_callback,load_miss_reschedule,translated_callback,get_uop_action_id);
       }
       /* We have a parallel DL1 request */
       else {
@@ -1048,15 +1045,11 @@ void core_exec_IO_DPM_t::repeater_split_callback(void * const op, bool is_hit)
       /* We don't have a parallel DL1 request */
       if(!knobs->memory.DL1_rep_req) {
         /* Schedule it to DL1 */
-        //LDQ_item->last_repeated = false;
-        //ZESTO_STAT(core->stat.DL1_load_split_accesses++;)
         LDQ_item->uop->oracle.is_repeated = false;
         LDQ_item->when_issued = TICK_T_MAX;
-        LDQ_item->uop->exec.when_addr_translated = TICK_T_MAX;
         LDQ_item->last_byte_requested = false;
         LDQ_item->last_byte_arrived = false;
         LDQ_item->repeater_last_arrived = false;
-        //cache_enqueue(core,core->memory.DL1,NULL,CACHE_READ,core->current_thread->id,uop->Mop->fetch.PC,uop->oracle.virt_addr+uop->decode.mem_size,uop->exec.action_id,0,NO_MSHR,uop,DL1_split_callback,load_miss_reschedule,translated_callback,get_uop_action_id);
         /* we still wait on something else, make sure other 
          * handlers know that we've missed for sure in the repeater */
       }
@@ -1523,7 +1516,7 @@ void core_exec_IO_DPM_t::LDQ_schedule(void)
                  (port[uop->alloc.port_assignment].STQ->pipe[0].uop == NULL))
               {
                 uop->exec.when_data_loaded = TICK_T_MAX;
-                if(!uop->oracle.is_sync_op && (uop->exec.when_addr_translated && uop->exec.when_addr_translated <= sim_cycle)) {
+                if(!uop->oracle.is_sync_op && (uop->exec.when_addr_translated == 0)) {
                   uop->exec.when_addr_translated = TICK_T_MAX;
                   cache_enqueue(core,core->memory.DTLB,NULL,CACHE_READ,core->current_thread->id,uop->Mop->fetch.PC,PAGE_TABLE_ADDR(core->current_thread->id,uop->oracle.virt_addr),uop->exec.action_id,0,NO_MSHR,uop,DTLB_callback,load_miss_reschedule,NULL,get_uop_action_id);
                 }
