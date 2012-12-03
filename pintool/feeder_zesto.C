@@ -461,9 +461,11 @@ VOID SimulatorLoop(VOID* arg)
         lk_lock(&tstate->lock, tid+1);
         if (tstate->ignore_list.find(pc) != tstate->ignore_list.end())
         {
-            lk_unlock(&tstate->lock);
-            ReleaseHandshake(handshake->handshake.coreID);
+	  if(!handshake->flags.isFirstInsn) {
+	    lk_unlock(&tstate->lock);
+	    ReleaseHandshake(handshake->handshake.coreID);
             continue;
+	  }
         }
         tstate->num_inst++;
         lk_unlock(&tstate->lock);
@@ -522,7 +524,7 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, 
 
     if (tstate->sleep_producer) {
       lk_unlock(&tstate->lock);
-      PIN_Sleep(1000);
+      PIN_Sleep(50);
       return;
     }
     if (tstate->ignore || tstate->ignore_all) {
@@ -571,7 +573,7 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
     lk_lock(&tstate->lock, tid+1);
     if (tstate->sleep_producer) {
       lk_unlock(&tstate->lock);
-      PIN_Sleep(1000);
+      PIN_Sleep(50);
       return;
     }
     
@@ -1091,7 +1093,7 @@ VOID PauseSimulation(THREADID tid)
             done &= handshake_buffer.empty((*it));
         }
         if (!done)
-	  PIN_Sleep(1000);
+	  PIN_Sleep(100);
 	  //            PIN_Yield();
     } while (!done);
 
@@ -1737,6 +1739,7 @@ VOID doLateILDJITInstrumentation()
 
 VOID disable_consumers()
 {
+  host_cpus = 16;
   if(host_cpus < num_threads * 2) {
     cerr << "Sleeping consumers" << endl;
     consumers_sleep = true;
@@ -1745,6 +1748,7 @@ VOID disable_consumers()
 
 VOID disable_producers()
 {
+  host_cpus = 16;
   if(host_cpus < num_threads * 2) {
     cerr << "Sleeping producers" << endl;
     producers_sleep = true;

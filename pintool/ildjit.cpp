@@ -397,6 +397,9 @@ VOID ILDJIT_startIteration(THREADID tid)
     
     if(reached_end_iteration) {
       PauseSimulation(tid);
+      UINT32 iterCount = loop_state->simmed_iteration_count - 1;
+      cerr << "Ending loop: anonymous" << " NumIterations:" << iterCount << endl;
+
       cerr << "Simulation runtime:";
       printElapsedTime();
       cerr << "LStopping simulation, TID: " << tid << endl;
@@ -451,7 +454,8 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
         }
 	//#ifdef ZESTO_PIN_DBG
         CHAR* loop_name = (CHAR*) loop;
-        cerr << "Ending loop: " << loop_name << " NumIterations:" << (UINT32)numIterations << endl;
+	UINT32 iterCount = loop_state->simmed_iteration_count - 1;
+        cerr << "Ending loop: " << loop_name << " NumIterations:" << iterCount << endl;
 	//#endif
     }
     simulating_parallel_loop = false;
