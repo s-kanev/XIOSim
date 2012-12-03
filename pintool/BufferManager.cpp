@@ -622,6 +622,7 @@ string BufferManager::genFileName(string path)
   char* temp = tempnam(path.c_str(), gpid_.c_str());
   string res = string(temp);
   res.insert(path.length() + gpid_.length(), "_");
+  res = res + ".helix";
   free(temp);
   return res;
 }
