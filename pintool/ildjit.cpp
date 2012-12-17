@@ -315,7 +315,7 @@ VOID ILDJIT_startLoop_after(THREADID tid, ADDRINT ip)
     thread_state_t* tstate = get_tls(tid);
     lk_lock(&tstate->lock, tid+1);
     tstate->ignore = false;
-    //    tstate->ignore_list[ip] = true;
+    tstate->ignore_list[ip] = true;
     lk_unlock(&tstate->lock);
   }
 }
@@ -540,7 +540,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc)
         goto cleanup;
     }
 
-    //    tstate->ignore_list[pc] = true;
+    tstate->ignore_list[pc] = true;
 
     lk_unlock(&tstate->lock);
 
@@ -650,7 +650,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT p
         goto cleanup;
     }
     
-    //    tstate->ignore_list[pc] = true;
+    tstate->ignore_list[pc] = true;
 
     lk_unlock(&tstate->lock);
 
