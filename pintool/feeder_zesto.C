@@ -76,6 +76,7 @@ static XIOSIM_LOCK test;
 
 // Used to access Zesto instruction buffer
 PIN_RWMUTEX simbuffer_lock;
+map<THREADID, Buffer> lookahead_buffer;
 BufferManager handshake_buffer;
 vector<THREADID> thread_list;
 
@@ -189,6 +190,7 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
             int slice_length = tstate->slice_length;
             int slice_weight_times = tstate->slice_weight_times_1000;
 
+	    assert(lookahead_buffer[tid].size() == 0);
             handshake = handshake_buffer.front(tid);
 
             handshake->handshake.slice_num = slice_num;
@@ -535,11 +537,12 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, 
 
     handshake_container_t* handshake;
     if (first_read) {
-        handshake = handshake_buffer.get_buffer(tid);
+        handshake = lookahead_buffer[tid].get_buffer();
+	ASSERTX(!handshake->flags.valid);
     }
     else {
         cerr << "[KEVIN WARNING]: Multiple GrabInstMemReads - should be rare" << endl;
-        handshake = handshake_buffer.back(tid);
+        handshake = lookahead_buffer[tid].get_buffer();
     }
 
     /* should be the common case */
@@ -585,10 +588,10 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
 
     handshake_container_t* handshake;
     if (has_memory) {
-        handshake = handshake_buffer.back(tid);
+      handshake = lookahead_buffer[tid].get_buffer();
     }
     else {
-        handshake = handshake_buffer.get_buffer(tid);
+      handshake = lookahead_buffer[tid].get_buffer();
     }
 
     ASSERTX(handshake != NULL);
@@ -644,7 +647,13 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
 
     // Let simulator consume instruction from SimulatorLoop
     handshake->flags.valid = true;
-    handshake_buffer.producer_done(tid);
+
+    lookahead_buffer[tid].push_done();
+
+    if(lookahead_buffer[tid].full()) {
+      flushOneToHandshakeBuffer(tid);
+    }
+    //    handshake_buffer.producer_done(tid);
 }
 
 /* ========================================================================== */
@@ -879,6 +888,8 @@ VOID ScheduleRunQueue()
     for (nextCoreID = num_threads-1; nextCoreID >= 0; nextCoreID--, it++) {
         core_threads[nextCoreID] = *it;
         thread_cores[*it] = nextCoreID;
+	lookahead_buffer[*it] = Buffer(10);
+	lookahead_buffer[*it].get_buffer()->flags.isFirstInsn = true;
         cerr << "Core: " << nextCoreID << " " << *it << endl;
     }
 
@@ -1005,7 +1016,9 @@ VOID PauseSimulation(THREADID tid)
      * to functionally reach wait 0, where they will wait until the end
      * of the loop; (ii) drain all pipelines once cores are waiting. */
   cerr << "pausing..." << endl;
-    volatile bool done_with_iteration = false;
+  flushAllToHandshakeBuffer(tid);
+  
+  volatile bool done_with_iteration = false;
     do {
         done_with_iteration = true;
         vector<THREADID>::iterator it;
@@ -1014,6 +1027,10 @@ VOID PauseSimulation(THREADID tid)
                 thread_state_t* tstate = get_tls(*it);
                 lk_lock(&tstate->lock, tid + 1);
                 bool curr_done = tstate->ignore && (tstate->lastWaitID == 0);
+		if(curr_done) {
+		  assert(lookahead_buffer[*it].size() == 0);
+		  assert(lookahead_buffer[*it].empty());
+		}
                 done_with_iteration &= curr_done;
                 /* Setting ignore_all here (while ignore is set) should be a race-free way
                  * of ignoring the serial portion outside the loop after the thread goes
@@ -1115,7 +1132,9 @@ VOID PauseSimulation(THREADID tid)
         tstate->ignore = true;
 	tstate->sleep_producer = false;
         lk_unlock(&tstate->lock);
+	assert(lookahead_buffer[*it].empty());
     }
+    
 }
 
 /* ========================================================================== */
@@ -1133,6 +1152,7 @@ VOID ResumeSimulation(THREADID tid)
          * resume is consumed, which can lead to nasty races of who gets
          * to resume first. */
         ASSERTX(handshake_buffer.empty(*it));
+        ASSERTX(lookahead_buffer[*it].empty());
         activate_core(coreID);
         thread_state_t* tstate = get_tls(*it);
         lk_lock(&tstate->lock, tid+1);
@@ -1765,4 +1785,20 @@ VOID enable_producers()
 {
   cerr << "Waking producers" << endl;
   producers_sleep = false;
+}
+
+VOID flushOneToHandshakeBuffer(THREADID tid)
+{
+  handshake_container_t *handshake = lookahead_buffer[tid].front();
+  handshake_container_t* newhandshake = handshake_buffer.get_buffer(tid);
+  handshake->CopyTo(newhandshake);
+  handshake_buffer.producer_done(tid);
+  lookahead_buffer[tid].pop();
+}
+
+VOID flushAllToHandshakeBuffer(THREADID tid)
+{
+  while(!(lookahead_buffer[tid].empty())) {
+    flushOneToHandshakeBuffer(tid);
+  }
 }

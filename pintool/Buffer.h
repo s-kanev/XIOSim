@@ -10,6 +10,7 @@ class Buffer
 {
  public:
   Buffer(int size);
+  Buffer();
  
   // Push is split in two phases: (i) a non-destructive get_buffer(),
   // which returns a pointer to an internal storage element and (ii)

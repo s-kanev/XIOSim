@@ -224,4 +224,7 @@ VOID enable_consumers();
 VOID disable_producers();
 VOID enable_producers();
 
+VOID flushOneToHandshakeBuffer(THREADID tid);
+VOID flushAllToHandshakeBuffer(THREADID tid);
+
 #endif /*__FEEDER_ZESTO__ */

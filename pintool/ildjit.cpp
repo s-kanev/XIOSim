@@ -16,6 +16,7 @@
 #include "BufferManager.h"
 
 extern tick_t sim_cycle;
+extern map<THREADID, Buffer> lookahead_buffer;
 extern BufferManager handshake_buffer;
 
 // True if ILDJIT has finished compilation and is executing user code
@@ -52,7 +53,6 @@ BOOL signalCallback(THREADID tid, INT32 sig, CONTEXT *ctxt, BOOL hasHandler, con
 void signalCallback2(int signum);
 
 extern VOID doLateILDJITInstrumentation();
-
 time_t last_time;
 
 stack<loop_state_t> loop_states;
@@ -497,6 +497,8 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
         return;
     }
 
+    flushAllToHandshakeBuffer(tid);
+
     tstate->lastWaitID = ssID;
 }
 
@@ -556,7 +558,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc)
     }
 
     /* Insert wait instruction in pipeline */
-    handshake = handshake_buffer.get_buffer(tid);
+    handshake = lookahead_buffer[tid].get_buffer();
 
     handshake->flags.isFirstInsn = false;
     handshake->handshake.sleep_thread = false;
@@ -575,7 +577,9 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc)
 //    ASSERTX(tstate->lastSignalAddr != 0xdecafbad);
     *(INT32*)(&handshake->handshake.ins[1]) = getSignalAddress(ssID); 
 //    cerr << tid << ": Vodoo load instruction " << hex << pc <<  " ID: " << tstate->lastSignalAddr << dec << endl;
-    handshake_buffer.producer_done(tid);
+    lookahead_buffer[tid].push_done();
+
+    flushAllToHandshakeBuffer(tid);
 
 cleanup:
     tstate->lastSignalAddr = 0xdecafbad;
@@ -608,6 +612,8 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT 
         //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(0) << dec << endl;
     }
     lk_unlock(&tstate->lock);
+
+    flushAllToHandshakeBuffer(tid);
 
 //    ASSERTX(tstate->lastSignalAddr == 0xdecafbad);
 }
@@ -656,7 +662,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT p
     }
 
     /* Insert signal instruction in pipeline */
-    handshake = handshake_buffer.get_buffer(tid);
+    handshake = lookahead_buffer[tid].get_buffer();
 
     handshake->flags.isFirstInsn = false;
     handshake->handshake.sleep_thread = false;
@@ -676,7 +682,9 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT p
     *(INT32*)(&handshake->handshake.ins[2]) = getSignalAddress(ssID);
 
 //    cerr << tid << ": Vodoo store instruction " << hex << pc << " ID: " << tstate->lastSignalAddr << dec << endl;
-    handshake_buffer.producer_done(tid);
+    lookahead_buffer[tid].push_done();
+
+    flushAllToHandshakeBuffer(tid);
 
 cleanup:
     tstate->lastSignalAddr = 0xdecafbad;
