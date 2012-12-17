@@ -67,6 +67,8 @@ BOOL sim_release_handshake;
 UINT64 sim_time = 0;
 #endif
 
+map<ADDRINT, string> traced_pcs;
+ofstream pc_file;
 ofstream trace_file;
 ifstream sanity_trace;
 
@@ -465,14 +467,19 @@ VOID SimulatorLoop(VOID* arg)
         {
 	  if(!handshake->flags.isFirstInsn) {
 	    lk_unlock(&tstate->lock);
-	    ReleaseHandshake(handshake->handshake.coreID);
+	    registerIgnored("jit", handshake->handshake.pc);
+	    ReleaseHandshake(handshake->handshake.coreID);	    
             continue;
+	  }
+	  else {
+	    registerIgnored("first_insn", handshake->handshake.pc);
 	  }
         }
         tstate->num_inst++;
         lk_unlock(&tstate->lock);
 
         // Actual simulation happens here
+	registerIgnored("sim", handshake->handshake.pc);
 	Zesto_Resume(&handshake->handshake, &handshake->mem_buffer, handshake->flags.isFirstInsn, handshake->flags.isLastInsn);
 
 	if(!KnobPipelineInstrumentation.Value())
@@ -517,6 +524,7 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, 
     }
 
     if(producers_sleep) {
+      registerIgnored("sleep_pall", pc);
       PIN_Sleep(1000);
       return;
     }
@@ -525,11 +533,19 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, 
     lk_lock(&tstate->lock, tid+1);
 
     if (tstate->sleep_producer) {
+      registerIgnored("sleep_p", pc);
       lk_unlock(&tstate->lock);
       PIN_Sleep(50);
       return;
     }
     if (tstate->ignore || tstate->ignore_all) {
+            if(tstate->ignore) {
+	registerIgnored("ignore_one", pc);
+      }
+      if(tstate->ignore_all) {
+	registerIgnored("ignore_all", pc);
+      }
+
         lk_unlock(&tstate->lock);
         return;
     }
@@ -568,6 +584,7 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
     }
 
     if(producers_sleep) {
+      registerIgnored("sleep_pall", pc);
       PIN_Sleep(1000);
       return;
     }
@@ -575,12 +592,20 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
     thread_state_t* tstate = get_tls(tid);
     lk_lock(&tstate->lock, tid+1);
     if (tstate->sleep_producer) {
+      registerIgnored("sleep_p", pc);
       lk_unlock(&tstate->lock);
       PIN_Sleep(50);
       return;
     }
     
     if (tstate->ignore || tstate->ignore_all) {
+      if(tstate->ignore) {
+	registerIgnored("ignore_one", pc);
+      }
+      if(tstate->ignore_all) {
+	registerIgnored("ignore_all", pc);
+      }
+      
         lk_unlock(&tstate->lock);
         return;
     }
@@ -1134,7 +1159,11 @@ VOID PauseSimulation(THREADID tid)
         lk_unlock(&tstate->lock);
 	assert(lookahead_buffer[*it].empty());
     }
-    
+
+    map<ADDRINT, string>::iterator itr;
+    for(itr = traced_pcs.begin(); itr != traced_pcs.end(); itr++) {
+      pc_file << itr->first << " " << itr->second << endl;
+    }
 }
 
 /* ========================================================================== */
@@ -1619,8 +1648,10 @@ INT32 main(INT32 argc, CHAR **argv)
 
     if(!KnobInsTraceFile.Value().empty())
     {
-        trace_file.open(KnobInsTraceFile.Value().c_str());
+        trace_file.open(KnobInsTraceFile.Value().c_str());	
         trace_file << hex;
+	pc_file.open("pcs.trace");
+	pc_file << hex;
     }
 
     if(!KnobSanityInsTraceFile.Value().empty())
@@ -1801,4 +1832,11 @@ VOID flushAllToHandshakeBuffer(THREADID tid)
   while(!(lookahead_buffer[tid].empty())) {
     flushOneToHandshakeBuffer(tid);
   }
+}
+
+VOID registerIgnored(string stype, ADDRINT pc)
+{
+  lk_lock(&instrument_tid_lock, 1);
+  traced_pcs[pc] = stype;
+  lk_unlock(&instrument_tid_lock);
 }

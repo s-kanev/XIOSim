@@ -253,6 +253,7 @@ VOID ILDJIT_startLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
         // push Arg1 to stack
         tstate->ignore_list[tstate->get_queued_pc(1)] = true;
         // Call instruction to startLoop
+	cerr << "Ignoring call instruction for startLoop() at pc=" << hex << tstate->get_queued_pc(0) << dec << endl;
         tstate->ignore_list[tstate->get_queued_pc(0)] = true;
     }
     lk_unlock(&tstate->lock);
@@ -299,6 +300,11 @@ VOID ILDJIT_startLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
   cerr << "Called startLoop() for the start invocation!:" << (CHAR*)loop << endl;
   reached_start_invocation = true;
   checkEndLoop(loop);
+
+  //fprintf(stderr, "MOLECOOL_beforeWait: %p\n", (void*)MOLECOOL_beforeWait);
+  //fprintf(stderr, "MOLECOOL_afterWait: %p\n", (void*)MOLECOOL_afterWait);
+  //fprintf(stderr, "MOLECOOL_beforeSignal: %p\n", (void*)MOLECOOL_beforeSignal);
+  //fprintf(stderr, "MOLECOOL_afterSignal: %p\n", (void*)MOLECOOL_afterSignal);
 }
 
 /* ========================================================================== */
@@ -309,6 +315,7 @@ VOID ILDJIT_startLoop_after(THREADID tid, ADDRINT ip)
     thread_state_t* tstate = get_tls(tid);
     lk_lock(&tstate->lock, tid+1);
     tstate->ignore = false;
+    //    tstate->ignore_list[ip] = true;
     lk_unlock(&tstate->lock);
   }
 }
@@ -488,6 +495,7 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
         //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(1) << dec << endl;
 
         // Call instruction to beforeWait
+	cerr << "Ignoring call instruction for beforeWait() at pc=" << hex << tstate->get_queued_pc(0) << dec << endl;
         tstate->ignore_list[tstate->get_queued_pc(0)] = true;
         //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(0) << dec << endl;
     }
@@ -531,6 +539,8 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc)
         lk_unlock(&tstate->lock);
         goto cleanup;
     }
+
+    //    tstate->ignore_list[pc] = true;
 
     lk_unlock(&tstate->lock);
 
@@ -608,6 +618,7 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT 
         //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(1) << dec << endl;
 
         // Call instruction to beforeWait
+	cerr << "Ignoring call instruction for beforeSignal() at pc=" << hex << tstate->get_queued_pc(0) << dec << endl;
         tstate->ignore_list[tstate->get_queued_pc(0)] = true;
         //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(0) << dec << endl;
     }
@@ -638,13 +649,16 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT p
         lk_unlock(&tstate->lock);
         goto cleanup;
     }
+    
+    //    tstate->ignore_list[pc] = true;
 
     lk_unlock(&tstate->lock);
 
-#ifdef PRINT_WAITS
+
+    #ifdef PRINT_WAITS
     if (ExecMode == EXECUTION_MODE_SIMULATE)
         cerr << tid <<": After Signal " << hex << pc << dec << endl;
-#endif
+    #endif
 
     /* Not simulating -- just ignore. */
     if (ExecMode != EXECUTION_MODE_SIMULATE)
@@ -742,6 +756,7 @@ VOID AddILDJITCallbacks(IMG img)
     rtn = RTN_FindByName(img, "MOLECOOL_startIteration");
     if (RTN_Valid(rtn))
     {
+      fprintf(stderr, "MOLECOOL_startIteration(): %p\n", RTN_Funptr(rtn));
 #ifdef ZESTO_PIN_DBG
         cerr << "MOLECOOL_startIteration ";
 #endif
@@ -756,6 +771,7 @@ VOID AddILDJITCallbacks(IMG img)
     rtn = RTN_FindByName(img, "MOLECOOL_beforeWait");
     if (RTN_Valid(rtn))
     {
+      fprintf(stderr, "MOLECOOL_beforeWait(): %p\n", RTN_Funptr(rtn));
         RTN_Open(rtn);
         RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeWait),
                        IARG_THREAD_ID,
@@ -770,6 +786,7 @@ VOID AddILDJITCallbacks(IMG img)
     rtn = RTN_FindByName(img, "MOLECOOL_afterWait");
     if (RTN_Valid(rtn))
     {
+      fprintf(stderr, "MOLECOOL_afterWait(): %p\n", RTN_Funptr(rtn));
         RTN_Open(rtn);
         RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterWait),
                        IARG_THREAD_ID,
@@ -784,6 +801,7 @@ VOID AddILDJITCallbacks(IMG img)
     rtn = RTN_FindByName(img, "MOLECOOL_beforeSignal");
     if (RTN_Valid(rtn))
     {
+      fprintf(stderr, "MOLECOOL_beforeSignal(): %p\n", RTN_Funptr(rtn));
         RTN_Open(rtn);
         RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeSignal),
                        IARG_THREAD_ID,
@@ -798,6 +816,7 @@ VOID AddILDJITCallbacks(IMG img)
     rtn = RTN_FindByName(img, "MOLECOOL_afterSignal");
     if (RTN_Valid(rtn))
     {
+      fprintf(stderr, "MOLECOOL_afterSignal(): %p\n", RTN_Funptr(rtn));
         RTN_Open(rtn);
         RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterSignal),
                        IARG_THREAD_ID,
@@ -812,6 +831,7 @@ VOID AddILDJITCallbacks(IMG img)
     rtn = RTN_FindByName(img, "MOLECOOL_endParallelLoop");
     if (RTN_Valid(rtn))
     {
+      fprintf(stderr, "MOLECOOL_endParallelLoop(): %p\n", RTN_Funptr(rtn));
         RTN_Open(rtn);
         RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_endParallelLoop),
                        IARG_THREAD_ID,
@@ -859,9 +879,10 @@ VOID AddILDJITCallbacks(IMG img)
         RTN_Close(rtn);
     }
 
-    rtn = RTN_FindByName(img, "MOLECOOL_startLoop");
-    if (RTN_Valid(rtn))
+    rtn = RTN_FindByName(img, "MOLECOOL_startLoop");    
+    if (RTN_Valid(rtn))      
     {
+      fprintf(stderr, "MOLECOOL_startLoop(): %p\n", RTN_Funptr(rtn));
 #ifdef ZESTO_PIN_DBG
         cerr << "MOLECOOL_startLoop ";
 #endif
