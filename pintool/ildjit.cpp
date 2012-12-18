@@ -249,12 +249,23 @@ VOID ILDJIT_startLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
     lk_lock(&tstate->lock, tid+1);
     tstate->ignore = true;
     
-    if (tstate->pc_queue_valid) {
-        // push Arg1 to stack
-        tstate->ignore_list[tstate->get_queued_pc(1)] = true;
-        // Call instruction to startLoop
-        tstate->ignore_list[tstate->get_queued_pc(0)] = true;
+        int numToFlush = 2;
+    while(lookahead_buffer[tid].size() > 0) {
+      ADDRINT flushedPC = flushOneToHandshakeBuffer(tid);
+      if(lookahead_buffer[tid].size() < numToFlush) {
+	tstate->ignore_list[flushedPC] = true;
+      }
     }
+
+
+
+
+    // if (tstate->pc_queue_valid) {
+    //     // push Arg1 to stack
+    //     tstate->ignore_list[tstate->get_queued_pc(1)] = true;
+    //     // Call instruction to startLoop
+    //     tstate->ignore_list[tstate->get_queued_pc(0)] = true;
+    // }
     lk_unlock(&tstate->lock);
   }
 
@@ -299,11 +310,6 @@ VOID ILDJIT_startLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
   cerr << "Called startLoop() for the start invocation!:" << (CHAR*)loop << endl;
   reached_start_invocation = true;
   checkEndLoop(loop);
-
-  //fprintf(stderr, "MOLECOOL_beforeWait: %p\n", (void*)MOLECOOL_beforeWait);
-  //fprintf(stderr, "MOLECOOL_afterWait: %p\n", (void*)MOLECOOL_afterWait);
-  //fprintf(stderr, "MOLECOOL_beforeSignal: %p\n", (void*)MOLECOOL_beforeSignal);
-  //fprintf(stderr, "MOLECOOL_afterSignal: %p\n", (void*)MOLECOOL_afterSignal);
 }
 
 /* ========================================================================== */
@@ -472,7 +478,7 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
 }
 
 /* ========================================================================== */
-VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc)
+VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID, ADDRINT pc)
 {
   #ifdef PRINT_WAITS
       if (ExecMode == EXECUTION_MODE_SIMULATE)
@@ -483,21 +489,31 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
     lk_lock(&tstate->lock, tid+1);
     tstate->ignore = true;
 
-    if (tstate->pc_queue_valid)
-    {
-        // push Arg2 to stack
-        tstate->ignore_list[tstate->get_queued_pc(2)] = true;
-        //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(2) << dec << endl;
-
-        // push Arg1 to stack
-        tstate->ignore_list[tstate->get_queued_pc(1)] = true;
-        //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(1) << dec << endl;
-
-        // Call instruction to beforeWait
-	//	cerr << tid << " Ignoring call instruction for beforeWait() at pc=" << hex << tstate->get_queued_pc(0) << dec << endl;
-        tstate->ignore_list[tstate->get_queued_pc(0)] = true;
-        //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(0) << dec << endl;
+    int numToFlush = 2;
+    while(lookahead_buffer[tid].size() > 0) {
+      ADDRINT flushedPC = flushOneToHandshakeBuffer(tid);
+      if(lookahead_buffer[tid].size() < numToFlush) {
+	tstate->ignore_list[flushedPC] = true;
+      }
     }
+
+
+    
+    // if (tstate->pc_queue_valid)
+    // {
+    //     // push Arg2 to stack
+    //     //tstate->ignore_list[tstate->get_queued_pc(2)] = true;
+    //     //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(2) << dec << endl;
+
+    //     // push Arg1 to stack
+    //     tstate->ignore_list[tstate->get_queued_pc(1)] = true;
+    //     //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(1) << dec << endl;
+
+    //     // Call instruction to beforeWait
+    // 	//	cerr << tid << " Ignoring call instruction for beforeWait() at pc=" << hex << tstate->get_queued_pc(0) << dec << endl;
+    //     tstate->ignore_list[tstate->get_queued_pc(0)] = true;
+    //     //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(0) << dec << endl;
+    // }
     lk_unlock(&tstate->lock);
 
     if(num_threads == 1) {
@@ -595,32 +611,43 @@ cleanup:
 }
 
 /* ========================================================================== */
-VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc)
+VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
 {
     thread_state_t* tstate = get_tls(tid);
     lk_lock(&tstate->lock, tid+1);
     tstate->ignore = true;
-
+    
 #ifdef PRINT_WAITS
     if (ExecMode == EXECUTION_MODE_SIMULATE)
         cerr << tid <<": Before Signal " << hex << pc << " ID: " << ssID <<  " (" << ssID_addr << ")" << dec << endl;
 #endif
 
-    if (tstate->pc_queue_valid)
-    {
-        // push Arg2 to stack
-        tstate->ignore_list[tstate->get_queued_pc(2)] = true;
-        //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(2) << dec << endl;
 
-        // push Arg1 to stack
-        tstate->ignore_list[tstate->get_queued_pc(1)] = true;
-        //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(1) << dec << endl;
-
-        // Call instruction to beforeWait
-	cerr << "Ignoring call instruction for beforeSignal() at pc=" << hex << tstate->get_queued_pc(0) << dec << endl;
-	//        tstate->ignore_list[tstate->get_queued_pc(0)] = true;
-        //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(0) << dec << endl;
+    int numToFlush = 2;
+    while(lookahead_buffer[tid].size() > 0) {
+      ADDRINT flushedPC = flushOneToHandshakeBuffer(tid);
+      if(lookahead_buffer[tid].size() < numToFlush) {
+	tstate->ignore_list[flushedPC] = true;
+      }
     }
+ 
+     
+    
+    // if (tstate->pc_queue_valid)
+    // {
+    //     // push Arg2 to stack
+    //     //tstate->ignore_list[tstate->get_queued_pc(2)] = true;
+    //     //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(2) << dec << endl;
+      
+    //     // push Arg1 to stack
+    //     tstate->ignore_list[tstate->get_queued_pc(1)] = true;
+    //     //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(1) << dec << endl;
+
+    //     // Call instruction to beforeWait
+    // 	//	cerr << "Ignoring call instruction for beforeSignal() at pc=" << hex << tstate->get_queued_pc(0) << dec << endl;
+    // 	tstate->ignore_list[tstate->get_queued_pc(0)] = true;
+    //     //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(0) << dec << endl;
+    // }
     lk_unlock(&tstate->lock);
 
     flushAllToHandshakeBuffer(tid);
@@ -629,7 +656,7 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT 
 }
 
 /* ========================================================================== */
-VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc)
+VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
 {
     thread_state_t* tstate = get_tls(tid);
     handshake_container_t* handshake;
@@ -778,7 +805,6 @@ VOID AddILDJITCallbacks(IMG img)
         RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeWait),
                        IARG_THREAD_ID,
                        IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
                        IARG_INST_PTR,
                        IARG_CALL_ORDER, CALL_ORDER_FIRST,
                        IARG_END);
@@ -792,8 +818,8 @@ VOID AddILDJITCallbacks(IMG img)
         RTN_Open(rtn);
         RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterWait),
                        IARG_THREAD_ID,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
                        IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 2,
                        IARG_INST_PTR,
                        IARG_CALL_ORDER, CALL_ORDER_LAST,
                        IARG_END);
@@ -807,7 +833,6 @@ VOID AddILDJITCallbacks(IMG img)
         RTN_Open(rtn);
         RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeSignal),
                        IARG_THREAD_ID,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
                        IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
                        IARG_INST_PTR,
                        IARG_CALL_ORDER, CALL_ORDER_FIRST,
@@ -822,7 +847,6 @@ VOID AddILDJITCallbacks(IMG img)
         RTN_Open(rtn);
         RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterSignal),
                        IARG_THREAD_ID,
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
                        IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
                        IARG_INST_PTR,
                        IARG_CALL_ORDER, CALL_ORDER_LAST,

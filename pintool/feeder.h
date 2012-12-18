@@ -224,7 +224,7 @@ VOID enable_consumers();
 VOID disable_producers();
 VOID enable_producers();
 
-VOID flushOneToHandshakeBuffer(THREADID tid);
+ADDRINT flushOneToHandshakeBuffer(THREADID tid);
 VOID flushAllToHandshakeBuffer(THREADID tid);
 
 VOID registerIgnored(string stype, ADDRINT pc, THREADID tid);

@@ -469,6 +469,7 @@ VOID SimulatorLoop(VOID* arg)
         {
 	  if(!handshake->flags.isFirstInsn) {	    
 	    lk_unlock(&tstate->lock);
+	    registerIgnored("jit", handshake->handshake.pc, instrument_tid);
 	    ReleaseHandshake(handshake->handshake.coreID);	    
             continue;
 	  }
@@ -1816,15 +1817,17 @@ VOID enable_producers()
   producers_sleep = false;
 }
 
-VOID flushOneToHandshakeBuffer(THREADID tid)
+ADDRINT flushOneToHandshakeBuffer(THREADID tid)
 {
   handshake_container_t *handshake = lookahead_buffer[tid].front();
   handshake_container_t* newhandshake = handshake_buffer.get_buffer(tid);
   bool isFirstInsn = newhandshake->flags.isFirstInsn;
   handshake->CopyTo(newhandshake);
   newhandshake->flags.isFirstInsn = isFirstInsn;
+  ADDRINT pc = newhandshake->handshake.pc;
   handshake_buffer.producer_done(tid);
   lookahead_buffer[tid].pop();
+  return pc;
 }
 
 VOID flushAllToHandshakeBuffer(THREADID tid)
@@ -1837,6 +1840,9 @@ VOID flushAllToHandshakeBuffer(THREADID tid)
 VOID registerIgnored(string stype, ADDRINT pc, THREADID tid)
 {
   return;
+  //  if(stype != "jit" && stype != "sim") {
+  //    return;
+  //  }
   if(ExecMode != EXECUTION_MODE_SIMULATE) {
     return;
   }

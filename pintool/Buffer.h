@@ -24,6 +24,8 @@ class Buffer
   handshake_container_t* front();
   handshake_container_t* back();
 
+  handshake_container_t* operator[](int index);
+
   bool empty();
   bool full();
   
