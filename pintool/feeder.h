@@ -227,6 +227,6 @@ VOID enable_producers();
 VOID flushOneToHandshakeBuffer(THREADID tid);
 VOID flushAllToHandshakeBuffer(THREADID tid);
 
-VOID registerIgnored(string stype, ADDRINT pc);
+VOID registerIgnored(string stype, ADDRINT pc, THREADID tid);
 
 #endif /*__FEEDER_ZESTO__ */

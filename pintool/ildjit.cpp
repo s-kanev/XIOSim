@@ -253,7 +253,6 @@ VOID ILDJIT_startLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
         // push Arg1 to stack
         tstate->ignore_list[tstate->get_queued_pc(1)] = true;
         // Call instruction to startLoop
-	cerr << "Ignoring call instruction for startLoop() at pc=" << hex << tstate->get_queued_pc(0) << dec << endl;
         tstate->ignore_list[tstate->get_queued_pc(0)] = true;
     }
     lk_unlock(&tstate->lock);
@@ -475,8 +474,8 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
 /* ========================================================================== */
 VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc)
 {
-#ifdef PRINT_WAITS
-    if (ExecMode == EXECUTION_MODE_SIMULATE)
+  #ifdef PRINT_WAITS
+      if (ExecMode == EXECUTION_MODE_SIMULATE)
         cerr << tid <<" :Before Wait "<< hex << pc << dec  << " ID: " << ssID << hex << " (" << ssID_addr <<")" << dec << endl;
 #endif
 
@@ -495,7 +494,7 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT pc
         //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(1) << dec << endl;
 
         // Call instruction to beforeWait
-	cerr << "Ignoring call instruction for beforeWait() at pc=" << hex << tstate->get_queued_pc(0) << dec << endl;
+	//	cerr << tid << " Ignoring call instruction for beforeWait() at pc=" << hex << tstate->get_queued_pc(0) << dec << endl;
         tstate->ignore_list[tstate->get_queued_pc(0)] = true;
         //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(0) << dec << endl;
     }
@@ -619,7 +618,7 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT 
 
         // Call instruction to beforeWait
 	cerr << "Ignoring call instruction for beforeSignal() at pc=" << hex << tstate->get_queued_pc(0) << dec << endl;
-        tstate->ignore_list[tstate->get_queued_pc(0)] = true;
+	//        tstate->ignore_list[tstate->get_queued_pc(0)] = true;
         //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(0) << dec << endl;
     }
     lk_unlock(&tstate->lock);
@@ -712,6 +711,9 @@ VOID ILDJIT_setAffinity(THREADID tid, INT32 coreID)
     tstate->coreID = coreID;
     core_threads[coreID] = tid;
     thread_cores[tid] = coreID;
+    
+    lookahead_buffer[tid] = Buffer(10);
+    lookahead_buffer[tid].get_buffer()->flags.isFirstInsn = true;
 }
 
 /* ========================================================================== */
@@ -866,6 +868,8 @@ VOID AddILDJITCallbacks(IMG img)
     rtn = RTN_FindByName(img, "MOLECOOL_startParallelLoop");
     if (RTN_Valid(rtn))
     {
+      fprintf(stderr, "MOLECOOL_startParallelLoop(): %p\n", RTN_Funptr(rtn));
+	    
 #ifdef ZESTO_PIN_DBG
         cerr << "MOLECOOL_startParallelLoop ";
 #endif
