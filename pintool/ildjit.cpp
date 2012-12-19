@@ -2,7 +2,6 @@
  * ILDJIT-specific functions for zesto feeder
  * Copyright, Svilen Kanev, 2012
  */
-
 #include <stdlib.h>
 #include <unistd.h>
 #include <map>
@@ -248,12 +247,15 @@ VOID ILDJIT_startLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
     thread_state_t* tstate = get_tls(tid);
     lk_lock(&tstate->lock, tid+1);
     tstate->ignore = true;
-    
-        int numToFlush = 2;
+    lk_unlock(&tstate->lock);
+
+    int numToFlush = 2;
     while(lookahead_buffer[tid].size() > 0) {
       ADDRINT flushedPC = flushOneToHandshakeBuffer(tid);
       if(lookahead_buffer[tid].size() < numToFlush) {
+	lk_lock(&tstate->lock, tid+1);
 	tstate->ignore_list[flushedPC] = true;
+	lk_unlock(&tstate->lock);
       }
     }
 
@@ -266,7 +268,7 @@ VOID ILDJIT_startLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
     //     // Call instruction to startLoop
     //     tstate->ignore_list[tstate->get_queued_pc(0)] = true;
     // }
-    lk_unlock(&tstate->lock);
+    
   }
 
   if( (!ran_parallel_loop) && (reached_start_invocation) && (!reached_start_iteration) && (!start_next_parallel_loop) ) {
@@ -482,18 +484,21 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID, ADDRINT pc)
 {
   #ifdef PRINT_WAITS
       if (ExecMode == EXECUTION_MODE_SIMULATE)
-        cerr << tid <<" :Before Wait "<< hex << pc << dec  << " ID: " << ssID << hex << " (" << ssID_addr <<")" << dec << endl;
+        cerr << tid <<" :Before Wait "<< hex << pc << dec  << " ID: " << dec << ssID << endl;
 #endif
 
     thread_state_t* tstate = get_tls(tid);
     lk_lock(&tstate->lock, tid+1);
     tstate->ignore = true;
+    lk_unlock(&tstate->lock);
 
     int numToFlush = 2;
     while(lookahead_buffer[tid].size() > 0) {
       ADDRINT flushedPC = flushOneToHandshakeBuffer(tid);
       if(lookahead_buffer[tid].size() < numToFlush) {
+	lk_lock(&tstate->lock, tid+1);
 	tstate->ignore_list[flushedPC] = true;
+	lk_unlock(&tstate->lock);
       }
     }
 
@@ -514,7 +519,7 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID, ADDRINT pc)
     //     tstate->ignore_list[tstate->get_queued_pc(0)] = true;
     //     //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(0) << dec << endl;
     // }
-    lk_unlock(&tstate->lock);
+
 
     if(num_threads == 1) {
         return;
@@ -614,12 +619,13 @@ cleanup:
 VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
 {
     thread_state_t* tstate = get_tls(tid);
+
     lk_lock(&tstate->lock, tid+1);
     tstate->ignore = true;
-    
+    lk_unlock(&tstate->lock);    
 #ifdef PRINT_WAITS
     if (ExecMode == EXECUTION_MODE_SIMULATE)
-        cerr << tid <<": Before Signal " << hex << pc << " ID: " << ssID <<  " (" << ssID_addr << ")" << dec << endl;
+        cerr << tid <<": Before Signal " << hex << pc << " ID: " << ssID << dec << endl;
 #endif
 
 
@@ -627,7 +633,9 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
     while(lookahead_buffer[tid].size() > 0) {
       ADDRINT flushedPC = flushOneToHandshakeBuffer(tid);
       if(lookahead_buffer[tid].size() < numToFlush) {
+	lk_lock(&tstate->lock, tid+1);
 	tstate->ignore_list[flushedPC] = true;
+	lk_unlock(&tstate->lock);    
       }
     }
  
@@ -648,7 +656,7 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
     // 	tstate->ignore_list[tstate->get_queued_pc(0)] = true;
     //     //        cerr << tid << ": Ignoring instruction at pc: " << hex << tstate->get_queued_pc(0) << dec << endl;
     // }
-    lk_unlock(&tstate->lock);
+
 
     flushAllToHandshakeBuffer(tid);
 
