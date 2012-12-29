@@ -82,7 +82,7 @@ bool cache_controller_const_t::send_request_upstream(int bank, int MSHR_index, s
     if(MSHR->cmd == CACHE_WRITE)
     {
       lk_lock(&lk_controller, 1);
-      writers[MSHR->cmd] = (unsigned)MSHR->core->id;
+      writers[MSHR->paddr] = (unsigned)MSHR->core->id;
       lk_unlock(&lk_controller);
     }
 
