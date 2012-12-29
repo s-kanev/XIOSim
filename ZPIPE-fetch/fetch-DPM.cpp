@@ -191,6 +191,10 @@ core_fetch_DPM_t::core_fetch_DPM_t(struct core_t * const arg_core):
     core->memory.ITLB = cache_create(core,name,CACHE_READONLY,sets,assoc,1,rp,'w','t','n',banks,1,latency,MSHR_entries,1,uncore->LLC,uncore->LLC_bus);
   core->memory.ITLB->MSHR_cmd_order = NULL;
 
+  core->memory.IL1->controller = controller_create(knobs->memory.IL1_controller_opt_str, core, core->memory.IL1);
+  core->memory.ITLB->controller = controller_create(knobs->memory.ITLB_controller_opt_str, core, core->memory.ITLB);
+
+
   byteQ = (byteQ_entry_t*) calloc(knobs->fetch.byteQ_size,sizeof(*byteQ));
   byteQ_head = byteQ_tail = 0;
   if(!byteQ)
