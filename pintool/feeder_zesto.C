@@ -8,6 +8,8 @@
 /* ========================================================================== */
 /* ========================================================================== */
 
+//#define PRINT_TRACE
+
 #include <iostream>
 #include <iomanip>
 #include <map>
@@ -483,8 +485,9 @@ VOID SimulatorLoop(VOID* arg)
         lk_unlock(&tstate->lock);
 
         // Actual simulation happens here
-	//	  #ifdef PRINT_TRACE printTrace("sim", handshake->handshake.pc, instrument_tid); 
-	//              #endif
+#ifdef PRINT_TRACE 
+	printTrace("sim", handshake->handshake.pc, instrument_tid); 
+#endif
 	Zesto_Resume(&handshake->handshake, &handshake->mem_buffer, handshake->flags.isFirstInsn, handshake->flags.isLastInsn);
 
 	if(!KnobPipelineInstrumentation.Value())
@@ -581,7 +584,7 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
 
     if(producers_sleep) {
 #ifdef PRINT_TRACE 
-      printTrace("sleep_pall", pc, tid);
+      //printTrace("sleep_pall", pc, tid);
 #endif
       PIN_Sleep(1000);
       return;
@@ -591,7 +594,7 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
     lk_lock(&tstate->lock, tid+1);
     if (tstate->sleep_producer) {
 #ifdef PRINT_TRACE 
-      printTrace("sleep_p", pc, tid);
+      //printTrace("sleep_p", pc, tid);
 #endif
       lk_unlock(&tstate->lock);
       PIN_Sleep(50);
@@ -601,12 +604,12 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
     if (tstate->ignore || tstate->ignore_all) {
       if(tstate->ignore) {
 #ifdef PRINT_TRACE 
-	printTrace("ignore_one", pc, tid);
+	//printTrace("ignore_one", pc, tid);
 #endif
       }
       if(tstate->ignore_all) {
 #ifdef PRINT_TRACE 
-	printTrace("ignore_all", pc, tid);
+	//	printTrace("ignore_all", pc, tid);
 #endif
       }
       
@@ -617,7 +620,7 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
 
     handshake_container_t* handshake;
 #ifdef PRINT_TRACE 
-    printTrace("sim", pc, tid);
+    //    printTrace("sim", pc, tid);
 #endif
     if (has_memory) {
       handshake = lookahead_buffer[tid].get_buffer();
