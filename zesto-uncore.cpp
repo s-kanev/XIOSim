@@ -210,7 +210,7 @@ uncore_t::uncore_t(
   if(LLC->prefetcher[0] == NULL)
     LLC->num_prefetchers = LLC_num_PF = 0;
 
-  LLC_bus = bus_create("LLC_bus",LLC->linesize,LLC_bus_ratio);
+  LLC_bus = bus_create("LLC_bus",LLC->linesize*LLC->banks,LLC_bus_ratio);
 }
 
 /* destructor */
