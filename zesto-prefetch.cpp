@@ -169,9 +169,6 @@ prefetch_create(const char * const opt_string, struct cache_t * const cp)
   if(!strcasecmp(type,"none"))
     return NULL;
   
-  cerr << "[KEVIN] FORCING ALL PREFETCHING TO NONE IN SOURCE" << endl;
-  return NULL;
-  
   /* include the argument parsing code.  PREFETCH_PARSE_ARGS is defined to
      include only the parsing code and not the other prefetcher code. */
 #include "ZCOMPS-prefetch.list"
