@@ -2702,7 +2702,7 @@ void bus_reg_stats(
 int bus_free(const struct bus_t * const bus)
 {
   /* HACEDY HACKEDY HACK -- magic FSB */
-  if(fsb_magic && strncmmp(bus->name, "FSB", 3) == 0)
+  if(fsb_magic && strncmp(bus->name, "FSB", 3) == 0)
     return true;
   /* assume bus clock is locked to cpu clock (synchronous): only
      allow operations when cycle MOD bus-multiplier is zero */
