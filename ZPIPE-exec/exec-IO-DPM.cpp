@@ -1539,7 +1539,7 @@ void core_exec_IO_DPM_t::LDQ_schedule(void)
                 port[uop->alloc.port_assignment].STQ->pipe[0].action_id = uop->exec.action_id;
 
                 LDQ[index].first_byte_requested = true;
-                if((((uop->oracle.virt_addr+uop->decode.mem_size)>>core->memory.DL1->addr_shift) == (uop->oracle.virt_addr>>core->memory.DL1->addr_shift)) || uop->oracle.is_sync_op)
+                if((((uop->oracle.virt_addr+uop->decode.mem_size-1)>>core->memory.DL1->addr_shift) == (uop->oracle.virt_addr>>core->memory.DL1->addr_shift)) || uop->oracle.is_sync_op)
                 {
                   /* not a split-line access */
                   LDQ[index].last_byte_requested = true;
@@ -1624,7 +1624,7 @@ void core_exec_IO_DPM_t::LDQ_schedule(void)
                 if(send_to_dl1) {
                   ZESTO_STAT(core->stat.DL1_load_split_accesses++;)
 
-                  cache_enqueue(core,core->memory.DL1,NULL,CACHE_READ,core->current_thread->id,uop->Mop->fetch.PC,uop->oracle.virt_addr+uop->decode.mem_size,uop->exec.action_id,0,NO_MSHR,uop,DL1_split_callback,load_miss_reschedule,translated_callback,get_uop_action_id);
+                  cache_enqueue(core,core->memory.DL1,NULL,CACHE_READ,core->current_thread->id,uop->Mop->fetch.PC,uop->oracle.virt_addr+uop->decode.mem_size,uop->exec.action_id,0,NO_MSHR,uop,DL1_split_callback,load_miss_reschedule,translated_callback,get_uop_action_id,true);
                 }
                 if(uop->oracle.is_repeated) {
                   repeater_enqueue(core->memory.mem_repeater, CACHE_READ,
@@ -2131,7 +2131,7 @@ bool core_exec_IO_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
 
     /* not a split-line access */
     if(uop->oracle.is_sync_op ||
-       (((uop->oracle.virt_addr+uop->decode.mem_size)>>core->memory.DL1->addr_shift) == (uop->oracle.virt_addr>>core->memory.DL1->addr_shift)))
+       (((uop->oracle.virt_addr+uop->decode.mem_size-1)>>core->memory.DL1->addr_shift) == (uop->oracle.virt_addr>>core->memory.DL1->addr_shift)))
     {
       STQ[STQ_head].last_byte_requested = true;
       STQ[STQ_head].last_byte_written = true;
