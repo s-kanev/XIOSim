@@ -23,6 +23,7 @@ extern vector<THREADID> thread_list;
 extern map<UINT32, THREADID> core_threads;
 extern map<THREADID, UINT32> thread_cores;
 
+
 /* ========================================================================== */
 // Thread-private state that we need to preserve between different instrumentation calls
 class thread_state_t
@@ -138,8 +139,6 @@ class thread_state_t
     // flag on whether to sleep the producer buffer
     BOOL sleep_producer;
 
-    //Ignore list of instrutcions that we don't care about
-    map<ADDRINT, BOOL> ignore_list;
     // XXX: END SHARED
 
 private:
@@ -224,8 +223,8 @@ VOID enable_consumers();
 VOID disable_producers();
 VOID enable_producers();
 
-ADDRINT flushOneToHandshakeBuffer(THREADID tid);
-VOID flushAllToHandshakeBuffer(THREADID tid);
+VOID flushOneToHandshakeBuffer(THREADID tid);
+VOID flushLookahead(THREADID tid, int numToIgnore);
 
 VOID printTrace(string stype, ADDRINT pc, THREADID tid);
 

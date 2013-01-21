@@ -8,8 +8,6 @@
 /* ========================================================================== */
 /* ========================================================================== */
 
-//#define PRINT_TRACE
-
 #include <iostream>
 #include <iomanip>
 #include <map>
@@ -462,32 +460,12 @@ VOID SimulatorLoop(VOID* arg)
         if (KnobSanity.Value())
             SanityMemCheck();
 
-        // Ignoring instruction
-        ADDRINT pc = handshake->handshake.pc;
         thread_state_t* tstate = get_tls(instrument_tid);
         lk_lock(&tstate->lock, tid+1);
-
-        if (tstate->ignore_list.find(pc) != tstate->ignore_list.end())
-        {
-	  if(!handshake->flags.isFirstInsn) {	    
-	    lk_unlock(&tstate->lock);
-	      #ifdef PRINT_TRACE 
-	             printTrace("jit", handshake->handshake.pc, instrument_tid); 
-              #endif
-	    ReleaseHandshake(handshake->handshake.coreID);	    
-            continue;
-	  }
-	  else {
-	    cerr << "Bogus first insn" << endl;
-	  }
-        }
         tstate->num_inst++;
         lk_unlock(&tstate->lock);
 
         // Actual simulation happens here
-#ifdef PRINT_TRACE 
-	printTrace("sim", handshake->handshake.pc, instrument_tid); 
-#endif
 	Zesto_Resume(&handshake->handshake, &handshake->mem_buffer, handshake->flags.isFirstInsn, handshake->flags.isLastInsn);
 
 	if(!KnobPipelineInstrumentation.Value())
@@ -556,7 +534,6 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, 
 	ASSERTX(!handshake->flags.valid);
     }
     else {
-        cerr << "[KEVIN WARNING]: Multiple GrabInstMemReads - should be rare" << endl;
         handshake = lookahead_buffer[tid].get_buffer();
     }
 
@@ -583,9 +560,6 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
     }
 
     if(producers_sleep) {
-#ifdef PRINT_TRACE 
-      //printTrace("sleep_pall", pc, tid);
-#endif
       PIN_Sleep(1000);
       return;
     }
@@ -593,35 +567,18 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
     thread_state_t* tstate = get_tls(tid);
     lk_lock(&tstate->lock, tid+1);
     if (tstate->sleep_producer) {
-#ifdef PRINT_TRACE 
-      //printTrace("sleep_p", pc, tid);
-#endif
       lk_unlock(&tstate->lock);
       PIN_Sleep(50);
       return;
     }
     
-    if (tstate->ignore || tstate->ignore_all) {
-      if(tstate->ignore) {
-#ifdef PRINT_TRACE 
-	//printTrace("ignore_one", pc, tid);
-#endif
-      }
-      if(tstate->ignore_all) {
-#ifdef PRINT_TRACE 
-	//	printTrace("ignore_all", pc, tid);
-#endif
-      }
-      
+    if (tstate->ignore || tstate->ignore_all) {      
         lk_unlock(&tstate->lock);
         return;
     }
     lk_unlock(&tstate->lock);
 
     handshake_container_t* handshake;
-#ifdef PRINT_TRACE 
-    //    printTrace("sim", pc, tid);
-#endif
     if (has_memory) {
       handshake = lookahead_buffer[tid].get_buffer();
     }
@@ -687,7 +644,6 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
     if(lookahead_buffer[tid].full()) {
       flushOneToHandshakeBuffer(tid);
     }
-    //    handshake_buffer.producer_done(tid);
 }
 
 /* ========================================================================== */
@@ -1051,7 +1007,7 @@ VOID PauseSimulation(THREADID tid)
      * to functionally reach wait 0, where they will wait until the end
      * of the loop; (ii) drain all pipelines once cores are waiting. */
   cerr << "pausing..." << endl;
-  flushAllToHandshakeBuffer(tid);
+  flushLookahead(tid, 0);
   
   volatile bool done_with_iteration = false;
     do {
@@ -1797,7 +1753,6 @@ VOID disable_consumers()
 {
   host_cpus = 16;
   if(host_cpus < num_threads * 2) {
-    cerr << "Sleeping consumers" << endl;
     consumers_sleep = true;
   }
 }
@@ -1806,41 +1761,87 @@ VOID disable_producers()
 {
   host_cpus = 16;
   if(host_cpus < num_threads * 2) {
-    cerr << "Sleeping producers" << endl;
     producers_sleep = true;
   }
 }
 
 VOID enable_consumers()
 {
-  cerr << "Waking consumers" << endl;
   consumers_sleep = false;
 }
 
 VOID enable_producers()
 {
-  cerr << "Waking producers" << endl;
   producers_sleep = false;
 }
+ 
+VOID flushLookahead(THREADID tid, int numToIgnore) {
+  int remainingToIgnore = numToIgnore;
+  if(remainingToIgnore > lookahead_buffer[tid].size()) {
+    remainingToIgnore = lookahead_buffer[tid].size();
+  }
 
-ADDRINT flushOneToHandshakeBuffer(THREADID tid)
+  set<ADDRINT> ignore_pcs;
+  if(remainingToIgnore > 0) {   
+    // If there's anything at all to ignore, there's at least a call instruction
+    ADDRINT last_pc = lookahead_buffer[tid].back()->handshake.pc;
+    assert(pc_diss[last_pc].find("call") != string::npos);
+    ignore_pcs.insert(last_pc);
+    remainingToIgnore--;
+
+    // Now check backwards in time, looking for stack accesses
+    // Ignore the most recent stack accesses, assume they are the parameters
+    int back_index = lookahead_buffer[tid].size() - 1;
+    for(int i = back_index - 1; i >= 0; i--) {
+      ADDRINT pc = lookahead_buffer[tid][i]->handshake.pc;
+      string diss = pc_diss[pc];
+      bool hasMov = diss.find("mov") != string::npos;
+      bool hasEsp = diss.find("esp") != string::npos;
+      if(hasMov && hasEsp) {
+	ignore_pcs.insert(pc);
+	remainingToIgnore--;
+	if(remainingToIgnore == 0) {
+	  break;
+	}
+      }
+    }
+    if(remainingToIgnore != 0) {
+      for(int i = 0; i < lookahead_buffer[tid].size(); i++) {
+	ADDRINT pc = lookahead_buffer[tid][i]->handshake.pc;
+	string diss = pc_diss[pc];
+	std::cerr << thread_cores[tid] << " "  << hex << pc << dec << " " << diss << endl;
+      }
+    }
+    assert(remainingToIgnore == 0);
+  }
+
+  // Perform the flush from lookahead buffer to handshake buffer
+  while(!(lookahead_buffer[tid].empty())) {
+    handshake_container_t *handshake = lookahead_buffer[tid].front();
+    if(ignore_pcs.count(handshake->handshake.pc) == 0) {
+      flushOneToHandshakeBuffer(tid);
+    }
+    else {
+#ifdef PRINT_DYN_TRACE 
+      printTrace("jit", handshake->handshake.pc, tid); 
+#endif
+      lookahead_buffer[tid].pop();
+    }
+  }
+}
+
+void flushOneToHandshakeBuffer(THREADID tid)
 {
   handshake_container_t *handshake = lookahead_buffer[tid].front();
+#ifdef PRINT_DYN_TRACE 
+	printTrace("sim", handshake->handshake.pc, tid); 
+#endif
   handshake_container_t* newhandshake = handshake_buffer.get_buffer(tid);
   bool isFirstInsn = newhandshake->flags.isFirstInsn;
   handshake->CopyTo(newhandshake);
   newhandshake->flags.isFirstInsn = isFirstInsn;
-  ADDRINT pc = newhandshake->handshake.pc;
   handshake_buffer.producer_done(tid);
   lookahead_buffer[tid].pop();
-  return pc;
-}
-
-VOID flushAllToHandshakeBuffer(THREADID tid)
-{
-  while(!(lookahead_buffer[tid].empty())) {
-    flushOneToHandshakeBuffer(tid);
-  }
 }
 
 VOID printTrace(string stype, ADDRINT pc, THREADID tid)
@@ -1849,7 +1850,7 @@ VOID printTrace(string stype, ADDRINT pc, THREADID tid)
     return;
   }
   lk_lock(&instrument_tid_lock, 1);
-  pc_file << tid << " " << stype << " " << pc << " " << pc_diss[pc] << endl;
+  pc_file << thread_cores[tid] << " " << stype << " " << pc << " " << pc_diss[pc] << endl;
   lk_unlock(&instrument_tid_lock);
 }
 
