@@ -1318,7 +1318,8 @@ void cache_enqueue(
     void (*const cb)(void *),
     void (*const miss_cb)(void *, int),
     bool (*const translated_cb)(void *,seq_t),
-    seq_t (*const get_action_id)(void *) )
+    seq_t (*const get_action_id)(void *),
+    const bool prefetcher_hint)
 {
   md_paddr_t paddr;
   if(thread_id == DO_NOT_TRANSLATE)
@@ -1347,6 +1348,7 @@ void cache_enqueue(
   cp->pipe[bank][insert_position].get_action_id = get_action_id;
   cp->pipe[bank][insert_position].when_started = sim_cycle;
   cp->pipe[bank][insert_position].when_returned = TICK_T_MAX;
+  cp->pipe[bank][insert_position].prefetcher_hint = prefetcher_hint;
 
 
   cp->pipe[bank][insert_position].pipe_exit_time = sim_cycle+cp->latency;
@@ -2200,7 +2202,11 @@ void cache_process(struct cache_t * const cp)
                 int ii;
                 for(ii=0;ii<cp->num_prefetchers;ii++)
                 {
-                  md_paddr_t pf_addr = cp->prefetcher[ii]->lookup(ca->PC,ca->paddr);
+                  md_paddr_t pf_addr;
+                  if(!ca->prefetcher_hint)
+                    pf_addr = cp->prefetcher[ii]->lookup(ca->PC,ca->paddr);
+                  else
+                    pf_addr = cp->prefetcher[ii]->latest_lookup(ca->PC,ca->paddr);
 
                   if(pf_addr & ~(PAGE_SIZE-1)) /* don't prefetch from zeroth page */
                   {
@@ -2546,7 +2552,7 @@ static void prefetch_controller_update(struct cache_t * const cp)
 {
   if(cp->PF_sample_interval && ((sim_cycle % cp->PF_sample_interval) == 0))
   {
-    int current_sample = cp->next_bus->stat.utilization;
+    int current_sample = (int)cp->next_bus->stat.utilization;
     double duty_cycle = (current_sample - cp->PF_last_sample) / (double) cp->PF_sample_interval;
     if(duty_cycle < cp->PF_low_watermark)
       cp->PF_state = PF_OK;
@@ -2680,7 +2686,7 @@ void bus_reg_stats(
   stat_reg_counter(sdb, true, buf, buf2, &bus->stat.accesses, 0, TRUE, NULL);
   sprintf(buf,"%s%s.utilization",core_str,bus->name);
   sprintf(buf2,"cumulative cycles of utilization of bus %s",bus->name);
-  stat_reg_counter(sdb, true, buf, buf2, &bus->stat.utilization, 0, TRUE, NULL);
+  stat_reg_double(sdb, true, buf, buf2, &bus->stat.utilization, 0, TRUE, NULL);
   sprintf(buf,"%s%s.avg_burst",core_str,bus->name);
   sprintf(buf2,"avg cycles utilized per transfer of bus %s",bus->name);
   sprintf(buf3,"%s%s.utilization/%s%s.accesses",core_str,bus->name,core_str,bus->name);
@@ -2691,7 +2697,7 @@ void bus_reg_stats(
   stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
   sprintf(buf,"%s%s.pf_utilization",core_str,bus->name);
   sprintf(buf2,"cumulative cycles of utilization of bus %s for prefetches",bus->name);
-  stat_reg_counter(sdb, true, buf, buf2, &bus->stat.prefetch_utilization, 0, TRUE, NULL);
+  stat_reg_double(sdb, true, buf, buf2, &bus->stat.prefetch_utilization, 0, TRUE, NULL);
   sprintf(buf,"%s%s.pf_duty_cycle",core_str,bus->name);
   sprintf(buf2,"fraction of time bus %s was in use for prefetches",bus->name);
   sprintf(buf3,"%s%s.pf_utilization/sim_cycle",core_str,bus->name);
@@ -2718,8 +2724,8 @@ void bus_use(
     const int transfer_size,
     const int prefetch)
 {
-  const int latency = (((transfer_size-1) / bus->width)+1) * bus->ratio; /* round up */
-  bus->when_available = sim_cycle + latency;
+  const double latency = ((transfer_size) / (double)bus->width) * bus->ratio;
+  bus->when_available = (int)(sim_cycle + latency); /* round down*/
   bus->stat.accesses++;
   bus->stat.utilization += latency;
   if(prefetch)
