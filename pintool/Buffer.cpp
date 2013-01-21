@@ -66,6 +66,14 @@ handshake_container_t* Buffer::back()
   return &(handshakePool_[dex]);
 }
 
+// [0] corresponds to front(), [size_ - 1] to back()
+// does not bounds check
+handshake_container_t* Buffer::operator[](int index)
+{
+  int dex = (tail_ + index) % numPool_;
+  return &(handshakePool_[dex]);
+}
+
 bool Buffer::empty()
 {
   return size_ == 0;
