@@ -304,7 +304,6 @@ VOID ILDJIT_startLoop_after(THREADID tid, ADDRINT ip)
     thread_state_t* tstate = get_tls(tid);
     lk_lock(&tstate->lock, tid+1);
     tstate->ignore = false;
-    //    tstate->ignore_list[ip] = true;
     lk_unlock(&tstate->lock);    
   }
 }
