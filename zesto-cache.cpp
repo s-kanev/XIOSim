@@ -2190,29 +2190,20 @@ void cache_process(struct cache_t * const cp)
                   continue; /* this circumvents the "ca->cb = NULL" at the end of the loop, thereby leaving the ca in the pipe */
               }
             }
-
-            cache_heap_remove(cp->pipe[bank],cp->pipe_num[bank]);
-            cp->pipe_num[bank]--;
-            cache_assert(cp->pipe_num[bank] >= 0,(void)0);
-            request_dequeued = true;
-
-            if(do_prefetch && request_dequeued)
-              if(ca->PC && (ca->cmd == CACHE_READ))
-              {
-                int ii;
-                for(ii=0;ii<cp->num_prefetchers;ii++)
-                {
+	              
+	    if(do_prefetch) {
+              if(ca->PC && (ca->cmd == CACHE_READ)) {
+                for(int ii=0;ii<cp->num_prefetchers;ii++) {
                   md_paddr_t pf_addr;
                   if(!ca->prefetcher_hint)
                     pf_addr = cp->prefetcher[ii]->lookup(ca->PC,ca->paddr);
                   else
                     pf_addr = cp->prefetcher[ii]->latest_lookup(ca->PC,ca->paddr);
 
-                  if(pf_addr & ~(PAGE_SIZE-1)) /* don't prefetch from zeroth page */
-                  {
+                  if(pf_addr & ~(PAGE_SIZE-1)) { /* don't prefetch from zeroth page */
                     int j;
 
-                    /* search PFF to see if pf_addr already requested */
+		    /* search PFF to see if pf_addr already requested */
                     int already_requested = false;
                     int index = cp->PFF_head;;
                     for(j=0;j<cp->PFF_num;j++)
@@ -2228,12 +2219,10 @@ void cache_process(struct cache_t * const cp)
                       continue; /* for(i=0;...) */
 
                     /* if FIFO full, overwrite oldest */
-                    if(cp->PFF_num == cp->PFF_size)
-                    {
+                    if(cp->PFF_num == cp->PFF_size) {
                       cp->PFF_head = modinc(cp->PFF_head,cp->PFF_size); //(cp->PFF_head + 1) % cp->PFF_size;
                       cp->PFF_num--;
                       cache_assert(cp->PFF_num >= 0,(void)0);
-
                     }
 
                     cp->PFF[cp->PFF_tail].PC = ca->PC;
@@ -2243,10 +2232,15 @@ void cache_process(struct cache_t * const cp)
                     cp->PFF_num++;
                     cache_assert(cp->PFF_num <= cp->PFF_size,(void)0);
                   }
-                }
-              }
-          }
-        }
+		}
+	      }
+	    }	  
+	    cache_heap_remove(cp->pipe[bank],cp->pipe_num[bank]);
+            cp->pipe_num[bank]--;
+            cache_assert(cp->pipe_num[bank] >= 0,(void)0);
+            request_dequeued = true;
+	  }	  
+	}
         else /* !ca->cb */
         {
           cache_heap_remove(cp->pipe[bank],cp->pipe_num[bank]);
@@ -2254,7 +2248,7 @@ void cache_process(struct cache_t * const cp)
           cache_assert(cp->pipe_num[bank] >= 0,(void)0);
         }
       }
-    }
+   }
   cp->check_for_pipe_work = pipe_work_found;
 
   if(cp->check_for_MSHR_work)
