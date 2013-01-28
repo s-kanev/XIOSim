@@ -2,6 +2,7 @@
 /*
  * __COPYRIGHT__ GT
  */
+
 #define COMPONENT_NAME "2lev-IP"
 /*
   This has been modified from the original IP prefetcher to better handle the case
@@ -16,18 +17,23 @@
   Instead, it correctly prefetches a stride of X whenever it is seen, assuming
   X does not change.
 
+  Also, we do not prefetch if we're going to cross a page boundary.
+
+  It implements the state machine detailed in:
+  Jean-Loup Baer and Tien-Fu Chen. 1995. Effective Hardware-Based Data Prefetching for High-Performance 
+  Processors. IEEE Trans. Comput. 44, 5 (May 1995), 609-623.
+
   It is currently not really a two level prefetcher, but may be someday.
  */
-
+ 
 #ifdef PREFETCH_PARSE_ARGS
 if(!strcasecmp(COMPONENT_NAME,type))
 {
   int num_entries;
   int last_addr_bits;
   int last_stride_bits;
-  int last_prefetch_bits;
-  if(sscanf(opt_string,"%*[^:]:%d:%d:%d:%d",&num_entries,&last_addr_bits,&last_stride_bits,&last_prefetch_bits) != 4)
-    fatal("bad %s prefetcher options string %s (should be \"2lev-IP:num_entries:addr-bits:stride-bits:last-PF-bits\")",cp->name,opt_string);
+  if(sscanf(opt_string,"%*[^:]:%d:%d:%d:%d",&num_entries,&last_addr_bits,&last_stride_bits) != 3)
+    fatal("bad %s prefetcher options string %s (should be \"2lev-IP:num_entries:addr-bits:stride-bits\")",cp->name,opt_string);
   return new prefetch_2lev_IP_t(cp,num_entries,last_addr_bits,last_stride_bits,last_prefetch_bits);
 }
 #else
@@ -40,17 +46,15 @@ class prefetch_2lev_IP_t:public prefetch_t
 
   int last_addr_bits;
   int last_stride_bits;
-  int last_prefetch_bits;
 
   int last_addr_mask;
   int last_stride_mask;
-  int last_prefetch_mask;
 
   struct prefetch_IP_table_t {
+    //    md_addr_t PC;
     md_paddr_t last_paddr;
     int last_stride;
     my2bc_t conf;
-    md_paddr_t last_prefetch;
   } * table;
 
   public:
@@ -78,17 +82,15 @@ class prefetch_2lev_IP_t:public prefetch_t
 
     last_addr_bits = arg_last_addr_bits;
     last_stride_bits = arg_last_stride_bits;
-    last_prefetch_bits = arg_last_prefetch_bits;
 
     last_addr_mask = (1<<last_addr_bits)-1;
     last_stride_mask = (1<<last_stride_bits)-1;
-    last_prefetch_mask = (1<<last_prefetch_bits)-1;
 
     table = (struct prefetch_2lev_IP_t::prefetch_IP_table_t*) calloc(num_entries,sizeof(*table));
     if(!table)
       fatal("couldn't calloc IP-prefetch table");
 
-    bits = num_entries * (last_addr_bits + last_stride_bits + last_prefetch_bits + 2);
+    bits = num_entries * (last_addr_bits + last_stride_bits + 2);
     assert(arg_cp);
   }
 
@@ -101,40 +103,56 @@ class prefetch_2lev_IP_t:public prefetch_t
 
   /* LOOKUP */
   PREFETCH_LOOKUP_HEADER
-  {
+{
     lookups++;
 
     int index = PC & mask;
     md_paddr_t pf_paddr = 0;
-
+    
+    // If want to use tags for table
+    /*    if(table[index].PC != PC) {
+      table[index].last_paddr = paddr&last_addr_mask;    
+      table[index].last_stride = 0;
+      table[index].conf = MY2BC_WEAKLY_TAKEN;
+      table[index].PC = PC;
+      return 0;
+      }*/
+    
     /* train entry first */
     md_paddr_t last_paddr = (paddr&~last_addr_mask) | table[index].last_paddr;
     int this_stride = (paddr - last_paddr) & last_stride_mask;
 
     /* zero stride is just unuseful prefetches, don't update tables */
-    if(this_stride == 0)
+    if(this_stride == 0) {
       return 0;
-
-    if(this_stride == table[index].last_stride)
-      MY2BC_UPDATE(table[index].conf,true);
-    else
-      table[index].conf = MY2BC_STRONG_NT;
-
-    table[index].last_paddr = paddr&last_addr_mask;
-    table[index].last_stride = this_stride;
-
-    /* only make a prefetch if confident */
-    if(table[index].conf == MY2BC_STRONG_TAKEN)
-    {
-      pf_paddr = paddr + this_stride;
-      if((pf_paddr & last_prefetch_mask) == table[index].last_prefetch)
-        pf_paddr = 0; /* don't keep prefetching the same thing */
-      table[index].last_prefetch = pf_paddr & last_prefetch_mask;
     }
 
+    table[index].last_paddr = paddr&last_addr_mask;    
+    if(table[index].conf != MY2BC_STRONG_TAKEN) {
+      table[index].last_stride = this_stride;
+    }
+
+    bool is_correct = (this_stride == table[index].last_stride);
+
+    if(table[index].conf == MY2BC_WEAKLY_NT && is_correct) {
+      table[index].conf = MY2BC_STRONG_TAKEN;
+    }
+    else {
+      MY2BC_UPDATE(table[index].conf, is_correct);
+    }
+    
+    if((table[index].conf != MY2BC_STRONG_NT)) {
+      pf_paddr = paddr + table[index].last_stride;
+      
+      // If going to cross page boundary, don't prefetch
+      int page_mask = ~((1 << PAGE_SHIFT) - 1);
+      if((pf_paddr & page_mask) != (paddr & page_mask)) {
+	return 0;
+      }
+    }
     return pf_paddr;
   }
-
+  
   virtual md_paddr_t latest_lookup (const md_addr_t PC, const md_paddr_t paddr)
   {
     (void) paddr;
