@@ -32,9 +32,9 @@ if(!strcasecmp(COMPONENT_NAME,type))
   int num_entries;
   int last_addr_bits;
   int last_stride_bits;
-  if(sscanf(opt_string,"%*[^:]:%d:%d:%d:%d",&num_entries,&last_addr_bits,&last_stride_bits) != 3)
+  if(sscanf(opt_string,"%*[^:]:%d:%d:%d",&num_entries,&last_addr_bits,&last_stride_bits) != 3)
     fatal("bad %s prefetcher options string %s (should be \"2lev-IP:num_entries:addr-bits:stride-bits\")",cp->name,opt_string);
-  return new prefetch_2lev_IP_t(cp,num_entries,last_addr_bits,last_stride_bits,last_prefetch_bits);
+  return new prefetch_2lev_IP_t(cp,num_entries,last_addr_bits,last_stride_bits);
 }
 #else
 
@@ -62,8 +62,7 @@ class prefetch_2lev_IP_t:public prefetch_t
   prefetch_2lev_IP_t(struct cache_t * arg_cp,
                 int arg_num_entries,
                 int arg_last_addr_bits,
-                int arg_last_stride_bits,
-                int arg_last_prefetch_bits)
+                int arg_last_stride_bits)
   {
     init();
 
