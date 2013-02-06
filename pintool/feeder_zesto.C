@@ -1100,8 +1100,10 @@ VOID PauseSimulation(THREADID tid)
         for (it = thread_list.begin(); it != thread_list.end(); it++) {
             done &= handshake_buffer.empty((*it));
         }
-        if (!done)
-	  PIN_Sleep(100);
+	// vvv DO THE SAME FOR PRODUCER_SLEEP IN SIMULATEINSTUCTION, etc
+       //      if (!done)  MAKE THIS SENSITIVE TO THE NUMBER OF REMAINING HANDSHAKES!!!!!
+	//        if (!done) 
+	//	  PIN_Sleep(100);
 	  //            PIN_Yield();
     } while (!done);
 
@@ -1834,7 +1836,15 @@ void flushOneToHandshakeBuffer(THREADID tid)
 {
   handshake_container_t *handshake = lookahead_buffer[tid].front();
 #ifdef PRINT_DYN_TRACE 
-	printTrace("sim", handshake->handshake.pc, tid); 
+  if(pc_diss[handshake->handshake.pc].find("ret") != string::npos) {
+    if (handshake->handshake.npc == handshake->handshake.pc + 5) {
+      pc_diss[handshake->handshake.pc] = "Wait";
+    }
+    else if (handshake->handshake.npc == handshake->handshake.pc + 10) {
+      pc_diss[handshake->handshake.pc] = "Signal";
+    }
+  }
+  printTrace("sim", handshake->handshake.pc, tid); 
 #endif
   handshake_container_t* newhandshake = handshake_buffer.get_buffer(tid);
   bool isFirstInsn = newhandshake->flags.isFirstInsn;
@@ -1849,6 +1859,7 @@ VOID printTrace(string stype, ADDRINT pc, THREADID tid)
   if(ExecMode != EXECUTION_MODE_SIMULATE) {
     return;
   }
+
   lk_lock(&instrument_tid_lock, 1);
   pc_file << thread_cores[tid] << " " << stype << " " << pc << " " << pc_diss[pc] << endl;
   lk_unlock(&instrument_tid_lock);

@@ -30,13 +30,20 @@ const UINT8 ld_template[] = {0xa1, 0xad, 0xfb, 0xca, 0xde};
 const UINT8 st_template[] = {0xc7, 0x05, 0xad, 0xfb, 0xca, 0xde, 0x00, 0x00, 0x00, 0x00 };
 
 static map<ADDRINT, UINT32> invocation_counts;
-static map<ADDRINT, UINT32> iteration_counts;
 
 KNOB<string> KnobLoopIDFile(KNOB_MODE_WRITEONCE, "pintool",
     "loopID", "", "File to get start/end loop IDs and invocation caounts");
 
 KNOB<BOOL> KnobDisableWaitSignal(KNOB_MODE_WRITEONCE,     "pintool",
         "disable_wait_signal", "false", "Don't insert any waits or signals into the pipeline");
+
+static iteration_state_t phase_parent_id;
+static iteration_state_t phase_start_id;
+static iteration_state_t phase_end_id;
+
+static string parent_loop = "";
+static UINT32 parent_loop_invocation = -1;
+static UINT32 parent_loop_iteration = -1;
 
 static string start_loop = "";
 static UINT32 start_loop_invocation = -1;
@@ -50,6 +57,11 @@ VOID printMemoryUsage(THREADID tid);
 VOID printElapsedTime();
 BOOL signalCallback(THREADID tid, INT32 sig, CONTEXT *ctxt, BOOL hasHandler, const EXCEPTION_INFO *pExceptInfo, VOID *v);
 void signalCallback2(int signum);
+void initializePerThreadLoopState(THREADID tid);
+
+bool loopMatches(string loop, UINT32 invocationNum, UINT32 iterationNum);
+void readLoop(ifstream& fin, iteration_state_t* iteration_state);
+void printLoop(iteration_state_t* iteration_state);
 
 extern VOID doLateILDJITInstrumentation();
 time_t last_time;
@@ -76,28 +88,24 @@ VOID MOLECOOL_Init()
             PIN_ExitProcess(1);
         }
 
-	string line;		
-	// start phase info
-	getline(loop_file, start_loop);
+	readLoop(loop_file, &phase_parent_id);
+	readLoop(loop_file, &phase_start_id);
+	readLoop(loop_file, &phase_end_id);	
 
-	getline(loop_file, line);	
-	start_loop_invocation = Uint32FromString(line);
-	assert((UINT64)start_loop_invocation == Uint64FromString(line));
+	phase_start_id = phase_parent_id;
 
-	getline(loop_file, line);
-	start_loop_iteration = Uint32FromString(line);
-	assert((UINT64)start_loop_iteration == Uint64FromString(line));
+	// hack for now
+	parent_loop = phase_parent_id.name;
+	parent_loop_invocation = phase_parent_id.invocationNumber;
+	parent_loop_iteration = phase_parent_id.iterationNumber;
 
-	// end phase info
-	getline(loop_file, end_loop);
-	
-	getline(loop_file, line);	
-	end_loop_invocation = Uint32FromString(line);
-	assert((UINT64)end_loop_invocation == Uint64FromString(line));
+	start_loop = phase_start_id.name;
+	start_loop_invocation = phase_start_id.invocationNumber;
+	start_loop_iteration = phase_start_id.iterationNumber;
 
-	getline(loop_file, line);
-	end_loop_iteration = Uint32FromString(line);
-	assert((UINT64)end_loop_iteration == Uint64FromString(line));
+	end_loop = phase_end_id.name;
+	end_loop_invocation = phase_end_id.invocationNumber;
+	end_loop_iteration = phase_end_id.iterationNumber;
     }
 
     disable_wait_signal = KnobDisableWaitSignal.Value();
@@ -121,8 +129,9 @@ VOID MOLECOOL_Init()
 
     last_time = time(NULL);
 
-    cerr << start_loop << " " << start_loop_invocation << " " << start_loop_iteration << endl;
-    cerr << end_loop << " " << end_loop_invocation << " " << end_loop_iteration << endl;
+    printLoop(&phase_parent_id);    
+    printLoop(&phase_start_id);
+    printLoop(&phase_end_id);
 }
 
 /* ========================================================================== */
@@ -213,37 +222,22 @@ VOID ILDJIT_ExecutorCreateEnd(THREADID tid)
 
 static UINT32 getSignalAddress(ADDRINT ssID);
 
-static BOOL firstLoop = true;
 static BOOL first_invocation = true;
 static THREADID thread_started_invocation = -1;
 
+static BOOL reached_parent_invocation = false;
 static BOOL reached_start_invocation = false;
-static BOOL reached_start_iteration = false;
 static BOOL reached_end_invocation = false;
-static BOOL reached_end_iteration = false;
 
+static BOOL reached_start_iteration = false;
 static BOOL simulating_parallel_loop = false;
-static BOOL ran_parallel_loop = false;
-static BOOL start_next_parallel_loop = false;
-static BOOL end_next_parallel_loop = false;
 
 /* =========================================================================== */
-static VOID checkEndLoop(ADDRINT loop)
-{
-  if(end_loop.length() > 0 && strncmp(end_loop.c_str(), (CHAR*)loop, 512) != 0) {
-    return;
-  }
-  if (invocation_counts[loop] != end_loop_invocation) {
-    return;
-  }    
-  cerr << "SETTING END INVOCATIION: " << (CHAR*)loop << endl;
-  reached_end_invocation = true;
-}
 
 VOID ILDJIT_startLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
 {
   // This is for when there are serial loops within an executing parallel loop.
-  if (simulating_parallel_loop) {
+  if (simulating_parallel_loop && reached_start_iteration) {
     thread_state_t* tstate = get_tls(tid);
     lk_lock(&tstate->lock, tid+1);
     tstate->ignore = true;
@@ -253,21 +247,7 @@ VOID ILDJIT_startLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
     flushLookahead(tid, numInstsToIgnore);    
   }
 
-  if( (!ran_parallel_loop) && (reached_start_invocation) && (!reached_start_iteration) && (!start_next_parallel_loop) ) {
-    start_next_parallel_loop = true;
-    cerr << "SETTING MISSED START ITERATION:" << endl;
-    cerr << (CHAR*)loop << endl;
-  }
-
-  if( (!ran_parallel_loop) && (reached_end_invocation) && (!reached_end_iteration) && (!end_next_parallel_loop)) {
-    end_next_parallel_loop = true;
-    //    reached_end_iteration = true;
-    //    cerr << "SETTING REACHED END ITERATION B:" << endl;
-    //    cerr << (CHAR*)loop << endl;
-  }
-
-  ran_parallel_loop = false;
-
+  // Increment invocation counter for this loop
   if(invocation_counts.count(loop) == 0) {
     invocation_counts[loop] = 0;
   }
@@ -275,32 +255,48 @@ VOID ILDJIT_startLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
     invocation_counts[loop]++;
   }
 
-  // If we already started the phase invocation, 
-  // check for end invocation, then return
-  if(reached_start_invocation) {   
-    checkEndLoop(loop);
-    return;
-  }
-  
-  if(start_loop.length() > 0 && strncmp(start_loop.c_str(), (CHAR*)loop, 512) != 0) {
-    return;
+  // If at starting loop invocation and iteration...
+  if((!reached_parent_invocation) && (parent_loop == (string)((char*)loop)) && (invocation_counts[loop] == parent_loop_invocation)) {
+    assert(invocation_counts[loop] == parent_loop_invocation);
+    cerr << "Called startLoop() for the parent invocation!:" << (CHAR*)loop << endl;
+    reached_parent_invocation = true;  
   }
 
-  // If the start loop hasn't got to the correct invocation yet, return
-  if (invocation_counts[loop] != start_loop_invocation) {
-    return;
+  if((!reached_start_invocation) && reached_parent_invocation && (start_loop == (string)((char*)loop)) && (invocation_counts[loop] == start_loop_invocation)) {
+    assert(invocation_counts[loop] == start_loop_invocation);
+    cerr << "Called startLoop() for the start invocation!:" << (CHAR*)loop << endl;
+    reached_start_invocation = true;  
   }
-  assert(invocation_counts[loop] == start_loop_invocation);
-  cerr << "Called startLoop() for the start invocation!:" << (CHAR*)loop << endl;
-  reached_start_invocation = true;
-  checkEndLoop(loop);
+
+  if((!reached_end_invocation) && reached_parent_invocation && (end_loop == string((char*)loop)) && (invocation_counts[loop] == end_loop_invocation)) {
+    assert(invocation_counts[loop] == end_loop_invocation);
+    cerr << "Called startLoop() for the end invocation!:" << (CHAR*)loop << endl;
+    reached_end_invocation = true;
+  }
+
+  // If we've reached the start, check for the end, and create new loop state
+  if(reached_parent_invocation) {  
+    bool inParallelLoop = false;
+    if(loop_states.size() > 0) {
+      inParallelLoop = loop_state->inParallelLoop;
+    }
+
+    loop_states.push(loop_state_t());    
+    loop_state = &(loop_states.top());
+
+    loop_state->inParallelLoop = inParallelLoop;
+    loop_state->simmed_iteration_count = 0;
+    loop_state->current_loop = loop;
+    loop_state->invocationCount = invocation_counts[loop];
+    loop_state->iterationCount = -1;
+  }
 }
 
 /* ========================================================================== */
 VOID ILDJIT_startLoop_after(THREADID tid, ADDRINT ip)
 {
   // This is for when there are serial loops within an executing parallel loop.
-  if (simulating_parallel_loop) {
+  if (simulating_parallel_loop && reached_start_iteration) {
     thread_state_t* tstate = get_tls(tid);
     lk_lock(&tstate->lock, tid+1);
     tstate->ignore = false;
@@ -313,69 +309,42 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
 {
   disable_consumers();
 
-  // create new loop state
-  loop_states.push(loop_state_t());
-  loop_state = &(loop_states.top());
-    
-  loop_state->simmed_iteration_count = 0;
-  loop_state->current_loop = loop;
+  // Only maintain the loop stack once we get to the parent loop
+  if(reached_parent_invocation) {
+    assert(loop_states.size() > 0);
+    loop_state->inParallelLoop = true;
+  }
 
-  ran_parallel_loop = true;
+  // If we didn't get to the start of the phase, return
+  if(!reached_start_iteration) {
+    return;
+  }
 
-  if(end_next_parallel_loop) {
-    reached_end_iteration = true;
+  loop_state->use_ring_cache = (rc > 0);
+  
+  if(disable_wait_signal) {
+    loop_state->use_ring_cache = false;
   }
   
-    /* Haven't started simulation and we encounter a loop we don't care
-     * about */
-    if (ExecMode != EXECUTION_MODE_SIMULATE) {
-      if(!reached_start_invocation) {
-	return;
-      }
-      cerr << "Do late!" << endl;
-      doLateILDJITInstrumentation();
-      cerr << "Done late!" << endl;
-    }
+  //#ifdef ZESTO_PIN_DBG
+  CHAR* loop_name = (CHAR*) loop;
+  cerr << "Starting loop: " << loop_name << "[" << invocation_counts[loop] << "]" << endl;
+  //#endif
+  
+  assert(reached_start_iteration);
 
-    loop_state->use_ring_cache = (rc > 0);
+  initializePerThreadLoopState(tid);  
+  simulating_parallel_loop = true;
 
-    if(disable_wait_signal) {
-      loop_state->use_ring_cache = false;
-    }
-
-    //#ifdef ZESTO_PIN_DBG
-    CHAR* loop_name = (CHAR*) loop;
-    cerr << "Starting loop: " << loop_name << "[" << invocation_counts[loop] << "]" << endl;
-    //#endif
-
-    vector<THREADID>::iterator it;
-    for (it = thread_list.begin(); it != thread_list.end(); it++) {
-        thread_state_t* curr_tstate = get_tls(*it);
-        lk_lock(&curr_tstate->lock, tid+1);
-        /* This is called right before a wait spin loop.
-         * For this thread only, ignore the end of the wait, so we
-         * can actually start simulating and unblock everyone else.
-         */
-	curr_tstate->push_loop_state();
-        lk_unlock(&curr_tstate->lock);
-    }
-
-    iteration_counts[loop_state->current_loop] = 0;    
-    
-    if(firstLoop) {
-      if(start_loop.size() > 0) {
-	cerr << "FastForward runtime:";
-	printElapsedTime();
-      }
-      cerr << "Starting simulation, TID: " << tid << endl;
-      PPointHandler(CONTROL_START, NULL, NULL, (VOID*)ip, tid);
-      firstLoop = false;	
-    }
-    else {
-      cerr << tid << ": resuming simulation" << endl;
-      ResumeSimulation(tid);
-    }
-    simulating_parallel_loop = true;
+  if (ExecMode != EXECUTION_MODE_SIMULATE) {
+    cerr << "Starting simulation, TID: " << tid << endl;
+    PPointHandler(CONTROL_START, NULL, NULL, NULL, tid);    
+    first_invocation = false;	
+  }
+  else {
+    cerr << tid << ": resuming simulation" << endl;
+    ResumeSimulation(tid);
+  }
 }
 /* ========================================================================== */
 
@@ -384,46 +353,62 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
 // Must be called from within the body of MOLECOOL_beforeWait!
 VOID ILDJIT_startIteration(THREADID tid)
 {
-  UINT32 current_iteration = iteration_counts[loop_state->current_loop];
-  iteration_counts[loop_state->current_loop]++;
-
-  if(reached_start_invocation && reached_start_iteration) {
-    loop_state->simmed_iteration_count++;
-    
-    if(reached_end_iteration) {
-      PauseSimulation(tid);
-      UINT32 iterCount = loop_state->simmed_iteration_count - 1;
-      cerr << "Ending loop: anonymous" << " NumIterations:" << iterCount << endl;
-
-      cerr << "Simulation runtime:";
-      printElapsedTime();
-      cerr << "LStopping simulation, TID: " << tid << endl;
-      StopSimulation(tid);
-      cerr << "[KEVIN] Stopped simulation! " << tid << endl;
-      return;
-    }
-      
-    if(reached_end_invocation && (current_iteration == end_loop_iteration)) {
-      cerr << "SETTING REACHED END ITERATION A" << endl;
-      reached_end_iteration = true;
-    }
-    return;
-  }
-  
-  if(!reached_start_invocation) {
+  if(!reached_parent_invocation) {
     return;
   }
 
-  if( ( (current_iteration == start_loop_iteration) && (string((CHAR*)loop_state->current_loop) == start_loop) ) || (start_next_parallel_loop && ran_parallel_loop)) {
+  if((!reached_start_invocation) && (!reached_end_invocation)) {
+    return;
+  }
+
+  loop_state->iterationCount++;
+
+  // Check if this is the first iteration
+  if((!reached_start_iteration) && loopMatches(start_loop, start_loop_invocation, start_loop_iteration)) {
+    cerr << "SETTING REACHED START ITERATION" << endl;
+    cerr << (CHAR*)loop_state->current_loop << endl;
     reached_start_iteration = true;
-    loop_state->simmed_iteration_count = 1;
+    loop_state->simmed_iteration_count = 0;
     thread_started_invocation = tid;
-    start_next_parallel_loop = false;
+
+    cerr << "Do late!" << endl;
+    doLateILDJITInstrumentation();
+    cerr << "Done late!" << endl;
+
+
+    cerr << "FastForward runtime:";
+    printElapsedTime();
+    
+    if(loop_state->inParallelLoop) {
+      cerr << "Starting simulation, TID: " << tid << endl;
+      initializePerThreadLoopState(tid);
+      
+      simulating_parallel_loop = true;    
+      PPointHandler(CONTROL_START, NULL, NULL, NULL, tid);
+    }
   }
-  
-  if(reached_end_invocation && (current_iteration == end_loop_iteration) && (string((CHAR*)loop_state->current_loop) == end_loop)) {
-    cerr << "SETTING REACHED END ITERATION B" << endl;
-    reached_end_iteration = true;
+
+    // Check if this is the last iteration
+  if(loopMatches(end_loop, end_loop_invocation, end_loop_iteration)) {
+    cerr << "SETTING REACHED END ITERATION" << endl;
+
+    assert(reached_parent_invocation && reached_start_invocation && reached_end_invocation && reached_start_iteration);
+
+    PauseSimulation(tid);
+    int iterCount = loop_state->simmed_iteration_count - 1;
+    cerr << "Ending loop: anonymous" << " NumIterations:" << iterCount << endl;
+    
+    cerr << "Simulation runtime:";
+    printElapsedTime();
+    cerr << "LStopping simulation, TID: " << tid << endl;
+    StopSimulation(tid);
+    cerr << "[KEVIN] Stopped simulation! " << tid << endl;
+  }   
+
+  if(reached_start_iteration) {
+    assert(reached_parent_invocation);
+    assert(reached_start_invocation);
+    loop_state->simmed_iteration_count++;  
   }
 }
 
@@ -436,12 +421,14 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
 
     if (ExecMode == EXECUTION_MODE_SIMULATE) {
       
-      int numInstsToIgnore = 3; // flush a call, two parameter stores
+      // flush a call, two parameter stores
+      int numInstsToIgnore = 3;
       flushLookahead(tid, numInstsToIgnore);    
             
       PauseSimulation(tid);
         cerr << tid << ": Paused simulation!" << endl;
-	first_invocation = false;
+
+	first_invocation = false;	
 
         vector<THREADID>::iterator it;
         for (it = thread_list.begin(); it != thread_list.end(); it++) {
@@ -451,25 +438,40 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
 	    tstate->pop_loop_state();
 	    lk_unlock(&tstate->lock);
         }
-	//#ifdef ZESTO_PIN_DBG
+
         CHAR* loop_name = (CHAR*) loop;
 	UINT32 iterCount = loop_state->simmed_iteration_count - 1;
         cerr << "Ending loop: " << loop_name << " NumIterations:" << iterCount << endl;
-	//#endif
+	simulating_parallel_loop = false;
     }
-    simulating_parallel_loop = false;
-    loop_states.pop();
+}
+
+/* ========================================================================== */
+VOID ILDJIT_endLoop(THREADID tid) {
+  if(reached_parent_invocation) {       
+    //    cerr << "STACK:EL:" << loop_states.size() << endl;
+    // assert(loop_states.size() > 0);
+    // CHECK THIS L:OGIC
     if(loop_states.size() > 0) {
-      loop_state = &(loop_states.top());
+      loop_states.pop();
+      if(loop_states.size() > 0) {
+	loop_state = &(loop_states.top());
+      }
     }
+    else {
+      cerr << "WARNING: POPPING NOTHING" << endl;
+    }
+  }
 }
 
 /* ========================================================================== */
 VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID, ADDRINT pc)
 {
-  #ifdef PRINT_WAITS
-      if (ExecMode == EXECUTION_MODE_SIMULATE)
-        cerr << tid <<" :Before Wait "<< hex << pc << dec  << " ID: " << dec << ssID << endl;
+#ifdef PRINT_WAITS
+  lk_lock(&printing_lock, tid+1);
+  if (ExecMode == EXECUTION_MODE_SIMULATE)
+    cerr << tid <<" :Before Wait "<< hex << pc << dec  << " ID: " << dec << ssID << endl;
+  lk_unlock(&printing_lock);
 #endif
 
     thread_state_t* tstate = get_tls(tid);
@@ -505,8 +507,10 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc)
     tstate->ignore = false;
 
 #ifdef PRINT_WAITS
+    lk_lock(&printing_lock, tid+1);
     if (ExecMode == EXECUTION_MODE_SIMULATE)
-        cerr << tid <<": After Wait "<< hex << pc << dec  << " ID: " << tstate->lastWaitID << endl;
+      cerr << tid <<": After Wait "<< hex << pc << dec  << " ID: " << tstate->lastWaitID << ":" << ssID << endl;
+    lk_unlock(&printing_lock);
 #endif
 
     // Indicates not in a wait any more
@@ -531,9 +535,11 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc)
 
     /* Ignore injecting waits until the end of the first iteration,
      * so we can start simulating */
+    
     assert(loop_state->simmed_iteration_count > 0);
-    if (loop_state->simmed_iteration_count == 1)
-        goto cleanup;
+    if (loop_state->simmed_iteration_count == 1) {
+      goto cleanup;
+    }
 
     if(!(loop_state->use_ring_cache)) {
       goto cleanup;
@@ -580,8 +586,10 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
     tstate->ignore = true;
     lk_unlock(&tstate->lock);    
 #ifdef PRINT_WAITS
+    lk_lock(&printing_lock, tid+1);
     if (ExecMode == EXECUTION_MODE_SIMULATE)
-        cerr << tid <<": Before Signal " << hex << pc << " ID: " << ssID << dec << endl;
+      cerr << tid <<": Before Signal " << hex << pc << " ID: " << ssID << dec << endl;
+    lk_unlock(&printing_lock);
 #endif
 
     int numInstsToIgnore = 2; // flush a call, one parameter
@@ -612,13 +620,13 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
         goto cleanup;
     }
 
-    
     lk_unlock(&tstate->lock);
 
-
     #ifdef PRINT_WAITS
+    lk_lock(&printing_lock, tid+1);
     if (ExecMode == EXECUTION_MODE_SIMULATE)
         cerr << tid <<": After Signal " << hex << pc << dec << endl;
+    lk_unlock(&printing_lock);
     #endif
 
     /* Not simulating -- just ignore. */
@@ -798,6 +806,18 @@ VOID AddILDJITCallbacks(IMG img)
                        IARG_THREAD_ID,
                        IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
                        IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
+                       IARG_END);
+        RTN_Close(rtn);
+    }
+
+    rtn = RTN_FindByName(img, "MOLECOOL_endLoop");
+    if (RTN_Valid(rtn))
+    {
+      fprintf(stderr, "MOLECOOL_endLoop(): %p\n", RTN_Funptr(rtn));
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_endLoop),
+		       //		       IARG_CALL_ORDER, CALL_ORDER_FIRST,
+                       IARG_THREAD_ID,
                        IARG_END);
         RTN_Close(rtn);
     }
@@ -1009,10 +1029,60 @@ UINT32 getSignalAddress(ADDRINT ssID)
 {
   UINT32 firstCore = 0;
   if(first_invocation) {
-    firstCore = thread_cores[thread_started_invocation];
+    firstCore = parent_loop_iteration % thread_cores.size();
   }
   assert(firstCore < 256);
   assert(ssID < 256);
 
   return 0x7fff0000 + (firstCore << 8) + ssID;
+}
+
+bool loopMatches(string loop, UINT32 invocationNum, UINT32 iterationNum)
+{  
+  if(loop_state->invocationCount != invocationNum) {
+    return false;
+  }
+
+  if(loop_state->iterationCount != iterationNum) {
+    return false;
+  }
+
+  if(string((char*)loop_state->current_loop) != loop) {
+    return false;
+  }  
+
+  return true;
+}
+
+void initializePerThreadLoopState(THREADID tid)
+{
+  vector<THREADID>::iterator it;
+  for (it = thread_list.begin(); it != thread_list.end(); it++) {
+    thread_state_t* curr_tstate = get_tls(*it);
+    lk_lock(&curr_tstate->lock, tid+1);
+    curr_tstate->push_loop_state();
+    lk_unlock(&curr_tstate->lock);
+  }
+}
+
+void readLoop(ifstream& fin, iteration_state_t* iteration_state)
+{
+  string line;
+
+  getline(fin, iteration_state->name);
+  
+  getline(fin, line);	
+  iteration_state->invocationNumber = Uint32FromString(line);
+  assert((UINT64)iteration_state->invocationNumber == Uint64FromString(line));
+
+  getline(fin, line);	
+  iteration_state->iterationNumber = Uint32FromString(line);
+  assert((UINT64)iteration_state->iterationNumber == Uint64FromString(line));
+}
+
+void printLoop(iteration_state_t* iteration_state)
+{
+  cerr << iteration_state->name << " ";
+  cerr << iteration_state->invocationNumber << " ";
+  cerr << iteration_state->iterationNumber << endl;
 }
