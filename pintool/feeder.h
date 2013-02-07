@@ -52,7 +52,7 @@ class thread_state_t
         is_running = true;
         num_inst = 0;
 
-	sleep_producer = false;
+        sleep_producer = false;
 
         lk_init(&lock);
     }

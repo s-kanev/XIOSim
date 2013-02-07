@@ -13,6 +13,7 @@
 #include "feeder.h"
 #include "ildjit.h"
 #include "fluffy.h"
+#include "utils.h"
 #include "BufferManager.h"
 
 extern tick_t sim_cycle;
@@ -46,14 +47,10 @@ static string end_loop = "";
 static UINT32 end_loop_invocation = -1;
 static UINT32 end_loop_iteration = -1;
 
-VOID printMemoryUsage(THREADID tid);
-VOID printElapsedTime();
 BOOL signalCallback(THREADID tid, INT32 sig, CONTEXT *ctxt, BOOL hasHandler, const EXCEPTION_INFO *pExceptInfo, VOID *v);
 void signalCallback2(int signum);
 
 extern VOID doLateILDJITInstrumentation();
-
-time_t last_time;
 
 stack<loop_state_t> loop_states;
 loop_state_t* loop_state;
@@ -77,28 +74,28 @@ VOID MOLECOOL_Init()
             PIN_ExitProcess(1);
         }
 
-	string line;		
-	// start phase info
-	getline(loop_file, start_loop);
+        string line;
+        // start phase info
+        getline(loop_file, start_loop);
 
-	getline(loop_file, line);	
-	start_loop_invocation = Uint32FromString(line);
-	assert((UINT64)start_loop_invocation == Uint64FromString(line));
+        getline(loop_file, line);
+        start_loop_invocation = Uint32FromString(line);
+        assert((UINT64)start_loop_invocation == Uint64FromString(line));
 
-	getline(loop_file, line);
-	start_loop_iteration = Uint32FromString(line);
-	assert((UINT64)start_loop_iteration == Uint64FromString(line));
+        getline(loop_file, line);
+        start_loop_iteration = Uint32FromString(line);
+        assert((UINT64)start_loop_iteration == Uint64FromString(line));
 
-	// end phase info
-	getline(loop_file, end_loop);
-	
-	getline(loop_file, line);	
-	end_loop_invocation = Uint32FromString(line);
-	assert((UINT64)end_loop_invocation == Uint64FromString(line));
+        // end phase info
+        getline(loop_file, end_loop);
 
-	getline(loop_file, line);
-	end_loop_iteration = Uint32FromString(line);
-	assert((UINT64)end_loop_iteration == Uint64FromString(line));
+        getline(loop_file, line);
+        end_loop_invocation = Uint32FromString(line);
+        assert((UINT64)end_loop_invocation == Uint64FromString(line));
+
+        getline(loop_file, line);
+        end_loop_iteration = Uint32FromString(line);
+        assert((UINT64)end_loop_iteration == Uint64FromString(line));
     }
 
     disable_wait_signal = KnobDisableWaitSignal.Value();
@@ -335,7 +332,7 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
      * about */
     if (ExecMode != EXECUTION_MODE_SIMULATE) {
       if(!reached_start_invocation) {
-	return;
+        return;
       }
       cerr << "Do late!" << endl;
       doLateILDJITInstrumentation();
@@ -369,12 +366,12 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
     
     if(firstLoop) {
       if(start_loop.size() > 0) {
-	cerr << "FastForward runtime:";
-	printElapsedTime();
+        cerr << "FastForward runtime:";
+        printElapsedTime();
       }
       cerr << "Starting simulation, TID: " << tid << endl;
       PPointHandler(CONTROL_START, NULL, NULL, (VOID*)ip, tid);
-      firstLoop = false;	
+      firstLoop = false;
     }
     else {
       cerr << tid << ": resuming simulation" << endl;
@@ -437,9 +434,9 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
 #endif
 
     if (ExecMode == EXECUTION_MODE_SIMULATE) {
-      PauseSimulation(tid);
+        PauseSimulation(tid);
         cerr << tid << ": Paused simulation!" << endl;
-	first_invocation = false;
+        first_invocation = false;
 
         vector<THREADID>::iterator it;
         for (it = thread_list.begin(); it != thread_list.end(); it++) {
@@ -448,10 +445,10 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
             tstate->ignore = true;
             lk_unlock(&tstate->lock);
         }
-	//#ifdef ZESTO_PIN_DBG
+//#ifdef ZESTO_PIN_DBG
         CHAR* loop_name = (CHAR*) loop;
         cerr << "Ending loop: " << loop_name << " NumIterations:" << (UINT32)numIterations << endl;
-	//#endif
+//#endif
     }
     simulating_parallel_loop = false;
     loop_states.pop();
@@ -972,36 +969,6 @@ void signalCallback2(int signum)
 {
     handshake_buffer.signalCallback(signum);
     PIN_ExitProcess(1);
-}
-
-VOID printElapsedTime()
-{
-    time_t elapsed_time = time(NULL) - last_time;
-    time_t hours = elapsed_time / 3600;
-    time_t minutes = (elapsed_time % 3600) / 60;
-    time_t seconds = ((elapsed_time % 3600) % 60);
-    cerr << hours << "h" << minutes << "m" << seconds << "s" << endl;
-    last_time = time(NULL);
-}
-
-VOID printMemoryUsage(THREADID tid)
-{
-    lk_lock(&printing_lock, tid+1);
-    int myPid = getpid();
-    char str[50];
-    sprintf(str, "%d", myPid);
-
-    ifstream fin;
-    fin.open(("/proc/" + string(str) + "/status").c_str());
-    string line;
-    while(getline(fin, line)) {
-        if(line.find("VmSize") != string::npos) {
-            cerr << tid << ":" << line << endl;
-            break;
-        }
-    }
-    fin.close();
-    lk_unlock(&printing_lock);
 }
 
 UINT32 getSignalAddress(ADDRINT ssID)
