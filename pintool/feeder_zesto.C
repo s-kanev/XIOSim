@@ -79,6 +79,9 @@ static XIOSIM_LOCK test;
 
 // Used to access Zesto instruction buffer
 PIN_RWMUTEX simbuffer_lock;
+PIN_SEMAPHORE consumer_sleep_lock;
+
+
 map<THREADID, Buffer> lookahead_buffer;
 BufferManager handshake_buffer;
 vector<THREADID> thread_list;
@@ -174,7 +177,7 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
             CODECACHE_FlushCache();
     //        PIN_RemoveInstrumentation();
             // XXX: This should be simpler to do now! Fix me!
-            PIN_RWMutexWriteLock(&simbuffer_lock);
+            PIN_RWMutexWriteLock(&simbuffer_lock);	    
             /* Update thread state while holding the simbuffer lock.
              * There are two orderings: (1) this is executed before
              * instrumenting the instruction marked as a Stop point.
@@ -409,7 +412,8 @@ VOID SimulatorLoop(VOID* arg)
         while (handshake_buffer.empty(instrument_tid)) {
             PIN_Yield();
 	    while(consumers_sleep) {
-	      PIN_Sleep(250);
+	      PIN_SemaphoreWait(&consumer_sleep_lock);
+	      //	      PIN_Sleep(250);
 	    }
 
             /* Check kill flag */
@@ -439,7 +443,8 @@ VOID SimulatorLoop(VOID* arg)
 
         for(int i = 0; i < consumerHandshakes; i++) {
           while(consumers_sleep) {
-	      PIN_Sleep(250);
+	    PIN_SemaphoreWait(&consumer_sleep_lock);
+	    //	      PIN_Sleep(250);
 	    }
 	  
 	  handshake_container_t* handshake = handshake_buffer.front(instrument_tid, true);
@@ -466,6 +471,10 @@ VOID SimulatorLoop(VOID* arg)
         lk_unlock(&tstate->lock);
 
         // Actual simulation happens here
+	
+#ifdef PRINT_DYN_TRACE_2
+	printTrace("yo", handshake->handshake.pc, instrument_tid); 
+#endif
 	Zesto_Resume(&handshake->handshake, &handshake->mem_buffer, handshake->flags.isFirstInsn, handshake->flags.isLastInsn);
 
 	if(!KnobPipelineInstrumentation.Value())
@@ -1583,6 +1592,7 @@ INT32 main(INT32 argc, CHAR **argv)
 
     lk_init(&test);
     PIN_RWMutexInit(&simbuffer_lock);
+    PIN_SemaphoreInit(&consumer_sleep_lock);
     lk_init(&instrument_tid_lock);
 
     // Obtain  a key for TLS storage.
@@ -1755,6 +1765,10 @@ VOID disable_consumers()
 {
   host_cpus = 16;
   if(host_cpus < num_threads * 2) {
+    
+    if(!consumers_sleep) {
+      PIN_SemaphoreClear(&consumer_sleep_lock);
+    }
     consumers_sleep = true;
   }
 }
@@ -1769,6 +1783,9 @@ VOID disable_producers()
 
 VOID enable_consumers()
 {
+  if(consumers_sleep) {
+    PIN_SemaphoreSet(&consumer_sleep_lock);
+  }
   consumers_sleep = false;
 }
 

@@ -13,6 +13,7 @@
 
 extern int num_threads;
 extern bool consumers_sleep;
+extern PIN_SEMAPHORE consumer_sleep_lock;
 
 ostream& operator<< (ostream &out, handshake_container_t &hand)
 {
@@ -79,7 +80,8 @@ handshake_container_t* BufferManager::front(THREADID tid, bool isLocal)
   while (fileEntryCount_[tid] == 0 && produceBuffer_[tid]->size() == 0) {
     lk_unlock(locks_[tid]);
     while(consumers_sleep) {
-      PIN_Sleep(250);
+      PIN_SemaphoreWait(&consumer_sleep_lock);
+      //PIN_Sleep(250);
     }
     PIN_Yield();
     lk_lock(locks_[tid], tid+1);
@@ -100,7 +102,8 @@ handshake_container_t* BufferManager::front(THREADID tid, bool isLocal)
     lk_unlock(locks_[tid]);
     PIN_Yield();
     while(consumers_sleep) {
-      PIN_Sleep(250);
+      PIN_SemaphoreWait(&consumer_sleep_lock);
+      //      PIN_Sleep(250);
     }
     lk_lock(locks_[tid], tid+1);
     spins++;
