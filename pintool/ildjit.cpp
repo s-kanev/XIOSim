@@ -31,9 +31,6 @@ const UINT8 st_template[] = {0xc7, 0x05, 0xad, 0xfb, 0xca, 0xde, 0x00, 0x00, 0x0
 
 static map<ADDRINT, UINT32> invocation_counts;
 
-KNOB<string> KnobLoopIDFile(KNOB_MODE_WRITEONCE, "pintool",
-    "loopID", "", "File to get start/end loop IDs and invocation caounts");
-
 KNOB<BOOL> KnobDisableWaitSignal(KNOB_MODE_WRITEONCE,     "pintool",
         "disable_wait_signal", "false", "Don't insert any waits or signals into the pipeline");
 
@@ -80,34 +77,33 @@ VOID MOLECOOL_Init()
 
     FLUFFY_Init();
 
-    if (!KnobLoopIDFile.Value().empty()) {
-        ifstream loop_file;
-        loop_file.open(KnobLoopIDFile.Value().c_str(), ifstream::in);
-        if (loop_file.fail()) {
-            cerr << "Couldn't open loop id file: " << KnobLoopIDFile.Value() << endl;
-            PIN_ExitProcess(1);
-        }
+    ifstream start_loop_file, end_loop_file;
+    start_loop_file.open("phase_start_loop", ifstream::in);
+    end_loop_file.open("phase_end_loop", ifstream::in);
 
-	readLoop(loop_file, &phase_parent_id);
-	readLoop(loop_file, &phase_start_id);
-	readLoop(loop_file, &phase_end_id);	
-
-	phase_start_id = phase_parent_id;
-
-	// hack for now
-	parent_loop = phase_parent_id.name;
-	parent_loop_invocation = phase_parent_id.invocationNumber;
-	parent_loop_iteration = phase_parent_id.iterationNumber;
-
-	start_loop = phase_start_id.name;
-	start_loop_invocation = phase_start_id.invocationNumber;
-	start_loop_iteration = phase_start_id.iterationNumber;
-
-	end_loop = phase_end_id.name;
-	end_loop_invocation = phase_end_id.invocationNumber;
-	end_loop_iteration = phase_end_id.iterationNumber;
+    if (start_loop_file.fail() || end_loop_file.fail()) {
+      cerr << "Couldn't open loop id files: start_parallel_loop and end_parallel_loop" << endl;
+      PIN_ExitProcess(1);
     }
+    
+    readLoop(start_loop_file, &phase_start_id);
+    readLoop(end_loop_file, &phase_end_id);
+    
+    phase_parent_id = phase_start_id;
 
+    // hack for now
+    parent_loop = phase_parent_id.name;
+    parent_loop_invocation = phase_parent_id.invocationNumber;
+    parent_loop_iteration = phase_parent_id.iterationNumber;
+    
+    start_loop = phase_start_id.name;
+    start_loop_invocation = phase_start_id.invocationNumber;
+    start_loop_iteration = phase_start_id.iterationNumber;
+    
+    end_loop = phase_end_id.name;
+    end_loop_invocation = phase_end_id.invocationNumber;
+    end_loop_iteration = phase_end_id.iterationNumber;
+    
     disable_wait_signal = KnobDisableWaitSignal.Value();
 
     // callbacks so we can delete temporary files in /dev/shm
@@ -283,7 +279,6 @@ VOID ILDJIT_startLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
 
     loop_states.push(loop_state_t());    
     loop_state = &(loop_states.top());
-
     loop_state->inParallelLoop = inParallelLoop;
     loop_state->simmed_iteration_count = 0;
     loop_state->current_loop = loop;
@@ -378,7 +373,7 @@ VOID ILDJIT_startIteration(THREADID tid)
 
     cerr << "FastForward runtime:";
     printElapsedTime();
-    
+    cerr << loop_state->inParallelLoop << endl;
     if(loop_state->inParallelLoop) {
       cerr << "Starting simulation, TID: " << tid << endl;
       initializePerThreadLoopState(tid);
