@@ -490,6 +490,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc)
   assert(ssID < 256);
     thread_state_t* tstate = get_tls(tid);
     handshake_container_t* handshake;
+    int mask;
 
     // Assumes all startIteration calls are sequential and within MOLECOOL_beforeWait()
     // don't need lock
@@ -562,7 +563,9 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc)
     memcpy(handshake->handshake.ins, ld_template, sizeof(ld_template));
     // Address comes right after opcode byte
 //    ASSERTX(tstate->lastSignalAddr != 0xdecafbad);
-    *(INT32*)(&handshake->handshake.ins[1]) = getSignalAddress(ssID); 
+    // set magic 17 bit in address - makes the pipeline see them as seperate addresses
+    mask = 1 << 16;
+    *(INT32*)(&handshake->handshake.ins[1]) = getSignalAddress(ssID) | mask; 
 //    cerr << tid << ": Vodoo load instruction " << hex << pc <<  " ID: " << tstate->lastSignalAddr << dec << endl;
     lookahead_buffer[tid].push_done();
 
@@ -1029,7 +1032,7 @@ UINT32 getSignalAddress(ADDRINT ssID)
   assert(firstCore < 256);
   assert(ssID < 256);
 
-  return 0x7fff0000 + (firstCore << 8) + ssID;
+  return 0x7ffe0000 + (firstCore << 8) + ssID;
 }
 
 bool loopMatches(string loop, UINT32 invocationNum, UINT32 iterationNum)
