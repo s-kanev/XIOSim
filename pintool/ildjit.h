@@ -28,7 +28,6 @@ class loop_state_t
   ADDRINT current_loop;
   UINT32 invocationCount;
   UINT32 iterationCount;
-  bool inParallelLoop;
 };
 
 #endif /* __MOLECOOL_PIN__ */

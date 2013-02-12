@@ -528,7 +528,7 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, 
 
     if (tstate->sleep_producer) {
       lk_unlock(&tstate->lock);
-      PIN_Sleep(50);
+      PIN_Sleep(1);
       return;
     }
     if (tstate->ignore || tstate->ignore_all) {
@@ -577,7 +577,7 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
     lk_lock(&tstate->lock, tid+1);
     if (tstate->sleep_producer) {
       lk_unlock(&tstate->lock);
-      PIN_Sleep(50);
+      PIN_Sleep(1);
       return;
     }
     
@@ -1124,6 +1124,9 @@ VOID PauseSimulation(THREADID tid)
     for (it = thread_list.begin(); it != thread_list.end(); it++) {	
       cerr << thread_cores[*it] << ":OverlapCycles:" << sim_cycle - lastConsumerApply[*it] << endl;
     }    
+
+    
+    disable_consumers();
 
     /* Have thread ignore serial section after */
     /* XXX: Do we need this? A few lines above we set ignore_all! */
