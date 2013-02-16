@@ -309,6 +309,9 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
     loop_state->current_loop = loop;
     loop_state->invocationCount = invocation_counts[(string)(char*)loop];
     loop_state->iterationCount = -1;    
+  
+    CHAR* loop_name = (CHAR*) loop;
+    cerr << "Starting loop: " << loop_name << "[" << invocation_counts[(string)(char*)loop] << "]" << endl;
   }
 
   // If we didn't get to the start of the phase, return
@@ -321,12 +324,7 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
   if(disable_wait_signal) {
     loop_state->use_ring_cache = false;
   }
-  
-  //#ifdef ZESTO_PIN_DBG
-  CHAR* loop_name = (CHAR*) loop;
-  cerr << "Starting loop: " << loop_name << "[" << invocation_counts[(string)(char*)loop] << "]" << endl;
-  //#endif
-  
+    
   assert(reached_start_iteration);
 
   initializePerThreadLoopState(tid);  
