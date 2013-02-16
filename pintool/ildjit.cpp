@@ -2,6 +2,7 @@
  * ILDJIT-specific functions for zesto feeder
  * Copyright, Svilen Kanev, 2012
  */
+
 #include <stdlib.h>
 #include <unistd.h>
 #include <map>
@@ -301,8 +302,6 @@ VOID ILDJIT_startLoop_after(THREADID tid, ADDRINT ip)
 /* ========================================================================== */
 VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc)
 {
-  disable_consumers();
-
   if(reached_start_invocation) {
     loop_states.push(loop_state_t());    
     loop_state = &(loop_states.top());
@@ -565,9 +564,10 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc)
     *(INT32*)(&handshake->handshake.ins[1]) = getSignalAddress(ssID) | mask; 
 //    cerr << tid << ": Vodoo load instruction " << hex << pc <<  " ID: " << tstate->lastSignalAddr << dec << endl;
     lookahead_buffer[tid].push_done();
-
-    flushLookahead(tid, 0);
-
+    // We don't flush the buffer here, because we need to 
+    // allow for the possibility of the first instruction being
+    // a wait, in which case we allow the next instruction to skip ahead
+    
 cleanup:
     tstate->lastSignalAddr = 0xdecafbad;
 }
@@ -861,7 +861,7 @@ VOID AddILDJITCallbacks(IMG img)
     }
     
     rtn = RTN_FindByName(img, "MOLECOOL_startLoop");
-    if (RTN_Valid(rtn))
+   if (RTN_Valid(rtn))
       {
 #ifdef ZESTO_PIN_DBG
         cerr << "MOLECOOL_startLoop ";

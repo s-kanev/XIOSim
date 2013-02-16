@@ -63,6 +63,7 @@ KNOB<BOOL> KnobGreedyCores(KNOB_MODE_WRITEONCE, "pintool",
 map<ADDRINT, UINT8> sanity_writes;
 map<ADDRINT, string> pc_diss;
 BOOL sim_release_handshake;
+BOOL sleeping_enabled;
 
 #ifdef TIME_TRANSPARENCY
 // Tracks the time we spend in simulation and tries to subtract it from timing calls
@@ -80,6 +81,7 @@ static XIOSIM_LOCK test;
 // Used to access Zesto instruction buffer
 PIN_RWMUTEX simbuffer_lock;
 PIN_SEMAPHORE consumer_sleep_lock;
+PIN_SEMAPHORE producer_sleep_lock;
 
 
 map<THREADID, Buffer> lookahead_buffer;
@@ -100,7 +102,6 @@ map<THREADID, UINT32> thread_cores;
 static list<THREADID> run_queue;
 bool producers_sleep = false;
 bool consumers_sleep = false;
-INT32 host_cpus;
 /* ========================================================================== */
 /* Pinpoint related */
 // Track the number of instructions executed
@@ -413,7 +414,6 @@ VOID SimulatorLoop(VOID* arg)
             PIN_Yield();
 	    while(consumers_sleep) {
 	      PIN_SemaphoreWait(&consumer_sleep_lock);
-	      //	      PIN_Sleep(250);
 	    }
 
             /* Check kill flag */
@@ -444,7 +444,6 @@ VOID SimulatorLoop(VOID* arg)
         for(int i = 0; i < consumerHandshakes; i++) {
           while(consumers_sleep) {
 	    PIN_SemaphoreWait(&consumer_sleep_lock);
-	    //	      PIN_Sleep(250);
 	    }
 	  
 	  handshake_container_t* handshake = handshake_buffer.front(instrument_tid, true);
@@ -468,13 +467,14 @@ VOID SimulatorLoop(VOID* arg)
         thread_state_t* tstate = get_tls(instrument_tid);
         lk_lock(&tstate->lock, tid+1);
         tstate->num_inst++;
-        lk_unlock(&tstate->lock);
-
-        // Actual simulation happens here
 	
-#ifdef PRINT_DYN_TRACE_2
-	printTrace("yo", handshake->handshake.pc, instrument_tid); 
-#endif
+	if (handshake->flags.isFirstInsn) {
+	  Zesto_SetBOS(tstate->coreID, tstate->bos);
+	  tstate->sim_stopped = false;
+	}
+	lk_unlock(&tstate->lock);
+
+	// Actual simulation happens here
 	Zesto_Resume(&handshake->handshake, &handshake->mem_buffer, handshake->flags.isFirstInsn, handshake->flags.isLastInsn);
 
 	if(!KnobPipelineInstrumentation.Value())
@@ -519,7 +519,7 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, 
     }
 
     if(producers_sleep) {
-      PIN_Sleep(1000);
+      PIN_SemaphoreWait(&producer_sleep_lock);
       return;
     }
 
@@ -528,7 +528,7 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, 
 
     if (tstate->sleep_producer) {
       lk_unlock(&tstate->lock);
-      PIN_Sleep(1);
+      PIN_SemaphoreWait(&producer_sleep_lock);
       return;
     }
     if (tstate->ignore || tstate->ignore_all) {
@@ -569,7 +569,7 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
     }
 
     if(producers_sleep) {
-      PIN_Sleep(1000);
+      PIN_SemaphoreWait(&producer_sleep_lock);
       return;
     }
 
@@ -577,7 +577,7 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
     lk_lock(&tstate->lock, tid+1);
     if (tstate->sleep_producer) {
       lk_unlock(&tstate->lock);
-      PIN_Sleep(1);
+      PIN_SemaphoreWait(&producer_sleep_lock);
       return;
     }
     
@@ -630,14 +630,6 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
     }
 
     tstate->queue_pc(pc);
-
-    if (handshake->flags.isFirstInsn)
-    {
-        Zesto_SetBOS(tstate->coreID, tstate->bos);
-        lk_lock(&tstate->lock, tid+1);
-        tstate->sim_stopped = false;
-        lk_unlock(&tstate->lock);
-    }
 
     // Populate handshake buffer
     MakeSSRequest(tid, pc, npc, tpc, taken, ictxt, handshake);
@@ -808,7 +800,7 @@ VOID Instrument(INS ins, VOID *v)
  * anything declared past "-s" and before "--" on the command line must be
  * passed along as SimpleScalar's argument list.
  *
- * SimpleScalar's arguments are extracted out of the command line in two steps:
+ * SimpleScalar's arguments are extracted out of the command line in twos steps:
  * First, we create a new argument vector that can be passed to SimpleScalar.
  * This is done by calloc'ing and copying the arguments over. Thereafter, in the
  * second stage we nullify SimpleScalar's arguments from the original (Pin's)
@@ -986,6 +978,9 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
 
         run_queue.push_back(threadIndex);
 
+	lastConsumerApply[threadIndex] = 0;
+	lookahead_buffer[threadIndex] = Buffer();
+
         PIN_RWMutexUnlock(&simbuffer_lock);
 
         // Will get cleared on first simulated instruction
@@ -1017,7 +1012,11 @@ VOID PauseSimulation(THREADID tid)
      * of the loop; (ii) drain all pipelines once cores are waiting. */
   cerr << "pausing..." << endl;
   flushLookahead(tid, 0);
-  
+
+  if(num_threads >= 16) {
+    PIN_SemaphoreClear(&producer_sleep_lock);
+  }
+
   volatile bool done_with_iteration = false;
     do {
         done_with_iteration = true;
@@ -1099,8 +1098,6 @@ VOID PauseSimulation(THREADID tid)
         handshake_buffer.flushBuffers(*it);
     }
 
-    enable_consumers();
-
     /* Wait until all cores are done -- consumed their buffers. */
     volatile bool done = false;
     do {
@@ -1109,27 +1106,27 @@ VOID PauseSimulation(THREADID tid)
         for (it = thread_list.begin(); it != thread_list.end(); it++) {
             done &= handshake_buffer.empty((*it));
         }
-	// vvv DO THE SAME FOR PRODUCER_SLEEP IN SIMULATEINSTUCTION, etc
-       //      if (!done)  MAKE THIS SENSITIVE TO THE NUMBER OF REMAINING HANDSHAKES!!!!!
-	//        if (!done) 
-	//	  PIN_Sleep(100);
-	  //            PIN_Yield();
+	if (!done) {
+	  if(sleeping_enabled) {
+	    PIN_Sleep(10);	
+	  }
+	}
     } while (!done);
 
 #ifdef ZESTO_PIN_DBG
     cerr << tid << " [" << sim_cycle << ":KEVIN]: All cores have empty buffers" << endl;
-    cerr.flush();
+    //     cerr.flush();
 #endif
 
     for (it = thread_list.begin(); it != thread_list.end(); it++) {	
       cerr << thread_cores[*it] << ":OverlapCycles:" << sim_cycle - lastConsumerApply[*it] << endl;
+      cerr.flush();
     }    
 
     
     disable_consumers();
 
     /* Have thread ignore serial section after */
-    /* XXX: Do we need this? A few lines above we set ignore_all! */
     for (it = thread_list.begin(); it != thread_list.end(); it++) {
         thread_state_t* tstate = get_tls(*it);
         lk_lock(&tstate->lock, *it+1);
@@ -1138,6 +1135,10 @@ VOID PauseSimulation(THREADID tid)
 	tstate->sleep_producer = false;
         lk_unlock(&tstate->lock);
 	assert(lookahead_buffer[*it].empty());
+    }
+
+    if(num_threads >= 16) {
+      PIN_SemaphoreSet(&producer_sleep_lock);
     }
 }
 
@@ -1169,6 +1170,8 @@ VOID ResumeSimulation(THREADID tid)
 /* ========================================================================== */
 VOID StopSimulation(THREADID tid)
 {
+  enable_consumers();
+
     /* Deactivate this core, so simulation doesn't wait on it */
     thread_state_t* tstate = get_tls(tid);
     deactivate_core(tstate->coreID);
@@ -1596,6 +1599,7 @@ INT32 main(INT32 argc, CHAR **argv)
     lk_init(&test);
     PIN_RWMutexInit(&simbuffer_lock);
     PIN_SemaphoreInit(&consumer_sleep_lock);
+    PIN_SemaphoreInit(&producer_sleep_lock);
     lk_init(&instrument_tid_lock);
 
     // Obtain  a key for TLS storage.
@@ -1662,7 +1666,14 @@ INT32 main(INT32 argc, CHAR **argv)
 
     Zesto_SlaveInit(ssargs.first, ssargs.second);
 
-    host_cpus = get_nprocs_conf();
+    int host_cpus = get_nprocs_conf();
+    if(host_cpus < num_threads * 2) {
+      cerr << "Turning on thread sleeping optimization" << endl;
+      sleeping_enabled = true;
+    }
+    else {
+      sleeping_enabled = false;
+    }
 
     enable_producers();
     disable_consumers();
@@ -1766,9 +1777,7 @@ VOID doLateILDJITInstrumentation()
 
 VOID disable_consumers()
 {
-  host_cpus = 16;
-  if(host_cpus < num_threads * 2) {
-    
+  if(sleeping_enabled) {    
     if(!consumers_sleep) {
       PIN_SemaphoreClear(&consumer_sleep_lock);
     }
@@ -1778,8 +1787,10 @@ VOID disable_consumers()
 
 VOID disable_producers()
 {
-  host_cpus = 16;
-  if(host_cpus < num_threads * 2) {
+  if(sleeping_enabled) {
+    if(!producers_sleep) {
+      PIN_SemaphoreClear(&producer_sleep_lock);
+    }
     producers_sleep = true;
   }
 }
@@ -1794,10 +1805,14 @@ VOID enable_consumers()
 
 VOID enable_producers()
 {
+  if(producers_sleep) {
+    PIN_SemaphoreSet(&producer_sleep_lock);
+  }
   producers_sleep = false;
 }
  
 VOID flushLookahead(THREADID tid, int numToIgnore) {
+
   int remainingToIgnore = numToIgnore;
   if(remainingToIgnore > lookahead_buffer[tid].size()) {
     remainingToIgnore = lookahead_buffer[tid].size();
@@ -1854,8 +1869,11 @@ VOID flushLookahead(THREADID tid, int numToIgnore) {
 
 void flushOneToHandshakeBuffer(THREADID tid)
 {
+  handshake_container_t* reorder_handshake = NULL;
   handshake_container_t *handshake = lookahead_buffer[tid].front();
-#ifdef PRINT_DYN_TRACE 
+  handshake_container_t* newhandshake = handshake_buffer.get_buffer(tid);
+  bool isFirstInsn = newhandshake->flags.isFirstInsn;
+  
   if(pc_diss[handshake->handshake.pc].find("ret") != string::npos) {
     if (handshake->handshake.npc == handshake->handshake.pc + 5) {
       pc_diss[handshake->handshake.pc] = "Wait";
@@ -1864,14 +1882,39 @@ void flushOneToHandshakeBuffer(THREADID tid)
       pc_diss[handshake->handshake.pc] = "Signal";
     }
   }
-  printTrace("sim", handshake->handshake.pc, tid); 
-#endif
-  handshake_container_t* newhandshake = handshake_buffer.get_buffer(tid);
-  bool isFirstInsn = newhandshake->flags.isFirstInsn;
+
+#ifdef PRINT_DYN_TRACE 
+    printTrace("sim", handshake->handshake.pc, tid); 
+#endif 
+    // If first instruction is a wait or signal,
+    // we need to let the next instruction skip
+    // ahead, so that the first instruction sent
+    // to the simulator is 'real'
+  if(isFirstInsn && 
+     (pc_diss[handshake->handshake.pc] == "Wait" ||
+      pc_diss[handshake->handshake.pc] == "Signal")) {
+
+    reorder_handshake = new handshake_container_t();
+    handshake->CopyTo(reorder_handshake);
+    handshake->flags.isFirstInsn = false;
+    lookahead_buffer[tid].pop();
+
+    assert(lookahead_buffer[tid].size() > 0);
+    handshake = lookahead_buffer[tid].front();
+  }
+
   handshake->CopyTo(newhandshake);
   newhandshake->flags.isFirstInsn = isFirstInsn;
   handshake_buffer.producer_done(tid);
   lookahead_buffer[tid].pop();
+
+  if(reorder_handshake != NULL) {
+    newhandshake = handshake_buffer.get_buffer(tid);
+    reorder_handshake->CopyTo(newhandshake);
+    newhandshake->flags.isFirstInsn = false;
+    handshake_buffer.producer_done(tid);
+    delete reorder_handshake;
+  }
 }
 
 VOID printTrace(string stype, ADDRINT pc, THREADID tid)
@@ -1882,6 +1925,7 @@ VOID printTrace(string stype, ADDRINT pc, THREADID tid)
 
   lk_lock(&instrument_tid_lock, 1);
   pc_file << thread_cores[tid] << " " << stype << " " << pc << " " << pc_diss[pc] << endl;
+  pc_file.flush();
   lk_unlock(&instrument_tid_lock);
 }
 
