@@ -12,14 +12,6 @@ BOOL ILDJIT_IsExecuting();
 BOOL ILDJIT_IsCreatingExecutor();
 VOID printMemoryUsage(THREADID tid);
 
-class iteration_state_t
-{
- public:
-  string name;
-  UINT32 invocationNumber;
-  UINT32 iterationNumber;
-};
-
 class loop_state_t
 {
  public:
