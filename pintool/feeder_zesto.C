@@ -102,6 +102,7 @@ map<THREADID, UINT32> thread_cores;
 static list<THREADID> run_queue;
 bool producers_sleep = false;
 bool consumers_sleep = false;
+INT32 host_cpus;
 /* ========================================================================== */
 /* Pinpoint related */
 // Track the number of instructions executed
@@ -526,11 +527,6 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, 
     thread_state_t* tstate = get_tls(tid);
     lk_lock(&tstate->lock, tid+1);
 
-    if (tstate->sleep_producer) {
-      lk_unlock(&tstate->lock);
-      PIN_SemaphoreWait(&producer_sleep_lock);
-      return;
-    }
     if (tstate->ignore || tstate->ignore_all) {
         lk_unlock(&tstate->lock);
         return;
@@ -575,11 +571,6 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
 
     thread_state_t* tstate = get_tls(tid);
     lk_lock(&tstate->lock, tid+1);
-    if (tstate->sleep_producer) {
-      lk_unlock(&tstate->lock);
-      PIN_SemaphoreWait(&producer_sleep_lock);
-      return;
-    }
     
     if (tstate->ignore || tstate->ignore_all) {      
         lk_unlock(&tstate->lock);
@@ -1013,10 +1004,6 @@ VOID PauseSimulation(THREADID tid)
   cerr << "pausing..." << endl;
   flushLookahead(tid, 0);
 
-  if(num_threads >= 16) {
-    PIN_SemaphoreClear(&producer_sleep_lock);
-  }
-
   volatile bool done_with_iteration = false;
     do {
         done_with_iteration = true;
@@ -1036,7 +1023,6 @@ VOID PauseSimulation(THREADID tid)
                  * on an unsets ignore locally. */
                 if (curr_done) {
                     tstate->ignore_all = true;
-		    tstate->sleep_producer = true;
 		}
                 lk_unlock(&tstate->lock);
             }
@@ -1044,6 +1030,7 @@ VOID PauseSimulation(THREADID tid)
     } while (!done_with_iteration);
 
     /* Here we have produced everything for this loop! */
+    disable_producers();
     enable_consumers();
 
     /* Drainning all pipelines and deactivating cores. */
@@ -1107,7 +1094,7 @@ VOID PauseSimulation(THREADID tid)
             done &= handshake_buffer.empty((*it));
         }
 	if (!done) {
-	  if(sleeping_enabled) {
+	  if(sleeping_enabled && (host_cpus <= num_threads)) {
 	    PIN_Sleep(10);	
 	  }
 	}
@@ -1115,16 +1102,15 @@ VOID PauseSimulation(THREADID tid)
 
 #ifdef ZESTO_PIN_DBG
     cerr << tid << " [" << sim_cycle << ":KEVIN]: All cores have empty buffers" << endl;
-    //     cerr.flush();
 #endif
 
     for (it = thread_list.begin(); it != thread_list.end(); it++) {	
       cerr << thread_cores[*it] << ":OverlapCycles:" << sim_cycle - lastConsumerApply[*it] << endl;
-      cerr.flush();
     }    
 
     
     disable_consumers();
+    enable_producers();
 
     /* Have thread ignore serial section after */
     for (it = thread_list.begin(); it != thread_list.end(); it++) {
@@ -1132,13 +1118,8 @@ VOID PauseSimulation(THREADID tid)
         lk_lock(&tstate->lock, *it+1);
         handshake_buffer.resetPool(*it);
         tstate->ignore = true;
-	tstate->sleep_producer = false;
         lk_unlock(&tstate->lock);
 	assert(lookahead_buffer[*it].empty());
-    }
-
-    if(num_threads >= 16) {
-      PIN_SemaphoreSet(&producer_sleep_lock);
     }
 }
 
@@ -1666,7 +1647,7 @@ INT32 main(INT32 argc, CHAR **argv)
 
     Zesto_SlaveInit(ssargs.first, ssargs.second);
 
-    int host_cpus = get_nprocs_conf();
+    host_cpus = get_nprocs_conf();
     if(host_cpus < num_threads * 2) {
       cerr << "Turning on thread sleeping optimization" << endl;
       sleeping_enabled = true;

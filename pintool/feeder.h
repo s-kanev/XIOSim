@@ -61,8 +61,6 @@ class thread_state_t
         is_running = true;
         num_inst = 0;
 
-	sleep_producer = false;
-
         lk_init(&lock);
     }
     
@@ -136,8 +134,6 @@ class thread_state_t
     BOOL ignore_all;
     // Stores the ID of the wait between before and afterWait. -1 outside.
     INT32 lastWaitID;
-    // flag on whether to sleep the producer buffer
-    BOOL sleep_producer;
 
     // XXX: END SHARED
 
