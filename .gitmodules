@@ -1,0 +1,5 @@
+[submodule "DRAMSim2"]
+	path = DRAMSim2
+	url = /group/brooks/git/DRAMSim2
+	update = merge
+	fetchRecurseSubmodules = true

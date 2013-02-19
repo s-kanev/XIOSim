@@ -1757,7 +1757,7 @@ void cache_process(struct cache_t * const cp)
         else
         {
           /* write back to main memory */
-          if(bus_free(uncore->fsb) && uncore->MC->enqueuable())
+          if(bus_free(uncore->fsb) && uncore->MC->enqueuable(WBB->tag << cp->addr_shift))
           {
             uncore->MC->enqueue(NULL,CACHE_WRITEBACK,WBB->tag << cp->addr_shift,cp->linesize,(md_paddr_t)-1,0,NO_MSHR,NULL,NULL,NULL);
             bus_use(uncore->fsb,cp->linesize>>uncore->fsb_DDR,false);
@@ -2334,7 +2334,7 @@ void cache_process(struct cache_t * const cp)
                     }
                     else /* or if there is no next level, enqueue to the memory controller */
                     { 
-                      if(uncore->MC->enqueuable())
+                      if(uncore->MC->enqueuable(MSHR->paddr))
                       {
                         uncore->MC->enqueue(cp,MSHR->cmd,MSHR->paddr,cp->linesize,MSHR->action_id,bank/* our MSHR bank */,index/*our MSHR index*/,MSHR->op,MSHR->cb,MSHR->get_action_id);
                         bus_use(uncore->fsb,(MSHR->cmd==CACHE_WRITE||MSHR->cmd==CACHE_WRITEBACK)?(cp->linesize>>uncore->fsb_DDR):1,MSHR->cmd==CACHE_PREFETCH);
@@ -2445,7 +2445,7 @@ void cache_process(struct cache_t * const cp)
                     }
                     else /* or if there is no next level, enqueue to the memory controller */
                     { 
-                      if(uncore->MC->enqueuable())
+                      if(uncore->MC->enqueuable(MSHR->paddr))
                       {
                         uncore->MC->enqueue(cp,MSHR->cmd,MSHR->paddr,cp->linesize,MSHR->action_id,bank/* our MSHR bank */,index/*our MSHR index*/,MSHR->op,MSHR->cb,MSHR->get_action_id);
                         bus_use(uncore->fsb,(MSHR->cmd==CACHE_WRITE||MSHR->cmd==CACHE_WRITEBACK)?(cp->linesize>>uncore->fsb_DDR):1,MSHR->cmd==CACHE_PREFETCH);

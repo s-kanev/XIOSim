@@ -88,6 +88,9 @@ test: $(OBJDIR) $(TOOL_ROOTS:%=%.test)
 $(ZESTO_HOME)/libsim.a:
 	$(MAKE) -C $(ZESTO_HOME) lib
 
+$(ZESTO_HOME)/DRAMSim2/libdramsim.a:
+	$(MAKE) -C $(ZESTO_HOME)/DRAMSim2
+
 $(ZESTO_HOME)/mcpat/mcpat.a:
 	$(MAKE) -C $(ZESTO_HOME)/mcpat lib
 
@@ -106,16 +109,17 @@ $(OBJDIR)%.o : %.C
 $(OBJDIR)%.o : %.cpp
 	$(CXX) -c $(CXXFLAGS) $(PIN_CXXFLAGS) ${OUTOPT}$@ $<
 
-$(TOOLS): $(PIN_LIBNAMES) $(TOOL_OBJS) $(ZESTO_HOME)/libsim.a $(ZESTO_HOME)/mcpat/mcpat.a
+$(TOOLS): $(PIN_LIBNAMES) $(TOOL_OBJS) $(ZESTO_HOME)/libsim.a $(ZESTO_HOME)/mcpat/mcpat.a $(ZESTO_HOME)/DRAMSim2/libdramsim.a
 
 $(TOOLS): %$(PINTOOL_SUFFIX) : %.o 
-	${PIN_LD} -g $(PIN_LDFLAGS) -I$(ZESTO_HOME) -L$(ZESTO_HOME) $(LINK_DEBUG) ${LINK_OUT} $@ $< ${PIN_LPATHS} $(TOOL_OBJS) $(ZESTO_HOME)/libsim.a $(ZESTO_HOME)/mcpat/mcpat.a $(PIN_LIBS) $(DBG)
+	${PIN_LD} -g $(PIN_LDFLAGS) -I$(ZESTO_HOME) -L$(ZESTO_HOME) $(LINK_DEBUG) ${LINK_OUT} $@ $< ${PIN_LPATHS} $(TOOL_OBJS) $(ZESTO_HOME)/libsim.a $(ZESTO_HOME)/mcpat/mcpat.a $(ZESTO_HOME)/DRAMSim2/libdramsim.a $(PIN_LIBS) $(DBG)
 
 ## cleaning
 clean:
 	-rm -rf $(OBJDIR) *.out *.tested *.failed makefile.copy
 	$(MAKE) -C $(ZESTO_HOME) clean
 	$(MAKE) -C $(ZESTO_HOME)/mcpat clean
+	$(MAKE) -C $(ZESTO_HOME)/DRAMSim2 clean
 
 .PHONY: clean-tool
 clean-tool:
