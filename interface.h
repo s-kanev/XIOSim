@@ -11,7 +11,7 @@
 
 /* Calls from feeder to Zesto */
 int Zesto_SlaveInit(int argc, char **argv);
-void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsigned char> * mem_buffer, bool start_slice, bool end_slice);
+void Zesto_Resume(int coreID, struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsigned char> * mem_buffer, bool start_slice, bool end_slice);
 void Zesto_Destroy();
 int Zesto_Notify_Mmap(int coreID, unsigned int addr, unsigned int length, bool mod_brk);
 int Zesto_Notify_Munmap(int coreID, unsigned int addr, unsigned int length, bool mod_brk);

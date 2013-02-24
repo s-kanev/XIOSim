@@ -1,5 +1,3 @@
-#include "BufferManager.h"
-
 #include <stdlib.h>
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -8,8 +6,15 @@
 #include <unistd.h>
 #include <errno.h>
 #include <signal.h>
+
 #include <stack>
 #include <sstream>
+#include <map>
+#include <queue>
+
+#include "feeder.h"
+#include "Buffer.h"
+#include "BufferManager.h"
 
 extern int num_threads;
 
@@ -24,7 +29,6 @@ ostream& operator<< (ostream &out, handshake_container_t &hand)
   out << hand.mem_buffer.size();
   out << " ";
   out << "pc:" << hand.handshake.pc << " ";
-  out << "coreid:" << hand.handshake.coreID << " ";
   out << "npc:" << hand.handshake.npc << " ";
   out << "tpc:" << hand.handshake.tpc << " ";
   out << "brtaken:" << hand.handshake.brtaken << " ";

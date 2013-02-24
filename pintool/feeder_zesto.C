@@ -28,7 +28,10 @@
 
 #include "feeder.h"
 #include "ildjit.h"
+#include "Buffer.h"
 #include "BufferManager.h"
+#include "sync_pthreads.h"
+#include "scheduler.h"
 
 using namespace std;
 
@@ -72,28 +75,20 @@ ifstream sanity_trace;
 
 // Used to access thread-local storage
 static TLS_KEY tls_key;
-static XIOSIM_LOCK test;
+static XIOSIM_LOCK syscall_lock;
 
 // Used to access Zesto instruction buffer
-PIN_RWMUTEX simbuffer_lock;
 BufferManager handshake_buffer;
-vector<THREADID> thread_list;
+XIOSIM_LOCK thread_list_lock;
+list<THREADID> thread_list;
 
-// Used to manage internal pin simulator threads
-static queue<THREADID> instrument_tid_queue;
-static XIOSIM_LOCK instrument_tid_lock;
+// IDs of simulaiton threads
+static THREADID *sim_threadid;
 
-// A mapping storing which thread runs on which core
-map<UINT32, THREADID> core_threads;
-
-// The reverse mapping (also stored in tstate_t, but that's supposed to be thread-private)
-map<THREADID, UINT32> thread_cores;
-
-// Runque for threads (managed in FIFO order for simple fair scheduling)
-static list<THREADID> run_queue;
 bool producers_sleep = false;
 bool consumers_sleep = false;
 INT32 host_cpus;
+
 /* ========================================================================== */
 /* Pinpoint related */
 // Track the number of instructions executed
@@ -104,14 +99,27 @@ CONTROL control;
 
 EXECUTION_MODE ExecMode = EXECUTION_MODE_INVALID;
 
+/* Fallbacks for cases without pinpoints */
+INT32 slice_num = 1;
+INT32 slice_length = 0;
+INT32 slice_weight_times_1000 = 100*1000;
+
 typedef pair <UINT32, CHAR **> SSARGS;
 
-// Function to access thread-specific data
+// Functions to access thread-specific data
 /* ========================================================================== */
 thread_state_t* get_tls(THREADID threadid)
 {
     thread_state_t* tstate =
           static_cast<thread_state_t*>(PIN_GetThreadData(tls_key, threadid));
+    return tstate;
+}
+
+/* ========================================================================== */
+sim_thread_state_t* get_sim_tls(THREADID threadid)
+{
+    sim_thread_state_t* tstate =
+          static_cast<sim_thread_state_t*>(PIN_GetThreadData(tls_key, threadid));
     return tstate;
 }
 
@@ -136,83 +144,62 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
     if (tid < ISIMPOINT_MAX_THREADS)
         cerr <<  dec << " Inst. Count " << icount.Count(tid) << " ";
 
-    thread_state_t* tstate = get_tls(tid);
-    volatile handshake_container_t* handshake;
-    vector<THREADID>::iterator it;
-
     switch(ev)
     {
       case CONTROL_START:
-        cerr << "Start" << endl;
-        ExecMode = EXECUTION_MODE_SIMULATE;
-        CODECACHE_FlushCache();
-//        PIN_RemoveInstrumentation();
-        for (it = thread_list.begin(); it != thread_list.end(); it++) {
-            thread_state_t* tstate = get_tls(*it);
-            lk_lock(&tstate->lock, tid+1);
-            tstate->ignore_all = false;
-            lk_unlock(&tstate->lock);
-        }
-
-        //ScheduleRunQueue();
-        if(control.PinPointsActive())
         {
-            cerr << "PinPoint: " << control.CurrentPp(tid) << " PhaseNo: " << control.CurrentPhase(tid) << endl;
+            cerr << "Start" << endl;
+            ExecMode = EXECUTION_MODE_SIMULATE;
+            CODECACHE_FlushCache();
+
+            list<THREADID>::iterator it;
+            ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
+                thread_state_t* tstate = get_tls(*it);
+                lk_lock(&tstate->lock, tid+1);
+                tstate->ignore_all = false;
+                if (!KnobILDJIT.Value())
+                    tstate->ignore = false;
+                lk_unlock(&tstate->lock);
+            }
+
+            if(control.PinPointsActive())
+                cerr << "PinPoint: " << control.CurrentPp(tid) << " PhaseNo: " << control.CurrentPhase(tid) << endl;
         }
         break;
 
       case CONTROL_STOP:
-        cerr << "Stop" << endl;
-        if(control.PinPointsActive())
         {
+            /* XXX: This can be called from a Fini callback.
+             * We can't access any TLS in that case. */
+
+            cerr << "Stop" << endl;
             ExecMode = EXECUTION_MODE_FASTFORWARD;
             CODECACHE_FlushCache();
-    //        PIN_RemoveInstrumentation();
-            // XXX: This should be simpler to do now! Fix me!
-            PIN_RWMutexWriteLock(&simbuffer_lock);
-            /* Update thread state while holding the simbuffer lock.
-             * There are two orderings: (1) this is executed before
-             * instrumenting the instruction marked as a Stop point.
-             * Then, updating tstate is enough. */
-            tstate->slice_num = control.CurrentPp(tid);
-            tstate->slice_length = control.CurrentPpLength(tid);
-            tstate->slice_weight_times_1000 = control.CurrentPpWeightTimesThousand(tid);
-            /* (2) This instrumentation routine is executed after
-             * instrumenting the Stop point. Then, we need to update
-             * the handshake buffer that gets passed to the simulator
-             * directly.
-             * In either case, this is executed before SimulateLoop on
-             * the Stop point? */
 
-            int slice_num = tstate->slice_num;
-            int slice_length = tstate->slice_length;
-            int slice_weight_times = tstate->slice_weight_times_1000;
+            PauseSimulation(INVALID_THREADID);
 
-            handshake = handshake_buffer.front(tid);
+            /* Here, nothing guarantees that there is still a thread with an active
+             * handshake buffer (this handler can be called from a Fini callback
+             * after all threads have exited).
+             * Returning from PauseSimulation() guarantees that all sim threads
+             * are spinning in SimulatorLoop. So we can safely call Slice_End
+             * without racing any of them. */
 
-            handshake->handshake.slice_num = slice_num;
-            handshake->handshake.feeder_slice_length = slice_length;
-            handshake->handshake.slice_num = slice_weight_times;
-
-            handshake->flags.isLastInsn = true;
-
-            PIN_RWMutexUnlock(&simbuffer_lock);
-
-            cerr << "PinPoint: " << control.CurrentPp(tid) << endl;
+            if(control.PinPointsActive())
+            {
+                cerr << "PinPoint: " << control.CurrentPp(tid) << endl;
+                Zesto_Slice_End(0, control.CurrentPp(tid), control.CurrentPpLength(tid), control.CurrentPpWeightTimesThousand(tid));
+            }
+            else {
+                Zesto_Slice_End(0, slice_num, slice_length, slice_weight_times_1000);
+            }
         }
-        else if(KnobFluffy.Value().empty())
-        {
-            // Should be handled at ThreadFini
-            ASSERTX(false);
-        }
-
         break;
 
       default:
         ASSERTX(false);
         break;
     }
-    cerr << "Leaving PPOINT" << endl;
 }
 
 /* ========================================================================== */
@@ -229,6 +216,9 @@ VOID ImageLoad(IMG img, VOID *v)
     // Register callback interface to get notified on ILDJIT events
     if (KnobILDJIT.Value())
         AddILDJITCallbacks(img);
+
+    if (KnobPthreads.Value())
+        AddPthreadsCallbacks(img);
 
     ASSERTX( Zesto_Notify_Mmap(0/*coreID*/, start, length, false) );
 }
@@ -323,14 +313,7 @@ VOID MakeSSContext(const CONTEXT *ictxt, FPSTATE* fpstate, ADDRINT pc, ADDRINT n
 /* ========================================================================== */
 VOID Fini(INT32 exitCode, VOID *v)
 {
-    Zesto_Destroy();
-
-//TODO: non-helix case similar to StopSimulation
-    // Stops simulator threads (good idea to lock around this?)
-//     sim_running = false;
-
-//    cerr << "Total simulated ins = " << dec << tstate[core0]->num_inst << endl;
-//    cerr << "Total ins: " << icount.Count(0) << endl;
+    StopSimulation(false);
 
     if (exitCode != EXIT_SUCCESS)
         cerr << "ERROR! Exit code = " << dec << exitCode << endl;
@@ -375,7 +358,7 @@ VOID SanityMemCheck()
  * This allows to pipeline instrumentation and simulation. */
 VOID ReleaseHandshake(UINT32 coreID)
 {
-    THREADID instrument_tid = core_threads[coreID];
+    THREADID instrument_tid = GetCoreThread(coreID);
     ASSERTX(!handshake_buffer.empty(instrument_tid));
 
     // pop() invalidates the buffer
@@ -383,40 +366,43 @@ VOID ReleaseHandshake(UINT32 coreID)
 }
 
 /* ========================================================================== */
+/* The loop running each simulated core. */
 VOID SimulatorLoop(VOID* arg)
 {
-    THREADID instrument_tid = reinterpret_cast<THREADID>(arg);
+    INT32 coreID = reinterpret_cast<INT32>(arg);
     THREADID tid = PIN_ThreadId();
 
-    INT32 coreID = -1;
-
-/*    if (KnobGreedyCores.Value()) {
-        INT32 host_cpus = get_nprocs_conf();
-        cpu_set_t mask;
-        CPU_ZERO(mask);
-        CPU_SET(coreID);
-        sched_setaffinity(0, sizeof (mask), &mask);
-    }
-*/
+    sim_thread_state_t* tstate = new sim_thread_state_t();
+    PIN_SetThreadData(tls_key, tstate, tid);
 
     while (true) {
-        while (handshake_buffer.empty(instrument_tid)) {
-            PIN_Yield();
-        while(consumers_sleep) {
-          PIN_Sleep(250);
+        /* Check kill flag */
+        lk_lock(&tstate->lock, tid+1);
+
+        if (!tstate->is_running) {
+            deactivate_core(coreID);
+            tstate->sim_stopped = true;
+            lk_unlock(&tstate->lock);
+            return;
+        }
+        lk_unlock(&tstate->lock);
+
+        if (!is_core_active(coreID)) {
+            PIN_Sleep(250);
+            continue;
         }
 
-            /* Check kill flag */
-            thread_state_t* tstate = get_tls(instrument_tid);
-            lk_lock(&tstate->lock, tid+1);
+        // Get the latest thread we are running from the scheduler
+        THREADID instrument_tid = GetCoreThread(coreID);
+        if (instrument_tid == INVALID_THREADID) {
+            continue;
+        }
 
-            if (!tstate->is_running || PIN_IsProcessExiting()) {
-                deactivate_core(coreID);
-                tstate->sim_stopped = true;
-                lk_unlock(&tstate->lock);
-                return;
+        while (handshake_buffer.empty(instrument_tid)) {
+            PIN_Yield();
+            while(consumers_sleep) {
+                PIN_Sleep(250);
             }
-            lk_unlock(&tstate->lock);
         }
 
         int consumerHandshakes = handshake_buffer.getConsumerSize(instrument_tid);
@@ -426,20 +412,34 @@ VOID SimulatorLoop(VOID* arg)
         }
         assert(consumerHandshakes > 0);
 
-
-//        handshake_container_t* handshake = handshake_buffer.front(instrument_tid, true);
-//        ASSERTX(handshake != NULL);
-//        ASSERTX(handshake->flags.valid);
-
+        int numConsumed = 0;
         for(int i = 0; i < consumerHandshakes; i++) {
             handshake_container_t* handshake = handshake_buffer.front(instrument_tid, true);
             ASSERTX(handshake != NULL);
             ASSERTX(handshake->flags.valid);
 
+            // Check thread exit flag
+            if (handshake->flags.killThread) {
+                ReleaseHandshake(coreID);
+                numConsumed++;
+                // Let the scheduler send something else to this core
+                DescheduleActiveThread(coreID);
 
-            /* Preserving coreID if we destroy handshake before coming in here,
-             * so we know which core to deactivate. */
-            coreID = handshake->handshake.coreID;
+                ASSERTX(i == consumerHandshakes-1); // Check that there are no more handshakes
+                break;
+            }
+
+            if (handshake->flags.giveCoreUp) {
+                ReleaseHandshake(coreID);
+                numConsumed++;
+                GiveUpCore(coreID);
+
+                lk_lock(&printing_lock, 1);
+                cerr << "Scheduled on core " << coreID << " thread " << GetCoreThread(coreID) << endl;
+                lk_unlock(&printing_lock);
+
+                break;
+            }
 
 #ifdef TIME_TRANSPARENCY
             // Capture time spent in simulation to ensure time syscall transparency
@@ -452,29 +452,42 @@ VOID SimulatorLoop(VOID* arg)
 
             // Ignoring instruction
             ADDRINT pc = handshake->handshake.pc;
-            thread_state_t* tstate = get_tls(instrument_tid);
-            lk_lock(&tstate->lock, tid+1);
-            if (tstate->ignore_list.find(pc) != tstate->ignore_list.end())
+            thread_state_t* inst_tstate = get_tls(instrument_tid);
+            lk_lock(&inst_tstate->lock, tid+1);
+            if (inst_tstate->ignore_list.find(pc) != inst_tstate->ignore_list.end())
             {
                 lk_unlock(&tstate->lock);
-                ReleaseHandshake(handshake->handshake.coreID);
+                ReleaseHandshake(coreID);
+                numConsumed++;
                 continue;
             }
-            tstate->num_inst++;
-            lk_unlock(&tstate->lock);
+            inst_tstate->num_inst++;
+            lk_unlock(&inst_tstate->lock);
+
+            // First instruction, set bottom of stack, and flag we're not safe to kill
+            if (handshake->flags.isFirstInsn)
+            {
+                Zesto_SetBOS(coreID, inst_tstate->bos);
+                if (!control.PinPointsActive())
+                    handshake->handshake.slice_num = 1;
+                lk_lock(&tstate->lock, tid+1);
+                tstate->sim_stopped = false;
+                lk_unlock(&tstate->lock);
+            }
 
             // Actual simulation happens here
-            Zesto_Resume(&handshake->handshake, &handshake->mem_buffer, handshake->flags.isFirstInsn, handshake->flags.isLastInsn);
+            Zesto_Resume(coreID, &handshake->handshake, &handshake->mem_buffer, handshake->flags.isFirstInsn, handshake->flags.isLastInsn);
 
             if(!KnobPipelineInstrumentation.Value())
-                ReleaseHandshake(handshake->handshake.coreID);
+                ReleaseHandshake(coreID);
+            numConsumed++;
 
 #ifdef TIME_TRANSPARENCY
             ins_delta_time = rdtsc() - ins_delta_time;
             sim_time += ins_delta_time;
 #endif
         }
-        handshake_buffer.applyConsumerChanges(instrument_tid, consumerHandshakes);
+        handshake_buffer.applyConsumerChanges(instrument_tid, numConsumed);
     }
 }
 
@@ -484,7 +497,6 @@ VOID MakeSSRequest(THREADID tid, ADDRINT pc, ADDRINT npc, ADDRINT tpc, BOOL brta
     thread_state_t* tstate = get_tls(tid);
     MakeSSContext(ictxt, &tstate->fpstate_buf, pc, npc, &hshake->handshake.ctxt);
 
-    hshake->handshake.coreID = tstate->coreID;
     hshake->handshake.pc = pc;
     hshake->handshake.npc = npc;
     hshake->handshake.tpc = tpc;
@@ -493,10 +505,6 @@ VOID MakeSSRequest(THREADID tid, ADDRINT pc, ADDRINT npc, ADDRINT tpc, BOOL brta
     hshake->handshake.resume_thread = FALSE;
     hshake->handshake.real = TRUE;
     PIN_SafeCopy(hshake->handshake.ins, (VOID*) pc, MD_MAX_ILEN);
-
-    hshake->handshake.slice_num = tstate->slice_num;
-    hshake->handshake.feeder_slice_length = tstate->slice_length;
-    hshake->handshake.slice_weight_times_1000 = tstate->slice_weight_times_1000;
 }
 
 /* ========================================================================== */
@@ -601,31 +609,7 @@ VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDR
         ASSERTX(sanity_pc == pc);
     }
 
-    // TODO: We shouldn't have to go through this anymore. We can just grab the appropriate
-    // tstate->lock! Fix me!
-    /* In case tls was not updated yet (because we can't touch it
-     * from other threads), look up in reverse mapping */
-    if ((tstate->coreID == (ADDRINT)-1))
-    {
-        map<UINT32,THREADID>::iterator it;
-        for (it = core_threads.begin(); it != core_threads.end(); it++)
-            if ((*it).second == tid)
-            {
-                tstate->coreID = (*it).first;
-                break;
-            }
-        ASSERTX(tstate->coreID != (ADDRINT)-1);
-    }
-
     tstate->queue_pc(pc);
-
-    if (handshake->flags.isFirstInsn)
-    {
-        Zesto_SetBOS(tstate->coreID, tstate->bos);
-        lk_lock(&tstate->lock, tid+1);
-        tstate->sim_stopped = false;
-        lk_unlock(&tstate->lock);
-    }
 
     // Populate handshake buffer
     MakeSSRequest(tid, pc, npc, tpc, taken, ictxt, handshake);
@@ -844,39 +828,6 @@ SSARGS MakeSimpleScalarArgcArgv(UINT32 argc, CHAR *argv[])
     return make_pair(ssArgc, ssArgv);
 }
 
-
-/* ========================================================================== */
-/* Returns true if thread was scheduled to run */
-/*static BOOL RemoveRunQueueThread(THREADID tid)
-{
-    list<THREADID>::iterator it;
-    for (it = run_queue.begin(); it != run_queue.end(); it++)
-        if (*it == tid) {
-            run_queue.erase(it);
-            return true;
-        }
-    return false;
-}*/
-
-/* ========================================================================== */
-VOID ScheduleRunQueue()
-{
-    cerr << "RQ size: " << run_queue.size() << endl;
-
-    // XXX: Conservative for now -- assume nThreads == nCores
-    ASSERTX(run_queue.size() == (unsigned int)num_threads);
-
-    list<THREADID>::iterator it = run_queue.begin();
-    INT32 nextCoreID;
-    for (nextCoreID = num_threads-1; nextCoreID >= 0; nextCoreID--, it++) {
-        core_threads[nextCoreID] = *it;
-        thread_cores[*it] = nextCoreID;
-        cerr << "Core: " << nextCoreID << " " << *it << endl;
-    }
-
-    run_queue.clear();
-}
-
 /* ========================================================================== */
 VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
 {
@@ -884,11 +835,9 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
 //    if (KnobILDJIT.Value() && !ILDJIT_IsCreatingExecutor())
 //        return;
 
-    lk_lock(&test, 1);
+    lk_lock(&syscall_lock, 1);
 
     thread_state_t* tstate = new thread_state_t(threadIndex);
-    if (control.PinPointsActive())
-        tstate->slice_num = 1;      // PP slices aren't 0-indexed
     PIN_SetThreadData(tls_key, tstate, threadIndex);
 
     ADDRINT tos, bos;
@@ -954,299 +903,122 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
     tstate->bos = bos;
 
     // Application threads only -- create buffers for them
-    // and make sure a respective simulator thread gets created
     if (!KnobILDJIT.Value() ||
         (KnobILDJIT.Value() && ILDJIT_IsCreatingExecutor()))
     {
         // Create new buffer to store thread context
-        PIN_RWMutexWriteLock(&simbuffer_lock);
-
         handshake_buffer.allocateThread(threadIndex);
 
+        lk_lock(&thread_list_lock, threadIndex+1);
         thread_list.push_back(threadIndex);
+        lk_unlock(&thread_list_lock);
 
-        run_queue.push_back(threadIndex);
+        ScheduleNewThread(threadIndex);
 
-        PIN_RWMutexUnlock(&simbuffer_lock);
-
-        // Will get cleared on first simulated instruction
-        tstate->sim_stopped = true;
-
-        // This will trigger spawning a sim thread
-        lk_lock(&instrument_tid_lock, threadIndex+1);
-        instrument_tid_queue.push(threadIndex);
-        lk_unlock(&instrument_tid_lock);
+        if (!KnobILDJIT.Value())
+        {
+            tstate->ignore = false;
+            tstate->ignore_all = false;
+        }
     }
 
-    /*    cpu_set_t mask;
-    CPU_ZERO(&mask);
-    for (int i=0; i<8; i++)
-      CPU_SET(i, &mask);
-      sched_setaffinity(0, sizeof(cpu_set_t), &mask);*/
-    lk_unlock(&test);
+    lk_unlock(&syscall_lock);
 }
 
-
-UINT8 syscall_template[] = {0xcd, 0x80};
-
 /* ========================================================================== */
+/* Make sure that all sim threads drain any handshake buffers that could be in
+ * their respective scheduler run queues.
+ * Invariant: after this call, all sim threads are spinning in SimulatorLoop */
 VOID PauseSimulation(THREADID tid)
 {
-    /* The context is that all cores functionally have sent signal 0
-     * and unblocked the last iteration. We need to (i) wait for them
-     * to functionally reach wait 0, where they will wait until the end
-     * of the loop; (ii) drain all pipelines once cores are waiting. */
-  cerr << "pausing..." << endl;
-    volatile bool done_with_iteration = false;
-    do {
-        done_with_iteration = true;
-        vector<THREADID>::iterator it;
-        for (it = thread_list.begin(); it != thread_list.end(); it++) {
-            if ((*it) != tid) {
-                thread_state_t* tstate = get_tls(*it);
-                lk_lock(&tstate->lock, tid + 1);
-                bool curr_done = tstate->ignore && (tstate->lastWaitID == 0);
-                done_with_iteration &= curr_done;
-                /* Setting ignore_all here (while ignore is set) should be a race-free way
-                 * of ignoring the serial portion outside the loop after the thread goes
-                 * on an unsets ignore locally. */
-                if (curr_done) {
-                    tstate->ignore_all = true;
-                    tstate->sleep_producer = true;
-                }
-                lk_unlock(&tstate->lock);
-            }
-        }
-    } while (!done_with_iteration);
-
     /* Here we have produced everything for this loop! */
     enable_consumers();
 
-    /* Drainning all pipelines and deactivating cores. */
-    vector<THREADID>::iterator it;
-    for (it = thread_list.begin(); it != thread_list.end(); it++) {
-        INT32 coreID = thread_cores[*it];
+    /* Since the scheduler is updated from the sim threads in SimulatorLoop,
+     * seeing empty run queues is enough to determine that the sim thread
+     * is done simulating instructions. No need for fancier synchronization. */
 
-        /* Insert a trap. This will ensure that the pipe drains before
-         * consuming the next instruction.*/
-        handshake_container_t* handshake = handshake_buffer.get_buffer(*it);
-        handshake->flags.isFirstInsn = false;
-        handshake->handshake.sleep_thread = false;
-        handshake->handshake.resume_thread = false;
-        handshake->handshake.real = false;
-        handshake->handshake.coreID = coreID;
-        handshake->flags.valid = true;
-
-        handshake->handshake.pc = (ADDRINT) syscall_template;
-        handshake->handshake.npc = (ADDRINT) syscall_template + sizeof(syscall_template);
-        handshake->handshake.tpc = (ADDRINT) syscall_template + sizeof(syscall_template);
-        handshake->handshake.brtaken = false;
-        memcpy(handshake->handshake.ins, syscall_template, sizeof(syscall_template));
-        handshake_buffer.producer_done(*it, true);
-
-        /* Deactivate this core, so we can advance the cycle conunter of
-         * others without waiting on it */
-        handshake_container_t* handshake_2 = handshake_buffer.get_buffer(*it);
-
-        handshake_2->flags.isFirstInsn = false;
-        handshake_2->handshake.sleep_thread = true;
-        handshake_2->handshake.resume_thread = false;
-        handshake_2->handshake.real = false;
-        handshake_2->handshake.pc = 0;
-        handshake_2->handshake.coreID = coreID;
-        handshake_2->flags.valid = true;
-        handshake_buffer.producer_done(*it, true);
-
-        /* And finally, flush the core's pipelie to get rid of anything
-         * left over (including the trap) and flush the ring cache */
-        handshake_container_t* handshake_3 = handshake_buffer.get_buffer(*it);
-
-        handshake_3->flags.isFirstInsn = false;
-        handshake_3->handshake.sleep_thread = false;
-        handshake_3->handshake.resume_thread = false;
-        handshake_3->handshake.flush_pipe = true;
-        handshake_3->handshake.real = false;
-        handshake_3->handshake.pc = 0;
-        handshake_3->handshake.coreID = coreID;
-        handshake_3->flags.valid = true;
-        handshake_buffer.producer_done(*it, true);
-
-        handshake_buffer.flushBuffers(*it);
-    }
-
-    enable_consumers();
-
-    /* Wait until all cores are done -- consumed their buffers. */
-    volatile bool done = false;
+    volatile bool cores_done = false;
     do {
-        done = true;
-        vector<THREADID>::iterator it;
-        for (it = thread_list.begin(); it != thread_list.end(); it++) {
-            done &= handshake_buffer.empty((*it));
+        cores_done = true;
+        for (INT32 coreID=0; coreID < num_threads; coreID++) {
+            cores_done &= !IsCoreBusy(coreID);
         }
-        if (!done)
-            PIN_Sleep(1000);
-//            PIN_Yield();
-    } while (!done);
-
-#ifdef ZESTO_PIN_DBG
-    cerr << tid << " [" << sim_cycle << ":KEVIN]: All cores have empty buffers" << endl;
-    cerr.flush();
-#endif
-
-    /* Have thread ignore serial section after */
-    /* XXX: Do we need this? A few lines above we set ignore_all! */
-    for (it = thread_list.begin(); it != thread_list.end(); it++) {
-        thread_state_t* tstate = get_tls(*it);
-        lk_lock(&tstate->lock, *it+1);
-        handshake_buffer.resetPool(*it);
-        tstate->ignore = true;
-        tstate->sleep_producer = false;
-        lk_unlock(&tstate->lock);
-    }
+    } while (!cores_done);
 }
 
 /* ========================================================================== */
-VOID ResumeSimulation(THREADID tid)
+/* Invariant: we are not simulating anything here. Either:
+ * - Not in a pinpoints ROI.
+ * - Anything after PauseSimulation (or the HELIX equivalent)
+ * This implies all cores are inactive. And handshake buffers are already drained. */
+VOID StopSimulation(BOOL kill_sim_threads)
 {
-
-    /* All cores were sleeping in between loops, wake them up now. */
-    vector<THREADID>::iterator it;
-    for (it = thread_list.begin(); it != thread_list.end(); it++) {
-        INT32 coreID = thread_cores[*it];
-
-        /* Wake up cores right away without going through the handshake
-         * buffer (which should be empty anyway).
-         * If we do go through it, there are no guarantees for when the
-         * resume is consumed, which can lead to nasty races of who gets
-         * to resume first. */
-        ASSERTX(handshake_buffer.empty(*it));
-        activate_core(coreID);
-        thread_state_t* tstate = get_tls(*it);
-        lk_lock(&tstate->lock, tid+1);
-        tstate->ignore_all = false;
-        lk_unlock(&tstate->lock);
-    }
-}
-
-
-/* ========================================================================== */
-VOID StopSimulation(THREADID tid)
-{
-    /* Deactivate this core, so simulation doesn't wait on it */
-    thread_state_t* tstate = get_tls(tid);
-    deactivate_core(tstate->coreID);
-
-    /* Signal simulator threads to die */
-    vector<THREADID>::iterator it;
-    for(it = thread_list.begin(); it != thread_list.end(); it++) {
-        thread_state_t* curr_tstate = get_tls(*it);
-        lk_lock(&curr_tstate->lock, tid+1);
-        curr_tstate->is_running = false;
-        lk_unlock(&curr_tstate->lock);
-    }
-
-    /* Spin until SimulatorLoop actually finishes */
-    volatile bool is_stopped;
-    UINT64 total_inst;
-    do {
-        is_stopped = true;
-        total_inst = 0;
-
-        for(it = thread_list.begin(); it != thread_list.end(); it++) {
-            thread_state_t* curr_tstate = get_tls(*it);
-            lk_lock(&curr_tstate->lock, tid+1);
-            is_stopped &= curr_tstate->sim_stopped;
-            total_inst += curr_tstate->num_inst;
+    if (kill_sim_threads) {
+        /* Signal simulator threads to die */
+        INT32 coreID;
+        for (coreID=0; coreID < num_threads; coreID++) {
+            sim_thread_state_t* curr_tstate = get_sim_tls(sim_threadid[coreID]);
+            lk_lock(&curr_tstate->lock, 1);
+            curr_tstate->is_running = false;
             lk_unlock(&curr_tstate->lock);
         }
-    } while(!is_stopped);
 
-    Zesto_Slice_End(0, 0, total_inst, 100000);
+        /* Spin until SimulatorLoop actually finishes */
+        volatile bool is_stopped;
+        do {
+            is_stopped = true;
 
-    /* Reaching this ensures SimulatorLoop is not in the middle
-     * of simulating an instruction. We can safely blow away
-     * the pipeline and end the simulation. */
-    Fini(EXIT_SUCCESS, NULL);
-    PIN_ExitProcess(EXIT_SUCCESS);
+            for (coreID=0; coreID < num_threads; coreID++) {
+                sim_thread_state_t* curr_tstate = get_sim_tls(sim_threadid[coreID]);
+                lk_lock(&curr_tstate->lock, 1);
+                is_stopped &= curr_tstate->sim_stopped;
+                lk_unlock(&curr_tstate->lock);
+            }
+        } while(!is_stopped);
+    }
+
+    Zesto_Destroy();
 }
 
 /* ========================================================================== */
-VOID ThreadFini(THREADID threadIndex, const CONTEXT *ctxt, INT32 code, VOID *v)
+VOID ThreadFini(THREADID tid, const CONTEXT *ctxt, INT32 code, VOID *v)
 {
-    cerr << "Thread exit. ID: " << threadIndex << endl;
+    lk_lock(&printing_lock, tid+1);
+    cerr << "Thread exit. ID: " << tid << endl;
+    lk_unlock(&printing_lock);
 
-    lk_lock(&test, 1);
-    thread_state_t* tstate = get_tls(threadIndex);
+    thread_state_t* tstate = get_tls(tid);
 
-    /* No need to schedule this thread any more */
-    //RemoveRunQueueThread(threadIndex);
+    BOOL was_scheduled = handshake_buffer.hasThread(tid);
 
-    BOOL was_scheduled = handshake_buffer.hasThread(threadIndex);
-
-    /* Ignore threads which we weren't going to simulate */
+    /* Ignore threads which we weren't going to simulate.
+       It's ok that we're not locking tstate here, because no one is using it */
     if (!was_scheduled) {
         delete tstate;
-        lk_unlock(&test);
+        PIN_DeleteThreadDataKey(tid);
         return;
     }
 
     /* There will be no further instructions instrumented (on this thread).
-     * Make sure to kill the simulator thread (if any). */
-// XXX: Rethink when we are not tied to HELIX
-#if 0
-    lk_lock(&simbuffer_lock, threadIndex+1);
-    handshake_container_t *handshake = handshake_buffer.front(threadIndex);
-    INT32 coreID = -1;
-    if (handshake) {
-        coreID = handshake->handshake.coreID;
-        handshake->flags.killThread = true;
-    }
-    lk_unlock(&simbuffer_lock);
-#endif
-    if (!run_queue.empty()) {
-        cerr << "NYI: Thread rescheduling" << endl;
-        PIN_ExitProcess(1);
-    }
-    else {
-// Rethink when we are not tied to HELIX
-#if 0
-        lk_lock(&simbuffer_lock, threadIndex+1);
+     * Mark it as finishing and let the handshake buffer drain.
+     * Once this last handshake gets executed by a core, it will make
+       sure to clean up all thread resources. */
+    handshake_container_t *handshake = handshake_buffer.get_buffer(tid);
+    handshake->flags.killThread = true;
+    handshake->flags.valid = true;
+    handshake->handshake.real = false;
+    handshake_buffer.producer_done(tid, true);
 
-        if (sim_running) {
-            sim_running = false;
+    handshake_buffer.flushBuffers(tid);
 
-            lk_unlock(&simbuffer_lock);
-
-            vector<THREADID>::iterator it;
-            /* Spin until SimulatorLoop actually finishes */
-            volatile bool is_stopped;
-            do {
-                lk_lock(&simbuffer_lock, threadIndex+1);
-                is_stopped = true;
-                for(it = thread_list.begin(); it != thread_list.end(); it++) {
-                    is_stopped &= sim_stopped[(*it)];
-                    cerr << (*it) << " " << sim_stopped[(*it)] << " ";
-                }
-                cerr << endl;
-                lk_unlock(&simbuffer_lock);
-            } while(!is_stopped);
-
-            /* Reaching this ensures SimulatorLoop is not in the middle
-             * of simulating an instruction. We can safely blow away
-             * the pipeline and end the simulation. */
-            if (coreID != -1)
-                Zesto_Slice_End(coreID, 0, SimOrgInsCount, 100000);
-            Fini(EXIT_SUCCESS, NULL);
-            PIN_ExitProcess(EXIT_SUCCESS);
-        }
-        else
-            lk_unlock(&simbuffer_lock);
-#endif
-    }
-
-    delete tstate;
-    lk_unlock(&test);
+    /* Ignore subsequent instructions that we may see on this thread before
+     * destroying its tstate.
+     * XXX: This might be bit paranoid depending on when Pin inserts the
+     * ThreadFini callback. */
+    lk_lock(&tstate->lock, tid+1);
+    tstate->ignore = true;
+    lk_unlock(&tstate->lock);
 }
 
 //from linux/arch/x86/ia32/sys_ia32.c
@@ -1274,7 +1046,7 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, V
 //    if (KnobILDJIT.Value() && !ILDJIT_IsExecuting())
 //        return;
 
-    lk_lock(&test, threadIndex+1);
+    lk_lock(&syscall_lock, threadIndex+1);
 
     ADDRINT syscall_num = PIN_GetSyscallNumber(ictxt, std);
     ADDRINT arg1 = PIN_GetSyscallArgument(ictxt, std, 0);
@@ -1381,7 +1153,7 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, V
 #endif
         break;
     }
-    lk_unlock(&test);
+    lk_unlock(&syscall_lock);
 }
 
 /* ========================================================================== */
@@ -1391,7 +1163,7 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
 //    if (KnobILDJIT.Value() && !ILDJIT_IsExecuting())
 //        return;
 
-    lk_lock(&test, threadIndex+1);
+    lk_lock(&syscall_lock, threadIndex+1);
     ADDRINT retval = PIN_GetSyscallReturn(ictxt, std);
 
     thread_state_t* tstate = get_tls(threadIndex);
@@ -1513,35 +1285,30 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
       default:
         break;
     }
-    lk_unlock(&test);
+    lk_unlock(&syscall_lock);
 }
 
 /* ========================================================================== */
-VOID SimulatorThreadSpawner(VOID* arg)
+/* Create simulator threads and set up their local storage */
+VOID SpawnSimulatorThreads(INT32 numCores)
 {
-    (void) arg;
+    cerr << numCores << endl;
+    sim_threadid = new THREADID[numCores];
 
-    while (true)
-    {
-        // Is it time to die?
-        if (PIN_IsProcessExiting()) {
-            break;
+    THREADID tid;
+    for(INT32 i=0; i<numCores; i++) {
+        tid = PIN_SpawnInternalThread(SimulatorLoop, reinterpret_cast<VOID*>(i), 0, NULL);
+        if (tid == INVALID_THREADID) {
+            cerr << "Failed spawning sim thread " << i << endl;
+            PIN_ExitProcess(EXIT_FAILURE);
         }
+        sim_threadid[i] = tid;
+        cerr << "Spawned sim thread " << i << " " << tid << endl;
 
-        // Check if there's an insturment thread without the appropriate simulator thread
-        // and spawn one, if necessary
-        lk_lock(&instrument_tid_lock, 1);
-        if (!instrument_tid_queue.empty())
-        {
-            THREADID instrument_tid = instrument_tid_queue.front();
-            instrument_tid_queue.pop();
-            PIN_SpawnInternalThread(SimulatorLoop, reinterpret_cast<VOID*>(instrument_tid),
-                                    0, NULL);
-        }
-        lk_unlock(&instrument_tid_lock);
-
-        // Go to sleep -- no need to constatnly check
-        PIN_Sleep(1000);
+        /*sim_thread_state_t* tstate = new sim_thread_state_t();
+        cerr << "TTT " << endl;
+        PIN_SetThreadData(tls_key, tstate, tid);
+        cerr << "Spawned sim thread " << i << endl;*/
     }
 }
 
@@ -1557,9 +1324,7 @@ INT32 main(INT32 argc, CHAR **argv)
 
     SSARGS ssargs = MakeSimpleScalarArgcArgv(argc, argv);
 
-    lk_init(&test);
-    PIN_RWMutexInit(&simbuffer_lock);
-    lk_init(&instrument_tid_lock);
+    lk_init(&syscall_lock);
 
     // Obtain  a key for TLS storage.
     tls_key = PIN_CreateThreadDataKey(0);
@@ -1628,18 +1393,13 @@ INT32 main(INT32 argc, CHAR **argv)
     enable_producers();
     disable_consumers();
 
-    // The only safe way to spawn internal pin threads is from main()
-    // or other internal threads, so we create a thread spawner here
-    PIN_SpawnInternalThread(SimulatorThreadSpawner, NULL, 0, NULL);
+    InitScheduler(num_threads);
+
+    SpawnSimulatorThreads(num_threads);
 
     PIN_StartProgram();
 
     return 0;
-}
-
-void spawn_new_thread(void entry_point(void*), void* arg)
-{
-    PIN_SpawnInternalThread(entry_point, arg, 0, NULL);
 }
 
 VOID amd_hack()

@@ -43,11 +43,7 @@ struct thread_t {
     counter_t num_branches;
   } stat;
 
-#ifdef __cpluplus
-  bool active; /* FALSE if this core has hit its max-inst/uop limit */
-#else
-  int active;
-#endif
+  bool active; /* FALSE if this core is not executing */
 #ifdef ZESTO_PIN
   bool finished_cycle;      /* Ready to advance to next cycle? */
   bool consumed;            /* Did fetching get an instruction back? */

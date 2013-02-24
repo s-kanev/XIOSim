@@ -19,6 +19,10 @@ static std::vector<ADDRINT> curr_stop_counts;
 
 static std::vector<ADDRINT> slice_weights_times_1000;
 
+extern INT32 slice_num;
+extern INT32 slice_length;
+extern INT32 slice_weight_times_1000;
+
 /* ========================================================================== */
 VOID FLUFFY_Init()
 {
@@ -81,12 +85,10 @@ VOID FLUFFY_StartInsn(THREADID tid, ADDRINT pc, ADDRINT phase)
 VOID FLUFFY_StopInsn(THREADID tid, ADDRINT pc, ADDRINT phase)
 {
     if ((curr_stop_counts[phase]++) == stop_counts[phase]) {
+        slice_num++;
+        slice_length = 0; /*FIXME*/
+        slice_weight_times_1000 = slice_weights_times_1000[phase];
         PPointHandler(CONTROL_STOP, NULL, NULL, (VOID*)pc, tid);
-
-        thread_state_t* tstate = get_tls(tid);
-        tstate->slice_num++;
-        tstate->slice_length = 0; //XXX: fix icount failing with all ildjit threads
-        tstate->slice_weight_times_1000 = slice_weights_times_1000[phase];
     }
 }
 

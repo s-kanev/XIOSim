@@ -454,11 +454,10 @@ void Zesto_Slice_End(int coreID, unsigned int slice_num, unsigned long long feed
 
 static bool very_first_insn = true;
 
-void Zesto_Resume(struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsigned char> * mem_buffer, bool slice_start, bool slice_end)
+void Zesto_Resume(int coreID, struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsigned char> * mem_buffer, bool slice_start, bool slice_end)
 {
-   assert(handshake->coreID >= 0 && handshake->coreID < num_threads);
-   struct core_t * core = cores[handshake->coreID];
-   int coreID = handshake->coreID;
+   assert(coreID >= 0 && coreID < num_threads);
+   struct core_t * core = cores[coreID];
    thread_t * thread = core->current_thread;
 
    if (!thread->active && !(slice_start || handshake->resume_thread ||

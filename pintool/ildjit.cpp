@@ -14,10 +14,12 @@
 #include "ildjit.h"
 #include "fluffy.h"
 #include "utils.h"
+#include "scheduler.h"
+
+#include "Buffer.h"
 #include "BufferManager.h"
 
 extern tick_t sim_cycle;
-extern BufferManager handshake_buffer;
 
 // True if ILDJIT has finished compilation and is executing user code
 BOOL ILDJIT_executionStarted = false;
@@ -29,6 +31,8 @@ XIOSIM_LOCK ildjit_lock;
 
 const UINT8 ld_template[] = {0xa1, 0xad, 0xfb, 0xca, 0xde};
 const UINT8 st_template[] = {0xc7, 0x05, 0xad, 0xfb, 0xca, 0xde, 0x00, 0x00, 0x00, 0x00 };
+const UINT8 syscall_template[] = {0xcd, 0x80};
+
 
 static map<ADDRINT, UINT32> invocation_counts;
 static map<ADDRINT, UINT32> iteration_counts;
@@ -177,6 +181,7 @@ VOID ILDJIT_setupInterface(ADDRINT disable_ws, ADDRINT ws_id)
 
 VOID ILDJIT_endSimulation(THREADID tid, ADDRINT ip)
 {
+  // This should cover the helix case
   if (end_loop.size() != 0)
     return;
 
@@ -186,7 +191,7 @@ VOID ILDJIT_endSimulation(THREADID tid, ADDRINT ip)
 //#endif
 
     if (KnobFluffy.Value().empty())
-        StopSimulation(tid);
+        PauseSimulation(tid);
 }
 
 /* ========================================================================== */
@@ -350,8 +355,8 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
     cerr << "Starting loop: " << loop_name << "[" << invocation_counts[loop] << "]" << endl;
     //#endif
 
-    vector<THREADID>::iterator it;
-    for (it = thread_list.begin(); it != thread_list.end(); it++) {
+    list<THREADID>::iterator it;
+    ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
         thread_state_t* curr_tstate = get_tls(*it);
         lk_lock(&curr_tstate->lock, tid+1);
         /* This is called right before a wait spin loop.
@@ -375,7 +380,7 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
     }
     else {
       cerr << tid << ": resuming simulation" << endl;
-      ResumeSimulation(tid);
+      ILDJIT_ResumeSimulation(tid);
     }
     simulating_parallel_loop = true;
 }
@@ -393,11 +398,11 @@ VOID ILDJIT_startIteration(THREADID tid)
     loop_state->simmed_iteration_count++;
     
     if(reached_end_iteration) {
-      PauseSimulation(tid);
+      ILDJIT_PauseSimulation(tid);
       cerr << "Simulation runtime:";
       printElapsedTime();
       cerr << "LStopping simulation, TID: " << tid << endl;
-      StopSimulation(tid);
+      StopSimulation(true);
       cerr << "[KEVIN] Stopped simulation! " << tid << endl;
       return;
     }
@@ -434,12 +439,12 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
 #endif
 
     if (ExecMode == EXECUTION_MODE_SIMULATE) {
-        PauseSimulation(tid);
+        ILDJIT_PauseSimulation(tid);
         cerr << tid << ": Paused simulation!" << endl;
         first_invocation = false;
 
-        vector<THREADID>::iterator it;
-        for (it = thread_list.begin(); it != thread_list.end(); it++) {
+        list<THREADID>::iterator it;
+        ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
             thread_state_t* tstate = get_tls(*it);
             lk_lock(&tstate->lock, tid+1);
             tstate->ignore = true;
@@ -552,7 +557,6 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc)
     handshake->handshake.sleep_thread = false;
     handshake->handshake.resume_thread = false;
     handshake->handshake.real = false;
-    handshake->handshake.coreID = tstate->coreID;
     handshake->handshake.in_critical_section = (num_threads > 1);
     handshake->flags.valid = true;
 
@@ -652,7 +656,6 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID_addr, ADDRINT ssID, ADDRINT p
     handshake->handshake.sleep_thread = false;
     handshake->handshake.resume_thread = false;
     handshake->handshake.real = false;
-    handshake->handshake.coreID = tstate->coreID;
     handshake->handshake.in_critical_section = (num_threads > 1) && (tstate->unmatchedWaits > 0);
     handshake->flags.valid = true;
 
@@ -676,10 +679,7 @@ cleanup:
 VOID ILDJIT_setAffinity(THREADID tid, INT32 coreID)
 {
     ASSERTX(coreID >= 0 && coreID < num_threads);
-    thread_state_t* tstate = get_tls(tid);
-    tstate->coreID = coreID;
-    core_threads[coreID] = tid;
-    thread_cores[tid] = coreID;
+    HardcodeSchedule(tid, coreID);
 }
 
 /* ========================================================================== */
@@ -975,7 +975,8 @@ UINT32 getSignalAddress(ADDRINT ssID)
 {
   UINT32 firstCore = 0;
   if(first_invocation) {
-    firstCore = thread_cores[thread_started_invocation];
+    thread_state_t *tstate = get_tls(thread_started_invocation);
+    firstCore = tstate->coreID;
   }
   assert(firstCore < 256);
   assert(ssID < 256);
@@ -995,3 +996,137 @@ UINT32 getSignalAddress(ADDRINT ssID)
 
 }
 */
+/* ========================================================================== */
+VOID ILDJIT_PauseSimulation(THREADID tid)
+{
+    /* The context is that all cores functionally have sent signal 0
+     * and unblocked the last iteration. We need to (i) wait for them
+     * to functionally reach wait 0, where they will wait until the end
+     * of the loop; (ii) drain all pipelines once cores are waiting. */
+    volatile bool done_with_iteration = false;
+    do {
+        done_with_iteration = true;
+        list<THREADID>::iterator it;
+        ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
+            if ((*it) != tid) {
+                thread_state_t* tstate = get_tls(*it);
+                lk_lock(&tstate->lock, tid + 1);
+                bool curr_done = tstate->ignore && (tstate->lastWaitID == 0);
+                done_with_iteration &= curr_done;
+                /* Setting ignore_all here (while ignore is set) should be a race-free way
+                 * of ignoring the serial portion outside the loop after the thread goes
+                 * on an unsets ignore locally. */
+                if (curr_done) {
+                    tstate->ignore_all = true;
+                    tstate->sleep_producer = true;
+                }
+                lk_unlock(&tstate->lock);
+            }
+        }
+    } while (!done_with_iteration);
+
+    /* Here we have produced everything for this loop! */
+    enable_consumers();
+
+    /* Drainning all pipelines and deactivating cores. */
+    list<THREADID>::iterator it;
+    ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
+        /* Insert a trap. This will ensure that the pipe drains before
+         * consuming the next instruction.*/
+        handshake_container_t* handshake = handshake_buffer.get_buffer(*it);
+        handshake->flags.isFirstInsn = false;
+        handshake->handshake.sleep_thread = false;
+        handshake->handshake.resume_thread = false;
+        handshake->handshake.real = false;
+        handshake->flags.valid = true;
+
+        handshake->handshake.pc = (ADDRINT) syscall_template;
+        handshake->handshake.npc = (ADDRINT) syscall_template + sizeof(syscall_template);
+        handshake->handshake.tpc = (ADDRINT) syscall_template + sizeof(syscall_template);
+        handshake->handshake.brtaken = false;
+        memcpy(handshake->handshake.ins, syscall_template, sizeof(syscall_template));
+        handshake_buffer.producer_done(*it, true);
+
+        /* Deactivate this core, so we can advance the cycle conunter of
+         * others without waiting on it */
+        handshake_container_t* handshake_2 = handshake_buffer.get_buffer(*it);
+
+        handshake_2->flags.isFirstInsn = false;
+        handshake_2->handshake.sleep_thread = true;
+        handshake_2->handshake.resume_thread = false;
+        handshake_2->handshake.real = false;
+        handshake_2->handshake.pc = 0;
+        handshake_2->flags.valid = true;
+        handshake_buffer.producer_done(*it, true);
+
+        /* And finally, flush the core's pipelie to get rid of anything
+         * left over (including the trap) and flush the ring cache */
+        handshake_container_t* handshake_3 = handshake_buffer.get_buffer(*it);
+
+        handshake_3->flags.isFirstInsn = false;
+        handshake_3->handshake.sleep_thread = false;
+        handshake_3->handshake.resume_thread = false;
+        handshake_3->handshake.flush_pipe = true;
+        handshake_3->handshake.real = false;
+        handshake_3->handshake.pc = 0;
+        handshake_3->flags.valid = true;
+        handshake_buffer.producer_done(*it, true);
+
+        handshake_buffer.flushBuffers(*it);
+    }
+
+    enable_consumers();
+
+    /* Wait until all cores are done -- consumed their buffers. */
+    volatile bool done = false;
+    do {
+        done = true;
+        list<THREADID>::iterator it;
+        ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
+            done &= handshake_buffer.empty((*it));
+        }
+        if (!done)
+            PIN_Sleep(1000);
+//            PIN_Yield();
+    } while (!done);
+
+#ifdef ZESTO_PIN_DBG
+    cerr << tid << " [" << sim_cycle << ":KEVIN]: All cores have empty buffers" << endl;
+    cerr.flush();
+#endif
+
+    /* Have thread ignore serial section after */
+    /* XXX: Do we need this? A few lines above we set ignore_all! */
+    ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
+        thread_state_t* tstate = get_tls(*it);
+        lk_lock(&tstate->lock, *it+1);
+        handshake_buffer.resetPool(*it);
+        tstate->ignore = true;
+        tstate->sleep_producer = false;
+        lk_unlock(&tstate->lock);
+    }
+}
+
+/* ========================================================================== */
+VOID ILDJIT_ResumeSimulation(THREADID tid)
+{
+
+    /* All cores were sleeping in between loops, wake them up now. */
+    for (INT32 coreID = 0; coreID < num_threads; coreID++) {
+        /* Wake up cores right away without going through the handshake
+         * buffer (which should be empty anyway).
+         * If we do go through it, there are no guarantees for when the
+         * resume is consumed, which can lead to nasty races of who gets
+         * to resume first. */
+        THREADID curr_tid = GetCoreThread(coreID);
+        if (curr_tid == INVALID_THREADID)
+            continue;
+
+        ASSERTX(handshake_buffer.empty(curr_tid));
+        activate_core(coreID);
+        thread_state_t* tstate = get_tls(curr_tid);
+        lk_lock(&tstate->lock, tid+1);
+        tstate->ignore_all = false;
+        lk_unlock(&tstate->lock);
+    }
+}

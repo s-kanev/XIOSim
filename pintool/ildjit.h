@@ -11,6 +11,8 @@ VOID AddILDJITCallbacks(IMG img);
 BOOL ILDJIT_IsExecuting();
 BOOL ILDJIT_IsCreatingExecutor();
 VOID printMemoryUsage(THREADID tid);
+VOID ILDJIT_PauseSimulation(THREADID tid);
+VOID ILDJIT_ResumeSimulation(THREADID tid);
 
 class loop_state_t
 {

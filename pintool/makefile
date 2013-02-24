@@ -68,7 +68,7 @@ endif
 
 TOOL_ROOTS = feeder_zesto
 
-TOOL_OBJS = $(OBJDIR)Buffer.o $(OBJDIR)BufferManager.o $(OBJDIR)ildjit.o $(OBJDIR)fluffy.o $(OBJDIR)lib.o $(OBJDIR)utils.o
+TOOL_OBJS = $(OBJDIR)Buffer.o $(OBJDIR)BufferManager.o $(OBJDIR)ildjit.o $(OBJDIR)fluffy.o $(OBJDIR)lib.o $(OBJDIR)utils.o $(OBJDIR)sync_pthreads.o $(OBJDIR)scheduler.o
 
 TOOLS = $(TOOL_ROOTS:%=$(OBJDIR)%$(PINTOOL_SUFFIX))
 
@@ -78,7 +78,7 @@ TOOLS = $(TOOL_ROOTS:%=$(OBJDIR)%$(PINTOOL_SUFFIX))
 # build rules
 #
 ##############################################################
-all : CXXFLAGS += -DDEBUG -D_FILE_OFFSET_BITS=64
+all : CXXFLAGS += -DDEBUG -D_FILE_OFFSET_BITS=64 -std=c++11
 all: tools
 debug:	CXXFLAGS += -DZESTO_PIN_DBG -D_FILE_OFFSET_BITS=64
 debug:	tools

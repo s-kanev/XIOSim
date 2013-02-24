@@ -1,13 +1,6 @@
 #ifndef HANDSHAKE_BUFFER_MANAGER
 #define HANDSHAKE_BUFFER_MANAGER
 
-#include <map>
-#include <queue>
-#include <assert.h>
-#include "Buffer.h"
-#include "feeder.h"
-#include "Buffer.h"
-
 class BufferManager
 {
  public:

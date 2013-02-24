@@ -15,15 +15,22 @@ using namespace INSTLIB;
 #include "../synchronization.h"
 
 class handshake_container_t;
-typedef queue<handshake_container_t*> handshake_queue_t;
+class BufferManager;
+
+extern BufferManager handshake_buffer;
 extern KNOB<BOOL> KnobILDJIT;
 extern KNOB<string> KnobFluffy;
-extern vector<THREADID> thread_list;
-extern map<UINT32, THREADID> core_threads;
-extern map<THREADID, UINT32> thread_cores;
+extern list<THREADID> thread_list;
+extern XIOSIM_LOCK thread_list_lock;
+
+#define ATOMIC_ITERATE(_list, _it, _lock) \
+    for (lk_lock(&(_lock), 1), (_it) = (_list).begin(), lk_unlock(&(_lock)); \
+         [&]{lk_lock(&(_lock), 1); bool res = (_it) != (_list).end(); lk_unlock(&(_lock)); return res;}();  \
+         lk_lock(&(_lock), 1), (_it)++, lk_unlock(&(_lock)))
 
 /* ========================================================================== */
-// Thread-private state that we need to preserve between different instrumentation calls
+/* Thread-local state for instrument threads that we need to preserve between
+ * different instrumentation calls */
 class thread_state_t
 {
   public:
@@ -33,9 +40,6 @@ class thread_state_t
         last_syscall_number = last_syscall_arg1 = 0;
         last_syscall_arg2 = last_syscall_arg3 = 0;
         bos = -1;
-        slice_num = 0;
-        slice_length = 0;
-        slice_weight_times_1000 = 0;
         coreID = -1;
         firstIteration = false;
         lastSignalAddr = 0xdecafbad;
@@ -49,7 +53,6 @@ class thread_state_t
 
         unmatchedWaits = 0;
 
-        is_running = true;
         num_inst = 0;
 
         sleep_producer = false;
@@ -68,11 +71,6 @@ class thread_state_t
 
     // Bottom-of-stack pointer used for shadow page table
     ADDRINT bos;
-
-    // Pinpoints-related
-    ADDRINT slice_num;
-    ADDRINT slice_length;
-    ADDRINT slice_weight_times_1000;
 
     // Which simulated core this thread runs on
     ADDRINT coreID;
@@ -99,10 +97,6 @@ class thread_state_t
 
     XIOSIM_LOCK lock;
     // XXX: SHARED -- lock protects those
-    // Signal to the simulator thread to die
-    BOOL is_running;
-    // Set by simulator thread once it dies
-    BOOL sim_stopped;
     // Is thread not instrumenting instructions ?
     BOOL ignore;
     // Similar effect to above, but produced differently for sequential code
@@ -124,7 +118,27 @@ private:
     ADDRINT pc_queue[PC_QUEUE_SIZE];
     INT32 pc_queue_head;
 };
-thread_state_t* get_tls(ADDRINT tid);
+thread_state_t* get_tls(THREADID tid);
+
+/* ========================================================================== */
+class sim_thread_state_t {
+public:
+    sim_thread_state_t() {
+
+        is_running = true;
+        // Will get cleared on first simulated instruction
+        sim_stopped = true;
+
+        lk_init(&lock);
+    }
+
+    XIOSIM_LOCK lock;
+    // Signal to the simulator thread to die
+    BOOL is_running;
+    // Set by simulator thread once it dies
+    BOOL sim_stopped;
+};
+sim_thread_state_t* get_sim_tls(THREADID tid);
 
 /* ========================================================================== */
 /* Execution mode allows easy querying of exactly what the pin tool is doing at
@@ -145,6 +159,7 @@ struct handshake_flags_t
 
   BOOL isFirstInsn;
   BOOL isLastInsn;
+  BOOL giveCoreUp;
   BOOL killThread;
 };
 
@@ -161,6 +176,7 @@ class handshake_container_t
         flags.valid = false;
         flags.isFirstInsn = false;
         flags.isLastInsn = false;
+        flags.giveCoreUp = false;
         flags.killThread = false;
 
         mem_buffer.clear();
@@ -182,13 +198,11 @@ class handshake_container_t
 };
 
 VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREADID tid);
-VOID StopSimulation(THREADID tid);
+VOID PauseSimulation(THREADID tid);
+VOID StopSimulation(BOOL kill_sim_threads);
 VOID SimulatorLoop(VOID* arg);
 VOID ThreadFini(THREADID threadIndex, const CONTEXT *ctxt, INT32 code, VOID *v);
 VOID Fini(INT32 exitCode, VOID *v);
-VOID ScheduleRunQueue();
-VOID PauseSimulation(THREADID tid);
-VOID ResumeSimulation(THREADID tid);
 
 VOID amd_hack();
 VOID doLateILDJITInstrumentation();
