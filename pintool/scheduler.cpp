@@ -84,31 +84,35 @@ VOID DescheduleActiveThread(INT32 coreID)
 }
 
 /* ========================================================================== */
-VOID GiveUpCore(INT32 coreID)
+VOID GiveUpCore(INT32 coreID, BOOL reschedule_thread)
 {
     lk_lock(&run_queues[coreID].lk, 1);
-    if (run_queues[coreID].q.size() > 1) {
-        THREADID tid = run_queues[coreID].q.front();
+    THREADID tid = run_queues[coreID].q.front();
 
-        lk_lock(&printing_lock, tid+1);
-        cerr << "Thread " << tid << " giving up on core " << coreID << endl;
-        lk_unlock(&printing_lock);
+    lk_lock(&printing_lock, tid+1);
+    cerr << "Thread " << tid << " giving up on core " << coreID << endl;
+    lk_unlock(&printing_lock);
 
-        thread_state_t *tstate = get_tls(tid);
-        tstate->coreID = -1;
+    thread_state_t *tstate = get_tls(tid);
+    tstate->coreID = -1;
 
-        run_queues[coreID].q.pop();
+    run_queues[coreID].q.pop();
 
+    if (!run_queues[coreID].q.empty()) {
         THREADID new_tid = run_queues[coreID].q.front();
         thread_state_t *new_tstate = get_tls(new_tid);
         new_tstate->coreID = coreID;
-
-        run_queues[coreID].q.push(tid);
 
         lk_lock(&printing_lock, tid+1);
         cerr << "Thread " << new_tid << " going on core " << coreID << endl;
         lk_unlock(&printing_lock);
     }
+
+    if (reschedule_thread) {
+        run_queues[coreID].q.push(tid);
+    }
+
+
     lk_unlock(&run_queues[coreID].lk);
 }
 

@@ -26,6 +26,7 @@ VOID PTHREAD_beforeJoin(THREADID tid)
     handshake->flags.valid = true;
     handshake->handshake.real = false;
     handshake->flags.giveCoreUp = true;
+    handshake->flags.giveUpReschedule = true;
     handshake_buffer.producer_done(tid);
 }
 

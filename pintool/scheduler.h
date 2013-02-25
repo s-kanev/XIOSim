@@ -31,7 +31,7 @@ VOID HardcodeSchedule(THREADID tid, INT32 coreID);
 
 /* Let another thread (if any) scheduled on core
  * @coreID take over. */
-VOID GiveUpCore(INT32 coreID);
+VOID GiveUpCore(INT32 coreID, BOOL reschedule_thread);
 
 /* A check whether anything is running on core
  * @coreID. This serves the same purpose as is_core_active(),

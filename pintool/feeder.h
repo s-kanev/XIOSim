@@ -154,13 +154,14 @@ extern EXECUTION_MODE ExecMode;
 
 struct handshake_flags_t
 {
-  // Did we finish dumping context
-  BOOL valid;
+  BOOL valid;               /* Did we finish dumping context */
 
-  BOOL isFirstInsn;
-  BOOL isLastInsn;
-  BOOL giveCoreUp;
-  BOOL killThread;
+  BOOL isFirstInsn;         /* Notify sim for first instruction in a slice */
+  BOOL isLastInsn;          /* Same ^ for last */
+
+  BOOL giveCoreUp;          /* Notify the scheduler to release thread */
+  BOOL giveUpReschedule;    /* When ^ is true, should thread get re-scheduled */
+  BOOL killThread;          /* Thread is exiting, deschedule it and clean up once consumed */
 };
 
 class handshake_container_t

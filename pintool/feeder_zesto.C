@@ -27,11 +27,13 @@
 #endif
 
 #include "feeder.h"
-#include "ildjit.h"
 #include "Buffer.h"
 #include "BufferManager.h"
-#include "sync_pthreads.h"
 #include "scheduler.h"
+
+#include "sync_pthreads.h"
+#include "ildjit.h"
+#include "parsec.h"
 
 using namespace std;
 
@@ -219,6 +221,9 @@ VOID ImageLoad(IMG img, VOID *v)
 
     if (KnobPthreads.Value())
         AddPthreadsCallbacks(img);
+
+    if (KnobParsec.Value())
+        AddParsecCallbacks(img);
 
     ASSERTX( Zesto_Notify_Mmap(0/*coreID*/, start, length, false) );
 }
@@ -432,12 +437,7 @@ VOID SimulatorLoop(VOID* arg)
             if (handshake->flags.giveCoreUp) {
                 ReleaseHandshake(coreID);
                 numConsumed++;
-                GiveUpCore(coreID);
-
-                lk_lock(&printing_lock, 1);
-                cerr << "Scheduled on core " << coreID << " thread " << GetCoreThread(coreID) << endl;
-                lk_unlock(&printing_lock);
-
+                GiveUpCore(coreID, handshake->flags.giveUpReschedule);
                 break;
             }
 
@@ -931,6 +931,11 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
  * Invariant: after this call, all sim threads are spinning in SimulatorLoop */
 VOID PauseSimulation(THREADID tid)
 {
+    list<THREADID>::iterator it;
+    ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
+        handshake_buffer.flushBuffers(*it);
+    }
+
     /* Here we have produced everything for this loop! */
     enable_consumers();
 
@@ -1340,7 +1345,7 @@ INT32 main(INT32 argc, CHAR **argv)
     if (KnobILDJIT.Value())
         MOLECOOL_Init();
 
-    if (!KnobILDJIT.Value()) {
+    if (!KnobILDJIT.Value() && !KnobParsec.Value()) {
         // Try activate pinpoints alarm, must be done before PIN_StartProgram
         if(control.CheckKnobs(PPointHandler, 0) != 1) {
             cerr << "Error reading control parametrs, exiting." << endl;
