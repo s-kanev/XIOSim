@@ -75,8 +75,16 @@ VOID DescheduleActiveThread(INT32 coreID)
 
     run_queues[coreID].q.pop();
 
-    /* No more work to do, let other cores progress */
-    if (run_queues[coreID].q.empty()) {
+    if (!run_queues[coreID].q.empty()) {
+        THREADID new_tid = run_queues[coreID].q.front();
+        thread_state_t *new_tstate = get_tls(new_tid);
+        new_tstate->coreID = coreID;
+
+        lk_lock(&printing_lock, tid+1);
+        cerr << "Thread " << new_tid << " going on core " << coreID << endl;
+        lk_unlock(&printing_lock);
+    } else {
+        /* No more work to do, let other cores progress */
         deactivate_core(coreID);
     }
 
@@ -102,14 +110,18 @@ VOID GiveUpCore(INT32 coreID, BOOL reschedule_thread)
         THREADID new_tid = run_queues[coreID].q.front();
         thread_state_t *new_tstate = get_tls(new_tid);
         new_tstate->coreID = coreID;
-
-        lk_lock(&printing_lock, tid+1);
-        cerr << "Thread " << new_tid << " going on core " << coreID << endl;
-        lk_unlock(&printing_lock);
+    }
+    else if (!reschedule_thread) {
+        /* No more work to do, let core sleep */
+        deactivate_core(coreID);
     }
 
     if (reschedule_thread) {
         run_queues[coreID].q.push(tid);
+
+        lk_lock(&printing_lock, tid+1);
+        cerr << "Thread " << tid << " giving up on core " << coreID << endl;
+        lk_unlock(&printing_lock);
     }
 
 
