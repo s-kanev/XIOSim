@@ -459,6 +459,9 @@ void cache_reg_stats(
 
   for(int i=0;i<cp->num_prefetchers;i++)
     cp->prefetcher[i]->reg_stats(sdb,core);
+
+  if(cp->controller)
+    cp->controller->reg_stats(sdb);
 }
 
 void LLC_reg_stats(
@@ -628,6 +631,9 @@ void LLC_reg_stats(
   if(cp->prefetcher)
     for(int i=0;i<cp->num_prefetchers;i++)
       cp->prefetcher[i]->reg_stats(sdb,NULL);
+
+  if(cp->controller)
+    cp->controller->reg_stats(sdb);
 }
 
 /* Called after fast-forwarding/warmup to clear out the stats */

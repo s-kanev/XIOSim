@@ -18,6 +18,8 @@ class cache_controller_t {
   virtual bool send_request_upstream(int bank, int MSHR_index, struct cache_action_t * MSHR) = 0;
   virtual void send_response_downstream(struct cache_action_t * const MSHR) = 0;
 
+  virtual void reg_stats(struct stat_sdb_t * const sdb) { };
+
   protected:
   struct cache_t * const cache;
   struct core_t * const core;

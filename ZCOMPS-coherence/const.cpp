@@ -1,7 +1,7 @@
 /* const.cpp - Const-latency coherency */
 
 #ifdef ZESTO_PARSE_ARGS
-  if(!strcasecmp(controller_opt_string,"const"))
+  if(!strncasecmp(controller_opt_string,"const", 5))
     return new cache_controller_const_t(core, cache, controller_opt_string);
 #else
 
@@ -18,6 +18,8 @@ class cache_controller_const_t : public cache_controller_t {
   virtual bool send_request_upstream(int bank, int MSHR_index, struct cache_action_t * MSHR);
   virtual void send_response_downstream(struct cache_action_t * const MSHR);
 
+  virtual void reg_stats(struct stat_sdb_t * const sdb);
+
   protected:
   unsigned int sharing_penalty;
 
@@ -25,6 +27,11 @@ class cache_controller_const_t : public cache_controller_t {
 
   static XIOSIM_LOCK lk_controller;
   static std::map<md_paddr_t, unsigned> writers;
+
+  struct {
+    counter_t shared_requests;
+    counter_t private_requests;
+  } stat;
 };
 
 struct const_coherence_data : public line_coherence_data_t {
@@ -38,10 +45,29 @@ cache_controller_const_t::cache_controller_const_t(struct core_t * const core, s
   cache_controller_t(core, cache)
 {
   char name[256];
-  if(sscanf(opt_string, "%[^:]:%u", name, &sharing_penalty))
-    fatal("couldn't parse const contrller options <name:penalty>");
+  if(sscanf(opt_string, "%[^:]:%u", name, &sharing_penalty) != 2)
+    fatal("couldn't parse const controller options <name:penalty>");
 
   lk_init(&lk_controller);
+}
+
+void cache_controller_const_t::reg_stats(struct stat_sdb_t * const sdb)
+{
+  char buf[1024];
+  if (!core) {
+    sprintf(buf, "LLC.controller.shared_req");
+    stat_reg_counter(sdb, true, buf, "shared downstream requests", &stat.shared_requests, 0, true, NULL);
+
+    sprintf(buf, "LLC.controller.private_req");
+    stat_reg_counter(sdb, true, buf, "non-shared downstream requests", &stat.private_requests, 0, true, NULL);
+  }
+  else {
+    sprintf(buf, "c%d.controller.shared_req", core->id);
+    stat_reg_counter(sdb, true, buf, "shared downstream requests", &stat.shared_requests, 0, true, NULL);
+
+    sprintf(buf, "c%d.controller.private_req", core->id);
+    stat_reg_counter(sdb, true, buf, "non-shared downstream requests", &stat.private_requests, 0, true, NULL);
+  }
 }
 
 controller_array_response_t cache_controller_const_t::check_array(struct cache_line_t * line)
@@ -125,8 +151,12 @@ void cache_controller_const_t::send_response_downstream(struct cache_action_t * 
     lk_unlock(&lk_controller);
 
     tick_t delay = 0;
-    if(last_producer != PRODUCER_INVALID && last_producer != (unsigned)MSHR->core->id)
+    if(last_producer != PRODUCER_INVALID && last_producer != (unsigned)MSHR->core->id) {
       delay = sharing_penalty;
+      stat.shared_requests++;
+    }
+    else
+      stat.private_requests++;
 
     /* everyone but the response from a writeback transfers a full cache line */
     bus_use(MSHR->prev_cp->next_bus, (MSHR->cmd == CACHE_WRITEBACK) ? 1 : MSHR->prev_cp->linesize, MSHR->cmd == CACHE_PREFETCH);
