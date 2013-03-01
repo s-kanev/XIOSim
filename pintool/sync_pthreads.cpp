@@ -28,9 +28,45 @@ VOID PTHREAD_beforeJoin(THREADID tid)
     handshake->flags.giveCoreUp = true;
     handshake->flags.giveUpReschedule = true;
     handshake_buffer.producer_done(tid);
+
+    handshake_buffer.flushBuffers(tid);
 }
 
-VOID PTHREAD_afterJoin(THREADID tid)
+VOID PTHREAD_beforeMutexLock(THREADID tid)
+{
+    thread_state_t* tstate = get_tls(tid);
+    lk_lock(&tstate->lock, tid+1);
+    tstate->ignore = true;
+    lk_unlock(&tstate->lock);
+
+    handshake_container_t *handshake = handshake_buffer.get_buffer(tid);
+    handshake->flags.valid = true;
+    handshake->handshake.real = false;
+    handshake->flags.giveCoreUp = true;
+    handshake->flags.giveUpReschedule = true;
+    handshake_buffer.producer_done(tid);
+
+    handshake_buffer.flushBuffers(tid);
+}
+
+VOID PTHREAD_beforeCondWait(THREADID tid)
+{
+    thread_state_t* tstate = get_tls(tid);
+    lk_lock(&tstate->lock, tid+1);
+    tstate->ignore = true;
+    lk_unlock(&tstate->lock);
+
+    handshake_container_t *handshake = handshake_buffer.get_buffer(tid);
+    handshake->flags.valid = true;
+    handshake->handshake.real = false;
+    handshake->flags.giveCoreUp = true;
+    handshake->flags.giveUpReschedule = true;
+    handshake_buffer.producer_done(tid);
+
+    handshake_buffer.flushBuffers(tid);
+}
+
+VOID PTHREAD_stopIgnore(THREADID tid)
 {
     thread_state_t* tstate = get_tls(tid);
     lk_lock(&tstate->lock, tid+1);
@@ -51,7 +87,41 @@ VOID AddPthreadsCallbacks(IMG img)
                        IARG_THREAD_ID,
                        IARG_CALL_ORDER, CALL_ORDER_FIRST,
                        IARG_END);
-        RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(PTHREAD_afterJoin),
+        RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(PTHREAD_stopIgnore),
+                       IARG_THREAD_ID,
+                       IARG_CALL_ORDER, CALL_ORDER_LAST,
+                       IARG_END);
+        RTN_Close(rtn);
+    }
+
+    rtn = RTN_FindByName(img, "pthread_mutex_lock");
+    if (RTN_Valid(rtn))
+    {
+        cerr << IMG_Name(img) << ": phtread_mutex_lock" << endl;
+
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(PTHREAD_beforeMutexLock),
+                       IARG_THREAD_ID,
+                       IARG_CALL_ORDER, CALL_ORDER_FIRST,
+                       IARG_END);
+        RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(PTHREAD_stopIgnore),
+                       IARG_THREAD_ID,
+                       IARG_CALL_ORDER, CALL_ORDER_LAST,
+                       IARG_END);
+        RTN_Close(rtn);
+    }
+
+    rtn = RTN_FindByName(img, "pthread_cond_wait");
+    if (RTN_Valid(rtn))
+    {
+        cerr << IMG_Name(img) << ": phtread_cond_wait" << endl;
+
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(PTHREAD_beforeCondWait),
+                       IARG_THREAD_ID,
+                       IARG_CALL_ORDER, CALL_ORDER_FIRST,
+                       IARG_END);
+        RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(PTHREAD_stopIgnore),
                        IARG_THREAD_ID,
                        IARG_CALL_ORDER, CALL_ORDER_LAST,
                        IARG_END);
