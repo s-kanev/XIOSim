@@ -171,12 +171,25 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
 
       case CONTROL_STOP:
         {
-            /* XXX: This can be called from a Fini callback.
+            /* XXX: This can be called from a Fini callback (end of program).
              * We can't access any TLS in that case. */
+            BOOL is_fini = !(control.PinPointsActive() || control.IregionsActive() ||
+                control.UniformActive() || control.PintoolControlEnabled());
+
+            if (!is_fini) {
+                list<THREADID>::iterator it;
+                ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
+                    thread_state_t* tstate = get_tls(*it);
+                    lk_lock(&tstate->lock, tid+1);
+                    tstate->ignore_all = true;
+                    lk_unlock(&tstate->lock);
+                }
+
+                ExecMode = EXECUTION_MODE_FASTFORWARD;
+                CODECACHE_FlushCache();
+            }
 
             cerr << "Stop" << endl;
-            ExecMode = EXECUTION_MODE_FASTFORWARD;
-            CODECACHE_FlushCache();
 
             PauseSimulation(INVALID_THREADID);
 
@@ -193,6 +206,7 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
                 Zesto_Slice_End(0, control.CurrentPp(tid), control.CurrentPpLength(tid), control.CurrentPpWeightTimesThousand(tid));
             }
             else {
+                cerr << "HUZZZAAAH" << endl;
                 Zesto_Slice_End(0, slice_num, slice_length, slice_weight_times_1000);
             }
         }
@@ -508,7 +522,11 @@ VOID MakeSSRequest(THREADID tid, ADDRINT pc, ADDRINT npc, ADDRINT tpc, BOOL brta
 }
 
 /* ========================================================================== */
-VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, ADDRINT pc)
+/* We grab the memory location that an instruction touches BEFORE executing the
+ * instructions. For reads, this is what the read will return. For writes, this
+ * is the value that will get overwritten (which we need later in the simulator
+ * to clean up corner cases of speculation */
+VOID GrabInstructionMemory(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_mem_op, ADDRINT pc)
 {
     if (handshake_buffer.numThreads() < (unsigned int) num_threads) {
         return;
@@ -534,16 +552,15 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, 
     lk_unlock(&tstate->lock);
 
     handshake_container_t* handshake;
-    if (first_read) {
+    if (first_mem_op) {
         handshake = handshake_buffer.get_buffer(tid);
     }
     else {
-        cerr << "[KEVIN WARNING]: Multiple GrabInstMemReads - should be rare" << endl;
         handshake = handshake_buffer.back(tid);
     }
 
     /* should be the common case */
-    if (first_read && size <= 4) {
+    if (first_mem_op && size <= 4) {
         handshake->handshake.mem_addr = addr;
         PIN_SafeCopy(&handshake->handshake.mem_val, (VOID*)addr, size);
         handshake->handshake.mem_size = size;
@@ -558,7 +575,7 @@ VOID GrabInstMemReads(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_read, 
 }
 
 /* ========================================================================== */
-VOID SimulateInstruction(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDRINT tpc, const CONTEXT *ictxt, BOOL has_memory)
+VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDRINT tpc, const CONTEXT *ictxt, BOOL has_memory)
 {
     if (handshake_buffer.numThreads() < (unsigned int) num_threads) {
         return;
@@ -677,48 +694,43 @@ VOID Instrument(INS ins, VOID *v)
     }
 
     UINT32 memOperands = INS_MemoryOperandCount(ins);
-    UINT32 memReads = 0;
     for (UINT32 memOp = 0; memOp < memOperands; memOp++)
     {
-        if (INS_MemoryOperandIsRead(ins, memOp))
+        UINT32 memSize = INS_MemoryOperandSize(ins, memOp);
+        if(INS_HasRealRep(ins))
         {
-            UINT32 memSize = INS_MemoryOperandSize(ins, memOp);
-            memReads++;
-            if(INS_HasRealRep(ins))
-            {
-                INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR) returnArg, IARG_FIRST_REP_ITERATION, IARG_END);
-                INS_InsertThenCall(
-                    ins, IPOINT_BEFORE, (AFUNPTR)GrabInstMemReads,
-                    IARG_THREAD_ID,
-                    IARG_MEMORYOP_EA, memOp,
-                    IARG_UINT32, memSize,
-                    IARG_BOOL, (memReads == 1),
-                    IARG_INST_PTR,
-                    IARG_END);
-            }
-            else
-            {
-                INS_InsertCall(
-                    ins, IPOINT_BEFORE, (AFUNPTR)GrabInstMemReads,
-                    IARG_THREAD_ID,
-                    IARG_MEMORYOP_EA, memOp,
-                    IARG_UINT32, memSize,
-                    IARG_BOOL, (memReads == 1),
-                    IARG_INST_PTR,
-                    IARG_END);
-            }
+            INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR) returnArg, IARG_FIRST_REP_ITERATION, IARG_END);
+            INS_InsertThenCall(
+                ins, IPOINT_BEFORE, (AFUNPTR)GrabInstructionMemory,
+                IARG_THREAD_ID,
+                IARG_MEMORYOP_EA, memOp,
+                IARG_UINT32, memSize,
+                IARG_BOOL, (memOp == 0),
+                IARG_INST_PTR,
+                IARG_END);
+        }
+        else
+        {
+            INS_InsertCall(
+                ins, IPOINT_BEFORE, (AFUNPTR)GrabInstructionMemory,
+                IARG_THREAD_ID,
+                IARG_MEMORYOP_EA, memOp,
+                IARG_UINT32, memSize,
+                IARG_BOOL, (memOp == 0),
+                IARG_INST_PTR,
+                IARG_END);
         }
     }
 
     // Tracing
     if (!KnobInsTraceFile.Value().empty()) {
-             ADDRINT pc = INS_Address(ins);
-             USIZE size = INS_Size(ins);
+         ADDRINT pc = INS_Address(ins);
+         USIZE size = INS_Size(ins);
 
-             trace_file << pc << " " << INS_Disassemble(ins);
-             for (INT32 curr = size-1; curr >= 0; curr--)
-                trace_file << " " << int(*(UINT8*)(curr + pc));
-             trace_file << endl;
+         trace_file << pc << " " << INS_Disassemble(ins);
+         for (INT32 curr = size-1; curr >= 0; curr--)
+            trace_file << " " << int(*(UINT8*)(curr + pc));
+         trace_file << endl;
     }
 
     if (! INS_IsBranchOrCall(ins))
@@ -728,39 +740,39 @@ VOID Instrument(INS ins, VOID *v)
         if(INS_HasRealRep(ins))
         {
            INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR) returnArg, IARG_FIRST_REP_ITERATION, IARG_END);
-           INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR) SimulateInstruction,
+           INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR) GrabInstructionContext,
                        IARG_THREAD_ID,
                        IARG_INST_PTR,
                        IARG_BOOL, 0,
                        IARG_ADDRINT, INS_NextAddress(ins),
                        IARG_FALLTHROUGH_ADDR,
                        IARG_CONST_CONTEXT,
-                       IARG_BOOL, (memReads > 0),
+                       IARG_BOOL, (memOperands > 0),
                        IARG_END);
         }
         else
             // Non-REP-ed, non-branch instruction, use falltrough
-            INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) SimulateInstruction,
+            INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) GrabInstructionContext,
                        IARG_THREAD_ID,
                        IARG_INST_PTR,
                        IARG_BOOL, 0,
                        IARG_ADDRINT, INS_NextAddress(ins),
                        IARG_FALLTHROUGH_ADDR,
                        IARG_CONST_CONTEXT,
-                       IARG_BOOL, (memReads > 0),
+                       IARG_BOOL, (memOperands > 0),
                        IARG_END);
     }
     else
     {
         // Branch, give instrumentation appropriate address
-        INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) SimulateInstruction,
+        INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) GrabInstructionContext,
                    IARG_THREAD_ID,
                    IARG_INST_PTR,
                    IARG_BRANCH_TAKEN,
                    IARG_ADDRINT, INS_NextAddress(ins),
                    IARG_BRANCH_TARGET_ADDR,
                    IARG_CONST_CONTEXT,
-                   IARG_BOOL, (memReads > 0),
+                   IARG_BOOL, (memOperands > 0),
                    IARG_END);
     }
 }
@@ -917,8 +929,10 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
 
         if (!KnobILDJIT.Value())
         {
+            lk_lock(&tstate->lock, threadIndex+1);
             tstate->ignore = false;
             tstate->ignore_all = false;
+            lk_unlock(&tstate->lock);
         }
     }
 
