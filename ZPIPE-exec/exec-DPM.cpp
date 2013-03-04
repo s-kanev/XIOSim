@@ -1643,7 +1643,7 @@ void core_exec_DPM_t::LDQ_schedule(void)
                 port[uop->alloc.port_assignment].STQ->pipe[0].action_id = uop->exec.action_id;
 
                 LDQ[index].first_byte_requested = true;
-                if(((uop->oracle.virt_addr+uop->decode.mem_size)>>core->memory.DL1->addr_shift) == (uop->oracle.virt_addr>>core->memory.DL1->addr_shift))
+                if(cache_single_line_access(core->memory.DL1, uop->oracle.virt_addr, uop->decode.mem_size))
                 {
                   /* not a split-line access */
                   LDQ[index].last_byte_requested = true;
@@ -2404,7 +2404,7 @@ bool core_exec_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
     cache_enqueue(core,core->memory.DL1,NULL,CACHE_WRITE,core->current_thread->id,uop->Mop->fetch.PC,uop->oracle.virt_addr,dl1_uop->exec.action_id,0,NO_MSHR,dl1_uop,store_dl1_callback,NULL,store_translated_callback,get_uop_action_id);
 
     /* not a split-line access */
-    if(((uop->oracle.virt_addr+uop->decode.mem_size)>>core->memory.DL1->addr_shift) == (uop->oracle.virt_addr>>core->memory.DL1->addr_shift))
+    if(cache_single_line_access(core->memory.DL1, uop->oracle.virt_addr, uop->decode.mem_size))
     {
       STQ[STQ_head].last_byte_requested = true;
       STQ[STQ_head].last_byte_written = true;
