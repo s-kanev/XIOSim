@@ -500,6 +500,11 @@ VOID SimulatorLoop(VOID* arg)
             ins_delta_time = rdtsc() - ins_delta_time;
             sim_time += ins_delta_time;
 #endif
+
+            if (NeedsReschedule(coreID)) {
+                GiveUpCore(coreID, true);
+                break;
+            }
         }
         handshake_buffer.applyConsumerChanges(instrument_tid, numConsumed);
     }

@@ -30,7 +30,8 @@ VOID DescheduleActiveThread(INT32 coreID);
 VOID HardcodeSchedule(THREADID tid, INT32 coreID);
 
 /* Let another thread (if any) scheduled on core
- * @coreID take over. */
+ * @coreID take over.
+ * Assumes it is only called from the core sim thread */
 VOID GiveUpCore(INT32 coreID, BOOL reschedule_thread);
 
 /* A check whether anything is running on core
@@ -38,5 +39,10 @@ VOID GiveUpCore(INT32 coreID, BOOL reschedule_thread);
  * but is thread-safe and can be called from any thread.
  */
 BOOL IsCoreBusy(INT32 coreID);
+
+/* Ask scheduler if it's time give up core @coreID.
+ * Assumes it is only called from the core sim thread
+ */
+BOOL NeedsReschedule(INT32 coreID);
 
 #endif /* __SCHEDULER_H__ */
