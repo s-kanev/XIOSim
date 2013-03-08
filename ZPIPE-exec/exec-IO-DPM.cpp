@@ -1529,7 +1529,7 @@ void core_exec_IO_DPM_t::LDQ_schedule(void)
 
                 if(uop->oracle.is_repeated) {
                   repeater_enqueue(core->memory.mem_repeater, uop->oracle.is_sync_op ? CACHE_WAIT : CACHE_READ, 
-                                   core->current_thread->id, uop->oracle.virt_addr, uop, repeater_callback);
+                                   core->current_thread->id, uop->oracle.virt_addr, uop, repeater_callback, get_uop_action_id);
                   LDQ[index].first_repeated = true;
                 }
                 else
@@ -1628,7 +1628,7 @@ void core_exec_IO_DPM_t::LDQ_schedule(void)
                 }
                 if(uop->oracle.is_repeated) {
                   repeater_enqueue(core->memory.mem_repeater, CACHE_READ,
-                                   core->current_thread->id, uop->oracle.virt_addr+uop->decode.mem_size, uop, repeater_split_callback);
+                                   core->current_thread->id, uop->oracle.virt_addr+uop->decode.mem_size, uop, repeater_split_callback, get_uop_action_id);
                   LDQ[index].last_repeated = true;
                 }
                 else
@@ -2126,7 +2126,7 @@ bool core_exec_IO_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
       rep_uop->oracle.is_sync_op = uop->oracle.is_sync_op;
 
       repeater_enqueue(core->memory.mem_repeater, uop->oracle.is_sync_op ? CACHE_SIGNAL : CACHE_WRITE,
-                       core->current_thread->id, uop->oracle.virt_addr, rep_uop, repeater_store_callback);
+                       core->current_thread->id, uop->oracle.virt_addr, rep_uop, repeater_store_callback, get_uop_action_id);
     }
 
     /* not a split-line access */
@@ -2180,7 +2180,7 @@ bool core_exec_IO_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
       rep_split_uop->oracle.is_repeated = uop->oracle.is_repeated;
       rep_split_uop->oracle.is_sync_op = uop->oracle.is_sync_op;
 
-      repeater_enqueue(core->memory.mem_repeater, CACHE_WRITE, core->current_thread->id, uop->oracle.virt_addr+uop->decode.mem_size, rep_split_uop, repeater_split_store_callback);
+      repeater_enqueue(core->memory.mem_repeater, CACHE_WRITE, core->current_thread->id, uop->oracle.virt_addr+uop->decode.mem_size, rep_split_uop, repeater_split_store_callback, get_uop_action_id);
     }
 
     /* XXX: similar to split-access loads, we're not handling the translation of both
