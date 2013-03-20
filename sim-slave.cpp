@@ -340,8 +340,6 @@ sim_post_init(void)
     cores[i]->decode  = decode_create(knobs.model,cores[i]);
     cores[i]->fetch  = fetch_create(knobs.model,cores[i]);
     cores[i]->power = power_create(knobs.model,cores[i]);
-
-    cores[i]->current_thread->active = true;
   }
 
   min_coreID = 0;

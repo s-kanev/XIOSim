@@ -184,9 +184,6 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
                     tstate->ignore_all = true;
                     lk_unlock(&tstate->lock);
                 }
-
-                ExecMode = EXECUTION_MODE_FASTFORWARD;
-                CODECACHE_FlushCache();
             }
 
             cerr << "Stop" << endl;
@@ -206,9 +203,11 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
                 Zesto_Slice_End(0, control.CurrentPp(tid), control.CurrentPpLength(tid), control.CurrentPpWeightTimesThousand(tid));
             }
             else {
-                cerr << "HUZZZAAAH" << endl;
                 Zesto_Slice_End(0, slice_num, slice_length, slice_weight_times_1000);
             }
+
+            ExecMode = EXECUTION_MODE_FASTFORWARD;
+            CODECACHE_FlushCache();
         }
         break;
 
@@ -475,7 +474,6 @@ VOID SimulatorLoop(VOID* arg)
                 numConsumed++;
                 continue;
             }
-            inst_tstate->num_inst++;
             lk_unlock(&inst_tstate->lock);
 
             // First instruction, set bottom of stack, and flag we're not safe to kill
@@ -533,10 +531,6 @@ VOID MakeSSRequest(THREADID tid, ADDRINT pc, ADDRINT npc, ADDRINT tpc, BOOL brta
  * to clean up corner cases of speculation */
 VOID GrabInstructionMemory(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_mem_op, ADDRINT pc)
 {
-    if (handshake_buffer.numThreads() < (unsigned int) num_threads) {
-        return;
-    }
-
     if(producers_sleep) {
       PIN_Sleep(1000);
       return;
@@ -582,10 +576,6 @@ VOID GrabInstructionMemory(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_m
 /* ========================================================================== */
 VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDRINT tpc, const CONTEXT *ictxt, BOOL has_memory)
 {
-    if (handshake_buffer.numThreads() < (unsigned int) num_threads) {
-        return;
-    }
-
     if(producers_sleep) {
       PIN_Sleep(1000);
       return;
@@ -632,6 +622,7 @@ VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, A
     }
 
     tstate->queue_pc(pc);
+    tstate->num_inst++;
 
     // Populate handshake buffer
     MakeSSRequest(tid, pc, npc, tpc, taken, ictxt, handshake);
@@ -643,6 +634,9 @@ VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, A
     // Let simulator consume instruction from SimulatorLoop
     handshake->flags.valid = true;
     handshake_buffer.producer_done(tid);
+
+    if (tstate->num_inst && (tstate->num_inst % 1000000 == 0))
+        handshake_buffer.flushBuffers(tid);
 }
 
 /* ========================================================================== */
@@ -950,11 +944,6 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
  * Invariant: after this call, all sim threads are spinning in SimulatorLoop */
 VOID PauseSimulation(THREADID tid)
 {
-    list<THREADID>::iterator it;
-    ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
-        handshake_buffer.flushBuffers(*it);
-    }
-
     /* Here we have produced everything for this loop! */
     enable_consumers();
 
@@ -1328,11 +1317,6 @@ VOID SpawnSimulatorThreads(INT32 numCores)
         }
         sim_threadid[i] = tid;
         cerr << "Spawned sim thread " << i << " " << tid << endl;
-
-        /*sim_thread_state_t* tstate = new sim_thread_state_t();
-        cerr << "TTT " << endl;
-        PIN_SetThreadData(tls_key, tstate, tid);
-        cerr << "Spawned sim thread " << i << endl;*/
     }
 }
 
@@ -1414,8 +1398,8 @@ INT32 main(INT32 argc, CHAR **argv)
 
     host_cpus = get_nprocs_conf();
 
-    enable_producers();
-    disable_consumers();
+    //enable_producers();
+    //disable_consumers();
 
     InitScheduler(num_threads);
 
