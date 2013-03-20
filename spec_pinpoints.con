@@ -5,13 +5,13 @@ Notification    = Always
 Coresize        = 0
 GetEnv          = False
 
-Pin             = /home/skanev/pin/pin-2.8-36111-gcc.3.4.6-ia32_intel64-linux/ia32/bin/pinbin
-PinTool         = /home/skanev/zesto/pintool/obj-ia32/feeder_zesto.so
+Pin             = /home/skanev/pin/2.12/pin.sh
+PinTool         = /home/skanev/feeder_zesto.so
 
-ExperimentDir   = /group/brooks/skanev/data_atom
+ExperimentDir   = /group/brooks/skanev/data_test
 Executable      = /usr/bin/env
-Prefix          = -i setarch i686 -3BL $(Pin) -pause_tool 1 -separate_memory -t $(PinTool)
-MemCFG          = /home/skanev/zesto/dram-config/DDR2-533-4-4-4.cfg 
+Prefix          = -i setarch i686 -3BL $(Pin) -pause_tool 1 -injection child -xyzzy -pipeline_instrumentation -t $(PinTool)
+MemCFG          = /home/skanev/zesto/dram-config/DDR3-1600-9-9-9.cfg
 ZestoCFG        = /home/skanev/zesto/config/A.cfg -config $(MemCFG)
 
 SpecDir         = /group/brooks/skanev/cpu2006/benchspec/CPU2006
