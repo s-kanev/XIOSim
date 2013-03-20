@@ -123,8 +123,6 @@ extern void start_slice(unsigned int slice_num);
 extern void end_slice(unsigned int slice_num, unsigned long long slice_length, unsigned long long slice_weight_times_1000);
 extern void scale_all_slices(void);
 
-extern int32_t fetch_lock;
-
 extern int min_coreID;
 
 int
@@ -422,7 +420,11 @@ void activate_core(int coreID)
 bool is_core_active(int coreID)
 {
   assert(coreID >= 0 && coreID < num_threads);
-  return cores[coreID]->current_thread->active;
+  bool result;
+  lk_lock(&cycle_lock, coreID+1);
+  result = cores[coreID]->current_thread->active;
+  lk_unlock(&cycle_lock);
+  return result;
 }
 
 void sim_drain_pipe(int coreID)
@@ -446,7 +448,8 @@ void sim_drain_pipe(int coreID)
 void Zesto_Slice_End(int coreID, unsigned int slice_num, unsigned long long feeder_slice_length, unsigned long long slice_weight_times_1000)
 {
   // Blow away any instructions executing
-  sim_drain_pipe(coreID);
+  if (is_core_active(coreID))
+    sim_drain_pipe(coreID);
 
   // Record stats values
   end_slice(slice_num, feeder_slice_length, slice_weight_times_1000);
