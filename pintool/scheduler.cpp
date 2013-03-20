@@ -6,6 +6,8 @@
 #include <queue>
 #include <map>
 
+#include "Buffer.h"
+#include "BufferManager.h"
 #include "feeder.h"
 #include "scheduler.h"
 
@@ -38,6 +40,9 @@ VOID InitScheduler(INT32 num_cores)
 VOID ScheduleNewThread(THREADID tid)
 {
     lk_lock(&run_queues[last_coreID].lk, 1);
+    if (run_queues[last_coreID].q.empty() && !is_core_active(last_coreID))
+        activate_core(last_coreID);
+
     run_queues[last_coreID].q.push(tid);
     lk_unlock(&run_queues[last_coreID].lk);
 
@@ -98,6 +103,7 @@ VOID DescheduleActiveThread(INT32 coreID)
 }
 
 /* ========================================================================== */
+/* XXX: This is called from a sim thread -- the one that frees up the core */
 VOID GiveUpCore(INT32 coreID, BOOL reschedule_thread)
 {
     lk_lock(&run_queues[coreID].lk, 1);

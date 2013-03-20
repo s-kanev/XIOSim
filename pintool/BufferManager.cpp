@@ -55,8 +55,8 @@ BufferManager::BufferManager()
 
   bridgeDirs_.push_back("/dev/shm/");
   bridgeDirs_.push_back("/tmp/");
-  bridgeDirs_.push_back("/group/brooks/brownell/tmp/");
-  bridgeDirs_.push_back("/group/vlsiarch/brownell/tmp/");
+  bridgeDirs_.push_back("/group/brooks/skanev/tmp/");
+  bridgeDirs_.push_back("/group/vlsiarch/skanev/tmp/");
 }
 
 BufferManager::~BufferManager()
@@ -195,6 +195,11 @@ void BufferManager::producer_done(THREADID tid, bool keepLock)
 void BufferManager::flushBuffers(THREADID tid)
 {
   lk_lock(locks_[tid], tid+1);
+
+  /* If you call this from a consumer thread, you're going to have
+   * a bad (race-y) time! */
+  THREADID caller_tid = PIN_ThreadId();
+  assert(this->hasThread(caller_tid));
 
   if(produceBuffer_[tid]->size() > 0) {
     copyProducerToFile(tid, false);
@@ -370,7 +375,7 @@ void BufferManager::copyProducerToFileReal(THREADID tid, bool checkSpace)
         madeFile = true;
         break;
       }
-      cerr << "Out of space on " + bridgeDirs_[i] + " !!!" << endl;
+      //cerr << "Out of space on " + bridgeDirs_[i] + " !!!" << endl;
     }
     if(madeFile == false) {
       cerr << "Nowhere left for the poor file bridge :(" << endl;
@@ -503,6 +508,18 @@ void  BufferManager::writeHandshake(THREADID tid, int fd, handshake_container_t*
   }
 }
 
+static ssize_t do_read(const int fd, void* buff, const size_t size)
+{
+  ssize_t bytesRead = 0;
+  do {
+    ssize_t res = read(fd, (void*)((char*)buff + bytesRead), size - bytesRead);
+    if(res == -1)
+      return -1;
+    bytesRead += res;
+  } while (bytesRead < (ssize_t)size);
+  return bytesRead;
+}
+
 bool BufferManager::readHandshake(THREADID tid, int fd, handshake_container_t* handshake)
 {
   const int handshakeBytes = sizeof(P2Z_HANDSHAKE);
@@ -510,7 +527,7 @@ bool BufferManager::readHandshake(THREADID tid, int fd, handshake_container_t* h
   const int mapEntryBytes = sizeof(UINT32) + sizeof(UINT8);
 
   int mapSize;
-  int bytesRead = read(fd, &(mapSize), sizeof(int));
+  int bytesRead = do_read(fd, &(mapSize), sizeof(int));
   if(bytesRead == -1) {
     cerr << "File read error: " << bytesRead << " Errcode:" << strerror(errno) << endl;
     this->abort();
@@ -523,7 +540,7 @@ bool BufferManager::readHandshake(THREADID tid, int fd, handshake_container_t* h
   void * readBuffer = readBuffer_[tid];
   assert(readBuffer != NULL);
 
-  bytesRead = read(fd, readBuffer, totalBytes);
+  bytesRead = do_read(fd, readBuffer, totalBytes);
   if(bytesRead == -1) {
     cerr << "File read error: " << bytesRead << " Errcode:" << strerror(errno) << endl;
     this->abort();
@@ -619,6 +636,7 @@ void BufferManager::allocateThread(THREADID tid)
 string BufferManager::genFileName(string path)
 {
   char* temp = tempnam(path.c_str(), gpid_.c_str());
+  assert(temp);
   string res = string(temp);
   res.insert(path.length() + gpid_.length(), "_");
   free(temp);

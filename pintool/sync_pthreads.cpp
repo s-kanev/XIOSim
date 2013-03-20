@@ -17,6 +17,9 @@ KNOB<BOOL> KnobPthreads(KNOB_MODE_WRITEONCE,      "pintool",
 
 VOID PTHREAD_beforeJoin(THREADID tid)
 {
+    if (ExecMode != EXECUTION_MODE_SIMULATE)
+        return;
+
     thread_state_t* tstate = get_tls(tid);
     lk_lock(&tstate->lock, tid+1);
     tstate->ignore = true;
@@ -34,6 +37,9 @@ VOID PTHREAD_beforeJoin(THREADID tid)
 
 VOID PTHREAD_beforeMutexLock(THREADID tid)
 {
+    if (ExecMode != EXECUTION_MODE_SIMULATE)
+        return;
+
     thread_state_t* tstate = get_tls(tid);
     lk_lock(&tstate->lock, tid+1);
     tstate->ignore = true;
@@ -51,6 +57,9 @@ VOID PTHREAD_beforeMutexLock(THREADID tid)
 
 VOID PTHREAD_beforeCondWait(THREADID tid)
 {
+    if (ExecMode != EXECUTION_MODE_SIMULATE)
+        return;
+
     thread_state_t* tstate = get_tls(tid);
     lk_lock(&tstate->lock, tid+1);
     tstate->ignore = true;
@@ -68,6 +77,9 @@ VOID PTHREAD_beforeCondWait(THREADID tid)
 
 VOID PTHREAD_stopIgnore(THREADID tid)
 {
+    if (ExecMode != EXECUTION_MODE_SIMULATE)
+        return;
+
     thread_state_t* tstate = get_tls(tid);
     lk_lock(&tstate->lock, tid+1);
     tstate->ignore = false;
