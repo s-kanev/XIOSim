@@ -109,6 +109,7 @@ struct cache_t * cache_create(
     const int bank_width, /* in bytes; i.e., the interleaving granularity */
     const int latency, /* in cycles */
     const int MSHR_size, /* MSHR size (per bank), in requests */
+    const int MSHR_WB_size, /* MSHRs reserved for writebacks (per bank), in requests */
     const int MSHR_banks, /* number of MSHR banks */
     struct cache_t * const next_level_cache, /* e.g., for the DL1, this should point to the L2 */
     struct bus_t * const next_bus /* e.g., for the DL1, this should point to the bus between DL1 and L2 */
@@ -168,6 +169,7 @@ struct cache_t * cache_create(
   cp->latency = latency;
   cp->write_combining = write_combining;
   cp->MSHR_size = MSHR_size;
+  cp->MSHR_WB_size = MSHR_WB_size;
   cp->MSHR_banks = MSHR_banks;
   cp->MSHR_mask = MSHR_banks-1;
   cp->next_level = next_level_cache;
@@ -1295,7 +1297,16 @@ static inline int MSHR_available(
     const md_paddr_t paddr)
 {
   const int bank = GET_MSHR_BANK(paddr);
-  return cp->MSHR_num[bank] < cp->MSHR_size;
+  return cp->MSHR_num[bank] < (cp->MSHR_size - cp->MSHR_WB_size);
+}
+
+/* Returns true if at least one MSHR writeback entry is free/available. */
+static inline int MSHR_WB_available(
+    const struct cache_t * const cp,
+    const md_paddr_t paddr)
+{
+  const int bank = GET_MSHR_BANK(paddr);
+  return cp->MSHR_WB_num[bank] < cp->MSHR_WB_size;
 }
 
 /* Returns a pointer to a free MSHR entry; assumes you already called
@@ -1314,7 +1325,8 @@ static struct cache_action_t * MSHR_allocate(
      implementation of request-combining still uses one MSHR
      entry per request, but only one is sent to the next level
      of the cache hierarchy. */
-  for(int i=0;i<cp->MSHR_size;i++)
+  /* XXX: Disable combining for now  */
+/*  for(int i=0;i<cp->MSHR_size;i++)
   {
     if((cp->MSHR[bank][i].cb != NULL) && 
         (cp->MSHR[bank][i].paddr >> cp->addr_shift) == (paddr >> cp->addr_shift) &&
@@ -1326,14 +1338,13 @@ static struct cache_action_t * MSHR_allocate(
       break;
     }
   }
-
+*/
   for(int i=0;i<cp->MSHR_size;i++)
     if(cp->MSHR[bank][i].cb == NULL)
     {
-      cp->MSHR_num[bank]++;
-      cache_assert(cp->MSHR_num[bank] <= cp->MSHR_size,NULL);
       cp->check_for_work = true;
       cp->check_for_MSHR_work = true;
+      cp->check_for_MSHR_WB_work = true;
       cache_assert(cp->MSHR[bank][i].MSHR_link == NULL,NULL);
       cp->MSHR[bank][i].MSHR_link = NULL;
       if(prev)
@@ -1365,8 +1376,16 @@ static void MSHR_deallocate(
     cache_assert(MSHR->cb, (void)0);
     MSHR->cb = NULL;
 
-    cp->MSHR_num[bank]--;
-    cache_assert(cp->MSHR_num[bank] >= 0,(void)0);
+    if(MSHR->type == MSHR_WRITEBACK)
+    {
+      cp->MSHR_WB_num[bank]--;
+      cache_assert(cp->MSHR_WB_num[bank] >= 0,(void)0);
+    }
+    else
+    {
+      cp->MSHR_num[bank]--;
+      cache_assert(cp->MSHR_num[bank] >= 0,(void)0);
+    }
 
     if(MSHR->cmd == CACHE_PREFETCH)
     {
@@ -1381,7 +1400,7 @@ static void MSHR_deallocate(
     }
 }
 
-/* Insert a writeback request into the MSHR; assumes you already called MSHR_available
+/* Insert a writeback request into the MSHR; assumes you already called MSHR_WB_available
    to make sure there's room. */
 static void MSHR_WB_insert(
     struct cache_t * const cp,
@@ -1392,6 +1411,10 @@ static void MSHR_WB_insert(
   bool MSHR_linked = MSHR->MSHR_linked;
   int new_bank = GET_MSHR_BANK(new_addr);
   int new_index = MSHR - cp->MSHR[new_bank];
+
+  cp->MSHR_WB_num[new_bank]++;
+  cache_assert(cp->MSHR_WB_num[new_bank] <= cp->MSHR_WB_size,NULL);
+
   MSHR->core = cache_block->core;
   MSHR->op = NULL;
   MSHR->PC = 0;
@@ -1413,11 +1436,6 @@ static void MSHR_WB_insert(
   MSHR->MSHR_linked = MSHR_linked;
   if(MSHR_linked)
     MSHR->when_started = sim_cycle;
-  else
-  {
-    cp->MSHR_WB_num[new_bank]++;
-    cache_assert(cp->MSHR_WB_num[new_bank] <= cp->MSHR_size, (void)0);
-  }
 
   cp->check_for_work = true;
   cp->check_for_MSHR_WB_work = true;
@@ -1432,13 +1450,17 @@ static void MSHR_insert(
     struct cache_action_t * MSHR = MSHR_allocate(cp,ca->paddr,ca->cmd);
     bool MSHR_linked = MSHR->MSHR_linked;
     *MSHR = *ca;
+    MSHR->type = MSHR_MISS;
     MSHR->when_enqueued = sim_cycle;
     MSHR->when_started = TICK_T_MAX;
     MSHR->when_returned = TICK_T_MAX;
     MSHR->core = ca->core;
     MSHR->MSHR_linked = MSHR_linked;
-    MSHR->type = MSHR_MISS;
     int this_bank = GET_MSHR_BANK(ca->paddr);
+
+    cp->MSHR_num[this_bank]++;
+    cache_assert(cp->MSHR_num[this_bank] <= (cp->MSHR_size-cp->MSHR_WB_size),NULL);
+
     if(MSHR_linked)
       MSHR->when_started = sim_cycle;
     else
@@ -1464,6 +1486,7 @@ void fill_arrived(
     const int MSHR_index,
     const tick_t delay)
 {
+  cache_assert(MSHR_index >= 0 && MSHR_index < cp->MSHR_size, (void)0);
   struct cache_action_t * MSHR = &cp->MSHR[MSHR_bank][MSHR_index];
   cache_assert(!MSHR->MSHR_linked,(void)0);
 
@@ -1693,9 +1716,10 @@ static void update_request_stats(
 static void cache_process_MSHR_WB(struct cache_t * const cp, int start_point)
 {
   int b;
-  bool MSHR_WB_work_found = false;
+  bool MSHR_WB_work_found = true; // XXX: This will be a perf hog until resolved
   cache_assert(cp->controller, (void)0);
-  if(cp->check_for_MSHR_WB_work) {
+  if(cp->check_for_MSHR_WB_work)
+  {
     /* Check if we can use bus to upper level */
     if(cp->controller->can_schedule_upstream())
     {
@@ -1736,11 +1760,7 @@ static void cache_process_MSHR_WB(struct cache_t * const cp, int start_point)
 
           MSHR_WB_work_found = true;
           /* Let controller handle sending a request to upper level */
-          if(cp->controller->send_request_upstream(bank, oldest_index, MSHR_WB))
-          {
-            cp->MSHR_WB_num[bank] --;
-            cache_assert(cp->MSHR_WB_num[bank] >= 0,(void)0);
-          }
+          cp->controller->send_request_upstream(bank, oldest_index, MSHR_WB);
         }
       }
     }
@@ -1760,6 +1780,7 @@ static void cache_process_MSHR_WB(struct cache_t * const cp, int start_point)
           continue;
         if (MSHR_WB->when_started == TICK_T_MAX)
           continue;
+        MSHR_WB_work_found = true;
         if (MSHR_WB->when_returned <= sim_cycle)
           MSHR_deallocate(cp, MSHR_WB->paddr, j);
       }
@@ -1897,7 +1918,7 @@ static void cache_process_fills(struct cache_t * const cp, int start_point)
               {
                 if(cp->write_policy == WRITE_BACK)
                 {
-                  if(!MSHR_available(cp, new_addr))
+                  if(!MSHR_WB_available(cp, new_addr))
                     goto no_MSHR_available;
 
                   MSHR_WB_insert(cp, p);
@@ -1988,7 +2009,7 @@ static void cache_process_pipe(struct cache_t * const cp, int start_point)
             if(line != NULL) /* if cache hit */
             {
               bool needs_WB = (ca->cmd == CACHE_WRITE || ca->cmd == CACHE_WRITEBACK) && (cp->write_policy == WRITE_THROUGH);
-              if(needs_WB && !MSHR_available(cp,ca->paddr))
+              if(needs_WB && !MSHR_WB_available(cp,ca->paddr))
                 continue; /* can't go until MSHR is available */
 
               if(!cp->controller->can_schedule_downstream(ca->prev_cp))
@@ -2056,7 +2077,7 @@ static void cache_process_pipe(struct cache_t * const cp, int start_point)
                     int ok_to_insert = true;
                     if((cp->write_policy == WRITE_BACK) && evictee->valid && evictee->dirty)
                     {
-                      if(MSHR_available(cp,ca->paddr))
+                      if(MSHR_WB_available(cp,ca->paddr))
                       {
                         MSHR_WB_insert(cp,evictee);
                       }
@@ -2408,7 +2429,7 @@ static void cache_process_MSHR(struct cache_t * const cp, int start_point)
   int total_occ = 0;
   for(bank=0;bank<cp->MSHR_banks;bank++)
   {
-    total_occ += cp->MSHR_num[bank];
+    total_occ += cp->MSHR_num[bank] + cp->MSHR_WB_num[bank];
   }
   CACHE_STAT(cp->stat.MSHR_occupancy += total_occ;)
   CACHE_STAT(cp->stat.MSHR_full_cycles += (total_occ == max_size);)

@@ -208,6 +208,7 @@ struct cache_t {
   int MSHR_banks; /* num MSHR banks */
   int MSHR_mask;
   int MSHR_size;
+  int MSHR_WB_size;
   enum cache_command * MSHR_cmd_order;
   int * MSHR_num; /* num MSHR entries occupied */
   int * MSHR_num_pf; /* num MSHR entries occupied by prefetch requests (from this level) */
@@ -302,6 +303,7 @@ struct cache_t * cache_create(
     const int bank_width,
     const int latency,
     const int MSHR_size,
+    const int MSHR_WB_size,
     const int MSHR_banked,
     struct cache_t * const next_level_cache,
     struct bus_t * const bus_next);
