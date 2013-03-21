@@ -20,6 +20,8 @@ class loop_state_t
   int simmed_iteration_count;
   bool use_ring_cache;
   ADDRINT current_loop;
+  UINT32 invocationCount;
+  UINT32 iterationCount;
 };
 
 #endif /* __MOLECOOL_PIN__ */

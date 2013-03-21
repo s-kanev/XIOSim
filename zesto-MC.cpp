@@ -111,7 +111,7 @@ void MC_t::reset_stats(void)
 }
 
 #define MC_ENQUEUABLE_HEADER \
-  bool enqueuable(void)
+  bool enqueuable(md_paddr_t addr = 0)
 #define MC_ENQUEUE_HEADER \
   void enqueue(struct cache_t * const prev_cp,  \
                const enum cache_command cmd,  \

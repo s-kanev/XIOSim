@@ -1,5 +1,15 @@
 #include "Buffer.h"
 
+Buffer::Buffer()
+{
+  numPool_ = 10;
+  handshakePool_ = new handshake_container_t [numPool_];
+  head_ = 0;
+  tail_ = 0;
+  size_ = 0;
+}
+
+
 Buffer::Buffer(int size)
 {
   numPool_ = size;
@@ -48,10 +58,19 @@ handshake_container_t* Buffer::front()
 handshake_container_t* Buffer::back()
 {
   assert(size_ > 0);
+
   int dex = (head_ - 1);
   if(dex == -1 ) {
     dex = numPool_ - 1;
   }
+  return &(handshakePool_[dex]);
+}
+
+// [0] corresponds to front(), [size_ - 1] to back()
+// does not bounds check
+handshake_container_t* Buffer::operator[](int index)
+{
+  int dex = (tail_ + index) % numPool_;
   return &(handshakePool_[dex]);
 }
 

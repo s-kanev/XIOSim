@@ -80,6 +80,8 @@
 /* memory controller */
 class MC_t
 {
+ protected:
+
   struct MC_action_t {
     bool valid;
     void * op;
@@ -100,7 +102,6 @@ class MC_t
     tick_t when_returned; /* cycle the MC returned this request to the CPU */
   };
 
-  protected:
   counter_t total_accesses;
   counter_t total_dram_cycles;
   counter_t total_service_cycles;
@@ -110,7 +111,7 @@ class MC_t
   public:
   MC_t() {};
   virtual ~MC_t() {};
-  virtual bool enqueuable(void) = 0;
+  virtual bool enqueuable(md_paddr_t addr = 0) = 0;
   virtual void enqueue(struct cache_t * const prev_cp,
                        const enum cache_command cmd,
                        const md_paddr_t addr,

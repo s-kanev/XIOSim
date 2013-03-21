@@ -424,6 +424,7 @@ struct core_knobs_t
 
     bool warm_caches;
     int syscall_memory_latency;
+    bool DL1_rep_req;
   } memory;
 
   struct {

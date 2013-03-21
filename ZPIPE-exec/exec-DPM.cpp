@@ -2602,17 +2602,17 @@ void core_exec_DPM_t::step()
 }
 
 void core_exec_DPM_t::exec_fuse_insert(struct uop_t * uop)
-{	
+{
   fatal("shouldn't be called");
 }
 
 void core_exec_DPM_t::exec_insert(struct uop_t * uop)
-{	
+{
   fatal("shouldn't be called");
 }
 
 bool core_exec_DPM_t::port_available(int port_ind)
-{	
+{
   fatal("shouldn't be called");
 }
 

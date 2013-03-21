@@ -143,6 +143,7 @@ struct cache_action_t {
   tick_t pipe_exit_time; /* for tracking access latency */
   struct cache_action_t * MSHR_link; /* used for coalescing multiple MSHR requests to same addr */
   bool MSHR_linked; /* true if linked to earlier MSHR request */
+  bool prefetcher_hint; /* have prefetchers treat this in the same way as the latest request seen */
 };
 
 struct cache_fill_t {
@@ -367,7 +368,8 @@ void cache_enqueue(
     void (*const cb)(void *),
     void (*const miss_cb)(void *, int),
     bool (*const translated_cb)(void*,seq_t),
-    seq_t (*const get_action_id)(void *));
+    seq_t (*const get_action_id)(void *),
+    const bool prefetcher_hint = false);
 
 void fill_arrived(
     struct cache_t * const cp,

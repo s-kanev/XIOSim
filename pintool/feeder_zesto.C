@@ -12,6 +12,7 @@
 #include <iomanip>
 #include <map>
 #include <queue>
+#include <set>
 #include <list>
 #include <syscall.h>
 #include <sys/mman.h>
@@ -65,13 +66,16 @@ KNOB<BOOL> KnobGreedyCores(KNOB_MODE_WRITEONCE, "pintool",
         "greedy_cores", "false", "Spread on all available machine cores");
 
 map<ADDRINT, UINT8> sanity_writes;
+map<ADDRINT, string> pc_diss;
 BOOL sim_release_handshake;
+BOOL sleeping_enabled;
 
 #ifdef TIME_TRANSPARENCY
 // Tracks the time we spend in simulation and tries to subtract it from timing calls
 UINT64 sim_time = 0;
 #endif
 
+ofstream pc_file;
 ofstream trace_file;
 ifstream sanity_trace;
 
@@ -79,7 +83,11 @@ ifstream sanity_trace;
 static TLS_KEY tls_key;
 static XIOSIM_LOCK syscall_lock;
 
-// Used to access Zesto instruction buffer
+PIN_SEMAPHORE consumer_sleep_lock;
+PIN_SEMAPHORE producer_sleep_lock;
+
+map<THREADID, Buffer> lookahead_buffer;
+
 BufferManager handshake_buffer;
 XIOSIM_LOCK thread_list_lock;
 list<THREADID> thread_list;
@@ -100,6 +108,7 @@ ICOUNT icount;
 CONTROL control;
 
 EXECUTION_MODE ExecMode = EXECUTION_MODE_INVALID;
+map<THREADID, tick_t> lastConsumerApply;
 
 /* Fallbacks for cases without pinpoints */
 INT32 slice_num = 1;
@@ -406,7 +415,7 @@ VOID SimulatorLoop(VOID* arg)
         lk_unlock(&tstate->lock);
 
         if (!is_core_active(coreID)) {
-            PIN_Sleep(250);
+            PIN_Sleep(10);
             continue;
         }
 
@@ -419,7 +428,7 @@ VOID SimulatorLoop(VOID* arg)
         while (handshake_buffer.empty(instrument_tid)) {
             PIN_Yield();
             while(consumers_sleep) {
-                PIN_Sleep(250);
+                PIN_SemaphoreWait(&consumer_sleep_lock);
             }
         }
 
@@ -432,6 +441,10 @@ VOID SimulatorLoop(VOID* arg)
 
         int numConsumed = 0;
         for(int i = 0; i < consumerHandshakes; i++) {
+            while(consumers_sleep) {
+                PIN_SemaphoreWait(&consumer_sleep_lock);
+            }
+
             handshake_container_t* handshake = handshake_buffer.front(instrument_tid, true);
             ASSERTX(handshake != NULL);
             ASSERTX(handshake->flags.valid);
@@ -463,22 +476,10 @@ VOID SimulatorLoop(VOID* arg)
             if (KnobSanity.Value())
                 SanityMemCheck();
 
-            // Ignoring instruction
-            ADDRINT pc = handshake->handshake.pc;
-            thread_state_t* inst_tstate = get_tls(instrument_tid);
-            lk_lock(&inst_tstate->lock, tid+1);
-            if (inst_tstate->ignore_list.find(pc) != inst_tstate->ignore_list.end())
-            {
-                lk_unlock(&tstate->lock);
-                ReleaseHandshake(coreID);
-                numConsumed++;
-                continue;
-            }
-            lk_unlock(&inst_tstate->lock);
-
             // First instruction, set bottom of stack, and flag we're not safe to kill
             if (handshake->flags.isFirstInsn)
             {
+               thread_state_t* inst_tstate = get_tls(instrument_tid);
                 Zesto_SetBOS(coreID, inst_tstate->bos);
                 if (!control.PinPointsActive())
                     handshake->handshake.slice_num = 1;
@@ -505,6 +506,7 @@ VOID SimulatorLoop(VOID* arg)
             }
         }
         handshake_buffer.applyConsumerChanges(instrument_tid, numConsumed);
+        lastConsumerApply[instrument_tid] = sim_cycle;
     }
 }
 
@@ -532,18 +534,13 @@ VOID MakeSSRequest(THREADID tid, ADDRINT pc, ADDRINT npc, ADDRINT tpc, BOOL brta
 VOID GrabInstructionMemory(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_mem_op, ADDRINT pc)
 {
     if(producers_sleep) {
-      PIN_Sleep(1000);
+      PIN_SemaphoreWait(&producer_sleep_lock);
       return;
     }
 
     thread_state_t* tstate = get_tls(tid);
     lk_lock(&tstate->lock, tid+1);
 
-    if (tstate->sleep_producer) {
-      lk_unlock(&tstate->lock);
-      PIN_Sleep(1000);
-      return;
-    }
     if (tstate->ignore || tstate->ignore_all) {
         lk_unlock(&tstate->lock);
         return;
@@ -552,10 +549,11 @@ VOID GrabInstructionMemory(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_m
 
     handshake_container_t* handshake;
     if (first_mem_op) {
-        handshake = handshake_buffer.get_buffer(tid);
+        handshake = lookahead_buffer[tid].get_buffer();
+        ASSERTX(!handshake->flags.valid);
     }
     else {
-        handshake = handshake_buffer.back(tid);
+        handshake = lookahead_buffer[tid].get_buffer();
     }
 
     /* should be the common case */
@@ -577,18 +575,13 @@ VOID GrabInstructionMemory(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_m
 VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDRINT tpc, const CONTEXT *ictxt, BOOL has_memory)
 {
     if(producers_sleep) {
-      PIN_Sleep(1000);
+      PIN_SemaphoreWait(&producer_sleep_lock);
       return;
     }
 
     thread_state_t* tstate = get_tls(tid);
     lk_lock(&tstate->lock, tid+1);
-    if (tstate->sleep_producer) {
-      lk_unlock(&tstate->lock);
-      PIN_Sleep(1000);
-      return;
-    }
-    
+
     if (tstate->ignore || tstate->ignore_all) {
         lk_unlock(&tstate->lock);
         return;
@@ -597,10 +590,11 @@ VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, A
 
     handshake_container_t* handshake;
     if (has_memory) {
-        handshake = handshake_buffer.back(tid);
+        handshake = lookahead_buffer[tid].get_buffer();
     }
     else {
-        handshake = handshake_buffer.get_buffer(tid);
+        handshake = lookahead_buffer[tid].get_buffer();
+        ASSERTX(!handshake->flags.valid);
     }
 
     ASSERTX(handshake != NULL);
@@ -633,7 +627,11 @@ VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, A
 
     // Let simulator consume instruction from SimulatorLoop
     handshake->flags.valid = true;
-    handshake_buffer.producer_done(tid);
+
+    lookahead_buffer[tid].push_done();
+    if(lookahead_buffer[tid].full()) {
+        flushOneToHandshakeBuffer(tid);
+    }
 
     if (tstate->num_inst && (tstate->num_inst % 1000000 == 0))
         handshake_buffer.flushBuffers(tid);
@@ -662,6 +660,19 @@ VOID Instrument(INS ins, VOID *v)
     // ILDJIT is doing its initialization/compilation/...
     if (KnobILDJIT.Value() && !ILDJIT_IsExecuting())
         return;
+
+    // Tracing
+    if (!KnobInsTraceFile.Value().empty()) {
+        ADDRINT pc = INS_Address(ins);
+        USIZE size = INS_Size(ins);
+
+        trace_file << pc << " " << INS_Disassemble(ins);
+        pc_diss[pc] = string(INS_Disassemble(ins));
+        for (INT32 curr = size-1; curr >= 0; curr--)
+            trace_file << " " << int(*(UINT8*)(curr + pc));
+        trace_file << endl;
+    }
+
 
     // Not executing yet, only warm caches, if needed
     if (ExecMode != EXECUTION_MODE_SIMULATE)
@@ -721,17 +732,6 @@ VOID Instrument(INS ins, VOID *v)
         }
     }
 
-    // Tracing
-    if (!KnobInsTraceFile.Value().empty()) {
-         ADDRINT pc = INS_Address(ins);
-         USIZE size = INS_Size(ins);
-
-         trace_file << pc << " " << INS_Disassemble(ins);
-         for (INT32 curr = size-1; curr >= 0; curr--)
-            trace_file << " " << int(*(UINT8*)(curr + pc));
-         trace_file << endl;
-    }
-
     if (! INS_IsBranchOrCall(ins))
     {
         // REP-ed instruction: only instrument first iteration
@@ -784,7 +784,7 @@ VOID Instrument(INS ins, VOID *v)
  * anything declared past "-s" and before "--" on the command line must be
  * passed along as SimpleScalar's argument list.
  *
- * SimpleScalar's arguments are extracted out of the command line in two steps:
+ * SimpleScalar's arguments are extracted out of the command line in twos steps:
  * First, we create a new argument vector that can be passed to SimpleScalar.
  * This is done by calloc'ing and copying the arguments over. Thereafter, in the
  * second stage we nullify SimpleScalar's arguments from the original (Pin's)
@@ -924,6 +924,8 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
         thread_list.push_back(threadIndex);
         lk_unlock(&thread_list_lock);
 
+        lastConsumerApply[threadIndex] = 0;
+        lookahead_buffer[threadIndex] = Buffer();
         ScheduleNewThread(threadIndex);
 
         if (!KnobILDJIT.Value())
@@ -945,6 +947,7 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
 VOID PauseSimulation(THREADID tid)
 {
     /* Here we have produced everything for this loop! */
+    disable_producers();
     enable_consumers();
 
     /* Since the scheduler is updated from the sim threads in SimulatorLoop,
@@ -1333,6 +1336,8 @@ INT32 main(INT32 argc, CHAR **argv)
     SSARGS ssargs = MakeSimpleScalarArgcArgv(argc, argv);
 
     lk_init(&syscall_lock);
+    PIN_SemaphoreInit(&consumer_sleep_lock);
+    PIN_SemaphoreInit(&producer_sleep_lock);
 
     // Obtain  a key for TLS storage.
     tls_key = PIN_CreateThreadDataKey(0);
@@ -1362,6 +1367,8 @@ INT32 main(INT32 argc, CHAR **argv)
     {
         trace_file.open(KnobInsTraceFile.Value().c_str());
         trace_file << hex;
+        pc_file.open("pcs.trace");
+        pc_file << hex;
     }
 
     if(!KnobSanityInsTraceFile.Value().empty())
@@ -1397,6 +1404,13 @@ INT32 main(INT32 argc, CHAR **argv)
     Zesto_SlaveInit(ssargs.first, ssargs.second);
 
     host_cpus = get_nprocs_conf();
+    if(host_cpus < num_threads * 2) {
+      cerr << "Turning on thread sleeping optimization" << endl;
+      sleeping_enabled = true;
+    }
+    else {
+      sleeping_enabled = false;
+    }
 
     //enable_producers();
     //disable_consumers();
@@ -1418,11 +1432,16 @@ VOID amd_hack()
     ifstream procversion("/proc/version");
     string version((istreambuf_iterator<char>(procversion)), istreambuf_iterator<char>());
 
-    if (version.find(".el6.") != string::npos)
+    if (version.find(".el6.") != string::npos) {
       rhel6 = true;
+    }
     else if (version.find(".el5 ") == string::npos) {
-      cerr << "ERROR! Neither .el5 nor .el6 occurs in /proc/version" << endl;
-      abort();
+      if (version.find(".el5.") == string::npos) {
+        if(version.find(".el5_") == string::npos) {
+          cerr << "ERROR! Neither .el5 nor .el6 occurs in /proc/version" << endl;
+          abort();
+        }
+      }
     }
 
     // under RHEL6, the VDSO page location can vary from build to build
@@ -1490,24 +1509,158 @@ VOID doLateILDJITInstrumentation()
 
 VOID disable_consumers()
 {
-  if(host_cpus < num_threads * 2) {
+  if(sleeping_enabled) {
+    if(!consumers_sleep) {
+      PIN_SemaphoreClear(&consumer_sleep_lock);
+    }
     consumers_sleep = true;
   }
 }
 
 VOID disable_producers()
 {
-  if(host_cpus < num_threads * 2) {
+  if(sleeping_enabled) {
+    if(!producers_sleep) {
+      PIN_SemaphoreClear(&producer_sleep_lock);
+    }
     producers_sleep = true;
   }
 }
 
 VOID enable_consumers()
 {
+  if(consumers_sleep) {
+    PIN_SemaphoreSet(&consumer_sleep_lock);
+  }
   consumers_sleep = false;
 }
 
 VOID enable_producers()
 {
+  if(producers_sleep) {
+    PIN_SemaphoreSet(&producer_sleep_lock);
+  }
   producers_sleep = false;
+}
+
+VOID flushLookahead(THREADID tid, int numToIgnore) {
+
+  int remainingToIgnore = numToIgnore;
+  if(remainingToIgnore > lookahead_buffer[tid].size()) {
+    remainingToIgnore = lookahead_buffer[tid].size();
+  }
+
+  set<ADDRINT> ignore_pcs;
+  if(remainingToIgnore > 0) {
+    // If there's anything at all to ignore, there's at least a call instruction
+    ADDRINT last_pc = lookahead_buffer[tid].back()->handshake.pc;
+    assert(pc_diss[last_pc].find("call") != string::npos);
+    ignore_pcs.insert(last_pc);
+    remainingToIgnore--;
+
+    // Now check backwards in time, looking for stack accesses
+    // Ignore the most recent stack accesses, assume they are the parameters
+    int back_index = lookahead_buffer[tid].size() - 1;
+    for(int i = back_index - 1; i >= 0; i--) {
+      ADDRINT pc = lookahead_buffer[tid][i]->handshake.pc;
+      string diss = pc_diss[pc];
+      bool hasMov = diss.find("mov") != string::npos;
+      bool hasEsp = diss.find("esp") != string::npos;
+      if(hasMov && hasEsp) {
+        ignore_pcs.insert(pc);
+        remainingToIgnore--;
+        if(remainingToIgnore == 0) {
+          break;
+        }
+      }
+    }
+    if(remainingToIgnore != 0) {
+      for(int i = 0; i < lookahead_buffer[tid].size(); i++) {
+        ADDRINT pc = lookahead_buffer[tid][i]->handshake.pc;
+        string diss = pc_diss[pc];
+        thread_state_t* tstate = get_tls(tid);
+        uint32_t coreID = tstate->coreID;
+        std::cerr << coreID << " "  << hex << pc << dec << " " << diss << endl;
+      }
+    }
+    assert(remainingToIgnore == 0);
+  }
+
+  // Perform the flush from lookahead buffer to handshake buffer
+  while(!(lookahead_buffer[tid].empty())) {
+    handshake_container_t *handshake = lookahead_buffer[tid].front();
+    if(ignore_pcs.count(handshake->handshake.pc) == 0) {
+      flushOneToHandshakeBuffer(tid);
+    }
+    else {
+#ifdef PRINT_DYN_TRACE
+      printTrace("jit", handshake->handshake.pc, tid);
+#endif
+      lookahead_buffer[tid].pop();
+    }
+  }
+}
+
+void flushOneToHandshakeBuffer(THREADID tid)
+{
+  handshake_container_t* reorder_handshake = NULL;
+  handshake_container_t *handshake = lookahead_buffer[tid].front();
+  handshake_container_t* newhandshake = handshake_buffer.get_buffer(tid);
+  bool isFirstInsn = newhandshake->flags.isFirstInsn;
+
+  if(pc_diss[handshake->handshake.pc].find("ret") != string::npos) {
+    if (handshake->handshake.npc == handshake->handshake.pc + 5) {
+      pc_diss[handshake->handshake.pc] = "Wait";
+    }
+    else if (handshake->handshake.npc == handshake->handshake.pc + 10) {
+      pc_diss[handshake->handshake.pc] = "Signal";
+    }
+  }
+
+#ifdef PRINT_DYN_TRACE
+    printTrace("sim", handshake->handshake.pc, tid);
+#endif
+    // If first instruction is a wait or signal,
+    // we need to let the next instruction skip
+    // ahead, so that the first instruction sent
+    // to the simulator is 'real'
+  if(isFirstInsn &&
+     (pc_diss[handshake->handshake.pc] == "Wait" ||
+      pc_diss[handshake->handshake.pc] == "Signal")) {
+
+    reorder_handshake = new handshake_container_t();
+    handshake->CopyTo(reorder_handshake);
+    handshake->flags.isFirstInsn = false;
+    lookahead_buffer[tid].pop();
+
+    assert(lookahead_buffer[tid].size() > 0);
+    handshake = lookahead_buffer[tid].front();
+  }
+
+  handshake->CopyTo(newhandshake);
+  newhandshake->flags.isFirstInsn = isFirstInsn;
+  handshake_buffer.producer_done(tid);
+  lookahead_buffer[tid].pop();
+
+  if(reorder_handshake != NULL) {
+    newhandshake = handshake_buffer.get_buffer(tid);
+    reorder_handshake->CopyTo(newhandshake);
+    newhandshake->flags.isFirstInsn = false;
+    handshake_buffer.producer_done(tid);
+    delete reorder_handshake;
+  }
+}
+
+VOID printTrace(string stype, ADDRINT pc, THREADID tid)
+{
+  if(ExecMode != EXECUTION_MODE_SIMULATE) {
+    return;
+  }
+
+  lk_lock(&printing_lock, tid+1);
+  thread_state_t* tstate = get_tls(tid);
+  uint32_t coreID = tstate->coreID;
+  pc_file << coreID << " " << stype << " " << pc << " " << pc_diss[pc] << endl;
+  pc_file.flush();
+  lk_unlock(&printing_lock);
 }

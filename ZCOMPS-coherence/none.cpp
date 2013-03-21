@@ -65,7 +65,7 @@ bool cache_controller_none_t::send_request_upstream(int bank, int MSHR_index, st
   }
   else /* or if there is no next level, enqueue to the memory controller */
   {
-    if(!uncore->MC->enqueuable())
+    if(!uncore->MC->enqueuable(MSHR->paddr))
       return false;
 
     uncore->MC->enqueue(cache, MSHR->cmd, MSHR->paddr, cache->linesize, MSHR->action_id, bank, MSHR_index, MSHR->op, MSHR->cb, MSHR->get_action_id);

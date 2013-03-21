@@ -105,7 +105,7 @@ extern bool init_quit;
 extern int nice_priority;
 
 /* default simulator scheduling priority */
-#define NICE_DEFAULT_VALUE		0
+#define NICE_DEFAULT_VALUE      0
 
 extern int orphan_fn(int i, int argc, char **argv);
 extern void banner(FILE *fd, int argc, char **argv);
@@ -146,33 +146,33 @@ Zesto_SlaveInit(int argc, char **argv)
   /* register global options */
   sim_odb = opt_new(orphan_fn);
   opt_reg_flag(sim_odb, "-h", "print help message",
-	       &help_me, /* default */FALSE, /* !print */FALSE, NULL);
+           &help_me, /* default */FALSE, /* !print */FALSE, NULL);
 
 #ifdef DEBUG
   opt_reg_flag(sim_odb, "-d", "enable debug message",
-	       &debugging, /* default */FALSE, /* !print */FALSE, NULL);
+           &debugging, /* default */FALSE, /* !print */FALSE, NULL);
 #endif /* DEBUG */
   opt_reg_int(sim_odb, "-seed",
-	      "random number generator seed (0 for timer seed)",
-	      &rand_seed, /* default */1, /* print */TRUE, NULL);
+          "random number generator seed (0 for timer seed)",
+          &rand_seed, /* default */1, /* print */TRUE, NULL);
   opt_reg_flag(sim_odb, "-q", "initialize and terminate immediately",
-	       &init_quit, /* default */FALSE, /* !print */FALSE, NULL);
+           &init_quit, /* default */FALSE, /* !print */FALSE, NULL);
   opt_reg_flag(sim_odb, "-ignore_notes", "suppresses printing of notes",
-	       &opt_ignore_notes, /* default */FALSE, /* !print */FALSE, NULL);
+           &opt_ignore_notes, /* default */FALSE, /* !print */FALSE, NULL);
 
   /* stdio redirection options */
   opt_reg_string(sim_odb, "-redir:sim",
-		 "redirect simulator output to file (non-interactive only)",
-		 &sim_simout,
-		 /* default */NULL, /* !print */FALSE, NULL);
+         "redirect simulator output to file (non-interactive only)",
+         &sim_simout,
+         /* default */NULL, /* !print */FALSE, NULL);
   opt_reg_string(sim_odb, "-redir:prog",
-		 "redirect simulated program output to file",
-		 &sim_progout, /* default */NULL, /* !print */FALSE, NULL);
+         "redirect simulated program output to file",
+         &sim_progout, /* default */NULL, /* !print */FALSE, NULL);
 
   /* scheduling priority option */
   opt_reg_int(sim_odb, "-nice",
-	      "simulator scheduling priority", &nice_priority,
-	      /* default */NICE_DEFAULT_VALUE, /* print */TRUE, NULL);
+          "simulator scheduling priority", &nice_priority,
+          /* default */NICE_DEFAULT_VALUE, /* print */TRUE, NULL);
 
   /* register all simulator-specific options */
   sim_reg_options(sim_odb);
@@ -187,7 +187,7 @@ Zesto_SlaveInit(int argc, char **argv)
       /* send simulator non-interactive output (STDERR) to file SIM_SIMOUT */
       fflush(stderr);
       if (!freopen(sim_simout, "w", stderr))
-	fatal("unable to redirect simulator output to file `%s'", sim_simout);
+        fatal("unable to redirect simulator output to file `%s'", sim_simout);
     }
 
   if (sim_progout != NULL)
@@ -195,7 +195,7 @@ Zesto_SlaveInit(int argc, char **argv)
       /* redirect simulated program output to file SIM_PROGOUT */
       sim_progfd = fopen(sim_progout, "w");
       if (!sim_progfd)
-	fatal("unable to redirect program output to file `%s'", sim_progout);
+        fatal("unable to redirect program output to file `%s'", sim_progout);
     }
 
   /* need at least two argv values to run */
@@ -378,6 +378,11 @@ void Zesto_Destroy()
   }
 
   repeater_shutdown();
+
+  for(int i=0; i<num_threads; i++)
+    if(cores[i]->stat.oracle_unknown_insn / (double) cores[i]->stat.oracle_total_insn > 0.02)
+      fprintf(stderr, "WARNING: [%d] More than 2%% instructions turned to NOPs (%lld out of %lld)\n",
+              i, cores[i]->stat.oracle_unknown_insn, cores[i]->stat.oracle_total_insn);
 }
 
 

@@ -9,6 +9,7 @@
 
 #include "pin.H"
 #include "instlib.H"
+#include <stack>
 using namespace INSTLIB;
 
 #include "../interface.h"
@@ -23,16 +24,30 @@ extern KNOB<string> KnobFluffy;
 extern list<THREADID> thread_list;
 extern XIOSIM_LOCK thread_list_lock;
 
+extern INT32 host_cpus;
+extern bool sleeping_enabled;
+extern map<THREADID, tick_t> lastConsumerApply;
+
 #define ATOMIC_ITERATE(_list, _it, _lock) \
     for (lk_lock(&(_lock), 1), (_it) = (_list).begin(), lk_unlock(&(_lock)); \
          [&]{lk_lock(&(_lock), 1); bool res = (_it) != (_list).end(); lk_unlock(&(_lock)); return res;}();  \
          lk_lock(&(_lock), 1), (_it)++, lk_unlock(&(_lock)))
+
 
 /* ========================================================================== */
 /* Thread-local state for instrument threads that we need to preserve between
  * different instrumentation calls */
 class thread_state_t
 {
+  class per_loop_state_t {
+    public:
+      per_loop_state_t() {
+          unmatchedWaits = 0;
+      }
+
+      INT32 unmatchedWaits;
+  };
+
   public:
     thread_state_t(THREADID instrument_tid) {
         memzero(&fpstate_buf, sizeof(FPSTATE));
@@ -51,13 +66,22 @@ class thread_state_t
         ignore = true;
         ignore_all = true;
 
-        unmatchedWaits = 0;
-
         num_inst = 0;
-
-        sleep_producer = false;
-
         lk_init(&lock);
+    }
+
+    VOID push_loop_state()
+    {
+        per_loop_stack.push(per_loop_state_t());
+        loop_state = &(per_loop_stack.top());
+    }
+
+    VOID pop_loop_state()
+    {
+        per_loop_stack.pop();
+        if(per_loop_stack.size()) {
+            loop_state = &(per_loop_stack.top());
+        }
     }
 
     // Buffer to store the fpstate that the simulator may corrupt
@@ -84,6 +108,10 @@ class thread_state_t
     // Address of the last signal executed
     ADDRINT lastSignalAddr;
 
+    // Per Loop State
+    per_loop_state_t* loop_state;
+
+
     // Handling a buffer of the last PC_QUEUE_SIZE instruction pointers
     ADDRINT get_queued_pc(INT32 index) {
         return pc_queue[(pc_queue_head + index) & (PC_QUEUE_SIZE - 1)];
@@ -103,15 +131,11 @@ class thread_state_t
     BOOL ignore_all;
     // Stores the ID of the wait between before and afterWait. -1 outside.
     INT32 lastWaitID;
-    // flag on whether to sleep the producer buffer
-    BOOL sleep_producer;
 
-    //Ignore list of instrutcions that we don't care about
-    map<ADDRINT, BOOL> ignore_list;
     // XXX: END SHARED
 
-    INT32 unmatchedWaits;
 private:
+    std::stack<per_loop_state_t> per_loop_stack;
     // XXX: power of 2
     static const INT32 PC_QUEUE_SIZE = 4;
     // Latest several pc-s instrumented
@@ -214,5 +238,10 @@ VOID disable_consumers();
 VOID enable_consumers();
 VOID disable_producers();
 VOID enable_producers();
+
+VOID flushOneToHandshakeBuffer(THREADID tid);
+VOID flushLookahead(THREADID tid, int numToIgnore);
+
+VOID printTrace(string stype, ADDRINT pc, THREADID tid);
 
 #endif /*__FEEDER_ZESTO__ */

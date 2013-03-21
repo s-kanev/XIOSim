@@ -1239,7 +1239,8 @@ void cache_enqueue(
     void (*const cb)(void *),
     void (*const miss_cb)(void *, int),
     bool (*const translated_cb)(void *,seq_t),
-    seq_t (*const get_action_id)(void *) )
+    seq_t (*const get_action_id)(void *),
+    const bool prefetcher_hint)
 {
   md_paddr_t paddr;
   if(thread_id == DO_NOT_TRANSLATE)
@@ -1269,9 +1270,8 @@ void cache_enqueue(
   cp->pipe[bank][insert_position].when_started = sim_cycle;
   cp->pipe[bank][insert_position].when_returned = TICK_T_MAX;
   cp->pipe[bank][insert_position].type = MSHR_MISS;
-
+  cp->pipe[bank][insert_position].prefetcher_hint = prefetcher_hint;
   cp->pipe[bank][insert_position].pipe_exit_time = sim_cycle+cp->latency;
-
   cp->pipe[bank][insert_position].miss_cb_invoked = false;
 
   assert(insert_position < cp->heap_size);
@@ -2143,21 +2143,16 @@ static void cache_process_pipe(struct cache_t * const cp, int start_point)
               }
             }
 
-            cache_heap_remove(cp->pipe[bank],cp->pipe_num[bank]);
-            cp->pipe_num[bank]--;
-            cache_assert(cp->pipe_num[bank] >= 0,(void)0);
-            request_dequeued = true;
+            if(do_prefetch) {
+              if(ca->PC && (ca->cmd == CACHE_READ)) {
+                for(int ii=0;ii<cp->num_prefetchers;ii++) {
+                  md_paddr_t pf_addr;
+                  if(!ca->prefetcher_hint)
+                    pf_addr = cp->prefetcher[ii]->lookup(ca->PC,ca->paddr);
+                  else
+                    pf_addr = cp->prefetcher[ii]->latest_lookup(ca->PC,ca->paddr);
 
-            if(do_prefetch && request_dequeued)
-              if(ca->PC && (ca->cmd == CACHE_READ))
-              {
-                int ii;
-                for(ii=0;ii<cp->num_prefetchers;ii++)
-                {
-                  md_paddr_t pf_addr = cp->prefetcher[ii]->lookup(ca->PC,ca->paddr);
-
-                  if(pf_addr & ~(PAGE_SIZE-1)) /* don't prefetch from zeroth page */
-                  {
+                  if(pf_addr & ~(PAGE_SIZE-1)) { /* don't prefetch from zeroth page */
                     int j;
 
                     /* search PFF to see if pf_addr already requested */
@@ -2176,12 +2171,10 @@ static void cache_process_pipe(struct cache_t * const cp, int start_point)
                       continue; /* for(i=0;...) */
 
                     /* if FIFO full, overwrite oldest */
-                    if(cp->PFF_num == cp->PFF_size)
-                    {
+                    if(cp->PFF_num == cp->PFF_size) {
                       cp->PFF_head = modinc(cp->PFF_head,cp->PFF_size); //(cp->PFF_head + 1) % cp->PFF_size;
                       cp->PFF_num--;
                       cache_assert(cp->PFF_num >= 0,(void)0);
-
                     }
 
                     cp->PFF[cp->PFF_tail].PC = ca->PC;
@@ -2193,6 +2186,11 @@ static void cache_process_pipe(struct cache_t * const cp, int start_point)
                   }
                 }
               }
+            }
+            cache_heap_remove(cp->pipe[bank],cp->pipe_num[bank]);
+            cp->pipe_num[bank]--;
+            cache_assert(cp->pipe_num[bank] >= 0,(void)0);
+            request_dequeued = true;
           }
         }
         else /* !ca->cb */
@@ -2202,7 +2200,7 @@ static void cache_process_pipe(struct cache_t * const cp, int start_point)
           cache_assert(cp->pipe_num[bank] >= 0,(void)0);
         }
       }
-    }
+   }
   cp->check_for_pipe_work = pipe_work_found;
 }
 
@@ -2490,7 +2488,7 @@ static void prefetch_controller_update(struct cache_t * const cp)
 {
   if(cp->PF_sample_interval && ((sim_cycle % cp->PF_sample_interval) == 0))
   {
-    int current_sample = cp->next_bus->stat.utilization;
+    int current_sample = (int)cp->next_bus->stat.utilization;
     double duty_cycle = (current_sample - cp->PF_last_sample) / (double) cp->PF_sample_interval;
     if(duty_cycle < cp->PF_low_watermark)
       cp->PF_state = PF_OK;

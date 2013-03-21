@@ -92,8 +92,9 @@ class prefetch_t
   public:
   prefetch_t(void);
   virtual ~prefetch_t();
-  virtual md_paddr_t lookup     (const md_addr_t,const md_paddr_t) = 0;
-  virtual void       reg_stats  (struct stat_sdb_t * const, const struct core_t * const);
+  virtual md_paddr_t lookup (const md_addr_t,const md_paddr_t) = 0;
+  virtual md_paddr_t latest_lookup (const md_addr_t, const md_paddr_t) { return 0; }
+  virtual void reg_stats (struct stat_sdb_t * const, const struct core_t * const);
 };
 
 /* Create a new prefetcher */

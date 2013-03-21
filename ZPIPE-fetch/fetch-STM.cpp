@@ -430,12 +430,12 @@ bool core_fetch_STM_t::do_fetch(void)
     Mop->fetch.bpred_update = bpred->get_state_cache();
 
     Mop->fetch.pred_NPC = bpred->lookup(Mop->fetch.bpred_update,
-	Mop->decode.opflags, Mop->fetch.PC,Mop->fetch.PC+Mop->fetch.inst.len,Mop->decode.targetPC,
-	Mop->oracle.NextPC,(Mop->oracle.NextPC != (Mop->fetch.PC+Mop->fetch.inst.len)));
+    Mop->decode.opflags, Mop->fetch.PC,Mop->fetch.PC+Mop->fetch.inst.len,Mop->decode.targetPC,
+    Mop->oracle.NextPC,(Mop->oracle.NextPC != (Mop->fetch.PC+Mop->fetch.inst.len)));
 
 
     bpred->spec_update(Mop->fetch.bpred_update,Mop->decode.opflags,
-	Mop->fetch.PC,Mop->decode.targetPC,Mop->oracle.NextPC,Mop->fetch.bpred_update->our_pred);
+    Mop->fetch.PC,Mop->decode.targetPC,Mop->oracle.NextPC,Mop->fetch.bpred_update->our_pred);
   }
   else
     Mop->fetch.pred_NPC = Mop->fetch.PC + Mop->fetch.inst.len;

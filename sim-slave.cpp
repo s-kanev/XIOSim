@@ -616,7 +616,7 @@ master_core:
       /* Spin, spin, spin */
       yield();
       while(consumers_sleep) {
-	xio_sleep(250);
+        xio_sleep(250);
       }
       lk_lock(&cycle_lock, coreID+1);
 
@@ -626,6 +626,16 @@ master_core:
 
     /* Process shared state once all cores are gathered here. */
     global_step();
+
+    /* HACKEDY HACKEDY HACK */
+    /* Non-active cores should still step their DL1s because there might
+     * be accesses scheduler there from the repeater network */
+    /* XXX: This is round-robin for L2 based on core id, if that matters */
+    for(i=0; i<num_threads; i++)
+      if(!cores[i]->current_thread->active)
+        if(cores[i]->memory.DL1->check_for_work)
+          cache_process(cores[i]->memory.DL1);
+
     /* Unblock other cores to keep crunching. */
     for(i=0; i<num_threads; i++)
       cores[i]->current_thread->finished_cycle = false; 
@@ -654,7 +664,7 @@ non_master_core:
       lk_unlock(&cycle_lock);
       yield();
       while(consumers_sleep) {
-	xio_sleep(250);
+        xio_sleep(250);
       }
       lk_lock(&cycle_lock, coreID+1);
     }
