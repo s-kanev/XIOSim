@@ -645,8 +645,8 @@ void BufferManager::allocateThread(THREADID tid)
 string BufferManager::genFileName(string path)
 {
   char* temp = tempnam(path.c_str(), gpid_.c_str());
-  assert(temp);
   string res = string(temp);
+  assert(res.find(path) != string::npos);
   res.insert(path.length() + gpid_.length(), "_");
   res = res + ".helix";
   free(temp);
