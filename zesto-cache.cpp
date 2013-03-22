@@ -1667,7 +1667,7 @@ static void update_request_stats(
     struct cache_t * const cp,
     struct cache_action_t * const ca,
     struct cache_line_t * const line,
-    bool hit)
+    const bool hit)
 {
   /* LLC stats are per core */
   if((cp == uncore->LLC) && (ca->core)) {
@@ -1716,7 +1716,7 @@ static void update_request_stats(
 static void cache_process_MSHR_WB(struct cache_t * const cp, int start_point)
 {
   int b;
-  bool MSHR_WB_work_found = true; // XXX: This will be a perf hog until resolved
+  bool MSHR_WB_work_found = false;
   cache_assert(cp->controller, (void)0);
   if(cp->check_for_MSHR_WB_work)
   {
@@ -1764,6 +1764,8 @@ static void cache_process_MSHR_WB(struct cache_t * const cp, int start_point)
         }
       }
     }
+    else
+      MSHR_WB_work_found = cp->check_for_MSHR_WB_work;
 
     /* Drop fullfilled WB requests */
     for(b=0;b<cp->MSHR_banks;b++)
