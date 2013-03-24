@@ -471,6 +471,18 @@ void BufferManager::copyFileToConsumerReal(THREADID tid)
   assert(fileEntryCount_[tid] >= 0);
 }
 
+static ssize_t do_write(const int fd, const void* buff, const size_t size)
+{
+  ssize_t bytesWritten = 0;
+  do {
+    ssize_t res = write(fd, (void*)((char*)buff + bytesWritten), size - bytesWritten);
+    if(res == -1)
+      return -1;
+    bytesWritten += res;
+  } while (bytesWritten < (ssize_t)size);
+  return bytesWritten;
+}
+
 void  BufferManager::writeHandshake(THREADID tid, int fd, handshake_container_t* handshake)
 {
   int mapSize = handshake->mem_buffer.size();
@@ -505,7 +517,7 @@ void  BufferManager::writeHandshake(THREADID tid, int fd, handshake_container_t*
 
   assert(((unsigned long long int)writeBuffer) + totalBytes == ((unsigned long long int)buffPosition));
 
-  int bytesWritten = write(fd, writeBuffer, totalBytes);
+  int bytesWritten = do_write(fd, writeBuffer, totalBytes);
   if(bytesWritten == -1) {
     cerr << "Pipe write error: " << bytesWritten << " Errcode:" << strerror(errno) << endl;
     this->abort();
