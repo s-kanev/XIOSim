@@ -232,6 +232,8 @@ struct cache_t * cache_create(
       fatal("failed to calloc cp->fill_pipe[%d] for %s",i,name);
   }
 
+  cache_assert(MSHR_size - MSHR_WB_size > 0, NULL);
+
   cp->MSHR = (struct cache_action_t**) calloc(MSHR_banks,sizeof(*cp->MSHR));
   if(!cp->MSHR)
     fatal("failed to calloc cp->MSHR for %s",name);
