@@ -65,6 +65,7 @@ class thread_state_t
 
         ignore = true;
         ignore_all = true;
+        firstInstruction = true;
 
         num_inst = 0;
         lk_init(&lock);
@@ -132,6 +133,7 @@ class thread_state_t
     // Stores the ID of the wait between before and afterWait. -1 outside.
     INT32 lastWaitID;
 
+    BOOL firstInstruction;
     // XXX: END SHARED
 
 private:

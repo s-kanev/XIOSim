@@ -48,9 +48,6 @@ void start_slice(unsigned int slice_num)
    slice_start_time = time((time_t *)NULL);
 }
 
-//XXX: REMOVE ME
-static double total_cpi = 0.0;
-
 void end_slice(unsigned int slice_num, unsigned long long feeder_slice_length, unsigned long long slice_weight_times_1000)
 {
    int i = 0;
@@ -106,9 +103,7 @@ void end_slice(unsigned int slice_num, unsigned long long feeder_slice_length, u
    double curr_cpi = weight * n_cycles / n_insn;
    double curr_ipc = 1.0 / curr_cpi;
 
-   total_cpi += curr_cpi;
    fprintf(stderr, "Slice %d, weight: %.4f, IPC/weight: %.2f, n_insn: %.0f, n_insn_pin: %.0f, n_cycles: %.0f\n", slice_num, weight, curr_ipc, n_insn, n_pin_n_insn, n_cycles);
-   fprintf(stderr, "Average IPC: %.2f\n", 1.0/total_cpi);
    lk_unlock(&printing_lock);
 }
 

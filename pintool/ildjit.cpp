@@ -440,10 +440,11 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID, ADDRINT pc)
 /* ========================================================================== */
 VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc)
 {
-  assert(ssID < 256);
+    assert(ssID < 256);
     thread_state_t* tstate = get_tls(tid);
     handshake_container_t* handshake;
     int mask;
+    bool first_insn;
 
     if (ExecMode != EXECUTION_MODE_SIMULATE)
       goto cleanup;
@@ -461,6 +462,8 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc)
 
     // Indicates not in a wait any more
     tstate->lastWaitID = -1;
+
+    first_insn = tstate->firstInstruction;
 
     /* Not simulating -- just ignore. */
     if (tstate->ignore_all) {
@@ -492,10 +495,17 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc)
         goto cleanup;
     }
 
+    /* We're not a first instruction any more */
+    if (first_insn) {
+        lk_lock(&tstate->lock, tid+1);
+        tstate->firstInstruction = false;
+        lk_unlock(&tstate->lock);
+    }
+
     /* Insert wait instruction in pipeline */
     handshake = lookahead_buffer[tid].get_buffer();
 
-    handshake->flags.isFirstInsn = false;
+    handshake->flags.isFirstInsn = first_insn;
     handshake->handshake.sleep_thread = false;
     handshake->handshake.resume_thread = false;
     handshake->handshake.real = false;
@@ -508,15 +518,12 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc)
     handshake->handshake.brtaken = false;
     memcpy(handshake->handshake.ins, ld_template, sizeof(ld_template));
     // Address comes right after opcode byte
-//    ASSERTX(tstate->lastSignalAddr != 0xdecafbad);
     // set magic 17 bit in address - makes the pipeline see them as seperate addresses
     mask = 1 << 16;
     *(INT32*)(&handshake->handshake.ins[1]) = getSignalAddress(ssID) | mask;
-//    cerr << tid << ": Vodoo load instruction " << hex << pc <<  " ID: " << tstate->lastSignalAddr << dec << endl;
     lookahead_buffer[tid].push_done();
-    // We don't flush the buffer here, because we need to
-    // allow for the possibility of the first instruction being
-    // a wait, in which case we allow the next instruction to skip ahead
+
+    flushLookahead(tid, 0);
 
 cleanup:
     tstate->lastSignalAddr = 0xdecafbad;
@@ -563,6 +570,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
         goto cleanup;
     }
 
+    assert(!tstate->firstInstruction);
     lk_unlock(&tstate->lock);
 
     #ifdef PRINT_WAITS
@@ -600,10 +608,8 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
     handshake->handshake.brtaken = false;
     memcpy(handshake->handshake.ins, st_template, sizeof(st_template));
     // Address comes right after opcode and MoodRM bytes
-//    ASSERTX(tstate->lastSignalAddr != 0xdecafbad);
     *(INT32*)(&handshake->handshake.ins[2]) = getSignalAddress(ssID);
 
-//    cerr << tid << ": Vodoo store instruction " << hex << pc << " ID: " << tstate->lastSignalAddr << dec << endl;
     lookahead_buffer[tid].push_done();
 
     flushLookahead(tid, 0);
@@ -619,7 +625,6 @@ VOID ILDJIT_setAffinity(THREADID tid, INT32 coreID)
     HardcodeSchedule(tid, coreID);
 
     lookahead_buffer[tid] = Buffer(10);
-    lookahead_buffer[tid].get_buffer()->flags.isFirstInsn = true;
 }
 
 /* ========================================================================== */

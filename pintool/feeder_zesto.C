@@ -160,6 +160,11 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
       case CONTROL_START:
         {
             cerr << "Start" << endl;
+            UINT32 slice_num = 1;
+            if(control.PinPointsActive())
+                slice_num = control.CurrentPp(tid);
+            Zesto_Slice_Start(slice_num);
+
             ExecMode = EXECUTION_MODE_SIMULATE;
             CODECACHE_FlushCache();
 
@@ -167,11 +172,15 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
             ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
                 thread_state_t* tstate = get_tls(*it);
                 lk_lock(&tstate->lock, tid+1);
+                tstate->firstInstruction = true;
                 tstate->ignore_all = false;
                 if (!KnobILDJIT.Value())
                     tstate->ignore = false;
                 lk_unlock(&tstate->lock);
             }
+
+            // Let caller thread be simulated again
+            ScheduleNewThread(tid);
 
             if(control.PinPointsActive())
                 cerr << "PinPoint: " << control.CurrentPp(tid) << " PhaseNo: " << control.CurrentPhase(tid) << endl;
@@ -193,6 +202,18 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
                     tstate->ignore_all = true;
                     lk_unlock(&tstate->lock);
                 }
+
+                /* In this case, we need to flush all buffers for this thread
+                 * and cleanly let the scheduler know to deschedule it once
+                 * all instructions are conusmed. */
+                handshake_container_t *handshake = handshake_buffer.get_buffer(tid);
+                handshake->flags.giveCoreUp = true;
+                handshake->flags.giveUpReschedule = false;
+                handshake->flags.valid = true;
+                handshake->handshake.real = false;
+                handshake_buffer.producer_done(tid, true);
+
+                handshake_buffer.flushBuffers(tid);
             }
 
             cerr << "Stop" << endl;
@@ -479,7 +500,7 @@ VOID SimulatorLoop(VOID* arg)
             // First instruction, set bottom of stack, and flag we're not safe to kill
             if (handshake->flags.isFirstInsn)
             {
-               thread_state_t* inst_tstate = get_tls(instrument_tid);
+                thread_state_t* inst_tstate = get_tls(instrument_tid);
                 Zesto_SetBOS(coreID, inst_tstate->bos);
                 if (!control.PinPointsActive())
                     handshake->handshake.slice_num = 1;
@@ -586,6 +607,7 @@ VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, A
         lk_unlock(&tstate->lock);
         return;
     }
+    BOOL first_insn = tstate->firstInstruction;
     lk_unlock(&tstate->lock);
 
     handshake_container_t* handshake;
@@ -617,6 +639,13 @@ VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, A
 
     tstate->queue_pc(pc);
     tstate->num_inst++;
+
+    if (first_insn) {
+        handshake->flags.isFirstInsn = true;
+        lk_lock(&tstate->lock, tid+1);
+        tstate->firstInstruction = false;
+        lk_unlock(&tstate->lock);
+    }
 
     // Populate handshake buffer
     MakeSSRequest(tid, pc, npc, tpc, taken, ictxt, handshake);
@@ -926,7 +955,9 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
 
         lastConsumerApply[threadIndex] = 0;
         lookahead_buffer[threadIndex] = Buffer();
-        ScheduleNewThread(threadIndex);
+
+        if (ExecMode == EXECUTION_MODE_SIMULATE)
+            ScheduleNewThread(threadIndex);
 
         if (!KnobILDJIT.Value())
         {
@@ -1603,10 +1634,8 @@ VOID flushLookahead(THREADID tid, int numToIgnore) {
 
 void flushOneToHandshakeBuffer(THREADID tid)
 {
-  handshake_container_t* reorder_handshake = NULL;
   handshake_container_t *handshake = lookahead_buffer[tid].front();
   handshake_container_t* newhandshake = handshake_buffer.get_buffer(tid);
-  bool isFirstInsn = newhandshake->flags.isFirstInsn;
 
   if(pc_diss[handshake->handshake.pc].find("ret") != string::npos) {
     if (handshake->handshake.npc == handshake->handshake.pc + 5) {
@@ -1620,35 +1649,10 @@ void flushOneToHandshakeBuffer(THREADID tid)
 #ifdef PRINT_DYN_TRACE
     printTrace("sim", handshake->handshake.pc, tid);
 #endif
-    // If first instruction is a wait or signal,
-    // we need to let the next instruction skip
-    // ahead, so that the first instruction sent
-    // to the simulator is 'real'
-  if(isFirstInsn &&
-     (pc_diss[handshake->handshake.pc] == "Wait" ||
-      pc_diss[handshake->handshake.pc] == "Signal")) {
-
-    reorder_handshake = new handshake_container_t();
-    handshake->CopyTo(reorder_handshake);
-    handshake->flags.isFirstInsn = false;
-    lookahead_buffer[tid].pop();
-
-    assert(lookahead_buffer[tid].size() > 0);
-    handshake = lookahead_buffer[tid].front();
-  }
 
   handshake->CopyTo(newhandshake);
-  newhandshake->flags.isFirstInsn = isFirstInsn;
   handshake_buffer.producer_done(tid);
   lookahead_buffer[tid].pop();
-
-  if(reorder_handshake != NULL) {
-    newhandshake = handshake_buffer.get_buffer(tid);
-    reorder_handshake->CopyTo(newhandshake);
-    newhandshake->flags.isFirstInsn = false;
-    handshake_buffer.producer_done(tid);
-    delete reorder_handshake;
-  }
 }
 
 VOID printTrace(string stype, ADDRINT pc, THREADID tid)

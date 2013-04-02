@@ -259,10 +259,10 @@ bool BufferManager::hasThread(THREADID tid)
   return (result != 0);
 }
 
-unsigned int BufferManager::size(THREADID tid)
+uint64_t BufferManager::size(THREADID tid)
 {
   lk_lock(locks_[tid], tid+1);
-  unsigned int result = queueSizes_[tid];
+  uint64_t result = queueSizes_[tid];
   lk_unlock(locks_[tid]);
   return result;
 }
@@ -274,12 +274,12 @@ unsigned int BufferManager::size(THREADID tid)
  */
 void BufferManager::reserveHandshake(THREADID tid)
 {
-  int queueLimit;
+  int64_t queueLimit;
   if(num_threads > 1) {
-    queueLimit = 100000001;
+    queueLimit = 5000000001;
   }
   else {
-    queueLimit = 100000001;
+    queueLimit = 5000000001;
   }
 
   if(pool_[tid] > 0) {
@@ -639,7 +639,6 @@ void BufferManager::allocateThread(THREADID tid)
   produceBuffer_[tid] = new Buffer(bufferCapacity);
   assert(produceBuffer_[tid]->capacity() <= consumeBuffer_[tid]->capacity());
   resetPool(tid);
-  produceBuffer_[tid]->get_buffer()->flags.isFirstInsn = true;
   locks_[tid] = new XIOSIM_LOCK();
   lk_init(locks_[tid]);
 
