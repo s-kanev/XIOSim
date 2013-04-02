@@ -1,6 +1,6 @@
 /* MC-dramsim.cpp: DRAMSim2 memory controller */
 /*
- * __COPYRIGHT__ GT
+ * __COPYRIGHT__ KB
  */
 
 #include <iostream>
@@ -86,7 +86,7 @@ class MC_dramsim_t:public MC_t
     assert(fin.is_open());
     while(getline(fin, line)) {
       if(line.find("tCK=") != string::npos) {
-        int result = sscanf(line.c_str(), "%*[^=]=%lf", &memPeriodNs);
+        sscanf(line.c_str(), "%*[^=]=%lf", &memPeriodNs);
         foundMemClock = true;
         break;
       }
