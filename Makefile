@@ -88,8 +88,8 @@ SRCS =  \
 bbtracker.c          eio.c                endian.c              eval.c             \
 loader.c	     machine.c            main.c                memory.c           \
 misc.c               options.c            range.c               regs.c             \
-sim-eio.c            sim-fast.c           stats.c               symbol.c           \
-syscall.c	     sysprobe.c           sim-cache.c           slave.c	           \
+stats.c               symbol.c           \
+syscall.c	     sysprobe.c           slave.c	           \
 loader.c             symbol.c             syscall.c             sim-main.c         \
 callbacks.c       slices.cpp
 
@@ -114,7 +114,7 @@ OBJS_SLAVE = callbacks.$(OEXT) slave.$(OEXT) loader.$(OEXT) $(OBJS_NOMAIN)
 
 # Zesto specific files
 ZSRCS = \
-sim-zesto.cpp zesto-core.cpp zesto-opts.c zesto-oracle.cpp zesto-fetch.cpp         \
+zesto-core.cpp zesto-opts.c zesto-oracle.cpp zesto-fetch.cpp         \
 zesto-decode.cpp zesto-alloc.cpp zesto-exec.cpp zesto-commit.cpp zesto-cache.cpp   \
 zesto-dram.cpp zesto-bpred.cpp zesto-memdep.cpp zesto-prefetch.cpp                 \
 zesto-uncore.cpp zesto-MC.cpp zesto-dumps.cpp zesto-power.cpp zesto-noc.cpp        \
@@ -136,23 +136,14 @@ zesto-power.$(OEXT)
 EXOOBJS = \
 libexo/libexo.$(OEXT) libexo/exolex.$(OEXT)
 
-#
-# programs to build
-#
-
-include make.target
 
 #
 # all targets, NOTE: library ordering is important...
 #
-default: sim-zesto
-all: $(PROGS)
+default: lib
 
 syscall.$(OEXT): syscall.c syscall.h thread.h
 	gcc $(CFLAGS) -c $*.c
-
-make.target:
-	touch make.target
 
 sysprobe$(EEXT):	sysprobe.c
 	$(CC) $(FFLAGS) -o sysprobe$(EEXT) sysprobe.c
@@ -162,29 +153,6 @@ sysprobe$(EEXT):	sysprobe.c
 	-$(RM) libexo$(X)sysprobe$(EEXT)
 	$(LN) ../sysprobe$(EEXT) libexo$(X)sysprobe$(EEXT)
 
-sim-fast$(EEXT):	sysprobe$(EEXT) sim-fast.$(OEXT) $(OBJS) $(EXOOBJS) bbtracker.$(OEXT)
-	$(CC) -o sim-fast$(EEXT) $(CFLAGS) sim-fast.$(OEXT) $(OBJS) bbtracker.$(OEXT) $(EXOOBJS) $(MLIBS)
-
-sim-uop$(EEXT):	sysprobe$(EEXT) sim-uop.$(OEXT) $(OBJS) $(EXOOBJS)
-	$(CC) -o sim-uop$(EEXT) $(CFLAGS) sim-uop.$(OEXT) $(OBJS) $(EXOOBJS) $(MLIBS)
-
-sim-eio$(EEXT):	sysprobe$(EEXT) sim-eio.$(OEXT) $(OBJS) $(EXOOBJS)
-	$(CC) -o sim-eio$(EEXT) $(CFLAGS) sim-eio.$(OEXT) $(OBJS) $(EXOOBJS) $(MLIBS)
-
-sim-cache$(EEXT):	sysprobe$(EEXT) sim-cache.$(OEXT) $(OBJS) $(EXOOBJS) zesto-cache.$(OEXT) zesto-core.$(OEXT)
-	$(CC) -o sim-cache$(EEXT) $(CFLAGS) sim-cache.$(OEXT) $(OBJS) zesto-cache.$(OEXT) zesto-core.$(OEXT) $(EXOOBJS) $(MLIBS)
-
-sim-bpred$(EEXT):	sysprobe$(EEXT) sim-bpred.$(OEXT) $(OBJS) $(EXOOBJS) zesto-bpred.$(OEXT)
-	$(CC) -o sim-bpred$(EEXT) $(CFLAGS) sim-bpred.$(OEXT) $(OBJS) $(EXOOBJS) zesto-bpred.$(OEXT) $(MLIBS)
-
-sim-zesto$(EEXT):	sysprobe$(EEXT) sim-zesto.$(OEXT) $(OBJS) $(ZOBJS) $(EXOOBJS)
-	$(CC) -o sim-zesto$(EEXT) $(CFLAGS) sim-zesto.$(OEXT) $(OBJS) $(ZOBJS) $(EXOOBJS) $(MLIBS)
-sim-zesto2$(EEXT):	sysprobe$(EEXT) sim-zesto.$(OEXT) $(OBJS) $(ZOBJS) $(EXOOBJS)
-	$(CC) -o sim-zesto2$(EEXT) $(CFLAGS) sim-zesto.$(OEXT) $(OBJS) $(ZOBJS) $(EXOOBJS) $(MLIBS)
-sim-zesto3$(EEXT):	sysprobe$(EEXT) sim-zesto.$(OEXT) $(OBJS) $(ZOBJS) $(EXOOBJS)
-	$(CC) -o sim-zesto3$(EEXT) $(CFLAGS) sim-zesto.$(OEXT) $(OBJS) $(ZOBJS) $(EXOOBJS) $(MLIBS)
-sim-zesto4$(EEXT):	sysprobe$(EEXT) sim-zesto.$(OEXT) $(OBJS) $(ZOBJS) $(EXOOBJS)
-	$(CC) -o sim-zesto4$(EEXT) $(CFLAGS) sim-zesto.$(OEXT) $(OBJS) $(ZOBJS) $(EXOOBJS) $(MLIBS)
 lib:	CFLAGS += $(SLAVE_CFLAGS)	
 lib:	sysprobe$(EEXT) sim-slave.$(OEXT) $(OBJS_SLAVE) $(ZOBJS) $(EXOOBJS)
 	ar rs libsim.a sim-slave.$(OEXT) $(OBJS_SLAVE) $(ZOBJS) $(EXOOBJS)   
@@ -259,29 +227,12 @@ filelist:
 	@echo $(SRCS) $(HDRS) Makefile
 
 clean:
-	-$(RM) *.o *.obj core *~ Makefile.bak libsim* sysprobe$(EEXT) $(PROGS)
+	-$(RM) *.o *.obj core *~ Makefile.bak libsim* sysprobe$(EEXT)
 	cd libexo $(CS) $(MAKE) "RM=$(RM)" "CS=$(CS)" clean $(CS) cd ..
 
 .PHONY: tags
 tags: 
 	ctags -R --extra=+q .
-
-test: sim-zesto
-	@ echo "### Testing simple single-core program ... " | chomp
-	@ ./sim-zesto -config config/merom.cfg -config dram-config/DDR2-800-5-5-5.cfg tests/fib.eio.gz 2>&1 | \
-    egrep -v "^sim: simulation started|sim_elapsed_time|sim_cycle_rate|all_inst_rate|sim_inst_rate|sim_uop_rate|sim_eff_uop_rate" \
-    > tests/fib-test.out
-	@ diff tests/fib-test.out tests/fib.out && echo "passed" || echo "failed!"
-	@ $(RM) -f tests/fib-test.out
-	@ echo "### Testing simple dual-core program ... " | chomp
-	@ ./sim-zesto -config config/merom.cfg -config dram-config/DDR2-800-5-5-5.cfg -cores 2 \
-    -max:inst 100000 -tracelimit 1000000 \tests/app1.eio.gz tests/app2.eio.gz 2>&1 | \
-    egrep -v "^sim: simulation started|sim_elapsed_time|sim_cycle_rate|sim_inst_rate|sim_uop_rate|sim_eff_uop_rate|total_inst_rate|total_uop_rate|total_eff_uop_rate" \
-    > tests/dual-core-test.out
-	@ diff tests/dual-core-test.out tests/dual-core.out && echo "passed" || echo "failed!"
-	@ $(RM) -f tests/dual-core-test.out
-
-#
 
 bbtracker.o: /usr/include/stdlib.h /usr/include/stdio.h /usr/include/malloc.h
 bbtracker.o: bbtracker.h
@@ -329,12 +280,6 @@ range.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h options.h
 range.o: symbol.h loader.h memory.h stats.h eval.h thread.h range.h
 regs.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h options.h
 regs.o: loader.h memory.h stats.h eval.h thread.h
-sim-eio.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h
-sim-eio.o: options.h memory.h stats.h eval.h loader.h thread.h syscall.h
-sim-eio.o: eio.h range.h sim.h
-sim-fast.o: host.h misc.h thread.h machine.h machine.def zesto-structs.h
-sim-fast.o: regs.h options.h memory.h stats.h eval.h loader.h syscall.h sim.h
-sim-fast.o: bbtracker.h
 stats.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h options.h
 stats.o: eval.h stats.h
 symbol.o: host.h misc.h loader.h machine.h machine.def zesto-structs.h regs.h
@@ -344,9 +289,6 @@ syscall.o: regs.h options.h memory.h stats.h eval.h loader.h sim.h endian.h
 syscall.o: eio.h syscall.h
 sysprobe.o: host.h misc.h endian.c endian.h thread.h machine.h machine.def
 sysprobe.o: zesto-structs.h regs.h options.h memory.h stats.h eval.h loader.h
-sim-cache.o: host.h misc.h thread.h machine.h machine.def zesto-structs.h
-sim-cache.o: regs.h options.h memory.h stats.h eval.h loader.h syscall.h
-sim-cache.o: sim.h zesto-core.h zesto-cache.h zesto-uncore.h zesto-MC.h
 loader.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h
 loader.o: options.h endian.h thread.h memory.h stats.h eval.h sim.h eio.h
 loader.o: loader.h elf.h
@@ -357,12 +299,6 @@ syscall.o: regs.h options.h memory.h stats.h eval.h loader.h sim.h endian.h
 syscall.o: eio.h syscall.h
 x86.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h options.h
 x86.o: eval.h memory.h stats.h sim.h thread.h x86flow.def
-sim-zesto.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h
-sim-zesto.o: options.h memory.h stats.h eval.h loader.h thread.h syscall.h
-sim-zesto.o: sim.h zesto-opts.h zesto-core.h zesto-oracle.h zesto-fetch.h
-sim-zesto.o: zesto-decode.h zesto-bpred.h zesto-alloc.h zesto-exec.h
-sim-zesto.o: zesto-commit.h zesto-dram.h zesto-cache.h zesto-uncore.h
-sim-zesto.o: zesto-MC.h
 libsim.a: host.h misc.h machine.h machine.def zesto-structs.h regs.h
 libsim.a: options.h memory.h stats.h eval.h loader.h thread.h syscall.h
 libsim.a: sim.h zesto-opts.h zesto-core.h zesto-oracle.h zesto-fetch.h
