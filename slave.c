@@ -450,6 +450,11 @@ void sim_drain_pipe(int coreID)
    core->current_thread->rep_sequence = 0;
 }
 
+void Zesto_Slice_Start(unsigned int slice_num)
+{
+  start_slice(slice_num);
+}
+
 void Zesto_Slice_End(int coreID, unsigned int slice_num, unsigned long long feeder_slice_length, unsigned long long slice_weight_times_1000)
 {
   // Blow away any instructions executing
@@ -459,8 +464,6 @@ void Zesto_Slice_End(int coreID, unsigned int slice_num, unsigned long long feed
   // Record stats values
   end_slice(slice_num, feeder_slice_length, slice_weight_times_1000);
 }
-
-static bool very_first_insn = true;
 
 void Zesto_Resume(int coreID, struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsigned char> * mem_buffer, bool slice_start, bool slice_end)
 {
@@ -521,21 +524,7 @@ void Zesto_Resume(int coreID, struct P2Z_HANDSHAKE * handshake, std::map<unsigne
 
    if(slice_start)
    {
-      activate_core(coreID);
       zesto_assert(thread->loader.stack_base, (void)0);
-
-      /* HACKEDY HACKEDY HACK */
-      /* start_slice messes with global state for now. Until we fix it, only call
-       * it the first time on some core */
-      /* HACK ^ 2 */
-      /* This is still global, so we better synchornize it if we don't want to mess up sim_cycle */
-      lk_lock(&cycle_lock, coreID+1);
-      if (very_first_insn) {
-        fprintf(stderr, "VERY_FIRST_INSN\n");
-        start_slice(handshake->slice_num);
-        very_first_insn = false;
-      }
-      lk_unlock(&cycle_lock);
 
       /* Init stack pointer */
       md_addr_t sp = handshake->ctxt.regs_R.dw[MD_REG_ESP]; 

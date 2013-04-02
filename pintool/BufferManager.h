@@ -31,7 +31,7 @@ class BufferManager
     return numThreads_;
   }
 
-  unsigned int size(THREADID tid);
+  uint64_t size(THREADID tid);
 
   void flushBuffers(THREADID tid);
 
@@ -76,7 +76,7 @@ class BufferManager
   int getKBFreeSpace(string path);
 
  
-  std::map<THREADID, int> queueSizes_;
+  std::map<THREADID, int64_t> queueSizes_;
   std::map<THREADID, Buffer*> fakeFile_;
   std::map<THREADID, Buffer*> consumeBuffer_;
   std::map<THREADID, Buffer*> produceBuffer_;
