@@ -94,6 +94,9 @@ $(ZESTO_HOME)/DRAMSim2/libdramsim.a:
 $(ZESTO_HOME)/mcpat/mcpat.a:
 	$(MAKE) -C $(ZESTO_HOME)/mcpat lib
 
+$(ZESTO_HOME)/mem-repeater/librepeater.a:
+	$(MAKE) -C $(ZESTO_HOME)/mem-repeater
+
 MyPinTool.test: $(OBJDIR)cp-pin.exe
       $(MAKE) -k -C feeder_zesto PIN_HOME=$(PIN_HOME)
 
@@ -109,10 +112,10 @@ $(OBJDIR)%.o : %.C
 $(OBJDIR)%.o : %.cpp
 	$(CXX) -c $(CXXFLAGS) $(PIN_CXXFLAGS) ${OUTOPT}$@ $<
 
-$(TOOLS): $(PIN_LIBNAMES) $(TOOL_OBJS) $(ZESTO_HOME)/libsim.a $(ZESTO_HOME)/mcpat/mcpat.a $(ZESTO_HOME)/DRAMSim2/libdramsim.a
+$(TOOLS): $(PIN_LIBNAMES) $(TOOL_OBJS) $(ZESTO_HOME)/libsim.a $(ZESTO_HOME)/mcpat/mcpat.a $(ZESTO_HOME)/DRAMSim2/libdramsim.a $(ZESTO_HOME)/mem-repeater/librepeater.a
 
 $(TOOLS): %$(PINTOOL_SUFFIX) : %.o 
-	${PIN_LD} -g $(PIN_LDFLAGS) -I$(ZESTO_HOME) -L$(ZESTO_HOME) $(LINK_DEBUG) ${LINK_OUT} $@ $< ${PIN_LPATHS} $(TOOL_OBJS) $(ZESTO_HOME)/libsim.a $(ZESTO_HOME)/mcpat/mcpat.a $(ZESTO_HOME)/DRAMSim2/libdramsim.a $(PIN_LIBS) $(DBG)
+	${PIN_LD} -g $(PIN_LDFLAGS) -I$(ZESTO_HOME) -L$(ZESTO_HOME) $(LINK_DEBUG) ${LINK_OUT} $@ $< ${PIN_LPATHS} $(TOOL_OBJS) $(ZESTO_HOME)/libsim.a $(ZESTO_HOME)/mcpat/mcpat.a $(ZESTO_HOME)/DRAMSim2/libdramsim.a $(ZESTO_HOME)/mem-repeater/librepeater.a $(PIN_LIBS) $(DBG)
 
 ## cleaning
 clean:
@@ -120,6 +123,7 @@ clean:
 	$(MAKE) -C $(ZESTO_HOME) clean
 	$(MAKE) -C $(ZESTO_HOME)/mcpat clean
 	$(MAKE) -C $(ZESTO_HOME)/DRAMSim2 clean
+	$(MAKE) -C $(ZESTO_HOME)/mem-repeater clean
 
 .PHONY: clean-tool
 clean-tool:
