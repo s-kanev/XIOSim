@@ -91,7 +91,6 @@
 #include "version.h"
 #include "options.h"
 #include "stats.h"
-#include "loader.h"
 #include "sim.h"
 
 #include "zesto-cache.h"

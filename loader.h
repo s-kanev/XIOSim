@@ -60,60 +60,8 @@
 #include "memory.h"
 #include "thread.h"
 
-/*
- * This module implements program loading.  The program text (code) and
- * initialized data are first read from the program executable.  Next, the
- * program uninitialized data segment is initialized to all zero's.  Finally,
- * the program stack is initialized with command line arguments and
- * environment variables.  The format of the top of stack when the program
- * starts execution is as follows:
- *
- * 0x7fffffff    +----------+
- *               | unused   |
- * 0x7fffc000    +----------+
- *               | envp     |
- *               | strings  |
- *               +----------+
- *               | argv     |
- *               | strings  |
- *               +----------+
- *               | envp     |
- *               | array    |
- *               +----------+
- *               | argv     |
- *               | array    |
- *               +----------+
- *               | argc     |
- * regs_R[29]    +----------+
- * (stack ptr)
- *
- * NOTE: the start of envp is computed in crt0.o (C startup code) using the
- * value of argc and the computed size of the argv array, the envp array size
- * is not specified, but rather it is NULL terminated, so the startup code
- * has to scan memory for the end of the string.
- */
-
-/*
- * program segment ranges, valid after calling ld_load_prog()
- */
-
-
 /* register simulator-specific statistics */
 void
 ld_reg_stats(struct thread_t * core, struct stat_sdb_t *sdb);	/* stats data base */
-
-/* load program text and initialized data into simulated virtual memory
-   space and initialize program segment range variables; reutrns 1 if
-   program is an eio trace */
-int
-ld_load_prog(
-       struct thread_t * core,
-       char *fname,		/* program to load */
-	     int argc, char **argv,	/* simulated program cmd line args */
-	     char **envp);	/* simulated program environment */
-
-/* reload/reset a core's execution to the beginning of it's EIO trace file. */
-void
-ld_reload_prog(struct thread_t * core);
 
 #endif /* LOADER_H */
