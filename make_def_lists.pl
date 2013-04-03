@@ -21,6 +21,12 @@ $component = $ARGV[0];
 unless(defined $component) { die "must specify a component name"; }
 unless(defined $comps{$component}) { die "unknown component name: $component"; }
 
+sub is_folder_empty {
+    my $dirname = shift;
+    opendir(my $dh, $dirname) or die "Not a directory";
+    return scalar(grep { $_ ne "." && $_ ne ".." } readdir($dh)) == 0;
+}
+
 @comp_list = split(',',$comps{$component});
 
 while($comp = shift @comp_list)
@@ -48,6 +54,11 @@ while($comp = shift @comp_list)
 
   foreach $file (@files)
   {
+    if($comp eq "ZCOMPS-MC" and $file eq "ZCOMPS-MC/MC-dramsim.cpp" and is_folder_empty("DRAMSim2"))
+    {
+      next;
+    }
+
     print OUTF "#include \"$file\"\n";
   }
 

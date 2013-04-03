@@ -40,24 +40,21 @@ TESTAPP=$(OBJDIR)cp-pin.exe
 
 
 TARGET_COMPILER?=gnu
-ifdef OS
-    ifeq (${OS},Windows_NT)
-        TARGET_COMPILER=ms
-    endif
-endif
-
 ifeq ($(TARGET_COMPILER),gnu)
     include $(PIN_HOME)/source/tools/makefile.gnu.config
     CXXFLAGS ?= -I$(PIN_HOME)/source/tools/InstLib -Wall -Werror -Wno-unknown-pragmas -g $(DBG) $(OPT)
     PIN=$(PIN_HOME)/pin
 endif
 
-ifeq ($(TARGET_COMPILER),ms)
-    include $(PIN_HOME)/source/tools/makefile.ms.config
-    DBG?=
-    PIN=$(PIN_HOME)/pin.bat
-endif
+SIM_LIB = $(ZESTO_HOME)/libsim.a
+MCPAT_LIB = $(ZESTO_HOME)/mcpat/mcpat.a
+REPEATER_LIB = $(ZESTO_HOME)/mem-repeater/librepeater.a
 
+ifeq ($(wildcard $(ZESTO_HOME)/DRAMSim2/DRAMSim.h),)
+    DRAMSIM_LIB =
+else 
+    DRAMSIM_LIB = $(ZESTO_HOME)/DRAMSim2/libdramsim.a
+endif
 
 ##############################################################
 #
@@ -112,17 +109,17 @@ $(OBJDIR)%.o : %.C
 $(OBJDIR)%.o : %.cpp
 	$(CXX) -c $(CXXFLAGS) $(PIN_CXXFLAGS) ${OUTOPT}$@ $<
 
-$(TOOLS): $(PIN_LIBNAMES) $(TOOL_OBJS) $(ZESTO_HOME)/libsim.a $(ZESTO_HOME)/mcpat/mcpat.a $(ZESTO_HOME)/DRAMSim2/libdramsim.a $(ZESTO_HOME)/mem-repeater/librepeater.a
+$(TOOLS): $(PIN_LIBNAMES) $(TOOL_OBJS) $(SIM_LIB) $(MCPAT_LIB) $(DRAMSIM_LIB) $(REPEATER_LIB)
 
 $(TOOLS): %$(PINTOOL_SUFFIX) : %.o 
-	${PIN_LD} -g $(PIN_LDFLAGS) -I$(ZESTO_HOME) -L$(ZESTO_HOME) $(LINK_DEBUG) ${LINK_OUT} $@ $< ${PIN_LPATHS} $(TOOL_OBJS) $(ZESTO_HOME)/libsim.a $(ZESTO_HOME)/mcpat/mcpat.a $(ZESTO_HOME)/DRAMSim2/libdramsim.a $(ZESTO_HOME)/mem-repeater/librepeater.a $(PIN_LIBS) $(DBG)
+	${PIN_LD} -g $(PIN_LDFLAGS) -I$(ZESTO_HOME) -L$(ZESTO_HOME) $(LINK_DEBUG) ${LINK_OUT} $@ $< ${PIN_LPATHS} $(TOOL_OBJS) $(SIM_LIB) $(MCPAT_LIB) $(DRAMSIM_LIB) $(REPEATER_LIB) $(PIN_LIBS) $(DBG)
 
 ## cleaning
 clean:
 	-rm -rf $(OBJDIR) *.out *.tested *.failed makefile.copy
 	$(MAKE) -C $(ZESTO_HOME) clean
 	$(MAKE) -C $(ZESTO_HOME)/mcpat clean
-	$(MAKE) -C $(ZESTO_HOME)/DRAMSim2 clean
+	if [ -n "$(DRAMSIM_LIB)" ]; then $(MAKE) -C $(ZESTO_HOME)/DRAMSim2 clean; fi
 	$(MAKE) -C $(ZESTO_HOME)/mem-repeater clean
 
 .PHONY: clean-tool
