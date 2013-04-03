@@ -3,3 +3,8 @@
     url = ssh://golden/group/brooks/git/DRAMSim2
     update = merge
     fetchRecurseSubmodules = true
+[submodule "mem-repeater"]
+	path = mem-repeater
+	url = ssh://golden/group/brooks/git/librepeater
+    update = merge
+    fetchRecurseSubmodules = true
