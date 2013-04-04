@@ -205,7 +205,7 @@ class core_t {
     struct cache_t * DTLB2;
     struct bus_t * DTLB_bus; /* connects DTLB to DTLB2 */
 
-    struct repeater_t * mem_repeater;
+    class repeater_t * mem_repeater;
   } memory;
 
   /**********************/

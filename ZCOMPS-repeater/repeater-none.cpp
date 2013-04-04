@@ -5,25 +5,19 @@
 #define COMPONENT_NAME "none"
 
 #ifdef REPEATER_PARSE_ARGS
-if(!strcasecmp(COMPONENT_NAME,opt_string))
+if(!strcasecmp(COMPONENT_NAME,type))
 {
   return new repeater_none_t(core, name, next_level);
 }
 
-#elif defined(REPEATER_PARSE_OPTIONS)
-if(!strcasecmp(COMPONENT_NAME,opt_string))
-{
-  return;
-}
-
 #elif defined(REPEATER_INIT)
-if(!strcasecmp(COMPONENT_NAME,opt_string))
+if(!strcasecmp(COMPONENT_NAME,type))
 {
   return;
 }
 
 #elif defined(REPEATER_SHUTDOWN)
-if(!strcasecmp(COMPONENT_NAME,opt_string))
+if(!strcasecmp(COMPONENT_NAME,type))
 {
   return;
 }
@@ -45,3 +39,5 @@ class repeater_none_t: public repeater_t {
 };
 
 #endif
+
+#undef COMPONENT_NAME

@@ -48,7 +48,12 @@ endif
 
 SIM_LIB = $(ZESTO_HOME)/libsim.a
 MCPAT_LIB = $(ZESTO_HOME)/mcpat/mcpat.a
-REPEATER_LIB = $(ZESTO_HOME)/mem-repeater/librepeater.a
+
+ifeq ($(wildcard $(ZESTO_HOME)/mem-repeater/mem-repeater.h),)
+    REPEATER_LIB =
+else 
+    REPEATER_LIB = $(ZESTO_HOME)/mem-repeater/librepeater.a
+endif
 
 ifeq ($(wildcard $(ZESTO_HOME)/DRAMSim2/DRAMSim.h),)
     DRAMSIM_LIB =
@@ -120,7 +125,7 @@ clean:
 	$(MAKE) -C $(ZESTO_HOME) clean
 	$(MAKE) -C $(ZESTO_HOME)/mcpat clean
 	if [ -n "$(DRAMSIM_LIB)" ]; then $(MAKE) -C $(ZESTO_HOME)/DRAMSim2 clean; fi
-	$(MAKE) -C $(ZESTO_HOME)/mem-repeater clean
+	if [ -n "$(REPEATER_LIB)" ]; then $(MAKE) -C $(ZESTO_HOME)/mem-repeater clean; fi
 
 .PHONY: clean-tool
 clean-tool:

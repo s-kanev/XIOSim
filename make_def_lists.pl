@@ -60,6 +60,11 @@ while($comp = shift @comp_list)
       next;
     }
 
+    if($comp eq "ZCOMPS-repeater" and $file eq "ZCOMPS-repeater/repeater-default.cpp" and is_folder_empty("mem-repeater"))
+    {
+      next;
+    }
+
     print OUTF "#include \"$file\"\n";
   }
 

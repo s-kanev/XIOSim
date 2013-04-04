@@ -9,6 +9,9 @@
 #include "zesto-cache.h"
 #include "zesto-repeater.h"
 
+extern struct core_knobs_t knobs;
+
+/* Load in definitions */
 #include "ZCOMPS-repeater.list"
 
 #define REPEATER_PARSE_ARGS
@@ -18,6 +21,10 @@ class repeater_t * repeater_create(
     const char * const name,
     struct cache_t * const next_level)
 {
+  char type[255];
+  /* the format string "%[^:]" for scanf reads a string consisting of non-':' characters */
+  if(sscanf(opt_string,"%[^:]",type) != 1)
+    fatal("malformed repeater option string: %s",opt_string);
 #include "ZCOMPS-repeater.list"
 
   fatal("Unknown memory repeater type (%s)", opt_string);
@@ -25,19 +32,19 @@ class repeater_t * repeater_create(
 
 #undef REPEATER_PARSE_ARGS
 
-#define REPEATER_PARSE_OPTIONS
-void repeater_reg_options(struct opt_odb_t * const odb, const char * const opt_string)
+void repeater_reg_options(struct opt_odb_t * const odb)
 {
-#include "ZCOMPS-repeater.list"
-
-  fatal("Unknown memory repeater type (%s)", opt_string);
+  opt_reg_string(odb, "-repeater", "memory repeater configuration string (aka L0/ring cache)",
+     &knobs.exec.repeater_opt_str, /* default */"none", /* print */true, /* format */NULL);
 }
-
-#undef REPEATER_PARSE_OPTIONS
 
 #define REPEATER_INIT
 void repeater_init(const char * const opt_string)
 {
+  char type[255];
+  if(sscanf(opt_string,"%[^:]",type) != 1)
+    fatal("malformed repeater option string: %s",opt_string);
+
 #include "ZCOMPS-repeater.list"
 
   fatal("Unknown memory repeater type (%s)", opt_string);
@@ -48,6 +55,9 @@ void repeater_init(const char * const opt_string)
 #define REPEATER_SHUTDOWN
 void repeater_shutdown(const char * const opt_string)
 {
+  char type[255];
+  if(sscanf(opt_string,"%[^:]",type) != 1)
+    fatal("malformed repeater option string: %s",opt_string);
 #include "ZCOMPS-repeater.list"
 
   fatal("Unknown memory repeater type (%s)", opt_string);

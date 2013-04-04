@@ -7,12 +7,11 @@
 #define __ZESTO_REPEATER_H
 
 class repeater_t {
-  protected:
+  public:
     struct core_t * core;
     const char * const name;
     struct cache_t * nextLevel;
 
-  public:
     repeater_t(struct core_t * const _core, const char * const _name, struct cache_t * const _next_level) :
         core(_core), name(_name), nextLevel(_next_level) { }
 
@@ -47,6 +46,6 @@ class repeater_t * repeater_create(
 
 void repeater_init(const char * const opt_string);
 void repeater_shutdown(const char * const opt_string);
-void repeater_reg_options(struct opt_odb_t * const odb, const char * const opt_string);
+void repeater_reg_options(struct opt_odb_t * const odb);
 
 #endif /*__ZESTO_REPEATER_H */

@@ -42,8 +42,7 @@ OEXT = o
 # complete flags
 #
 MCPAT_INC = -Imcpat
-#REPEATER_INC = -Imem-repeater
-REPEATER_INC = 
+REPEATER_INC = -Imem-repeater
 
 CFLAGS = $(FFLAGS) $(OFLAGS) $(BINUTILS_INC) $(BINUTILS_LIB) $(ZTRACE) $(MCPAT_INC) $(REPEATER_INC) -DZESTO_PIN
 
@@ -62,15 +61,15 @@ machine.def     x86flow.def     interface.h     callbacks.h
 OBJS =	\
 eval.$(OEXT)         machine.$(OEXT)      memory.$(OEXT)       misc.$(OEXT)          options.$(OEXT)    \
 regs.$(OEXT)         stats.$(OEXT)        sim-main.$(OEXT)     slices.$(OEXT)        callbacks.$(OEXT)  \
-slave.$(OEXT)
+slave.$(OEXT)        loader.$(OEXT)
 
 # Zesto specific files
 ZSRCS = \
-zesto-core.cpp zesto-opts.c zesto-oracle.cpp zesto-fetch.cpp         \
+zesto-core.cpp zesto-opts.cpp zesto-oracle.cpp zesto-fetch.cpp         \
 zesto-decode.cpp zesto-alloc.cpp zesto-exec.cpp zesto-commit.cpp zesto-cache.cpp   \
 zesto-dram.cpp zesto-bpred.cpp zesto-memdep.cpp zesto-prefetch.cpp                 \
 zesto-uncore.cpp zesto-MC.cpp zesto-dumps.cpp zesto-power.cpp zesto-noc.cpp        \
-zesto-repeater.cpp
+zesto-repeater.cpp zesto-coherence.cpp
 
 ZHDRS = \
 zesto-structs.h zesto-core.h zesto-opts.h zesto-oracle.h zesto-fetch.h             \
@@ -79,13 +78,7 @@ zesto-dram.h zesto-bpred.h zesto-memdep.h zesto-prefetch.h zesto-uncore.h       
 zesto-MC.h zesto-dumps.h zesto-power.h zesto-coherence.h zesto-noc.h               \
 zesto-repeater.h
 
-
-ZOBJS = \
-zesto-opts.$(OEXT) zesto-core.$(OEXT) zesto-oracle.$(OEXT) zesto-fetch.$(OEXT)      \
-zesto-decode.$(OEXT) zesto-alloc.$(OEXT) zesto-exec.$(OEXT) zesto-commit.$(OEXT)    \
-zesto-cache.$(OEXT) zesto-dram.$(OEXT) zesto-bpred.$(OEXT) zesto-memdep.$(OEXT)     \
-zesto-prefetch.$(OEXT) zesto-uncore.$(OEXT) zesto-MC.$(OEXT) zesto-dumps.$(OEXT)    \
-zesto-power.$(OEXT) zesto-repeater.$(OEXT)
+ZOBJS=$(ZSRCS:.cpp=.o)
 
 #
 # all targets
