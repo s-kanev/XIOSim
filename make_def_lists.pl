@@ -15,6 +15,7 @@ $comps{"MC"}  = "ZCOMPS-MC";
 
 $comps{"power"} = "ZCORE-power";
 $comps{"coherence"} = "ZCOMPS-coherence";
+$comps{"repeater"} = "ZCOMPS-repeater";
 
 $component = $ARGV[0];
 

@@ -86,7 +86,7 @@
 #include "zesto-commit.h"
 #include "zesto-dram.h"
 #include "zesto-uncore.h"
-#include "mem-repeater.h"
+#include "zesto-repeater.h"
 
 #if defined(ZTRACE) && !defined(ZESTO_PIN_DBG)
 FILE * ztrace_fp = NULL;
@@ -169,6 +169,9 @@ sim_reg_options(struct opt_odb_t *odb)
   opt_reg_string(odb, "-power:rtp_file", "file to store runtime power trace",
       &knobs.power.rtp_filename, /* default */NULL, /* print */true, /* format */NULL);
 
+  opt_reg_string(odb, "-repeater", "memory repeater model to use (aka L0/ring cache)",
+      &knobs.exec.repeater_opt_str, /* default */"none", /* print */true, /* format */NULL);
+
   fetch_reg_options(odb,&knobs);
   decode_reg_options(odb,&knobs);
   alloc_reg_options(odb,&knobs);
@@ -177,7 +180,7 @@ sim_reg_options(struct opt_odb_t *odb)
 
   uncore_reg_options(odb);
   dram_reg_options(odb);
-  repeater_reg_options(odb);
+  repeater_reg_options(odb, knobs.exec.repeater_opt_str);
 }
 
 /* check simulator-specific option values */

@@ -387,6 +387,7 @@ struct core_knobs_t
     int fp_penalty; /* extra cycles to forward to FP cluster */
     bool tornado_breaker;
     bool throttle_partial;
+    const char * repeater_opt_str;
   } exec;
 
   struct {

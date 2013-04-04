@@ -99,6 +99,9 @@ inline void lk_init(XIOSIM_LOCK* lk)
     lk->v = 0;
 }
 
+// Static lock initialized, not possible with Pin locks.
+const XIOSIM_LOCK XIOSIM_STATIC_LOCK_INIT = { .v=0 };
+
 #endif
 
 /* Protecting shared state among cores */

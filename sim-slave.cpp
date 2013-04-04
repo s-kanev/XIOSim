@@ -94,7 +94,7 @@
 #include "sim.h"
 
 #include "zesto-cache.h"
-#include "mem-repeater.h"
+#include "zesto-repeater.h"
 #include "zesto-opts.h"
 #include "zesto-core.h"
 #include "zesto-fetch.h"
@@ -328,7 +328,7 @@ sim_post_init(void)
   }
 
   // Needs to be called before creating core->exec
-  repeater_init();
+  repeater_init(knobs.exec.repeater_opt_str);
 
   for(i=0;i<num_threads;i++)
   {
@@ -561,7 +561,7 @@ static void global_step(void)
 
     for(int i=0;i<num_threads;i++)
       if(cores[i]->memory.mem_repeater)
-        repeater_step(cores[i]->memory.mem_repeater);
+        cores[i]->memory.mem_repeater->step();
 }
 
 void sim_main_slave_pre_pin(int coreID)

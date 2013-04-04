@@ -43,7 +43,7 @@
 #include "zesto-MC.h"
 #include "zesto-power.h"
 
-#include "mem-repeater.h"
+#include "zesto-repeater.h"
 
 extern void sim_main_slave_pre_pin(int coreID);
 extern void sim_main_slave_pre_pin();
@@ -377,7 +377,7 @@ void Zesto_Destroy()
     deinit_power();
   }
 
-  repeater_shutdown();
+  repeater_shutdown(cores[0]->knobs->exec.repeater_opt_str);
 
   for(int i=0; i<num_threads; i++)
     if(cores[i]->stat.oracle_unknown_insn / (double) cores[i]->stat.oracle_total_insn > 0.02)
@@ -444,7 +444,8 @@ void sim_drain_pipe(int coreID)
    core->decode->recover();
    core->fetch->recover(core->current_thread->regs.regs_NPC);
 
-   repeater_flush(core->memory.mem_repeater, NULL);
+   if (core->memory.mem_repeater)
+     core->memory.mem_repeater->flush(NULL);
 
    // Do this after fetch->recover, since the latest Mop might have had a rep prefix
    core->current_thread->rep_sequence = 0;

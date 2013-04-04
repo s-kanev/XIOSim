@@ -77,7 +77,7 @@
 
 #include "zesto-cache.h"
 #include "zesto-noc.h"
-#include "mem-repeater.h"
+#include "zesto-repeater.h"
 #include "zesto-core.h"
 #include "zesto-opts.h"
 #include "zesto-oracle.h"
