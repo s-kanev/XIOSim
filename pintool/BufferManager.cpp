@@ -16,7 +16,7 @@
 #include "Buffer.h"
 #include "BufferManager.h"
 
-extern int num_threads;
+extern int num_cores;
 extern bool consumers_sleep;
 extern PIN_SEMAPHORE consumer_sleep_lock;
 
@@ -275,7 +275,7 @@ uint64_t BufferManager::size(THREADID tid)
 void BufferManager::reserveHandshake(THREADID tid)
 {
   int64_t queueLimit;
-  if(num_threads > 1) {
+  if(num_cores > 1) {
     queueLimit = 5000000001;
   }
   else {
@@ -306,7 +306,7 @@ void BufferManager::reserveHandshake(THREADID tid)
     disable_consumers();
     enable_producers();
 
-    //    if(num_threads == 1 || (!useRealFile_)) {
+    //    if(num_cores == 1 || (!useRealFile_)) {
     //      continue;
     //    }
 
@@ -620,7 +620,7 @@ void BufferManager::allocateThread(THREADID tid)
   queueSizes_[tid] = 0;
   numThreads_++;
   fileEntryCount_[tid] = 0;
-  /*  if(num_threads > 1) {
+  /*  if(num_cores > 1) {
     useRealFile_ = true;
     }*/
   //  else {
@@ -628,7 +628,7 @@ void BufferManager::allocateThread(THREADID tid)
     //  }
 
   int bufferEntries = 640000 / 2;
-  int bufferCapacity = bufferEntries / 2 / num_threads;
+  int bufferCapacity = bufferEntries / 2 / num_cores;
 
   if(!useRealFile_) {
     bufferCapacity /= 8;
@@ -667,7 +667,7 @@ string BufferManager::genFileName(string path)
 void BufferManager::resetPool(THREADID tid)
 {
   int poolFactor = 1;
-  if(num_threads > 1) {
+  if(num_cores > 1) {
     poolFactor = 6;
   }
   pool_[tid] = (consumeBuffer_[tid]->capacity() + produceBuffer_[tid]->capacity()) * poolFactor;

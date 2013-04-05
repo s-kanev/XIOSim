@@ -430,7 +430,7 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID, ADDRINT pc)
     int numInstsToIgnore = 2; // flush a call, one parameter
     flushLookahead(tid, numInstsToIgnore);
 
-    if(num_threads == 1) {
+    if(num_cores == 1) {
         return;
     }
 
@@ -474,7 +474,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc)
     lk_unlock(&tstate->lock);
 
     /* Don't insert waits in single-core mode */
-    if (num_threads == 1)
+    if (num_cores == 1)
         goto cleanup;
 
     tstate->loop_state->unmatchedWaits++;
@@ -509,7 +509,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc)
     handshake->handshake.sleep_thread = false;
     handshake->handshake.resume_thread = false;
     handshake->handshake.real = false;
-    handshake->handshake.in_critical_section = (num_threads > 1);
+    handshake->handshake.in_critical_section = (num_cores > 1);
     handshake->flags.valid = true;
 
     handshake->handshake.pc = pc;
@@ -582,7 +582,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
 
 
     /* Don't insert signals in single-core mode */
-    if (num_threads == 1)
+    if (num_cores == 1)
         goto cleanup;
 
     tstate->loop_state->unmatchedWaits--;
@@ -599,7 +599,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
     handshake->handshake.sleep_thread = false;
     handshake->handshake.resume_thread = false;
     handshake->handshake.real = false;
-    handshake->handshake.in_critical_section = (num_threads > 1) && (tstate->loop_state->unmatchedWaits > 0);
+    handshake->handshake.in_critical_section = (num_cores > 1) && (tstate->loop_state->unmatchedWaits > 0);
     handshake->flags.valid = true;
 
     handshake->handshake.pc = pc;
@@ -621,7 +621,7 @@ cleanup:
 /* ========================================================================== */
 VOID ILDJIT_setAffinity(THREADID tid, INT32 coreID)
 {
-    ASSERTX(coreID >= 0 && coreID < num_threads);
+    ASSERTX(coreID >= 0 && coreID < num_cores);
     HardcodeSchedule(tid, coreID);
 
     lookahead_buffer[tid] = Buffer(10);
@@ -916,7 +916,7 @@ UINT32 getSignalAddress(ADDRINT ssID)
 {
   UINT32 firstCore = 0;
   if(first_invocation) {
-    firstCore = start_loop_iteration % num_threads;
+    firstCore = start_loop_iteration % num_cores;
   }
   assert(firstCore < 256);
   assert(ssID < 256);
@@ -1068,7 +1068,7 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
         ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
             done &= handshake_buffer.empty((*it));
         }
-        if (!done && sleeping_enabled && (host_cpus <= num_threads))
+        if (!done && sleeping_enabled && (host_cpus <= num_cores))
             PIN_Sleep(10);
     } while (!done);
 
@@ -1102,7 +1102,7 @@ VOID ILDJIT_ResumeSimulation(THREADID tid)
 {
 
     /* All cores were sleeping in between loops, wake them up now. */
-    for (INT32 coreID = 0; coreID < num_threads; coreID++) {
+    for (INT32 coreID = 0; coreID < num_cores; coreID++) {
         /* Wake up cores right away without going through the handshake
          * buffer (which should be empty anyway).
          * If we do go through it, there are no guarantees for when the

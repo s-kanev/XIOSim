@@ -289,7 +289,7 @@ Zesto_SlaveInit(int argc, char **argv)
 
 void Zesto_SetBOS(int coreID, unsigned int stack_base)
 {
-  assert(coreID < num_threads);
+  assert(coreID < num_cores);
 
   cores[coreID]->current_thread->loader.stack_base = (md_addr_t)stack_base;
   //  myfprintf(stderr, "Stack base[%d]: %x; \n", coreID, cores[coreID]->current_thread->loader.stack_base);
@@ -298,10 +298,10 @@ void Zesto_SetBOS(int coreID, unsigned int stack_base)
 
 int Zesto_Notify_Mmap(int coreID, unsigned int addr, unsigned int length, bool mod_brk)
 {
-  assert(coreID < num_threads);
+  assert(coreID < num_cores);
   class core_t* core = cores[coreID];
   struct mem_t * mem = core->current_thread->mem;
-  zesto_assert((num_threads == 1) || multi_threaded, 0);
+  zesto_assert((num_cores == 1) || multi_threaded, 0);
 
   md_addr_t page_addr = ROUND_DOWN((md_addr_t)addr, MD_PAGE_SIZE);
   unsigned int page_length = ROUND_UP(length, MD_PAGE_SIZE);
@@ -324,10 +324,10 @@ int Zesto_Notify_Mmap(int coreID, unsigned int addr, unsigned int length, bool m
 
 int Zesto_Notify_Munmap(int coreID, unsigned int addr, unsigned int length, bool mod_brk)
 {
-  assert(coreID < num_threads);
+  assert(coreID < num_cores);
   class core_t *core = cores[coreID];
   struct mem_t * mem = cores[coreID]->current_thread->mem;
-  zesto_assert((num_threads == 1) || multi_threaded, 0);
+  zesto_assert((num_cores == 1) || multi_threaded, 0);
 
   lk_lock(&memory_lock, coreID+1);
   mem_delmap(mem, ROUND_UP((md_addr_t)addr, MD_PAGE_SIZE), length);
@@ -341,7 +341,7 @@ int Zesto_Notify_Munmap(int coreID, unsigned int addr, unsigned int length, bool
 
 void Zesto_UpdateBrk(int coreID, unsigned int brk_end, bool do_mmap)
 {
-  assert(coreID < num_threads);
+  assert(coreID < num_cores);
   struct core_t * core = cores[coreID];
 
   zesto_assert(brk_end != 0, (void)0);
@@ -379,7 +379,7 @@ void Zesto_Destroy()
 
   repeater_shutdown(cores[0]->knobs->exec.repeater_opt_str);
 
-  for(int i=0; i<num_threads; i++)
+  for(int i=0; i<num_cores; i++)
     if(cores[i]->stat.oracle_unknown_insn / (double) cores[i]->stat.oracle_total_insn > 0.02)
       fprintf(stderr, "WARNING: [%d] More than 2%% instructions turned to NOPs (%lld out of %lld)\n",
               i, cores[i]->stat.oracle_unknown_insn, cores[i]->stat.oracle_total_insn);
@@ -388,7 +388,7 @@ void Zesto_Destroy()
 
 void deactivate_core(int coreID)
 {
-  assert(coreID >= 0 && coreID < num_threads);
+  assert(coreID >= 0 && coreID < num_cores);
 //  fprintf(stderr, "deactivate %d\n", coreID);
   ZPIN_TRACE("deactivate %d\n", coreID);
 //  fflush(stderr);
@@ -396,19 +396,19 @@ void deactivate_core(int coreID)
   cores[coreID]->current_thread->active = false;
   cores[coreID]->current_thread->last_active_cycle = sim_cycle;
   int i;
-  for (i=0; i < num_threads; i++)
+  for (i=0; i < num_cores; i++)
     if (cores[i]->current_thread->active) {
       min_coreID = i;
       break;
     }
-  if (i == num_threads)
+  if (i == num_cores)
     min_coreID = MAX_CORES;
   lk_unlock(&cycle_lock);
 }
 
 void activate_core(int coreID)
 {
-  assert(coreID >= 0 && coreID < num_threads);
+  assert(coreID >= 0 && coreID < num_cores);
 //  fprintf(stderr, "activate %d\n", coreID);
   ZPIN_TRACE("activate %d\n", coreID);
 //  fflush(stderr);
@@ -424,7 +424,7 @@ void activate_core(int coreID)
 
 bool is_core_active(int coreID)
 {
-  assert(coreID >= 0 && coreID < num_threads);
+  assert(coreID >= 0 && coreID < num_cores);
   bool result;
   lk_lock(&cycle_lock, coreID+1);
   result = cores[coreID]->current_thread->active;
@@ -468,7 +468,7 @@ void Zesto_Slice_End(int coreID, unsigned int slice_num, unsigned long long feed
 
 void Zesto_Resume(int coreID, struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsigned char> * mem_buffer, bool slice_start, bool slice_end)
 {
-   assert(coreID >= 0 && coreID < num_threads);
+   assert(coreID >= 0 && coreID < num_cores);
    struct core_t * core = cores[coreID];
    thread_t * thread = core->current_thread;
 

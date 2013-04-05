@@ -128,7 +128,7 @@ struct core_t ** cores = NULL;
 struct core_knobs_t knobs;
 
 /* number of cores */
-int num_threads = 1;
+int num_cores = 1;
 bool multi_threaded = false;
 int simulated_processes_remaining = 1;
 
@@ -265,7 +265,7 @@ void
 sim_post_init(void)
 {
   int i;
-  assert(num_threads > 0);
+  assert(num_cores > 0);
 
   /* Initialize synchronization primitives */
   lk_init(&cycle_lock);
@@ -274,7 +274,7 @@ sim_post_init(void)
   lk_init(&printing_lock);
 
   /* initialize architected state(s) */
-  threads = (struct thread_t **)calloc(num_threads,sizeof(*threads));
+  threads = (struct thread_t **)calloc(num_cores,sizeof(*threads));
   if(!threads)
     fatal("failed to calloc threads");
 
@@ -285,14 +285,14 @@ sim_post_init(void)
     mem_init(mem);
   }
 
-  for(i=0;i<num_threads;i++)
+  for(i=0;i<num_cores;i++)
   {
     threads[i] = (struct thread_t *)calloc(1,sizeof(**threads));
     if(!threads[i])
       fatal("failed to calloc threads[%d]",i);
 
     threads[i]->id = i;
-    threads[i]->current_core = i; /* assuming num_threads == num_cores */
+    threads[i]->current_core = i; /* assuming num_cores == num_cores */
 
     /* allocate and initialize register file */
     regs_init(&threads[i]->regs);
@@ -314,10 +314,10 @@ sim_post_init(void)
   }
 
   /* initialize microarchitecture state */
-  cores = (struct core_t**) calloc(num_threads,sizeof(*cores));
+  cores = (struct core_t**) calloc(num_cores,sizeof(*cores));
   if(!cores)
     fatal("failed to calloc cores");
-  for(i=0;i<num_threads;i++)
+  for(i=0;i<num_cores;i++)
   {
     cores[i] = new core_t(i);
     if(!cores[i])
@@ -330,7 +330,7 @@ sim_post_init(void)
   // Needs to be called before creating core->exec
   repeater_init(knobs.exec.repeater_opt_str);
 
-  for(i=0;i<num_threads;i++)
+  for(i=0;i<num_cores;i++)
   {
     cores[i]->oracle  = new core_oracle_t(cores[i]);
     cores[i]->commit  = commit_create(knobs.model,cores[i]);
@@ -375,29 +375,29 @@ void sim_main_slave_post_pin()
 {
   int i;
 
-  for(i=0;i<num_threads;i++)
+  for(i=0;i<num_cores;i++)
   {
     /* round-robin on which cache to process first so that one core
        doesn't get continual priority over the others for L2 access */
-    cores[mod2m(start_pos+i,num_threads)]->fetch->pre_fetch();
+    cores[mod2m(start_pos+i,num_cores)]->fetch->pre_fetch();
   }
 
   /* this is done last so that prefetch requests have the lowest
      priority when competing for queues, buffers, etc. */
   prefetch_LLC(uncore);
 
-  for(i=0;i<num_threads;i++)
+  for(i=0;i<num_cores;i++)
   {
     /* process prefetch requests in reverse order as L1/L2; i.e., whoever
        got the lowest priority for L1/L2 processing gets highest priority
        for prefetch processing */
-    prefetch_core_caches(cores[mod2m(start_pos+num_threads-i,num_threads)]);
+    prefetch_core_caches(cores[mod2m(start_pos+num_cores-i,num_cores)]);
   }
 
   /*******************/
   /* occupancy stats */
   /*******************/
-  for(i=0;i<num_threads;i++)
+  for(i=0;i<num_cores;i++)
   {
     /* this avoids the need to guard each stat update below with "ZESTO_STAT()" */
     if(!cores[i]->current_thread->active)
@@ -411,23 +411,23 @@ void sim_main_slave_post_pin()
   }
 
   /* check to see if all cores are "ok" */
-  for(i=0;i<num_threads;i++)
+  for(i=0;i<num_cores;i++)
   {
     if(cores[i]->oracle->hosed)
       fatal("Core %d got hosed, quitting."); 
   }
 
-  start_pos = modinc(start_pos,num_threads);
+  start_pos = modinc(start_pos,num_cores);
 
   if((heartbeat_frequency > 0) && (heartbeat_count >= heartbeat_frequency))
   {
     long long int sum = 0;
     lk_lock(&printing_lock, 1);
     fprintf(stderr,"##HEARTBEAT## %lld: {",sim_cycle);
-    for(i=0;i<num_threads;i++)
+    for(i=0;i<num_cores;i++)
     {
       sum += cores[i]->stat.commit_insn;
-      if(i < (num_threads-1))
+      if(i < (num_cores-1))
         myfprintf(stderr,"%lld, ",cores[i]->stat.commit_insn);
       else
         myfprintf(stderr,"%lld, all=%lld}\n",cores[i]->stat.commit_insn, sum);
@@ -449,7 +449,7 @@ void sim_main_slave_pre_pin()
 
   sim_cycle++;
   heartbeat_count++;
-  for(i=0;i<num_threads;i++)
+  for(i=0;i<num_cores;i++)
     if(cores[i]->current_thread->active)
       cores[i]->stat.final_sim_cycle = sim_cycle;
 
@@ -471,49 +471,49 @@ void sim_main_slave_pre_pin()
 
   step_LLC_PF_controller(uncore);
 
-  for(i=0;i<num_threads;i++)
+  for(i=0;i<num_cores;i++)
     step_core_PF_controllers(cores[i]);
 
-  for(i=0;i<num_threads;i++)
+  for(i=0;i<num_cores;i++)
     cores[i]->commit->IO_step(); /* IO cores only */ //UGLY UGLY UGLY
 
   /* all memory processed here */
-  for(i=0;i<num_threads;i++)
+  for(i=0;i<num_cores;i++)
   {
     /* round-robin on which cache to process first so that one core
        doesn't get continual priority over the others for L2 access */
-    cores[mod2m(start_pos+i,num_threads)]->exec->LDST_exec();
+    cores[mod2m(start_pos+i,num_cores)]->exec->LDST_exec();
   }
 
-  for(i=0;i<num_threads;i++)
+  for(i=0;i<num_cores;i++)
     cores[i]->commit->step();  /* OoO cores only */
 
-  for(i=0;i<num_threads;i++)
+  for(i=0;i<num_cores;i++)
     cores[i]->commit->pre_commit_step(); /* IO cores only */
 
-  for(i=0;i<num_threads;i++)
+  for(i=0;i<num_cores;i++)
   {
     cores[i]->exec->step();     /* IO cores only */
     cores[i]->exec->ALU_exec(); /* OoO cores only */
   }
 
-  for(i=0;i<num_threads;i++)
+  for(i=0;i<num_cores;i++)
     cores[i]->exec->LDQ_schedule();
   
-  for(i=0;i<num_threads;i++)
+  for(i=0;i<num_cores;i++)
     cores[i]->exec->RS_schedule();  /* OoO cores only */
 
-  for(i=0;i<num_threads;i++)
+  for(i=0;i<num_cores;i++)
     cores[i]->alloc->step();
 
-  for(i=0;i<num_threads;i++)
+  for(i=0;i<num_cores;i++)
     cores[i]->decode->step();
 
-  for(i=0;i<num_threads;i++)
+  for(i=0;i<num_cores;i++)
   {
     /* round-robin on which cache to process first so that one core
        doesn't get continual priority over the others for L2 access */
-    cores[mod2m(start_pos+i,num_threads)]->fetch->post_fetch();
+    cores[mod2m(start_pos+i,num_cores)]->fetch->post_fetch();
   }
 
 }
@@ -526,10 +526,10 @@ static void global_step(void)
       lk_lock(&printing_lock, 1);
       fprintf(stderr,"##HEARTBEAT## %lld: {",sim_cycle);
       long long int sum = 0;
-      for(int i=0;i<num_threads;i++)
+      for(int i=0;i<num_cores;i++)
       {
         sum += cores[i]->stat.commit_insn;
-        if(i < (num_threads-1))
+        if(i < (num_cores-1))
           myfprintf(stderr,"%lld, ",cores[i]->stat.commit_insn);
         else
           myfprintf(stderr,"%lld, all=%lld}\n",cores[i]->stat.commit_insn, sum);
@@ -546,7 +546,7 @@ static void global_step(void)
 
     sim_cycle++;
     heartbeat_count++;
-    for(int i=0;i<num_threads;i++)
+    for(int i=0;i<num_cores;i++)
       if(cores[i]->current_thread->active)
         cores[i]->stat.final_sim_cycle = sim_cycle;
 
@@ -559,7 +559,7 @@ static void global_step(void)
 
     step_LLC_PF_controller(uncore);
 
-    for(int i=0;i<num_threads;i++)
+    for(int i=0;i<num_cores;i++)
       if(cores[i]->memory.mem_repeater)
         cores[i]->memory.mem_repeater->step();
 }
@@ -600,7 +600,7 @@ master_core:
       /* Re-check if all cores finished this cycle. */
       cores_finished_cycle = 0;
       cores_active = 0;
-      for(i=0; i<num_threads; i++) {
+      for(i=0; i<num_cores; i++) {
         if(cores[i]->current_thread->finished_cycle)
           cores_finished_cycle++;
         if(cores[i]->current_thread->active)
@@ -630,13 +630,13 @@ master_core:
     /* Non-active cores should still step their DL1s because there might
      * be accesses scheduler there from the repeater network */
     /* XXX: This is round-robin for L2 based on core id, if that matters */
-    for(i=0; i<num_threads; i++)
+    for(i=0; i<num_cores; i++)
       if(!cores[i]->current_thread->active)
         if(cores[i]->memory.DL1->check_for_work)
           cache_process(cores[i]->memory.DL1);
 
     /* Unblock other cores to keep crunching. */
-    for(i=0; i<num_threads; i++)
+    for(i=0; i<num_cores; i++)
       cores[i]->current_thread->finished_cycle = false; 
     lk_unlock(&cycle_lock);
   }

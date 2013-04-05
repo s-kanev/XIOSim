@@ -32,7 +32,7 @@ static INT32 last_coreID;
 /* ========================================================================== */
 VOID InitScheduler(INT32 num_cores)
 {
-    run_queues = new RunQueue[num_threads];
+    run_queues = new RunQueue[num_cores];
     last_coreID = 0;
 }
 
@@ -49,7 +49,7 @@ VOID ScheduleNewThread(THREADID tid)
     thread_state_t* tstate = get_tls(tid);
     tstate->coreID = last_coreID;
 
-    last_coreID  = (last_coreID + 1) % num_threads;
+    last_coreID  = (last_coreID + 1) % num_cores;
 }
 
 /* ========================================================================== */

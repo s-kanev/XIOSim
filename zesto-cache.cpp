@@ -262,8 +262,8 @@ struct cache_t * cache_create(
 
   if(!strcasecmp(name,"LLC"))
   {
-    cp->stat.core_lookups = (counter_t*) calloc(num_threads,sizeof(*cp->stat.core_lookups));
-    cp->stat.core_misses = (counter_t*) calloc(num_threads,sizeof(*cp->stat.core_misses));
+    cp->stat.core_lookups = (counter_t*) calloc(num_cores,sizeof(*cp->stat.core_lookups));
+    cp->stat.core_misses = (counter_t*) calloc(num_cores,sizeof(*cp->stat.core_misses));
     if(!cp->stat.core_lookups || !cp->stat.core_misses)
       fatal("failed to calloc cp->stat.core_{lookups|misses} for %s",name);
   }
@@ -560,7 +560,7 @@ void LLC_reg_stats(
   sprintf(buf3,"LLC.total_misses / LLC.total_lookups");
   stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
 
-  if(num_threads > 1)
+  if(num_cores > 1)
   {
     sprintf(buf,"LLC.MPKC");
     sprintf(buf2,"MPKC for the LLC (no prefetches or writebacks)");
@@ -590,7 +590,7 @@ void LLC_reg_stats(
   sprintf(buf2,"MSHR requests combined in LLC");
   stat_reg_counter(sdb, true, buf, buf2, &cp->stat.MSHR_combos, 0, TRUE, NULL);
 
-  if(num_threads == 1)
+  if(num_cores == 1)
   {
     sprintf(buf,"LLC.lookups");
     sprintf(buf2,"number of lookups in the LLC");
@@ -609,7 +609,7 @@ void LLC_reg_stats(
   }
   else
   {
-    for(int i=0;i<num_threads;i++)
+    for(int i=0;i<num_cores;i++)
     {
       sprintf(buf,"LLC.c%d.lookups",i);
       sprintf(buf2,"number of lookups by core %d in shared %s cache",i,cp->name);
@@ -650,8 +650,8 @@ void cache_reset_stats(struct cache_t * const cp)
   {
     cp->stat.core_lookups = core_lookups;
     cp->stat.core_misses = core_misses;
-    memzero(cp->stat.core_lookups,num_threads*sizeof(*cp->stat.core_lookups));
-    memzero(cp->stat.core_misses,num_threads*sizeof(*cp->stat.core_misses));
+    memzero(cp->stat.core_lookups,num_cores*sizeof(*cp->stat.core_lookups));
+    memzero(cp->stat.core_misses,num_cores*sizeof(*cp->stat.core_misses));
   }
 }
 

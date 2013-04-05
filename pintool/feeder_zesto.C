@@ -988,7 +988,7 @@ VOID PauseSimulation(THREADID tid)
     volatile bool cores_done = false;
     do {
         cores_done = true;
-        for (INT32 coreID=0; coreID < num_threads; coreID++) {
+        for (INT32 coreID=0; coreID < num_cores; coreID++) {
             cores_done &= !IsCoreBusy(coreID);
         }
     } while (!cores_done);
@@ -1004,7 +1004,7 @@ VOID StopSimulation(BOOL kill_sim_threads)
     if (kill_sim_threads) {
         /* Signal simulator threads to die */
         INT32 coreID;
-        for (coreID=0; coreID < num_threads; coreID++) {
+        for (coreID=0; coreID < num_cores; coreID++) {
             sim_thread_state_t* curr_tstate = get_sim_tls(sim_threadid[coreID]);
             lk_lock(&curr_tstate->lock, 1);
             curr_tstate->is_running = false;
@@ -1016,7 +1016,7 @@ VOID StopSimulation(BOOL kill_sim_threads)
         do {
             is_stopped = true;
 
-            for (coreID=0; coreID < num_threads; coreID++) {
+            for (coreID=0; coreID < num_cores; coreID++) {
                 sim_thread_state_t* curr_tstate = get_sim_tls(sim_threadid[coreID]);
                 lk_lock(&curr_tstate->lock, 1);
                 is_stopped &= curr_tstate->sim_stopped;
@@ -1287,14 +1287,14 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
         }
         break;
 
-    /* Present ourself as if we have num_threads cores */
+    /* Present ourself as if we have num_cores cores */
 /*    case __NR_sysconf:
 #ifdef ZESTO_PIN_DBG
         cerr << "Syscall sysconf (" << dec << syscall_num << ") ret" << endl;
 #endif
         if (tstate->last_syscall_arg1 == _SC_NPROCESSORS_ONLN)
             if ((INT32)retval != - 1) {
-                PIN_SetContextReg(ictxt, REG_EAX, num_threads);
+                PIN_SetContextReg(ictxt, REG_EAX, num_cores);
                 PIN_ExecuteAt(ictxt);
             }
         break;*/
@@ -1435,7 +1435,7 @@ INT32 main(INT32 argc, CHAR **argv)
     Zesto_SlaveInit(ssargs.first, ssargs.second);
 
     host_cpus = get_nprocs_conf();
-    if(host_cpus < num_threads * 2) {
+    if(host_cpus < num_cores * 2) {
       cerr << "Turning on thread sleeping optimization" << endl;
       sleeping_enabled = true;
     }
@@ -1446,9 +1446,9 @@ INT32 main(INT32 argc, CHAR **argv)
     //enable_producers();
     //disable_consumers();
 
-    InitScheduler(num_threads);
+    InitScheduler(num_cores);
 
-    SpawnSimulatorThreads(num_threads);
+    SpawnSimulatorThreads(num_cores);
 
     PIN_StartProgram();
 

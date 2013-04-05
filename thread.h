@@ -56,7 +56,7 @@ struct thread_t {
 
 /* architected state for each simulated thread/process */
 extern struct thread_t ** threads;
-extern int num_threads;
+extern int num_cores;
 extern bool multi_threaded;
 extern int simulated_processes_remaining;
 

@@ -130,7 +130,7 @@ sim_reg_options(struct opt_odb_t *odb)
       &trace_limit, /* default */0, /* print */true, /* format */NULL);
 
   opt_reg_int(odb, "-cores", "number of cores (if > 1, must provide this many eio traces)",
-      &num_threads, /* default */1, /* print */true, /* format */NULL);
+      &num_cores, /* default */1, /* print */true, /* format */NULL);
   opt_reg_flag(odb, "-multi_threaded", "do cores share an address space",
       &multi_threaded, /*default */false, /*print */true, /*format*/NULL);
 
@@ -190,10 +190,10 @@ sim_check_options(struct opt_odb_t *odb, int argc, char **argv)
   if((max_uops || max_insts) && max_cycles)
     warn("instruction/uop limit and cycle limit defined; will exit on whichever occurs first");
 
-  if((num_threads < 1) || (num_threads > MAX_CORES))
+  if((num_cores < 1) || (num_cores > MAX_CORES))
     fatal("-cores must be between 1 and %d (inclusive)",MAX_CORES);
 
-  simulated_processes_remaining = num_threads;
+  simulated_processes_remaining = num_cores;
 
   uncore_create();
   dram_create();
@@ -225,7 +225,7 @@ cpu_reg_stats(struct core_t * core, struct stat_sdb_t *sdb)
   ld_reg_stats(core->current_thread,sdb);
 
   /* only print this out once at the very end */
-  if(core->current_thread->id == (num_threads-1))
+  if(core->current_thread->id == (num_cores-1))
   {
     uncore_reg_stats(sdb);
     mem_reg_stats(arch->mem, sdb);
@@ -242,7 +242,7 @@ sim_reg_stats(struct thread_t ** archs, struct stat_sdb_t *sdb)
   bool is_DPM = strcasecmp(knobs.model,"DPM") == 0;
 
   /* per core stats */
-  for(i=0;i<num_threads;i++)
+  for(i=0;i<num_cores;i++)
     cpu_reg_stats(cores[i],sdb);
 
   stat_reg_note(sdb,"\n#### SIMULATOR PERFORMANCE STATS ####");
@@ -251,7 +251,7 @@ sim_reg_stats(struct thread_t ** archs, struct stat_sdb_t *sdb)
   stat_reg_formula(sdb, true, "sim_cycle_rate", "simulation speed (in Mcycles/sec)", "sim_cycle / (sim_elapsed_time * 1000000.0)", NULL);
   /* Make formula to add num_insn from all archs */
   strcpy(buf2,"");
-  for(i=0;i<num_threads;i++)
+  for(i=0;i<num_cores;i++)
   {
     if(i==0)
       sprintf(buf,"c%d.commit_insn",i);
@@ -265,7 +265,7 @@ sim_reg_stats(struct thread_t ** archs, struct stat_sdb_t *sdb)
 
   /* Make formula to add num_uops from all archs */
   strcpy(buf2,"");
-  for(i=0;i<num_threads;i++)
+  for(i=0;i<num_cores;i++)
   {
     if(i==0)
       sprintf(buf,"c%d.commit_uops",i);
@@ -281,7 +281,7 @@ sim_reg_stats(struct thread_t ** archs, struct stat_sdb_t *sdb)
   if(is_DPM)
   {
     strcpy(buf2,"");
-    for(i=0;i<num_threads;i++)
+    for(i=0;i<num_cores;i++)
     {
       if(i==0)
         sprintf(buf,"c%d.commit_eff_uops",i);
@@ -294,7 +294,7 @@ sim_reg_stats(struct thread_t ** archs, struct stat_sdb_t *sdb)
     stat_reg_formula(sdb, true, "sim_eff_uop_rate", "simulation speed (in MeuPS)", "all_eff_uops / (sim_elapsed_time * 1000000.0)", NULL);
   }
 
-  if(num_threads == 1) /* single-thread */
+  if(num_cores == 1) /* single-thread */
   {
     sprintf(buf,"c0.commit_IPC");
     stat_reg_formula(sdb, true, "total_IPC", "final commit IPC", buf, NULL);
@@ -306,10 +306,10 @@ sim_reg_stats(struct thread_t ** archs, struct stat_sdb_t *sdb)
        the same number of total instructions.  If you use -max:uops, then
        HM_uPC makes sense. */
     strcpy(buf2,"");
-    for(i=0;i<num_threads;i++)
+    for(i=0;i<num_cores;i++)
     {
       if(i==0)
-        sprintf(buf,"%d.0 / ( (1.0/c%d.commit_IPC)",num_threads,i);
+        sprintf(buf,"%d.0 / ( (1.0/c%d.commit_IPC)",num_cores,i);
       else
         sprintf(buf," + (1.0/c%d.commit_IPC)",i);
 
@@ -320,10 +320,10 @@ sim_reg_stats(struct thread_t ** archs, struct stat_sdb_t *sdb)
     stat_reg_formula(sdb, true, "HM_IPC", "harmonic mean IPC across all cores", buf2, NULL);
 
     strcpy(buf2,"");
-    for(i=0;i<num_threads;i++)
+    for(i=0;i<num_cores;i++)
     {
       if(i==0)
-        sprintf(buf,"%d.0 / ( (1.0/c%d.commit_uPC)",num_threads,i);
+        sprintf(buf,"%d.0 / ( (1.0/c%d.commit_uPC)",num_cores,i);
       else
         sprintf(buf," + (1.0/c%d.commit_uPC)",i);
 
@@ -336,10 +336,10 @@ sim_reg_stats(struct thread_t ** archs, struct stat_sdb_t *sdb)
     if(is_DPM)
     {
       strcpy(buf2,"");
-      for(i=0;i<num_threads;i++)
+      for(i=0;i<num_cores;i++)
       {
         if(i==0)
-          sprintf(buf,"%d.0 / ( (1.0/c%d.commit_euPC)",num_threads,i);
+          sprintf(buf,"%d.0 / ( (1.0/c%d.commit_euPC)",num_cores,i);
         else
           sprintf(buf," + (1.0/c%d.commit_euPC)",i);
 
@@ -352,7 +352,7 @@ sim_reg_stats(struct thread_t ** archs, struct stat_sdb_t *sdb)
 
     /* Geometric Means */
     strcpy(buf2,"^((");
-    for(i=0;i<num_threads;i++)
+    for(i=0;i<num_cores;i++)
     {
       if(i==0)
         sprintf(buf,"(!c%d.commit_IPC)",i);
@@ -361,12 +361,12 @@ sim_reg_stats(struct thread_t ** archs, struct stat_sdb_t *sdb)
 
       strcat(buf2,buf);
     }
-    sprintf(buf," )/%d.0)",num_threads);
+    sprintf(buf," )/%d.0)",num_cores);
     strcat(buf2,buf);
     stat_reg_formula(sdb, true, "GM_IPC", "geometric mean IPC across all cores", buf2, NULL);
 
     strcpy(buf2,"^((");
-    for(i=0;i<num_threads;i++)
+    for(i=0;i<num_cores;i++)
     {
       if(i==0)
         sprintf(buf,"(!c%d.commit_uPC)",i);
@@ -375,14 +375,14 @@ sim_reg_stats(struct thread_t ** archs, struct stat_sdb_t *sdb)
 
       strcat(buf2,buf);
     }
-    sprintf(buf," )/%d.0)",num_threads);
+    sprintf(buf," )/%d.0)",num_cores);
     strcat(buf2,buf);
     stat_reg_formula(sdb, true, "GM_uPC", "geometric mean uPC across all cores", buf2, NULL);
 
     if(is_DPM)
     {
       strcpy(buf2,"^((");
-      for(i=0;i<num_threads;i++)
+      for(i=0;i<num_cores;i++)
       {
         if(i==0)
           sprintf(buf,"(!c%d.commit_euPC)",i);
@@ -391,7 +391,7 @@ sim_reg_stats(struct thread_t ** archs, struct stat_sdb_t *sdb)
 
         strcat(buf2,buf);
       }
-      sprintf(buf," )/%d.0)",num_threads);
+      sprintf(buf," )/%d.0)",num_cores);
       strcat(buf2,buf);
       stat_reg_formula(sdb, true, "GM_euPC", "geometric mean euPC across all cores", buf2, NULL);
     }
@@ -400,7 +400,7 @@ sim_reg_stats(struct thread_t ** archs, struct stat_sdb_t *sdb)
        in each case, the denominators (cycles per benchmark) are different, and so
        the sum of the IPCs (or uPCs) has no physical meaning. */
     strcpy(buf2,"");
-    for(i=0;i<num_threads;i++)
+    for(i=0;i<num_cores;i++)
     {
       if(i==0)
         sprintf(buf,"c%d.commit_IPC",i);
@@ -412,7 +412,7 @@ sim_reg_stats(struct thread_t ** archs, struct stat_sdb_t *sdb)
     stat_reg_formula(sdb, true, "TP_IPC", "IPC ThroughPut for all cores (this is a nonsense metric: you can't add IPCs)", buf2, NULL);
 
     strcpy(buf2,"");
-    for(i=0;i<num_threads;i++)
+    for(i=0;i<num_cores;i++)
     {
       if(i==0)
         sprintf(buf,"c%d.commit_uPC",i);
@@ -426,7 +426,7 @@ sim_reg_stats(struct thread_t ** archs, struct stat_sdb_t *sdb)
     if(is_DPM)
     {
       strcpy(buf2,"");
-      for(i=0;i<num_threads;i++)
+      for(i=0;i<num_cores;i++)
       {
         if(i==0)
           sprintf(buf,"c%d.commit_euPC",i);

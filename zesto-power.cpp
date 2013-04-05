@@ -14,7 +14,7 @@
 class ParseXML *XML = NULL; //Interface to McPAT
 
 extern tick_t sim_cycle;
-extern int num_threads;
+extern int num_cores;
 
 double uncore_rtp;
 double *cores_rtp;
@@ -29,7 +29,7 @@ void init_power(void)
 
 
   /* Translate uncore params */
-  XML->sys.number_of_cores = num_threads;
+  XML->sys.number_of_cores = num_cores;
   XML->sys.number_of_L1Directories = 0;
   XML->sys.number_of_L2Directories = 0;
   XML->sys.number_of_NoCs = 0;
@@ -49,7 +49,7 @@ void init_power(void)
 
   int num_l2 = 0;
   bool has_hp_core = false;
-  for (int i=0; i<num_threads; i++)
+  for (int i=0; i<num_cores; i++)
   {
     // If any core has a private L2, we assume L3 is LLC
     if(cores[i]->memory.DL2)
@@ -122,12 +122,12 @@ void init_power(void)
   XML->sys.niu.number_units = 0;
   XML->sys.pcie.number_units = 0;
 
-  for (int i=0; i<num_threads; i++)
+  for (int i=0; i<num_cores; i++)
     cores[i]->power->translate_params(&XML->sys.core[i], &XML->sys.L2[i]);
 
   mcpat_initialize(XML, &cerr, 5);
 
-  cores_rtp = (double*)calloc(num_threads, sizeof(*cores_rtp));
+  cores_rtp = (double*)calloc(num_cores, sizeof(*cores_rtp));
   if (cores_rtp == NULL)
     fatal("couldn't allocate memory");
 
@@ -187,7 +187,7 @@ void compute_power(struct stat_sdb_t* sdb, bool print_power)
 {
   /* Get necessary simualtor stats */
   translate_uncore_stats(sdb, &XML->sys);
-  for(int i=0; i<num_threads; i++)
+  for(int i=0; i<num_cores; i++)
     cores[i]->power->translate_stats(sdb, &XML->sys.core[i], &XML->sys.L2[i]);
 
   /* Invoke mcpat */
@@ -196,7 +196,7 @@ void compute_power(struct stat_sdb_t* sdb, bool print_power)
   /* Print power trace */
   if (rtp_file)
   {
-    for(int i=0; i<num_threads; i++)
+    for(int i=0; i<num_cores; i++)
         fprintf(rtp_file, "%.4f ", cores_rtp[i]);
     fprintf(rtp_file, "%.4f\n", uncore_rtp);
   }
