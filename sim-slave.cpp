@@ -132,6 +132,7 @@ int num_cores = 1;
 bool multi_threaded = false;
 int simulated_processes_remaining = 1;
 
+/* global cycle counter */
 tick_t sim_cycle = 0;
 
 bool sim_slave_running = false;
@@ -371,154 +372,6 @@ bool sim_main_slave_fetch_insn(int coreID)
     return cores[coreID]->fetch->do_fetch();
 }
 
-void sim_main_slave_post_pin()
-{
-  int i;
-
-  for(i=0;i<num_cores;i++)
-  {
-    /* round-robin on which cache to process first so that one core
-       doesn't get continual priority over the others for L2 access */
-    cores[mod2m(start_pos+i,num_cores)]->fetch->pre_fetch();
-  }
-
-  /* this is done last so that prefetch requests have the lowest
-     priority when competing for queues, buffers, etc. */
-  prefetch_LLC(uncore);
-
-  for(i=0;i<num_cores;i++)
-  {
-    /* process prefetch requests in reverse order as L1/L2; i.e., whoever
-       got the lowest priority for L1/L2 processing gets highest priority
-       for prefetch processing */
-    prefetch_core_caches(cores[mod2m(start_pos+num_cores-i,num_cores)]);
-  }
-
-  /*******************/
-  /* occupancy stats */
-  /*******************/
-  for(i=0;i<num_cores;i++)
-  {
-    /* this avoids the need to guard each stat update below with "ZESTO_STAT()" */
-    if(!cores[i]->current_thread->active)
-      continue;
-
-    cores[i]->oracle->update_occupancy();
-    cores[i]->fetch->update_occupancy();
-    cores[i]->decode->update_occupancy();
-    cores[i]->exec->update_occupancy();
-    cores[i]->commit->update_occupancy();
-  }
-
-  /* check to see if all cores are "ok" */
-  for(i=0;i<num_cores;i++)
-  {
-    if(cores[i]->oracle->hosed)
-      fatal("Core %d got hosed, quitting."); 
-  }
-
-  start_pos = modinc(start_pos,num_cores);
-
-  if((heartbeat_frequency > 0) && (heartbeat_count >= heartbeat_frequency))
-  {
-    long long int sum = 0;
-    lk_lock(&printing_lock, 1);
-    fprintf(stderr,"##HEARTBEAT## %lld: {",sim_cycle);
-    for(i=0;i<num_cores;i++)
-    {
-      sum += cores[i]->stat.commit_insn;
-      if(i < (num_cores-1))
-        myfprintf(stderr,"%lld, ",cores[i]->stat.commit_insn);
-      else
-        myfprintf(stderr,"%lld, all=%lld}\n",cores[i]->stat.commit_insn, sum);
-    }
-    fflush(stderr);
-    lk_unlock(&printing_lock);
-    heartbeat_count = 0;
-  }
-}
-
-void sim_main_slave_pre_pin()
-{
-  int i;
-
-  ZPIN_TRACE("###Cycle%s\n"," ");
-
-  if(sim_cycle == 0)
-    myfprintf(stderr, "### starting timing simulation \n");
-
-  sim_cycle++;
-  heartbeat_count++;
-  for(i=0;i<num_cores;i++)
-    if(cores[i]->current_thread->active)
-      cores[i]->stat.final_sim_cycle = sim_cycle;
-
-  /* power computation */
-  if(knobs.power.compute && (knobs.power.rtp_interval > 0) && 
-     (sim_cycle % knobs.power.rtp_interval == 0))
-  {
-    stat_save_stats_delta(rtp_sdb);   // Store delta values for translation
-    compute_power(rtp_sdb, false);
-    stat_save_stats(rtp_sdb);         // Create new checkpoint for next delta
-  }
-
-  /*********************************************/
-  /* step through pipe stages in reverse order */
-  /*********************************************/
-
-  dram->refresh();
-  uncore->MC->step();
-
-  step_LLC_PF_controller(uncore);
-
-  for(i=0;i<num_cores;i++)
-    step_core_PF_controllers(cores[i]);
-
-  for(i=0;i<num_cores;i++)
-    cores[i]->commit->IO_step(); /* IO cores only */ //UGLY UGLY UGLY
-
-  /* all memory processed here */
-  for(i=0;i<num_cores;i++)
-  {
-    /* round-robin on which cache to process first so that one core
-       doesn't get continual priority over the others for L2 access */
-    cores[mod2m(start_pos+i,num_cores)]->exec->LDST_exec();
-  }
-
-  for(i=0;i<num_cores;i++)
-    cores[i]->commit->step();  /* OoO cores only */
-
-  for(i=0;i<num_cores;i++)
-    cores[i]->commit->pre_commit_step(); /* IO cores only */
-
-  for(i=0;i<num_cores;i++)
-  {
-    cores[i]->exec->step();     /* IO cores only */
-    cores[i]->exec->ALU_exec(); /* OoO cores only */
-  }
-
-  for(i=0;i<num_cores;i++)
-    cores[i]->exec->LDQ_schedule();
-  
-  for(i=0;i<num_cores;i++)
-    cores[i]->exec->RS_schedule();  /* OoO cores only */
-
-  for(i=0;i<num_cores;i++)
-    cores[i]->alloc->step();
-
-  for(i=0;i<num_cores;i++)
-    cores[i]->decode->step();
-
-  for(i=0;i<num_cores;i++)
-  {
-    /* round-robin on which cache to process first so that one core
-       doesn't get continual priority over the others for L2 access */
-    cores[mod2m(start_pos+i,num_cores)]->fetch->post_fetch();
-  }
-
-}
-
-
 static void global_step(void)
 {
     if((heartbeat_frequency > 0) && (heartbeat_count >= heartbeat_frequency))
@@ -739,13 +592,3 @@ void sim_main_slave_post_pin(int coreID)
   if(cores[coreID]->oracle->hosed)
     fatal("Core %d got hosed, quitting."); 
 }
-
-/*void sim_main_slave_step()
-{
-   sim_main_slave_post_pin();
- 
-   while(sim_main_slave_fetch_insn());
-
-   sim_main_slave_pre_pin();
-}*/
-
