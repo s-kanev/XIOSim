@@ -1,8 +1,9 @@
 Universe        = vanilla
-Requirements    = (OpSys == "LINUX") && (Arch == "X86_64") && (Memory >= 4000)
+Requirements    = (OpSys == "LINUX") && (Arch == "X86_64")
 Notification    = Always
 #Notify_User     = skanev@eecs.harvard.edu
 Coresize        = 0
+request_cpus    = 2
 GetEnv          = False
 
 Pin             = /home/skanev/pin/2.12/pin.sh
@@ -10,7 +11,7 @@ PinTool         = /home/skanev/feeder_zesto.so
 
 ExperimentDir   = /group/brooks/skanev/data_test
 Executable      = /usr/bin/env
-Prefix          = -i setarch i686 -3BL $(Pin) -pause_tool 1 -injection child -xyzzy -pipeline_instrumentation -t $(PinTool)
+Prefix          = -i LD_LIBRARY_PATH=/home/skanev/lib setarch i686 -3BL $(Pin) -pause_tool 1 -injection child -xyzzy -t $(PinTool) -pipeline_instrumentation
 MemCFG          = /home/skanev/zesto/dram-config/DDR3-1600-9-9-9.cfg
 ZestoCFG        = /home/skanev/zesto/config/A.cfg -config $(MemCFG)
 

@@ -2,11 +2,11 @@
 import os.path
 
 #Configuration params
-specDir = '/home/skanev/cpu2006/benchspec/CPU2006'
+specDir = '/group/brooks/skanev/cpu2006/benchspec/CPU2006'
 specExt = 'O3gcc4static241'
 specInput = 'ref'
 specTune = 'base'
-specRunID = '0002'
+specRunID = '0000'
 
 def GetDir(bmk):
     return os.path.join(specDir, bmk, 'run', 'run_%s_%s_%s.%s' % (specTune, specInput, specExt, specRunID))
@@ -112,3 +112,11 @@ runs = (
 
 #        BenchmarkRun('999.specrand', 'specrand', '1255432124 234923', '', 'rand.234923.out', 'rand.234923.err', 'rand.234923')
        )
+
+def GetRun(name):
+    res = None
+    for curr_run in runs:
+        if curr_run.name == name:
+            res = curr_run
+            break
+    return res

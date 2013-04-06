@@ -1,7 +1,8 @@
 #! /usr/bin/python
-import shlex, subprocess
 import os.path
 import re
+
+from xiosim_driver import *
 
 ILDJIT_HOME="/group/brooks/xan/Molecool/ildjit"
 PIN_HOME="/home/skanev/pin/pin-2.10-45467-gcc.3.4.6-ia32_intel64-linux"
@@ -26,75 +27,15 @@ MEMCFG="%s/feeder_zesto/dram-config/DDR2-800-5-5-5.cfg" % PROJROOT
 
 #rm ./test.cil_*
 
-class XIOSimDriver(object):
-    def __init__(self):
-        self.cmd = ""
-
-    def AddCleanArch(self):
-        self.cmd += "/usr/bin/setarch i686 -3BL "
-
-    def AddEnvironment(self, env):
-        self.cmd += "/usr/bin/env -i " + env + " "
-
-    def AddPinOptions(self):
-        self.cmd += PIN + " "
-#        self.cmd += "-xyzzy -profile 1 -statistic 1 -profile_period 10000 "
-#        self.cmd += "-mesgon stats -mesgon phase "
-#        self.cmd += "-xyzzy -ctxt_fp 0 "
-        self.cmd += "-xyzzy -allow_AVX_support 0 "
-        self.cmd += "-separate_memory -pause_tool 1 -t "
-        self.cmd += PINTOOL + " "
-
-    def AddMolecoolOptions(self):
-        self.cmd += "-ildjit -pipeline_instrumentation "
-
-    def AddZestoOptions(self, cfg, mem_cfg):
-        self.cmd += "-s "
-        self.cmd += "-config " + cfg + " "
-        self.cmd += "-config " + mem_cfg + " "
-
-    def AddZestoOut(self, ofile):
-        self.cmd += "-redir:sim " + ofile + " "
-
-    def AddZestoHeartbeat(self, ncycles):
-        self.cmd += "-heartbeat " + str(ncycles) + " "
-
-    def AddZestoCores(self, ncores):
-        self.cmd += "-cores " + str(ncores) + " "
-
-    def AddILDJITOptions(self):
-        self.cmd += "-- iljit --static -O3 -M -N -R -T "
-
-    def AddApp(self, program, args):
-        self.cmd += program + " " + args
-
-    def Exec(self):
-        # Clean ILDJIT temp files
-        app = os.path.basename(PROGRAM)
-        cwd_files = os.listdir(".")
-        for file in cwd_files:
-            if re.match(app + "_.*", file):
-                delcmd = "rm " + file
-                child = subprocess.Popen(shlex.split(delcmd))
-                child.wait()
-
-        print self.cmd
-        child = subprocess.Popen(shlex.split(self.cmd), close_fds=True)
-        retcode = child.wait()
-
-        if retcode == 0:
-            print "Completed"
-        else:
-            print "Failed! Error code: %d" % retcode
-
 def RunScalingTest():
 #    for ncores in [1, 2, 4, 8, 16]:
     for ncores in [16]:
-        xios = XIOSimDriver()
+        xios = XIOSimDriver(PIN, PINTOOL)
         xios.AddCleanArch()
         env = ENVIRONMENT + "PARALLELIZER_THREADS=%d " % ncores
         xios.AddEnvironment(env)
         xios.AddPinOptions()
+        xios.AddPintoolOptions()
         xios.AddMolecoolOptions()
         xios.AddZestoOptions(ZESTOCFG, MEMCFG)
         xios.AddZestoOut("%d.out" % ncores)
