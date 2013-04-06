@@ -9,16 +9,16 @@ set PROGRAM = ../tests/fib
 #set PINHOME = /home/skanev/pin/pin-2.10-45467-gcc.3.4.6-ia32_intel64-linux
 #set PIN = "$PINHOME/ia32/bin/pinbin"
 set PINHOME = /home/skanev/pin/2.12
-set PIN = "$PINHOME/pin"
+set PIN = "$PINHOME/pin.sh"
 set PINTOOL = ./obj-ia32/feeder_zesto.so
-set ZESTOCFG = ../config/A.cfg
-set MEMCFG = ../dram-config/DDR2-800-5-5-5.cfg
-#set ZESTOCFG = ../config/N.cfg
-#set MEMCFG = ../dram-config/DDR3-1600-9-9-9.cfg
+#set ZESTOCFG = ../config/A.cfg
+#set MEMCFG = ../dram-config/DDR2-800-5-5-5.cfg
+set ZESTOCFG = ../config/N.cfg
+set MEMCFG = ../dram-config/DDR3-1600-9-9-9.cfg
 set MAX = 1000000
 #set MAX = -1
 
-setenv LD_LIBRARY_PATH "$PINHOME/ia32/runtime"
+setenv LD_LIBRARY_PATH "/home/skanev/lib"
 
 set CMD_LINE = "setarch i686 -3BL $PIN -pause_tool 1 -injection child -xyzzy -t $PINTOOL -sanity -pipeline_instrumentation -s -config $ZESTOCFG -config $MEMCFG -redir:sim tst.out -- $PROGRAM"
 echo $CMD_LINE
