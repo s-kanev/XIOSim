@@ -399,8 +399,7 @@ static void global_step(void)
       myfprintf(stderr, "### starting timing simulation \n");
 
     uncore->sim_cycle++;
-    uncore->total_sim_time += 1e-3 / LLC_speed;
-    uncore->default_cpu_cycles = (tick_t)ceil(uncore->total_sim_time * 1e3 * knobs.default_cpu_speed);
+    uncore->default_cpu_cycles = (tick_t)ceil(uncore->sim_cycle * knobs.default_cpu_speed / LLC_speed);
 
     heartbeat_count++;
 

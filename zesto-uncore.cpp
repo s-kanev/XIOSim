@@ -131,8 +131,7 @@ uncore_t::uncore_t(
     const double arg_fsb_speed,
     const char * MC_opt_string)
 : fsb_speed(arg_fsb_speed),
-  fsb_DDR(arg_fsb_DDR),
-  total_sim_time(0.0)
+  fsb_DDR(arg_fsb_DDR)
 {
   /* temp variables for option-string parsing */
   char name[256];

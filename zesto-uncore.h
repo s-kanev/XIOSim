@@ -87,8 +87,7 @@ class uncore_t
   public:
   /* uncore clock (MHz) */
   tick_t sim_cycle;
-  /* global simulated time (ns) */
-  double total_sim_time;
+  /* cycle count scaled to default frequency */
   tick_t default_cpu_cycles;
 
   /* Front-side bus options */

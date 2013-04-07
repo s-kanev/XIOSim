@@ -9,8 +9,6 @@
 #include <stdint.h>
 #include <../DRAMSim2/DRAMSim.h>
 
-extern double LLC_speed;
-
 #ifdef MC_PARSE_ARGS
 if(!strcasecmp("dramsim",type))
 {
@@ -32,6 +30,8 @@ if(!strcasecmp("dramsim",type))
 #else
 
 using namespace DRAMSim;
+
+extern double LLC_speed;
 
 class MC_dramsim_t:public MC_t
 {
