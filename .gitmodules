@@ -1,6 +1,6 @@
 [submodule "DRAMSim2"]
     path = DRAMSim2
-    url = git@github.com:s-kanev/DRAMSim2.git
+    url = https://github.com/s-kanev/DRAMSim2.git
     update = merge
     fetchRecurseSubmodules = true
 [submodule "mem-repeater"]
