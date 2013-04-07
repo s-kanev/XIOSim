@@ -267,6 +267,8 @@ uncore_reg_options(struct opt_odb_t * const odb)
       &knobs.default_cpu_speed, /*default*/4000.0,/*print*/true,/*format*/NULL); 
   opt_reg_string(odb, "-MC", "memory controller configuration string [DS]",
       &MC_opt_string,/*default */"simple:4:1",/*print*/true,/*format*/NULL);
+  opt_reg_int(odb, "-scheduler:tick", "scheduler reshuffle interval in CPU cycles",
+      &knobs.scheduler_tick, /* default */0, /* print */true, /* format */NULL);
 }
 
 /* register all of the stats */

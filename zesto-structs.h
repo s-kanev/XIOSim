@@ -442,9 +442,11 @@ struct core_knobs_t
     int rtp_interval;
     const char * rtp_filename;
   } power;
+
+  int scheduler_tick;
 };
 
 extern struct core_t ** cores;
-
+extern struct core_knobs_t knobs;
 
 #endif /* ZESTO_STRUCTS_INCLUDED */

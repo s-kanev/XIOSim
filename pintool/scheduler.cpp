@@ -12,6 +12,7 @@
 #include "scheduler.h"
 
 #include "../zesto-core.h"
+#include "../zesto-structs.h"
 
 struct RunQueue {
     RunQueue() {
@@ -174,5 +175,5 @@ BOOL IsCoreBusy(INT32 coreID)
 BOOL NeedsReschedule(INT32 coreID)
 {
     tick_t since_schedule = cores[coreID]->sim_cycle - run_queues[coreID].last_reschedule;
-    return (since_schedule > 1600000);
+    return (knobs.scheduler_tick > 0) && (since_schedule > knobs.scheduler_tick);
 }
