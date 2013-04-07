@@ -99,7 +99,7 @@ MC_t * MC_from_string(char * opt_string);
 static int fsb_width;    /* in bytes */
 static bool fsb_DDR;     /* true if DDR */
 static double fsb_speed; /* in MHz */
-static double LLC_speed; /* in MHz */
+double LLC_speed; /* in MHz */
 bool fsb_magic; /* ideal FSB flag */
 bool cache_magic; /* ideal cache flag */
 static const char * MC_opt_string = NULL;

@@ -170,7 +170,7 @@ conflict_exists - oracle answer for whether it's safe for the load to exec
 /* argument parsing                                   */
 /*====================================================*/
 class memdep_t *
-memdep_create(const char * const opt_string, const struct core_t * core)
+memdep_create(const struct core_t * core, const char * const opt_string)
 {
   char name[256];
   char type[256];
