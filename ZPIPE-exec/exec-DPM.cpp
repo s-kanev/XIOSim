@@ -363,6 +363,11 @@ core_exec_DPM_t::core_exec_DPM_t(struct core_t * const arg_core):
   core->memory.DL1->PF_high_watermark = knobs->memory.DL1_high_watermark;
   core->memory.DL1->PF_sample_interval = knobs->memory.DL1_WMinterval;
 
+  core->memory.DL1->controller = controller_create(knobs->memory.DL1_controller_opt_str, core, core->memory.DL1);
+  if(core->memory.DL2 != NULL)
+    core->memory.DL2->controller = controller_create(knobs->memory.DL2_controller_opt_str, core, core->memory.DL2);
+
+
   /* DTLBs */
 
   /* DTLB2 */
@@ -401,6 +406,10 @@ core_exec_DPM_t::core_exec_DPM_t(struct core_t * const arg_core):
     core->memory.DTLB = cache_create(core,name,CACHE_READONLY,sets,assoc,1,rp,'w','t','n',banks,1,latency,MSHR_entries,4,1,uncore->LLC,uncore->LLC_bus);
     core->memory.DTLB->MSHR_cmd_order = NULL;
   }
+
+  core->memory.DTLB->controller = controller_create(knobs->memory.DTLB_controller_opt_str, core, core->memory.DTLB);
+  if(core->memory.DTLB2 != NULL)
+    core->memory.DTLB2->controller = controller_create(knobs->memory.DTLB2_controller_opt_str, core, core->memory.DTLB2);
 
 
   /************************************/
@@ -489,6 +498,11 @@ core_exec_DPM_t::core_exec_DPM_t(struct core_t * const arg_core):
 
 
   memdep = memdep_create(core, knobs->exec.memdep_opt_str);
+
+  if (core->memory.DL2)
+    core->memory.mem_repeater = repeater_create(core->knobs->exec.repeater_opt_str, core, "MR1", core->memory.DL2);
+  else
+    core->memory.mem_repeater = repeater_create(core->knobs->exec.repeater_opt_str, core, "MR1", core->memory.DL1);
 
   check_for_work = true;
 }

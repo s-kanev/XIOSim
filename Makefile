@@ -88,6 +88,7 @@ default: lib
 lib:	sim-slave.$(OEXT) $(OBJS) $(ZOBJS)
 	ar rs libsim.a sim-slave.$(OEXT) $(OBJS) $(ZOBJS)
 	ranlib libsim.a
+libd: CFLAGS += -DZTRACE -DZESTO_PIN_DBG
 libd:	sim-slave.$(OEXT) $(OBJS) $(ZOBJS)
 	ar rs libsim.a sim-slave.$(OEXT) $(OBJS) $(ZOBJS)
 	ranlib libsim.a
