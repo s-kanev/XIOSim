@@ -9,6 +9,8 @@
 #include <stdint.h>
 #include <../DRAMSim2/DRAMSim.h>
 
+extern double LLC_speed;
+
 #ifdef MC_PARSE_ARGS
 if(!strcasecmp("dramsim",type))
 {
@@ -106,7 +108,7 @@ class MC_dramsim_t:public MC_t
     accumulatedNs = 0;
 
     nextMemUpdate = memPeriodNs;
-    uncorePeriodNs = 1.0 / (uncore->cpu_speed / (1e3));
+    uncorePeriodNs = 1.0 / (LLC_speed / (1e3));
     assert(memPeriodNs >= uncorePeriodNs);
     std::cerr << "Memperiod is about ns: " << memPeriodNs << std::endl;
 
@@ -122,8 +124,8 @@ class MC_dramsim_t:public MC_t
     //DDR3_micron_16M_8B_x8_sg15.ini
     mem->RegisterCallbacks(read_cb, write_cb, NULL);
 
-    uint64_t cpuClkFreqHz = (uint64_t)(uncore->cpu_speed * (1e6));
-    mem->setCPUClockSpeed(cpuClkFreqHz);
+    uint64_t uncoreClkFreqHz = (uint64_t)(LLC_speed * (1e6));
+    mem->setCPUClockSpeed(uncoreClkFreqHz);
   }
 
   MC_ENQUEUABLE_HEADER
