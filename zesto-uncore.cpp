@@ -144,7 +144,7 @@ uncore_t::uncore_t(
   fsb_bits = log_base2(fsb_width);
   int llc_ratio = (int)ceil(LLC_speed/fsb_speed);
 
-  fsb = bus_create("FSB", fsb_width, &uncore->sim_cycle, llc_ratio);
+  fsb = bus_create("FSB", fsb_width, &this->sim_cycle, llc_ratio);
   MC = MC_from_string(MC_opt_string);
 
   /* Shared LLC */
@@ -206,7 +206,7 @@ uncore_t::uncore_t(
   if(LLC->prefetcher[0] == NULL)
     LLC->num_prefetchers = LLC_num_PF = 0;
 
-  LLC_bus = bus_create("LLC_bus", LLC->linesize*LLC->banks, &uncore->sim_cycle, 1);
+  LLC_bus = bus_create("LLC_bus", LLC->linesize*LLC->banks, &this->sim_cycle, 1);
   LLC->controller = controller_create(LLC_controller_str, NULL, LLC);
 }
 
