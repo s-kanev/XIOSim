@@ -325,6 +325,7 @@ struct core_knobs_t
 {
   const char * model;
   double default_cpu_speed; /* in MHz */
+  const char * dvfs_opt_str;
 
   struct {
     int byteQ_size;

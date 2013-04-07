@@ -178,6 +178,10 @@ sim_reg_options(struct opt_odb_t *odb)
   uncore_reg_options(odb);
   dram_reg_options(odb);
   repeater_reg_options(odb);
+
+  opt_reg_string(odb, "-dvfs", "dvfs controller configuration string",
+      &knobs.dvfs_opt_str, /* default */"none", /* print */true, /* format */NULL);
+
 }
 
 /* check simulator-specific option values */

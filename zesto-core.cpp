@@ -82,11 +82,12 @@ seq_t core_t::global_seq = 0;
 
 /* CONSTRUCTOR */
 core_t::core_t(const int core_id):
-  knobs(NULL), current_thread(NULL), id(core_id),
+  knobs(NULL), current_thread(NULL), id(core_id), ns_passed(0.0), 
   num_emergency_recoveries(0), last_emergency_recovery_count(0),
   oracle(NULL), fetch(NULL), decode(NULL), alloc(NULL),
-  exec(NULL), commit(NULL), global_action_id(0),
-  num_signals_in_pipe(0)
+  exec(NULL), commit(NULL), num_signals_in_pipe(0),
+  global_action_id(0)
+  
 {
   memzero(&memory,sizeof(memory));
   memzero(&stat,sizeof(stat));

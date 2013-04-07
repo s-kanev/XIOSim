@@ -132,7 +132,6 @@ uncore_t::uncore_t(
     const char * MC_opt_string)
 : fsb_speed(arg_fsb_speed),
   fsb_DDR(arg_fsb_DDR),
-  sim_cycle(0),
   total_sim_time(0.0)
 {
   /* temp variables for option-string parsing */
@@ -274,6 +273,8 @@ uncore_reg_options(struct opt_odb_t * const odb)
 void uncore_reg_stats(struct stat_sdb_t * const sdb)
 {
   stat_reg_note(sdb,"\n#### LAST-LEVEL CACHE STATS ####");
+  stat_reg_counter(sdb, true, "uncore.sim_cycle", "number of uncore cycles simulated", &uncore->sim_cycle, 0, TRUE, NULL);
+
   LLC_reg_stats(sdb, uncore->LLC);
   bus_reg_stats(sdb, NULL, uncore->LLC_bus);
 

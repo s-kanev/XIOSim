@@ -211,6 +211,8 @@ class core_t {
     class repeater_t * mem_repeater;
   } memory;
 
+  class vf_controller_t * vf_controller;
+
   /**********************/
   /* VARIOUS STATISTICS */
   /**********************/

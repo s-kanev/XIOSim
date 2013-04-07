@@ -108,6 +108,7 @@
 #include "zesto-uncore.h"
 #include "zesto-MC.h"
 #include "zesto-power.h"
+#include "zesto-dvfs.h"
 
 #include "interface.h"
 #include "synchronization.h"
@@ -339,6 +340,7 @@ sim_post_init(void)
     cores[i]->decode  = decode_create(knobs.model,cores[i]);
     cores[i]->fetch  = fetch_create(knobs.model,cores[i]);
     cores[i]->power = power_create(knobs.model,cores[i]);
+    cores[i]->vf_controller = vf_controller_create(knobs.dvfs_opt_str,cores[i]);
   }
 
   min_coreID = 0;
@@ -432,6 +434,8 @@ void sim_main_slave_pre_pin(int coreID)
     cores[coreID]->sim_cycle++;
 
     cores[coreID]->ns_passed += 1e-3 / cores[coreID]->cpu_speed;
+
+    fprintf(stderr, "%.3f %.3f\n", cores[coreID]->ns_passed * 1e9, (1e6 / LLC_speed));
   }
 
   /* Time to sync with uncore */
