@@ -269,7 +269,7 @@ uncore_reg_options(struct opt_odb_t * const odb)
       &fsb_DDR, /* default */false, /* print */true, /* format */NULL);
   opt_reg_double(odb, "-fsb:speed", "front-side bus speed in MHz [DS]",
       &fsb_speed, /*default*/100.0,/*print*/true,/*format*/NULL);
-  opt_reg_flag(odb, "-fsb:magic", "Unlimited, 0-latency FSB",
+  opt_reg_flag(odb, "-fsb:magic", "Unlimited bandwidth FSB",
       &fsb_magic, /*default*/false, /*print*/true,/*format*/NULL);
   opt_reg_flag(odb, "-cache:magic", "All caches always hit",
       &cache_magic, /*default*/false, /*print*/true,/*format*/NULL);
