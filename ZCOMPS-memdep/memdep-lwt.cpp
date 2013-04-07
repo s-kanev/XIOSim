@@ -12,7 +12,7 @@ if(!strcasecmp(COMPONENT_NAME,type))
            
   if(sscanf(opt_string,"%*[^:]:%[^:]:%d:%d",name,&num_entries,&reset_interval) != 3)
     fatal("bad memdep options string %s (should be \"lwt:name:num_entries:reset_interval\")",opt_string);
-  return new memdep_lwt_t(name,num_entries,reset_interval);
+  return new memdep_lwt_t(core,name,num_entries,reset_interval);
 }
 #else
 
@@ -26,10 +26,11 @@ class memdep_lwt_t:public memdep_t
   int mask;
 
   public:
-  memdep_lwt_t(char * arg_name,
+  memdep_lwt_t(const struct core_t * _core,
+               char * arg_name,
                int arg_num_entries,
                int arg_reset_interval
-              )
+              ) : memdep_t(_core)
   {
     init();
 
@@ -70,10 +71,10 @@ class memdep_lwt_t:public memdep_t
 
     MEMDEP_STAT(lookups++;)
 
-    if((sim_cycle - last_reset) >= reset_interval)
+    if((core->sim_cycle - last_reset) >= reset_interval)
     {
       memset(array,0,num_entries*sizeof(*array));
-      last_reset = sim_cycle - (sim_cycle % reset_interval);
+      last_reset = core->sim_cycle - (core->sim_cycle % reset_interval);
     }
 
     if(array[index]) /* predict wait */
@@ -87,10 +88,10 @@ class memdep_lwt_t:public memdep_t
   {
     MEMDEP_STAT(updates++;)
 
-    if((sim_cycle - last_reset) >= reset_interval)
+    if((core->sim_cycle - last_reset) >= reset_interval)
     {
       memset(array,0,num_entries*sizeof(*array));
-      last_reset = sim_cycle - (sim_cycle % reset_interval);
+      last_reset = core->sim_cycle - (core->sim_cycle % reset_interval);
     }
 
     int index = PC&mask;

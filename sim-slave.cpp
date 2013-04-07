@@ -118,6 +118,8 @@ extern int heartbeat_count;
 /* power stats database */
 extern struct stat_sdb_t *rtp_sdb;
 
+extern double LLC_speed;
+
 /* architected state */
 struct thread_t ** threads = NULL;
 
@@ -131,9 +133,6 @@ struct core_knobs_t knobs;
 int num_cores = 1;
 bool multi_threaded = false;
 int simulated_processes_remaining = 1;
-
-/* global cycle counter */
-tick_t sim_cycle = 0;
 
 bool sim_slave_running = false;
 
@@ -377,7 +376,7 @@ static void global_step(void)
     if((heartbeat_frequency > 0) && (heartbeat_count >= heartbeat_frequency))
     {
       lk_lock(&printing_lock, 1);
-      fprintf(stderr,"##HEARTBEAT## %lld: {",sim_cycle);
+      fprintf(stderr,"##HEARTBEAT## %lld: {",uncore->sim_cycle);
       long long int sum = 0;
       for(int i=0;i<num_cores;i++)
       {
@@ -392,16 +391,16 @@ static void global_step(void)
       heartbeat_count = 0;
     }
 
-    ZPIN_TRACE("###Cycle%s\n"," ");
+    ZPIN_TRACE("###Uncore cycle%s\n"," ");
 
-    if(sim_cycle == 0)
+    if(uncore->sim_cycle == 0)
       myfprintf(stderr, "### starting timing simulation \n");
 
-    sim_cycle++;
+    uncore->sim_cycle++;
+    uncore->total_sim_time += 1e-3 / LLC_speed;
+    uncore->default_cpu_cycles = (tick_t)ceil(uncore->total_sim_time * 1e3 * knobs.default_cpu_speed);
+
     heartbeat_count++;
-    for(int i=0;i<num_cores;i++)
-      if(cores[i]->current_thread->active)
-        cores[i]->stat.final_sim_cycle = sim_cycle;
 
     /*********************************************/
     /* step through pipe stages in reverse order */
@@ -412,6 +411,11 @@ static void global_step(void)
 
     step_LLC_PF_controller(uncore);
 
+    cache_process(uncore->LLC);
+
+    // XXX: This is currently slower than the design target.
+    // We need to split the repeater network and nodes on different
+    // clocks too
     for(int i=0;i<num_cores;i++)
       if(cores[i]->memory.mem_repeater)
         cores[i]->memory.mem_repeater->step();
@@ -419,110 +423,103 @@ static void global_step(void)
 
 void sim_main_slave_pre_pin(int coreID)
 {
-  int i;
   volatile int cores_finished_cycle = 0;
   volatile int cores_active = 0;
 
-  if(cores[coreID]->current_thread->active)
-    cores[coreID]->stat.final_sim_cycle = sim_cycle;
+  if(cores[coreID]->current_thread->active) {
+    cores[coreID]->stat.final_sim_cycle = cores[coreID]->sim_cycle;
+    // Finally time to step local cycle counter
+    cores[coreID]->sim_cycle++;
 
-  /* Thread is joining in serial region. Mark it as finished this cycle */
-  /* Spin if serial region stil hasn't finished
-   * XXX: SK: Is this just me being paranoid? After all, serial region
-   * updates finished_cycle atomically for all threads and none can
-   * race through to here before that update is finished.
-   */
-  lk_lock(&cycle_lock, coreID+1);
-//while(cores[coreID]->current_thread->finished_cycle) {
-//  lk_unlock(&cycle_lock);
-    /* Spin, spin, spin */
-//  yield();
-//  lk_lock(&cycle_lock, coreID+1);
-//}
-  cores[coreID]->current_thread->finished_cycle = true;
-//  lk_unlock(&cycle_lock);
-
-  /* Active core with smallest id -- Wait for all cores to be finished and
-     update global state */
-  if (coreID == min_coreID)
-  {
-//    lk_lock(&cycle_lock, coreID+1);
-
-    do {
-master_core:
-      /* Re-check if all cores finished this cycle. */
-      cores_finished_cycle = 0;
-      cores_active = 0;
-      for(i=0; i<num_cores; i++) {
-        if(cores[i]->current_thread->finished_cycle)
-          cores_finished_cycle++;
-        if(cores[i]->current_thread->active)
-          cores_active++;
-      }
-
-      /* Yeah, could be >, see StopSimulation in feeder_zesto.C */
-      if (cores_finished_cycle >= cores_active)
-        break;
-
-      lk_unlock(&cycle_lock);
-      /* Spin, spin, spin */
-      yield();
-      while(consumers_sleep) {
-        xio_sleep(250);
-      }
-      lk_lock(&cycle_lock, coreID+1);
-
-      if (coreID != min_coreID)
-        goto non_master_core;
-    } while(true); 
-
-    /* Process shared state once all cores are gathered here. */
-    global_step();
-
-    /* HACKEDY HACKEDY HACK */
-    /* Non-active cores should still step their DL1s because there might
-     * be accesses scheduler there from the repeater network */
-    /* XXX: This is round-robin for L2 based on core id, if that matters */
-    for(i=0; i<num_cores; i++)
-      if(!cores[i]->current_thread->active)
-        if(cores[i]->memory.DL1->check_for_work)
-          cache_process(cores[i]->memory.DL1);
-
-    /* Unblock other cores to keep crunching. */
-    for(i=0; i<num_cores; i++)
-      cores[i]->current_thread->finished_cycle = false; 
-    lk_unlock(&cycle_lock);
+    cores[coreID]->ns_passed += 1e-3 / cores[coreID]->cpu_speed;
   }
-  /* All other cores -- spin until global state update is finished */
-  else
-  {
-//    lk_lock(&cycle_lock, coreID+1);
-    while(cores[coreID]->current_thread->finished_cycle) {
-      if (coreID == min_coreID) 
-        /* If we become the "master core", make sure everyone is at critical section. */
-        goto master_core;
 
-      /* All cores got deactivated, just return and make sure we 
-       * go back to PIN */
-      if (min_coreID == MAX_CORES) {
-        ZPIN_TRACE("Returning from step loop looking suspicious %d", coreID);
-        cores[coreID]->current_thread->consumed = true;
+  /* Time to sync with uncore */
+  if(cores[coreID]->ns_passed >= (1e-3 / LLC_speed)) {
+    cores[coreID]->ns_passed = 0.0;
+
+    /* Thread is joining in serial region. Mark it as finished this cycle */
+    /* Spin if serial region stil hasn't finished
+     * XXX: SK: Is this just me being paranoid? After all, serial region
+     * updates finished_cycle atomically for all threads and none can
+     * race through to here before that update is finished.
+     */
+    lk_lock(&cycle_lock, coreID+1);
+    cores[coreID]->current_thread->finished_cycle = true;
+
+    /* Active core with smallest id -- Wait for all cores to be finished and
+       update global state */
+    if (coreID == min_coreID)
+    {
+      do {
+master_core:
+        /* Re-check if all cores finished this cycle. */
+        cores_finished_cycle = 0;
+        cores_active = 0;
+        for(int i=0; i<num_cores; i++) {
+          if(cores[i]->current_thread->finished_cycle)
+            cores_finished_cycle++;
+          if(cores[i]->current_thread->active)
+            cores_active++;
+        }
+
+        /* Yeah, could be >, see StopSimulation in feeder_zesto.C */
+        if (cores_finished_cycle >= cores_active)
+          break;
+
         lk_unlock(&cycle_lock);
-        return;
-      }
+        /* Spin, spin, spin */
+        yield();
+        lk_lock(&cycle_lock, coreID+1);
+
+        if (coreID != min_coreID)
+          goto non_master_core;
+      } while(true); 
+
+      /* Process shared state once all cores are gathered here. */
+      global_step();
+
+      /* HACKEDY HACKEDY HACK */
+      /* Non-active cores should still step their DL1s because there might
+       * be accesses scheduled there from the repeater network */
+      /* XXX: This is round-robin for L2 based on core id, if that matters */
+      for(int i=0; i<num_cores; i++)
+        if(!cores[i]->current_thread->active)
+          if(cores[i]->memory.DL1->check_for_work)
+            cache_process(cores[i]->memory.DL1);
+
+      /* Unblock other cores to keep crunching. */
+      for(int i=0; i<num_cores; i++)
+        cores[i]->current_thread->finished_cycle = false; 
+      lk_unlock(&cycle_lock);
+    }
+    /* All other cores -- spin until global state update is finished */
+    else
+    {
+      while(cores[coreID]->current_thread->finished_cycle) {
+        if (coreID == min_coreID) 
+          /* If we become the "master core", make sure everyone is at critical section. */
+          goto master_core;
+
+        /* All cores got deactivated, just return and make sure we 
+         * go back to PIN */
+        if (min_coreID == MAX_CORES) {
+          ZPIN_TRACE("Returning from step loop looking suspicious %d", coreID);
+          cores[coreID]->current_thread->consumed = true;
+          lk_unlock(&cycle_lock);
+          return;
+        }
 
 non_master_core:
-      /* Spin, spin, spin */
-      lk_unlock(&cycle_lock);
-      yield();
-      while(consumers_sleep) {
-        xio_sleep(250);
+        /* Spin, spin, spin */
+        lk_unlock(&cycle_lock);
+        yield();
+        lk_lock(&cycle_lock, coreID+1);
       }
-      lk_lock(&cycle_lock, coreID+1);
+      lk_unlock(&cycle_lock);
     }
-    lk_unlock(&cycle_lock);
-  }
 
+  }
 
   step_core_PF_controllers(cores[coreID]);
 

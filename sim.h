@@ -70,10 +70,6 @@ extern int sim_exit_now;
 /* longjmp here when simulation is completed */
 extern jmp_buf sim_exit_buf;
 
-/* byte/word swapping required to execute target executable on this host */
-extern int sim_swap_bytes;
-extern int sim_swap_words;
-
 /* execution start/end times */
 extern int sim_elapsed_time;
 
@@ -83,12 +79,10 @@ extern struct opt_odb_t *sim_odb;
 /* stats database */
 extern struct stat_sdb_t *sim_sdb;
 
-/* EIO interfaces */
-extern char *sim_eio_fname[MAX_CORES];
-extern FILE *sim_eio_fd[MAX_CORES];
-
 /* redirected program/simulator output file names */
 extern FILE *sim_progfd;
+
+extern struct core_knobs_t knobs;
 
 /*
  * main simulator interfaces, called in the following order

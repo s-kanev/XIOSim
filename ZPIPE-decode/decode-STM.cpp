@@ -365,11 +365,11 @@ void core_decode_STM_t::uop_consume(void)
       Mop->decode.last_stage_index += uop->decode.has_imm ? 3 : 1;  /* increment the uop pointer to next uop */
       
       ZESTO_STAT(core->stat.decode_uops++;)
-      uop->timing.when_decoded = sim_cycle;
+      uop->timing.when_decoded = core->sim_cycle;
       if(uop->decode.BOM)
-        uop->Mop->timing.when_decode_started = sim_cycle;
+        uop->Mop->timing.when_decode_started = core->sim_cycle;
       if(uop->decode.EOM)
-        uop->Mop->timing.when_decode_finished = sim_cycle;
+        uop->Mop->timing.when_decode_finished = core->sim_cycle;
 
       if(Mop->decode.last_stage_index >= Mop->decode.flow_length)
       {

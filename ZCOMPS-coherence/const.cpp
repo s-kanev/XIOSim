@@ -134,7 +134,7 @@ bool cache_controller_const_t::send_request_upstream(int bank, int MSHR_index, s
     bus_use(uncore->fsb, (MSHR->cmd == CACHE_WRITE || MSHR->cmd == CACHE_WRITEBACK) ? (cache->linesize>>uncore->fsb_DDR) : 1, MSHR->cmd == CACHE_PREFETCH);
   }
 
-  MSHR->when_started = sim_cycle;
+  MSHR->when_started = cache_get_cycle(cache);
   return true;
 }
 

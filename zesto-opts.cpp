@@ -246,7 +246,7 @@ sim_reg_stats(struct thread_t ** archs, struct stat_sdb_t *sdb)
     cpu_reg_stats(cores[i],sdb);
 
   stat_reg_note(sdb,"\n#### SIMULATOR PERFORMANCE STATS ####");
-  stat_reg_qword(sdb, true, "sim_cycle", "total simulation cycles", (qword_t*)&sim_cycle, 0, TRUE, NULL);
+  stat_reg_qword(sdb, true, "sim_cycle", "total simulation cycles (CPU cycles assuming default freq)", (qword_t*)&uncore->default_cpu_cycles, 0, TRUE, NULL);
   stat_reg_int(sdb, true, "sim_elapsed_time", "total simulation time in seconds", &sim_elapsed_time, 0, TRUE, NULL);
   stat_reg_formula(sdb, true, "sim_cycle_rate", "simulation speed (in Mcycles/sec)", "sim_cycle / (sim_elapsed_time * 1000000.0)", NULL);
   /* Make formula to add num_insn from all archs */
@@ -482,7 +482,7 @@ return;
 
 void ztrace_Mop_ID(const struct Mop_t * Mop)
 {
-  ZTRACE_PRINT("%lld|M:%lld|",sim_cycle,Mop->oracle.seq);
+  ZTRACE_PRINT("%lld|M:%lld|",Mop->core->sim_cycle,Mop->oracle.seq);
   if(Mop->oracle.spec_mode)
     ZTRACE_PRINT("X|");
   else
@@ -493,7 +493,7 @@ void ztrace_uop_ID(const struct uop_t * uop)
 {
   if(uop==NULL)
     return;
-  ZTRACE_PRINT("%lld|u:%lld:%lld|", sim_cycle,
+  ZTRACE_PRINT("%lld|u:%lld:%lld|", uop->core->sim_cycle,
           uop->decode.Mop_seq, (uop->decode.Mop_seq << UOP_SEQ_SHIFT) + uop->flow_index);
   if(uop->Mop && uop->Mop->oracle.spec_mode)
     ZTRACE_PRINT("X|");
@@ -591,7 +591,6 @@ void ztrace_print(const char * fmt, ... )
   va_list v;
   va_start(v, fmt);
 
-  ZTRACE_PRINT("%lld|",sim_cycle);
   ZTRACE_VPRINT( fmt, v);
   ZTRACE_PRINT("\n");
 }

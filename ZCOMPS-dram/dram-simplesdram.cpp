@@ -71,11 +71,11 @@ class dram_simplesdram_t:public dram_t
   int num_ranks;
   int num_banks; /* per rank */
   int num_rows; /* per bank */
-  int c_RAS; /* in CPU cycles - different from command line parms! */
-  int c_RCD; /* in CPU cycles - different from command line parms! */
-  int c_CAS; /* in CPU cycles - different from command line parms! */
-  int c_WR;  /* in CPU cycles - different from command line parms! */
-  int c_RP;  /* in CPU cycles - different from command line parms! */
+  int c_RAS; /* in uncore cycles - different from command line parms! */
+  int c_RCD; /* in uncore cycles - different from command line parms! */
+  int c_CAS; /* in uncore cycles - different from command line parms! */
+  int c_WR;  /* in uncore cycles - different from command line parms! */
+  int c_RP;  /* in uncore cycles - different from command line parms! */
 
   int c_refresh; /* timestep per *row* refresh (!= DRAM refresh time; see comments in the constructor) */
   int refresh_rank;
@@ -120,11 +120,11 @@ class dram_simplesdram_t:public dram_t
 
     /* can't just multiply by cpu-speed - need to keep as an even
        multiple of FSB clock cycles */
-    c_RAS = (int)ceil(t_RAS * uncore->fsb_speed/1000.0) * uncore->cpu_ratio;
-    c_RCD = (int)ceil(t_RCD * uncore->fsb_speed/1000.0) * uncore->cpu_ratio;
-    c_CAS = (int)ceil(t_CAS * uncore->fsb_speed/1000.0) * uncore->cpu_ratio;
-    c_WR = (int)ceil(t_WR * uncore->fsb_speed/1000.0) * uncore->cpu_ratio;
-    c_RP = (int)ceil(t_RP * uncore->fsb_speed/1000.0) * uncore->cpu_ratio;
+    c_RAS = (int)ceil(t_RAS * uncore->fsb_speed/1000.0);
+    c_RCD = (int)ceil(t_RCD * uncore->fsb_speed/1000.0);
+    c_CAS = (int)ceil(t_CAS * uncore->fsb_speed/1000.0);
+    c_WR = (int)ceil(t_WR * uncore->fsb_speed/1000.0);
+    c_RP = (int)ceil(t_RP * uncore->fsb_speed/1000.0);
 
     array = (struct dram_simplesdram_bank_t**) calloc(num_ranks,sizeof(*array));
     if(!array)
@@ -157,7 +157,7 @@ class dram_simplesdram_t:public dram_t
        divided the total number of rows across all ranks/banks. */
     double refresh_tick = arg_refresh_period/((double)num_ranks*num_banks*num_rows);
     /* convert ms to clock cycles */
-    c_refresh = (int)floor(refresh_tick * 1000.0 * uncore->fsb_speed) * uncore->cpu_ratio;
+    c_refresh = (int)floor(refresh_tick * 1000.0 * uncore->fsb_speed);
 
     best_latency = INT_MAX;
   }
@@ -184,15 +184,15 @@ class dram_simplesdram_t:public dram_t
     int bank = (baddr>>bank_shift)&bank_mask;
     int row = (baddr>>row_shift)&row_mask;
 
-    tick_t when_start = MAX(when_command_bus_ready,sim_cycle);
+    tick_t when_start = MAX(when_command_bus_ready,uncore->sim_cycle);
     tick_t when_done = TICK_T_MAX;
 
-    dram_assert(chunks > 0,when_start+c_RP+c_RAS+c_CAS-(sim_cycle));
+    dram_assert(chunks > 0,when_start+c_RP+c_RAS+c_CAS-(uncore->sim_cycle));
 
     /* TODO: This is not fully accurate: latency should only be
        for one chunk assuming critical word first, but the bus
        would continue to be occupied for the remainder of the latency. */
-    int data_lat = (chunks >> uncore->fsb_DDR) * uncore->cpu_ratio;
+    int data_lat = (chunks >> uncore->fsb_DDR);
     int lat = c_CAS + data_lat;
 
     if(array[rank][bank].current_row == row) /* row buffer hit */
@@ -225,10 +225,10 @@ class dram_simplesdram_t:public dram_t
         array[rank][bank].when_precharge_ready = when_done + c_WR + c_RP;
     }
 
-    lat = when_done - sim_cycle;
+    lat = when_done - uncore->sim_cycle;
 
     when_data_bus_ready = when_done;
-    when_command_bus_ready += uncore->cpu_ratio; /* +1 FSB cycle */
+    when_command_bus_ready += 1; /* +1 FSB cycle */
 
     total_accesses++;
     total_latency += lat;
@@ -246,7 +246,7 @@ class dram_simplesdram_t:public dram_t
   {
     if(c_refresh <= 0)
       return;
-    if((sim_cycle - last_refresh) >= c_refresh)
+    if((uncore->sim_cycle - last_refresh) >= c_refresh)
     {
       int rank = refresh_rank;
       int bank = refresh_bank;
@@ -261,18 +261,18 @@ class dram_simplesdram_t:public dram_t
           refresh_row = modinc(refresh_row,num_rows); //(refresh_row+1) % num_rows;
       }
 
-      tick_t when_start = MAX(when_command_bus_ready,sim_cycle);
+      tick_t when_start = MAX(when_command_bus_ready,uncore->sim_cycle);
       tick_t when_done = TICK_T_MAX;
 
       if(array[rank][bank].current_row == row) /* row buffer hit */
       {
-        array[rank][bank].when_available = sim_cycle + c_WR;
+        array[rank][bank].when_available = uncore->sim_cycle + c_WR;
         array[rank][bank].when_precharge_ready = when_done + c_WR + c_RP;
       }
       else /* not in row buffer - need to read and then write back */
       {
         /* can't activate page until precharged */
-        when_start = MAX(sim_cycle,array[rank][bank].when_precharge_ready);
+        when_start = MAX(uncore->sim_cycle,array[rank][bank].when_precharge_ready);
         when_done = when_start + c_CAS + c_RCD;
 
         array[rank][bank].when_available = when_done;
@@ -281,9 +281,9 @@ class dram_simplesdram_t:public dram_t
         array[rank][bank].when_precharge_ready = when_done + c_WR + c_RP;
       }
 
-      when_command_bus_ready += uncore->cpu_ratio; /* +1 FSB cycle */
+      when_command_bus_ready += 1; /* +1 FSB cycle */
 
-      last_refresh = sim_cycle;
+      last_refresh = uncore->sim_cycle;
     }
   }
 

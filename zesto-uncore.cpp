@@ -76,6 +76,7 @@
 #include "thread.h"
 #include "stats.h"
 #include "options.h"
+#include "sim.h"
 #include "zesto-core.h"
 #include "zesto-opts.h"
 #include "zesto-cache.h"
@@ -95,17 +96,15 @@
 /* prototype for call to zesto-MC.c */
 MC_t * MC_from_string(char * opt_string);
 
-static double cpu_speed; /* CPU speed in MHz */
 static int fsb_width;    /* in bytes */
 static bool fsb_DDR;     /* true if DDR */
 static double fsb_speed; /* in MHz */
+static double LLC_speed; /* in MHz */
 bool fsb_magic; /* ideal FSB flag */
 bool cache_magic; /* ideal cache flag */
 static const char * MC_opt_string = NULL;
 static const char * LLC_opt_str = "LLC:4096:16:64:16:64:9:L:W:B:8:1:C";
 static const char * LLC_controller_str = "none";
-static int LLC_bus_ratio = 1;
-static int LLC_access_rate = 1;
 static const char * LLC_MSHR_cmd = "RPWB";
 
 /* LLC prefetcher options */
@@ -127,14 +126,14 @@ class uncore_t * uncore = NULL;
 
 /* constructor */
 uncore_t::uncore_t(
-    const double arg_cpu_speed,
     const int arg_fsb_width,
     const int arg_fsb_DDR,
     const double arg_fsb_speed,
     const char * MC_opt_string)
-: cpu_speed(arg_cpu_speed),
-  fsb_speed(arg_fsb_speed),
-  fsb_DDR(arg_fsb_DDR)
+: fsb_speed(arg_fsb_speed),
+  fsb_DDR(arg_fsb_DDR),
+  sim_cycle(0),
+  total_sim_time(0.0)
 {
   /* temp variables for option-string parsing */
   char name[256];
@@ -143,11 +142,9 @@ uncore_t::uncore_t(
 
   fsb_width = arg_fsb_width;
   fsb_bits = log_base2(fsb_width);
-  cpu_ratio = (int)ceil(cpu_speed/fsb_speed);
-  if(cpu_ratio<=0)
-    fatal("CPU to mem bus speed ratio (cpu_ratio) must be greater than zero"); 
+  int llc_ratio = (int)ceil(LLC_speed/fsb_speed);
 
-  fsb = bus_create("FSB",fsb_width,cpu_ratio);
+  fsb = bus_create("FSB", fsb_width, &uncore->sim_cycle, llc_ratio);
   MC = MC_from_string(MC_opt_string);
 
   /* Shared LLC */
@@ -188,10 +185,6 @@ uncore_t::uncore_t(
       fatal("-LLC:mshr_cmd must contain *each* of [RWBP]");
   }
 
-  if(LLC_access_rate & (LLC_access_rate-1))
-    fatal("-LLC:rate must be power of two");
-  LLC_cycle_mask = LLC_access_rate-1;
-
   LLC->PFF_size = LLC_PFFsize;
   LLC->PFF = (cache_t::PFF_t*) calloc(LLC_PFFsize,sizeof(*LLC->PFF));
   if(!LLC->PFF)
@@ -213,7 +206,7 @@ uncore_t::uncore_t(
   if(LLC->prefetcher[0] == NULL)
     LLC->num_prefetchers = LLC_num_PF = 0;
 
-  LLC_bus = bus_create("LLC_bus",LLC->linesize*LLC->banks,LLC_bus_ratio);
+  LLC_bus = bus_create("LLC_bus", LLC->linesize*LLC->banks, &uncore->sim_cycle, 1);
   LLC->controller = controller_create(LLC_controller_str, NULL, LLC);
 }
 
@@ -231,10 +224,8 @@ uncore_reg_options(struct opt_odb_t * const odb)
       &LLC_opt_str, /*default*/ "LLC:2048:16:64:16:64:12:L:W:B:8:1:8:C", /*print*/true,/*format*/NULL);
   opt_reg_string(odb, "-LLC:mshr_cmd","last-level cache MSHR scheduling policy [DS]",
       &LLC_MSHR_cmd, /*default*/ LLC_MSHR_cmd, /*print*/true,/*format*/NULL);
-  opt_reg_int(odb, "-LLC:bus","CPU clock cycles per LLC-bus cycle [DS]",
-      &LLC_bus_ratio, /*default*/ 1, /*print*/true,/*format*/NULL);
-  opt_reg_int(odb, "-LLC:rate","access LLC once per this many cpu clock cycles [DS]",
-      &LLC_access_rate, /*default*/ 1, /*print*/true,/*format*/NULL);
+  opt_reg_double(odb, "-LLC:speed","LLC clock frequency in MHz",
+      &LLC_speed, /*default*/ 800.0, /*print*/true,/*format*/NULL);
 
   /* LLC prefetch control options */
   opt_reg_string_list(odb, "-LLC:pf", "last-level cache prefetcher configuration string(s) [DS]",
@@ -274,7 +265,7 @@ uncore_reg_options(struct opt_odb_t * const odb)
   opt_reg_flag(odb, "-cache:magic", "All caches always hit",
       &cache_magic, /*default*/false, /*print*/true,/*format*/NULL);
   opt_reg_double(odb, "-cpu:speed", "CPU speed in MHz [DS]",
-      &cpu_speed, /*default*/4000.0,/*print*/true,/*format*/NULL); 
+      &knobs.default_cpu_speed, /*default*/4000.0,/*print*/true,/*format*/NULL); 
   opt_reg_string(odb, "-MC", "memory controller configuration string [DS]",
       &MC_opt_string,/*default */"simple:4:1",/*print*/true,/*format*/NULL);
 }
@@ -290,17 +281,12 @@ void uncore_reg_stats(struct stat_sdb_t * const sdb)
 
   dram->reg_stats(sdb);
 
-  bus_reg_stats(sdb,NULL,uncore->fsb);
-
-  stat_reg_int(sdb, true, "FSB.clock_ratio", "CPU clocks per FSB clock",
-      &uncore->cpu_ratio, uncore->cpu_ratio, FALSE, /* format */NULL);
+  bus_reg_stats(sdb, NULL, uncore->fsb);
 
   uncore->MC->reg_stats(sdb);
 }
 
 void uncore_create(void)
 {
-  uncore = new uncore_t(cpu_speed,fsb_width,fsb_DDR,fsb_speed,MC_opt_string);
+  uncore = new uncore_t(fsb_width, fsb_DDR, fsb_speed, MC_opt_string);
 }
-
-

@@ -334,11 +334,11 @@ void core_decode_DPM_t::step(void)
             ztrace_print(uop,"d|uopQ|enqueue fused body");
 #endif
           ZESTO_STAT(core->stat.decode_eff_uops++;)
-          uop->timing.when_decoded = sim_cycle;
+          uop->timing.when_decoded = core->sim_cycle;
           if(uop->decode.BOM)
-            uop->Mop->timing.when_decode_started = sim_cycle;
+            uop->Mop->timing.when_decode_started = core->sim_cycle;
           if(uop->decode.EOM)
-            uop->Mop->timing.when_decode_finished = sim_cycle;
+            uop->Mop->timing.when_decode_finished = core->sim_cycle;
 
           if(Mop->decode.last_stage_index >= Mop->decode.flow_length)
           {
@@ -366,7 +366,7 @@ void core_decode_DPM_t::step(void)
     {
       zesto_assert(occupancy[stage] == 0,(void)0);
       tick_t when_MS_started = pipe[stage-1][0] ? pipe[stage-1][0]->timing.when_MS_started : 0;
-      if((when_MS_started != TICK_T_MAX) && (when_MS_started >= sim_cycle)) /* checks for non-zero MS/uROM delay */
+      if((when_MS_started != TICK_T_MAX) && (when_MS_started >= core->sim_cycle)) /* checks for non-zero MS/uROM delay */
         break;
 
       /* move everyone from previous stage forward */
@@ -427,7 +427,7 @@ void core_decode_DPM_t::step(void)
             /* does this Mop need help from the MS? */
             if((knobs->decode.max_uops[i] && (pipe[0][i]->stat.num_uops > knobs->decode.max_uops[i])) ||
                 pipe[0][i]->fetch.inst.rep)
-              pipe[0][i]->timing.when_MS_started = sim_cycle + knobs->decode.MS_latency; /* all other insts (non-MS) have this timestamp default to TICK_T_MAX */
+              pipe[0][i]->timing.when_MS_started = core->sim_cycle + knobs->decode.MS_latency; /* all other insts (non-MS) have this timestamp default to TICK_T_MAX */
             if(IQ_Mop->decode.is_ctrl)
               branches_decoded++;
           }

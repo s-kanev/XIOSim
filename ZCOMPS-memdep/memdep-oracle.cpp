@@ -9,7 +9,7 @@
 #ifdef MEMDEP_PARSE_ARGS
 if(!strcasecmp(COMPONENT_NAME,type))
 {
-  return new memdep_oracle_t();
+  return new memdep_oracle_t(core);
 }
 #else
 
@@ -17,7 +17,7 @@ class memdep_oracle_t:public memdep_t
 {
   public:
   /* CONSTRUCTOR */
-  memdep_oracle_t(void)
+  memdep_oracle_t(const struct core_t * _core) : memdep_t(core)
   {
     init();
     name = strdup(COMPONENT_NAME); if(!name) fatal("failed to allocate memory for %s (strdup)",COMPONENT_NAME);

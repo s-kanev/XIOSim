@@ -58,10 +58,6 @@ extern void signal_sim_stats(int sigtype);
 /* exit signal handler */
 extern void signal_exit_now(int sigtype);
 
-/* byte/word swapping required to execute target executable on this host */
-extern int sim_swap_bytes;
-extern int sim_swap_words;
-
 /* exit when this becomes non-zero */
 extern int sim_exit_now;
 
@@ -79,10 +75,6 @@ extern struct stat_sdb_t *sim_sdb;
 
 /* power stats database */
 extern struct stat_sdb_t *rtp_sdb;
-
-/* EIO interfaces */
-extern char *sim_eio_fname[MAX_CORES];
-extern FILE *sim_eio_fd[MAX_CORES];
 
 /* redirected program/simulator output file names */
 extern const char *sim_simout;
@@ -115,8 +107,6 @@ extern bool sim_slave_running;
 
 extern void sim_print_stats(FILE *fd);
 extern void exit_now(int exit_code);
-
-extern tick_t sim_cycle;
 
 
 extern void start_slice(unsigned int slice_num);
@@ -394,7 +384,7 @@ void deactivate_core(int coreID)
 //  fflush(stderr);
   lk_lock(&cycle_lock, coreID+1);
   cores[coreID]->current_thread->active = false;
-  cores[coreID]->current_thread->last_active_cycle = sim_cycle;
+  cores[coreID]->current_thread->last_active_cycle = cores[coreID]->sim_cycle;
   int i;
   for (i=0; i < num_cores; i++)
     if (cores[i]->current_thread->active) {
@@ -414,7 +404,7 @@ void activate_core(int coreID)
 //  fflush(stderr);
   lk_lock(&cycle_lock, coreID+1);
   cores[coreID]->current_thread->finished_cycle = false; // Make sure master core will wait
-  cores[coreID]->exec->update_last_completed(sim_cycle);
+  cores[coreID]->exec->update_last_completed(cores[coreID]->sim_cycle);
   cores[coreID]->exec->update_execution_otags(cores[coreID]->current_thread->last_active_cycle);
   cores[coreID]->current_thread->active = true;
     if (coreID < min_coreID)

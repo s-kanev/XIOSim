@@ -77,6 +77,7 @@
 
 #include "machine.h"
 #include "zesto-structs.h"
+#include "zesto-core.h"
 
 #define MEMDEP_STAT(x) {if(!frozen) {x}}
 
@@ -84,6 +85,7 @@ class memdep_t
 {
   protected:
     char * name;
+    const struct core_t * core;
     char * type;
     int bits;
     counter_t lookups;
@@ -93,7 +95,7 @@ class memdep_t
     void init(void); /* used for initializing common variables */
 
   public:
-                 memdep_t();
+                 memdep_t(const struct core_t * _core);
     virtual     ~memdep_t();
     /* PC = program counter of the load for which we are predicting whether it may issue
        sta_unknown = earlier store address(es) still not computed
@@ -106,6 +108,6 @@ class memdep_t
 };
 
 /* Create a new memory dependence predictor */
-struct memdep_t * memdep_create(const char * const);
+struct memdep_t * memdep_create(const struct core_t *, const char * const);
 
 #endif /* ZESTO_MEMDEP_INCLUDED */

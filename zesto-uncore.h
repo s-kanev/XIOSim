@@ -84,11 +84,12 @@ extern class uncore_t * uncore;
    including the L2, but up to and including the front-side bus */
 class uncore_t
 {
-  protected:
-
   public:
-  double cpu_speed; /* CPU speed in MHz */
-  int cpu_ratio; /*ratio between CPU speed and memory bus speed*/
+  /* uncore clock (MHz) */
+  tick_t sim_cycle;
+  /* global simulated time (ns) */
+  double total_sim_time;
+  tick_t default_cpu_cycles;
 
   /* Front-side bus options */
   int fsb_width;
@@ -107,8 +108,7 @@ class uncore_t
   class MC_t * MC;
 
   /* constructor */
-  uncore_t(const double arg_cpu_speed,
-           const int arg_fsb_width,
+  uncore_t(const int arg_fsb_width,
            const int arg_fsb_DDR,
            const double arg_fsb_speed,
            const char * MC_opt_string);

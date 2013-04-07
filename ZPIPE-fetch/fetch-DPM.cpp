@@ -65,6 +65,7 @@ class core_fetch_DPM_t:public core_fetch_t
     int num_Mop;
     int MopQ_first_index;
     seq_t action_id;
+    struct core_t * core;
   } * byteQ;
   int byteQ_linemask; /* for masking out line offset */
   int byteQ_head;
@@ -379,6 +380,7 @@ void core_fetch_DPM_t::byteQ_request(const md_addr_t lineaddr)
   byteQ[byteQ_tail].when_translated = TICK_T_MAX;
   byteQ[byteQ_tail].addr = lineaddr;
   byteQ[byteQ_tail].action_id = core->new_action_id();
+  byteQ[byteQ_tail].core = core;
   byteQ_tail = modinc(byteQ_tail,knobs->fetch.byteQ_size); //(byteQ_tail+1)%knobs->fetch.byteQ_size;
   byteQ_num++;
 
@@ -390,20 +392,20 @@ void core_fetch_DPM_t::byteQ_request(const md_addr_t lineaddr)
 void core_fetch_DPM_t::IL1_callback(void * const op)
 {
   byteQ_entry_t * byteQ = (byteQ_entry_t*) op;
-  byteQ->when_fetched = sim_cycle;
+  byteQ->when_fetched = byteQ->core->sim_cycle;
 }
 
 void core_fetch_DPM_t::ITLB_callback(void * const op)
 {
   byteQ_entry_t * byteQ = (byteQ_entry_t*) op;
-  byteQ->when_translated = sim_cycle;
+  byteQ->when_translated = byteQ->core->sim_cycle;
 }
 
 bool core_fetch_DPM_t::translated_callback(void * const op, const seq_t action_id)
 {
   byteQ_entry_t * byteQ = (byteQ_entry_t*) op;
   if(byteQ->action_id == action_id)
-    return byteQ->when_translated <= sim_cycle;
+    return byteQ->when_translated <= byteQ->core->sim_cycle;
   else
     return true;
 }
@@ -524,7 +526,7 @@ void core_fetch_DPM_t::post_fetch(void)
       /* Enqueue Mop into the predecode pipeline */
       if(predecode_enqueue(Mop))
       {
-        Mop->timing.when_fetched = sim_cycle;
+        Mop->timing.when_fetched = core->sim_cycle;
         if(Mop->uop[Mop->decode.last_uop_index].decode.EOM)
         {
           ZESTO_STAT(core->stat.fetch_insn++;)
@@ -573,7 +575,7 @@ void core_fetch_DPM_t::pre_fetch(void)
       if(cache_enqueuable(core->memory.IL1,core->current_thread->id,byteQ[index].addr))
       {
         cache_enqueue(core,core->memory.IL1,NULL,CACHE_READ,core->current_thread->id,byteQ[index].addr,byteQ[index].addr,byteQ[index].action_id,0,NO_MSHR,&byteQ[index],IL1_callback,NULL,translated_callback,get_byteQ_action_id);
-        byteQ[index].when_fetch_requested = sim_cycle;
+        byteQ[index].when_fetch_requested = core->sim_cycle;
         break;
       }
     }
@@ -588,7 +590,7 @@ void core_fetch_DPM_t::pre_fetch(void)
       if(cache_enqueuable(core->memory.ITLB,core->current_thread->id,PAGE_TABLE_ADDR(core->current_thread->id,byteQ[index].addr)))
       {
         cache_enqueue(core,core->memory.ITLB,NULL,CACHE_READ,0,core->current_thread->id,PAGE_TABLE_ADDR(core->current_thread->id,byteQ[index].addr),byteQ[index].action_id,0,NO_MSHR,&byteQ[index],ITLB_callback,NULL,NULL,get_byteQ_action_id);
-        byteQ[index].when_translation_requested = sim_cycle;
+        byteQ[index].when_translation_requested = core->sim_cycle;
         break;
       }
     }
@@ -677,7 +679,7 @@ bool core_fetch_DPM_t::do_fetch(void)
 #endif
     Mop->fetch.first_byte_requested = true;
     if(Mop->timing.when_fetch_started == TICK_T_MAX)
-      Mop->timing.when_fetch_started = sim_cycle;
+      Mop->timing.when_fetch_started = core->sim_cycle;
   }
   if(!Mop->fetch.first_byte_requested)
   {
@@ -688,7 +690,7 @@ bool core_fetch_DPM_t::do_fetch(void)
     }
 
     if(Mop->timing.when_fetch_started == TICK_T_MAX)
-      Mop->timing.when_fetch_started = sim_cycle;
+      Mop->timing.when_fetch_started = core->sim_cycle;
 #ifdef ZTRACE
     if(!Mop->fetch.first_byte_requested)
       ztrace_print(Mop,"f|byteQ|first byte requested");
@@ -878,6 +880,7 @@ core_fetch_DPM_t::recover(const md_addr_t new_PC)
     byteQ[i].num_Mop = 0;
     byteQ[i].MopQ_first_index = -1;
     byteQ[i].action_id = core->new_action_id();
+    byteQ[i].core = core;
   }
   byteQ_num = 0;
   byteQ_head = 0;

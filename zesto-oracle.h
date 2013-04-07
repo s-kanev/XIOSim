@@ -165,7 +165,7 @@
     core->oracle->hosed = TRUE; \
     fprintf(stderr,"assertion failed (%s,%d:thread %d): ",__FILE__,__LINE__,core->current_thread->id); \
     fprintf(stderr,"%s\n",#cond); \
-    fprintf(stderr, "cycle: %lld, num_Mops: %lld\n", sim_cycle, core->stat.oracle_total_insn); \
+    fprintf(stderr, "cycle: %lld, num_Mops: %lld\n", core->sim_cycle, core->stat.oracle_total_insn); \
     fprintf(stderr, "PC: %x, regs->NPC: %x, pin->PC: %x, pin->NPC: %x\n", core->fetch->PC, core->current_thread->regs.regs_NPC, core->fetch->feeder_PC, core->fetch->feeder_NPC); \
     fflush(stderr); \
     flush_trace(); \
@@ -177,9 +177,9 @@
 #define zesto_assert(cond, retval) { }	\
     if(!(cond)) {		     \
     core->oracle->hosed = TRUE; \
-    fprintf(stderr,"assertion failed (%s,%d:thread %d) (cycle: %lld):",__FILE__,__LINE__,core->current_thread->id,sim_cycle); \
+    fprintf(stderr,"assertion failed (%s,%d:thread %d) (cycle: %lld):",__FILE__,__LINE__,core->current_thread->id,core->sim_cycle); \
     fprintf(stderr,"%s\n",#cond); \
-    fprintf(stderr, "cycle: %lld, num_Mops: %lld\n", sim_cycle, core->stat.oracle_total_insn); \
+    fprintf(stderr, "cycle: %lld, num_Mops: %lld\n", core->sim_cycle, core->stat.oracle_total_insn); \
     fprintf(stderr, "PC: %x, regs->NPC: %x\n", core->fetch->PC, core->current_thread->regs.regs_NPC); \
     fflush(stderr); \
     return (retval); \
@@ -208,14 +208,6 @@ class core_oracle_t {
       struct spec_byte_t * head;
       struct spec_byte_t * tail;
     } hash[MEM_HASH_SIZE];
-  };
-
-  /* structure used for tracking memory requests made by system calls */
-  struct syscall_mem_req_t {
-    int thread_id;
-    md_addr_t addr;
-    enum cache_command cmd;
-    struct syscall_mem_req_t * next;
   };
 
   public:
@@ -256,9 +248,6 @@ class core_oracle_t {
   void complete_flush(void);
   void reset_execution(void);
 
-  static enum md_fault_type syscall_mem_access(int thread_id, struct mem_t *mem, enum mem_cmd cmd,
-                                               md_addr_t addr, void *vp, int nbytes);
-
   protected:
 
   /* static members shared by all cores */
@@ -276,7 +265,6 @@ class core_oracle_t {
   static int map_free_pool_debt;
   static struct spec_byte_t * spec_mem_free_pool; /* for oracle spec-memory map */
   static int spec_mem_pool_debt;
-  struct syscall_mem_req_t * mem_req_free_pool; /* for syscall memory requests */
 
   struct core_t * core;
   struct spec_mem_t spec_mem_map;
@@ -285,11 +273,6 @@ class core_oracle_t {
     struct map_node_t * head[MD_TOTAL_REGS];
     struct map_node_t * tail[MD_TOTAL_REGS];
   } dep_map;
-
-  struct syscall_mem_req_t * syscall_mem_req_head;
-  struct syscall_mem_req_t * syscall_mem_req_tail;
-  int syscall_mem_reqs; /* total number of syscall memory requests */
-  int syscall_remaining_delay;
 
   void undo(struct Mop_t * const Mop, bool nuke);
 
@@ -315,20 +298,6 @@ class core_oracle_t {
 #endif
 
   void cleanup_aborted_mop(struct Mop_t * const Mop);
-
-  static const seq_t DUMMY_SYSCALL_ACTION_ID = ULL(0x2E570515CA111D);
-  static const unsigned DUMMY_SYSCALL_OP = 0x515CA11;
-  static void syscall_callback(void * const op);
-  static bool syscall_translated_callback(void * const op,const seq_t);
-  static seq_t syscall_get_action_id(void * const op);
 };
-
-
-
-
-
-
-
-
 
 #endif /* ZESTO_ORACLE_INCLUDED */

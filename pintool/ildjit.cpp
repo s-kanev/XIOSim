@@ -19,7 +19,8 @@
 #include "Buffer.h"
 #include "BufferManager.h"
 
-extern tick_t sim_cycle;
+#include "../zesto-core.h"
+
 extern map<THREADID, Buffer> lookahead_buffer;
 
 // True if ILDJIT has finished compilation and is executing user code
@@ -1073,13 +1074,13 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
     } while (!done);
 
 #ifdef ZESTO_PIN_DBG
-    cerr << tid << " [" << sim_cycle << ":KEVIN]: All cores have empty buffers" << endl;
+    cerr << tid << " [" << cores[0]->sim_cycle << ":KEVIN]: All cores have empty buffers" << endl;
     cerr.flush();
 #endif
 
     ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
       thread_state_t* tstate = get_tls(*it);
-      cerr << tstate->coreID << ":OverlapCycles:" << sim_cycle - lastConsumerApply[*it] << endl;
+      cerr << tstate->coreID << ":OverlapCycles:" << cores[tstate->coreID]->sim_cycle - lastConsumerApply[*it] << endl;
     }
 
     disable_consumers();

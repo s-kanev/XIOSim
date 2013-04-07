@@ -1,8 +1,8 @@
 /* dram-simplescalar.cpp:
    Based on SimpleScalar memory model (constant latency DRAM):
-   Given latency in cpu cycles, or in ns which
-   we'll convert to cpu cycles for you.
-   Per-chunk latency computed based on cpu-speed,
+   Given latency in uncore cycles, or in ns which
+   we'll convert to uncore cycles for you.
+   Per-chunk latency computed based on uncore-speed,
    fsb-speed, and whether fsb uses DDR.
 
    This isn't precisely the same as the traditional SimpleScalar
@@ -12,7 +12,7 @@
      -dram simplescalar:LAT:UNITS (UNITS: 0=cycles, 1=ns)
 
    examples:
-     -dram simplescalar:160   (160 sim_cycle's per access)
+     -dram simplescalar:160   (160 uncore_cycle's per access)
      -dram simplescalar:160:0 (ditto)
      -dram simplescalar:120:1 (120 ns per access) */
 /*
@@ -55,11 +55,11 @@ class dram_simplescalar_t:public dram_t
       fatal("simplescalar dram model's optional units arguments should be 0 (cycles) or 1 (ns)");
 
     if(arg_units)
-      latency = (int)ceil(arg_latency * uncore->cpu_speed/1000.0);
+      latency = (int)ceil(arg_latency * uncore->fsb_speed/1000.0);
     else
       latency = arg_latency;
 
-    chunk_latency = uncore->cpu_ratio;
+    chunk_latency = 1;
     best_latency = INT_MAX;
   }
 

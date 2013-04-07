@@ -13,8 +13,8 @@
 
 class ParseXML *XML = NULL; //Interface to McPAT
 
-extern tick_t sim_cycle;
 extern int num_cores;
+extern struct core_knobs_t knobs;
 
 double uncore_rtp;
 double *cores_rtp;
@@ -38,7 +38,7 @@ void init_power(void)
   XML->sys.homogeneous_L1Directories = 0;
   XML->sys.homogeneous_L2Directories = 0;
   XML->sys.core_tech_node = 45;
-  XML->sys.target_core_clockrate = (int)uncore->cpu_speed;
+  XML->sys.target_core_clockrate = (int)knobs.default_cpu_speed;
   XML->sys.temperature = 380; // K
   XML->sys.interconnect_projection_type = 0; // aggressive
   XML->sys.longer_channel_device = 1; // use when appropirate
@@ -207,7 +207,7 @@ void core_power_t::translate_params(system_core *core_params, system_L2 *L2_para
   (void) L2_params;
   struct core_knobs_t *knobs = core->knobs;
 
-  core_params->clock_rate = (int)uncore->cpu_speed;
+  core_params->clock_rate = core->cpu_speed; //XXX: Update me for DVFS
   core_params->opt_local = false;
   core_params->x86 = true;
   core_params->machine_bits = 64;

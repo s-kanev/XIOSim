@@ -701,14 +701,16 @@ void prefetch_filter_create(
 
 /* Returns true if the prefetch should get inserted into the cache */
 static int prefetch_filter_lookup(
+    struct cache_t * const cp,
     struct prefetch_filter_t * const p,
     const md_paddr_t addr)
 {
-  if(sim_cycle >= (p->last_reset + p->reset_interval))
+  const tick_t cycle = cache_get_cycle(cp);
+  if(cycle >= (p->last_reset + p->reset_interval))
   {
     for(int i=0;i<p->num_entries;i++)
       p->table[i] = 3;
-    p->last_reset = sim_cycle - (sim_cycle % p->reset_interval);
+    p->last_reset = cycle - (cycle % p->reset_interval);
     return true;
   }
 
@@ -718,16 +720,18 @@ static int prefetch_filter_lookup(
 
 /* Update the filter's predictor based on whether a prefetch was useful or not. */
 static void prefetch_filter_update(
+    struct cache_t * const cp,
     struct prefetch_filter_t * const p,
     const md_paddr_t addr,
     const int useful)
 {
   const int index = addr & p->mask;
-  if(sim_cycle > (p->last_reset + p->reset_interval))
+  const tick_t cycle = cache_get_cycle(cp);
+  if(cycle > (p->last_reset + p->reset_interval))
   {
     for(int i=0;i<p->num_entries;i++)
       p->table[i] = 3;
-    p->last_reset = sim_cycle - (sim_cycle % p->reset_interval);
+    p->last_reset = cycle - (cycle % p->reset_interval);
   }
   if(useful)
   {
@@ -1269,11 +1273,11 @@ void cache_enqueue(
   cp->pipe[bank][insert_position].miss_cb = miss_cb;
   cp->pipe[bank][insert_position].translated_cb = translated_cb;
   cp->pipe[bank][insert_position].get_action_id = get_action_id;
-  cp->pipe[bank][insert_position].when_started = sim_cycle;
+  cp->pipe[bank][insert_position].when_started = cache_get_cycle(cp);;
   cp->pipe[bank][insert_position].when_returned = TICK_T_MAX;
   cp->pipe[bank][insert_position].type = MSHR_MISS;
   cp->pipe[bank][insert_position].prefetcher_hint = prefetcher_hint;
-  cp->pipe[bank][insert_position].pipe_exit_time = sim_cycle+cp->latency;
+  cp->pipe[bank][insert_position].pipe_exit_time = cache_get_cycle(cp)+cp->latency;
   cp->pipe[bank][insert_position].miss_cb_invoked = false;
 
   assert(insert_position < cp->heap_size);
@@ -1431,13 +1435,13 @@ static void MSHR_WB_insert(
   MSHR->miss_cb = NULL;
   MSHR->translated_cb = NULL;
   MSHR->get_action_id = NULL;
-  MSHR->when_enqueued = sim_cycle;
+  MSHR->when_enqueued = cache_get_cycle(cp);
   MSHR->when_started = TICK_T_MAX;
   MSHR->when_returned = TICK_T_MAX;
   MSHR->pipe_exit_time = TICK_T_MAX;
   MSHR->MSHR_linked = MSHR_linked;
   if(MSHR_linked)
-    MSHR->when_started = sim_cycle;
+    MSHR->when_started = cache_get_cycle(cp);
 
   cp->check_for_work = true;
   cp->check_for_MSHR_WB_work = true;
@@ -1453,7 +1457,7 @@ static void MSHR_insert(
     bool MSHR_linked = MSHR->MSHR_linked;
     *MSHR = *ca;
     MSHR->type = MSHR_MISS;
-    MSHR->when_enqueued = sim_cycle;
+    MSHR->when_enqueued = cache_get_cycle(cp);
     MSHR->when_started = TICK_T_MAX;
     MSHR->when_returned = TICK_T_MAX;
     MSHR->core = ca->core;
@@ -1464,7 +1468,7 @@ static void MSHR_insert(
     cache_assert(cp->MSHR_num[this_bank] <= (cp->MSHR_size-cp->MSHR_WB_size),NULL);
 
     if(MSHR_linked)
-      MSHR->when_started = sim_cycle;
+      MSHR->when_started = cache_get_cycle(cp);
     else
     {
       cp->MSHR_unprocessed_num[this_bank]++;
@@ -1497,7 +1501,7 @@ void fill_arrived(
   cp->check_for_MSHR_WB_work = true;
 
   if(MSHR->cb != NULL) /* original request was squashed */
-    MSHR->when_returned = sim_cycle + delay;
+    MSHR->when_returned = cache_get_cycle(cp) + delay;
 
   /* deal with combined/coalesced entries */
   struct cache_action_t * p = MSHR->MSHR_link, * next = NULL;
@@ -1506,7 +1510,7 @@ void fill_arrived(
     if((p->cb != NULL) && (p->when_returned == TICK_T_MAX))
     {
       cache_assert(p->MSHR_linked,(void)0);
-      p->when_returned = sim_cycle + delay;
+      p->when_returned = cache_get_cycle(cp) + delay;
     }
     p->MSHR_linked = false;
     next = p->MSHR_link;
@@ -1653,7 +1657,7 @@ static inline void cache_fill(
   cp->fill_pipe[bank][insert_position].paddr = paddr;
   cp->fill_pipe[bank][insert_position].core = core;
 
-  cp->fill_pipe[bank][insert_position].pipe_exit_time = sim_cycle+cp->latency;
+  cp->fill_pipe[bank][insert_position].pipe_exit_time = cache_get_cycle(cp)+cp->latency;
 
   assert(insert_position < cp->heap_size);
   fill_heap_balance(cp->fill_pipe[bank],insert_position);
@@ -1785,7 +1789,7 @@ static void cache_process_MSHR_WB(struct cache_t * const cp, int start_point)
         if (MSHR_WB->when_started == TICK_T_MAX)
           continue;
         MSHR_WB_work_found = true;
-        if (MSHR_WB->when_returned <= sim_cycle)
+        if (MSHR_WB->when_returned <= cache_get_cycle(cp))
           MSHR_deallocate(cp, MSHR_WB->paddr, j);
       }
     }
@@ -1816,7 +1820,7 @@ static void cache_process_MSHR_fill(struct cache_t * const cp, int start_point)
           if(MSHR->type == MSHR_WRITEBACK)
             continue;
 
-          if(MSHR->cb && (MSHR->when_returned <= sim_cycle) &&
+          if(MSHR->cb && (MSHR->when_returned <= cache_get_cycle(cp)) &&
                   cache_fillable(cp,MSHR->paddr))
           {
             if(MSHR->when_enqueued < oldest)
@@ -1833,14 +1837,14 @@ static void cache_process_MSHR_fill(struct cache_t * const cp, int start_point)
         /* process returned MSHR requests that now need to fill the cache */
         struct cache_action_t * MSHR = &cp->MSHR[bank][old_index];
 
-        if(MSHR->cb && (MSHR->when_returned <= sim_cycle) &&
+        if(MSHR->cb && (MSHR->when_returned <= cache_get_cycle(cp)) &&
            cp->controller->can_schedule_downstream(MSHR->prev_cp))
         {
           if(!MSHR->MSHR_linked)
           {
             int insert = true;
             if(cp->PF_filter && (MSHR->cmd == CACHE_PREFETCH))
-              insert = prefetch_filter_lookup(cp->PF_filter,(MSHR->paddr>>cp->addr_shift));
+              insert = prefetch_filter_lookup(cp, cp->PF_filter,(MSHR->paddr>>cp->addr_shift));
 
             /* if using prefetch buffer, insert there instead */
             if((MSHR->cmd == CACHE_PREFETCH) && (cp->PF_buffer) && insert)
@@ -1910,7 +1914,7 @@ static void cache_process_fills(struct cache_t * const cp, int start_point)
       if(cp->fill_num[bank])
       {
         fill_work_found = true;
-        if(cf->valid && cf->pipe_exit_time <= sim_cycle)
+        if(cf->valid && cf->pipe_exit_time <= cache_get_cycle(cp))
         {
           if(!cache_peek(cp,cf->paddr)) /* make sure hasn't been filled in the meantime */
           {
@@ -1936,7 +1940,7 @@ static void cache_process_fills(struct cache_t * const cp, int start_point)
 
             if(p->prefetched && cp->PF_filter)
             {
-              prefetch_filter_update(cp->PF_filter,p->tag,p->prefetch_used);
+              prefetch_filter_update(cp, cp->PF_filter,p->tag,p->prefetch_used);
             }
             p->valid = p->dirty = false; /* this removes the copy in the cache since the WBB has it now */
 
@@ -1978,7 +1982,7 @@ static void cache_process_pipe(struct cache_t * const cp, int start_point)
         pipe_work_found = true;
         if(ca->cb)
         {
-          if(ca->pipe_exit_time <= sim_cycle)
+          if(ca->pipe_exit_time <= cache_get_cycle(cp))
           {
             /* Check if request isn't already in an MSHR */
             int this_bank = GET_MSHR_BANK(ca->paddr);
@@ -2267,7 +2271,7 @@ static void cache_process_MSHR(struct cache_t * const cp, int start_point)
                 if(MSHR->MSHR_linked)
                 {
                   /* this entry combined/coalesced, but still need to invoke miss_cb */
-                  MSHR->when_started = sim_cycle;
+                  MSHR->when_started = cache_get_cycle(cp);
                   cp->MSHR_unprocessed_num[bank]--;
                   cache_assert(cp->MSHR_unprocessed_num[bank] >= 0,(void)0);
                   if(MSHR->miss_cb && MSHR->op && (MSHR->action_id == MSHR->get_action_id(MSHR->op)))
@@ -2368,7 +2372,7 @@ static void cache_process_MSHR(struct cache_t * const cp, int start_point)
                 if(MSHR->MSHR_linked)
                 {
                   /* this entry combined/coalesced, but still need to invoke miss_cb */
-                  MSHR->when_started = sim_cycle;
+                  MSHR->when_started = cache_get_cycle(cp);
                   cp->MSHR_unprocessed_num[bank]--;
                   cache_assert(cp->MSHR_unprocessed_num[bank] >= 0,(void)0);
                   if(MSHR->miss_cb && MSHR->op && (MSHR->action_id == MSHR->get_action_id(MSHR->op)))
@@ -2490,7 +2494,7 @@ static void cache_prefetch(struct cache_t * const cp)
 /* Update the bus-utilization-based prefetch controller. */
 static void prefetch_controller_update(struct cache_t * const cp)
 {
-  if(cp->PF_sample_interval && ((sim_cycle % cp->PF_sample_interval) == 0))
+  if(cp->PF_sample_interval && ((cache_get_cycle(cp) % cp->PF_sample_interval) == 0))
   {
     int current_sample = (int)cp->next_bus->stat.utilization;
     double duty_cycle = (current_sample - cp->PF_last_sample) / (double) cp->PF_sample_interval;
@@ -2537,6 +2541,13 @@ void cache_freeze_stats(struct core_t * const core)
   core->memory.ITLB->frozen = true;
   core->memory.DTLB->frozen = true;
   if(core->memory.DTLB2) core->memory.DTLB2->frozen = true;
+}
+
+tick_t cache_get_cycle(const struct cache_t * const cp)
+{
+  if(cp == uncore->LLC)
+    return uncore->sim_cycle;
+  return cp->core->sim_cycle;
 }
 
 void cache_print(const struct cache_t * const cp)

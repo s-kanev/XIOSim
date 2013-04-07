@@ -377,12 +377,12 @@ void core_commit_IO_DPM_t::IO_step(void)
      attempt to un-wedge the processor.  If the processor then
      deadlocks again without having first made any more forward
      progress, we give up and kill the simulator. */
-  if(core->current_thread->active && ((sim_cycle - core->exec->last_completed) > deadlock_threshold))
+  if(core->current_thread->active && ((core->sim_cycle - core->exec->last_completed) > deadlock_threshold))
   {
     if(core->exec->last_completed_count == core->stat.eio_commit_insn)
     {
       char buf[256];
-      snprintf(buf,sizeof(buf),"At cycle %lld, core[%d] has not completed a uop in %d cycles... definite deadlock",(long long)sim_cycle,core->current_thread->id,deadlock_threshold);
+      snprintf(buf,sizeof(buf),"At cycle %llu, core[%d] has not completed a uop in %d cycles... definite deadlock",core->sim_cycle,core->current_thread->id,deadlock_threshold);
 #ifdef ZTRACE
       ztrace_print("DEADLOCK DETECTED: TERMINATING SIMULATION");
 #endif
@@ -404,7 +404,7 @@ void core_commit_IO_DPM_t::IO_step(void)
     }
     else
     {
-      warn("At cycle %lld, core[%d] has not completed a uop in %d cycles... possible deadlock, flushing pipeline",(long long)sim_cycle,core->current_thread->id,deadlock_threshold);
+      warn("At cycle %llu, core[%d] has not completed a uop in %d cycles... possible deadlock, flushing pipeline",core->sim_cycle,core->current_thread->id,deadlock_threshold);
 #ifdef ZTRACE
       ztrace_print("DEADLOCK DETECTED: FLUSHING PIPELINE");
 #endif
@@ -418,7 +418,7 @@ void core_commit_IO_DPM_t::IO_step(void)
       core->fetch->recover(core->current_thread->regs.regs_NPC);
       ZESTO_STAT(stat_add_sample(core->stat.commit_stall, (int)CSTALL_EMPTY);)
       ZESTO_STAT(core->stat.commit_deadlock_flushes++;)
-      core->exec->last_completed = sim_cycle; /* so we don't do this again next cycle */
+      core->exec->last_completed = core->sim_cycle; /* so we don't do this again next cycle */
       core->exec->last_completed_count = core->stat.eio_commit_insn;
     }
     return;
@@ -461,7 +461,7 @@ void core_commit_IO_DPM_t::IO_step(void)
     {
       struct uop_t * uop = &Mop->uop[Mop->commit.complete_index];
     
-      while(uop->timing.when_completed <= sim_cycle
+      while(uop->timing.when_completed <= core->sim_cycle
             || uop->decode.is_sta || uop->decode.is_std)
       {
         /* stores get added to the STQ at commit */
@@ -474,7 +474,7 @@ void core_commit_IO_DPM_t::IO_step(void)
           }
         }
 
-        zesto_assert(uop->timing.when_completed <= sim_cycle, (void)0);
+        zesto_assert(uop->timing.when_completed <= core->sim_cycle, (void)0);
 
         Mop->commit.complete_index += uop->decode.has_imm ? 3 : 1;
         if(Mop->commit.complete_index >= Mop->decode.flow_length)
@@ -502,12 +502,12 @@ void core_commit_IO_DPM_t::IO_step(void)
     if(Mop->commit.complete_index == -1) /* commit the uops if the Mop is done */
     {
       struct uop_t * uop = ROB[ROB_head];
-      zesto_assert(uop->timing.when_completed <= sim_cycle,(void)0); 
+      zesto_assert(uop->timing.when_completed <= core->sim_cycle,(void)0); 
       zesto_assert(uop->alloc.ROB_index == ROB_head,(void)0);
       zesto_assert(uop == &Mop->uop[Mop->commit.commit_index],(void)0);
 
       if(uop->decode.BOM && (uop->Mop->timing.when_commit_started == TICK_T_MAX))
-        uop->Mop->timing.when_commit_started = sim_cycle;
+        uop->Mop->timing.when_commit_started = core->sim_cycle;
 
 
       //SK - load deallocation moved to end of payload pipe
@@ -536,7 +536,7 @@ void core_commit_IO_DPM_t::IO_step(void)
 #endif
 
       if(uop->decode.EOM)
-        uop->Mop->timing.when_commit_finished = sim_cycle;
+        uop->Mop->timing.when_commit_finished = core->sim_cycle;
 
       /* remove uop from ROB */
       if((!uop->decode.in_fusion) || (uop->decode.fusion_next == NULL)) /* fusion dealloc's on fusion-tail */
@@ -573,7 +573,7 @@ void core_commit_IO_DPM_t::IO_step(void)
         ZESTO_STAT(core->stat.uop_ready2issue_slip += uop->timing.when_issued - uop->timing.when_ready;)
         ZESTO_STAT(core->stat.uop_issue2exec_slip += uop->timing.when_exec - uop->timing.when_issued;)
         ZESTO_STAT(core->stat.uop_exec2complete_slip += uop->timing.when_completed - uop->timing.when_exec;)
-        ZESTO_STAT(core->stat.uop_complete2commit_slip += sim_cycle - uop->timing.when_completed;)
+        ZESTO_STAT(core->stat.uop_complete2commit_slip += core->sim_cycle - uop->timing.when_completed;)
 
         zesto_assert(uop->timing.when_exec != TICK_T_MAX,(void)0);
       }
@@ -712,12 +712,12 @@ void core_commit_IO_DPM_t::IO_step(void)
     /*****************/
     if(core->current_thread->active)
     {
-      if ( ( max_cycles && sim_cycle >= max_cycles ) ||
+      if ( ( max_cycles && core->sim_cycle >= max_cycles ) ||
            (max_insts && core->stat.commit_insn >= max_insts) ||
            (max_uops && core->stat.commit_uops >= max_uops)  )
       {
-        core->stat.final_sim_cycle = sim_cycle; /* make note of when this core stopped simulating */
-        if(max_cycles && sim_cycle >= max_cycles)
+        core->stat.final_sim_cycle = core->sim_cycle; /* make note of when this core stopped simulating */
+        if(max_cycles && core->sim_cycle >= max_cycles)
           fprintf(stderr,"# Simulation cycle ");
         else if(max_insts && max_uops)
           fprintf(stderr,"# Committed instruction/uop ");

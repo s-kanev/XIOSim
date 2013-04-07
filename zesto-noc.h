@@ -4,7 +4,8 @@
 struct bus_t {
   char * name;
   int width; /* in bytes tranferrable per cycle */
-  int ratio; /* number of cpu cycles per bus cycle */
+  const tick_t * clock; /* The sim_cycle used to drive this bus */
+  int ratio; /* number of ^ clock cycles per bus cycle */
   tick_t when_available;
 
   struct {
@@ -17,6 +18,7 @@ struct bus_t {
 struct bus_t * bus_create(
     const char * const name,
     const int width,
+    const tick_t * clock,
     const int ratio);
 
 void bus_reg_stats(

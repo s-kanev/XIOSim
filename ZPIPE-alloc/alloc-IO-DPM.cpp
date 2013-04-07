@@ -372,8 +372,8 @@ void core_alloc_IO_DPM_t::step(void)
               }
               else /* read from ARF */
               {
-                uop->timing.when_itag_ready[j] = sim_cycle;
-                uop->timing.when_ival_ready[j] = sim_cycle;
+                uop->timing.when_itag_ready[j] = core->sim_cycle;
+                uop->timing.when_ival_ready[j] = core->sim_cycle;
                 uop->exec.ivalue_valid[j] = true; /* applies to invalid (DNA) inputs as well */
                 if(uop->decode.idep_name[j] != DNA)
                   uop->exec.ivalue[j] = uop->oracle.ivalue[j]; /* oracle value == architected value */
@@ -382,7 +382,7 @@ void core_alloc_IO_DPM_t::step(void)
                 when_ready = uop->timing.when_itag_ready[j];
             }
             uop->timing.when_ready = when_ready;
-            uop->timing.when_allocated = sim_cycle;
+            uop->timing.when_allocated = core->sim_cycle;
 
 #ifdef ZTRACE
             if(uop->decode.in_fusion && !uop->decode.is_fusion_head)

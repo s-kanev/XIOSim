@@ -11,6 +11,8 @@
 #include "feeder.h"
 #include "scheduler.h"
 
+#include "../zesto-core.h"
+
 struct RunQueue {
     RunQueue() {
         lk_init(&lk);
@@ -70,7 +72,7 @@ VOID DescheduleActiveThread(INT32 coreID)
     lk_lock(&run_queues[coreID].lk, 1);
 
     THREADID tid = run_queues[coreID].q.front();
-    run_queues[coreID].last_reschedule = sim_cycle;
+    run_queues[coreID].last_reschedule = cores[coreID]->sim_cycle;
 
     lk_lock(&printing_lock, 1);
     cerr << "Descheduling thread " << tid << " at coreID  " << coreID << endl;
@@ -108,7 +110,7 @@ VOID GiveUpCore(INT32 coreID, BOOL reschedule_thread)
 {
     lk_lock(&run_queues[coreID].lk, 1);
     THREADID tid = run_queues[coreID].q.front();
-    run_queues[coreID].last_reschedule = sim_cycle;
+    run_queues[coreID].last_reschedule = cores[coreID]->sim_cycle;
 
     lk_lock(&printing_lock, tid+1);
     cerr << "Thread " << tid << " giving up on core " << coreID << endl;
@@ -171,6 +173,6 @@ BOOL IsCoreBusy(INT32 coreID)
 /* ========================================================================== */
 BOOL NeedsReschedule(INT32 coreID)
 {
-    tick_t since_schedule = sim_cycle - run_queues[coreID].last_reschedule;
+    tick_t since_schedule = cores[coreID]->sim_cycle - run_queues[coreID].last_reschedule;
     return (since_schedule > 1600000);
 }

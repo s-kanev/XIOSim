@@ -40,7 +40,7 @@ class MC_dramsim_t:public MC_t
     bool finished_init;
 
     double memPeriodNs;
-    double cpuPeriodNs;
+    double uncorePeriodNs;
     double accumulatedNs;
     double nextMemUpdate;
 
@@ -60,7 +60,7 @@ class MC_dramsim_t:public MC_t
     bool found = false;
     for(it = outstanding_reqs.begin(); it != outstanding_reqs.end(); it++) {
       if((*it).addr == addr && (*it).when_finished == TICK_T_MAX) {
-        (*it).when_finished = sim_cycle;
+        (*it).when_finished = uncore->sim_cycle;
         total_dram_cycles += (*it).when_finished - (*it).when_started;
         found = true;
         break;
@@ -106,8 +106,8 @@ class MC_dramsim_t:public MC_t
     accumulatedNs = 0;
 
     nextMemUpdate = memPeriodNs;
-    cpuPeriodNs = 1.0 / (uncore->cpu_speed / (1e3));
-    assert(memPeriodNs > cpuPeriodNs);
+    uncorePeriodNs = 1.0 / (uncore->cpu_speed / (1e3));
+    assert(memPeriodNs >= uncorePeriodNs);
     std::cerr << "Memperiod is about ns: " << memPeriodNs << std::endl;
 
     // DRAMSim callbacks
@@ -156,8 +156,8 @@ class MC_dramsim_t:public MC_t
     req->MSHR_index = MSHR_index;
     req->cb = cb;
     req->get_action_id = get_action_id;
-    req->when_enqueued = sim_cycle;
-    req->when_started = sim_cycle;
+    req->when_enqueued = uncore->sim_cycle;
+    req->when_started = uncore->sim_cycle;
     req->when_finished = TICK_T_MAX;
     req->when_returned = TICK_T_MAX;
 
@@ -178,7 +178,7 @@ class MC_dramsim_t:public MC_t
     }
 
     // See if it's time to run a memory tick
-    accumulatedNs += cpuPeriodNs;
+    accumulatedNs += uncorePeriodNs;
     if(accumulatedNs < nextMemUpdate) {
       return;
     }
@@ -195,10 +195,10 @@ class MC_dramsim_t:public MC_t
 
       MC_action_t* req = &(*it);
 
-      if((req->when_finished <= sim_cycle) && (req->when_returned == TICK_T_MAX) && (!req->prev_cp || bus_free(uncore->fsb))) {
+      if((req->when_finished <= uncore->sim_cycle) && (req->when_returned == TICK_T_MAX) && (!req->prev_cp || bus_free(uncore->fsb))) {
 
-        req->when_returned = sim_cycle;
-        total_service_cycles += sim_cycle - req->when_enqueued;
+        req->when_returned = uncore->sim_cycle;
+        total_service_cycles += uncore->sim_cycle - req->when_enqueued;
 
         /* fill previous level as appropriate */
         if(req->prev_cp) {

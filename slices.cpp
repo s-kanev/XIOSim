@@ -10,17 +10,22 @@
 #include "thread.h"
 #include "zesto-core.h"
 #include "zesto-power.h"
+#include "zesto-uncore.h"
+
+// XXX: THIS STILL DOESN'T HANDLE MULTICORE SLICES PROPERLY.
+// FORTUNATELY WE ONLY SIMULATE SINGLE MULTICORE SLICES SO FAR.
 
 extern struct stat_sdb_t *sim_sdb;
 extern void sim_reg_stats(struct thread_t ** threads, struct stat_sdb_t *sdb);
 extern void sim_print_stats(FILE *fd);
 
-extern tick_t sim_cycle;
 extern const char *sim_simout;
 extern int sim_elapsed_time;
 
-static unsigned long long slice_start_cycle = 0;
-static unsigned long long slice_end_cycle = 0;
+static unsigned long long slice_core_start_cycle = 0;
+static unsigned long long slice_uncore_start_cycle = 0;
+static unsigned long long slice_core_end_cycle = 0;
+static unsigned long long slice_uncore_end_cycle = 0;
 static unsigned long long slice_start_icount = 0;
 
 static time_t slice_start_time;
@@ -41,9 +46,11 @@ void start_slice(unsigned int slice_num)
 
    all_stats.push_back(new_stat_db);
 
-   sim_cycle = slice_end_cycle;
-   cores[i]->stat.final_sim_cycle = slice_end_cycle;
-   slice_start_cycle = sim_cycle;
+   uncore->sim_cycle = slice_uncore_end_cycle;
+   cores[i]->sim_cycle = slice_core_end_cycle;
+   cores[i]->stat.final_sim_cycle = slice_core_end_cycle;
+   slice_core_start_cycle = cores[i]->sim_cycle;
+   slice_uncore_start_cycle = uncore->sim_cycle;
    slice_start_icount = thread->stat.num_insn;
    slice_start_time = time((time_t *)NULL);
 }
@@ -54,7 +61,8 @@ void end_slice(unsigned int slice_num, unsigned long long feeder_slice_length, u
    lk_lock(&printing_lock, 1);
    core_knobs_t *knobs = cores[i]->knobs;
    struct stat_sdb_t* curr_sdb = all_stats.back();
-   slice_end_cycle = sim_cycle;
+   slice_uncore_end_cycle = uncore->sim_cycle;
+   slice_core_end_cycle = cores[i]->sim_cycle;
    time_t slice_end_time = time((time_t*)NULL);
    sim_elapsed_time = MAX(slice_end_time - slice_start_time, 1);
 
@@ -62,8 +70,9 @@ void end_slice(unsigned int slice_num, unsigned long long feeder_slice_length, u
       The reason for doing this is that cycle counts increasing monotonously is
       an important invariant all around and reseting the cycle counts on every
       slice causes hell to break loose with caches an you name it */
-   sim_cycle -= slice_start_cycle;
-   cores[i]->stat.final_sim_cycle -= slice_start_cycle;
+   uncore->sim_cycle -= slice_uncore_start_cycle;
+   cores[i]->sim_cycle -= slice_core_start_cycle;
+   cores[i]->stat.final_sim_cycle -= slice_core_start_cycle;
    double weight = (double)slice_weight_times_1000 / 100000.0;
    curr_sdb->slice_weight = weight;
 
@@ -97,7 +106,7 @@ void end_slice(unsigned int slice_num, unsigned long long feeder_slice_length, u
         panic("couldn't restore stderr redirection");
    }
 
-   double n_cycles = (double)sim_cycle;
+   double n_cycles = (double)cores[0]->sim_cycle;
    double n_insn = (double)(cores[0]->current_thread->stat.num_insn - slice_start_icount);
    double n_pin_n_insn = (double)feeder_slice_length;
    double curr_cpi = weight * n_cycles / n_insn;

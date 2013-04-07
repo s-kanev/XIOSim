@@ -324,6 +324,7 @@ struct Mop_t
 struct core_knobs_t
 {
   const char * model;
+  double default_cpu_speed; /* in MHz */
 
   struct {
     int byteQ_size;

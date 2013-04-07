@@ -312,8 +312,8 @@ void core_alloc_DPM_t::step(void)
                 }
                 else /* read from ARF */
                 {
-                  uop->timing.when_itag_ready[j] = sim_cycle;
-                  uop->timing.when_ival_ready[j] = sim_cycle;
+                  uop->timing.when_itag_ready[j] = core->sim_cycle;
+                  uop->timing.when_ival_ready[j] = core->sim_cycle;
                   uop->exec.ivalue_valid[j] = true; /* applies to invalid (DNA) inputs as well */
                   if(uop->decode.idep_name[j] != DNA)
                     uop->exec.ivalue[j] = uop->oracle.ivalue[j]; /* oracle value == architected value */
@@ -334,13 +334,13 @@ void core_alloc_DPM_t::step(void)
                  up space in the ROB though). */
               /* Since traps/interrupts aren't really properly modeled in SimpleScalar, we just let
                  it go through without doing anything. */
-              uop->timing.when_ready = sim_cycle;
-              uop->timing.when_issued = sim_cycle;
-              uop->timing.when_completed = sim_cycle;
+              uop->timing.when_ready = core->sim_cycle;
+              uop->timing.when_issued = core->sim_cycle;
+              uop->timing.when_completed = core->sim_cycle;
 	      zesto_assert(!uop->decode.is_load, (void)0);
             }
 
-            uop->timing.when_allocated = sim_cycle;
+            uop->timing.when_allocated = core->sim_cycle;
 
 #ifdef ZTRACE
             ztrace_print_start(uop,"a|alloc:ROB=%d,",uop->alloc.ROB_index);

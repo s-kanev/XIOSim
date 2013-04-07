@@ -178,6 +178,9 @@ class core_t {
   /********************************/
   struct thread_t * current_thread;
   int id; /* core-id */
+  tick_t sim_cycle; /* core-specific cycle counter */
+  double cpu_speed; /* current core frequency in MHz */
+  double ns_passed; /* used to sync with uncore */
 
   counter_t num_emergency_recoveries;
   int last_emergency_recovery_count; /* inst count at last recover to detect an unrecoverable situation */

@@ -106,7 +106,6 @@ void sim_reg_options(struct opt_odb_t *odb);
 void sim_check_options(struct opt_odb_t *odb, int argc, char **argv);
 
 extern int sim_elapsed_time;
-extern tick_t sim_cycle;
 
 #ifdef ZTRACE
 void ztrace_print(const struct Mop_t * Mop);

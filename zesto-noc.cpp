@@ -10,6 +10,7 @@ extern bool fsb_magic;
 struct bus_t * bus_create(
     const char * const name,
     const int width,
+    const tick_t * clock,
     const int ratio)
 {
   struct bus_t * bus = (struct bus_t*) calloc(1,sizeof(*bus));
@@ -17,6 +18,7 @@ struct bus_t * bus_create(
     fatal("failed to calloc bus %s",name);
   bus->name = strdup(name);
   bus->width = width;
+  bus->clock = clock;
   bus->ratio = ratio;
   return bus;
 }
@@ -63,14 +65,14 @@ void bus_reg_stats(
 int bus_free(const struct bus_t * const bus)
 {
   /* HACEDY HACKEDY HACK -- magic FSB */
-  if(fsb_magic)
+  if(fsb_magic && !strcmp(bus->name, "FSB"))
     return true;
   /* assume bus clock is locked to cpu clock (synchronous): only
      allow operations when cycle MOD bus-multiplier is zero */
-  if(sim_cycle % bus->ratio)
+  if(*bus->clock % bus->ratio)
     return false;
   else
-    return (bus->when_available <= sim_cycle);
+    return (bus->when_available <= *bus->clock);
 }
 
 /* Make use of the bus, thereby making it NOT free for some number of cycles hence */
@@ -80,7 +82,7 @@ void bus_use(
     const int prefetch)
 {
   const int latency = (((transfer_size-1) / bus->width)+1) * bus->ratio; /* round up */
-  bus->when_available = sim_cycle + latency;
+  bus->when_available = *bus->clock + latency;
   bus->stat.accesses++;
   bus->stat.utilization += latency;
   if(prefetch)

@@ -306,7 +306,7 @@ core_exec_IO_DPM_t::core_exec_IO_DPM_t(struct core_t * const arg_core):
     core->memory.DL2->PF_high_watermark = knobs->memory.DL2_high_watermark;
     core->memory.DL2->PF_sample_interval = knobs->memory.DL2_WMinterval;
 
-    core->memory.DL2_bus = bus_create("DL2_bus",core->memory.DL2->linesize*core->memory.DL2->banks,1);
+    core->memory.DL2_bus = bus_create("DL2_bus", core->memory.DL2->linesize*core->memory.DL2->banks, &core->sim_cycle, 1);
   }
 
   /* per-core DL1 */
@@ -389,7 +389,7 @@ core_exec_IO_DPM_t::core_exec_IO_DPM_t(struct core_t * const arg_core):
   }
   else
   {
-    core->memory.DTLB_bus = bus_create("DTLB_bus",1,1);
+    core->memory.DTLB_bus = bus_create("DTLB_bus", 1, &core->sim_cycle, 1);
 
     if(sscanf(knobs->memory.DTLB2_opt_str,"%[^:]:%d:%d:%d:%d:%c:%d",
         name,&sets,&assoc,&banks,&latency, &rp, &MSHR_entries) != 7)
@@ -507,7 +507,7 @@ core_exec_IO_DPM_t::core_exec_IO_DPM_t(struct core_t * const arg_core):
     }
   }
 
-  memdep = memdep_create(knobs->exec.memdep_opt_str);
+  memdep = memdep_create(core, knobs->exec.memdep_opt_str);
 
   if (core->memory.DL2)
     core->memory.mem_repeater = repeater_create(core->knobs->exec.repeater_opt_str, core, "MR1", core->memory.DL2);
@@ -677,8 +677,8 @@ void core_exec_IO_DPM_t::reset_execution(void)
     for(int j=0; j<NUM_FU_CLASSES; j++)
       if(port[i].FU[j])
       {
-        port[i].FU[j]->when_scheduleable = sim_cycle;
-        port[i].FU[j]->when_executable = sim_cycle;
+        port[i].FU[j]->when_scheduleable = core->sim_cycle;
+        port[i].FU[j]->when_executable = core->sim_cycle;
       }
   }
   check_for_work = true;
@@ -813,14 +813,14 @@ void core_exec_IO_DPM_t::load_writeback(struct uop_t * const uop)
 
     int fp_penalty = REG_IS_IN_FP_UNIT(uop->decode.odep_name)?knobs->exec.fp_penalty:0;
 
-    port[uop->alloc.port_assignment].when_bypass_used = sim_cycle+fp_penalty;
+    port[uop->alloc.port_assignment].when_bypass_used = core->sim_cycle+fp_penalty;
     uop->exec.ovalue = uop->oracle.ovalue; /* XXX: just using oracle value for now */
     uop->exec.ovalue_valid = true;
 
     zesto_assert(uop->timing.when_completed == TICK_T_MAX,(void)0);
 
-    uop->timing.when_completed = sim_cycle+fp_penalty;
-    last_completed = sim_cycle+fp_penalty; /* for deadlock detection */
+    uop->timing.when_completed = core->sim_cycle+fp_penalty;
+    last_completed = core->sim_cycle+fp_penalty; /* for deadlock detection */
     if(uop->decode.is_ctrl && (uop->Mop->oracle.NextPC != uop->Mop->fetch.pred_NPC)) /* XXX: for RETN */
     {
       core->oracle->pipe_recover(uop->Mop,uop->Mop->oracle.NextPC);
@@ -833,10 +833,10 @@ void core_exec_IO_DPM_t::load_writeback(struct uop_t * const uop)
     }
 
 
-    if(uop->timing.when_otag_ready > (sim_cycle+fp_penalty))
+    if(uop->timing.when_otag_ready > (core->sim_cycle+fp_penalty))
       /* we thought this output would be ready later in the future,
          but it's ready now! */
-      uop->timing.when_otag_ready = sim_cycle+fp_penalty;
+      uop->timing.when_otag_ready = core->sim_cycle+fp_penalty;
 
     /* bypass output value to dependents, but also check to see if
        dependents were already speculatively scheduled; if not,
@@ -846,12 +846,12 @@ void core_exec_IO_DPM_t::load_writeback(struct uop_t * const uop)
     while(odep)
     {
       /* check scheduling info (tags) */
-      if(odep->uop->timing.when_itag_ready[odep->op_num] > (sim_cycle+fp_penalty))
+      if(odep->uop->timing.when_itag_ready[odep->op_num] > (core->sim_cycle+fp_penalty))
       {
         int j;
         tick_t when_ready = 0;
 
-        odep->uop->timing.when_itag_ready[odep->op_num] = sim_cycle+fp_penalty;
+        odep->uop->timing.when_itag_ready[odep->op_num] = core->sim_cycle+fp_penalty;
 
         for(j=0;j<MAX_IDEPS;j++)
           if(when_ready < odep->uop->timing.when_itag_ready[j])
@@ -878,7 +878,7 @@ void core_exec_IO_DPM_t::load_writeback(struct uop_t * const uop)
       }
       else
         odep->uop->exec.ivalue[odep->op_num] = uop->exec.ovalue;
-      odep->uop->timing.when_ival_ready[odep->op_num] = sim_cycle+fp_penalty;
+      odep->uop->timing.when_ival_ready[odep->op_num] = core->sim_cycle+fp_penalty;
 
       odep = odep->next;
     }
@@ -907,14 +907,14 @@ void core_exec_IO_DPM_t::DL1_callback(void * const op)
 
     /* We don't care about the repeater (in general, or it has arrived with a  miss),
      * check for split load and TLB access */
-    if((uop->exec.when_addr_translated <= sim_cycle) &&
+    if((uop->exec.when_addr_translated <= uop->core->sim_cycle) &&
         LDQ_item->all_arrived() &&
         !LDQ_item->hit_in_STQ) /* no match in STQ, so use cache value */
     {
       /* if load received value from STQ, it could have already
          committed by the time this gets called (esp. if we went to
          main memory) */
-      uop->exec.when_data_loaded = sim_cycle;
+      uop->exec.when_data_loaded = uop->core->sim_cycle;
       E->load_writeback(uop);
     }
   }
@@ -940,7 +940,7 @@ void core_exec_IO_DPM_t::DL1_split_callback(void * const op)
 
     /* We don't care about the repeater (in general, or it has arrived with a miss),
      * check for split load and TLB access */
-    if((uop->exec.when_addr_translated <= sim_cycle) &&
+    if((uop->exec.when_addr_translated <= uop->core->sim_cycle) &&
         LDQ_item->all_arrived() &&
         !LDQ_item->hit_in_STQ) /* no match in STQ, so use cache value */
     {
@@ -948,7 +948,7 @@ void core_exec_IO_DPM_t::DL1_split_callback(void * const op)
       /* if load received value from STQ, it could have already
          committed by the time this gets called (esp. if we went to
          main memory) */
-      uop->exec.when_data_loaded = sim_cycle;
+      uop->exec.when_data_loaded = uop->core->sim_cycle;
       E->load_writeback(uop);
     }
   }
@@ -984,14 +984,14 @@ void core_exec_IO_DPM_t::repeater_callback(void * const op, bool is_hit)
       /* We have a parallel DL1 request */
       else {
         /* If we have the value from DL1 already, mark as done */
-        if((uop->exec.when_addr_translated <= sim_cycle) &&
+        if((uop->exec.when_addr_translated <= core->sim_cycle) &&
             LDQ_item->all_arrived() &&
             !E->LDQ[uop->alloc.LDQ_index].hit_in_STQ) /* no match in STQ, so use cache value */
         {
           /* if load received value from STQ, it could have already
            * committed by the time this gets called (esp. if we went to
            * main memory) */
-          uop->exec.when_data_loaded = sim_cycle;
+          uop->exec.when_data_loaded = core->sim_cycle;
           E->load_writeback(uop);
         }
         else {
@@ -1006,11 +1006,11 @@ void core_exec_IO_DPM_t::repeater_callback(void * const op, bool is_hit)
       }
     } else {
       /* Ok, repeater has value, check split access */
-      if ((uop->exec.when_addr_translated <= sim_cycle) &&
+      if ((uop->exec.when_addr_translated <= core->sim_cycle) &&
           LDQ_item->all_arrived() &&
           !E->LDQ[uop->alloc.LDQ_index].hit_in_STQ) /* no match in STQ, so use cache value */
         {
-          uop->exec.when_data_loaded = sim_cycle;
+          uop->exec.when_data_loaded = core->sim_cycle;
           E->load_writeback(uop);
         }
     }
@@ -1038,14 +1038,14 @@ void core_exec_IO_DPM_t::repeater_split_callback(void * const op, bool is_hit)
     /* Repeater hit, now check if first access and DTLB have arrived */
     if (is_hit)
     {
-      if((uop->exec.when_addr_translated <= sim_cycle) &&
+      if((uop->exec.when_addr_translated <= core->sim_cycle) &&
          LDQ_item->all_arrived() &&
          !LDQ_item->hit_in_STQ) /* no match in STQ, so use cache value */
       {
         /* if load received value from STQ, it could have already
            committed by the time this gets called (esp. if we went to
            main memory) */
-        uop->exec.when_data_loaded = sim_cycle;
+        uop->exec.when_data_loaded = core->sim_cycle;
         E->load_writeback(uop);
       }
     }
@@ -1064,14 +1064,14 @@ void core_exec_IO_DPM_t::repeater_split_callback(void * const op, bool is_hit)
       }
       else {
         /* We have a parallel DL1 request */
-        if((uop->exec.when_addr_translated <= sim_cycle) &&
+        if((uop->exec.when_addr_translated <= core->sim_cycle) &&
             LDQ_item->all_arrived() &&
             !E->LDQ[uop->alloc.LDQ_index].hit_in_STQ) /* no match in STQ, so use cache value */
         {
           /* if load received value from STQ, it could have already
              committed by the time this gets called (esp. if we went to
              main memory) */
-          uop->exec.when_data_loaded = sim_cycle;
+          uop->exec.when_data_loaded = core->sim_cycle;
           E->load_writeback(uop);
         }
         else {
@@ -1093,11 +1093,11 @@ void core_exec_IO_DPM_t::DTLB_callback(void * const op)
   {
     struct LDQ_t * LDQ_item = &E->LDQ[uop->alloc.LDQ_index];
     zesto_assert(uop->exec.when_addr_translated == TICK_T_MAX, (void)0);
-    uop->exec.when_addr_translated = sim_cycle;
+    uop->exec.when_addr_translated = core->sim_cycle;
 #ifdef ZTRACE
     ztrace_print(uop,"e|load|virtual address translated");
 #endif
-    if((uop->exec.when_addr_translated <= sim_cycle) &&
+    if((uop->exec.when_addr_translated <= core->sim_cycle) &&
         LDQ_item->all_arrived() &&
         !E->LDQ[uop->alloc.LDQ_index].hit_in_STQ)
       E->load_writeback(uop);
@@ -1109,7 +1109,7 @@ bool core_exec_IO_DPM_t::translated_callback(void * const op, const seq_t action
 {
   struct uop_t * uop = (struct uop_t*) op;
   if((uop->exec.action_id == action_id) && (uop->alloc.LDQ_index != -1))
-    return uop->exec.when_addr_translated <= sim_cycle;
+    return uop->exec.when_addr_translated <= uop->core->sim_cycle;
   else
     return true;
 }
@@ -1164,7 +1164,7 @@ void core_exec_IO_DPM_t::load_miss_reschedule(void * const op, const int new_pre
     /* now assume a hit in this cache level */
     odep = uop->exec.odep_uop;
     if(new_pred_latency != BIG_LATENCY)
-      uop->timing.when_otag_ready = sim_cycle + new_pred_latency - knobs->exec.payload_depth - 1;
+      uop->timing.when_otag_ready = core->sim_cycle + new_pred_latency - knobs->exec.payload_depth - 1;
 
     while(odep)
     {
@@ -1281,15 +1281,15 @@ void core_exec_IO_DPM_t::LDST_exec(void)
                 //SK - No need to flush here, simply use the found value
                 //uop->exec.action_id = core->new_action_id();
                 zesto_assert(uop->timing.when_completed == TICK_T_MAX,(void)0);
-                uop->timing.when_completed = sim_cycle+fp_penalty;
-                uop->timing.when_exec = sim_cycle+fp_penalty;
-                last_completed = sim_cycle+fp_penalty; /* for deadlock detection */
+                uop->timing.when_completed = core->sim_cycle+fp_penalty;
+                uop->timing.when_exec = core->sim_cycle+fp_penalty;
+                last_completed = core->sim_cycle+fp_penalty; /* for deadlock detection */
 
                 /* when_issued should be != TICK_T_MAX; in a few cases I was
                    finding it set; haven't had time to fully debug this yet,
                    but this fix apparently works for now. */
                 if(LDQ[uop->alloc.LDQ_index].when_issued == TICK_T_MAX)
-                  LDQ[uop->alloc.LDQ_index].when_issued = sim_cycle+fp_penalty;
+                  LDQ[uop->alloc.LDQ_index].when_issued = core->sim_cycle+fp_penalty;
                 LDQ[uop->alloc.LDQ_index].hit_in_STQ = true;
 #ifdef ZTRACE
                 ztrace_print(uop,"e|STQ-hit|store-to-load forward");
@@ -1308,20 +1308,20 @@ void core_exec_IO_DPM_t::LDST_exec(void)
 
                 /* we thought this output would be ready later in the future, but
                    it's ready now! */
-                if(uop->timing.when_otag_ready > (sim_cycle+fp_penalty))
-                  uop->timing.when_otag_ready = sim_cycle+fp_penalty;
+                if(uop->timing.when_otag_ready > (core->sim_cycle+fp_penalty))
+                  uop->timing.when_otag_ready = core->sim_cycle+fp_penalty;
 
                 struct odep_t * odep = uop->exec.odep_uop;
 
                 while(odep)
                 {
                   /* check scheduling info (tags) */
-                  if(odep->uop->timing.when_itag_ready[odep->op_num] > sim_cycle)
+                  if(odep->uop->timing.when_itag_ready[odep->op_num] > core->sim_cycle)
                   {
                     int j;
                     tick_t when_ready = 0;
 
-                    odep->uop->timing.when_itag_ready[odep->op_num] = sim_cycle+fp_penalty;
+                    odep->uop->timing.when_itag_ready[odep->op_num] = core->sim_cycle+fp_penalty;
 
                     for(j=0;j<MAX_IDEPS;j++)
                       if(when_ready < odep->uop->timing.when_itag_ready[j])
@@ -1345,7 +1345,7 @@ void core_exec_IO_DPM_t::LDST_exec(void)
                   }
                   else
                     odep->uop->exec.ivalue[odep->op_num] = uop->exec.ovalue;
-                  odep->uop->timing.when_ival_ready[odep->op_num] = sim_cycle+fp_penalty;
+                  odep->uop->timing.when_ival_ready[odep->op_num] = core->sim_cycle+fp_penalty;
 
                   odep = odep->next;
                 }
@@ -1483,8 +1483,6 @@ void core_exec_IO_DPM_t::LDST_exec(void)
   lk_lock(&cache_lock, core->id+1);
   if(core->memory.DTLB2 && core->memory.DTLB2->check_for_work) cache_process(core->memory.DTLB2);
   if(core->memory.DTLB->check_for_work) cache_process(core->memory.DTLB);
-  if((core->current_thread->id == min_coreID) && !(sim_cycle&uncore->LLC_cycle_mask) && uncore->LLC->check_for_work)
-    cache_process(uncore->LLC);
   if(core->memory.DL2 && core->memory.DL2->check_for_work) cache_process(core->memory.DL2);
 //  if(core->memory.mem_repeater) repeater_step(core->memory.mem_repeater);
   if(core->memory.DL1->check_for_work) cache_process(core->memory.DL1);
@@ -1527,7 +1525,7 @@ void core_exec_IO_DPM_t::LDQ_schedule(void)
                 }
                 else
                   // The wait address is bogus, don't schedule a TLB translation
-                  uop->exec.when_addr_translated = sim_cycle;
+                  uop->exec.when_addr_translated = core->sim_cycle;
 
                 if(send_to_dl1 && !uop->oracle.is_sync_op)
                   cache_enqueue(core,core->memory.DL1,NULL,CACHE_READ,core->current_thread->id,uop->Mop->fetch.PC,uop->oracle.virt_addr,uop->exec.action_id,0,NO_MSHR,uop,DL1_callback,load_miss_reschedule,translated_callback,get_uop_action_id);
@@ -1552,7 +1550,7 @@ void core_exec_IO_DPM_t::LDQ_schedule(void)
                   /* we just mark the last byte as fetched, so that when the default callback gets invoked
                      and sets first_byte_arrived to true, then it appears that the whole line is available. */
                   LDQ[index].last_byte_arrived = true;
-                  LDQ[index].when_issued = sim_cycle;
+                  LDQ[index].when_issued = core->sim_cycle;
                   LDQ[index].repeater_last_arrived = true;
                   LDQ[index].last_repeated = false;
                 }
@@ -1561,9 +1559,9 @@ void core_exec_IO_DPM_t::LDQ_schedule(void)
                 {
                   struct odep_t * odep = LDQ[index].uop->exec.odep_uop;
                   if(knobs->exec.payload_depth < core->memory.DL1->latency) /* assume DL1 hit */
-                    LDQ[index].uop->timing.when_otag_ready = sim_cycle + core->memory.DL1->latency - knobs->exec.payload_depth;
+                    LDQ[index].uop->timing.when_otag_ready = core->sim_cycle + core->memory.DL1->latency - knobs->exec.payload_depth;
                   else
-                    LDQ[index].uop->timing.when_otag_ready = sim_cycle;
+                    LDQ[index].uop->timing.when_otag_ready = core->sim_cycle;
                   while(odep)
                   {
                     /* odep already finished executing.  Normally this wouldn't (can't?) happen,
@@ -1640,7 +1638,7 @@ void core_exec_IO_DPM_t::LDQ_schedule(void)
                 else
                   LDQ[index].last_repeated = false;
                 LDQ[index].last_byte_requested = true;
-                LDQ[index].when_issued = sim_cycle;
+                LDQ[index].when_issued = core->sim_cycle;
                 /* XXX: we should probably do some rescheduling, too */
               }
             }
@@ -2422,7 +2420,7 @@ void core_exec_IO_DPM_t::dump_payload()
 {
   struct core_knobs_t * knobs = core->knobs;
   struct uop_t * uop;
-  printf("cycle: %d\n",(int)sim_cycle);
+  printf("cycle: %d\n",(int)core->sim_cycle);
   for(int i=0; i<knobs->exec.num_exec_ports; i++){
     printf("%d:|",i);
     for(int stage=0; stage<knobs->exec.payload_depth; stage++)
@@ -2455,7 +2453,7 @@ void core_exec_IO_DPM_t::update_execution_otags(tick_t old_sim_cycle)
 {
   core_knobs_t* knobs = core->knobs;
 
-  sqword_t cycle_diff = sim_cycle - old_sim_cycle;
+  sqword_t cycle_diff = core->sim_cycle - old_sim_cycle;
 
   /* For now, do this only for ops in execution units,
    * when_otag_ready is assigned and used for them.
@@ -2563,7 +2561,7 @@ void core_exec_IO_DPM_t::step()
             ZESTO_STAT(core->stat.exec_uops_replayed++;)
 
             if(port[i].when_stalled == 0)
-              port[i].when_stalled = sim_cycle;
+              port[i].when_stalled = core->sim_cycle;
          }
       }
       else port[i].when_stalled = 0;
@@ -2598,7 +2596,7 @@ void core_exec_IO_DPM_t::step()
 
           //stall = true;
           if(port[i].when_stalled == 0)
-            port[i].when_stalled = sim_cycle;
+            port[i].when_stalled = core->sim_cycle;
 
 //          break;
        }
@@ -2615,9 +2613,9 @@ void core_exec_IO_DPM_t::step()
 
           if(uop->decode.is_nop || uop->Mop->decode.is_trap)
           {
-             uop->timing.when_exec = sim_cycle;
-             uop->timing.when_issued = sim_cycle;
-             uop->timing.when_completed = sim_cycle;
+             uop->timing.when_exec = core->sim_cycle;
+             uop->timing.when_issued = core->sim_cycle;
+             uop->timing.when_completed = core->sim_cycle;
           }
 
           if((!uop->decode.in_fusion) || uop->decode.is_fusion_head)
@@ -2647,7 +2645,7 @@ void core_exec_IO_DPM_t::step()
          continue;
 
       int squashed = (FU->pipe[stage].action_id != uop->exec.action_id);
-      int bypass_available = (port[i].when_bypass_used != sim_cycle);
+      int bypass_available = (port[i].when_bypass_used != core->sim_cycle);
       /* SK - TODO: may need to rethink for atomic uops */
       int needs_bypass = !(uop->decode.is_sta||uop->decode.is_std||uop->decode.is_load||uop->decode.is_ctrl);
 
@@ -2672,7 +2670,7 @@ void core_exec_IO_DPM_t::step()
          exec_stall = true;
          for(int k=0;k<knobs->exec.num_exec_ports;k++)
            if(port[k].when_stalled == 0)
-             port[k].when_stalled = sim_cycle;
+             port[k].when_stalled = core->sim_cycle;
  //        break;
       }
       else
@@ -2687,21 +2685,21 @@ void core_exec_IO_DPM_t::step()
 
          if(uop->timing.when_completed == TICK_T_MAX)
          {
-            uop->timing.when_completed = sim_cycle+fp_penalty;
-            last_completed = sim_cycle+fp_penalty; /* for deadlock detection*/
+            uop->timing.when_completed = core->sim_cycle+fp_penalty;
+            last_completed = core->sim_cycle+fp_penalty; /* for deadlock detection*/
          }
          //when_completed can only be set if waiting for fp_penalty
          else
             zesto_assert(fp_penalty > 0, (void)0);
 
          //Wait until fp_penalty has been paid
-         if(sim_cycle < uop->timing.when_completed)
+         if(core->sim_cycle < uop->timing.when_completed)
          {
          }
          else
          {
            if(needs_bypass)
-            port[i].when_bypass_used = sim_cycle;
+            port[i].when_bypass_used = core->sim_cycle;
 
            /* actual execution occurs here - copy oracle value*/
            uop->exec.ovalue_valid = true;
@@ -2736,7 +2734,7 @@ void core_exec_IO_DPM_t::step()
                 odep->uop->exec.ivalue[odep->op_num].dw = uop->exec.oflags;
              else
                 odep->uop->exec.ivalue[odep->op_num] = uop->exec.ovalue;
-             odep->uop->timing.when_ival_ready[odep->op_num] = sim_cycle+fp_penalty;
+             odep->uop->timing.when_ival_ready[odep->op_num] = core->sim_cycle+fp_penalty;
              odep = odep->next;
            }
 
@@ -2859,7 +2857,7 @@ void core_exec_IO_DPM_t::step()
                 stall = true;
                 uop->exec.num_replays++;
                 if(port[i].when_stalled == 0)
-                  port[i].when_stalled = sim_cycle;
+                  port[i].when_stalled = core->sim_cycle;
                 continue;
              }
            }
@@ -2899,7 +2897,7 @@ void core_exec_IO_DPM_t::step()
 //               uop->exec.num_replays++;
 //               stall = true;
 //               if(port[i].when_stalled == 0)
-//                 port[i].when_stalled = sim_cycle;
+//                 port[i].when_stalled = core->sim_cycle;
 //               continue;
 //             }
 //             else
@@ -2911,9 +2909,9 @@ void core_exec_IO_DPM_t::step()
 
 //                if(uop->decode.is_nop || uop->Mop->decode.is_trap)
 //                {
-//                  uop->timing.when_exec = sim_cycle;
-//                  uop->timing.when_issued = sim_cycle;
-//                  uop->timing.when_completed = sim_cycle;
+//                  uop->timing.when_exec = core->sim_cycle;
+//                  uop->timing.when_issued = core->sim_cycle;
+//                  uop->timing.when_completed = core->sim_cycle;
 //                }
 
 //                core->commit->pre_commit_insert(uop);
@@ -2928,7 +2926,7 @@ void core_exec_IO_DPM_t::step()
           else
           {
              for(j=0;j<MAX_IDEPS;j++)
-                if (uop->timing.when_ival_ready[j] <= sim_cycle)
+                if (uop->timing.when_ival_ready[j] <= core->sim_cycle)
                    uop->exec.ivalue_valid[j] = true;
 
              int all_ready = true;
@@ -2936,13 +2934,13 @@ void core_exec_IO_DPM_t::step()
                 all_ready &= uop->exec.ivalue_valid[j];
 
              /* have all input values arrived and FU available */
-             if((!all_ready) || (port[i].FU[FU_class]->pipe[0].uop != NULL) || (port[i].FU[FU_class]->when_executable > sim_cycle) || !can_issue_IO(uop))
+             if((!all_ready) || (port[i].FU[FU_class]->pipe[0].uop != NULL) || (port[i].FU[FU_class]->when_executable > core->sim_cycle) || !can_issue_IO(uop))
              {
                /* no, stall */
 //SK - code for putting instruction back to sleep removed
-               if (uop->timing.when_ready <= sim_cycle) /* supposed to be ready in the past */
+               if (uop->timing.when_ready <= core->sim_cycle) /* supposed to be ready in the past */
                {
-                 uop->timing.when_ready = sim_cycle+1;
+                 uop->timing.when_ready = core->sim_cycle+1;
                  /* ignore OO tornado breaker here, we stall */
                }
 #ifdef ZTRACE
@@ -2953,7 +2951,7 @@ void core_exec_IO_DPM_t::step()
                uop->exec.num_replays++;
                stall = true;
                if(port[i].when_stalled == 0)
-                  port[i].when_stalled = sim_cycle;
+                  port[i].when_stalled = core->sim_cycle;
                //continue;
 
              }
@@ -2968,10 +2966,10 @@ void core_exec_IO_DPM_t::step()
                 {
                    int fp_penalty = ((REG_IS_IN_FP_UNIT(uop->decode.odep_name) && !(uop->decode.opflags & F_FCOMP)) ||
                                     (!REG_IS_IN_FP_UNIT(uop->decode.odep_name) && (uop->decode.opflags & F_FCOMP)))?knobs->exec.fp_penalty:0;
-                   uop->timing.when_otag_ready = sim_cycle + port[i].FU[uop->decode.FU_class]->latency + fp_penalty;
+                   uop->timing.when_otag_ready = core->sim_cycle + port[i].FU[uop->decode.FU_class]->latency + fp_penalty;
                 }
 
-               port[i].FU[uop->decode.FU_class]->when_scheduleable = sim_cycle + port[i].FU[uop->decode.FU_class]->issue_rate;
+               port[i].FU[uop->decode.FU_class]->when_scheduleable = core->sim_cycle + port[i].FU[uop->decode.FU_class]->issue_rate;
 
                 /* tag broadcast to dependents */
                 struct odep_t * odep = uop->exec.odep_uop;
@@ -2993,7 +2991,7 @@ void core_exec_IO_DPM_t::step()
 
                 //SK - removed code handling RS deallocation
 
-                uop->timing.when_exec = sim_cycle;
+                uop->timing.when_exec = core->sim_cycle;
 
                 /* this port has the proper FU and the first stage is free */
                 zesto_assert((port[i].FU[FU_class] && (port[i].FU[FU_class]->pipe[0].uop == NULL)), (void)0);
@@ -3001,7 +2999,7 @@ void core_exec_IO_DPM_t::step()
                 port[i].FU[FU_class]->pipe[0].uop = uop;
                 port[i].FU[FU_class]->pipe[0].action_id = uop->exec.action_id;
                 port[i].FU[FU_class]->occupancy++;
-                port[i].FU[FU_class]->when_executable = sim_cycle + port[i].FU[FU_class]->issue_rate;
+                port[i].FU[FU_class]->when_executable = core->sim_cycle + port[i].FU[FU_class]->issue_rate;
                 check_for_work = true;
 
 
@@ -3045,7 +3043,7 @@ void core_exec_IO_DPM_t::step()
                   /* don't shuffle pipe since we aren't vacating a stage */
                   stall = true;
                   if(port[i].when_stalled == 0)
-                     port[i].when_stalled = sim_cycle;
+                     port[i].when_stalled = core->sim_cycle;
                   //continue;
                }
 
@@ -3146,7 +3144,7 @@ void core_exec_IO_DPM_t::step()
 //             {
 //               stall = true;
 //               if(port[i].when_stalled == 0)
-//                 port[i].when_stalled = sim_cycle;
+//                 port[i].when_stalled = core->sim_cycle;
 
 //               ZESTO_STAT(core->stat.exec_uops_replayed++;)
 //               uop->exec.num_replays++;
@@ -3156,7 +3154,7 @@ void core_exec_IO_DPM_t::step()
                /* this validates the AGEN - just use the oracle value */
                LDQ[curr_uop->alloc.LDQ_index].virt_addr = curr_uop->oracle.virt_addr;
                LDQ[curr_uop->alloc.LDQ_index].addr_valid = true;
-               curr_uop->timing.when_exec = sim_cycle;
+               curr_uop->timing.when_exec = core->sim_cycle;
                /* actual load processing in LDQ_schedule() */
 //             }
 
@@ -3167,7 +3165,7 @@ void core_exec_IO_DPM_t::step()
            if((curr_uop->decode.opflags & F_AGEN) == F_AGEN && !stall)
            {
              for(int j=0;j<MAX_IDEPS;j++)
-                if (curr_uop->timing.when_ival_ready[j] <= sim_cycle)
+                if (curr_uop->timing.when_ival_ready[j] <= core->sim_cycle)
                    curr_uop->exec.ivalue_valid[j] = true;
 
              bool agen_ready = true;
@@ -3179,7 +3177,7 @@ void core_exec_IO_DPM_t::step()
              {
                stall = true;
                if(port[i].when_stalled == 0)
-                 port[i].when_stalled = sim_cycle;
+                 port[i].when_stalled = core->sim_cycle;
 
                ZESTO_STAT(core->stat.exec_uops_replayed++;)
                uop->exec.num_replays++;
@@ -3191,8 +3189,8 @@ void core_exec_IO_DPM_t::step()
              curr_uop->exec.ovalue_valid = true;
              curr_uop->exec.ovalue = uop->oracle.ovalue;
 
-             curr_uop->timing.when_exec = sim_cycle;
-             curr_uop->timing.when_completed = sim_cycle;
+             curr_uop->timing.when_exec = core->sim_cycle;
+             curr_uop->timing.when_completed = core->sim_cycle;
 
              /* bypass output value to dependents */
              struct odep_t * odep = curr_uop->exec.odep_uop;
@@ -3205,7 +3203,7 @@ void core_exec_IO_DPM_t::step()
                else
                  odep->uop->exec.ivalue[odep->op_num] = curr_uop->exec.ovalue;
 
-               odep->uop->timing.when_ival_ready[odep->op_num] = sim_cycle;
+               odep->uop->timing.when_ival_ready[odep->op_num] = core->sim_cycle;
                odep = odep->next;
              }
              break;
@@ -3251,10 +3249,10 @@ bool core_exec_IO_DPM_t::can_issue_IO(struct uop_t * const uop)
   {
     int fp_penalty = ((REG_IS_IN_FP_UNIT(uop->decode.odep_name) && !(uop->decode.opflags & F_FCOMP)) ||
                      (!REG_IS_IN_FP_UNIT(uop->decode.odep_name) && (uop->decode.opflags & F_FCOMP)))?knobs->exec.fp_penalty:0;
-     when_otag_ready = sim_cycle + port[uop->alloc.port_assignment].FU[uop->decode.FU_class]->latency + fp_penalty;
+     when_otag_ready = core->sim_cycle + port[uop->alloc.port_assignment].FU[uop->decode.FU_class]->latency + fp_penalty;
   }
   else /* loads and stores go directly to pre_commit, as well as traps and nops */
-     when_otag_ready = sim_cycle;
+     when_otag_ready = core->sim_cycle;
 
 
   for(int i=0;i<knobs->exec.num_exec_ports;i++)
@@ -3329,11 +3327,11 @@ bool core_exec_IO_DPM_t::can_issue_IO(struct uop_t * const uop)
                  {
                     int curr_fp_penalty = ((REG_IS_IN_FP_UNIT(curr_uop->decode.odep_name) && !(curr_uop->decode.opflags & F_FCOMP)) ||
                                           (!REG_IS_IN_FP_UNIT(curr_uop->decode.odep_name) && (curr_uop->decode.opflags & F_FCOMP)))?knobs->exec.fp_penalty:0;
-                    when_curr_ready = sim_cycle + port[curr_port].FU[curr_FU_class]->latency + curr_fp_penalty;
+                    when_curr_ready = core->sim_cycle + port[curr_port].FU[curr_FU_class]->latency + curr_fp_penalty;
                  }
 
                  //If curr_uop is all set, but the FU it is supposed to go to is full or busy, it won't get issued this cycle and we should play safe
-                 if((port[curr_port].FU[curr_FU_class]->pipe[0].uop != NULL) || (port[curr_port].FU[curr_FU_class]->when_executable > sim_cycle))
+                 if((port[curr_port].FU[curr_FU_class]->pipe[0].uop != NULL) || (port[curr_port].FU[curr_FU_class]->when_executable > core->sim_cycle))
                     when_curr_ready = TICK_T_MAX;
              }
 
@@ -3382,8 +3380,8 @@ bool core_exec_IO_DPM_t::exec_fused_ST(struct uop_t * const uop)
      return false;
 
   //No separate execution units for stores (directly issued to pre_commit), so need to set stats (move to issue?)
-  curr_uop->timing.when_exec = sim_cycle;
-  curr_uop->timing.when_completed = sim_cycle;
+  curr_uop->timing.when_exec = core->sim_cycle;
+  curr_uop->timing.when_completed = core->sim_cycle;
   core->exec->STQ_insert_sta(curr_uop);
 
   zesto_assert((curr_uop->alloc.STQ_index >= 0) && (curr_uop->alloc.STQ_index < knobs->exec.STQ_size), false);
@@ -3403,7 +3401,7 @@ bool core_exec_IO_DPM_t::exec_fused_ST(struct uop_t * const uop)
         odep->uop->exec.ivalue[odep->op_num].dw = curr_uop->exec.oflags;
      else
         odep->uop->exec.ivalue[odep->op_num] = curr_uop->exec.ovalue;
-     odep->uop->timing.when_ival_ready[odep->op_num] = sim_cycle;
+     odep->uop->timing.when_ival_ready[odep->op_num] = core->sim_cycle;
      odep = odep->next;
   }
 
@@ -3414,8 +3412,8 @@ bool core_exec_IO_DPM_t::exec_fused_ST(struct uop_t * const uop)
   zesto_assert(curr_uop, false);
   zesto_assert(curr_uop->decode.is_std, false);
 
-  curr_uop->timing.when_exec = sim_cycle;
-  curr_uop->timing.when_completed = sim_cycle;
+  curr_uop->timing.when_exec = core->sim_cycle;
+  curr_uop->timing.when_completed = core->sim_cycle;
   core->exec->STQ_insert_std(curr_uop);
 
   zesto_assert((curr_uop->alloc.STQ_index >= 0) && (curr_uop->alloc.STQ_index < knobs->exec.STQ_size), false);

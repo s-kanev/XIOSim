@@ -137,11 +137,8 @@
 #include <sys/io.h>
 #include "misc.h"
 #include "thread.h"
-#include "syscall.h"
 #include "loader.h"
-#ifdef ZESTO_PIN
 #include "callbacks.h"
-#endif
 #include "memory.h"
 #include "synchronization.h"
 
@@ -170,9 +167,7 @@ int core_oracle_t::spec_mem_pool_debt = 0;
 /* CONSTRUCTOR */
 core_oracle_t::core_oracle_t(struct core_t * const arg_core):
   spec_mode(false), num_Mops_nuked(0), hosed(false), MopQ(NULL), MopQ_head(0), MopQ_tail(0),
-  MopQ_num(0), current_Mop(NULL), mem_req_free_pool(NULL),
-  syscall_mem_req_head(NULL), syscall_mem_req_tail(NULL), syscall_mem_reqs(0),
-  syscall_remaining_delay(0)
+  MopQ_num(0), current_Mop(NULL)
 {
   /* MopQ should be large enough to support all in-flight
      instructions.  We assume one entry per "slot" in the machine
@@ -214,9 +209,6 @@ core_oracle_t::core_oracle_t(struct core_t * const arg_core):
   for(i=0;i<MopQ_size;i++)
     MopQ[i].uop = NULL;
 }
-
-// DEBUG
-static counter_t syscall_mem_accesses = 0;
 
 /* register oracle-related stats in the stat-database (sdb) */
 void
@@ -320,10 +312,6 @@ core_oracle_t::reg_stats(struct stat_sdb_t * const sdb)
   stat_reg_formula(sdb, true, buf, "fraction of cycles oracle stalled on invalid wrong-path insts", buf2, NULL);
   sprintf(buf,"c%d.oracle_emergency_recoveries",arch->id);
   stat_reg_counter(sdb, true, buf, "number of times this thread underwent an emergency recovery", &core->num_emergency_recoveries, 0, FALSE, NULL);
-
-  // DEBUG
-  sprintf(buf,"c%d.syscall_mem_accesses",arch->id);
-  stat_reg_counter(sdb, true, buf, "memory accesses made by system calls", &syscall_mem_accesses, 0, FALSE, NULL);
 }
 
 void core_oracle_t::update_occupancy(void)
@@ -482,97 +470,11 @@ bool core_oracle_t::spec_read_byte(
   return false;
 }
 
-/* wrapper so that system call's memory accesses get filtered
-   through the cache hierarchy. */
-
-enum md_fault_type
-core_oracle_t::syscall_mem_access(
-    int thread_id,
-    struct mem_t *mem,		/* memory space to access */
-    enum mem_cmd cmd,		/* Read (from sim mem) or Write */
-    md_addr_t addr,		/* target address to access */
-    void *vp,			/* host memory address to access */
-    int nbytes)			/* number of bytes to access */
-{
-  struct core_t * core = cores[threads[thread_id]->current_core];
-  if(core->knobs->memory.syscall_memory_latency)
-  {
-    struct core_oracle_t * O = core->oracle;
-    enum cache_command c_cmd = (cmd==Read)?CACHE_READ:CACHE_WRITE;
-
-    /* The system call accesses perform the reads/writes
-       one byte at a time.  As such, check to see if we
-       have back-to-back reads (or writes) to the same
-       eight-byte chunk; if so, don't record the subsequent
-       access(es) as separate events. */
-    bool same_access = false;
-    struct syscall_mem_req_t * p;
-
-    if(O->syscall_mem_req_tail)
-    {
-      p = O->syscall_mem_req_tail;
-      if((p->thread_id == thread_id) &&
-         (p->cmd == c_cmd) && ((p->addr&~0x7) == (addr&~0x7)))
-         same_access = true;
-    }
-
-    if(!same_access)
-    {
-      syscall_mem_accesses++;
-      if(O->mem_req_free_pool)
-      {
-        p = O->mem_req_free_pool;
-        O->mem_req_free_pool = O->mem_req_free_pool->next;
-      }
-      else
-      {
-        p = (struct syscall_mem_req_t*) calloc(1,sizeof(*p));
-        if(!p)
-          fatal("cannot calloc syscall memory request struct");
-      }
-      p->next = NULL;
-      p->addr = addr;
-      p->thread_id = thread_id;
-      p->cmd = c_cmd;
-
-      if(O->syscall_mem_req_tail) /* append to list if any */
-      {
-        assert(O->syscall_mem_req_head);
-        O->syscall_mem_req_tail->next = p;
-        O->syscall_mem_req_tail = p;
-      }
-      else /* else start new list */
-      {
-        O->syscall_mem_req_head = p;
-        O->syscall_mem_req_tail = p;
-      }
-
-      O->syscall_mem_reqs++;
-    }
-  }
-
-  return mem_access(thread_id,mem,cmd,addr,vp,nbytes);
-}
-
-/* dummy callbacks for system call memory requests */
-void core_oracle_t::syscall_callback(void * const op)
-{
-  /* nada */
-}
-
-bool core_oracle_t::syscall_translated_callback(void * const op, const seq_t action_id)
-{
-  return true;
-}
-
-seq_t core_oracle_t::syscall_get_action_id(void * const op)
-{
-  return DUMMY_SYSCALL_ACTION_ID;
-}
-
   /*----------------*/
  /* <SIMPLESCALAR> */
 /*----------------*/
+
+#define SYSCALL(INST) 
 
 /**********************************************************/
 /* CODE FOR ACTUAL ORACLE EXECUTION, RECOVERY, AND COMMIT */
@@ -741,12 +643,6 @@ seq_t core_oracle_t::syscall_get_action_id(void * const op)
 #error No ISA target defined (only x86 supported) ...
 #endif
 
-                                                 /* system call handler macro */
-#ifndef ZESTO_PIN
-#define SYSCALL(INST)    sys_syscall(thread, core_oracle_t::syscall_mem_access, INST, true)
-#else 
-#define SYSCALL(INST) 
-#endif
   /*-----------------*/
  /* </SIMPLESCALAR> */
 /*-----------------*/
@@ -796,52 +692,6 @@ core_oracle_t::exec(const md_addr_t requested_PC)
     ZESTO_STAT(core->stat.oracle_bogus_cycles++;)
     return NULL;
   }
-
-  /* process the memory requests generated by the system call */
-  if(syscall_mem_reqs > 0)
-  {
-    if(MopQ_num <= 1)
-    {
-      struct syscall_mem_req_t * p = syscall_mem_req_head;
-      assert(p);
-
-      /* wait N cycles between launching successive memory requests */
-      if(knobs->memory.syscall_memory_latency && syscall_remaining_delay > 0)
-      {
-        syscall_remaining_delay --;
-        return NULL;
-      }
-
-      if(!cache_enqueuable(core->memory.DL1,core->current_thread->id,p->addr))
-        return NULL;
-
-      cache_enqueue(core,core->memory.DL1,NULL,p->cmd,core->current_thread->id,0,p->addr,DUMMY_SYSCALL_ACTION_ID,0,NO_MSHR,(void*)DUMMY_SYSCALL_OP,syscall_callback,NULL,syscall_translated_callback,syscall_get_action_id);
-      core->exec->update_last_completed(sim_cycle);
-      syscall_remaining_delay = knobs->memory.syscall_memory_latency - 1; /* credit this cycle */
-
-      /* successfully enqueued the request, so remove the request from
-         the list */
-      syscall_mem_req_head = p->next;
-      syscall_mem_reqs--;
-      if(syscall_mem_req_head == NULL)
-      {
-        syscall_mem_req_tail = NULL;
-        assert(syscall_mem_reqs == 0);
-      }
-
-      /* put back into free pool */
-      p->next = mem_req_free_pool;
-      mem_req_free_pool = p;
-
-      assert(syscall_mem_reqs >= 0);
-
-      return NULL;
-    }
-    else
-      return NULL;
-  }
-
-  assert(syscall_mem_reqs == 0);
 
   if(current_Mop) /* we already have a Mop */
   {
@@ -1878,7 +1728,7 @@ void core_oracle_t::commit_mapping(const struct uop_t * const uop)
     if(uop != p->uop)
     {
        warn("Asetion about to fail. (cycle: %lld), (uop->uop_seq: %lld), (p->uop->uop_seq: %lld)",
-            sim_cycle, uop->decode.uop_seq, p->uop->decode.uop_seq);
+            core->sim_cycle, uop->decode.uop_seq, p->uop->decode.uop_seq);
     }
     assert(uop == p->uop);
 

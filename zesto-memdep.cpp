@@ -90,7 +90,7 @@ void memdep_t::init()
   frozen = false;
 }
 
-memdep_t::memdep_t()
+memdep_t::memdep_t(const struct core_t * _core) : core(_core)
 {
   init();
   name = strdup("none");
@@ -170,7 +170,7 @@ conflict_exists - oracle answer for whether it's safe for the load to exec
 /* argument parsing                                   */
 /*====================================================*/
 class memdep_t *
-memdep_create(const char * const opt_string)
+memdep_create(const char * const opt_string, const struct core_t * core)
 {
   char name[256];
   char type[256];

@@ -79,7 +79,7 @@ class MC_simple_t:public MC_t
     req->MSHR_index = MSHR_index;
     req->cb = cb;
     req->get_action_id = get_action_id;
-    req->when_enqueued = sim_cycle;
+    req->when_enqueued = uncore->sim_cycle;
     req->when_started = TICK_T_MAX;
     req->when_finished = TICK_T_MAX;
     req->when_returned = TICK_T_MAX;
@@ -95,13 +95,14 @@ class MC_simple_t:public MC_t
     struct MC_action_t * req;
 
     /* MC runs at FSB speed */
-    if(sim_cycle % uncore->fsb->ratio)
-      return;
+    // XXX
+    /*if(sim_cycle % uncore->fsb->ratio)
+      return;*/
 
     if(RQ_num > 0) /* are there any requests at all? */
     {
       /* see if there's a new request to send to DRAM */
-      if(next_available_time <= sim_cycle)
+      if(next_available_time <= uncore->sim_cycle)
       {
         int req_index = -1;
         md_paddr_t req_page = (md_paddr_t)-1;
@@ -135,10 +136,10 @@ class MC_simple_t:public MC_t
         if(req_index != -1)
         {
           req = &RQ[req_index];
-          req->when_started = sim_cycle;
-          req->when_finished = sim_cycle + dram->access(req->cmd, req->addr, req->linesize);
+          req->when_started = uncore->sim_cycle;
+          req->when_finished = uncore->sim_cycle + dram->access(req->cmd, req->addr, req->linesize);
           last_request = req_page;
-          next_available_time = sim_cycle + uncore->fsb->ratio;
+          next_available_time = uncore->sim_cycle + 1;
           total_dram_cycles += req->when_finished - req->when_started;
         }
       }
@@ -149,11 +150,11 @@ class MC_simple_t:public MC_t
       {
         req = &RQ[idx];
 
-        if((req->when_finished <= sim_cycle) && (req->when_returned == TICK_T_MAX) && (!req->prev_cp || bus_free(uncore->fsb)))
+        if((req->when_finished <= uncore->sim_cycle) && (req->when_returned == TICK_T_MAX) && (!req->prev_cp || bus_free(uncore->fsb)))
         {
-          req->when_returned = sim_cycle;
+          req->when_returned = uncore->sim_cycle;
 
-          total_service_cycles += sim_cycle - req->when_enqueued;
+          total_service_cycles += uncore->sim_cycle - req->when_enqueued;
 
           /* fill previous level as appropriate */
           if(req->prev_cp)
@@ -170,7 +171,7 @@ class MC_simple_t:public MC_t
       req = &RQ[RQ_head];
       if(req->valid)
       {
-        if(req->when_returned <= sim_cycle)
+        if(req->when_returned <= uncore->sim_cycle)
         {
           req->valid = false;
           RQ_num--;

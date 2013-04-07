@@ -185,17 +185,17 @@ void core_commit_STM_t::step(void)
      attempt to un-wedge the processor.  If the processor then
      deadlocks again without having first made any more forward
      progress, we give up and kill the simulator. */
-  if((sim_cycle - core->exec->last_completed) > deadlock_threshold)
+  if((core->sim_cycle - core->exec->last_completed) > deadlock_threshold)
   {
     if(core->exec->last_completed_count == core->stat.eio_commit_insn)
     {
       char buf[256];
-      snprintf(buf,sizeof(buf),"At cycle %lld, core[%d] has not completed a uop in %d cycles... definite deadlock",(long long)sim_cycle,core->current_thread->id,deadlock_threshold);
+      snprintf(buf,sizeof(buf),"At cycle %llu, core[%d] has not completed a uop in %d cycles... definite deadlock",core->sim_cycle,core->current_thread->id,deadlock_threshold);
       zesto_fatal(buf,(void)0);
     }
     else
     {
-      warn("At cycle %lld, core[%d] has not completed a uop in %d cycles... possible deadlock, flushing pipeline",(long long)sim_cycle,core->current_thread->id,deadlock_threshold);
+      warn("At cycle %llu, core[%d] has not completed a uop in %d cycles... possible deadlock, flushing pipeline",core->sim_cycle,core->current_thread->id,deadlock_threshold);
 
       /* flush the entire pipeline, correct path or not... passing
          NULL's causes the recover functions to throw everything
@@ -208,7 +208,7 @@ void core_commit_STM_t::step(void)
       core->fetch->recover(core->current_thread->regs.regs_NPC);
       ZESTO_STAT(stat_add_sample(core->stat.commit_stall, (int)CSTALL_EMPTY);)
       ZESTO_STAT(core->stat.commit_deadlock_flushes++;)
-      core->exec->last_completed = sim_cycle; /* so we don't do this again next cycle */
+      core->exec->last_completed = core->sim_cycle; /* so we don't do this again next cycle */
       core->exec->last_completed_count = core->stat.eio_commit_insn;
     }
     return;
@@ -231,7 +231,7 @@ void core_commit_STM_t::step(void)
     /* Are all uops in the Mop completed? */
     if(Mop->commit.complete_index != -1) /* still some outstanding insts */
     {
-      while(Mop->uop[Mop->commit.complete_index].timing.when_completed <= sim_cycle)
+      while(Mop->uop[Mop->commit.complete_index].timing.when_completed <= core->sim_cycle)
       {
         struct uop_t * uop = &Mop->uop[Mop->commit.complete_index];
 
@@ -254,12 +254,12 @@ void core_commit_STM_t::step(void)
     if(Mop->commit.complete_index == -1) /* commit the uops if the Mop is done */
     {
       struct uop_t * uop = ROB[ROB_head];
-      zesto_assert(uop->timing.when_completed <= sim_cycle,(void)0);
+      zesto_assert(uop->timing.when_completed <= core->sim_cycle,(void)0);
       zesto_assert(uop->alloc.ROB_index == ROB_head,(void)0);
       zesto_assert(uop == &Mop->uop[Mop->commit.commit_index],(void)0);
 
       if(uop->decode.BOM && (uop->Mop->timing.when_commit_started == TICK_T_MAX))
-        uop->Mop->timing.when_commit_started = sim_cycle;
+        uop->Mop->timing.when_commit_started = core->sim_cycle;
 
       if(uop->decode.is_load)
         core->exec->LDQ_deallocate(uop);
@@ -280,7 +280,7 @@ void core_commit_STM_t::step(void)
         uop->exec.action_id = core->new_action_id();
 
       if(uop->decode.EOM)
-        uop->Mop->timing.when_commit_finished = sim_cycle;
+        uop->Mop->timing.when_commit_finished = core->sim_cycle;
 
       /* remove uop from ROB */
       ROB[ROB_head] = NULL;
@@ -331,12 +331,12 @@ void core_commit_STM_t::step(void)
     /*****************/
     if(core->current_thread->active)
     {
-      if ( ( max_cycles && sim_cycle >= max_cycles ) ||
+      if ( ( max_cycles && core->sim_cycle >= max_cycles ) ||
            (max_insts && core->stat.commit_insn >= max_insts) ||
            (max_uops && core->stat.commit_uops >= max_uops)  )
       {
-        core->stat.final_sim_cycle = sim_cycle; /* make note of when this core stopped simulating */
-        if(max_cycles && sim_cycle >= max_cycles)
+        core->stat.final_sim_cycle = core->sim_cycle; /* make note of when this core stopped simulating */
+        if(max_cycles && core->sim_cycle >= max_cycles)
           fprintf(stderr,"# Simulation cycle ");
         else if(max_insts && max_uops)
           fprintf(stderr,"# Committed instruction/uop ");

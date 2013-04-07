@@ -275,7 +275,7 @@ core_exec_STM_t::core_exec_STM_t(struct core_t * arg_core):
     core->memory.DL2->PF_high_watermark = knobs->memory.DL2_high_watermark;
     core->memory.DL2->PF_sample_interval = knobs->memory.DL2_WMinterval;
 
-    core->memory.DL2_bus = bus_create("DL2_bus",core->memory.DL2->linesize,1);
+    core->memory.DL2_bus = bus_create("DL2_bus", core->memory.DL2->linesize, &core->sim_cycle, 1);
   }
 
   /* per-core DL1 */
@@ -563,7 +563,7 @@ void core_exec_STM_t::reset_execution(void)
     for(int j=0; j<NUM_FU_CLASSES; j++)
       if(port[i].FU[j])
       {
-        port[i].FU[j]->when_executable = sim_cycle;
+        port[i].FU[j]->when_executable = core->sim_cycle;
       }
   }
   check_for_work = true;
@@ -591,7 +591,7 @@ core_exec_STM_t::readyQ_node_t * core_exec_STM_t::get_readyQ_node(void)
   }
   assert(p);
   p->next = NULL;
-  p->when_assigned = sim_cycle;
+  p->when_assigned = core->sim_cycle;
 #ifdef DEBUG
   readyQ_free_pool_debt++;
 #endif
@@ -672,7 +672,7 @@ void core_exec_STM_t::RS_schedule(void) /* for uops in the RS */
     struct readyQ_node_t * prev = NULL;
     int issued = false;
 
-    if(rq && rq->uop->timing.when_ready > sim_cycle)
+    if(rq && rq->uop->timing.when_ready > core->sim_cycle)
       continue; /* nothing ready on this port */
 
     while(rq) /* if anyone's waiting to issue to this port */
@@ -692,22 +692,22 @@ void core_exec_STM_t::RS_schedule(void) /* for uops in the RS */
         /* and go on to next node */
         rq = next;
       }
-      else if((uop->timing.when_ready <= sim_cycle) &&
+      else if((uop->timing.when_ready <= core->sim_cycle) &&
               !issued &&
-              (port[i].FU[FU_class]->when_executable <= sim_cycle) &&
+              (port[i].FU[FU_class]->when_executable <= core->sim_cycle) &&
               (port[i].FU[FU_class]->occupancy < port[i].FU[FU_class]->latency))
       {
         int insert_position = port[i].FU[FU_class]->occupancy+1;
         zesto_assert(uop->alloc.port_assignment == i,(void)0);
 
-        uop->timing.when_issued = sim_cycle;
+        uop->timing.when_issued = core->sim_cycle;
         port[i].FU[FU_class]->pipe[insert_position].uop = uop;
         port[i].FU[FU_class]->pipe[insert_position].action_id = uop->exec.action_id;
-        port[i].FU[FU_class]->pipe[insert_position].pipe_exit_time = sim_cycle + port[i].FU[FU_class]->latency;
+        port[i].FU[FU_class]->pipe[insert_position].pipe_exit_time = core->sim_cycle + port[i].FU[FU_class]->latency;
         ALU_heap_balance(port[i].FU[FU_class]->pipe,insert_position);
 
         port[i].FU[FU_class]->occupancy++;
-        port[i].FU[FU_class]->when_executable = sim_cycle + port[i].FU[FU_class]->issue_rate;
+        port[i].FU[FU_class]->when_executable = core->sim_cycle + port[i].FU[FU_class]->issue_rate;
         check_for_work = true;
 
         struct readyQ_node_t * next = rq->next;
@@ -806,8 +806,8 @@ void core_exec_STM_t::load_writeback(struct uop_t * const uop)
     uop->exec.ovalue = uop->oracle.ovalue; /* XXX: just using oracle value for now */
     uop->exec.ovalue_valid = true;
     zesto_assert(uop->timing.when_completed == TICK_T_MAX,(void)0);
-    uop->timing.when_completed = sim_cycle;
-    last_completed = sim_cycle; /* for deadlock detection */
+    uop->timing.when_completed = core->sim_cycle;
+    last_completed = core->sim_cycle; /* for deadlock detection */
     if(uop->decode.is_ctrl && (uop->Mop->oracle.NextPC != uop->Mop->fetch.pred_NPC)) /* XXX: for RETN */
     {
       core->oracle->pipe_recover(uop->Mop,uop->Mop->oracle.NextPC);
@@ -816,7 +816,7 @@ void core_exec_STM_t::load_writeback(struct uop_t * const uop)
         ZESTO_STAT(core->stat.num_wp_jeclear++;)
     }
 
-    uop->timing.when_otag_ready = sim_cycle;
+    uop->timing.when_otag_ready = core->sim_cycle;
 
     /* bypass output value to dependents; wake them up if appropriate. */
     struct odep_t * odep = uop->exec.odep_uop;
@@ -826,7 +826,7 @@ void core_exec_STM_t::load_writeback(struct uop_t * const uop)
       tick_t when_ready = 0;
 
       zesto_assert(!odep->uop->exec.ivalue_valid[odep->op_num],(void)0);
-      odep->uop->timing.when_ival_ready[odep->op_num] = sim_cycle;
+      odep->uop->timing.when_ival_ready[odep->op_num] = core->sim_cycle;
 
       for(int j=0;j<MAX_IDEPS;j++)
         if(when_ready < odep->uop->timing.when_ival_ready[j])
@@ -856,16 +856,14 @@ void core_exec_STM_t::load_writeback(struct uop_t * const uop)
 void core_exec_STM_t::DL1_callback(void * const op)
 {
   struct uop_t * const uop = (struct uop_t*) op;
-//#ifndef DEBUG
   struct core_t * const core = uop->core; // for use with zesto-assert
-//#endif
   class core_exec_STM_t * E = (core_exec_STM_t*)uop->core->exec;
   if(uop->alloc.LDQ_index != -1)
   {
     zesto_assert(uop->exec.when_data_loaded == TICK_T_MAX,(void)0);
-    uop->exec.when_data_loaded = sim_cycle;
-    if((uop->exec.when_data_loaded <= sim_cycle) &&
-       (uop->exec.when_addr_translated <= sim_cycle) &&
+    uop->exec.when_data_loaded = core->sim_cycle;
+    if((uop->exec.when_data_loaded <= core->sim_cycle) &&
+       (uop->exec.when_addr_translated <= core->sim_cycle) &&
         !E->LDQ[uop->alloc.LDQ_index].hit_in_STQ) /* no match in STQ, so use cache value */
     {
       /* if load received value from STQ, it could have already
@@ -879,16 +877,14 @@ void core_exec_STM_t::DL1_callback(void * const op)
 void core_exec_STM_t::DTLB_callback(void * const op)
 {
   struct uop_t * const uop = (struct uop_t*) op;
-//#ifndef DEBUG
-  struct core_t * const core = uop->core; // for use with zesto-assert
-//#endif
-  struct core_exec_STM_t * const E = (core_exec_STM_t*)uop->core->exec;
+  struct core_t * const core = uop->core; 
+  struct core_exec_STM_t * const E = (core_exec_STM_t*)core->exec;
   if(uop->alloc.LDQ_index != -1)
   {
     zesto_assert(uop->exec.when_addr_translated == TICK_T_MAX,(void)0);
-    uop->exec.when_addr_translated = sim_cycle;
-    if((uop->exec.when_data_loaded <= sim_cycle) &&
-       (uop->exec.when_addr_translated <= sim_cycle) &&
+    uop->exec.when_addr_translated = core->sim_cycle;
+    if((uop->exec.when_data_loaded <= core->sim_cycle) &&
+       (uop->exec.when_addr_translated <= core->sim_cycle) &&
         !E->LDQ[uop->alloc.LDQ_index].hit_in_STQ)
       E->load_writeback(uop);
   }
@@ -899,7 +895,7 @@ bool core_exec_STM_t::translated_callback(void * const op, const seq_t action_id
 {
   struct uop_t * const uop = (struct uop_t*) op;
   if((uop->exec.action_id == action_id) && (uop->alloc.LDQ_index != -1))
-    return uop->exec.when_addr_translated <= sim_cycle;
+    return uop->exec.when_addr_translated <= uop->core->sim_cycle;
   else
     return true;
 }
@@ -925,7 +921,7 @@ void core_exec_STM_t::LDST_exec(void)
     int j;
 
     if( (port[port_num].STQ->occupancy > 0) &&
-        (port[port_num].STQ->pipe[1].pipe_exit_time <= sim_cycle))
+        (port[port_num].STQ->pipe[1].pipe_exit_time <= core->sim_cycle))
     {
       struct uop_t * uop = port[port_num].STQ->pipe[1].uop; // heap root
       zesto_assert(uop != NULL,(void)0);
@@ -966,8 +962,8 @@ void core_exec_STM_t::LDST_exec(void)
               {
                 uop->exec.ovalue = STQ[j].value;
                 uop->exec.ovalue_valid = true;
-                uop->timing.when_completed = sim_cycle;
-                last_completed = sim_cycle; /* for deadlock detection */
+                uop->timing.when_completed = core->sim_cycle;
+                last_completed = core->sim_cycle; /* for deadlock detection */
                 LDQ[uop->alloc.LDQ_index].hit_in_STQ = true;
 
                 if(uop->decode.is_ctrl && (uop->Mop->oracle.NextPC != uop->Mop->fetch.pred_NPC)) /* for RETN */
@@ -978,7 +974,7 @@ void core_exec_STM_t::LDST_exec(void)
                     ZESTO_STAT(core->stat.num_wp_jeclear++;)
                 }
 
-                uop->timing.when_otag_ready = sim_cycle;
+                uop->timing.when_otag_ready = core->sim_cycle;
 
                 struct odep_t * odep = uop->exec.odep_uop;
 
@@ -986,7 +982,7 @@ void core_exec_STM_t::LDST_exec(void)
                 {
                   tick_t when_ready = 0;
 
-                  odep->uop->timing.when_ival_ready[odep->op_num] = sim_cycle;
+                  odep->uop->timing.when_ival_ready[odep->op_num] = core->sim_cycle;
 
                   for(int j=0;j<MAX_IDEPS;j++)
                     if(when_ready < odep->uop->timing.when_ival_ready[j])
@@ -1044,8 +1040,6 @@ void core_exec_STM_t::LDST_exec(void)
 
   lk_lock(&cache_lock, core->id+1);
   if(core->memory.DTLB->check_for_work) cache_process(core->memory.DTLB);
-  if((core->current_thread->id == 0) && !(sim_cycle&uncore->LLC_cycle_mask) && uncore->LLC->check_for_work)
-    cache_process(uncore->LLC);
   if(core->memory.DL2 && core->memory.DL2->check_for_work) cache_process(core->memory.DL2);
   if(core->memory.DL1->check_for_work) cache_process(core->memory.DL1);
   lk_unlock(&cache_lock);
@@ -1082,10 +1076,10 @@ void core_exec_STM_t::LDQ_schedule(void)
             int insert_position = port[uop->alloc.port_assignment].STQ->occupancy+1;
             port[uop->alloc.port_assignment].STQ->pipe[insert_position].uop = uop;
             port[uop->alloc.port_assignment].STQ->pipe[insert_position].action_id = uop->exec.action_id;
-            port[uop->alloc.port_assignment].STQ->pipe[insert_position].pipe_exit_time = sim_cycle + port[uop->alloc.port_assignment].STQ->latency;
+            port[uop->alloc.port_assignment].STQ->pipe[insert_position].pipe_exit_time = core->sim_cycle + port[uop->alloc.port_assignment].STQ->latency;
             ALU_heap_balance(port[uop->alloc.port_assignment].STQ->pipe,insert_position);
             port[uop->alloc.port_assignment].STQ->occupancy++;
-            LDQ[index].when_issued = sim_cycle;
+            LDQ[index].when_issued = core->sim_cycle;
           }
         }
         else
@@ -1123,7 +1117,7 @@ void core_exec_STM_t::ALU_exec(void)
       {
         work_found = true;
         /* process last stage of FU pipeline (those uops completing execution) */
-        if(FU->pipe[1].pipe_exit_time <= sim_cycle) // heap root
+        if(FU->pipe[1].pipe_exit_time <= core->sim_cycle) // heap root
         {
           struct uop_t * uop = FU->pipe[1].uop;
           zesto_assert(uop != NULL,(void)0);
@@ -1248,8 +1242,8 @@ void core_exec_STM_t::ALU_exec(void)
               }
 
               zesto_assert(uop->timing.when_completed == TICK_T_MAX,(void)0);
-              uop->timing.when_completed = sim_cycle;
-              last_completed = sim_cycle; /* for deadlock detection */
+              uop->timing.when_completed = core->sim_cycle;
+              last_completed = core->sim_cycle; /* for deadlock detection */
 
               /* bypass output value to dependents */
               struct odep_t * odep = uop->exec.odep_uop;
@@ -1257,7 +1251,7 @@ void core_exec_STM_t::ALU_exec(void)
               {
                 tick_t when_ready = 0;
 
-                odep->uop->timing.when_ival_ready[odep->op_num] = sim_cycle;
+                odep->uop->timing.when_ival_ready[odep->op_num] = core->sim_cycle;
 
                 for(int j=0;j<MAX_IDEPS;j++)
                   if(when_ready < odep->uop->timing.when_ival_ready[j])

@@ -111,10 +111,6 @@ signal_exit_now(int sigtype)
 /* execution start/end times */
 int sim_elapsed_time;
 
-/* byte/word swapping required to execute target executable on this host */
-int sim_swap_bytes;
-int sim_swap_words;
-
 /* exit when this becomes non-zero */
 int sim_exit_now = FALSE;
 
@@ -130,10 +126,6 @@ struct opt_odb_t *sim_odb;
 /* stats database */
 struct stat_sdb_t *sim_sdb;
 struct stat_sdb_t *rtp_sdb;
-
-/* EIO interfaces */
-char *sim_eio_fname[MAX_CORES];
-FILE *sim_eio_fd[MAX_CORES];
 
 /* redirected program/simulator output file names */
 const char *sim_simout = NULL;

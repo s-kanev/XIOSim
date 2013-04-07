@@ -36,6 +36,8 @@
 #include "ildjit.h"
 #include "parsec.h"
 
+#include "../zesto-core.h"
+
 using namespace std;
 
 /* ========================================================================== */
@@ -527,7 +529,7 @@ VOID SimulatorLoop(VOID* arg)
             }
         }
         handshake_buffer.applyConsumerChanges(instrument_tid, numConsumed);
-        lastConsumerApply[instrument_tid] = sim_cycle;
+        lastConsumerApply[instrument_tid] = cores[coreID]->sim_cycle;
     }
 }
 
