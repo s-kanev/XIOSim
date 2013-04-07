@@ -434,8 +434,6 @@ void sim_main_slave_pre_pin(int coreID)
     cores[coreID]->sim_cycle++;
 
     cores[coreID]->ns_passed += 1e-3 / cores[coreID]->cpu_speed;
-
-    fprintf(stderr, "%.3f %.3f\n", cores[coreID]->ns_passed * 1e9, (1e6 / LLC_speed));
   }
 
   /* Time to sync with uncore */
