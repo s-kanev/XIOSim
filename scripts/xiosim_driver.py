@@ -41,6 +41,9 @@ class XIOSimDriver(object):
     def AddZestoCores(self, ncores):
         self.cmd += "-cores " + str(ncores) + " "
 
+    def AddZestoPowerFile(self, fname):
+        self.cmd += "-power:rtp_file " + fname + " "
+
     def AddILDJITOptions(self):
         self.cmd += "-- iljit --static -O3 -M -N -R -T "
 
