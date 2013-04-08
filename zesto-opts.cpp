@@ -253,6 +253,7 @@ sim_reg_stats(struct thread_t ** archs, struct stat_sdb_t *sdb)
 
   stat_reg_note(sdb,"\n#### SIMULATOR PERFORMANCE STATS ####");
   stat_reg_qword(sdb, true, "sim_cycle", "total simulation cycles (CPU cycles assuming default freq)", (qword_t*)&uncore->default_cpu_cycles, 0, TRUE, NULL);
+  stat_reg_double(sdb, true, "sim_time", "total simulated time (us)", &uncore->sim_time, 0.0, TRUE, NULL);
   stat_reg_int(sdb, true, "sim_elapsed_time", "total simulation time in seconds", &sim_elapsed_time, 0, TRUE, NULL);
   stat_reg_formula(sdb, true, "sim_cycle_rate", "simulation speed (in Mcycles/sec)", "sim_cycle / (sim_elapsed_time * 1000000.0)", NULL);
   /* Make formula to add num_insn from all archs */

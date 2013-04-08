@@ -89,6 +89,7 @@ class uncore_t
   tick_t sim_cycle;
   /* cycle count scaled to default frequency */
   tick_t default_cpu_cycles;
+  double sim_time;
 
   /* Front-side bus options */
   int fsb_width;
