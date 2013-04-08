@@ -406,6 +406,15 @@ static void global_step(void)
         if(cores[i]->sim_cycle > 0 && (cores[i]->sim_cycle % knobs.dvfs_interval == 0))
           cores[i]->vf_controller->change_vf();
 
+    /* power computation */
+    if(knobs.power.compute && (knobs.power.rtp_interval > 0) && 
+       (uncore->sim_cycle % knobs.power.rtp_interval == 0))
+    {
+      stat_save_stats_delta(rtp_sdb);   // Store delta values for translation
+      compute_power(rtp_sdb, false);
+      stat_save_stats(rtp_sdb);         // Create new checkpoint for next delta
+    } 
+
     heartbeat_count++;
 
     /*********************************************/

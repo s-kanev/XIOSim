@@ -159,8 +159,8 @@ class MC_simple_t:public MC_t
           /* fill previous level as appropriate */
           if(req->prev_cp)
           {
-            fill_arrived(req->prev_cp,req->MSHR_bank,req->MSHR_index);
-            bus_use(uncore->fsb,req->linesize>>uncore->fsb_DDR,req->cmd==CACHE_PREFETCH);
+            fill_arrived(req->prev_cp, req->MSHR_bank, req->MSHR_index);
+            bus_use(uncore->fsb, req->linesize >> uncore->fsb_DDR, req->cmd == CACHE_PREFETCH);
             break; /* might as well break, since only one request can writeback per cycle */
           }
         }

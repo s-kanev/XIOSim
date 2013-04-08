@@ -72,24 +72,25 @@ void mcpat_compute_energy(bool print_power, double * cores_rtp, double * uncore_
    /* These are stats, but are included in the dynamic parameters structures,
       we must update them from the reparsed XML data */
    for (i=0; i<proc->numCore; i++) {
+      proc->cores[i]->coredynp.clockRate           = proc->XML->sys.core[i].clock_rate;
       proc->cores[i]->coredynp.pipeline_duty_cycle = proc->XML->sys.core[i].pipeline_duty_cycle;
       proc->cores[i]->coredynp.total_cycles        = proc->XML->sys.core[i].total_cycles;
       proc->cores[i]->coredynp.busy_cycles         = proc->XML->sys.core[i].busy_cycles;
       proc->cores[i]->coredynp.idle_cycles         = proc->XML->sys.core[i].idle_cycles;
-      proc->cores[i]->coredynp.executionTime       = proc->XML->sys.total_cycles/proc->cores[i]->coredynp.clockRate;
+      proc->cores[i]->coredynp.executionTime       = proc->XML->sys.core[i].total_cycles/(proc->cores[i]->coredynp.clockRate * 1e6);
 
       if (proc->cores[i]->l2cache)
-        proc->cores[i]->l2cache->cachep.executionTime = proc->XML->sys.total_cycles/proc->cores[i]->l2cache->cachep.clockRate;
+        proc->cores[i]->l2cache->cachep.executionTime = proc->XML->sys.core[i].total_cycles/(proc->cores[i]->coredynp.clockRate * 1e6);
    }
 
    for (i=0; i<proc->l2array.size();i++)
-      proc->l2array[i]->cachep.executionTime = proc->XML->sys.total_cycles/(proc->XML->sys.target_core_clockrate*1e6);
+      proc->l2array[i]->cachep.executionTime = proc->XML->sys.total_cycles/(proc->XML->sys.L2[i].clockrate*1e6);
    for (i=0; i<proc->numL1Dir;i++)
-      proc->l1dirarray[i]->cachep.executionTime = proc->XML->sys.total_cycles/(proc->XML->sys.target_core_clockrate*1e6);
+      proc->l1dirarray[i]->cachep.executionTime = proc->XML->sys.total_cycles/(proc->XML->sys.L2[i].clockrate*1e6);
    for (i=0; i<proc->numL3;i++)
-      proc->l3array[i]->cachep.executionTime = proc->XML->sys.total_cycles/(proc->XML->sys.target_core_clockrate*1e6);
+      proc->l3array[i]->cachep.executionTime = proc->XML->sys.total_cycles/(proc->XML->sys.L3[i].clockrate*1e6);
    for (i=0; i<proc->numL2Dir;i++)
-      proc->l2dirarray[i]->cachep.executionTime = proc->XML->sys.total_cycles/(proc->XML->sys.target_core_clockrate*1e6);
+      proc->l2dirarray[i]->cachep.executionTime = proc->XML->sys.total_cycles/(proc->XML->sys.L3[i].clockrate*1e6);
 
    /* Similarly for those components, even though we don't care about their power for now */
    //XXX: Here we call set_*_param because they are quite short and don't overwrite anything important

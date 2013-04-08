@@ -15,6 +15,7 @@ class ParseXML *XML = NULL; //Interface to McPAT
 
 extern int num_cores;
 extern struct core_knobs_t knobs;
+extern double LLC_speed;
 
 double uncore_rtp;
 double *cores_rtp;
@@ -91,7 +92,7 @@ void init_power(void)
     XML->sys.L2[0].buffer_sizes[2] = 2;
     XML->sys.L2[0].buffer_sizes[3] = 2;
 
-    XML->sys.L2[0].clockrate = 800; //Somehow arbitrary, set me
+    XML->sys.L2[0].clockrate = (int)LLC_speed;
     XML->sys.L2[0].device_type = 2;
   } else if (uncore->LLC) // LLC is L3
   {
@@ -113,7 +114,7 @@ void init_power(void)
     XML->sys.L3[0].buffer_sizes[2] = 2;
     XML->sys.L3[0].buffer_sizes[3] = 2;
 
-    XML->sys.L3[0].clockrate = 800; //Somehow arbitrary, set me
+    XML->sys.L3[0].clockrate = (int)LLC_speed;
     XML->sys.L3[0].device_type = 0;
   }
 
@@ -179,7 +180,7 @@ void translate_uncore_stats(struct stat_sdb_t* sdb, root_system* stats)
     }
   }
 
-  curr_stat = stat_find_stat(sdb, "sim_cycle");
+  curr_stat = stat_find_stat(sdb, "uncore.sim_cycle");
   stats->total_cycles = curr_stat->variant.for_sqword.end_val;
 }
 
@@ -207,7 +208,7 @@ void core_power_t::translate_params(system_core *core_params, system_L2 *L2_para
   (void) L2_params;
   struct core_knobs_t *knobs = core->knobs;
 
-  core_params->clock_rate = core->cpu_speed; //XXX: Update me for DVFS
+  core_params->clock_rate = core->cpu_speed;
   core_params->opt_local = false;
   core_params->x86 = true;
   core_params->machine_bits = 64;
@@ -341,8 +342,14 @@ void core_power_t::translate_stats(struct stat_sdb_t* sdb, system_core *core_sta
   stat = stat_find_core_stat(sdb, coreID, "oracle_num_uops");
   core_stats->committed_instructions = stat->variant.for_sqword.end_val;
 
-  stat = stat_find_stat(sdb, "sim_cycle");
+  // core cycles at potentially variable frequency
+  stat = stat_find_core_stat(sdb, coreID, "sim_cycle");
   core_stats->total_cycles = stat->variant.for_sqword.end_val;
+
+  // get average frequency for this period
+  stat = stat_find_stat(sdb, "sim_cycle");
+  core_stats->clock_rate = (int) ceil(stat->variant.for_sqword.end_val * knobs->default_cpu_speed / (double) core_stats->total_cycles);
+
   core_stats->idle_cycles = 0;
   core_stats->busy_cycles = core_stats->total_cycles - core_stats->idle_cycles;
 
