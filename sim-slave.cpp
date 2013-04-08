@@ -468,7 +468,7 @@ master_core:
       /* Spin, spin, spin */
       yield();
       while(consumers_sleep) {
-        xio_sleep(250);
+        xio_sleep(10);
       }
       lk_lock(&cycle_lock, coreID+1);
 
@@ -516,7 +516,7 @@ non_master_core:
       lk_unlock(&cycle_lock);
       yield();
       while(consumers_sleep) {
-        xio_sleep(250);
+        xio_sleep(10);
       }
       lk_lock(&cycle_lock, coreID+1);
     }

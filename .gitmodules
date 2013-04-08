@@ -5,6 +5,6 @@
     fetchRecurseSubmodules = true
 [submodule "mem-repeater"]
 	path = mem-repeater
-	url = file:///home/skanev/zesto_repeater
+	url = file:///group/brooks/git/librepeater
     update = merge
     fetchRecurseSubmodules = true

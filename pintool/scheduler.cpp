@@ -57,6 +57,7 @@ VOID HardcodeSchedule(THREADID tid, INT32 coreID)
 {
     lk_lock(&run_queues[coreID].lk, 1);
     ASSERTX(run_queues[coreID].q.empty());
+    activate_core(coreID);
     run_queues[coreID].q.push(tid);
     lk_unlock(&run_queues[coreID].lk);
 
@@ -135,6 +136,9 @@ VOID GiveUpCore(INT32 coreID, BOOL reschedule_thread)
 
     if (reschedule_thread) {
         run_queues[coreID].q.push(tid);
+
+        thread_state_t* tstate = get_tls(tid);
+        tstate->coreID = coreID;
 
         lk_lock(&printing_lock, tid+1);
         cerr << "Rescheduling " << tid << " on core " << coreID << endl;
