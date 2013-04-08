@@ -108,7 +108,6 @@ handshake_container_t* BufferManager::front(THREADID tid, bool isLocal)
     PIN_Yield();
     while(consumers_sleep) {
       PIN_SemaphoreWait(&consumer_sleep_lock);
-      //      PIN_Sleep(250);
     }
     lk_lock(locks_[tid], tid+1);
     spins++;
@@ -140,6 +139,7 @@ handshake_container_t* BufferManager::back(THREADID tid)
 
 bool BufferManager::empty(THREADID tid)
 {
+  assert(locks_[tid]);
   lk_lock(locks_[tid], tid+1);
   bool result = queueSizes_[tid] == 0;
   lk_unlock(locks_[tid]);

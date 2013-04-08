@@ -386,7 +386,7 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
         int numInstsToIgnore = 3;
         flushLookahead(tid, numInstsToIgnore);
 
-        PauseSimulation(tid);
+        ILDJIT_PauseSimulation(tid);
         cerr << tid << ": Paused simulation!" << endl;
 
         first_invocation = false;
@@ -1031,18 +1031,6 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
         memcpy(handshake->handshake.ins, syscall_template, sizeof(syscall_template));
         handshake_buffer.producer_done(*it, true);
 
-        /* Deactivate this core, so we can advance the cycle conunter of
-         * others without waiting on it */
-        handshake_container_t* handshake_2 = handshake_buffer.get_buffer(*it);
-
-        handshake_2->flags.isFirstInsn = false;
-        handshake_2->handshake.sleep_thread = true;
-        handshake_2->handshake.resume_thread = false;
-        handshake_2->handshake.real = false;
-        handshake_2->handshake.pc = 0;
-        handshake_2->flags.valid = true;
-        handshake_buffer.producer_done(*it, true);
-
         /* And finally, flush the core's pipelie to get rid of anything
          * left over (including the trap) and flush the ring cache */
         handshake_container_t* handshake_3 = handshake_buffer.get_buffer(*it);
@@ -1054,6 +1042,18 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
         handshake_3->handshake.real = false;
         handshake_3->handshake.pc = 0;
         handshake_3->flags.valid = true;
+        handshake_buffer.producer_done(*it, true);
+        
+        /* Deactivate this core, so we can advance the cycle conunter of
+         * others without waiting on it */
+        handshake_container_t* handshake_2 = handshake_buffer.get_buffer(*it);
+
+        handshake_2->flags.isFirstInsn = false;
+        handshake_2->handshake.sleep_thread = true;
+        handshake_2->handshake.resume_thread = false;
+        handshake_2->handshake.real = false;
+        handshake_2->handshake.pc = 0;
+        handshake_2->flags.valid = true;
         handshake_buffer.producer_done(*it, true);
 
         handshake_buffer.flushBuffers(*it);

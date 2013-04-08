@@ -10,8 +10,8 @@ struct bus_t {
 
   struct {
     counter_t accesses;
-    counter_t utilization; /* cumulative cycles in use */
-    counter_t prefetch_utilization; /* cumulative prefetch cycles in use */
+    double utilization; /* cumulative cycles in use */
+    double prefetch_utilization; /* cumulative prefetch cycles in use */
   } stat;
 };
 
