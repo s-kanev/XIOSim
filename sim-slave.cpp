@@ -401,6 +401,11 @@ static void global_step(void)
     uncore->sim_cycle++;
     uncore->default_cpu_cycles = (tick_t)ceil(uncore->sim_cycle * knobs.default_cpu_speed / LLC_speed);
 
+    if(knobs.dvfs_interval > 0)
+      for(int i=0; i<num_cores; i++)
+        if(cores[i]->sim_cycle > 0 && (cores[i]->sim_cycle % knobs.dvfs_interval == 0))
+          cores[i]->vf_controller->change_vf();
+
     heartbeat_count++;
 
     /*********************************************/

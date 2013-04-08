@@ -163,7 +163,7 @@ sim_reg_options(struct opt_odb_t *odb)
   opt_reg_flag(odb, "-power", "simulate power",
       &knobs.power.compute, /*default*/ false, /*print*/true,/*format*/NULL);
 
-  opt_reg_int(odb, "-power:rtp_interval", "number of cycles between power computation",
+  opt_reg_int(odb, "-power:rtp_interval", "number of uncore cycles between power computation",
       &knobs.power.rtp_interval, /* default */0, /* print */true, /* format */NULL);
 
   opt_reg_string(odb, "-power:rtp_file", "file to store runtime power trace",
@@ -182,6 +182,8 @@ sim_reg_options(struct opt_odb_t *odb)
   opt_reg_string(odb, "-dvfs", "dvfs controller configuration string",
       &knobs.dvfs_opt_str, /* default */"none", /* print */true, /* format */NULL);
 
+  opt_reg_int(odb, "-dvfs:interval", "Re-evaluate voltage/frequency choice every X cpu cycles",
+      &knobs.dvfs_interval, /* default */0, /* print */true, /* format */NULL);
 }
 
 /* check simulator-specific option values */

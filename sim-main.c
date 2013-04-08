@@ -194,6 +194,7 @@ sim_print_stats(FILE *fd)		/* output stream */
   stat_print_stats(sim_sdb, fd);
   sim_aux_stats(fd);
   fprintf(fd, "\n");
+  fflush(fd);
 }
 
 /* print stats, uninitialize simulator components, and exit w/ exitcode */
