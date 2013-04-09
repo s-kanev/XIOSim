@@ -399,7 +399,7 @@ static void global_step(void)
       myfprintf(stderr, "### starting timing simulation \n");
 
     uncore->sim_cycle++;
-    uncore->sim_time += uncore->sim_cycle / LLC_speed;
+    uncore->sim_time = uncore->sim_cycle / LLC_speed;
     uncore->default_cpu_cycles = (tick_t)ceil(uncore->sim_cycle * knobs.default_cpu_speed / LLC_speed);
 
     if(knobs.dvfs_interval > 0)
