@@ -404,8 +404,11 @@ static void global_step(void)
 
     if(knobs.dvfs_interval > 0)
       for(int i=0; i<num_cores; i++)
-        if(cores[i]->sim_cycle > 0 && (cores[i]->sim_cycle % knobs.dvfs_interval == 0))
+        if(cores[i]->sim_cycle >= cores[i]->vf_controller->next_invocation)
+        {
           cores[i]->vf_controller->change_vf();
+          cores[i]->vf_controller->next_invocation += knobs.dvfs_interval;
+        }
 
     /* power computation */
     if(knobs.power.compute && (knobs.power.rtp_interval > 0) && 

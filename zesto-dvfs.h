@@ -3,9 +3,11 @@
 
 class vf_controller_t {
   public:
-    vf_controller_t (struct core_t * const _core) : core(_core) { }
+    vf_controller_t (struct core_t * const _core) : next_invocation(0), core(_core) { }
 
     virtual void change_vf() = 0;
+
+    tick_t next_invocation;
 
   protected:
     struct core_t * const core;
