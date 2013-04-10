@@ -150,8 +150,11 @@ uncore_t::uncore_t(
       name,&sets,&assoc,&linesize,&banks,&bank_width,&latency,&rp,&ap,&wp, &MSHR_entries, &MSHR_banks, &MSHR_WB_entries, &wc) != 14)
     fatal("invalid LLC options: <name:sets:assoc:linesize:banks:bank-width:latency:repl-policy:alloc-policy:write-policy:num-MSHR:MSHR-banks:WB-buffers:write-combining>\n\t(%s)",LLC_opt_str);
 
+  /* Assume LLC latency is specified in default core clock cycles, since it sounds more natural to users  */
+  int latency_scaled = (int) ceil(latency * LLC_speed / knobs.default_cpu_speed);
+
   LLC = cache_create(NULL,name,CACHE_READWRITE,sets,assoc,linesize,
-                     rp,ap,wp,wc,banks,bank_width,latency,
+                     rp,ap,wp,wc,banks,bank_width,latency_scaled,
                      MSHR_entries,MSHR_WB_entries,MSHR_banks,NULL,fsb);
   if(!LLC_MSHR_cmd || !strcasecmp(LLC_MSHR_cmd,"fcfs"))
     LLC->MSHR_cmd_order = NULL;

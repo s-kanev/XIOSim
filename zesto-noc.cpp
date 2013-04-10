@@ -67,7 +67,7 @@ int bus_free(const struct bus_t * const bus)
   /* HACEDY HACKEDY HACK -- magic FSB */
   if(fsb_magic && strncmp(bus->name, "FSB", 3) == 0)
     return true;
-  /* assume bus clock is locked to cpu clock (synchronous): only
+  /* assume bus clock is locked to appropriate clock (synchronous): only
      allow operations when cycle MOD bus-multiplier is zero */
   if(*bus->clock % bus->ratio)
     return false;
