@@ -81,7 +81,6 @@ class core_exec_IO_DPM_t:public core_exec_t
   virtual void exec_insert(struct uop_t * const uop);
   virtual bool port_available(int port_ind);
   virtual bool exec_fused_ST(struct uop_t * const uop);
-  virtual void update_execution_otags(tick_t old_sim_cycle);
 
   /* Stubs in IO pipline -- compatibility only */
   virtual void insert_ready_uop(struct uop_t * const uop);
@@ -2437,59 +2436,6 @@ void core_exec_IO_DPM_t::dump_payload()
         printf(" \t|");
     }
     printf("\n");
-  }
-}
-
-/* This is a gross hack to compensate for putting cores to sleep.
- * Since we do a lot of scheduling (can_issue_IO()) based on tags,
- * which are absolute cycle values, when we put a core to sleep for
- * X cycles and then resume, all those tags are now in the past, and
- * anyone can schedule violating tons of constraints.
- * To fix, we just got over the execution pipe and add X cycles to
- * all tag values. This is ok in terms of accuracy, since a real
- * system will probably never use absolute cycles in the first place.
- */
-void core_exec_IO_DPM_t::update_execution_otags(tick_t old_sim_cycle)
-{
-  core_knobs_t* knobs = core->knobs;
-
-  sqword_t cycle_diff = core->sim_cycle - old_sim_cycle;
-
-  /* For now, do this only for ops in execution units,
-   * when_otag_ready is assigned and used for them.
-   * XXX: The other place where this may cause trouble is loads */
-  for(int i=0;i<knobs->exec.num_exec_ports;i++)
-  {
-    struct uop_t * uop;
-    for(int j=0;j<port[i].num_FU_types;j++)
-    {
-      enum md_fu_class FU_type = port[i].FU_types[j];
-      struct ALU_t * FU = port[i].FU[FU_type];
-      if(FU && (FU->occupancy > 0))
-      {
-        for (int stage = FU->latency-1; stage >= 0; stage--)
-        {
-          uop = FU->pipe[stage].uop;
-
-          if(!uop)
-            continue;
-
-#ifdef ZTRACE
-          ztrace_print(uop, "e|ALU|correcting otag with %lld delta", cycle_diff);
-#endif
-          /* Update direct dependants timing information */
-          struct odep_t * odep = uop->exec.odep_uop;
-          while(odep)
-          {
-            odep->uop->timing.when_ival_ready[odep->op_num] += cycle_diff;
-            odep = odep->next;
-          }
-
-          /* This will make sure indirect dependants don't issue out-of-order */
-          uop->timing.when_otag_ready += cycle_diff;
-        }
-      }
-    }
   }
 }
 

@@ -84,8 +84,7 @@ class core_exec_STM_t:public core_exec_t
   virtual void exec_insert(struct uop_t * const uop);
   virtual bool port_available(int port_ind);
   virtual bool exec_fused_ST(struct uop_t * const uop);
-  virtual void update_execution_otags(tick_t old_sim_cycle);
-	
+
   
   protected:
   struct readyQ_node_t * readyQ_free_pool; /* for scheduling readyQ's */
@@ -1644,11 +1643,6 @@ bool core_exec_STM_t::exec_fused_ST(struct uop_t * const curr_uop)
 }
 
 bool core_exec_STM_t::exec_empty()
-{
-  fatal("shouldn't be called");
-}
-
-void core_exec_STM_t::update_execution_otags(tick_t old_sim_cycle)
 {
   fatal("shouldn't be called");
 }

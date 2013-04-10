@@ -405,7 +405,6 @@ void activate_core(int coreID)
   lk_lock(&cycle_lock, coreID+1);
   cores[coreID]->current_thread->finished_cycle = false; // Make sure master core will wait
   cores[coreID]->exec->update_last_completed(cores[coreID]->sim_cycle);
-  cores[coreID]->exec->update_execution_otags(cores[coreID]->current_thread->last_active_cycle);
   cores[coreID]->current_thread->active = true;
     if (coreID < min_coreID)
       min_coreID = coreID;
