@@ -57,7 +57,7 @@ static int print_level;
 
 using namespace std;
 
-void mcpat_initialize(ParseXML* p1, ostream *_out_file, int _print_level) {
+void mcpat_initialize(ParseXML* p1, ostream *_out_file, double * cores_leakage, double * uncore_leakage, int _print_level) {
    print_level = _print_level;
 
    opt_for_clk = true;
@@ -65,6 +65,22 @@ void mcpat_initialize(ParseXML* p1, ostream *_out_file, int _print_level) {
 
    proc = new Processor(p1);
    proc->compute();
+
+   bool longer_channel = proc->XML->sys.longer_channel_device;
+
+   if (cores_leakage)
+      for (int i=0; i<proc->numCore; i++) {
+         cores_leakage[i] = (longer_channel ? 
+                               proc->cores[i]->power.readOp.longer_channel_leakage :
+                               proc->cores[i]->power.readOp.leakage) +
+                            proc->cores[i]->power.readOp.gate_leakage;
+      }
+
+   if (uncore_leakage)
+      *uncore_leakage = (longer_channel ?
+                           (proc->power.readOp.longer_channel_leakage - proc->core.power.readOp.longer_channel_leakage) :
+                           (proc->power.readOp.leakage - proc->core.power.readOp.leakage) ) + 
+                        (proc->power.readOp.gate_leakage - proc->core.power.readOp.gate_leakage);
 }
 
 void mcpat_compute_energy(bool print_power, double * cores_rtp, double * uncore_rtp) {

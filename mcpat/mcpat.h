@@ -46,6 +46,8 @@
  *
  ***************************************************************************/
 
-void mcpat_initialize(ParseXML *p1, std::ostream *_out_file, int print_level = 1);
+#include "cacti/parameter.h"
+
+void mcpat_initialize(ParseXML *p1, std::ostream *_out_file, double * cores_leakage, double * uncore_leakage, int print_level = 1);
 void mcpat_compute_energy(bool print_power, double * cores_rtp, double * uncore_rtp);
 void mcpat_finalize();

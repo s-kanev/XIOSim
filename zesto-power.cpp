@@ -2,13 +2,13 @@
 
 #include "stats.h"
 #include "zesto-power.h"
+#include "zesto-dvfs.h"
 #include "zesto-oracle.h"
 #include "zesto-core.h"
 #include "zesto-fetch.h"
 #include "zesto-bpred.h"
 #include "zesto-uncore.h"
 
-#include "XML_Parse.h"
 #include "mcpat.h"
 
 class ParseXML *XML = NULL; //Interface to McPAT
@@ -19,9 +19,15 @@ extern double LLC_speed;
 
 double uncore_rtp;
 double *cores_rtp;
+
+double uncore_leakage;
+double *cores_leakage;
+
 FILE *rtp_file = NULL;
 
 bool private_l2 = false;
+
+double core_power_t::default_vdd;
 
 void init_power(void)
 {
@@ -126,7 +132,11 @@ void init_power(void)
   for (int i=0; i<num_cores; i++)
     cores[i]->power->translate_params(&XML->sys.core[i], &XML->sys.L2[i]);
 
-  mcpat_initialize(XML, &cerr, 5);
+  cores_leakage = (double*)calloc(num_cores, sizeof(*cores_leakage));
+  if (cores_leakage == NULL)
+    fatal("couldn't allocate memory");
+
+  mcpat_initialize(XML, &cerr, cores_leakage, &uncore_leakage, 5);
 
   cores_rtp = (double*)calloc(num_cores, sizeof(*cores_rtp));
   if (cores_rtp == NULL)
@@ -141,6 +151,14 @@ void init_power(void)
     if (rtp_file == NULL)
       fatal("couldn't open rtp power file: %s", knobs->power.rtp_filename);
   }
+
+  // Initialize Vdd from mcpat defaults
+  core_power_t::default_vdd = g_tp.peri_global.Vdd;
+  for (int i=0; i<num_cores; i++)
+    if (cores[i]->vf_controller) {
+      cores[i]->vf_controller->vdd = g_tp.peri_global.Vdd;
+      cores[i]->vf_controller->vf_controller_t::change_vf();
+    }
 }
 
 void deinit_power(void)
@@ -197,9 +215,14 @@ void compute_power(struct stat_sdb_t* sdb, bool print_power)
   /* Print power trace */
   if (rtp_file)
   {
-    for(int i=0; i<num_cores; i++)
-        fprintf(rtp_file, "%.4f ", cores_rtp[i]);
-    fprintf(rtp_file, "%.4f\n", uncore_rtp);
+    for(int i=0; i<num_cores; i++) {
+      /* Scale trace with voltage changes */
+      double vdd = cores[i]->vf_controller->get_average_vdd();
+      cores[i]->power->rt_power = cores_rtp[i] * (vdd * vdd) / (core_power_t::default_vdd * core_power_t::default_vdd);
+      cores[i]->power->leakage_power = cores_leakage[i] * vdd / core_power_t::default_vdd;
+      fprintf(rtp_file, "%.4f %.4f ", cores[i]->power->rt_power, cores[i]->power->leakage_power);
+    }
+    fprintf(rtp_file, "%.4f %.4f\n", uncore_rtp, uncore_leakage);
   }
 }
 
@@ -433,7 +456,7 @@ void core_power_t::translate_stats(struct stat_sdb_t* sdb, system_core *core_sta
 
 /* default constructor */
 core_power_t::core_power_t(struct core_t * _core):
-  rt_power(0.0),
+  rt_power(0.0), leakage_power(0.0),
   core(_core)
 {
 }

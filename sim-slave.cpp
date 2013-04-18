@@ -402,14 +402,6 @@ static void global_step(void)
     uncore->sim_time = uncore->sim_cycle / LLC_speed;
     uncore->default_cpu_cycles = (tick_t)ceil(uncore->sim_cycle * knobs.default_cpu_speed / LLC_speed);
 
-    if(knobs.dvfs_interval > 0)
-      for(int i=0; i<num_cores; i++)
-        if(cores[i]->sim_cycle >= cores[i]->vf_controller->next_invocation)
-        {
-          cores[i]->vf_controller->change_vf();
-          cores[i]->vf_controller->next_invocation += knobs.dvfs_interval;
-        }
-
     /* power computation */
     if(knobs.power.compute && (knobs.power.rtp_interval > 0) && 
        (uncore->sim_cycle % knobs.power.rtp_interval == 0))
@@ -418,6 +410,14 @@ static void global_step(void)
       compute_power(rtp_sdb, false);
       stat_save_stats(rtp_sdb);         // Create new checkpoint for next delta
     } 
+
+    if(knobs.dvfs_interval > 0)
+      for(int i=0; i<num_cores; i++)
+        if(cores[i]->sim_cycle >= cores[i]->vf_controller->next_invocation)
+        {
+          cores[i]->vf_controller->change_vf();
+          cores[i]->vf_controller->next_invocation += knobs.dvfs_interval;
+        }
 
     heartbeat_count++;
 
