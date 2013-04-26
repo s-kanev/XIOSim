@@ -28,7 +28,10 @@ ostream& operator<< (ostream &out, handshake_container_t &hand)
   out << hand.flags.isLastInsn;
   out << hand.flags.killThread;
   out << " ";
+  out << "mema: " << hex << hand.handshake.mem_addr << " val: " << hand.handshake.mem_val << dec << " ";
   out << hand.mem_buffer.size();
+  for (auto it=hand.mem_buffer.begin(); it != hand.mem_buffer.end(); it++)
+    out << hex << it->first << ": " << it->second << dec << " ";
   out << " ";
   out << "pc:" << hand.handshake.pc << " ";
   out << "npc:" << hand.handshake.npc << " ";

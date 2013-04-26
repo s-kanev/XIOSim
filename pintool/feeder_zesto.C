@@ -1039,7 +1039,7 @@ VOID ThreadFini(THREADID tid, const CONTEXT *ctxt, INT32 code, VOID *v)
 
     thread_state_t* tstate = get_tls(tid);
 
-    BOOL was_scheduled = handshake_buffer.hasThread(tid);
+    BOOL was_scheduled = tstate->num_inst > 0;
 
     /* Ignore threads which we weren't going to simulate.
        It's ok that we're not locking tstate here, because no one is using it */
@@ -1424,7 +1424,7 @@ INT32 main(INT32 argc, CHAR **argv)
 
     PIN_AddThreadStartFunction(ThreadStart, NULL);
     PIN_AddThreadFiniFunction(ThreadFini, NULL);
-    IMG_AddUnloadFunction(ImageUnload, 0);
+//    IMG_AddUnloadFunction(ImageUnload, 0);
     IMG_AddInstrumentFunction(ImageLoad, 0);
     PIN_AddSyscallEntryFunction(SyscallEntry, 0);
     PIN_AddSyscallExitFunction(SyscallExit, 0);

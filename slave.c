@@ -1,6 +1,6 @@
 /* 
  * Exports called by instruction feeder.
- * Main entry poing for simulated instructions.
+ * Main entry point for simulated instructions.
  * Copyright, Svilen Kanev, 2011
 */
 

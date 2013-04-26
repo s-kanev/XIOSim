@@ -440,7 +440,7 @@ struct spec_byte_t * core_oracle_t::spec_write_byte(
 #ifdef ZESTO_PIN
 byte_t core_oracle_t::non_spec_read_byte(const md_addr_t addr)
 {
-    std::map<uint32_t, uint8_t>::iterator it = mem_requests.find(addr);
+    auto it = mem_requests.find(addr);
     if (it != mem_requests.end())
         return it->second;
     return 0;
