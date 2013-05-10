@@ -409,29 +409,8 @@ extern const md_inst_t MD_NOP_INST;
 extern unsigned long long timestamp[MAX_CORES]; // for RDTSC
 extern int is_syscall;
 
-
-/* target swap support */
-#ifdef MD_CROSS_ENDIAN
-
-#define MD_SWAPW(X)        SWAP_WORD(X)
-#define MD_SWAPD(X)        SWAP_DWORD(X)
-#define MD_SWAPI(X)        SWAP_DWORD(X)
-#define MD_SWAPQ(X)        SWAP_QWORD(X)
-
-#else /* !MD_CROSS_ENDIAN */
-
-#define MD_SWAPW(X)        (X)
-#define MD_SWAPD(X)        (X)
-#define MD_SWAPI(X)        (X)
-#define MD_SWAPQ(X)        (X)
-
-#endif
-
 struct mem_t;
 void md_fetch_inst(md_inst_t *inst, struct mem_t *mem, const md_addr_t pc);
-
-/* fetch an instruction */
-#define MD_FETCH_INST(INST, MEM, PC)    md_fetch_inst(&INST, MEM, PC)
 
 /* get inst size */
 #define MD_INST_SIZE(INST)              (INST).len
@@ -1996,37 +1975,31 @@ md_uop_immv(const enum md_xfield_t xval, const struct Mop_t * Mop, bool * bogus)
 inline dword_t
 md_uop_lit(const enum md_xfield_t xval, const struct Mop_t * Mop, bool * bogus);
 
-#ifdef ZESTO_ORACLE_C
-
 #define XMEM_READ_BYTE(M,A)                        \
-  ({ byte_t _mem_read_tmp;                         \
-   const word_t _x = (word_t)MEM_READ_BYTE(M,A);   \
+  ({ const word_t _x = (word_t)MEM_READ_BYTE(M,A, Mop);   \
    _x; })
 
 #define XMEM_READ_WORD(M,A)                        \
-  ({ byte_t _mem_read_tmp;                         \
-   const word_t _x = ((word_t)MEM_READ_BYTE(M,A)   \
-     | ((word_t)MEM_READ_BYTE(M,(A)+1) << 8));     \
+  ({ const word_t _x = ((word_t)MEM_READ_BYTE(M,A, Mop)   \
+     | ((word_t)MEM_READ_BYTE(M,(A)+1, Mop) << 8));     \
    _x; })
 
 #define XMEM_READ_DWORD(M,A)                       \
-  ({ byte_t _mem_read_tmp;                         \
-   const dword_t _x = ((dword_t)MEM_READ_BYTE(M,A) \
-     | ((dword_t)MEM_READ_BYTE(M,(A)+1) << 8)      \
-     | ((dword_t)MEM_READ_BYTE(M,(A)+2) << 16)     \
-     | ((dword_t)MEM_READ_BYTE(M,(A)+3) << 24));   \
+  ({ const dword_t _x = ((dword_t)MEM_READ_BYTE(M,A, Mop) \
+     | ((dword_t)MEM_READ_BYTE(M,(A)+1, Mop) << 8)      \
+     | ((dword_t)MEM_READ_BYTE(M,(A)+2, Mop) << 16)     \
+     | ((dword_t)MEM_READ_BYTE(M,(A)+3, Mop) << 24));   \
    _x; })
 
 #define XMEM_READ_QWORD(M,A)                       \
-  ({ byte_t _mem_read_tmp;                         \
-   const qword_t _x = ((qword_t)MEM_READ_BYTE(M,A) \
-     | ((qword_t)MEM_READ_BYTE(M,(A)+1) << 8)      \
-     | ((qword_t)MEM_READ_BYTE(M,(A)+2) << 16)     \
-     | ((qword_t)MEM_READ_BYTE(M,(A)+3) << 24)     \
-     | ((qword_t)MEM_READ_BYTE(M,(A)+4) << 32)     \
-     | ((qword_t)MEM_READ_BYTE(M,(A)+5) << 40)     \
-     | ((qword_t)MEM_READ_BYTE(M,(A)+6) << 48)     \
-     | ((qword_t)MEM_READ_BYTE(M,(A)+7) << 56));   \
+  ({ const qword_t _x = ((qword_t)MEM_READ_BYTE(M,A, Mop) \
+     | ((qword_t)MEM_READ_BYTE(M,(A)+1, Mop) << 8)      \
+     | ((qword_t)MEM_READ_BYTE(M,(A)+2, Mop) << 16)     \
+     | ((qword_t)MEM_READ_BYTE(M,(A)+3, Mop) << 24)     \
+     | ((qword_t)MEM_READ_BYTE(M,(A)+4, Mop) << 32)     \
+     | ((qword_t)MEM_READ_BYTE(M,(A)+5, Mop) << 40)     \
+     | ((qword_t)MEM_READ_BYTE(M,(A)+6, Mop) << 48)     \
+     | ((qword_t)MEM_READ_BYTE(M,(A)+7, Mop) << 56));   \
    _x; })
 
 #define XMEM_WRITE_BYTE(M,A,S)                         \
@@ -2072,66 +2045,6 @@ md_uop_lit(const enum md_xfield_t xval, const struct Mop_t * Mop, bool * bogus);
    uop->oracle.spec_mem[6] = MEM_WRITE_BYTE(M,(A)+6,(_x >> 48)&0xff); \
    uop->oracle.spec_mem[7] = MEM_WRITE_BYTE(M,(A)+7,(_x >> 56)&0xff); \
    })
-
-#else
-
-/* TODO: check alignment and then use more efficient wide accesses */
-
-#define XMEM_READ_BYTE(M,A)                      \
-  ({ const byte_t _x                             \
-     = (byte_t)MEM_READ_BYTE(M,A);               \
-   _x; })
-
-#define XMEM_READ_WORD(M,A)                      \
-  ({ const word_t _x                             \
-     = ((word_t)MEM_READ_BYTE(M,A)               \
-     | ((word_t)MEM_READ_BYTE(M,(A)+1) << 8));   \
-   _x; })
-
-#define XMEM_READ_DWORD(M,A)                     \
-  ({ const dword_t _x                            \
-     = ((dword_t)MEM_READ_BYTE(M,A)              \
-     | ((dword_t)MEM_READ_BYTE(M,(A)+1) << 8)    \
-     | ((dword_t)MEM_READ_BYTE(M,(A)+2) << 16)   \
-     | ((dword_t)MEM_READ_BYTE(M,(A)+3) << 24)); \
-   _x; })
-
-#define XMEM_READ_QWORD(M,A)                     \
-  ({ const qword_t _x                            \
-     = ((qword_t)MEM_READ_BYTE(M,A)              \
-     | ((qword_t)MEM_READ_BYTE(M,(A)+1) << 8)    \
-     | ((qword_t)MEM_READ_BYTE(M,(A)+2) << 16)   \
-     | ((qword_t)MEM_READ_BYTE(M,(A)+3) << 24)   \
-     | ((qword_t)MEM_READ_BYTE(M,(A)+4) << 32)   \
-     | ((qword_t)MEM_READ_BYTE(M,(A)+5) << 40)   \
-     | ((qword_t)MEM_READ_BYTE(M,(A)+6) << 48)   \
-     | ((qword_t)MEM_READ_BYTE(M,(A)+7) << 56)); \
-   _x; })
-
-#define XMEM_WRITE_WORD(M,A,S)                   \
-  ({ const word_t _x = (S);                      \
-   MEM_WRITE_BYTE(M,A,_x&0xff);                  \
-   MEM_WRITE_BYTE(M,(A)+1,(_x >> 8)&0xff); })
-
-#define XMEM_WRITE_DWORD(M,A,S)                  \
-  ({ const dword_t _x = (S);                     \
-   MEM_WRITE_BYTE(M,A,_x&0xff);                  \
-   MEM_WRITE_BYTE(M,(A)+1,(_x >> 8)&0xff);       \
-   MEM_WRITE_BYTE(M,(A)+2,(_x >> 16)&0xff);      \
-   MEM_WRITE_BYTE(M,(A)+3,(_x >> 24)&0xff); })
-
-#define XMEM_WRITE_QWORD(M,A,S)                  \
-  ({ const qword_t _x = (S);                     \
-   MEM_WRITE_BYTE(M,A,_x&0xff);                  \
-   MEM_WRITE_BYTE(M,(A)+1,(_x >> 8)&0xff);       \
-   MEM_WRITE_BYTE(M,(A)+2,(_x >> 16)&0xff);      \
-   MEM_WRITE_BYTE(M,(A)+3,(_x >> 24)&0xff);      \
-   MEM_WRITE_BYTE(M,(A)+4,(_x >> 32)&0xff);      \
-   MEM_WRITE_BYTE(M,(A)+5,(_x >> 40)&0xff);      \
-   MEM_WRITE_BYTE(M,(A)+6,(_x >> 48)&0xff);      \
-   MEM_WRITE_BYTE(M,(A)+7,(_x >> 56)&0xff); })
-
-#endif /* ZESTO_ORACLE_C */
 
 #define READ_V(ADDR, FAULT)                         \
   ((Mop->fetch.inst.mode & MODE_OPER32)             \

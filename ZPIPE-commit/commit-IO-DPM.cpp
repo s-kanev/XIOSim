@@ -641,8 +641,6 @@ void core_commit_IO_DPM_t::IO_step(void)
             when_rep_fetched = Mop->timing.when_fetched;
             zesto_assert(Mop->timing.when_fetched != TICK_T_MAX,(void)0);
             zesto_assert(Mop->timing.when_fetch_started != TICK_T_MAX,(void)0);
-            //zesto_assert(Mop->timing.when_fetched != 0,(void)0);
-            //zesto_assert(Mop->timing.when_fetch_started != 0,(void)0);
             when_rep_decode_started = Mop->timing.when_decode_started;
             when_rep_commit_started = Mop->timing.when_commit_started;
           }

@@ -135,6 +135,7 @@
  * Copyright © 1994-2003 by Todd M. Austin, Ph.D. and SimpleScalar, LLC.
  */
 
+#include "buffer.h"
 #include "zesto-cache.h"
 
 /* The following macros are used to pretty similarly to regular fatal and assert
@@ -218,8 +219,6 @@ class core_oracle_t {
   bool hosed; /* set to TRUE when something in the architected state (core->arch_state) has been seriously
                 corrupted. */
 
-  byte_t ins_bytes[MD_MAX_ILEN]; /* buffer containing instruction bytes */
-
   core_oracle_t(struct core_t * const core);
   void reg_stats(struct stat_sdb_t * const sdb);
   void update_occupancy(void);
@@ -229,10 +228,11 @@ class core_oracle_t {
   int next_index(const int index);
   struct Mop_t * get_oldest_Mop();
 
-#ifdef ZESTO_PIN
-  byte_t non_spec_read_byte(const md_addr_t addr);
-  std::map<uint32_t, uint8_t> mem_requests;
-#endif
+  void grab_feeder_state(handshake_container_t * handshake, bool allocate_shadow);
+  handshake_container_t * get_shadow_Mop(const struct Mop_t* Mop);
+
+  bool non_spec_read_byte(const md_addr_t addr, const struct Mop_t* Mop, byte_t * res);
+  uint8_t spec_do_read_byte(const md_addr_t addr, const struct Mop_t* Mop);
   bool spec_read_byte(const md_addr_t addr, byte_t * const valp, bool no_tail=false);
   struct spec_byte_t * spec_write_byte(const md_addr_t addr, const byte_t val,  struct uop_t * uop);
 
@@ -260,6 +260,8 @@ class core_oracle_t {
   int MopQ_num;
   int MopQ_size;
   struct Mop_t * current_Mop; /* pointer to track a Mop that has been executed but not consumed (i.e. due to fetch stall) */
+
+  Buffer * shadow_MopQ;
 
   static struct map_node_t * map_free_pool;  /* for decode.dep_map */
   static int map_free_pool_debt;
@@ -292,10 +294,8 @@ class core_oracle_t {
   void commit_write_byte(struct spec_byte_t * const p);
   void squash_write_byte(struct spec_byte_t * const p);
 
-#ifdef ZESTO_PIN
   void write_spec_byte_to_mem(struct uop_t * const uop, struct spec_byte_t * p, bool skip_last);
   void write_Mop_spec_bytes_to_mem(const struct Mop_t * const Mop, bool skip_last);
-#endif
 
   void cleanup_aborted_mop(struct Mop_t * const Mop);
 };

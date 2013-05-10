@@ -218,15 +218,6 @@ const static word_t pfxtab[256] = {
   /* 0xf8 */  0,   0,   0,   0,   0,   0,   0,   0
 };
 
-/* fetch an instruction */
-void
-md_fetch_inst(md_inst_t *inst, struct mem_t *mem, const md_addr_t pc)
-{
-  int i;
-
-  for (i=0; i < MD_MAX_ILEN; i++)
-    inst->code[i] = MEM_READ_BYTE(mem, pc + i);
-}
 
   int
 md_cc_eval(const int cond, const dword_t aflags, bool * bogus)

@@ -15,7 +15,7 @@ CC = g++
 # Uncomment only one of the following OFLAGS, or make your own
 
 # For debug:
-OFLAGS = -O3 -g -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -DDEBUG -Wall -msse4a -mfpmath=sse
+OFLAGS = -O3 -g -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -DDEBUG -Wall -msse4a -mfpmath=sse -std=c++11
 
 # Fully-optimized, but with profiling for gprof:
 #OFLAGS = -O3 -g -pg -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -Wall -static -fexpensive-optimizations -mtune=core2 -march=core2 -msse4a -mfpmath=sse -funroll-loops
@@ -51,17 +51,18 @@ CFLAGS = $(FFLAGS) $(OFLAGS) $(BINUTILS_INC) $(BINUTILS_LIB) $(ZTRACE) $(MCPAT_I
 #
 SRCS =  \
 eval.c          loader.c	    machine.c       memory.c         misc.c         options.c   \
-regs.c          stats.c         slave.c         sim-main.c       callbacks.c    slices.cpp
+regs.c          stats.c         slave.c         sim-main.c       callbacks.c    slices.cpp  \
+buffer.cpp
 
 HDRS = \
 thread.h                  host.h          loader.h        machine.h       memory.h           \
 misc.h          options.h       regs.h          sim.h           stats.h         version.h          \
-machine.def     x86flow.def     interface.h     callbacks.h
+machine.def     x86flow.def     interface.h     callbacks.h     buffer.h
 
 OBJS =	\
 eval.$(OEXT)         machine.$(OEXT)      memory.$(OEXT)       misc.$(OEXT)          options.$(OEXT)    \
 regs.$(OEXT)         stats.$(OEXT)        sim-main.$(OEXT)     slices.$(OEXT)        callbacks.$(OEXT)  \
-slave.$(OEXT)        loader.$(OEXT)
+slave.$(OEXT)        loader.$(OEXT)       buffer.$(OEXT)
 
 # Zesto specific files
 ZSRCS = \

@@ -233,21 +233,12 @@ typedef enum md_fault_type
 #define MEM_ADDR2HOST(MEM, ADDR) MEM_PAGE(MEM, ADDR, 0)+MEM_OFFSET(ADDR)
 
 /* memory tickle function, allocates pages when they are first written */
-#ifndef ZESTO_PIN
-#define MEM_TICKLE(MEM, ADDR)            \
-  ((!MEM_PAGE(MEM, ADDR, 0)            \
-    ? (/* allocate page at address ADDR */        \
-      mem_newpage(MEM, ADDR))            \
-    : (/* nada... */ (void)0)))           
-#else
-/* If running under PIN, make sure to create the page at its actual location! */
+/* When running under PIN, make sure to create the page at its actual location! */
 #define MEM_TICKLE(MEM, ADDR)            \
   ((!MEM_PAGE(MEM, ADDR, 0)            \
     ? (/* allocate page at address ADDR */        \
       (void) mem_newmap2(MEM, ROUND_DOWN(ADDR, MD_PAGE_SIZE), ROUND_DOWN(ADDR,MD_PAGE_SIZE), MD_PAGE_SIZE, 1)) \
     : (/* nada... */ (void)0)))           
-#endif
- 
 
 /* memory page iterator */
 #define MEM_FORALL(MEM, ITER, PTE)          \
@@ -259,116 +250,23 @@ typedef enum md_fault_type
  * memory accessor macros
  */
 
-#ifdef ZESTO_ORACLE_C
 /* these macros are to support speculative reads/writes of memory
    due to instructions in-flight (uncommitted) in the machine */
 
-#define _MEM_READ(MEM, ADDR, TYPE)          \
-  (core->oracle->spec_read_byte((ADDR),&_mem_read_tmp) ? _mem_read_tmp :             \
-  (MEM_PAGE(MEM, (md_addr_t)(ADDR),0)          \
-   ? core->oracle->non_spec_read_byte((ADDR))  \
-   : /* page not yet allocated, return zero value */ 0))
+#define MEM_READ_BYTE(MEM, ADDR, MOP)          \
+  core->oracle->spec_do_read_byte((ADDR), (MOP))
 
-#define MEM_READ(MEM, ADDR, TYPE)           \
-   ({ ZPIN_TRACE("Read at addr 0x%x", (ADDR)); \
-     byte_t _tmp = _MEM_READ(MEM, ADDR, TYPE); \
-     ZPIN_TRACE(" returns 0x%x\n", _tmp); \
-     _tmp; \
-   })
-
-#define MEM_READ_SUCC_NON_SPEC(MEM, ADDR, TYPE)          \
-  (MEM_PAGE(MEM, (md_addr_t)(ADDR),0)          \
-   ? (_read_succ = true, core->oracle->non_spec_read_byte((ADDR)))  \
-   : /* page not yet allocated, return zero value */ (_read_succ = false, 0))
-
-#define MEM_WRITE(MEM, ADDR, TYPE, VAL)          \
+#define MEM_WRITE_BYTE(MEM, ADDR, VAL)          \
   core->oracle->spec_write_byte((ADDR),(VAL),uop)
 
-
-#ifdef ZESTO_PIN
 /* Pin does the actual write if instruction is not speculative, but we do a 
    dummy address translate from the same page to update the MRU list and dirty flag in the page table */
 #define MEM_WRITE_BYTE_NON_SPEC(MEM, ADDR, VAL)          \
   MEM_TICKLE(MEM, (md_addr_t)(ADDR));                   \
-  (MEM_PAGE(MEM, (md_addr_t)(ADDR),1) + MEM_OFFSET(ADDR))
-
-//  byte_t * _tr_addr = (MEM_PAGE(MEM, (md_addr_t)(ADDR),0) + MEM_OFFSET(ADDR)); 
-//  byte_t _val = *_tr_addr;  
-//  (MEM_PAGE(MEM, (md_addr_t)(ADDR),1))
-
-//  if(_val != (VAL)) fprintf(stderr, "Wrong mem value at addr %x, expected: %d, got: %d, tr_addr: %x\n",(ADDR), (VAL), _val, _tr_addr)
-//  assert(_val == (VAL)); 
+  MEM_PAGE(MEM, (md_addr_t)(ADDR),1)
 
 #define MEM_DO_WRITE_BYTE_NON_SPEC(MEM, ADDR, VAL)          \
-  (MEM_TICKLE(MEM, (md_addr_t)(ADDR)),          \
-   Zesto_Call_WriteByteCallback((ADDR), (VAL)),      \
-   *((byte_t *)(MEM_PAGE(MEM, (md_addr_t)(ADDR),1) + MEM_OFFSET(ADDR))) = (VAL))
-
-#else
-#define MEM_WRITE_BYTE_NON_SPEC(MEM, ADDR, VAL)          \
-  (MEM_TICKLE(MEM, (md_addr_t)(ADDR)),          \
-   *((byte_t *)(MEM_PAGE(MEM, (md_addr_t)(ADDR),1) + MEM_OFFSET(ADDR))) = (VAL))
-#endif /*ZESTO_PIN*/
-
-#else /* regular non-speculative versions... */
-
-/* safe version, works only with scalar types */
-/* FIXME: write a more efficient GNU C expression for this... */
-#define MEM_READ(MEM, ADDR, TYPE)          \
-  (MEM_PAGE(MEM, (md_addr_t)(ADDR),0)          \
-   ? *((TYPE *)(MEM_PAGE(MEM, (md_addr_t)(ADDR),0) + MEM_OFFSET(ADDR)))  \
-   : /* page not yet allocated, return zero value */ 0)
-
-/* safe version, works only with scalar types */
-/* FIXME: write a more efficient GNU C expression for this... */
-#define MEM_WRITE(MEM, ADDR, TYPE, VAL)         \
-  (MEM_TICKLE(MEM, (md_addr_t)(ADDR)),          \
-   *((TYPE *)(MEM_PAGE(MEM, (md_addr_t)(ADDR),1) + MEM_OFFSET(ADDR))) = (VAL))
-#endif
-
-/* fast memory accessor macros, typed versions */
-#define MEM_READ_BYTE(MEM, ADDR)  MEM_READ(MEM, ADDR, byte_t)
-#define MEM_READ_SBYTE(MEM, ADDR)  MEM_READ(MEM, ADDR, sbyte_t)
-#define MEM_READ_WORD(MEM, ADDR)  MD_SWAPW(MEM_READ(MEM, ADDR, word_t))
-#define MEM_READ_SWORD(MEM, ADDR)  MD_SWAPW(MEM_READ(MEM, ADDR, sword_t))
-#define MEM_READ_DWORD(MEM, ADDR)  MD_SWAPD(MEM_READ(MEM, ADDR, dword_t))
-#define MEM_READ_SDWORD(MEM, ADDR)  MD_SWAPD(MEM_READ(MEM, ADDR, sdword_t))
-
-#ifdef HOST_HAS_QWORD
-#ifdef TARGET_HAS_UNALIGNED_QWORD
-qword_t MEM_QREAD(struct mem_t *mem, md_addr_t addr);
-#define MEM_READ_QWORD(MEM, ADDR)  MD_SWAPQ(MEM_QREAD(MEM, ADDR))
-#define MEM_READ_SQWORD(MEM, ADDR)  MD_SWAPQ(MEM_QREAD(MEM, ADDR))
-#else /* !TARGET_HAS_UNALIGNED_QWORD */
-#define MEM_READ_QWORD(MEM, ADDR)  MD_SWAPQ(MEM_READ(MEM, ADDR, qword_t))
-#define MEM_READ_SQWORD(MEM, ADDR)  MD_SWAPQ(MEM_READ(MEM, ADDR, sqword_t))
-#endif
-#endif /* HOST_HAS_QWORD */
-
-#define MEM_WRITE_BYTE(MEM, ADDR, VAL)  MEM_WRITE(MEM, ADDR, byte_t, VAL)
-#define MEM_WRITE_SBYTE(MEM, ADDR, VAL)  MEM_WRITE(MEM, ADDR, sbyte_t, VAL)
-#define MEM_WRITE_WORD(MEM, ADDR, VAL)    MEM_WRITE(MEM, ADDR, word_t, MD_SWAPW(VAL));
-#define MEM_WRITE_SWORD(MEM, ADDR, VAL)   MEM_WRITE(MEM, ADDR, sword_t, MD_SWAPW(VAL));
-#define MEM_WRITE_DWORD(MEM, ADDR, VAL)   MEM_WRITE(MEM, ADDR, dword_t, MD_SWAPD(VAL));
-#define MEM_WRITE_SDWORD(MEM, ADDR, VAL)  MEM_WRITE(MEM, ADDR, sdword_t, MD_SWAPD(VAL));
-#define MEM_WRITE_SFLOAT(MEM, ADDR, VAL)  MEM_WRITE(MEM, ADDR, sfloat_t, MD_SWAPD(VAL));
-#define MEM_WRITE_DFLOAT(MEM, ADDR, VAL)  MEM_WRITE(MEM, ADDR, dfloat_t, MD_SWAPQ(VAL));
-
-
-#ifdef HOST_HAS_QWORD
-#ifdef TARGET_HAS_UNALIGNED_QWORD
-void MEM_QWRITE(struct mem_t *mem, md_addr_t addr, qword_t val);
-#define MEM_WRITE_QWORD(MEM, ADDR, VAL)          \
-  MEM_QWRITE(MEM, ADDR, MD_SWAPQ(VAL))
-#define MEM_WRITE_SQWORD(MEM, ADDR, VAL)        \
-  MEM_QWRITE(MEM, ADDR, MD_SWAPQ(VAL))
-#else /* !TARGET_HAS_UNALIGNED_QWORD */
-#define MEM_WRITE_QWORD(MEM, ADDR, VAL)          \
-  MEM_WRITE(MEM, ADDR, qword_t, MD_SWAPQ(VAL))
-#define MEM_WRITE_SQWORD(MEM, ADDR, VAL)        \
-  MEM_WRITE(MEM, ADDR, sqword_t, MD_SWAPQ(VAL))
-#endif
-#endif /* HOST_HAS_QWORD */
+  (MEM_TICKLE(MEM, (md_addr_t)(ADDR)))
 
 /* create a flat memory space */
 struct mem_t *
@@ -423,18 +321,6 @@ mem_check_fault(struct mem_t *mem,  /* memory space to access */
     enum mem_cmd cmd,  /* Read (from sim mem) or Write */
     md_addr_t addr,    /* target address to access */
     int nbytes);    /* number of bytes to access */
-
-/* generic memory access function, it's safe because alignments and permissions
-   are checked, handles any natural transfer sizes; note, faults out if nbytes
-   is not a power-of-two or larger then MD_PAGE_SIZE */
-enum md_fault_type
-mem_access(
-    int core_id,
-    struct mem_t *mem,    /* memory space to access */
-    enum mem_cmd cmd,    /* Read (from sim mem) or Write */
-    md_addr_t addr,    /* target address to access */
-    void *vp,      /* host memory address to access */
-    int nbytes);      /* number of bytes to access */
 
 /* register memory system-specific statistics */
 void

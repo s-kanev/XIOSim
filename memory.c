@@ -131,28 +131,6 @@
 
 extern bool multi_threaded;
 
-/* FYI, the following functions are used to emulate unaligned quadword
-   memory accesses on architectures that require aligned quadword
-   memory accesses, e.g., ARM emulation on SPARC hardware... */
-#ifdef TARGET_HAS_UNALIGNED_QWORD
-
-/* read a quadword, unaligned */
-  qword_t
-MEM_QREAD(struct mem_t *mem, md_addr_t addr)
-{
-  qword_t temp;
-  mem_access(mem, Read, addr, &temp, sizeof(qword_t));
-  return temp;
-}
-
-/* write a quadword, unaligned */
-  void
-MEM_QWRITE(struct mem_t *mem, md_addr_t addr, qword_t val)
-{
-  mem_access(mem, Write, addr, &val, sizeof(qword_t));
-}
-#endif /* TARGET_HAS_UNALIGNED_QWORD */
-
 /* create a flat memory space */
   struct mem_t *
 mem_create(const char *name)			/* name of the memory space */
@@ -811,55 +789,9 @@ mem_check_fault(struct mem_t *mem,	/* memory */
       || /* check max size */nbytes > MD_PAGE_SIZE)
     return md_fault_access;
 
-#ifdef TARGET_ARM
-  if (/* check natural alignment */(addr & (((nbytes > 4) ? 4:nbytes)-1)) != 0)
-    return md_fault_alignment;
-#else
   if (/* check natural alignment */(addr & (nbytes-1)) != 0)
     return md_fault_alignment;
-#endif /* TARGET_ARM */
 
-  return md_fault_none;
-}
-
-/* generic memory access function, it's safe because alignments and permissions
-   are checked, handles any natural transfer sizes; note, faults out if nbytes
-   is not a power-of-two or larger then MD_PAGE_SIZE */
-  enum md_fault_type
-mem_access(
-    int core_id,
-    struct mem_t *mem,		/* memory space to access */
-    enum mem_cmd cmd,		/* Read (from sim mem) or Write */
-    md_addr_t addr,		/* target address to access */
-    void *vp,			/* host memory address to access */
-    int nbytes)			/* number of bytes to access */
-{
-  enum md_fault_type fault;
-  byte_t *p = (byte_t*)vp;
-
-  /* check for faults */
-  fault = mem_check_fault(mem, cmd, addr, nbytes);
-  if (fault != md_fault_none) return fault;
-
-  /* perform the copy */
-  if (cmd == Read) {
-
-    while (nbytes-- > 0) {
-      *((byte_t *)p) = MEM_READ_BYTE(mem, addr);
-      p += sizeof(byte_t);
-      addr += sizeof(byte_t);
-    }
-  }
-  else {
-
-    while (nbytes-- > 0) {
-      MEM_WRITE_BYTE(mem, addr, *((byte_t *)p));
-      p += sizeof(byte_t);
-      addr += sizeof(byte_t);
-    }
-  }
-
-  /* no fault... */
   return md_fault_none;
 }
 

@@ -400,7 +400,7 @@ static void global_step(void)
 
     uncore->sim_cycle++;
     uncore->sim_time = uncore->sim_cycle / LLC_speed;
-    uncore->default_cpu_cycles = (tick_t)ceil(uncore->sim_cycle * knobs.default_cpu_speed / LLC_speed);
+    uncore->default_cpu_cycles = (tick_t)ceil((double)uncore->sim_cycle * knobs.default_cpu_speed / LLC_speed);
 
     /* power computation */
     if(knobs.power.compute && (knobs.power.rtp_interval > 0) && 
@@ -454,8 +454,8 @@ void sim_main_slave_pre_pin(int coreID)
   }
 
   /* Time to sync with uncore */
-  if(cores[coreID]->ns_passed >= (1e-3 / LLC_speed)) {
-    cores[coreID]->ns_passed = 0.0;
+  if(cores[coreID]->ns_passed >= 1e-3 / LLC_speed) {
+    cores[coreID]->ns_passed -= 1e-3 / LLC_speed;
 
     /* Thread is joining in serial region. Mark it as finished this cycle */
     /* Spin if serial region stil hasn't finished

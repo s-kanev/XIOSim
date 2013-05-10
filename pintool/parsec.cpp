@@ -1,9 +1,9 @@
 #include <map>
 #include <queue>
 
-#include "Buffer.h"
-#include "BufferManager.h"
 #include "feeder.h"
+#include "../buffer.h"
+#include "BufferManager.h"
 #include "parsec.h"
 
 KNOB<BOOL> KnobParsec(KNOB_MODE_WRITEONCE,      "pintool",

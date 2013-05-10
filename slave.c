@@ -455,29 +455,28 @@ void Zesto_Slice_End(int coreID, unsigned int slice_num, unsigned long long feed
   end_slice(slice_num, feeder_slice_length, slice_weight_times_1000);
 }
 
-void Zesto_Resume(int coreID, struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsigned char> * mem_buffer, bool slice_start, bool slice_end)
+void Zesto_Resume(int coreID, handshake_container_t* handshake) //struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsigned char> * mem_buffer, bool slice_start, bool slice_end)
 {
    assert(coreID >= 0 && coreID < num_cores);
    struct core_t * core = cores[coreID];
    thread_t * thread = core->current_thread;
+   bool slice_start = handshake->flags.isFirstInsn;
+   bool slice_end = handshake->flags.isLastInsn;
 
-   if (!thread->active && !(slice_start || handshake->resume_thread ||
-                            handshake->sleep_thread || handshake->flush_pipe)) {
-     fprintf(stderr, "DEBUG DEBUG: Start/stop out of sync? %d PC: %x\n", coreID, handshake->pc);
+
+   if (!thread->active && !(slice_start || handshake->handshake.resume_thread ||
+                            handshake->handshake.sleep_thread || handshake->handshake.flush_pipe)) {
+     fprintf(stderr, "DEBUG DEBUG: Start/stop out of sync? %d PC: %x\n", coreID, handshake->handshake.pc);
      if(sim_release_handshake)
        ReleaseHandshake(coreID);
      return;
    }
 
-   regs_t * regs = &thread->regs;
-
-   md_addr_t NPC = handshake->brtaken ? handshake->tpc : handshake->npc;  
-
    zesto_assert(core->oracle->num_Mops_nuked == 0, (void)0);
    zesto_assert(!core->oracle->spec_mode, (void)0);
-   zesto_assert(thread->rep_sequence == 0, (void)0);
+   //zesto_assert(thread->rep_sequence == 0, (void)0);
 
-   if (handshake->sleep_thread)
+   if (handshake->handshake.sleep_thread)
    {
       deactivate_core(coreID);
       if(sim_release_handshake)
@@ -485,7 +484,7 @@ void Zesto_Resume(int coreID, struct P2Z_HANDSHAKE * handshake, std::map<unsigne
       return;
    }
 
-   if (handshake->resume_thread)
+   if (handshake->handshake.resume_thread)
    {
       activate_core(coreID);
       if(sim_release_handshake)
@@ -493,16 +492,17 @@ void Zesto_Resume(int coreID, struct P2Z_HANDSHAKE * handshake, std::map<unsigne
       return;
    }
 
-   if(handshake->flush_pipe) {
+   if(handshake->handshake.flush_pipe) {
       sim_drain_pipe(coreID);
       if(sim_release_handshake)
         ReleaseHandshake(coreID);
       return;
    }
 
+   // XXX: Check if this is called and remove unnecessary fields from P2Z
    if(slice_end)
    {
-      Zesto_Slice_End(coreID, handshake->slice_num, handshake->feeder_slice_length, handshake->slice_weight_times_1000);
+      Zesto_Slice_End(coreID, handshake->handshake.slice_num, handshake->handshake.feeder_slice_length, handshake->handshake.slice_weight_times_1000);
 
       if(!slice_start) {//start and end markers can be the same
         if(sim_release_handshake)
@@ -517,7 +517,7 @@ void Zesto_Resume(int coreID, struct P2Z_HANDSHAKE * handshake, std::map<unsigne
       zesto_assert(thread->loader.stack_base, (void)0);
 
       /* Init stack pointer */
-      md_addr_t sp = handshake->ctxt.regs_R.dw[MD_REG_ESP]; 
+      md_addr_t sp = handshake->handshake.ctxt.regs_R.dw[MD_REG_ESP]; 
       thread->loader.stack_size = thread->loader.stack_base-sp;
       thread->loader.stack_min = (md_addr_t)sp;
 
@@ -532,70 +532,39 @@ void Zesto_Resume(int coreID, struct P2Z_HANDSHAKE * handshake, std::map<unsigne
       zesto_assert(stack_addr == ROUND_DOWN(thread->loader.stack_min, MD_PAGE_SIZE), (void)0);
 
 
-      regs->regs_PC = handshake->pc;
-      regs->regs_NPC = handshake->pc;
-      core->fetch->PC = handshake->pc;
+      thread->regs.regs_PC = handshake->handshake.pc;
+      thread->regs.regs_NPC = handshake->handshake.pc;
+      core->fetch->PC = handshake->handshake.pc;
    }
 
    if(thread->first_insn) 
    {  
-      thread->loader.prog_entry = handshake->pc;
+      thread->loader.prog_entry = handshake->handshake.pc;
 
       thread->first_insn= false;
    }
 
-   core->fetch->feeder_NPC = NPC;
-   core->fetch->feeder_PC = handshake->pc;
-   core->fetch->prev_insn_fake = core->fetch->fake_insn;
-   core->fetch->fake_insn = !handshake->real;
-   thread->fetches_since_feeder = 0;
-
-   ZPIN_TRACE("PIN -> PC: %x, NPC: %x \n", handshake->pc, NPC);
-
-   if (handshake->real) {
-
-   /* Copy architectural state from pin
-      XXX: This is arch state BEFORE executed the instruction we're about to simulate*/
-     regs->regs_R = handshake->ctxt.regs_R;
-     regs->regs_C = handshake->ctxt.regs_C;
-     regs->regs_S = handshake->ctxt.regs_S;
-     regs->regs_SD = handshake->ctxt.regs_SD;
-     regs->regs_XMM = handshake->ctxt.regs_XMM;
-
-     /* Copy only valid FP registers (PIN uses invalid ones and they may differ) */
-     int j;
-     for(j=0; j< MD_NUM_ARCH_FREGS; j++)
-       if(FPR_VALID(handshake->ctxt.regs_C.ftw, j))
-         memcpy(&regs->regs_F.e[j], &handshake->ctxt.regs_F.e[j], MD_FPR_SIZE);
-   }
-   else {
-     thread->in_critical_section = handshake->in_critical_section;
-   }
-   memcpy(core->oracle->ins_bytes, handshake->ins, MD_MAX_ILEN);
-
-   if(!slice_start && core->fetch->PC != handshake->pc)
+   // This usually happens when we insert fake instructions from pin.
+   // Just use the feeder PC since the instruction context is from there.
+   if(!slice_start && core->fetch->PC != handshake->handshake.pc)
    {
-     if (handshake->real && !core->fetch->prev_insn_fake) {
-       ZPIN_TRACE("PIN->PC (0x%x) different from fetch->PC (0x%x). Overwriting with Pin value!\n", handshake->pc, core->fetch->PC);
+     if (handshake->handshake.real && !core->fetch->prev_insn_fake) {
+       ZPIN_TRACE("PIN->PC (0x%x) different from fetch->PC (0x%x). Overwriting with Pin value!\n", handshake->handshake.pc, core->fetch->PC);
        //       info("PIN->PC (0x%x) different from fetch->PC (0x%x). Overwriting with Pin value!\n", handshake->pc, core->fetch->PC);
      }
-     core->fetch->PC = handshake->pc;
-     regs->regs_PC = handshake->pc;
-     regs->regs_NPC = handshake->pc;
+     core->fetch->PC = handshake->handshake.pc;
+     thread->regs.regs_PC = handshake->handshake.pc;
+     thread->regs.regs_NPC = handshake->handshake.pc;
    }
 
-   core->oracle->mem_requests.clear();
-   core->oracle->mem_requests.insert(mem_buffer->begin(), mem_buffer->end());
-   /* Grab fast-path mem reads and break them up into byte-sized chunks to be read by oracle */
-   if (handshake->mem_size) {
-     for (uint32_t t=0; t < handshake->mem_size; t++) {
-        core->oracle->mem_requests.insert(pair<uint32_t, uint8_t>(
-            handshake->mem_addr+t,
-            (uint8_t)(handshake->mem_val >> 8*t)));
-     }
-   }
+   // Let the oracle grab any arch state it needs
+   core->oracle->grab_feeder_state(handshake, true);
 
-   // The handshake can be consumed now
+   thread->fetches_since_feeder = 0;
+   md_addr_t NPC = handshake->handshake.brtaken ? handshake->handshake.tpc : handshake->handshake.npc;  
+   ZPIN_TRACE("PIN -> PC: %x, NPC: %x \n", handshake->handshake.pc, NPC);
+
+   // The handshake can be recycled now
    if(sim_release_handshake)
      ReleaseHandshake(coreID);
 
@@ -608,7 +577,7 @@ void Zesto_Resume(int coreID, struct P2Z_HANDSHAKE * handshake, std::map<unsigne
      fetch_more = sim_main_slave_fetch_insn(coreID);
      thread->fetches_since_feeder++;
 
-     repping = thread->rep_sequence != 0;
+     repping = false;//thread->rep_sequence != 0;
 
 
      if(core->oracle->num_Mops_nuked > 0)
@@ -623,7 +592,7 @@ void Zesto_Resume(int coreID, struct P2Z_HANDSHAKE * handshake, std::map<unsigne
          if(fetch_more && core->oracle->num_Mops_nuked == 0
                        && !core->oracle->spec_mode
                        && core->fetch->PC == NPC
-                       && core->fetch->PC == regs->regs_NPC)
+                       && core->fetch->PC == thread->regs.regs_NPC)
          {
             zesto_assert(core->fetch->PC == NPC, (void)0);
             return;
@@ -645,7 +614,7 @@ void Zesto_Resume(int coreID, struct P2Z_HANDSHAKE * handshake, std::map<unsigne
        if(core->oracle->num_Mops_nuked == 0)
        {
          //Nuke recovery instruction is a mispredicted branch or REP-ed
-         if(core->fetch->PC != NPC || regs->regs_NPC != NPC)
+         if(core->fetch->PC != NPC || thread->regs.regs_NPC != NPC)
          {
             thread->consumed = false;
             continue;
@@ -672,9 +641,9 @@ void Zesto_Resume(int coreID, struct P2Z_HANDSHAKE * handshake, std::map<unsigne
             fetch_more = sim_main_slave_fetch_insn(coreID);
             thread->fetches_since_feeder++;
 
-            spec = (core->oracle->spec_mode || (core->fetch->PC != regs->regs_NPC));
+            spec = (core->oracle->spec_mode || (core->fetch->PC != thread->regs.regs_NPC));
             /* If fetch can tolerate more insns, but needs to get them from PIN (f.e. after finishing a REP-ed instruction) */
-            if(fetch_more && !spec && thread->rep_sequence == 0 && core->fetch->PC != core->fetch->feeder_PC && core->oracle->num_Mops_nuked == 0)
+            if(fetch_more && !spec && /*thread->rep_sequence == 0 && core->fetch->PC != core->fetch->feeder_PC &&*/ core->oracle->num_Mops_nuked == 0)
             {
                zesto_assert(core->fetch->PC == NPC, (void)0);
                return;
@@ -693,17 +662,17 @@ void Zesto_Resume(int coreID, struct P2Z_HANDSHAKE * handshake, std::map<unsigne
          }
 
          /* Potentially different after exec (in pre_pin) where branches are resolved */
-         spec = (core->oracle->spec_mode || (core->fetch->PC != regs->regs_NPC));
+         spec = (core->oracle->spec_mode || (core->fetch->PC != thread->regs.regs_NPC));
 
          /* After recovering from spec and/or REP, we find no nukes -> great, get control back to PIN */
-         if(thread->rep_sequence == 0 && core->fetch->PC != core->fetch->feeder_PC && !spec && core->oracle->num_Mops_nuked == 0)
+         if(/*thread->rep_sequence == 0 && core->fetch->PC != core->fetch->feeder_PC &&*/ !spec && core->oracle->num_Mops_nuked == 0)
          {
             zesto_assert(core->fetch->PC == NPC, (void)0);
             return;
          }
 
          /* After recovering from spec and/or REP, nuke -> go to nuke recovery loop */
-         if(thread->rep_sequence == 0 && !spec && core->oracle->num_Mops_nuked > 0)
+         if(/*thread->rep_sequence == 0 && */!spec && core->oracle->num_Mops_nuked > 0)
          {
             ZPIN_TRACE("Going from spec loop to nuke loop. PC: %x\n",core->fetch->PC);
             break;
@@ -712,7 +681,7 @@ void Zesto_Resume(int coreID, struct P2Z_HANDSHAKE * handshake, std::map<unsigne
          /* All other cases should stay in this loop until they get resolved */
          fetch_more = true;
 
-       }while(spec || thread->rep_sequence != 0);
+       }while(spec/* || thread->rep_sequence != 0*/);
 
      }
      else

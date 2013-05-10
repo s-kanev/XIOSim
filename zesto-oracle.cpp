@@ -156,6 +156,8 @@
 
 #include <stack>
 
+using namespace std;
+
 bool core_oracle_t::static_members_initialized = false;
  /* for decode.dep_map */
 struct core_oracle_t::map_node_t * core_oracle_t::map_free_pool = NULL;
@@ -191,6 +193,7 @@ core_oracle_t::core_oracle_t(struct core_t * const arg_core):
                   knobs->decode.uopQ_size + knobs->decode.depth * knobs->decode.width +
                   knobs->fetch.IQ_size + knobs->fetch.depth * knobs->fetch.width +
                   knobs->fetch.byteQ_size + 64;
+
   MopQ_size = 1 << ((int)ceil(log(temp_MopQ_size)/log(2.0)));
 
   //MopQ = (struct Mop_t *)calloc(MopQ_size,sizeof(*MopQ));
@@ -208,6 +211,8 @@ core_oracle_t::core_oracle_t(struct core_t * const arg_core):
   int i;
   for(i=0;i<MopQ_size;i++)
     MopQ[i].uop = NULL;
+
+  shadow_MopQ = new Buffer(MopQ_size);
 }
 
 /* register oracle-related stats in the stat-database (sdb) */
@@ -345,64 +350,6 @@ int core_oracle_t::next_index(const int index)
   return modinc(index,MopQ_size); //return (index+1)%MopQ_size;
 }
 
-#ifdef ZESTO_PIN
-void core_oracle_t::write_spec_byte_to_mem(
-   struct uop_t * const uop,
-   struct spec_byte_t * p,
-   bool skip_last)
-{
-     bool _read_succ = false;
-     // Previous memory value in case we need to restore on another nuke
-     byte_t prev_val;
-     if (!uop->oracle.is_sync_op)
-       prev_val = MEM_READ_SUCC_NON_SPEC(core->current_thread->mem,p->addr,byte_t);
-     else
-       // Ignore instructions that just pretend to be mem
-       prev_val = 0;
-
-     ZPIN_TRACE(" prev_val: %d(%d)\n", prev_val, _read_succ);
-
-     p->prev_val = prev_val;
-     p->prev_val_valid = _read_succ;
-     p->uop = uop;
-
-     if(num_Mops_nuked > 1 || (!skip_last && num_Mops_nuked == 1))
-     {
-        ZPIN_TRACE("Nuke recovery path updates main mem at 0x%x, val: %x, prev_val: %d(%d)\n", p->addr, p->val, p->prev_val, p->prev_val_valid);
-        MEM_DO_WRITE_BYTE_NON_SPEC(core->current_thread->mem, p->addr, p->val);
-     }
-     else if (skip_last && num_Mops_nuked == 1)
-        ZPIN_TRACE("Nuke recovery Mop skipping main mem update at 0x%x, val: %x, so that PIN can see correct value when executing this Mop\n", p->addr, p->val);
-}
-
-void core_oracle_t::write_Mop_spec_bytes_to_mem(
-    const struct Mop_t * const Mop,
-    bool skip_last)
-{
-   struct uop_t * uop;
-   struct spec_byte_t * p;
-   for(int i = 0; i < Mop->decode.flow_length; i++)
-   {
-      uop = &Mop->uop[i];
-      if(uop == NULL)
-        break;
-
-      if(!uop->decode.is_std)
-        break;
-
-      for(int j = 0; j < 12 ; j++)
-      {
-         p = uop->oracle.spec_mem[j];
-
-         if(p == NULL)
-           break;
-
-         write_spec_byte_to_mem(uop, p, skip_last);
-      }
-   }
-}
-#endif
-
 /* create a new entry in the spec_mem table, insert the entry,
    and return a pointer to the entry. */
 struct spec_byte_t * core_oracle_t::spec_write_byte(
@@ -422,30 +369,24 @@ struct spec_byte_t * core_oracle_t::spec_write_byte(
     spec_mem_map.hash[index].head = p;
 
 
-#ifdef ZESTO_PIN
   ZPIN_TRACE("Write to specQ at 0x%x, val: %x, spec_mode: %d\n", addr, val, uop->Mop->oracle.spec_mode);
-#endif
 
   p->val = val;
   p->addr = addr;
-#ifdef ZESTO_PIN
-  // On a nuke recovery path we do writes to host memory here, getting PIN state as it was before the nuke 
-  // (where we changed it directly when doing rollback)
-  if(!uop->Mop->oracle.spec_mode)
-    write_spec_byte_to_mem(uop, p, true);
-#endif
   return p;
 }
 
-#ifdef ZESTO_PIN
-byte_t core_oracle_t::non_spec_read_byte(const md_addr_t addr)
+bool core_oracle_t::non_spec_read_byte(const md_addr_t addr, const struct Mop_t* Mop, byte_t * res)
 {
-    auto it = mem_requests.find(addr);
-    if (it != mem_requests.end())
-        return it->second;
-    return 0;
+  handshake_container_t *handshake = get_shadow_Mop(Mop);
+  auto it = handshake->mem_buffer.find(addr);
+  if (it != handshake->mem_buffer.end()) {
+    *res = it->second;
+    return true;
+  }
+
+  return false;
 }
-#endif
 
 /* return true/false if byte is in table (read from most recent).
    If present, store value in valp. */
@@ -470,6 +411,45 @@ bool core_oracle_t::spec_read_byte(
   return false;
 }
 
+/* Memory reads:
+ * - first, go trhough spec memory.
+ * - if not, try Pin-captured mem for the current Mop.
+ * - if we are speculating (no valid Mop), try host memory.
+ */
+uint8_t core_oracle_t::spec_do_read_byte(const md_addr_t addr, const struct Mop_t* Mop)
+{
+  ZPIN_TRACE("Read at addr 0x%x", addr);
+
+  uint8_t res = 0;
+
+  /* Try speculative memory first */
+  bool found = spec_read_byte(addr, &res);
+  if (found)
+    goto done;
+
+  /* Try Pin-captured memory accesses */
+  if (Mop) {
+    if (!Mop->oracle.spec_mode) {
+      found = non_spec_read_byte(addr, Mop, &res);
+      if (found)
+        goto done;
+    }
+  }
+
+  /* Finally, try and access host space.
+     Check shadow page table to make sure memory is there. */
+  if (mem_translate(core->current_thread->mem, addr, 0) == NULL) {
+    res = 0;
+    goto done;
+  }
+
+  res = *(uint8_t*)addr;
+
+done:
+  ZPIN_TRACE(" returns 0x%x\n", res);
+  return res;
+}
+
   /*----------------*/
  /* <SIMPLESCALAR> */
 /*----------------*/
@@ -480,13 +460,6 @@ bool core_oracle_t::spec_read_byte(
 /* CODE FOR ACTUAL ORACLE EXECUTION, RECOVERY, AND COMMIT */
 /**********************************************************/
 
-/*
- * oracle's register accessors
- */
-
-/* general purpose registers */
-
-#if defined(TARGET_X86)
 /* current program counter */
 #define CPC            (thread->regs.regs_PC)
 
@@ -617,15 +590,9 @@ bool core_oracle_t::spec_read_byte(
 #define XMM_F(N, IND)          (thread->regs.regs_XMM.f[(N)][(IND)])
 #define SET_XMM_F(N, IND, VAL)       (thread->regs.regs_XMM.f[(N)][(IND)] = (VAL))
 
-#else
-#error No ISA target defined (only x86 supported) ...
-#endif
-
 
 
 /* speculative memory state accessor macros */
-#ifdef TARGET_X86
-
 #define READ_BYTE(SRC, FAULT)     ((FAULT) = md_fault_none, uop->oracle.virt_addr = (SRC), uop->decode.mem_size = 1, XMEM_READ_BYTE(thread->mem, (SRC)))
 #define READ_WORD(SRC, FAULT)     ((FAULT) = md_fault_none, uop->oracle.virt_addr = (SRC), uop->decode.mem_size = 2, XMEM_READ_WORD(thread->mem, (SRC)))
 #define READ_DWORD(SRC, FAULT)     ((FAULT) = md_fault_none, uop->oracle.virt_addr = (SRC), uop->decode.mem_size = 4, XMEM_READ_DWORD(thread->mem, (SRC)))
@@ -638,11 +605,6 @@ bool core_oracle_t::spec_read_byte(
 
 /* this is for FSTE */
 #define WRITE_DWORD2(SRC, DST, FAULT)   (uop->decode.mem_size = 12, XMEM_WRITE_DWORD2(thread->mem, (DST), (SRC)))
-
-#else /* !TARGET_X86 */
-#error No ISA target defined (only x86 supported) ...
-#endif
-
   /*-----------------*/
  /* </SIMPLESCALAR> */
 /*-----------------*/
@@ -699,9 +661,7 @@ core_oracle_t::exec(const md_addr_t requested_PC)
     {
       /* make sure pipeline has drained */
       if(MopQ_num > 1) { /* 1 since the trap itself is in the MopQ */
-#ifdef ZESTO_PIN
         core->current_thread->consumed = false;
-#endif
         return NULL;
       }
     }
@@ -716,9 +676,10 @@ core_oracle_t::exec(const md_addr_t requested_PC)
     Mop = &MopQ[MopQ_tail];
   }
 
-  if(MopQ_num >= MopQ_size)
+  if(MopQ_num >= MopQ_size-1)
   {
-    /* warnonce("MopQ full: consider increasing MopQ size"); */
+    //warnonce("MopQ full: consider increasing MopQ size");
+    core->current_thread->consumed = false;
     return NULL;
   }
 
@@ -743,12 +704,21 @@ core_oracle_t::exec(const md_addr_t requested_PC)
   thread->regs.regs_PC = requested_PC;
 
   /* get the next instruction to execute */
-  if (spec_mode)
+  if (spec_mode) {
     /* read raw bytes from (speculative) virtual memory */
-    MD_FETCH_INST(Mop->fetch.inst, thread->mem, thread->regs.regs_PC);
-  else
+    for (int k=0; k < MD_MAX_ILEN; k++)
+      Mop->fetch.inst.code[k] = spec_do_read_byte(thread->regs.regs_PC + k, NULL);
+
+    /* keep shadow MopQ in sync with real one until completely replaced */
+    //shadow_MopQ->get_buffer();
+    //shadow_MopQ->push_done();
+  }
+  else {
     /* read encoding supplied by feeder */
-    memcpy(&Mop->fetch.inst.code, this->ins_bytes, MD_MAX_ILEN);
+    memcpy(&Mop->fetch.inst.code, get_shadow_Mop(Mop)->handshake.ins, MD_MAX_ILEN);
+  }
+
+  //zesto_assert(MopQ_num == shadow_MopQ->size(), NULL);
 
   /* then decode the instruction */
   MD_SET_OPCODE_DURING_FETCH(Mop->decode.op, Mop->fetch.inst);
@@ -759,9 +729,7 @@ core_oracle_t::exec(const md_addr_t requested_PC)
   if(Mop->decode.op == OP_NA)
 /* Skip invalid instruction */
   {
-#ifdef ZESTO_PIN
     core->fetch->invalid = true;
-#endif
     Mop->decode.op = NOP;
   }
 
@@ -778,9 +746,7 @@ core_oracle_t::exec(const md_addr_t requested_PC)
   {
     /* make sure pipeline has drained */
     if(MopQ_num > 0) {
-#ifdef ZESTO_PIN
       core->current_thread->consumed = false;
-#endif
       return NULL;
     }
     else
@@ -1040,8 +1006,7 @@ core_oracle_t::exec(const md_addr_t requested_PC)
     uop->decode.uop_seq = (Mop->oracle.seq << UOP_SEQ_SHIFT);
   }
 
-  if(!Mop->fetch.inst.rep || Mop->decode.first_rep)
-    Mop->uop[0].decode.BOM = true;
+  Mop->uop[0].decode.BOM = true;
 
   while(flow_index < Mop->decode.flow_length)
   {
@@ -1317,16 +1282,15 @@ core_oracle_t::exec(const md_addr_t requested_PC)
   }
   else
   {
-    Mop->uop[Mop->decode.last_uop_index].decode.EOM = true; /* Mark EOM if appropriate */
     thread->rep_sequence = 0;
   }
 
-  if(Mop->uop[Mop->decode.last_uop_index].decode.EOM) /* count insts based on EOM markers */
-  {
-    if(!Mop->oracle.spec_mode)
-      thread->stat.num_insn++;
-    ZESTO_STAT(core->stat.oracle_total_insn++;)
-  }
+  /* Mark EOM -- counting REP iterations as separate instructions */
+  Mop->uop[Mop->decode.last_uop_index].decode.EOM = true; 
+
+  if(!Mop->oracle.spec_mode)
+    thread->stat.num_insn++;
+  ZESTO_STAT(core->stat.oracle_total_insn++;)
 
   /* maintain $r0 semantics */
   thread->regs.regs_R.dw[MD_REG_ZERO] = 0;
@@ -1419,6 +1383,9 @@ core_oracle_t::commit(const struct Mop_t * const commit_Mop)
   if(Mop->uop)
     core->return_uop_array(Mop->uop);
   Mop->uop = NULL;
+
+  shadow_MopQ->pop();
+  assert(shadow_MopQ->size() >=0);
 }
 
 /* Undo the effects of the single Mop.  This function only affects the ISA-level
@@ -1479,17 +1446,6 @@ core_oracle_t::undo(struct Mop_t * const Mop, bool nuke)
         if(p == NULL)
           break;
 
-#ifdef ZESTO_PIN
-// If recovering from a nuke, the instruction feeder may have corrupted main memory already.
-// So we keep a shadow copy of the last value we wrote there and recover it once we go down the recovery path.
-// Since this is a nuke, we are bound to go back the same route, so it's not technically a speculation problem, 
-// but more something like checkpoint recovery.
-        if(nuke && p->prev_val_valid)
-        {
-          ZPIN_TRACE("Nuke undo restoring main memory at 0x%x, val: %d\n", p->addr, p->prev_val);
-          MEM_DO_WRITE_BYTE_NON_SPEC(core->current_thread->mem, p->addr, p->prev_val);
-        }
-#endif
         squash_write_byte(p);
         uop->oracle.spec_mem[j] = NULL;
       }
@@ -1513,19 +1469,6 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
 {
   std::stack<struct uop_t *> to_delete;
   int idx = moddec(MopQ_tail,MopQ_size); //(MopQ_tail-1+MopQ_size) % MopQ_size;
-
-#ifdef ZESTO_PIN
-  /* If nuke, and the instruction that caused the nuke was the last instruction on 
-     a previous nuke path (num_Mops_nuked == 1) and this instruction writes to memory,
-     in write_byte_spec we didn't restore the correct value to main memory, hoping that we 
-     are going back to PIN and it will fix it (thus not corrupting state for PIN, if 
-     the instruction also does a read from same addess). Instead, now we have another nuke, 
-     so we'd better update memory with the "speculative" writes, so that recovery goes fine */
-  if(num_Mops_nuked == 1 && !MopQ[idx].oracle.spec_mode)
-  {
-    write_Mop_spec_bytes_to_mem(&MopQ[idx], false);
-  }
-#endif
 
   /* When a nuke recovers to another nuke, consume never gets called, so we compensate */
   if(num_Mops_nuked > 0 && !MopQ[idx].oracle.spec_mode && current_Mop != NULL)
@@ -1649,6 +1592,9 @@ core_oracle_t::complete_flush(void)
     idx = moddec(idx,MopQ_size); //(idx-1+MopQ_size) % MopQ_size;
   }
 
+  while(!shadow_MopQ->empty())
+    shadow_MopQ->pop();
+
   while(!to_delete.empty()) {
     struct uop_t * uop_arr = to_delete.top();
     to_delete.pop();
@@ -1659,6 +1605,7 @@ core_oracle_t::complete_flush(void)
   core->current_thread->regs.regs_PC = arch_PC;
   core->current_thread->regs.regs_NPC = arch_PC;
   assert(MopQ_head == MopQ_tail);
+  assert(shadow_MopQ->empty());
 
   spec_mode = false;
   current_Mop = NULL;
@@ -1680,12 +1627,7 @@ core_oracle_t::reset_execution(void)
   core->fetch->recover(0);
   wipe_memory(core->current_thread->mem);
 
-#ifndef ZESTO_PIN
-  ld_reload_prog(core->current_thread);
-  core->fetch->PC = core->current_thread->regs.regs_PC;
-#else
   core->fetch->PC = core->current_thread->loader.prog_entry;
-#endif
   core->fetch->bogus = false;
   core->stat.oracle_resets++;
 }
@@ -1785,6 +1727,64 @@ void core_oracle_t::commit_write_byte(struct spec_byte_t * const p)
   return_spec_mem_node(p);
 }
 
+void core_oracle_t::grab_feeder_state(handshake_container_t * handshake, bool allocate_shadow)
+{
+  regs_t * regs = &core->current_thread->regs;
+
+  core->fetch->feeder_NPC = handshake->handshake.brtaken ? handshake->handshake.tpc : handshake->handshake.npc;
+  core->fetch->feeder_PC = handshake->handshake.pc;
+  core->fetch->prev_insn_fake = core->fetch->fake_insn;
+  core->fetch->fake_insn = !handshake->handshake.real;
+
+  if (handshake->handshake.real) {
+    /* Copy architectural state from pin
+       XXX: This is arch state BEFORE executed the instruction we're about to simulate */
+    regs->regs_R = handshake->handshake.ctxt.regs_R;
+    regs->regs_C = handshake->handshake.ctxt.regs_C;
+    regs->regs_S = handshake->handshake.ctxt.regs_S;
+    regs->regs_SD = handshake->handshake.ctxt.regs_SD;
+    regs->regs_XMM = handshake->handshake.ctxt.regs_XMM;
+
+    /* Copy only valid FP registers (PIN uses invalid ones and they may differ) */
+    int j;
+    for(j=0; j< MD_NUM_ARCH_FREGS; j++)
+      if(FPR_VALID(handshake->handshake.ctxt.regs_C.ftw, j))
+        memcpy(&regs->regs_F.e[j], &handshake->handshake.ctxt.regs_F.e[j], MD_FPR_SIZE);
+  }
+  else {
+    core->current_thread->in_critical_section = handshake->handshake.in_critical_section;
+  }
+
+
+  /* Store a shadown handshake for recovery purposes */
+  if (allocate_shadow) {
+
+    zesto_assert(!shadow_MopQ->full(), (void)0);
+    handshake_container_t* shadow_handshake = shadow_MopQ->get_buffer();
+    handshake->CopyTo(shadow_handshake);
+
+    /* Grab fast-path mem reads and break them up into byte-sized chunks to be read by oracle */
+    if (handshake->handshake.mem_size) {
+      for (uint32_t t=0; t < handshake->handshake.mem_size; t++) {
+        shadow_handshake->mem_buffer.insert(pair<uint32_t, uint8_t>(
+             handshake->handshake.mem_addr+t,
+             (uint8_t)(handshake->handshake.mem_val >> 8*t)));
+      }
+    }
+
+    shadow_MopQ->push_done();
+  }
+}
+
+handshake_container_t * core_oracle_t::get_shadow_Mop(const struct Mop_t* Mop)
+{
+  int Mop_ind = get_index(Mop);
+  int from_head = (Mop_ind - MopQ_head) % MopQ_size;
+  ZPIN_TRACE("MopQ index: %d\n", Mop_ind);
+  handshake_container_t * res = shadow_MopQ->get_item(from_head);
+  zesto_assert(res->flags.valid, NULL);
+  return res; 
+}
 
 /**************************************/
 /* PROTECTED METHODS/MEMBER-FUNCTIONS */
@@ -2065,11 +2065,6 @@ struct spec_byte_t * core_oracle_t::get_spec_mem_node(void)
     assert(p->val == 0);
     assert(p->addr == 0);
     assert(p->prev == NULL);
-#ifdef ZESTO_PIN
-    assert(p->prev_val == 0);
-    assert(!p->prev_val_valid);
-    assert(p->uop == NULL);
-#endif
 
     lk_unlock(&oracle_pools_lock);
     return p;
@@ -2083,11 +2078,6 @@ struct spec_byte_t * core_oracle_t::get_spec_mem_node(void)
     assert(p->val == 0);
     assert(p->addr == 0);
     assert(p->prev == NULL);
-#ifdef ZESTO_PIN
-    assert(p->prev_val == 0);
-    assert(!p->prev_val_valid);
-    assert(p->uop == NULL);
-#endif
 
     lk_unlock(&oracle_pools_lock);
     return p;
@@ -2103,11 +2093,6 @@ void core_oracle_t::return_spec_mem_node(struct spec_byte_t * const p)
   p->prev = NULL;
   p->addr = 0;
   p->val = 0;
-#ifdef ZESTO_PIN
-  p->prev_val = 0;
-  p->prev_val_valid = false;
-  p->uop = NULL;
-#endif
   lk_unlock(&oracle_pools_lock);
 }
 

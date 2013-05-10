@@ -1,6 +1,8 @@
 #ifndef HANDSHAKE_BUFFER_MANAGER
 #define HANDSHAKE_BUFFER_MANAGER
 
+class handshake_container_t;
+
 class BufferManager
 {
  public:

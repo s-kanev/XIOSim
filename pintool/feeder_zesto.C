@@ -28,7 +28,7 @@
 #endif
 
 #include "feeder.h"
-#include "Buffer.h"
+#include "../buffer.h"
 #include "BufferManager.h"
 #include "scheduler.h"
 
@@ -512,7 +512,7 @@ VOID SimulatorLoop(VOID* arg)
             }
 
             // Actual simulation happens here
-            Zesto_Resume(coreID, &handshake->handshake, &handshake->mem_buffer, handshake->flags.isFirstInsn, handshake->flags.isLastInsn);
+            Zesto_Resume(coreID, handshake);
 
             if(!KnobPipelineInstrumentation.Value())
                 ReleaseHandshake(coreID);
@@ -595,7 +595,7 @@ VOID GrabInstructionMemory(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_m
 }
 
 /* ========================================================================== */
-VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDRINT tpc, const CONTEXT *ictxt, BOOL has_memory)
+VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDRINT tpc, const CONTEXT *ictxt, BOOL has_memory, BOOL done_instrumenting)
 {
     if(producers_sleep) {
       PIN_SemaphoreWait(&producer_sleep_lock);
@@ -656,7 +656,119 @@ VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, A
     if (KnobSanity.Value())
         sanity_writes.clear();
 
-    // Let simulator consume instruction from SimulatorLoop
+    if (done_instrumenting) {
+        // Let simulator consume instruction from SimulatorLoop
+        handshake->flags.valid = true;
+
+        lookahead_buffer[tid].push_done();
+        if(lookahead_buffer[tid].full()) {
+            flushOneToHandshakeBuffer(tid);
+        }
+
+        if (tstate->num_inst && (tstate->num_inst % 1000000 == 0))
+            handshake_buffer.flushBuffers(tid);
+    }
+}
+
+/* ========================================================================== */
+/* If we treat REP instructions as loops and pass them along to the simulator,
+ * we need a good ground truth for the NPC that the simulator can rely on, because
+ * Pin doesn't do that for us the way does branch NPCs.
+ * So, we add extra instrumentation for REP instructions to determine if this is
+ * the last iteration. */
+VOID FixRepInstructionNPC(THREADID tid, ADDRINT pc, BOOL rep_prefix, BOOL repne_prefix, ADDRINT counter_value, UINT32 opcode)
+{
+    if(producers_sleep) {
+      PIN_SemaphoreWait(&producer_sleep_lock);
+      return;
+    }
+
+    thread_state_t* tstate = get_tls(tid);
+    lk_lock(&tstate->lock, tid+1);
+
+    if (tstate->ignore || tstate->ignore_all) {
+        lk_unlock(&tstate->lock);
+        return;
+    }
+    lk_unlock(&tstate->lock);
+
+    handshake_container_t* handshake = lookahead_buffer[tid].get_buffer();
+
+    ASSERTX(handshake != NULL);
+    ASSERTX(!handshake->flags.valid);
+
+    BOOL scan = false, zf = false;
+    ADDRINT op2 = 0;
+
+    // REPE and REPNE only matter for CMPS and SCAS,
+    // so we special-case them
+    switch (opcode) {
+        case XED_ICLASS_CMPSB:
+        case XED_ICLASS_CMPSW:
+        case XED_ICLASS_CMPSD:
+        case XED_ICLASS_CMPSQ:
+            // CMPS does two mem reads, second one is already stored in mem_buffer
+            {
+                ASSERTX(handshake->mem_buffer.size() <= 4);
+                int i=0;
+                for (auto it = handshake->mem_buffer.begin(); it != handshake->mem_buffer.end(); it++, i++)
+                    op2 |= ((ADDRINT)it->second << (8*i));
+                
+            }
+            scan = true;
+            zf = (op2 == handshake->handshake.mem_val);
+            break;
+        case XED_ICLASS_SCASB:
+        case XED_ICLASS_SCASW:
+        case XED_ICLASS_SCASD:
+        case XED_ICLASS_SCASQ:
+            // SCAS only does one read, gets second operand from rAX
+            ASSERTX(handshake->mem_buffer.size() <= 4);
+            op2 = handshake->handshake.ctxt.regs_R.dw[MD_REG_EAX]; // 0-extended anyways
+            scan = true;
+            zf = (op2 == handshake->handshake.mem_val);
+            break;
+        case XED_ICLASS_INSB:
+        case XED_ICLASS_INSW:
+        case XED_ICLASS_INSD:
+        case XED_ICLASS_OUTSB:
+        case XED_ICLASS_OUTSW:
+        case XED_ICLASS_OUTSD:
+        case XED_ICLASS_LODSB:
+        case XED_ICLASS_LODSW:
+        case XED_ICLASS_LODSD:
+        case XED_ICLASS_LODSQ:
+        case XED_ICLASS_STOSB:
+        case XED_ICLASS_STOSW:
+        case XED_ICLASS_STOSD:
+        case XED_ICLASS_STOSQ:
+        case XED_ICLASS_MOVSB:
+        case XED_ICLASS_MOVSW:
+        case XED_ICLASS_MOVSD:
+        case XED_ICLASS_MOVSQ:
+            scan = false;
+            break;
+        default:
+            ASSERTX(false);
+            break;
+    }
+
+    ADDRINT NPC;
+    // Counter says we finish after this instruction (for all prefixes)
+    if (counter_value == 1 || counter_value == 0)
+        NPC = handshake->handshake.tpc;
+    // Zero flag and REPE/REPNE prefixes say we finish after this instruction
+    else if (scan && ((repne_prefix && zf) || (rep_prefix && !zf)))
+        NPC = handshake->handshake.tpc;
+    // Otherwise we just keep looping
+    else
+        NPC = handshake->handshake.pc;
+
+    // Update with hard-earned NPC
+    handshake->handshake.npc = NPC;
+    handshake->handshake.ctxt.regs_NPC = NPC;
+
+    // Instruction is ready to be consumed
     handshake->flags.valid = true;
 
     lookahead_buffer[tid].push_done();
@@ -738,58 +850,38 @@ VOID Instrument(INS ins, VOID *v)
     for (UINT32 memOp = 0; memOp < memOperands; memOp++)
     {
         UINT32 memSize = INS_MemoryOperandSize(ins, memOp);
-        if(INS_HasRealRep(ins))
-        {
-            INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR) returnArg, IARG_FIRST_REP_ITERATION, IARG_END);
-            INS_InsertThenCall(
-                ins, IPOINT_BEFORE, (AFUNPTR)GrabInstructionMemory,
-                IARG_THREAD_ID,
-                IARG_MEMORYOP_EA, memOp,
-                IARG_UINT32, memSize,
-                IARG_BOOL, (memOp == 0),
-                IARG_INST_PTR,
-                IARG_END);
-        }
-        else
-        {
-            INS_InsertCall(
-                ins, IPOINT_BEFORE, (AFUNPTR)GrabInstructionMemory,
-                IARG_THREAD_ID,
-                IARG_MEMORYOP_EA, memOp,
-                IARG_UINT32, memSize,
-                IARG_BOOL, (memOp == 0),
-                IARG_INST_PTR,
-                IARG_END);
-        }
+        INS_InsertCall(
+            ins, IPOINT_BEFORE, (AFUNPTR)GrabInstructionMemory,
+            IARG_THREAD_ID,
+            IARG_MEMORYOP_EA, memOp,
+            IARG_UINT32, memSize,
+            IARG_BOOL, (memOp == 0),
+            IARG_INST_PTR,
+            IARG_END);
     }
 
     if (! INS_IsBranchOrCall(ins))
     {
-        // REP-ed instruction: only instrument first iteration
-        // (simulator will return once all iterations are done)
-        if(INS_HasRealRep(ins))
-        {
-           INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR) returnArg, IARG_FIRST_REP_ITERATION, IARG_END);
-           INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR) GrabInstructionContext,
+        BOOL extraRepInstrumentation = INS_HasRealRep(ins);
+        INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) GrabInstructionContext,
+                   IARG_THREAD_ID,
+                   IARG_INST_PTR,
+                   IARG_BOOL, 0,
+                   IARG_ADDRINT, INS_NextAddress(ins),
+                   IARG_FALLTHROUGH_ADDR,
+                   IARG_CONST_CONTEXT,
+                   IARG_BOOL, (memOperands > 0),
+                   IARG_BOOL, !extraRepInstrumentation,
+                   IARG_END);
+
+        if(extraRepInstrumentation)
+           INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) FixRepInstructionNPC,
                        IARG_THREAD_ID,
                        IARG_INST_PTR,
-                       IARG_BOOL, 0,
-                       IARG_ADDRINT, INS_NextAddress(ins),
-                       IARG_FALLTHROUGH_ADDR,
-                       IARG_CONST_CONTEXT,
-                       IARG_BOOL, (memOperands > 0),
-                       IARG_END);
-        }
-        else
-            // Non-REP-ed, non-branch instruction, use falltrough
-            INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) GrabInstructionContext,
-                       IARG_THREAD_ID,
-                       IARG_INST_PTR,
-                       IARG_BOOL, 0,
-                       IARG_ADDRINT, INS_NextAddress(ins),
-                       IARG_FALLTHROUGH_ADDR,
-                       IARG_CONST_CONTEXT,
-                       IARG_BOOL, (memOperands > 0),
+                       IARG_BOOL, INS_RepPrefix(ins),
+                       IARG_BOOL, INS_RepnePrefix(ins),
+                       IARG_REG_VALUE, INS_RepCountRegister(ins),
+                       IARG_ADDRINT, INS_Opcode(ins),
                        IARG_END);
     }
     else
@@ -803,6 +895,7 @@ VOID Instrument(INS ins, VOID *v)
                    IARG_BRANCH_TARGET_ADDR,
                    IARG_CONST_CONTEXT,
                    IARG_BOOL, (memOperands > 0),
+                   IARG_BOOL, true,
                    IARG_END);
     }
 }
@@ -1053,11 +1146,14 @@ VOID ThreadFini(THREADID tid, const CONTEXT *ctxt, INT32 code, VOID *v)
      * Mark it as finishing and let the handshake buffer drain.
      * Once this last handshake gets executed by a core, it will make
        sure to clean up all thread resources. */
-    handshake_container_t *handshake = handshake_buffer.get_buffer(tid);
+    handshake_container_t *handshake = lookahead_buffer[tid].get_buffer();
     handshake->flags.killThread = true;
     handshake->flags.valid = true;
     handshake->handshake.real = false;
-    handshake_buffer.producer_done(tid, true);
+    lookahead_buffer[tid].push_done();
+
+    while(!lookahead_buffer[tid].empty())
+        flushOneToHandshakeBuffer(tid);
 
     handshake_buffer.flushBuffers(tid);
 

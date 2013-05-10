@@ -70,7 +70,7 @@ endif
 
 TOOL_ROOTS = feeder_zesto
 
-TOOL_OBJS = $(OBJDIR)Buffer.o $(OBJDIR)BufferManager.o $(OBJDIR)ildjit.o $(OBJDIR)fluffy.o $(OBJDIR)lib.o $(OBJDIR)utils.o $(OBJDIR)sync_pthreads.o $(OBJDIR)scheduler.o $(OBJDIR)parsec.o
+TOOL_OBJS = $(OBJDIR)BufferManager.o $(OBJDIR)ildjit.o $(OBJDIR)fluffy.o $(OBJDIR)lib.o $(OBJDIR)utils.o $(OBJDIR)sync_pthreads.o $(OBJDIR)scheduler.o $(OBJDIR)parsec.o
 
 TOOLS = $(TOOL_ROOTS:%=$(OBJDIR)%$(PINTOOL_SUFFIX))
 
