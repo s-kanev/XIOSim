@@ -282,7 +282,7 @@ void Zesto_SetBOS(int coreID, unsigned int stack_base)
   assert(coreID < num_cores);
 
   cores[coreID]->current_thread->loader.stack_base = (md_addr_t)stack_base;
-  //  myfprintf(stderr, "Stack base[%d]: %x; \n", coreID, cores[coreID]->current_thread->loader.stack_base);
+  //  fprintf(stderr, "Stack base[%d]: %x; \n", coreID, cores[coreID]->current_thread->loader.stack_base);
 
 }
 
@@ -300,7 +300,7 @@ int Zesto_Notify_Mmap(int coreID, unsigned int addr, unsigned int length, bool m
   md_addr_t retval = mem_newmap2(mem, page_addr, page_addr, page_length, 1);
   lk_unlock(&memory_lock);
 
-//   myfprintf(stderr, "New memory mapping at addr: %x, length: %x ,endaddr: %x \n",addr, length, addr+length);
+//   fprintf(stderr, "New memory mapping at addr: %x, length: %x ,endaddr: %x \n",addr, length, addr+length);
   ZPIN_TRACE("New memory mapping at addr: %x, length: %x ,endaddr: %x \n",addr, length, addr+length);
 
   bool success = (retval == addr);
@@ -323,7 +323,7 @@ int Zesto_Notify_Munmap(int coreID, unsigned int addr, unsigned int length, bool
   mem_delmap(mem, ROUND_UP((md_addr_t)addr, MD_PAGE_SIZE), length);
   lk_unlock(&memory_lock);
 
-//  myfprintf(stderr, "Memory un-mapping at addr: %x, len: %x\n",addr, length);
+//  fprintf(stderr, "Memory un-mapping at addr: %x, len: %x\n",addr, length);
   ZPIN_TRACE("Memory un-mapping at addr: %x, len: %x\n",addr, length);
 
   return 1;
@@ -528,7 +528,7 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake) //struct P2Z_HAN
       lk_lock(&memory_lock, coreID+1);
       md_addr_t stack_addr = mem_newmap2(thread->mem, page_start, page_start, page_end-page_start, 1);
       lk_unlock(&memory_lock);
-      myfprintf(stderr, "Stack pointer: %x; \n", sp);
+      fprintf(stderr, "Stack pointer: %x; \n", sp);
       zesto_assert(stack_addr == ROUND_DOWN(thread->loader.stack_min, MD_PAGE_SIZE), (void)0);
 
 

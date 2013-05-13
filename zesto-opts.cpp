@@ -481,7 +481,7 @@ sim_reg_stats(struct thread_t ** archs, struct stat_sdb_t *sdb)
 #define ZTRACE_CHECK_FILE()
 #else
 #define ZTRACE_PRINT(fmt, ...)  fprintf(ztrace_fp, fmt, ## __VA_ARGS__)
-#define ZTRACE_VPRINT(fmt, v)   myvfprintf(ztrace_fp, fmt, v)
+#define ZTRACE_VPRINT(fmt, v)   vfprintf(ztrace_fp, fmt, v)
 #define ZTRACE_CHECK_FILE() \
 if(ztrace_fp == NULL) \
 return;

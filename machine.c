@@ -1095,8 +1095,8 @@ md_reg_obj(struct regs_t *regs,			/* registers to access */
   void
 md_print_ireg(md_gpr_t regs, int reg, FILE *stream)
 {
-  myfprintf(stream, "%4s: %16d/0x%08x",
-      md_reg_name(rt_gpr, reg), regs.w[reg], regs.w[reg]);
+  fprintf(stream, "%4s: %16d/0x%08x",
+      md_reg_name(rt_gpr, reg), regs.dw[reg], regs.dw[reg]);
 }
 
   void
@@ -1149,7 +1149,7 @@ md_print_creg(md_ctrl_t regs, int reg, FILE *stream)
   switch (reg)
   {
     case MD_REG_AFLAGS:
-      myfprintf(stream, "AFLAGS: 0x%08x", regs.aflags);
+      fprintf(stream, "AFLAGS: 0x%08x", regs.aflags);
       fprintf(stream, " {");
       if (regs.aflags & CF)
         fprintf(stream, "CF ");
@@ -1169,7 +1169,7 @@ md_print_creg(md_ctrl_t regs, int reg, FILE *stream)
       break;
 
     case MD_REG_FSW:
-      myfprintf(stream, "FSW: 0x%04x", (dword_t)regs.fsw);
+      fprintf(stream, "FSW: 0x%04x", (dword_t)regs.fsw);
       fprintf(stream, " {TOP:%d ", FSW_TOP(regs.fsw));
       if (regs.fsw & C0)
         fprintf(stream, "C0 ");

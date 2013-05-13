@@ -898,8 +898,8 @@ print_sdist(struct stat_stat_t *stat,	/* stat variable */
   fprintf(fd, "%s.total = %.0f\n", stat->name, btotal);
   if (bcount > 0)
   {
-    myfprintf(fd, "%s.imin = 0x%p\n", stat->name, imin);
-    myfprintf(fd, "%s.imax = 0x%p\n", stat->name, imax);
+    fprintf(fd, "%s.imin = %x\n", stat->name, imin);
+    fprintf(fd, "%s.imax = %x\n", stat->name, imax);
   }
   else
   {
@@ -961,7 +961,7 @@ print_sdist(struct stat_stat_t *stat,	/* stat variable */
       {
         if (stat->format == NULL)
         {
-          myfprintf(fd, "0x%p ", barr[i]->index);
+          fprintf(fd, "%x ", barr[i]->index);
           if (pf & PF_COUNT)
             fprintf(fd, "%10u ", barr[i]->count);
           if (pf & PF_PDF)
@@ -974,20 +974,20 @@ print_sdist(struct stat_stat_t *stat,	/* stat variable */
         {
           if (pf == (PF_COUNT|PF_PDF|PF_CDF))
           {
-            myfprintf(fd, stat->format,
+            fprintf(fd, stat->format,
                 barr[i]->index, barr[i]->count,
                 (double)barr[i]->count/MAX(btotal, 1.0)*100.0,
                 bsum/MAX(btotal, 1.0) * 100.0);
           }
           else if (pf == (PF_COUNT|PF_PDF))
           {
-            myfprintf(fd, stat->format,
+            fprintf(fd, stat->format,
                 barr[i]->index, barr[i]->count,
                 (double)barr[i]->count/MAX(btotal, 1.0)*100.0);
           }
           else if (pf == PF_COUNT)
           {
-            myfprintf(fd, stat->format,
+            fprintf(fd, stat->format,
                 barr[i]->index, barr[i]->count);
           }
           else
@@ -1016,12 +1016,12 @@ stat_print_stat(struct stat_sdb_t *sdb,	/* stat database */
   {
     case sc_int:
       fprintf(fd, "%-28s ", stat->name);
-      myfprintf(fd, stat->format, *stat->variant.for_int.var);
+      fprintf(fd, stat->format, *stat->variant.for_int.var);
       fprintf(fd, " # %s", stat->desc);
       break;
     case sc_uint:
       fprintf(fd, "%-28s ", stat->name);
-      myfprintf(fd, stat->format, *stat->variant.for_uint.var);
+      fprintf(fd, stat->format, *stat->variant.for_uint.var);
       fprintf(fd, " # %s", stat->desc);
       break;
     case sc_qword:
@@ -1029,7 +1029,7 @@ stat_print_stat(struct stat_sdb_t *sdb,	/* stat database */
         char buf[128];
 
         fprintf(fd, "%-28s ", stat->name);
-        mysprintf(buf, stat->format, *stat->variant.for_qword.var);
+        sprintf(buf, stat->format, *stat->variant.for_qword.var);
         fprintf(fd, "%s # %s", buf, stat->desc);
       }
       break;
@@ -1038,18 +1038,18 @@ stat_print_stat(struct stat_sdb_t *sdb,	/* stat database */
         char buf[128];
 
         fprintf(fd, "%-28s ", stat->name);
-        mysprintf(buf, stat->format, *stat->variant.for_sqword.var);
+        sprintf(buf, stat->format, *stat->variant.for_sqword.var);
         fprintf(fd, "%s # %s", buf, stat->desc);
       }
       break;
     case sc_float:
       fprintf(fd, "%-28s ", stat->name);
-      myfprintf(fd, stat->format, (double)*stat->variant.for_float.var);
+      fprintf(fd, stat->format, (double)*stat->variant.for_float.var);
       fprintf(fd, " # %s", stat->desc);
       break;
     case sc_double:
       fprintf(fd, "%-28s ", stat->name);
-      myfprintf(fd, stat->format, *stat->variant.for_double.var);
+      fprintf(fd, stat->format, *stat->variant.for_double.var);
       fprintf(fd, " # %s", stat->desc);
       break;
     case sc_dist:
@@ -1069,7 +1069,7 @@ stat_print_stat(struct stat_sdb_t *sdb,	/* stat database */
         if (eval_error != ERR_NOERR || *endp != '\0')
           fprintf(fd, "<error: %s>", eval_err_str[eval_error]);
         else
-          myfprintf(fd, stat->format, eval_as_double(val));
+          fprintf(fd, stat->format, eval_as_double(val));
         fprintf(fd, " # %s", stat->desc);
 
         /* done with the evaluator */
@@ -1078,7 +1078,7 @@ stat_print_stat(struct stat_sdb_t *sdb,	/* stat database */
       break;
     case sc_string:
       fprintf(fd, "%-28s ", stat->name);
-      myfprintf(fd, stat->format, stat->variant.for_string.string);
+      fprintf(fd, stat->format, stat->variant.for_string.string);
       fprintf(fd, " # %s", stat->desc);
       break;
     case sc_note:

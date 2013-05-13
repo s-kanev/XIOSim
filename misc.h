@@ -308,26 +308,6 @@ int log_base2(const int n);
 /* return string describing elapsed time, passed in SEC in seconds */
 const char *elapsed_time(long sec);
 
-/* portable 64-bit I/O package */
-
-/* portable vsprintf with qword support, returns end pointer */
-char *myvsprintf(char *obuf, const char *format, va_list v);
-
-/* portable sprintf with qword support, returns end pointer */
-char *mysprintf(char *obuf, const char *format, ...);
-
-/* portable vfprintf with qword support, returns end pointer */
-void myvfprintf(FILE *stream, const char *format, va_list v);
-
-/* portable fprintf with qword support, returns end pointer */
-void myfprintf(FILE *stream, const char *format, ...);
-
-/* convert a string to a signed result */
-sqword_t myatosq(char *nptr, char **endp, int base);
-
-/* convert a string to a unsigned result */
-qword_t myatoq(char *nptr, char **endp, int base);
-
 /* same semantics as fopen() except that filenames ending with a ".gz" or ".Z"
    will be automagically get compressed */
 FILE *gzopen(const char *fname, const char *type);

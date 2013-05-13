@@ -944,7 +944,7 @@ constant(struct eval_state_t *es)        /* expression evaluator */
 
   /* else, not an int/uint, attempt sqword_t conversion */
   errno = 0;
-  sqword_val = myatosq(es->tok_buf, &endp, /* parse base */0);
+  sqword_val = strtoll(es->tok_buf, &endp, /* parse base */0);
   if (!errno && !*endp)
     {
       /* good conversion */
@@ -955,7 +955,7 @@ constant(struct eval_state_t *es)        /* expression evaluator */
 
   /* else, not an sqword_t, attempt qword_t conversion */
   errno = 0;
-  qword_val = myatoq(es->tok_buf, &endp, /* parse base */0);
+  qword_val = strtoll(es->tok_buf, &endp, /* parse base */0);
   if (!errno && !*endp)
     {
       /* good conversion */
@@ -1205,13 +1205,13 @@ eval_print(FILE *stream,                /* output stream */
       fprintf(stream, "%f [float]", (double)val.value.as_float);
       break;
     case et_qword:
-      myfprintf(stream, "%lu [qword_t]", val.value.as_qword);
+      fprintf(stream, "%llu [qword_t]", val.value.as_qword);
       break;
     case et_sqword:
-      myfprintf(stream, "%ld [sqword_t]", val.value.as_sqword);
+      fprintf(stream, "%lld [sqword_t]", val.value.as_sqword);
       break;
     case et_addr:
-      myfprintf(stream, "0x%p [md_addr_t]", val.value.as_addr);
+      fprintf(stream, "%x [md_addr_t]", val.value.as_addr);
       break;
     case et_uint:
       fprintf(stream, "%u [uint]", val.value.as_uint);
