@@ -69,11 +69,6 @@
 #define SYMCAT3(XX,YY,ZZ)	XX ## YY ## ZZ
 #endif
 
-#if !defined(HOST_HAS_QWORD)
-#error SimpleScalar/x86 only builds on hosts with builtin qword support...
-#error Try building with GNU GCC, as it supports qwords on most machines.
-#endif
-
 unsigned long long timestamp[MAX_CORES] = 
  {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}; // for RDTSC
 

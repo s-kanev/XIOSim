@@ -520,15 +520,9 @@ elapsed_time(long sec)
       *obuf++ = cc;							\
   }
 
-#ifdef HOST_HAS_QWORD
 #define HIBITL		LL(0x8000000000000000)
 typedef sqword_t slargeint_t;
 typedef qword_t largeint_t;
-#else /* !HOST_HAS_QWORD */
-#define HIBITL		0x80000000L
-typedef sdword_t slargeint_t;
-typedef dword_t largeint_t;
-#endif /* HOST_HAS_QWORD */
 
 static int
 _lowdigit(slargeint_t *valptr)
@@ -666,16 +660,8 @@ myvsprintf(char *obuf, const char *format, va_list v)
 	  goto charswitch;
 
 	case 'n': /* host counter */
-#ifdef HOST_HAS_QWORD
 	  flagword |= LENGTH;
 	  /* fallthru */
-#else /* !HOST_HAS_QWORD */
-	  flagword |= DOTSEEN;
-	  if (!width)
-	    width = 12;
-	  prec = 0;
-	  goto process_float;
-#endif /* HOST_HAS_QWORD */
 	  
 	case 'd':
 	  /* fetch the argument to be printed */
@@ -778,10 +764,6 @@ myvsprintf(char *obuf, const char *format, va_list v)
 	      } while (qval != 0);
 	  }
 	  break;
-
-#ifndef HOST_HAS_QWORD
-	process_float:
-#endif /* !HOST_HAS_QWORD */
 
 	case 'f':
 	  if (flagword & DOTSEEN)
@@ -913,8 +895,6 @@ myfprintf(FILE *stream, const char *format, ...)
   myvsprintf(buf, format, v);
   fputs(buf, stream);
 }
-
-#ifdef HOST_HAS_QWORD
 
 #define LL_MAX		LL(9223372036854775807)
 #define LL_MIN		(-LL_MAX - 1)
@@ -1119,8 +1099,6 @@ noconv:
     *endp = (char *) nptr;
   return 0;
 }
-
-#endif /* HOST_HAS_QWORD */
 
 #ifdef GZIP_PATH
 

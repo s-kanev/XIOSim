@@ -322,15 +322,11 @@ void myvfprintf(FILE *stream, const char *format, va_list v);
 /* portable fprintf with qword support, returns end pointer */
 void myfprintf(FILE *stream, const char *format, ...);
 
-#ifdef HOST_HAS_QWORD
-
 /* convert a string to a signed result */
 sqword_t myatosq(char *nptr, char **endp, int base);
 
 /* convert a string to a unsigned result */
 qword_t myatoq(char *nptr, char **endp, int base);
-
-#endif /* HOST_HAS_QWORD */
 
 /* same semantics as fopen() except that filenames ending with a ".gz" or ".Z"
    will be automagically get compressed */

@@ -135,6 +135,7 @@
 
 #include <stddef.h>
 #include <sys/io.h>
+#include "host.h"
 #include "misc.h"
 #include "thread.h"
 #include "loader.h"
