@@ -83,8 +83,8 @@ class BTB_2levbtac_t:public BTB_t
     CHECK_PPOW2(arg_num_entries);
     CHECK_POS(arg_num_ways);
     CHECK_BOOL(arg_Xor);
-    if(mytolower(arg_replacement_policy) != 'l' &&
-       mytolower(arg_replacement_policy) != 'r')
+    if(tolower(arg_replacement_policy) != 'l' &&
+       tolower(arg_replacement_policy) != 'r')
       fatal("%s(%s) %s must be 'l' (LRU) or 'r' (random).",arg_name,COMPONENT_NAME,"replacement_policy");
 
     name = strdup(arg_name);

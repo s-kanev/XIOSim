@@ -139,7 +139,7 @@ stat_eval_ident(struct eval_state_t *es)/* an expression evaluator */
       val.value.as_symbol = stat->variant.for_note.note;
       break;
     default:
-      panic("bogus stat class");
+      fatal("bogus stat class");
   }
 
   return val;
@@ -218,7 +218,7 @@ stat_delete(struct stat_sdb_t *sdb)	/* stats database */
         stat->variant.for_sdist.sarr = NULL;
         break;
       default:
-        panic("bogus stat class");
+        fatal("bogus stat class");
     }
     /* free stat variable record */
     free(stat);
@@ -262,8 +262,8 @@ stat_reg_string(struct stat_sdb_t *sdb,	/* stat database */
   if (!stat)
     fatal("out of virtual memory");
 
-  stat->name = mystrdup(name);
-  stat->desc = mystrdup(desc);
+  stat->name = strdup(name);
+  stat->desc = strdup(desc);
   stat->print_me = TRUE;
   stat->scale_me = FALSE;
   stat->format = format ? format : "%12s";
@@ -293,8 +293,8 @@ stat_reg_int(struct stat_sdb_t *sdb,	/* stat database */
   if (!stat)
     fatal("out of virtual memory");
 
-  stat->name = mystrdup(name);
-  stat->desc = mystrdup(desc);
+  stat->name = strdup(name);
+  stat->desc = strdup(desc);
   stat->print_me = print_me;
   stat->scale_me = scale_me;
   stat->format = format ? format : "%12d";
@@ -328,8 +328,8 @@ stat_reg_uint(struct stat_sdb_t *sdb,	/* stat database */
   if (!stat)
     fatal("out of virtual memory");
 
-  stat->name = mystrdup(name);
-  stat->desc = mystrdup(desc);
+  stat->name = strdup(name);
+  stat->desc = strdup(desc);
   stat->print_me = print_me;
   stat->scale_me = scale_me;
   stat->format = format ? format : "%12u";
@@ -363,8 +363,8 @@ stat_reg_qword(struct stat_sdb_t *sdb,	/* stat database */
   if (!stat)
     fatal("out of virtual memory");
 
-  stat->name = mystrdup(name);
-  stat->desc = mystrdup(desc);
+  stat->name = strdup(name);
+  stat->desc = strdup(desc);
   stat->print_me = print_me;
   stat->scale_me = scale_me;
   stat->format = format ? format : "%12lu";
@@ -398,8 +398,8 @@ stat_reg_sqword(struct stat_sdb_t *sdb,	/* stat database */
   if (!stat)
     fatal("out of virtual memory");
 
-  stat->name = mystrdup(name);
-  stat->desc = mystrdup(desc);
+  stat->name = strdup(name);
+  stat->desc = strdup(desc);
   stat->print_me = print_me;
   stat->scale_me = scale_me;
   stat->format = format ? format : "%12ld";
@@ -433,8 +433,8 @@ stat_reg_float(struct stat_sdb_t *sdb,	/* stat database */
   if (!stat)
     fatal("out of virtual memory");
 
-  stat->name = mystrdup(name);
-  stat->desc = mystrdup(desc);
+  stat->name = strdup(name);
+  stat->desc = strdup(desc);
   stat->print_me = print_me;
   stat->scale_me = scale_me;
   stat->format = format ? format : "%12.4f";
@@ -468,8 +468,8 @@ stat_reg_double(struct stat_sdb_t *sdb,	/* stat database */
   if (!stat)
     fatal("out of virtual memory");
 
-  stat->name = mystrdup(name);
-  stat->desc = mystrdup(desc);
+  stat->name = strdup(name);
+  stat->desc = strdup(desc);
   stat->print_me = print_me;
   stat->scale_me = scale_me;
   stat->format = format ? format : "%12.4f";
@@ -513,8 +513,8 @@ stat_reg_dist(struct stat_sdb_t *sdb,	/* stat database */
   if (!stat)
     fatal("out of virtual memory");
 
-  stat->name = mystrdup(name);
-  stat->desc = mystrdup(desc);
+  stat->name = strdup(name);
+  stat->desc = strdup(desc);
   stat->print_me = TRUE;
   stat->scale_me = scale_me;
   stat->format = format ? format : NULL;
@@ -571,8 +571,8 @@ stat_reg_sdist(struct stat_sdb_t *sdb,	/* stat database */
   if (!stat)
     fatal("out of virtual memory");
 
-  stat->name = mystrdup(name);
-  stat->desc = mystrdup(desc);
+  stat->name = strdup(name);
+  stat->desc = strdup(desc);
   stat->print_me = TRUE;
   stat->scale_me = scale_me;
   stat->format = format ? format : NULL;
@@ -621,7 +621,7 @@ stat_add_samples(struct stat_stat_t *stat,/* stat database */
         int hash = HTAB_HASH(index);
 
         if (hash < 0 || hash >= HTAB_SZ)
-          panic("hash table index overflow");
+          fatal("hash table index overflow");
 
         /* find bucket */
         for (bucket = stat->variant.for_sdist.sarr[hash];
@@ -646,7 +646,7 @@ stat_add_samples(struct stat_stat_t *stat,/* stat database */
       }
       break;
     default:
-      panic("stat variable is not an array distribution");
+      fatal("stat variable is not an array distribution");
   }
 }
 
@@ -679,12 +679,12 @@ stat_reg_formula(struct stat_sdb_t *sdb,/* stat database */
   if (!stat)
     fatal("out of virtual memory");
 
-  stat->name = mystrdup(name);
-  stat->desc = mystrdup(desc);
+  stat->name = strdup(name);
+  stat->desc = strdup(desc);
   stat->print_me = print_me;
   stat->format = format ? format : "%12.4f";
   stat->sc = sc_formula;
-  stat->variant.for_formula.formula = mystrdup(formula);
+  stat->variant.for_formula.formula = strdup(formula);
 
   /* link onto SDB chain */
   add_stat(sdb, stat);
@@ -709,7 +709,7 @@ stat_reg_note(struct stat_sdb_t *sdb,	/* stat database */
   stat->scale_me = FALSE;
   stat->format = "--not a stat--";
   stat->sc = sc_note;
-  stat->variant.for_note.note = mystrdup(note);
+  stat->variant.for_note.note = strdup(note);
 
   /* link onto SDB chain */
   add_stat(sdb, stat);
@@ -1085,7 +1085,7 @@ stat_print_stat(struct stat_sdb_t *sdb,	/* stat database */
       fprintf(fd,"%s",stat->variant.for_note.note);
       break;
     default:
-      panic("bogus stat class");
+      fatal("bogus stat class");
   }
   fprintf(fd, "\n");
 }

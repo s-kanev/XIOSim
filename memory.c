@@ -141,7 +141,7 @@ mem_create(const char *name)			/* name of the memory space */
   if (!mem)
     fatal("out of virtual memory");
 
-  mem->name = mystrdup(name);
+  mem->name = strdup(name);
   return mem;
 }
 

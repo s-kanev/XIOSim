@@ -121,10 +121,6 @@
 #ifndef MISC_H
 #define MISC_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -180,7 +176,6 @@ extern void trace(const char *fmt, ...)
 void
 fatal_hook(void (*hook_fn)(FILE *stream));	/* fatal hook function */
 
-#ifdef __GNUC__
 /* declare a fatal run-time error, calls fatal hook function */
 #define fatal(fmt, args...)	\
   _fatal(__FILE__, __FUNCTION__, __LINE__, fmt, ## args)
@@ -188,37 +183,13 @@ fatal_hook(void (*hook_fn)(FILE *stream));	/* fatal hook function */
 void
 _fatal(const char *file, const char *func, const int line, const char *fmt, ...)
 __attribute__ ((noreturn));
-#else /* !__GNUC__ */
-void
-fatal(const char *fmt, ...);
-#endif /* !__GNUC__ */
 
-#ifdef __GNUC__
-/* declare a panic situation, dumps core */
-#define panic(fmt, args...)	\
-  _panic(__FILE__, __FUNCTION__, __LINE__, fmt, ## args)
-
-void
-_panic(const char *file, const char *func, const int line, const char *fmt, ...)
-__attribute__ ((noreturn));
-#else /* !__GNUC__ */
-void
-panic(const char *fmt, ...);
-#endif /* !__GNUC__ */
-
-#ifdef __GNUC__
-/* declare a warning */
 #define warn(fmt, args...)	\
   _warn(__FILE__, __FUNCTION__, __LINE__, fmt, ## args)
 
 void
 _warn(const char *file, const char *func, const int line, const char *fmt, ...);
-#else /* !__GNUC__ */
-void
-warn(const char *fmt, ...);
-#endif /* !__GNUC__ */
 
-#ifdef __GNUC__
 /* declare a oneshot warning */
 #define warnonce(fmt, args...)						\
   do {									\
@@ -228,26 +199,15 @@ warn(const char *fmt, ...);
   } while (0)
 void
 _warn(const char *file, const char *func, const int line, const char *fmt, ...);
-#else /* !__GNUC__ */
-void
-warn(const char *fmt, ...);
-#endif /* !__GNUC__ */
 
-#ifdef __GNUC__
 /* print general information */
 #define info(fmt, args...)	\
   _info(__FILE__, __FUNCTION__, __LINE__, fmt, ## args)
 
 void
 _info(const char *file, const char *func, const int line, const char *fmt, ...);
-#else /* !__GNUC__ */
-void
-info(const char *fmt, ...);
-#endif /* !__GNUC__ */
 
 #ifdef DEBUG
-
-#ifdef __GNUC__
 /* print a debugging message */
 #define debug(fmt, args...)	\
     do {                        \
@@ -257,63 +217,15 @@ info(const char *fmt, ...);
 
 void
 _debug(const char *file, const char *func, const int line, const char *fmt, ...);
-#else /* !__GNUC__ */
-void
-debug(const char *fmt, ...);
-#endif /* !__GNUC__ */
-
-#else /* !DEBUG */
-
-#ifdef __GNUC__
+#else
 #define debug(fmt, args...)
-#else /* !__GNUC__ */
-/* the optimizer should eliminate this call! */
-static void debug(const char *fmt, ...) {}
-#endif /* !__GNUC__ */
-
-#endif /* !DEBUG */
-
-/* seed the random number generator */
-void
-mysrand(const unsigned int seed);	/* random number generator seed */
-
-/* get a random number */
-int myrand(void);		/* returns random number */
-
-/* ctype.h replacements */
-char mytoupper(char c);
-char mytolower(char c);
-bool myisalpha(char c);
-bool myisdigit(char c);
-bool myisspace(char c);
-bool myisprint(char c);
-
-/* copy a string to a new storage allocation (NOTE: many machines are missing
-   this trivial function, so I funcdup() it here...) */
-char *				/* duplicated string */
-mystrdup(const char *s);		/* string to duplicate to heap storage */
-
-/* find the last occurrence of a character in a string */
-const char *
-mystrrchr(const char *s, const char c);
-
-/* case insensitive string compare (NOTE: many machines are missing this
-   trivial function, so I funcdup() it here...) */
-int				/* compare result, see strcmp() */
-mystricmp(const char *s1, const char *s2);	/* strings to compare, case insensitive */
+#endif
 
 /* return log of a number to the base 2 */
 int log_base2(const int n);
 
 /* return string describing elapsed time, passed in SEC in seconds */
 const char *elapsed_time(long sec);
-
-/* same semantics as fopen() except that filenames ending with a ".gz" or ".Z"
-   will be automagically get compressed */
-FILE *gzopen(const char *fname, const char *type);
-
-/* close compressed stream */
-void gzclose(FILE *fd);
 
 /* fast modulo increment/decrement:
    gcc on -O1 or higher will if-convert the following functions
@@ -353,9 +265,5 @@ inline int mod2m(int x, int m)
 void memzero(void * base, int bytes);
 void clear_page(void * base);
 void memswap(void * p1, void * p2, size_t num_bytes);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif /* MISC_H */

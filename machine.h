@@ -1621,7 +1621,7 @@ extern const unsigned int md_op2flags[];
    case 4:    _res = log(2.0)/log(10.0); break;            \
    case 5:    _res = log(2.0)/log(M_E); break;            \
    case 6:    _res = 0.0; break;                    \
-   default:    panic("bogus FPCONST");                    \
+   default:    fatal("bogus FPCONST");                    \
    }                                \
    _res;                                \
    })
@@ -2151,7 +2151,7 @@ md_uop_lit(const enum md_xfield_t xval, const struct Mop_t * Mop, bool * bogus);
              ? (((Mop->fetch.inst.mode & MODE_ADDR32)                       \
                  ? (regs.regs_R.dw[MD_REG_ECX])                             \
                  : (regs.regs_R.w[MD_REG_CX].lo)))                          \
-             : ((panic("bogus repeat code")),0))))))                        \
+             : ((fatal("bogus repeat code")),0))))))                        \
    : (FALSE))
 
 #ifdef __cplusplus

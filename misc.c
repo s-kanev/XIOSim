@@ -125,9 +125,7 @@
 #include <errno.h>
 #include <math.h>
 
-#if defined(linux)
 #include <unistd.h>
-#endif
 
 #include "host.h"
 #include "misc.h"
@@ -160,22 +158,15 @@ fatal_hook(void (*fn)(FILE *stream))	/* fatal hook function */
 }
 
 /* declare a fatal run-time error, calls fatal hook function */
-#ifdef __GNUC__
 void
 _fatal(const char *file, const char *func, const int line, const char *fmt, ...)
-#else /* !__GNUC__ */
-void
-fatal(const char *fmt, ...)
-#endif /* __GNUC__ */
 {
   va_list v;
   va_start(v, fmt);
 
   fprintf(stderr, "fatal: ");
   vfprintf(stderr, fmt, v);
-#ifdef __GNUC__
   fprintf(stderr, " [%s:%s, line %d]", func, file, line);
-#endif /* __GNUC__ */
   fprintf(stderr, "\n");
   if (hook_fn)
     (*hook_fn)(stderr);
@@ -183,80 +174,37 @@ fatal(const char *fmt, ...)
   exit(1);
 }
 
-/* declare a panic situation, dumps core */
-#ifdef __GNUC__
-void
-_panic(const char *file, const char *func, const int line, const char *fmt, ...)
-#else /* !__GNUC__ */
-void
-panic(const char *fmt, ...)
-#endif /* __GNUC__ */
-{
-  va_list v;
-  va_start(v, fmt);
-
-  fprintf(stderr, "panic: ");
-  vfprintf(stderr, fmt, v);
-#ifdef __GNUC__
-  fprintf(stderr, " [%s:%s, line %d]", func, file, line);
-#endif /* __GNUC__ */
-  fprintf(stderr, "\n");
-  if (hook_fn)
-    (*hook_fn)(stderr);
-  fflush(stderr);
-  abort();
-}
-
 /* declare a warning */
-#ifdef __GNUC__
 void
 _warn(const char *file, const char *func, const int line, const char *fmt, ...)
-#else /* !__GNUC__ */
-void
-warn(const char *fmt, ...)
-#endif /* __GNUC__ */
 {
   va_list v;
   va_start(v, fmt);
 
   fprintf(stderr, "warning: ");
   vfprintf(stderr, fmt, v);
-#ifdef __GNUC__
   fprintf(stderr, " [%s:%s, line %d]", func, file, line);
-#endif /* __GNUC__ */
   fprintf(stderr, "\n");
   fflush(stderr);
 }
 
 /* print general information */
-#ifdef __GNUC__
 void
 _info(const char *file, const char *func, const int line, const char *fmt, ...)
-#else /* !__GNUC__ */
-void
-info(const char *fmt, ...)
-#endif /* __GNUC__ */
 {
   va_list v;
   va_start(v, fmt);
 
   vfprintf(stderr, fmt, v);
-#ifdef __GNUC__
   fprintf(stderr, " [%s:%s, line %d]", func, file, line);
-#endif /* __GNUC__ */
   fprintf(stderr, "\n");
   fflush(stderr);
 }
 
 #ifdef DEBUG
 /* print a debugging message */
-#ifdef __GNUC__
 void
 _debug(const char *file, const char *func, const int line, const char *fmt, ...)
-#else /* !__GNUC__ */
-void
-debug(const char *fmt, ...)
-#endif /* __GNUC__ */
 {
     va_list v;
     va_start(v, fmt);
@@ -265,9 +213,7 @@ debug(const char *fmt, ...)
       {
         fprintf(stderr, "debug: ");
         vfprintf(stderr, fmt, v);
-#ifdef __GNUC__
         fprintf(stderr, " [%s:%s, line %d]", func, file, line);
-#endif
         fprintf(stderr, "\n");
       }
     fflush(stderr);
@@ -320,124 +266,6 @@ void flush_trace()
 // Assert macros rely that this is defined.
 void flush_trace() {}
 #endif
-
-/* ctype.h replacements - response to request from Prof. Todd Austin for
-   an implementation that does not use the built-in ctype.h due to
-   thread-safety/reentrancy issues. */
-char mytoupper(char c)
-{
-  int delta = 'a'-'A';
-  if((c >= 'a') && (c <= 'z'))
-    return c-delta;
-  else
-    return c;
-}
-
-char mytolower(char c)
-{
-  int delta = 'a'-'A';
-  if((c >= 'A') && (c <= 'A'))
-    return c+delta;
-  else
-    return c;
-}
-
-bool myisalpha(char c)
-{
-  return (((c >= 'A') && (c <= 'Z')) ||
-          ((c >= 'a') && (c <= 'z')));
-}
-
-bool myisdigit(char c)
-{
-  return ((c >= '0') && (c <= '9'));
-}
-
-bool myisspace(char c)
-{
-  return ((c == ' ') ||
-      ((c >= 9) && (c <= 13))
-      );
-}
-
-bool myisprint(char c)
-{
-  return (myisspace(c) || ((c >= 32) && (c <= 126)));
-}
-
-
-
-/* seed the random number generator */
-void
-mysrand(const unsigned int seed)	/* random number generator seed */
-{
-#if defined(__CYGWIN32__) || defined(hpux) || defined(__hpux) || defined(__svr4__) || defined(_MSC_VER)
-      srand(seed);
-#else
-      srandom(seed);
-#endif
-}
-
-/* get a random number */
-int
-myrand(void)			/* returns random number */
-{
-#if !defined(__alpha) && !defined(linux) && !defined(__CYGWIN32__)
-  extern long random(void);
-#endif
-
-#if defined(__CYGWIN32__) || defined(hpux) || defined(__hpux) || defined(__svr4__) || defined(_MSC_VER)
-  return rand();
-#else
-  return random();
-#endif
-}
-
-/* copy a string to a new storage allocation (NOTE: many machines are missing
-   this trivial function, so I funcdup() it here...) */
-char *				/* duplicated string */
-mystrdup(const char *s)		/* string to duplicate to heap storage */
-{
-  char *buf;
-
-  if (!(buf = (char *)calloc(strlen(s)+1,1)))
-    return NULL;
-  strcpy(buf, s);
-  return buf;
-}
-
-/* find the last occurrence of a character in a string */
-const char *
-mystrrchr(const char *s, const char c)
-{
-  const char *rtnval = 0;
-
-  do {
-    if (*s == c)
-      rtnval = s;
-  } while (*s++);
-
-  return rtnval;
-}
-
-/* case insensitive string compare (NOTE: many machines are missing this
-   trivial function, so I funcdup() it here...) */
-int				/* compare result, see strcmp() */
-mystricmp(const char *s1, const char *s2)	/* strings to compare, case insensitive */
-{
-  unsigned char u1, u2;
-
-  for (;;)
-    {
-      u1 = (unsigned char)*s1++; u1 = mytolower(u1);
-      u2 = (unsigned char)*s2++; u2 = mytolower(u2);
-
-      if (u1 != u2)
-	return u1 - u2;
-      if (u1 == '\0')
-	return 0;
-    }
-}
 
 /* return log of a number to the base 2 */
 int
@@ -537,138 +365,6 @@ _lowdigit(slargeint_t *valptr)
 
   *valptr = value / 5;
   return (int)(value % 5 * 2 + lowbit + '0');
-}
-
-#ifdef GZIP_PATH
-
-static struct {
-  const char *type;
-  const char *ext;
-  const char *cmd;
-} gzcmds[] = {
-  /* type */	/* extension */		/* command */
-  { "r",	".gz",			"%s -dc %s" },
-  { "rb",	".gz",			"%s -dc %s" },
-  { "r",	".Z",			"%s -dc %s" },
-  { "rb",	".Z",			"%s -dc %s" },
-  { "w",	".gz",			"%s > %s" },
-  { "wb",	".gz",			"%s > %s" }
-};
-
-/* same semantics as fopen() except that filenames ending with a ".gz" or ".Z"
-   will be automagically get compressed */
-FILE *
-gzopen(const char *fname, const char *type)
-{
-  int i;
-  const char *cmd = NULL;
-  const char *ext;
-  FILE *fd;
-  char str[2048];
-
-  /* get the extension */
-  ext = mystrrchr(fname, '.');
-
-  /* check if extension indicates compressed file */
-  if (ext != NULL && *ext != '\0')
-    {
-      for (i=0; i < (int)N_ELT(gzcmds); i++)
-	{
-	  if (!strcmp(gzcmds[i].type, type) && !strcmp(gzcmds[i].ext, ext))
-	    {
-	      cmd = gzcmds[i].cmd;
-	      break;
-	    }
-	}
-    }
-
-  if (!cmd)
-    {
-      /* open file */
-      fd = fopen(fname, type);
-    }
-  else
-    {
-      /* open pipe to compressor/decompressor */
-      sprintf(str, cmd, GZIP_PATH, fname);
-      fd = popen(str, type);
-    }
-
-  return fd;
-}
-
-/* close compressed stream */
-void
-gzclose(FILE *fd)
-{
-  /* attempt pipe close, otherwise file close */
-  if (pclose(fd) == -1)
-    fclose(fd);
-}
-
-#else /* !GZIP_PATH */
-
-FILE *
-gzopen(const char *fname, const char *type)
-{
-  return fopen(fname, type);
-}
-
-void
-gzclose(FILE *fd)
-{
-  fclose(fd);
-}
-
-#endif /* GZIP_PATH */
-
-/* compute 32-bit CRC one byte at a time using the high-bit first (big-endian)
-   bit ordering convention */
-#define POLYNOMIAL 0x04c11db7L
-
-static int crc_init = FALSE;
-static unsigned long crc_table[256];
-
-/* generate the table of CRC remainders for all possible bytes */
-static void
-crc_gentab(void)
-{
-  int i, j;
-  dword_t crc_accum;
-
-  for (i=0; i < 256; i++)
-    {
-      crc_accum = ((unsigned long)i << 24);
-      for (j=0; j < 8; j++)
-	{
-	  if (crc_accum & 0x80000000L)
-	    crc_accum = (crc_accum << 1) ^ POLYNOMIAL;
-	  else
-	    crc_accum = (crc_accum << 1);
-	}
-      crc_table[i] = crc_accum;
-    }
-  return;
-}
-
-/* update the CRC on the data block one byte at a time */
-dword_t
-crc(dword_t crc_accum, dword_t data)
-{
-  int i, j;
-
-  if (!crc_init)
-    {
-      crc_gentab();
-      crc_init = TRUE;
-    }
-
-  for (j=0; j < (int)sizeof(dword_t); j++)
-    {
-      i = ((int)(crc_accum >> 24) ^ (data >> (j*8))) & 0xff;
-      crc_accum = (crc_accum << 8) ^ crc_table[i];
-    }
-  return crc_accum;
 }
 
 /*****************************************************

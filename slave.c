@@ -210,12 +210,12 @@ Zesto_SlaveInit(int argc, char **argv)
   if (rand_seed == 0)
     {
       /* seed with the timer value, true random */
-      mysrand(time((time_t *)NULL));
+      srand(time((time_t *)NULL));
     }
   else
     {
       /* seed with default or user-specified random number generator seed */
-      mysrand(rand_seed);
+      srand(rand_seed);
     }
 
   /* exec_index is set in orphan_fn() */
