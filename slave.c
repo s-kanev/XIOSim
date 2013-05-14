@@ -26,7 +26,6 @@
 #include "version.h"
 #include "options.h"
 #include "stats.h"
-#include "loader.h"
 #include "sim.h"
 #include "synchronization.h"
 
@@ -51,22 +50,6 @@ extern void sim_main_slave_post_pin(int coreID);
 extern void sim_main_slave_post_pin(void);
 extern bool sim_main_slave_fetch_insn(int coreID);
 
-/* stats signal handler */
-extern void signal_sim_stats(int sigtype);
-
-
-/* exit signal handler */
-extern void signal_exit_now(int sigtype);
-
-/* exit when this becomes non-zero */
-extern int sim_exit_now;
-
-/* longjmp here when simulation is completed */
-extern jmp_buf sim_exit_buf;
-
-/* set to non-zero when simulator should dump statistics */
-extern int sim_dump_stats;
-
 /* options database */
 extern struct opt_odb_t *sim_odb;
 
@@ -90,12 +73,6 @@ extern bool help_me;
 /* random number generator seed */
 extern int rand_seed;
 
-/* initialize and quit immediately */
-extern bool init_quit;
-
-/* simulator scheduling priority */
-extern int nice_priority;
-
 /* default simulator scheduling priority */
 #define NICE_DEFAULT_VALUE      0
 
@@ -106,8 +83,6 @@ extern  void usage(FILE *fd, int argc, char **argv);
 extern bool sim_slave_running;
 
 extern void sim_print_stats(FILE *fd);
-extern void exit_now(int exit_code);
-
 
 extern void start_slice(unsigned int slice_num);
 extern void end_slice(unsigned int slice_num, unsigned long long slice_length, unsigned long long slice_weight_times_1000);
@@ -124,13 +99,6 @@ Zesto_SlaveInit(int argc, char **argv)
   /* register an error handler */
   fatal_hook(sim_print_stats);
 
-  /* set up a non-local exit point */
-  if ((exit_code = setjmp(sim_exit_buf)) != 0)
-    {
-      /* special handling as longjmp cannot pass 0 */
-        exit_now(exit_code-1);
-    }
-
   sim_pre_init();
 
   /* register global options */
@@ -145,8 +113,6 @@ Zesto_SlaveInit(int argc, char **argv)
   opt_reg_int(sim_odb, "-seed",
           "random number generator seed (0 for timer seed)",
           &rand_seed, /* default */1, /* print */TRUE, NULL);
-  opt_reg_flag(sim_odb, "-q", "initialize and terminate immediately",
-           &init_quit, /* default */FALSE, /* !print */FALSE, NULL);
   opt_reg_flag(sim_odb, "-ignore_notes", "suppresses printing of notes",
            &opt_ignore_notes, /* default */FALSE, /* !print */FALSE, NULL);
 
@@ -158,11 +124,6 @@ Zesto_SlaveInit(int argc, char **argv)
   opt_reg_string(sim_odb, "-redir:prog",
          "redirect simulated program output to file",
          &sim_progout, /* default */NULL, /* !print */FALSE, NULL);
-
-  /* scheduling priority option */
-  opt_reg_int(sim_odb, "-nice",
-          "simulator scheduling priority", &nice_priority,
-          /* default */NICE_DEFAULT_VALUE, /* print */TRUE, NULL);
 
   /* register all simulator-specific options */
   sim_reg_options(sim_odb);
@@ -261,14 +222,10 @@ Zesto_SlaveInit(int argc, char **argv)
     s[strlen(s)-1] = '\0';
   fprintf(stderr, "\nsim: simulation started @ %s, options follow:\n", s);
   opt_print_options(sim_odb, stderr, /* short */TRUE, /* notes */TRUE);
-  sim_aux_config(stderr);
   fprintf(stderr, "\n");
 
   if(cores[0]->knobs->power.compute)
     init_power();
-
-  if (init_quit)
-    exit_now(0);
 
   sim_slave_running = true;
 
@@ -281,8 +238,8 @@ void Zesto_SetBOS(int coreID, unsigned int stack_base)
 {
   assert(coreID < num_cores);
 
-  cores[coreID]->current_thread->loader.stack_base = (md_addr_t)stack_base;
-  //  fprintf(stderr, "Stack base[%d]: %x; \n", coreID, cores[coreID]->current_thread->loader.stack_base);
+  cores[coreID]->current_thread->memory.stack_base = (md_addr_t)stack_base;
+  //  fprintf(stderr, "Stack base[%d]: %x; \n", coreID, cores[coreID]->current_thread->memory.stack_base);
 
 }
 
@@ -306,8 +263,8 @@ int Zesto_Notify_Mmap(int coreID, unsigned int addr, unsigned int length, bool m
   bool success = (retval == addr);
   zesto_assert(success, 0);
 
-  if(mod_brk && page_addr > core->current_thread->loader.brk_point)
-    core->current_thread->loader.brk_point = page_addr + page_length;
+  if(mod_brk && page_addr > core->current_thread->memory.brk_point)
+    core->current_thread->memory.brk_point = page_addr + page_length;
 
   return success;
 }
@@ -338,7 +295,7 @@ void Zesto_UpdateBrk(int coreID, unsigned int brk_end, bool do_mmap)
 
   if(do_mmap)
   {
-    unsigned int old_brk_end = core->current_thread->loader.brk_point;
+    unsigned int old_brk_end = core->current_thread->memory.brk_point;
 
     if(brk_end > old_brk_end)
       Zesto_Notify_Mmap(coreID, ROUND_UP(old_brk_end, MD_PAGE_SIZE), 
@@ -348,7 +305,7 @@ void Zesto_UpdateBrk(int coreID, unsigned int brk_end, bool do_mmap)
                           ROUND_UP(old_brk_end - brk_end, MD_PAGE_SIZE), false);
   }
 
-  core->current_thread->loader.brk_point = brk_end;
+  core->current_thread->memory.brk_point = brk_end;
 }
 
 void Zesto_Destroy()
@@ -514,22 +471,21 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake) //struct P2Z_HAN
 
    if(slice_start)
    {
-      zesto_assert(thread->loader.stack_base, (void)0);
+      zesto_assert(thread->memory.stack_base, (void)0);
 
       /* Init stack pointer */
       md_addr_t sp = handshake->handshake.ctxt.regs_R.dw[MD_REG_ESP]; 
-      thread->loader.stack_size = thread->loader.stack_base-sp;
-      thread->loader.stack_min = (md_addr_t)sp;
+      thread->memory.stack_min = (md_addr_t)sp;
 
       /* Create local pages for stack */ 
       md_addr_t page_start = ROUND_DOWN(sp, MD_PAGE_SIZE);
-      md_addr_t page_end = ROUND_UP(thread->loader.stack_base, MD_PAGE_SIZE);
+      md_addr_t page_end = ROUND_UP(thread->memory.stack_base, MD_PAGE_SIZE);
 
       lk_lock(&memory_lock, coreID+1);
       md_addr_t stack_addr = mem_newmap2(thread->mem, page_start, page_start, page_end-page_start, 1);
       lk_unlock(&memory_lock);
       fprintf(stderr, "Stack pointer: %x; \n", sp);
-      zesto_assert(stack_addr == ROUND_DOWN(thread->loader.stack_min, MD_PAGE_SIZE), (void)0);
+      zesto_assert(stack_addr == ROUND_DOWN(thread->memory.stack_min, MD_PAGE_SIZE), (void)0);
 
 
       thread->regs.regs_PC = handshake->handshake.pc;
@@ -539,8 +495,6 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake) //struct P2Z_HAN
 
    if(thread->first_insn) 
    {  
-      thread->loader.prog_entry = handshake->handshake.pc;
-
       thread->first_insn= false;
    }
 

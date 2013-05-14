@@ -295,8 +295,6 @@ class core_t {
     counter_t regfile_writes;
     counter_t fp_regfile_writes;
 
-    counter_t eio_commit_insn; /* num instructions consumed in EIO file */
-
     counter_t commit_deadlock_flushes;
 
     /* occupancy stats */

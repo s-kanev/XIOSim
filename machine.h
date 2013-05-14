@@ -402,26 +402,11 @@ typedef struct md_inst_t {
   byte_t len;            /* inst length in bytes */
 } md_inst_t;
 
-/* XXX */
-/* preferred nop instruction definition */
-extern const md_inst_t MD_NOP_INST;
-
-extern unsigned long long timestamp[MAX_CORES]; // for RDTSC
-extern int is_syscall;
-
 struct mem_t;
 void md_fetch_inst(md_inst_t *inst, struct mem_t *mem, const md_addr_t pc);
 
 /* get inst size */
 #define MD_INST_SIZE(INST)              (INST).len
-
-/*
- * target-dependent loader module configuration
- */
-
-/* maximum size of argc+argv+envp environment */
-#define MD_MAX_ENVIRON        16384
-//#define MD_MAX_ENVIRON     8388608        // as given by the limit command
 
 /*
  * machine.def specific definitions

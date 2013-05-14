@@ -813,7 +813,7 @@ mem_reg_stats(struct mem_t *mem,	/* memory space to declare */
       buf1, "%11.0fk");
 }
 
-/* initialize memory system, call before loader.c */
+/* initialize memory system */
   void
 mem_init(struct mem_t *mem)	/* memory space to initialize */
 {

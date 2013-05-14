@@ -187,7 +187,7 @@ void core_commit_STM_t::step(void)
      progress, we give up and kill the simulator. */
   if((core->sim_cycle - core->exec->last_completed) > deadlock_threshold)
   {
-    if(core->exec->last_completed_count == core->stat.eio_commit_insn)
+    if(core->exec->last_completed_count == core->stat.commit_insn)
     {
       char buf[256];
       snprintf(buf,sizeof(buf),"At cycle %llu, core[%d] has not completed a uop in %d cycles... definite deadlock",core->sim_cycle,core->current_thread->id,deadlock_threshold);
@@ -209,7 +209,7 @@ void core_commit_STM_t::step(void)
       ZESTO_STAT(stat_add_sample(core->stat.commit_stall, (int)CSTALL_EMPTY);)
       ZESTO_STAT(core->stat.commit_deadlock_flushes++;)
       core->exec->last_completed = core->sim_cycle; /* so we don't do this again next cycle */
-      core->exec->last_completed_count = core->stat.eio_commit_insn;
+      core->exec->last_completed_count = core->stat.commit_insn;
     }
     return;
   }
@@ -302,7 +302,6 @@ void core_commit_STM_t::step(void)
         /* Update stats */
         if(Mop->uop[Mop->decode.last_uop_index].decode.EOM)
         {
-          core->stat.eio_commit_insn++;
           total_commit_insn ++;
           ZESTO_STAT(core->stat.commit_insn++;)
         }
@@ -353,19 +352,10 @@ void core_commit_STM_t::step(void)
         cache_freeze_stats(core);
         /* start this core over */
 
-        if(simulated_processes_remaining <= 0)
-          longjmp(sim_exit_buf, /* exitcode + fudge */0 + 1);
+        fatal("Per-thread limits not supported now");
       }
     }
 
-    /* Reset the trace (eio file input) if we've hit the end of the
-       trace.  This is used in multi-core simulation mode to keep
-       cores that have reached their simulation limits busy. */
-    if (trace_limit && (core->stat.eio_commit_insn >= trace_limit))
-    {
-      core->stat.eio_commit_insn = 0;
-      core->oracle->reset_execution();
-    }
   }
 
   ZESTO_STAT(stat_add_sample(core->stat.commit_stall, (int)stall_reason);)

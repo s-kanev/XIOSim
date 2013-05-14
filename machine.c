@@ -69,14 +69,6 @@
 #define SYMCAT3(XX,YY,ZZ)	XX ## YY ## ZZ
 #endif
 
-unsigned long long timestamp[MAX_CORES] = 
- {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}; // for RDTSC
-
-/* preferred nop instruction definition */
-const md_inst_t MD_NOP_INST = { {0x90} };      	/* NOP instruction */
-/* set parameters of MD_NOP_INST */
-
-
 /* opcode mask -> enum md_opcodem, used by decoder */
 enum md_opcode md_mask2op[MD_MAX_MASK+1];
 unsigned int md_opoffset[OP_MAX];

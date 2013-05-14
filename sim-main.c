@@ -90,35 +90,11 @@
 #include "version.h"
 #include "options.h"
 #include "stats.h"
-#include "loader.h"
 #include "sim.h"
 
 
-/* stats signal handler */
-void
-signal_sim_stats(int sigtype)
-{
-  sim_dump_stats = TRUE;
-}
-
-/* exit signal handler */
-void
-signal_exit_now(int sigtype)
-{
-  sim_exit_now = TRUE;
-}
-
 /* execution start/end times */
 int sim_elapsed_time;
-
-/* exit when this becomes non-zero */
-int sim_exit_now = FALSE;
-
-/* longjmp here when simulation is completed */
-jmp_buf sim_exit_buf;
-
-/* set to non-zero when simulator should dump statistics */
-int sim_dump_stats = FALSE;
 
 /* options database */
 struct opt_odb_t *sim_odb;
@@ -141,12 +117,6 @@ bool help_me;
 /* random number generator seed */
 int rand_seed;
 
-/* initialize and quit immediately */
-bool init_quit;
-
-/* simulator scheduling priority */
-int nice_priority;
-
 /* default simulator scheduling priority */
 #define NICE_DEFAULT_VALUE		0
 
@@ -154,8 +124,6 @@ int start_pos = 0;
 
 int heartbeat_count = 0;
 
-
- 
 int
 orphan_fn(int i, int argc, char **argv)
 {
@@ -192,22 +160,6 @@ sim_print_stats(FILE *fd)		/* output stream */
   /* print simulation stats */
   fprintf(fd, "\nsim: ** simulation statistics **\n");
   stat_print_stats(sim_sdb, fd);
-  sim_aux_stats(fd);
   fprintf(fd, "\n");
   fflush(fd);
 }
-
-/* print stats, uninitialize simulator components, and exit w/ exitcode */
-void
-exit_now(int exit_code)
-{
-  /* print simulation stats */
-  sim_print_stats(stderr);
-
-  /* un-initialize the simulator */
-  sim_uninit();
-
-  /* all done! */
-   exit(exit_code);
-}
-

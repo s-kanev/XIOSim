@@ -121,6 +121,10 @@
 #ifndef MISC_H
 #define MISC_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -177,8 +181,8 @@ void
 fatal_hook(void (*hook_fn)(FILE *stream));	/* fatal hook function */
 
 /* declare a fatal run-time error, calls fatal hook function */
-#define fatal(fmt, args...)	\
-  _fatal(__FILE__, __FUNCTION__, __LINE__, fmt, ## args)
+#define fatal(fmt, ...)	\
+  _fatal(__FILE__, __FUNCTION__, __LINE__, fmt, ## __VA_ARGS__)
 
 void
 _fatal(const char *file, const char *func, const int line, const char *fmt, ...)
@@ -265,5 +269,9 @@ inline int mod2m(int x, int m)
 void memzero(void * base, int bytes);
 void clear_page(void * base);
 void memswap(void * p1, void * p2, size_t num_bytes);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* MISC_H */

@@ -85,10 +85,6 @@ extern FILE * ztrace_fp;
 
 #define ZESTO_STAT(x) {if(core->current_thread->active) {x}}
 
-/* variables for fast-forwarding prior to detailed simulation */
-extern long long fastfwd;
-extern long long trace_limit;
-
 /* maximum number of inst's to execute */
 extern long long max_insts;
 extern long long max_uops;

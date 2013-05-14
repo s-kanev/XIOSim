@@ -138,7 +138,6 @@
 #include "host.h"
 #include "misc.h"
 #include "thread.h"
-#include "loader.h"
 #include "callbacks.h"
 #include "memory.h"
 #include "synchronization.h"
@@ -1612,25 +1611,6 @@ core_oracle_t::complete_flush(void)
   current_Mop = NULL;
   /* Force simulation to re-check feeder if needed */ 
   core->current_thread->consumed = true;
-}
-
-/* This *completely* resets the oracle to restart execution all over
-   again.  This reloads the initial simulated program state from the
-   first checkpoint in the EIO file. */
-void
-core_oracle_t::reset_execution(void)
-{
-  complete_flush();
-  core->commit->recover();
-  core->exec->recover();
-  core->alloc->recover();
-  core->decode->recover();
-  core->fetch->recover(0);
-  wipe_memory(core->current_thread->mem);
-
-  core->fetch->PC = core->current_thread->loader.prog_entry;
-  core->fetch->bogus = false;
-  core->stat.oracle_resets++;
 }
 
 /* Called when a uop commits; removes uop from list of producers. */

@@ -77,9 +77,4 @@ typedef sqword_t counter_t;
 typedef sqword_t tick_t;		/* NOTE: unsigned breaks caches */
 #define TICK_T_MAX  ((tick_t)(9223372036854775807ULL))
 
-#ifdef __svr4__
-#define setjmp	_setjmp
-#define longjmp	_longjmp
-#endif
-
 #endif /* HOST_H */
