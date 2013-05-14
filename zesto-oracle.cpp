@@ -716,6 +716,9 @@ core_oracle_t::exec(const md_addr_t requested_PC)
   else {
     /* read encoding supplied by feeder */
     memcpy(&Mop->fetch.inst.code, get_shadow_Mop(Mop)->handshake.ins, MD_MAX_ILEN);
+
+    if (num_Mops_nuked > 0)
+        grab_feeder_state(get_shadow_Mop(Mop), false);
   }
 
   //zesto_assert(MopQ_num == shadow_MopQ->size(), NULL);
