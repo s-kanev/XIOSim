@@ -61,15 +61,6 @@
 #include "memory.h"
 #include "thread.h"
 
-/* set to non-zero when simulator should dump statistics */
-extern int sim_dump_stats;
-
-/* exit when this becomes non-zero */
-extern int sim_exit_now;
-
-/* longjmp here when simulation is completed */
-extern jmp_buf sim_exit_buf;
-
 /* execution start/end times */
 extern int sim_elapsed_time;
 
@@ -106,19 +97,10 @@ void sim_post_init(void);
 
 /* main() prints the option database values next... */
 
-/* print simulator-specific configuration information */
-void sim_aux_config(FILE *stream);
-
 /* start simulation, program loaded, processor precise state initialized */
 void sim_main(void);
 
 /* main() prints the stats database values next... */
-
-/* dump simulator-specific auxiliary simulator statistics */
-void sim_aux_stats(FILE *stream);
-
-/* un-initialize simulator-specific state */
-void sim_uninit(void);
 
 /* print all simulator stats */
 void

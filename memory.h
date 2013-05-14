@@ -327,7 +327,7 @@ void
 mem_reg_stats(struct mem_t *mem,  /* memory space to declare */
     struct stat_sdb_t *sdb);  /* stats data base */
 
-/* initialize memory system, call before loader.c */
+/* initialize memory system  */
 void
 mem_init(struct mem_t *mem);  /* memory space to initialize */
 

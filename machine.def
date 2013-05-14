@@ -2259,20 +2259,7 @@ CONNECT(TOPLEV)
 
   /* FIXME: TODO 0xf3: repe prefix */
 
-#ifdef FIXME
-#define HLT_IMPL              \
-{                  \
-  DECLARE_FAULT(md_fault_unimpl);          \
-}
-#else
-#define HLT_IMPL              \
-{                  \
-  extern jmp_buf sim_exit_buf;          \
-  \
-  fprintf(stderr, "** HLT executed...\n");        \
-  longjmp(sim_exit_buf, /* exitcode + fudge */0 + 1);      \
-}
-#endif
+#define HLT_IMPL {}
   DEFINST(HLT,      0xf4,
       "hlt",      "",
       FU_INVALID,                 F_TRAP|F_NOMOD|F_UCODE,
@@ -9070,12 +9057,9 @@ DNA, DNA)
    */
 
   // skumar
-#define RDTSC_IMPL              \
-{                  \
-  SET_GPR_V(MD_REG_eAX, timestamp[thread->id] & 0xffffffff);      \
-  SET_GPR_V(MD_REG_eDX, (timestamp[thread->id] >> 32) & 0xffffffff);    \
-  timestamp[thread->id] += 100;            \
-}
+/* NADA: getting deprecated */
+#define RDTSC_IMPL { }
+
   DEFINST(RDTSC,    0x31,
       "rdtsc",      "%Rv, %Rv",
       FU_INVALID,                F_NOMOD|F_UCODE/*GL*/ /*TODO: F_PRIV ? */,
@@ -16967,15 +16951,7 @@ CONNECT(FISTP_Mq_LINK)
 
   /* system-level operations */
 
-#define UHLT_IMPL              \
-{                  \
-  extern jmp_buf sim_exit_buf;          \
-  \
-  if(!Mop->oracle.spec_mode) { \
-    fprintf(stderr, "** UHLT executed...\n");        \
-    longjmp(sim_exit_buf, /* exitcode + fudge */0 + 1);      \
-  } \
-}
+#define UHLT_IMPL { }
   DEFUOP(UHLT,      0x00,
       "uhlt",      "",
       FU_NA,      F_TRAP,

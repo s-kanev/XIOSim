@@ -73,7 +73,6 @@
  */
 
 #include "thread.h"
-#include "loader.h"
 
 #include "zesto-opts.h"
 #include "zesto-core.h"
@@ -92,10 +91,6 @@
 FILE * ztrace_fp = NULL;
 const char * ztrace_filename = NULL;
 #endif
-
-/* variables for fast-forwarding prior to detailed simulation */
-long long fastfwd = 0;
-long long trace_limit = 0; /* maximum number of instructions per trace - used for looping */
 
 /* maximum number of inst's/uop's to execute */
 long long max_insts = 0;
@@ -123,13 +118,7 @@ sim_reg_options(struct opt_odb_t *odb)
   opt_reg_flag(odb, "-","ignored flag",
       &ignored_flag, /*default*/ false, /*print*/false,/*format*/NULL);
 
-  opt_reg_long_long(odb, "-fastfwd", "number of inst's to skip before timing simulation",
-      &fastfwd, /* default */0, /* print */true, /* format */NULL);
-
-  opt_reg_long_long(odb, "-tracelimit", "maximum number of instructions per trace",
-      &trace_limit, /* default */0, /* print */true, /* format */NULL);
-
-  opt_reg_int(odb, "-cores", "number of cores (if > 1, must provide this many eio traces)",
+  opt_reg_int(odb, "-cores", "number of cores",
       &num_cores, /* default */1, /* print */true, /* format */NULL);
   opt_reg_flag(odb, "-multi_threaded", "do cores share an address space",
       &multi_threaded, /*default */false, /*print */true, /*format*/NULL);
@@ -151,9 +140,6 @@ sim_reg_options(struct opt_odb_t *odb)
 
   opt_reg_string(odb, "-model","pipeline model type",
       &knobs.model, /*default*/ "DPM", /*print*/true,/*format*/NULL);
-
-  opt_reg_int(odb, "-syscall:mem_lat", "number of cycles per syscall memory request (0 to omit syscall memory activity)",
-      &knobs.memory.syscall_memory_latency, /* default */1, /* print */true, /* format */NULL);
 
 #if defined(ZTRACE) && !defined(ZESTO_PIN_DBG)
   opt_reg_string(odb, "-ztrace:filename","zesto-trace filename",
@@ -228,7 +214,6 @@ cpu_reg_stats(struct core_t * core, struct stat_sdb_t *sdb)
   core->alloc->reg_stats(sdb);
   core->exec->reg_stats(sdb);
   core->commit->reg_stats(sdb);
-  ld_reg_stats(core->current_thread,sdb);
 
   /* only print this out once at the very end */
   if(core->current_thread->id == (num_cores-1))
@@ -481,7 +466,7 @@ sim_reg_stats(struct thread_t ** archs, struct stat_sdb_t *sdb)
 #define ZTRACE_CHECK_FILE()
 #else
 #define ZTRACE_PRINT(fmt, ...)  fprintf(ztrace_fp, fmt, ## __VA_ARGS__)
-#define ZTRACE_VPRINT(fmt, v)   myvfprintf(ztrace_fp, fmt, v)
+#define ZTRACE_VPRINT(fmt, v)   vfprintf(ztrace_fp, fmt, v)
 #define ZTRACE_CHECK_FILE() \
 if(ztrace_fp == NULL) \
 return;

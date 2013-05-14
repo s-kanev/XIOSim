@@ -246,7 +246,6 @@ class core_oracle_t {
   void pipe_flush(struct Mop_t * const Mop);
 
   void complete_flush(void);
-  void reset_execution(void);
 
   protected:
 

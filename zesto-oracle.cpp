@@ -135,9 +135,9 @@
 
 #include <stddef.h>
 #include <sys/io.h>
+#include "host.h"
 #include "misc.h"
 #include "thread.h"
-#include "loader.h"
 #include "callbacks.h"
 #include "memory.h"
 #include "synchronization.h"
@@ -574,7 +574,7 @@ done:
   else if ((OP) == fpstk_push)                    \
     SET_FSW_TOP(thread->regs.regs_C.fsw, (FSW_TOP(thread->regs.regs_C.fsw)+7)&0x07);\
   else                                \
-  panic("bogus FP stack operation");                \
+  fatal("bogus FP stack operation");                \
 }
 
 #define XMM_QW_LO(N)        (thread->regs.regs_XMM.qw[(N)].lo)
@@ -958,7 +958,7 @@ core_oracle_t::exec(const md_addr_t requested_PC)
                 return NULL;
           }
           else
-            panic("bogus repeat code");
+            fatal("bogus repeat code");
         }
       }
       else
@@ -977,7 +977,7 @@ core_oracle_t::exec(const md_addr_t requested_PC)
             return NULL;
           }
           else
-            panic("bogus repeat code");
+            fatal("bogus repeat code");
         }
       }
       Mop->uop[idx].decode.raw_op = flowtab[idx];
@@ -1040,7 +1040,7 @@ core_oracle_t::exec(const md_addr_t requested_PC)
       break;
 #define DEFLINK(OP,MSK,NAME,MASK,SHIFT)          \
       case OP:                            \
-                            panic("attempted to execute a linking opcode");
+                            fatal("attempted to execute a linking opcode");
 #define CONNECT(OP)
 #include "machine.def"
       default:
@@ -1052,7 +1052,7 @@ core_oracle_t::exec(const md_addr_t requested_PC)
           return NULL;
         }
         else
-          panic("attempted to execute a bogus opcode");
+          fatal("attempted to execute a bogus opcode");
     }
 
     /* check for completed flow at top of loop */
@@ -1085,7 +1085,7 @@ core_oracle_t::exec(const md_addr_t requested_PC)
         return NULL;
       }
       else
-        panic("decoded an instruction with an invalid register specifier (%d=%d,%d,%d max should be %d)",uop->decode.odep_name, uop->decode.idep_name[0], uop->decode.idep_name[1], uop->decode.idep_name[2],MD_TOTAL_REGS);
+        fatal("decoded an instruction with an invalid register specifier (%d=%d,%d,%d max should be %d)",uop->decode.odep_name, uop->decode.idep_name[0], uop->decode.idep_name[1], uop->decode.idep_name[2],MD_TOTAL_REGS);
     }
 
     /* break addr dependency to allow STA/STD to execute independently */
@@ -1138,14 +1138,14 @@ core_oracle_t::exec(const md_addr_t requested_PC)
       break;
 #define DEFLINK(OP,MSK,NAME,MASK,SHIFT)          \
       case OP:                            \
-                            panic("attempted to execute a linking opcode");
+                            fatal("attempted to execute a linking opcode");
 #define CONNECT(OP)
 #include "machine.def"
 #undef DEFINST
 #undef DEFUOP
 #undef CONNECT
       default:
-        panic("attempted to execute a bogus opcode");
+        fatal("attempted to execute a bogus opcode");
     }
 
     if(uop->oracle.spec_mem[0])
@@ -1614,25 +1614,6 @@ core_oracle_t::complete_flush(void)
   current_Mop = NULL;
   /* Force simulation to re-check feeder if needed */ 
   core->current_thread->consumed = true;
-}
-
-/* This *completely* resets the oracle to restart execution all over
-   again.  This reloads the initial simulated program state from the
-   first checkpoint in the EIO file. */
-void
-core_oracle_t::reset_execution(void)
-{
-  complete_flush();
-  core->commit->recover();
-  core->exec->recover();
-  core->alloc->recover();
-  core->decode->recover();
-  core->fetch->recover(0);
-  wipe_memory(core->current_thread->mem);
-
-  core->fetch->PC = core->current_thread->loader.prog_entry;
-  core->fetch->bogus = false;
-  core->stat.oracle_resets++;
 }
 
 /* Called when a uop commits; removes uop from list of producers. */

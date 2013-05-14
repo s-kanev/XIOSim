@@ -53,6 +53,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <float.h>
+#include <ctype.h>
 
 #include "host.h"
 #include "misc.h"
@@ -115,14 +116,14 @@ add_option(struct opt_odb_t *odb,	/* option database */
 
   /* sanity checks on option name */
   if (opt->name[0] != '-')
-    panic("option `%s' must start with a `-'", opt->name);
+    fatal("option `%s' must start with a `-'", opt->name);
 
   /* add to end of option list */
   for (prev=NULL, elt=odb->options; elt != NULL; prev=elt, elt=elt->next)
     {
       /* sanity checks on option name */
       if (elt->name[0] == opt->name[0] && !strcmp(elt->name, opt->name))
-	panic("option `%s' is multiply defined", opt->name);
+	fatal("option `%s' is multiply defined", opt->name);
     }
 
   if (prev != NULL)
@@ -829,7 +830,7 @@ process_option(struct opt_odb_t *odb,	/* option database */
     case oc_long_long:
       /* this option needs at least one argument */
       if (index >= argc
-	  || (argv[index][0] == '-' && !myisdigit((long long)argv[index][1])))
+	  || (argv[index][0] == '-' && !isdigit((long long)argv[index][1])))
 	{
 	  /* no arguments available */
 	  fatal("option `%s' requires an argument", opt->name);
@@ -851,7 +852,7 @@ process_option(struct opt_odb_t *odb,	/* option database */
 	}
       /* parse all arguments */
       while (index < argc && cnt < nvars &&
-	     (argv[index][0] != '-' || myisdigit((long long)argv[index][1])))
+	     (argv[index][0] != '-' || isdigit((long long)argv[index][1])))
 	{
 	  opt->variant.for_long_long.var[ent] = strtoll(argv[index], &endp, 0);
 	  if (*endp)
@@ -869,7 +870,7 @@ process_option(struct opt_odb_t *odb,	/* option database */
     case oc_int:
       /* this option needs at least one argument */
       if (index >= argc
-	  || (argv[index][0] == '-' && !myisdigit((int)argv[index][1])))
+	  || (argv[index][0] == '-' && !isdigit((int)argv[index][1])))
 	{
 	  /* no arguments available */
 	  fatal("option `%s' requires an argument", opt->name);
@@ -891,7 +892,7 @@ process_option(struct opt_odb_t *odb,	/* option database */
 	}
       /* parse all arguments */
       while (index < argc && cnt < nvars &&
-	     (argv[index][0] != '-' || myisdigit((int)argv[index][1])))
+	     (argv[index][0] != '-' || isdigit((int)argv[index][1])))
 	{
 	  opt->variant.for_int.var[ent] = strtol(argv[index], &endp, 0);
 	  if (*endp)
@@ -947,7 +948,7 @@ process_option(struct opt_odb_t *odb,	/* option database */
     case oc_float:
       /* this option needs at least one argument */
       if (index >= argc
-	  || (argv[index][0] == '-' && !myisdigit((int)argv[index][1])))
+	  || (argv[index][0] == '-' && !isdigit((int)argv[index][1])))
 	{
 	  /* no arguments available */
 	  fatal("option `%s' requires an argument", opt->name);
@@ -969,7 +970,7 @@ process_option(struct opt_odb_t *odb,	/* option database */
 	}
       /* parse all arguments */
       while (index < argc && cnt < nvars &&
-	     (argv[index][0] != '-' || myisdigit((int)argv[index][1])))
+	     (argv[index][0] != '-' || isdigit((int)argv[index][1])))
 	{
 	  tmp = strtod(argv[index], &endp);
 	  if (*endp)
@@ -994,7 +995,7 @@ process_option(struct opt_odb_t *odb,	/* option database */
     case oc_double:
       /* this option needs at least one argument */
       if (index >= argc
-	  || (argv[index][0] == '-' && !myisdigit((int)argv[index][1])))
+	  || (argv[index][0] == '-' && !isdigit((int)argv[index][1])))
 	{
 	  /* no arguments available */
 	  fatal("option `%s' requires an argument", opt->name);
@@ -1016,7 +1017,7 @@ process_option(struct opt_odb_t *odb,	/* option database */
 	}
       /* parse all arguments */
       while (index < argc && cnt < nvars &&
-	     (argv[index][0] != '-' || myisdigit((int)argv[index][1])))
+	     (argv[index][0] != '-' || isdigit((int)argv[index][1])))
 	{
 	  opt->variant.for_double.var[ent] = strtod(argv[index], &endp);
 	  if (*endp)
@@ -1149,7 +1150,7 @@ process_option(struct opt_odb_t *odb,	/* option database */
 	}
       break;
     default:
-      panic("bogus option class");
+      fatal("bogus option class");
     }
 
   return index;
@@ -1326,7 +1327,7 @@ process_file(struct opt_odb_t *odb, char *fname, int depth)
 	    }
 
 	  /* marshall an option array */
-	  largv[largc++] = mystrdup(p);
+	  largv[largc++] = strdup(p);
 
 	  if (largc == MAX_LINE_ARGS)
 	    {
@@ -1427,7 +1428,7 @@ opt_print_option(struct opt_opt_t *opt,/* option variable */
 				   opt->variant.for_enum.eval,
 				   opt->variant.for_enum.emap_sz);
 	  if (!estr)
-	    panic("could not bind enum `%d' for option `%s'",
+	    fatal("could not bind enum `%d' for option `%s'",
 		  opt->variant.for_enum.var[i], opt->name);
 
 	  fprintf(fd, opt->format, estr);
@@ -1446,7 +1447,7 @@ opt_print_option(struct opt_opt_t *opt,/* option variable */
 				   opt->variant.for_enum.eval,
 				   opt->variant.for_enum.emap_sz);
 	  if (!estr)
-	    panic("could not bind boolean `%d' for option `%s'",
+	    fatal("could not bind boolean `%d' for option `%s'",
 		  opt->variant.for_enum.var[i], opt->name);
 	  
 	  fprintf(fd, opt->format, estr);
@@ -1481,7 +1482,7 @@ opt_print_option(struct opt_opt_t *opt,/* option variable */
 	}
       break;
     default:
-      panic("bogus option class");
+      fatal("bogus option class");
     }
 }
 
@@ -1656,7 +1657,7 @@ print_help(struct opt_opt_t *opt,	/* option variable */
 	s = "<string list...>";
       break;
     default:
-      panic("bogus option class");
+      fatal("bogus option class");
     }
   fprintf(fd, "%-16s # ", s);
   opt_print_option(opt, fd);

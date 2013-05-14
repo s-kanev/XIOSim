@@ -103,7 +103,7 @@ void end_slice(unsigned int slice_num, unsigned long long feeder_slice_length, u
      else
        curr_fd = fopen("/dev/tty", "a");
      if(curr_fd == NULL)
-        panic("couldn't restore stderr redirection");
+        fatal("couldn't restore stderr redirection");
    }
 
    double n_cycles = (double)cores[0]->sim_cycle;

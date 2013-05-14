@@ -293,10 +293,6 @@ sim_post_init(void)
       fatal("failed to calloc threads[%d]",i);
 
     threads[i]->id = i;
-    threads[i]->current_core = i; /* assuming num_cores == num_cores */
-
-    /* allocate and initialize register file */
-    regs_init(&threads[i]->regs);
 
     if (multi_threaded)
       threads[i]->mem = mem;
@@ -346,27 +342,6 @@ sim_post_init(void)
   min_coreID = 0;
 }
 
-/* print simulator-specific configuration information */
-  void
-sim_aux_config(FILE *stream)        /* output stream */
-{
-  /* nothing currently */
-}
-
-/* dump simulator-specific auxiliary simulator statistics */
-  void
-sim_aux_stats(FILE *stream)        /* output stream */
-{
-  /* nada */
-}
-
-/* un-initialize simulator-specific state */
-  void
-sim_uninit(void)
-{
-}
-
-
 //Returns true if another instruction can be fetched in the same cycle
 bool sim_main_slave_fetch_insn(int coreID)
 {
@@ -384,9 +359,9 @@ static void global_step(void)
       {
         sum += cores[i]->stat.commit_insn;
         if(i < (num_cores-1))
-          myfprintf(stderr,"%lld, ",cores[i]->stat.commit_insn);
+          fprintf(stderr,"%lld, ",cores[i]->stat.commit_insn);
         else
-          myfprintf(stderr,"%lld, all=%lld}\n",cores[i]->stat.commit_insn, sum);
+          fprintf(stderr,"%lld, all=%lld}\n",cores[i]->stat.commit_insn, sum);
       }
       fflush(stderr);
       lk_unlock(&printing_lock);
@@ -396,7 +371,7 @@ static void global_step(void)
     ZPIN_TRACE("###Uncore cycle%s\n"," ");
 
     if(uncore->sim_cycle == 0)
-      myfprintf(stderr, "### starting timing simulation \n");
+      fprintf(stderr, "### starting timing simulation \n");
 
     uncore->sim_cycle++;
     uncore->sim_time = uncore->sim_cycle / LLC_speed;

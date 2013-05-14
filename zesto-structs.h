@@ -333,8 +333,6 @@ struct core_knobs_t
     const char *dirjmpbtb_opt_str;
     const char *indirjmpbtb_opt_str;
     const char *ras_opt_str;
-
-    bool warm_bpred;
   } fetch;
 
   struct {
@@ -417,8 +415,6 @@ struct core_knobs_t
     const char * DTLB_controller_opt_str;
     const char * DTLB2_controller_opt_str;
 
-    bool warm_caches;
-    int syscall_memory_latency;
     bool DL1_rep_req;
   } memory;
 

@@ -402,26 +402,11 @@ typedef struct md_inst_t {
   byte_t len;            /* inst length in bytes */
 } md_inst_t;
 
-/* XXX */
-/* preferred nop instruction definition */
-extern const md_inst_t MD_NOP_INST;
-
-extern unsigned long long timestamp[MAX_CORES]; // for RDTSC
-extern int is_syscall;
-
 struct mem_t;
 void md_fetch_inst(md_inst_t *inst, struct mem_t *mem, const md_addr_t pc);
 
 /* get inst size */
 #define MD_INST_SIZE(INST)              (INST).len
-
-/*
- * target-dependent loader module configuration
- */
-
-/* maximum size of argc+argv+envp environment */
-#define MD_MAX_ENVIRON        16384
-//#define MD_MAX_ENVIRON     8388608        // as given by the limit command
 
 /*
  * machine.def specific definitions
@@ -1621,7 +1606,7 @@ extern const unsigned int md_op2flags[];
    case 4:    _res = log(2.0)/log(10.0); break;            \
    case 5:    _res = log(2.0)/log(M_E); break;            \
    case 6:    _res = 0.0; break;                    \
-   default:    panic("bogus FPCONST");                    \
+   default:    fatal("bogus FPCONST");                    \
    }                                \
    _res;                                \
    })
@@ -2151,7 +2136,7 @@ md_uop_lit(const enum md_xfield_t xval, const struct Mop_t * Mop, bool * bogus);
              ? (((Mop->fetch.inst.mode & MODE_ADDR32)                       \
                  ? (regs.regs_R.dw[MD_REG_ECX])                             \
                  : (regs.regs_R.w[MD_REG_CX].lo)))                          \
-             : ((panic("bogus repeat code")),0))))))                        \
+             : ((fatal("bogus repeat code")),0))))))                        \
    : (FALSE))
 
 #ifdef __cplusplus
