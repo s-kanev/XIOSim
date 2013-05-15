@@ -402,7 +402,7 @@ stat_reg_sqword(struct stat_sdb_t *sdb,	/* stat database */
   stat->desc = strdup(desc);
   stat->print_me = print_me;
   stat->scale_me = scale_me;
-  stat->format = format ? format : "%12ld";
+  stat->format = format ? format : "%12lld";
   stat->sc = sc_sqword;
   stat->variant.for_sqword.var = var;
   stat->variant.for_sqword.init_val = init_val;
