@@ -140,6 +140,9 @@ bool sim_slave_running = false;
 /* Minimum ID of an active core. Used to simplify synchronization. */
 int min_coreID;
 
+/* Time between synchronizing a core and global state */
+double sync_interval;
+
 /* initialize simulator data structures - called before any command-line options have been parsed! */
 void
 sim_pre_init(void)
@@ -343,6 +346,9 @@ sim_post_init(void)
     cores[i]->vf_controller = vf_controller_create(knobs.dvfs_opt_str,cores[i]);
   }
 
+  // Time between updating global state (uncore, different nocs)
+  sync_interval = MIN(1e-3 / LLC_speed, 1e-3 / cores[0]->memory.mem_repeater->speed);
+
   min_coreID = 0;
 }
 
@@ -375,66 +381,74 @@ bool sim_main_slave_fetch_insn(int coreID)
 
 static void global_step(void)
 {
-    if((heartbeat_frequency > 0) && (heartbeat_count >= heartbeat_frequency))
-    {
-      lk_lock(&printing_lock, 1);
-      fprintf(stderr,"##HEARTBEAT## %lld: {",uncore->sim_cycle);
-      long long int sum = 0;
-      for(int i=0;i<num_cores;i++)
+    static int repeater_noc_ticks = 0;
+    double uncore_ratio = cores[0]->memory.mem_repeater->speed / LLC_speed;
+    // XXX: Assume repeater NoC running at a multiple of the uncore clock
+    // (effectively no DFS when we have a repeater)
+    // This should get fixed once we clock the repeater network separately.
+    assert(uncore_ratio - floor(uncore_ratio) == 0.0);
+    repeater_noc_ticks = modinc(repeater_noc_ticks, (int)uncore_ratio);
+
+    if(repeater_noc_ticks == 0) {
+      if((heartbeat_frequency > 0) && (heartbeat_count >= heartbeat_frequency))
       {
-        sum += cores[i]->stat.commit_insn;
-        if(i < (num_cores-1))
-          myfprintf(stderr,"%lld, ",cores[i]->stat.commit_insn);
-        else
-          myfprintf(stderr,"%lld, all=%lld}\n",cores[i]->stat.commit_insn, sum);
+        lk_lock(&printing_lock, 1);
+        fprintf(stderr,"##HEARTBEAT## %lld: {",uncore->sim_cycle);
+        long long int sum = 0;
+        for(int i=0;i<num_cores;i++)
+        {
+          sum += cores[i]->stat.commit_insn;
+          if(i < (num_cores-1))
+            myfprintf(stderr,"%lld, ",cores[i]->stat.commit_insn);
+          else
+            myfprintf(stderr,"%lld, all=%lld}\n",cores[i]->stat.commit_insn, sum);
+        }
+        fflush(stderr);
+        lk_unlock(&printing_lock);
+        heartbeat_count = 0;
       }
-      fflush(stderr);
-      lk_unlock(&printing_lock);
-      heartbeat_count = 0;
+
+      ZPIN_TRACE("###Uncore cycle%s\n"," ");
+
+      if(uncore->sim_cycle == 0)
+        myfprintf(stderr, "### starting timing simulation \n");
+
+      uncore->sim_cycle++;
+      uncore->sim_time = uncore->sim_cycle / LLC_speed;
+      uncore->default_cpu_cycles = (tick_t)ceil(uncore->sim_cycle * knobs.default_cpu_speed / LLC_speed);
+
+      /* power computation */
+      if(knobs.power.compute && (knobs.power.rtp_interval > 0) && 
+         (uncore->sim_cycle % knobs.power.rtp_interval == 0))
+      {
+        stat_save_stats_delta(rtp_sdb);   // Store delta values for translation
+        compute_power(rtp_sdb, false);
+        stat_save_stats(rtp_sdb);         // Create new checkpoint for next delta
+      } 
+
+      if(knobs.dvfs_interval > 0)
+        for(int i=0; i<num_cores; i++)
+          if(cores[i]->sim_cycle >= cores[i]->vf_controller->next_invocation)
+          {
+            cores[i]->vf_controller->change_vf();
+            cores[i]->vf_controller->next_invocation += knobs.dvfs_interval;
+          }
+
+      heartbeat_count++;
+
+      /*********************************************/
+      /* step through pipe stages in reverse order */
+      /*********************************************/
+
+      dram->refresh();
+      uncore->MC->step();
+
+      step_LLC_PF_controller(uncore);
+
+      cache_process(uncore->LLC);
     }
 
-    ZPIN_TRACE("###Uncore cycle%s\n"," ");
-
-    if(uncore->sim_cycle == 0)
-      myfprintf(stderr, "### starting timing simulation \n");
-
-    uncore->sim_cycle++;
-    uncore->sim_time = uncore->sim_cycle / LLC_speed;
-    uncore->default_cpu_cycles = (tick_t)ceil(uncore->sim_cycle * knobs.default_cpu_speed / LLC_speed);
-
-    /* power computation */
-    if(knobs.power.compute && (knobs.power.rtp_interval > 0) && 
-       (uncore->sim_cycle % knobs.power.rtp_interval == 0))
-    {
-      stat_save_stats_delta(rtp_sdb);   // Store delta values for translation
-      compute_power(rtp_sdb, false);
-      stat_save_stats(rtp_sdb);         // Create new checkpoint for next delta
-    } 
-
-    if(knobs.dvfs_interval > 0)
-      for(int i=0; i<num_cores; i++)
-        if(cores[i]->sim_cycle >= cores[i]->vf_controller->next_invocation)
-        {
-          cores[i]->vf_controller->change_vf();
-          cores[i]->vf_controller->next_invocation += knobs.dvfs_interval;
-        }
-
-    heartbeat_count++;
-
-    /*********************************************/
-    /* step through pipe stages in reverse order */
-    /*********************************************/
-
-    dram->refresh();
-    uncore->MC->step();
-
-    step_LLC_PF_controller(uncore);
-
-    cache_process(uncore->LLC);
-
-    // XXX: This is currently slower than the design target.
-    // We need to split the repeater network and nodes on different
-    // clocks too
+    // Until we fix synchronization, this is global, and running at core freq.
     for(int i=0;i<num_cores;i++)
       if(cores[i]->memory.mem_repeater)
         cores[i]->memory.mem_repeater->step();
@@ -454,7 +468,7 @@ void sim_main_slave_pre_pin(int coreID)
   }
 
   /* Time to sync with uncore */
-  if(cores[coreID]->ns_passed >= (1e-3 / LLC_speed)) {
+  if(cores[coreID]->ns_passed >= sync_interval) {
     cores[coreID]->ns_passed = 0.0;
 
     /* Thread is joining in serial region. Mark it as finished this cycle */

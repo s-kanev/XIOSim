@@ -11,6 +11,7 @@ class repeater_t {
     struct core_t * core;
     const char * const name;
     struct cache_t * nextLevel;
+    double speed;
 
     repeater_t(struct core_t * const _core, const char * const _name, struct cache_t * const _next_level) :
         core(_core), name(_name), nextLevel(_next_level) { }
