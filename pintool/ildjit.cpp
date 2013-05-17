@@ -439,7 +439,7 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID, ADDRINT pc)
 }
 
 /* ========================================================================== */
-VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc)
+VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, ADDRINT esp_val)
 {
     assert(ssID < 256);
     thread_state_t* tstate = get_tls(tid);
@@ -507,6 +507,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc)
     handshake = lookahead_buffer[tid].get_buffer();
 
     handshake->flags.isFirstInsn = first_insn;
+    handshake->handshake.ctxt.regs_R.dw[MD_REG_ESP] = esp_val; /* Needed when first_insn to set up stack pages */
     handshake->handshake.sleep_thread = false;
     handshake->handshake.resume_thread = false;
     handshake->handshake.real = false;
@@ -706,6 +707,7 @@ VOID AddILDJITCallbacks(IMG img)
                        IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
                        IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
                        IARG_INST_PTR,
+                       IARG_REG_VALUE, LEVEL_BASE::REG_ESP,
                        IARG_CALL_ORDER, CALL_ORDER_LAST,
                        IARG_END);
         RTN_Close(rtn);
