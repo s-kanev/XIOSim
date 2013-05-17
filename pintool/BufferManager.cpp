@@ -61,6 +61,25 @@ BufferManager::BufferManager()
   bridgeDirs_.push_back("/dev/shm/");
   bridgeDirs_.push_back("/tmp/");
   bridgeDirs_.push_back("./");
+
+  // Reserve space in all maps for 16 cores
+  // This reduces the incidence of an annoying race, see
+  // comment in empty()
+  int probable_cores = 16;
+  locks_.reserve(probable_cores);
+  pool_.reserve(probable_cores);
+  logs_.reserve(probable_cores);
+  queueSizes_.reserve(probable_cores);
+  fakeFile_.reserve(probable_cores);
+  consumeBuffer_.reserve(probable_cores);
+  produceBuffer_.reserve(probable_cores);
+  fileEntryCount_.reserve(probable_cores);
+  fileNames_.reserve(probable_cores);
+  fileCounts_.reserve(probable_cores);
+  readBufferSize_.reserve(probable_cores);
+  readBuffer_.reserve(probable_cores);
+  writeBufferSize_.reserve(probable_cores);
+  writeBuffer_.reserve(probable_cores);
 }
 
 BufferManager::~BufferManager()
@@ -142,7 +161,16 @@ handshake_container_t* BufferManager::back(THREADID tid)
 
 bool BufferManager::empty(THREADID tid)
 {
+  // There is a race for initializing the BufferManager maps,
+  // where sometimes a new thread is calling allocateThread(),
+  // and an already existing thread is calling empty().
+  // This hack seems to prevent it, there's probably a much
+  // better way to do this though...
+  if(!locks_[tid]) {
+    PIN_Sleep(1000);
+  }
   assert(locks_[tid]);
+
   lk_lock(locks_[tid], tid+1);
   bool result = queueSizes_[tid] == 0;
   lk_unlock(locks_[tid]);
