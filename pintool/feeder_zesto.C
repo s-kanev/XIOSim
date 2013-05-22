@@ -1440,13 +1440,12 @@ INT32 main(INT32 argc, CHAR **argv)
     if(host_cpus < num_cores * 2) {
       cerr << "Turning on thread sleeping optimization" << endl;
       sleeping_enabled = true;
+      enable_producers();
+      disable_consumers();
     }
     else {
       sleeping_enabled = false;
     }
-
-    //enable_producers();
-    //disable_consumers();
 
     InitScheduler(num_cores);
 

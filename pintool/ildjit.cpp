@@ -1080,9 +1080,17 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
     cerr.flush();
 #endif
 
+    tick_t most_cycles = 0;
     ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
       thread_state_t* tstate = get_tls(*it);
-      cerr << tstate->coreID << ":OverlapCycles:" << cores[tstate->coreID]->sim_cycle - lastConsumerApply[*it] << endl;
+      if(cores[tstate->coreID]->sim_cycle > most_cycles) {
+        most_cycles = cores[tstate->coreID]->sim_cycle;
+      }
+    }
+
+    ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
+      thread_state_t* tstate = get_tls(*it);
+      cerr << tstate->coreID << ":OverlapCycles:" << most_cycles - lastConsumerApply[*it] << endl;
     }
 
     disable_consumers();
