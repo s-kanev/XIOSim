@@ -1383,8 +1383,9 @@ INT32 main(INT32 argc, CHAR **argv)
       amd_hack();
     }
 
-    if (KnobILDJIT.Value())
+    if (KnobILDJIT.Value()) {
         MOLECOOL_Init();
+    }
 
     if (!KnobILDJIT.Value() && !KnobParsec.Value()) {
         // Try activate pinpoints alarm, must be done before PIN_StartProgram
@@ -1437,8 +1438,7 @@ INT32 main(INT32 argc, CHAR **argv)
     Zesto_SlaveInit(ssargs.first, ssargs.second);
 
     host_cpus = get_nprocs_conf();
-    if(host_cpus < num_cores * 2) {
-      cerr << "Turning on thread sleeping optimization" << endl;
+    if((host_cpus < num_cores * 2) || KnobILDJIT.Value()) {
       sleeping_enabled = true;
       enable_producers();
       disable_consumers();
