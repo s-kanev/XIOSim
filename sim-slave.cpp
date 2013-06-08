@@ -387,7 +387,8 @@ static void global_step(void)
     // (effectively no DFS when we have a repeater)
     // This should get fixed once we clock the repeater network separately.
     assert(uncore_ratio - floor(uncore_ratio) == 0.0);
-    repeater_noc_ticks = modinc(repeater_noc_ticks, (int)uncore_ratio);
+    if (uncore_ratio > 0)
+      repeater_noc_ticks = modinc(repeater_noc_ticks, (int)uncore_ratio);
 
     if(repeater_noc_ticks == 0) {
       if((heartbeat_frequency > 0) && (heartbeat_count >= heartbeat_frequency))
