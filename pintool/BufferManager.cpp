@@ -214,7 +214,7 @@ void BufferManager::producer_done(THREADID tid, bool keepLock)
   }
 
   if(produceBuffer_[tid]->full()) {// || ( (consumeBuffer_[tid]->size() == 0) && (fileEntryCount_[tid] == 0))) {
-#ifdef DEBUG
+#if defined(DEBUG) || defined(ZESTO_PIN_DBG)
     int produceSize = produceBuffer_[tid]->size();
 #endif
     bool checkSpace = !keepLock;
