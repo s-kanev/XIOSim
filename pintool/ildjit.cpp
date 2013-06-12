@@ -61,11 +61,12 @@ static BOOL simulating_parallel_loop = false;
 UINT32 getSignalAddress(ADDRINT ssID);
 BOOL signalCallback(THREADID tid, INT32 sig, CONTEXT *ctxt, BOOL hasHandler, const EXCEPTION_INFO *pExceptInfo, VOID *v);
 void signalCallback2(int signum);
-void initializePerThreadLoopState(THREADID tid);
+static void initializePerThreadLoopState(THREADID tid);
 
-bool loopMatches(string loop, UINT32 invocationNum, UINT32 iterationNum);
-void readLoop(ifstream& fin, string* name, UINT32* invocation, UINT32* iteration);
+static bool loopMatches(string loop, UINT32 invocationNum, UINT32 iterationNum);
+static void readLoop(ifstream& fin, string* name, UINT32* invocation, UINT32* iteration);
 
+static VOID shutdownSimulation(THREADID tid);
 extern VOID doLateILDJITInstrumentation();
 
 stack<loop_state_t> loop_states;
@@ -355,18 +356,7 @@ VOID ILDJIT_startIteration(THREADID tid)
     // Check if this is the last iteration
   if(reached_end_iteration || loopMatches(end_loop, end_loop_invocation, end_loop_iteration)) {
     assert(reached_start_invocation && reached_end_invocation && reached_start_iteration);
-
-    ILDJIT_PauseSimulation(tid);
-    int iterCount = loop_state->simmed_iteration_count - 1;
-    cerr << "Ending loop: anonymous" << " NumIterations:" << iterCount << endl;
-
-    cerr << "Simulation runtime:";
-    printElapsedTime();
-    cerr << "Stopping simulation, TID: " << tid << endl;
-    Zesto_Slice_End(0, 1, 0, 100*1000);
-    StopSimulation(true);
-    cerr << "[KEVIN] Stopped simulation! " << tid << endl;
-    PIN_ExitProcess(EXIT_SUCCESS);
+    shutdownSimulation(tid);
   }
 
   if(reached_start_iteration) {
@@ -386,6 +376,11 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
         int numInstsToIgnore = 3;
         flushLookahead(tid, numInstsToIgnore);
 
+        if(reached_end_invocation) {
+          cerr << tid << ": Shutting down early!" << endl;
+          shutdownSimulation(tid);
+        }
+        
         ILDJIT_PauseSimulation(tid);
         cerr << tid << ": Paused simulation!" << endl;
 
@@ -789,6 +784,7 @@ VOID AddILDJITCallbacks(IMG img)
 #ifdef ZESTO_PIN_DBG
         cerr << "MOLECOOL_startLoop ";
 #endif
+        fprintf(stderr, "MOLECOOL_startLoop(): %p\n", RTN_Funptr(rtn));
         RTN_Open(rtn);
         RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_startLoop),
                        IARG_THREAD_ID,
@@ -1131,4 +1127,20 @@ VOID ILDJIT_ResumeSimulation(THREADID tid)
         tstate->ignore_all = false;
         lk_unlock(&tstate->lock);
     }
+}
+
+/* ========================================================================== */
+VOID shutdownSimulation(THREADID tid)
+{
+    ILDJIT_PauseSimulation(tid);
+    int iterCount = loop_state->simmed_iteration_count - 1;
+    cerr << "Ending loop: anonymous" << " NumIterations:" << iterCount << endl;
+
+    cerr << "Simulation runtime:";
+    printElapsedTime();
+    cerr << "Stopping simulation, TID: " << tid << endl;
+    Zesto_Slice_End(0, 1, 0, 100*1000);
+    StopSimulation(true);
+    cerr << "[KEVIN] Stopped simulation! " << tid << endl;
+    PIN_ExitProcess(EXIT_SUCCESS);
 }

@@ -1597,7 +1597,7 @@ VOID flushLookahead(THREADID tid, int numToIgnore) {
       ADDRINT pc = lookahead_buffer[tid][i]->handshake.pc;
       string diss = pc_diss[pc];
       bool hasMov = diss.find("mov") != string::npos;
-      bool hasEsp = diss.find("esp") != string::npos;
+      bool hasEsp = diss.find("[esp") != string::npos;
       if(hasMov && hasEsp) {
         ignore_pcs.insert(pc);
         remainingToIgnore--;
