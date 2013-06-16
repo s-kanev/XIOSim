@@ -228,7 +228,7 @@ class core_oracle_t {
   int next_index(const int index);
   struct Mop_t * get_oldest_Mop();
 
-  void grab_feeder_state(handshake_container_t * handshake, bool allocate_shadow);
+  void grab_feeder_state(handshake_container_t * handshake, bool allocate_shadow, bool check_pc_mismatch);
   handshake_container_t * get_shadow_Mop(const struct Mop_t* Mop);
 
   bool non_spec_read_byte(const md_addr_t addr, const struct Mop_t* Mop, byte_t * res);

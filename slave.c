@@ -498,21 +498,8 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake) //struct P2Z_HAN
       thread->first_insn= false;
    }
 
-   // This usually happens when we insert fake instructions from pin.
-   // Just use the feeder PC since the instruction context is from there.
-   if(!slice_start && core->fetch->PC != handshake->handshake.pc)
-   {
-     if (handshake->handshake.real && !core->fetch->prev_insn_fake) {
-       ZPIN_TRACE("PIN->PC (0x%x) different from fetch->PC (0x%x). Overwriting with Pin value!\n", handshake->handshake.pc, core->fetch->PC);
-       //       info("PIN->PC (0x%x) different from fetch->PC (0x%x). Overwriting with Pin value!\n", handshake->pc, core->fetch->PC);
-     }
-     core->fetch->PC = handshake->handshake.pc;
-     thread->regs.regs_PC = handshake->handshake.pc;
-     thread->regs.regs_NPC = handshake->handshake.pc;
-   }
-
    // Let the oracle grab any arch state it needs
-   core->oracle->grab_feeder_state(handshake, true);
+   core->oracle->grab_feeder_state(handshake, true, !slice_start);
 
    thread->fetches_since_feeder = 0;
    md_addr_t NPC = handshake->handshake.brtaken ? handshake->handshake.tpc : handshake->handshake.npc;  

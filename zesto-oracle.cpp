@@ -708,17 +708,13 @@ core_oracle_t::exec(const md_addr_t requested_PC)
     /* read raw bytes from (speculative) virtual memory */
     for (int k=0; k < MD_MAX_ILEN; k++)
       Mop->fetch.inst.code[k] = spec_do_read_byte(thread->regs.regs_PC + k, NULL);
-
-    /* keep shadow MopQ in sync with real one until completely replaced */
-    //shadow_MopQ->get_buffer();
-    //shadow_MopQ->push_done();
   }
   else {
     /* read encoding supplied by feeder */
     memcpy(&Mop->fetch.inst.code, get_shadow_Mop(Mop)->handshake.ins, MD_MAX_ILEN);
 
     if (num_Mops_nuked > 0)
-        grab_feeder_state(get_shadow_Mop(Mop), false);
+        grab_feeder_state(get_shadow_Mop(Mop), false, true);
   }
 
   //zesto_assert(MopQ_num == shadow_MopQ->size(), NULL);
@@ -1711,9 +1707,22 @@ void core_oracle_t::commit_write_byte(struct spec_byte_t * const p)
   return_spec_mem_node(p);
 }
 
-void core_oracle_t::grab_feeder_state(handshake_container_t * handshake, bool allocate_shadow)
+void core_oracle_t::grab_feeder_state(handshake_container_t * handshake, bool allocate_shadow, bool check_pc_mismatch)
 {
   regs_t * regs = &core->current_thread->regs;
+
+  // This usually happens when we insert fake instructions from pin.
+  // Just use the feeder PC since the instruction context is from there.
+  if(check_pc_mismatch && core->fetch->PC != handshake->handshake.pc)
+  {
+    if (handshake->handshake.real && !core->fetch->prev_insn_fake) {
+      ZPIN_TRACE("PIN->PC (0x%x) different from fetch->PC (0x%x). Overwriting with Pin value!\n", handshake->handshake.pc, core->fetch->PC);
+      //       info("PIN->PC (0x%x) different from fetch->PC (0x%x). Overwriting with Pin value!\n", handshake->pc, core->fetch->PC);
+    }
+    core->fetch->PC = handshake->handshake.pc;
+    regs->regs_PC = handshake->handshake.pc;
+    regs->regs_NPC = handshake->handshake.pc;
+  }
 
   core->fetch->feeder_NPC = handshake->handshake.brtaken ? handshake->handshake.tpc : handshake->handshake.npc;
   core->fetch->feeder_PC = handshake->handshake.pc;
