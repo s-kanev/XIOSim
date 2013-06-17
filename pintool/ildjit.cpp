@@ -76,6 +76,9 @@ bool disable_wait_signal;
 UINT32* ildjit_ws_id;
 UINT32* ildjit_disable_ws;
 
+int ss_curr;
+int ss_prev;
+
 /* ========================================================================== */
 VOID MOLECOOL_Init()
 {
@@ -126,6 +129,9 @@ VOID MOLECOOL_Init()
     cerr << end_loop << endl;
     cerr << end_loop_invocation << endl;
     cerr << end_loop_iteration << endl << endl;
+
+    ss_curr = 100000;
+    ss_prev = 100000;
 }
 
 /* ========================================================================== */
@@ -292,7 +298,8 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
   if(!reached_start_iteration) {
     return;
   }
-
+  
+  ss_curr = rc;
   loop_state->use_ring_cache = (rc > 0);
 
   if(disable_wait_signal) {
@@ -399,6 +406,7 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
         UINT32 iterCount = loop_state->simmed_iteration_count - 1;
         cerr << "Ending loop: " << loop_name << " NumIterations:" << iterCount << endl;
         simulating_parallel_loop = false;
+        ss_prev = ss_curr;
 
         assert(loop_states.size() > 0);
         loop_states.pop();
