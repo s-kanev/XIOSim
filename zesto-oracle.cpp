@@ -1772,7 +1772,7 @@ void core_oracle_t::grab_feeder_state(handshake_container_t * handshake, bool al
 handshake_container_t * core_oracle_t::get_shadow_Mop(const struct Mop_t* Mop)
 {
   int Mop_ind = get_index(Mop);
-  int from_head = (Mop_ind - MopQ_head) % MopQ_size;
+  int from_head = (Mop_ind - MopQ_head) & (MopQ_size - 1);
   ZPIN_TRACE("MopQ index: %d\n", Mop_ind);
   handshake_container_t * res = shadow_MopQ->get_item(from_head);
   zesto_assert(res->flags.valid, NULL);
