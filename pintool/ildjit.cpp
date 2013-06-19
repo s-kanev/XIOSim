@@ -50,6 +50,7 @@ static UINT32 end_loop_invocation = -1;
 static UINT32 end_loop_iteration = -1;
 
 static BOOL first_invocation = true;
+static tick_t start_loop_cycles;
 
 static BOOL reached_start_invocation = false;
 static BOOL reached_end_invocation = false;
@@ -122,6 +123,7 @@ VOID MOLECOOL_Init()
     signal(SIGKILL, signalCallback2);
 
     last_time = time(NULL);
+    start_loop_cycles = 0;
 
     cerr << start_loop << endl;
     cerr << start_loop_invocation << endl;
@@ -292,13 +294,22 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
 
     CHAR* loop_name = (CHAR*) loop;
     cerr << "Starting loop: " << loop_name << "[" << invocation_counts[(string)(char*)loop] << "]" << endl;
+
+    // Set up to date cycle count for start of loop
+    list<THREADID>::iterator it;
+    ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
+      thread_state_t* tstate = get_tls(*it);
+      if(cores[tstate->coreID]->sim_cycle > start_loop_cycles) {
+        start_loop_cycles = cores[tstate->coreID]->sim_cycle;
+      }
+    }
   }
 
   // If we didn't get to the start of the phase, return
   if(!reached_start_iteration) {
     return;
   }
-  
+
   ss_curr = rc;
   loop_state->use_ring_cache = (rc > 0);
 
@@ -496,7 +507,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
     }
 
     if(is_light) {
-        goto cleanup;
+      goto cleanup;
     }
 
     /* We're not a first instruction any more */
@@ -1094,7 +1105,8 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
 
     ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
       thread_state_t* tstate = get_tls(*it);
-      cerr << tstate->coreID << ":OverlapCycles:" << most_cycles - lastConsumerApply[*it] << endl;
+      tick_t adjusted_cycles = start_loop_cycles > lastConsumerApply[*it] ? start_loop_cycles : lastConsumerApply[*it];
+      cerr << tstate->coreID << ":OverlapCycles:" << most_cycles - adjusted_cycles << endl;
     }
 
     disable_consumers();
