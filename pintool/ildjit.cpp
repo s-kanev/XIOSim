@@ -455,10 +455,10 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID, ADDRINT pc)
 /* ========================================================================== */
 VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, ADDRINT esp_val)
 {
-    assert(ssID < 256);
+    assert(ssID < 512);
     thread_state_t* tstate = get_tls(tid);
     handshake_container_t* handshake;
-    int mask;
+    uint mask;
     bool first_insn;
 
     if (ExecMode != EXECUTION_MODE_SIMULATE)
@@ -534,8 +534,8 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
     handshake->handshake.brtaken = false;
     memcpy(handshake->handshake.ins, ld_template, sizeof(ld_template));
     // Address comes right after opcode byte
-    // set magic 17 bit in address - makes the pipeline see them as seperate addresses
-    mask = 1 << 16;
+    // set magic 18 bit in address - makes the pipeline see them as seperate addresses
+    mask = 1 << 17;
     *(INT32*)(&handshake->handshake.ins[1]) = getSignalAddress(ssID) | mask;
     lookahead_buffer[tid].push_done();
 
@@ -568,7 +568,7 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
 /* ========================================================================== */
 VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
 {
-  assert(ssID < 256);
+  assert(ssID < 512);
     thread_state_t* tstate = get_tls(tid);
     handshake_container_t* handshake;
 
@@ -936,10 +936,10 @@ UINT32 getSignalAddress(ADDRINT ssID)
   if(first_invocation) {
     firstCore = start_loop_iteration % num_cores;
   }
-  assert(firstCore < 256);
-  assert(ssID < 256);
+  assert(firstCore < 128);
+  assert(ssID < 512);
 
-  return 0x7ffe0000 + (firstCore << 8) + ssID;
+  return 0x7ffc0000 + (firstCore << 9) + ssID;
 }
 
 bool loopMatches(string loop, UINT32 invocationNum, UINT32 iterationNum)
