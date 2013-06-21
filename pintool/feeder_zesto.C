@@ -181,8 +181,11 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
                 lk_unlock(&tstate->lock);
             }
 
+            
             // Let caller thread be simulated again
-            ScheduleNewThread(tid);
+            if (!KnobILDJIT.Value()) {
+              ScheduleNewThread(tid);
+            }
 
             if(control.PinPointsActive())
                 cerr << "PinPoint: " << control.CurrentPp(tid) << " PhaseNo: " << control.CurrentPhase(tid) << endl;
