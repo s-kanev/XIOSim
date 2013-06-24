@@ -292,18 +292,18 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
 
     CHAR* loop_name = (CHAR*) loop;
     cerr << "Starting loop: " << loop_name << "[" << invocation_counts[(string)(char*)loop] << "]" << endl;
+ 
+    ss_curr = rc;
+    loop_state->use_ring_cache = (rc > 0);
+
+    if(disable_wait_signal) {
+      loop_state->use_ring_cache = false;
+    }
   }
 
   // If we didn't get to the start of the phase, return
   if(!reached_start_iteration) {
     return;
-  }
-
-  ss_curr = rc;
-  loop_state->use_ring_cache = (rc > 0);
-
-  if(disable_wait_signal) {
-    loop_state->use_ring_cache = false;
   }
 
   assert(reached_start_iteration);
