@@ -502,6 +502,9 @@ master_core:
 
         lk_unlock(&cycle_lock);
         /* Spin, spin, spin */
+        while(consumers_sleep) {
+          lk_wait_consumers();
+        }
         yield();
         lk_lock(&cycle_lock, coreID+1);
 
@@ -546,6 +549,9 @@ master_core:
 non_master_core:
         /* Spin, spin, spin */
         lk_unlock(&cycle_lock);
+        while(consumers_sleep) {
+          lk_wait_consumers();
+        }
         yield();
         lk_lock(&cycle_lock, coreID+1);
       }

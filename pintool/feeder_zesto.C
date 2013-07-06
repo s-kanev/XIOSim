@@ -1578,6 +1578,11 @@ VOID enable_producers()
   producers_sleep = false;
 }
 
+void wait_consumers()
+{
+  PIN_SemaphoreWait(&consumer_sleep_lock);
+}
+
 VOID flushLookahead(THREADID tid, int numToIgnore) {
 
   int remainingToIgnore = numToIgnore;
