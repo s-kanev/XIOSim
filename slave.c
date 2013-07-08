@@ -431,7 +431,6 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake) //struct P2Z_HAN
 
    zesto_assert(core->oracle->num_Mops_nuked == 0, (void)0);
    zesto_assert(!core->oracle->spec_mode, (void)0);
-   //zesto_assert(thread->rep_sequence == 0, (void)0);
 
    if (handshake->handshake.sleep_thread)
    {
@@ -511,15 +510,11 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake) //struct P2Z_HAN
 
    bool fetch_more = true;
    thread->consumed = false;
-   bool repping = false;
 
    while(!thread->consumed || repping || core->oracle->num_Mops_nuked > 0)
    {
      fetch_more = sim_main_slave_fetch_insn(coreID);
      thread->fetches_since_feeder++;
-
-     repping = false;//thread->rep_sequence != 0;
-
 
      if(core->oracle->num_Mops_nuked > 0)
      {
@@ -554,7 +549,7 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake) //struct P2Z_HAN
 
        if(core->oracle->num_Mops_nuked == 0)
        {
-         //Nuke recovery instruction is a mispredicted branch or REP-ed
+         //Nuke recovery instruction is a mispredicted branch
          if(core->fetch->PC != NPC || thread->regs.regs_NPC != NPC)
          {
             thread->consumed = false;
@@ -570,9 +565,7 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake) //struct P2Z_HAN
      }
      /*XXX: here oracle still doesn't know if we're speculating or not. But if we predicted 
      the wrong path, we'd better not return to Pin, because that will mess the state up */
-     else if((!repping && (core->fetch->PC != NPC || core->oracle->spec_mode)) ||
-               //&& core->fetch->PC != core->fetch->feeder_PC) || //Not trapped
-              repping) 
+     else if(core->fetch->PC != NPC || core->oracle->spec_mode)
      {
        bool spec = false;
        do
@@ -583,8 +576,8 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake) //struct P2Z_HAN
             thread->fetches_since_feeder++;
 
             spec = (core->oracle->spec_mode || (core->fetch->PC != thread->regs.regs_NPC));
-            /* If fetch can tolerate more insns, but needs to get them from PIN (f.e. after finishing a REP-ed instruction) */
-            if(fetch_more && !spec && /*thread->rep_sequence == 0 && core->fetch->PC != core->fetch->feeder_PC &&*/ core->oracle->num_Mops_nuked == 0)
+            /* If fetch can tolerate more insns, but needs to get them from PIN */
+            if(fetch_more && !spec && core->oracle->num_Mops_nuked == 0)
             {
                zesto_assert(core->fetch->PC == NPC, (void)0);
                return;
@@ -605,15 +598,15 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake) //struct P2Z_HAN
          /* Potentially different after exec (in pre_pin) where branches are resolved */
          spec = (core->oracle->spec_mode || (core->fetch->PC != thread->regs.regs_NPC));
 
-         /* After recovering from spec and/or REP, we find no nukes -> great, get control back to PIN */
-         if(/*thread->rep_sequence == 0 && core->fetch->PC != core->fetch->feeder_PC &&*/ !spec && core->oracle->num_Mops_nuked == 0)
+         /* After recovering from spec, we find no nukes -> great, get control back to PIN */
+         if(!spec && core->oracle->num_Mops_nuked == 0)
          {
             zesto_assert(core->fetch->PC == NPC, (void)0);
             return;
          }
 
-         /* After recovering from spec and/or REP, nuke -> go to nuke recovery loop */
-         if(/*thread->rep_sequence == 0 && */!spec && core->oracle->num_Mops_nuked > 0)
+         /* After recovering from spec, nuke -> go to nuke recovery loop */
+         if(!spec && core->oracle->num_Mops_nuked > 0)
          {
             ZPIN_TRACE("Going from spec loop to nuke loop. PC: %x\n",core->fetch->PC);
             break;
@@ -622,11 +615,11 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake) //struct P2Z_HAN
          /* All other cases should stay in this loop until they get resolved */
          fetch_more = true;
 
-       }while(spec/* || thread->rep_sequence != 0*/);
+       } while(spec);
 
      }
      else
-     /* non-speculative, non-REP, non-nuke */
+     /* non-speculative, non-nuke */
      {
        /* Pass control back to Pin to get a new PC on the same cycle*/
        if(fetch_more)
