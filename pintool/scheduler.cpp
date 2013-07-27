@@ -43,7 +43,7 @@ VOID InitScheduler(INT32 num_cores)
 VOID ScheduleNewThread(THREADID tid)
 {
     thread_state_t* tstate = get_tls(tid);
-    if (tstate->coreID != -1) {
+    if (tstate->coreID != (UINT32)-1) {
         lk_lock(&printing_lock, 1);
         cerr << "ScheduleNewThread: thread " << tid << " already scheduled, ignoring." << endl;
         lk_unlock(&printing_lock);
