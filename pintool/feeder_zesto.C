@@ -117,6 +117,8 @@ INT32 slice_num = 1;
 INT32 slice_length = 0;
 INT32 slice_weight_times_1000 = 100*1000;
 
+BOOL in_fini = false;
+
 typedef pair <UINT32, CHAR **> SSARGS;
 
 // Functions to access thread-specific data
@@ -193,10 +195,7 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
         {
             /* XXX: This can be called from a Fini callback (end of program).
              * We can't access any TLS in that case. */
-            BOOL is_fini = !(control.PinPointsActive() || control.IregionsActive() ||
-                control.UniformActive() || control.PintoolControlEnabled());
-
-            if (!is_fini) {
+            if (!in_fini) {
                 list<THREADID>::iterator it;
                 ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
                     thread_state_t* tstate = get_tls(*it);
@@ -358,6 +357,14 @@ VOID MakeSSContext(const CONTEXT *ictxt, FPSTATE* fpstate, ADDRINT pc, ADDRINT n
     memcpy(&ssregs->regs_XMM.qw[MD_REG_XMM5].lo, &fpstate->fxsave_legacy._xmms[MD_REG_XMM5], MD_XMM_SIZE);
     memcpy(&ssregs->regs_XMM.qw[MD_REG_XMM6].lo, &fpstate->fxsave_legacy._xmms[MD_REG_XMM6], MD_XMM_SIZE);
     memcpy(&ssregs->regs_XMM.qw[MD_REG_XMM7].lo, &fpstate->fxsave_legacy._xmms[MD_REG_XMM7], MD_XMM_SIZE);
+}
+
+/* ========================================================================== */
+// Register that we are about to service Fini callbacks, which cannot
+// access some state (e.g. TLS)
+VOID BeforeFini(INT32 exitCode, VOID *v)
+{
+    in_fini = true;
 }
 
 /* ========================================================================== */
@@ -1428,6 +1435,7 @@ INT32 main(INT32 argc, CHAR **argv)
     IMG_AddInstrumentFunction(ImageLoad, 0);
     PIN_AddSyscallEntryFunction(SyscallEntry, 0);
     PIN_AddSyscallExitFunction(SyscallExit, 0);
+    PIN_AddFiniUnlockedFunction(BeforeFini, 0);
     PIN_AddFiniFunction(Fini, 0);
 
     if(KnobSanity.Value())
