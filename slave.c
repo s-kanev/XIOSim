@@ -511,7 +511,7 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake) //struct P2Z_HAN
    bool fetch_more = true;
    thread->consumed = false;
 
-   while(!thread->consumed || repping || core->oracle->num_Mops_nuked > 0)
+   while(!thread->consumed || core->oracle->num_Mops_nuked > 0)
    {
      fetch_more = sim_main_slave_fetch_insn(coreID);
      thread->fetches_since_feeder++;
