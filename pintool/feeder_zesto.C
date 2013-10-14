@@ -64,8 +64,6 @@ KNOB<BOOL> KnobPipelineInstrumentation(KNOB_MODE_WRITEONCE, "pintool",
         "pipeline_instrumentation", "false", "Overlap instrumentation and simulation threads (still unstable)");
 KNOB<BOOL> KnobWarmLLC(KNOB_MODE_WRITEONCE,      "pintool",
         "warm_llc", "false", "Warm LLC while fast-forwarding");
-KNOB<BOOL> KnobGreedyCores(KNOB_MODE_WRITEONCE, "pintool",
-        "greedy_cores", "false", "Spread on all available machine cores");
 
 map<ADDRINT, UINT8> sanity_writes;
 map<ADDRINT, string> pc_diss;
