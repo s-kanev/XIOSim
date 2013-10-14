@@ -196,17 +196,6 @@ struct mem_t {
   counter_t page_count;      /* total number of pages allocated (in core and backing file) */
 };
 
-/* memory access function type, this is a generic function exported for the
-   purpose of access the simulated vitual memory space */
-typedef enum md_fault_type
-(*mem_access_fn)(
-    int core_id,
-    struct mem_t *mem,  /* memory space to access */
-    enum mem_cmd cmd,  /* Read or Write */
-    md_addr_t addr,  /* target memory address to access */
-    void *p,    /* where to copy to/from */
-    int nbytes);    /* transfer length in bytes */
-
 /*
  * virtual to host page translation macros
  */
@@ -330,37 +319,6 @@ mem_reg_stats(struct mem_t *mem,  /* memory space to declare */
 /* initialize memory system  */
 void
 mem_init(struct mem_t *mem);  /* memory space to initialize */
-
-/*
- * memory accessor routines, these routines require a memory access function
- * definition to access memory, the memory access function provides a "hook"
- * for programs to instrument memory accesses, this is used by various
- * simulators for various reasons; for the default operation - direct access
- * to the memory system, pass mem_access() as the memory access function
- */
-
-/* copy a '\0' terminated string to/from simulated memory space, returns
-   the number of bytes copied, returns any fault encountered */
-enum md_fault_type
-mem_strcpy(
-    int core_id,
-    mem_access_fn mem_fn,  /* user-specified memory accessor */
-    struct mem_t *mem,    /* memory space to access */
-    enum mem_cmd cmd,    /* Read (from sim mem) or Write */
-    md_addr_t addr,    /* target address to access */
-    char *s);      /* host memory string buffer */
-
-/* copy NBYTES to/from simulated memory space, returns any faults */
-enum md_fault_type
-mem_bcopy(
-    int core_id,
-    mem_access_fn mem_fn,    /* user-specified memory accessor */
-    struct mem_t *mem,    /* memory space to access */
-    enum mem_cmd cmd,    /* Read (from sim mem) or Write */
-    md_addr_t addr,    /* target address to access */
-    void *vp,      /* host memory address to access */
-    int nbytes);      /* number of bytes to access */
-
 
 /* maps each (core-id,virtual-address) pair to a simulated physical address */
 md_paddr_t v2p_translate(int core_id, md_addr_t virt_addr);
