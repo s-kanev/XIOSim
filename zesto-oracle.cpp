@@ -412,8 +412,8 @@ bool core_oracle_t::spec_read_byte(
 }
 
 /* Memory reads:
- * - first, go trhough spec memory.
- * - if not, try Pin-captured mem for the current Mop.
+ * - try Pin-captured mem for the current Mop.
+ * - if speculating, go trhough spec memory.
  * - if we are speculating (no valid Mop), try host memory.
  */
 uint8_t core_oracle_t::spec_do_read_byte(const md_addr_t addr, const struct Mop_t* Mop)
@@ -422,11 +422,7 @@ uint8_t core_oracle_t::spec_do_read_byte(const md_addr_t addr, const struct Mop_
 
   uint8_t res = 0;
 
-  /* Try speculative memory first */
-  bool found = spec_read_byte(addr, &res);
-  if (found)
-    goto done;
-
+  bool found;
   /* Try Pin-captured memory accesses */
   if (Mop) {
     if (!Mop->oracle.spec_mode) {
@@ -436,6 +432,11 @@ uint8_t core_oracle_t::spec_do_read_byte(const md_addr_t addr, const struct Mop_
     }
   }
 
+  /* Try speculative memory */
+  found = spec_read_byte(addr, &res);
+  if (found)
+    goto done;
+
   /* Finally, try and access host space.
      Check shadow page table to make sure memory is there. */
   if (mem_translate(core->current_thread->mem, addr, 0) == NULL) {
@@ -443,7 +444,16 @@ uint8_t core_oracle_t::spec_do_read_byte(const md_addr_t addr, const struct Mop_
     goto done;
   }
 
-  res = *(uint8_t*)addr;
+  //res = *(uint8_t*)addr;
+
+  /* Hmm, I'm getting tired of mantaining a coherent shadow virtual memory space
+   * for ^ to not bring the simulator down in every corner case (or be wrong in
+   * the multiprogram case).
+   * The right solution here is to fork a process, send it along the speculative
+   * path, and let it generate the proper contexts with Pin, or die in the process.
+   * Until I actually implement that, we'll take an accuracy hit down the speculative
+   * path, returning 0 on speculative memory references. Sigh. */
+  res = 0;
 
 done:
   ZPIN_TRACE(" returns 0x%x\n", res);
@@ -726,7 +736,7 @@ core_oracle_t::exec(const md_addr_t requested_PC)
   if( ((Mop->decode.op == XCHG_RMvRv) || (Mop->decode.op == XCHG_RMbRb)) && (R==RM))
     Mop->decode.op = NOP;
   if(Mop->decode.op == OP_NA)
-/* Skip invalid instruction */
+  /* Skip invalid instruction */
   {
     core->fetch->invalid = true;
     Mop->decode.op = NOP;

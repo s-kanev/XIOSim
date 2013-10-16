@@ -257,7 +257,6 @@ int Zesto_Notify_Mmap(int coreID, unsigned int addr, unsigned int length, bool m
   md_addr_t retval = mem_newmap2(mem, page_addr, page_addr, page_length, 1);
   lk_unlock(&memory_lock);
 
-//   fprintf(stderr, "New memory mapping at addr: %x, length: %x ,endaddr: %x \n",addr, length, addr+length);
   ZPIN_TRACE("New memory mapping at addr: %x, length: %x ,endaddr: %x \n",addr, length, addr+length);
 
   bool success = (retval == addr);
@@ -280,7 +279,6 @@ int Zesto_Notify_Munmap(int coreID, unsigned int addr, unsigned int length, bool
   mem_delmap(mem, ROUND_UP((md_addr_t)addr, MD_PAGE_SIZE), length);
   lk_unlock(&memory_lock);
 
-//  fprintf(stderr, "Memory un-mapping at addr: %x, len: %x\n",addr, length);
   ZPIN_TRACE("Memory un-mapping at addr: %x, len: %x\n",addr, length);
 
   return 1;
@@ -336,9 +334,7 @@ void Zesto_Destroy()
 void deactivate_core(int coreID)
 {
   assert(coreID >= 0 && coreID < num_cores);
-//  fprintf(stderr, "deactivate %d\n", coreID);
   ZPIN_TRACE("deactivate %d\n", coreID);
-//  fflush(stderr);
   lk_lock(&cycle_lock, coreID+1);
   cores[coreID]->current_thread->active = false;
   cores[coreID]->current_thread->last_active_cycle = cores[coreID]->sim_cycle;
@@ -356,9 +352,7 @@ void deactivate_core(int coreID)
 void activate_core(int coreID)
 {
   assert(coreID >= 0 && coreID < num_cores);
-//  fprintf(stderr, "activate %d\n", coreID);
   ZPIN_TRACE("activate %d\n", coreID);
-//  fflush(stderr);
   lk_lock(&cycle_lock, coreID+1);
   cores[coreID]->current_thread->finished_cycle = false; // Make sure master core will wait
   cores[coreID]->exec->update_last_completed(cores[coreID]->sim_cycle);
@@ -412,7 +406,7 @@ void Zesto_Slice_End(int coreID, unsigned int slice_num, unsigned long long feed
   end_slice(slice_num, feeder_slice_length, slice_weight_times_1000);
 }
 
-void Zesto_Resume(int coreID, handshake_container_t* handshake) //struct P2Z_HANDSHAKE * handshake, std::map<unsigned int, unsigned char> * mem_buffer, bool slice_start, bool slice_end)
+void Zesto_Resume(int coreID, handshake_container_t* handshake)
 {
    assert(coreID >= 0 && coreID < num_cores);
    struct core_t * core = cores[coreID];
