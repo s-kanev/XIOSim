@@ -27,6 +27,9 @@ class XIOSimDriver(object):
     def AddMolecoolOptions(self):
         self.cmd += "-ildjit "
 
+    def AddTraceFile(self, file):
+        self.cmd += "-trace %s " % file
+
     def AddZestoOptions(self, cfg, mem_cfg):
         self.cmd += "-s "
         self.cmd += "-config " + cfg + " "
