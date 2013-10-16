@@ -375,9 +375,9 @@ static void global_step(void)
         {
           sum += cores[i]->stat.commit_insn;
           if(i < (num_cores-1))
-            myfprintf(stderr,"%lld, ",cores[i]->stat.commit_insn);
+            fprintf(stderr,"%lld, ",cores[i]->stat.commit_insn);
           else
-            myfprintf(stderr,"%lld, all=%lld}\n",cores[i]->stat.commit_insn, sum);
+            fprintf(stderr,"%lld, all=%lld}\n",cores[i]->stat.commit_insn, sum);
         }
         fflush(stderr);
         lk_unlock(&printing_lock);
@@ -387,7 +387,7 @@ static void global_step(void)
       ZPIN_TRACE("###Uncore cycle%s\n"," ");
 
       if(uncore->sim_cycle == 0)
-        myfprintf(stderr, "### starting timing simulation \n");
+        fprintf(stderr, "### starting timing simulation \n");
 
       uncore->sim_cycle++;
       uncore->sim_time = uncore->sim_cycle / LLC_speed;
