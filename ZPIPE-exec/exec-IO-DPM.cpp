@@ -2079,7 +2079,7 @@ bool core_exec_IO_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
        request has entered into the cache hierarchy. */
 
     /* Send to DL1 */
-  if(send_to_dl1) {
+    if(send_to_dl1) {
       struct uop_t * dl1_uop = core->get_uop_array(1);
       dl1_uop->core = core;
       dl1_uop->alloc.STQ_index = uop->alloc.STQ_index;
