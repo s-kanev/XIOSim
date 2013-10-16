@@ -31,8 +31,8 @@ typedef struct P2Z_HANDSHAKE {
     unsigned long long slice_weight_times_1000;     /* Slice weight in average */
 } P2Z_HANDSHAKE;
 
-typedef void (*ZESTO_WRITE_BYTE_CALLBACK) (unsigned int, unsigned char);
+class handshake_container_t;
 
-extern bool do_dddg_analysis;
+typedef void (*ZESTO_WRITE_BYTE_CALLBACK) (unsigned int, unsigned char);
 
 #endif /*__PIN_ZESTO_H__*/

@@ -69,19 +69,6 @@
 #define SYMCAT3(XX,YY,ZZ)	XX ## YY ## ZZ
 #endif
 
-#if !defined(HOST_HAS_QWORD)
-#error SimpleScalar/x86 only builds on hosts with builtin qword support...
-#error Try building with GNU GCC, as it supports qwords on most machines.
-#endif
-
-unsigned long long timestamp[MAX_CORES] = 
- {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}; // for RDTSC
-
-/* preferred nop instruction definition */
-const md_inst_t MD_NOP_INST = { {0x90} };      	/* NOP instruction */
-/* set parameters of MD_NOP_INST */
-
-
 /* opcode mask -> enum md_opcodem, used by decoder */
 enum md_opcode md_mask2op[MD_MAX_MASK+1];
 unsigned int md_opoffset[OP_MAX];
@@ -218,15 +205,6 @@ const static word_t pfxtab[256] = {
   /* 0xf8 */  0,   0,   0,   0,   0,   0,   0,   0
 };
 
-/* fetch an instruction */
-void
-md_fetch_inst(md_inst_t *inst, struct mem_t *mem, const md_addr_t pc)
-{
-  int i;
-
-  for (i=0; i < MD_MAX_ILEN; i++)
-    inst->code[i] = MEM_READ_BYTE(mem, pc + i);
-}
 
   int
 md_cc_eval(const int cond, const dword_t aflags, bool * bogus)
@@ -259,7 +237,7 @@ md_cc_eval(const int cond, const dword_t aflags, bool * bogus)
                res = 0;
              }
              else
-               panic("bogus CC condition: %d", cond);
+               fatal("bogus CC condition: %d", cond);
   }
   return res;
 }
@@ -285,7 +263,7 @@ md_fcc_eval(int cond, dword_t aflags, bool * bogus)
                res = 0;
              }
              else
-               panic("bogus FCC condition: %d", cond);
+               fatal("bogus FCC condition: %d", cond);
   }
   return res;
 }
@@ -446,7 +424,7 @@ md_decode(const byte_t mode, struct md_inst_t *inst, const int set_nop)
           break;
 
         case 0x03:
-          panic("not an addressing mode");
+          fatal("not an addressing mode");
       }
 
       if (sib)
@@ -495,7 +473,7 @@ md_decode(const byte_t mode, struct md_inst_t *inst, const int set_nop)
           break;
 
         case 0x03:
-          panic("not an addressing mode");
+          fatal("not an addressing mode");
       }
 
       /* determine base and index registers */
@@ -532,7 +510,7 @@ done:
             disp = *(sdword_t *)(inst->code + dispidx);
             break;
           case 2: default:
-            panic("boom: invalid addressing mode");
+            fatal("boom: invalid addressing mode");
         }
       }
       else /* 16-bit addressing mode */
@@ -549,7 +527,7 @@ done:
             disp = (dword_t)(*(sword_t *)(inst->code + dispidx));
             break;
           case 4: default:
-            panic("boom: invalid addressing mode");
+            fatal("boom: invalid addressing mode");
         }
       }
     }
@@ -577,7 +555,7 @@ done:
         case 1: imm = (dword_t)(*(byte_t *)(inst->code + immidx)); break;
         case 2: imm = (dword_t)(*(word_t *)(inst->code + immidx)); break;
         case 4: imm = *(dword_t *)(inst->code + immidx); break;
-        default: panic("boom");
+        default: fatal("boom");
       }
     }
     else
@@ -589,7 +567,7 @@ done:
         case 1: imm = (sdword_t)(*(sbyte_t *)(inst->code + immidx)); break;
         case 2: imm = (sdword_t)(*(sword_t *)(inst->code + immidx)); break;
         case 4: imm = *(sdword_t *)(inst->code + immidx); break;
-        default: panic("boom");
+        default: fatal("boom");
       }
     }
   }
@@ -915,7 +893,7 @@ md_print_ifmt(const char *fmt,
         fputs(md_lc_names[LC], stream);
 
       else
-        panic("unrecognized format string");
+        fatal("unrecognized format string");
 
       s++;
     }
@@ -1098,7 +1076,7 @@ md_reg_obj(struct regs_t *regs,			/* registers to access */
       break;
 
     default:
-      panic("bogus register bank");
+      fatal("bogus register bank");
   }
 
   /* no error */
@@ -1109,8 +1087,8 @@ md_reg_obj(struct regs_t *regs,			/* registers to access */
   void
 md_print_ireg(md_gpr_t regs, int reg, FILE *stream)
 {
-  myfprintf(stream, "%4s: %16d/0x%08x",
-      md_reg_name(rt_gpr, reg), regs.w[reg], regs.w[reg]);
+  fprintf(stream, "%4s: %16d/0x%08x",
+      md_reg_name(rt_gpr, reg), regs.dw[reg], regs.dw[reg]);
 }
 
   void
@@ -1163,7 +1141,7 @@ md_print_creg(md_ctrl_t regs, int reg, FILE *stream)
   switch (reg)
   {
     case MD_REG_AFLAGS:
-      myfprintf(stream, "AFLAGS: 0x%08x", regs.aflags);
+      fprintf(stream, "AFLAGS: 0x%08x", regs.aflags);
       fprintf(stream, " {");
       if (regs.aflags & CF)
         fprintf(stream, "CF ");
@@ -1183,7 +1161,7 @@ md_print_creg(md_ctrl_t regs, int reg, FILE *stream)
       break;
 
     case MD_REG_FSW:
-      myfprintf(stream, "FSW: 0x%04x", (dword_t)regs.fsw);
+      fprintf(stream, "FSW: 0x%04x", (dword_t)regs.fsw);
       fprintf(stream, " {TOP:%d ", FSW_TOP(regs.fsw));
       if (regs.fsw & C0)
         fprintf(stream, "C0 ");
@@ -1197,7 +1175,7 @@ md_print_creg(md_ctrl_t regs, int reg, FILE *stream)
       break;
 
     default:
-      panic("bogus control register index");
+      fatal("bogus control register index");
   }
 }
 
@@ -1239,7 +1217,7 @@ md_set_decoder(const char *name,
   msk = msk_base;
   do {
     if ((msk + offset) >= MD_MAX_MASK)
-      panic("MASK_MAX is too small, inst=`%s', index=%d",
+      fatal("MASK_MAX is too small, inst=`%s', index=%d",
           name, msk + offset);
 #ifdef DEBUG
     if (debugging && md_mask2op[msk + offset])
@@ -1277,13 +1255,13 @@ md_init_decoder(void)
 
 #define CONNECT(OP)							\
   if ((max_offset+1) > next_offset)					\
-  panic("next offset too small");					\
+  fatal("next offset too small");					\
   offset = next_offset;						\
   MD_INIT_DECODER_CHECK(OP);           \
   md_opoffset[OP] = offset;						\
   next_offset = offset + md_opmask[OP] + 1;				\
   if ((md_opmask[OP] & (md_opmask[OP]+1)) != 0)			\
-  panic("offset mask is not a power of two 0 1");
+  fatal("offset mask is not a power of two 0 1");
 
 
 #include "machine.def"
@@ -1291,7 +1269,7 @@ md_init_decoder(void)
 #undef MD_INIT_DECODER_CHECK
 
   if (next_offset >= MD_MAX_MASK)
-    panic("MASK_MAX is too small, index==%d", max_offset);
+    fatal("MASK_MAX is too small, index==%d", max_offset);
 #ifdef DEBUG
   if (debugging)
     info("max offset = %d...", max_offset);
@@ -1307,7 +1285,7 @@ word_t
 md_uop_opc(const enum md_opcode uopcode)
 {
   if (((unsigned int)uopcode) >= (1 << 14))
-    panic("UOP opcode field overflow: %d", (unsigned int)uopcode);
+    fatal("UOP opcode field overflow: %d", (unsigned int)uopcode);
   return (word_t)uopcode;
 }
 
@@ -1424,11 +1402,11 @@ md_uop_reg(const enum md_xfield_t xval, const struct Mop_t * Mop, bool * bogus)
                res = 0;
              }
              else
-               panic("bogus xfield register specifier: %d", (int)xval);
+               fatal("bogus xfield register specifier: %d", (int)xval);
   }
 
   if (res > 15)
-    panic("register field overflow: %d", (int)xval);
+    fatal("register field overflow: %d", (int)xval);
   return res;
 }
 
@@ -1485,7 +1463,7 @@ md_uop_immb(const enum md_xfield_t xval, const struct Mop_t * Mop, bool * bogus)
                res = 0;
              }
              else
-               panic("bogus xfield immediate specifier: %d", (int)xval);
+               fatal("bogus xfield immediate specifier: %d", (int)xval);
   }
 
   return res;
@@ -1546,7 +1524,7 @@ md_uop_immv(const enum md_xfield_t xval, const struct Mop_t * Mop, bool * bogus)
                res = 0;
              }
              else
-               panic("bogus xfield immediate (variable) specifier: %d", (int)xval);
+               fatal("bogus xfield immediate (variable) specifier: %d", (int)xval);
   }
   return res;
 }
@@ -1606,7 +1584,7 @@ md_uop_lit(const enum md_xfield_t xval, const struct Mop_t * Mop, bool * bogus)
                res = 0;
              }
              else
-               panic("bogus literal specifier: %d", (int)xval);
+               fatal("bogus literal specifier: %d", (int)xval);
   }
   return res;
 }
@@ -1743,7 +1721,7 @@ md_get_flow(struct Mop_t * Mop, uop_inst_t flow[MD_MAX_FLOWLEN], bool * bogus)
     break;
 #define DEFLINK(OP,MSK,NAME,MASK,SHIFT)					\
     case OP:							\
-                          panic("attempted to decode a linking opcode");
+                          fatal("attempted to decode a linking opcode");
 #define CONNECT(OP)
 #include "machine.def"
     default: if(bogus)
@@ -1752,7 +1730,7 @@ md_get_flow(struct Mop_t * Mop, uop_inst_t flow[MD_MAX_FLOWLEN], bool * bogus)
                i = 0;
              }
              else
-               panic("bogus opcode");
+               fatal("bogus opcode");
   }
   return i;
 }
@@ -1859,7 +1837,7 @@ md_print_ufmt(const char *fmt,
         fputs(md_lc_names[URS], stream);
 
       else
-        panic("unrecognized format string");
+        fatal("unrecognized format string");
 
       s++;
     }

@@ -241,7 +241,7 @@ core_exec_STM_t::core_exec_STM_t(struct core_t * arg_core):
 
       for(int c=0;c<4;c++)
       {
-        switch(mytoupper(knobs->memory.DL2_MSHR_cmd[c]))
+        switch(toupper(knobs->memory.DL2_MSHR_cmd[c]))
         {
           case 'R': core->memory.DL2->MSHR_cmd_order[c] = CACHE_READ; R_seen = true; break;
           case 'W': core->memory.DL2->MSHR_cmd_order[c] = CACHE_WRITE; W_seen = true; break;
@@ -307,7 +307,7 @@ core_exec_STM_t::core_exec_STM_t(struct core_t * arg_core):
 
     for(int c=0;c<4;c++)
     {
-      switch(mytoupper(knobs->memory.DL1_MSHR_cmd[c]))
+      switch(toupper(knobs->memory.DL1_MSHR_cmd[c]))
       {
         case 'R': core->memory.DL1->MSHR_cmd_order[c] = CACHE_READ; R_seen = true; break;
         case 'W': core->memory.DL1->MSHR_cmd_order[c] = CACHE_WRITE; W_seen = true; break;

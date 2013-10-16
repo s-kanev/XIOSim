@@ -73,6 +73,8 @@
  */
 
 #include <limits.h>
+#include <ctype.h>
+
 #include "thread.h"
 #include "stats.h"
 #include "options.h"
@@ -173,7 +175,7 @@ uncore_t::uncore_t(
 
     for(int c=0;c<4;c++)
     {
-      switch(mytoupper(LLC_MSHR_cmd[c]))
+      switch(toupper(LLC_MSHR_cmd[c]))
       {
         case 'R': LLC->MSHR_cmd_order[c] = CACHE_READ; R_seen = true; break;
         case 'W': LLC->MSHR_cmd_order[c] = CACHE_WRITE; W_seen = true; break;

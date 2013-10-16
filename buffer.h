@@ -4,7 +4,7 @@
 #include <map>
 #include <queue>
 #include <assert.h>
-#include "feeder.h"
+#include "handshake_container.h"
 
 class Buffer
 {
@@ -24,6 +24,7 @@ class Buffer
   handshake_container_t* front();
   handshake_container_t* back();
 
+  handshake_container_t* get_item(int index);
   handshake_container_t* operator[](int index);
 
   bool empty();

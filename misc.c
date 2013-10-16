@@ -125,9 +125,7 @@
 #include <errno.h>
 #include <math.h>
 
-#if defined(linux)
 #include <unistd.h>
-#endif
 
 #include "host.h"
 #include "misc.h"
@@ -160,22 +158,15 @@ fatal_hook(void (*fn)(FILE *stream))	/* fatal hook function */
 }
 
 /* declare a fatal run-time error, calls fatal hook function */
-#ifdef __GNUC__
 void
 _fatal(const char *file, const char *func, const int line, const char *fmt, ...)
-#else /* !__GNUC__ */
-void
-fatal(const char *fmt, ...)
-#endif /* __GNUC__ */
 {
   va_list v;
   va_start(v, fmt);
 
   fprintf(stderr, "fatal: ");
-  myvfprintf(stderr, fmt, v);
-#ifdef __GNUC__
+  vfprintf(stderr, fmt, v);
   fprintf(stderr, " [%s:%s, line %d]", func, file, line);
-#endif /* __GNUC__ */
   fprintf(stderr, "\n");
   if (hook_fn)
     (*hook_fn)(stderr);
@@ -183,80 +174,37 @@ fatal(const char *fmt, ...)
   exit(1);
 }
 
-/* declare a panic situation, dumps core */
-#ifdef __GNUC__
-void
-_panic(const char *file, const char *func, const int line, const char *fmt, ...)
-#else /* !__GNUC__ */
-void
-panic(const char *fmt, ...)
-#endif /* __GNUC__ */
-{
-  va_list v;
-  va_start(v, fmt);
-
-  fprintf(stderr, "panic: ");
-  myvfprintf(stderr, fmt, v);
-#ifdef __GNUC__
-  fprintf(stderr, " [%s:%s, line %d]", func, file, line);
-#endif /* __GNUC__ */
-  fprintf(stderr, "\n");
-  if (hook_fn)
-    (*hook_fn)(stderr);
-  fflush(stderr);
-  abort();
-}
-
 /* declare a warning */
-#ifdef __GNUC__
 void
 _warn(const char *file, const char *func, const int line, const char *fmt, ...)
-#else /* !__GNUC__ */
-void
-warn(const char *fmt, ...)
-#endif /* __GNUC__ */
 {
   va_list v;
   va_start(v, fmt);
 
   fprintf(stderr, "warning: ");
-  myvfprintf(stderr, fmt, v);
-#ifdef __GNUC__
+  vfprintf(stderr, fmt, v);
   fprintf(stderr, " [%s:%s, line %d]", func, file, line);
-#endif /* __GNUC__ */
   fprintf(stderr, "\n");
   fflush(stderr);
 }
 
 /* print general information */
-#ifdef __GNUC__
 void
 _info(const char *file, const char *func, const int line, const char *fmt, ...)
-#else /* !__GNUC__ */
-void
-info(const char *fmt, ...)
-#endif /* __GNUC__ */
 {
   va_list v;
   va_start(v, fmt);
 
-  myvfprintf(stderr, fmt, v);
-#ifdef __GNUC__
+  vfprintf(stderr, fmt, v);
   fprintf(stderr, " [%s:%s, line %d]", func, file, line);
-#endif /* __GNUC__ */
   fprintf(stderr, "\n");
   fflush(stderr);
 }
 
 #ifdef DEBUG
 /* print a debugging message */
-#ifdef __GNUC__
 void
 _debug(const char *file, const char *func, const int line, const char *fmt, ...)
-#else /* !__GNUC__ */
-void
-debug(const char *fmt, ...)
-#endif /* __GNUC__ */
 {
     va_list v;
     va_start(v, fmt);
@@ -264,10 +212,8 @@ debug(const char *fmt, ...)
     if (debugging)
       {
         fprintf(stderr, "debug: ");
-        myvfprintf(stderr, fmt, v);
-#ifdef __GNUC__
+        vfprintf(stderr, fmt, v);
         fprintf(stderr, " [%s:%s, line %d]", func, file, line);
-#endif
         fprintf(stderr, "\n");
       }
     fflush(stderr);
@@ -286,7 +232,7 @@ void trace(const char *fmt, ...)
 void vtrace(const char *fmt, va_list v)
 {
   lk_lock(&printing_lock, 1);
-  myvsprintf(tracebuff[tracebuff_tail], fmt, v);
+  vsprintf(tracebuff[tracebuff_tail], fmt, v);
 
   tracebuff_tail = modinc(tracebuff_tail, MAX_TRACEBUFF_ITEMS);
   if(tracebuff_occupancy == MAX_TRACEBUFF_ITEMS)
@@ -301,8 +247,8 @@ void flush_trace()
   if(tracebuff_occupancy == 0)
     return;
 
-  myfprintf(stderr, "==============================\n");
-  myfprintf(stderr, "BEGIN TRACE (%d items)\n", tracebuff_occupancy);
+  fprintf(stderr, "==============================\n");
+  fprintf(stderr, "BEGIN TRACE (%d items)\n", tracebuff_occupancy);
 
   int i = tracebuff_head;
   do
@@ -310,8 +256,8 @@ void flush_trace()
     fprintf(stderr, "%s", tracebuff[i]);
     i = modinc(i, MAX_TRACEBUFF_ITEMS);
   } while(i != tracebuff_tail);
-  myfprintf(stderr, "END TRACE\n");
-  myfprintf(stderr, "==============================\n");
+  fprintf(stderr, "END TRACE\n");
+  fprintf(stderr, "==============================\n");
   fflush(stderr);
   tracebuff_occupancy = 0;
   tracebuff_head = tracebuff_tail;
@@ -320,124 +266,6 @@ void flush_trace()
 // Assert macros rely that this is defined.
 void flush_trace() {}
 #endif
-
-/* ctype.h replacements - response to request from Prof. Todd Austin for
-   an implementation that does not use the built-in ctype.h due to
-   thread-safety/reentrancy issues. */
-char mytoupper(char c)
-{
-  int delta = 'a'-'A';
-  if((c >= 'a') && (c <= 'z'))
-    return c-delta;
-  else
-    return c;
-}
-
-char mytolower(char c)
-{
-  int delta = 'a'-'A';
-  if((c >= 'A') && (c <= 'A'))
-    return c+delta;
-  else
-    return c;
-}
-
-bool myisalpha(char c)
-{
-  return (((c >= 'A') && (c <= 'Z')) ||
-          ((c >= 'a') && (c <= 'z')));
-}
-
-bool myisdigit(char c)
-{
-  return ((c >= '0') && (c <= '9'));
-}
-
-bool myisspace(char c)
-{
-  return ((c == ' ') ||
-      ((c >= 9) && (c <= 13))
-      );
-}
-
-bool myisprint(char c)
-{
-  return (myisspace(c) || ((c >= 32) && (c <= 126)));
-}
-
-
-
-/* seed the random number generator */
-void
-mysrand(const unsigned int seed)	/* random number generator seed */
-{
-#if defined(__CYGWIN32__) || defined(hpux) || defined(__hpux) || defined(__svr4__) || defined(_MSC_VER)
-      srand(seed);
-#else
-      srandom(seed);
-#endif
-}
-
-/* get a random number */
-int
-myrand(void)			/* returns random number */
-{
-#if !defined(__alpha) && !defined(linux) && !defined(__CYGWIN32__)
-  extern long random(void);
-#endif
-
-#if defined(__CYGWIN32__) || defined(hpux) || defined(__hpux) || defined(__svr4__) || defined(_MSC_VER)
-  return rand();
-#else
-  return random();
-#endif
-}
-
-/* copy a string to a new storage allocation (NOTE: many machines are missing
-   this trivial function, so I funcdup() it here...) */
-char *				/* duplicated string */
-mystrdup(const char *s)		/* string to duplicate to heap storage */
-{
-  char *buf;
-
-  if (!(buf = (char *)calloc(strlen(s)+1,1)))
-    return NULL;
-  strcpy(buf, s);
-  return buf;
-}
-
-/* find the last occurrence of a character in a string */
-const char *
-mystrrchr(const char *s, const char c)
-{
-  const char *rtnval = 0;
-
-  do {
-    if (*s == c)
-      rtnval = s;
-  } while (*s++);
-
-  return rtnval;
-}
-
-/* case insensitive string compare (NOTE: many machines are missing this
-   trivial function, so I funcdup() it here...) */
-int				/* compare result, see strcmp() */
-mystricmp(const char *s1, const char *s2)	/* strings to compare, case insensitive */
-{
-  unsigned char u1, u2;
-
-  for (;;)
-    {
-      u1 = (unsigned char)*s1++; u1 = mytolower(u1);
-      u2 = (unsigned char)*s2++; u2 = mytolower(u2);
-
-      if (u1 != u2)
-	return u1 - u2;
-      if (u1 == '\0')
-	return 0;
-    }
-}
 
 /* return log of a number to the base 2 */
 int
@@ -520,15 +348,9 @@ elapsed_time(long sec)
       *obuf++ = cc;							\
   }
 
-#ifdef HOST_HAS_QWORD
 #define HIBITL		LL(0x8000000000000000)
 typedef sqword_t slargeint_t;
 typedef qword_t largeint_t;
-#else /* !HOST_HAS_QWORD */
-#define HIBITL		0x80000000L
-typedef sdword_t slargeint_t;
-typedef dword_t largeint_t;
-#endif /* HOST_HAS_QWORD */
 
 static int
 _lowdigit(slargeint_t *valptr)
@@ -544,780 +366,6 @@ _lowdigit(slargeint_t *valptr)
   *valptr = value / 5;
   return (int)(value % 5 * 2 + lowbit + '0');
 }
-
-/* portable vsprintf with qword support, returns end pointer */
-char *
-myvsprintf(char *obuf, const char *format, va_list v)
-{
-  static char _blanks[] = "                    ";
-  static char _zeroes[] = "00000000000000000000";
-
-  /* counts output characters */
-  int count = 0;
-
-  /* format code */
-  int fcode;
-
-  /* field width and precision */
-  int width, prec = 0;
-
-  /* number of padding zeroes required on the left and right */
-  int lzero = 0;
-
-  /* length of prefix */
-  int prefixlength;
-
-  /* combined length of leading zeroes, trailing zeroes, and suffix */
-  int otherlength;
-
-  /* format flags */
-#define PADZERO		0x0001	/* padding zeroes requested via '0' */
-#define RZERO		0x0002	/* there will be trailing zeros in output */
-#define LZERO		0x0004	/* there will be leading zeroes in output */
-#define DOTSEEN		0x0008	/* dot appeared in format specification */
-#define LENGTH		0x0010	/* l */
-  int flagword;
-
-  /* maximum number of digits in printable number */
-#define MAXDIGS		22
-
-  /* starting and ending points for value to be printed */
-  char *bp, *p;
-
-  /* work variables */
-  int k, lradix, mradix;
-
-  /* pointer to sign, "0x", "0X", or empty */
-  const char *prefix = NULL;
-
-  /* values are developed in this buffer */
-  static char buf[MAXDIGS*4], buf1[MAXDIGS*4];
-
-  /* pointer to a translate table for digits of whatever radix */
-  const char *tab;
-
-  /* value being converted, if integer */
-  slargeint_t val;
-
-  /* value being converted, if floating point */
-  dfloat_t fval;
-
-  for (;;)
-    {
-      int n;
-
-      while ((fcode = *format) != '\0' && fcode != '%')
-	{
-	  *obuf++ = fcode;
-	  format++;
-	  count++;
-	}
-
-      if (fcode == '\0')
-	{
-	  /* end of format; terminate and return */
-	  *obuf = '\0';
-	  return obuf;
-	}
-
-
-      /* % has been found, the following switch is used to parse the format
-	 specification and to perform the operation specified by the format
-	 letter; the program repeatedly goes back to this switch until the
-	 format letter is encountered */
-
-      width = prefixlength = otherlength = flagword = 0;
-      format++;
-
-    charswitch:
-      switch (fcode = *format++)
-	{
-	case '0': /* means pad with leading zeros */
-	  flagword |= PADZERO;
-	case '1':
-	case '2':
-	case '3':
-	case '4':
-	case '5':
-	case '6':
-	case '7':
-	case '8':
-	case '9':
-	  {
-	    int num = fcode - '0';
-	    while (myisdigit(fcode = *format))
-	      {
-		num = num * 10 + fcode - '0';
-		format++;
-	      }
-	    if (flagword & DOTSEEN)
-	      prec = num;
-	    else
-	      width = num;
-	    goto charswitch;
-	  }
-
-	case '.':
-	  flagword |= DOTSEEN;
-	  goto charswitch;
-
-	case 'l':
-	  flagword |= LENGTH;
-	  goto charswitch;
-
-	case 'n': /* host counter */
-#ifdef HOST_HAS_QWORD
-	  flagword |= LENGTH;
-	  /* fallthru */
-#else /* !HOST_HAS_QWORD */
-	  flagword |= DOTSEEN;
-	  if (!width)
-	    width = 12;
-	  prec = 0;
-	  goto process_float;
-#endif /* HOST_HAS_QWORD */
-	  
-	case 'd':
-	  /* fetch the argument to be printed */
-	  if (flagword & LENGTH)
-	    val = va_arg(v, slargeint_t);
-	  else
-	    val = (slargeint_t)va_arg(v, sdword_t);
-
-	  /* set buffer pointer to last digit */
-	  p = bp = buf + MAXDIGS;
-
-	  /* If signed conversion, make sign */
-	  if (val < 0)
-	    {
-	      prefix = "-";
-	      prefixlength = 1;
-	      /* negate, checking in advance for possible overflow */
-	      if (val != (slargeint_t)HIBITL)
-		val = -val;
-	      else
-		{
-		  /* number is -HIBITL; convert last digit and get pos num */
-		  *--bp = _lowdigit(&val);
-		}
-	    }
-
-	decimal:
-	  {
-	    slargeint_t qval = val;
-
-	    if (qval <= 9)
-	      *--bp = (int)qval + '0';
-	    else
-	      {
-		do {
-		  n = (int)qval;
-		  qval /= 10;
-		  *--bp = n - (int)qval * 10 + '0';
-		}
-		while (qval > 9);
-		*--bp = (int)qval + '0';
-	      }
-	  }
-	  break;
-
-	case 'u':
-	  /* fetch the argument to be printed */
-	  if (flagword & LENGTH)
-	    val = va_arg(v, largeint_t);
-	  else
-	    val = (largeint_t)va_arg(v, dword_t);
-
-	  /* set buffer pointer to last digit */
-	  p = bp = buf + MAXDIGS;
-
-	  if (val & HIBITL)
-	    *--bp = _lowdigit(&val);
-	  goto decimal;
-
-	case 'o':
-	  mradix = 7;
-	  lradix = 2;
-	  goto fixed;
-
-	case 'p': /* target address */
-	  if (sizeof(md_addr_t) > 4)
-	    flagword |= LENGTH;
-	  /* fallthru */
-
-	case 'X':
-	case 'x':
-	  mradix = 15;
-	  lradix = 3;
-
-	fixed:
-	  /* fetch the argument to be printed */
-	  if (flagword & LENGTH)
-	    val = va_arg(v, largeint_t);
-	  else
-	    val = (largeint_t)va_arg(v, dword_t);
-
-	  /* set translate table for digits */
-	  tab = (fcode == 'X') ? "0123456789ABCDEF" : "0123456789abcdef";
-
-	  /* develop the digits of the value */
-	  p = bp = buf + MAXDIGS;
-
-	  {
-	    slargeint_t qval = val;
-
-	    if (qval == 0)
-	      {
-		otherlength = lzero = 1;
-		flagword |= LZERO;
-	      }
-	    else
-	      do {
-		*--bp = tab[qval & mradix];
-		qval = ((qval >> 1) & ~HIBITL) >> lradix;
-	      } while (qval != 0);
-	  }
-	  break;
-
-#ifndef HOST_HAS_QWORD
-	process_float:
-#endif /* !HOST_HAS_QWORD */
-
-	case 'f':
-	  if (flagword & DOTSEEN)
-	    sprintf(buf1, "%%%d.%df", width, prec);
-	  else if (width)
-	    sprintf(buf1, "%%%df", width);
-	  else
-	    sprintf(buf1, "%%f");
-
-	  /* fetch the argument to be printed */
-	  fval = va_arg(v, dfloat_t);
-
-  	  /* print floating point value */
-	  sprintf(buf, buf1, fval);
-
-	  bp = buf;
-	  p = bp + strlen(bp);
-	  break;
-
-    static char null_str[] = "(null)";
-
-	case 's':
-	  bp = va_arg(v, char *);
-	  if (bp == NULL)
-	    bp = null_str;
-	  p = bp + strlen(bp);
-	  break;
-
-	case '%':
-	  buf[0] = fcode;
-	  goto c_merge;
-
-	case 'c':
-	  buf[0] = va_arg(v, int);
-	c_merge:
-	  p = (bp = &buf[0]) + 1;
-	  break;
-
-	default:
-	  /* this is technically an error; what we do is to back up the format
-             pointer to the offending char and continue with the format scan */
-	  format--;
-	  continue;
-	}
-
-      /* calculate number of padding blanks */
-      k = (n = p - bp) + prefixlength + otherlength;
-      if (width <= k)
-	count += k;
-      else
-	{
-	  count += width;
-
-	  /* set up for padding zeroes if requested; otherwise emit padding
-             blanks unless output is to be left-justified */
-	  if (flagword & PADZERO)
-	    {
-	      if (!(flagword & LZERO))
-		{
-		  flagword |= LZERO;
-		  lzero = width - k;
-		}
-	      else
-		lzero += width - k;
-
-	      /* cancel padding blanks */
-	      k = width;
-	    }
-	  else
-	    {
-	      /* blanks on left if required */
-	      PAD(_blanks, width - k);
-	    }
-	}
-
-      /* prefix, if any */
-      if (prefixlength != 0)
-	{
-	  PUT(prefix, prefixlength);
-	}
-
-      /* zeroes on the left */
-      if (flagword & LZERO)
-	{
-	  PAD(_zeroes, lzero);
-	}
-
-      /* the value itself */
-      if (n > 0)
-	{
-	  PUT(bp, n);
-	}
-    }
-}
-
-/* portable sprintf with qword support, returns end pointer */
-char *
-mysprintf(char *obuf, const char *format, ...)
-{
-  /* vararg parameters */
-  va_list v;
-  va_start(v, format);
-
-  return myvsprintf(obuf, format, v);
-}
-
-/* portable vfprintf with qword support, returns end pointer */
-void
-myvfprintf(FILE *stream, const char *format, va_list v)
-{
-  /* temp buffer */
-  char buf[2048];
-
-  myvsprintf(buf, format, v);
-  fputs(buf, stream);
-}
-
-/* portable fprintf with qword support, returns end pointer */
-void
-myfprintf(FILE *stream, const char *format, ...)
-{
-  /* temp buffer */
-  char buf[2048];
-
-  /* vararg parameters */
-  va_list v;
-  va_start(v, format);
-
-  myvsprintf(buf, format, v);
-  fputs(buf, stream);
-}
-
-#ifdef HOST_HAS_QWORD
-
-#define LL_MAX		LL(9223372036854775807)
-#define LL_MIN		(-LL_MAX - 1)
-#define ULL_MAX		(ULL(9223372036854775807) * ULL(2) + 1)
-
-/* convert a string to a signed result */
-sqword_t
-myatosq(char *nptr, char **endp, int base)
-{
-  char *s, *save;
-  int negative, overflow;
-  sqword_t cutoff, cutlim, i;
-  unsigned char c;
-  extern int errno;
-
-  if (!nptr || !*nptr)
-    panic("strtoll() passed a NULL string");
-
-  s = nptr;
-
-  /* skip white space */
-  while (myisspace((int)(*s)))
-    ++s;
-  if (*s == '\0')
-    goto noconv;
-
-  if (base == 0)
-    {
-      if (s[0] == '0' && mytoupper(s[1]) == 'X')
-	base = 16;
-      else
-	base = 10;
-    }
-
-  if (base <= 1 || base > 36)
-    panic("bogus base: %d", base);
-
-  /* check for a sign */
-  if (*s == '-')
-    {
-      negative = 1;
-      ++s;
-    }
-  else if (*s == '+')
-    {
-      negative = 0;
-      ++s;
-    }
-  else
-    negative = 0;
-
-  if (base == 16 && s[0] == '0' && mytoupper(s[1]) == 'X')
-    s += 2;
-
-  /* save the pointer so we can check later if anything happened */
-  save = s;
-
-  cutoff = LL_MAX / (unsigned long int) base;
-  cutlim = LL_MAX % (unsigned long int) base;
-
-  overflow = 0;
-  i = 0;
-  for (c = *s; c != '\0'; c = *++s)
-    {
-      if (myisdigit (c))
-        c -= '0';
-      else if (myisalpha (c))
-        c = mytoupper(c) - 'A' + 10;
-      else
-        break;
-      if (c >= base)
-        break;
-
-      /* check for overflow */
-      if (i > cutoff || (i == cutoff && c > cutlim))
-        overflow = 1;
-      else
-        {
-          i *= (unsigned long int) base;
-          i += c;
-        }
-    }
-
-  /* check if anything actually happened */
-  if (s == save)
-    goto noconv;
-
-  /* store in ENDP the address of one character past the last character
-     we converted */
-  if (endp != NULL)
-    *endp = (char *) s;
-
-  if (overflow)
-    {
-      errno = ERANGE;
-      return negative ? LL_MIN : LL_MAX;
-    }
-  else
-    {
-      errno = 0;
-
-      /* return the result of the appropriate sign */
-      return (negative ? -i : i);
-    }
-
-noconv:
-  /* there was no number to convert */
-  if (endp != NULL)
-    *endp = (char *) nptr;
-  return 0;
-}
-
-/* convert a string to a unsigned result */
-qword_t
-myatoq(char *nptr, char **endp, int base)
-{
-  char *s, *save;
-  int overflow;
-  qword_t cutoff, cutlim, i;
-  unsigned char c;
-  extern int errno;
-
-  if (!nptr || !*nptr)
-    panic("strtoll() passed a NULL string");
-
-  s = nptr;
-
-  /* skip white space */
-  while (myisspace((int)(*s)))
-    ++s;
-  if (*s == '\0')
-    goto noconv;
-
-  if (base == 0)
-    {
-      if (s[0] == '0' && mytoupper(s[1]) == 'X')
-	base = 16;
-      else
-	base = 10;
-    }
-
-  if (base <= 1 || base > 36)
-    panic("bogus base: %d", base);
-
-  if (base == 16 && s[0] == '0' && mytoupper(s[1]) == 'X')
-    s += 2;
-
-  /* save the pointer so we can check later if anything happened */
-  save = s;
-
-  cutoff = ULL_MAX / (unsigned long int) base;
-  cutlim = ULL_MAX % (unsigned long int) base;
-
-  overflow = 0;
-  i = 0;
-  for (c = *s; c != '\0'; c = *++s)
-    {
-      if (myisdigit (c))
-        c -= '0';
-      else if (myisalpha (c))
-        c = mytoupper(c) - 'A' + 10;
-      else
-        break;
-      if (c >= base)
-        break;
-
-      /* check for overflow */
-      if (i > cutoff || (i == cutoff && c > cutlim))
-        overflow = 1;
-      else
-        {
-          i *= (unsigned long int) base;
-          i += c;
-        }
-    }
-
-  /* check if anything actually happened */
-  if (s == save)
-    goto noconv;
-
-  /* store in ENDP the address of one character past the last character
-     we converted */
-  if (endp != NULL)
-    *endp = (char *) s;
-
-  if (overflow)
-    {
-      errno = ERANGE;
-      return ULL_MAX;
-    }
-  else
-    {
-      errno = 0;
-
-      /* return the result of the appropriate sign */
-      return i;
-    }
-
-noconv:
-  /* there was no number to convert */
-  if (endp != NULL)
-    *endp = (char *) nptr;
-  return 0;
-}
-
-#endif /* HOST_HAS_QWORD */
-
-#ifdef GZIP_PATH
-
-static struct {
-  const char *type;
-  const char *ext;
-  const char *cmd;
-} gzcmds[] = {
-  /* type */	/* extension */		/* command */
-  { "r",	".gz",			"%s -dc %s" },
-  { "rb",	".gz",			"%s -dc %s" },
-  { "r",	".Z",			"%s -dc %s" },
-  { "rb",	".Z",			"%s -dc %s" },
-  { "w",	".gz",			"%s > %s" },
-  { "wb",	".gz",			"%s > %s" }
-};
-
-/* same semantics as fopen() except that filenames ending with a ".gz" or ".Z"
-   will be automagically get compressed */
-FILE *
-gzopen(const char *fname, const char *type)
-{
-  int i;
-  const char *cmd = NULL;
-  const char *ext;
-  FILE *fd;
-  char str[2048];
-
-  /* get the extension */
-  ext = mystrrchr(fname, '.');
-
-  /* check if extension indicates compressed file */
-  if (ext != NULL && *ext != '\0')
-    {
-      for (i=0; i < (int)N_ELT(gzcmds); i++)
-	{
-	  if (!strcmp(gzcmds[i].type, type) && !strcmp(gzcmds[i].ext, ext))
-	    {
-	      cmd = gzcmds[i].cmd;
-	      break;
-	    }
-	}
-    }
-
-  if (!cmd)
-    {
-      /* open file */
-      fd = fopen(fname, type);
-    }
-  else
-    {
-      /* open pipe to compressor/decompressor */
-      sprintf(str, cmd, GZIP_PATH, fname);
-      fd = popen(str, type);
-    }
-
-  return fd;
-}
-
-/* close compressed stream */
-void
-gzclose(FILE *fd)
-{
-  /* attempt pipe close, otherwise file close */
-  if (pclose(fd) == -1)
-    fclose(fd);
-}
-
-#else /* !GZIP_PATH */
-
-FILE *
-gzopen(const char *fname, const char *type)
-{
-  return fopen(fname, type);
-}
-
-void
-gzclose(FILE *fd)
-{
-  fclose(fd);
-}
-
-#endif /* GZIP_PATH */
-
-/* compute 32-bit CRC one byte at a time using the high-bit first (big-endian)
-   bit ordering convention */
-#define POLYNOMIAL 0x04c11db7L
-
-static int crc_init = FALSE;
-static unsigned long crc_table[256];
-
-/* generate the table of CRC remainders for all possible bytes */
-static void
-crc_gentab(void)
-{
-  int i, j;
-  dword_t crc_accum;
-
-  for (i=0; i < 256; i++)
-    {
-      crc_accum = ((unsigned long)i << 24);
-      for (j=0; j < 8; j++)
-	{
-	  if (crc_accum & 0x80000000L)
-	    crc_accum = (crc_accum << 1) ^ POLYNOMIAL;
-	  else
-	    crc_accum = (crc_accum << 1);
-	}
-      crc_table[i] = crc_accum;
-    }
-  return;
-}
-
-/* update the CRC on the data block one byte at a time */
-dword_t
-crc(dword_t crc_accum, dword_t data)
-{
-  int i, j;
-
-  if (!crc_init)
-    {
-      crc_gentab();
-      crc_init = TRUE;
-    }
-
-  for (j=0; j < (int)sizeof(dword_t); j++)
-    {
-      i = ((int)(crc_accum >> 24) ^ (data >> (j*8))) & 0xff;
-      crc_accum = (crc_accum << 8) ^ crc_table[i];
-    }
-  return crc_accum;
-}
-
-/* swap a record, using machine/target dependent swap macros, REC points to
-   the binary record to swap, the RECTYPE string specifies the type and swap
-   operation applied to REC, as follows:
-
-   'b' - byte no swap
-   'w' - word no swap
-   'd' - doubleword no swap
-   'q' - quadword no swap
-   'W' - half swap
-   'D' - doubleword swap
-   'Q' - quadword swap
-*/
-void
-swaprec(void *rec, char *rectype)
-{
-  char *s, *p = (char*) rec;
-
-  for (s=rectype; *s != '\0'; s++)
-    {
-      switch (*s)
-	{
-	case 'b':
-	  /* byte - no swap */
-	  p += sizeof(byte_t);
-	  break;
-	case 'w':
-	  /* half - no swap */
-	  p += sizeof(word_t);
-	  break;
-	case 'd':
-	  /* word - no swap */
-	  p += sizeof(dword_t);
-	  break;
-#ifdef HOST_HAS_QWORD
-	case 'q':
-	  /* quadword - no swap */
-	  p += sizeof(qword_t);
-	  break;
-#endif /* HOST_HAS_QWORD */
-
-	case 'W':
-	  /* word - swap */
-	  *((word_t *)p) = MD_SWAPW(*((word_t *)p));
-	  p += sizeof(word_t);
-	  break;
-	case 'D':
-	  /* doubleword - swap */
-	  *((dword_t *)p) = MD_SWAPD(*((dword_t *)p));
-	  p += sizeof(dword_t);
-	  break;
-#ifdef HOST_HAS_QWORD
-	case 'Q':
-	  /* quadword - swap */
-	  *((qword_t *)p) = MD_SWAPQ(*((qword_t *)p));
-	  p += sizeof(qword_t);
-	  break;
-#endif /* HOST_HAS_QWORD */
-
-	default:
-	  panic("bogus record field type: `%c'", *s);
-	}
-    }
-}
-
 
 /*****************************************************
    produces a random INTEGER in [imin, imax]

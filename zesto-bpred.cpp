@@ -89,6 +89,8 @@
  */
 
 #include <math.h>
+#include <ctype.h>
+
 #include "sim.h"
 #include "stats.h"
 #include "valcheck.h"

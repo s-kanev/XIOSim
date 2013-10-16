@@ -112,11 +112,6 @@ struct odep_t {
 /* Note, the memory table is per-byte indexed */
 struct spec_byte_t {
   byte_t val;
-#ifdef ZESTO_PIN
-  byte_t prev_val;
-  bool prev_val_valid;
-  uop_t * uop; /* backpointer for uop that is doing the speculative write */
-#endif
   md_addr_t addr;
   struct spec_byte_t * next;
   struct spec_byte_t * prev;
@@ -257,11 +252,7 @@ struct Mop_t
     bool last_byte_requested;
 
     seq_t jeclear_action_id;
-#ifdef __cplusplus
     class bpred_state_cache_t * bpred_update; /* bpred update info */
-#else
-    void * bpred_update;
-#endif
   } fetch;
 
   struct {
@@ -342,8 +333,6 @@ struct core_knobs_t
     const char *dirjmpbtb_opt_str;
     const char *indirjmpbtb_opt_str;
     const char *ras_opt_str;
-
-    bool warm_bpred;
   } fetch;
 
   struct {
@@ -426,8 +415,6 @@ struct core_knobs_t
     const char * DTLB_controller_opt_str;
     const char * DTLB2_controller_opt_str;
 
-    bool warm_caches;
-    int syscall_memory_latency;
     bool DL1_rep_req;
   } memory;
 

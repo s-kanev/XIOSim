@@ -6,9 +6,9 @@
 #include <queue>
 #include <map>
 
-#include "Buffer.h"
-#include "BufferManager.h"
 #include "feeder.h"
+#include "../buffer.h"
+#include "BufferManager.h"
 #include "scheduler.h"
 
 #include "../zesto-core.h"

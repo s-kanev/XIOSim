@@ -72,6 +72,7 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
+#include "misc.h"
 #include "sim.h"
 #include "thread.h"
 #include "synchronization.h"

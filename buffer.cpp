@@ -1,4 +1,4 @@
-#include "Buffer.h"
+#include "buffer.h"
 
 Buffer::Buffer()
 {
@@ -68,10 +68,15 @@ handshake_container_t* Buffer::back()
 
 // [0] corresponds to front(), [size_ - 1] to back()
 // does not bounds check
-handshake_container_t* Buffer::operator[](int index)
+handshake_container_t* Buffer::get_item(int index)
 {
   int dex = (tail_ + index) % numPool_;
   return &(handshakePool_[dex]);
+}
+
+handshake_container_t* Buffer::operator[](int index)
+{
+  return get_item(index);
 }
 
 bool Buffer::empty()

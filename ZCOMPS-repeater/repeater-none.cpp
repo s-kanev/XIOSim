@@ -33,9 +33,9 @@ class repeater_none_t: public repeater_t {
                 const md_addr_t addr,
                 void * const op,    /* To be passed to callback for identification */
                 void (*const cb)(void *, bool is_hit), /* Callback once request is finished */
-                seq_t (*const get_action_id)(void* const)) { cb(op, true); };
+                seq_t (*const get_action_id)(void* const)) { if (cb) cb(op, true); };
 
-    virtual void flush(void (*const cb)()) { cb(); };
+    virtual void flush(void (*const cb)()) { if (cb) cb(); };
 };
 
 #endif

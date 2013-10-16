@@ -2,6 +2,7 @@
 #define HANDSHAKE_BUFFER_MANAGER
 
 #include <unordered_map>
+class handshake_container_t;
 
 class BufferManager
 {

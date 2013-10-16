@@ -7,12 +7,12 @@ import spec
 PIN_HOME="/home/skanev/pin/2.12"
 PIN= PIN_HOME + "/pin.sh"
 
-PROJROOT = "/home/skanev/zesto"
+PROJROOT = "/home/skanev/xiosim"
 RESULT_DIR = "/home/skanev/spec_out"
 
 
-PINTOOL = "%s/pintool/obj-ia32/feeder_zesto.so" % PROJROOT
-ZESTOCFG = "%s/config/A.cfg" % PROJROOT # Atom configuration file
+PINTOOL = "/home/skanev/jnk/feeder_zesto.so"
+ZESTOCFG = "%s/config/N.cfg" % PROJROOT # Nehalem configuration file
 MEMCFG = "%s/dram-config/DDR3-1600-9-9-9.cfg" % PROJROOT
 
 def RunSPECBenchmark(name):
@@ -26,6 +26,7 @@ def RunSPECBenchmark(name):
     xios.AddPinOptions()
     xios.AddPintoolOptions()
     xios.AddPinPointFile("%s/%s.pintool.1.pp" % (run.directory, name))
+    xios.AddTraceFile("%s/%s.trace" % (RESULT_DIR, name))
     xios.AddZestoOptions(ZESTOCFG, MEMCFG)
     xios.AddZestoOut("%s/%s.simout" % (RESULT_DIR, name))
     xios.AddApp(run.executable, run.args)
