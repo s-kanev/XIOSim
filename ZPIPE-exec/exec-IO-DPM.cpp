@@ -508,10 +508,7 @@ core_exec_IO_DPM_t::core_exec_IO_DPM_t(struct core_t * const arg_core):
 
   memdep = memdep_create(core, knobs->exec.memdep_opt_str);
 
-  if (core->memory.DL2)
-    core->memory.mem_repeater = repeater_create(core->knobs->exec.repeater_opt_str, core, "MR1", core->memory.DL2);
-  else
-    core->memory.mem_repeater = repeater_create(core->knobs->exec.repeater_opt_str, core, "MR1", core->memory.DL1);
+  core->memory.mem_repeater = repeater_create(core->knobs->exec.repeater_opt_str, core, "MR1", core->memory.DL1);
 
   check_for_work = true;
 }
