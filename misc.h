@@ -270,6 +270,14 @@ void memzero(void * base, int bytes);
 void clear_page(void * base);
 void memswap(void * p1, void * p2, size_t num_bytes);
 
+/* same semantics as fopen() except that filenames ending with a ".gz" or ".Z"
+   will be automagically get compressed */
+FILE *gzopen(const char *fname, const char *type);
+
+/* close compressed stream */
+void gzclose(FILE *fd);
+
+
 #ifdef __cplusplus
 }
 #endif

@@ -517,3 +517,87 @@ void memswap(void * p1, void * p2, size_t num_bytes)
     addr2++;
   }*/
 }
+
+
+#ifdef GZIP_PATH
+
+static struct {
+  const char *type;
+  const char *ext;
+  const char *cmd;
+} gzcmds[] = {
+  /* type */	/* extension */		/* command */
+  { "r",	".gz",			"%s -dc %s" },
+  { "rb",	".gz",			"%s -dc %s" },
+  { "r",	".Z",			"%s -dc %s" },
+  { "rb",	".Z",			"%s -dc %s" },
+  { "w",	".gz",			"%s > %s" },
+  { "wb",	".gz",			"%s > %s" }
+};
+
+/* same semantics as fopen() except that filenames ending with a ".gz" or ".Z"
+   will be automagically get compressed */
+FILE *
+gzopen(const char *fname, const char *type)
+{
+  int i;
+  const char *cmd = NULL;
+  const char *ext;
+  FILE *fd;
+  char str[2048];
+
+  /* get the extension */
+  ext = mystrrchr(fname, '.');
+
+  /* check if extension indicates compressed file */
+  if (ext != NULL && *ext != '\0')
+    {
+      for (i=0; i < (int)N_ELT(gzcmds); i++)
+	{
+	  if (!strcmp(gzcmds[i].type, type) && !strcmp(gzcmds[i].ext, ext))
+	    {
+	      cmd = gzcmds[i].cmd;
+	      break;
+	    }
+	}
+    }
+
+  if (!cmd)
+    {
+      /* open file */
+      fd = fopen(fname, type);
+    }
+  else
+    {
+      /* open pipe to compressor/decompressor */
+      sprintf(str, cmd, GZIP_PATH, fname);
+      fd = popen(str, type);
+    }
+
+  return fd;
+}
+
+/* close compressed stream */
+void
+gzclose(FILE *fd)
+{
+  /* attempt pipe close, otherwise file close */
+  if (pclose(fd) == -1)
+    fclose(fd);
+}
+
+#else /* !GZIP_PATH */
+
+FILE *
+gzopen(const char *fname, const char *type)
+{
+  return fopen(fname, type);
+}
+
+void
+gzclose(FILE *fd)
+{
+  fclose(fd);
+}
+
+#endif /* GZIP_PATH */
