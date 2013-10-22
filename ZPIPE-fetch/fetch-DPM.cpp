@@ -644,12 +644,6 @@ bool core_fetch_DPM_t::do_fetch(void)
   ZPIN_TRACE("After. PC: %x, nuked_Mops: %d, rep_seq: %d\n", PC, core->oracle->num_Mops_nuked, core->current_thread->rep_sequence);
   if(Mop && ((PC >> PAGE_SHIFT) == 0))
   {
-    //XXX: Generate core file
-    if(!core->oracle->spec_mode)
-    {
-       myfprintf(stderr, "PC error at PC: 0x%x, Mop.PC: 0x%x \n", PC, Mop->fetch.PC);
-       zesto_assert(0, false);
-    }
     zesto_assert(core->oracle->spec_mode, false);
     stall_reason = FSTALL_ZPAGE;
     return false;
@@ -739,9 +733,7 @@ bool core_fetch_DPM_t::do_fetch(void)
   byteQ[byteQ_index].num_Mop++;
 
   core->oracle->consume(Mop);
-#ifdef ZESTO_PIN
   core->current_thread->consumed = true;
-#endif
 
   /* figure out where to fetch from next */
   if(Mop->decode.is_ctrl || Mop->fetch.inst.rep)  /* XXX: illegal use of decode information */
@@ -776,8 +768,8 @@ bool core_fetch_DPM_t::do_fetch(void)
 
   ZPIN_TRACE("After bpred. PC: %x, oracle.NPC: %x, spec: %d, nuked_Mops: %d\n", PC, Mop->oracle.NextPC, core->oracle->spec_mode, core->oracle->num_Mops_nuked);
 
-  if(  (Mop->fetch.pred_NPC != (Mop->fetch.PC + Mop->fetch.inst.len))
-    && (Mop->fetch.pred_NPC != Mop->fetch.PC)) /* REPs don't count as taken branches w.r.t. fetching */
+  /* This includes REPs as taken branches, otherwise they easily flood the oracle. */
+  if(Mop->fetch.pred_NPC != (Mop->fetch.PC + Mop->fetch.inst.len))
   {
     stall_reason = FSTALL_TBR;
     return false;

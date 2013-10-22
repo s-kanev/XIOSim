@@ -9,7 +9,7 @@
 #include "feeder.h"
 #include "scheduler.h"
 #include "sync_pthreads.h"
-#include "Buffer.h"
+#include "../buffer.h"
 #include "BufferManager.h"
 
 KNOB<BOOL> KnobPthreads(KNOB_MODE_WRITEONCE,      "pintool",

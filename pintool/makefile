@@ -70,7 +70,7 @@ endif
 
 TOOL_ROOTS = feeder_zesto
 
-TOOL_OBJS = $(OBJDIR)Buffer.o $(OBJDIR)BufferManager.o $(OBJDIR)ildjit.o $(OBJDIR)fluffy.o $(OBJDIR)lib.o $(OBJDIR)utils.o $(OBJDIR)sync_pthreads.o $(OBJDIR)scheduler.o $(OBJDIR)parsec.o
+TOOL_OBJS = $(OBJDIR)BufferManager.o $(OBJDIR)ildjit.o $(OBJDIR)fluffy.o $(OBJDIR)lib.o $(OBJDIR)utils.o $(OBJDIR)sync_pthreads.o $(OBJDIR)scheduler.o $(OBJDIR)parsec.o $(OBJDIR)syscall_handling.o
 
 TOOLS = $(TOOL_ROOTS:%=$(OBJDIR)%$(PINTOOL_SUFFIX))
 
@@ -82,7 +82,7 @@ TOOLS = $(TOOL_ROOTS:%=$(OBJDIR)%$(PINTOOL_SUFFIX))
 ##############################################################
 all : CXXFLAGS += -DDEBUG -D_FILE_OFFSET_BITS=64 -std=c++11
 all: tools
-debug:	CXXFLAGS += -DZESTO_PIN_DBG -D_FILE_OFFSET_BITS=64
+debug:	CXXFLAGS += -DZESTO_PIN_DBG -D_FILE_OFFSET_BITS=64 -std=c++11
 debug:	tools
 tools: $(OBJDIR) $(TOOLS) $(OBJDIR)cp-pin.exe
 test: $(OBJDIR) $(TOOL_ROOTS:%=%.test)

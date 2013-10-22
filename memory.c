@@ -131,28 +131,6 @@
 
 extern bool multi_threaded;
 
-/* FYI, the following functions are used to emulate unaligned quadword
-   memory accesses on architectures that require aligned quadword
-   memory accesses, e.g., ARM emulation on SPARC hardware... */
-#ifdef TARGET_HAS_UNALIGNED_QWORD
-
-/* read a quadword, unaligned */
-  qword_t
-MEM_QREAD(struct mem_t *mem, md_addr_t addr)
-{
-  qword_t temp;
-  mem_access(mem, Read, addr, &temp, sizeof(qword_t));
-  return temp;
-}
-
-/* write a quadword, unaligned */
-  void
-MEM_QWRITE(struct mem_t *mem, md_addr_t addr, qword_t val)
-{
-  mem_access(mem, Write, addr, &val, sizeof(qword_t));
-}
-#endif /* TARGET_HAS_UNALIGNED_QWORD */
-
 /* create a flat memory space */
   struct mem_t *
 mem_create(const char *name)			/* name of the memory space */
@@ -163,7 +141,7 @@ mem_create(const char *name)			/* name of the memory space */
   if (!mem)
     fatal("out of virtual memory");
 
-  mem->name = mystrdup(name);
+  mem->name = strdup(name);
   return mem;
 }
 
@@ -811,55 +789,9 @@ mem_check_fault(struct mem_t *mem,	/* memory */
       || /* check max size */nbytes > MD_PAGE_SIZE)
     return md_fault_access;
 
-#ifdef TARGET_ARM
-  if (/* check natural alignment */(addr & (((nbytes > 4) ? 4:nbytes)-1)) != 0)
-    return md_fault_alignment;
-#else
   if (/* check natural alignment */(addr & (nbytes-1)) != 0)
     return md_fault_alignment;
-#endif /* TARGET_ARM */
 
-  return md_fault_none;
-}
-
-/* generic memory access function, it's safe because alignments and permissions
-   are checked, handles any natural transfer sizes; note, faults out if nbytes
-   is not a power-of-two or larger then MD_PAGE_SIZE */
-  enum md_fault_type
-mem_access(
-    int core_id,
-    struct mem_t *mem,		/* memory space to access */
-    enum mem_cmd cmd,		/* Read (from sim mem) or Write */
-    md_addr_t addr,		/* target address to access */
-    void *vp,			/* host memory address to access */
-    int nbytes)			/* number of bytes to access */
-{
-  enum md_fault_type fault;
-  byte_t *p = (byte_t*)vp;
-
-  /* check for faults */
-  fault = mem_check_fault(mem, cmd, addr, nbytes);
-  if (fault != md_fault_none) return fault;
-
-  /* perform the copy */
-  if (cmd == Read) {
-
-    while (nbytes-- > 0) {
-      *((byte_t *)p) = MEM_READ_BYTE(mem, addr);
-      p += sizeof(byte_t);
-      addr += sizeof(byte_t);
-    }
-  }
-  else {
-
-    while (nbytes-- > 0) {
-      MEM_WRITE_BYTE(mem, addr, *((byte_t *)p));
-      p += sizeof(byte_t);
-      addr += sizeof(byte_t);
-    }
-  }
-
-  /* no fault... */
   return md_fault_none;
 }
 
@@ -881,7 +813,7 @@ mem_reg_stats(struct mem_t *mem,	/* memory space to declare */
       buf1, "%11.0fk");
 }
 
-/* initialize memory system, call before loader.c */
+/* initialize memory system */
   void
 mem_init(struct mem_t *mem)	/* memory space to initialize */
 {
@@ -893,84 +825,3 @@ mem_init(struct mem_t *mem)	/* memory space to initialize */
 
   mem->page_count = 0;
 }
-
-/* copy a '\0' terminated string to/from simulated memory space, returns
-   the number of bytes copied, returns any fault encountered */
-  enum md_fault_type
-mem_strcpy(
-    int core_id,
-    mem_access_fn mem_fn,	/* user-specified memory accessor */
-    struct mem_t *mem,		/* memory space to access */
-    enum mem_cmd cmd,		/* Read (from sim mem) or Write */
-    md_addr_t addr,		/* target address to access */
-    char *s)
-{
-  int n = 0;
-  char c;
-  enum md_fault_type fault;
-
-  switch (cmd)
-  {
-    case Read:
-      /* copy until string terminator ('\0') is encountered */
-      do {
-        fault = mem_fn(core_id, mem, Read, addr++, &c, 1);
-        if (fault != md_fault_none)
-          return fault;
-        *s++ = c;
-        n++;
-      } while (c);
-      break;
-
-    case Write:
-      /* copy until string terminator ('\0') is encountered */
-      do {
-        c = *s++;
-        fault = mem_fn(core_id, mem, Write, addr++, &c, 1);
-        if (fault != md_fault_none)
-          return fault;
-        n++;
-      } while (c);
-      break;
-
-    default:
-      return md_fault_internal;
-  }
-
-  /* no faults... */
-  return md_fault_none;
-}
-
-/* copy NBYTES to/from simulated memory space, returns any faults */
-  enum md_fault_type
-mem_bcopy(
-    int core_id,
-    mem_access_fn mem_fn,		/* user-specified memory accessor */
-    struct mem_t *mem,		/* memory space to access */
-    enum mem_cmd cmd,		/* Read (from sim mem) or Write */
-    md_addr_t addr,		/* target address to access */
-    void *vp,			/* host memory address to access */
-    int nbytes)
-{
-  byte_t *p = (byte_t*)vp;
-  enum md_fault_type fault;
-
-  /* copy NBYTES bytes to/from simulator memory */
-  while (nbytes-- > 0)
-  {
-    byte_t* tempP = p;
-    fault = mem_fn(core_id, mem, cmd, addr, p, 1);
-    addr++;
-    if(tempP == p)
-    {
-      p++;
-    }
-    //p++;
-    if (fault != md_fault_none)
-      return fault;
-  }
-
-  /* no faults... */
-  return md_fault_none;
-}
-

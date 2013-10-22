@@ -48,21 +48,14 @@
  * Copyright © 1994-2003 by Todd M. Austin, Ph.D. and SimpleScalar, LLC.
  */
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <ctype.h>
 
 #include "host.h"
 #include "misc.h"
 #include "eval.h"
-
-#if defined(sparc) && !defined(__svr4__)
-#define strtoul strtol
-#endif
 
 /* expression evaluation error, this must be a global */
 enum eval_err_t eval_error = ERR_NOERR;
@@ -176,16 +169,16 @@ get_next_token(struct eval_state_t *es)        /* expression evaluator */
              (tok_map[(int)*es->p] == tok_const
               || (*es->p == '-' && last_char == 'e')
               || (*es->p == '+' && last_char == 'e')
-              || mytolower(*es->p) == 'e'
-              || mytolower(*es->p) == 'x'
-              || (mytolower(*es->p) == 'a' && allow_hex)
-              || (mytolower(*es->p) == 'b' && allow_hex)
-              || (mytolower(*es->p) == 'c' && allow_hex)
-              || (mytolower(*es->p) == 'd' && allow_hex)
-              || (mytolower(*es->p) == 'e' && allow_hex)
-              || (mytolower(*es->p) == 'f' && allow_hex)))
+              || tolower(*es->p) == 'e'
+              || tolower(*es->p) == 'x'
+              || (tolower(*es->p) == 'a' && allow_hex)
+              || (tolower(*es->p) == 'b' && allow_hex)
+              || (tolower(*es->p) == 'c' && allow_hex)
+              || (tolower(*es->p) == 'd' && allow_hex)
+              || (tolower(*es->p) == 'e' && allow_hex)
+              || (tolower(*es->p) == 'f' && allow_hex)))
         {
-          last_char = mytolower(*es->p);
+          last_char = tolower(*es->p);
           if (*es->p == 'x' || *es->p == 'X')
             allow_hex = TRUE;
           *ptok_buf++ = *es->p++;
@@ -253,7 +246,7 @@ result_type(enum eval_type_t t1,        /* left operand type */
 {
   /* sanity check, symbols should not show up in arithmetic exprs */
   if (t1 == et_symbol || t2 == et_symbol)
-    panic("symbol used in expression");
+    fatal("symbol used in expression");
 
   /* using C rules, i.e., A6.5 */
   if (t1 == et_double || t2 == et_double)
@@ -297,9 +290,9 @@ eval_as_double(struct eval_value_t val)
     case et_int:
       return (double)val.value.as_int;
     case et_symbol:
-      panic("symbol used in expression");
+      fatal("symbol used in expression");
     default:
-      panic("illegal arithmetic expression conversion");
+      fatal("illegal arithmetic expression conversion");
     }
 }
 
@@ -324,9 +317,9 @@ eval_as_float(struct eval_value_t val)
     case et_int:
       return (float)val.value.as_int;
     case et_symbol:
-      panic("symbol used in expression");
+      fatal("symbol used in expression");
     default:
-      panic("illegal arithmetic expression conversion");
+      fatal("illegal arithmetic expression conversion");
     }
 }
 
@@ -351,9 +344,9 @@ eval_as_qword(struct eval_value_t val)
     case et_int:
       return (qword_t)val.value.as_int;
     case et_symbol:
-      panic("symbol used in expression");
+      fatal("symbol used in expression");
     default:
-      panic("illegal arithmetic expression conversion");
+      fatal("illegal arithmetic expression conversion");
     }
 }
 
@@ -378,9 +371,9 @@ eval_as_sqword(struct eval_value_t val)
     case et_int:
       return (sqword_t)val.value.as_int;
     case et_symbol:
-      panic("symbol used in expression");
+      fatal("symbol used in expression");
     default:
-      panic("illegal arithmetic expression conversion");
+      fatal("illegal arithmetic expression conversion");
     }
 }
 
@@ -405,9 +398,9 @@ eval_as_addr(struct eval_value_t val)
     case et_int:
       return (md_addr_t)val.value.as_int;
     case et_symbol:
-      panic("symbol used in expression");
+      fatal("symbol used in expression");
     default:
-      panic("illegal arithmetic expression conversion");
+      fatal("illegal arithmetic expression conversion");
     }
 }
 
@@ -432,9 +425,9 @@ eval_as_uint(struct eval_value_t val)
     case et_int:
       return (unsigned int)val.value.as_int;
     case et_symbol:
-      panic("symbol used in expression");
+      fatal("symbol used in expression");
     default:
-      panic("illegal arithmetic expression conversion");
+      fatal("illegal arithmetic expression conversion");
     }
 }
 
@@ -459,9 +452,9 @@ eval_as_int(struct eval_value_t val)
     case et_int:
       return val.value.as_int;
     case et_symbol:
-      panic("symbol used in expression");
+      fatal("symbol used in expression");
     default:
-      panic("illegal arithmetic expression conversion");
+      fatal("illegal arithmetic expression conversion");
     }
 }
 
@@ -516,7 +509,7 @@ f_add(struct eval_value_t val1, struct eval_value_t val2)
       val.value.as_int = eval_as_int(val1) + eval_as_int(val2);
       break;
     default:
-      panic("bogus expression type");
+      fatal("bogus expression type");
     }
 
   return val;
@@ -569,7 +562,7 @@ f_sub(struct eval_value_t val1, struct eval_value_t val2)
       val.value.as_int = eval_as_int(val1) - eval_as_int(val2);
       break;
     default:
-      panic("bogus expression type");
+      fatal("bogus expression type");
     }
 
   return val;
@@ -622,7 +615,7 @@ f_mult(struct eval_value_t val1, struct eval_value_t val2)
       val.value.as_int = eval_as_int(val1) * eval_as_int(val2);
       break;
     default:
-      panic("bogus expression type");
+      fatal("bogus expression type");
     }
 
   return val;
@@ -675,7 +668,7 @@ f_div(struct eval_value_t val1, struct eval_value_t val2)
       val.value.as_int = eval_as_int(val1) / eval_as_int(val2);
       break;
     default:
-      panic("bogus expression type");
+      fatal("bogus expression type");
     }
 
   return val;
@@ -746,7 +739,7 @@ f_neg(struct eval_value_t val1)
         }
       break;
     default:
-      panic("bogus expression type");
+      fatal("bogus expression type");
     }
 
   return val;
@@ -797,7 +790,7 @@ f_exp(struct eval_value_t val1)
       val.value.as_double = exp((double)val1.value.as_uint);
       break;
     default:
-      panic("bogus expression type");
+      fatal("bogus expression type");
     }
 
   return val;
@@ -848,7 +841,7 @@ f_log(struct eval_value_t val1)
       val.value.as_double = log((double)val1.value.as_uint);
       break;
     default:
-      panic("bogus expression type");
+      fatal("bogus expression type");
     }
 
   return val;
@@ -891,7 +884,7 @@ f_eq_zero(struct eval_value_t val1)
       val = val1.value.as_int == 0;
       break;
     default:
-      panic("bogus expression type");
+      fatal("bogus expression type");
     }
 
   return val;
@@ -944,7 +937,7 @@ constant(struct eval_state_t *es)        /* expression evaluator */
 
   /* else, not an int/uint, attempt sqword_t conversion */
   errno = 0;
-  sqword_val = myatosq(es->tok_buf, &endp, /* parse base */0);
+  sqword_val = strtoll(es->tok_buf, &endp, /* parse base */0);
   if (!errno && !*endp)
     {
       /* good conversion */
@@ -955,7 +948,7 @@ constant(struct eval_state_t *es)        /* expression evaluator */
 
   /* else, not an sqword_t, attempt qword_t conversion */
   errno = 0;
-  qword_val = myatoq(es->tok_buf, &endp, /* parse base */0);
+  qword_val = strtoll(es->tok_buf, &endp, /* parse base */0);
   if (!errno && !*endp)
     {
       /* good conversion */
@@ -1205,13 +1198,13 @@ eval_print(FILE *stream,                /* output stream */
       fprintf(stream, "%f [float]", (double)val.value.as_float);
       break;
     case et_qword:
-      myfprintf(stream, "%lu [qword_t]", val.value.as_qword);
+      fprintf(stream, "%llu [qword_t]", val.value.as_qword);
       break;
     case et_sqword:
-      myfprintf(stream, "%ld [sqword_t]", val.value.as_sqword);
+      fprintf(stream, "%lld [sqword_t]", val.value.as_sqword);
       break;
     case et_addr:
-      myfprintf(stream, "0x%p [md_addr_t]", val.value.as_addr);
+      fprintf(stream, "%x [md_addr_t]", val.value.as_addr);
       break;
     case et_uint:
       fprintf(stream, "%u [uint]", val.value.as_uint);
@@ -1223,10 +1216,6 @@ eval_print(FILE *stream,                /* output stream */
       fprintf(stream, "\"%s\" [symbol]", val.value.as_symbol);
       break;
     default:
-      panic("bogus expression type");
+      fatal("bogus expression type");
     }
 }
-
-#ifdef __cplusplus
-}
-#endif

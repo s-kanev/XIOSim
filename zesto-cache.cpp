@@ -73,6 +73,8 @@
  */
 
 #include <limits.h>
+#include <ctype.h>
+
 #include "thread.h"
 #include "stats.h"
 #include "zesto-core.h"
@@ -127,7 +129,7 @@ struct cache_t * cache_create(
 
   cp->core = core;
 
-  switch(mytoupper(rp)) {
+  switch(toupper(rp)) {
     case 'L': replacement_policy = REPLACE_LRU; break;
     case 'M': replacement_policy = REPLACE_MRU; break;
     case 'R': replacement_policy = REPLACE_RANDOM; break;
@@ -136,17 +138,17 @@ struct cache_t * cache_create(
     case 'C': replacement_policy = REPLACE_CLOCK; break;
     default: fatal("unrecognized cache replacement policy");
   }
-  switch(mytoupper(ap)) {
+  switch(toupper(ap)) {
     case 'W': allocate_policy = WRITE_ALLOC; break;
     case 'N': allocate_policy = NO_WRITE_ALLOC; break;
     default: fatal("unrecognized cache allocation policy (W=write-alloc,N=no-write-alloc)");
   }
-  switch(mytoupper(wp)) {
+  switch(toupper(wp)) {
     case 'T': write_policy = WRITE_THROUGH; break;
     case 'B': write_policy = WRITE_BACK; break;
     default: fatal("unrecognized cache write policy (T=write-Through,B=write-Back)");
   }
-  switch(mytoupper(wc)) {
+  switch(toupper(wc)) {
     case 'C': write_combining = true; break;
     case 'N': write_combining = false; break;
     default: fatal("unrecognized cache write combining option (C=write-Combining,N=No-write-combining)");

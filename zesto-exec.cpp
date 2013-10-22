@@ -269,9 +269,6 @@ void exec_reg_options(struct opt_odb_t * odb, struct core_knobs_t * knobs)
   opt_reg_flag(odb, "-dl2:pf:miss","generate DL2 prefetches only from miss traffic [DS]",
       &knobs->memory.DL2_PF_on_miss, /*default*/ false, /*print*/true,/*format*/NULL);
 
-  opt_reg_flag(odb, "-warm:caches","warm caches during functional fast-forwarding [DS]",
-      &knobs->memory.warm_caches, /*default*/ false, /*print*/true,/*format*/NULL);
-
   opt_reg_flag(odb, "-repeater:DL1_request","send request to L1 in parallel with repeater",
       &knobs->memory.DL1_rep_req, /*default*/ false, /*print*/true,/*format*/NULL);
 

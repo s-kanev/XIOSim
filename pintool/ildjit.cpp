@@ -16,7 +16,7 @@
 #include "utils.h"
 #include "scheduler.h"
 
-#include "Buffer.h"
+#include "../buffer.h"
 #include "BufferManager.h"
 
 #include "../zesto-core.h"

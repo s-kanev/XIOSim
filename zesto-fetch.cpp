@@ -155,9 +155,6 @@ void fetch_reg_options(struct opt_odb_t * odb, struct core_knobs_t * knobs)
   opt_reg_int(odb, "-IQ:size","size of instruction queue (Macro-ops - placed between predecode and decode) [D]",
       &knobs->fetch.IQ_size, /*default*/ knobs->fetch.IQ_size, /*print*/true,/*format*/NULL);
 
-  opt_reg_flag(odb, "-warm:bpred","warm branch predictors during functional fast-forwarding [DS]",
-      &knobs->fetch.warm_bpred, /*default*/ false, /*print*/true,/*format*/NULL);
-
   /* Coherency options */
   opt_reg_string(odb, "-il1:controller","1st-level instruction cache coherency controller configuration [DS]",
       &knobs->memory.IL1_controller_opt_str, /*default*/ "none", /*print*/true,/*format*/NULL);

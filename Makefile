@@ -50,18 +50,19 @@ CFLAGS = $(FFLAGS) $(OFLAGS) $(BINUTILS_INC) $(BINUTILS_LIB) $(ZTRACE) $(MCPAT_I
 # all the sources
 #
 SRCS =  \
-eval.c          loader.c	    machine.c       memory.c         misc.c         options.c   \
-regs.c          stats.c         slave.c         sim-main.c       callbacks.c    slices.cpp
+eval.c          machine.c       memory.c         misc.c         options.c   \
+regs.c          stats.c         slave.c         sim-main.c       callbacks.c    slices.cpp  \
+buffer.cpp
 
 HDRS = \
-thread.h                  host.h          loader.h        machine.h       memory.h           \
+thread.h                  host.h          machine.h       memory.h           \
 misc.h          options.h       regs.h          sim.h           stats.h         version.h          \
-machine.def     x86flow.def     interface.h     callbacks.h
+machine.def     x86flow.def     interface.h     callbacks.h     buffer.h
 
 OBJS =	\
 eval.$(OEXT)         machine.$(OEXT)      memory.$(OEXT)       misc.$(OEXT)          options.$(OEXT)    \
 regs.$(OEXT)         stats.$(OEXT)        sim-main.$(OEXT)     slices.$(OEXT)        callbacks.$(OEXT)  \
-slave.$(OEXT)        loader.$(OEXT)
+slave.$(OEXT)        buffer.$(OEXT)
 
 # Zesto specific files
 ZSRCS = \
@@ -166,25 +167,23 @@ tags:
 
 eval.o: host.h misc.h  machine.h machine.def zesto-structs.h regs.h
 eval.o: options.h
-loader.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h
-loader.o: options.h  thread.h memory.h stats.h  sim.h loader.h
 machine.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h
 machine.o: options.h  memory.h stats.h sim.h thread.h
 machine.o: x86flow.def
 slave.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h options.h
-slave.o:  thread.h memory.h stats.h  version.h loader.h sim.h
+slave.o:  thread.h memory.h stats.h  version.h sim.h
 slave.o: interface.h callbacks.h
 callbacks.o: callbacks.h interface.h
 slices.o: stats.h host.h  thread.h machine.h memory.h regs.h
 slices.o: zesto-core.h zesto-structs.h
 sim-main.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h
-sim-main.o: options.h memory.h stats.h  loader.h thread.h
+sim-main.o: options.h memory.h stats.h thread.h
 sim-main.o: sim.h zesto-opts.h zesto-core.h zesto-oracle.h zesto-fetch.h
 sim-main.o: zesto-decode.h zesto-bpred.h zesto-alloc.h zesto-exec.h
 sim-main.o: zesto-commit.h zesto-dram.h zesto-cache.h zesto-uncore.h
 sim-main.o: zesto-MC.h interface.h
 sim-slave.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h
-sim-slave.o: options.h memory.h stats.h  loader.h thread.h
+sim-slave.o: options.h memory.h stats.h thread.h
 sim-slave.o: sim.h zesto-opts.h zesto-core.h zesto-oracle.h zesto-fetch.h
 sim-slave.o: zesto-decode.h zesto-bpred.h zesto-alloc.h zesto-exec.h
 sim-slave.o: zesto-commit.h zesto-dram.h zesto-cache.h zesto-uncore.h
@@ -196,11 +195,11 @@ misc.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h options.h
 misc.o: synchronization.h
 options.o: host.h misc.h options.h
 regs.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h options.h
-regs.o: loader.h memory.h stats.h  thread.h
+regs.o: memory.h stats.h  thread.h
 stats.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h options.h
 stats.o:  stats.h
 libsim.a: host.h misc.h machine.h machine.def zesto-structs.h regs.h
-libsim.a: options.h memory.h stats.h loader.h thread.h
+libsim.a: options.h memory.h stats.h thread.h
 libsim.a: sim.h zesto-opts.h zesto-core.h zesto-oracle.h zesto-fetch.h
 libsim.a: zesto-decode.h zesto-bpred.h zesto-alloc.h zesto-exec.h
 libsim.a: zesto-commit.h zesto-dram.h zesto-cache.h zesto-uncore.h
@@ -209,12 +208,12 @@ libsim.a: zesto-repeater.h
 zesto-core.o: zesto-core.h zesto-structs.h machine.h host.h misc.h
 zesto-core.o: machine.def regs.h options.h
 zesto-opts.o: thread.h machine.h host.h misc.h machine.def zesto-structs.h
-zesto-opts.o: regs.h options.h memory.h stats.h  loader.h zesto-opts.h
+zesto-opts.o: regs.h options.h memory.h stats.h zesto-opts.h
 zesto-opts.o: zesto-core.h zesto-oracle.h zesto-fetch.h zesto-decode.h
 zesto-opts.o: zesto-alloc.h zesto-exec.h zesto-cache.h zesto-commit.h
 zesto-opts.o: zesto-dram.h zesto-uncore.h zesto-MC.h zesto-repeater.h
 zesto-oracle.o: misc.h thread.h machine.h host.h machine.def zesto-structs.h
-zesto-oracle.o: regs.h options.h memory.h stats.h   loader.h
+zesto-oracle.o: regs.h options.h memory.h stats.h
 zesto-oracle.o: zesto-core.h zesto-opts.h zesto-oracle.h zesto-fetch.h
 zesto-oracle.o: zesto-bpred.h zesto-decode.h zesto-alloc.h zesto-exec.h
 zesto-oracle.o: zesto-commit.h zesto-cache.h callbacks.h

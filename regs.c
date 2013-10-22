@@ -55,30 +55,7 @@
 #include "host.h"
 #include "misc.h"
 #include "machine.h"
-#include "loader.h"
 #include "regs.h"
-
-/* create a register file */
-struct regs_t *
-regs_create(void)
-{
-  struct regs_t *regs;
-
-  regs = (struct regs_t*) calloc(1, sizeof(struct regs_t));
-  if (!regs)
-    fatal("out of virtual memory");
-
-  return regs;
-}
-
-/* initialize architected register state */
-void
-regs_init(struct regs_t *regs)		/* register file to initialize */
-{
-  /* assuming all entries should be zero... */
-  /* regs->regs_R[MD_SP_INDEX] and regs->regs_PC initialized by loader... */
-  memset(regs, 0, sizeof(*regs));
-}
 
 /* Print out the contets of extended-width fp register file */
 void

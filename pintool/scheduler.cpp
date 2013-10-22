@@ -6,9 +6,9 @@
 #include <queue>
 #include <map>
 
-#include "Buffer.h"
-#include "BufferManager.h"
 #include "feeder.h"
+#include "../buffer.h"
+#include "BufferManager.h"
 #include "scheduler.h"
 
 #include "../zesto-core.h"
@@ -42,6 +42,14 @@ VOID InitScheduler(INT32 num_cores)
 /* ========================================================================== */
 VOID ScheduleNewThread(THREADID tid)
 {
+    thread_state_t* tstate = get_tls(tid);
+    if (tstate->coreID != (UINT32)-1) {
+        lk_lock(&printing_lock, 1);
+        cerr << "ScheduleNewThread: thread " << tid << " already scheduled, ignoring." << endl;
+        lk_unlock(&printing_lock);
+        return;
+    }
+
     lk_lock(&run_queues[last_coreID].lk, 1);
     if (run_queues[last_coreID].q.empty() && !is_core_active(last_coreID))
         activate_core(last_coreID);
@@ -49,7 +57,6 @@ VOID ScheduleNewThread(THREADID tid)
     run_queues[last_coreID].q.push(tid);
     lk_unlock(&run_queues[last_coreID].lk);
 
-    thread_state_t* tstate = get_tls(tid);
     tstate->coreID = last_coreID;
 
     last_coreID  = (last_coreID + 1) % num_cores;

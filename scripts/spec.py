@@ -2,7 +2,7 @@
 import os.path
 
 #Configuration params
-specDir = '/group/brooks/skanev/cpu2006/benchspec/CPU2006'
+specDir = '/group/vlsiarch/skanev/cpu2006_sse/benchspec/CPU2006'
 specExt = 'O3gcc4static241'
 specInput = 'ref'
 specTune = 'base'

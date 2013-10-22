@@ -14,25 +14,20 @@
 #include <queue>
 #include <set>
 #include <list>
-#include <syscall.h>
-#include <sys/mman.h>
-#include <sys/sysinfo.h>
 #include <stdlib.h>
 #include <elf.h>
+#include <sys/mman.h>
+#include <sys/sysinfo.h>
 #include <sched.h>
-
 #include <unistd.h>
 
-#ifdef TIME_TRANSPARENCY
-#include "rdtsc.h"
-#endif
-
 #include "feeder.h"
-#include "Buffer.h"
+#include "../buffer.h"
 #include "BufferManager.h"
 #include "scheduler.h"
 
 #include "sync_pthreads.h"
+#include "syscall_handling.h"
 #include "ildjit.h"
 #include "parsec.h"
 
@@ -64,18 +59,11 @@ KNOB<BOOL> KnobPipelineInstrumentation(KNOB_MODE_WRITEONCE, "pintool",
         "pipeline_instrumentation", "false", "Overlap instrumentation and simulation threads (still unstable)");
 KNOB<BOOL> KnobWarmLLC(KNOB_MODE_WRITEONCE,      "pintool",
         "warm_llc", "false", "Warm LLC while fast-forwarding");
-KNOB<BOOL> KnobGreedyCores(KNOB_MODE_WRITEONCE, "pintool",
-        "greedy_cores", "false", "Spread on all available machine cores");
 
 map<ADDRINT, UINT8> sanity_writes;
 map<ADDRINT, string> pc_diss;
 BOOL sim_release_handshake;
 BOOL sleeping_enabled;
-
-#ifdef TIME_TRANSPARENCY
-// Tracks the time we spend in simulation and tries to subtract it from timing calls
-UINT64 sim_time = 0;
-#endif
 
 ofstream pc_file;
 ofstream trace_file;
@@ -83,7 +71,6 @@ ifstream sanity_trace;
 
 // Used to access thread-local storage
 static TLS_KEY tls_key;
-static XIOSIM_LOCK syscall_lock;
 
 PIN_SEMAPHORE consumer_sleep_lock;
 PIN_SEMAPHORE producer_sleep_lock;
@@ -116,6 +103,8 @@ map<THREADID, tick_t> lastConsumerApply;
 INT32 slice_num = 1;
 INT32 slice_length = 0;
 INT32 slice_weight_times_1000 = 100*1000;
+
+BOOL in_fini = false;
 
 typedef pair <UINT32, CHAR **> SSARGS;
 
@@ -196,10 +185,7 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
         {
             /* XXX: This can be called from a Fini callback (end of program).
              * We can't access any TLS in that case. */
-            BOOL is_fini = !(control.PinPointsActive() || control.IregionsActive() ||
-                control.UniformActive() || control.PintoolControlEnabled());
-
-            if (!is_fini) {
+            if (!in_fini) {
                 list<THREADID>::iterator it;
                 ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
                     thread_state_t* tstate = get_tls(*it);
@@ -364,6 +350,14 @@ VOID MakeSSContext(const CONTEXT *ictxt, FPSTATE* fpstate, ADDRINT pc, ADDRINT n
 }
 
 /* ========================================================================== */
+// Register that we are about to service Fini callbacks, which cannot
+// access some state (e.g. TLS)
+VOID BeforeFini(INT32 exitCode, VOID *v)
+{
+    in_fini = true;
+}
+
+/* ========================================================================== */
 VOID Fini(INT32 exitCode, VOID *v)
 {
     StopSimulation(false);
@@ -493,10 +487,6 @@ VOID SimulatorLoop(VOID* arg)
                 break;
             }
 
-#ifdef TIME_TRANSPARENCY
-            // Capture time spent in simulation to ensure time syscall transparency
-            UINT64 ins_delta_time = rdtsc();
-#endif
             // Perform memory sanity checks for values touched by simulator
             // on previous instruction
             if (KnobSanity.Value())
@@ -515,16 +505,11 @@ VOID SimulatorLoop(VOID* arg)
             }
 
             // Actual simulation happens here
-            Zesto_Resume(coreID, &handshake->handshake, &handshake->mem_buffer, handshake->flags.isFirstInsn, handshake->flags.isLastInsn);
+            Zesto_Resume(coreID, handshake);
 
             if(!KnobPipelineInstrumentation.Value())
                 ReleaseHandshake(coreID);
             numConsumed++;
-
-#ifdef TIME_TRANSPARENCY
-            ins_delta_time = rdtsc() - ins_delta_time;
-            sim_time += ins_delta_time;
-#endif
 
             if (NeedsReschedule(coreID)) {
                 GiveUpCore(coreID, true);
@@ -598,7 +583,7 @@ VOID GrabInstructionMemory(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_m
 }
 
 /* ========================================================================== */
-VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDRINT tpc, const CONTEXT *ictxt, BOOL has_memory)
+VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDRINT tpc, const CONTEXT *ictxt, BOOL has_memory, BOOL done_instrumenting)
 {
     if(producers_sleep) {
       PIN_SemaphoreWait(&producer_sleep_lock);
@@ -659,7 +644,119 @@ VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, A
     if (KnobSanity.Value())
         sanity_writes.clear();
 
-    // Let simulator consume instruction from SimulatorLoop
+    if (done_instrumenting) {
+        // Let simulator consume instruction from SimulatorLoop
+        handshake->flags.valid = true;
+
+        lookahead_buffer[tid].push_done();
+        if(lookahead_buffer[tid].full()) {
+            flushOneToHandshakeBuffer(tid);
+        }
+
+        if (tstate->num_inst && (tstate->num_inst % 1000000 == 0))
+            handshake_buffer.flushBuffers(tid);
+    }
+}
+
+/* ========================================================================== */
+/* If we treat REP instructions as loops and pass them along to the simulator,
+ * we need a good ground truth for the NPC that the simulator can rely on, because
+ * Pin doesn't do that for us the way does branch NPCs.
+ * So, we add extra instrumentation for REP instructions to determine if this is
+ * the last iteration. */
+VOID FixRepInstructionNPC(THREADID tid, ADDRINT pc, BOOL rep_prefix, BOOL repne_prefix, ADDRINT counter_value, UINT32 opcode)
+{
+    if(producers_sleep) {
+      PIN_SemaphoreWait(&producer_sleep_lock);
+      return;
+    }
+
+    thread_state_t* tstate = get_tls(tid);
+    lk_lock(&tstate->lock, tid+1);
+
+    if (tstate->ignore || tstate->ignore_all) {
+        lk_unlock(&tstate->lock);
+        return;
+    }
+    lk_unlock(&tstate->lock);
+
+    handshake_container_t* handshake = lookahead_buffer[tid].get_buffer();
+
+    ASSERTX(handshake != NULL);
+    ASSERTX(!handshake->flags.valid);
+
+    BOOL scan = false, zf = false;
+    ADDRINT op2 = 0;
+
+    // REPE and REPNE only matter for CMPS and SCAS,
+    // so we special-case them
+    switch (opcode) {
+        case XED_ICLASS_CMPSB:
+        case XED_ICLASS_CMPSW:
+        case XED_ICLASS_CMPSD:
+        case XED_ICLASS_CMPSQ:
+            // CMPS does two mem reads, second one is already stored in mem_buffer
+            {
+                ASSERTX(handshake->mem_buffer.size() <= 4);
+                int i=0;
+                for (auto it = handshake->mem_buffer.begin(); it != handshake->mem_buffer.end(); it++, i++)
+                    op2 |= ((ADDRINT)it->second << (8*i));
+                
+            }
+            scan = true;
+            zf = (op2 == handshake->handshake.mem_val);
+            break;
+        case XED_ICLASS_SCASB:
+        case XED_ICLASS_SCASW:
+        case XED_ICLASS_SCASD:
+        case XED_ICLASS_SCASQ:
+            // SCAS only does one read, gets second operand from rAX
+            ASSERTX(handshake->mem_buffer.size() <= 4);
+            op2 = handshake->handshake.ctxt.regs_R.dw[MD_REG_EAX]; // 0-extended anyways
+            scan = true;
+            zf = (op2 == handshake->handshake.mem_val);
+            break;
+        case XED_ICLASS_INSB:
+        case XED_ICLASS_INSW:
+        case XED_ICLASS_INSD:
+        case XED_ICLASS_OUTSB:
+        case XED_ICLASS_OUTSW:
+        case XED_ICLASS_OUTSD:
+        case XED_ICLASS_LODSB:
+        case XED_ICLASS_LODSW:
+        case XED_ICLASS_LODSD:
+        case XED_ICLASS_LODSQ:
+        case XED_ICLASS_STOSB:
+        case XED_ICLASS_STOSW:
+        case XED_ICLASS_STOSD:
+        case XED_ICLASS_STOSQ:
+        case XED_ICLASS_MOVSB:
+        case XED_ICLASS_MOVSW:
+        case XED_ICLASS_MOVSD:
+        case XED_ICLASS_MOVSQ:
+            scan = false;
+            break;
+        default:
+            ASSERTX(false);
+            break;
+    }
+
+    ADDRINT NPC;
+    // Counter says we finish after this instruction (for all prefixes)
+    if (counter_value == 1 || counter_value == 0)
+        NPC = handshake->handshake.tpc;
+    // Zero flag and REPE/REPNE prefixes say we finish after this instruction
+    else if (scan && ((repne_prefix && zf) || (rep_prefix && !zf)))
+        NPC = handshake->handshake.tpc;
+    // Otherwise we just keep looping
+    else
+        NPC = handshake->handshake.pc;
+
+    // Update with hard-earned NPC
+    handshake->handshake.npc = NPC;
+    handshake->handshake.ctxt.regs_NPC = NPC;
+
+    // Instruction is ready to be consumed
     handshake->flags.valid = true;
 
     lookahead_buffer[tid].push_done();
@@ -741,58 +838,38 @@ VOID Instrument(INS ins, VOID *v)
     for (UINT32 memOp = 0; memOp < memOperands; memOp++)
     {
         UINT32 memSize = INS_MemoryOperandSize(ins, memOp);
-        if(INS_HasRealRep(ins))
-        {
-            INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR) returnArg, IARG_FIRST_REP_ITERATION, IARG_END);
-            INS_InsertThenCall(
-                ins, IPOINT_BEFORE, (AFUNPTR)GrabInstructionMemory,
-                IARG_THREAD_ID,
-                IARG_MEMORYOP_EA, memOp,
-                IARG_UINT32, memSize,
-                IARG_BOOL, (memOp == 0),
-                IARG_INST_PTR,
-                IARG_END);
-        }
-        else
-        {
-            INS_InsertCall(
-                ins, IPOINT_BEFORE, (AFUNPTR)GrabInstructionMemory,
-                IARG_THREAD_ID,
-                IARG_MEMORYOP_EA, memOp,
-                IARG_UINT32, memSize,
-                IARG_BOOL, (memOp == 0),
-                IARG_INST_PTR,
-                IARG_END);
-        }
+        INS_InsertCall(
+            ins, IPOINT_BEFORE, (AFUNPTR)GrabInstructionMemory,
+            IARG_THREAD_ID,
+            IARG_MEMORYOP_EA, memOp,
+            IARG_UINT32, memSize,
+            IARG_BOOL, (memOp == 0),
+            IARG_INST_PTR,
+            IARG_END);
     }
 
     if (! INS_IsBranchOrCall(ins))
     {
-        // REP-ed instruction: only instrument first iteration
-        // (simulator will return once all iterations are done)
-        if(INS_HasRealRep(ins))
-        {
-           INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR) returnArg, IARG_FIRST_REP_ITERATION, IARG_END);
-           INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR) GrabInstructionContext,
+        BOOL extraRepInstrumentation = INS_HasRealRep(ins);
+        INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) GrabInstructionContext,
+                   IARG_THREAD_ID,
+                   IARG_INST_PTR,
+                   IARG_BOOL, 0,
+                   IARG_ADDRINT, INS_NextAddress(ins),
+                   IARG_FALLTHROUGH_ADDR,
+                   IARG_CONST_CONTEXT,
+                   IARG_BOOL, (memOperands > 0),
+                   IARG_BOOL, !extraRepInstrumentation,
+                   IARG_END);
+
+        if(extraRepInstrumentation)
+           INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) FixRepInstructionNPC,
                        IARG_THREAD_ID,
                        IARG_INST_PTR,
-                       IARG_BOOL, 0,
-                       IARG_ADDRINT, INS_NextAddress(ins),
-                       IARG_FALLTHROUGH_ADDR,
-                       IARG_CONST_CONTEXT,
-                       IARG_BOOL, (memOperands > 0),
-                       IARG_END);
-        }
-        else
-            // Non-REP-ed, non-branch instruction, use falltrough
-            INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) GrabInstructionContext,
-                       IARG_THREAD_ID,
-                       IARG_INST_PTR,
-                       IARG_BOOL, 0,
-                       IARG_ADDRINT, INS_NextAddress(ins),
-                       IARG_FALLTHROUGH_ADDR,
-                       IARG_CONST_CONTEXT,
-                       IARG_BOOL, (memOperands > 0),
+                       IARG_BOOL, INS_RepPrefix(ins),
+                       IARG_BOOL, INS_RepnePrefix(ins),
+                       IARG_REG_VALUE, INS_RepCountRegister(ins),
+                       IARG_ADDRINT, INS_Opcode(ins),
                        IARG_END);
     }
     else
@@ -806,6 +883,7 @@ VOID Instrument(INS ins, VOID *v)
                    IARG_BRANCH_TARGET_ADDR,
                    IARG_CONST_CONTEXT,
                    IARG_BOOL, (memOperands > 0),
+                   IARG_BOOL, true,
                    IARG_END);
     }
 }
@@ -1056,11 +1134,14 @@ VOID ThreadFini(THREADID tid, const CONTEXT *ctxt, INT32 code, VOID *v)
      * Mark it as finishing and let the handshake buffer drain.
      * Once this last handshake gets executed by a core, it will make
        sure to clean up all thread resources. */
-    handshake_container_t *handshake = handshake_buffer.get_buffer(tid);
+    handshake_container_t *handshake = lookahead_buffer[tid].get_buffer();
     handshake->flags.killThread = true;
     handshake->flags.valid = true;
     handshake->handshake.real = false;
-    handshake_buffer.producer_done(tid, true);
+    lookahead_buffer[tid].push_done();
+
+    while(!lookahead_buffer[tid].empty())
+        flushOneToHandshakeBuffer(tid);
 
     handshake_buffer.flushBuffers(tid);
 
@@ -1071,273 +1152,6 @@ VOID ThreadFini(THREADID tid, const CONTEXT *ctxt, INT32 code, VOID *v)
     lk_lock(&tstate->lock, tid+1);
     tstate->ignore = true;
     lk_unlock(&tstate->lock);
-}
-
-//from linux/arch/x86/ia32/sys_ia32.c
-struct mmap_arg_struct {
-     UINT32 addr;
-     UINT32 len;
-     UINT32 prot;
-     UINT32 flags;
-     UINT32 fd;
-     UINT32 offset;
-};
-
-//from times.h
-struct tms {
-    clock_t tms_utime;
-    clock_t tms_stime;
-    clock_t tms_cutime;
-    clock_t tms_cstime;
-};
-
-/* ========================================================================== */
-VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VOID *v)
-{
-    // ILDJIT is minding its own bussiness
-//    if (KnobILDJIT.Value() && !ILDJIT_IsExecuting())
-//        return;
-
-    lk_lock(&syscall_lock, threadIndex+1);
-
-    ADDRINT syscall_num = PIN_GetSyscallNumber(ictxt, std);
-    ADDRINT arg1 = PIN_GetSyscallArgument(ictxt, std, 0);
-    ADDRINT arg2;
-    ADDRINT arg3;
-    mmap_arg_struct mmap_arg;
-
-    thread_state_t* tstate = get_tls(threadIndex);
-
-    tstate->last_syscall_number = syscall_num;
-
-    switch(syscall_num)
-    {
-      case __NR_brk:
-#ifdef ZESTO_PIN_DBG
-        cerr << "Syscall brk(" << dec << syscall_num << ") addr: 0x" << hex << arg1 << dec << endl;
-#endif
-        tstate->last_syscall_arg1 = arg1;
-        break;
-
-      case __NR_munmap:
-        arg2 = PIN_GetSyscallArgument(ictxt, std, 1);
-#ifdef ZESTO_PIN_DBG
-        cerr << "Syscall munmap(" << dec << syscall_num << ") addr: 0x" << hex << arg1
-             << " length: " << arg2 << dec << endl;
-#endif
-        tstate->last_syscall_arg1 = arg1;
-        tstate->last_syscall_arg2 = arg2;
-        break;
-
-      case __NR_mmap: //oldmmap
-        memcpy(&mmap_arg, (void*)arg1, sizeof(mmap_arg_struct));
-#ifdef ZESTO_PIN_DBG
-        cerr << "Syscall oldmmap(" << dec << syscall_num << ") addr: 0x" << hex << mmap_arg.addr
-             << " length: " << mmap_arg.len << dec << endl;
-#endif
-        tstate->last_syscall_arg1 = mmap_arg.len;
-        break;
-
-      case __NR_mmap2:
-        arg2 = PIN_GetSyscallArgument(ictxt, std, 1);
-#ifdef ZESTO_PIN_DBG
-        cerr << "Syscall mmap2(" << dec << syscall_num << ") addr: 0x" << hex << arg1
-             << " length: " << arg2 << dec << endl;
-#endif
-        tstate->last_syscall_arg1 = arg2;
-        break;
-
-      case __NR_mremap:
-        arg2 = PIN_GetSyscallArgument(ictxt, std, 1);
-        arg3 = PIN_GetSyscallArgument(ictxt, std, 2);
-#ifdef ZESTO_PIN_DBG
-        cerr << "Syscall mremap(" << dec << syscall_num << ") old_addr: 0x" << hex << arg1
-             << " old_length: " << arg2 << " new_length: " << arg3 << dec << endl;
-#endif
-        tstate->last_syscall_arg1 = arg1;
-        tstate->last_syscall_arg2 = arg2;
-        tstate->last_syscall_arg3 = arg3;
-        break;
-
-#ifdef TIME_TRANSPARENCY
-      case __NR_times:
-#ifdef ZESTO_PIN_DBG
-        cerr << "Syscall times(" << dec << syscall_num << ") num_ins: " << SimOrgInsCount << endl;
-#endif
-        tstate->last_syscall_arg1 = arg1;
-        break;
-#endif
-      case __NR_mprotect:
-        arg2 = PIN_GetSyscallArgument(ictxt, std, 1);
-        arg3 = PIN_GetSyscallArgument(ictxt, std, 2);
-#ifdef ZESTO_PIN_DBG
-        cerr << "Syscall mprotect(" << dec << syscall_num << ") addr: " << hex << arg1
-             << dec << " length: " << arg2 << " prot: " << hex << arg3 << dec << endl;
-#endif
-        tstate->last_syscall_arg1 = arg1;
-        tstate->last_syscall_arg2 = arg2;
-        tstate->last_syscall_arg3 = arg3;
-        break;
-
-#ifdef ZESTO_PIN_DBG
-    case __NR_open:
-        cerr << "Syscall open (" << dec << syscall_num << ") path: " << (char*)arg1 << endl;
-        break;
-#endif
-
-#ifdef ZESTO_PIN_DBG
-    case __NR_exit:
-        cerr << "Syscall exit (" << dec << syscall_num << ") code: " << arg1 << endl;
-        break;
-#endif
-
-/*
-    case __NR_sysconf:
-#ifdef ZESTO_PIN_DBG
-        cerr << "Syscall sysconf (" << dec << syscall_num << ") arg: " << arg1 << endl;
-#endif
-        tstate->last_syscall_arg1 = arg1;
-        break;
-*/
-      default:
-#ifdef ZESTO_PIN_DBG
-        cerr << "Syscall " << dec << syscall_num << endl;
-#endif
-        break;
-    }
-    lk_unlock(&syscall_lock);
-}
-
-/* ========================================================================== */
-VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VOID *v)
-{
-    // ILDJIT is minding its own bussiness
-//    if (KnobILDJIT.Value() && !ILDJIT_IsExecuting())
-//        return;
-
-    lk_lock(&syscall_lock, threadIndex+1);
-    ADDRINT retval = PIN_GetSyscallReturn(ictxt, std);
-
-    thread_state_t* tstate = get_tls(threadIndex);
-
-#ifdef TIME_TRANSPARENCY
-    //for times()
-    tms* buf;
-    clock_t adj_time;
-#endif
-
-    switch(tstate->last_syscall_number)
-    {
-      case __NR_brk:
-#ifdef ZESTO_PIN_DBG
-        cerr << "Ret syscall brk(" << dec << tstate->last_syscall_number << ") addr: 0x"
-             << hex << retval << dec << endl;
-#endif
-        if(tstate->last_syscall_arg1 != 0)
-            Zesto_UpdateBrk(0/*coreID*/, tstate->last_syscall_arg1, true);
-        /* Seemingly libc code calls sbrk(0) to get the initial value of the sbrk. We intercept that and send result to zesto, so that we can correclty deal with virtual memory. */
-        else
-            Zesto_UpdateBrk(0/*coreID*/, retval, false);
-        break;
-
-      case __NR_munmap:
-#ifdef ZESTO_PIN_DBG
-        cerr << "Ret syscall munmap(" << dec << tstate->last_syscall_number << ") addr: 0x"
-             << hex << tstate->last_syscall_arg1 << " length: " << tstate->last_syscall_arg2 << dec << endl;
-#endif
-        if(retval != (ADDRINT)-1)
-            Zesto_Notify_Munmap(0/*coreID*/, tstate->last_syscall_arg1, tstate->last_syscall_arg2, false);
-        break;
-
-      case __NR_mmap: //oldmap
-#ifdef ZESTO_PIN_DBG
-        cerr << "Ret syscall oldmmap(" << dec << tstate->last_syscall_number << ") addr: 0x"
-             << hex << retval << " length: " << tstate->last_syscall_arg1 << dec << endl;
-#endif
-        if(retval != (ADDRINT)-1)
-            ASSERTX( Zesto_Notify_Mmap(0/*coreID*/, retval, tstate->last_syscall_arg1, false) );
-        break;
-
-      case __NR_mmap2:
-#ifdef ZESTO_PIN_DBG
-        cerr << "Ret syscall mmap2(" << dec << tstate->last_syscall_number << ") addr: 0x"
-             << hex << retval << " length: " << tstate->last_syscall_arg1 << dec << endl;
-#endif
-        if(retval != (ADDRINT)-1)
-            ASSERTX( Zesto_Notify_Mmap(0/*coreID*/, retval, tstate->last_syscall_arg1, false) );
-        break;
-
-      case __NR_mremap:
-#ifdef ZESTO_PIN_DBG
-        cerr << "Ret syscall mremap(" << dec << tstate->last_syscall_number << ") " << hex
-             << " old_addr: 0x" << tstate->last_syscall_arg1
-             << " old_length: " << tstate->last_syscall_arg2
-             << " new address: 0x" << retval
-             << " new_length: " << tstate->last_syscall_arg3 << dec << endl;
-#endif
-        if(retval != (ADDRINT)-1)
-        {
-            ASSERTX( Zesto_Notify_Munmap(0/*coreID*/, tstate->last_syscall_arg1, tstate->last_syscall_arg2, false) );
-            ASSERTX( Zesto_Notify_Mmap(0/*coreID*/, retval, tstate->last_syscall_arg3, false) );
-        }
-        break;
-
-      case __NR_mprotect:
-        if(retval != (ADDRINT)-1)
-        {
-            if ((tstate->last_syscall_arg3 & PROT_READ) == 0)
-                ASSERTX( Zesto_Notify_Munmap(0/*coreID*/, tstate->last_syscall_arg1, tstate->last_syscall_arg2, false) );
-            else
-                ASSERTX( Zesto_Notify_Mmap(0/*coreID*/, tstate->last_syscall_arg1, tstate->last_syscall_arg2, false) );
-        }
-        break;
-
-    /* Present ourself as if we have num_cores cores */
-/*    case __NR_sysconf:
-#ifdef ZESTO_PIN_DBG
-        cerr << "Syscall sysconf (" << dec << syscall_num << ") ret" << endl;
-#endif
-        if (tstate->last_syscall_arg1 == _SC_NPROCESSORS_ONLN)
-            if ((INT32)retval != - 1) {
-                PIN_SetContextReg(ictxt, REG_EAX, num_cores);
-                PIN_ExecuteAt(ictxt);
-            }
-        break;*/
-
-#ifdef TIME_TRANSPARENCY
-      case __NR_times:
-        buf = (tms*) tstate->last_syscall_arg1;
-        adj_time = retval - (clock_t) sim_time;
-#ifdef ZESTO_PIN_DBG
-        cerr << "Ret syscall times(" << dec << tstate->last_syscall_number << ") old: "
-             << retval  << " adjusted: " << adj_time
-             << " user: " << buf->tms_utime
-             << " user_adj: " << (buf->tms_utime - sim_time)
-             << " system: " << buf->tms_stime << endl;
-#endif
-        /* Compensate for time we spent on simulation
-         * Included for full transparency - some apps detect we are taking a long time
-         * and do bad things like dropping frames
-         * Since we have no decent way of measuring how much time the simulator spends in the OS
-         * (other than calling times() for every instruction), we assume the simulator is ainly
-          user code. XXX: how reasonable is this assmuption???
-         */
-        buf->tms_utime -= sim_time;
-        /* buf->tms_stime -=  0.1 * sim_time; ?? */
-        // Don't touch child process timing -- we don't support child processes anyway
-
-        // Adjust aggregate time passed by time spent in sim
-        // Return value as 32-bit int in EAX
-        if ((INT32)retval != - 1)
-            PIN_SetContextReg(ictxt, REG_EAX, adj_time);
-        //XXX: To make this work, we need to use PIN_ExecuteAt()
-        break;
-#endif
-
-      default:
-        break;
-    }
-    lk_unlock(&syscall_lock);
 }
 
 /* ========================================================================== */
@@ -1371,7 +1185,6 @@ INT32 main(INT32 argc, CHAR **argv)
 
     SSARGS ssargs = MakeSimpleScalarArgcArgv(argc, argv);
 
-    lk_init(&syscall_lock);
     PIN_SemaphoreInit(&consumer_sleep_lock);
     PIN_SemaphoreInit(&producer_sleep_lock);
 
@@ -1430,9 +1243,9 @@ INT32 main(INT32 argc, CHAR **argv)
     PIN_AddThreadFiniFunction(ThreadFini, NULL);
 //    IMG_AddUnloadFunction(ImageUnload, 0);
     IMG_AddInstrumentFunction(ImageLoad, 0);
-    PIN_AddSyscallEntryFunction(SyscallEntry, 0);
-    PIN_AddSyscallExitFunction(SyscallExit, 0);
+    PIN_AddFiniUnlockedFunction(BeforeFini, 0);
     PIN_AddFiniFunction(Fini, 0);
+    InitSyscallHandling();
 
     if(KnobSanity.Value())
         Zesto_Add_WriteByteCallback(Zesto_WriteByteCallback);

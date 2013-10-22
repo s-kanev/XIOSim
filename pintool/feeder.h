@@ -180,51 +180,6 @@ enum EXECUTION_MODE
 };
 extern EXECUTION_MODE ExecMode;
 
-struct handshake_flags_t
-{
-  BOOL valid;               /* Did we finish dumping context */
-
-  BOOL isFirstInsn;         /* Notify sim for first instruction in a slice */
-  BOOL isLastInsn;          /* Same ^ for last */
-
-  BOOL giveCoreUp;          /* Notify the scheduler to release thread */
-  BOOL giveUpReschedule;    /* When ^ is true, should thread get re-scheduled */
-  BOOL killThread;          /* Thread is exiting, deschedule it and clean up once consumed */
-};
-
-class handshake_container_t
-{
-  public:
-    handshake_container_t() {
-        Clear();
-    }
-
-    void Clear() {
-        memzero(&handshake, sizeof(P2Z_HANDSHAKE));
-        handshake.real = true;
-        flags.valid = false;
-        flags.isFirstInsn = false;
-        flags.isLastInsn = false;
-        flags.giveCoreUp = false;
-        flags.killThread = false;
-
-        mem_buffer.clear();
-    }
-
-    void CopyTo(handshake_container_t* dest) const {
-        dest->flags = this->flags;
-        memcpy(&dest->handshake, &this->handshake, sizeof(P2Z_HANDSHAKE));
-        dest->mem_buffer = this->mem_buffer;
-    }
-
-    // Handshake information that gets passed on to Zesto
-    struct P2Z_HANDSHAKE handshake;
-
-    struct handshake_flags_t flags;
-
-    // Memory reads and writes to be passed on to Zesto
-    std::map<UINT32, UINT8> mem_buffer;
-};
 
 VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREADID tid);
 VOID PauseSimulation(THREADID tid);

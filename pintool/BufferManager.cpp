@@ -13,40 +13,12 @@
 #include <queue>
 
 #include "feeder.h"
-#include "Buffer.h"
+#include "../buffer.h"
 #include "BufferManager.h"
 
 extern int num_cores;
 extern bool consumers_sleep;
 extern PIN_SEMAPHORE consumer_sleep_lock;
-
-ostream& operator<< (ostream &out, handshake_container_t &hand)
-{
-  out << "hand:" << " ";
-  out << hand.flags.valid;
-  out << hand.flags.isFirstInsn;
-  out << hand.flags.isLastInsn;
-  out << hand.flags.killThread;
-  out << " ";
-  out << "mema: " << hex << hand.handshake.mem_addr << " val: " << hand.handshake.mem_val << dec << " ";
-  out << hand.mem_buffer.size();
-  for (auto it=hand.mem_buffer.begin(); it != hand.mem_buffer.end(); it++)
-    out << hex << it->first << ": " << it->second << dec << " ";
-  out << " ";
-  out << "pc:" << hand.handshake.pc << " ";
-  out << "npc:" << hand.handshake.npc << " ";
-  out << "tpc:" << hand.handshake.tpc << " ";
-  out << "brtaken:" << hand.handshake.brtaken << " ";
-  out << "ins:" << hand.handshake.ins << " ";
-  out << "flags:" << hand.handshake.sleep_thread << hand.handshake.resume_thread;
-  out  << hand.handshake.real;
-  out << hand.handshake.in_critical_section;
-  out << " slicenum:" << hand.handshake.slice_num << " ";
-  out << "feederslicelen:" << hand.handshake.feeder_slice_length << " ";
-  out << "feedersliceweight:" << hand.handshake.slice_weight_times_1000 << " ";
-  out.flush();
-  return out;
-}
 
 BufferManager::BufferManager()
   :numThreads_(0)
@@ -214,7 +186,7 @@ void BufferManager::producer_done(THREADID tid, bool keepLock)
   }
 
   if(produceBuffer_[tid]->full()) {// || ( (consumeBuffer_[tid]->size() == 0) && (fileEntryCount_[tid] == 0))) {
-#ifdef DEBUG
+#if defined(DEBUG) || defined(ZESTO_PIN_DBG)
     int produceSize = produceBuffer_[tid]->size();
 #endif
     bool checkSpace = !keepLock;
