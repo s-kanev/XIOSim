@@ -185,8 +185,6 @@ sim_check_options(struct opt_odb_t *odb, int argc, char **argv)
   if((num_cores < 1) || (num_cores > MAX_CORES))
     fatal("-cores must be between 1 and %d (inclusive)",MAX_CORES);
 
-  simulated_processes_remaining = num_cores;
-
   uncore_create();
   dram_create();
 

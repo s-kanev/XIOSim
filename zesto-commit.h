@@ -118,10 +118,12 @@ class core_commit_t
   virtual void pre_commit_recover(struct Mop_t * const Mop) = 0;
   virtual int squash_uop(struct uop_t * const uop) = 0;
 
+  bool deadlocked;
+  static const int deadlock_threshold = 5000;
+
   protected:
 
   struct core_t * core;
-  static const int deadlock_threshold = 500000000;
 };
 
 void commit_reg_options(struct opt_odb_t * odb, struct core_knobs_t * knobs);

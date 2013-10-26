@@ -122,8 +122,6 @@ int rand_seed;
 
 int start_pos = 0;
 
-int heartbeat_count = 0;
-
 int
 orphan_fn(int i, int argc, char **argv)
 {

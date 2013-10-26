@@ -81,7 +81,6 @@ class core_exec_t
 
   /* watchdog for detecting dead/live-locked simulations */
   tick_t last_completed;
-  counter_t last_completed_count;
 
   core_exec_t(void);
   virtual ~core_exec_t();
