@@ -121,9 +121,7 @@
 #ifndef MISC_H
 #define MISC_H
 
-#ifdef __cplusplus
 extern "C" {
-#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -146,10 +144,6 @@ extern "C" {
 #ifndef MIN
 #define MIN(a, b)    (((a) < (b)) ? (a) : (b))
 #endif
-
-/* for printing out "long long" vars */
-#define LLHIGH(L)		((int)(((L)>>32) & 0xffffffff))
-#define LLLOW(L)		((int)((L) & 0xffffffff))
 
 /* size of an array, in elements */
 #define N_ELT(ARR)   (sizeof(ARR)/sizeof((ARR)[0]))
@@ -228,9 +222,6 @@ _debug(const char *file, const char *func, const int line, const char *fmt, ...)
 /* return log of a number to the base 2 */
 int log_base2(const int n);
 
-/* return string describing elapsed time, passed in SEC in seconds */
-const char *elapsed_time(long sec);
-
 /* fast modulo increment/decrement:
    gcc on -O1 or higher will if-convert the following functions
    to provide much cheaper implementations of increment and
@@ -277,9 +268,6 @@ FILE *gzopen(const char *fname, const char *type);
 /* close compressed stream */
 void gzclose(FILE *fd);
 
-
-#ifdef __cplusplus
 }
-#endif
 
 #endif /* MISC_H */
