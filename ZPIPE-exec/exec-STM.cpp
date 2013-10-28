@@ -816,7 +816,7 @@ void core_exec_STM_t::load_writeback(struct uop_t * const uop)
     uop->exec.ovalue_valid = true;
     zesto_assert(uop->timing.when_completed == TICK_T_MAX,(void)0);
     uop->timing.when_completed = core->sim_cycle;
-    last_completed = core->sim_cycle; /* for deadlock detection */
+    update_last_completed(core->sim_cycle); /* for deadlock detection */
     if(uop->decode.is_ctrl && (uop->Mop->oracle.NextPC != uop->Mop->fetch.pred_NPC)) /* XXX: for RETN */
     {
       core->oracle->pipe_recover(uop->Mop,uop->Mop->oracle.NextPC);
@@ -972,7 +972,7 @@ void core_exec_STM_t::LDST_exec(void)
                 uop->exec.ovalue = STQ[j].value;
                 uop->exec.ovalue_valid = true;
                 uop->timing.when_completed = core->sim_cycle;
-                last_completed = core->sim_cycle; /* for deadlock detection */
+                update_last_completed(core->sim_cycle); /* for deadlock detection */
                 LDQ[uop->alloc.LDQ_index].hit_in_STQ = true;
 
                 if(uop->decode.is_ctrl && (uop->Mop->oracle.NextPC != uop->Mop->fetch.pred_NPC)) /* for RETN */
@@ -1252,7 +1252,7 @@ void core_exec_STM_t::ALU_exec(void)
 
               zesto_assert(uop->timing.when_completed == TICK_T_MAX,(void)0);
               uop->timing.when_completed = core->sim_cycle;
-              last_completed = core->sim_cycle; /* for deadlock detection */
+              update_last_completed(core->sim_cycle); /* for deadlock detection */
 
               /* bypass output value to dependents */
               struct odep_t * odep = uop->exec.odep_uop;
