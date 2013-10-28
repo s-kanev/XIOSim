@@ -422,5 +422,12 @@ tick_t cache_get_cycle(const struct cache_t * const cp);
 #endif
 #endif
 
+#ifdef ZTRACE
+#ifndef CACHE_ZTRACE
+
+#define CACHE_ZTRACE(fmt, ...) ztrace_print(cp->core == NULL ? INVALID_CORE : cp->core->id, fmt, ## __VA_ARGS__)
+
+#endif
+#endif
 
 #endif /* ZESTO_COMMIT_INCLUDED */

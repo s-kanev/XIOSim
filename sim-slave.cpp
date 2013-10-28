@@ -404,7 +404,7 @@ static void global_step(void)
         deadlock_count = 0;
       }
 
-      ZPIN_TRACE("###Uncore cycle%s\n"," ");
+      ZPIN_TRACE(INVALID_CORE, "###Uncore cycle%s\n"," ");
 
       if(uncore->sim_cycle == 0)
         fprintf(stderr, "### starting timing simulation \n");
@@ -537,7 +537,7 @@ master_core:
         /* All cores got deactivated, just return and make sure we 
          * go back to PIN */
         if (min_coreID == MAX_CORES) {
-          ZPIN_TRACE("Returning from step loop looking suspicious %d", coreID);
+          ZPIN_TRACE(min_coreID, "Returning from step loop looking suspicious %d", coreID);
           cores[coreID]->current_thread->consumed = true;
           lk_unlock(&cycle_lock);
           return;

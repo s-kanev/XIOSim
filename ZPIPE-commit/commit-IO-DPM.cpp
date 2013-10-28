@@ -379,7 +379,7 @@ void core_commit_IO_DPM_t::IO_step(void)
   {
     deadlocked = true; 
 #ifdef ZTRACE
-    ztrace_print("Possible deadlock detected [core %d]", core->id);
+    ztrace_print(core->id, "Possible deadlock detected.");
 #endif
     return;
   }

@@ -369,7 +369,7 @@ struct spec_byte_t * core_oracle_t::spec_write_byte(
     spec_mem_map.hash[index].head = p;
 
 
-  ZPIN_TRACE("Write to specQ at 0x%x, val: %x, spec_mode: %d\n", addr, val, uop->Mop->oracle.spec_mode);
+  ZPIN_TRACE(core->id, "Write to specQ at 0x%x, val: %x, spec_mode: %d\n", addr, val, uop->Mop->oracle.spec_mode);
 
   p->val = val;
   p->addr = addr;
@@ -418,7 +418,7 @@ bool core_oracle_t::spec_read_byte(
  */
 uint8_t core_oracle_t::spec_do_read_byte(const md_addr_t addr, const struct Mop_t* Mop)
 {
-  ZPIN_TRACE("Read at addr 0x%x", addr);
+  ZPIN_TRACE(core->id, "Read at addr 0x%x", addr);
 
   uint8_t res = 0;
 
@@ -456,7 +456,7 @@ uint8_t core_oracle_t::spec_do_read_byte(const md_addr_t addr, const struct Mop_
   res = 0;
 
 done:
-  ZPIN_TRACE(" returns 0x%x\n", res);
+  ZPIN_TRACE(core->id, " returns 0x%x\n", res);
   return res;
 }
 
@@ -1273,7 +1273,7 @@ core_oracle_t::exec(const md_addr_t requested_PC)
     /* If we can't handle isntruction, at least set NPC correctly, so that we don't corrupt fetch sequence */
     if(Mop->decode.op == NOP && !Mop->oracle.spec_mode)
     {  
-       ZPIN_TRACE("XXX: Ignoring unknown instruction at pc: %x\n", thread->regs.regs_PC);
+       ZPIN_TRACE(core->id, "XXX: Ignoring unknown instruction at pc: %x\n", thread->regs.regs_PC);
        ZESTO_STAT(core->stat.oracle_unknown_insn++;)
        Mop->uop[Mop->decode.last_uop_index].decode.EOM = true;
        thread->rep_sequence = 0;
@@ -1483,7 +1483,7 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
   if(num_Mops_nuked > 0 && !MopQ[idx].oracle.spec_mode && current_Mop != NULL)
   {
     num_Mops_nuked--;
-    ZPIN_TRACE("num_Mops_nuked-- correction; recPC: 0x%x\n", Mop->fetch.PC);
+    ZPIN_TRACE(core->id, "num_Mops_nuked-- correction; recPC: 0x%x\n", Mop->fetch.PC);
   }
 
   while(Mop != &MopQ[idx])
@@ -1496,7 +1496,7 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
     if(nuke)
       num_Mops_nuked++;
 
-    ZPIN_TRACE("Undoing Mop @ PC: %x, nuke: %d, num_Mops_nuked: %d\n", MopQ[idx].fetch.PC, nuke, num_Mops_nuked);
+    ZPIN_TRACE(core->id, "Undoing Mop @ PC: %x, nuke: %d, num_Mops_nuked: %d\n", MopQ[idx].fetch.PC, nuke, num_Mops_nuked);
 
     undo(&MopQ[idx], nuke);
     MopQ[idx].valid = false;
@@ -1526,7 +1526,7 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
   core->current_thread->regs.regs_PC = Mop->fetch.PC;
   core->current_thread->regs.regs_NPC = Mop->oracle.NextPC;
 
-  ZPIN_TRACE("Recovering to fetchPC: %x; nuked_Mops: %d, rep_seq: %d \n", Mop->fetch.PC, num_Mops_nuked, core->current_thread->rep_sequence);
+  ZPIN_TRACE(core->id, "Recovering to fetchPC: %x; nuked_Mops: %d, rep_seq: %d \n", Mop->fetch.PC, num_Mops_nuked, core->current_thread->rep_sequence);
 
   spec_mode = Mop->oracle.spec_mode;
   current_Mop = NULL;
@@ -1726,7 +1726,7 @@ void core_oracle_t::grab_feeder_state(handshake_container_t * handshake, bool al
   if(check_pc_mismatch && core->fetch->PC != handshake->handshake.pc)
   {
     if (handshake->handshake.real && !core->fetch->prev_insn_fake) {
-      ZPIN_TRACE("PIN->PC (0x%x) different from fetch->PC (0x%x). Overwriting with Pin value!\n", handshake->handshake.pc, core->fetch->PC);
+      ZPIN_TRACE(core->id, "PIN->PC (0x%x) different from fetch->PC (0x%x). Overwriting with Pin value!\n", handshake->handshake.pc, core->fetch->PC);
       //       info("PIN->PC (0x%x) different from fetch->PC (0x%x). Overwriting with Pin value!\n", handshake->pc, core->fetch->PC);
     }
     core->fetch->PC = handshake->handshake.pc;
@@ -1783,8 +1783,15 @@ handshake_container_t * core_oracle_t::get_shadow_Mop(const struct Mop_t* Mop)
 {
   int Mop_ind = get_index(Mop);
   int from_head = (Mop_ind - MopQ_head) & (MopQ_size - 1);
-  ZPIN_TRACE("MopQ index: %d\n", Mop_ind);
+  ZPIN_TRACE(core->id, "MopQ index: %d\n", Mop_ind);
   handshake_container_t * res = shadow_MopQ->get_item(from_head);
+/*
+  if (!res->flags.valid) {
+    fprintf(stderr, "ABOUT TO FAIL!!!\n");
+    fflush(stderr);
+    while(1);
+  }
+*/
   zesto_assert(res->flags.valid, NULL);
   return res; 
 }
@@ -2106,7 +2113,7 @@ void core_oracle_t::squash_write_byte(struct spec_byte_t * const p)
   const int index = p->addr & MEM_HASH_MASK;
   assert(spec_mem_map.hash[index].tail == p);
 
-  ZPIN_TRACE("Squashing spec mem write at addr: %x, val: %x\n", p->addr, p->val);
+  ZPIN_TRACE(core->id, "Squashing spec mem write at addr: %x, val: %x\n", p->addr, p->val);
 
   if(p->prev)
     p->prev->next = NULL;

@@ -2360,12 +2360,12 @@ void core_exec_DPM_t::ALU_exec(void)
             else
               uop->alloc.RS_index = -1;
 #ifdef ZTRACE
-            ztrace_print_cont(", deallocates from RS");
+            ztrace_print_cont(core->id, ", deallocates from RS");
 #endif
           }
 
 #ifdef ZTRACE
-          ztrace_print_finish("");
+          ztrace_print_finish(core->id, "");
 #endif
 
           RS_eff_num--;

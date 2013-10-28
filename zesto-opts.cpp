@@ -87,9 +87,9 @@
 #include "zesto-uncore.h"
 #include "zesto-repeater.h"
 
-#if defined(ZTRACE) && !defined(ZESTO_PIN_DBG)
-FILE * ztrace_fp = NULL;
+#ifdef ZTRACE
 const char * ztrace_filename = NULL;
+extern FILE* ztrace_fp[MAX_CORES+1];
 #endif
 
 /* maximum number of inst's/uop's to execute */
@@ -141,8 +141,8 @@ sim_reg_options(struct opt_odb_t *odb)
   opt_reg_string(odb, "-model","pipeline model type",
       &knobs.model, /*default*/ "DPM", /*print*/true,/*format*/NULL);
 
-#if defined(ZTRACE) && !defined(ZESTO_PIN_DBG)
-  opt_reg_string(odb, "-ztrace:filename","zesto-trace filename",
+#if defined(ZTRACE)
+  opt_reg_string(odb, "-ztrace:file_prefix","zesto-trace filename",
       &ztrace_filename, /*default*/ NULL, /*print*/true,/*format*/NULL);
 #endif
 
@@ -188,15 +188,23 @@ sim_check_options(struct opt_odb_t *odb, int argc, char **argv)
   uncore_create();
   dram_create();
 
-#if defined(ZTRACE) && !defined(ZESTO_PIN_DBG)
+#if defined(ZTRACE)
   if(ztrace_filename && strcmp(ztrace_filename,""))
   {
-    ztrace_fp = fopen(ztrace_filename,"w");
-    if(!ztrace_fp)
-      fatal("failed to open ztrace file %s",ztrace_filename);
+    char buff[512];
+ 
+    for (int i=0; i<num_cores; i++) {
+      snprintf(buff, 512, "%s.%d", ztrace_filename, i);
+      ztrace_fp[i] = fopen(buff,"w");
+      if(!ztrace_fp[i])
+        fatal("failed to open ztrace file %s", buff);
+    }
+
+    snprintf(buff, 512, "%s.uncore", ztrace_filename);
+    ztrace_fp[num_cores] = fopen(buff,"w");
+    if(!ztrace_fp[num_cores])
+      fatal("failed to open ztrace file %s", buff);
   }
-  else
-    ztrace_fp = NULL;
 #endif
 }
 
@@ -458,57 +466,55 @@ sim_reg_stats(struct thread_t ** archs, struct stat_sdb_t *sdb)
 
 #ifdef ZTRACE
 
-#ifdef ZESTO_PIN_DBG
-#define ZTRACE_PRINT(fmt, ...) ZPIN_TRACE(fmt, ## __VA_ARGS__)
-#define ZTRACE_VPRINT(fmt, v) vtrace(fmt, v)
-#define ZTRACE_CHECK_FILE()
-#else
-#define ZTRACE_PRINT(fmt, ...)  fprintf(ztrace_fp, fmt, ## __VA_ARGS__)
-#define ZTRACE_VPRINT(fmt, v)   vfprintf(ztrace_fp, fmt, v)
-#define ZTRACE_CHECK_FILE() \
-if(ztrace_fp == NULL) \
-return;
-#endif /* ZESTO_PIN_DBG */
+#define ZTRACE_PRINT(coreID, fmt, ...) ZPIN_TRACE(coreID, fmt, ## __VA_ARGS__)
+#define ZTRACE_VPRINT(coreID, fmt, v) vtrace(coreID, fmt, v)
 
 void ztrace_Mop_ID(const struct Mop_t * Mop)
 {
-  ZTRACE_PRINT("%lld|M:%lld|",Mop->core->sim_cycle,Mop->oracle.seq);
+  if(Mop==NULL)
+    return;
+
+  int coreID = Mop->core->id;
+  ZTRACE_PRINT(coreID, "%lld|M:%lld|",Mop->core->sim_cycle,Mop->oracle.seq);
   if(Mop->oracle.spec_mode)
-    ZTRACE_PRINT("X|");
+    ZTRACE_PRINT(coreID, "X|");
   else
-    ZTRACE_PRINT(".|");
+    ZTRACE_PRINT(coreID, ".|");
 }
 
 void ztrace_uop_ID(const struct uop_t * uop)
 {
   if(uop==NULL)
     return;
-  ZTRACE_PRINT("%lld|u:%lld:%lld|", uop->core->sim_cycle,
+
+  int coreID = uop->core->id;
+  ZTRACE_PRINT(coreID, "%lld|u:%lld:%lld|", uop->core->sim_cycle,
           uop->decode.Mop_seq, (uop->decode.Mop_seq << UOP_SEQ_SHIFT) + uop->flow_index);
   if(uop->Mop && uop->Mop->oracle.spec_mode)
-    ZTRACE_PRINT("X|");
+    ZTRACE_PRINT(coreID, "X|");
   else
-    ZTRACE_PRINT(".|");
+    ZTRACE_PRINT(coreID, ".|");
 }
 
 
 /* called by oracle when Mop first executes */
 void ztrace_print(const struct Mop_t * Mop)
 {
-  ZTRACE_CHECK_FILE();
-
   ztrace_Mop_ID(Mop);
+
+  int coreID = Mop->core->id;
+
   // core id, PC{virtual,physical}
-  ZTRACE_PRINT("DEF|core=%d:virtPC=%x:physPC=%llx:op=",Mop->core->id,Mop->fetch.PC,v2p_translate(Mop->core->id,Mop->fetch.PC));
+  ZTRACE_PRINT(coreID, "DEF|core=%d:virtPC=%x:physPC=%llx:op=",Mop->core->id,Mop->fetch.PC,v2p_translate(coreID,Mop->fetch.PC));
   // rep prefix and iteration
   if(Mop->fetch.inst.rep)
-    ZTRACE_PRINT("rep{%d}",Mop->decode.rep_seq);
+    ZTRACE_PRINT(coreID, "rep{%d}",Mop->decode.rep_seq);
   // opcode name
-  ZTRACE_PRINT("%s:",md_op2name[Mop->decode.op]);
-  ZTRACE_PRINT("trap=%d:",Mop->decode.is_trap);
+  ZTRACE_PRINT(coreID, "%s:",md_op2name[Mop->decode.op]);
+  ZTRACE_PRINT(coreID, "trap=%d:",Mop->decode.is_trap);
 
   // ucode flow length
-  ZTRACE_PRINT("flow-length=%d\n",Mop->decode.flow_length);
+  ZTRACE_PRINT(coreID, "flow-length=%d\n",Mop->decode.flow_length);
 
   int i;
   int count=0;
@@ -516,24 +522,24 @@ void ztrace_print(const struct Mop_t * Mop)
   {
     struct uop_t * uop = &Mop->uop[i];
     ztrace_uop_ID(uop);
-    ZTRACE_PRINT("DEF");
-    if(uop->decode.BOM && !uop->decode.EOM) ZTRACE_PRINT("-BOM");
-    if(uop->decode.EOM && !uop->decode.BOM) ZTRACE_PRINT("-EOM");
+    ZTRACE_PRINT(coreID, "DEF");
+    if(uop->decode.BOM && !uop->decode.EOM) ZTRACE_PRINT(coreID, "-BOM");
+    if(uop->decode.EOM && !uop->decode.BOM) ZTRACE_PRINT(coreID, "-EOM");
     // core id, uop number within flow
-    ZTRACE_PRINT("|core=%d:uop-number=%d:",Mop->core->id,count);
+    ZTRACE_PRINT(coreID, "|core=%d:uop-number=%d:",Mop->core->id,count);
     // opcode name
-    ZTRACE_PRINT("op=%s",md_op2name[uop->decode.op]);
+    ZTRACE_PRINT(coreID, "op=%s",md_op2name[uop->decode.op]);
     if(uop->decode.in_fusion)
     {
-      ZTRACE_PRINT("-f");
+      ZTRACE_PRINT(coreID, "-f");
       if(uop->decode.is_fusion_head)
-        ZTRACE_PRINT("H"); // fusion head
+        ZTRACE_PRINT(coreID, "H"); // fusion head
       else
-        ZTRACE_PRINT("b"); // fusion body
+        ZTRACE_PRINT(coreID, "b"); // fusion body
     }
 
     // register identifiers
-    ZTRACE_PRINT(":odep=%d:i0=%d:i1=%d:i2=%d:",
+    ZTRACE_PRINT(coreID, ":odep=%d:i0=%d:i1=%d:i2=%d:",
         uop->decode.odep_name,
         uop->decode.idep_name[0],
         uop->decode.idep_name[1],
@@ -541,77 +547,74 @@ void ztrace_print(const struct Mop_t * Mop)
 
     // load/store address and size
     if(uop->decode.is_load || uop->decode.is_sta)
-      ZTRACE_PRINT("VA=%lx:PA=%llx:mem-size=%d:fault=%d",(long unsigned int)uop->oracle.virt_addr,uop->oracle.phys_addr,uop->decode.mem_size,uop->oracle.fault);
+      ZTRACE_PRINT(coreID, "VA=%lx:PA=%llx:mem-size=%d:fault=%d",(long unsigned int)uop->oracle.virt_addr,uop->oracle.phys_addr,uop->decode.mem_size,uop->oracle.fault);
 
-    ZTRACE_PRINT("\n");
+    ZTRACE_PRINT(coreID, "\n");
 
     i += Mop->uop[i].decode.has_imm?3:1;
     count++;
   }
-#ifndef ZESTO_PIN_DBG
-  fflush(ztrace_fp);
-#endif
 }
 
 void ztrace_print(const struct Mop_t * Mop, const char * fmt, ... )
 {
-  ZTRACE_CHECK_FILE();
   va_list v;
   va_start(v, fmt);
 
+  int coreID = Mop->core->id;
+
   ztrace_Mop_ID(Mop);
-  ZTRACE_VPRINT( fmt, v);
-  ZTRACE_PRINT("\n");
+  ZTRACE_VPRINT(coreID, fmt, v);
+  ZTRACE_PRINT(coreID, "\n");
 }
 
 void ztrace_print(const struct uop_t * uop, const char * fmt, ... )
 {
-  ZTRACE_CHECK_FILE();
   va_list v;
   va_start(v, fmt);
+
+  int coreID = uop->core->id;
 
   ztrace_uop_ID(uop);
-  ZTRACE_VPRINT( fmt, v);
-  ZTRACE_PRINT("\n");
+  ZTRACE_VPRINT(coreID, fmt, v);
+  ZTRACE_PRINT(coreID, "\n");
 }
 
-void ztrace_print(const char * fmt, ... )
+void ztrace_print(const int coreID, const char * fmt, ... )
 {
-  ZTRACE_CHECK_FILE();
   va_list v;
   va_start(v, fmt);
 
-  ZTRACE_VPRINT( fmt, v);
-  ZTRACE_PRINT("\n");
+  ZTRACE_VPRINT(coreID, fmt, v);
+  ZTRACE_PRINT(coreID, "\n");
 }
 
 void ztrace_print_start(const struct uop_t * uop, const char * fmt, ... )
 {
-  ZTRACE_CHECK_FILE();
   va_list v;
   va_start(v, fmt);
+
+  int coreID = uop->core->id;
 
   ztrace_uop_ID(uop);
-  ZTRACE_VPRINT( fmt, v);
+  ZTRACE_VPRINT(coreID, fmt, v);
 }
 
-void ztrace_print_cont(const char * fmt, ... )
+void ztrace_print_cont(const int coreID, const char * fmt, ... )
 {
-  ZTRACE_CHECK_FILE();
   va_list v;
   va_start(v, fmt);
 
-  ZTRACE_VPRINT( fmt, v);
+  ZTRACE_VPRINT(coreID, fmt, v);
 }
 
-void ztrace_print_finish(const char * fmt, ... )
+void ztrace_print_finish(const int coreID, const char * fmt, ... )
 {
-  ZTRACE_CHECK_FILE();
   va_list v;
   va_start(v, fmt);
 
-  ZTRACE_VPRINT( fmt, v);
-  ZTRACE_PRINT("\n");
+  ZTRACE_VPRINT(coreID, fmt, v);
+  ZTRACE_PRINT(coreID, "\n");
 }
 
 #endif

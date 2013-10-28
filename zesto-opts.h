@@ -107,12 +107,12 @@ extern int sim_elapsed_time;
 void ztrace_print(const struct Mop_t * Mop);
 void ztrace_print(const struct Mop_t * Mop, const char * fmt, ... );
 void ztrace_print(const struct uop_t * uop, const char * fmt, ... );
-void ztrace_print(const char * fmt, ... );
+void ztrace_print(const int coreID, const char * fmt, ... );
 
 // used to print out one line in the log, but broken up over multiple commands
 void ztrace_print_start(const struct uop_t * uop, const char * fmt, ... );
-void ztrace_print_cont(const char * fmt, ... );
-void ztrace_print_finish(const char * fmt, ... );
+void ztrace_print_cont(const int coreID, const char * fmt, ... );
+void ztrace_print_finish(const int coreID, const char * fmt, ... );
 #endif
 
 #endif /* ZESTO_OPTS_INCLUDED */
