@@ -674,7 +674,7 @@ VOID AddILDJITCallbacks(IMG img)
     rtn = RTN_FindByName(img, "MOLECOOL_startIteration");
     if (RTN_Valid(rtn))
     {
-      fprintf(stderr, "MOLECOOL_startIteration(): %p\n", RTN_Funptr(rtn));
+        fprintf(stderr, "MOLECOOL_startIteration(): %p\n", RTN_Funptr(rtn));
 #ifdef ZESTO_PIN_DBG
         cerr << "MOLECOOL_startIteration ";
 #endif
@@ -689,7 +689,7 @@ VOID AddILDJITCallbacks(IMG img)
     rtn = RTN_FindByName(img, "MOLECOOL_beforeWait");
     if (RTN_Valid(rtn))
     {
-      fprintf(stderr, "MOLECOOL_beforeWait(): %p\n", RTN_Funptr(rtn));
+        fprintf(stderr, "MOLECOOL_beforeWait(): %p\n", RTN_Funptr(rtn));
         RTN_Open(rtn);
         RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeWait),
                        IARG_THREAD_ID,
@@ -703,7 +703,7 @@ VOID AddILDJITCallbacks(IMG img)
     rtn = RTN_FindByName(img, "MOLECOOL_afterWait");
     if (RTN_Valid(rtn))
     {
-      fprintf(stderr, "MOLECOOL_afterWait(): %p\n", RTN_Funptr(rtn));
+        fprintf(stderr, "MOLECOOL_afterWait(): %p\n", RTN_Funptr(rtn));
         RTN_Open(rtn);
         RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterWait),
                        IARG_THREAD_ID,
@@ -719,7 +719,7 @@ VOID AddILDJITCallbacks(IMG img)
     rtn = RTN_FindByName(img, "MOLECOOL_beforeSignal");
     if (RTN_Valid(rtn))
     {
-      fprintf(stderr, "MOLECOOL_beforeSignal(): %p\n", RTN_Funptr(rtn));
+        fprintf(stderr, "MOLECOOL_beforeSignal(): %p\n", RTN_Funptr(rtn));
         RTN_Open(rtn);
         RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeSignal),
                        IARG_THREAD_ID,
@@ -733,7 +733,7 @@ VOID AddILDJITCallbacks(IMG img)
     rtn = RTN_FindByName(img, "MOLECOOL_afterSignal");
     if (RTN_Valid(rtn))
     {
-      fprintf(stderr, "MOLECOOL_afterSignal(): %p\n", RTN_Funptr(rtn));
+        fprintf(stderr, "MOLECOOL_afterSignal(): %p\n", RTN_Funptr(rtn));
         RTN_Open(rtn);
         RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterSignal),
                        IARG_THREAD_ID,
@@ -747,7 +747,7 @@ VOID AddILDJITCallbacks(IMG img)
     rtn = RTN_FindByName(img, "MOLECOOL_endParallelLoop");
     if (RTN_Valid(rtn))
     {
-      fprintf(stderr, "MOLECOOL_endParallelLoop(): %p\n", RTN_Funptr(rtn));
+        fprintf(stderr, "MOLECOOL_endParallelLoop(): %p\n", RTN_Funptr(rtn));
         RTN_Open(rtn);
         RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_endParallelLoop),
                        IARG_THREAD_ID,
@@ -804,7 +804,7 @@ VOID AddILDJITCallbacks(IMG img)
     }
 
     rtn = RTN_FindByName(img, "MOLECOOL_startLoop");
-   if (RTN_Valid(rtn))
+    if (RTN_Valid(rtn))
       {
 #ifdef ZESTO_PIN_DBG
         cerr << "MOLECOOL_startLoop ";
