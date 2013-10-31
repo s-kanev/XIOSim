@@ -124,14 +124,14 @@
 #include <string.h>
 #include <errno.h>
 #include <math.h>
-
+#include <stddef.h>
 #include <unistd.h>
 
 #include "host.h"
 #include "misc.h"
 #include "machine.h"
-#include <stddef.h>
 #include "synchronization.h"
+#include "thread.h"
 
 #ifdef DEBUG
 /* active debug flag */
@@ -139,11 +139,13 @@ bool debugging = false;
 #endif /* DEBUG */
 
 #ifdef ZESTO_PIN_DBG
-#define MAX_TRACEBUFF_ITEMS 5000000
-static char tracebuff[MAX_TRACEBUFF_ITEMS][255];
-static int tracebuff_head = 0;
-static int tracebuff_tail = 0;
-static int tracebuff_occupancy = 0;
+#define MAX_TRACEBUFF_ITEMS 300000
+static char tracebuff[MAX_CORES+1][MAX_TRACEBUFF_ITEMS][255];
+static int tracebuff_head[MAX_CORES+1];
+static int tracebuff_tail[MAX_CORES+1];
+static int tracebuff_occupancy[MAX_CORES+1];
+
+FILE* ztrace_fp[MAX_CORES+1];
 #endif
 
 /* fatal function hook, this function is called just before an exit
@@ -221,46 +223,55 @@ _debug(const char *file, const char *func, const int line, const char *fmt, ...)
 #endif /* DEBUG */
 
 #ifdef ZESTO_PIN_DBG
-void trace(const char *fmt, ...)
+void trace(const int coreID, const char *fmt, ...)
 {
   va_list v;
   va_start(v, fmt);
 
-  vtrace(fmt, v);
+  vtrace(coreID, fmt, v);
 }
 
-void vtrace(const char *fmt, va_list v)
+void vtrace(const int coreID, const char *fmt, va_list v)
 {
-  lk_lock(&printing_lock, 1);
-  vsprintf(tracebuff[tracebuff_tail], fmt, v);
+  int trace_id = (coreID == -1) ? MAX_CORES : coreID;
 
-  tracebuff_tail = modinc(tracebuff_tail, MAX_TRACEBUFF_ITEMS);
-  if(tracebuff_occupancy == MAX_TRACEBUFF_ITEMS)
-    tracebuff_head = modinc(tracebuff_head, MAX_TRACEBUFF_ITEMS);
+  lk_lock(&printing_lock, 1);
+  vsprintf(tracebuff[trace_id][tracebuff_tail[trace_id]], fmt, v);
+
+  tracebuff_tail[trace_id] = modinc(tracebuff_tail[trace_id], MAX_TRACEBUFF_ITEMS);
+  if(tracebuff_occupancy[trace_id] == MAX_TRACEBUFF_ITEMS)
+    tracebuff_head[trace_id] = modinc(tracebuff_head[trace_id], MAX_TRACEBUFF_ITEMS);
   else
-    tracebuff_occupancy++;
+    tracebuff_occupancy[trace_id]++;
   lk_unlock(&printing_lock);
 }
 
 void flush_trace()
 {
-  if(tracebuff_occupancy == 0)
-    return;
+  for (int i=0; i < num_cores+1; i++) {
+    if(tracebuff_occupancy[i] == 0)
+      continue;
 
-  fprintf(stderr, "==============================\n");
-  fprintf(stderr, "BEGIN TRACE (%d items)\n", tracebuff_occupancy);
+    FILE* fp = ztrace_fp[i];
+    if(fp == NULL)
+      continue;
 
-  int i = tracebuff_head;
-  do
-  {
-    fprintf(stderr, "%s", tracebuff[i]);
-    i = modinc(i, MAX_TRACEBUFF_ITEMS);
-  } while(i != tracebuff_tail);
-  fprintf(stderr, "END TRACE\n");
-  fprintf(stderr, "==============================\n");
-  fflush(stderr);
-  tracebuff_occupancy = 0;
-  tracebuff_head = tracebuff_tail;
+    fprintf(fp, "==============================\n");
+    fprintf(fp, "BEGIN TRACE (%d items)\n", tracebuff_occupancy[i]);
+
+    int j = tracebuff_head[i];
+    do
+    {
+      fprintf(fp, "%s", tracebuff[i][j]);
+      j = modinc(j, MAX_TRACEBUFF_ITEMS);
+    } while(j != tracebuff_tail[i]);
+
+    fprintf(fp, "END TRACE\n");
+    fprintf(fp, "==============================\n");
+    fflush(fp);
+    tracebuff_occupancy[i] = 0;
+    tracebuff_head[i] = tracebuff_tail[i];
+  }
 }
 #else
 // Assert macros rely that this is defined.
@@ -284,108 +295,6 @@ log_base2(const int n)
 
   return power;
 }
-
-/* return string describing elapsed time, passed in SEC in seconds */
-const char *
-elapsed_time(long sec)
-{
-  static char tstr[256];
-  char temp[256];
-
-  if (sec <= 0)
-    return "0s";
-
-  tstr[0] = '\0';
-
-  /* days */
-  if (sec >= 86400)
-    {
-      sprintf(temp, "%ldD ", sec/86400);
-      strcat(tstr, temp);
-      sec = sec % 86400;
-    }
-  /* hours */
-  if (sec >= 3600)
-    {
-      sprintf(temp, "%ldh ", sec/3600);
-      strcat(tstr, temp);
-      sec = sec % 3600;
-    }
-  /* mins */
-  if (sec >= 60)
-    {
-      sprintf(temp, "%ldm ", sec/60);
-      strcat(tstr, temp);
-      sec = sec % 60;
-    }
-  /* secs */
-  if (sec >= 1)
-    {
-      sprintf(temp, "%lds ", sec);
-      strcat(tstr, temp);
-    }
-  tstr[strlen(tstr)-1] = '\0';
-  return tstr;
-}
-
-#define PUT(p, n)							\
-  {									\
-    int nn, cc;								\
-									\
-    for (nn = 0; nn < n; nn++)						\
-      {									\
-	cc = *(p+nn);							\
-        *obuf++ = cc;							\
-      }									\
-  }
-
-#define PAD(s, n)							\
-  {									\
-    int nn, cc;								\
-									\
-    cc = *s;								\
-    for (nn = n; nn > 0; nn--)						\
-      *obuf++ = cc;							\
-  }
-
-#define HIBITL		LL(0x8000000000000000)
-typedef sqword_t slargeint_t;
-typedef qword_t largeint_t;
-
-static int
-_lowdigit(slargeint_t *valptr)
-{
-  /* this function computes the decimal low-order digit of the number pointed
-     to by valptr, and returns this digit after dividing *valptr by ten; this
-     function is called ONLY to compute the low-order digit of a long whose
-     high-order bit is set */
-
-  int lowbit = (int)(*valptr & 1);
-  slargeint_t value = (*valptr >> 1) & ~HIBITL;
-
-  *valptr = value / 5;
-  return (int)(value % 5 * 2 + lowbit + '0');
-}
-
-/*****************************************************
-   produces a random INTEGER in [imin, imax]
-   ie, including the endpoints imin and imax
-******************************************************/ 
-/* random generating function */
-double uniform_random()
-{
-  int ra = rand();
-  return (((double) ra) / ((double) RAND_MAX));
-}
-/* produces a random Real in [rmin, rmax] */  
-int uniform_random_irange( int imin, int imax)
-{
-  double u = uniform_random();
-  int m = imin + (int)floor((double)(imax + 1 - imin)*u ) ;
-  return  m ;
-}   
-
-
 
 
 /* The following are macros for basic memory operations.  If you have

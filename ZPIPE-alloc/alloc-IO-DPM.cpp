@@ -385,10 +385,11 @@ void core_alloc_IO_DPM_t::step(void)
             uop->timing.when_allocated = core->sim_cycle;
 
 #ifdef ZTRACE
+            ztrace_print_start(uop,"a|alloc:");
             if(uop->decode.in_fusion && !uop->decode.is_fusion_head)
-              ztrace_print_cont("f");
-            ztrace_print_cont(":pb=%d",uop->alloc.port_assignment);
-            ztrace_print_finish("|uop alloc'd and dispatched");
+              ztrace_print_cont(core->id, "f");
+            ztrace_print_cont(core->id, ",pb=%d",uop->alloc.port_assignment);
+            ztrace_print_finish(core->id, "|uop alloc'd and dispatched");
 #endif
 
           }

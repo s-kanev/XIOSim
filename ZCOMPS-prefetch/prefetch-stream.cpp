@@ -1,5 +1,5 @@
 /* prefetch-stream.cpp: Stream-based prefetcher.  [See DPL/DCU description in the "Intel 64 and
-   IA-32 Architecture Optimization Refernce Manual"] */
+   IA-32 Architecture Optimization Reference Manual"] */
 /*
  * __COPYRIGHT__ GT
  */

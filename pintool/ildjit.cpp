@@ -61,11 +61,12 @@ static BOOL simulating_parallel_loop = false;
 UINT32 getSignalAddress(ADDRINT ssID);
 BOOL signalCallback(THREADID tid, INT32 sig, CONTEXT *ctxt, BOOL hasHandler, const EXCEPTION_INFO *pExceptInfo, VOID *v);
 void signalCallback2(int signum);
-void initializePerThreadLoopState(THREADID tid);
+static void initializePerThreadLoopState(THREADID tid);
 
-bool loopMatches(string loop, UINT32 invocationNum, UINT32 iterationNum);
-void readLoop(ifstream& fin, string* name, UINT32* invocation, UINT32* iteration);
+static bool loopMatches(string loop, UINT32 invocationNum, UINT32 iterationNum);
+static void readLoop(ifstream& fin, string* name, UINT32* invocation, UINT32* iteration);
 
+static VOID shutdownSimulation(THREADID tid);
 extern VOID doLateILDJITInstrumentation();
 
 stack<loop_state_t> loop_states;
@@ -74,6 +75,9 @@ loop_state_t* loop_state;
 bool disable_wait_signal;
 UINT32* ildjit_ws_id;
 UINT32* ildjit_disable_ws;
+
+int ss_curr;
+int ss_prev;
 
 /* ========================================================================== */
 VOID MOLECOOL_Init()
@@ -125,6 +129,9 @@ VOID MOLECOOL_Init()
     cerr << end_loop << endl;
     cerr << end_loop_invocation << endl;
     cerr << end_loop_iteration << endl << endl;
+
+    ss_curr = 100000;
+    ss_prev = 100000;
 }
 
 /* ========================================================================== */
@@ -285,17 +292,18 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
 
     CHAR* loop_name = (CHAR*) loop;
     cerr << "Starting loop: " << loop_name << "[" << invocation_counts[(string)(char*)loop] << "]" << endl;
+ 
+    ss_curr = rc;
+    loop_state->use_ring_cache = (rc > 0);
+
+    if(disable_wait_signal) {
+      loop_state->use_ring_cache = false;
+    }
   }
 
   // If we didn't get to the start of the phase, return
   if(!reached_start_iteration) {
     return;
-  }
-
-  loop_state->use_ring_cache = (rc > 0);
-
-  if(disable_wait_signal) {
-    loop_state->use_ring_cache = false;
   }
 
   assert(reached_start_iteration);
@@ -355,18 +363,7 @@ VOID ILDJIT_startIteration(THREADID tid)
     // Check if this is the last iteration
   if(reached_end_iteration || loopMatches(end_loop, end_loop_invocation, end_loop_iteration)) {
     assert(reached_start_invocation && reached_end_invocation && reached_start_iteration);
-
-    ILDJIT_PauseSimulation(tid);
-    int iterCount = loop_state->simmed_iteration_count - 1;
-    cerr << "Ending loop: anonymous" << " NumIterations:" << iterCount << endl;
-
-    cerr << "Simulation runtime:";
-    printElapsedTime();
-    cerr << "Stopping simulation, TID: " << tid << endl;
-    Zesto_Slice_End(0, 1, 0, 100*1000);
-    StopSimulation(true);
-    cerr << "[KEVIN] Stopped simulation! " << tid << endl;
-    PIN_ExitProcess(EXIT_SUCCESS);
+    shutdownSimulation(tid);
   }
 
   if(reached_start_iteration) {
@@ -386,6 +383,11 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
         int numInstsToIgnore = 3;
         flushLookahead(tid, numInstsToIgnore);
 
+        if(reached_end_invocation) {
+          cerr << tid << ": Shutting down early!" << endl;
+          shutdownSimulation(tid);
+        }
+        
         ILDJIT_PauseSimulation(tid);
         cerr << tid << ": Paused simulation!" << endl;
 
@@ -404,6 +406,7 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
         UINT32 iterCount = loop_state->simmed_iteration_count - 1;
         cerr << "Ending loop: " << loop_name << " NumIterations:" << iterCount << endl;
         simulating_parallel_loop = false;
+        ss_prev = ss_curr;
 
         assert(loop_states.size() > 0);
         loop_states.pop();
@@ -439,12 +442,12 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID, ADDRINT pc)
 }
 
 /* ========================================================================== */
-VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc)
+VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, ADDRINT esp_val)
 {
-    assert(ssID < 256);
+    assert(ssID < 1024);
     thread_state_t* tstate = get_tls(tid);
     handshake_container_t* handshake;
-    int mask;
+    uint mask;
     bool first_insn;
 
     if (ExecMode != EXECUTION_MODE_SIMULATE)
@@ -493,7 +496,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc)
     }
 
     if(is_light) {
-        goto cleanup;
+      goto cleanup;
     }
 
     /* We're not a first instruction any more */
@@ -507,6 +510,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc)
     handshake = lookahead_buffer[tid].get_buffer();
 
     handshake->flags.isFirstInsn = first_insn;
+    handshake->handshake.ctxt.regs_R.dw[MD_REG_ESP] = esp_val; /* Needed when first_insn to set up stack pages */
     handshake->handshake.sleep_thread = false;
     handshake->handshake.resume_thread = false;
     handshake->handshake.real = false;
@@ -553,7 +557,7 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
 /* ========================================================================== */
 VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
 {
-  assert(ssID < 256);
+  assert(ssID < 1024);
     thread_state_t* tstate = get_tls(tid);
     handshake_container_t* handshake;
 
@@ -670,7 +674,7 @@ VOID AddILDJITCallbacks(IMG img)
     rtn = RTN_FindByName(img, "MOLECOOL_startIteration");
     if (RTN_Valid(rtn))
     {
-      fprintf(stderr, "MOLECOOL_startIteration(): %p\n", RTN_Funptr(rtn));
+        fprintf(stderr, "MOLECOOL_startIteration(): %p\n", RTN_Funptr(rtn));
 #ifdef ZESTO_PIN_DBG
         cerr << "MOLECOOL_startIteration ";
 #endif
@@ -685,7 +689,7 @@ VOID AddILDJITCallbacks(IMG img)
     rtn = RTN_FindByName(img, "MOLECOOL_beforeWait");
     if (RTN_Valid(rtn))
     {
-      fprintf(stderr, "MOLECOOL_beforeWait(): %p\n", RTN_Funptr(rtn));
+        fprintf(stderr, "MOLECOOL_beforeWait(): %p\n", RTN_Funptr(rtn));
         RTN_Open(rtn);
         RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeWait),
                        IARG_THREAD_ID,
@@ -699,13 +703,14 @@ VOID AddILDJITCallbacks(IMG img)
     rtn = RTN_FindByName(img, "MOLECOOL_afterWait");
     if (RTN_Valid(rtn))
     {
-      fprintf(stderr, "MOLECOOL_afterWait(): %p\n", RTN_Funptr(rtn));
+        fprintf(stderr, "MOLECOOL_afterWait(): %p\n", RTN_Funptr(rtn));
         RTN_Open(rtn);
         RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterWait),
                        IARG_THREAD_ID,
                        IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
                        IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
                        IARG_INST_PTR,
+                       IARG_REG_VALUE, LEVEL_BASE::REG_ESP,
                        IARG_CALL_ORDER, CALL_ORDER_LAST,
                        IARG_END);
         RTN_Close(rtn);
@@ -714,7 +719,7 @@ VOID AddILDJITCallbacks(IMG img)
     rtn = RTN_FindByName(img, "MOLECOOL_beforeSignal");
     if (RTN_Valid(rtn))
     {
-      fprintf(stderr, "MOLECOOL_beforeSignal(): %p\n", RTN_Funptr(rtn));
+        fprintf(stderr, "MOLECOOL_beforeSignal(): %p\n", RTN_Funptr(rtn));
         RTN_Open(rtn);
         RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_beforeSignal),
                        IARG_THREAD_ID,
@@ -728,7 +733,7 @@ VOID AddILDJITCallbacks(IMG img)
     rtn = RTN_FindByName(img, "MOLECOOL_afterSignal");
     if (RTN_Valid(rtn))
     {
-      fprintf(stderr, "MOLECOOL_afterSignal(): %p\n", RTN_Funptr(rtn));
+        fprintf(stderr, "MOLECOOL_afterSignal(): %p\n", RTN_Funptr(rtn));
         RTN_Open(rtn);
         RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_afterSignal),
                        IARG_THREAD_ID,
@@ -742,7 +747,7 @@ VOID AddILDJITCallbacks(IMG img)
     rtn = RTN_FindByName(img, "MOLECOOL_endParallelLoop");
     if (RTN_Valid(rtn))
     {
-      fprintf(stderr, "MOLECOOL_endParallelLoop(): %p\n", RTN_Funptr(rtn));
+        fprintf(stderr, "MOLECOOL_endParallelLoop(): %p\n", RTN_Funptr(rtn));
         RTN_Open(rtn);
         RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_endParallelLoop),
                        IARG_THREAD_ID,
@@ -787,6 +792,7 @@ VOID AddILDJITCallbacks(IMG img)
 #ifdef ZESTO_PIN_DBG
         cerr << "MOLECOOL_startLoop ";
 #endif
+        fprintf(stderr, "MOLECOOL_startLoop(): %p\n", RTN_Funptr(rtn));
         RTN_Open(rtn);
         RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_startLoop),
                        IARG_THREAD_ID,
@@ -798,7 +804,7 @@ VOID AddILDJITCallbacks(IMG img)
     }
 
     rtn = RTN_FindByName(img, "MOLECOOL_startLoop");
-   if (RTN_Valid(rtn))
+    if (RTN_Valid(rtn))
       {
 #ifdef ZESTO_PIN_DBG
         cerr << "MOLECOOL_startLoop ";
@@ -919,10 +925,10 @@ UINT32 getSignalAddress(ADDRINT ssID)
   if(first_invocation) {
     firstCore = start_loop_iteration % num_cores;
   }
-  assert(firstCore < 256);
-  assert(ssID < 256);
+  assert(firstCore < 64);
+  assert(ssID < 1024);
 
-  return 0x7ffe0000 + (firstCore << 8) + ssID;
+  return 0x7ffc0000 + (firstCore << 10) + ssID;
 }
 
 bool loopMatches(string loop, UINT32 invocationNum, UINT32 iterationNum)
@@ -1078,9 +1084,19 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
     cerr.flush();
 #endif
 
+    tick_t most_cycles = 0;
     ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
       thread_state_t* tstate = get_tls(*it);
-      cerr << tstate->coreID << ":OverlapCycles:" << cores[tstate->coreID]->sim_cycle - lastConsumerApply[*it] << endl;
+      if(cores[tstate->coreID]->sim_cycle > most_cycles) {
+        most_cycles = cores[tstate->coreID]->sim_cycle;
+      }
+    }
+
+    ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
+      thread_state_t* tstate = get_tls(*it);
+      assert(tstate != NULL);
+      cores[tstate->coreID]->sim_cycle = most_cycles;
+      cerr << tstate->coreID << ":OverlapCycles:" << most_cycles - lastConsumerApply[*it] << endl;
     }
 
     disable_consumers();
@@ -1121,4 +1137,20 @@ VOID ILDJIT_ResumeSimulation(THREADID tid)
         tstate->ignore_all = false;
         lk_unlock(&tstate->lock);
     }
+}
+
+/* ========================================================================== */
+VOID shutdownSimulation(THREADID tid)
+{
+    ILDJIT_PauseSimulation(tid);
+    int iterCount = loop_state->simmed_iteration_count - 1;
+    cerr << "Ending loop: anonymous" << " NumIterations:" << iterCount << endl;
+
+    cerr << "Simulation runtime:";
+    printElapsedTime();
+    cerr << "Stopping simulation, TID: " << tid << endl;
+    Zesto_Slice_End(0, 1, 0, 100*1000);
+    StopSimulation(true);
+    cerr << "[KEVIN] Stopped simulation! " << tid << endl;
+    PIN_ExitProcess(EXIT_SUCCESS);
 }

@@ -10,7 +10,9 @@
 #ifdef REPEATER_PARSE_ARGS
 if(!strcasecmp(COMPONENT_NAME,type))
 {
-  return librepeater_create(core, name, next_level);
+  repeater_t * result = librepeater_create(core, name, next_level);
+  result->speed = core->knobs->default_cpu_speed; // Assume repeater runs at core frequency
+  return result;
 }
 
 #elif defined(REPEATER_INIT)

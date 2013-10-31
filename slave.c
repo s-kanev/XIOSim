@@ -257,7 +257,7 @@ int Zesto_Notify_Mmap(int coreID, unsigned int addr, unsigned int length, bool m
   md_addr_t retval = mem_newmap2(mem, page_addr, page_addr, page_length, 1);
   lk_unlock(&memory_lock);
 
-  ZPIN_TRACE("New memory mapping at addr: %x, length: %x ,endaddr: %x \n",addr, length, addr+length);
+  ZPIN_TRACE(coreID, "New memory mapping at addr: %x, length: %x ,endaddr: %x \n",addr, length, addr+length);
 
   bool success = (retval == addr);
   zesto_assert(success, 0);
@@ -279,7 +279,7 @@ int Zesto_Notify_Munmap(int coreID, unsigned int addr, unsigned int length, bool
   mem_delmap(mem, ROUND_UP((md_addr_t)addr, MD_PAGE_SIZE), length);
   lk_unlock(&memory_lock);
 
-  ZPIN_TRACE("Memory un-mapping at addr: %x, len: %x\n",addr, length);
+  ZPIN_TRACE(coreID, "Memory un-mapping at addr: %x, len: %x\n",addr, length);
 
   return 1;
 }
@@ -334,7 +334,7 @@ void Zesto_Destroy()
 void deactivate_core(int coreID)
 {
   assert(coreID >= 0 && coreID < num_cores);
-  ZPIN_TRACE("deactivate %d\n", coreID);
+  ZPIN_TRACE(coreID, "deactivate %d\n", coreID);
   lk_lock(&cycle_lock, coreID+1);
   cores[coreID]->current_thread->active = false;
   cores[coreID]->current_thread->last_active_cycle = cores[coreID]->sim_cycle;
@@ -352,7 +352,7 @@ void deactivate_core(int coreID)
 void activate_core(int coreID)
 {
   assert(coreID >= 0 && coreID < num_cores);
-  ZPIN_TRACE("activate %d\n", coreID);
+  ZPIN_TRACE(coreID, "activate %d\n", coreID);
   lk_lock(&cycle_lock, coreID+1);
   cores[coreID]->current_thread->finished_cycle = false; // Make sure master core will wait
   cores[coreID]->exec->update_last_completed(cores[coreID]->sim_cycle);
@@ -496,7 +496,7 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake)
 
    thread->fetches_since_feeder = 0;
    md_addr_t NPC = handshake->handshake.brtaken ? handshake->handshake.tpc : handshake->handshake.npc;  
-   ZPIN_TRACE("PIN -> PC: %x, NPC: %x \n", handshake->handshake.pc, NPC);
+   ZPIN_TRACE(coreID, "PIN -> PC: %x, NPC: %x \n", handshake->handshake.pc, NPC);
 
    // The handshake can be recycled now
    if(sim_release_handshake)
@@ -602,7 +602,7 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake)
          /* After recovering from spec, nuke -> go to nuke recovery loop */
          if(!spec && core->oracle->num_Mops_nuked > 0)
          {
-            ZPIN_TRACE("Going from spec loop to nuke loop. PC: %x\n",core->fetch->PC);
+            ZPIN_TRACE(coreID, "Going from spec loop to nuke loop. PC: %x\n",core->fetch->PC);
             break;
          }
 

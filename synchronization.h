@@ -10,6 +10,8 @@
 #define __SYNCHRONIZATION_H__
 #include <stdint.h>
 
+extern void wait_consumers();
+
 namespace LEVEL_PINCLIENT {
 extern void PIN_Yield();
 extern void PIN_Sleep(uint32_t msecs);
@@ -24,6 +26,11 @@ inline void yield()
 {
     LEVEL_PINCLIENT::PIN_Yield();
 }
+
+inline void lk_wait_consumers()
+{
+  wait_consumers();
+};
 
 #ifdef USE_PIN_LOCK
 /* Wrappers around pin locks */

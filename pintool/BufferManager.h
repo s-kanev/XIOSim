@@ -1,6 +1,7 @@
 #ifndef HANDSHAKE_BUFFER_MANAGER
 #define HANDSHAKE_BUFFER_MANAGER
 
+#include <unordered_map>
 class handshake_container_t;
 
 class BufferManager
@@ -47,11 +48,9 @@ class BufferManager
   bool useRealFile_;
   int numThreads_;
   
-  map<THREADID, XIOSIM_LOCK*> locks_;
-
-  map<THREADID, int> pool_;
-
-  map<THREADID, ofstream*> logs_;
+  unordered_map<THREADID, XIOSIM_LOCK*> locks_;
+  unordered_map<THREADID, int> pool_;
+  unordered_map<THREADID, ofstream*> logs_;
 
   string gpid_;
   
@@ -78,19 +77,19 @@ class BufferManager
   int getKBFreeSpace(string path);
 
  
-  std::map<THREADID, int64_t> queueSizes_;
-  std::map<THREADID, Buffer*> fakeFile_;
-  std::map<THREADID, Buffer*> consumeBuffer_;
-  std::map<THREADID, Buffer*> produceBuffer_;
-  std::map<THREADID, int> fileEntryCount_;
+  std::unordered_map<THREADID, int64_t> queueSizes_;
+  std::unordered_map<THREADID, Buffer*> fakeFile_;
+  std::unordered_map<THREADID, Buffer*> consumeBuffer_;
+  std::unordered_map<THREADID, Buffer*> produceBuffer_;
+  std::unordered_map<THREADID, int> fileEntryCount_;
 
-  std::map<THREADID, deque<string> > fileNames_;
-  std::map<THREADID, deque<int> > fileCounts_;
+  std::unordered_map<THREADID, deque<string> > fileNames_;
+  std::unordered_map<THREADID, deque<int> > fileCounts_;
 
-  std::map<THREADID, int> readBufferSize_;
-  std::map<THREADID, void*> readBuffer_;
-  std::map<THREADID, int> writeBufferSize_;
-  std::map<THREADID, void*> writeBuffer_;
+  std::unordered_map<THREADID, int> readBufferSize_;
+  std::unordered_map<THREADID, void*> readBuffer_;
+  std::unordered_map<THREADID, int> writeBufferSize_;
+  std::unordered_map<THREADID, void*> writeBuffer_;
 };
 
 #endif
