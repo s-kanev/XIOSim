@@ -51,7 +51,7 @@ CFLAGS = $(FFLAGS) $(OFLAGS) $(BINUTILS_INC) $(BINUTILS_LIB) $(ZTRACE) $(MCPAT_I
 #
 SRCS =  \
 eval.c          machine.c       memory.c         misc.c         options.c   \
-regs.c          stats.c         slave.c         sim-main.c       callbacks.c    slices.cpp  \
+stats.c         slave.c         sim-main.c       callbacks.c    slices.cpp  \
 buffer.cpp
 
 HDRS = \
@@ -61,8 +61,8 @@ machine.def     x86flow.def     interface.h     callbacks.h     buffer.h
 
 OBJS =	\
 eval.$(OEXT)         machine.$(OEXT)      memory.$(OEXT)       misc.$(OEXT)          options.$(OEXT)    \
-regs.$(OEXT)         stats.$(OEXT)        sim-main.$(OEXT)     slices.$(OEXT)        callbacks.$(OEXT)  \
-slave.$(OEXT)        buffer.$(OEXT)
+stats.$(OEXT)        sim-main.$(OEXT)     slices.$(OEXT)       callbacks.$(OEXT)     slave.$(OEXT)      \
+buffer.$(OEXT)
 
 # Zesto specific files
 ZSRCS = \
@@ -194,8 +194,6 @@ memory.o: options.h stats.h  memory.h interface.h callbacks.h
 misc.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h options.h
 misc.o: synchronization.h
 options.o: host.h misc.h options.h
-regs.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h options.h
-regs.o: memory.h stats.h  thread.h
 stats.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h options.h
 stats.o:  stats.h
 libsim.a: host.h misc.h machine.h machine.def zesto-structs.h regs.h
