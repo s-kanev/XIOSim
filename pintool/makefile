@@ -135,5 +135,5 @@ install:
 	cp $(TOOLS) $(COOL_INSTALL_DIR)
 	git log -1 --format="%H" > $(COOL_INSTALL_DIR)/version 
 	git diff --no-prefix > $(COOL_INSTALL_DIR)/diff 
-	cd ../mem-repeater/ ; git log -1 --format="%H" > $(COOL_INSTALL_DIR)/repeater_version 
-	cd ../mem-repeater/ ; git diff --no-prefix > $(COOL_INSTALL_DIR)/repeater_diff 
+	if [ -n "$(REPEATER_LIB)" ]; then cd ../mem-repeater/ ; git log -1 --format="%H" > $(COOL_INSTALL_DIR)/repeater_version; fi 
+	if [ -n "$(REPEATER_LIB)" ]; then cd ../mem-repeater/ ; git diff --no-prefix > $(COOL_INSTALL_DIR)/repeater_diff; fi 
