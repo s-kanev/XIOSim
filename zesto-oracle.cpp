@@ -1796,6 +1796,39 @@ handshake_container_t * core_oracle_t::get_shadow_Mop(const struct Mop_t* Mop)
   return res; 
 }
 
+/* Dump instructions starting from most recent */
+void core_oracle_t::trace_in_flight_ops(void)
+{
+#ifdef ZTRACE
+  if (MopQ_num == 0)
+    return;
+
+  /* Walk MopQ from most recent Mop */
+  int idx = MopQ_tail;
+  struct Mop_t *Mop;
+  do {
+    idx = moddec(idx, MopQ_size);
+    Mop = &MopQ[idx];
+
+    ztrace_print(Mop);
+    ztrace_Mop_timing(Mop);
+    ztrace_print(core->id, "");
+
+    for (int i=0; i < Mop->decode.flow_length; i++) {
+      struct uop_t * uop = &Mop->uop[i];
+      if (uop->decode.is_imm)
+        continue;
+
+      ztrace_uop_ID(uop);
+      ztrace_uop_alloc(uop);
+      ztrace_uop_timing(uop);
+      ztrace_print(core->id, "");
+    }
+
+  } while (idx != MopQ_head);
+#endif
+}
+
 /**************************************/
 /* PROTECTED METHODS/MEMBER-FUNCTIONS */
 /**************************************/

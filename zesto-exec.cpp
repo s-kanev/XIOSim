@@ -88,7 +88,6 @@
 #include "zesto-memdep.h"
 #include "zesto-prefetch.h"
 #include "zesto-uncore.h"
-#include "zesto-dumps.h"
 #include "zesto-coherence.h"
 
 

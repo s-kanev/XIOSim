@@ -105,6 +105,7 @@ extern int sim_elapsed_time;
 
 #ifdef ZTRACE
 void ztrace_print(const struct Mop_t * Mop);
+void ztrace_Mop_timing(const struct Mop_t * Mop);
 void ztrace_print(const struct Mop_t * Mop, const char * fmt, ... );
 void ztrace_print(const struct uop_t * uop, const char * fmt, ... );
 void ztrace_print(const int coreID, const char * fmt, ... );
@@ -113,6 +114,10 @@ void ztrace_print(const int coreID, const char * fmt, ... );
 void ztrace_print_start(const struct uop_t * uop, const char * fmt, ... );
 void ztrace_print_cont(const int coreID, const char * fmt, ... );
 void ztrace_print_finish(const int coreID, const char * fmt, ... );
+
+void ztrace_uop_ID(const struct uop_t * uop);
+void ztrace_uop_alloc(const struct uop_t * uop);
+void ztrace_uop_timing(const struct uop_t * uop);
 #endif
 
 #endif /* ZESTO_OPTS_INCLUDED */

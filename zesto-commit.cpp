@@ -87,7 +87,6 @@
 #include "zesto-cache.h"
 #include "zesto-commit.h"
 #include "zesto-bpred.h"
-#include "zesto-dumps.h"
 
 
 void commit_reg_options(struct opt_odb_t * odb, struct core_knobs_t * knobs)
