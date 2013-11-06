@@ -169,7 +169,8 @@
     fprintf(stderr, "cycle: %lld, num_Mops: %lld\n", core->sim_cycle, core->stat.oracle_total_insn); \
     fprintf(stderr, "PC: %x, regs->NPC: %x, pin->PC: %x, pin->NPC: %x\n", core->fetch->PC, core->current_thread->regs.regs_NPC, core->fetch->feeder_PC, core->fetch->feeder_NPC); \
     fflush(stderr); \
-    core->oracle->trace_in_flight_ops(); \
+    for (int __i=0; __i < num_cores; __i++) \
+      cores[__i]->oracle->trace_in_flight_ops(); \
     flush_trace(); \
     exit(6); \
     return (retval); \
