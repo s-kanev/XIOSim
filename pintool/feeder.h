@@ -97,6 +97,9 @@ class thread_state_t
     // Bottom-of-stack pointer used for shadow page table
     ADDRINT bos;
 
+    // Return PC for routines that we ignore (e.g. ILDJIT callbacks)
+    ADDRINT retPC;
+
     // Which simulated core this thread runs on
     ADDRINT coreID;
 

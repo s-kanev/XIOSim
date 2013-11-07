@@ -223,20 +223,20 @@ core_decode_DPM_t::check_target(struct Mop_t * const Mop)
   if(!Mop->decode.is_ctrl)
   {
     /* next-PC had better be the next sequential inst */
-    if(Mop->fetch.pred_NPC != (Mop->fetch.PC + Mop->fetch.inst.len))
+    if(Mop->fetch.pred_NPC != Mop->fetch.ftPC)
     {
       /* it's not (phantom taken branch), so resteer */
       ZESTO_STAT(core->stat.phantom_resteers++;)
       core->oracle->recover(Mop);
       recover_decode_pipe(Mop);
-      Mop->fetch.pred_NPC = Mop->fetch.PC + Mop->fetch.inst.len;
+      Mop->fetch.pred_NPC = Mop->fetch.ftPC;
       core->fetch->recover(Mop->fetch.pred_NPC);
       return DSTALL_PHANTOM;
     }
   }
   else /* branch or REP */
   {
-    if((Mop->fetch.pred_NPC != (Mop->fetch.PC + Mop->fetch.inst.len)) /* branch is predicted taken */
+    if((Mop->fetch.pred_NPC != Mop->fetch.ftPC) /* branch is predicted taken */
         || (Mop->decode.opflags | F_UNCOND))
     {
       if(Mop->fetch.pred_NPC != Mop->decode.targetPC) /* wrong target */

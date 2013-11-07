@@ -18,6 +18,7 @@
 
 #include "../buffer.h"
 #include "BufferManager.h"
+#include "ignore_ins.h"
 
 #include "../zesto-core.h"
 
@@ -417,13 +418,13 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
 }
 
 /* ========================================================================== */
-VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID, ADDRINT pc)
+VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID, ADDRINT pc, ADDRINT retPC)
 {
 #ifdef PRINT_WAITS
-  lk_lock(&printing_lock, tid+1);
-  if (ExecMode == EXECUTION_MODE_SIMULATE)
-    cerr << tid <<" :Before Wait "<< hex << pc << dec  << " ID: " << dec << ssID << endl;
-  lk_unlock(&printing_lock);
+    lk_lock(&printing_lock, tid+1);
+    if (ExecMode == EXECUTION_MODE_SIMULATE)
+        cerr << tid <<" :Before Wait "<< hex << pc << dec  << " ID: " << dec << ssID << endl;
+    lk_unlock(&printing_lock);
 #endif
 
     thread_state_t* tstate = get_tls(tid);
@@ -439,6 +440,7 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID, ADDRINT pc)
     }
 
     tstate->lastWaitID = ssID;
+    tstate->retPC = retPC;
 }
 
 /* ========================================================================== */
@@ -517,9 +519,9 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
     handshake->handshake.in_critical_section = (num_cores > 1);
     handshake->flags.valid = true;
 
-    handshake->handshake.pc = pc;
-    handshake->handshake.npc = pc + sizeof(ld_template);
-    handshake->handshake.tpc = pc + sizeof(ld_template);
+    handshake->handshake.pc = (ADDRINT)ld_template;
+    handshake->handshake.npc = NextUnignoredPC(tstate->retPC);
+    handshake->handshake.tpc = (ADDRINT)ld_template + sizeof(ld_template);
     handshake->handshake.brtaken = false;
     memcpy(handshake->handshake.ins, ld_template, sizeof(ld_template));
     // Address comes right after opcode byte
@@ -535,7 +537,7 @@ cleanup:
 }
 
 /* ========================================================================== */
-VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
+VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID, ADDRINT pc, ADDRINT retPC)
 {
     thread_state_t* tstate = get_tls(tid);
 
@@ -545,19 +547,20 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
 #ifdef PRINT_WAITS
     lk_lock(&printing_lock, tid+1);
     if (ExecMode == EXECUTION_MODE_SIMULATE)
-      cerr << tid <<": Before Signal " << hex << pc << " ID: " << ssID << dec << endl;
+        cerr << tid <<": Before Signal " << hex << pc << " ID: " << ssID << dec << endl;
     lk_unlock(&printing_lock);
 #endif
 
     int numInstsToIgnore = 2; // flush a call, one parameter
     flushLookahead(tid, numInstsToIgnore);
 //    ASSERTX(tstate->lastSignalAddr == 0xdecafbad);
+    tstate->retPC = retPC;
 }
 
 /* ========================================================================== */
 VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
 {
-  assert(ssID < 1024);
+    assert(ssID < 1024);
     thread_state_t* tstate = get_tls(tid);
     handshake_container_t* handshake;
 
@@ -578,12 +581,12 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
     assert(!tstate->firstInstruction);
     lk_unlock(&tstate->lock);
 
-    #ifdef PRINT_WAITS
+#ifdef PRINT_WAITS
     lk_lock(&printing_lock, tid+1);
     if (ExecMode == EXECUTION_MODE_SIMULATE)
         cerr << tid <<": After Signal " << hex << pc << dec << endl;
     lk_unlock(&printing_lock);
-    #endif
+#endif
 
 
     /* Don't insert signals in single-core mode */
@@ -594,7 +597,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
     ASSERTX(tstate->loop_state->unmatchedWaits >= 0);
 
     if(!(loop_state->use_ring_cache)) {
-      return;
+        return;
     }
 
     /* Insert signal instruction in pipeline */
@@ -607,9 +610,9 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
     handshake->handshake.in_critical_section = (num_cores > 1) && (tstate->loop_state->unmatchedWaits > 0);
     handshake->flags.valid = true;
 
-    handshake->handshake.pc = pc;
-    handshake->handshake.npc = pc + sizeof(st_template);
-    handshake->handshake.tpc = pc + sizeof(st_template);
+    handshake->handshake.pc = (ADDRINT)st_template;
+    handshake->handshake.npc = NextUnignoredPC(tstate->retPC);
+    handshake->handshake.tpc = (ADDRINT)st_template + sizeof(st_template);
     handshake->handshake.brtaken = false;
     memcpy(handshake->handshake.ins, st_template, sizeof(st_template));
     // Address comes right after opcode and MoodRM bytes
@@ -695,9 +698,11 @@ VOID AddILDJITCallbacks(IMG img)
                        IARG_THREAD_ID,
                        IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
                        IARG_INST_PTR,
+                       IARG_RETURN_IP, // Only valid here, not on after*
                        IARG_CALL_ORDER, CALL_ORDER_FIRST,
                        IARG_END);
         RTN_Close(rtn);
+        IgnoreCallsTo(RTN_Address(rtn), 2/*the call and one parameter*/, (ADDRINT)ld_template);
     }
 
     rtn = RTN_FindByName(img, "MOLECOOL_afterWait");
@@ -725,9 +730,11 @@ VOID AddILDJITCallbacks(IMG img)
                        IARG_THREAD_ID,
                        IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
                        IARG_INST_PTR,
+                       IARG_RETURN_IP, // Only valid here, not on after*
                        IARG_CALL_ORDER, CALL_ORDER_FIRST,
                        IARG_END);
         RTN_Close(rtn);
+        IgnoreCallsTo(RTN_Address(rtn), 2/*the call and one parameter*/, (ADDRINT)st_template);
     }
 
     rtn = RTN_FindByName(img, "MOLECOOL_afterSignal");

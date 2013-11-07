@@ -12,9 +12,9 @@ typedef struct P2Z_HANDSHAKE {
     unsigned int pc;                    /* Current instruction address */
     unsigned int npc;                   /* Fallthrough instruction address */
     unsigned int tpc;                   /* Next address Pin will execute */
-    int brtaken;                        /* Taken or Not-Taken for branch instructions */
     struct regs_t ctxt;                 /* Register context */
     unsigned char ins[MD_MAX_ILEN];     /* Instruction bytes */
+    bool brtaken;                       /* Taken or Not-Taken for branch instructions */
     bool sleep_thread;                  /* Deactivate core */
     bool resume_thread;                 /* Re-activate core */
     bool flush_pipe;                    /* Flush core pipelie */

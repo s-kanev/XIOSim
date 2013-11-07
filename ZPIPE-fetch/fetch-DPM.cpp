@@ -18,6 +18,7 @@ class core_fetch_DPM_t:public core_fetch_t
                       FSTALL_BOGUS,    /* encountered invalid inst on wrong-path */
                       FSTALL_SYSCALL,  /* syscall waiting for pipe to clear */
                       FSTALL_ZPAGE,    /* fetch request from zeroth page of memory */
+                      FSTALL_REP,      /* no need to fetch REP instruction */
                       FSTALL_num
                      };
 
@@ -111,7 +112,8 @@ const char *core_fetch_DPM_t::fetch_stall_str[FSTALL_num] = {
   "inst split on two lines",
   "wrong-path invalid inst",
   "trap waiting on drain  ",
-  "request for page zero  "
+  "request for page zero  ",
+  "no need to fetch REP   "
 };
 
 
@@ -530,7 +532,7 @@ void core_fetch_DPM_t::post_fetch(void)
         if(Mop->uop[Mop->decode.last_uop_index].decode.EOM)
         {
           ZESTO_STAT(core->stat.fetch_insn++;)
-          ZESTO_STAT(core->stat.fetch_bytes += Mop->fetch.inst.len;) /* REP counts as only 1 fetch */
+          ZESTO_STAT(core->stat.fetch_bytes += Mop->fetch.inst.len;)
         }
 
         ZESTO_STAT(core->stat.fetch_uops += Mop->stat.num_uops;)
@@ -610,7 +612,7 @@ void core_fetch_DPM_t::pre_fetch(void)
       ztrace_print(Mop,"f|jeclear_pipe|jeclear dequeued");
 #endif
       if(Mop->fetch.bpred_update)
-        bpred->recover(Mop->fetch.bpred_update,(New_PC != (Mop->fetch.PC + Mop->fetch.inst.len)));
+        bpred->recover(Mop->fetch.bpred_update, (New_PC != Mop->fetch.ftPC));
       core->oracle->recover(Mop);
       core->commit->recover(Mop);
       core->exec->recover(Mop);
@@ -741,21 +743,17 @@ bool core_fetch_DPM_t::do_fetch(void)
     Mop->fetch.bpred_update = bpred->get_state_cache();
 
     Mop->fetch.pred_NPC = bpred->lookup(Mop->fetch.bpred_update,
-	Mop->decode.opflags, Mop->fetch.PC,Mop->fetch.PC+Mop->fetch.inst.len,Mop->decode.targetPC,
-	Mop->oracle.NextPC,(Mop->oracle.NextPC != (Mop->fetch.PC+Mop->fetch.inst.len)));
+        Mop->decode.opflags, Mop->fetch.PC, Mop->fetch.ftPC, Mop->decode.targetPC,
+        Mop->oracle.NextPC, Mop->oracle.taken_branch);
 
-
-    bpred->spec_update(Mop->fetch.bpred_update,Mop->decode.opflags,
-	Mop->fetch.PC,Mop->decode.targetPC,Mop->oracle.NextPC,Mop->fetch.bpred_update->our_pred);
+    bpred->spec_update(Mop->fetch.bpred_update, Mop->decode.opflags,
+        Mop->fetch.PC, Mop->decode.targetPC, Mop->oracle.NextPC, Mop->fetch.bpred_update->our_pred);
 #ifdef ZTRACE
-    bool pred_taken = (Mop->fetch.pred_NPC != (Mop->fetch.PC+Mop->fetch.inst.len));
-    bool taken = (Mop->oracle.NextPC != (Mop->fetch.PC+Mop->fetch.inst.len));
-    ztrace_print(Mop,"f|pred_dir=%x|direction %s",pred_taken,(pred_taken==taken)?"correct":"mispred");
-    ztrace_print(Mop,"f|pred_targ=%x|target %s",Mop->fetch.pred_NPC,(Mop->fetch.pred_NPC==Mop->oracle.NextPC)?"correct":"mispred");
+    ztrace_print(Mop,"f|pred_targ=%x|target %s", Mop->fetch.pred_NPC, (Mop->fetch.pred_NPC == Mop->oracle.NextPC) ? "correct" : "mispred");
 #endif
   }
   else
-    Mop->fetch.pred_NPC = Mop->fetch.PC + Mop->fetch.inst.len;
+    Mop->fetch.pred_NPC = Mop->oracle.NextPC;
 
   if(Mop->fetch.pred_NPC != Mop->oracle.NextPC)
   {
@@ -768,8 +766,7 @@ bool core_fetch_DPM_t::do_fetch(void)
 
   ZPIN_TRACE(core->id, "After bpred. PC: %x, oracle.NPC: %x, spec: %d, nuked_Mops: %d\n", PC, Mop->oracle.NextPC, core->oracle->spec_mode, core->oracle->num_Mops_nuked);
 
-  /* This includes REPs as taken branches, otherwise they easily flood the oracle. */
-  if(Mop->fetch.pred_NPC != (Mop->fetch.PC + Mop->fetch.inst.len))
+  if(Mop->oracle.taken_branch)
   {
     stall_reason = FSTALL_TBR;
     return false;
@@ -784,7 +781,13 @@ bool core_fetch_DPM_t::do_fetch(void)
     stall_reason = FSTALL_EOL;
     return false;
   }
-
+  /* Stall on REPs similarly to taken branches, otherwise they easily flood the oracle. */
+  /* XXX: We should generalize this for a loop-stream decoder */
+  else if(Mop->fetch.inst.rep && PC == Mop->oracle.NextPC)
+  {
+    stall_reason = FSTALL_REP;
+    return false;
+  }
 
   /* still fetching from the same byteQ entry */
   return ((PC & byteQ_linemask) == current_line);

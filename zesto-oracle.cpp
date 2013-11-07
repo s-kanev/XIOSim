@@ -152,7 +152,6 @@
 #include "zesto-exec.h"
 #include "zesto-commit.h"
 #include "zesto-cache.h"
-#include "zesto-dumps.h"
 
 #include <stack>
 
@@ -1269,7 +1268,6 @@ core_oracle_t::exec(const md_addr_t requested_PC)
   if(thread->regs.regs_PC == thread->regs.regs_NPC)
   {
     assert(Mop->oracle.spec_mode || Mop->fetch.inst.rep || Mop->decode.op == NOP);
-#ifdef ZESTO_PIN
     /* If we can't handle isntruction, at least set NPC correctly, so that we don't corrupt fetch sequence */
     if(Mop->decode.op == NOP && !Mop->oracle.spec_mode)
     {  
@@ -1283,16 +1281,28 @@ core_oracle_t::exec(const md_addr_t requested_PC)
        Mop->fetch.inst.len = thread->regs.regs_NPC - thread->regs.regs_PC;
     }
     else{
-#endif
        thread->rep_sequence ++;
-#ifdef ZESTO_PIN
     }
-#endif
   }
   else
   {
     thread->rep_sequence = 0;
   }
+
+  /* If there is an NPC coming from feeder (anything but speculation),
+   * treat it as more reliable than the one we computed here. */
+  if (!Mop->oracle.spec_mode)
+    thread->regs.regs_NPC = core->fetch->feeder_NPC;
+
+  /* If we don't have branch information coming from feeder, just
+   * check NPC against instruction length. */
+  if (Mop->oracle.spec_mode) {
+    core->fetch->feeder_ftPC = Mop->fetch.PC + Mop->fetch.inst.len;
+    core->fetch->taken_branch = (thread->regs.regs_NPC != Mop->fetch.PC + Mop->fetch.inst.len);
+  }
+
+  Mop->fetch.ftPC = core->fetch->feeder_ftPC;
+  Mop->oracle.taken_branch = core->fetch->taken_branch;
 
   /* Mark EOM -- counting REP iterations as separate instructions */
   Mop->uop[Mop->decode.last_uop_index].decode.EOM = true; 
@@ -1738,6 +1748,8 @@ void core_oracle_t::grab_feeder_state(handshake_container_t * handshake, bool al
   core->fetch->feeder_PC = handshake->handshake.pc;
   core->fetch->prev_insn_fake = core->fetch->fake_insn;
   core->fetch->fake_insn = !handshake->handshake.real;
+  core->fetch->taken_branch = handshake->handshake.brtaken;
+  core->fetch->feeder_ftPC = handshake->handshake.npc;
 
   if (handshake->handshake.real) {
     /* Copy architectural state from pin
@@ -1802,6 +1814,8 @@ void core_oracle_t::trace_in_flight_ops(void)
 #ifdef ZTRACE
   if (MopQ_num == 0)
     return;
+
+  ztrace_print(core->id, "===== TRACE OF IN-FLIGHT INS ====");
 
   /* Walk MopQ from most recent Mop */
   int idx = MopQ_tail;

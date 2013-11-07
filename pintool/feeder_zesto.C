@@ -25,6 +25,7 @@
 #include "../buffer.h"
 #include "BufferManager.h"
 #include "scheduler.h"
+#include "ignore_ins.h"
 
 #include "sync_pthreads.h"
 #include "syscall_handling.h"
@@ -638,7 +639,7 @@ VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, A
     }
 
     // Populate handshake buffer
-    MakeSSRequest(tid, pc, npc, tpc, taken, ictxt, handshake);
+    MakeSSRequest(tid, pc, NextUnignoredPC(npc), NextUnignoredPC(tpc), taken, ictxt, handshake);
 
     // Clear memory sanity check buffer - callbacks should fill it in SimulatorLoop
     if (KnobSanity.Value())
@@ -1236,7 +1237,8 @@ INT32 main(INT32 argc, CHAR **argv)
     // This cuts down HELIX compilation noticably for integer benchmarks.
 
     if(!KnobILDJIT.Value()) {
-      INS_AddInstrumentFunction(Instrument, 0);
+        TRACE_AddInstrumentFunction(InstrumentInsIgnoring, 0);
+        INS_AddInstrumentFunction(Instrument, 0);
     }
 
     PIN_AddThreadStartFunction(ThreadStart, NULL);
@@ -1348,6 +1350,7 @@ VOID doLateILDJITInstrumentation()
   ASSERTX(!calledAlready);
 
   PIN_LockClient();
+  TRACE_AddInstrumentFunction(InstrumentInsIgnoring, 0);
   INS_AddInstrumentFunction(Instrument, 0);
   CODECACHE_FlushCache();
   PIN_UnlockClient();
@@ -1460,10 +1463,10 @@ void flushOneToHandshakeBuffer(THREADID tid)
   handshake_container_t* newhandshake = handshake_buffer.get_buffer(tid);
 
   if(pc_diss[handshake->handshake.pc].find("ret") != string::npos) {
-    if (handshake->handshake.npc == handshake->handshake.pc + 5) {
+    if (handshake->handshake.tpc == handshake->handshake.pc + 5) {
       pc_diss[handshake->handshake.pc] = "Wait";
     }
-    else if (handshake->handshake.npc == handshake->handshake.pc + 10) {
+    else if (handshake->handshake.tpc == handshake->handshake.pc + 10) {
       pc_diss[handshake->handshake.pc] = "Signal";
     }
   }
