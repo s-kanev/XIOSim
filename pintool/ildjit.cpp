@@ -990,9 +990,6 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
                 thread_state_t* tstate = get_tls(*it);
                 lk_lock(&tstate->lock, tid + 1);
                 bool curr_done = tstate->ignore && (tstate->lastWaitID == 0);
-                if(curr_done) {
-                    assert(handshake_buffer.empty(*it));
-                }
                 done_with_iteration &= curr_done;
                 /* Setting ignore_all here (while ignore is set) should be a race-free way
                  * of ignoring the serial portion outside the loop after the thread goes
