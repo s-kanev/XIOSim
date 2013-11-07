@@ -566,7 +566,7 @@ VOID GrabInstructionMemory(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_m
         ASSERTX(!handshake->flags.valid);
     }
     else {
-        handshake = handshake_buffer.get_buffer(tid);
+        handshake = handshake_buffer.back(tid);
     }
 
     /* should be the common case */
@@ -615,7 +615,7 @@ VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, A
 
     handshake_container_t* handshake;
     if (has_memory) {
-        handshake = handshake_buffer.get_buffer(tid);
+        handshake = handshake_buffer.back(tid);
     }
     else {
         handshake = handshake_buffer.get_buffer(tid);
@@ -692,7 +692,7 @@ VOID FixRepInstructionNPC(THREADID tid, ADDRINT pc, BOOL rep_prefix, BOOL repne_
     if (IsInstructionIgnored(pc))
         return;
 
-    handshake_container_t* handshake = handshake_buffer.get_buffer(tid);
+    handshake_container_t* handshake = handshake_buffer.back(tid);
 
     ASSERTX(handshake != NULL);
     ASSERTX(!handshake->flags.valid);
