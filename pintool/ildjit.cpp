@@ -22,8 +22,6 @@
 
 #include "../zesto-core.h"
 
-extern map<THREADID, Buffer> lookahead_buffer;
-
 // True if ILDJIT has finished compilation and is executing user code
 BOOL ILDJIT_executionStarted = false;
 
@@ -79,6 +77,8 @@ UINT32* ildjit_disable_ws;
 
 int ss_curr;
 int ss_prev;
+
+extern map<ADDRINT, string> pc_diss;
 
 /* ========================================================================== */
 VOID MOLECOOL_Init()
@@ -232,9 +232,6 @@ VOID ILDJIT_startLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
     lk_lock(&tstate->lock, tid+1);
     tstate->ignore = true;
     lk_unlock(&tstate->lock);
-
-    int numInstsToIgnore = 2; // call and param
-    flushLookahead(tid, numInstsToIgnore);
   }
 
   string loop_string = (string)(char*)loop;
@@ -380,10 +377,6 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
     cerr << tid << ": Pausing simulation!" << endl;
 #endif
     if (ExecMode == EXECUTION_MODE_SIMULATE) {
-        // flush a call, two parameter stores
-        int numInstsToIgnore = 3;
-        flushLookahead(tid, numInstsToIgnore);
-
         if(reached_end_invocation) {
           cerr << tid << ": Shutting down early!" << endl;
           shutdownSimulation(tid);
@@ -431,9 +424,6 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID, ADDRINT pc, ADDRINT retPC)
     lk_lock(&tstate->lock, tid+1);
     tstate->ignore = true;
     lk_unlock(&tstate->lock);
-
-    int numInstsToIgnore = 2; // flush a call, one parameter
-    flushLookahead(tid, numInstsToIgnore);
 
     if(num_cores == 1) {
         return;
@@ -509,7 +499,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
     }
 
     /* Insert wait instruction in pipeline */
-    handshake = lookahead_buffer[tid].get_buffer();
+    handshake = handshake_buffer.get_buffer(tid);
 
     handshake->flags.isFirstInsn = first_insn;
     handshake->handshake.ctxt.regs_R.dw[MD_REG_ESP] = esp_val; /* Needed when first_insn to set up stack pages */
@@ -528,9 +518,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
     // set magic 17 bit in address - makes the pipeline see them as seperate addresses
     mask = 1 << 16;
     *(INT32*)(&handshake->handshake.ins[1]) = getSignalAddress(ssID) | mask;
-    lookahead_buffer[tid].push_done();
-
-    flushLookahead(tid, 0);
+    handshake_buffer.producer_done(tid);
 
 cleanup:
     tstate->lastSignalAddr = 0xdecafbad;
@@ -551,8 +539,6 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID, ADDRINT pc, ADDRINT retPC)
     lk_unlock(&printing_lock);
 #endif
 
-    int numInstsToIgnore = 2; // flush a call, one parameter
-    flushLookahead(tid, numInstsToIgnore);
 //    ASSERTX(tstate->lastSignalAddr == 0xdecafbad);
     tstate->retPC = retPC;
 }
@@ -601,7 +587,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
     }
 
     /* Insert signal instruction in pipeline */
-    handshake = lookahead_buffer[tid].get_buffer();
+    handshake = handshake_buffer.get_buffer(tid);
 
     handshake->flags.isFirstInsn = false;
     handshake->handshake.sleep_thread = false;
@@ -618,9 +604,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
     // Address comes right after opcode and MoodRM bytes
     *(INT32*)(&handshake->handshake.ins[2]) = getSignalAddress(ssID);
 
-    lookahead_buffer[tid].push_done();
-
-    flushLookahead(tid, 0);
+    handshake_buffer.producer_done(tid);
 
 cleanup:
     tstate->lastSignalAddr = 0xdecafbad;
@@ -631,8 +615,6 @@ VOID ILDJIT_setAffinity(THREADID tid, INT32 coreID)
 {
     ASSERTX(coreID >= 0 && coreID < num_cores);
     HardcodeSchedule(tid, coreID);
-
-    lookahead_buffer[tid] = Buffer(10);
 }
 
 /* ========================================================================== */
@@ -719,6 +701,7 @@ VOID AddILDJITCallbacks(IMG img)
                        IARG_CALL_ORDER, CALL_ORDER_LAST,
                        IARG_END);
         RTN_Close(rtn);
+        pc_diss[(ADDRINT)ld_template] = "Wait";
     }
 
     rtn = RTN_FindByName(img, "MOLECOOL_beforeSignal");
@@ -749,6 +732,7 @@ VOID AddILDJITCallbacks(IMG img)
                        IARG_CALL_ORDER, CALL_ORDER_LAST,
                        IARG_END);
         RTN_Close(rtn);
+        pc_diss[(ADDRINT)st_template] = "Signal";
     }
 
     rtn = RTN_FindByName(img, "MOLECOOL_endParallelLoop");
@@ -762,6 +746,7 @@ VOID AddILDJITCallbacks(IMG img)
                        IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
                        IARG_END);
         RTN_Close(rtn);
+        IgnoreCallsTo(RTN_Address(rtn), 3/*the call and two parameters*/, (ADDRINT)-1);
     }
 
     rtn = RTN_FindByName(img, "MOLECOOL_codeExecutorCreationEnd");
@@ -808,6 +793,7 @@ VOID AddILDJITCallbacks(IMG img)
                        IARG_CALL_ORDER, CALL_ORDER_FIRST,
                        IARG_END);
         RTN_Close(rtn);
+        IgnoreCallsTo(RTN_Address(rtn), 2/*the call and one parameter*/, (ADDRINT)-1);
     }
 
     rtn = RTN_FindByName(img, "MOLECOOL_startLoop");
@@ -994,7 +980,6 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
      * to functionally reach wait 0, where they will wait until the end
      * of the loop; (ii) drain all pipelines once cores are waiting. */
     cerr << "pausing..." << endl;
-    flushLookahead(tid, 0);
 
     volatile bool done_with_iteration = false;
     do {
@@ -1006,8 +991,7 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
                 lk_lock(&tstate->lock, tid + 1);
                 bool curr_done = tstate->ignore && (tstate->lastWaitID == 0);
                 if(curr_done) {
-                    assert(lookahead_buffer[*it].size() == 0);
-                    assert(lookahead_buffer[*it].empty());
+                    assert(handshake_buffer.empty(*it));
                 }
                 done_with_iteration &= curr_done;
                 /* Setting ignore_all here (while ignore is set) should be a race-free way
@@ -1117,7 +1101,7 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
         handshake_buffer.resetPool(*it);
         tstate->ignore = true;
         lk_unlock(&tstate->lock);
-        assert(lookahead_buffer[*it].empty());
+        assert(handshake_buffer.empty(*it));
     }
 }
 
@@ -1137,7 +1121,6 @@ VOID ILDJIT_ResumeSimulation(THREADID tid)
             continue;
 
         ASSERTX(handshake_buffer.empty(curr_tid));
-        ASSERTX(lookahead_buffer[curr_tid].empty());
         activate_core(coreID);
         thread_state_t* tstate = get_tls(curr_tid);
         lk_lock(&tstate->lock, tid+1);

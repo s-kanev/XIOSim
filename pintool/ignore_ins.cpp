@@ -20,6 +20,10 @@ static map<ADDRINT, ADDRINT> ignored_tpc;
 static XIOSIM_LOCK lk_ignored_tpc;
 static map<ADDRINT, replacement_info_t> ignore_ips;
 
+KNOB<BOOL> KnobIgnoringInstructions(KNOB_MODE_WRITEONCE, "pintool",
+    "ignore_api", "false",
+    "Use ignoring API (usually to replace in-simulator callbacks)");
+
 ADDRINT NextUnignoredPC(ADDRINT pc)
 {
     ADDRINT curr = pc;
@@ -69,8 +73,23 @@ static VOID IgnoreIns(INS ins, ADDRINT alternative_pc = (ADDRINT)-1)
     lk_unlock(&lk_ignored_tpc);
 }
 
+bool IsInstructionIgnored(ADDRINT pc)
+{
+    if (!KnobIgnoringInstructions.Value())
+        return false;
+
+    bool result;
+    lk_lock(&lk_ignored_tpc, 1);
+    result = (ignored_tpc.count(pc) > 0);
+    lk_unlock(&lk_ignored_tpc);
+    return result;
+}
+
 VOID InstrumentInsIgnoring(TRACE trace, VOID* v)
 {
+    if (!KnobIgnoringInstructions.Value())
+        return;
+
     for (BBL bbl = TRACE_BblHead(trace); BBL_Valid(bbl); bbl = BBL_Next(bbl)) {
         for (INS ins = BBL_InsHead(bbl); INS_Valid(ins); ins = INS_Next(ins)) {
             replacement_info_t repl = CheckInstructionReplacement(ins);

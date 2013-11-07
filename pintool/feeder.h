@@ -199,9 +199,6 @@ VOID enable_consumers();
 VOID disable_producers();
 VOID enable_producers();
 
-VOID flushOneToHandshakeBuffer(THREADID tid);
-VOID flushLookahead(THREADID tid, int numToIgnore);
-
 VOID printTrace(string stype, ADDRINT pc, THREADID tid);
 
 #endif /*__FEEDER_ZESTO__ */
