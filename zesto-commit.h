@@ -119,7 +119,7 @@ class core_commit_t
   virtual int squash_uop(struct uop_t * const uop) = 0;
 
   bool deadlocked;
-  static const int deadlock_threshold = 5000;
+  static const int deadlock_threshold = 50000;
 
   protected:
 
