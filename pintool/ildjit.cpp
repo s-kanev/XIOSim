@@ -518,6 +518,11 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
     // set magic 17 bit in address - makes the pipeline see them as seperate addresses
     mask = 1 << 16;
     *(INT32*)(&handshake->handshake.ins[1]) = getSignalAddress(ssID) | mask;
+
+#ifdef PRINT_DYN_TRACE
+    printTrace("sim", handshake->handshake.pc, tid);
+#endif
+
     handshake_buffer.producer_done(tid);
 
 cleanup:
@@ -603,6 +608,10 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
     memcpy(handshake->handshake.ins, st_template, sizeof(st_template));
     // Address comes right after opcode and MoodRM bytes
     *(INT32*)(&handshake->handshake.ins[2]) = getSignalAddress(ssID);
+
+#ifdef PRINT_DYN_TRACE
+    printTrace("sim", handshake->handshake.pc, tid);
+#endif
 
     handshake_buffer.producer_done(tid);
 
@@ -701,6 +710,7 @@ VOID AddILDJITCallbacks(IMG img)
                        IARG_CALL_ORDER, CALL_ORDER_LAST,
                        IARG_END);
         RTN_Close(rtn);
+        IgnoreCallsTo(RTN_Address(rtn), 3/*the call and two parameters*/, (ADDRINT)ld_template);
         pc_diss[(ADDRINT)ld_template] = "Wait";
     }
 
@@ -732,6 +742,7 @@ VOID AddILDJITCallbacks(IMG img)
                        IARG_CALL_ORDER, CALL_ORDER_LAST,
                        IARG_END);
         RTN_Close(rtn);
+        IgnoreCallsTo(RTN_Address(rtn), 2/*the call and one parameter*/, (ADDRINT)ld_template);
         pc_diss[(ADDRINT)st_template] = "Signal";
     }
 
