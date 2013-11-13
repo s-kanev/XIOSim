@@ -423,7 +423,7 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake)
      return;
    }
 
-   zesto_assert(core->oracle->num_Mops_nuked == 0, (void)0);
+   zesto_assert(core->oracle->num_Mops_before_feeder() == 0, (void)0);
    zesto_assert(!core->oracle->spec_mode, (void)0);
 
    if (handshake->handshake.sleep_thread)
@@ -505,21 +505,24 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake)
    bool fetch_more = true;
    thread->consumed = false;
 
-   while(!thread->consumed || core->oracle->num_Mops_nuked > 0)
+   /* XXX: This logic can be simplified significantly now that we have
+    * the shadow_MopQ. Redo.
+    */
+   while(!thread->consumed || core->oracle->num_Mops_before_feeder() > 0)
    {
      fetch_more = sim_main_slave_fetch_insn(coreID);
      thread->fetches_since_feeder++;
 
-     if(core->oracle->num_Mops_nuked > 0)
+     if(core->oracle->num_Mops_before_feeder() > 0)
      {
-       while(fetch_more && core->oracle->num_Mops_nuked > 0 &&
+       while(fetch_more && core->oracle->num_Mops_before_feeder() > 0 &&
              !core->oracle->spec_mode)
        {       
          fetch_more = sim_main_slave_fetch_insn(coreID);
          thread->fetches_since_feeder++;
 
          //Fetch can get more insns this cycle, but they are needed from PIN
-         if(fetch_more && core->oracle->num_Mops_nuked == 0
+         if(fetch_more && core->oracle->num_Mops_before_feeder() == 0
                        && !core->oracle->spec_mode
                        && core->fetch->PC == NPC
                        && core->fetch->PC == thread->regs.regs_NPC)
@@ -541,11 +544,12 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake)
        sim_main_slave_pre_pin(coreID);
        fetch_more = true;
 
-       if(core->oracle->num_Mops_nuked == 0)
+       if(core->oracle->num_Mops_before_feeder() == 0)
        {
          //Nuke recovery instruction is a mispredicted branch
          if(core->fetch->PC != NPC || thread->regs.regs_NPC != NPC)
          {
+            ZPIN_TRACE(coreID, "Going from nuke loop to spec loop. PC: %x\n",core->fetch->PC);
             thread->consumed = false;
             continue;
          }
@@ -571,7 +575,7 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake)
 
             spec = (core->oracle->spec_mode || (core->fetch->PC != thread->regs.regs_NPC));
             /* If fetch can tolerate more insns, but needs to get them from PIN */
-            if(fetch_more && !spec && core->oracle->num_Mops_nuked == 0)
+            if(fetch_more && !spec && core->oracle->num_Mops_before_feeder() == 0)
             {
                zesto_assert(core->fetch->PC == NPC, (void)0);
                return;
@@ -593,14 +597,16 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake)
          spec = (core->oracle->spec_mode || (core->fetch->PC != thread->regs.regs_NPC));
 
          /* After recovering from spec, we find no nukes -> great, get control back to PIN */
-         if(!spec && core->oracle->num_Mops_nuked == 0)
+         if(!spec && core->oracle->num_Mops_before_feeder() == 0)
          {
+            //fprintf(stderr, "AAA\n");
+            //while(1);
             zesto_assert(core->fetch->PC == NPC, (void)0);
             return;
          }
 
          /* After recovering from spec, nuke -> go to nuke recovery loop */
-         if(!spec && core->oracle->num_Mops_nuked > 0)
+         if(!spec && core->oracle->num_Mops_before_feeder() > 0)
          {
             ZPIN_TRACE(coreID, "Going from spec loop to nuke loop. PC: %x\n",core->fetch->PC);
             break;

@@ -167,7 +167,7 @@ int core_oracle_t::spec_mem_pool_debt = 0;
 
 /* CONSTRUCTOR */
 core_oracle_t::core_oracle_t(struct core_t * const arg_core):
-  spec_mode(false), num_Mops_nuked(0), hosed(false), MopQ(NULL), MopQ_head(0), MopQ_tail(0),
+  spec_mode(false), hosed(false), MopQ(NULL), MopQ_head(0), MopQ_tail(0),
   MopQ_num(0), current_Mop(NULL)
 {
   /* MopQ should be large enough to support all in-flight
@@ -722,7 +722,7 @@ core_oracle_t::exec(const md_addr_t requested_PC)
     /* read encoding supplied by feeder */
     memcpy(&Mop->fetch.inst.code, get_shadow_Mop(Mop)->handshake.ins, MD_MAX_ILEN);
 
-    if (num_Mops_nuked > 0)
+    if (num_Mops_before_feeder() > 0)
         grab_feeder_state(get_shadow_Mop(Mop), false, true);
   }
 
@@ -1319,6 +1319,7 @@ core_oracle_t::exec(const md_addr_t requested_PC)
 
   /* commit this inst to the MopQ */
   MopQ_tail = modinc(MopQ_tail,MopQ_size); //(MopQ_tail + 1) % MopQ_size;
+  ZPIN_TRACE(core->id, "MopQ_tail++: %d\n", MopQ_tail);
   MopQ_num ++;
 
   current_Mop = Mop;
@@ -1340,11 +1341,6 @@ void core_oracle_t::consume(const struct Mop_t * const Mop)
 {
   assert(Mop == current_Mop);
   current_Mop = NULL;
-
-  /* If recovering from a nuke, keep track of num instructions left until the nuke reason */
-  if(num_Mops_nuked > 0 && !Mop->oracle.spec_mode)
-     num_Mops_nuked--;
-
 }
 
 void core_oracle_t::commit_uop(struct uop_t * const uop)
@@ -1490,12 +1486,7 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
   std::stack<struct uop_t *> to_delete;
   int idx = moddec(MopQ_tail,MopQ_size); //(MopQ_tail-1+MopQ_size) % MopQ_size;
 
-  /* When a nuke recovers to another nuke, consume never gets called, so we compensate */
-  if(num_Mops_nuked > 0 && !MopQ[idx].oracle.spec_mode && current_Mop != NULL)
-  {
-    num_Mops_nuked--;
-    ZPIN_TRACE(core->id, "num_Mops_nuked-- correction; recPC: 0x%x\n", Mop->fetch.PC);
-  }
+  ZPIN_TRACE(core->id, "Recovery at MopQ_num: %d; shadow_MopQ_num: %d\n", MopQ_num, shadow_MopQ->size());
 
   while(Mop != &MopQ[idx])
   {
@@ -1504,10 +1495,8 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
 
     /* Flush not caused by branch misprediction - nuke */
     bool nuke = /*!spec_mode &&*/ !MopQ[idx].oracle.spec_mode;
-    if(nuke)
-      num_Mops_nuked++;
 
-    ZPIN_TRACE(core->id, "Undoing Mop @ PC: %x, nuke: %d, num_Mops_nuked: %d\n", MopQ[idx].fetch.PC, nuke, num_Mops_nuked);
+    ZPIN_TRACE(core->id, "Undoing Mop @ PC: %x, nuke: %d, num_Mops_nuked: %d\n", MopQ[idx].fetch.PC, nuke, num_Mops_before_feeder());
 
     undo(&MopQ[idx], nuke);
     MopQ[idx].valid = false;
@@ -1537,13 +1526,14 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
   core->current_thread->regs.regs_PC = Mop->fetch.PC;
   core->current_thread->regs.regs_NPC = Mop->oracle.NextPC;
 
-  ZPIN_TRACE(core->id, "Recovering to fetchPC: %x; nuked_Mops: %d, rep_seq: %d \n", Mop->fetch.PC, num_Mops_nuked, core->current_thread->rep_sequence);
+  ZPIN_TRACE(core->id, "Recovering to fetchPC: %x; nuked_Mops: %d, rep_seq: %d \n", Mop->fetch.PC, num_Mops_before_feeder(), core->current_thread->rep_sequence);
 
   spec_mode = Mop->oracle.spec_mode;
-  current_Mop = NULL;
 
   /* Force simulation to re-check feeder if needed */ 
   core->current_thread->consumed = true;
+
+  current_Mop = NULL;
 }
 
 /* flush everything after Mop */
@@ -1772,7 +1762,7 @@ void core_oracle_t::grab_feeder_state(handshake_container_t * handshake, bool al
   }
 
 
-  /* Store a shadown handshake for recovery purposes */
+  /* Store a shadow handshake for recovery purposes */
   if (allocate_shadow) {
 
     zesto_assert(!shadow_MopQ->full(), (void)0);
@@ -1842,6 +1832,35 @@ void core_oracle_t::trace_in_flight_ops(void)
 
   } while (idx != MopQ_head);
 #endif
+}
+
+int core_oracle_t::num_non_spec_Mops(void) const
+{
+  int idx = MopQ_tail;
+  struct Mop_t *Mop;
+  int result = 0;
+
+  if (MopQ_num == 0)
+    return 0;
+
+  /* Walk MopQ from most recent Mop */
+  do {
+    idx = moddec(idx, MopQ_size);
+    Mop = &MopQ[idx];
+
+    if (!Mop->oracle.spec_mode)
+      result++;
+
+  } while (idx != MopQ_head);
+  zesto_assert(result <= MopQ_num, 0);
+  return result;
+}
+
+int core_oracle_t::num_Mops_before_feeder(void) const
+{
+  int result = shadow_MopQ->size() - this->num_non_spec_Mops();
+  zesto_assert(result >= 0, 0);
+  return result;
 }
 
 /**************************************/
