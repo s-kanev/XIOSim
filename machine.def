@@ -9197,7 +9197,7 @@ DNA, DNA)
 
   DEFLINK(SHRD_EvRvCL_LINK, 0xad, "shrd_evrvcl_link", 6, 0x03)
 
-  DEFLINK(GRP15_LINK, 0xae, "grp15_link", 3, 0x07)
+  DEFLINK(GRP15_LINK, 0xae, "grp15_link", 8, 0x1f)
 
   DEFLINK(IMUL_RvEv_LINK, 0xaf, "imul_evrv_link", 6, 0x03)
 
@@ -10118,7 +10118,7 @@ CONNECT(GRP15_LINK)
 }
   DEFINST(LFENCE,    0x0200,
       "lfence",      "",
-      FU_INVALID,                 F_MEM,
+      FU_INVALID,                 F_MEM|F_UCODE,
       DNA,
       DNA, DNA, DNA,
       DNA, DNA)

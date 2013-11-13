@@ -933,7 +933,7 @@ bool core_exec_DPM_t::check_load_issue_conditions(const struct uop_t * const uop
 
   /* Conservative fence implementation -- if there is an older fence in LDQ,
    * don't issue. */
-  for (int j = LDQ_head; j = modinc(j, knobs->exec.LDQ_size); j != uop->alloc.LDQ_index) {
+  for (int j = LDQ_head; j != uop->alloc.LDQ_index; j = modinc(j, knobs->exec.LDQ_size)) {
     if (LDQ[j].uop->decode.is_fence &&
         LDQ[j].uop->timing.when_completed == TICK_T_MAX)
       return false;
