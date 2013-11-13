@@ -31,7 +31,9 @@ BOOL ILDJIT_executorCreation = false;
 XIOSIM_LOCK ildjit_lock;
 
 /* A store instruction with immediate address and data */
-const UINT8 wait_template[] = {0xc7, 0x05, 0xad, 0xfb, 0xca, 0xde, 0x00, 0x00, 0x00, 0x00 };
+const UINT8 wait_template_1[] = {0xc7, 0x05, 0xad, 0xfb, 0xca, 0xde, 0x00, 0x00, 0x00, 0x00 };
+/* A LFENCE instruction */
+const UINT8 wait_template_2[] = {0x0f, 0xae, 0xe8};
 /* A store instruction with immediate address and data */
 const UINT8 signal_template[] = {0xc7, 0x05, 0xad, 0xfb, 0xca, 0xde, 0x00, 0x00, 0x00, 0x00 };
 /* An INT 80 instruction */
@@ -441,7 +443,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
 {
     assert(ssID < 1024);
     thread_state_t* tstate = get_tls(tid);
-    handshake_container_t* handshake;
+    handshake_container_t *handshake, *handshake_2;
     uint mask;
     bool first_insn;
 
@@ -512,14 +514,14 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
     handshake->handshake.in_critical_section = (num_cores > 1);
     handshake->flags.valid = true;
 
-    handshake->handshake.pc = (ADDRINT)wait_template;
-    handshake->handshake.npc = NextUnignoredPC(tstate->retPC);
-    handshake->handshake.tpc = (ADDRINT)wait_template + sizeof(wait_template);
+    handshake->handshake.pc = (ADDRINT)wait_template_1;
+    handshake->handshake.npc = (ADDRINT)wait_template_2;
+    handshake->handshake.tpc = (ADDRINT)wait_template_2;
     handshake->handshake.brtaken = false;
-    memcpy(handshake->handshake.ins, wait_template, sizeof(wait_template));
+    memcpy(handshake->handshake.ins, wait_template_1, sizeof(wait_template_1));
     // set magic 17 bit in address - makes the pipeline see them as seperate addresses
     mask = 1 << 16;
-    // Address comes right after opcode and MoodRM bytes
+    // Address comes right after opcode and ModRM bytes
     *(INT32*)(&handshake->handshake.ins[2]) = getSignalAddress(ssID) | mask;
 
 #ifdef PRINT_DYN_TRACE
@@ -527,6 +529,23 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
 #endif
 
     handshake_buffer.producer_done(tid);
+
+    handshake_2 = handshake_buffer.get_buffer(tid);
+    handshake_2->handshake.real = false;
+    handshake_2->handshake.in_critical_section = (num_cores > 1);
+    handshake_2->flags.valid = true;
+
+    handshake_2->handshake.pc = (ADDRINT)wait_template_2;
+    handshake_2->handshake.npc = NextUnignoredPC(tstate->retPC);
+    handshake_2->handshake.tpc = (ADDRINT)wait_template_2 + sizeof(wait_template_2);
+    handshake_2->handshake.brtaken = false;
+    memcpy(handshake_2->handshake.ins, wait_template_2, sizeof(wait_template_2));
+
+#ifdef PRINT_DYN_TRACE
+    printTrace("sim", handshake_2->handshake.pc, tid);
+#endif
+
+    handshake_buffer.producer_done(tid);    
 
 cleanup:
     tstate->lastSignalAddr = 0xdecafbad;
@@ -696,7 +715,7 @@ VOID AddILDJITCallbacks(IMG img)
                        IARG_CALL_ORDER, CALL_ORDER_FIRST,
                        IARG_END);
         RTN_Close(rtn);
-        IgnoreCallsTo(RTN_Address(rtn), 2/*the call and one parameter*/, (ADDRINT)wait_template);
+        IgnoreCallsTo(RTN_Address(rtn), 2/*the call and one parameter*/, (ADDRINT)wait_template_1);
     }
 
     rtn = RTN_FindByName(img, "MOLECOOL_afterWait");
@@ -713,8 +732,8 @@ VOID AddILDJITCallbacks(IMG img)
                        IARG_CALL_ORDER, CALL_ORDER_LAST,
                        IARG_END);
         RTN_Close(rtn);
-        IgnoreCallsTo(RTN_Address(rtn), 3/*the call and two parameters*/, (ADDRINT)wait_template);
-        pc_diss[(ADDRINT)wait_template] = "Wait";
+        IgnoreCallsTo(RTN_Address(rtn), 3/*the call and two parameters*/, (ADDRINT)wait_template_1);
+        pc_diss[(ADDRINT)wait_template_1] = "Wait";
     }
 
     rtn = RTN_FindByName(img, "MOLECOOL_beforeSignal");

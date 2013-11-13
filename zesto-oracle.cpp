@@ -860,6 +860,7 @@ core_oracle_t::exec(const md_addr_t requested_PC)
           }
           uop->decode.is_ctrl = !!(uop->decode.opflags & F_CTRL);
           uop->decode.is_nop = uop->decode.op == NOP;
+          uop->decode.is_fence = !!(uop->decode.op == LFENCE);
 
           if(knobs->decode.fusion_mode & FUSION_TYPE(uop))
           {

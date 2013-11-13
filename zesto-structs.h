@@ -147,6 +147,7 @@ struct uop_t
     bool is_sta;  /* Is store-address uop? */
     bool is_std;  /* Is store-data uop? */
     bool is_nop;  /* Is NOP? */
+    bool is_fence; /* Is fence? */
 
     /* assume unique uop ID assigned when Mop cracked */
     seq_t Mop_seq;

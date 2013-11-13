@@ -9197,6 +9197,8 @@ DNA, DNA)
 
   DEFLINK(SHRD_EvRvCL_LINK, 0xad, "shrd_evrvcl_link", 6, 0x03)
 
+  DEFLINK(GRP15_LINK, 0xae, "grp15_link", 3, 0x07)
+
   DEFLINK(IMUL_RvEv_LINK, 0xaf, "imul_evrv_link", 6, 0x03)
 
   /* FIXME: TODO 0xb0: CMPXCHG_EbRb */
@@ -10106,6 +10108,20 @@ CONNECT(BTS_EvRv_LINK)
       DNA, DNA, DNA,
       DNA, DNA)
 
+CONNECT(GRP15_LINK)
+
+  DEFLINK(LFENCE_LINK, 0x1d, "lfence_link", 8, 0x1f)
+
+#define LFENCE_IMPL                 \
+{                                   \
+/* nada */                          \
+}
+  DEFINST(LFENCE,    0x0200,
+      "lfence",      "",
+      FU_INVALID,                 F_MEM,
+      DNA,
+      DNA, DNA, DNA,
+      DNA, DNA)
 
 CONNECT(IMUL_RvEv_LINK)
 
@@ -19473,6 +19489,17 @@ CONNECT(FISTP_Mq_LINK)
       DNA, DNA)
 
 
+#define LFENCE_UOP_IMPL                 \
+{                                       \
+  /* NADA */                            \
+}
+  DEFUOP(LFENCE_UOP,        0x00,
+      "lfence",     "",
+      FU_LD,        F_MEM,
+      DNA,
+      DNA, DNA, DNA,
+      DNA, DNA)
+
   /* clean up all definitions... */
 #undef UPDATE_CALLGRAPH_CALL
 #undef UPDATE_CALLGRAPH_RETURN
@@ -20007,6 +20034,7 @@ CONNECT(FISTP_Mq_LINK)
 #undef FUCOMIP_ST0STi_IMPL
 #undef FCOMIP_ST0STi_IMPL
 #undef FISTP_Mq_IMPL
+#undef LFENCE_IMPL
 #undef ADDB_IMPL
 #undef ADDBI_IMPL
 #undef SETFLAGSW_IMPL
@@ -20327,3 +20355,4 @@ CONNECT(FISTP_Mq_LINK)
 #undef IN_eAXDX_IMPL
 #undef OUT_DXAL_IMPL
 #undef OUT_DXeAX_IMPL
+#undef LFENCE_UOP_IMPL

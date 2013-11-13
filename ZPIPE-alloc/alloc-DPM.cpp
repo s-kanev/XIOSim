@@ -180,7 +180,7 @@ void core_alloc_DPM_t::step(void)
             }
 
             /* for loads, is the LDQ full? */
-            if(uop->decode.is_load && !core->exec->LDQ_available())
+            if((uop->decode.is_load || uop->decode.is_fence) && !core->exec->LDQ_available())
             {
               stall_reason = ASTALL_LDQ;
               abort_alloc = true;
@@ -214,7 +214,7 @@ void core_alloc_DPM_t::step(void)
               core->commit->ROB_fuse_insert(uop);
 
             /* place in LDQ/STQ if needed */
-            if(uop->decode.is_load)
+            if(uop->decode.is_load || uop->decode.is_fence)
               core->exec->LDQ_insert(uop);
             else if(uop->decode.is_sta)
               core->exec->STQ_insert_sta(uop);
