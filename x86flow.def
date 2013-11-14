@@ -3572,3 +3572,8 @@
 {                                                                       \
   UOP_R0(UV, LFENCE_UOP, FUSION_NONE);                                     	\
 }
+
+#define MFENCE_FLOW                                          	\
+{                                                                       \
+  UOP_R0(UV, MFENCE_UOP, FUSION_NONE);                                     	\
+}

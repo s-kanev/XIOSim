@@ -10112,12 +10112,25 @@ CONNECT(GRP15_LINK)
 
   DEFLINK(LFENCE_LINK, 0x1d, "lfence_link", 8, 0x1f)
 
+  DEFLINK(MFENCE_LINK, 0x1e, "mfence_link", 8, 0x1f)
+
 #define LFENCE_IMPL                 \
 {                                   \
 /* nada */                          \
 }
   DEFINST(LFENCE,    0x0200,
       "lfence",      "",
+      FU_INVALID,                 F_MEM|F_UCODE,
+      DNA,
+      DNA, DNA, DNA,
+      DNA, DNA)
+
+#define MFENCE_IMPL                 \
+{                                   \
+/* nada */                          \
+}
+  DEFINST(MFENCE,    0x0200,
+      "mfence",      "",
       FU_INVALID,                 F_MEM|F_UCODE,
       DNA,
       DNA, DNA, DNA,
@@ -19495,6 +19508,17 @@ CONNECT(FISTP_Mq_LINK)
 }
   DEFUOP(LFENCE_UOP,        0x00,
       "lfence",     "",
+      FU_LD,        F_MEM,
+      DNA,
+      DNA, DNA, DNA,
+      DNA, DNA)
+
+#define MFENCE_UOP_IMPL                 \
+{                                       \
+  /* NADA */                            \
+}
+  DEFUOP(MFENCE_UOP,        0x00,
+      "mfence",     "",
       FU_LD,        F_MEM,
       DNA,
       DNA, DNA, DNA,

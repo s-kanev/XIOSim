@@ -1811,8 +1811,24 @@ void core_exec_DPM_t::LDQ_schedule(void)
     /* Load fences */
     if(LDQ[index].uop->decode.is_fence) {
       /* Only let a fence commit from the head of the LDQ. */
-      if (index == LDQ_head)
-        LDQ[index].uop->timing.when_completed = core->sim_cycle;
+      if (index != LDQ_head) {
+        index = modinc(index,knobs->exec.LDQ_size);
+        continue;
+      }
+
+      /* MFENCE needs to wait until stores prior to it complete */
+      if (LDQ[index].uop->decode.op == MFENCE_UOP) {
+        int stq_ind = LDQ[index].store_color;
+
+        /* The youngest store (at allocation time of the fence) still hasn't
+         * completed (gone out of STQ -- for now it is safe to assume we
+         * can wait until commit, not until the request comes back, because
+         * the repeater doesn't reorder accesses) */
+        if (STQ[stq_ind].sta && STQ[stq_ind].sta->decode.uop_seq)
+          continue;
+      }
+
+      LDQ[index].uop->timing.when_completed = core->sim_cycle;
 
       index = modinc(index,knobs->exec.LDQ_size);
       continue;
@@ -2625,6 +2641,8 @@ bool core_exec_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
                             core->current_thread->id, uop->oracle.virt_addr))
     return false;
   }
+
+  /* TODO: Add mfence handling to wait for loads */
 
   if(!STQ[STQ_head].first_byte_requested)
   {
