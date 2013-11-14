@@ -10,7 +10,7 @@
 ##      make PIN_HOME=<top-level directory where Pin was installed>
 ##
 ## After building your tool, you would invoke Pin like this:
-## 
+##
 ##      $PIN_HOME/pin -t MyPinTool -- /bin/ls
 ##
 ##############################################################
@@ -26,6 +26,7 @@
 #
 PIN_HOME ?= /home/skanev/pin/2.12
 ZESTO_HOME = ..
+BOOST_HOME = /home/samxi/cs261/shm/boost_1_54_0
 TARGET = ia32
 
 ##############################################################
@@ -51,15 +52,18 @@ MCPAT_LIB = $(ZESTO_HOME)/mcpat/mcpat.a
 
 ifeq ($(wildcard $(ZESTO_HOME)/mem-repeater/mem-repeater.h),)
     REPEATER_LIB =
-else 
+else
     REPEATER_LIB = $(ZESTO_HOME)/mem-repeater/librepeater.a
 endif
 
 ifeq ($(wildcard $(ZESTO_HOME)/DRAMSim2/DRAMSim.h),)
     DRAMSIM_LIB =
-else 
+else
     DRAMSIM_LIB = $(ZESTO_HOME)/DRAMSim2/libdramsim.a
 endif
+
+BOOST_INCLUDE = $(BOOST_HOME)/include
+BOOST_LIB = $(BOOST_HOME)/bin
 
 ##############################################################
 #
@@ -81,8 +85,10 @@ TOOLS = $(TOOL_ROOTS:%=$(OBJDIR)%$(PINTOOL_SUFFIX))
 #
 ##############################################################
 all : CXXFLAGS += -DDEBUG -D_FILE_OFFSET_BITS=64 -std=c++11
+all : CXXFLAGS += -I$(BOOST_INCLUDE)
 all: tools
 debug:	CXXFLAGS += -DZESTO_PIN_DBG -D_FILE_OFFSET_BITS=64 -std=c++11
+debug : CXXFLAGS += -I$(BOOST_INCLUDE)
 debug:	tools
 tools: $(OBJDIR) $(TOOLS) $(OBJDIR)cp-pin.exe
 test: $(OBJDIR) $(TOOL_ROOTS:%=%.test)
@@ -116,8 +122,8 @@ $(OBJDIR)%.o : %.cpp
 
 $(TOOLS): $(PIN_LIBNAMES) $(TOOL_OBJS) $(SIM_LIB) $(MCPAT_LIB) $(DRAMSIM_LIB) $(REPEATER_LIB)
 
-$(TOOLS): %$(PINTOOL_SUFFIX) : %.o 
-	${PIN_LD} -g $(PIN_LDFLAGS) -I$(ZESTO_HOME) -L$(ZESTO_HOME) $(LINK_DEBUG) ${LINK_OUT} $@ $< ${PIN_LPATHS} $(TOOL_OBJS) $(SIM_LIB) $(MCPAT_LIB) $(DRAMSIM_LIB) $(REPEATER_LIB) $(PIN_LIBS) $(DBG)
+$(TOOLS): %$(PINTOOL_SUFFIX) : %.o
+	${PIN_LD} -g $(PIN_LDFLAGS) -I$(ZESTO_HOME) -L$(ZESTO_HOME) -I$(BOOST_INCLUDE) -L$(BOOST_LIB) $(LINK_DEBUG) ${LINK_OUT} $@ $< ${PIN_LPATHS} $(TOOL_OBJS) $(SIM_LIB) $(MCPAT_LIB) $(DRAMSIM_LIB) $(REPEATER_LIB) $(PIN_LIBS) $(DBG)
 
 ## cleaning
 clean:
@@ -133,5 +139,5 @@ clean-tool:
 
 install:
 	cp $(TOOLS) $(COOL_INSTALL_DIR)
-	git log -1 --format="%H" > $(COOL_INSTALL_DIR)/version 
-	git diff --no-prefix > $(COOL_INSTALL_DIR)/diff 
+	git log -1 --format="%H" > $(COOL_INSTALL_DIR)/version
+	git diff --no-prefix > $(COOL_INSTALL_DIR)/diff
