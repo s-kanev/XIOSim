@@ -34,7 +34,7 @@ extern int32_t ReleaseLock(PIN_LOCK* lk);
 extern void InitLock(PIN_LOCK* lk);
 }
 
-typedef XIOSIM_LOCK XIOSIM_LOCK;
+typedef XIOSIM_LOCK PIN_LOCK;
 
 inline void lk_lock(XIOSIM_LOCK* lk, int32_t cid)
 {
@@ -64,7 +64,10 @@ inline void lk_init(XIOSIM_LOCK* lk)
  * Credit for this goes to  Nick Piggin (https://lwn.net/Articles/267968/)
  */
 
-typedef struct { int32_t v; } __attribute__ ((aligned (64))) XIOSIM_LOCK;
+struct XIOSIM_LOCK {
+  int32_t v;
+  XIOSIM_LOCK() : v(0) {};
+} __attribute__ ((aligned (64)));
 
 inline void lk_lock(XIOSIM_LOCK* lk, int32_t cid)
 {
@@ -98,9 +101,6 @@ inline void lk_init(XIOSIM_LOCK* lk)
     __asm__ __volatile__ ("":::"memory");
     lk->v = 0;
 }
-
-// Static lock initialized, not possible with Pin locks.
-const XIOSIM_LOCK XIOSIM_STATIC_LOCK_INIT = { v:0 };
 
 #endif
 
