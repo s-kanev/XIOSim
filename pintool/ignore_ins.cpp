@@ -113,6 +113,11 @@ VOID InstrumentInsIgnoring(TRACE trace, VOID* v)
                     repl.ins_to_ignore--;
                 }
             }
+            if (repl.ins_to_ignore > 0) {
+                lk_lock(&printing_lock, 1);
+                cerr << "ERROR: Didn't find enough stack writes to ignore before: " << hex << INS_Address(ins) << dec << endl;
+                lk_unlock(&printing_lock);
+            }
             assert(repl.ins_to_ignore == 0);
         }
     }
