@@ -121,9 +121,7 @@
 #ifndef MISC_H
 #define MISC_H
 
-#ifdef __cplusplus
 extern "C" {
-#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -147,10 +145,6 @@ extern "C" {
 #define MIN(a, b)    (((a) < (b)) ? (a) : (b))
 #endif
 
-/* for printing out "long long" vars */
-#define LLHIGH(L)		((int)(((L)>>32) & 0xffffffff))
-#define LLLOW(L)		((int)((L) & 0xffffffff))
-
 /* size of an array, in elements */
 #define N_ELT(ARR)   (sizeof(ARR)/sizeof((ARR)[0]))
 
@@ -167,13 +161,13 @@ extern bool debugging;
 //Useful when debugging long traces that don't fit hard drive
 extern void flush_trace();
 #ifdef ZESTO_PIN_DBG
-extern void vtrace(const char *fmt, va_list v);
-extern void trace(const char *fmt, ...)
-    __attribute__ ((format (printf, 1, 2)));
-#define ZPIN_TRACE(fmt, ...) \
-  trace(fmt, ## __VA_ARGS__)
+extern void vtrace(const int coreID, const char *fmt, va_list v);
+extern void trace(const int coreID, const char *fmt, ...)
+    __attribute__ ((format (printf, 2, 3)));
+#define ZPIN_TRACE(coreID, fmt, ...) \
+  trace(coreID, fmt, ## __VA_ARGS__)
 #else
-#define ZPIN_TRACE(fmt, ...)
+#define ZPIN_TRACE(coreID, fmt, ...)
 #endif
 
 /* register a function to be called when an error is detected */
@@ -228,9 +222,6 @@ _debug(const char *file, const char *func, const int line, const char *fmt, ...)
 /* return log of a number to the base 2 */
 int log_base2(const int n);
 
-/* return string describing elapsed time, passed in SEC in seconds */
-const char *elapsed_time(long sec);
-
 /* fast modulo increment/decrement:
    gcc on -O1 or higher will if-convert the following functions
    to provide much cheaper implementations of increment and
@@ -270,8 +261,13 @@ void memzero(void * base, int bytes);
 void clear_page(void * base);
 void memswap(void * p1, void * p2, size_t num_bytes);
 
-#ifdef __cplusplus
+/* same semantics as fopen() except that filenames ending with a ".gz" or ".Z"
+   will be automagically get compressed */
+FILE *gzopen(const char *fname, const char *type);
+
+/* close compressed stream */
+void gzclose(FILE *fd);
+
 }
-#endif
 
 #endif /* MISC_H */

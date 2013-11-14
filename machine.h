@@ -77,6 +77,7 @@ extern "C" {
 /* build for x86 target */
 #define TARGET_X86
 #define MAX_CORES 16
+#define INVALID_CORE -1
 
 
 /* probe cross-endian execution */
@@ -1789,6 +1790,9 @@ void md_print_fpregs(md_fpr_t regs, FILE *stream);
 void md_print_creg(md_ctrl_t regs, int reg, FILE *stream);
 void md_print_cregs(md_ctrl_t regs, FILE *stream);
 
+/* Print out the contets of extended-width fp register file */
+void
+trace_fp_regfile(const int coreID, const md_fpr_t *regs_F, const md_ctrl_t *regs_C);
 
 /*
  * configure sim-outorder specifics

@@ -635,13 +635,13 @@ bool core_fetch_DPM_t::do_fetch(void)
   md_addr_t current_line = PC & byteQ_linemask;
   struct Mop_t * Mop = NULL;
 
-  ZPIN_TRACE("Fetch PC: %x, rep_seq: %d\n", PC, core->current_thread->rep_sequence);
+  ZPIN_TRACE(core->id, "Fetch PC: %x, rep_seq: %d\n", PC, core->current_thread->rep_sequence);
 
   lk_lock(&memory_lock, core->id+1);
   Mop = core->oracle->exec(PC);
   lk_unlock(&memory_lock);
 
-  ZPIN_TRACE("After. PC: %x, nuked_Mops: %d, rep_seq: %d\n", PC, core->oracle->num_Mops_nuked, core->current_thread->rep_sequence);
+  ZPIN_TRACE(core->id, "After. PC: %x, nuked_Mops: %d, rep_seq: %d\n", PC, core->oracle->num_Mops_nuked, core->current_thread->rep_sequence);
   if(Mop && ((PC >> PAGE_SHIFT) == 0))
   {
     zesto_assert(core->oracle->spec_mode, false);
@@ -766,7 +766,7 @@ bool core_fetch_DPM_t::do_fetch(void)
   /* advance the fetch PC to the next instruction */
   PC = Mop->fetch.pred_NPC;
 
-  ZPIN_TRACE("After bpred. PC: %x, oracle.NPC: %x, spec: %d, nuked_Mops: %d\n", PC, Mop->oracle.NextPC, core->oracle->spec_mode, core->oracle->num_Mops_nuked);
+  ZPIN_TRACE(core->id, "After bpred. PC: %x, oracle.NPC: %x, spec: %d, nuked_Mops: %d\n", PC, Mop->oracle.NextPC, core->oracle->spec_mode, core->oracle->num_Mops_nuked);
 
   /* This includes REPs as taken branches, otherwise they easily flood the oracle. */
   if(Mop->fetch.pred_NPC != (Mop->fetch.PC + Mop->fetch.inst.len))

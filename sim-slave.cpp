@@ -133,7 +133,6 @@ struct core_knobs_t knobs;
 /* number of cores */
 int num_cores = 1;
 bool multi_threaded = false;
-int simulated_processes_remaining = 1;
 
 bool sim_slave_running = false;
 
@@ -142,6 +141,9 @@ int min_coreID;
 
 /* Time between synchronizing a core and global state */
 double sync_interval;
+
+int heartbeat_count = 0;
+int deadlock_count = 0;
 
 /* initialize simulator data structures - called before any command-line options have been parsed! */
 void
@@ -366,6 +368,7 @@ static void global_step(void)
       repeater_noc_ticks = modinc(repeater_noc_ticks, (int)uncore_ratio);
 
     if(repeater_noc_ticks == 0) {
+      /* Heartbeat -> print that the simulator is still alive */
       if((heartbeat_frequency > 0) && (heartbeat_count >= heartbeat_frequency))
       {
         lk_lock(&printing_lock, 1);
@@ -384,7 +387,24 @@ static void global_step(void)
         heartbeat_count = 0;
       }
 
-      ZPIN_TRACE("###Uncore cycle%s\n"," ");
+      /* Global deadlock detection -> kill simulation if no core is making progress */
+      if((core_commit_t::deadlock_threshold > 0) && (deadlock_count >= core_commit_t::deadlock_threshold))
+      {
+        bool deadlocked = true;
+        for(int i=0;i<num_cores;i++)
+        {
+            deadlocked &= cores[i]->commit->deadlocked;
+        }
+
+        if(deadlocked) {
+            core_t * core = cores[0];
+            zesto_assert(false, (void)0);
+        }
+
+        deadlock_count = 0;
+      }
+
+      ZPIN_TRACE(INVALID_CORE, "###Uncore cycle%s\n"," ");
 
       if(uncore->sim_cycle == 0)
         fprintf(stderr, "### starting timing simulation \n");
@@ -411,6 +431,7 @@ static void global_step(void)
           }
 
       heartbeat_count++;
+      deadlock_count++;
 
       /*********************************************/
       /* step through pipe stages in reverse order */
@@ -478,6 +499,9 @@ master_core:
 
         lk_unlock(&cycle_lock);
         /* Spin, spin, spin */
+        while(consumers_sleep) {
+          lk_wait_consumers();
+        }
         yield();
         lk_lock(&cycle_lock, coreID+1);
 
@@ -513,7 +537,7 @@ master_core:
         /* All cores got deactivated, just return and make sure we 
          * go back to PIN */
         if (min_coreID == MAX_CORES) {
-          ZPIN_TRACE("Returning from step loop looking suspicious %d", coreID);
+          ZPIN_TRACE(min_coreID, "Returning from step loop looking suspicious %d", coreID);
           cores[coreID]->current_thread->consumed = true;
           lk_unlock(&cycle_lock);
           return;
@@ -522,6 +546,9 @@ master_core:
 non_master_core:
         /* Spin, spin, spin */
         lk_unlock(&cycle_lock);
+        while(consumers_sleep) {
+          lk_wait_consumers();
+        }
         yield();
         lk_lock(&cycle_lock, coreID+1);
       }

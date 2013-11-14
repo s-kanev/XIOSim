@@ -43,6 +43,5 @@ struct thread_t {
 extern struct thread_t ** threads;
 extern int num_cores;
 extern bool multi_threaded;
-extern int simulated_processes_remaining;
 
 #endif /* ARCH_CPU_INCLUDED */

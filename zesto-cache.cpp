@@ -2044,7 +2044,7 @@ static void cache_process_pipe(struct cache_t * const cp, int start_point)
               if(!ca->prev_cp && ca->op && (ca->action_id == ca->get_action_id(ca->op)))
               {
 #ifdef ZTRACE
-                ztrace_print("%s|hit",cp->name);
+                CACHE_ZTRACE("%s|hit",cp->name);
 #endif
                 ca->cb(ca->op);
               }
@@ -2256,7 +2256,7 @@ static void cache_process_MSHR(struct cache_t * const cp, int start_point)
                   if(MSHR->miss_cb && MSHR->op && (MSHR->action_id == MSHR->get_action_id(MSHR->op)))
                   {
 #ifdef ZTRACE
-                    ztrace_print("%s|miss",cp->name);
+                    CACHE_ZTRACE("%s|miss",cp->name);
 #endif
                     MSHR->miss_cb_invoked = true;
                     MSHR->miss_cb(MSHR->op,BIG_LATENCY);
@@ -2298,7 +2298,7 @@ static void cache_process_MSHR(struct cache_t * const cp, int start_point)
                       {
                         miss_latency = BIG_LATENCY;
 #ifdef ZTRACE
-                        ztrace_print("%s|miss",cp->name);
+                        CACHE_ZTRACE("%s|miss",cp->name);
 #endif
                       }
                       MSHR->miss_cb(MSHR->op, miss_latency); /* restarts speculative scheduling */
@@ -2362,7 +2362,7 @@ static void cache_process_MSHR(struct cache_t * const cp, int start_point)
                   if(MSHR->miss_cb && MSHR->op && (MSHR->action_id == MSHR->get_action_id(MSHR->op)))
                   {
 #ifdef ZTRACE
-                    ztrace_print("%s|miss",cp->name);
+                    CACHE_ZTRACE("%s|miss",cp->name);
 #endif
                     MSHR->miss_cb_invoked = true;
                     MSHR->miss_cb(MSHR->op,BIG_LATENCY);
@@ -2400,7 +2400,7 @@ static void cache_process_MSHR(struct cache_t * const cp, int start_point)
                       {
                         miss_latency = BIG_LATENCY;
 #ifdef ZTRACE
-                        ztrace_print("%s|miss",cp->name);
+                        CACHE_ZTRACE("%s|miss",cp->name);
 #endif
                       }
                       MSHR->miss_cb(MSHR->op, miss_latency); /* restarts speculative scheduling */

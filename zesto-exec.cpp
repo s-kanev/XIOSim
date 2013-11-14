@@ -173,6 +173,8 @@ void exec_reg_options(struct opt_odb_t * odb, struct core_knobs_t * knobs)
       &knobs->exec.latency[FU_STA], /*default*/ knobs->exec.latency[FU_STA], /*print*/true,/*format*/NULL);
   opt_reg_int(odb, "-std:lat","ST-data execution latency [DS]",
       &knobs->exec.latency[FU_STD], /*default*/ knobs->exec.latency[FU_STD], /*print*/true,/*format*/NULL);
+  opt_reg_int(odb, "-agen:lat","LEA execution latency [DS]",
+      &knobs->exec.latency[FU_AGEN], /*default*/ knobs->exec.latency[FU_AGEN], /*print*/true,/*format*/NULL);
 
   /*******************************/
   /* functional unit issue rates */
@@ -202,6 +204,8 @@ void exec_reg_options(struct opt_odb_t * odb, struct core_knobs_t * knobs)
       &knobs->exec.issue_rate[FU_STA], /*default*/ knobs->exec.issue_rate[FU_STA], /*print*/true,/*format*/NULL);
   opt_reg_int(odb, "-std:rate","ST-data execution issue rate [DS]",
       &knobs->exec.issue_rate[FU_STD], /*default*/ knobs->exec.issue_rate[FU_STD], /*print*/true,/*format*/NULL);
+  opt_reg_int(odb, "-agen:rate","LEA execution issue rate [DS]",
+      &knobs->exec.issue_rate[FU_AGEN], /*default*/ knobs->exec.issue_rate[FU_AGEN], /*print*/true,/*format*/NULL);
 
   /***************/
   /* data caches */
@@ -292,7 +296,7 @@ void exec_reg_options(struct opt_odb_t * odb, struct core_knobs_t * knobs)
 
 /* default constructor */
 core_exec_t::core_exec_t(void):
-  last_completed(0), last_completed_count(0)
+  last_completed(0)
 {
 }
 
@@ -305,6 +309,7 @@ core_exec_t::~core_exec_t()
 void core_exec_t::update_last_completed(tick_t now)
 {
   last_completed = now;
+  core->commit->deadlocked = false;
 }
 
 extern int min_coreID;

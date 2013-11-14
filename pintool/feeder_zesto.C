@@ -170,8 +170,11 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
                 lk_unlock(&tstate->lock);
             }
 
+            
             // Let caller thread be simulated again
-            ScheduleNewThread(tid);
+            if (!KnobILDJIT.Value()) {
+              ScheduleNewThread(tid);
+            }
 
             if(control.PinPointsActive())
                 cerr << "PinPoint: " << control.CurrentPp(tid) << " PhaseNo: " << control.CurrentPhase(tid) << endl;
@@ -1196,8 +1199,9 @@ INT32 main(INT32 argc, CHAR **argv)
       amd_hack();
     }
 
-    if (KnobILDJIT.Value())
+    if (KnobILDJIT.Value()) {
         MOLECOOL_Init();
+    }
 
     if (!KnobILDJIT.Value() && !KnobParsec.Value()) {
         // Try activate pinpoints alarm, must be done before PIN_StartProgram
@@ -1250,16 +1254,14 @@ INT32 main(INT32 argc, CHAR **argv)
     Zesto_SlaveInit(ssargs.first, ssargs.second);
 
     host_cpus = get_nprocs_conf();
-    if(host_cpus < num_cores * 2) {
-      cerr << "Turning on thread sleeping optimization" << endl;
+    if((host_cpus < num_cores * 2) || KnobILDJIT.Value()) {
       sleeping_enabled = true;
+      enable_producers();
+      disable_consumers();
     }
     else {
       sleeping_enabled = false;
     }
-
-    //enable_producers();
-    //disable_consumers();
 
     InitScheduler(num_cores);
 
@@ -1389,6 +1391,11 @@ VOID enable_producers()
   producers_sleep = false;
 }
 
+void wait_consumers()
+{
+  PIN_SemaphoreWait(&consumer_sleep_lock);
+}
+
 VOID flushLookahead(THREADID tid, int numToIgnore) {
 
   int remainingToIgnore = numToIgnore;
@@ -1411,7 +1418,7 @@ VOID flushLookahead(THREADID tid, int numToIgnore) {
       ADDRINT pc = lookahead_buffer[tid][i]->handshake.pc;
       string diss = pc_diss[pc];
       bool hasMov = diss.find("mov") != string::npos;
-      bool hasEsp = diss.find("esp") != string::npos;
+      bool hasEsp = diss.find("[esp") != string::npos;
       if(hasMov && hasEsp) {
         ignore_pcs.insert(pc);
         remainingToIgnore--;

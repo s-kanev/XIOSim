@@ -508,10 +508,7 @@ core_exec_IO_DPM_t::core_exec_IO_DPM_t(struct core_t * const arg_core):
 
   memdep = memdep_create(core, knobs->exec.memdep_opt_str);
 
-  if (core->memory.DL2)
-    core->memory.mem_repeater = repeater_create(core->knobs->exec.repeater_opt_str, core, "MR1", core->memory.DL2);
-  else
-    core->memory.mem_repeater = repeater_create(core->knobs->exec.repeater_opt_str, core, "MR1", core->memory.DL1);
+  core->memory.mem_repeater = repeater_create(core->knobs->exec.repeater_opt_str, core, "MR1", core->memory.DL1);
 
   check_for_work = true;
 }
@@ -819,7 +816,7 @@ void core_exec_IO_DPM_t::load_writeback(struct uop_t * const uop)
     zesto_assert(uop->timing.when_completed == TICK_T_MAX,(void)0);
 
     uop->timing.when_completed = core->sim_cycle+fp_penalty;
-    last_completed = core->sim_cycle+fp_penalty; /* for deadlock detection */
+    update_last_completed(core->sim_cycle+fp_penalty); /* for deadlock detection */
     if(uop->decode.is_ctrl && (uop->Mop->oracle.NextPC != uop->Mop->fetch.pred_NPC)) /* XXX: for RETN */
     {
       core->oracle->pipe_recover(uop->Mop,uop->Mop->oracle.NextPC);
@@ -1282,7 +1279,7 @@ void core_exec_IO_DPM_t::LDST_exec(void)
                 zesto_assert(uop->timing.when_completed == TICK_T_MAX,(void)0);
                 uop->timing.when_completed = core->sim_cycle+fp_penalty;
                 uop->timing.when_exec = core->sim_cycle+fp_penalty;
-                last_completed = core->sim_cycle+fp_penalty; /* for deadlock detection */
+                update_last_completed(core->sim_cycle+fp_penalty); /* for deadlock detection */
 
                 /* when_issued should be != TICK_T_MAX; in a few cases I was
                    finding it set; haven't had time to fully debug this yet,
@@ -2079,7 +2076,7 @@ bool core_exec_IO_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
        request has entered into the cache hierarchy. */
 
     /* Send to DL1 */
-  if(send_to_dl1) {
+    if(send_to_dl1) {
       struct uop_t * dl1_uop = core->get_uop_array(1);
       dl1_uop->core = core;
       dl1_uop->alloc.STQ_index = uop->alloc.STQ_index;
@@ -2632,7 +2629,7 @@ void core_exec_IO_DPM_t::step()
          if(uop->timing.when_completed == TICK_T_MAX)
          {
             uop->timing.when_completed = core->sim_cycle+fp_penalty;
-            last_completed = core->sim_cycle+fp_penalty; /* for deadlock detection*/
+            update_last_completed(core->sim_cycle+fp_penalty); /* for deadlock detection*/
          }
          //when_completed can only be set if waiting for fp_penalty
          else

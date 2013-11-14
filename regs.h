@@ -66,8 +66,4 @@ struct regs_t {
   md_xmm_t regs_XMM;        /* 128-bit register file */
 };
 
-/* Print out the contets of extended-width fp register file */
-void
-trace_fp_regfile(const md_fpr_t *regs_F, const md_ctrl_t *regs_C);
-
 #endif /* REGS_H */

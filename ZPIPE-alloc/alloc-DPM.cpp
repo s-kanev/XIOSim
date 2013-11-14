@@ -337,7 +337,7 @@ void core_alloc_DPM_t::step(void)
               uop->timing.when_ready = core->sim_cycle;
               uop->timing.when_issued = core->sim_cycle;
               uop->timing.when_completed = core->sim_cycle;
-	      zesto_assert(!uop->decode.is_load, (void)0);
+              zesto_assert(!uop->decode.is_load, (void)0);
             }
 
             uop->timing.when_allocated = core->sim_cycle;
@@ -345,21 +345,21 @@ void core_alloc_DPM_t::step(void)
 #ifdef ZTRACE
             ztrace_print_start(uop,"a|alloc:ROB=%d,",uop->alloc.ROB_index);
             if(uop->alloc.RS_index == -1) // nop
-              ztrace_print_cont("RS=.");
+              ztrace_print_cont(core->id, "RS=.");
             else
-              ztrace_print_cont("RS=%d",uop->alloc.RS_index);
+              ztrace_print_cont(core->id, "RS=%d",uop->alloc.RS_index);
             if(uop->decode.in_fusion && !uop->decode.is_fusion_head)
-              ztrace_print_cont("f");
+              ztrace_print_cont(core->id, "f");
             if(uop->alloc.LDQ_index == -1)
-              ztrace_print_cont(":LDQ=.");
+              ztrace_print_cont(core->id, ":LDQ=.");
             else
-              ztrace_print_cont(":LDQ=%d",uop->alloc.LDQ_index);
+              ztrace_print_cont(core->id, ":LDQ=%d",uop->alloc.LDQ_index);
             if(uop->alloc.STQ_index == -1)
-              ztrace_print_cont(":STQ=.");
+              ztrace_print_cont(core->id, ":STQ=.");
             else
-              ztrace_print_cont(":STQ=%d",uop->alloc.STQ_index);
-            ztrace_print_cont(":pb=%d",uop->alloc.port_assignment);
-            ztrace_print_finish("|uop alloc'd and dispatched");
+              ztrace_print_cont(core->id, ":STQ=%d",uop->alloc.STQ_index);
+            ztrace_print_cont(core->id, ":pb=%d",uop->alloc.port_assignment);
+            ztrace_print_finish(core->id, "|uop alloc'd and dispatched");
 #endif
 
           }
