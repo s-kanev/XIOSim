@@ -1824,10 +1824,12 @@ void core_exec_DPM_t::LDQ_schedule(void)
          * completed (gone out of STQ -- for now it is safe to assume we
          * can wait until commit, not until the request comes back, because
          * the repeater doesn't reorder accesses) */
-        if (STQ[stq_ind].sta && STQ[stq_ind].sta->decode.uop_seq)
+        if (STQ[stq_ind].std && 
+            (STQ[stq_ind].std->decode.uop_seq < LDQ[index].uop->decode.uop_seq))
           continue;
       }
 
+      /* Now let the fence commit */
       LDQ[index].uop->timing.when_completed = core->sim_cycle;
 
       index = modinc(index,knobs->exec.LDQ_size);
