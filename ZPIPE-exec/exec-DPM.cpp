@@ -2618,6 +2618,18 @@ void core_exec_DPM_t::STQ_deallocate_sta(void)
   STQ[STQ_head].sta = NULL;
 }
 
+/* XXX: Clean up and put in helix-specific file */
+static enum cache_command get_STQ_request_type(const struct uop_t * const uop)
+{
+  if(!uop->oracle.is_sync_op)
+    return CACHE_WRITE;
+
+  if (!!(uop->oracle.virt_addr & 0x10000))
+    return CACHE_WAIT;
+  else
+    return CACHE_SIGNAL;
+}
+
 /* returns true if successful */
 bool core_exec_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
 {
@@ -2637,7 +2649,7 @@ bool core_exec_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
 
   /* Wait until we can submit to repeater */
   if(uop->oracle.is_repeated) {
-    if(!core->memory.mem_repeater->enqueuable(uop->oracle.is_sync_op ? CACHE_SIGNAL : CACHE_WRITE,
+    if(!core->memory.mem_repeater->enqueuable(get_STQ_request_type(uop),
                             core->current_thread->id, uop->oracle.virt_addr))
     return false;
   }
@@ -2697,7 +2709,7 @@ bool core_exec_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
       rep_uop->oracle.is_repeated = uop->oracle.is_repeated;
       rep_uop->oracle.is_sync_op = uop->oracle.is_sync_op;
 
-      core->memory.mem_repeater->enqueue(uop->oracle.is_sync_op ? CACHE_SIGNAL : CACHE_WRITE,
+      core->memory.mem_repeater->enqueue(get_STQ_request_type(uop),
                        core->current_thread->id, uop->oracle.virt_addr, rep_uop, repeater_store_callback, get_uop_action_id);
     }
 
