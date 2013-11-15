@@ -87,8 +87,8 @@
 #include "zesto-uncore.h"
 #include "zesto-repeater.h"
 
-#ifdef ZTRACE
 const char * ztrace_filename = NULL;
+#ifdef ZTRACE
 extern FILE* ztrace_fp[MAX_CORES+1];
 #endif
 
@@ -141,10 +141,8 @@ sim_reg_options(struct opt_odb_t *odb)
   opt_reg_string(odb, "-model","pipeline model type",
       &knobs.model, /*default*/ "DPM", /*print*/true,/*format*/NULL);
 
-#if defined(ZTRACE)
   opt_reg_string(odb, "-ztrace:file_prefix","zesto-trace filename",
       &ztrace_filename, /*default*/ NULL, /*print*/true,/*format*/NULL);
-#endif
 
   opt_reg_flag(odb, "-power", "simulate power",
       &knobs.power.compute, /*default*/ false, /*print*/true,/*format*/NULL);
