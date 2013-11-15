@@ -32,8 +32,8 @@ XIOSIM_LOCK ildjit_lock;
 
 /* A store instruction with immediate address and data */
 const UINT8 wait_template_1[] = {0xc7, 0x05, 0xad, 0xfb, 0xca, 0xde, 0x00, 0x00, 0x00, 0x00 };
-/* A LFENCE instruction */
-const UINT8 wait_template_2[] = {0x0f, 0xae, 0xe8};
+/* A MFENCE instruction */
+const UINT8 wait_template_2[] = {0x0f, 0xae, 0xf0};
 /* A store instruction with immediate address and data */
 const UINT8 signal_template[] = {0xc7, 0x05, 0xad, 0xfb, 0xca, 0xde, 0x00, 0x00, 0x00, 0x00 };
 /* An INT 80 instruction */
