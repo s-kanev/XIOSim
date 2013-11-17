@@ -197,8 +197,8 @@ void core_alloc_DPM_t::step(void)
               break;
             }
 
-            /* is the RS full? -- don't need to alloc for NOP's */
-            if(!core->exec->RS_available() && !uop->decode.is_nop)
+            /* is the RS full? -- don't need to alloc for NOPs and fences */
+            if(!core->exec->RS_available() && !uop->decode.is_nop && !uop->decode.is_fence)
             {
               stall_reason = ASTALL_RS;
               abort_alloc = true;
@@ -226,7 +226,7 @@ void core_alloc_DPM_t::step(void)
             zesto_assert((!(uop->decode.opflags & F_LOAD)) || uop->decode.is_load,(void)0);
 
             /* port bindings */
-            if(!uop->decode.is_nop && !uop->Mop->decode.is_trap)
+            if(!uop->decode.is_nop && !uop->Mop->decode.is_trap && !uop->decode.is_fence)
             {
               /* port-binding is trivial when there's only one valid port */
               if(knobs->exec.port_binding[uop->decode.FU_class].num_FUs == 1)
@@ -327,16 +327,21 @@ void core_alloc_DPM_t::step(void)
 
 
             }
-            else /* is_nop || is_trap */
+            else /* is_nop || is_trap || is_fence*/
             {
               /* NOP's don't go through exec pipeline; they go straight to the
                  ROB and are immediately marked as completed (they still take
                  up space in the ROB though). */
               /* Since traps/interrupts aren't really properly modeled in SimpleScalar, we just let
                  it go through without doing anything. */
+              /* Similarly fences don't need to go through RS and go straight to
+                 the LDQ */
               uop->timing.when_ready = core->sim_cycle;
               uop->timing.when_issued = core->sim_cycle;
-              uop->timing.when_completed = core->sim_cycle;
+              if (!uop->decode.is_fence)
+                uop->timing.when_completed = core->sim_cycle;
+              else
+                uop->timing.when_exec = core->sim_cycle;
               zesto_assert(!uop->decode.is_load, (void)0);
             }
 

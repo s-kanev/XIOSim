@@ -429,7 +429,7 @@ void core_commit_DPM_t::step(void)
       if(uop->decode.BOM && (uop->Mop->timing.when_commit_started == TICK_T_MAX))
         uop->Mop->timing.when_commit_started = core->sim_cycle;
 
-      if(uop->decode.is_load)
+      if(uop->decode.is_load || uop->decode.is_fence)
         core->exec->LDQ_deallocate(uop);
       else if(uop->decode.is_sta)
         core->exec->STQ_deallocate_sta();
@@ -712,7 +712,7 @@ core_commit_DPM_t::recover(const struct Mop_t * const Mop)
 
         /* In the following, we have to check it the uop has even been allocated yet... this has
            to do with our non-atomic implementation of allocation for fused-uops */
-        if(dead_uop->decode.is_load)
+        if(dead_uop->decode.is_load || dead_uop->decode.is_fence)
         {
           if(dead_uop->timing.when_allocated != TICK_T_MAX)
             core->exec->LDQ_squash(dead_uop);
@@ -839,7 +839,7 @@ core_commit_DPM_t::recover(void)
         /* In the following, we have to check it the uop has even
            been allocated yet... this has to do with our non-atomic
            implementation of allocation for fused-uops */
-        if(dead_uop->decode.is_load)
+        if(dead_uop->decode.is_load || dead_uop->decode.is_fence)
         {
           if(dead_uop->timing.when_allocated != TICK_T_MAX)
             core->exec->LDQ_squash(dead_uop);
