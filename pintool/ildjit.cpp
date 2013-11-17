@@ -732,7 +732,7 @@ VOID AddILDJITCallbacks(IMG img)
                        IARG_CALL_ORDER, CALL_ORDER_LAST,
                        IARG_END);
         RTN_Close(rtn);
-        IgnoreCallsTo(RTN_Address(rtn), 3/*the call and two parameters*/, (ADDRINT)wait_template_1);
+        IgnoreCallsTo(RTN_Address(rtn), 3/*the call and two parameters*/, (ADDRINT)-1);
         pc_diss[(ADDRINT)wait_template_1] = "Wait";
     }
 
@@ -764,7 +764,7 @@ VOID AddILDJITCallbacks(IMG img)
                        IARG_CALL_ORDER, CALL_ORDER_LAST,
                        IARG_END);
         RTN_Close(rtn);
-        IgnoreCallsTo(RTN_Address(rtn), 2/*the call and one parameter*/, (ADDRINT)signal_template);
+        IgnoreCallsTo(RTN_Address(rtn), 2/*the call and one parameter*/, (ADDRINT)-1);
         pc_diss[(ADDRINT)signal_template] = "Signal";
     }
 
