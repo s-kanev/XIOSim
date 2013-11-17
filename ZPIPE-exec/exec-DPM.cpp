@@ -1810,6 +1810,9 @@ void core_exec_DPM_t::LDQ_schedule(void)
 
     /* Load fences */
     if(LDQ[index].uop->decode.is_fence) {
+      if (LDQ[index].uop->timing.when_completed != TICK_T_MAX)
+        continue;
+
       /* Only let a fence commit from the head of the LDQ. */
       if (index != LDQ_head) {
         index = modinc(index,knobs->exec.LDQ_size);
@@ -1830,6 +1833,7 @@ void core_exec_DPM_t::LDQ_schedule(void)
       }
 
       /* Now let the fence commit */
+      zesto_assert(LDQ[index].uop->timing.when_completed == TICK_T_MAX,(void)0);
       LDQ[index].uop->timing.when_completed = core->sim_cycle;
 
       index = modinc(index,knobs->exec.LDQ_size);
@@ -2032,8 +2036,10 @@ void core_exec_DPM_t::ST_ALU_exec(const struct uop_t * const uop)
       LDQ[idx].uop && (LDQ[idx].uop->decode.uop_seq > uop->decode.uop_seq) && (num_loads < LDQ_num);
       idx=modinc(idx,knobs->exec.LDQ_size))
   {
-    if(!LDQ[idx].uop->decode.is_load)
+    if(!LDQ[idx].uop->decode.is_load) {
+      num_loads++;
       continue;
+    }
 
     if(LDQ[idx].store_color != uop->alloc.STQ_index) /* some younger stores present */
     {
@@ -2041,8 +2047,10 @@ void core_exec_DPM_t::ST_ALU_exec(const struct uop_t * const uop)
       while(overwrite_index != LDQ[idx].store_color)
       {
         overwrite_index = modinc(overwrite_index,knobs->exec.STQ_size); //(overwrite_index + 1) % knobs->exec.STQ_size;
-        if(overwrite_index == STQ_tail)
+        if(overwrite_index == STQ_tail) {
+          zesto_assert(false, (void)0);
           zesto_fatal("searching for matching store color but hit the end of the STQ",(void)0);
+        }
 
         md_addr_t new_st_addr1 = STQ[overwrite_index].virt_addr;
         md_addr_t new_st_addr2 = new_st_addr1 + STQ[overwrite_index].mem_size - 1;
