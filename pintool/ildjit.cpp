@@ -35,9 +35,7 @@ const UINT8 wait_template_1[] = {0xc7, 0x05, 0xad, 0xfb, 0xca, 0xde, 0x00, 0x00,
 /* A MFENCE instruction */
 const UINT8 wait_template_2[] = {0x0f, 0xae, 0xf0};
 /* A store instruction with immediate address and data */
-const UINT8 signal_template_1[] = {0xc7, 0x05, 0xad, 0xfb, 0xca, 0xde, 0x00, 0x00, 0x00, 0x00 };
-/* A MFENCE instruction */
-const UINT8 signal_template_2[] = {0x0f, 0xae, 0xf0};
+const UINT8 signal_template[] = {0xc7, 0x05, 0xad, 0xfb, 0xca, 0xde, 0x00, 0x00, 0x00, 0x00 };
 /* An INT 80 instruction */
 const UINT8 syscall_template[] = {0xcd, 0x80};
 
@@ -577,7 +575,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
 {
     assert(ssID < 1024);
     thread_state_t* tstate = get_tls(tid);
-    handshake_container_t *handshake, *handshake_2;
+    handshake_container_t* handshake;
 
     /* Not simulating -- just ignore. */
     if (ExecMode != EXECUTION_MODE_SIMULATE)
@@ -625,11 +623,11 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
     handshake->handshake.in_critical_section = (num_cores > 1) && (tstate->loop_state->unmatchedWaits > 0);
     handshake->flags.valid = true;
 
-    handshake->handshake.pc = (ADDRINT)signal_template_1;
-    handshake->handshake.npc = (ADDRINT)signal_template_2;
-    handshake->handshake.tpc = (ADDRINT)signal_template_2;
+    handshake->handshake.pc = (ADDRINT)signal_template;
+    handshake->handshake.npc = NextUnignoredPC(tstate->retPC);
+    handshake->handshake.tpc = (ADDRINT)signal_template + sizeof(signal_template);
     handshake->handshake.brtaken = false;
-    memcpy(handshake->handshake.ins, signal_template_1, sizeof(signal_template_1));
+    memcpy(handshake->handshake.ins, signal_template, sizeof(signal_template));
     // Address comes right after opcode and MoodRM bytes
     *(INT32*)(&handshake->handshake.ins[2]) = getSignalAddress(ssID);
 
@@ -638,23 +636,6 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
 #endif
 
     handshake_buffer.producer_done(tid);
-
-    handshake_2 = handshake_buffer.get_buffer(tid);
-    handshake_2->handshake.real = false;
-    handshake_2->handshake.in_critical_section = (num_cores > 1);
-    handshake_2->flags.valid = true;
-
-    handshake_2->handshake.pc = (ADDRINT)signal_template_2;
-    handshake_2->handshake.npc = NextUnignoredPC(tstate->retPC);
-    handshake_2->handshake.tpc = (ADDRINT)signal_template_2 + sizeof(signal_template_2);
-    handshake_2->handshake.brtaken = false;
-    memcpy(handshake_2->handshake.ins, signal_template_2, sizeof(signal_template_2));
-
-#ifdef PRINT_DYN_TRACE
-    printTrace("sim", handshake_2->handshake.pc, tid);
-#endif
-
-    handshake_buffer.producer_done(tid);    
 
 cleanup:
     tstate->lastSignalAddr = 0xdecafbad;
@@ -768,7 +749,7 @@ VOID AddILDJITCallbacks(IMG img)
                        IARG_CALL_ORDER, CALL_ORDER_FIRST,
                        IARG_END);
         RTN_Close(rtn);
-        IgnoreCallsTo(RTN_Address(rtn), 2/*the call and one parameter*/, (ADDRINT)signal_template_1);
+        IgnoreCallsTo(RTN_Address(rtn), 2/*the call and one parameter*/, (ADDRINT)signal_template);
     }
 
     rtn = RTN_FindByName(img, "MOLECOOL_afterSignal");
@@ -784,7 +765,7 @@ VOID AddILDJITCallbacks(IMG img)
                        IARG_END);
         RTN_Close(rtn);
         IgnoreCallsTo(RTN_Address(rtn), 2/*the call and one parameter*/, (ADDRINT)-1);
-        pc_diss[(ADDRINT)signal_template_1] = "Signal";
+        pc_diss[(ADDRINT)signal_template] = "Signal";
     }
 
     rtn = RTN_FindByName(img, "MOLECOOL_endParallelLoop");
