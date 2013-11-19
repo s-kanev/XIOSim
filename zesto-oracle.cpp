@@ -1125,7 +1125,7 @@ core_oracle_t::exec(const md_addr_t requested_PC)
     uop->oracle.ictrl = thread->regs.regs_C;
 
     /* Fill mem repeater fields */
-    if (uop->decode.is_load || uop->decode.is_std)
+    if (uop->decode.is_load || uop->decode.is_sta || uop->decode.is_std)
     {
       uop->oracle.is_sync_op = core->fetch->fake_insn && !spec_mode;
       uop->oracle.is_repeated = core->current_thread->in_critical_section ||
