@@ -2650,8 +2650,9 @@ bool core_exec_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
      DTLB2 (See "Intel 64 and IA-32 Architectures Optimization Reference
      Manual"). */
   struct cache_t * tlb = (core->memory.DTLB2)?core->memory.DTLB2:core->memory.DTLB;
-  /* Wait until we can submit to DTLB */
-  if(!cache_enqueuable(tlb,core->current_thread->id,PAGE_TABLE_ADDR(core->current_thread->id,uop->oracle.virt_addr)))
+  /* Wait until we can submit to DTLB (sync ops don't use TLB) */
+  if(get_STQ_request_type(uop) == CACHE_WRITE && 
+     !cache_enqueuable(tlb,core->current_thread->id,PAGE_TABLE_ADDR(core->current_thread->id,uop->oracle.virt_addr)))
     return false;
   /* Wait until we can submit to DL1 */
   if(send_to_dl1 && !cache_enqueuable(core->memory.DL1,core->current_thread->id,uop->oracle.virt_addr))
