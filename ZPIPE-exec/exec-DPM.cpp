@@ -75,6 +75,8 @@ class core_exec_DPM_t:public core_exec_t
   virtual void STQ_squash_sta(struct uop_t * const dead_uop);
   virtual void STQ_squash_std(struct uop_t * const dead_uop);
   virtual void STQ_squash_senior(void);
+  virtual void STQ_set_addr(struct uop_t * const uop);
+  virtual void STQ_set_data(struct uop_t * const uop);
 
   virtual void recover_check_assertions(void);
 
@@ -2182,6 +2184,22 @@ void core_exec_DPM_t::ST_ALU_exec(const struct uop_t * const uop)
   }
 }
 
+void core_exec_DPM_t::STQ_set_addr(struct uop_t * const uop)
+{
+  zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < core->knobs->exec.STQ_size),(void)0);
+  zesto_assert(!STQ[uop->alloc.STQ_index].addr_valid,(void)0);
+  STQ[uop->alloc.STQ_index].virt_addr = uop->oracle.virt_addr;
+  STQ[uop->alloc.STQ_index].addr_valid = true;
+}
+
+void core_exec_DPM_t::STQ_set_data(struct uop_t * const uop)
+{
+  zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < core->knobs->exec.STQ_size),(void)0);
+  zesto_assert(!STQ[uop->alloc.STQ_index].value_valid,(void)0);
+  STQ[uop->alloc.STQ_index].value = uop->exec.ovalue;
+  STQ[uop->alloc.STQ_index].value_valid = true;
+}
+
 /* Process actual execution (in ALUs) of uops, as well as shuffling of
    uops through the payload pipeline. */
 void core_exec_DPM_t::ALU_exec(void)
@@ -2266,17 +2284,11 @@ void core_exec_DPM_t::ALU_exec(void)
               }
               else if(uop->decode.is_sta)
               {
-                zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
-                zesto_assert(!STQ[uop->alloc.STQ_index].addr_valid,(void)0);
-                STQ[uop->alloc.STQ_index].virt_addr = uop->oracle.virt_addr;
-                STQ[uop->alloc.STQ_index].addr_valid = true;
+                STQ_set_addr(uop);
               }
               else if(uop->decode.is_std)
               {
-                zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
-                zesto_assert(!STQ[uop->alloc.STQ_index].value_valid,(void)0);
-                STQ[uop->alloc.STQ_index].value = uop->exec.ovalue;
-                STQ[uop->alloc.STQ_index].value_valid = true;
+                STQ_set_data(uop);
               }
 
               if((uop->decode.is_sta || uop->decode.is_std) &&
