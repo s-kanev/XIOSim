@@ -106,17 +106,21 @@ int main(int argc, char **argv) {
   shared_memory_object::remove(XIOSIM_SHARED_MEMORY_KEY.c_str());
   named_mutex::remove(XIOSIM_INIT_SHARED_LOCK.c_str());
 
-  // For an unknown reason, creating a shared memory segment here in the harness
-  // before spawning off multiple Pin processes will not work - Pin interferes
-  // with the shared segments and the pintools are unable to access them, which
-  // causes them to hang if they attempt to retrieve a shared value. Therefore,
-  // we have to create the shared segment in the Pintool itself. Here, we do as
-  // much setup as we can - setup that Pin does not interfere with.
-  //
-  // We create the shared mutex and unlock it for good measure, as the semantics
-  // here are somewhat unclear. We don't create a counter as that would require
-  // a shared segment to place it in.
-  named_mutex init_lock(open_or_create, XIOSIM_INIT_SHARED_LOCK.c_str());
+  // Creates a new shared segment.
+  permissions perm;
+  perm.set_unrestricted();
+  // managed_shared_memory shm(open_or_create, XIOSIM_SHARED_MEMORY_KEY.c_str(),
+  //     DEFAULT_SHARED_MEMORY_SIZE, (void*) 0x0, perm);
+
+  // Sets up a counter for multiprogramming. It is initialized to the number of
+  // processes that are to be forked. When each forked process is about to start
+  // the pin-instructed program, it will decrement this counter atomically. When
+  // the counter reaches zero, the process is allowed to continue execution.
+  // This also initializes a shared mutex for the forked processes to use for
+  // synchronizing access to this counter.
+  // int *counter =
+  //  shm.find_or_construct<int>(XIOSIM_INIT_COUNTER_KEY.c_str())(harness_num_processes);
+  named_mutex init_lock(open_or_create, XIOSIM_INIT_SHARED_LOCK.c_str(), perm);
   init_lock.unlock();
 
   int status;

@@ -10,16 +10,12 @@
 
 // Headers for multiprogramming support.
 // Any headers that include boost libraries must be included first.
-
-// boost interprocess map is not explicitly used in feeder_zesto but it fixes 
-// some compilation errors....
-#include <boost/interprocess/containers/map.hpp>
-#include <boost/interprocess/containers/string.hpp>
 #include <boost/interprocess/managed_shared_memory.hpp>
 #include <boost/interprocess/managed_mapped_file.hpp>
 #include <boost/interprocess/shared_memory_object.hpp>
 #include <boost/interprocess/sync/named_mutex.hpp>
 #include <boost/interprocess/interprocess_fwd.hpp>
+#include "mpkeys.h"
 
 #include <iostream>
 #include <iomanip>
@@ -34,9 +30,7 @@
 #include <sched.h>
 #include <unistd.h>
 #include <utility>
-#include <string>
 
-#include "mpkeys.h"
 #include "feeder.h"
 #include "../buffer.h"
 #include "BufferManager.h"
@@ -1225,7 +1219,6 @@ INT32 main(INT32 argc, CHAR **argv)
     using namespace boost::interprocess;
     using namespace xiosim::shared;
 
-    std::cout << "Starting feeder_zesto" << std::endl;
 #ifdef ZESTO_PIN_DBG
     cerr << "Command line: ";
     for(int i=0; i<argc; i++)
@@ -1237,8 +1230,6 @@ INT32 main(INT32 argc, CHAR **argv)
 
     PIN_SemaphoreInit(&consumer_sleep_lock);
     PIN_SemaphoreInit(&producer_sleep_lock);
-
-    std::cout << "Initialized semaphores" << std::endl;
 
     // Obtain  a key for TLS storage.
     tls_key = PIN_CreateThreadDataKey(0);
@@ -1323,12 +1314,12 @@ INT32 main(INT32 argc, CHAR **argv)
     // Synchronize all processes here to ensure that in multiprogramming mode,
     // no process will start too far before the others.
     std::cout << "About to start synchronization." << std::endl;
-    named_mutex init_lock(open_only, XIOSIM_INIT_SHARED_LOCK.c_str());
-    std::cout << "Opened lock" << std::endl;
-    init_lock.lock();
     managed_shared_memory shm(open_or_create, XIOSIM_SHARED_MEMORY_KEY.c_str(),
         DEFAULT_SHARED_MEMORY_SIZE);
     std::cout << "Opened shared memory" << std::endl;
+    named_mutex init_lock(open_only, XIOSIM_INIT_SHARED_LOCK.c_str());
+    std::cout << "Opened lock" << std::endl;
+    init_lock.lock();
     std::cout << "Lock acquired" << std::endl;
 
     int *counter = shm.find_or_construct<int>(XIOSIM_INIT_COUNTER_KEY.c_str())(
@@ -1492,4 +1483,3 @@ VOID printTrace(string stype, ADDRINT pc, THREADID tid)
   pc_file.flush();
   lk_unlock(&printing_lock);
 }
-
