@@ -1322,6 +1322,8 @@ INT32 main(INT32 argc, CHAR **argv)
     init_lock.lock();
     std::cout << "Lock acquired" << std::endl;
 
+    std::cout << "Number of processes: " << KnobNumProcesses.Value() <<
+      std::endl;
     int *counter = shm.find_or_construct<int>(XIOSIM_INIT_COUNTER_KEY.c_str())(
         KnobNumProcesses.Value());
     std::cout << "Counter value is: " << *counter << std::endl;

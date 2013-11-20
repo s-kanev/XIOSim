@@ -60,8 +60,8 @@ BufferManager::BufferManager()
   bridgeDirs_.push_back("/tmp/");
   bridgeDirs_.push_back("./");
 
-  global_shm = new managed_shared_memory(
-      open_only, xiosim::shared::XIOSIM_SHARED_MEMORY_KEY.c_str());
+  // global_shm = new managed_shared_memory(
+  //    open_only, xiosim::shared::XIOSIM_SHARED_MEMORY_KEY.c_str());
 
   std::cout << "Created shared memory segment..." << std::endl;
 

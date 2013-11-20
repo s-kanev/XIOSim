@@ -86,11 +86,9 @@ class BufferManager
 
   /*
   xiosim::shared::SharedUnorderedMap<THREADID, int64_t> queueSizes_;
-  */
-  boost::interprocess::managed_shared_memory *global_shm;
-  /*
       xiosim::shared::XIOSIM_SHARED_MEMORY_KEY.c_str(),
       xiosim::shared::BUFFER_MANAGER_QUEUE_SIZES_, 16);
+  boost::interprocess::managed_shared_memory *global_shm;
       */
   std::unordered_map<THREADID, int64_t> queueSizes_;
   std::unordered_map<THREADID, Buffer*> fakeFile_;
