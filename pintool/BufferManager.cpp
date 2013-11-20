@@ -1,11 +1,24 @@
-#include <stdlib.h>
+
+#include <boost/interprocess/managed_shared_memory.hpp>
+#include <boost/interprocess/shared_memory_object.hpp>
+#include <boost/interprocess/containers/vector.hpp>
+#include <boost/interprocess/containers/string.hpp>
+#include <boost/interprocess/allocators/allocator.hpp>
+
+#include "mpkeys.h"
+#include "shared_unordered_map.h"
+
+#include <errno.h>
 #include <fcntl.h>
+#include <iostream>
+#include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <unistd.h>
-#include <errno.h>
-#include <signal.h>
 
 #include <stack>
 #include <sstream>
@@ -16,13 +29,26 @@
 #include "../buffer.h"
 #include "BufferManager.h"
 
+
 extern int num_cores;
 extern bool consumers_sleep;
 extern PIN_SEMAPHORE consumer_sleep_lock;
 
+namespace xiosim {
+namespace shared {
+
+}
+}
+
+// global pointer to the shared memory segment.
+// boost::interprocess::managed_shared_memory *global_shm;
+
 BufferManager::BufferManager()
   :numThreads_(0)
 {
+  using namespace boost::interprocess;
+  using namespace xiosim::shared;
+
   int pid = getpgrp();
   ostringstream iss;
   iss << pid;
@@ -34,10 +60,22 @@ BufferManager::BufferManager()
   bridgeDirs_.push_back("/tmp/");
   bridgeDirs_.push_back("./");
 
+  global_shm = new managed_shared_memory(
+      open_only, xiosim::shared::XIOSIM_SHARED_MEMORY_KEY.c_str());
+
+  std::cout << "Created shared memory segment..." << std::endl;
+
   // Reserve space in all maps for 16 cores
   // This reduces the incidence of an annoying race, see
   // comment in empty()
+  /*
+  queueSizes_.initialize_late(XIOSIM_SHARED_MEMORY_KEY.c_str(),
+      BUFFER_MANAGER_QUEUE_SIZES_.c_str());
+      */
+  std::cout << "Initialized queueSizes" << std::endl;
+
   int probable_cores = 16;
+  int probable_num_threads = 100;
   locks_.reserve(probable_cores);
   pool_.reserve(probable_cores);
   logs_.reserve(probable_cores);
@@ -66,7 +104,7 @@ BufferManager::~BufferManager()
 
 handshake_container_t* BufferManager::front(THREADID tid, bool isLocal)
 {
-  
+
   if(consumeBuffer_[tid]->size() > 0) {
     handshake_container_t* returnVal = consumeBuffer_[tid]->front();
     return returnVal;

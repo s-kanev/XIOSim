@@ -3,6 +3,13 @@
  * Copyright, Svilen Kanev, 2013
  */
 
+// Sam: These includes are needed to pass compilation. I'm not sure why.
+#include <boost/interprocess/containers/string.hpp>
+#include <boost/interprocess/containers/map.hpp>
+#include <boost/interprocess/allocators/allocator.hpp>
+#include <boost/interprocess/managed_shared_memory.hpp>
+#include <boost/unordered_map.hpp>
+
 #include <queue>
 #include <map>
 

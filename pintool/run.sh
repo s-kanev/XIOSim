@@ -20,7 +20,9 @@ set MAX = 1000000
 
 setenv LD_LIBRARY_PATH "/home/skanev/lib"
 
-set CMD_LINE = "setarch i686 -3BL $PIN -pause_tool 1 -injection child -xyzzy -t $PINTOOL -sanity -pipeline_instrumentation -s -config $ZESTOCFG -config $MEMCFG -redir:sim tst.out -power true -power:rtp_interval 10000 -power:rtp_file tst.power -dvfs:interval 40000 -- $PROGRAM"
+#set CMD_LINE = "setarch i686 -3BL $PIN -pause_tool 1 -injection child -xyzzy -t $PINTOOL -sanity -pipeline_instrumentation -num_processes 2 -s -config $ZESTOCFG -config $MEMCFG -redir:sim tst.out -power true -power:rtp_interval 10000 -power:rtp_file tst.power -dvfs:interval 40000 -- $PROGRAM"
+
+set CMD_LINE = "./harness -num_processes 1 setarch i686 -3BL $PIN -pause_tool 1 -injection child -xyzzy -t $PINTOOL -sanity -pipeline_instrumentation -num_processes 2 -s -config $ZESTOCFG -config $MEMCFG -redir:sim tst.out -power true -power:rtp_interval 10000 -power:rtp_file tst.power -dvfs:interval 40000 -- $PROGRAM"
 
 echo $CMD_LINE
 $CMD_LINE

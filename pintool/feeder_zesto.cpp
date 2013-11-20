@@ -8,6 +8,19 @@
 /* ========================================================================== */
 /* ========================================================================== */
 
+// Headers for multiprogramming support.
+// Any headers that include boost libraries must be included first.
+
+// boost interprocess map is not explicitly used in feeder_zesto but it fixes 
+// some compilation errors....
+#include <boost/interprocess/containers/map.hpp>
+#include <boost/interprocess/containers/string.hpp>
+#include <boost/interprocess/managed_shared_memory.hpp>
+#include <boost/interprocess/managed_mapped_file.hpp>
+#include <boost/interprocess/shared_memory_object.hpp>
+#include <boost/interprocess/sync/named_mutex.hpp>
+#include <boost/interprocess/interprocess_fwd.hpp>
+
 #include <iostream>
 #include <iomanip>
 #include <map>
@@ -20,7 +33,10 @@
 #include <sys/sysinfo.h>
 #include <sched.h>
 #include <unistd.h>
+#include <utility>
+#include <string>
 
+#include "mpkeys.h"
 #include "feeder.h"
 #include "../buffer.h"
 #include "BufferManager.h"
@@ -33,6 +49,8 @@
 #include "parsec.h"
 
 #include "../zesto-core.h"
+
+
 
 using namespace std;
 
@@ -60,6 +78,8 @@ KNOB<BOOL> KnobPipelineInstrumentation(KNOB_MODE_WRITEONCE, "pintool",
         "pipeline_instrumentation", "false", "Overlap instrumentation and simulation threads (still unstable)");
 KNOB<BOOL> KnobWarmLLC(KNOB_MODE_WRITEONCE,      "pintool",
         "warm_llc", "false", "Warm LLC while fast-forwarding");
+KNOB<int> KnobNumProcesses(KNOB_MODE_WRITEONCE,      "pintool",
+        "num_processes", "1", "Number of processes for a multiprogrammed workload");
 
 map<ADDRINT, UINT8> sanity_writes;
 map<ADDRINT, string> pc_diss;
@@ -124,6 +144,17 @@ sim_thread_state_t* get_sim_tls(THREADID threadid)
     return tstate;
 }
 
+VOID InstrumentMain()
+{
+    using namespace boost::interprocess;
+    using namespace xiosim::shared;
+    managed_shared_memory shm(open_only, XIOSIM_SHARED_MEMORY_KEY.c_str());
+    cerr << " BLAH1" << endl;
+    auto counter_pair =
+        shm.find<int>(XIOSIM_INIT_COUNTER_KEY.c_str());
+    cerr << " BLAH" << endl;
+}
+
 /* ========================================================================== */
 VOID ImageUnload(IMG img, VOID *v)
 {
@@ -169,7 +200,7 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
                 lk_unlock(&tstate->lock);
             }
 
-            
+
             // Let caller thread be simulated again
             if (!KnobILDJIT.Value()) {
               ScheduleNewThread(tid);
@@ -259,6 +290,17 @@ VOID ImageLoad(IMG img, VOID *v)
         AddParsecCallbacks(img);
 
     ASSERTX( Zesto_Notify_Mmap(0/*coreID*/, start, length, false) );
+
+    /*
+    RTN rtn = RTN_FindByName(img, "main");
+    if (RTN_Valid(rtn)) {
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn,
+                       IPOINT_BEFORE, AFUNPTR(InstrumentMain),
+                       IARG_END);
+        RTN_Close(rtn);
+    }
+    */
 }
 
 /* ========================================================================== */
@@ -713,7 +755,7 @@ VOID FixRepInstructionNPC(THREADID tid, ADDRINT pc, BOOL rep_prefix, BOOL repne_
                 int i=0;
                 for (auto it = handshake->mem_buffer.begin(); it != handshake->mem_buffer.end(); it++, i++)
                     op2 |= ((ADDRINT)it->second << (8*i));
-                
+
             }
             scan = true;
             zf = (op2 == handshake->handshake.mem_val);
@@ -1180,6 +1222,10 @@ VOID SpawnSimulatorThreads(INT32 numCores)
 /* ========================================================================== */
 INT32 main(INT32 argc, CHAR **argv)
 {
+    using namespace boost::interprocess;
+    using namespace xiosim::shared;
+
+    std::cout << "Starting feeder_zesto" << std::endl;
 #ifdef ZESTO_PIN_DBG
     cerr << "Command line: ";
     for(int i=0; i<argc; i++)
@@ -1192,12 +1238,13 @@ INT32 main(INT32 argc, CHAR **argv)
     PIN_SemaphoreInit(&consumer_sleep_lock);
     PIN_SemaphoreInit(&producer_sleep_lock);
 
+    std::cout << "Initialized semaphores" << std::endl;
+
     // Obtain  a key for TLS storage.
     tls_key = PIN_CreateThreadDataKey(0);
 
     PIN_Init(argc, argv);
     PIN_InitSymbols();
-
 
     if(KnobAMDHack.Value()) {
       amd_hack();
@@ -1244,6 +1291,7 @@ INT32 main(INT32 argc, CHAR **argv)
         INS_AddInstrumentFunction(Instrument, 0);
     }
 
+
     PIN_AddThreadStartFunction(ThreadStart, NULL);
     PIN_AddThreadFiniFunction(ThreadFini, NULL);
 //    IMG_AddUnloadFunction(ImageUnload, 0);
@@ -1271,6 +1319,35 @@ INT32 main(INT32 argc, CHAR **argv)
     InitScheduler(num_cores);
 
     SpawnSimulatorThreads(num_cores);
+
+    // Synchronize all processes here to ensure that in multiprogramming mode,
+    // no process will start too far before the others.
+    std::cout << "About to start synchronization." << std::endl;
+    named_mutex init_lock(open_only, XIOSIM_INIT_SHARED_LOCK.c_str());
+    std::cout << "Opened lock" << std::endl;
+    init_lock.lock();
+    managed_shared_memory shm(open_or_create, XIOSIM_SHARED_MEMORY_KEY.c_str(),
+        DEFAULT_SHARED_MEMORY_SIZE);
+    std::cout << "Opened shared memory" << std::endl;
+    std::cout << "Lock acquired" << std::endl;
+
+    int *counter = shm.find_or_construct<int>(XIOSIM_INIT_COUNTER_KEY.c_str())(
+        KnobNumProcesses.Value());
+    std::cout << "Counter value is: " << *counter << std::endl;
+    (*counter)--;
+    init_lock.unlock();
+
+    // Spin until the counter reaches zero, indicating that all other processes
+    // have reached this point.
+    while (1) {
+      init_lock.lock();
+      if (*counter == 0) {
+        init_lock.unlock();
+        break;
+      }
+      init_lock.unlock();
+    }
+    std::cout << "Proceeeding to execute pintool.\n";
 
     PIN_StartProgram();
 
@@ -1415,3 +1492,4 @@ VOID printTrace(string stype, ADDRINT pc, THREADID tid)
   pc_file.flush();
   lk_unlock(&printing_lock);
 }
+

@@ -26,7 +26,7 @@
 #
 PIN_HOME ?= /home/skanev/pin/2.12
 ZESTO_HOME = ..
-BOOST_HOME = /home/samxi/cs261/shm/boost_1_54_0
+BOOST_HOME = /home/samxi/cs261/shm/boost_1_55_0
 TARGET = ia32
 
 ##############################################################
@@ -43,7 +43,7 @@ TESTAPP=$(OBJDIR)cp-pin.exe
 TARGET_COMPILER?=gnu
 ifeq ($(TARGET_COMPILER),gnu)
     include $(PIN_HOME)/source/tools/makefile.gnu.config
-    CXXFLAGS ?= -I$(PIN_HOME)/source/tools/InstLib -Wall -Werror -Wno-unknown-pragmas -g $(DBG) $(OPT)
+    CXXFLAGS ?= -I$(PIN_HOME)/source/tools/InstLib  -Wno-unknown-pragmas -g $(DBG) $(OPT)
     PIN=$(PIN_HOME)/pin
 endif
 
@@ -62,8 +62,8 @@ else
     DRAMSIM_LIB = $(ZESTO_HOME)/DRAMSim2/libdramsim.a
 endif
 
-BOOST_INCLUDE = $(BOOST_HOME)/include
-BOOST_LIB = $(BOOST_HOME)/bin
+BOOST_INCLUDE = $(BOOST_HOME)
+BOOST_LDFLAGS = -lrt -lpthread
 
 ##############################################################
 #
@@ -85,13 +85,14 @@ TOOLS = $(TOOL_ROOTS:%=$(OBJDIR)%$(PINTOOL_SUFFIX))
 #
 ##############################################################
 all : CXXFLAGS += -DDEBUG -D_FILE_OFFSET_BITS=64 -std=c++11
-all : CXXFLAGS += -I$(BOOST_INCLUDE)
+all : CXXFLAGS += -I$(BOOST_INCLUDE) $(BOOST_LDFLAGS)
 all: tools
 debug:	CXXFLAGS += -DZESTO_PIN_DBG -D_FILE_OFFSET_BITS=64 -std=c++11
 debug : CXXFLAGS += -I$(BOOST_INCLUDE)
 debug:	tools
 tools: $(OBJDIR) $(TOOLS) $(OBJDIR)cp-pin.exe
 test: $(OBJDIR) $(TOOL_ROOTS:%=%.test)
+
 
 $(ZESTO_HOME)/libsim.a:
 	$(MAKE) -C $(ZESTO_HOME) lib
@@ -120,7 +121,7 @@ $(OBJDIR)%.o : %.cpp
 $(TOOLS): $(PIN_LIBNAMES) $(TOOL_OBJS) $(SIM_LIB) $(MCPAT_LIB) $(DRAMSIM_LIB) $(REPEATER_LIB)
 
 $(TOOLS): %$(PINTOOL_SUFFIX) : %.o
-	${PIN_LD} -g $(PIN_LDFLAGS) -I$(ZESTO_HOME) -L$(ZESTO_HOME) -I$(BOOST_INCLUDE) -L$(BOOST_LIB) $(LINK_DEBUG) ${LINK_OUT} $@ $< ${PIN_LPATHS} $(TOOL_OBJS) $(SIM_LIB) $(MCPAT_LIB) $(DRAMSIM_LIB) $(REPEATER_LIB) $(PIN_LIBS) $(DBG)
+	${PIN_LD} -g -lrt $(PIN_LDFLAGS) -I$(ZESTO_HOME) -L$(ZESTO_HOME) -I$(BOOST_INCLUDE) $(LINK_DEBUG) ${LINK_OUT} $@ $< ${PIN_LPATHS} $(TOOL_OBJS) $(SIM_LIB) $(MCPAT_LIB) $(DRAMSIM_LIB) $(REPEATER_LIB) $(PIN_LIBS) $(DBG)
 
 ## cleaning
 clean:
@@ -133,6 +134,11 @@ clean:
 .PHONY: clean-tool
 clean-tool:
 	-rm -rf $(OBJDIR) *.out *.tested *.failed makefile.copy
+
+
+.PHONY: clean-harness
+clean-harness:
+	-rm -rf harness *.failed makefile.copy
 
 install:
 	cp $(TOOLS) $(COOL_INSTALL_DIR)

@@ -1,8 +1,16 @@
 #ifndef HANDSHAKE_BUFFER_MANAGER
 #define HANDSHAKE_BUFFER_MANAGER
 
+#include <boost/interprocess/managed_shared_memory.hpp>
+
+#include "mpkeys.h"
+#include "shared_unordered_map.h"
+
 #include <unordered_map>
+
 class handshake_container_t;
+
+using xiosim::shared::XIOSIM_SHARED_MEMORY_KEY;
 
 class BufferManager
 {
@@ -47,13 +55,13 @@ class BufferManager
  private:
   bool useRealFile_;
   int numThreads_;
-  
+
   unordered_map<THREADID, XIOSIM_LOCK*> locks_;
   unordered_map<THREADID, int> pool_;
   unordered_map<THREADID, ofstream*> logs_;
 
   string gpid_;
-  
+
   vector<string> bridgeDirs_;
   bool popped_;
 
@@ -72,11 +80,18 @@ class BufferManager
   void writeHandshake(THREADID tid, int fd, handshake_container_t* handshake);
 
   void abort(void);
-  
+
   string genFileName(string path);
   int getKBFreeSpace(string path);
 
- 
+  /*
+  xiosim::shared::SharedUnorderedMap<THREADID, int64_t> queueSizes_;
+  */
+  boost::interprocess::managed_shared_memory *global_shm;
+  /*
+      xiosim::shared::XIOSIM_SHARED_MEMORY_KEY.c_str(),
+      xiosim::shared::BUFFER_MANAGER_QUEUE_SIZES_, 16);
+      */
   std::unordered_map<THREADID, int64_t> queueSizes_;
   std::unordered_map<THREADID, Buffer*> fakeFile_;
   std::unordered_map<THREADID, Buffer*> consumeBuffer_;
