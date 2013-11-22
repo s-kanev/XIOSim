@@ -2,7 +2,7 @@
 // multiple processes using boost named_mutex and interprocess APIs.
 //
 // To run:
-// ./harness.o -num_processes 2 ./test.o
+// ./harness -num_processes 2 ./harness_example
 //
 // Author: Sam Xi
 
