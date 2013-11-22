@@ -94,7 +94,7 @@ int main(int argc, char **argv) {
     // If the next arg is "-s", add the num_processes flag. We need to tell the
     // pintool how many processes we have running so it can set up shared memory
     // on its own.
-    if (strncmp(argv[i], LAST_PINTOOL_ARG.c_str(),
+    if (strncmp(argv[1], LAST_PINTOOL_ARG.c_str(),
                 LAST_PINTOOL_ARG.length()) == 0) {
       command_stream << " " << NUM_PROCESSES_FLAG << " "
                      << harness_num_processes << " ";
