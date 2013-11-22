@@ -74,10 +74,12 @@ BOOST_LDFLAGS = -lrt -lpthread
 
 TOOL_ROOTS = feeder_zesto
 
-TOOL_OBJS = $(OBJDIR)BufferManager.o $(OBJDIR)ildjit.o $(OBJDIR)fluffy.o $(OBJDIR)lib.o $(OBJDIR)utils.o $(OBJDIR)sync_pthreads.o $(OBJDIR)scheduler.o $(OBJDIR)parsec.o $(OBJDIR)syscall_handling.o $(OBJDIR)ignore_ins.o
+TOOL_OBJS = $(OBJDIR)BufferManager.o $(OBJDIR)ildjit.o $(OBJDIR)fluffy.o $(OBJDIR)lib.o $(OBJDIR)utils.o $(OBJDIR)sync_pthreads.o $(OBJDIR)scheduler.o $(OBJDIR)parsec.o $(OBJDIR)syscall_handling.o $(OBJDIR)ignore_ins.o $(OBJDIR)mpkeys_impl.o
 
 TOOLS = $(TOOL_ROOTS:%=$(OBJDIR)%$(PINTOOL_SUFFIX))
 
+STATIC_LIBS = mpkeys
+SHM_LDFLAGS = -ldl
 
 ##############################################################
 #
@@ -85,7 +87,7 @@ TOOLS = $(TOOL_ROOTS:%=$(OBJDIR)%$(PINTOOL_SUFFIX))
 #
 ##############################################################
 all : CXXFLAGS += -DDEBUG -D_FILE_OFFSET_BITS=64 -std=c++11
-all : CXXFLAGS += -I$(BOOST_INCLUDE) $(BOOST_LDFLAGS)
+all : CXXFLAGS += -I$(BOOST_INCLUDE) $(BOOST_LDFLAGS) $(SHM_LDFLAGS)
 all: tools
 debug:	CXXFLAGS += -DZESTO_PIN_DBG -D_FILE_OFFSET_BITS=64 -std=c++11
 debug : CXXFLAGS += -I$(BOOST_INCLUDE)
@@ -111,6 +113,10 @@ MyPinTool.test: $(OBJDIR)cp-pin.exe
 
 $(OBJDIR)cp-pin.exe:
 	$(CXX) $(PIN_HOME)/source/tools/Tests/cp-pin.cpp $(APP_CXXFLAGS) -o $(OBJDIR)cp-pin.exe
+
+static_libs: $(STATIC_LIBS)_impl.cpp
+	$(CXX) -fPIC -shared $(STATIC_LIBS).h -o $(STATIC_LIBS).so
+#$(CXX) $(STATIC_LIBS).a $(OBJDIR)lib$(STATIC_LIBS).o
 
 $(OBJDIR):
 	mkdir -p $(OBJDIR)
