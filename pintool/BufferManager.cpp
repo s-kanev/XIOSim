@@ -1,11 +1,9 @@
-
 #include <boost/interprocess/managed_shared_memory.hpp>
 #include <boost/interprocess/shared_memory_object.hpp>
 #include <boost/interprocess/containers/vector.hpp>
 #include <boost/interprocess/containers/string.hpp>
 #include <boost/interprocess/allocators/allocator.hpp>
 
-#include "mpkeys.h"
 #include "shared_unordered_map.h"
 
 #include <errno.h>
@@ -34,14 +32,13 @@ extern int num_cores;
 extern bool consumers_sleep;
 extern PIN_SEMAPHORE consumer_sleep_lock;
 
+/*
 namespace xiosim {
 namespace shared {
 
 }
 }
-
-// global pointer to the shared memory segment.
-// boost::interprocess::managed_shared_memory *global_shm;
+*/
 
 BufferManager::BufferManager()
   :numThreads_(0)
@@ -60,26 +57,25 @@ BufferManager::BufferManager()
   bridgeDirs_.push_back("/tmp/");
   bridgeDirs_.push_back("./");
 
-  // global_shm = new managed_shared_memory(
-  //    open_only, xiosim::shared::XIOSIM_SHARED_MEMORY_KEY.c_str());
-
+  std::cout << "About to create shared memory segment..." << std::endl;
+  global_shm = new managed_shared_memory(open_or_create,
+      xiosim::shared::XIOSIM_SHARED_MEMORY_KEY, 33554432);
   std::cout << "Created shared memory segment..." << std::endl;
+
+  // This constructor accepts a buckets parameter which negates the need to call
+  // reserve on all the maps later.
+  queueSizes_.initialize_late(xiosim::shared::XIOSIM_SHARED_MEMORY_KEY,
+      xiosim::shared::BUFFER_MANAGER_QUEUE_SIZES_, 16);
+  std::cout << "Initialized queueSizes" << std::endl;
 
   // Reserve space in all maps for 16 cores
   // This reduces the incidence of an annoying race, see
   // comment in empty()
-  /*
-  queueSizes_.initialize_late(XIOSIM_SHARED_MEMORY_KEY.c_str(),
-      BUFFER_MANAGER_QUEUE_SIZES_.c_str());
-      */
-  std::cout << "Initialized queueSizes" << std::endl;
-
   int probable_cores = 16;
   int probable_num_threads = 100;
   locks_.reserve(probable_cores);
   pool_.reserve(probable_cores);
   logs_.reserve(probable_cores);
-  queueSizes_.reserve(probable_cores);
   fakeFile_.reserve(probable_cores);
   consumeBuffer_.reserve(probable_cores);
   produceBuffer_.reserve(probable_cores);

@@ -3,14 +3,11 @@
 
 #include <boost/interprocess/managed_shared_memory.hpp>
 
-#include "mpkeys.h"
 #include "shared_unordered_map.h"
 
 #include <unordered_map>
 
 class handshake_container_t;
-
-using xiosim::shared::XIOSIM_SHARED_MEMORY_KEY;
 
 class BufferManager
 {
@@ -84,13 +81,8 @@ class BufferManager
   string genFileName(string path);
   int getKBFreeSpace(string path);
 
-  /*
-  xiosim::shared::SharedUnorderedMap<THREADID, int64_t> queueSizes_;
-      xiosim::shared::XIOSIM_SHARED_MEMORY_KEY.c_str(),
-      xiosim::shared::BUFFER_MANAGER_QUEUE_SIZES_, 16);
   boost::interprocess::managed_shared_memory *global_shm;
-      */
-  std::unordered_map<THREADID, int64_t> queueSizes_;
+  xiosim::shared::SharedUnorderedMap<THREADID, int64_t> queueSizes_;
   std::unordered_map<THREADID, Buffer*> fakeFile_;
   std::unordered_map<THREADID, Buffer*> consumeBuffer_;
   std::unordered_map<THREADID, Buffer*> produceBuffer_;
