@@ -95,7 +95,6 @@ debug:	tools
 tools: $(OBJDIR) $(TOOLS) $(OBJDIR)cp-pin.exe
 test: $(OBJDIR) $(TOOL_ROOTS:%=%.test)
 
-
 $(ZESTO_HOME)/libsim.a:
 	$(MAKE) -C $(ZESTO_HOME) lib
 
