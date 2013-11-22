@@ -1,73 +1,91 @@
-#ifndef SHARED_UNORDERED_MAP
-#define SHARED_UNORDERED_MAP
+// A wrapper class for Boost's unordered map that handles allocation and mapping
+// of values into a shared memory segment.
+//
+// Usage of this wrapper requires that the caller must have the shared memory
+// segment mapped in its scope. This can be accomplished using a global pointer
+// that does not change.
+// 
+// Dynamic growth of the shared memory segment is not supported through this
+// library. Expect segmentation faults should the memory segment be grown. This
+// library asserts false on an insert if the shared segment is out of memory.
+//
+// This does not guarantee that any classes or data structures inserted into the
+// map will be stored in shared memory. Applications that require this
+// functionality must define their own allocators.
+//
+// Mutator methods: insert() and operator[].
+// Access methods: at().
+// This library does not provide an STL-compliant interface.
+//
+// Author: Sam Xi
 
-#include <boost/functional/hash.hpp>  // boost::hash
-#include <boost/interprocess/containers/string.hpp>
-#include <boost/interprocess/interprocess_fwd.hpp>
+#ifndef SHARED_UNORDERED_MAP_H
+#define SHARED_UNORDERED_MAP_H
+
+#include <boost/interprocess/managed_shared_memory.hpp>
 #include <boost/interprocess/allocators/allocator.hpp>
-#include <boost/unordered_map.hpp>
 
-#include "shared_map.h"
-
-#include <cstdlib>  // for size_t
-#include <functional>  // for std::equal_to
-#include <utility>  // for std::pair
-#include <iostream>
-
+#include "shared_unordered_common.h"
 
 namespace xiosim {
 namespace shared {
 
-using namespace boost::interprocess;
-
-const std::size_t DEFAULT_NUM_BUCKETS = 16;
-
-template<typename K, typename V>
-class SharedUnorderedMap : public SharedMemoryMap<K, V> {
+template<typename K, typename V, typename enable = void>
+class SharedUnorderedMap : public SharedUnorderedMapCommon<K, V> {
+  typedef SharedUnorderedMapCommon<K, V> ShmCommon;
+  using ShmCommon::shm;
+  using ShmCommon::internal_map;
 
   public:
-    SharedUnorderedMap() {}
-
+    // Initializes the size of the shared memory segment holding this shared map
     SharedUnorderedMap(
-        const char* shared_memory_name, const char* internal_map_name,
-        std::size_t buckets = DEFAULT_NUM_BUCKETS)
-      : SharedMemoryMap<K, V>(shared_memory_name, internal_map_name) {
-      initialize(buckets);
-    }
-
-  void reserve(std::size_t buckets) {
-    internal_map->reserve(buckets);
-  }
-
-  std::size_t count(K &key) {
-    return internal_map->count(key);
-  }
-
-  protected:
-    // Boost unordered_map that contains the actual data.
-    typedef std::pair<const K, V> MapValueType;
-    typedef boost::interprocess::allocator<
-        MapValueType, managed_shared_memory::segment_manager> MapValueAllocator;
-    typedef boost::unordered_map<K, V, boost::hash<K>, std::equal_to<K>,
-        MapValueAllocator> InternalMap;
-    InternalMap *internal_map;
+        const char* shared_memory_name, const char* internal_data_name,
+        std::size_t buckets = ShmCommon::DEFAULT_BUM_BUCKETS)
+        : ShmCommon(shared_memory_name, internal_data_name, buckets) {}
 
   private:
+    typedef boost::interprocess::allocator<
+        void, managed_shared_memory::segment_manager> void_allocator;
 
-    void initialize(std::size_t buckets) {
-      // TODO: Track the number of processes that have mapped this object.
-      managed_shared_memory *shm = SharedMemoryMap<K,V>::shm;
-      MapValueAllocator alloc_inst(shm->get_segment_manager());
-      boost::interprocess::string data_key = SharedMemoryMap<K, V>::data_key;
-      internal_map = shm->find_or_construct<InternalMap>(
-          data_key.c_str())(buckets,
-                            boost::hash<K>(),
-                            std::equal_to<K>(),
-                            shm->get_allocator<MapValueType>());
+    V& access_operator(const K& key) {
+      if (internal_map->find(key) == internal_map->end()) {
+        void_allocator alloc_inst(shm->get_segment_manager());
+        V value(alloc_inst);
+        this->insert(key, value);
+      }
+      return internal_map->at(key);
     }
 };
 
-}  // namespace shared
-}  // namespace xiosim
+// Specialization for plain-old-data (POD) types of values.
+template<typename K, typename V>
+class SharedUnorderedMap<
+    K, V, typename boost::enable_if<boost::is_pod<V> >::type> :
+    public SharedUnorderedMapCommon<K, V> {
+  typedef SharedUnorderedMapCommon<K, V> ShmCommon;
+  using ShmCommon::shm;
+  using ShmCommon::internal_map;
+
+  public:
+    SharedUnorderedMap() : ShmCommon() {}
+
+    // Initializes the size of the shared memory segment holding this shared map
+    SharedUnorderedMap(
+        const char* shared_memory_name, const char* internal_data_name,
+        std::size_t buckets = ShmCommon::DEFAULT_BUM_BUCKETS)
+        : ShmCommon(shared_memory_name, internal_data_name, buckets) {}
+
+  private:
+    V& access_operator(const K& key) {
+      if (internal_map->find(key) == internal_map->end()) {
+        V value;
+        this->insert(key, value);
+      }
+      return internal_map->at(key);
+    }
+};
+
+}
+}
 
 #endif

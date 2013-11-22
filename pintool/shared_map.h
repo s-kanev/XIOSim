@@ -44,6 +44,8 @@
 #include <boost/interprocess/managed_shared_memory.hpp>
 #include <boost/interprocess/allocators/allocator.hpp>
 #include <boost/interprocess/interprocess_fwd.hpp>
+#include <boost/type_traits/is_pod.hpp>
+#include <boost/utility/enable_if.hpp>
 #include <cstdlib>  // for size_t
 #include <functional>  // for std::less
 #include <utility>  // for std::pair
@@ -56,82 +58,64 @@ namespace shared {
 
 using namespace boost::interprocess;
 
-template<typename K, typename V>
-class SharedMemoryMap : public AbstractSharedMemoryData {
-  public:
-    typedef std::pair<const K, V> MapValueType;
+template<typename K, typename V, typename enable = void>
+class SharedMemoryMap : public SharedMemoryMapCommon<K, V> {
+  using SharedMemoryMapCommon<K, V>::shm;
+  using SharedMemoryMapCommon<K, V>::internal_map;
 
-    SharedMemoryMap() {}
+  public:
+    SharedMemoryMap() : SharedMemoryMapCommon<K, V>() {}
 
     // Initializes the size of the shared memory segment holding this shared map
     SharedMemoryMap(
-        const char* shared_memory_name, const char* internal_map_name)
-      : AbstractSharedMemoryData(shared_memory_name, internal_map_name) {
-      initialize();
-    }
+        const char* shared_memory_name, const char* internal_data_name)
+        : SharedMemoryMapCommon<K, V>(shared_memory_name, internal_data_name) {}
 
     // Destroys the pointer to the shared map.
     // TODO: Only delete if no processes have mapped this structure.
     ~SharedMemoryMap() {}
 
-    void initialize_late(
-        const char* shared_memory_name, const char* internal_map_name) {
-      memory_key = boost::interprocess::string(shared_memory_name);
-      data_key = boost::interprocess::string(internal_map_name);
-      initialize();
-    }
+  private:
+    typedef allocator<void, managed_shared_memory::segment_manager>
+        void_allocator;
 
-    // Inserts value into this map if key does not already exist, and returns
-    // the key-value of the newly inserted pair or that of the existing
-    // key-value pair.
-    // If the shared memory segment runs out of free space, this will not
-    // attempt to grow the segment, but instead will assert false.
-    void insert(K key, V value) {
-      MapValueType new_pair(key, value);
-      try {
-        MapValueAllocator alloc_inst(shm->get_segment_manager());
-        internal_map = shm->find_or_construct<InternalMap>(data_key.c_str())(
-            std::less<K>(), alloc_inst);
-        internal_map->insert(new_pair);
-      } catch (const boost::interprocess::bad_alloc&) {
-        check_and_grow_shared_memory();
-        insert(key, value);
+    V& access_operator(const K& key) {
+      if (internal_map->find(key) == internal_map->end()) {
+        void_allocator alloc_inst(shm->get_segment_manager());
+        V value(alloc_inst);
+        this->insert(key, value);
       }
-    }
-
-    // Returns a const reference to the value stored at key. If the key-value
-    // pair does not exist, an out-of-range exception is thrown.
-    V& at(K key) {
       return internal_map->at(key);
     }
 
-    std::size_t size() {
-      return internal_map->size();
-    }
+};
 
-    typename boost::interprocess::map<K, V>::iterator begin() {
-      return internal_map->begin();
-    }
+// A specialization for plain-old-data (POD) types of values.
+template<typename K, typename V>
+class SharedMemoryMap<K, V, typename boost::enable_if<boost::is_pod<V> >::type> :
+    public SharedMemoryMapCommon<K, V> {
+  using SharedMemoryMapCommon<K, V>::shm;
+  using SharedMemoryMapCommon<K, V>::internal_map;
 
-    typename boost::interprocess::map<K, V>::iterator end() {
-      return internal_map->end();
-    }
+  public:
+    SharedMemoryMap() : SharedMemoryMapCommon<K, V>() {}
+
+    // Initializes the size of the shared memory segment holding this shared map
+    SharedMemoryMap(
+        const char* shared_memory_name, const char* internal_data_name)
+        : SharedMemoryMapCommon<K, V>(shared_memory_name, internal_data_name) {}
+
+    // Destroys the pointer to the shared map.
+    // TODO: Only delete if no processes have mapped this structure.
+    ~SharedMemoryMap() {}
 
   private:
-    typedef boost::interprocess::allocator<
-        MapValueType, managed_shared_memory::segment_manager> 
-          MapValueAllocator;
-    typedef boost::interprocess::map<K, V, std::less<K>, MapValueAllocator> 
-        InternalMap;
-
-    // Boost interprocess map that contains the actual data.
-    InternalMap *internal_map;
-
-    void initialize() {
-      // TODO: Track the number of processes that have mapped this object.
-      MapValueAllocator alloc_inst(shm->get_segment_manager());
-      internal_map = shm->find_or_construct<InternalMap>(data_key.c_str())(
-          std::less<K>(), alloc_inst);
+    V& access_operator(const K& key) {
+      if (internal_map->find(key) == internal_map->end()) {
+        V value;
+        this->insert(key, value);
+      }
+      return internal_map->at(key);
     }
 };
 
