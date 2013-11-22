@@ -10,6 +10,12 @@
 
 // Headers for multiprogramming support.
 // Any headers that include boost libraries must be included first.
+// boost interprocess map is not explicitly used in feeder_zesto but it fixes
+// some compilation errors....
+/*
+#include <boost/interprocess/containers/map.hpp>
+*/
+#include <boost/interprocess/containers/string.hpp>
 #include <boost/interprocess/managed_shared_memory.hpp>
 #include <boost/interprocess/managed_mapped_file.hpp>
 #include <boost/interprocess/shared_memory_object.hpp>
@@ -43,8 +49,6 @@
 #include "parsec.h"
 
 #include "../zesto-core.h"
-
-
 
 using namespace std;
 
@@ -142,10 +146,10 @@ VOID InstrumentMain()
 {
     using namespace boost::interprocess;
     using namespace xiosim::shared;
-    managed_shared_memory shm(open_only, XIOSIM_SHARED_MEMORY_KEY.c_str());
+    managed_shared_memory shm(open_only, XIOSIM_SHARED_MEMORY_KEY);
     cerr << " BLAH1" << endl;
     auto counter_pair =
-        shm.find<int>(XIOSIM_INIT_COUNTER_KEY.c_str());
+        shm.find<int>(XIOSIM_INIT_COUNTER_KEY);
     cerr << " BLAH" << endl;
 }
 
@@ -1314,7 +1318,10 @@ INT32 main(INT32 argc, CHAR **argv)
     // Synchronize all processes here to ensure that in multiprogramming mode,
     // no process will start too far before the others.
     std::cout << "About to start synchronization." << std::endl;
-    managed_shared_memory shm(open_or_create, XIOSIM_SHARED_MEMORY_KEY.c_str(),
+    named_mutex init_lock(open_only, XIOSIM_INIT_SHARED_LOCK);
+    std::cout << "Opened lock" << std::endl;
+    init_lock.lock();
+    managed_shared_memory shm(open_or_create, XIOSIM_SHARED_MEMORY_KEY,
         DEFAULT_SHARED_MEMORY_SIZE);
     std::cout << "Opened shared memory" << std::endl;
     named_mutex init_lock(open_only, XIOSIM_INIT_SHARED_LOCK.c_str());
@@ -1324,7 +1331,7 @@ INT32 main(INT32 argc, CHAR **argv)
 
     std::cout << "Number of processes: " << KnobNumProcesses.Value() <<
       std::endl;
-    int *counter = shm.find_or_construct<int>(XIOSIM_INIT_COUNTER_KEY.c_str())(
+    int *counter = shm.find_or_construct<int>(XIOSIM_INIT_COUNTER_KEY)(
         KnobNumProcesses.Value());
     std::cout << "Counter value is: " << *counter << std::endl;
     (*counter)--;
