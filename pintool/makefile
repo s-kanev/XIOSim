@@ -108,9 +108,6 @@ $(OBJDIR)cp-pin.exe:
 $(OBJDIR):
 	mkdir -p $(OBJDIR)
 
-$(OBJDIR)%.o : %.C
-	$(CXX) -c $(CXXFLAGS) $(PIN_CXXFLAGS) ${OUTOPT}$@ $<
-
 $(OBJDIR)%.o : %.cpp
 	$(CXX) -c $(CXXFLAGS) $(PIN_CXXFLAGS) ${OUTOPT}$@ $<
 
