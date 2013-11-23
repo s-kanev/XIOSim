@@ -18,7 +18,7 @@ using namespace INSTLIB;
 class handshake_container_t;
 class BufferManager;
 
-extern BufferManager handshake_buffer;
+extern BufferManager *handshake_buffer;
 extern KNOB<BOOL> KnobILDJIT;
 extern KNOB<string> KnobFluffy;
 extern list<THREADID> thread_list;
@@ -148,28 +148,6 @@ private:
     INT32 pc_queue_head;
 };
 thread_state_t* get_tls(THREADID tid);
-
-/* ========================================================================== */
-class sim_thread_state_t {
-public:
-    sim_thread_state_t() {
-
-        is_running = true;
-        // Will get cleared on first simulated instruction
-        sim_stopped = true;
-
-        lk_init(&lock);
-    }
-
-    XIOSIM_LOCK lock;
-    // XXX: SHARED -- lock protects those
-    // Signal to the simulator thread to die
-    BOOL is_running;
-    // Set by simulator thread once it dies
-    BOOL sim_stopped;
-    // XXX: END SHARED
-};
-sim_thread_state_t* get_sim_tls(THREADID tid);
 
 /* ========================================================================== */
 /* Execution mode allows easy querying of exactly what the pin tool is doing at

@@ -32,14 +32,6 @@ extern int num_cores;
 extern bool consumers_sleep;
 extern PIN_SEMAPHORE consumer_sleep_lock;
 
-/*
-namespace xiosim {
-namespace shared {
-
-}
-}
-*/
-
 BufferManager::BufferManager()
   :numThreads_(0)
 {
@@ -56,11 +48,6 @@ BufferManager::BufferManager()
   bridgeDirs_.push_back("/dev/shm/");
   bridgeDirs_.push_back("/tmp/");
   bridgeDirs_.push_back("./");
-
-  std::cout << "About to create shared memory segment..." << std::endl;
-  global_shm = new managed_shared_memory(open_or_create,
-      xiosim::shared::XIOSIM_SHARED_MEMORY_KEY, 33554432);
-  std::cout << "Created shared memory segment..." << std::endl;
 
   // This constructor accepts a buckets parameter which negates the need to call
   // reserve on all the maps later.

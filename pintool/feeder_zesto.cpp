@@ -50,6 +50,8 @@
 
 #include "../zesto-core.h"
 
+#include "multiprocess_shared.h"
+
 using namespace std;
 
 /* ========================================================================== */
@@ -58,30 +60,20 @@ using namespace std;
 /* ========================================================================== */
 /* ========================================================================== */
 
-CHAR sim_name[] = "Zesto";
-
 KNOB<string> KnobInsTraceFile(KNOB_MODE_WRITEONCE,   "pintool",
         "trace", "", "File where instruction trace is written");
-KNOB<string> KnobSanityInsTraceFile(KNOB_MODE_WRITEONCE,   "pintool",
-        "sanity_trace", "", "Instruction trace file to use for sanity checking of codepaths");
-KNOB<BOOL> KnobSanity(KNOB_MODE_WRITEONCE,     "pintool",
-        "sanity", "false", "Sanity-check if simulator corrupted memory (expensive)");
 KNOB<BOOL> KnobILDJIT(KNOB_MODE_WRITEONCE,      "pintool",
         "ildjit", "false", "Application run is ildjit");
 KNOB<BOOL> KnobAMDHack(KNOB_MODE_WRITEONCE,      "pintool",
         "amd_hack", "false", "Using AMD syscall hack for use with hpc cluster");
 KNOB<string> KnobFluffy(KNOB_MODE_WRITEONCE,      "pintool",
         "fluffy_annotations", "", "Annotation file that specifies fluffy ROI");
-KNOB<BOOL> KnobPipelineInstrumentation(KNOB_MODE_WRITEONCE, "pintool",
-        "pipeline_instrumentation", "false", "Overlap instrumentation and simulation threads (still unstable)");
 KNOB<BOOL> KnobWarmLLC(KNOB_MODE_WRITEONCE,      "pintool",
         "warm_llc", "false", "Warm LLC while fast-forwarding");
 KNOB<int> KnobNumProcesses(KNOB_MODE_WRITEONCE,      "pintool",
         "num_processes", "1", "Number of processes for a multiprogrammed workload");
 
-map<ADDRINT, UINT8> sanity_writes;
 map<ADDRINT, string> pc_diss;
-BOOL sim_release_handshake;
 BOOL sleeping_enabled;
 
 ofstream pc_file;
@@ -91,19 +83,13 @@ ifstream sanity_trace;
 // Used to access thread-local storage
 static TLS_KEY tls_key;
 
-PIN_SEMAPHORE consumer_sleep_lock;
-PIN_SEMAPHORE producer_sleep_lock;
-
-BufferManager handshake_buffer;
 XIOSIM_LOCK thread_list_lock;
 list<THREADID> thread_list;
 
-// IDs of simulaiton threads
-static THREADID *sim_threadid;
-
-bool producers_sleep = false;
-bool consumers_sleep = false;
 INT32 host_cpus;
+
+boost::interprocess::managed_shared_memory *global_shm;
+BufferManager *handshake_buffer;
 
 /* ========================================================================== */
 /* Pinpoint related */
@@ -114,7 +100,9 @@ ICOUNT icount;
 CONTROL control;
 
 EXECUTION_MODE ExecMode = EXECUTION_MODE_INVALID;
+#if 0
 map<THREADID, tick_t> lastConsumerApply;
+#endif
 
 /* Fallbacks for cases without pinpoints */
 INT32 slice_num = 1;
@@ -123,8 +111,6 @@ INT32 slice_weight_times_1000 = 100*1000;
 
 BOOL in_fini = false;
 
-typedef pair <UINT32, CHAR **> SSARGS;
-
 // Functions to access thread-specific data
 /* ========================================================================== */
 thread_state_t* get_tls(THREADID threadid)
@@ -132,25 +118,6 @@ thread_state_t* get_tls(THREADID threadid)
     thread_state_t* tstate =
           static_cast<thread_state_t*>(PIN_GetThreadData(tls_key, threadid));
     return tstate;
-}
-
-/* ========================================================================== */
-sim_thread_state_t* get_sim_tls(THREADID threadid)
-{
-    sim_thread_state_t* tstate =
-          static_cast<sim_thread_state_t*>(PIN_GetThreadData(tls_key, threadid));
-    return tstate;
-}
-
-VOID InstrumentMain()
-{
-    using namespace boost::interprocess;
-    using namespace xiosim::shared;
-    managed_shared_memory shm(open_only, XIOSIM_SHARED_MEMORY_KEY);
-    cerr << " BLAH1" << endl;
-    auto counter_pair =
-        shm.find<int>(XIOSIM_INIT_COUNTER_KEY);
-    cerr << " BLAH" << endl;
 }
 
 /* ========================================================================== */
@@ -225,14 +192,14 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
                 /* In this case, we need to flush all buffers for this thread
                  * and cleanly let the scheduler know to deschedule it once
                  * all instructions are conusmed. */
-                handshake_container_t *handshake = handshake_buffer.get_buffer(tid);
+                handshake_container_t *handshake = handshake_buffer->get_buffer(tid);
                 handshake->flags.giveCoreUp = true;
                 handshake->flags.giveUpReschedule = false;
                 handshake->flags.valid = true;
                 handshake->handshake.real = false;
-                handshake_buffer.producer_done(tid, true);
+                handshake_buffer->producer_done(tid, true);
 
-                handshake_buffer.flushBuffers(tid);
+                handshake_buffer->flushBuffers(tid);
             }
 
             cerr << "Stop" << endl;
@@ -288,17 +255,6 @@ VOID ImageLoad(IMG img, VOID *v)
         AddParsecCallbacks(img);
 
     ASSERTX( Zesto_Notify_Mmap(0/*coreID*/, start, length, false) );
-
-    /*
-    RTN rtn = RTN_FindByName(img, "main");
-    if (RTN_Valid(rtn)) {
-        RTN_Open(rtn);
-        RTN_InsertCall(rtn,
-                       IPOINT_BEFORE, AFUNPTR(InstrumentMain),
-                       IARG_END);
-        RTN_Close(rtn);
-    }
-    */
 }
 
 /* ========================================================================== */
@@ -406,161 +362,6 @@ VOID Fini(INT32 exitCode, VOID *v)
 }
 
 /* ========================================================================== */
-//Callback to collect memory addresses modified by a given instruction
-//We grab the actual address before the simulator modifies it
-//(assumes it is called before the actual write occurs)
-VOID Zesto_WriteByteCallback(ADDRINT addr, UINT8 val_to_write)
-{
-    (VOID) val_to_write;
-
-    UINT8* _addr = (UINT8*) addr;
-    UINT8 val = *_addr;
-
-    // Since map.insert doesn't change existing keys, we only capture the value
-    // before the first write on that address by this inst (as we should)
-    sanity_writes.insert(pair<ADDRINT, UINT8>(addr, val));
-}
-
-/* ========================================================================== */
-//Checks if instruction correctly rolled back any writes it may have done.
-VOID SanityMemCheck()
-{
-    map<ADDRINT, UINT8>::iterator it;
-
-    UINT8* addr;
-    UINT8 written_val;
-
-    for (it = sanity_writes.begin(); it != sanity_writes.end(); it++)
-    {
-        addr = (UINT8*) (*it).first;
-        written_val = (*it).second;
-
-        ASSERTX(written_val == *addr);
-    }
-}
-
-/* ==========================================================================
- * Called from simulator once handshake is free to be reused.
- * This allows to pipeline instrumentation and simulation. */
-VOID ReleaseHandshake(UINT32 coreID)
-{
-    THREADID instrument_tid = GetCoreThread(coreID);
-    ASSERTX(!handshake_buffer.empty(instrument_tid));
-
-    // pop() invalidates the buffer
-    handshake_buffer.pop(instrument_tid);
-}
-
-/* ========================================================================== */
-/* The loop running each simulated core. */
-VOID SimulatorLoop(VOID* arg)
-{
-    INT32 coreID = reinterpret_cast<INT32>(arg);
-    THREADID tid = PIN_ThreadId();
-
-    sim_thread_state_t* tstate = new sim_thread_state_t();
-    PIN_SetThreadData(tls_key, tstate, tid);
-
-    while (true) {
-        /* Check kill flag */
-        lk_lock(&tstate->lock, tid+1);
-
-        if (!tstate->is_running) {
-            deactivate_core(coreID);
-            tstate->sim_stopped = true;
-            lk_unlock(&tstate->lock);
-            return;
-        }
-        lk_unlock(&tstate->lock);
-
-        if (!is_core_active(coreID)) {
-            PIN_Sleep(10);
-            continue;
-        }
-
-        // Get the latest thread we are running from the scheduler
-        THREADID instrument_tid = GetCoreThread(coreID);
-        if (instrument_tid == INVALID_THREADID) {
-            continue;
-        }
-
-        while (handshake_buffer.empty(instrument_tid)) {
-            PIN_Yield();
-            while(consumers_sleep) {
-                PIN_SemaphoreWait(&consumer_sleep_lock);
-            }
-        }
-
-        int consumerHandshakes = handshake_buffer.getConsumerSize(instrument_tid);
-        if(consumerHandshakes == 0) {
-            handshake_buffer.front(instrument_tid, false);
-            consumerHandshakes = handshake_buffer.getConsumerSize(instrument_tid);
-        }
-        assert(consumerHandshakes > 0);
-
-        int numConsumed = 0;
-        for(int i = 0; i < consumerHandshakes; i++) {
-            while(consumers_sleep) {
-                PIN_SemaphoreWait(&consumer_sleep_lock);
-            }
-
-            handshake_container_t* handshake = handshake_buffer.front(instrument_tid, true);
-            ASSERTX(handshake != NULL);
-            ASSERTX(handshake->flags.valid);
-
-            // Check thread exit flag
-            if (handshake->flags.killThread) {
-                ReleaseHandshake(coreID);
-                numConsumed++;
-                // Let the scheduler send something else to this core
-                DescheduleActiveThread(coreID);
-
-                ASSERTX(i == consumerHandshakes-1); // Check that there are no more handshakes
-                break;
-            }
-
-            if (handshake->flags.giveCoreUp) {
-                ReleaseHandshake(coreID);
-                numConsumed++;
-                GiveUpCore(coreID, handshake->flags.giveUpReschedule);
-                break;
-            }
-
-            // Perform memory sanity checks for values touched by simulator
-            // on previous instruction
-            if (KnobSanity.Value())
-                SanityMemCheck();
-
-            // First instruction, set bottom of stack, and flag we're not safe to kill
-            if (handshake->flags.isFirstInsn)
-            {
-                thread_state_t* inst_tstate = get_tls(instrument_tid);
-                Zesto_SetBOS(coreID, inst_tstate->bos);
-                if (!control.PinPointsActive())
-                    handshake->handshake.slice_num = 1;
-                lk_lock(&tstate->lock, tid+1);
-                tstate->sim_stopped = false;
-                lk_unlock(&tstate->lock);
-            }
-
-            // Actual simulation happens here
-            Zesto_Resume(coreID, handshake);
-
-            if(!KnobPipelineInstrumentation.Value())
-                ReleaseHandshake(coreID);
-            numConsumed++;
-
-            if (NeedsReschedule(coreID)) {
-                GiveUpCore(coreID, true);
-                break;
-            }
-        }
-        handshake_buffer.applyConsumerChanges(instrument_tid, numConsumed);
-        lastConsumerApply[instrument_tid] = cores[coreID]->sim_cycle;
-    }
-}
-
-/* ========================================================================== */
 VOID MakeSSRequest(THREADID tid, ADDRINT pc, ADDRINT npc, ADDRINT tpc, BOOL brtaken, const CONTEXT *ictxt, handshake_container_t* hshake)
 {
     thread_state_t* tstate = get_tls(tid);
@@ -583,8 +384,8 @@ VOID MakeSSRequest(THREADID tid, ADDRINT pc, ADDRINT npc, ADDRINT tpc, BOOL brta
  * to clean up corner cases of speculation */
 VOID GrabInstructionMemory(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_mem_op, ADDRINT pc)
 {
-    if(producers_sleep) {
-      PIN_SemaphoreWait(&producer_sleep_lock);
+    if(*producers_sleep) {
+      PIN_SemaphoreWait(producer_sleep_lock);
       return;
     }
 
@@ -602,11 +403,11 @@ VOID GrabInstructionMemory(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_m
 
     handshake_container_t* handshake;
     if (first_mem_op) {
-        handshake = handshake_buffer.get_buffer(tid);
+        handshake = handshake_buffer->get_buffer(tid);
         ASSERTX(!handshake->flags.valid);
     }
     else {
-        handshake = handshake_buffer.back(tid);
+        handshake = handshake_buffer->back(tid);
     }
 
     /* should be the common case */
@@ -627,8 +428,8 @@ VOID GrabInstructionMemory(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_m
 /* ========================================================================== */
 VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDRINT tpc, const CONTEXT *ictxt, BOOL has_memory, BOOL done_instrumenting)
 {
-    if(producers_sleep) {
-      PIN_SemaphoreWait(&producer_sleep_lock);
+    if(*producers_sleep) {
+      PIN_SemaphoreWait(producer_sleep_lock);
       return;
     }
 
@@ -655,36 +456,22 @@ VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, A
 
     handshake_container_t* handshake;
     if (has_memory) {
-        handshake = handshake_buffer.back(tid);
+        handshake = handshake_buffer->back(tid);
     }
     else {
-        handshake = handshake_buffer.get_buffer(tid);
+        handshake = handshake_buffer->get_buffer(tid);
         ASSERTX(!handshake->flags.valid);
     }
 
     ASSERTX(handshake != NULL);
     ASSERTX(!handshake->flags.valid);
 
-    // Sanity trace
-    if (!KnobSanityInsTraceFile.Value().empty())
-    {
-        ADDRINT sanity_pc;
-        sanity_trace >> sanity_pc;
-#ifdef ZESTO_PIN_DBG
-        if (sanity_pc != pc)
-        {
-            cerr << "Sanity_pc != pc. Bad things will happen!" << endl << "sanity_pc: " <<
-            hex << sanity_pc << " pc: " << pc << " sim_icount: " << dec << tstate->num_inst << endl;
-        }
-#endif
-        ASSERTX(sanity_pc == pc);
-    }
-
     tstate->queue_pc(pc);
     tstate->num_inst++;
 
     if (first_insn) {
         handshake->flags.isFirstInsn = true;
+        handshake->flags.BOS = tstate->bos;
         lk_lock(&tstate->lock, tid+1);
         tstate->firstInstruction = false;
         lk_unlock(&tstate->lock);
@@ -693,17 +480,13 @@ VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, A
     // Populate handshake buffer
     MakeSSRequest(tid, pc, NextUnignoredPC(npc), NextUnignoredPC(tpc), taken, ictxt, handshake);
 
-    // Clear memory sanity check buffer - callbacks should fill it in SimulatorLoop
-    if (KnobSanity.Value())
-        sanity_writes.clear();
-
     if (done_instrumenting) {
         // Let simulator consume instruction from SimulatorLoop
         handshake->flags.valid = true;
-        handshake_buffer.producer_done(tid);
+        handshake_buffer->producer_done(tid);
 
         if (tstate->num_inst && (tstate->num_inst % 1000000 == 0))
-            handshake_buffer.flushBuffers(tid);
+            handshake_buffer->flushBuffers(tid);
     }
 }
 
@@ -715,8 +498,8 @@ VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, A
  * the last iteration. */
 VOID FixRepInstructionNPC(THREADID tid, ADDRINT pc, BOOL rep_prefix, BOOL repne_prefix, ADDRINT counter_value, UINT32 opcode)
 {
-    if(producers_sleep) {
-      PIN_SemaphoreWait(&producer_sleep_lock);
+    if(*producers_sleep) {
+      PIN_SemaphoreWait(producer_sleep_lock);
       return;
     }
 
@@ -732,7 +515,7 @@ VOID FixRepInstructionNPC(THREADID tid, ADDRINT pc, BOOL rep_prefix, BOOL repne_
     if (IsInstructionIgnored(pc))
         return;
 
-    handshake_container_t* handshake = handshake_buffer.back(tid);
+    handshake_container_t* handshake = handshake_buffer->back(tid);
 
     ASSERTX(handshake != NULL);
     ASSERTX(!handshake->flags.valid);
@@ -810,10 +593,10 @@ VOID FixRepInstructionNPC(THREADID tid, ADDRINT pc, BOOL rep_prefix, BOOL repne_
 
     // Instruction is ready to be consumed
     handshake->flags.valid = true;
-    handshake_buffer.producer_done(tid);
+    handshake_buffer->producer_done(tid);
 
     if (tstate->num_inst && (tstate->num_inst % 1000000 == 0))
-        handshake_buffer.flushBuffers(tid);
+        handshake_buffer->flushBuffers(tid);
 }
 
 /* ========================================================================== */
@@ -937,69 +720,6 @@ VOID Instrument(INS ins, VOID *v)
 }
 
 /* ========================================================================== */
-/** The command line arguments passed upon invocation need paring because (1) the
- * command line can have arguments for SimpleScalar and (2) Pin cannot see the
- * SimpleScalar's arguments otherwise it will barf; it'll expect KNOB
- * declarations for those arguments. Thereforce, we follow a convention that
- * anything declared past "-s" and before "--" on the command line must be
- * passed along as SimpleScalar's argument list.
- *
- * SimpleScalar's arguments are extracted out of the command line in twos steps:
- * First, we create a new argument vector that can be passed to SimpleScalar.
- * This is done by calloc'ing and copying the arguments over. Thereafter, in the
- * second stage we nullify SimpleScalar's arguments from the original (Pin's)
- * command line so that Pin doesn't see during its own command line parsing
- * stage. */
-SSARGS MakeSimpleScalarArgcArgv(UINT32 argc, CHAR *argv[])
-{
-    CHAR   **ssArgv   = 0;
-    UINT32 ssArgBegin = 0;
-    UINT32 ssArgc     = 0;
-    UINT32 ssArgEnd   = argc;
-
-    for (UINT32 i = 0; i < argc; i++)
-    {
-        if ((string(argv[i]) == "-s") || (string(argv[i]) == "--"))
-        {
-            ssArgBegin = i + 1;             // Points to a valid arg
-            break;
-        }
-    }
-
-    if (ssArgBegin)
-    {
-        ssArgc = (ssArgEnd - ssArgBegin)    // Specified command line args
-                 + (1);                     // Null terminator for argv
-    }
-    else
-    {
-        // Coming here implies the command line has not been setup properly even
-        // to run Pin, so return. Pin will complain appropriately.
-        return make_pair(argc, argv);
-    }
-
-    // This buffer will hold SimpleScalar's argv
-    ssArgv = reinterpret_cast <CHAR **> (calloc(ssArgc, sizeof(CHAR *)));
-
-    UINT32 ssArgIndex = 0;
-    ssArgv[ssArgIndex++] = sim_name;  // Does not matter; just for sanity
-    for (UINT32 pin = ssArgBegin; pin < ssArgEnd; pin++)
-    {
-        if (string(argv[pin]) != "--")
-        {
-            string *argvCopy = new string(argv[pin]);
-            ssArgv[ssArgIndex++] = const_cast <CHAR *> (argvCopy->c_str());
-        }
-    }
-
-    // Terminate the argv. Ending must terminate with a pointer *referencing* a
-    // NULL. Simply terminating the end of argv[n] w/ NULL violates conventions
-    ssArgv[ssArgIndex++] = new CHAR('\0');
-
-    return make_pair(ssArgc, ssArgv);
-}
-
-/* ========================================================================== */
 VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
 {
     // ILDJIT is forking a compiler thread, ignore
@@ -1078,13 +798,15 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
         (KnobILDJIT.Value() && ILDJIT_IsCreatingExecutor()))
     {
         // Create new buffer to store thread context
-        handshake_buffer.allocateThread(threadIndex);
+        handshake_buffer->allocateThread(threadIndex);
 
         lk_lock(&thread_list_lock, threadIndex+1);
         thread_list.push_back(threadIndex);
         lk_unlock(&thread_list_lock);
 
+#if 0
         lastConsumerApply[threadIndex] = 0;
+#endif
 
         if (ExecMode == EXECUTION_MODE_SIMULATE)
             ScheduleNewThread(threadIndex);
@@ -1125,40 +847,6 @@ VOID PauseSimulation(THREADID tid)
 }
 
 /* ========================================================================== */
-/* Invariant: we are not simulating anything here. Either:
- * - Not in a pinpoints ROI.
- * - Anything after PauseSimulation (or the HELIX equivalent)
- * This implies all cores are inactive. And handshake buffers are already drained. */
-VOID StopSimulation(BOOL kill_sim_threads)
-{
-    if (kill_sim_threads) {
-        /* Signal simulator threads to die */
-        INT32 coreID;
-        for (coreID=0; coreID < num_cores; coreID++) {
-            sim_thread_state_t* curr_tstate = get_sim_tls(sim_threadid[coreID]);
-            lk_lock(&curr_tstate->lock, 1);
-            curr_tstate->is_running = false;
-            lk_unlock(&curr_tstate->lock);
-        }
-
-        /* Spin until SimulatorLoop actually finishes */
-        volatile bool is_stopped;
-        do {
-            is_stopped = true;
-
-            for (coreID=0; coreID < num_cores; coreID++) {
-                sim_thread_state_t* curr_tstate = get_sim_tls(sim_threadid[coreID]);
-                lk_lock(&curr_tstate->lock, 1);
-                is_stopped &= curr_tstate->sim_stopped;
-                lk_unlock(&curr_tstate->lock);
-            }
-        } while(!is_stopped);
-    }
-
-    Zesto_Destroy();
-}
-
-/* ========================================================================== */
 VOID ThreadFini(THREADID tid, const CONTEXT *ctxt, INT32 code, VOID *v)
 {
     lk_lock(&printing_lock, tid+1);
@@ -1181,13 +869,13 @@ VOID ThreadFini(THREADID tid, const CONTEXT *ctxt, INT32 code, VOID *v)
      * Mark it as finishing and let the handshake buffer drain.
      * Once this last handshake gets executed by a core, it will make
        sure to clean up all thread resources. */
-    handshake_container_t *handshake = handshake_buffer.get_buffer(tid);
+    handshake_container_t *handshake = handshake_buffer->get_buffer(tid);
     handshake->flags.killThread = true;
     handshake->flags.valid = true;
     handshake->handshake.real = false;
-    handshake_buffer.producer_done(tid);
+    handshake_buffer->producer_done(tid);
 
-    handshake_buffer.flushBuffers(tid);
+    handshake_buffer->flushBuffers(tid);
 
     /* Ignore subsequent instructions that we may see on this thread before
      * destroying its tstate.
@@ -1199,41 +887,14 @@ VOID ThreadFini(THREADID tid, const CONTEXT *ctxt, INT32 code, VOID *v)
 }
 
 /* ========================================================================== */
-/* Create simulator threads and set up their local storage */
-VOID SpawnSimulatorThreads(INT32 numCores)
-{
-    cerr << numCores << endl;
-    sim_threadid = new THREADID[numCores];
-
-    THREADID tid;
-    for(INT32 i=0; i<numCores; i++) {
-        tid = PIN_SpawnInternalThread(SimulatorLoop, reinterpret_cast<VOID*>(i), 0, NULL);
-        if (tid == INVALID_THREADID) {
-            cerr << "Failed spawning sim thread " << i << endl;
-            PIN_ExitProcess(EXIT_FAILURE);
-        }
-        sim_threadid[i] = tid;
-        cerr << "Spawned sim thread " << i << " " << tid << endl;
-    }
-}
-
-/* ========================================================================== */
 INT32 main(INT32 argc, CHAR **argv)
 {
-    using namespace boost::interprocess;
-    using namespace xiosim::shared;
-
 #ifdef ZESTO_PIN_DBG
     cerr << "Command line: ";
     for(int i=0; i<argc; i++)
        cerr << argv[i] << " ";
     cerr << endl;
 #endif
-
-    SSARGS ssargs = MakeSimpleScalarArgcArgv(argc, argv);
-
-    PIN_SemaphoreInit(&consumer_sleep_lock);
-    PIN_SemaphoreInit(&producer_sleep_lock);
 
     // Obtain  a key for TLS storage.
     tls_key = PIN_CreateThreadDataKey(0);
@@ -1267,17 +928,6 @@ INT32 main(INT32 argc, CHAR **argv)
         pc_file << hex;
     }
 
-    if(!KnobSanityInsTraceFile.Value().empty())
-    {
-        sanity_trace.open(KnobSanityInsTraceFile.Value().c_str(), ifstream::in);
-        if(sanity_trace.fail())
-        {
-            cerr << "Couldn't open sanity trace file " << KnobSanityInsTraceFile.Value() << endl;
-            return 1;
-        }
-        sanity_trace >> hex;
-    }
-
     // Delay this instrumentation until startSimulation call in ILDJIT.
     // This cuts down HELIX compilation noticably for integer benchmarks.
 
@@ -1295,12 +945,6 @@ INT32 main(INT32 argc, CHAR **argv)
     PIN_AddFiniFunction(Fini, 0);
     InitSyscallHandling();
 
-    if(KnobSanity.Value())
-        Zesto_Add_WriteByteCallback(Zesto_WriteByteCallback);
-    sim_release_handshake = KnobPipelineInstrumentation.Value();
-
-    Zesto_SlaveInit(ssargs.first, ssargs.second);
-
     host_cpus = get_nprocs_conf();
     if((host_cpus < num_cores * 2) || KnobILDJIT.Value()) {
       sleeping_enabled = true;
@@ -1311,40 +955,9 @@ INT32 main(INT32 argc, CHAR **argv)
       sleeping_enabled = false;
     }
 
-    InitScheduler(num_cores);
-
-    SpawnSimulatorThreads(num_cores);
-
     // Synchronize all processes here to ensure that in multiprogramming mode,
     // no process will start too far before the others.
-    std::cout << "About to start synchronization." << std::endl;
-    named_mutex init_lock(open_only, XIOSIM_INIT_SHARED_LOCK);
-    std::cout << "Opened lock" << std::endl;
-    init_lock.lock();
-    std::cout << "Lock acquired" << std::endl;
-    managed_shared_memory shm(open_or_create, XIOSIM_SHARED_MEMORY_KEY,
-        DEFAULT_SHARED_MEMORY_SIZE);
-    std::cout << "Opened shared memory" << std::endl;
-
-    std::cout << "Number of processes: " << KnobNumProcesses.Value() <<
-      std::endl;
-    int *counter = shm.find_or_construct<int>(XIOSIM_INIT_COUNTER_KEY)(
-        KnobNumProcesses.Value());
-    std::cout << "Counter value is: " << *counter << std::endl;
-    (*counter)--;
-    init_lock.unlock();
-
-    // Spin until the counter reaches zero, indicating that all other processes
-    // have reached this point.
-    while (1) {
-      init_lock.lock();
-      if (*counter == 0) {
-        init_lock.unlock();
-        break;
-      }
-      init_lock.unlock();
-    }
-    std::cout << "Proceeeding to execute pintool.\n";
+    InitSharedState(true);
 
     PIN_StartProgram();
 
@@ -1439,41 +1052,41 @@ VOID disable_consumers()
 {
   if(sleeping_enabled) {
     if(!consumers_sleep) {
-      PIN_SemaphoreClear(&consumer_sleep_lock);
+      PIN_SemaphoreClear(consumer_sleep_lock);
     }
-    consumers_sleep = true;
+    *consumers_sleep = true;
   }
 }
 
 VOID disable_producers()
 {
   if(sleeping_enabled) {
-    if(!producers_sleep) {
-      PIN_SemaphoreClear(&producer_sleep_lock);
+    if(!*producers_sleep) {
+      PIN_SemaphoreClear(producer_sleep_lock);
     }
-    producers_sleep = true;
+    *producers_sleep = true;
   }
 }
 
 VOID enable_consumers()
 {
   if(consumers_sleep) {
-    PIN_SemaphoreSet(&consumer_sleep_lock);
+    PIN_SemaphoreSet(consumer_sleep_lock);
   }
-  consumers_sleep = false;
+  *consumers_sleep = false;
 }
 
 VOID enable_producers()
 {
-  if(producers_sleep) {
-    PIN_SemaphoreSet(&producer_sleep_lock);
+  if(*producers_sleep) {
+    PIN_SemaphoreSet(producer_sleep_lock);
   }
-  producers_sleep = false;
+  *producers_sleep = false;
 }
 
 void wait_consumers()
 {
-  PIN_SemaphoreWait(&consumer_sleep_lock);
+  PIN_SemaphoreWait(consumer_sleep_lock);
 }
 
 VOID printTrace(string stype, ADDRINT pc, THREADID tid)

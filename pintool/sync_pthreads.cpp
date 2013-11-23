@@ -32,14 +32,14 @@ VOID PTHREAD_beforeJoin(THREADID tid)
     tstate->ignore = true;
     lk_unlock(&tstate->lock);
 
-    handshake_container_t *handshake = handshake_buffer.get_buffer(tid);
+    handshake_container_t *handshake = handshake_buffer->get_buffer(tid);
     handshake->flags.valid = true;
     handshake->handshake.real = false;
     handshake->flags.giveCoreUp = true;
     handshake->flags.giveUpReschedule = true;
-    handshake_buffer.producer_done(tid);
+    handshake_buffer->producer_done(tid);
 
-    handshake_buffer.flushBuffers(tid);
+    handshake_buffer->flushBuffers(tid);
 }
 
 VOID PTHREAD_beforeMutexLock(THREADID tid)
@@ -52,14 +52,14 @@ VOID PTHREAD_beforeMutexLock(THREADID tid)
     tstate->ignore = true;
     lk_unlock(&tstate->lock);
 
-    handshake_container_t *handshake = handshake_buffer.get_buffer(tid);
+    handshake_container_t *handshake = handshake_buffer->get_buffer(tid);
     handshake->flags.valid = true;
     handshake->handshake.real = false;
     handshake->flags.giveCoreUp = true;
     handshake->flags.giveUpReschedule = true;
-    handshake_buffer.producer_done(tid);
+    handshake_buffer->producer_done(tid);
 
-    handshake_buffer.flushBuffers(tid);
+    handshake_buffer->flushBuffers(tid);
 }
 
 VOID PTHREAD_beforeCondWait(THREADID tid)
@@ -72,14 +72,14 @@ VOID PTHREAD_beforeCondWait(THREADID tid)
     tstate->ignore = true;
     lk_unlock(&tstate->lock);
 
-    handshake_container_t *handshake = handshake_buffer.get_buffer(tid);
+    handshake_container_t *handshake = handshake_buffer->get_buffer(tid);
     handshake->flags.valid = true;
     handshake->handshake.real = false;
     handshake->flags.giveCoreUp = true;
     handshake->flags.giveUpReschedule = true;
-    handshake_buffer.producer_done(tid);
+    handshake_buffer->producer_done(tid);
 
-    handshake_buffer.flushBuffers(tid);
+    handshake_buffer->flushBuffers(tid);
 }
 
 VOID PTHREAD_stopIgnore(THREADID tid)

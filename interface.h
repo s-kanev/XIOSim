@@ -29,7 +29,6 @@ void activate_core(int coreID);
 void deactivate_core(int coreID);
 bool is_core_active(int coreID);
 void sim_drain_pipe(int coreID);
-extern bool sim_release_handshake;
 extern int num_cores;
 
 #endif /*__PIN_ZESTO_INTERFACE__*/

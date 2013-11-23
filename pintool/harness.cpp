@@ -21,6 +21,8 @@
 #include <boost/interprocess/sync/named_mutex.hpp>
 #include <boost/interprocess/permissions.hpp>
 
+#include <boost/algorithm/string/replace.hpp>
+
 #include <iostream>
 #include <sstream>
 #include <stdlib.h>
@@ -29,6 +31,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <algorithm>
 
 #include "mpkeys.h"
 
@@ -79,6 +82,9 @@ int main(int argc, char **argv) {
     }
   }
 
+  // Create a process for timing sim
+  harness_num_processes++;
+
   // Setup SIGINT handler to kill child processes as well.
   struct sigaction sig_int_handler;
   sig_int_handler.sa_handler = kill_handler;
@@ -97,7 +103,7 @@ int main(int argc, char **argv) {
     if (strncmp(argv[i], LAST_PINTOOL_ARG.c_str(),
                 LAST_PINTOOL_ARG.length()) == 0) {
       command_stream << " " << NUM_PROCESSES_FLAG << " "
-                     << harness_num_processes << " ";
+                     << harness_num_processes-1 << " ";
     }
     command_stream << argv[i] << " ";
   }
@@ -130,7 +136,13 @@ int main(int argc, char **argv) {
 
     switch (harness_pids[i]) {
       case 0:  { // child
-        system(command_stream.str().c_str());
+        if (i == 0) {
+          std::string timing_cmd = boost::replace_all_copy<std::string>(command_stream.str(),
+                            "feeder_zesto", "timing_sim");
+          system(timing_cmd.c_str()); 
+        }
+        else
+          system(command_stream.str().c_str());
         exit(0);
         break;
       }

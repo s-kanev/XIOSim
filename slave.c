@@ -418,8 +418,7 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake)
    if (!thread->active && !(slice_start || handshake->handshake.resume_thread ||
                             handshake->handshake.sleep_thread || handshake->handshake.flush_pipe)) {
      fprintf(stderr, "DEBUG DEBUG: Start/stop out of sync? %d PC: %x\n", coreID, handshake->handshake.pc);
-     if(sim_release_handshake)
-       ReleaseHandshake(coreID);
+     ReleaseHandshake(coreID);
      return;
    }
 
@@ -429,23 +428,20 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake)
    if (handshake->handshake.sleep_thread)
    {
       deactivate_core(coreID);
-      if(sim_release_handshake)
-        ReleaseHandshake(coreID);
+      ReleaseHandshake(coreID);
       return;
    }
 
    if (handshake->handshake.resume_thread)
    {
       activate_core(coreID);
-      if(sim_release_handshake)
-        ReleaseHandshake(coreID);
+      ReleaseHandshake(coreID);
       return;
    }
 
    if(handshake->handshake.flush_pipe) {
       sim_drain_pipe(coreID);
-      if(sim_release_handshake)
-        ReleaseHandshake(coreID);
+      ReleaseHandshake(coreID);
       return;
    }
 
@@ -455,8 +451,7 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake)
       Zesto_Slice_End(coreID, handshake->handshake.slice_num, handshake->handshake.feeder_slice_length, handshake->handshake.slice_weight_times_1000);
 
       if(!slice_start) {//start and end markers can be the same
-        if(sim_release_handshake)
-          ReleaseHandshake(coreID);
+        ReleaseHandshake(coreID);
         return;
       } else
         activate_core(coreID);
@@ -499,8 +494,7 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake)
    ZPIN_TRACE(coreID, "PIN -> PC: %x, NPC: %x \n", handshake->handshake.pc, NPC);
 
    // The handshake can be recycled now
-   if(sim_release_handshake)
-     ReleaseHandshake(coreID);
+   ReleaseHandshake(coreID);
 
    bool fetch_more = true;
    thread->consumed = false;

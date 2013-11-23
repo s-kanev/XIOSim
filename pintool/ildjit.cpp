@@ -535,7 +535,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
     }
 
     /* Insert wait instruction in pipeline */
-    handshake = handshake_buffer.get_buffer(tid);
+    handshake = handshake_buffer->get_buffer(tid);
 
     handshake->flags.isFirstInsn = first_insn;
     handshake->handshake.ctxt.regs_R.dw[MD_REG_ESP] = esp_val; /* Needed when first_insn to set up stack pages */
@@ -557,9 +557,9 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
     printTrace("sim", handshake->handshake.pc, tid);
 #endif
 
-    handshake_buffer.producer_done(tid);
+    handshake_buffer->producer_done(tid);
 
-    handshake_2 = handshake_buffer.get_buffer(tid);
+    handshake_2 = handshake_buffer->get_buffer(tid);
     handshake_2->handshake.real = false;
     handshake_2->handshake.in_critical_section = (num_cores > 1);
     handshake_2->flags.valid = true;
@@ -574,7 +574,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
     printTrace("sim", handshake_2->handshake.pc, tid);
 #endif
 
-    handshake_buffer.producer_done(tid);    
+    handshake_buffer->producer_done(tid);    
 
 cleanup:
     tstate->lastSignalAddr = 0xdecafbad;
@@ -643,7 +643,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
     }
 
     /* Insert signal instruction in pipeline */
-    handshake = handshake_buffer.get_buffer(tid);
+    handshake = handshake_buffer->get_buffer(tid);
 
     handshake->flags.isFirstInsn = false;
     handshake->handshake.sleep_thread = false;
@@ -664,7 +664,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
     printTrace("sim", handshake->handshake.pc, tid);
 #endif
 
-    handshake_buffer.producer_done(tid);
+    handshake_buffer->producer_done(tid);
 
 cleanup:
     tstate->lastSignalAddr = 0xdecafbad;
@@ -963,14 +963,14 @@ VOID AddILDJITCallbacks(IMG img)
 
 BOOL signalCallback(THREADID tid, INT32 sig, CONTEXT *ctxt, BOOL hasHandler, const EXCEPTION_INFO *pExceptInfo, VOID *v)
 {
-    handshake_buffer.signalCallback(sig);
+    handshake_buffer->signalCallback(sig);
     PIN_ExitProcess(1);
     return false;
 }
 
 void signalCallback2(int signum)
 {
-    handshake_buffer.signalCallback(signum);
+    handshake_buffer->signalCallback(signum);
     PIN_ExitProcess(1);
 }
 
@@ -1073,7 +1073,7 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
     ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
         /* Insert a trap. This will ensure that the pipe drains before
          * consuming the next instruction.*/
-        handshake_container_t* handshake = handshake_buffer.get_buffer(*it);
+        handshake_container_t* handshake = handshake_buffer->get_buffer(*it);
         handshake->flags.isFirstInsn = false;
         handshake->handshake.sleep_thread = false;
         handshake->handshake.resume_thread = false;
@@ -1085,11 +1085,11 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
         handshake->handshake.tpc = (ADDRINT) syscall_template + sizeof(syscall_template);
         handshake->handshake.brtaken = false;
         memcpy(handshake->handshake.ins, syscall_template, sizeof(syscall_template));
-        handshake_buffer.producer_done(*it, true);
+        handshake_buffer->producer_done(*it, true);
 
         /* And finally, flush the core's pipelie to get rid of anything
          * left over (including the trap) and flush the ring cache */
-        handshake_container_t* handshake_3 = handshake_buffer.get_buffer(*it);
+        handshake_container_t* handshake_3 = handshake_buffer->get_buffer(*it);
 
         handshake_3->flags.isFirstInsn = false;
         handshake_3->handshake.sleep_thread = false;
@@ -1098,11 +1098,11 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
         handshake_3->handshake.real = false;
         handshake_3->handshake.pc = 0;
         handshake_3->flags.valid = true;
-        handshake_buffer.producer_done(*it, true);
+        handshake_buffer->producer_done(*it, true);
         
         /* Deactivate this core, so we can advance the cycle conunter of
          * others without waiting on it */
-        handshake_container_t* handshake_2 = handshake_buffer.get_buffer(*it);
+        handshake_container_t* handshake_2 = handshake_buffer->get_buffer(*it);
 
         handshake_2->flags.isFirstInsn = false;
         handshake_2->handshake.sleep_thread = true;
@@ -1110,9 +1110,9 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
         handshake_2->handshake.real = false;
         handshake_2->handshake.pc = 0;
         handshake_2->flags.valid = true;
-        handshake_buffer.producer_done(*it, true);
+        handshake_buffer->producer_done(*it, true);
 
-        handshake_buffer.flushBuffers(*it);
+        handshake_buffer->flushBuffers(*it);
     }
 
     enable_consumers();
@@ -1123,7 +1123,7 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
         done = true;
         list<THREADID>::iterator it;
         ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
-            done &= handshake_buffer.empty((*it));
+            done &= handshake_buffer->empty((*it));
         }
         if (!done && sleeping_enabled && (host_cpus <= num_cores))
             PIN_Sleep(10);
@@ -1146,7 +1146,9 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
       thread_state_t* tstate = get_tls(*it);
       assert(tstate != NULL);
       cores[tstate->coreID]->sim_cycle = most_cycles;
+#if 0
       cerr << tstate->coreID << ":OverlapCycles:" << most_cycles - lastConsumerApply[*it] << endl;
+#endif
     }
 
     disable_consumers();
@@ -1157,10 +1159,10 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
     ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
         thread_state_t* tstate = get_tls(*it);
         lk_lock(&tstate->lock, *it+1);
-        handshake_buffer.resetPool(*it);
+        handshake_buffer->resetPool(*it);
         tstate->ignore = true;
         lk_unlock(&tstate->lock);
-        assert(handshake_buffer.empty(*it));
+        assert(handshake_buffer->empty(*it));
     }
 }
 
@@ -1179,7 +1181,7 @@ VOID ILDJIT_ResumeSimulation(THREADID tid)
         if (curr_tid == INVALID_THREADID)
             continue;
 
-        ASSERTX(handshake_buffer.empty(curr_tid));
+        ASSERTX(handshake_buffer->empty(curr_tid));
         activate_core(coreID);
         thread_state_t* tstate = get_tls(curr_tid);
         lk_lock(&tstate->lock, tid+1);

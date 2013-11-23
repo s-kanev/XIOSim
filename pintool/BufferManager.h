@@ -81,7 +81,6 @@ class BufferManager
   string genFileName(string path);
   int getKBFreeSpace(string path);
 
-  boost::interprocess::managed_shared_memory *global_shm;
   xiosim::shared::SharedUnorderedMap<THREADID, int64_t> queueSizes_;
   std::unordered_map<THREADID, Buffer*> fakeFile_;
   std::unordered_map<THREADID, Buffer*> consumeBuffer_;

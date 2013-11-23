@@ -30,14 +30,14 @@ VOID Parsec_EndROI(THREADID tid, ADDRINT pc)
     lk_unlock(&tstate->lock);
 
     /* Mark this thread for descheduling */
-    handshake_container_t *handshake = handshake_buffer.get_buffer(tid);
+    handshake_container_t *handshake = handshake_buffer->get_buffer(tid);
     handshake->flags.giveCoreUp = true;
     handshake->flags.giveUpReschedule = false;
     handshake->flags.valid = true;
     handshake->handshake.real = false;
-    handshake_buffer.producer_done(tid, true);
+    handshake_buffer->producer_done(tid, true);
 
-    handshake_buffer.flushBuffers(tid);
+    handshake_buffer->flushBuffers(tid);
 
     /* Let core pipes drain an pause simulation */
     PPointHandler(CONTROL_STOP, NULL, NULL, (VOID*)pc, tid);
