@@ -26,7 +26,7 @@
 #
 PIN_HOME ?= /home/skanev/pin/2.12
 ZESTO_HOME = ..
-BOOST_HOME = /home/samxi/cs261/shm/boost_1_55_0
+BOOST_HOME ?= /home/samxi/cs261/shm/boost_1_55_0
 TARGET = ia32
 
 ##############################################################
@@ -88,7 +88,7 @@ SHM_LDFLAGS = -ldl
 ##############################################################
 all : CXXFLAGS += -DDEBUG -D_FILE_OFFSET_BITS=64 -std=c++11
 all : CXXFLAGS += -I$(BOOST_INCLUDE) $(BOOST_LDFLAGS) $(SHM_LDFLAGS)
-all: tools
+all: tools harness
 debug:	CXXFLAGS += -DZESTO_PIN_DBG -D_FILE_OFFSET_BITS=64 -std=c++11
 debug : CXXFLAGS += -I$(BOOST_INCLUDE)
 debug:	tools
@@ -126,7 +126,10 @@ $(OBJDIR)%.o : %.cpp
 $(TOOLS): $(PIN_LIBNAMES) $(TOOL_OBJS) $(SIM_LIB) $(MCPAT_LIB) $(DRAMSIM_LIB) $(REPEATER_LIB)
 
 $(TOOLS): %$(PINTOOL_SUFFIX) : %.o
-	${PIN_LD} -g -lrt $(PIN_LDFLAGS) -I$(ZESTO_HOME) -L$(ZESTO_HOME) -I$(BOOST_INCLUDE) $(LINK_DEBUG) ${LINK_OUT} $@ $< ${PIN_LPATHS} $(TOOL_OBJS) $(SIM_LIB) $(MCPAT_LIB) $(DRAMSIM_LIB) $(REPEATER_LIB) $(PIN_LIBS) $(DBG)
+	${PIN_LD} -g $(PIN_LDFLAGS) -I$(ZESTO_HOME) -L$(ZESTO_HOME) -I$(BOOST_INCLUDE) $(LINK_DEBUG) ${LINK_OUT} $@ $< ${PIN_LPATHS} $(TOOL_OBJS) $(SIM_LIB) $(MCPAT_LIB) $(DRAMSIM_LIB) $(REPEATER_LIB) $(PIN_LIBS) $(DBG) -lrt -pthread 
+
+harness: harness.o mpkeys_impl.o
+	${PIN_LD} -g -I$(BOOST_INCLUDE) ${SHM_LDFLAGS} $(LINK_DEBUG) ${LINK_OUT} $@ $^ -pthread -lrt 
 
 ## cleaning
 clean:

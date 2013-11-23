@@ -94,7 +94,7 @@ int main(int argc, char **argv) {
     // If the next arg is "-s", add the num_processes flag. We need to tell the
     // pintool how many processes we have running so it can set up shared memory
     // on its own.
-    if (strncmp(argv[1], LAST_PINTOOL_ARG.c_str(),
+    if (strncmp(argv[i], LAST_PINTOOL_ARG.c_str(),
                 LAST_PINTOOL_ARG.length()) == 0) {
       command_stream << " " << NUM_PROCESSES_FLAG << " "
                      << harness_num_processes << " ";
@@ -103,8 +103,8 @@ int main(int argc, char **argv) {
   }
 
   // Removes any shared data left from a previous run if they exist.
-  shared_memory_object::remove(XIOSIM_SHARED_MEMORY_KEY.c_str());
-  named_mutex::remove(XIOSIM_INIT_SHARED_LOCK.c_str());
+  shared_memory_object::remove(XIOSIM_SHARED_MEMORY_KEY);
+  named_mutex::remove(XIOSIM_INIT_SHARED_LOCK);
 
   // Creates a new shared segment.
   permissions perm;
@@ -120,7 +120,7 @@ int main(int argc, char **argv) {
   // synchronizing access to this counter.
   // int *counter =
   //  shm.find_or_construct<int>(XIOSIM_INIT_COUNTER_KEY.c_str())(harness_num_processes);
-  named_mutex init_lock(open_or_create, XIOSIM_INIT_SHARED_LOCK.c_str(), perm);
+  named_mutex init_lock(open_or_create, XIOSIM_INIT_SHARED_LOCK, perm);
   init_lock.unlock();
 
   int status;
