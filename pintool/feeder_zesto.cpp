@@ -1321,13 +1321,10 @@ INT32 main(INT32 argc, CHAR **argv)
     named_mutex init_lock(open_only, XIOSIM_INIT_SHARED_LOCK);
     std::cout << "Opened lock" << std::endl;
     init_lock.lock();
+    std::cout << "Lock acquired" << std::endl;
     managed_shared_memory shm(open_or_create, XIOSIM_SHARED_MEMORY_KEY,
         DEFAULT_SHARED_MEMORY_SIZE);
     std::cout << "Opened shared memory" << std::endl;
-    named_mutex init_lock(open_only, XIOSIM_INIT_SHARED_LOCK.c_str());
-    std::cout << "Opened lock" << std::endl;
-    init_lock.lock();
-    std::cout << "Lock acquired" << std::endl;
 
     std::cout << "Number of processes: " << KnobNumProcesses.Value() <<
       std::endl;
