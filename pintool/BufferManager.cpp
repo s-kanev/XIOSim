@@ -33,7 +33,6 @@ extern bool consumers_sleep;
 extern PIN_SEMAPHORE consumer_sleep_lock;
 
 BufferManager::BufferManager()
-  :numThreads_(0)
 {
   using namespace boost::interprocess;
   using namespace xiosim::shared;
@@ -41,7 +40,7 @@ BufferManager::BufferManager()
   int pid = getpgrp();
   ostringstream iss;
   iss << pid;
-  gpid_ = iss.str();
+  gpid_ = iss.str().c_str();
   assert(gpid_.length() > 0);
   popped_ = false;
 
@@ -58,27 +57,12 @@ BufferManager::BufferManager()
   // Reserve space in all maps for 16 cores
   // This reduces the incidence of an annoying race, see
   // comment in empty()
-  int probable_cores = 16;
-  int probable_num_threads = 100;
-  locks_.reserve(probable_cores);
-  pool_.reserve(probable_cores);
-  logs_.reserve(probable_cores);
-  fakeFile_.reserve(probable_cores);
-  consumeBuffer_.reserve(probable_cores);
-  produceBuffer_.reserve(probable_cores);
-  fileEntryCount_.reserve(probable_cores);
-  fileNames_.reserve(probable_cores);
-  fileCounts_.reserve(probable_cores);
-  readBufferSize_.reserve(probable_cores);
-  readBuffer_.reserve(probable_cores);
-  writeBufferSize_.reserve(probable_cores);
-  writeBuffer_.reserve(probable_cores);
 }
 
 BufferManager::~BufferManager()
 {
   for(int i = 0; i < (int)bridgeDirs_.size(); i++) {
-    string cmd = "/bin/rm -rf " + bridgeDirs_[i] + gpid_ + "_* &";
+    boost::interprocess::string cmd = "/bin/rm -rf " + bridgeDirs_[i] + gpid_ + "_* &";
     int retVal = system(cmd.c_str());
     (void)retVal;
     assert(retVal == 0);
@@ -441,7 +425,7 @@ void BufferManager::copyProducerToFileReal(THREADID tid, bool checkSpace)
   }
 
   // sync() if we put the file somewhere besides /dev/shm
-  if(fileNames_[tid].back().find("shm") == string::npos) {
+  if(fileNames_[tid].back().find("shm") == boost::interprocess::string::npos) {
     sync();
   }
 
@@ -644,10 +628,10 @@ void BufferManager::abort(){
 void BufferManager::signalCallback(int signum)
 {
   cerr << "BufferManager caught signal:" << signum << endl;
-  map<THREADID, string>::iterator it;
+  map<THREADID, boost::interprocess::string>::iterator it;
 
   for(int i = 0; i < (int)bridgeDirs_.size(); i++) {
-    string cmd = "/bin/rm -rf " + bridgeDirs_[i] + gpid_ + "_* &";
+    boost::interprocess::string cmd = "/bin/rm -rf " + bridgeDirs_[i] + gpid_ + "_* &";
     int retVal = system(cmd.c_str());
     (void)retVal;
     assert(retVal == 0);
@@ -694,11 +678,11 @@ void BufferManager::allocateThread(THREADID tid)
   assert(writeBuffer_[tid]);
 }
 
-string BufferManager::genFileName(string path)
+boost::interprocess::string BufferManager::genFileName(boost::interprocess::string path)
 {
   char* temp = tempnam(path.c_str(), gpid_.c_str());
-  string res = string(temp);
-  assert(res.find(path) != string::npos);
+  boost::interprocess::string res = boost::interprocess::string(temp);
+  assert(res.find(path) != boost::interprocess::string::npos);
   res.insert(path.length() + gpid_.length(), "_");
   res = res + ".helix";
   free(temp);
@@ -713,7 +697,7 @@ void BufferManager::resetPool(THREADID tid)
   //  pool_[tid] = 2000000000;
 }
 
-int BufferManager::getKBFreeSpace(string path)
+int BufferManager::getKBFreeSpace(boost::interprocess::string path)
 {
   struct statvfs fsinfo;
   statvfs(path.c_str(), &fsinfo);

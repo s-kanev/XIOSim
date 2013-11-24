@@ -3,6 +3,7 @@
 
 #include "../buffer.h"
 #include <boost/interprocess/managed_shared_memory.hpp>
+#include <boost/interprocess/containers/deque.hpp>
 
 #include "shared_unordered_map.h"
 
@@ -10,9 +11,16 @@
 
 class handshake_container_t;
 
+using boost::interprocess::managed_shared_memory;
+
 class BufferManager
 {
  public:
+  typedef boost::interprocess::allocator<int, managed_shared_memory::segment_manager> deque_int_allocator;
+  typedef boost::interprocess::deque<int, deque_int_allocator> shm_int_deque;
+  typedef boost::interprocess::allocator<boost::interprocess::string, managed_shared_memory::segment_manager> deque_allocator;
+  typedef boost::interprocess::deque<boost::interprocess::string, deque_allocator> shm_string_deque;
+
   BufferManager();
   ~BufferManager();
 
@@ -54,13 +62,13 @@ class BufferManager
   bool useRealFile_;
   int numThreads_;
 
-  unordered_map<THREADID, XIOSIM_LOCK*> locks_;
-  unordered_map<THREADID, int> pool_;
-  unordered_map<THREADID, ofstream*> logs_;
+  xiosim::shared::SharedUnorderedMap<THREADID, XIOSIM_LOCK*> locks_;
+  xiosim::shared::SharedUnorderedMap<THREADID, int> pool_;
+  xiosim::shared::SharedUnorderedMap<THREADID, ofstream*> logs_;
 
-  string gpid_;
+  boost::interprocess::string gpid_;
 
-  vector<string> bridgeDirs_;
+  vector<boost::interprocess::string> bridgeDirs_;
   bool popped_;
 
   void reserveHandshake(THREADID tid);
@@ -79,22 +87,22 @@ class BufferManager
 
   void abort(void);
 
-  string genFileName(string path);
-  int getKBFreeSpace(string path);
+  boost::interprocess::string genFileName(boost::interprocess::string path);
+  int getKBFreeSpace(boost::interprocess::string path);
 
   xiosim::shared::SharedUnorderedMap<THREADID, int64_t> queueSizes_;
-  std::unordered_map<THREADID, Buffer*> fakeFile_;
-  std::unordered_map<THREADID, Buffer*> consumeBuffer_;
-  std::unordered_map<THREADID, Buffer*> produceBuffer_;
-  std::unordered_map<THREADID, int> fileEntryCount_;
+  xiosim::shared::SharedUnorderedMap<THREADID, Buffer*> fakeFile_;
+  xiosim::shared::SharedUnorderedMap<THREADID, Buffer*> consumeBuffer_;
+  xiosim::shared::SharedUnorderedMap<THREADID, Buffer*> produceBuffer_;
+  xiosim::shared::SharedUnorderedMap<THREADID, int> fileEntryCount_;
 
-  std::unordered_map<THREADID, deque<string> > fileNames_;
-  std::unordered_map<THREADID, deque<int> > fileCounts_;
+  xiosim::shared::SharedUnorderedMap<THREADID, shm_string_deque> fileNames_;
+  xiosim::shared::SharedUnorderedMap<THREADID, shm_int_deque> fileCounts_;
 
-  std::unordered_map<THREADID, int> readBufferSize_;
-  std::unordered_map<THREADID, void*> readBuffer_;
-  std::unordered_map<THREADID, int> writeBufferSize_;
-  std::unordered_map<THREADID, void*> writeBuffer_;
+  xiosim::shared::SharedUnorderedMap<THREADID, int> readBufferSize_;
+  xiosim::shared::SharedUnorderedMap<THREADID, void*> readBuffer_;
+  xiosim::shared::SharedUnorderedMap<THREADID, int> writeBufferSize_;
+  xiosim::shared::SharedUnorderedMap<THREADID, void*> writeBuffer_;
 };
 
 #endif

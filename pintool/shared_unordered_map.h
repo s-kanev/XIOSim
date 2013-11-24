@@ -43,6 +43,8 @@ class SharedUnorderedMap : public SharedUnorderedMapCommon<K, V> {
         std::size_t buckets = ShmCommon::DEFAULT_BUM_BUCKETS)
         : ShmCommon(shared_memory_name, internal_data_name, buckets) {}
 
+        SharedUnorderedMap() : ShmCommon() {}
+
   private:
     typedef boost::interprocess::allocator<
         void, managed_shared_memory::segment_manager> void_allocator;

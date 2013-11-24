@@ -34,7 +34,7 @@ extern int num_cores;
 
 void CheckIPCMessageQueue();
 
-enum ipc_message_id_t { SLICE_START, SLICE_END, MMAP, MUNMAP, UPDATE_BRK, UPDATE_BOS, WARM_LLC, INVALID_MSG };
+enum ipc_message_id_t { SLICE_START, SLICE_END, MMAP, MUNMAP, UPDATE_BRK, UPDATE_BOS, WARM_LLC, STOP_SIMULATION, INVALID_MSG };
 
 struct ipc_message_t {
     ipc_message_id_t id;
@@ -92,6 +92,12 @@ struct ipc_message_t {
         this->id = UPDATE_BOS;
         this->coreID = coreID;
         this->arg1 = stack_base;
+    }
+
+    void StopSimulation(bool kill_sim_threads)
+    {
+        this->id = STOP_SIMULATION;
+        this->arg1 = kill_sim_threads;
     }
 };
 

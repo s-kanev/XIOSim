@@ -337,6 +337,9 @@ void CheckIPCMessageQueue()
             case WARM_LLC:
                 Zesto_WarmLLC(ipcMessage.arg1, ipcMessage.arg2);
                 break;
+            case STOP_SIMULATION:
+                StopSimulation(ipcMessage.arg1);
+                break;
         }
     }
 }

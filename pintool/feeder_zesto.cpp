@@ -357,7 +357,10 @@ VOID BeforeFini(INT32 exitCode, VOID *v)
 /* ========================================================================== */
 VOID Fini(INT32 exitCode, VOID *v)
 {
-    StopSimulation(false);
+
+    ipc_message_t msg;
+    msg.StopSimulation(false);
+    SendIPCMessage(msg);
 
     if (exitCode != EXIT_SUCCESS)
         cerr << "ERROR! Exit code = " << dec << exitCode << endl;
