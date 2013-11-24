@@ -1,3 +1,4 @@
+#include <boost/interprocess/containers/deque.hpp>
 #include <boost/interprocess/containers/string.hpp>
 #include <boost/interprocess/managed_shared_memory.hpp>
 #include <boost/interprocess/managed_mapped_file.hpp>
@@ -10,14 +11,15 @@
 #include "instlib.H"
 using namespace INSTLIB;
 
+#include "shared_unordered_map.h"
+#include "multiprocess_shared.h"
+
 #include "scheduler.h"
 #include "../interface.h"
 #include "../synchronization.h"
 #include "../buffer.h"
 #include "BufferManager.h"
 #include "../zesto-core.h"
-
-#include "multiprocess_shared.h"
 
 #include "timing_sim.h"
 

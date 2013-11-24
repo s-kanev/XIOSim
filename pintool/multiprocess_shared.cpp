@@ -1,3 +1,4 @@
+#include "shared_unordered_map.h"
 #include "multiprocess_shared.h"
 
 using namespace xiosim::shared;
@@ -6,11 +7,13 @@ boost::interprocess::managed_shared_memory *global_shm;
 
 SHARED_VAR_DEFINE(bool, consumers_sleep)
 SHARED_VAR_DEFINE(bool, producers_sleep)
+SHARED_VAR_DEFINE(bool, sleeping_enabled)
 SHARED_VAR_DEFINE(BufferManager, handshake_buffer)
 SHARED_VAR_DEFINE(PIN_SEMAPHORE, consumer_sleep_lock);
 SHARED_VAR_DEFINE(PIN_SEMAPHORE, producer_sleep_lock);
 
 SHARED_VAR_DEFINE(MessageQueue, ipcMessageQueue);
+SHARED_VAR_DEFINE(ThreadCoreMap, threadCores);
 SHARED_VAR_DEFINE(XIOSIM_LOCK, lk_ipcMessageQueue);
 
 SHARED_VAR_DEFINE(THREADID, coreThreads);
@@ -42,6 +45,7 @@ void InitSharedState(bool wait_for_others)
 
     SHARED_VAR_INIT(bool, producers_sleep, false)
     SHARED_VAR_INIT(bool, consumers_sleep, false)
+    SHARED_VAR_INIT(bool, sleeping_enabled)
     SHARED_VAR_INIT(BufferManager, handshake_buffer)
     SHARED_VAR_INIT(PIN_SEMAPHORE, consumer_sleep_lock);
     SHARED_VAR_INIT(PIN_SEMAPHORE, producer_sleep_lock);
@@ -52,6 +56,7 @@ void InitSharedState(bool wait_for_others)
     SHARED_VAR_INIT(XIOSIM_LOCK, lk_ipcMessageQueue);
 
     SHARED_VAR_ARRAY_INIT(THREADID, coreThreads, KnobNumCores.Value(), INVALID_THREADID);
+    SHARED_VAR_CONSTRUCT(ThreadCoreMap, threadCores);
     SHARED_VAR_INIT(XIOSIM_LOCK, lk_coreThreads);
 
     SHARED_VAR_DEFINE(XIOSIM_LOCK, printing_lock);
@@ -94,4 +99,53 @@ bool GetSHMCoreBusy(int coreID) {
     res = coreThreads[coreID];
     lk_unlock(lk_coreThreads);
     return res != INVALID_THREADID;
+}
+
+int GetSHMThreadCore(THREADID tid) {
+    int res;
+    lk_lock(lk_coreThreads, 1);
+    res = threadCores->operator[](tid);
+    lk_unlock(lk_coreThreads);
+    return res;
+}
+
+VOID disable_consumers()
+{
+  if(*sleeping_enabled) {
+    if(!consumers_sleep) {
+      PIN_SemaphoreClear(consumer_sleep_lock);
+    }
+    *consumers_sleep = true;
+  }
+}
+
+VOID disable_producers()
+{
+  if(*sleeping_enabled) {
+    if(!*producers_sleep) {
+      PIN_SemaphoreClear(producer_sleep_lock);
+    }
+    *producers_sleep = true;
+  }
+}
+
+VOID enable_consumers()
+{
+  if(consumers_sleep) {
+    PIN_SemaphoreSet(consumer_sleep_lock);
+  }
+  *consumers_sleep = false;
+}
+
+VOID enable_producers()
+{
+  if(*producers_sleep) {
+    PIN_SemaphoreSet(producer_sleep_lock);
+  }
+  *producers_sleep = false;
+}
+
+void wait_consumers()
+{
+  PIN_SemaphoreWait(consumer_sleep_lock);
 }

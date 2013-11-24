@@ -2,12 +2,6 @@
 #define HANDSHAKE_BUFFER_MANAGER
 
 #include "../buffer.h"
-#include <boost/interprocess/managed_shared_memory.hpp>
-#include <boost/interprocess/containers/deque.hpp>
-
-#include "shared_unordered_map.h"
-
-#include <unordered_map>
 
 class handshake_container_t;
 

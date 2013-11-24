@@ -15,6 +15,7 @@
 /*
 #include <boost/interprocess/containers/map.hpp>
 */
+#include <boost/interprocess/containers/deque.hpp>
 #include <boost/interprocess/containers/string.hpp>
 #include <boost/interprocess/managed_shared_memory.hpp>
 #include <boost/interprocess/managed_mapped_file.hpp>
@@ -36,7 +37,8 @@
 #include <unistd.h>
 #include <utility>
 
-#include "feeder.h"
+#include "shared_unordered_map.h"
+#include "multiprocess_shared.h"
 #include "../buffer.h"
 #include "BufferManager.h"
 #include "scheduler.h"
@@ -47,9 +49,10 @@
 #include "ildjit.h"
 #include "parsec.h"
 
+#include "feeder.h"
+
 #include "../zesto-core.h"
 
-#include "multiprocess_shared.h"
 
 using namespace std;
 
@@ -71,7 +74,6 @@ KNOB<BOOL> KnobWarmLLC(KNOB_MODE_WRITEONCE,      "pintool",
         "warm_llc", "false", "Warm LLC while fast-forwarding");
 
 map<ADDRINT, string> pc_diss;
-BOOL sleeping_enabled;
 
 ofstream pc_file;
 ofstream trace_file;
@@ -966,12 +968,12 @@ INT32 main(INT32 argc, CHAR **argv)
 
     host_cpus = get_nprocs_conf();
     if((host_cpus < KnobNumCores.Value() * 2) || KnobILDJIT.Value()) {
-      sleeping_enabled = true;
+      *sleeping_enabled = true;
       enable_producers();
       disable_consumers();
     }
     else {
-      sleeping_enabled = false;
+      *sleeping_enabled = false;
     }
 
     // Synchronize all processes here to ensure that in multiprogramming mode,
@@ -1067,47 +1069,6 @@ VOID doLateILDJITInstrumentation()
   calledAlready = true;
 }
 
-VOID disable_consumers()
-{
-  if(sleeping_enabled) {
-    if(!consumers_sleep) {
-      PIN_SemaphoreClear(consumer_sleep_lock);
-    }
-    *consumers_sleep = true;
-  }
-}
-
-VOID disable_producers()
-{
-  if(sleeping_enabled) {
-    if(!*producers_sleep) {
-      PIN_SemaphoreClear(producer_sleep_lock);
-    }
-    *producers_sleep = true;
-  }
-}
-
-VOID enable_consumers()
-{
-  if(consumers_sleep) {
-    PIN_SemaphoreSet(consumer_sleep_lock);
-  }
-  *consumers_sleep = false;
-}
-
-VOID enable_producers()
-{
-  if(*producers_sleep) {
-    PIN_SemaphoreSet(producer_sleep_lock);
-  }
-  *producers_sleep = false;
-}
-
-void wait_consumers()
-{
-  PIN_SemaphoreWait(consumer_sleep_lock);
-}
-
 VOID printTrace(string stype, ADDRINT pc, THREADID tid)
 {
   if(ExecMode != EXECUTION_MODE_SIMULATE) {
@@ -1115,8 +1076,7 @@ VOID printTrace(string stype, ADDRINT pc, THREADID tid)
   }
 
   lk_lock(printing_lock, tid+1);
-  thread_state_t* tstate = get_tls(tid);
-  uint32_t coreID = tstate->coreID;
+  uint32_t coreID = GetSHMThreadCore(tid);
   pc_file << coreID << " " << stype << " " << pc << " " << pc_diss[pc] << endl;
   pc_file.flush();
   lk_unlock(printing_lock);

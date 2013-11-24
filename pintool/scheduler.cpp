@@ -13,14 +13,16 @@
 #include <queue>
 #include <map>
 
-#include "feeder.h"
+#include "shared_unordered_map.h"
+#include "multiprocess_shared.h"
 #include "../buffer.h"
 #include "BufferManager.h"
+
+#include "feeder.h"
 #include "scheduler.h"
 
 #include "../zesto-core.h"
 #include "../zesto-structs.h"
-#include "multiprocess_shared.h"
 
 struct RunQueue {
     RunQueue() {
@@ -45,6 +47,17 @@ static void UpdateSHMRunqueues(int coreID, THREADID tid)
 {
     lk_lock(lk_coreThreads, 1);
     coreThreads[coreID] = tid;
+    if (tid != INVALID_THREADID)
+        threadCores->operator[](tid) = coreID;
+    lk_unlock(lk_coreThreads);
+}
+
+static void UpdateSHMThreadCore(THREADID tid, int coreID)
+{
+    if (tid == INVALID_THREADID)
+        return;
+    lk_lock(lk_coreThreads, 1);
+    threadCores->operator[](tid) = coreID;
     lk_unlock(lk_coreThreads);
 }
 
@@ -58,8 +71,7 @@ VOID InitScheduler(INT32 num_cores)
 /* ========================================================================== */
 VOID ScheduleNewThread(THREADID tid)
 {
-    thread_state_t* tstate = get_tls(tid);
-    if (tstate->coreID != (UINT32)-1) {
+    if (GetSHMThreadCore(tid) != (UINT32)-1) {
         lk_lock(printing_lock, 1);
         cerr << "ScheduleNewThread: thread " << tid << " already scheduled, ignoring." << endl;
         lk_unlock(printing_lock);
@@ -75,9 +87,6 @@ VOID ScheduleNewThread(THREADID tid)
     run_queues[last_coreID].q.push(tid);
     lk_unlock(&run_queues[last_coreID].lk);
 
-    tstate->coreID = last_coreID;
-
-    
     last_coreID  = (last_coreID + 1) % KnobNumCores.Value();
 }
 
@@ -91,9 +100,6 @@ VOID HardcodeSchedule(THREADID tid, INT32 coreID)
     lk_unlock(&run_queues[coreID].lk);
 
     UpdateSHMRunqueues(coreID, tid);
-
-    thread_state_t* tstate = get_tls(tid);
-    tstate->coreID = coreID;
 }
 
 /* ========================================================================== */
@@ -109,20 +115,18 @@ VOID DescheduleActiveThread(INT32 coreID)
     lk_unlock(printing_lock);
 
     /* Deallocate thread state */
-    thread_state_t* tstate = get_tls(tid);
+/*    thread_state_t* tstate = get_tls(tid);
     delete tstate;
     PIN_DeleteThreadDataKey(tid);
     lk_lock(&thread_list_lock, 1);
     thread_list.remove(tid);
     lk_unlock(&thread_list_lock);
-
+*/
     run_queues[coreID].q.pop();
 
     THREADID new_tid = INVALID_THREADID;
     if (!run_queues[coreID].q.empty()) {
         new_tid = run_queues[coreID].q.front();
-        thread_state_t *new_tstate = get_tls(new_tid);
-        new_tstate->coreID = coreID;
 
         lk_lock(printing_lock, tid+1);
         cerr << "Thread " << new_tid << " going on core " << coreID << endl;
@@ -148,16 +152,11 @@ VOID GiveUpCore(INT32 coreID, BOOL reschedule_thread)
     cerr << "Thread " << tid << " giving up on core " << coreID << endl;
     lk_unlock(printing_lock);
 
-    thread_state_t *tstate = get_tls(tid);
-    tstate->coreID = -1;
-
     run_queues[coreID].q.pop();
 
     THREADID new_tid = INVALID_THREADID;
     if (!run_queues[coreID].q.empty()) {
         new_tid = run_queues[coreID].q.front();
-        thread_state_t *new_tstate = get_tls(new_tid);
-        new_tstate->coreID = coreID;
 
         lk_lock(printing_lock, tid+1);
         cerr << "Thread " << new_tid << " going on core " << coreID << endl;
@@ -172,9 +171,6 @@ VOID GiveUpCore(INT32 coreID, BOOL reschedule_thread)
         new_tid = tid;
         run_queues[coreID].q.push(tid);
 
-        thread_state_t* tstate = get_tls(tid);
-        tstate->coreID = coreID;
-
         lk_lock(printing_lock, tid+1);
         cerr << "Rescheduling " << tid << " on core " << coreID << endl;
         lk_unlock(printing_lock);
@@ -182,6 +178,9 @@ VOID GiveUpCore(INT32 coreID, BOOL reschedule_thread)
     lk_unlock(&run_queues[coreID].lk);
 
     UpdateSHMRunqueues(coreID, new_tid);
+
+    if (new_tid != tid)
+        UpdateSHMThreadCore(tid, -1);
 }
 
 /* ========================================================================== */

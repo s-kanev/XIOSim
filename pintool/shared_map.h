@@ -76,7 +76,7 @@ class SharedMemoryMap : public SharedMemoryMapCommon<K, V> {
     ~SharedMemoryMap() {}
 
   private:
-    typedef allocator<void, managed_shared_memory::segment_manager>
+    typedef boost::interprocess::allocator<void, managed_shared_memory::segment_manager>
         void_allocator;
 
     V& access_operator(const K& key) {

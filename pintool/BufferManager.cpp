@@ -1,3 +1,4 @@
+#include <boost/interprocess/containers/deque.hpp>
 #include <boost/interprocess/managed_shared_memory.hpp>
 #include <boost/interprocess/shared_memory_object.hpp>
 #include <boost/interprocess/containers/vector.hpp>
@@ -23,10 +24,11 @@
 #include <map>
 #include <queue>
 
-#include "feeder.h"
+#include "multiprocess_shared.h"
 #include "../buffer.h"
 #include "BufferManager.h"
-#include "multiprocess_shared.h"
+
+#include "feeder.h"
 
 BufferManager::BufferManager()
 {

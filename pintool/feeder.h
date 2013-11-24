@@ -18,14 +18,12 @@ using namespace INSTLIB;
 class handshake_container_t;
 class BufferManager;
 
-extern BufferManager *handshake_buffer;
 extern KNOB<BOOL> KnobILDJIT;
 extern KNOB<string> KnobFluffy;
 extern list<THREADID> thread_list;
 extern XIOSIM_LOCK thread_list_lock;
 
 extern INT32 host_cpus;
-extern bool sleeping_enabled;
 extern map<THREADID, tick_t> lastConsumerApply;
 
 #define ATOMIC_ITERATE(_list, _it, _lock) \
@@ -55,7 +53,6 @@ class thread_state_t
         last_syscall_number = last_syscall_arg1 = 0;
         last_syscall_arg2 = last_syscall_arg3 = 0;
         bos = -1;
-        coreID = -1;
         firstIteration = false;
         lastSignalAddr = 0xdecafbad;
 
@@ -99,9 +96,6 @@ class thread_state_t
 
     // Return PC for routines that we ignore (e.g. ILDJIT callbacks)
     ADDRINT retPC;
-
-    // Which simulated core this thread runs on
-    ADDRINT coreID;
 
     // How many instructions have been produced
     UINT64 num_inst;
@@ -171,11 +165,6 @@ VOID Fini(INT32 exitCode, VOID *v);
 
 VOID amd_hack();
 VOID doLateILDJITInstrumentation();
-
-VOID disable_consumers();
-VOID enable_consumers();
-VOID disable_producers();
-VOID enable_producers();
 
 VOID printTrace(string stype, ADDRINT pc, THREADID tid);
 

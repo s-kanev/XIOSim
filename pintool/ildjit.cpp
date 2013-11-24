@@ -17,17 +17,18 @@
 #include <queue>
 #include <stack>
 #include <signal.h>
-#include "feeder.h"
-#include "ildjit.h"
-#include "fluffy.h"
-#include "utils.h"
-#include "scheduler.h"
 
+#include "shared_unordered_map.h"
+#include "multiprocess_shared.h"
 #include "../buffer.h"
 #include "BufferManager.h"
 #include "ignore_ins.h"
 
-#include "multiprocess_shared.h"
+#include "feeder.h"
+#include "scheduler.h"
+#include "ildjit.h"
+#include "fluffy.h"
+#include "utils.h"
 
 #include "../zesto-core.h"
 
@@ -1129,7 +1130,7 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
         ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
             done &= handshake_buffer->empty((*it));
         }
-        if (!done && sleeping_enabled && (host_cpus <= KnobNumCores.Value()))
+        if (!done && *sleeping_enabled && (host_cpus <= KnobNumCores.Value()))
             PIN_Sleep(10);
     } while (!done);
 
@@ -1141,17 +1142,17 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
 #if 0
     tick_t most_cycles = 0;
     ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
-      thread_state_t* tstate = get_tls(*it);
-      if(cores[tstate->coreID]->sim_cycle > most_cycles) {
-        most_cycles = cores[tstate->coreID]->sim_cycle;
+      int coreID = GetSHMThreadCore(*tid);
+      if(cores[coreID]->sim_cycle > most_cycles) {
+        most_cycles = cores[coreID]->sim_cycle;
       }
     }
 
     ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
-      thread_state_t* tstate = get_tls(*it);
+      int coreID = GetSHMThreadCore(*tid);
       assert(tstate != NULL);
-      cores[tstate->coreID]->sim_cycle = most_cycles;
-      cerr << tstate->coreID << ":OverlapCycles:" << most_cycles - lastConsumerApply[*it] << endl;
+      cores[coreID]->sim_cycle = most_cycles;
+      cerr << coreID << ":OverlapCycles:" << most_cycles - lastConsumerApply[*it] << endl;
     }
 #endif
 

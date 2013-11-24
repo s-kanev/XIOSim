@@ -4,6 +4,7 @@
  */
 
 // Sam: These includes are needed to pass compilation. I'm not sure why.
+#include <boost/interprocess/containers/deque.hpp>
 #include <boost/interprocess/containers/string.hpp>
 #include <boost/interprocess/containers/map.hpp>
 #include <boost/interprocess/allocators/allocator.hpp>
@@ -13,11 +14,14 @@
 #include <map>
 #include <queue>
 
+#include "shared_unordered_map.h"
+#include "multiprocess_shared.h"
+#include "../buffer.h"
+#include "BufferManager.h"
+
 #include "feeder.h"
 #include "scheduler.h"
 #include "sync_pthreads.h"
-#include "../buffer.h"
-#include "BufferManager.h"
 
 KNOB<BOOL> KnobPthreads(KNOB_MODE_WRITEONCE,      "pintool",
         "pthreads", "false", "Special-case pthreads synchronization");
