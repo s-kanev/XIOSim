@@ -166,7 +166,9 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
 
             // Let caller thread be simulated again
             if (!KnobILDJIT.Value()) {
-              ScheduleNewThread(tid);
+                ipc_message_t msg;
+                msg.ScheduleNewThread(tid);
+                SendIPCMessage(msg);
             }
 
             if(control.PinPointsActive())
@@ -822,7 +824,11 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
 #endif
 
         if (ExecMode == EXECUTION_MODE_SIMULATE)
-            ScheduleNewThread(threadIndex);
+        {
+                ipc_message_t msg;
+                msg.ScheduleNewThread(threadIndex);
+                SendIPCMessage(msg);
+        }
 
         if (!KnobILDJIT.Value())
         {
@@ -853,8 +859,8 @@ VOID PauseSimulation(THREADID tid)
     volatile bool cores_done = false;
     do {
         cores_done = true;
-        for (INT32 coreID=0; coreID < num_cores; coreID++) {
-            cores_done &= !IsCoreBusy(coreID);
+        for (INT32 coreID=0; coreID < KnobNumCores.Value(); coreID++) {
+            cores_done &= !GetSHMCoreBusy(coreID);
         }
     } while (!cores_done);
 }
@@ -862,9 +868,9 @@ VOID PauseSimulation(THREADID tid)
 /* ========================================================================== */
 VOID ThreadFini(THREADID tid, const CONTEXT *ctxt, INT32 code, VOID *v)
 {
-    lk_lock(&printing_lock, tid+1);
+    lk_lock(printing_lock, tid+1);
     cerr << "Thread exit. ID: " << tid << endl;
-    lk_unlock(&printing_lock);
+    lk_unlock(printing_lock);
 
     thread_state_t* tstate = get_tls(tid);
 
@@ -959,7 +965,7 @@ INT32 main(INT32 argc, CHAR **argv)
     InitSyscallHandling();
 
     host_cpus = get_nprocs_conf();
-    if((host_cpus < num_cores * 2) || KnobILDJIT.Value()) {
+    if((host_cpus < KnobNumCores.Value() * 2) || KnobILDJIT.Value()) {
       sleeping_enabled = true;
       enable_producers();
       disable_consumers();
@@ -1108,10 +1114,10 @@ VOID printTrace(string stype, ADDRINT pc, THREADID tid)
     return;
   }
 
-  lk_lock(&printing_lock, tid+1);
+  lk_lock(printing_lock, tid+1);
   thread_state_t* tstate = get_tls(tid);
   uint32_t coreID = tstate->coreID;
   pc_file << coreID << " " << stype << " " << pc << " " << pc_diss[pc] << endl;
   pc_file.flush();
-  lk_unlock(&printing_lock);
+  lk_unlock(printing_lock);
 }

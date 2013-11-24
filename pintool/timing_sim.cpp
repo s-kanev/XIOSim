@@ -26,6 +26,8 @@ static THREADID *sim_threadid;
 
 const char sim_name[] = "XIOSim";
 
+extern int num_cores;
+
 // Used to access thread-local storage
 static TLS_KEY tls_key;
 
@@ -287,6 +289,8 @@ int main(int argc, char * argv[])
     // Prepare args for libsim
     SSARGS ssargs = MakeSimpleScalarArgcArgv(argc, argv);
 
+    ASSERTX( num_cores == KnobNumCores.Value() );
+
     InitScheduler(num_cores);
     SpawnSimulatorThreads(num_cores);
 
@@ -339,6 +343,18 @@ void CheckIPCMessageQueue()
                 break;
             case STOP_SIMULATION:
                 StopSimulation(ipcMessage.arg1);
+                break;
+            case ACTIVATE_CORE: 
+                activate_core(ipcMessage.coreID);
+                break;
+            case DEACTIVATE_CORE: 
+                deactivate_core(ipcMessage.coreID);
+                break;
+            case SCHEDULE_NEW_THREAD:
+                ScheduleNewThread(ipcMessage.arg1);
+                break;
+            case HARDCODE_SCHEDULE:
+                HardcodeSchedule(ipcMessage.arg1, ipcMessage.arg2);
                 break;
         }
     }

@@ -277,7 +277,6 @@ sim_post_init(void)
   lk_init(&cycle_lock);
   lk_init(&memory_lock);
   lk_init(&cache_lock);
-  lk_init(&printing_lock);
 
   /* initialize architected state(s) */
   threads = (struct thread_t **)calloc(num_cores,sizeof(*threads));
@@ -371,7 +370,7 @@ static void global_step(void)
       /* Heartbeat -> print that the simulator is still alive */
       if((heartbeat_frequency > 0) && (heartbeat_count >= heartbeat_frequency))
       {
-        lk_lock(&printing_lock, 1);
+        lk_lock(printing_lock, 1);
         fprintf(stderr,"##HEARTBEAT## %lld: {",uncore->sim_cycle);
         long long int sum = 0;
         for(int i=0;i<num_cores;i++)
@@ -383,7 +382,7 @@ static void global_step(void)
             fprintf(stderr,"%lld, all=%lld}\n",cores[i]->stat.commit_insn, sum);
         }
         fflush(stderr);
-        lk_unlock(&printing_lock);
+        lk_unlock(printing_lock);
         heartbeat_count = 0;
       }
 

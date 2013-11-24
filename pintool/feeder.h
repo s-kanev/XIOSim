@@ -50,7 +50,7 @@ class thread_state_t
 
   public:
     thread_state_t(THREADID instrument_tid) {
-        memzero(&fpstate_buf, sizeof(FPSTATE));
+        memset(&fpstate_buf, 0, sizeof(FPSTATE));
 
         last_syscall_number = last_syscall_arg1 = 0;
         last_syscall_arg2 = last_syscall_arg3 = 0;

@@ -139,6 +139,6 @@ extern XIOSIM_LOCK core_pools_lock;
 extern XIOSIM_LOCK oracle_pools_lock;
 
 /* Make sure printing to the console is deadlock-free */
-extern XIOSIM_LOCK printing_lock;
+extern XIOSIM_LOCK *printing_lock;
 
 #endif // __SYNCHRONIZATION_H__

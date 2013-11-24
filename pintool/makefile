@@ -72,11 +72,13 @@ BOOST_LDFLAGS = -lrt -lpthread
 ##############################################################
 
 
-TOOL_ROOTS = feeder_zesto timing_sim
+TOOL_ROOTS = timing_sim
 
 TOOL_OBJS = $(OBJDIR)BufferManager.o $(OBJDIR)ildjit.o $(OBJDIR)fluffy.o $(OBJDIR)lib.o $(OBJDIR)utils.o $(OBJDIR)sync_pthreads.o $(OBJDIR)scheduler.o $(OBJDIR)parsec.o $(OBJDIR)syscall_handling.o $(OBJDIR)ignore_ins.o $(OBJDIR)mpkeys_impl.o $(OBJDIR)multiprocess_shared.o
 
 HARNESS_OBJS = $(OBJDIR)harness.o $(OBJDIR)mpkeys_impl.o
+
+FEEDER_OBJS = $(ZESTO_HOME)/buffer.o $(OBJDIR)BufferManager.o $(OBJDIR)ildjit.o $(OBJDIR)fluffy.o $(OBJDIR)utils.o $(OBJDIR)sync_pthreads.o $(OBJDIR)parsec.o $(OBJDIR)syscall_handling.o $(OBJDIR)ignore_ins.o $(OBJDIR)mpkeys_impl.o $(OBJDIR)multiprocess_shared.o
 
 TOOLS = $(TOOL_ROOTS:%=$(OBJDIR)%$(PINTOOL_SUFFIX))
 
@@ -90,7 +92,7 @@ SHM_LDFLAGS = -ldl
 ##############################################################
 all : CXXFLAGS += -DDEBUG -D_FILE_OFFSET_BITS=64 -std=c++11
 all : CXXFLAGS += -I$(BOOST_INCLUDE) $(BOOST_LDFLAGS) $(SHM_LDFLAGS)
-all: tools harness
+all: tools harness $(OBJDIR)feeder_zesto.so
 debug:	CXXFLAGS += -DZESTO_PIN_DBG -D_FILE_OFFSET_BITS=64 -std=c++11
 debug : CXXFLAGS += -I$(BOOST_INCLUDE)
 debug:	tools
@@ -129,6 +131,9 @@ $(TOOLS): $(PIN_LIBNAMES) $(TOOL_OBJS) $(SIM_LIB) $(MCPAT_LIB) $(DRAMSIM_LIB) $(
 
 $(TOOLS): %$(PINTOOL_SUFFIX) : %.o
 	${PIN_LD} -g $(PIN_LDFLAGS) -I$(ZESTO_HOME) -L$(ZESTO_HOME) -I$(BOOST_INCLUDE) $(LINK_DEBUG) ${LINK_OUT} $@ $< ${PIN_LPATHS} $(TOOL_OBJS) $(SIM_LIB) $(MCPAT_LIB) $(DRAMSIM_LIB) $(REPEATER_LIB) $(PIN_LIBS) $(DBG) -lrt -pthread 
+
+$(OBJDIR)feeder_zesto.so: $(FEEDER_OBJS) $(OBJDIR)feeder_zesto.o
+	${PIN_LD} -g $(PIN_LDFLAGS) -I$(ZESTO_HOME) -I$(BOOST_INCLUDE) $(LINK_DEBUG) ${LINK_OUT} $@ ${PIN_LPATHS} $^ $(PIN_LIBS) $(DBG) -lrt -pthread 
 
 harness: $(HARNESS_OBJS)
 	${PIN_LD} -g -I$(BOOST_INCLUDE) ${SHM_LDFLAGS} $(LINK_DEBUG) ${LINK_OUT} $@ $^ -pthread -lrt 

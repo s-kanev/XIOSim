@@ -30,11 +30,10 @@ void activate_core(int coreID);
 void deactivate_core(int coreID);
 bool is_core_active(int coreID);
 void sim_drain_pipe(int coreID);
-extern int num_cores;
 
 void CheckIPCMessageQueue();
 
-enum ipc_message_id_t { SLICE_START, SLICE_END, MMAP, MUNMAP, UPDATE_BRK, UPDATE_BOS, WARM_LLC, STOP_SIMULATION, INVALID_MSG };
+enum ipc_message_id_t { SLICE_START, SLICE_END, MMAP, MUNMAP, UPDATE_BRK, UPDATE_BOS, WARM_LLC, STOP_SIMULATION, ACTIVATE_CORE, DEACTIVATE_CORE, SCHEDULE_NEW_THREAD, HARDCODE_SCHEDULE, INVALID_MSG };
 
 struct ipc_message_t {
     ipc_message_id_t id;
@@ -98,6 +97,31 @@ struct ipc_message_t {
     {
         this->id = STOP_SIMULATION;
         this->arg1 = kill_sim_threads;
+    }
+
+    void ActivateCore(int coreID)
+    {
+        this->id = ACTIVATE_CORE;
+        this->coreID = coreID;
+    }
+
+    void DeactivateCore(int coreID)
+    {
+        this->id = DEACTIVATE_CORE;
+        this->coreID = coreID;
+    }
+
+    void ScheduleNewThread(int tid)
+    {
+        this->id = SCHEDULE_NEW_THREAD;
+        this->arg1 = tid;
+    }
+
+    void HardcodeSchedule(int tid, int coreID)
+    {
+        this->id = HARDCODE_SCHEDULE;
+        this->arg1 = tid;
+        this->arg2 = coreID;
     }
 };
 

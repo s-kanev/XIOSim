@@ -16,5 +16,4 @@ XIOSIM_LOCK cycle_lock;
 XIOSIM_LOCK core_pools_lock;
 XIOSIM_LOCK oracle_pools_lock;
 
-XIOSIM_LOCK printing_lock;
 XIOSIM_LOCK repeater_lock;

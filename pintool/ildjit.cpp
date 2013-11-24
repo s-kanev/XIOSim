@@ -27,6 +27,8 @@
 #include "BufferManager.h"
 #include "ignore_ins.h"
 
+#include "multiprocess_shared.h"
+
 #include "../zesto-core.h"
 
 // True if ILDJIT has finished compilation and is executing user code
@@ -451,10 +453,10 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
 VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID, ADDRINT pc, ADDRINT retPC)
 {
 #ifdef PRINT_WAITS
-    lk_lock(&printing_lock, tid+1);
+    lk_lock(printing_lock, tid+1);
     if (ExecMode == EXECUTION_MODE_SIMULATE)
         cerr << tid <<" :Before Wait "<< hex << pc << dec  << " ID: " << dec << ssID << endl;
-    lk_unlock(&printing_lock);
+    lk_unlock(printing_lock);
 #endif
 
     thread_state_t* tstate = get_tls(tid);
@@ -462,7 +464,7 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID, ADDRINT pc, ADDRINT retPC)
     tstate->ignore = true;
     lk_unlock(&tstate->lock);
 
-    if(num_cores == 1) {
+    if(KnobNumCores.Value() == 1) {
         return;
     }
 
@@ -486,10 +488,10 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
     tstate->ignore = false;
 
 #ifdef PRINT_WAITS
-    lk_lock(&printing_lock, tid+1);
+    lk_lock(printing_lock, tid+1);
     if (ExecMode == EXECUTION_MODE_SIMULATE)
       cerr << tid <<": After Wait "<< hex << pc << dec  << " ID: " << tstate->lastWaitID << ":" << ssID << endl;
-    lk_unlock(&printing_lock);
+    lk_unlock(printing_lock);
 #endif
 
     // Indicates not in a wait any more
@@ -506,7 +508,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
     lk_unlock(&tstate->lock);
 
     /* Don't insert waits in single-core mode */
-    if (num_cores == 1)
+    if (KnobNumCores.Value() == 1)
         goto cleanup;
 
     tstate->loop_state->unmatchedWaits++;
@@ -542,7 +544,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
     handshake->handshake.sleep_thread = false;
     handshake->handshake.resume_thread = false;
     handshake->handshake.real = false;
-    handshake->handshake.in_critical_section = (num_cores > 1);
+    handshake->handshake.in_critical_section = (KnobNumCores.Value() > 1);
     handshake->flags.valid = true;
 
     handshake->handshake.pc = (ADDRINT)wait_template_1;
@@ -561,7 +563,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
 
     handshake_2 = handshake_buffer->get_buffer(tid);
     handshake_2->handshake.real = false;
-    handshake_2->handshake.in_critical_section = (num_cores > 1);
+    handshake_2->handshake.in_critical_section = (KnobNumCores.Value() > 1);
     handshake_2->flags.valid = true;
 
     handshake_2->handshake.pc = (ADDRINT)wait_template_2;
@@ -589,10 +591,10 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID, ADDRINT pc, ADDRINT retPC)
     tstate->ignore = true;
     lk_unlock(&tstate->lock);
 #ifdef PRINT_WAITS
-    lk_lock(&printing_lock, tid+1);
+    lk_lock(printing_lock, tid+1);
     if (ExecMode == EXECUTION_MODE_SIMULATE)
         cerr << tid <<": Before Signal " << hex << pc << " ID: " << ssID << dec << endl;
-    lk_unlock(&printing_lock);
+    lk_unlock(printing_lock);
 #endif
 
 //    ASSERTX(tstate->lastSignalAddr == 0xdecafbad);
@@ -624,15 +626,15 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
     lk_unlock(&tstate->lock);
 
 #ifdef PRINT_WAITS
-    lk_lock(&printing_lock, tid+1);
+    lk_lock(printing_lock, tid+1);
     if (ExecMode == EXECUTION_MODE_SIMULATE)
         cerr << tid <<": After Signal " << hex << pc << dec << endl;
-    lk_unlock(&printing_lock);
+    lk_unlock(printing_lock);
 #endif
 
 
     /* Don't insert signals in single-core mode */
-    if (num_cores == 1)
+    if (KnobNumCores.Value() == 1)
         goto cleanup;
 
     tstate->loop_state->unmatchedWaits--;
@@ -649,7 +651,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
     handshake->handshake.sleep_thread = false;
     handshake->handshake.resume_thread = false;
     handshake->handshake.real = false;
-    handshake->handshake.in_critical_section = (num_cores > 1) && (tstate->loop_state->unmatchedWaits > 0);
+    handshake->handshake.in_critical_section = (KnobNumCores.Value() > 1) && (tstate->loop_state->unmatchedWaits > 0);
     handshake->flags.valid = true;
 
     handshake->handshake.pc = (ADDRINT)signal_template;
@@ -673,8 +675,10 @@ cleanup:
 /* ========================================================================== */
 VOID ILDJIT_setAffinity(THREADID tid, INT32 coreID)
 {
-    ASSERTX(coreID >= 0 && coreID < num_cores);
-    HardcodeSchedule(tid, coreID);
+    ASSERTX(coreID >= 0 && coreID < KnobNumCores.Value());
+    ipc_message_t msg;
+    msg.HardcodeSchedule(tid, coreID);
+    SendIPCMessage(msg);
 }
 
 /* ========================================================================== */
@@ -978,7 +982,7 @@ UINT32 getSignalAddress(ADDRINT ssID)
 {
   UINT32 firstCore = 0;
   if(first_invocation) {
-    firstCore = start_loop_iteration % num_cores;
+    firstCore = start_loop_iteration % (KnobNumCores.Value());
   }
   assert(firstCore < 64);
   assert(ssID < 1024);
@@ -1125,7 +1129,7 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
         ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
             done &= handshake_buffer->empty((*it));
         }
-        if (!done && sleeping_enabled && (host_cpus <= num_cores))
+        if (!done && sleeping_enabled && (host_cpus <= KnobNumCores.Value()))
             PIN_Sleep(10);
     } while (!done);
 
@@ -1134,6 +1138,7 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
     cerr.flush();
 #endif
 
+#if 0
     tick_t most_cycles = 0;
     ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
       thread_state_t* tstate = get_tls(*it);
@@ -1146,10 +1151,9 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
       thread_state_t* tstate = get_tls(*it);
       assert(tstate != NULL);
       cores[tstate->coreID]->sim_cycle = most_cycles;
-#if 0
       cerr << tstate->coreID << ":OverlapCycles:" << most_cycles - lastConsumerApply[*it] << endl;
-#endif
     }
+#endif
 
     disable_consumers();
     enable_producers();
@@ -1171,18 +1175,20 @@ VOID ILDJIT_ResumeSimulation(THREADID tid)
 {
 
     /* All cores were sleeping in between loops, wake them up now. */
-    for (INT32 coreID = 0; coreID < num_cores; coreID++) {
+    for (INT32 coreID = 0; coreID < KnobNumCores.Value(); coreID++) {
         /* Wake up cores right away without going through the handshake
          * buffer (which should be empty anyway).
          * If we do go through it, there are no guarantees for when the
          * resume is consumed, which can lead to nasty races of who gets
          * to resume first. */
-        THREADID curr_tid = GetCoreThread(coreID);
+        THREADID curr_tid = GetSHMRunqueue(coreID);
         if (curr_tid == INVALID_THREADID)
             continue;
 
         ASSERTX(handshake_buffer->empty(curr_tid));
-        activate_core(coreID);
+        ipc_message_t msg;
+        msg.ActivateCore(coreID);
+        SendIPCMessage(msg);
         thread_state_t* tstate = get_tls(curr_tid);
         lk_lock(&tstate->lock, tid+1);
         tstate->ignore_all = false;
@@ -1200,8 +1206,11 @@ VOID shutdownSimulation(THREADID tid)
     cerr << "Simulation runtime:";
     printElapsedTime();
     cerr << "Stopping simulation, TID: " << tid << endl;
-    Zesto_Slice_End(0, 1, 0, 100*1000);
-    StopSimulation(true);
+    ipc_message_t msg;
+    msg.SliceEnd(0, 1, 0, 100*1000);
+    SendIPCMessage(msg);
+    msg.StopSimulation(true);
+    SendIPCMessage(msg);
     cerr << "[KEVIN] Stopped simulation! " << tid << endl;
     PIN_ExitProcess(EXIT_SUCCESS);
 }

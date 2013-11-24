@@ -58,7 +58,7 @@ void start_slice(unsigned int slice_num)
 void end_slice(unsigned int slice_num, unsigned long long feeder_slice_length, unsigned long long slice_weight_times_1000)
 {
    int i = 0;
-   lk_lock(&printing_lock, 1);
+   lk_lock(printing_lock, 1);
    core_knobs_t *knobs = cores[i]->knobs;
    struct stat_sdb_t* curr_sdb = all_stats.back();
    slice_uncore_end_cycle = uncore->sim_cycle;
@@ -113,7 +113,7 @@ void end_slice(unsigned int slice_num, unsigned long long feeder_slice_length, u
    double curr_ipc = 1.0 / curr_cpi;
 
    fprintf(stderr, "Slice %d, weight: %.4f, IPC/weight: %.2f, n_insn: %.0f, n_insn_pin: %.0f, n_cycles: %.0f\n", slice_num, weight, curr_ipc, n_insn, n_pin_n_insn, n_cycles);
-   lk_unlock(&printing_lock);
+   lk_unlock(printing_lock);
 }
 
 void scale_all_slices(void)

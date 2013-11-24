@@ -26,17 +26,10 @@
 #include "feeder.h"
 #include "../buffer.h"
 #include "BufferManager.h"
-
-
-extern int num_cores;
-extern bool consumers_sleep;
-extern PIN_SEMAPHORE consumer_sleep_lock;
+#include "multiprocess_shared.h"
 
 BufferManager::BufferManager()
 {
-  using namespace boost::interprocess;
-  using namespace xiosim::shared;
-
   int pid = getpgrp();
   ostringstream iss;
   iss << pid;
@@ -83,8 +76,9 @@ handshake_container_t* BufferManager::front(THREADID tid, bool isLocal)
 
   while (fileEntryCount_[tid] == 0 && produceBuffer_[tid]->size() == 0) {
     lk_unlock(locks_[tid]);
-    while(consumers_sleep) {
-      PIN_SemaphoreWait(&consumer_sleep_lock);
+    while(*consumers_sleep) {
+      PIN_SemaphoreWait(consumer_sleep_lock);
+      //PIN_Sleep(250);
     }
     PIN_Yield();
     lk_lock(locks_[tid], tid+1);
@@ -104,8 +98,8 @@ handshake_container_t* BufferManager::front(THREADID tid, bool isLocal)
   while(consumeBuffer_[tid]->empty()) {
     lk_unlock(locks_[tid]);
     PIN_Yield();
-    while(consumers_sleep) {
-      PIN_SemaphoreWait(&consumer_sleep_lock);
+    while(*consumers_sleep) {
+      PIN_SemaphoreWait(consumer_sleep_lock);
     }
     lk_lock(locks_[tid], tid+1);
     spins++;
@@ -653,7 +647,7 @@ void BufferManager::allocateThread(THREADID tid)
     //  }
 
   int bufferEntries = 640000 / 2;
-  int bufferCapacity = bufferEntries / 2 / num_cores;
+  int bufferCapacity = bufferEntries / 2 / KnobNumCores.Value();
 
   if(!useRealFile_) {
     bufferCapacity /= 8;

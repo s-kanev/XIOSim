@@ -28,7 +28,7 @@ class handshake_container_t
     }
 
     void Clear() {
-        memzero(&handshake, sizeof(P2Z_HANDSHAKE));
+        memset(&handshake, 0, sizeof(P2Z_HANDSHAKE));
         handshake.real = true;
         flags.valid = false;
         flags.isFirstInsn = false;

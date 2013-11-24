@@ -115,20 +115,11 @@ VOID InstrumentInsIgnoring(TRACE trace, VOID* v)
             }
 #ifdef ZESTO_PIN_DBG
             if (repl.ins_to_ignore > 0) {
-                lk_lock(&printing_lock, 1);
+                lk_lock(printing_lock, 1);
                 cerr << "ERROR: Didn't find enough stack writes to ignore before: " << hex << INS_Address(ins) << dec << endl;
-                cerr << "Dumping BBL" << endl;
-                for (INS dbg = BBL_InsHead(bbl); INS_Valid(dbg); dbg = INS_Next(dbg)) {
-                    cerr << hex << INS_Address(dbg) << dec << " " << INS_Disassemble(dbg) << endl;
-                }
-                lk_unlock(&printing_lock);
+                lk_unlock(printing_lock);
             }
 #endif
-            if (repl.ins_to_ignore > 0) {
-                lk_lock(&printing_lock, 1);
-                cerr << "WARNING: Didn't find enough stack writes to ignore before: " << hex << INS_Address(ins) << dec << endl;
-                lk_unlock(&printing_lock);
-            }
         }
     }
 }
