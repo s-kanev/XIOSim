@@ -435,6 +435,10 @@ static void global_step(void)
       heartbeat_count++;
       deadlock_count++;
 
+      /* Check for messages coming from producer processes
+       * and execute accordingly */
+      CheckIPCMessageQueue();
+
       /*********************************************/
       /* step through pipe stages in reverse order */
       /*********************************************/

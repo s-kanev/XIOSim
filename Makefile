@@ -51,7 +51,7 @@ CFLAGS = $(FFLAGS) $(OFLAGS) $(BINUTILS_INC) $(BINUTILS_LIB) $(ZTRACE) $(MCPAT_I
 #
 SRCS =  \
 eval.c          machine.c       memory.c         misc.c         options.c   \
-stats.c         slave.c         sim-main.c       callbacks.c    slices.cpp  \
+stats.c         slave.cpp         sim-main.c       callbacks.c    slices.cpp  \
 buffer.cpp
 
 HDRS = \
@@ -156,7 +156,7 @@ zesto-dvfs.$(OEXT): zesto-dvfs.cpp zesto-dvfs.h ZCOMPS-dvfs
 	$(CXX) $(CFLAGS) -c $*.c
 
 .cpp.$(OEXT):
-	$(CXX) $(CFLAGS) -c $*.cpp
+	$(CC) $(CFLAGS) -I$(BOOST_HOME) -c $*.cpp
 
 clean:
 	-$(RM) *.o *.obj core libsim*

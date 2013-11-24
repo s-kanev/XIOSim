@@ -17,7 +17,7 @@ struct handshake_flags_t
   bool giveCoreUp;          /* Notify the scheduler to release thread */
   bool giveUpReschedule;    /* When ^ is true, should thread get re-scheduled */
   bool killThread;          /* Thread is exiting, deschedule it and clean up once consumed */
-  md_addr_t BOS;            /* Bottom of stack -> from producer to consumer on first instruction of a phase */
+  md_addr_t BOS;
 };
 
 class handshake_container_t
@@ -35,7 +35,6 @@ class handshake_container_t
         flags.isLastInsn = false;
         flags.giveCoreUp = false;
         flags.killThread = false;
-        flags.BOS = 0xdecafbad;
 
         mem_buffer.clear();
     }

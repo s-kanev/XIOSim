@@ -74,7 +74,7 @@ BOOST_LDFLAGS = -lrt -lpthread
 
 TOOL_ROOTS = feeder_zesto timing_sim
 
-TOOL_OBJS = $(OBJDIR)BufferManager.o $(OBJDIR)ildjit.o $(OBJDIR)fluffy.o $(OBJDIR)lib.o $(OBJDIR)utils.o $(OBJDIR)sync_pthreads.o $(OBJDIR)scheduler.o $(OBJDIR)parsec.o $(OBJDIR)syscall_handling.o $(OBJDIR)ignore_ins.o $(OBJDIR)mpkeys_impl.o
+TOOL_OBJS = $(OBJDIR)BufferManager.o $(OBJDIR)ildjit.o $(OBJDIR)fluffy.o $(OBJDIR)lib.o $(OBJDIR)utils.o $(OBJDIR)sync_pthreads.o $(OBJDIR)scheduler.o $(OBJDIR)parsec.o $(OBJDIR)syscall_handling.o $(OBJDIR)ignore_ins.o $(OBJDIR)mpkeys_impl.o $(OBJDIR)multiprocess_shared.o
 
 HARNESS_OBJS = $(OBJDIR)harness.o $(OBJDIR)mpkeys_impl.o
 

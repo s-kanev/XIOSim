@@ -29,10 +29,6 @@ const char sim_name[] = "XIOSim";
 // Used to access thread-local storage
 static TLS_KEY tls_key;
 
-//Shared state, send to header
-boost::interprocess::managed_shared_memory *global_shm;
-BufferManager *handshake_buffer;
-
 // Functions to access thread-specific data
 /* ========================================================================== */
 sim_thread_state_t* get_sim_tls(THREADID threadid)
@@ -132,7 +128,9 @@ VOID SimulatorLoop(VOID* arg)
             // First instruction, set bottom of stack, and flag we're not safe to kill
             if (handshake->flags.isFirstInsn)
             {
-                Zesto_SetBOS(coreID, handshake->flags.BOS);
+                ipc_message_t msg;
+                msg.UpdateBOS(coreID, handshake->flags.BOS);
+                SendIPCMessage(msg);
 //XXX: Re-enable afer sharing acive flag
 //                if (!control.PinPointsActive())
                     handshake->handshake.slice_num = 1;
@@ -295,4 +293,50 @@ int main(int argc, char * argv[])
     Zesto_SlaveInit(ssargs.first, ssargs.second);
 
     return 0;
+}
+
+void CheckIPCMessageQueue()
+{
+    /* Grab a message from IPC queue in shared memory */
+    while (true) {
+        ipc_message_t ipcMessage;
+        lk_lock(lk_ipcMessageQueue, 1);
+        if (ipcMessageQueue->empty()) {
+            lk_unlock(lk_ipcMessageQueue);
+            break;
+        }
+
+        ipcMessage = ipcMessageQueue->front();
+        ipcMessageQueue->pop_front();
+        lk_unlock(lk_ipcMessageQueue);
+
+        /* And execute the appropriate call based on the protocol
+         * defined in interface.h */
+        switch(ipcMessage.id) {
+            /* Sim control related */
+            case SLICE_START:
+                Zesto_Slice_Start(ipcMessage.arg1);
+                break;
+            case SLICE_END:
+                Zesto_Slice_End(ipcMessage.coreID, ipcMessage.arg1, ipcMessage.arg2, ipcMessage.arg3);
+                break;
+            /* Shadow page table related */
+            case MMAP:
+                Zesto_Notify_Mmap(ipcMessage.coreID, ipcMessage.arg1, ipcMessage.arg2, ipcMessage.arg3);
+                break;
+            case MUNMAP:
+                Zesto_Notify_Munmap(ipcMessage.coreID, ipcMessage.arg1, ipcMessage.arg2, ipcMessage.arg3);
+                break;
+            case UPDATE_BRK:
+                Zesto_UpdateBrk(ipcMessage.coreID, ipcMessage.arg1, ipcMessage.arg2);
+                break;
+            case UPDATE_BOS:
+                Zesto_SetBOS(ipcMessage.coreID, ipcMessage.arg1);
+                break;
+            /* Warm caches */
+            case WARM_LLC:
+                Zesto_WarmLLC(ipcMessage.arg1, ipcMessage.arg2);
+                break;
+        }
+    }
 }

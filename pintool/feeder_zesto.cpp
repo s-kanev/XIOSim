@@ -19,7 +19,6 @@
 #include <boost/interprocess/managed_shared_memory.hpp>
 #include <boost/interprocess/managed_mapped_file.hpp>
 #include <boost/interprocess/shared_memory_object.hpp>
-#include <boost/interprocess/sync/named_mutex.hpp>
 #include <boost/interprocess/interprocess_fwd.hpp>
 #include "mpkeys.h"
 
@@ -70,8 +69,6 @@ KNOB<string> KnobFluffy(KNOB_MODE_WRITEONCE,      "pintool",
         "fluffy_annotations", "", "Annotation file that specifies fluffy ROI");
 KNOB<BOOL> KnobWarmLLC(KNOB_MODE_WRITEONCE,      "pintool",
         "warm_llc", "false", "Warm LLC while fast-forwarding");
-KNOB<int> KnobNumProcesses(KNOB_MODE_WRITEONCE,      "pintool",
-        "num_processes", "1", "Number of processes for a multiprogrammed workload");
 
 map<ADDRINT, string> pc_diss;
 BOOL sleeping_enabled;
@@ -87,9 +84,6 @@ XIOSIM_LOCK thread_list_lock;
 list<THREADID> thread_list;
 
 INT32 host_cpus;
-
-boost::interprocess::managed_shared_memory *global_shm;
-BufferManager *handshake_buffer;
 
 /* ========================================================================== */
 /* Pinpoint related */
@@ -130,8 +124,9 @@ VOID ImageUnload(IMG img, VOID *v)
     cerr << "Image unload, addr: " << hex << start
          << " len: " << length << " end_addr: " << start + length << endl;
 #endif
-
-    ASSERTX( Zesto_Notify_Munmap(0/*coreID*/, start, length, true));
+    ipc_message_t msg;
+    msg.Munmap(0/*coreID*/, start, length, true);
+    SendIPCMessage(msg);
 }
 
 /* ========================================================================== */
@@ -149,7 +144,10 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
             UINT32 slice_num = 1;
             if(control.PinPointsActive())
                 slice_num = control.CurrentPp(tid);
-            Zesto_Slice_Start(slice_num);
+
+            ipc_message_t msg;
+            msg.SliceStart(slice_num);
+            SendIPCMessage(msg);
 
             ExecMode = EXECUTION_MODE_SIMULATE;
             CODECACHE_FlushCache();
@@ -213,14 +211,16 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
              * are spinning in SimulatorLoop. So we can safely call Slice_End
              * without racing any of them. */
 
+            ipc_message_t msg;
             if(control.PinPointsActive())
             {
                 cerr << "PinPoint: " << control.CurrentPp(tid) << endl;
-                Zesto_Slice_End(0, control.CurrentPp(tid), control.CurrentPpLength(tid), control.CurrentPpWeightTimesThousand(tid));
+                msg.SliceEnd(0, control.CurrentPp(tid), control.CurrentPpLength(tid), control.CurrentPpWeightTimesThousand(tid));
             }
             else {
-                Zesto_Slice_End(0, slice_num, slice_length, slice_weight_times_1000);
+                msg.SliceEnd(0, slice_num, slice_length, slice_weight_times_1000);
             }
+            SendIPCMessage(msg);
 
             ExecMode = EXECUTION_MODE_FASTFORWARD;
             CODECACHE_FlushCache();
@@ -254,7 +254,9 @@ VOID ImageLoad(IMG img, VOID *v)
     if (KnobParsec.Value())
         AddParsecCallbacks(img);
 
-    ASSERTX( Zesto_Notify_Mmap(0/*coreID*/, start, length, false) );
+    ipc_message_t msg;
+    msg.Mmap(0/*coreID*/, start, length, false);
+    SendIPCMessage(msg);
 }
 
 /* ========================================================================== */
@@ -470,8 +472,8 @@ VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, A
     tstate->num_inst++;
 
     if (first_insn) {
-        handshake->flags.isFirstInsn = true;
         handshake->flags.BOS = tstate->bos;
+        handshake->flags.isFirstInsn = true;
         lk_lock(&tstate->lock, tid+1);
         tstate->firstInstruction = false;
         lk_unlock(&tstate->lock);
@@ -608,12 +610,16 @@ ADDRINT returnArg(BOOL arg)
 
 VOID WarmCacheRead(VOID * addr)
 {
+#if 0
     Zesto_WarmLLC((ADDRINT)addr, false);
+#endif
 }
 
 VOID WarmCacheWrite(VOID * addr)
 {
+#if 0
     Zesto_WarmLLC((ADDRINT)addr, true);
+#endif
 }
 
 /* ========================================================================== */
@@ -770,7 +776,9 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
                 cerr << "AT_SYSINFO: " << hex << auxv->a_un.a_val << endl;
 #endif
                 ADDRINT vsyscall_page = (ADDRINT)(auxv->a_un.a_val & 0xfffff000);
-                ASSERTX( Zesto_Notify_Mmap(0/*coreID*/, vsyscall_page, MD_PAGE_SIZE, false) );
+                ipc_message_t msg;
+                msg.Mmap(0/*coreID*/, vsyscall_page, MD_PAGE_SIZE, false);
+                SendIPCMessage(msg);
             }
         }
 
@@ -784,7 +792,9 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
         // execution starts on another thread.
         ADDRINT tos_start = ROUND_DOWN(tos, MD_PAGE_SIZE);
         ADDRINT bos_end = ROUND_UP(bos, MD_PAGE_SIZE);
-        ASSERTX( Zesto_Notify_Mmap(0/*coreID*/, tos_start, bos_end-tos_start, false));
+        ipc_message_t msg;
+        msg.Mmap(0/*coreID*/, tos_start, bos_end-tos_start, false);
+        SendIPCMessage(msg);
 
     }
     else {

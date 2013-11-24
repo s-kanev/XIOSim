@@ -6,6 +6,7 @@
 #include "rdtsc.h"
 #endif
 
+#include "multiprocess_shared.h"
 #include "feeder.h"
 #include "syscall_handling.h"
 
@@ -173,6 +174,7 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
 {
     lk_lock(&syscall_lock, threadIndex+1);
     ADDRINT retval = PIN_GetSyscallReturn(ictxt, std);
+    ipc_message_t msg;
 
     thread_state_t* tstate = get_tls(threadIndex);
 
@@ -190,10 +192,11 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
              << hex << retval << dec << endl;
 #endif
         if(tstate->last_syscall_arg1 != 0)
-            Zesto_UpdateBrk(0/*coreID*/, tstate->last_syscall_arg1, true);
+            msg.UpdateBrk(0/*coreID*/, tstate->last_syscall_arg1, true);
         /* Seemingly libc code calls sbrk(0) to get the initial value of the sbrk. We intercept that and send result to zesto, so that we can correclty deal with virtual memory. */
         else
-            Zesto_UpdateBrk(0/*coreID*/, retval, false);
+            msg.UpdateBrk(0/*coreID*/, retval, false);
+        SendIPCMessage(msg);
         break;
 
       case __NR_munmap:
@@ -201,8 +204,10 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
         cerr << "Ret syscall munmap(" << dec << tstate->last_syscall_number << ") addr: 0x"
              << hex << tstate->last_syscall_arg1 << " length: " << tstate->last_syscall_arg2 << dec << endl;
 #endif
-        if(retval != (ADDRINT)-1)
-            Zesto_Notify_Munmap(0/*coreID*/, tstate->last_syscall_arg1, tstate->last_syscall_arg2, false);
+        if(retval != (ADDRINT)-1) {
+            msg.Munmap(0/*coreID*/, tstate->last_syscall_arg1, tstate->last_syscall_arg2, false);
+            SendIPCMessage(msg);
+        }
         break;
 
       case __NR_mmap: //oldmap
@@ -210,8 +215,10 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
         cerr << "Ret syscall oldmmap(" << dec << tstate->last_syscall_number << ") addr: 0x"
              << hex << retval << " length: " << tstate->last_syscall_arg1 << dec << endl;
 #endif
-        if(retval != (ADDRINT)-1)
-            ASSERTX( Zesto_Notify_Mmap(0/*coreID*/, retval, tstate->last_syscall_arg1, false) );
+        if(retval != (ADDRINT)-1) {
+            msg.Mmap(0/*coreID*/, retval, tstate->last_syscall_arg1, false);
+            SendIPCMessage(msg);
+        }
         break;
 
       case __NR_mmap2:
@@ -219,8 +226,10 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
         cerr << "Ret syscall mmap2(" << dec << tstate->last_syscall_number << ") addr: 0x"
              << hex << retval << " length: " << tstate->last_syscall_arg1 << dec << endl;
 #endif
-        if(retval != (ADDRINT)-1)
-            ASSERTX( Zesto_Notify_Mmap(0/*coreID*/, retval, tstate->last_syscall_arg1, false) );
+        if(retval != (ADDRINT)-1) {
+            msg.Mmap(0/*coreID*/, retval, tstate->last_syscall_arg1, false);
+            SendIPCMessage(msg);
+        }
         break;
 
       case __NR_mremap:
@@ -233,8 +242,10 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
 #endif
         if(retval != (ADDRINT)-1)
         {
-            ASSERTX( Zesto_Notify_Munmap(0/*coreID*/, tstate->last_syscall_arg1, tstate->last_syscall_arg2, false) );
-            ASSERTX( Zesto_Notify_Mmap(0/*coreID*/, retval, tstate->last_syscall_arg3, false) );
+            msg.Munmap(0/*coreID*/, tstate->last_syscall_arg1, tstate->last_syscall_arg2, false);
+            SendIPCMessage(msg);
+            msg.Mmap(0/*coreID*/, retval, tstate->last_syscall_arg3, false);
+            SendIPCMessage(msg);
         }
         break;
 
@@ -242,9 +253,10 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
         if(retval != (ADDRINT)-1)
         {
             if ((tstate->last_syscall_arg3 & PROT_READ) == 0)
-                ASSERTX( Zesto_Notify_Munmap(0/*coreID*/, tstate->last_syscall_arg1, tstate->last_syscall_arg2, false) );
+                msg.Munmap(0/*coreID*/, tstate->last_syscall_arg1, tstate->last_syscall_arg2, false);
             else
-                ASSERTX( Zesto_Notify_Mmap(0/*coreID*/, tstate->last_syscall_arg1, tstate->last_syscall_arg2, false) );
+                msg.Mmap(0/*coreID*/, tstate->last_syscall_arg1, tstate->last_syscall_arg2, false);
+            SendIPCMessage(msg);
         }
         break;
 
