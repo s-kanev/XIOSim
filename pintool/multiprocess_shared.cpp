@@ -13,10 +13,10 @@ SHARED_VAR_DEFINE(PIN_SEMAPHORE, consumer_sleep_lock);
 SHARED_VAR_DEFINE(PIN_SEMAPHORE, producer_sleep_lock);
 
 SHARED_VAR_DEFINE(MessageQueue, ipcMessageQueue);
-SHARED_VAR_DEFINE(ThreadCoreMap, threadCores);
 SHARED_VAR_DEFINE(XIOSIM_LOCK, lk_ipcMessageQueue);
 
 SHARED_VAR_DEFINE(THREADID, coreThreads);
+SHARED_VAR_DEFINE(ThreadCoreMap, threadCores);
 SHARED_VAR_DEFINE(XIOSIM_LOCK, lk_coreThreads);
 
 SHARED_VAR_DEFINE(XIOSIM_LOCK, printing_lock);
@@ -31,15 +31,16 @@ void InitSharedState(bool wait_for_others)
     using namespace boost::interprocess;
     int *process_counter;
 
+    std::cout << getpid() << ": About to init pid " << std::endl;
+
     named_mutex init_lock(open_only, XIOSIM_INIT_SHARED_LOCK);
     global_shm = new managed_shared_memory(open_or_create, XIOSIM_SHARED_MEMORY_KEY,
             DEFAULT_SHARED_MEMORY_SIZE);
     init_lock.lock();
 
     if (wait_for_others) {
-        process_counter = global_shm->find_or_construct<int>(XIOSIM_INIT_COUNTER_KEY)(
-            KnobNumProcesses.Value());
-        std::cout << "Counter value is: " << *process_counter << std::endl;
+        process_counter = global_shm->find_or_construct<int>(XIOSIM_INIT_COUNTER_KEY)();
+        std::cout << getpid() << ": Counter value is: " << *process_counter << std::endl;
         (*process_counter)--;
     }
 
@@ -75,7 +76,7 @@ void InitSharedState(bool wait_for_others)
             init_lock.unlock();
         }
     }
-    std::cout << "Proceeeding to execute pintool.\n";
+    std::cout << getpid() << ": Proceeeding to execute pintool.\n";
 }
 
 void SendIPCMessage(ipc_message_t msg)

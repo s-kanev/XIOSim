@@ -916,6 +916,9 @@ INT32 main(INT32 argc, CHAR **argv)
        cerr << argv[i] << " ";
     cerr << endl;
 #endif
+    // Synchronize all processes here to ensure that in multiprogramming mode,
+    // no process will start too far before the others.
+    InitSharedState(true);
 
     // Obtain  a key for TLS storage.
     tls_key = PIN_CreateThreadDataKey(0);
@@ -951,7 +954,7 @@ INT32 main(INT32 argc, CHAR **argv)
 
     // Delay this instrumentation until startSimulation call in ILDJIT.
     // This cuts down HELIX compilation noticably for integer benchmarks.
-
+/*
     if(!KnobILDJIT.Value()) {
         TRACE_AddInstrumentFunction(InstrumentInsIgnoring, 0);
         INS_AddInstrumentFunction(Instrument, 0);
@@ -965,7 +968,7 @@ INT32 main(INT32 argc, CHAR **argv)
     PIN_AddFiniUnlockedFunction(BeforeFini, 0);
     PIN_AddFiniFunction(Fini, 0);
     InitSyscallHandling();
-
+*/
     host_cpus = get_nprocs_conf();
     if((host_cpus < KnobNumCores.Value() * 2) || KnobILDJIT.Value()) {
       *sleeping_enabled = true;
@@ -975,10 +978,6 @@ INT32 main(INT32 argc, CHAR **argv)
     else {
       *sleeping_enabled = false;
     }
-
-    // Synchronize all processes here to ensure that in multiprogramming mode,
-    // no process will start too far before the others.
-    InitSharedState(true);
 
     PIN_StartProgram();
 

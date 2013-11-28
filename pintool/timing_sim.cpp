@@ -298,6 +298,8 @@ int main(int argc, char * argv[])
 
     Zesto_SlaveInit(ssargs.first, ssargs.second);
 
+    PIN_StartProgram();
+
     return 0;
 }
 

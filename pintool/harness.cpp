@@ -115,8 +115,8 @@ int main(int argc, char **argv) {
   // Creates a new shared segment.
   permissions perm;
   perm.set_unrestricted();
-  // managed_shared_memory shm(open_or_create, XIOSIM_SHARED_MEMORY_KEY.c_str(),
-  //     DEFAULT_SHARED_MEMORY_SIZE, (void*) 0x0, perm);
+  managed_shared_memory shm(open_or_create, XIOSIM_SHARED_MEMORY_KEY,
+       DEFAULT_SHARED_MEMORY_SIZE);//, (void*) 0x0, perm);
 
   // Sets up a counter for multiprogramming. It is initialized to the number of
   // processes that are to be forked. When each forked process is about to start
@@ -124,8 +124,8 @@ int main(int argc, char **argv) {
   // the counter reaches zero, the process is allowed to continue execution.
   // This also initializes a shared mutex for the forked processes to use for
   // synchronizing access to this counter.
-  // int *counter =
-  //  shm.find_or_construct<int>(XIOSIM_INIT_COUNTER_KEY.c_str())(harness_num_processes);
+  int *counter =
+    shm.find_or_construct<int>(XIOSIM_INIT_COUNTER_KEY)(harness_num_processes-1);
   named_mutex init_lock(open_or_create, XIOSIM_INIT_SHARED_LOCK, perm);
   init_lock.unlock();
 
