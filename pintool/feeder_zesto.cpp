@@ -204,7 +204,9 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
                 handshake_buffer->flushBuffers(tid);
             }
 
+            lk_lock(printing_lock, 1);
             cerr << "Stop" << endl;
+            lk_unlock(printing_lock);
 
             PauseSimulation(INVALID_THREADID);
 
@@ -960,11 +962,11 @@ INT32 main(INT32 argc, CHAR **argv)
         INS_AddInstrumentFunction(Instrument, 0);
     }
 
-
+*/
     PIN_AddThreadStartFunction(ThreadStart, NULL);
     PIN_AddThreadFiniFunction(ThreadFini, NULL);
 //    IMG_AddUnloadFunction(ImageUnload, 0);
-    IMG_AddInstrumentFunction(ImageLoad, 0);
+/*    IMG_AddInstrumentFunction(ImageLoad, 0);
     PIN_AddFiniUnlockedFunction(BeforeFini, 0);
     PIN_AddFiniFunction(Fini, 0);
     InitSyscallHandling();

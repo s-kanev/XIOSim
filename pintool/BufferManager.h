@@ -56,9 +56,6 @@ class BufferManager
   bool useRealFile_;
   int numThreads_;
 
-  xiosim::shared::SharedUnorderedMap<THREADID, XIOSIM_LOCK*> locks_;
-  xiosim::shared::SharedUnorderedMap<THREADID, int> pool_;
-  xiosim::shared::SharedUnorderedMap<THREADID, ofstream*> logs_;
 
   boost::interprocess::string gpid_;
 
@@ -84,17 +81,22 @@ class BufferManager
   boost::interprocess::string genFileName(boost::interprocess::string path);
   int getKBFreeSpace(boost::interprocess::string path);
 
+  /* shared */
   xiosim::shared::SharedUnorderedMap<THREADID, int64_t> queueSizes_;
   xiosim::shared::SharedUnorderedMap<THREADID, Buffer*> fakeFile_;
-  xiosim::shared::SharedUnorderedMap<THREADID, Buffer*> consumeBuffer_;
-  xiosim::shared::SharedUnorderedMap<THREADID, Buffer*> produceBuffer_;
   xiosim::shared::SharedUnorderedMap<THREADID, int> fileEntryCount_;
-
   xiosim::shared::SharedUnorderedMap<THREADID, shm_string_deque> fileNames_;
   xiosim::shared::SharedUnorderedMap<THREADID, shm_int_deque> fileCounts_;
+  xiosim::shared::SharedUnorderedMap<THREADID, XIOSIM_LOCK*> locks_;
+  xiosim::shared::SharedUnorderedMap<THREADID, int> pool_;
 
+  /* private -- consumer */
+  xiosim::shared::SharedUnorderedMap<THREADID, Buffer*> consumeBuffer_;
   xiosim::shared::SharedUnorderedMap<THREADID, int> readBufferSize_;
   xiosim::shared::SharedUnorderedMap<THREADID, void*> readBuffer_;
+
+  /* private -- producer */
+  xiosim::shared::SharedUnorderedMap<THREADID, Buffer*> produceBuffer_;
   xiosim::shared::SharedUnorderedMap<THREADID, int> writeBufferSize_;
   xiosim::shared::SharedUnorderedMap<THREADID, void*> writeBuffer_;
 };

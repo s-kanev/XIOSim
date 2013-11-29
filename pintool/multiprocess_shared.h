@@ -7,14 +7,12 @@
 #include <boost/interprocess/containers/deque.hpp>
 #include <boost/interprocess/sync/named_mutex.hpp>
 
-#include "shared_map.h"
-#include "feeder.h"
-#include "BufferManager.h"
 #include "mpkeys.h"
 
 extern boost::interprocess::managed_shared_memory *global_shm;
 
 #define Q(X) #X
+#define SINGLE_ARG(...) __VA_ARGS__
 
 #define SHARED_VAR_DECLARE(TYPE, VAR) \
     extern TYPE * VAR;   \
@@ -30,8 +28,12 @@ extern boost::interprocess::managed_shared_memory *global_shm;
 #define SHARED_VAR_ARRAY_INIT(TYPE, VAR, SIZE, ...) \
     VAR = global_shm->find_or_construct<TYPE>(VAR##_KEY)[SIZE]( __VA_ARGS__);
 
-#define SHARED_VAR_CONSTRUCT(TYPE, VAR) \
-    VAR = new TYPE(XIOSIM_SHARED_MEMORY_KEY, VAR##_KEY);
+#define SHARED_VAR_CONSTRUCT(TYPE, VAR, ...) \
+    VAR = new TYPE(XIOSIM_SHARED_MEMORY_KEY, VAR##_KEY, ## __VA_ARGS__);
+
+#include "shared_map.h"
+#include "feeder.h"
+#include "BufferManager.h"
 
 SHARED_VAR_DECLARE(bool, consumers_sleep)
 SHARED_VAR_DECLARE(bool, producers_sleep)

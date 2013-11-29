@@ -12,8 +12,6 @@
 namespace xiosim {
 namespace shared {
 
-extern "C" {
-
 // Global shared memory key names.
 extern const char* XIOSIM_SHARED_MEMORY_KEY;
 extern const char* XIOSIM_INIT_SHARED_LOCK;
@@ -26,7 +24,6 @@ extern const std::size_t DEFAULT_SHARED_MEMORY_SIZE;
 // BufferManager keys.
 extern const char* BUFFER_MANAGER_LOCKS_;
 extern const char* BUFFER_MANAGER_POOL_;
-extern const char* BUFFER_MANAGER_LOGS_;
 extern const char* BUFFER_MANAGER_QUEUE_SIZES_;
 extern const char* BUFFER_MANAGER_FAKE_FILE_;
 extern const char* BUFFER_MANAGER_CONSUME_BUFFER_;
@@ -38,7 +35,6 @@ extern const char* BUFFER_MANAGER_READ_BUFFER_SIZE_;
 extern const char* BUFFER_MANAGER_READ_BUFFER_;
 extern const char* BUFFER_MANAGER_WRITE_BUFFER_SIZE_;
 extern const char* BUFFER_MANAGER_WRITE_BUFFER_;
-}
 
 /*
 // Shared memory variable typedefs.

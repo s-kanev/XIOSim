@@ -32,6 +32,7 @@
 
 BufferManager::BufferManager()
 {
+  using namespace xiosim::shared;
   int pid = getpgrp();
   ostringstream iss;
   iss << pid;
@@ -45,8 +46,23 @@ BufferManager::BufferManager()
 
   // This constructor accepts a buckets parameter which negates the need to call
   // reserve on all the maps later.
-  queueSizes_.initialize_late(xiosim::shared::XIOSIM_SHARED_MEMORY_KEY,
-      xiosim::shared::BUFFER_MANAGER_QUEUE_SIZES_, 16);
+  locks_.initialize_late(XIOSIM_SHARED_MEMORY_KEY, BUFFER_MANAGER_LOCKS_, 16);
+  pool_.initialize_late(XIOSIM_SHARED_MEMORY_KEY, BUFFER_MANAGER_POOL_, 16);
+
+  queueSizes_.initialize_late(XIOSIM_SHARED_MEMORY_KEY, BUFFER_MANAGER_QUEUE_SIZES_, 16);
+  fakeFile_.initialize_late(XIOSIM_SHARED_MEMORY_KEY, BUFFER_MANAGER_FAKE_FILE_, 16);
+  consumeBuffer_.initialize_late(XIOSIM_SHARED_MEMORY_KEY, BUFFER_MANAGER_CONSUME_BUFFER_, 16);
+  produceBuffer_.initialize_late(XIOSIM_SHARED_MEMORY_KEY, BUFFER_MANAGER_PRODUCE_BUFFER_, 16);
+  fileEntryCount_.initialize_late(XIOSIM_SHARED_MEMORY_KEY, BUFFER_MANAGER_FILE_ENTRY_COUNT_, 16);
+  fileNames_.initialize_late(XIOSIM_SHARED_MEMORY_KEY, BUFFER_MANAGER_FILE_NAMES_, 16);
+  fileCounts_.initialize_late(XIOSIM_SHARED_MEMORY_KEY, BUFFER_MANAGER_FILE_COUNTS_, 16);
+  readBufferSize_.initialize_late(XIOSIM_SHARED_MEMORY_KEY, BUFFER_MANAGER_READ_BUFFER_SIZE_, 16);
+  readBuffer_.initialize_late(XIOSIM_SHARED_MEMORY_KEY, BUFFER_MANAGER_READ_BUFFER_, 16);
+  writeBufferSize_.initialize_late(XIOSIM_SHARED_MEMORY_KEY, BUFFER_MANAGER_WRITE_BUFFER_SIZE_, 16);
+  writeBuffer_.initialize_late(XIOSIM_SHARED_MEMORY_KEY, BUFFER_MANAGER_WRITE_BUFFER_, 16);
+
+
+
   std::cout << "Initialized queueSizes" << std::endl;
 
   // Reserve space in all maps for 16 cores

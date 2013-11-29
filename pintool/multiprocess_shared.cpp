@@ -9,17 +9,17 @@ SHARED_VAR_DEFINE(bool, consumers_sleep)
 SHARED_VAR_DEFINE(bool, producers_sleep)
 SHARED_VAR_DEFINE(bool, sleeping_enabled)
 SHARED_VAR_DEFINE(BufferManager, handshake_buffer)
-SHARED_VAR_DEFINE(PIN_SEMAPHORE, consumer_sleep_lock);
-SHARED_VAR_DEFINE(PIN_SEMAPHORE, producer_sleep_lock);
+SHARED_VAR_DEFINE(PIN_SEMAPHORE, consumer_sleep_lock)
+SHARED_VAR_DEFINE(PIN_SEMAPHORE, producer_sleep_lock)
 
-SHARED_VAR_DEFINE(MessageQueue, ipcMessageQueue);
-SHARED_VAR_DEFINE(XIOSIM_LOCK, lk_ipcMessageQueue);
+SHARED_VAR_DEFINE(MessageQueue, ipcMessageQueue)
+SHARED_VAR_DEFINE(XIOSIM_LOCK, lk_ipcMessageQueue)
 
-SHARED_VAR_DEFINE(THREADID, coreThreads);
-SHARED_VAR_DEFINE(ThreadCoreMap, threadCores);
-SHARED_VAR_DEFINE(XIOSIM_LOCK, lk_coreThreads);
+SHARED_VAR_DEFINE(THREADID, coreThreads)
+SHARED_VAR_DEFINE(ThreadCoreMap, threadCores)
+SHARED_VAR_DEFINE(XIOSIM_LOCK, lk_coreThreads)
 
-SHARED_VAR_DEFINE(XIOSIM_LOCK, printing_lock);
+SHARED_VAR_DEFINE(XIOSIM_LOCK, printing_lock)
 
 KNOB<int> KnobNumProcesses(KNOB_MODE_WRITEONCE,      "pintool",
         "num_processes", "1", "Number of processes for a multiprogrammed workload");
@@ -60,7 +60,7 @@ void InitSharedState(bool wait_for_others)
     SHARED_VAR_CONSTRUCT(ThreadCoreMap, threadCores);
     SHARED_VAR_INIT(XIOSIM_LOCK, lk_coreThreads);
 
-    SHARED_VAR_DEFINE(XIOSIM_LOCK, printing_lock);
+    SHARED_VAR_INIT(XIOSIM_LOCK, printing_lock);
 
     init_lock.unlock();
 
