@@ -16,6 +16,7 @@ class core_commit_DPM_t:public core_commit_t
                        CSTALL_EMPTY,     /* ROB is empty, nothing to commit */
                        CSTALL_JECLEAR_INFLIGHT, /* Mop is done, but its jeclear hasn't been handled yet */
                        CSTALL_MAX_BRANCHES, /* exceeded maximum number of branches committed per cycle */
+                       CSTALL_STQ, /* Store can't deallocate from STQ */
                        CSTALL_num
                      };
 
@@ -72,7 +73,8 @@ const char *core_commit_DPM_t::commit_stall_str[CSTALL_num] = {
   "oldest inst partially done ",
   "ROB is empty               ",
   "Mop done, jeclear in flight",
-  "branch commit limit        "
+  "branch commit limit        ",
+  "store can't deallocate     "
 };
 
 /*******************/
@@ -363,8 +365,9 @@ void core_commit_DPM_t::step(void)
     return;
   }
 
-  /* deallocate at most one store from the (senior) STQ per cycle */
-  core->exec->STQ_deallocate_senior();
+  /* deallocate at most commit_width stores from the (senior) STQ per cycle */
+  for(int STQ_commit_count = 0; STQ_commit_count < knobs->commit.width; STQ_commit_count++)
+    core->exec->STQ_deallocate_senior();
 
   /* MAIN COMMIT LOOP */
   for(commit_count=0;commit_count<knobs->commit.width;commit_count++)
@@ -435,8 +438,10 @@ void core_commit_DPM_t::step(void)
         core->exec->STQ_deallocate_sta();
       else if(uop->decode.is_std) /* we alloc on STA, dealloc on STD */
       {
-        if(!core->exec->STQ_deallocate_std(uop))
+        if(!core->exec->STQ_deallocate_std(uop)) {
+          stall_reason = CSTALL_STQ;
           break;
+        }
       }
 
       /* any remaining transactions in-flight (only for loads)
