@@ -15,6 +15,7 @@ namespace shared {
 // Global shared memory key names.
 extern const char* XIOSIM_SHARED_MEMORY_KEY;
 extern const char* XIOSIM_INIT_SHARED_LOCK;
+extern const char *XIOSIM_BUFFER_MANAGER_LOCK;
 extern const char* BUFFER_MANAGER_SHARED_MEMORY_KEY;
 extern const char* XIOSIM_INIT_COUNTER_KEY;
 

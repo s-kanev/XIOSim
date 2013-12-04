@@ -33,12 +33,10 @@ extern boost::interprocess::managed_shared_memory *global_shm;
 
 #include "shared_map.h"
 #include "feeder.h"
-#include "BufferManager.h"
 
 SHARED_VAR_DECLARE(bool, consumers_sleep)
 SHARED_VAR_DECLARE(bool, producers_sleep)
 SHARED_VAR_DECLARE(bool, sleeping_enabled)
-SHARED_VAR_DECLARE(BufferManager, handshake_buffer)
 
 SHARED_VAR_DECLARE(PIN_SEMAPHORE, consumer_sleep_lock)
 SHARED_VAR_DECLARE(PIN_SEMAPHORE, producer_sleep_lock)

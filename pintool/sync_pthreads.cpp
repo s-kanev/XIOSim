@@ -17,7 +17,7 @@
 #include "shared_unordered_map.h"
 #include "multiprocess_shared.h"
 #include "../buffer.h"
-#include "BufferManager.h"
+#include "BufferManagerProducer.h"
 
 #include "feeder.h"
 #include "scheduler.h"
@@ -36,14 +36,14 @@ VOID PTHREAD_beforeJoin(THREADID tid)
     tstate->ignore = true;
     lk_unlock(&tstate->lock);
 
-    handshake_container_t *handshake = handshake_buffer->get_buffer(tid);
+    handshake_container_t *handshake = xiosim::buffer_management::get_buffer(tid);
     handshake->flags.valid = true;
     handshake->handshake.real = false;
     handshake->flags.giveCoreUp = true;
     handshake->flags.giveUpReschedule = true;
-    handshake_buffer->producer_done(tid);
+    xiosim::buffer_management::producer_done(tid);
 
-    handshake_buffer->flushBuffers(tid);
+    xiosim::buffer_management::flushBuffers(tid);
 }
 
 VOID PTHREAD_beforeMutexLock(THREADID tid)
@@ -56,14 +56,14 @@ VOID PTHREAD_beforeMutexLock(THREADID tid)
     tstate->ignore = true;
     lk_unlock(&tstate->lock);
 
-    handshake_container_t *handshake = handshake_buffer->get_buffer(tid);
+    handshake_container_t *handshake = xiosim::buffer_management::get_buffer(tid);
     handshake->flags.valid = true;
     handshake->handshake.real = false;
     handshake->flags.giveCoreUp = true;
     handshake->flags.giveUpReschedule = true;
-    handshake_buffer->producer_done(tid);
+    xiosim::buffer_management::producer_done(tid);
 
-    handshake_buffer->flushBuffers(tid);
+    xiosim::buffer_management::flushBuffers(tid);
 }
 
 VOID PTHREAD_beforeCondWait(THREADID tid)
@@ -76,14 +76,14 @@ VOID PTHREAD_beforeCondWait(THREADID tid)
     tstate->ignore = true;
     lk_unlock(&tstate->lock);
 
-    handshake_container_t *handshake = handshake_buffer->get_buffer(tid);
+    handshake_container_t *handshake = xiosim::buffer_management::get_buffer(tid);
     handshake->flags.valid = true;
     handshake->handshake.real = false;
     handshake->flags.giveCoreUp = true;
     handshake->flags.giveUpReschedule = true;
-    handshake_buffer->producer_done(tid);
+    xiosim::buffer_management::producer_done(tid);
 
-    handshake_buffer->flushBuffers(tid);
+    xiosim::buffer_management::flushBuffers(tid);
 }
 
 VOID PTHREAD_stopIgnore(THREADID tid)

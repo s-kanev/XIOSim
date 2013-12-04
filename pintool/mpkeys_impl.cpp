@@ -5,6 +5,7 @@ namespace shared {
 
 const char *XIOSIM_SHARED_MEMORY_KEY = "xiosim_shared_memory";
 const char *XIOSIM_INIT_SHARED_LOCK = "xiosim_init_shared_lock";
+const char *XIOSIM_BUFFER_MANAGER_LOCK = "xiosim_buffer_manager_lock";
 const char *BUFFER_MANAGER_SHARED_MEMORY_KEY = "buffer_manager_shared_memory_key";
 const char *XIOSIM_INIT_COUNTER_KEY = "xiosim_init_counter";
 

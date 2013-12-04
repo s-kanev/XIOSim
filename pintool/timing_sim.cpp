@@ -18,7 +18,7 @@ using namespace INSTLIB;
 #include "../interface.h"
 #include "../synchronization.h"
 #include "../buffer.h"
-#include "BufferManager.h"
+#include "BufferManagerConsumer.h"
 #include "../zesto-core.h"
 
 #include "timing_sim.h"
@@ -48,10 +48,10 @@ sim_thread_state_t* get_sim_tls(THREADID threadid)
 VOID ReleaseHandshake(UINT32 coreID)
 {
     THREADID instrument_tid = GetCoreThread(coreID);
-    ASSERTX(!handshake_buffer->empty(instrument_tid));
+    ASSERTX(!xiosim::buffer_management::empty(instrument_tid));
 
     // pop() invalidates the buffer
-    handshake_buffer->pop(instrument_tid);
+    xiosim::buffer_management::pop(instrument_tid);
 }
 
 /* ========================================================================== */
@@ -87,17 +87,17 @@ VOID SimulatorLoop(VOID* arg)
             continue;
         }
 
-        while (handshake_buffer->empty(instrument_tid)) {
+        while (xiosim::buffer_management::empty(instrument_tid)) {
             PIN_Yield();
             while(consumers_sleep) {
                 PIN_SemaphoreWait(consumer_sleep_lock);
             }
         }
 
-        int consumerHandshakes = handshake_buffer->getConsumerSize(instrument_tid);
+        int consumerHandshakes = xiosim::buffer_management::getConsumerSize(instrument_tid);
         if(consumerHandshakes == 0) {
-            handshake_buffer->front(instrument_tid, false);
-            consumerHandshakes = handshake_buffer->getConsumerSize(instrument_tid);
+            xiosim::buffer_management::front(instrument_tid, false);
+            consumerHandshakes = xiosim::buffer_management::getConsumerSize(instrument_tid);
         }
         assert(consumerHandshakes > 0);
 
@@ -107,7 +107,7 @@ VOID SimulatorLoop(VOID* arg)
                 PIN_SemaphoreWait(consumer_sleep_lock);
             }
 
-            handshake_container_t* handshake = handshake_buffer->front(instrument_tid, true);
+            handshake_container_t* handshake = xiosim::buffer_management::front(instrument_tid, true);
             ASSERTX(handshake != NULL);
             ASSERTX(handshake->flags.valid);
 
@@ -153,7 +153,7 @@ VOID SimulatorLoop(VOID* arg)
                 break;
             }
         }
-        handshake_buffer->applyConsumerChanges(instrument_tid, numConsumed);
+        xiosim::buffer_management::applyConsumerChanges(instrument_tid, numConsumed);
 #if 0
         lastConsumerApply[instrument_tid] = cores[coreID]->sim_cycle;
 #endif
@@ -287,6 +287,7 @@ int main(int argc, char * argv[])
     tls_key = PIN_CreateThreadDataKey(0);
 
     InitSharedState(false);
+    xiosim::buffer_management::InitBufferManagerConsumer();
 
     // Prepare args for libsim
     SSARGS ssargs = MakeSimpleScalarArgcArgv(argc, argv);
@@ -359,6 +360,9 @@ void CheckIPCMessageQueue()
                 break;
             case HARDCODE_SCHEDULE:
                 HardcodeSchedule(ipcMessage.arg1, ipcMessage.arg2);
+                break;
+            case ALLOCATE_THREAD:
+                xiosim::buffer_management::AllocateThreadConsumer(ipcMessage.arg1, ipcMessage.arg2);
                 break;
         }
     }

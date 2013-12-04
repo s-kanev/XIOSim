@@ -33,7 +33,7 @@ void sim_drain_pipe(int coreID);
 
 void CheckIPCMessageQueue();
 
-enum ipc_message_id_t { SLICE_START, SLICE_END, MMAP, MUNMAP, UPDATE_BRK, UPDATE_BOS, WARM_LLC, STOP_SIMULATION, ACTIVATE_CORE, DEACTIVATE_CORE, SCHEDULE_NEW_THREAD, HARDCODE_SCHEDULE, INVALID_MSG };
+enum ipc_message_id_t { SLICE_START, SLICE_END, MMAP, MUNMAP, UPDATE_BRK, UPDATE_BOS, WARM_LLC, STOP_SIMULATION, ACTIVATE_CORE, DEACTIVATE_CORE, SCHEDULE_NEW_THREAD, HARDCODE_SCHEDULE, ALLOCATE_THREAD, INVALID_MSG };
 
 struct ipc_message_t {
     ipc_message_id_t id;
@@ -122,6 +122,13 @@ struct ipc_message_t {
         this->id = HARDCODE_SCHEDULE;
         this->arg1 = tid;
         this->arg2 = coreID;
+    }
+
+    void BufferManagerAllocateThread(int tid, int buffer_capacity)
+    {
+        this->id = ALLOCATE_THREAD;
+        this->arg1 = tid;
+        this->arg2 = buffer_capacity;
     }
 };
 

@@ -16,7 +16,6 @@ using namespace INSTLIB;
 #include "../synchronization.h"
 
 class handshake_container_t;
-class BufferManager;
 
 extern KNOB<BOOL> KnobILDJIT;
 extern KNOB<string> KnobFluffy;

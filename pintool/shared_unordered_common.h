@@ -27,6 +27,17 @@ using namespace boost::interprocess;
 
 template<typename K, typename V>
 class SharedUnorderedMapCommon {
+  protected:
+    static const std::size_t DEFAULT_NUM_BUCKETS = 16;
+    typedef std::pair<const K, V> MapValueType;
+    typedef boost::interprocess::allocator<
+        MapValueType, managed_shared_memory::segment_manager>
+          MapValueAllocator;
+    typedef boost::interprocess::allocator<void, managed_shared_memory::segment_manager>
+        VoidAllocator;
+    typedef boost::unordered_map<K, V, boost::hash<K>, std::equal_to<K>,
+        MapValueAllocator> InternalMap;
+
   public:
     SharedUnorderedMapCommon() : data_key(""), memory_key("") {
       std::cout << "Default constructing unordered map." << std::endl;
@@ -82,11 +93,11 @@ class SharedUnorderedMapCommon {
       return internal_map->size();
     }
 
-    typename boost::unordered_map<K, V>::iterator begin() {
+    typename InternalMap::iterator begin() {
       return internal_map->begin();
     }
 
-    typename boost::unordered_map<K, V>::iterator end() {
+    typename InternalMap::iterator end() {
       return internal_map->end();
     }
 
@@ -99,16 +110,6 @@ class SharedUnorderedMapCommon {
     }
 
   protected:
-    static const std::size_t DEFAULT_NUM_BUCKETS = 16;
-    typedef std::pair<const K, V> MapValueType;
-    typedef boost::interprocess::allocator<
-        MapValueType, managed_shared_memory::segment_manager>
-          MapValueAllocator;
-    typedef boost::interprocess::allocator<void, managed_shared_memory::segment_manager>
-        VoidAllocator;
-    typedef boost::unordered_map<K, V, boost::hash<K>, std::equal_to<K>,
-        MapValueAllocator> InternalMap;
-
     // Name that identifies this map in the shared memory segment.
     boost::interprocess::string data_key;
     // Name that identifies this shared memory segment.

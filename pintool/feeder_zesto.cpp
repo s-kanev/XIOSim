@@ -40,7 +40,7 @@
 #include "shared_unordered_map.h"
 #include "multiprocess_shared.h"
 #include "../buffer.h"
-#include "BufferManager.h"
+#include "BufferManagerProducer.h"
 #include "scheduler.h"
 #include "ignore_ins.h"
 
@@ -194,14 +194,14 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
                 /* In this case, we need to flush all buffers for this thread
                  * and cleanly let the scheduler know to deschedule it once
                  * all instructions are conusmed. */
-                handshake_container_t *handshake = handshake_buffer->get_buffer(tid);
+                handshake_container_t *handshake = xiosim::buffer_management::get_buffer(tid);
                 handshake->flags.giveCoreUp = true;
                 handshake->flags.giveUpReschedule = false;
                 handshake->flags.valid = true;
                 handshake->handshake.real = false;
-                handshake_buffer->producer_done(tid, true);
+                xiosim::buffer_management::producer_done(tid, true);
 
-                handshake_buffer->flushBuffers(tid);
+                xiosim::buffer_management::flushBuffers(tid);
             }
 
             lk_lock(printing_lock, 1);
@@ -414,11 +414,11 @@ VOID GrabInstructionMemory(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_m
 
     handshake_container_t* handshake;
     if (first_mem_op) {
-        handshake = handshake_buffer->get_buffer(tid);
+        handshake = xiosim::buffer_management::get_buffer(tid);
         ASSERTX(!handshake->flags.valid);
     }
     else {
-        handshake = handshake_buffer->back(tid);
+        handshake = xiosim::buffer_management::back(tid);
     }
 
     /* should be the common case */
@@ -467,10 +467,10 @@ VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, A
 
     handshake_container_t* handshake;
     if (has_memory) {
-        handshake = handshake_buffer->back(tid);
+        handshake = xiosim::buffer_management::back(tid);
     }
     else {
-        handshake = handshake_buffer->get_buffer(tid);
+        handshake = xiosim::buffer_management::get_buffer(tid);
         ASSERTX(!handshake->flags.valid);
     }
 
@@ -494,10 +494,10 @@ VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, A
     if (done_instrumenting) {
         // Let simulator consume instruction from SimulatorLoop
         handshake->flags.valid = true;
-        handshake_buffer->producer_done(tid);
+        xiosim::buffer_management::producer_done(tid);
 
         if (tstate->num_inst && (tstate->num_inst % 1000000 == 0))
-            handshake_buffer->flushBuffers(tid);
+            xiosim::buffer_management::flushBuffers(tid);
     }
 }
 
@@ -526,7 +526,7 @@ VOID FixRepInstructionNPC(THREADID tid, ADDRINT pc, BOOL rep_prefix, BOOL repne_
     if (IsInstructionIgnored(pc))
         return;
 
-    handshake_container_t* handshake = handshake_buffer->back(tid);
+    handshake_container_t* handshake = xiosim::buffer_management::back(tid);
 
     ASSERTX(handshake != NULL);
     ASSERTX(!handshake->flags.valid);
@@ -604,10 +604,10 @@ VOID FixRepInstructionNPC(THREADID tid, ADDRINT pc, BOOL rep_prefix, BOOL repne_
 
     // Instruction is ready to be consumed
     handshake->flags.valid = true;
-    handshake_buffer->producer_done(tid);
+    xiosim::buffer_management::producer_done(tid);
 
     if (tstate->num_inst && (tstate->num_inst % 1000000 == 0))
-        handshake_buffer->flushBuffers(tid);
+        xiosim::buffer_management::flushBuffers(tid);
 }
 
 /* ========================================================================== */
@@ -817,11 +817,7 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
         (KnobILDJIT.Value() && ILDJIT_IsCreatingExecutor()))
     {
         // Create new buffer to store thread context
-        handshake_buffer->allocateThread(threadIndex);
-
-        lk_lock(&thread_list_lock, threadIndex+1);
-        thread_list.push_back(threadIndex);
-        lk_unlock(&thread_list_lock);
+        xiosim::buffer_management::AllocateThreadProducer(threadIndex);
 
 #if 0
         lastConsumerApply[threadIndex] = 0;
@@ -841,6 +837,13 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
             tstate->ignore_all = false;
             lk_unlock(&tstate->lock);
         }
+
+        /* Add to thread_list in the end, so other threads that iterate
+         * it don't race on a not yet fully initialized structure.
+         */
+        lk_lock(&thread_list_lock, threadIndex+1);
+        thread_list.push_back(threadIndex);
+        lk_unlock(&thread_list_lock);
     }
 
     lk_unlock(&syscall_lock);
@@ -892,13 +895,13 @@ VOID ThreadFini(THREADID tid, const CONTEXT *ctxt, INT32 code, VOID *v)
      * Mark it as finishing and let the handshake buffer drain.
      * Once this last handshake gets executed by a core, it will make
        sure to clean up all thread resources. */
-    handshake_container_t *handshake = handshake_buffer->get_buffer(tid);
+    handshake_container_t *handshake = xiosim::buffer_management::get_buffer(tid);
     handshake->flags.killThread = true;
     handshake->flags.valid = true;
     handshake->handshake.real = false;
-    handshake_buffer->producer_done(tid);
+    xiosim::buffer_management::producer_done(tid);
 
-    handshake_buffer->flushBuffers(tid);
+    xiosim::buffer_management::flushBuffers(tid);
 
     /* Ignore subsequent instructions that we may see on this thread before
      * destroying its tstate.
@@ -921,6 +924,7 @@ INT32 main(INT32 argc, CHAR **argv)
     // Synchronize all processes here to ensure that in multiprogramming mode,
     // no process will start too far before the others.
     InitSharedState(true);
+    xiosim::buffer_management::InitBufferManagerProducer();
 
     // Obtain  a key for TLS storage.
     tls_key = PIN_CreateThreadDataKey(0);

@@ -8,7 +8,6 @@ boost::interprocess::managed_shared_memory *global_shm;
 SHARED_VAR_DEFINE(bool, consumers_sleep)
 SHARED_VAR_DEFINE(bool, producers_sleep)
 SHARED_VAR_DEFINE(bool, sleeping_enabled)
-SHARED_VAR_DEFINE(BufferManager, handshake_buffer)
 SHARED_VAR_DEFINE(PIN_SEMAPHORE, consumer_sleep_lock)
 SHARED_VAR_DEFINE(PIN_SEMAPHORE, producer_sleep_lock)
 
@@ -47,7 +46,6 @@ void InitSharedState(bool wait_for_others)
     SHARED_VAR_INIT(bool, producers_sleep, false)
     SHARED_VAR_INIT(bool, consumers_sleep, false)
     SHARED_VAR_INIT(bool, sleeping_enabled)
-    SHARED_VAR_INIT(BufferManager, handshake_buffer)
     SHARED_VAR_INIT(PIN_SEMAPHORE, consumer_sleep_lock);
     SHARED_VAR_INIT(PIN_SEMAPHORE, producer_sleep_lock);
     PIN_SemaphoreInit(consumer_sleep_lock);

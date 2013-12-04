@@ -9,7 +9,7 @@
 #include "shared_unordered_map.h"
 #include "multiprocess_shared.h"
 #include "../buffer.h"
-#include "BufferManager.h"
+#include "BufferManagerProducer.h"
 
 #include "feeder.h"
 #include "syscall_handling.h"
