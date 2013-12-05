@@ -51,6 +51,7 @@ struct ipc_message_t {
           case SLICE_START:
           case ACTIVATE_CORE:
           case ALLOCATE_THREAD:
+          case SCHEDULE_NEW_THREAD:
             return true;
           default:
             return false;
