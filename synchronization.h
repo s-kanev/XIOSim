@@ -73,7 +73,6 @@ inline void lk_init(XIOSIM_LOCK* lk)
 
 struct XIOSIM_LOCK {
   int32_t v;
-  XIOSIM_LOCK() : v(0) {};
 } __attribute__ ((aligned (64)));
 
 inline void lk_lock(XIOSIM_LOCK* lk, int32_t cid)
