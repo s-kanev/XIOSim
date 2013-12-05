@@ -58,25 +58,25 @@ handshake_container_t* front(THREADID tid, bool isLocal)
     return returnVal;
   }
 
-  lk_lock(locks_[tid], tid+1);
+  lk_lock(&locks_[tid], tid+1);
 
   assert(queueSizes_[tid] > 0);
 
   while (fileEntryCount_[tid] == 0) {
-    lk_unlock(locks_[tid]);
+    lk_unlock(&locks_[tid]);
     while(*consumers_sleep) {
       PIN_SemaphoreWait(consumer_sleep_lock);
       //PIN_Sleep(250);
     }
     PIN_Yield();
-    lk_lock(locks_[tid], tid+1);
+    lk_lock(&locks_[tid], tid+1);
   }
 
   if(fileEntryCount_[tid] > 0) {
     copyFileToConsumer(tid);
     assert(!consumeBuffer_[tid]->empty());
     handshake_container_t* returnVal = consumeBuffer_[tid]->front();
-    lk_unlock(locks_[tid]);
+    lk_unlock(&locks_[tid]);
     return returnVal;
   }
   assert(fileEntryCount_[tid] == 0);
@@ -84,12 +84,12 @@ handshake_container_t* front(THREADID tid, bool isLocal)
 
   int spins = 0;
   while(consumeBuffer_[tid]->empty()) {
-    lk_unlock(locks_[tid]);
+    lk_unlock(&locks_[tid]);
     PIN_Yield();
     while(*consumers_sleep) {
       PIN_SemaphoreWait(consumer_sleep_lock);
     }
-    lk_lock(locks_[tid], tid+1);
+    lk_lock(&locks_[tid], tid+1);
     spins++;
     if(spins >= 2) {
       spins = 0;
@@ -104,7 +104,7 @@ handshake_container_t* front(THREADID tid, bool isLocal)
   assert(consumeBuffer_[tid]->front()->flags.valid);
   assert(queueSizes_[tid] > 0);
   handshake_container_t* resultVal = consumeBuffer_[tid]->front();
-  lk_unlock(locks_[tid]);
+  lk_unlock(&locks_[tid]);
   return resultVal;
 }
 
@@ -118,14 +118,14 @@ int getConsumerSize(THREADID tid)
  */
 void applyConsumerChanges(THREADID tid, int numChanged)
 {
-  lk_lock(locks_[tid], tid+1);
+  lk_lock(&locks_[tid], tid+1);
 
   pool_[tid] += numChanged;
 
   assert(queueSizes_[tid] >= numChanged);
   queueSizes_[tid] -= numChanged;
 
-  lk_unlock(locks_[tid]);
+  lk_unlock(&locks_[tid]);
 }
 
 void pop(THREADID tid)
@@ -133,7 +133,7 @@ void pop(THREADID tid)
   consumeBuffer_[tid]->pop();
   *popped_ = true;
   return;
-  lk_lock(locks_[tid], tid+1);
+  lk_lock(&locks_[tid], tid+1);
 
   assert(consumeBuffer_[tid]->size() > 0);
   consumeBuffer_[tid]->pop();
@@ -142,7 +142,7 @@ void pop(THREADID tid)
   assert(queueSizes_[tid] > 0);
   queueSizes_[tid] -= 1;
 
-  lk_unlock(locks_[tid]);
+  lk_unlock(&locks_[tid]);
 }
 
 static void copyFileToConsumer(THREADID tid)

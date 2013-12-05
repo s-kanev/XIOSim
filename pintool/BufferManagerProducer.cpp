@@ -87,10 +87,10 @@ void AllocateThreadProducer(THREADID tid)
 
 handshake_container_t* back(THREADID tid)
 {
-    lk_lock(locks_[tid], tid+1);
+    lk_lock(&locks_[tid], tid+1);
     assert(queueSizes_[tid] > 0);
     handshake_container_t* returnVal = produceBuffer_[tid]->back();
-    lk_unlock(locks_[tid]);
+    lk_unlock(&locks_[tid]);
     return returnVal;
 }
 
@@ -99,7 +99,7 @@ handshake_container_t* back(THREADID tid)
  */
 handshake_container_t* get_buffer(THREADID tid)
 {
-  lk_lock(locks_[tid], tid+1);
+  lk_lock(&locks_[tid], tid+1);
   // Push is guaranteed to succeed because each call to
   // get_buffer() is followed by a call to producer_done()
   // which will make space if full
@@ -109,7 +109,7 @@ handshake_container_t* get_buffer(THREADID tid)
   assert(pool_[tid] > 0);
   pool_[tid]--;
 
-  lk_unlock(locks_[tid]);
+  lk_unlock(&locks_[tid]);
   return result;
 }
 
@@ -119,7 +119,7 @@ handshake_container_t* get_buffer(THREADID tid)
  */
 void producer_done(THREADID tid, bool keepLock)
 {
-  lk_lock(locks_[tid], tid+1);
+  lk_lock(&locks_[tid], tid+1);
 
   ASSERTX(!produceBuffer_[tid]->empty());
   handshake_container_t* last = produceBuffer_[tid]->back();
@@ -142,7 +142,7 @@ void producer_done(THREADID tid, bool keepLock)
 
   assert(!produceBuffer_[tid]->full());
 
-  lk_unlock(locks_[tid]);
+  lk_unlock(&locks_[tid]);
 }
 
 /* On the producer side, flush all buffers associated
@@ -150,12 +150,12 @@ void producer_done(THREADID tid, bool keepLock)
  */
 void flushBuffers(THREADID tid)
 {
-  lk_lock(locks_[tid], tid+1);
+  lk_lock(&locks_[tid], tid+1);
 
   if(produceBuffer_[tid]->size() > 0) {
     copyProducerToFile(tid, false);
   }
-  lk_unlock(locks_[tid]);
+  lk_unlock(&locks_[tid]);
 }
 
 void resetPool(THREADID tid)
@@ -190,14 +190,14 @@ static void reserveHandshake(THREADID tid)
   //  while(pool_[tid] == 0) {
   while(true) {
     assert(queueSizes_[tid] > 0);
-    lk_unlock(locks_[tid]);
+    lk_unlock(&locks_[tid]);
 
     enable_consumers();
     disable_producers();
 
     PIN_Sleep(1000);
 
-    lk_lock(locks_[tid], tid+1);
+    lk_lock(&locks_[tid], tid+1);
 
     if(*popped_) {
       *popped_ = false;

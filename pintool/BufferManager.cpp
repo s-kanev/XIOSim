@@ -41,10 +41,10 @@ SHARED_VAR_DEFINE(bool, useRealFile_)
 SHARED_VAR_DEFINE(int, numThreads_)
 SHARED_VAR_DEFINE(bool, popped_)
 
-SharedUnorderedMap<THREADID, XIOSIM_LOCK*> locks_;
+SharedUnorderedMap<THREADID, XIOSIM_LOCK> locks_;
 SharedUnorderedMap<THREADID, int> pool_;
 SharedUnorderedMap<THREADID, int64_t> queueSizes_;
-SharedUnorderedMap<THREADID, Buffer*> fakeFile_;
+SharedUnorderedMap<THREADID, Buffer*> fakeFile_; // XXX: fix allocation
 SharedUnorderedMap<THREADID, int> fileEntryCount_;
 SharedUnorderedMap<THREADID, shm_string_deque> fileNames_;
 SharedUnorderedMap<THREADID, shm_int_deque> fileCounts_;
@@ -75,7 +75,7 @@ void InitBufferManager()
   fileNames_.initialize_late(XIOSIM_SHARED_MEMORY_KEY, BUFFER_MANAGER_FILE_NAMES_, MAX_CORES);
   fileCounts_.initialize_late(XIOSIM_SHARED_MEMORY_KEY, BUFFER_MANAGER_FILE_COUNTS_, MAX_CORES);
 
-  std::cout << "Initialized queueSizes" << std::endl;
+  std::cout << "[" << getpid() << "]" << "Initialized queueSizes" << std::endl;
 
   bm_init_lock.unlock();
 }
@@ -86,11 +86,9 @@ void DeinitBufferManager()
 
 bool empty(THREADID tid)
 {
-  assert(locks_[tid]);
-
-  lk_lock(locks_[tid], tid+1);
+  lk_lock(&locks_[tid], tid+1);
   bool result = queueSizes_[tid] == 0;
-  lk_unlock(locks_[tid]);
+  lk_unlock(&locks_[tid]);
   return result;
 }
 
@@ -123,9 +121,8 @@ int AllocateThread(THREADID tid)
 {
   *useRealFile_ = true;
 
-  locks_[tid] = new XIOSIM_LOCK();
-  lk_init(locks_[tid]);
   assert(queueSizes_.count(tid) == 0);
+  lk_init(&locks_[tid]);
   queueSizes_[tid] = 0;
 
   fileEntryCount_[tid] = 0;

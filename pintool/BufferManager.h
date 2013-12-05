@@ -29,7 +29,7 @@ namespace buffer_management
   SHARED_VAR_DECLARE(int, numThreads_)
   SHARED_VAR_DECLARE(bool, popped_)
 
-  extern SharedUnorderedMap<THREADID, XIOSIM_LOCK*> locks_;
+  extern SharedUnorderedMap<THREADID, XIOSIM_LOCK> locks_;
   extern SharedUnorderedMap<THREADID, int> pool_;
   extern SharedUnorderedMap<THREADID, int64_t> queueSizes_;
   extern SharedUnorderedMap<THREADID, Buffer*> fakeFile_;
