@@ -960,21 +960,20 @@ INT32 main(INT32 argc, CHAR **argv)
 
     // Delay this instrumentation until startSimulation call in ILDJIT.
     // This cuts down HELIX compilation noticably for integer benchmarks.
-/*
+
     if(!KnobILDJIT.Value()) {
         TRACE_AddInstrumentFunction(InstrumentInsIgnoring, 0);
         INS_AddInstrumentFunction(Instrument, 0);
     }
 
-*/
     PIN_AddThreadStartFunction(ThreadStart, NULL);
     PIN_AddThreadFiniFunction(ThreadFini, NULL);
 //    IMG_AddUnloadFunction(ImageUnload, 0);
-/*    IMG_AddInstrumentFunction(ImageLoad, 0);
+    IMG_AddInstrumentFunction(ImageLoad, 0);
     PIN_AddFiniUnlockedFunction(BeforeFini, 0);
     PIN_AddFiniFunction(Fini, 0);
     InitSyscallHandling();
-*/
+
     host_cpus = get_nprocs_conf();
     if((host_cpus < KnobNumCores.Value() * 2) || KnobILDJIT.Value()) {
       *sleeping_enabled = true;
