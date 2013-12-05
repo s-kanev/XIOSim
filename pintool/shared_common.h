@@ -26,6 +26,16 @@ const std::size_t DEFAULT_GROW_MEMORY_SIZE = 65536;
 
 template<typename K, typename V>
 class SharedMemoryMapCommon {
+  protected:
+    typedef std::pair<std::size_t, std::size_t> MemorySizeStateType;
+    typedef std::pair<const K, V> MapValueType;
+    typedef boost::interprocess::allocator<
+        MapValueType, managed_shared_memory::segment_manager>
+          MapValueAllocator;
+    typedef boost::interprocess::map<K, V, std::less<K>, MapValueAllocator>
+        InternalMap;
+    typedef boost::interprocess::allocator<void, managed_shared_memory::segment_manager>
+        VoidAllocator;
 
   public:
     SharedMemoryMapCommon() : data_key(""), memory_key("") {}
@@ -83,25 +93,19 @@ class SharedMemoryMapCommon {
       return internal_map->size();
     }
 
-    typename boost::interprocess::map<K, V>::iterator begin() {
+    typename InternalMap::iterator begin() {
       return internal_map->begin();
     }
 
-    typename boost::interprocess::map<K, V>::iterator end() {
+    typename InternalMap::iterator end() {
       return internal_map->end();
     }
 
-  protected:
-    typedef std::pair<std::size_t, std::size_t> MemorySizeStateType;
-    typedef std::pair<const K, V> MapValueType;
-    typedef boost::interprocess::allocator<
-        MapValueType, managed_shared_memory::segment_manager>
-          MapValueAllocator;
-    typedef boost::interprocess::map<K, V, std::less<K>, MapValueAllocator>
-        InternalMap;
-    typedef boost::interprocess::allocator<void, managed_shared_memory::segment_manager>
-        VoidAllocator;
+    typename InternalMap::iterator find(K key) {
+      return internal_map->find(key);
+    }
 
+  protected:
     // Name that identifies this map in the shared memory segment.
     boost::interprocess::string data_key;
     // Name that identifies this shared memory segment.
