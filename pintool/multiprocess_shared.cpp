@@ -123,7 +123,7 @@ int GetSHMThreadCore(THREADID tid) {
 VOID disable_consumers()
 {
   if(*sleeping_enabled) {
-    if(!consumers_sleep) {
+    if(!*consumers_sleep) {
       PIN_SemaphoreClear(consumer_sleep_lock);
     }
     *consumers_sleep = true;
@@ -142,7 +142,7 @@ VOID disable_producers()
 
 VOID enable_consumers()
 {
-  if(consumers_sleep) {
+  if(*consumers_sleep) {
     PIN_SemaphoreSet(consumer_sleep_lock);
   }
   *consumers_sleep = false;

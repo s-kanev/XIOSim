@@ -93,10 +93,12 @@ VOID SimulatorLoop(VOID* arg)
 
         while (xiosim::buffer_management::empty(instrument_tid)) {
             PIN_Yield();
-            while(consumers_sleep) {
+            while(*consumers_sleep) {
                 PIN_SemaphoreWait(consumer_sleep_lock);
             }
         }
+
+        cerr << "HERE" << endl;
 
         int consumerHandshakes = xiosim::buffer_management::getConsumerSize(instrument_tid);
         if(consumerHandshakes == 0) {
@@ -107,7 +109,7 @@ VOID SimulatorLoop(VOID* arg)
 
         int numConsumed = 0;
         for(int i = 0; i < consumerHandshakes; i++) {
-            while(consumers_sleep) {
+            while(*consumers_sleep) {
                 PIN_SemaphoreWait(consumer_sleep_lock);
             }
 
