@@ -110,7 +110,7 @@ void signalCallback(int signum)
 
   for(auto it_threads = fileNames_.begin(); it_threads != fileNames_.end(); it_threads++)
     for (auto it_files = it_threads->second.begin(); it_files != it_threads->second.end(); it_files++) {
-        boost::interprocess::string cmd = "/bin/rm -rf " + *it_files + " &";
+        auto cmd = "/bin/rm -rf " + *it_files + " &";
         int retVal = system(cmd.c_str());
         (void)retVal;
         assert(retVal == 0);

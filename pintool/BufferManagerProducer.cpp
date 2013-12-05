@@ -29,7 +29,7 @@ static void copyProducerToFileFake(THREADID tid);
 static void writeHandshake(THREADID tid, int fd, handshake_container_t* handshake);
 static int getKBFreeSpace(boost::interprocess::string path);
 static void reserveHandshake(THREADID tid);
-static boost::interprocess::string genFileName(boost::interprocess::string path);
+static shm_string genFileName(boost::interprocess::string path);
 
 static std::unordered_map<THREADID, Buffer*> produceBuffer_;
 static std::unordered_map<THREADID, int> writeBufferSize_;
@@ -292,7 +292,7 @@ static void copyProducerToFileReal(THREADID tid, bool checkSpace)
   }
 
   // sync() if we put the file somewhere besides /dev/shm
-  if(fileNames_[tid].back().find("shm") == boost::interprocess::string::npos) {
+  if(fileNames_[tid].back().find("shm") == shm_string::npos) {
     sync();
   }
 
@@ -365,15 +365,17 @@ static int getKBFreeSpace(boost::interprocess::string path)
   return (fsinfo.f_bsize * fsinfo.f_bfree / 1024);
 }
 
-static boost::interprocess::string genFileName(boost::interprocess::string path)
+static shm_string genFileName(boost::interprocess::string path)
 {
   char* temp = tempnam(path.c_str(), gpid_.c_str());
   boost::interprocess::string res = boost::interprocess::string(temp);
   assert(res.find(path) != boost::interprocess::string::npos);
   res.insert(path.length() + gpid_.length(), "_");
   res = res + ".helix";
+
+  shm_string shared_res(res.c_str(), global_shm->get_allocator<void>());
   free(temp);
-  return res;
+  return shared_res;
 }
 
 }
