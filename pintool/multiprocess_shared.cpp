@@ -112,9 +112,10 @@ bool GetSHMCoreBusy(int coreID) {
 }
 
 int GetSHMThreadCore(THREADID tid) {
-    int res;
+    int res = -1;
     lk_lock(lk_coreThreads, 1);
-    res = threadCores->operator[](tid);
+    if (threadCores->find(tid) != threadCores->end())
+        res = threadCores->operator[](tid);
     lk_unlock(lk_coreThreads);
     return res;
 }
