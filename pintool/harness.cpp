@@ -60,6 +60,15 @@ void kill_handler(int sig) {
   exit(1);
 }
 
+std::string get_timing_sim_args(std::string harness_args) {
+    std::string res = boost::replace_all_copy<std::string>(harness_args, "feeder_zesto", "timing_sim");
+
+    auto pos = res.rfind("--");
+    res.replace(pos, res.length(), "-- ./timing_wait"); //XXX: get path from feeder_zesto.so
+    std::cout << "timing_sim args: " << res << std::endl;
+    return res;
+}
+
 int main(int argc, char **argv) {
   if (argc < 2) {
     std::cerr << "Insufficient command line arguments." << std::endl;
@@ -137,8 +146,7 @@ int main(int argc, char **argv) {
     switch (harness_pids[i]) {
       case 0:  { // child
         if (i == 0) {
-          std::string timing_cmd = boost::replace_all_copy<std::string>(command_stream.str(),
-                            "feeder_zesto", "timing_sim");
+          std::string timing_cmd = get_timing_sim_args(command_stream.str());
           system(timing_cmd.c_str()); 
         }
         else
