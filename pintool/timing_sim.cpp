@@ -138,9 +138,7 @@ VOID SimulatorLoop(VOID* arg)
             // First instruction, set bottom of stack, and flag we're not safe to kill
             if (handshake->flags.isFirstInsn)
             {
-                ipc_message_t msg;
-                msg.UpdateBOS(coreID, handshake->flags.BOS);
-                SendIPCMessage(msg);
+                Zesto_SetBOS(coreID, handshake->flags.BOS);
 //XXX: Re-enable afer sharing acive flag
 //                if (!control.PinPointsActive())
                     handshake->handshake.slice_num = 1;
