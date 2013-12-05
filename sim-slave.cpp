@@ -436,7 +436,7 @@ static void global_step(void)
 
       /* Check for messages coming from producer processes
        * and execute accordingly */
-      CheckIPCMessageQueue();
+      CheckIPCMessageQueue(false);
 
       /*********************************************/
       /* step through pipe stages in reverse order */

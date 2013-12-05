@@ -825,9 +825,9 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
 
         if (ExecMode == EXECUTION_MODE_SIMULATE)
         {
-                ipc_message_t msg;
-                msg.ScheduleNewThread(threadIndex);
-                SendIPCMessage(msg);
+            ipc_message_t msg;
+            msg.ScheduleNewThread(threadIndex);
+            SendIPCMessage(msg);
         }
 
         if (!KnobILDJIT.Value())

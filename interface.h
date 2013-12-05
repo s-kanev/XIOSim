@@ -31,7 +31,7 @@ void deactivate_core(int coreID);
 bool is_core_active(int coreID);
 void sim_drain_pipe(int coreID);
 
-void CheckIPCMessageQueue();
+void CheckIPCMessageQueue(bool isEarly);
 
 enum ipc_message_id_t { SLICE_START, SLICE_END, MMAP, MUNMAP, UPDATE_BRK, UPDATE_BOS, WARM_LLC, STOP_SIMULATION, ACTIVATE_CORE, DEACTIVATE_CORE, SCHEDULE_NEW_THREAD, HARDCODE_SCHEDULE, ALLOCATE_THREAD, INVALID_MSG };
 
@@ -41,9 +41,21 @@ struct ipc_message_t {
     int64_t arg1;
     int64_t arg2;
     int64_t arg3;
-    XIOSIM_LOCK lock;
 
     ipc_message_t() : id(INVALID_MSG) {}
+
+    /* Some messages need to be conusmed early in timing_sim.
+     * Mostly related to setup. */
+    bool ConsumableEarly() const {
+        switch (this->id) {
+          case SLICE_START:
+          case ACTIVATE_CORE:
+          case ALLOCATE_THREAD:
+            return true;
+          default:
+            return false;
+        }
+    }
 
     void SliceStart(unsigned int slice_num)
     {

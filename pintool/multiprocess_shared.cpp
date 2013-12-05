@@ -12,6 +12,7 @@ SHARED_VAR_DEFINE(PIN_SEMAPHORE, consumer_sleep_lock)
 SHARED_VAR_DEFINE(PIN_SEMAPHORE, producer_sleep_lock)
 
 SHARED_VAR_DEFINE(MessageQueue, ipcMessageQueue)
+SHARED_VAR_DEFINE(MessageQueue, ipcEarlyMessageQueue)
 SHARED_VAR_DEFINE(XIOSIM_LOCK, lk_ipcMessageQueue)
 
 SHARED_VAR_DEFINE(THREADID, coreThreads)
@@ -37,6 +38,8 @@ void InitSharedState(bool wait_for_others)
             DEFAULT_SHARED_MEMORY_SIZE);
     init_lock.lock();
 
+    ipc_message_allocator_t *ipc_queue_allocator = new ipc_message_allocator_t(global_shm->get_segment_manager());
+
     if (wait_for_others) {
         process_counter = global_shm->find_or_construct<int>(XIOSIM_INIT_COUNTER_KEY)();
         std::cout << getpid() << ": Counter value is: " << *process_counter << std::endl;
@@ -51,7 +54,9 @@ void InitSharedState(bool wait_for_others)
     PIN_SemaphoreInit(consumer_sleep_lock);
     PIN_SemaphoreInit(producer_sleep_lock);
 
-    SHARED_VAR_INIT(MessageQueue, ipcMessageQueue);
+    SHARED_VAR_INIT(MessageQueue, ipcMessageQueue, *ipc_queue_allocator);
+
+    SHARED_VAR_INIT(MessageQueue, ipcEarlyMessageQueue, *ipc_queue_allocator);
     SHARED_VAR_INIT(XIOSIM_LOCK, lk_ipcMessageQueue);
 
     SHARED_VAR_ARRAY_INIT(THREADID, coreThreads, KnobNumCores.Value(), INVALID_THREADID);
@@ -79,8 +84,14 @@ void InitSharedState(bool wait_for_others)
 
 void SendIPCMessage(ipc_message_t msg)
 {
+    MessageQueue *q = msg.ConsumableEarly() ? ipcEarlyMessageQueue : ipcMessageQueue;
+
+    lk_lock(printing_lock, 1);
+    std::cerr << "[SEND] IPC message, ID: " << msg.id << std::endl;
+    lk_unlock(printing_lock);
+
     lk_lock(lk_ipcMessageQueue, 1);
-    ipcMessageQueue->push_back(msg);
+    q->push_back(msg);
     lk_unlock(lk_ipcMessageQueue);
 }
 

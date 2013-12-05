@@ -76,6 +76,10 @@ VOID SimulatorLoop(VOID* arg)
         }
         lk_unlock(&tstate->lock);
 
+        /* Check for messages coming from producer processes
+         * and execute accordingly */
+        CheckIPCMessageQueue(true);
+
         if (!is_core_active(coreID)) {
             PIN_Sleep(10);
             continue;
@@ -304,20 +308,24 @@ int main(int argc, char * argv[])
     return 0;
 }
 
-void CheckIPCMessageQueue()
+void CheckIPCMessageQueue(bool isEarly)
 {
     /* Grab a message from IPC queue in shared memory */
     while (true) {
         ipc_message_t ipcMessage;
+        MessageQueue *q = isEarly ? ipcEarlyMessageQueue : ipcMessageQueue;
+
         lk_lock(lk_ipcMessageQueue, 1);
-        if (ipcMessageQueue->empty()) {
+        if (q->empty()) {
             lk_unlock(lk_ipcMessageQueue);
             break;
         }
 
-        ipcMessage = ipcMessageQueue->front();
-        ipcMessageQueue->pop_front();
+        ipcMessage = q->front();
+        q->pop_front();
         lk_unlock(lk_ipcMessageQueue);
+
+        std::cerr << "IPC message, ID: " << ipcMessage.id << " early: " << isEarly << std::endl;
 
         /* And execute the appropriate call based on the protocol
          * defined in interface.h */
