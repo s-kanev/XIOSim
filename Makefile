@@ -9,7 +9,7 @@
 #
 ##################################################################
 
-CXX ?= g++
+CXX?= g++
 
 ##################################################################
 # Uncomment only one of the following OFLAGS, or make your own
@@ -156,7 +156,7 @@ zesto-dvfs.$(OEXT): zesto-dvfs.cpp zesto-dvfs.h ZCOMPS-dvfs
 	$(CXX) $(CFLAGS) -c $*.c
 
 .cpp.$(OEXT):
-	$(CC) $(CFLAGS) -I$(BOOST_HOME) -c $*.cpp
+	$(CXX) $(CFLAGS) -I$(BOOST_HOME) -c $*.cpp
 
 clean:
 	-$(RM) *.o *.obj core libsim*
