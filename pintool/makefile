@@ -27,6 +27,7 @@
 PIN_HOME ?= /home/skanev/pin/2.12
 ZESTO_HOME = ..
 BOOST_HOME ?= /home/samxi/boost_1_55_0
+USER_LOCAL ?= /home/samxi/local/
 TARGET = ia32
 
 ##############################################################
@@ -64,6 +65,7 @@ endif
 
 BOOST_INCLUDE = $(BOOST_HOME)
 BOOST_LDFLAGS = -lrt -lpthread
+LIBCONFUSE_FLAGS = -I$(USER_LOCAL)include -L$(USER_LOCAL)lib
 
 ##############################################################
 #
@@ -91,8 +93,9 @@ SHM_LDFLAGS = -ldl
 #
 ##############################################################
 all : CXXFLAGS += -DDEBUG -D_FILE_OFFSET_BITS=64 -std=c++11
-all : CXXFLAGS += -I$(BOOST_INCLUDE) $(BOOST_LDFLAGS) $(SHM_LDFLAGS)
+all : CXXFLAGS += -I$(BOOST_INCLUDE) $(LIBCONFUSE_FLAGS) $(BOOST_LDFLAGS) $(SHM_LDFLAGS)
 all: tools harness $(OBJDIR)feeder_zesto.so timing_wait
+harness: CXXFLAGS += -I$(BOOST_INCLUDE) $(LIBCONFUSE_FLAGS) -std=c++11
 debug:	CXXFLAGS += -DZESTO_PIN_DBG -D_FILE_OFFSET_BITS=64 -std=c++11
 debug : CXXFLAGS += -I$(BOOST_INCLUDE)
 debug:	tools
@@ -136,7 +139,7 @@ $(OBJDIR)feeder_zesto.so: $(FEEDER_OBJS) $(OBJDIR)feeder_zesto.o
 	${PIN_LD} -g $(PIN_LDFLAGS) -I$(ZESTO_HOME) -I$(BOOST_INCLUDE) $(LINK_DEBUG) ${LINK_OUT} $@ ${PIN_LPATHS} $^ $(PIN_LIBS) $(DBG) -lrt -pthread 
 
 harness: $(HARNESS_OBJS)
-	${PIN_LD} -g -I$(BOOST_INCLUDE) ${SHM_LDFLAGS} $(LINK_DEBUG) ${LINK_OUT} $@ $^ -pthread -lrt 
+	${PIN_LD} -g $(CXXFLAGS) ${SHM_LDFLAGS} $(LINK_DEBUG) ${LINK_OUT} $@ $^ -pthread -lrt -lconfuse
 
 timing_wait: timing_wait.cpp
 	$(CXX) $(CXXFLAGS) ${OUTOPT} $@ $<
