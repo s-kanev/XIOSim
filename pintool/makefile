@@ -26,7 +26,7 @@
 #
 PIN_HOME ?= /home/skanev/pin/2.12
 ZESTO_HOME = ..
-BOOST_HOME ?= /home/samxi/cs261/shm/boost_1_55_0
+BOOST_HOME ?= /home/samxi/boost_1_55_0
 TARGET = ia32
 
 ##############################################################
