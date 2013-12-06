@@ -92,7 +92,7 @@ SHM_LDFLAGS = -ldl
 ##############################################################
 all : CXXFLAGS += -DDEBUG -D_FILE_OFFSET_BITS=64 -std=c++11
 all : CXXFLAGS += -I$(BOOST_INCLUDE) $(BOOST_LDFLAGS) $(SHM_LDFLAGS)
-all: tools harness $(OBJDIR)feeder_zesto.so
+all: tools harness $(OBJDIR)feeder_zesto.so timing_wait
 debug:	CXXFLAGS += -DZESTO_PIN_DBG -D_FILE_OFFSET_BITS=64 -std=c++11
 debug : CXXFLAGS += -I$(BOOST_INCLUDE)
 debug:	tools
@@ -137,6 +137,9 @@ $(OBJDIR)feeder_zesto.so: $(FEEDER_OBJS) $(OBJDIR)feeder_zesto.o
 
 harness: $(HARNESS_OBJS)
 	${PIN_LD} -g -I$(BOOST_INCLUDE) ${SHM_LDFLAGS} $(LINK_DEBUG) ${LINK_OUT} $@ $^ -pthread -lrt 
+
+timing_wait: timing_wait.cpp
+	$(CXX) $(CXXFLAGS) ${OUTOPT} $@ $<
 
 ## cleaning
 clean:
