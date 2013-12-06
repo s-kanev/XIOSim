@@ -47,7 +47,7 @@ sim_thread_state_t* get_sim_tls(THREADID threadid)
  * This allows to pipeline instrumentation and simulation. */
 VOID ReleaseHandshake(UINT32 coreID)
 {
-    THREADID instrument_tid = GetCoreThread(coreID);
+    pid_t instrument_tid = GetCoreThread(coreID);
     ASSERTX(!xiosim::buffer_management::empty(instrument_tid));
 
     // pop() invalidates the buffer
@@ -59,14 +59,14 @@ VOID ReleaseHandshake(UINT32 coreID)
 VOID SimulatorLoop(VOID* arg)
 {
     INT32 coreID = reinterpret_cast<INT32>(arg);
-    THREADID tid = PIN_ThreadId();
+    THREADID sim_tid = PIN_ThreadId();
 
     sim_thread_state_t* tstate = new sim_thread_state_t();
-    PIN_SetThreadData(tls_key, tstate, tid);
+    PIN_SetThreadData(tls_key, tstate, sim_tid);
 
     while (true) {
         /* Check kill flag */
-        lk_lock(&tstate->lock, tid+1);
+        lk_lock(&tstate->lock, sim_tid+1);
 
         if (!tstate->is_running) {
             deactivate_core(coreID);
@@ -86,7 +86,7 @@ VOID SimulatorLoop(VOID* arg)
         }
 
         // Get the latest thread we are running from the scheduler
-        THREADID instrument_tid = GetCoreThread(coreID);
+        pid_t instrument_tid = GetCoreThread(coreID);
         if (instrument_tid == INVALID_THREADID) {
             continue;
         }
@@ -97,8 +97,6 @@ VOID SimulatorLoop(VOID* arg)
                 PIN_SemaphoreWait(consumer_sleep_lock);
             }
         }
-
-        cerr << "HERE" << endl;
 
         int consumerHandshakes = xiosim::buffer_management::getConsumerSize(instrument_tid);
         if(consumerHandshakes == 0) {
@@ -142,7 +140,7 @@ VOID SimulatorLoop(VOID* arg)
 //XXX: Re-enable afer sharing acive flag
 //                if (!control.PinPointsActive())
                     handshake->handshake.slice_num = 1;
-                lk_lock(&tstate->lock, tid+1);
+                lk_lock(&tstate->lock, sim_tid+1);
                 tstate->sim_stopped = false;
                 lk_unlock(&tstate->lock);
             }
@@ -295,13 +293,12 @@ int main(int argc, char * argv[])
 
     // Prepare args for libsim
     SSARGS ssargs = MakeSimpleScalarArgcArgv(argc, argv);
+    Zesto_SlaveInit(ssargs.first, ssargs.second);
 
     ASSERTX( num_cores == KnobNumCores.Value() );
 
     InitScheduler(num_cores);
     SpawnSimulatorThreads(num_cores);
-
-    Zesto_SlaveInit(ssargs.first, ssargs.second);
 
     PIN_StartProgram();
 

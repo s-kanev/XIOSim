@@ -32,7 +32,7 @@ struct RunQueue {
 
     XIOSIM_LOCK lk;
     // XXX: SHARED -- lock protects those
-    queue<THREADID> q;
+    queue<pid_t> q;
     // XXX: END SHARED
 };
 
@@ -41,7 +41,7 @@ static RunQueue * run_queues;
 static INT32 last_coreID;
 
 /* Update shm array of running threads */
-static void UpdateSHMRunqueues(int coreID, THREADID tid)
+static void UpdateSHMRunqueues(int coreID, pid_t tid)
 {
     lk_lock(lk_coreThreads, 1);
     coreThreads[coreID] = tid;
@@ -50,7 +50,7 @@ static void UpdateSHMRunqueues(int coreID, THREADID tid)
     lk_unlock(lk_coreThreads);
 }
 
-static void UpdateSHMThreadCore(THREADID tid, int coreID)
+static void UpdateSHMThreadCore(pid_t tid, int coreID)
 {
     if (tid == INVALID_THREADID)
         return;
@@ -67,7 +67,7 @@ VOID InitScheduler(INT32 num_cores)
 }
 
 /* ========================================================================== */
-VOID ScheduleNewThread(THREADID tid)
+VOID ScheduleNewThread(pid_t tid)
 {
     if (GetSHMThreadCore(tid) != (UINT32)-1) {
         lk_lock(printing_lock, 1);
@@ -89,7 +89,7 @@ VOID ScheduleNewThread(THREADID tid)
 }
 
 /* ========================================================================== */
-VOID HardcodeSchedule(THREADID tid, INT32 coreID)
+VOID HardcodeSchedule(pid_t tid, INT32 coreID)
 {
     lk_lock(&run_queues[coreID].lk, 1);
     ASSERTX(run_queues[coreID].q.empty());
@@ -105,14 +105,14 @@ VOID DescheduleActiveThread(INT32 coreID)
 {
     lk_lock(&run_queues[coreID].lk, 1);
 
-    THREADID tid = run_queues[coreID].q.front();
+    pid_t tid = run_queues[coreID].q.front();
     run_queues[coreID].last_reschedule = cores[coreID]->sim_cycle;
 
     lk_lock(printing_lock, 1);
     cerr << "Descheduling thread " << tid << " at coreID  " << coreID << endl;
     lk_unlock(printing_lock);
 
-    /* Deallocate thread state */
+    /* Deallocate thread state -- XXX: send IPC back to feeder */
 /*    thread_state_t* tstate = get_tls(tid);
     delete tstate;
     PIN_DeleteThreadDataKey(tid);
@@ -122,7 +122,7 @@ VOID DescheduleActiveThread(INT32 coreID)
 */
     run_queues[coreID].q.pop();
 
-    THREADID new_tid = INVALID_THREADID;
+    pid_t new_tid = INVALID_THREADID;
     if (!run_queues[coreID].q.empty()) {
         new_tid = run_queues[coreID].q.front();
 
@@ -143,7 +143,7 @@ VOID DescheduleActiveThread(INT32 coreID)
 VOID GiveUpCore(INT32 coreID, BOOL reschedule_thread)
 {
     lk_lock(&run_queues[coreID].lk, 1);
-    THREADID tid = run_queues[coreID].q.front();
+    pid_t tid = run_queues[coreID].q.front();
     run_queues[coreID].last_reschedule = cores[coreID]->sim_cycle;
 
     lk_lock(printing_lock, tid+1);
@@ -152,7 +152,7 @@ VOID GiveUpCore(INT32 coreID, BOOL reschedule_thread)
 
     run_queues[coreID].q.pop();
 
-    THREADID new_tid = INVALID_THREADID;
+    pid_t new_tid = INVALID_THREADID;
     if (!run_queues[coreID].q.empty()) {
         new_tid = run_queues[coreID].q.front();
 
@@ -182,9 +182,9 @@ VOID GiveUpCore(INT32 coreID, BOOL reschedule_thread)
 }
 
 /* ========================================================================== */
-THREADID GetCoreThread(INT32 coreID)
+pid_t GetCoreThread(INT32 coreID)
 {
-    THREADID result;
+    pid_t result;
     lk_lock(&run_queues[coreID].lk, 1);
     if (run_queues[coreID].q.empty())
         result = INVALID_THREADID;

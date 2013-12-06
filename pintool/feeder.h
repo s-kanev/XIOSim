@@ -22,6 +22,9 @@ extern KNOB<string> KnobFluffy;
 extern list<THREADID> thread_list;
 extern XIOSIM_LOCK thread_list_lock;
 
+extern map<pid_t, THREADID> global_to_local_tid;
+extern XIOSIM_LOCK lk_tid_map;
+
 extern INT32 host_cpus;
 extern map<THREADID, tick_t> lastConsumerApply;
 
@@ -105,6 +108,9 @@ class thread_state_t
     // Address of the last signal executed
     ADDRINT lastSignalAddr;
 
+    // Global tid for this thread
+    pid_t tid;
+
     // Per Loop State
     per_loop_state_t* loop_state;
 
@@ -165,6 +171,6 @@ VOID Fini(INT32 exitCode, VOID *v);
 VOID amd_hack();
 VOID doLateILDJITInstrumentation();
 
-VOID printTrace(string stype, ADDRINT pc, THREADID tid);
+VOID printTrace(string stype, ADDRINT pc, pid_t tid);
 
 #endif /*__FEEDER_ZESTO__ */

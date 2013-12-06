@@ -41,13 +41,13 @@ SHARED_VAR_DEFINE(bool, useRealFile_)
 SHARED_VAR_DEFINE(int, numThreads_)
 SHARED_VAR_DEFINE(bool, popped_)
 
-SharedUnorderedMap<THREADID, XIOSIM_LOCK> locks_;
-SharedUnorderedMap<THREADID, int> pool_;
-SharedUnorderedMap<THREADID, int64_t> queueSizes_;
-SharedUnorderedMap<THREADID, Buffer*> fakeFile_; // XXX: fix allocation
-SharedUnorderedMap<THREADID, int> fileEntryCount_;
-SharedUnorderedMap<THREADID, shm_string_deque> fileNames_;
-SharedUnorderedMap<THREADID, shm_int_deque> fileCounts_;
+SharedUnorderedMap<pid_t, XIOSIM_LOCK> locks_;
+SharedUnorderedMap<pid_t, int> pool_;
+SharedUnorderedMap<pid_t, int64_t> queueSizes_;
+SharedUnorderedMap<pid_t, Buffer*> fakeFile_; // XXX: fix allocation
+SharedUnorderedMap<pid_t, int> fileEntryCount_;
+SharedUnorderedMap<pid_t, shm_string_deque> fileNames_;
+SharedUnorderedMap<pid_t, shm_int_deque> fileCounts_;
 
 void InitBufferManager()
 {
@@ -84,7 +84,7 @@ void DeinitBufferManager()
 {
 }
 
-bool empty(THREADID tid)
+bool empty(pid_t tid)
 {
   lk_lock(&locks_[tid], tid+1);
   bool result = queueSizes_[tid] == 0;
@@ -92,7 +92,7 @@ bool empty(THREADID tid)
   return result;
 }
 
-bool hasThread(THREADID tid)
+bool hasThread(pid_t tid)
 {
   bool result = queueSizes_.count(tid);
   return (result != 0);
@@ -117,7 +117,7 @@ void signalCallback(int signum)
     }
 }
 
-int AllocateThread(THREADID tid)
+int AllocateThread(pid_t tid)
 {
   *useRealFile_ = true;
 

@@ -48,13 +48,14 @@ SHARED_VAR_DECLARE(MessageQueue, ipcMessageQueue);
 SHARED_VAR_DECLARE(MessageQueue, ipcEarlyMessageQueue);
 SHARED_VAR_DECLARE(XIOSIM_LOCK, lk_ipcMessageQueue);
 
-SHARED_VAR_DECLARE(THREADID, coreThreads);
-typedef xiosim::shared::SharedMemoryMap<THREADID, int> ThreadCoreMap;
+SHARED_VAR_DECLARE(pid_t, coreThreads);
+typedef xiosim::shared::SharedMemoryMap<pid_t, int> ThreadCoreMap;
+
 SHARED_VAR_DECLARE(ThreadCoreMap, threadCores);
 SHARED_VAR_DECLARE(XIOSIM_LOCK, lk_coreThreads);
-THREADID GetSHMRunqueue(int coreID);
+pid_t GetSHMRunqueue(int coreID);
 bool GetSHMCoreBusy(int coreID);
-int GetSHMThreadCore(THREADID tid);
+int GetSHMThreadCore(pid_t tid);
 
 SHARED_VAR_DECLARE(XIOSIM_LOCK, printing_lock);
 

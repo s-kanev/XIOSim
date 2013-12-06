@@ -11,12 +11,12 @@ VOID InitScheduler(INT32 num_cores);
 /* Notify the scheduler a new threads is created.
  * It will be immediately marked for scheduling on a core.
  */
-VOID ScheduleNewThread(THREADID tid);
+VOID ScheduleNewThread(pid_t tid);
 
 /* Get the current running thread on core @coreID.
  * returns INVALID_THREADID if core is not active.
  */
-THREADID GetCoreThread(INT32 coreID);
+pid_t GetCoreThread(INT32 coreID);
 
 /* Remove a thread from the scheduler once it exits,
  * and we are done simulating it. This will free the
@@ -27,7 +27,7 @@ VOID DescheduleActiveThread(INT32 coreID);
 /* Hook to not use the scheduler, if simulated
  * program (HELIX) is already taking care of it.
  */
-VOID HardcodeSchedule(THREADID tid, INT32 coreID);
+VOID HardcodeSchedule(pid_t tid, INT32 coreID);
 
 /* Let another thread (if any) scheduled on core
  * @coreID take over.

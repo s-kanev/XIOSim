@@ -33,6 +33,7 @@
 #include <elf.h>
 #include <sys/mman.h>
 #include <sys/sysinfo.h>
+#include <syscall.h>
 #include <sched.h>
 #include <unistd.h>
 #include <utility>
@@ -84,6 +85,17 @@ static TLS_KEY tls_key;
 
 XIOSIM_LOCK thread_list_lock;
 list<THREADID> thread_list;
+
+static inline pid_t gettid() {
+    return syscall(SYS_gettid);
+}
+map<pid_t, THREADID> global_to_local_tid;
+XIOSIM_LOCK lk_tid_map;
+
+/* This only matters for a Fini callback where we
+ * can't get this information from TLS, which has
+ * been destroyed. Ugh. */
+static map<THREADID, pid_t> local_to_global_tid;
 
 INT32 host_cpus;
 
@@ -169,7 +181,8 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
             // Let caller thread be simulated again
             if (!KnobILDJIT.Value()) {
                 ipc_message_t msg;
-                msg.ScheduleNewThread(tid);
+                thread_state_t *tstate = get_tls(tid);
+                msg.ScheduleNewThread(tstate->tid);
                 SendIPCMessage(msg);
             }
 
@@ -194,14 +207,21 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
                 /* In this case, we need to flush all buffers for this thread
                  * and cleanly let the scheduler know to deschedule it once
                  * all instructions are conusmed. */
-                handshake_container_t *handshake = xiosim::buffer_management::get_buffer(tid);
+                pid_t global_tid;
+                if (in_fini)
+                    global_tid = local_to_global_tid[tid];
+                else {
+                    global_tid = get_tls(tid)->tid;
+                }
+
+                handshake_container_t *handshake = xiosim::buffer_management::get_buffer(global_tid);
                 handshake->flags.giveCoreUp = true;
                 handshake->flags.giveUpReschedule = false;
                 handshake->flags.valid = true;
                 handshake->handshake.real = false;
-                xiosim::buffer_management::producer_done(tid, true);
+                xiosim::buffer_management::producer_done(global_tid, true);
 
-                xiosim::buffer_management::flushBuffers(tid);
+                xiosim::buffer_management::flushBuffers(global_tid);
             }
 
             lk_lock(printing_lock, 1);
@@ -358,6 +378,14 @@ VOID MakeSSContext(const CONTEXT *ictxt, FPSTATE* fpstate, ADDRINT pc, ADDRINT n
 VOID BeforeFini(INT32 exitCode, VOID *v)
 {
     in_fini = true;
+
+    /* Make sure we have a mappig to global tid, which we'll
+     * need to clean stuff up. */
+    list<THREADID>::iterator it;
+    ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
+        auto curr_tstate = get_tls(*it);
+        local_to_global_tid[*it] = curr_tstate->tid;
+    }
 }
 
 /* ========================================================================== */
@@ -414,11 +442,11 @@ VOID GrabInstructionMemory(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_m
 
     handshake_container_t* handshake;
     if (first_mem_op) {
-        handshake = xiosim::buffer_management::get_buffer(tid);
+        handshake = xiosim::buffer_management::get_buffer(tstate->tid);
         ASSERTX(!handshake->flags.valid);
     }
     else {
-        handshake = xiosim::buffer_management::back(tid);
+        handshake = xiosim::buffer_management::back(tstate->tid);
     }
 
     /* should be the common case */
@@ -456,21 +484,21 @@ VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, A
 
     if (IsInstructionIgnored(pc)) {
 #ifdef PRINT_DYN_TRACE
-        printTrace("jit", pc, tid);
+        printTrace("jit", pc, tstate->tid);
 #endif
         return;
     }
 
 #ifdef PRINT_DYN_TRACE
-    printTrace("sim", pc, tid);
+    printTrace("sim", pc, tstate->tid);
 #endif
 
     handshake_container_t* handshake;
     if (has_memory) {
-        handshake = xiosim::buffer_management::back(tid);
+        handshake = xiosim::buffer_management::back(tstate->tid);
     }
     else {
-        handshake = xiosim::buffer_management::get_buffer(tid);
+        handshake = xiosim::buffer_management::get_buffer(tstate->tid);
         ASSERTX(!handshake->flags.valid);
     }
 
@@ -494,10 +522,10 @@ VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, A
     if (done_instrumenting) {
         // Let simulator consume instruction from SimulatorLoop
         handshake->flags.valid = true;
-        xiosim::buffer_management::producer_done(tid);
+        xiosim::buffer_management::producer_done(tstate->tid);
 
         if (tstate->num_inst && (tstate->num_inst % 1000000 == 0))
-            xiosim::buffer_management::flushBuffers(tid);
+            xiosim::buffer_management::flushBuffers(tstate->tid);
     }
 }
 
@@ -526,7 +554,7 @@ VOID FixRepInstructionNPC(THREADID tid, ADDRINT pc, BOOL rep_prefix, BOOL repne_
     if (IsInstructionIgnored(pc))
         return;
 
-    handshake_container_t* handshake = xiosim::buffer_management::back(tid);
+    handshake_container_t* handshake = xiosim::buffer_management::back(tstate->tid);
 
     ASSERTX(handshake != NULL);
     ASSERTX(!handshake->flags.valid);
@@ -604,10 +632,10 @@ VOID FixRepInstructionNPC(THREADID tid, ADDRINT pc, BOOL rep_prefix, BOOL repne_
 
     // Instruction is ready to be consumed
     handshake->flags.valid = true;
-    xiosim::buffer_management::producer_done(tid);
+    xiosim::buffer_management::producer_done(tstate->tid);
 
     if (tstate->num_inst && (tstate->num_inst % 1000000 == 0))
-        xiosim::buffer_management::flushBuffers(tid);
+        xiosim::buffer_management::flushBuffers(tstate->tid);
 }
 
 /* ========================================================================== */
@@ -816,17 +844,23 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
     if (!KnobILDJIT.Value() ||
         (KnobILDJIT.Value() && ILDJIT_IsCreatingExecutor()))
     {
+        /* Store globally unique thread id */
+        tstate->tid = gettid();
+
         // Create new buffer to store thread context
-        xiosim::buffer_management::AllocateThreadProducer(threadIndex);
+        xiosim::buffer_management::AllocateThreadProducer(tstate->tid);
 
 #if 0
         lastConsumerApply[threadIndex] = 0;
 #endif
+        lk_lock(&lk_tid_map, 1);
+        global_to_local_tid[tstate->tid] = threadIndex;
+        lk_unlock(&lk_tid_map);
 
         if (ExecMode == EXECUTION_MODE_SIMULATE)
         {
             ipc_message_t msg;
-            msg.ScheduleNewThread(threadIndex);
+            msg.ScheduleNewThread(tstate->tid);
             SendIPCMessage(msg);
         }
 
@@ -895,13 +929,13 @@ VOID ThreadFini(THREADID tid, const CONTEXT *ctxt, INT32 code, VOID *v)
      * Mark it as finishing and let the handshake buffer drain.
      * Once this last handshake gets executed by a core, it will make
        sure to clean up all thread resources. */
-    handshake_container_t *handshake = xiosim::buffer_management::get_buffer(tid);
+    handshake_container_t *handshake = xiosim::buffer_management::get_buffer(tstate->tid);
     handshake->flags.killThread = true;
     handshake->flags.valid = true;
     handshake->handshake.real = false;
-    xiosim::buffer_management::producer_done(tid);
+    xiosim::buffer_management::producer_done(tstate->tid);
 
-    xiosim::buffer_management::flushBuffers(tid);
+    xiosim::buffer_management::flushBuffers(tstate->tid);
 
     /* Ignore subsequent instructions that we may see on this thread before
      * destroying its tstate.
@@ -1073,7 +1107,7 @@ VOID doLateILDJITInstrumentation()
   calledAlready = true;
 }
 
-VOID printTrace(string stype, ADDRINT pc, THREADID tid)
+VOID printTrace(string stype, ADDRINT pc, pid_t tid)
 {
   if(ExecMode != EXECUTION_MODE_SIMULATE) {
     return;

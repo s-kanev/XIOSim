@@ -33,14 +33,14 @@ VOID Parsec_EndROI(THREADID tid, ADDRINT pc)
     lk_unlock(&tstate->lock);
 
     /* Mark this thread for descheduling */
-    handshake_container_t *handshake = xiosim::buffer_management::get_buffer(tid);
+    handshake_container_t *handshake = xiosim::buffer_management::get_buffer(tstate->tid);
     handshake->flags.giveCoreUp = true;
     handshake->flags.giveUpReschedule = false;
     handshake->flags.valid = true;
     handshake->handshake.real = false;
-    xiosim::buffer_management::producer_done(tid, true);
+    xiosim::buffer_management::producer_done(tstate->tid, true);
 
-    xiosim::buffer_management::flushBuffers(tid);
+    xiosim::buffer_management::flushBuffers(tstate->tid);
 
     /* Let core pipes drain an pause simulation */
     PPointHandler(CONTROL_STOP, NULL, NULL, (VOID*)pc, tid);

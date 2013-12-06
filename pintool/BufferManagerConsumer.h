@@ -9,12 +9,12 @@ namespace buffer_management
 {
 void InitBufferManagerConsumer();
 void DeinitBufferManagerConsumer();
-void AllocateThreadConsumer(THREADID tid, int buffer_capacity);
+void AllocateThreadConsumer(pid_t tid, int buffer_capacity);
 
-handshake_container_t* front(THREADID tid, bool isLocal=false);
-void pop(THREADID tid);
-void applyConsumerChanges(THREADID tid, int numChanged);
-int getConsumerSize(THREADID tid);
+handshake_container_t* front(pid_t tid, bool isLocal=false);
+void pop(pid_t tid);
+void applyConsumerChanges(pid_t tid, int numChanged);
+int getConsumerSize(pid_t tid);
 }
 }
 

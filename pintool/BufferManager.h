@@ -14,9 +14,9 @@ namespace buffer_management
 
   void InitBufferManager();
   void DeinitBufferManager();
-  bool empty(THREADID tid);
-  int AllocateThread(THREADID tid);
-  bool hasThread(THREADID tid);
+  bool empty(pid_t tid);
+  int AllocateThread(pid_t tid);
+  bool hasThread(pid_t tid);
   void signalCallback(int signum);
   void abort(void);
 
@@ -31,13 +31,13 @@ namespace buffer_management
   SHARED_VAR_DECLARE(int, numThreads_)
   SHARED_VAR_DECLARE(bool, popped_)
 
-  extern SharedUnorderedMap<THREADID, XIOSIM_LOCK> locks_;
-  extern SharedUnorderedMap<THREADID, int> pool_;
-  extern SharedUnorderedMap<THREADID, int64_t> queueSizes_;
-  extern SharedUnorderedMap<THREADID, Buffer*> fakeFile_;
-  extern SharedUnorderedMap<THREADID, int> fileEntryCount_;
-  extern SharedUnorderedMap<THREADID, shm_string_deque> fileNames_;
-  extern SharedUnorderedMap<THREADID, shm_int_deque> fileCounts_;
+  extern SharedUnorderedMap<pid_t, XIOSIM_LOCK> locks_;
+  extern SharedUnorderedMap<pid_t, int> pool_;
+  extern SharedUnorderedMap<pid_t, int64_t> queueSizes_;
+  extern SharedUnorderedMap<pid_t, Buffer*> fakeFile_;
+  extern SharedUnorderedMap<pid_t, int> fileEntryCount_;
+  extern SharedUnorderedMap<pid_t, shm_string_deque> fileNames_;
+  extern SharedUnorderedMap<pid_t, shm_int_deque> fileCounts_;
 
 }
 }

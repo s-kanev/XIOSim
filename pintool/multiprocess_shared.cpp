@@ -15,7 +15,7 @@ SHARED_VAR_DEFINE(MessageQueue, ipcMessageQueue)
 SHARED_VAR_DEFINE(MessageQueue, ipcEarlyMessageQueue)
 SHARED_VAR_DEFINE(XIOSIM_LOCK, lk_ipcMessageQueue)
 
-SHARED_VAR_DEFINE(THREADID, coreThreads)
+SHARED_VAR_DEFINE(pid_t, coreThreads)
 SHARED_VAR_DEFINE(ThreadCoreMap, threadCores)
 SHARED_VAR_DEFINE(XIOSIM_LOCK, lk_coreThreads)
 
@@ -59,7 +59,7 @@ void InitSharedState(bool wait_for_others)
     SHARED_VAR_INIT(MessageQueue, ipcEarlyMessageQueue, *ipc_queue_allocator);
     SHARED_VAR_INIT(XIOSIM_LOCK, lk_ipcMessageQueue);
 
-    SHARED_VAR_ARRAY_INIT(THREADID, coreThreads, KnobNumCores.Value(), INVALID_THREADID);
+    SHARED_VAR_ARRAY_INIT(pid_t, coreThreads, KnobNumCores.Value(), INVALID_THREADID);
     SHARED_VAR_CONSTRUCT(ThreadCoreMap, threadCores);
     SHARED_VAR_INIT(XIOSIM_LOCK, lk_coreThreads);
 
@@ -95,8 +95,8 @@ void SendIPCMessage(ipc_message_t msg)
     lk_unlock(lk_ipcMessageQueue);
 }
 
-THREADID GetSHMRunqueue(int coreID) {
-    THREADID res;
+pid_t GetSHMRunqueue(int coreID) {
+    pid_t res;
     lk_lock(lk_coreThreads, 1);
     res = coreThreads[coreID];
     lk_unlock(lk_coreThreads);
@@ -104,14 +104,14 @@ THREADID GetSHMRunqueue(int coreID) {
 }
 
 bool GetSHMCoreBusy(int coreID) {
-    THREADID res;
+    pid_t res;
     lk_lock(lk_coreThreads, 1);
     res = coreThreads[coreID];
     lk_unlock(lk_coreThreads);
     return res != INVALID_THREADID;
 }
 
-int GetSHMThreadCore(THREADID tid) {
+int GetSHMThreadCore(pid_t tid) {
     int res = -1;
     lk_lock(lk_coreThreads, 1);
     if (threadCores->find(tid) != threadCores->end())

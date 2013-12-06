@@ -23,17 +23,17 @@ namespace xiosim
 namespace buffer_management
 {
 
-static void copyProducerToFile(THREADID tid, bool checkSpace);
-static void copyProducerToFileReal(THREADID tid, bool checkSpace);
-static void copyProducerToFileFake(THREADID tid);
-static void writeHandshake(THREADID tid, int fd, handshake_container_t* handshake);
+static void copyProducerToFile(pid_t tid, bool checkSpace);
+static void copyProducerToFileReal(pid_t tid, bool checkSpace);
+static void copyProducerToFileFake(pid_t tid);
+static void writeHandshake(pid_t tid, int fd, handshake_container_t* handshake);
 static int getKBFreeSpace(boost::interprocess::string path);
-static void reserveHandshake(THREADID tid);
+static void reserveHandshake(pid_t tid);
 static shm_string genFileName(boost::interprocess::string path);
 
-static std::unordered_map<THREADID, Buffer*> produceBuffer_;
-static std::unordered_map<THREADID, int> writeBufferSize_;
-static std::unordered_map<THREADID, void*> writeBuffer_;
+static std::unordered_map<pid_t, Buffer*> produceBuffer_;
+static std::unordered_map<pid_t, int> writeBufferSize_;
+static std::unordered_map<pid_t, void*> writeBuffer_;
 static vector<boost::interprocess::string> bridgeDirs_;
 static boost::interprocess::string gpid_;
 
@@ -69,7 +69,7 @@ void DeinitBufferManagerProducer()
     }
 }
 
-void AllocateThreadProducer(THREADID tid)
+void AllocateThreadProducer(pid_t tid)
 {
     int bufferCapacity = AllocateThread(tid);
 
@@ -85,7 +85,7 @@ void AllocateThreadProducer(THREADID tid)
     SendIPCMessage(msg);
 }
 
-handshake_container_t* back(THREADID tid)
+handshake_container_t* back(pid_t tid)
 {
     lk_lock(&locks_[tid], tid+1);
     assert(queueSizes_[tid] > 0);
@@ -97,7 +97,7 @@ handshake_container_t* back(THREADID tid)
 /* On the producer side, get a buffer which we can start
  * filling directly.
  */
-handshake_container_t* get_buffer(THREADID tid)
+handshake_container_t* get_buffer(pid_t tid)
 {
   lk_lock(&locks_[tid], tid+1);
   // Push is guaranteed to succeed because each call to
@@ -117,7 +117,7 @@ handshake_container_t* get_buffer(THREADID tid)
  * current buffer. If we have ran out of space, make space
  * for a new buffer, so get_buffer() cannot fail.
  */
-void producer_done(THREADID tid, bool keepLock)
+void producer_done(pid_t tid, bool keepLock)
 {
   lk_lock(&locks_[tid], tid+1);
 
@@ -148,7 +148,7 @@ void producer_done(THREADID tid, bool keepLock)
 /* On the producer side, flush all buffers associated
  * with a thread to the backing file.
  */
-void flushBuffers(THREADID tid)
+void flushBuffers(pid_t tid)
 {
   lk_lock(&locks_[tid], tid+1);
 
@@ -158,7 +158,7 @@ void flushBuffers(THREADID tid)
   lk_unlock(&locks_[tid]);
 }
 
-void resetPool(THREADID tid)
+void resetPool(pid_t tid)
 {
   int poolFactor = 1;
   if(KnobNumCores.Value() > 1) {
@@ -173,7 +173,7 @@ void resetPool(THREADID tid)
  * buffer, wait until some of it gets consumed. If not,
  * try and increase the backing file size.
  */
-static void reserveHandshake(THREADID tid)
+static void reserveHandshake(pid_t tid)
 {
   int64_t queueLimit;
   if(KnobNumCores.Value() > 1) {
@@ -223,7 +223,7 @@ static void reserveHandshake(THREADID tid)
   }
 }
 
-static void copyProducerToFile(THREADID tid, bool checkSpace)
+static void copyProducerToFile(pid_t tid, bool checkSpace)
 {
   if(*useRealFile_) {
     copyProducerToFileReal(tid, checkSpace);
@@ -233,7 +233,7 @@ static void copyProducerToFile(THREADID tid, bool checkSpace)
   }
 }
 
-static void copyProducerToFileFake(THREADID tid)
+static void copyProducerToFileFake(pid_t tid)
 {
   while(produceBuffer_[tid]->size() > 0) {
     handshake_container_t* handshake = produceBuffer_[tid]->front();
@@ -246,7 +246,7 @@ static void copyProducerToFileFake(THREADID tid)
   }
 }
 
-static void copyProducerToFileReal(THREADID tid, bool checkSpace)
+static void copyProducerToFileReal(pid_t tid, bool checkSpace)
 {
   int result;
   bool madeFile = false;
@@ -312,7 +312,7 @@ static ssize_t do_write(const int fd, const void* buff, const size_t size)
   return bytesWritten;
 }
 
-static void writeHandshake(THREADID tid, int fd, handshake_container_t* handshake)
+static void writeHandshake(pid_t tid, int fd, handshake_container_t* handshake)
 {
   int mapSize = handshake->mem_buffer.size();
   const int handshakeBytes = sizeof(P2Z_HANDSHAKE);

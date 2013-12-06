@@ -538,7 +538,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
     }
 
     /* Insert wait instruction in pipeline */
-    handshake = xiosim::buffer_management::get_buffer(tid);
+    handshake = xiosim::buffer_management::get_buffer(tstate->tid);
 
     handshake->flags.isFirstInsn = first_insn;
     handshake->handshake.ctxt.regs_R.dw[MD_REG_ESP] = esp_val; /* Needed when first_insn to set up stack pages */
@@ -557,12 +557,12 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
                         getSignalAddress(ssID) | HELIX_WAIT_MASK;
 
 #ifdef PRINT_DYN_TRACE
-    printTrace("sim", handshake->handshake.pc, tid);
+    printTrace("sim", handshake->handshake.pc, tstate->tid);
 #endif
 
-    xiosim::buffer_management::producer_done(tid);
+    xiosim::buffer_management::producer_done(tstate->tid);
 
-    handshake_2 = xiosim::buffer_management::get_buffer(tid);
+    handshake_2 = xiosim::buffer_management::get_buffer(tstate->tid);
     handshake_2->handshake.real = false;
     handshake_2->handshake.in_critical_section = (KnobNumCores.Value() > 1);
     handshake_2->flags.valid = true;
@@ -574,10 +574,10 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
     memcpy(handshake_2->handshake.ins, wait_template_2, sizeof(wait_template_2));
 
 #ifdef PRINT_DYN_TRACE
-    printTrace("sim", handshake_2->handshake.pc, tid);
+    printTrace("sim", handshake_2->handshake.pc, tstate->tid);
 #endif
 
-    xiosim::buffer_management::producer_done(tid);    
+    xiosim::buffer_management::producer_done(tstate->tid);    
 
 cleanup:
     tstate->lastSignalAddr = 0xdecafbad;
@@ -646,7 +646,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
     }
 
     /* Insert signal instruction in pipeline */
-    handshake = xiosim::buffer_management::get_buffer(tid);
+    handshake = xiosim::buffer_management::get_buffer(tstate->tid);
 
     handshake->flags.isFirstInsn = false;
     handshake->handshake.sleep_thread = false;
@@ -664,10 +664,10 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
     *(INT32*)(&handshake->handshake.ins[2]) = getSignalAddress(ssID);
 
 #ifdef PRINT_DYN_TRACE
-    printTrace("sim", handshake->handshake.pc, tid);
+    printTrace("sim", handshake->handshake.pc, tstate->tid);
 #endif
 
-    xiosim::buffer_management::producer_done(tid);
+    xiosim::buffer_management::producer_done(tstate->tid);
 
 cleanup:
     tstate->lastSignalAddr = 0xdecafbad;
@@ -677,8 +677,9 @@ cleanup:
 VOID ILDJIT_setAffinity(THREADID tid, INT32 coreID)
 {
     ASSERTX(coreID >= 0 && coreID < KnobNumCores.Value());
+    thread_state_t *tstate = get_tls(tid);
     ipc_message_t msg;
-    msg.HardcodeSchedule(tid, coreID);
+    msg.HardcodeSchedule(tstate->tid, coreID);
     SendIPCMessage(msg);
 }
 
@@ -1076,9 +1077,10 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
     /* Drainning all pipelines and deactivating cores. */
     list<THREADID>::iterator it;
     ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
+        auto curr_tstate = get_tls(*it);
         /* Insert a trap. This will ensure that the pipe drains before
          * consuming the next instruction.*/
-        handshake_container_t* handshake = xiosim::buffer_management::get_buffer(*it);
+        handshake_container_t* handshake = xiosim::buffer_management::get_buffer(curr_tstate->tid);
         handshake->flags.isFirstInsn = false;
         handshake->handshake.sleep_thread = false;
         handshake->handshake.resume_thread = false;
@@ -1090,11 +1092,12 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
         handshake->handshake.tpc = (ADDRINT) syscall_template + sizeof(syscall_template);
         handshake->handshake.brtaken = false;
         memcpy(handshake->handshake.ins, syscall_template, sizeof(syscall_template));
-        xiosim::buffer_management::producer_done(*it, true);
+        xiosim::buffer_management::producer_done(curr_tstate->tid, true);
+
 
         /* And finally, flush the core's pipelie to get rid of anything
          * left over (including the trap) and flush the ring cache */
-        handshake_container_t* handshake_3 = xiosim::buffer_management::get_buffer(*it);
+        handshake_container_t* handshake_3 = xiosim::buffer_management::get_buffer(curr_tstate->tid);
 
         handshake_3->flags.isFirstInsn = false;
         handshake_3->handshake.sleep_thread = false;
@@ -1103,11 +1106,11 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
         handshake_3->handshake.real = false;
         handshake_3->handshake.pc = 0;
         handshake_3->flags.valid = true;
-        xiosim::buffer_management::producer_done(*it, true);
+        xiosim::buffer_management::producer_done(curr_tstate->tid, true);
         
         /* Deactivate this core, so we can advance the cycle conunter of
          * others without waiting on it */
-        handshake_container_t* handshake_2 = xiosim::buffer_management::get_buffer(*it);
+        handshake_container_t* handshake_2 = xiosim::buffer_management::get_buffer(curr_tstate->tid);
 
         handshake_2->flags.isFirstInsn = false;
         handshake_2->handshake.sleep_thread = true;
@@ -1115,9 +1118,9 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
         handshake_2->handshake.real = false;
         handshake_2->handshake.pc = 0;
         handshake_2->flags.valid = true;
-        xiosim::buffer_management::producer_done(*it, true);
+        xiosim::buffer_management::producer_done(curr_tstate->tid, true);
 
-        xiosim::buffer_management::flushBuffers(*it);
+        xiosim::buffer_management::flushBuffers(curr_tstate->tid);
     }
 
     enable_consumers();
@@ -1128,7 +1131,8 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
         done = true;
         list<THREADID>::iterator it;
         ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
-            done &= xiosim::buffer_management::empty((*it));
+            auto curr_tstate = get_tls(*it);
+            done &= xiosim::buffer_management::empty(curr_tstate->tid);
         }
         if (!done && *sleeping_enabled && (host_cpus <= KnobNumCores.Value()))
             PIN_Sleep(10);
@@ -1142,14 +1146,16 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
 #if 0
     tick_t most_cycles = 0;
     ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
-      int coreID = GetSHMThreadCore(*tid);
+      auto curr_tstate = get_tls(*it);
+      int coreID = GetSHMThreadCore(curr_tstate->tid);
       if(cores[coreID]->sim_cycle > most_cycles) {
         most_cycles = cores[coreID]->sim_cycle;
       }
     }
 
     ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
-      int coreID = GetSHMThreadCore(*tid);
+      auto curr_tstate = get_tls(*it);
+      int coreID = GetSHMThreadCore(curr_tstate->tid);
       assert(tstate != NULL);
       cores[coreID]->sim_cycle = most_cycles;
       cerr << coreID << ":OverlapCycles:" << most_cycles - lastConsumerApply[*it] << endl;
@@ -1164,10 +1170,10 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
     ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
         thread_state_t* tstate = get_tls(*it);
         lk_lock(&tstate->lock, *it+1);
-        xiosim::buffer_management::resetPool(*it);
+        xiosim::buffer_management::resetPool(tstate->tid);
         tstate->ignore = true;
         lk_unlock(&tstate->lock);
-        assert(xiosim::buffer_management::empty(*it));
+        assert(xiosim::buffer_management::empty(tstate->tid));
     }
 }
 
@@ -1182,7 +1188,7 @@ VOID ILDJIT_ResumeSimulation(THREADID tid)
          * If we do go through it, there are no guarantees for when the
          * resume is consumed, which can lead to nasty races of who gets
          * to resume first. */
-        THREADID curr_tid = GetSHMRunqueue(coreID);
+        pid_t curr_tid = GetSHMRunqueue(coreID);
         if (curr_tid == INVALID_THREADID)
             continue;
 
@@ -1190,7 +1196,12 @@ VOID ILDJIT_ResumeSimulation(THREADID tid)
         ipc_message_t msg;
         msg.ActivateCore(coreID);
         SendIPCMessage(msg);
-        thread_state_t* tstate = get_tls(curr_tid);
+
+        lk_lock(&lk_tid_map, 1);
+        THREADID local_tid = global_to_local_tid[curr_tid];
+        lk_unlock(&lk_tid_map);
+
+        thread_state_t* tstate = get_tls(local_tid);
         lk_lock(&tstate->lock, tid+1);
         tstate->ignore_all = false;
         lk_unlock(&tstate->lock);

@@ -21,14 +21,14 @@ namespace xiosim
 namespace buffer_management
 {
 
-static void copyFileToConsumer(THREADID tid);
-static void copyFileToConsumerReal(THREADID tid);
-static void copyFileToConsumerFake(THREADID tid);
-static bool readHandshake(THREADID tid, int fd, handshake_container_t* handshake);
+static void copyFileToConsumer(pid_t tid);
+static void copyFileToConsumerReal(pid_t tid);
+static void copyFileToConsumerFake(pid_t tid);
+static bool readHandshake(pid_t tid, int fd, handshake_container_t* handshake);
 
-static std::unordered_map<THREADID, Buffer*> consumeBuffer_;
-static std::unordered_map<THREADID, int> readBufferSize_;
-static std::unordered_map<THREADID, void*> readBuffer_;
+static std::unordered_map<pid_t, Buffer*> consumeBuffer_;
+static std::unordered_map<pid_t, int> readBufferSize_;
+static std::unordered_map<pid_t, void*> readBuffer_;
 
 void InitBufferManagerConsumer()
 {
@@ -40,7 +40,7 @@ void DeinitBufferManagerConsumer()
     DeinitBufferManager();
 }
 
-void AllocateThreadConsumer(THREADID tid, int buffer_capacity)
+void AllocateThreadConsumer(pid_t tid, int buffer_capacity)
 {
     consumeBuffer_[tid] = new Buffer(buffer_capacity);
 
@@ -50,7 +50,7 @@ void AllocateThreadConsumer(THREADID tid, int buffer_capacity)
     assert(readBuffer_[tid]);
 }
 
-handshake_container_t* front(THREADID tid, bool isLocal)
+handshake_container_t* front(pid_t tid, bool isLocal)
 {
 
   if(consumeBuffer_[tid]->size() > 0) {
@@ -108,7 +108,7 @@ handshake_container_t* front(THREADID tid, bool isLocal)
   return resultVal;
 }
 
-int getConsumerSize(THREADID tid)
+int getConsumerSize(pid_t tid)
 {
   return consumeBuffer_[tid]->size();
 }
@@ -116,7 +116,7 @@ int getConsumerSize(THREADID tid)
 /* On the consumer side, signal that we have consumed
  * numChanged buffers that can go back to the core's pool.
  */
-void applyConsumerChanges(THREADID tid, int numChanged)
+void applyConsumerChanges(pid_t tid, int numChanged)
 {
   lk_lock(&locks_[tid], tid+1);
 
@@ -128,7 +128,7 @@ void applyConsumerChanges(THREADID tid, int numChanged)
   lk_unlock(&locks_[tid]);
 }
 
-void pop(THREADID tid)
+void pop(pid_t tid)
 {
   consumeBuffer_[tid]->pop();
   *popped_ = true;
@@ -145,7 +145,7 @@ void pop(THREADID tid)
   lk_unlock(&locks_[tid]);
 }
 
-static void copyFileToConsumer(THREADID tid)
+static void copyFileToConsumer(pid_t tid)
 {
   if(useRealFile_) {
     copyFileToConsumerReal(tid);
@@ -155,7 +155,7 @@ static void copyFileToConsumer(THREADID tid)
   }
 }
 
-static void copyFileToConsumerFake(THREADID tid)
+static void copyFileToConsumerFake(pid_t tid)
 {
   while(fakeFile_[tid]->size() > 0) {
     if(consumeBuffer_[tid]->full()) {
@@ -170,7 +170,7 @@ static void copyFileToConsumerFake(THREADID tid)
   }
 }
 
-static void copyFileToConsumerReal(THREADID tid)
+static void copyFileToConsumerReal(pid_t tid)
 {
   int result;
 
@@ -226,7 +226,7 @@ static ssize_t do_read(const int fd, void* buff, const size_t size)
   return bytesRead;
 }
 
-static bool readHandshake(THREADID tid, int fd, handshake_container_t* handshake)
+static bool readHandshake(pid_t tid, int fd, handshake_container_t* handshake)
 {
   const int handshakeBytes = sizeof(P2Z_HANDSHAKE);
   const int flagBytes = sizeof(handshake_flags_t);
