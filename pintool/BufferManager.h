@@ -10,6 +10,7 @@ namespace xiosim
 namespace buffer_management
 {
   using boost::interprocess::managed_shared_memory;
+  using boost::interprocess::allocator;
   using namespace xiosim::shared;
 
   void InitBufferManager();
@@ -20,12 +21,16 @@ namespace buffer_management
   void signalCallback(int signum);
   void abort(void);
 
-  typedef boost::interprocess::allocator<int, managed_shared_memory::segment_manager> deque_int_allocator;
-  typedef boost::interprocess::deque<int, deque_int_allocator> shm_int_deque;
-  typedef boost::interprocess::allocator<char, managed_shared_memory::segment_manager> char_allocator;
-  typedef boost::interprocess::basic_string<char, std::char_traits<char>, char_allocator> shm_string;
-  typedef boost::interprocess::allocator<shm_string, managed_shared_memory::segment_manager> deque_shm_string_allocator;
-  typedef boost::interprocess::deque<shm_string, deque_shm_string_allocator> shm_string_deque;
+  typedef allocator< int, managed_shared_memory::segment_manager> int_allocator;
+  typedef boost::interprocess::deque<int, int_allocator> shm_int_deque;
+  typedef allocator<char, managed_shared_memory::segment_manager>
+      char_allocator;
+  typedef boost::interprocess::basic_string<
+      char, std::char_traits<char>, char_allocator> shm_string;
+  typedef allocator<shm_string, managed_shared_memory::segment_manager>
+      shm_string_allocator;
+  typedef boost::interprocess::deque<shm_string, shm_string_allocator>
+      shm_string_deque;
 
   SHARED_VAR_DECLARE(bool, useRealFile_)
   SHARED_VAR_DECLARE(int, numThreads_)
