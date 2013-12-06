@@ -156,7 +156,7 @@ zesto-dvfs.$(OEXT): zesto-dvfs.cpp zesto-dvfs.h ZCOMPS-dvfs
 	$(CXX) $(CFLAGS) -c $*.c
 
 .cpp.$(OEXT):
-	$(CXX) $(CFLAGS) -I$(BOOST_HOME) -c $*.cpp
+	$(CXX) $(CFLAGS) -c $*.cpp
 
 clean:
 	-$(RM) *.o *.obj core libsim*
