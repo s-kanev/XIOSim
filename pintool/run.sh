@@ -16,11 +16,12 @@ set ZESTOCFG = ../config/A.cfg
 #set ZESTOCFG = ../config/N.cfg
 set MEMCFG = ../dram-config/DDR3-1600-9-9-9.cfg
 set MAX = 1000000
+set BENCHMARK_CFG_FILE = "benchmarks.cfg"
 #set MAX = -1
 
 setenv LD_LIBRARY_PATH "/home/skanev/lib"
 
-set CMD_LINE = "./harness -num_processes 2 setarch i686 -3BL $PIN -pause_tool 1 -injection child -xyzzy -t $PINTOOL -sanity -num_cores 2 -pipeline_instrumentation -s -config $ZESTOCFG -config $MEMCFG -cores 2 -redir:sim tst.out -heartbeat 10000 -- $PROGRAM"
+set CMD_LINE = "./harness -benchmark_cfg $BENCHMARK_CFG_FILE setarch i686 -3BL $PIN -pause_tool 1 -injection child -xyzzy -t $PINTOOL -sanity -num_cores 2 -pipeline_instrumentation -s -config $ZESTOCFG -config $MEMCFG -cores 2 -redir:sim tst.out -heartbeat 10000"
 #-power true -power:rtp_interval 10000 -power:rtp_file tst.power -dvfs:interval 40000 -- $PROGRAM"
 
 echo $CMD_LINE
