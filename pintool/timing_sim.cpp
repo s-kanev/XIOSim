@@ -189,6 +189,9 @@ VOID SpawnSimulatorThreads(INT32 numCores)
  * This implies all cores are inactive. And handshake buffers are already drained. */
 VOID StopSimulation(BOOL kill_sim_threads, int caller_coreID)
 {
+    /* For now, force end the slice (once!), once all processes have finished. */
+    Zesto_Slice_End(0, 1, 0, 100 * 1000);
+
     if (kill_sim_threads) {
         /* Signal simulator threads to die */
         INT32 coreID;

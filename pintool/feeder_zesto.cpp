@@ -234,7 +234,7 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
              * Returning from PauseSimulation() guarantees that all sim threads
              * are spinning in SimulatorLoop. So we can safely call Slice_End
              * without racing any of them. */
-
+/*
             ipc_message_t msg;
             if(control.PinPointsActive())
             {
@@ -245,7 +245,7 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
                 msg.SliceEnd(0, slice_num, slice_length, slice_weight_times_1000);
             }
             SendIPCMessage(msg);
-
+*/
             ExecMode = EXECUTION_MODE_FASTFORWARD;
             CODECACHE_FlushCache();
         }

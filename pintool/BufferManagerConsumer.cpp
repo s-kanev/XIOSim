@@ -42,17 +42,18 @@ void DeinitBufferManagerConsumer()
 
 void AllocateThreadConsumer(pid_t tid, int buffer_capacity)
 {
-    consumeBuffer_[tid] = new Buffer(buffer_capacity);
-
     // Start with one page read buffer
     readBufferSize_[tid] = 4096;
     readBuffer_[tid] = malloc(4096);
     assert(readBuffer_[tid]);
+
+    consumeBuffer_[tid] = new Buffer(buffer_capacity);
 }
 
 handshake_container_t* front(pid_t tid, bool isLocal)
 {
 
+  assert(consumeBuffer_[tid] != NULL);
   if(consumeBuffer_[tid]->size() > 0) {
     handshake_container_t* returnVal = consumeBuffer_[tid]->front();
     return returnVal;
@@ -110,6 +111,10 @@ handshake_container_t* front(pid_t tid, bool isLocal)
 
 int getConsumerSize(pid_t tid)
 {
+  // Another thread might be doing the allocation
+  while (consumeBuffer_[tid] == NULL) ;
+
+  assert(consumeBuffer_[tid] != NULL);
   return consumeBuffer_[tid]->size();
 }
 

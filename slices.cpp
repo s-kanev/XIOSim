@@ -58,7 +58,6 @@ void start_slice(unsigned int slice_num)
 void end_slice(unsigned int slice_num, unsigned long long feeder_slice_length, unsigned long long slice_weight_times_1000)
 {
    int i = 0;
-   lk_lock(printing_lock, 1);
    core_knobs_t *knobs = cores[i]->knobs;
    struct stat_sdb_t* curr_sdb = all_stats.back();
    slice_uncore_end_cycle = uncore->sim_cycle;
@@ -80,8 +79,11 @@ void end_slice(unsigned int slice_num, unsigned long long feeder_slice_length, u
    // Check if simulator and feeder measure instruction counts in the same way
    // (they may not count REP-s the same, f.e.)
    double slice_length_diff = 1.0 - ((double)slice_length/(double)feeder_slice_length);
-   if ((fabs(slice_length_diff) > 0.01) && (feeder_slice_length > 0))
+   if ((fabs(slice_length_diff) > 0.01) && (feeder_slice_length > 0)) {
+     lk_lock(printing_lock, 1);
      fprintf(stderr, "Significant slice length different between sim and feeder! Slice: %u, sim_length: %llu, feeder_length: %llu\n", slice_num, slice_length, feeder_slice_length);
+     lk_unlock(printing_lock);
+   }
 
    stat_save_stats(curr_sdb);
    /* Print slice stats separately */
@@ -112,6 +114,7 @@ void end_slice(unsigned int slice_num, unsigned long long feeder_slice_length, u
    double curr_cpi = weight * n_cycles / n_insn;
    double curr_ipc = 1.0 / curr_cpi;
 
+   lk_lock(printing_lock, 1);
    fprintf(stderr, "Slice %d, weight: %.4f, IPC/weight: %.2f, n_insn: %.0f, n_insn_pin: %.0f, n_cycles: %.0f\n", slice_num, weight, curr_ipc, n_insn, n_pin_n_insn, n_cycles);
    lk_unlock(printing_lock);
 }
