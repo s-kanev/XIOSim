@@ -21,7 +21,22 @@ set BENCHMARK_CFG_FILE = "benchmarks.cfg"
 
 setenv LD_LIBRARY_PATH "/home/skanev/lib"
 
-set CMD_LINE = "./harness -benchmark_cfg $BENCHMARK_CFG_FILE setarch i686 -3BL $PIN -pause_tool 1 -injection child -xyzzy -t $PINTOOL -sanity -num_cores 2 -pipeline_instrumentation -s -config $ZESTOCFG -config $MEMCFG -cores 2 -redir:sim tst.out -heartbeat 10000"
+set CMD_LINE = "./harness -benchmark_cfg $BENCHMARK_CFG_FILE  \
+                setarch i686 -3BL $PIN  \
+                -pause_tool 1  \
+                -injection child  \
+                -xyzzy  \
+                -t  \
+                $PINTOOL  \
+                -sanity  \
+                -num_cores 2  \
+                -pipeline_instrumentation  \
+                -s  \
+                -config $ZESTOCFG  \
+                -config $MEMCFG  \
+                -cores 2  \
+                -redir:sim tst.out  \
+                -heartbeat 10000"
 #-power true -power:rtp_interval 10000 -power:rtp_file tst.power -dvfs:interval 40000 -- $PROGRAM"
 
 echo $CMD_LINE
