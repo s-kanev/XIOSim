@@ -28,8 +28,8 @@ extern boost::interprocess::managed_shared_memory *global_shm;
 #define SHARED_VAR_ARRAY_INIT(TYPE, VAR, SIZE, ...) \
     VAR = global_shm->find_or_construct<TYPE>(VAR##_KEY)[SIZE]( __VA_ARGS__);
 
-#define SHARED_VAR_CONSTRUCT(TYPE, VAR, ...) \
-    VAR = new TYPE(XIOSIM_SHARED_MEMORY_KEY, VAR##_KEY, ## __VA_ARGS__);
+#define SHARED_VAR_CONSTRUCT(TYPE, VAR, SHM_KEY, ...) \
+    VAR = new TYPE(SHM_KEY, VAR##_KEY, ## __VA_ARGS__);
 
 #include "shared_map.h"
 #include "feeder.h"
@@ -59,7 +59,7 @@ int GetSHMThreadCore(pid_t tid);
 
 SHARED_VAR_DECLARE(XIOSIM_LOCK, printing_lock);
 
-void InitSharedState(bool wait_for_others);
+void InitSharedState(bool wait_for_others, pid_t harness_pid);
 void SendIPCMessage(ipc_message_t msg);
 
 void disable_consumers();
@@ -70,5 +70,6 @@ void wait_consumers();
 
 extern KNOB<int> KnobNumProcesses;
 extern KNOB<int> KnobNumCores;
+extern KNOB<pid_t> KnobHarnessPid;
 
 #endif /* __MP_SHARED__ */

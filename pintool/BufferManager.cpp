@@ -11,6 +11,7 @@
 #include <fcntl.h>
 #include <iostream>
 #include <signal.h>
+#include <sstream>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
@@ -54,28 +55,34 @@ void InitBufferManager()
   using namespace boost::interprocess;
   using namespace xiosim::shared;
 
-  named_mutex bm_init_lock(open_or_create, XIOSIM_BUFFER_MANAGER_LOCK);
+  std::stringstream harness_pid_stream;
+  harness_pid_stream << KnobHarnessPid.Value();
+  std::string buffer_manager_lock = harness_pid_stream.str() +
+      std::string(XIOSIM_BUFFER_MANAGER_LOCK);
+  named_mutex bm_init_lock(open_or_create, buffer_manager_lock.c_str());
   bm_init_lock.lock();
 
   SHARED_VAR_INIT(bool, useRealFile_, true)
   SHARED_VAR_INIT(int, numThreads_, 0)
   SHARED_VAR_INIT(bool, popped_, false)
 
+  std::string shared_memory_key = harness_pid_stream.str() +
+      std::string(XIOSIM_SHARED_MEMORY_KEY);
   // Reserve space in all maps for 16 cores
   // This reduces the incidence of an annoying race, see
   // comment in empty()
   // This constructor accepts a buckets parameter which negates the need to call
   // reserve on all the maps later.
-  locks_.initialize_late(XIOSIM_SHARED_MEMORY_KEY, BUFFER_MANAGER_LOCKS_, MAX_CORES);
-  pool_.initialize_late(XIOSIM_SHARED_MEMORY_KEY, BUFFER_MANAGER_POOL_, MAX_CORES);
+  locks_.initialize_late(shared_memory_key.c_str(), BUFFER_MANAGER_LOCKS_, MAX_CORES);
+  pool_.initialize_late(shared_memory_key.c_str(), BUFFER_MANAGER_POOL_, MAX_CORES);
 
-  queueSizes_.initialize_late(XIOSIM_SHARED_MEMORY_KEY, BUFFER_MANAGER_QUEUE_SIZES_, MAX_CORES);
-  fakeFile_.initialize_late(XIOSIM_SHARED_MEMORY_KEY, BUFFER_MANAGER_FAKE_FILE_, MAX_CORES);
-  fileEntryCount_.initialize_late(XIOSIM_SHARED_MEMORY_KEY, BUFFER_MANAGER_FILE_ENTRY_COUNT_, MAX_CORES);
-  fileNames_.initialize_late(XIOSIM_SHARED_MEMORY_KEY, BUFFER_MANAGER_FILE_NAMES_, MAX_CORES);
-  fileCounts_.initialize_late(XIOSIM_SHARED_MEMORY_KEY, BUFFER_MANAGER_FILE_COUNTS_, MAX_CORES);
+  queueSizes_.initialize_late(shared_memory_key.c_str(), BUFFER_MANAGER_QUEUE_SIZES_, MAX_CORES);
+  fakeFile_.initialize_late(shared_memory_key.c_str(), BUFFER_MANAGER_FAKE_FILE_, MAX_CORES);
+  fileEntryCount_.initialize_late(shared_memory_key.c_str(), BUFFER_MANAGER_FILE_ENTRY_COUNT_, MAX_CORES);
+  fileNames_.initialize_late(shared_memory_key.c_str(), BUFFER_MANAGER_FILE_NAMES_, MAX_CORES);
+  fileCounts_.initialize_late(shared_memory_key.c_str(), BUFFER_MANAGER_FILE_COUNTS_, MAX_CORES);
 
-  std::cout << "[" << getpid() << "]" << "Initialized queueSizes" << std::endl;
+  std::cout << "[" << getpid() << "]" << "Initialized all SharedUnorderedMaps" << std::endl;
 
   bm_init_lock.unlock();
 }

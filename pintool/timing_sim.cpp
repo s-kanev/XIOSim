@@ -288,7 +288,7 @@ int main(int argc, char * argv[])
     // Obtain  a key for TLS storage.
     tls_key = PIN_CreateThreadDataKey(0);
 
-    InitSharedState(false);
+    InitSharedState(false, KnobHarnessPid.Value());
     xiosim::buffer_management::InitBufferManagerConsumer();
 
     // Prepare args for libsim

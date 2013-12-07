@@ -9,6 +9,7 @@
 #include <sys/statvfs.h>
 
 #include <unordered_map>
+#include <sstream>
 
 #include "pin.H"
 

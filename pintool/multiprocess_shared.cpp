@@ -1,5 +1,6 @@
 #include "shared_unordered_map.h"
 #include "multiprocess_shared.h"
+#include <sstream>
 
 using namespace xiosim::shared;
 
@@ -25,23 +26,34 @@ KNOB<int> KnobNumProcesses(KNOB_MODE_WRITEONCE,      "pintool",
         "num_processes", "1", "Number of processes for a multiprogrammed workload");
 KNOB<int> KnobNumCores(KNOB_MODE_WRITEONCE,      "pintool",
         "num_cores", "1", "Number of cores simulated");
+KNOB<pid_t> KnobHarnessPid(KNOB_MODE_WRITEONCE, "pintool",
+        "harness_pid", "-1", "Process id of the harness process.");
 
-void InitSharedState(bool wait_for_others)
+void InitSharedState(bool wait_for_others, pid_t harness_pid)
 {
     using namespace boost::interprocess;
     int *process_counter;
+    std::stringstream harness_pid_stream;
+    harness_pid_stream << KnobHarnessPid.Value();
+    std::string shared_memory_key =
+        harness_pid_stream.str() + std::string(XIOSIM_SHARED_MEMORY_KEY);
+    std::string init_lock_key =
+        harness_pid_stream.str() + std::string(XIOSIM_INIT_SHARED_LOCK);
+    std::string counter_lock_key =
+        harness_pid_stream.str() + std::string(XIOSIM_INIT_COUNTER_KEY);
 
     std::cout << getpid() << ": About to init pid " << std::endl;
+    std::cout << "lock key is " << init_lock_key << std::endl;
 
-    named_mutex init_lock(open_only, XIOSIM_INIT_SHARED_LOCK);
-    global_shm = new managed_shared_memory(open_or_create, XIOSIM_SHARED_MEMORY_KEY,
-            DEFAULT_SHARED_MEMORY_SIZE);
+    named_mutex init_lock(open_only, init_lock_key.c_str());
+    global_shm = new managed_shared_memory(open_or_create,
+        shared_memory_key.c_str(), DEFAULT_SHARED_MEMORY_SIZE);
     init_lock.lock();
 
     ipc_message_allocator_t *ipc_queue_allocator = new ipc_message_allocator_t(global_shm->get_segment_manager());
 
     if (wait_for_others) {
-        process_counter = global_shm->find_or_construct<int>(XIOSIM_INIT_COUNTER_KEY)();
+        process_counter = global_shm->find_or_construct<int>(counter_lock_key.c_str())();
         std::cout << getpid() << ": Counter value is: " << *process_counter << std::endl;
         (*process_counter)--;
     }
@@ -60,7 +72,7 @@ void InitSharedState(bool wait_for_others)
     SHARED_VAR_INIT(XIOSIM_LOCK, lk_ipcMessageQueue);
 
     SHARED_VAR_ARRAY_INIT(pid_t, coreThreads, KnobNumCores.Value(), INVALID_THREADID);
-    SHARED_VAR_CONSTRUCT(ThreadCoreMap, threadCores);
+    SHARED_VAR_CONSTRUCT(ThreadCoreMap, threadCores, shared_memory_key.c_str());
     SHARED_VAR_INIT(XIOSIM_LOCK, lk_coreThreads);
 
     SHARED_VAR_INIT(XIOSIM_LOCK, printing_lock);

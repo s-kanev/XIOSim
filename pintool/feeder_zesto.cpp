@@ -29,6 +29,7 @@
 #include <queue>
 #include <set>
 #include <list>
+#include <sstream>
 #include <stdlib.h>
 #include <elf.h>
 #include <sys/mman.h>
@@ -73,7 +74,6 @@ KNOB<string> KnobFluffy(KNOB_MODE_WRITEONCE,      "pintool",
         "fluffy_annotations", "", "Annotation file that specifies fluffy ROI");
 KNOB<BOOL> KnobWarmLLC(KNOB_MODE_WRITEONCE,      "pintool",
         "warm_llc", "false", "Warm LLC while fast-forwarding");
-
 map<ADDRINT, string> pc_diss;
 
 ofstream pc_file;
@@ -955,16 +955,17 @@ INT32 main(INT32 argc, CHAR **argv)
        cerr << argv[i] << " ";
     cerr << endl;
 #endif
-    // Synchronize all processes here to ensure that in multiprogramming mode,
-    // no process will start too far before the others.
-    InitSharedState(true);
-    xiosim::buffer_management::InitBufferManagerProducer();
 
     // Obtain  a key for TLS storage.
     tls_key = PIN_CreateThreadDataKey(0);
 
     PIN_Init(argc, argv);
     PIN_InitSymbols();
+
+    // Synchronize all processes here to ensure that in multiprogramming mode,
+    // no process will start too far before the others.
+    InitSharedState(true, KnobHarnessPid.Value());
+    xiosim::buffer_management::InitBufferManagerProducer();
 
     if(KnobAMDHack.Value()) {
       amd_hack();

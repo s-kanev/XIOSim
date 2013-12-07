@@ -12,6 +12,7 @@
 
 #include <boost/interprocess/managed_shared_memory.hpp>
 #include <boost/interprocess/managed_mapped_file.hpp>
+#include <boost/interprocess/shared_memory_object.hpp>
 #include <boost/interprocess/sync/named_mutex.hpp>
 #include <boost/interprocess/permissions.hpp>
 
@@ -21,6 +22,7 @@
 #include <sstream>
 #include <stdlib.h>
 #include <string>
+#include <sstream>
 #include <signal.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -36,6 +38,7 @@ namespace shared {
 
 const std::string CFG_FILE_FLAG = "-benchmark_cfg";
 const std::string NUM_PROCESSES_FLAG = "-num_processes";
+const std::string HARNESS_PID_FLAG = "-harness_pid";
 const std::string LAST_PINTOOL_ARG = "-s";
 
 pid_t *harness_pids;
@@ -43,6 +46,34 @@ int harness_num_processes = 0;
 
 }  // namespace shared
 }  // namespace xiosim
+
+void remove_shared_memory() {
+  using namespace boost::interprocess;
+  using namespace xiosim::shared;
+
+  std::stringstream harness_pid_stream;
+  harness_pid_stream << getpid();
+  std::string shared_memory_key =
+      harness_pid_stream.str() + std::string(XIOSIM_SHARED_MEMORY_KEY);
+  // Shared locks are actually named with the prefix "sem.".
+  std::string init_counter_key = std::string("sem.") +
+      harness_pid_stream.str() + std::string(XIOSIM_INIT_COUNTER_KEY);
+  std::string shared_lock_key = std::string("sem.") +
+      harness_pid_stream.str() + std::string(XIOSIM_INIT_SHARED_LOCK);
+
+  if (!shared_memory_object::remove(shared_memory_key.c_str())) {
+    std::cerr << "An error occurred removing shared memory object "
+              << shared_memory_key << std::endl;
+  }
+  if (!shared_memory_object::remove(init_counter_key.c_str())) {
+    std::cerr << "An error occurred removing shared memory object "
+              << init_counter_key << std::endl;
+  }
+  if (!shared_memory_object::remove(shared_lock_key.c_str())) {
+    std::cerr << "An error occurred removing shared memory object "
+              << shared_lock_key << std::endl;
+  }
+}
 
 // Kills all child processes that were forked by the harness when the harness
 // intercepts a SIGINT interrupt. This doesn't seem to work properly yet - Pin
@@ -54,6 +85,7 @@ void kill_handler(int sig) {
   for (int i = 0; i < harness_num_processes; i++) {
     kill(harness_pids[i], SIGTERM);
   }
+  remove_shared_memory();
   exit(1);
 }
 
@@ -143,28 +175,33 @@ int main(int argc, char **argv) {
   // Concatenate the flags into a single string to be executed when setup is
   // complete. Exclude the num_processes flag part if present.
   std::stringstream command_stream;
+  pid_t harness_pid = getpid();
   int command_start_pos = 3;  // There are three harness-specific arguments.
   for (int i = command_start_pos; i < argc; i++) {
-    // If the next arg is "-s", add the num_processes flag. We need to tell the
-    // pintool how many processes we have running so it can set up shared memory
-    // on its own.
+    // If the next arg is "-s", add the num_processes and harness_pid flags.
     if (strncmp(argv[i], LAST_PINTOOL_ARG.c_str(),
                 LAST_PINTOOL_ARG.length()) == 0) {
       command_stream << " " << NUM_PROCESSES_FLAG << " "
-                     << harness_num_processes << " ";
+                     << harness_num_processes << " "
+                     << HARNESS_PID_FLAG << " " << harness_pid << " ";
     }
     command_stream << argv[i] << " ";
   }
   command_stream << "-- ";  // For appending the benchmark program arguments.
 
-  // Removes any shared data left from a previous run if they exist.
-  shared_memory_object::remove(XIOSIM_SHARED_MEMORY_KEY);
-  named_mutex::remove(XIOSIM_INIT_SHARED_LOCK);
+  // Shared object keys are prefixed by the harness pid that created them.
+  std::stringstream harness_pid_stream;
+  harness_pid_stream << harness_pid;
+  std::string shared_memory_key =
+      harness_pid_stream.str() + std::string(XIOSIM_SHARED_MEMORY_KEY);
+  std::string init_counter_key =
+      harness_pid_stream.str() + std::string(XIOSIM_INIT_COUNTER_KEY);
+  std::string shared_lock_key =
+      harness_pid_stream.str() + std::string(XIOSIM_INIT_SHARED_LOCK);
 
+  std::cout << "lock key is " << shared_lock_key << std::endl;
   // Creates a new shared segment.
-  permissions perm;
-  perm.set_unrestricted();
-  managed_shared_memory shm(open_or_create, XIOSIM_SHARED_MEMORY_KEY,
+  managed_shared_memory shm(open_or_create, shared_memory_key.c_str(),
        DEFAULT_SHARED_MEMORY_SIZE);
 
   // Sets up a counter for multiprogramming. It is initialized to the number of
@@ -173,9 +210,11 @@ int main(int argc, char **argv) {
   // the counter reaches zero, the process is allowed to continue execution.
   // This also initializes a shared mutex for the forked processes to use for
   // synchronizing access to this counter.
+  permissions perm;
+  perm.set_unrestricted();
   int *counter =
-    shm.find_or_construct<int>(XIOSIM_INIT_COUNTER_KEY)(harness_num_processes);
-  named_mutex init_lock(open_or_create, XIOSIM_INIT_SHARED_LOCK, perm);
+    shm.find_or_construct<int>(init_counter_key.c_str())(harness_num_processes);
+  named_mutex init_lock(open_or_create, shared_lock_key.c_str(), perm);
   init_lock.unlock();
 
   // Track the pids of all children.
@@ -234,6 +273,8 @@ int main(int argc, char **argv) {
     }
   }
 
+  if (getpid() == harness_pid)
+    remove_shared_memory();
   std::cout << "Parent exiting." << std::endl;
   delete[](harness_pids);
   return 0;
