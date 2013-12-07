@@ -62,15 +62,15 @@ void remove_shared_memory() {
       harness_pid_stream.str() + std::string(XIOSIM_INIT_SHARED_LOCK);
 
   if (!shared_memory_object::remove(shared_memory_key.c_str())) {
-    std::cerr << "An error occurred removing shared memory object "
+    std::cerr << "Warning: Could not remove shared memory object "
               << shared_memory_key << std::endl;
   }
   if (!shared_memory_object::remove(init_counter_key.c_str())) {
-    std::cerr << "An error occurred removing shared memory object "
+    std::cerr << "Warning: Could not remove shared memory object "
               << init_counter_key << std::endl;
   }
   if (!shared_memory_object::remove(shared_lock_key.c_str())) {
-    std::cerr << "An error occurred removing shared memory object "
+    std::cerr << "Warning: Could not remove shared memory object "
               << shared_lock_key << std::endl;
   }
 }
@@ -244,7 +244,6 @@ int main(int argc, char **argv) {
 
       switch (harness_pids[nthprocess]) {
         case 0:  {  // child
-          std::cout << run_str << std::endl;
           system(run_str.c_str());
           exit(0);
           break;
