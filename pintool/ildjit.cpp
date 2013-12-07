@@ -3,7 +3,8 @@
  * Copyright, Svilen Kanev, 2012
  */
 
-// Sam: These includes are needed to pass compilation. I'm not sure why.
+// Sam: These includes are needed to pass compilation because of a macro
+// conflict in another header included later.
 #include <boost/interprocess/containers/string.hpp>
 #include <boost/interprocess/containers/map.hpp>
 #include <boost/interprocess/allocators/allocator.hpp>
