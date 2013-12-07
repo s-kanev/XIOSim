@@ -4,6 +4,9 @@
 // To run:
 // ./harness -num_processes 2 ./harness_example
 //
+// NOTE: This code is obsolete, as harness now reads from a configuration file
+// instead.
+//
 // Author: Sam Xi
 
 #include <boost/interprocess/managed_shared_memory.hpp>
