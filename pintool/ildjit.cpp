@@ -3,8 +3,8 @@
  * Copyright, Svilen Kanev, 2012
  */
 
-// Sam: These includes are needed to pass compilation because of a macro
-// conflict in another header included later.
+// These includes are needed to pass compilation because of a macro conflict in
+// another header included later.
 #include <boost/interprocess/containers/string.hpp>
 #include <boost/interprocess/containers/map.hpp>
 #include <boost/interprocess/allocators/allocator.hpp>
@@ -331,7 +331,7 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
 
     CHAR* loop_name = (CHAR*) loop;
     cerr << "Starting loop: " << loop_name << "[" << invocation_counts[(string)(char*)loop] << "]" << endl;
- 
+
     ss_curr = rc;
     loop_state->use_ring_cache = (rc > 0);
 
@@ -422,7 +422,7 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
           cerr << tid << ": Shutting down early!" << endl;
           shutdownSimulation(tid);
         }
-        
+
         ILDJIT_PauseSimulation(tid);
         cerr << tid << ": Paused simulation!" << endl;
 
@@ -578,7 +578,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
     printTrace("sim", handshake_2->handshake.pc, tstate->tid);
 #endif
 
-    xiosim::buffer_management::producer_done(tstate->tid);    
+    xiosim::buffer_management::producer_done(tstate->tid);
 
 cleanup:
     tstate->lastSignalAddr = 0xdecafbad;
@@ -1108,7 +1108,7 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
         handshake_3->handshake.pc = 0;
         handshake_3->flags.valid = true;
         xiosim::buffer_management::producer_done(curr_tstate->tid, true);
-        
+
         /* Deactivate this core, so we can advance the cycle conunter of
          * others without waiting on it */
         handshake_container_t* handshake_2 = xiosim::buffer_management::get_buffer(curr_tstate->tid);
