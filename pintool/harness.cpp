@@ -57,6 +57,7 @@ void kill_handler(int sig) {
   exit(1);
 }
 
+// Modify the generic pintool command for the timing simulator.
 std::string get_timing_sim_args(std::string harness_args) {
     std::string res = boost::replace_all_copy<std::string>(
         harness_args, "feeder_zesto", "timing_sim");
@@ -67,6 +68,27 @@ std::string get_timing_sim_args(std::string harness_args) {
     std::cout << "timing_sim args: " << res << std::endl;
     return res;
 }
+
+// Fork the timing simulator process and return its pid.
+pid_t fork_timing_simulator(std::string run_str) {
+  pid_t timing_sim_pid = fork();
+  switch (timing_sim_pid) {
+    case 0: {   // child
+      std::string timing_cmd = get_timing_sim_args(run_str);
+      system(timing_cmd.c_str());
+      exit(0);
+      break;
+    }
+    case 1: {
+      perror("Fork failed.");
+    }
+    default: {  // parent
+      std::cout << "Timing simulator: " << timing_sim_pid << std::endl;
+    }
+  }
+  return timing_sim_pid;
+}
+
 
 int main(int argc, char **argv) {
   if (argc < 2) {
@@ -107,7 +129,8 @@ int main(int argc, char **argv) {
   int harness_num_processes = 0;
   for (int i = 0; i < num_programs; i++) {
     cfg_t *program_cfg = cfg_getnsec(cfg, "program", i);
-    harness_num_processes += cfg_getint(program_cfg, "instances");
+    int instances = cfg_getint(program_cfg, "instances");
+    harness_num_processes += instances;
   }
 
   // Setup SIGINT handler to kill child processes as well.
@@ -155,50 +178,50 @@ int main(int argc, char **argv) {
   named_mutex init_lock(open_or_create, XIOSIM_INIT_SHARED_LOCK, perm);
   init_lock.unlock();
 
-  // Create a process for timing sim
-  harness_num_processes++;
-
-  // Fork all the child processes.
-  int status;
+  // Track the pids of all children.
+  harness_num_processes++;  // For the timing simulator.
   harness_pids = new pid_t[harness_num_processes];
-  for (int i = 0; i < harness_num_processes; i++) {
-    harness_pids[i] = fork();
-    std::string run_str = command_stream.str();
 
-    // Append program arguments if we're not starting the timing simulator. Make
-    // sure we're getting the right configuration block (i - 1).
-    if (i != 0) {
+  // Create a process for timing simulator and store its pid.
+  harness_pids[harness_num_processes - 1] = fork_timing_simulator(
+      command_stream.str());
+
+  // Fork all the benchmark child processes.
+  int status;
+  int nthprocess = 0;
+  for (int program = 0; program < num_programs; program++) {
+    cfg_t *program_cfg = cfg_getnsec(cfg, "program", program);
+    int instances = cfg_getint(program_cfg, "instances");
+
+    for (int process = 0; process < instances; process++) {
+      harness_pids[nthprocess] = fork();
+      std::string run_str = command_stream.str();
+
+      // Append program command line arguments.
       std::stringstream ss;
-      cfg_t *program_cfg = cfg_getnsec(cfg, "program", i - 1);
       ss << cfg_getstr(program_cfg, "exec_path") << " " <<
             cfg_getstr(program_cfg, "command_line_args");
       run_str += ss.str();
-    }
 
-    switch (harness_pids[i]) {
-      case 0:  {  // child
-        if (i == 0) {
-          // Start the timing simulator.
-          std::string timing_cmd = get_timing_sim_args(run_str);
-          system(timing_cmd.c_str());
-        }
-        else {
+      switch (harness_pids[nthprocess]) {
+        case 0:  {  // child
           std::cout << run_str << std::endl;
           system(run_str.c_str());
+          exit(0);
+          break;
         }
-        exit(0);
-        break;
-      }
-      case -1:  {
-        perror("Fork failed.");
-        break;
-      }
-      default:  {  // parent
-        if (i == 0)
-          std::cout << "Timing simulator: " << harness_pids[i] << std::endl;
-        else
-          std::cout << "New producer: " << harness_pids[i] << std::endl;
-        break;
+        case -1:  {
+          perror("Fork failed.");
+          break;
+        }
+        default:  {  // parent
+          nthprocess++;
+          if (nthprocess == 0)
+            std::cout << "Timing simulator: " << harness_pids[nthprocess] << std::endl;
+          else
+            std::cout << "New producer: " << harness_pids[nthprocess] << std::endl;
+          break;
+        }
       }
     }
   }
