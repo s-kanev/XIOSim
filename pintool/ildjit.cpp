@@ -21,6 +21,7 @@
 
 #include "shared_unordered_map.h"
 #include "multiprocess_shared.h"
+#include "ipc_queues.h"
 #include "../buffer.h"
 #include "BufferManagerProducer.h"
 #include "ignore_ins.h"
@@ -240,7 +241,7 @@ VOID ILDJIT_endSimulation(THREADID tid, ADDRINT ip)
 //#endif
 
     if (KnobFluffy.Value().empty())
-        PauseSimulation(tid);
+        PauseSimulation();
 }
 
 /* ========================================================================== */

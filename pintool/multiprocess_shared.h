@@ -41,13 +41,6 @@ SHARED_VAR_DECLARE(bool, sleeping_enabled)
 SHARED_VAR_DECLARE(PIN_SEMAPHORE, consumer_sleep_lock)
 SHARED_VAR_DECLARE(PIN_SEMAPHORE, producer_sleep_lock)
 
-/* Message queue form calling functions in timing_sim from feeder */
-typedef boost::interprocess::allocator<ipc_message_t, boost::interprocess::managed_shared_memory::segment_manager> ipc_message_allocator_t;
-typedef boost::interprocess::deque<ipc_message_t, ipc_message_allocator_t> MessageQueue;
-SHARED_VAR_DECLARE(MessageQueue, ipcMessageQueue);
-SHARED_VAR_DECLARE(MessageQueue, ipcEarlyMessageQueue);
-SHARED_VAR_DECLARE(XIOSIM_LOCK, lk_ipcMessageQueue);
-
 SHARED_VAR_DECLARE(pid_t, coreThreads);
 typedef xiosim::shared::SharedMemoryMap<pid_t, int> ThreadCoreMap;
 

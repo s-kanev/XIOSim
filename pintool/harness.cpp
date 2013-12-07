@@ -29,7 +29,11 @@
 #include <unistd.h>
 #include <algorithm>
 
-#include "mpkeys.h"
+#include "multiprocess_shared.h"
+#include "ipc_queues.h"
+
+boost::interprocess::managed_shared_memory *global_shm;
+SHARED_VAR_DEFINE(XIOSIM_LOCK, printing_lock);
 
 #include "confuse.h"  // For parsing config files.
 
@@ -201,7 +205,9 @@ int main(int argc, char **argv) {
 
   std::cout << "lock key is " << shared_lock_key << std::endl;
   // Creates a new shared segment.
-  managed_shared_memory shm(open_or_create, shared_memory_key.c_str(),
+  permissions perm;
+  perm.set_unrestricted();
+  global_shm = new managed_shared_memory(open_or_create, XIOSIM_SHARED_MEMORY_KEY,
        DEFAULT_SHARED_MEMORY_SIZE);
 
   // Sets up a counter for multiprogramming. It is initialized to the number of
@@ -213,8 +219,12 @@ int main(int argc, char **argv) {
   permissions perm;
   perm.set_unrestricted();
   int *counter =
-    shm.find_or_construct<int>(init_counter_key.c_str())(harness_num_processes);
-  named_mutex init_lock(open_or_create, shared_lock_key.c_str(), perm);
+    global_shm->find_or_construct<int>(XIOSIM_INIT_COUNTER_KEY)(harness_num_processes-1);
+  named_mutex init_lock(open_or_create, XIOSIM_INIT_SHARED_LOCK, perm);
+
+  SHARED_VAR_INIT(XIOSIM_LOCK, printing_lock);
+  InitIPCQueues();
+
   init_lock.unlock();
 
   // Track the pids of all children.
@@ -264,17 +274,25 @@ int main(int argc, char **argv) {
     }
   }
 
-  std::cout << "Waiting for children to finish." << std::endl;
-  for (int i = 0; i < harness_num_processes; i++) {
+  std::cout << "[HARNESS] Waiting for feeder children to finish." << std::endl;
+  for (int i = 1; i < harness_num_processes; i++) {
     while (waitpid(harness_pids[i], &status, 0) != harness_pids[i]);
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
       std::cerr << "Process " << harness_pids[i] << " failed." << std::endl;
     }
   }
 
-  if (getpid() == harness_pid)
-    remove_shared_memory();
-  std::cout << "Parent exiting." << std::endl;
+  std::cout << "[HARNESS] Letting timing_sim finish" << std::endl;
+  ipc_message_t msg;
+  msg.StopSimulation(true);
+  SendIPCMessage(msg);
+
+  while (waitpid(harness_pids[0], &status, 0) != harness_pids[0]);
+  if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+    std::cerr << "Process " << harness_pids[0] << " failed." << std::endl;
+  }
+
+  std::cout << "[HARNESS] Parent exiting." << std::endl;
   delete[](harness_pids);
   return 0;
 }

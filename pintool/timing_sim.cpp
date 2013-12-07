@@ -13,6 +13,7 @@ using namespace INSTLIB;
 
 #include "shared_unordered_map.h"
 #include "multiprocess_shared.h"
+#include "ipc_queues.h"
 
 #include "scheduler.h"
 #include "../interface.h"
@@ -78,7 +79,7 @@ VOID SimulatorLoop(VOID* arg)
 
         /* Check for messages coming from producer processes
          * and execute accordingly */
-        CheckIPCMessageQueue(true);
+        CheckIPCMessageQueue(true, coreID);
 
         if (!is_core_active(coreID)) {
             PIN_Sleep(10);
@@ -186,7 +187,7 @@ VOID SpawnSimulatorThreads(INT32 numCores)
  * - Not in a pinpoints ROI.
  * - Anything after PauseSimulation (or the HELIX equivalent)
  * This implies all cores are inactive. And handshake buffers are already drained. */
-VOID StopSimulation(BOOL kill_sim_threads)
+VOID StopSimulation(BOOL kill_sim_threads, int caller_coreID)
 {
     if (kill_sim_threads) {
         /* Signal simulator threads to die */
@@ -204,6 +205,9 @@ VOID StopSimulation(BOOL kill_sim_threads)
             is_stopped = true;
 
             for (coreID=0; coreID < num_cores; coreID++) {
+                if (coreID == caller_coreID)
+                    continue;
+
                 sim_thread_state_t* curr_tstate = get_sim_tls(sim_threadid[coreID]);
                 lk_lock(&curr_tstate->lock, 1);
                 is_stopped &= curr_tstate->sim_stopped;
@@ -213,6 +217,9 @@ VOID StopSimulation(BOOL kill_sim_threads)
     }
 
     Zesto_Destroy();
+
+    if (kill_sim_threads)
+        PIN_ExitProcess(EXIT_SUCCESS);
 }
 
 /* ========================================================================== */
@@ -305,7 +312,7 @@ int main(int argc, char * argv[])
     return 0;
 }
 
-void CheckIPCMessageQueue(bool isEarly)
+void CheckIPCMessageQueue(bool isEarly, int caller_coreID)
 {
     /* Grab a message from IPC queue in shared memory */
     while (true) {
@@ -352,7 +359,7 @@ void CheckIPCMessageQueue(bool isEarly)
                 Zesto_WarmLLC(ipcMessage.arg1, ipcMessage.arg2);
                 break;
             case STOP_SIMULATION:
-                StopSimulation(ipcMessage.arg1);
+                StopSimulation(ipcMessage.arg1, caller_coreID);
                 break;
             case ACTIVATE_CORE: 
                 activate_core(ipcMessage.coreID);

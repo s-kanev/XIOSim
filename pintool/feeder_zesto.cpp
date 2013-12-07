@@ -12,9 +12,6 @@
 // Any headers that include boost libraries must be included first.
 // boost interprocess map is not explicitly used in feeder_zesto but it fixes
 // some compilation errors....
-/*
-#include <boost/interprocess/containers/map.hpp>
-*/
 #include <boost/interprocess/containers/deque.hpp>
 #include <boost/interprocess/containers/string.hpp>
 #include <boost/interprocess/managed_shared_memory.hpp>
@@ -41,6 +38,7 @@
 
 #include "shared_unordered_map.h"
 #include "multiprocess_shared.h"
+#include "ipc_queues.h"
 #include "../buffer.h"
 #include "BufferManagerProducer.h"
 #include "scheduler.h"
@@ -228,7 +226,7 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
             cerr << "Stop" << endl;
             lk_unlock(printing_lock);
 
-            PauseSimulation(INVALID_THREADID);
+            PauseSimulation();
 
             /* Here, nothing guarantees that there is still a thread with an active
              * handshake buffer (this handler can be called from a Fini callback
@@ -391,13 +389,14 @@ VOID BeforeFini(INT32 exitCode, VOID *v)
 /* ========================================================================== */
 VOID Fini(INT32 exitCode, VOID *v)
 {
-
+/*
     ipc_message_t msg;
-    msg.StopSimulation(false);
+    msg.StopSimulation(true);
     SendIPCMessage(msg);
+*/
 
     if (exitCode != EXIT_SUCCESS)
-        cerr << "ERROR! Exit code = " << dec << exitCode << endl;
+        cerr << "[" << getpid() << "]" << "ERROR! Exit code = " << dec << exitCode << endl;
 }
 
 /* ========================================================================== */
@@ -887,7 +886,7 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
 /* Make sure that all sim threads drain any handshake buffers that could be in
  * their respective scheduler run queues.
  * Invariant: after this call, all sim threads are spinning in SimulatorLoop */
-VOID PauseSimulation(THREADID tid)
+VOID PauseSimulation()
 {
     /* Here we have produced everything for this loop! */
     disable_producers();

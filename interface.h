@@ -31,7 +31,7 @@ void deactivate_core(int coreID);
 bool is_core_active(int coreID);
 void sim_drain_pipe(int coreID);
 
-void CheckIPCMessageQueue(bool isEarly);
+void CheckIPCMessageQueue(bool isEarly, int caller_coreID);
 
 enum ipc_message_id_t { SLICE_START, SLICE_END, MMAP, MUNMAP, UPDATE_BRK, UPDATE_BOS, WARM_LLC, STOP_SIMULATION, ACTIVATE_CORE, DEACTIVATE_CORE, SCHEDULE_NEW_THREAD, HARDCODE_SCHEDULE, ALLOCATE_THREAD, INVALID_MSG };
 
@@ -49,9 +49,11 @@ struct ipc_message_t {
     bool ConsumableEarly() const {
         switch (this->id) {
           case SLICE_START:
+          case SLICE_END:
           case ACTIVATE_CORE:
           case ALLOCATE_THREAD:
           case SCHEDULE_NEW_THREAD:
+          case STOP_SIMULATION:
             return true;
           default:
             return false;

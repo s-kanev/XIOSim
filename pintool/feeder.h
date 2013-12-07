@@ -162,7 +162,7 @@ extern EXECUTION_MODE ExecMode;
 
 
 VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREADID tid);
-VOID PauseSimulation(THREADID tid);
+VOID PauseSimulation();
 VOID StopSimulation(BOOL kill_sim_threads);
 VOID SimulatorLoop(VOID* arg);
 VOID ThreadFini(THREADID threadIndex, const CONTEXT *ctxt, INT32 code, VOID *v);

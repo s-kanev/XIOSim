@@ -8,6 +8,7 @@
 
 #include "shared_unordered_map.h"
 #include "multiprocess_shared.h"
+#include "ipc_queues.h"
 #include "../buffer.h"
 #include "BufferManagerProducer.h"
 
