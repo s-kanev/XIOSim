@@ -21,10 +21,9 @@ set BENCHMARK_CFG_FILE = "benchmarks.cfg"
 
 setenv LD_LIBRARY_PATH "/home/skanev/lib"
 
-set CMD_LINE = "./harness -benchmark_cfg $BENCHMARK_CFG_FILE  \
-                setarch i686 -3BL $PIN  \
+set CMD_LINE = "setarch i686 -3BL ./harness -benchmark_cfg $BENCHMARK_CFG_FILE  \
+                $PIN  \
                 -pause_tool 1  \
-                -injection child  \
                 -xyzzy  \
                 -t  \
                 $PINTOOL  \

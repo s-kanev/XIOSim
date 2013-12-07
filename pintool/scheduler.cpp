@@ -59,6 +59,13 @@ static void UpdateSHMThreadCore(pid_t tid, int coreID)
     lk_unlock(lk_coreThreads);
 }
 
+static void RemoveSHMThread(pid_t tid)
+{
+    lk_lock(lk_coreThreads, 1);
+    threadCores->erase(tid);
+    lk_unlock(lk_coreThreads);
+}
+
 /* ========================================================================== */
 VOID InitScheduler(INT32 num_cores)
 {
@@ -80,6 +87,9 @@ VOID ScheduleNewThread(pid_t tid)
     if (run_queues[last_coreID].q.empty() && !is_core_active(last_coreID)) {
         activate_core(last_coreID);
         UpdateSHMRunqueues(last_coreID, tid);
+    }
+    else {
+        UpdateSHMThreadCore(tid, -1);
     }
 
     run_queues[last_coreID].q.push(tid);
@@ -120,6 +130,7 @@ VOID DescheduleActiveThread(INT32 coreID)
     thread_list.remove(tid);
     lk_unlock(&thread_list_lock);
 */
+    RemoveSHMThread(tid);
     run_queues[coreID].q.pop();
 
     pid_t new_tid = INVALID_THREADID;

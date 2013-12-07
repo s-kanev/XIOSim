@@ -47,7 +47,8 @@ typedef xiosim::shared::SharedMemoryMap<pid_t, int> ThreadCoreMap;
 SHARED_VAR_DECLARE(ThreadCoreMap, threadCores);
 SHARED_VAR_DECLARE(XIOSIM_LOCK, lk_coreThreads);
 pid_t GetSHMRunqueue(int coreID);
-bool GetSHMCoreBusy(int coreID);
+/* Will this thread ever get simulated (now or in the future) */
+bool IsSHMThreadSimulatingMaybe(pid_t tid);
 int GetSHMThreadCore(pid_t tid);
 
 SHARED_VAR_DECLARE(XIOSIM_LOCK, printing_lock);

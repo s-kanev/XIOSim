@@ -389,12 +389,6 @@ VOID BeforeFini(INT32 exitCode, VOID *v)
 /* ========================================================================== */
 VOID Fini(INT32 exitCode, VOID *v)
 {
-/*
-    ipc_message_t msg;
-    msg.StopSimulation(true);
-    SendIPCMessage(msg);
-*/
-
     if (exitCode != EXIT_SUCCESS)
         cerr << "[" << getpid() << "]" << "ERROR! Exit code = " << dec << exitCode << endl;
 }
@@ -895,14 +889,15 @@ VOID PauseSimulation()
     /* Since the scheduler is updated from the sim threads in SimulatorLoop,
      * seeing empty run queues is enough to determine that the sim thread
      * is done simulating instructions. No need for fancier synchronization. */
-
-    volatile bool cores_done = false;
+    bool threads_done = true;
     do {
-        cores_done = true;
-        for (INT32 coreID=0; coreID < KnobNumCores.Value(); coreID++) {
-            cores_done &= !GetSHMCoreBusy(coreID);
+        threads_done = true;
+        list<THREADID>::iterator it;
+        ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
+            thread_state_t* tstate = get_tls(*it);
+            threads_done &= !IsSHMThreadSimulatingMaybe(tstate->tid);
         }
-    } while (!cores_done);
+    } while (!threads_done);
 }
 
 /* ========================================================================== */

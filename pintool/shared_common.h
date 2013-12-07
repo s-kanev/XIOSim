@@ -105,6 +105,10 @@ class SharedMemoryMapCommon {
       return internal_map->find(key);
     }
 
+    std::size_t erase(const K& key) {
+      return internal_map->erase(key);
+    }
+
   protected:
     // Name that identifies this map in the shared memory segment.
     boost::interprocess::string data_key;

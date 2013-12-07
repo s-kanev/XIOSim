@@ -94,19 +94,20 @@ pid_t GetSHMRunqueue(int coreID) {
     return res;
 }
 
-bool GetSHMCoreBusy(int coreID) {
-    pid_t res;
-    lk_lock(lk_coreThreads, 1);
-    res = coreThreads[coreID];
-    lk_unlock(lk_coreThreads);
-    return res != INVALID_THREADID;
-}
-
 int GetSHMThreadCore(pid_t tid) {
-    int res = -1;
+   int res = -1;
     lk_lock(lk_coreThreads, 1);
     if (threadCores->find(tid) != threadCores->end())
-        res = threadCores->operator[](tid);
+       res = threadCores->operator[](tid);
+    lk_unlock(lk_coreThreads);
+    return res;
+}
+
+bool IsSHMThreadSimulatingMaybe(pid_t tid) {
+    bool res = false;
+    lk_lock(lk_coreThreads, 1);
+    if (threadCores->find(tid) != threadCores->end())
+        res = true;
     lk_unlock(lk_coreThreads);
     return res;
 }
