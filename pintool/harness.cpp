@@ -87,15 +87,23 @@ void remove_shared_memory() {
   }
 }
 
-// Kills all child processes that were forked by the harness when the harness
-// intercepts a SIGINT interrupt. This doesn't seem to work properly yet - Pin
-// seems to be forking other child processes and the harness doesn't know thosd
-// pids.
-void kill_handler(int sig) {
+// Kills all child processes that were forked by the harness, including the
+// timing simulator process. This sends the SIGKILL signal rather than SIGTERM
+// in order to ensure process termination.
+// This is called when the harness intercepts a SIGINT interrupt or when the
+// harness detects that one of the child processes exited unnaturally.
+void kill_children(int sig) {
   using namespace xiosim::shared;
-  std::cout << "Caught SIGINT: Killing child processes." << std::endl;
+  // Using a stringstream to avoid races on std::cout.
+  stringstream output;
+  if (WEXITSTATUS(sig) == SIGINT)
+    output << "Caught SIGINT, ";
+  else
+    output << "Detected signal " << sig << ", ";
+  output << "killing child processes." << std::endl;
+  std::cout << output.str();
   for (int i = 0; i < harness_num_processes; i++) {
-    kill(harness_pids[i], SIGTERM);
+    kill(harness_pids[i], SIGKILL);
   }
   remove_shared_memory();
   exit(1);
@@ -196,7 +204,6 @@ int main(int argc, char **argv) {
 
   // Compute the total number of benchmark processes that will be forked.
   int num_programs = cfg_size(cfg, "program");
-  int harness_num_processes = 0;
   for (int i = 0; i < num_programs; i++) {
     cfg_t *program_cfg = cfg_getnsec(cfg, "program", i);
     int instances = cfg_getint(program_cfg, "instances");
@@ -205,7 +212,7 @@ int main(int argc, char **argv) {
 
   // Setup SIGINT handler to kill child processes as well.
   struct sigaction sig_int_handler;
-  sig_int_handler.sa_handler = kill_handler;
+  sig_int_handler.sa_handler = kill_children;
   sigemptyset(&sig_int_handler.sa_mask);
   sig_int_handler.sa_flags = 0;
   sigaction(SIGINT, &sig_int_handler, NULL);
@@ -245,7 +252,6 @@ int main(int argc, char **argv) {
   std::string shared_lock_key =
       harness_pid_stream.str() + std::string(XIOSIM_INIT_SHARED_LOCK);
 
-  std::cout << "lock key is " << shared_lock_key << std::endl;
   // Creates a new shared segment.
   permissions perm;
   perm.set_unrestricted();
@@ -317,10 +323,12 @@ int main(int argc, char **argv) {
   }
 
   std::cout << "[HARNESS] Waiting for feeder children to finish." << std::endl;
-  for (int i = 1; i < harness_num_processes; i++) {
-    while (waitpid(harness_pids[i], &status, 0) != harness_pids[i]);
+  for (int i = 0; i < harness_num_processes-1; i++) {
+    // Wait for any child process to finish.
+    pid_t terminated_process = wait(&status);
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-      std::cerr << "Process " << harness_pids[i] << " failed." << std::endl;
+      std::cerr << "Process " << terminated_process << " failed." << std::endl;
+      kill_children(status);
     }
   }
 
