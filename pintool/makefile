@@ -163,9 +163,9 @@ clean-harness:
 
 install:
 	cp $(TOOLS) $(COOL_INSTALL_DIR)
-	cp timing_wait $(COOL_INSTALL_DIR)
+	cp $(OBJDIR)timing_wait $(COOL_INSTALL_DIR)
 	cp $(OBJDIR)feeder_zesto.so $(COOL_INSTALL_DIR)
-	cp harness $(COOL_INSTALL_DIR)
+	cp $(OBJDIR)harness $(COOL_INSTALL_DIR)
 	git log -1 --format="%H" > $(COOL_INSTALL_DIR)/version
 	git diff --no-prefix > $(COOL_INSTALL_DIR)/diff
 	if [ -n "$(REPEATER_LIB)" ]; then cd ../mem-repeater/ ; git log -1 --format="%H" > $(COOL_INSTALL_DIR)/repeater_version; fi
