@@ -334,7 +334,11 @@ void CheckIPCMessageQueue(bool isEarly, int caller_coreID)
         q->pop_front();
         lk_unlock(lk_ipcMessageQueue);
 
+#ifdef IPC_DEBUG
+        lk_lock(printing_lock, 1);
         std::cerr << "IPC message, ID: " << ipcMessage.id << " early: " << isEarly << std::endl;
+        lk_unlock(printing_lock);
+#endif
 
         /* And execute the appropriate call based on the protocol
          * defined in interface.h */

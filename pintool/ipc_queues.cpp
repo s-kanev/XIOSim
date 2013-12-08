@@ -31,9 +31,11 @@ void SendIPCMessage(ipc_message_t msg)
 {
     MessageQueue *q = msg.ConsumableEarly() ? ipcEarlyMessageQueue : ipcMessageQueue;
 
+#ifdef IPC_DEBUG
     lk_lock(printing_lock, 1);
     std::cerr << "[SEND] IPC message, ID: " << msg.id << std::endl;
     lk_unlock(printing_lock);
+#endif
 
     lk_lock(lk_ipcMessageQueue, 1);
     q->push_back(msg);
