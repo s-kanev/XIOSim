@@ -7,7 +7,6 @@
 #define MP_KEYS_H
 
 #include <cstdlib>
-#include <string>
 
 namespace xiosim {
 namespace shared {

@@ -40,14 +40,12 @@ class SharedUnorderedMapCommon {
 
   public:
     SharedUnorderedMapCommon() : data_key(""), memory_key("") {
-      std::cout << "Default constructing unordered map." << std::endl;
     }
 
     SharedUnorderedMapCommon(
         const char* shared_memory_name, const char* internal_map_name,
         std::size_t buckets = DEFAULT_NUM_BUCKETS)
         : data_key(internal_map_name), memory_key(shared_memory_name) {
-      std::cout << "Constructing unordered map." << std::endl;
       shm = new managed_shared_memory(open_or_create, shared_memory_name,
           DEFAULT_SHARED_MEMORY_SIZE);
       initialize(buckets);

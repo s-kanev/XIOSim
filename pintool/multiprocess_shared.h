@@ -1,12 +1,6 @@
 #ifndef __MP_SHARED__
 #define __MP_SHARED__
 
-#include <boost/interprocess/allocators/allocator.hpp>
-#include <boost/interprocess/shared_memory_object.hpp>
-#include <boost/interprocess/managed_shared_memory.hpp>
-#include <boost/interprocess/containers/deque.hpp>
-#include <boost/interprocess/sync/named_mutex.hpp>
-
 #include "mpkeys.h"
 
 extern boost::interprocess::managed_shared_memory *global_shm;
@@ -30,9 +24,6 @@ extern boost::interprocess::managed_shared_memory *global_shm;
 
 #define SHARED_VAR_CONSTRUCT(TYPE, VAR, SHM_KEY, ...) \
     VAR = new TYPE(SHM_KEY, VAR##_KEY, ## __VA_ARGS__);
-
-#include "shared_map.h"
-#include "feeder.h"
 
 SHARED_VAR_DECLARE(bool, consumers_sleep)
 SHARED_VAR_DECLARE(bool, producers_sleep)
@@ -66,7 +57,6 @@ void disable_producers();
 void enable_producers();
 void wait_consumers();
 
-extern KNOB<int> KnobNumProcesses;
 extern KNOB<int> KnobNumCores;
 extern KNOB<pid_t> KnobHarnessPid;
 

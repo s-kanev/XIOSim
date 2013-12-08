@@ -13,7 +13,14 @@
 #include <queue>
 #include <map>
 
+#include "pin.H"
+#include "instlib.H"
+using namespace INSTLIB;
+
+#include "shared_map.h"
 #include "shared_unordered_map.h"
+
+#include "../interface.h"
 #include "multiprocess_shared.h"
 
 #include "feeder.h"

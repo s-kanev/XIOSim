@@ -1,3 +1,5 @@
+#include <boost/interprocess/containers/deque.hpp>
+
 #include <map>
 #include <syscall.h>
 #include <sys/mman.h>
@@ -6,13 +8,15 @@
 #include "rdtsc.h"
 #endif
 
+#include "shared_map.h"
 #include "shared_unordered_map.h"
+
+#include "feeder.h"
 #include "multiprocess_shared.h"
 #include "ipc_queues.h"
 #include "../buffer.h"
 #include "BufferManagerProducer.h"
 
-#include "feeder.h"
 #include "syscall_handling.h"
 
 //from linux/arch/x86/ia32/sys_ia32.c

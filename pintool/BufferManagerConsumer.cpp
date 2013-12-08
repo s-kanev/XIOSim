@@ -10,11 +10,12 @@
 
 #include "pin.H"
 
+#include "shared_map.h"
 #include "shared_unordered_map.h"
+
+#include "../interface.h"
 #include "multiprocess_shared.h"
 #include "BufferManagerConsumer.h"
-
-#include "feeder.h"
 
 namespace xiosim
 {

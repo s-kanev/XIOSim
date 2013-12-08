@@ -4,8 +4,7 @@
 #include <boost/interprocess/containers/vector.hpp>
 #include <boost/interprocess/containers/string.hpp>
 #include <boost/interprocess/allocators/allocator.hpp>
-
-#include "shared_unordered_map.h"
+#include <boost/interprocess/sync/named_mutex.hpp>
 
 #include <errno.h>
 #include <fcntl.h>
@@ -26,9 +25,12 @@
 
 #include "pin.H"
 #include "instlib.H"
-#include <stack>
 using namespace INSTLIB;
 
+#include "shared_map.h"
+#include "shared_unordered_map.h"
+
+#include "../interface.h"
 #include "multiprocess_shared.h"
 #include "../buffer.h"
 #include "BufferManager.h"

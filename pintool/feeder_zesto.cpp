@@ -36,7 +36,10 @@
 #include <unistd.h>
 #include <utility>
 
+#include "shared_map.h"
 #include "shared_unordered_map.h"
+
+#include "feeder.h"
 #include "multiprocess_shared.h"
 #include "ipc_queues.h"
 #include "../buffer.h"
@@ -48,8 +51,6 @@
 #include "syscall_handling.h"
 #include "ildjit.h"
 #include "parsec.h"
-
-#include "feeder.h"
 
 #include "../zesto-core.h"
 
@@ -944,7 +945,7 @@ VOID ThreadFini(THREADID tid, const CONTEXT *ctxt, INT32 code, VOID *v)
 INT32 main(INT32 argc, CHAR **argv)
 {
 #ifdef ZESTO_PIN_DBG
-    cerr << "Command line: ";
+    cerr << "[" << getpid() << "]" << " feeder_zesto args: ";
     for(int i=0; i<argc; i++)
        cerr << argv[i] << " ";
     cerr << endl;

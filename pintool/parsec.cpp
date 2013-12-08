@@ -1,4 +1,5 @@
 // Sam: These includes are needed to pass compilation. I'm not sure why.
+#include <boost/interprocess/containers/deque.hpp>
 #include <boost/interprocess/containers/string.hpp>
 #include <boost/interprocess/containers/map.hpp>
 #include <boost/interprocess/allocators/allocator.hpp>
@@ -8,12 +9,14 @@
 #include <map>
 #include <queue>
 
+#include "shared_map.h"
 #include "shared_unordered_map.h"
+
+#include "feeder.h"
 #include "multiprocess_shared.h"
 #include "../buffer.h"
 #include "BufferManagerProducer.h"
 
-#include "feeder.h"
 #include "parsec.h"
 
 KNOB<BOOL> KnobParsec(KNOB_MODE_WRITEONCE,      "pintool",

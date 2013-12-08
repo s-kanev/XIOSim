@@ -5,11 +5,11 @@
 
 // These includes are needed to pass compilation because of a macro conflict in
 // another header included later.
+#include <boost/interprocess/containers/deque.hpp>
 #include <boost/interprocess/containers/string.hpp>
 #include <boost/interprocess/containers/map.hpp>
 #include <boost/interprocess/allocators/allocator.hpp>
 #include <boost/interprocess/managed_shared_memory.hpp>
-#include <boost/unordered_map.hpp>
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -19,14 +19,20 @@
 #include <stack>
 #include <signal.h>
 
+#include "shared_map.h"
 #include "shared_unordered_map.h"
+
+#include "feeder.h"
+
+#include "../interface.h"
 #include "multiprocess_shared.h"
 #include "ipc_queues.h"
+
+
 #include "../buffer.h"
 #include "BufferManagerProducer.h"
 #include "ignore_ins.h"
 
-#include "feeder.h"
 #include "scheduler.h"
 #include "ildjit.h"
 #include "fluffy.h"

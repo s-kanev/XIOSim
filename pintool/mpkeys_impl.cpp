@@ -10,7 +10,7 @@ const char *BUFFER_MANAGER_SHARED_MEMORY_KEY = "buffer_manager_shared_memory_key
 const char *XIOSIM_INIT_COUNTER_KEY = "xiosim_init_counter";
 
 // Shared memory default sizes
-const std::size_t DEFAULT_SHARED_MEMORY_SIZE = 65536;
+const size_t DEFAULT_SHARED_MEMORY_SIZE = 65536;
 
 // BufferManager keys.
 const char *BUFFER_MANAGER_LOCKS_ = "buffer_manager_locks";

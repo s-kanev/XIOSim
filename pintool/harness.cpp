@@ -12,6 +12,8 @@
 
 #include <boost/interprocess/managed_shared_memory.hpp>
 #include <boost/interprocess/managed_mapped_file.hpp>
+#include <boost/interprocess/containers/deque.hpp>
+#include <boost/interprocess/allocators/allocator.hpp>
 #include <boost/interprocess/shared_memory_object.hpp>
 #include <boost/interprocess/sync/named_mutex.hpp>
 #include <boost/interprocess/permissions.hpp>
@@ -30,6 +32,12 @@
 #include <unistd.h>
 #include <algorithm>
 
+#include "pin.H"
+
+#include "shared_map.h"
+#include "shared_unordered_map.h"
+
+#include "../interface.h"
 #include "multiprocess_shared.h"
 #include "ipc_queues.h"
 
@@ -42,7 +50,6 @@ namespace xiosim {
 namespace shared {
 
 const std::string CFG_FILE_FLAG = "-benchmark_cfg";
-const std::string NUM_PROCESSES_FLAG = "-num_processes";
 const std::string HARNESS_PID_FLAG = "-harness_pid";
 const std::string LAST_PINTOOL_ARG = "-s";
 
@@ -96,12 +103,16 @@ void kill_handler(int sig) {
 
 // Modify the generic pintool command for the timing simulator.
 std::string get_timing_sim_args(std::string harness_args) {
+    size_t feeder_opt_end_pos = harness_args.find("-t ") +
+                            strlen("-t ");
+    size_t feeder_so_pos = harness_args.find("feeder_zesto.so");
+    std::string feeder_path = harness_args.substr(feeder_opt_end_pos, feeder_so_pos - feeder_opt_end_pos);
+
     std::string res = boost::replace_all_copy<std::string>(
         harness_args, "feeder_zesto", "timing_sim");
 
     auto pos = res.rfind("--");
-    //XXX: get path from feeder_zesto.so
-    res.replace(pos, res.length(), "-- ./timing_wait");
+    res.replace(pos, res.length(), "-- " + feeder_path + "timing_wait");
     std::cout << "timing_sim args: " << res << std::endl;
     return res;
 }
@@ -200,21 +211,29 @@ int main(int argc, char **argv) {
   sigaction(SIGINT, &sig_int_handler, NULL);
 
   // Concatenate the flags into a single string to be executed when setup is
-  // complete. Exclude the num_processes flag part if present.
+  // complete.
   std::stringstream command_stream;
   pid_t harness_pid = getpid();
-  int command_start_pos = 3;  // There are three harness-specific arguments.
+  int command_start_pos = 3; // There are three harness-specific arguments.
+  bool inserted_harness = false;
   for (int i = command_start_pos; i < argc; i++) {
-    // If the next arg is "-s", add the num_processes and harness_pid flags.
-    if (strncmp(argv[i], LAST_PINTOOL_ARG.c_str(),
-                LAST_PINTOOL_ARG.length()) == 0) {
-      command_stream << " " << NUM_PROCESSES_FLAG << " "
-                     << harness_num_processes << " "
-                     << HARNESS_PID_FLAG << " " << harness_pid << " ";
+    // If the next arg is "-s", add the harness_pid flag.
+    if ((strncmp(argv[i], LAST_PINTOOL_ARG.c_str(),
+                LAST_PINTOOL_ARG.length()) == 0 ) &&
+         (strnlen(argv[i], LAST_PINTOOL_ARG.length()+1) ==
+                LAST_PINTOOL_ARG.length())) {
+      command_stream << " " << HARNESS_PID_FLAG << " " << harness_pid << " ";
+      inserted_harness = true;
     }
     command_stream << argv[i] << " ";
   }
+  if (!inserted_harness) {
+    std:: cerr << "Failed to add harness_pid to tool args!" << std::endl;
+    abort();
+  }
   command_stream << "-- ";  // For appending the benchmark program arguments.
+
+  std::cerr << "HARNESS CMD: " << command_stream.str() << std::endl;
 
   // Shared object keys are prefixed by the harness pid that created them.
   std::stringstream harness_pid_stream;

@@ -4,7 +4,6 @@
 #include <boost/interprocess/managed_mapped_file.hpp>
 #include <boost/interprocess/shared_memory_object.hpp>
 #include <boost/interprocess/interprocess_fwd.hpp>
-#include "mpkeys.h"
 
 #include <sys/statvfs.h>
 
@@ -13,12 +12,14 @@
 
 #include "pin.H"
 
+#include "shared_map.h"
 #include "shared_unordered_map.h"
+
+#include "feeder.h"
 #include "multiprocess_shared.h"
 #include "ipc_queues.h"
 #include "BufferManagerProducer.h"
 
-#include "feeder.h"
 
 namespace xiosim
 {

@@ -14,12 +14,14 @@
 #include <map>
 #include <queue>
 
+#include "shared_map.h"
 #include "shared_unordered_map.h"
+
+#include "feeder.h"
 #include "multiprocess_shared.h"
 #include "../buffer.h"
 #include "BufferManagerProducer.h"
 
-#include "feeder.h"
 #include "scheduler.h"
 #include "sync_pthreads.h"
 

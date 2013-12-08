@@ -141,12 +141,12 @@ $(OBJDIR)feeder_zesto.so: $(FEEDER_OBJS) $(OBJDIR)feeder_zesto.o
 harness: $(HARNESS_OBJS)
 	${PIN_LD} -g $(CXXFLAGS) ${SHM_LDFLAGS} $(LINK_DEBUG) ${LINK_OUT} $@ $^ -pthread -lrt -lconfuse
 
-timing_wait: timing_wait.cpp
+$(OBJDIR)timing_wait: timing_wait.cpp
 	$(CXX) $(CXXFLAGS) ${OUTOPT} $@ $<
 
 ## cleaning
 clean:
-	-rm -rf $(OBJDIR) *.out *.tested *.failed makefile.copy
+	-rm -rf $(OBJDIR) *.out *.tested *.failed makefile.copy harness
 	$(MAKE) -C $(ZESTO_HOME) clean
 	$(MAKE) -C $(ZESTO_HOME)/mcpat clean
 	if [ -n "$(DRAMSIM_LIB)" ]; then $(MAKE) -C $(ZESTO_HOME)/DRAMSim2 clean; fi
@@ -159,10 +159,13 @@ clean-tool:
 
 .PHONY: clean-harness
 clean-harness:
-	-rm -rf harness *.failed makefile.copy
+	-rm -rf $(OBJDIR)harness *.failed makefile.copy
 
 install:
 	cp $(TOOLS) $(COOL_INSTALL_DIR)
+	cp timing_wait $(COOL_INSTALL_DIR)
+	cp $(OBJDIR)feeder_zesto.so $(COOL_INSTALL_DIR)
+	cp harness $(COOL_INSTALL_DIR)
 	git log -1 --format="%H" > $(COOL_INSTALL_DIR)/version
 	git diff --no-prefix > $(COOL_INSTALL_DIR)/diff
 	if [ -n "$(REPEATER_LIB)" ]; then cd ../mem-repeater/ ; git log -1 --format="%H" > $(COOL_INSTALL_DIR)/repeater_version; fi

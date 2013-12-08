@@ -11,12 +11,14 @@
 #include "instlib.H"
 using namespace INSTLIB;
 
+#include "shared_map.h"
 #include "shared_unordered_map.h"
+
+#include "../interface.h"
 #include "multiprocess_shared.h"
 #include "ipc_queues.h"
 
 #include "scheduler.h"
-#include "../interface.h"
 #include "../synchronization.h"
 #include "../buffer.h"
 #include "BufferManagerConsumer.h"

@@ -1,7 +1,22 @@
-#include "shared_unordered_map.h"
-#include "multiprocess_shared.h"
+#include <boost/interprocess/containers/deque.hpp>
+#include <boost/interprocess/containers/string.hpp>
+#include <boost/interprocess/managed_shared_memory.hpp>
+#include <boost/interprocess/managed_mapped_file.hpp>
+#include <boost/interprocess/shared_memory_object.hpp>
+#include <boost/interprocess/sync/named_mutex.hpp>
+#include <boost/interprocess/interprocess_fwd.hpp>
+
 #include <sstream>
+
+#include "pin.H"
+
+#include "shared_map.h"
+#include "shared_unordered_map.h"
+
+#include "../interface.h"
+#include "multiprocess_shared.h"
 #include "ipc_queues.h"
+
 
 using namespace xiosim::shared;
 
@@ -22,8 +37,6 @@ SHARED_VAR_DEFINE(XIOSIM_LOCK, printing_lock)
 SHARED_VAR_DEFINE(int, ss_curr);
 SHARED_VAR_DEFINE(int, ss_prev);
 
-KNOB<int> KnobNumProcesses(KNOB_MODE_WRITEONCE,      "pintool",
-        "num_processes", "1", "Number of processes for a multiprogrammed workload");
 KNOB<int> KnobNumCores(KNOB_MODE_WRITEONCE,      "pintool",
         "num_cores", "1", "Number of cores simulated");
 KNOB<pid_t> KnobHarnessPid(KNOB_MODE_WRITEONCE, "pintool",
