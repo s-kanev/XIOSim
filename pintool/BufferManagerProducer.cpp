@@ -373,7 +373,7 @@ static shm_string genFileName(boost::interprocess::string path)
   boost::interprocess::string res = boost::interprocess::string(temp);
   assert(res.find(path) != boost::interprocess::string::npos);
   res.insert(path.length() + gpid_.length(), "_");
-  res = res + ".helix";
+  res = res + ".xiosim";
 
   shm_string shared_res(res.c_str(), global_shm->get_allocator<void>());
   free(temp);
