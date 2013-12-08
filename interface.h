@@ -53,6 +53,7 @@ struct ipc_message_t {
           case ACTIVATE_CORE:
           case ALLOCATE_THREAD:
           case SCHEDULE_NEW_THREAD:
+          case HARDCODE_SCHEDULE:
           case STOP_SIMULATION:
             return true;
           default:
