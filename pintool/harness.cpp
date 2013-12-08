@@ -322,6 +322,11 @@ int main(int argc, char **argv) {
     }
   }
 
+  // Waits for the children process to finish. If any of the children, including
+  // the timing simulator process, terminate unexpectedly, then ALL children are
+  // killed immediately. Otherwise, it waits for only the producer children to
+  // finish normally. The timing simulator is instructed to terminate
+  // separately later.
   std::cout << "[HARNESS] Waiting for feeder children to finish." << std::endl;
   for (int i = 0; i < harness_num_processes-1; i++) {
     // Wait for any child process to finish.
