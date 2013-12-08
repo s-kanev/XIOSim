@@ -105,9 +105,6 @@ bool only_heavy_waits;
 UINT32* ildjit_ws_id;
 UINT32* ildjit_disable_ws;
 
-int ss_curr;
-int ss_prev;
-
 extern map<ADDRINT, string> pc_diss;
 
 /* ========================================================================== */
@@ -162,9 +159,6 @@ VOID MOLECOOL_Init()
     cerr << end_loop_invocation << endl;
     cerr << end_loop_iteration << endl << endl;
 
-    ss_curr = 100000;
-    ss_prev = 100000;
-
     if (KnobWaitsAsLoads.Value()) {
         wait_template_1 = wait_template_1_ld;
         wait_template_1_size = sizeof(wait_template_1_ld);
@@ -175,6 +169,9 @@ VOID MOLECOOL_Init()
         wait_template_1_size = sizeof(wait_template_1_st);
         wait_template_1_addr_offset = 2; // 1 opcode byte, 1 ModRM byte
     }
+
+    *ss_curr = 100000;
+    *ss_prev = 100000;
 }
 
 /* ========================================================================== */
@@ -333,7 +330,7 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
     CHAR* loop_name = (CHAR*) loop;
     cerr << "Starting loop: " << loop_name << "[" << invocation_counts[(string)(char*)loop] << "]" << endl;
 
-    ss_curr = rc;
+    *ss_curr = rc;
     loop_state->use_ring_cache = (rc > 0);
 
     if(disable_wait_signal) {
@@ -442,7 +439,7 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
         UINT32 iterCount = loop_state->simmed_iteration_count - 1;
         cerr << "Ending loop: " << loop_name << " NumIterations:" << iterCount << endl;
         simulating_parallel_loop = false;
-        ss_prev = ss_curr;
+        *ss_prev = *ss_curr;
 
         assert(loop_states.size() > 0);
         loop_states.pop();

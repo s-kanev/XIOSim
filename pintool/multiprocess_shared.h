@@ -53,6 +53,10 @@ int GetSHMThreadCore(pid_t tid);
 
 SHARED_VAR_DECLARE(XIOSIM_LOCK, printing_lock);
 
+/* librepeater */
+SHARED_VAR_DECLARE(int, ss_curr);
+SHARED_VAR_DECLARE(int, ss_prev);
+
 void InitSharedState(bool wait_for_others, pid_t harness_pid);
 void SendIPCMessage(ipc_message_t msg);
 

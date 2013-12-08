@@ -19,6 +19,9 @@ SHARED_VAR_DEFINE(XIOSIM_LOCK, lk_coreThreads)
 
 SHARED_VAR_DEFINE(XIOSIM_LOCK, printing_lock)
 
+SHARED_VAR_DEFINE(int, ss_curr);
+SHARED_VAR_DEFINE(int, ss_prev);
+
 KNOB<int> KnobNumProcesses(KNOB_MODE_WRITEONCE,      "pintool",
         "num_processes", "1", "Number of processes for a multiprogrammed workload");
 KNOB<int> KnobNumCores(KNOB_MODE_WRITEONCE,      "pintool",
@@ -68,6 +71,9 @@ void InitSharedState(bool wait_for_others, pid_t harness_pid)
     SHARED_VAR_INIT(XIOSIM_LOCK, lk_coreThreads);
 
     SHARED_VAR_INIT(XIOSIM_LOCK, printing_lock);
+
+    SHARED_VAR_INIT(int, ss_curr);
+    SHARED_VAR_INIT(int, ss_prev);
 
     init_lock.unlock();
 
