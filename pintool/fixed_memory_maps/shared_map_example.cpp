@@ -125,8 +125,9 @@ int main() {
   } remover;
 
   // Initialize the global pointer to the shared segment and map.
+  void* address = (void*) 0x40000000;
   global_shm = new fixed_managed_shared_memory(open_or_create,
-      SHARED_MEMORY_NAME, DEFAULT_SIZE, (void*) 0x30000000);
+      SHARED_MEMORY_NAME, DEFAULT_SIZE, address);
   /*
   global_shm = new managed_shared_memory(
       open_or_create, SHARED_MEMORY_NAME, DEFAULT_SIZE);
