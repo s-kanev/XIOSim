@@ -27,25 +27,27 @@ const std::size_t DEFAULT_GROW_MEMORY_SIZE = 65536;
 template<typename K, typename V>
 class SharedMemoryMapCommon {
   protected:
+    typedef fixed_managed_shared_memory::segment_manager segment_manager_t;
     typedef std::pair<std::size_t, std::size_t> MemorySizeStateType;
     typedef std::pair<const K, V> MapValueType;
     typedef boost::interprocess::allocator<
-        MapValueType, fixed_managed_shared_memory::segment_manager>
+        MapValueType, segment_manager_t>
           MapValueAllocator;
     typedef boost::interprocess::map<K, V, std::less<K>, MapValueAllocator>
         InternalMap;
-    typedef boost::interprocess::allocator<void, fixed_managed_shared_memory::segment_manager>
+    typedef boost::interprocess::allocator<void, segment_manager_t>
         VoidAllocator;
 
   public:
     SharedMemoryMapCommon() : data_key(""), memory_key("") {}
 
     SharedMemoryMapCommon(
-        const char* shared_memory_name, const char* internal_data_name)
+        const char* shared_memory_name, const char* internal_data_name,
+        void* addr=0x0)
         : data_key(internal_data_name), memory_key(shared_memory_name) {
 
       shm = new fixed_managed_shared_memory(
-          open_or_create, memory_key.c_str(), DEFAULT_SHARED_MEMORY_SIZE);
+          open_or_create, memory_key.c_str(), DEFAULT_SHARED_MEMORY_SIZE, addr);
       initialize();
     }
 
@@ -54,11 +56,12 @@ class SharedMemoryMapCommon {
     ~SharedMemoryMapCommon() {}
 
     void initialize_late(
-        const char* shared_memory_name, const char* internal_map_name) {
+        const char* shared_memory_name, const char* internal_map_name,
+        void* addr) {
       memory_key = boost::interprocess::string(shared_memory_name);
       data_key = boost::interprocess::string(internal_map_name);
       shm = new fixed_managed_shared_memory(
-          open_or_create, memory_key.c_str(), DEFAULT_SHARED_MEMORY_SIZE);
+          open_or_create, memory_key.c_str(), DEFAULT_SHARED_MEMORY_SIZE, addr);
       initialize();
     }
 

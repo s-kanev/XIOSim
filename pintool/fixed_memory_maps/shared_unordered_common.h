@@ -43,20 +43,20 @@ class SharedUnorderedMapCommon {
 
     SharedUnorderedMapCommon(
         const char* shared_memory_name, const char* internal_map_name,
-        std::size_t buckets = DEFAULT_NUM_BUCKETS)
+        std::size_t buckets = DEFAULT_NUM_BUCKETS, void* addr=0x0)
         : data_key(internal_map_name), memory_key(shared_memory_name) {
       shm = new fixed_managed_shared_memory(open_or_create, shared_memory_name,
-          DEFAULT_SHARED_MEMORY_SIZE);
+          DEFAULT_SHARED_MEMORY_SIZE, addr);
       initialize(buckets);
     }
 
     void initialize_late(
         const char* shared_memory_name, const char* internal_map_name,
-        std::size_t buckets = DEFAULT_NUM_BUCKETS) {
+        std::size_t buckets = DEFAULT_NUM_BUCKETS, void* addr=0x0) {
       memory_key = boost::interprocess::string(shared_memory_name);
       data_key = boost::interprocess::string(internal_map_name);
       shm = new fixed_managed_shared_memory(
-          open_or_create, memory_key.c_str(), DEFAULT_SHARED_MEMORY_SIZE);
+          open_or_create, memory_key.c_str(), DEFAULT_SHARED_MEMORY_SIZE, addr);
       initialize(buckets);
     }
 
