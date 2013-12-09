@@ -682,10 +682,7 @@ cleanup:
 VOID ILDJIT_setAffinity(THREADID tid, INT32 coreID)
 {
     ASSERTX(coreID >= 0 && coreID < KnobNumCores.Value());
-    thread_state_t *tstate = get_tls(tid);
-    ipc_message_t msg;
-    msg.HardcodeSchedule(tstate->tid, coreID);
-    SendIPCMessage(msg);
+    /* NADA, the scheduler should take care of it */
 }
 
 /* ========================================================================== */

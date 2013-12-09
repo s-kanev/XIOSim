@@ -24,11 +24,6 @@ pid_t GetCoreThread(INT32 coreID);
  */
 VOID DescheduleActiveThread(INT32 coreID);
 
-/* Hook to not use the scheduler, if simulated
- * program (HELIX) is already taking care of it.
- */
-VOID HardcodeSchedule(pid_t tid, INT32 coreID);
-
 /* Let another thread (if any) scheduled on core
  * @coreID take over.
  * Assumes it is only called from the core sim thread */

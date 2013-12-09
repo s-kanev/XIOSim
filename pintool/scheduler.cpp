@@ -106,18 +106,6 @@ VOID ScheduleNewThread(pid_t tid)
 }
 
 /* ========================================================================== */
-VOID HardcodeSchedule(pid_t tid, INT32 coreID)
-{
-    lk_lock(&run_queues[coreID].lk, 1);
-    ASSERTX(run_queues[coreID].q.empty());
-    activate_core(coreID);
-    run_queues[coreID].q.push(tid);
-    lk_unlock(&run_queues[coreID].lk);
-
-    UpdateSHMRunqueues(coreID, tid);
-}
-
-/* ========================================================================== */
 VOID DescheduleActiveThread(INT32 coreID)
 {
     lk_lock(&run_queues[coreID].lk, 1);

@@ -67,7 +67,9 @@ static VOID IgnoreIns(INS ins, ADDRINT alternative_pc = (ADDRINT)-1)
 
     lk_lock(&lk_ignored_tpc, 1);
     if (ignored_tpc.count(pc) == 0) {
+#ifdef IGNORE_DEBUG
         cerr << hex << "Ignoring: " << pc << " ft: " << fallthrough << dec << endl;
+#endif
         ignored_tpc[pc] = fallthrough;
     }
     lk_unlock(&lk_ignored_tpc);
