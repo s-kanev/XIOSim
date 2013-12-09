@@ -17,7 +17,7 @@
 #include <utility>  // for std::pair
 #include <iostream>
 
-#include "mpkeys.h"
+#include "../mpkeys.h"
 
 namespace xiosim {
 namespace shared {

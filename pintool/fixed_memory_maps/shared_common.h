@@ -13,7 +13,7 @@
 #include <boost/interprocess/managed_shared_memory.hpp>
 #include <cstdlib>  // for size_t
 #include <utility>  // for std::pair
-#include "mpkeys.h"
+#include "../mpkeys.h"
 
 namespace xiosim {
 namespace shared {
