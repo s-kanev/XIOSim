@@ -391,6 +391,11 @@ void BufferManager::copyProducerToFileReal(THREADID tid, bool checkSpace)
     }
     if(madeFile == false) {
       cerr << "Nowhere left for the poor file bridge :(" << endl;
+      cerr << "BridgeDirs:" << endl;
+      for(int i = 0; i < (int)bridgeDirs_.size(); i++) {
+        int space = getKBFreeSpace(bridgeDirs_[i]);
+        cerr << bridgeDirs_[i] << ":" << space << " in KB" << endl;
+      }
       this->abort();
     }
   }
