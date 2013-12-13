@@ -681,5 +681,5 @@ int BufferManager::getKBFreeSpace(string path)
 {
   struct statvfs fsinfo;
   statvfs(path.c_str(), &fsinfo);
-  return (fsinfo.f_bsize * fsinfo.f_bfree / 1024);
+  return ((unsigned long long)fsinfo.f_bsize * (unsigned long long)fsinfo.f_bavail / 1024);
 }
