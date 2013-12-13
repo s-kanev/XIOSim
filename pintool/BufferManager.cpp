@@ -80,7 +80,6 @@ handshake_container_t* BufferManager::front(THREADID tid, bool isLocal)
     lk_unlock(locks_[tid]);
     while(consumers_sleep) {
       PIN_SemaphoreWait(&consumer_sleep_lock);
-      //PIN_Sleep(250);
     }
     PIN_Yield();
     lk_lock(locks_[tid], tid+1);
@@ -297,7 +296,7 @@ void BufferManager::reserveHandshake(THREADID tid)
     enable_consumers();
     disable_producers();
 
-    PIN_Sleep(1000);
+    PIN_Sleep(500);
 
     lk_lock(locks_[tid], tid+1);
 
@@ -313,7 +312,7 @@ void BufferManager::reserveHandshake(THREADID tid)
     //      continue;
     //    }
 
-    if(queueSizes_[tid] < queueLimit) {
+    if((queueSizes_[tid] < queueLimit) && (pool_[tid] == 0)) {
       pool_[tid] += 50000;
 #ifdef ZESTO_PIN_DBG
       cerr << tid << " [reserveHandshake()]: Increasing file up to " << queueSizes_[tid] + pool_[tid] << endl;
@@ -382,7 +381,7 @@ void BufferManager::copyProducerToFileReal(THREADID tid, bool checkSpace)
   if(checkSpace) {
     for(int i = 0; i < (int)bridgeDirs_.size(); i++) {
       int space = getKBFreeSpace(bridgeDirs_[i]);
-      if(space > 2000000) { // 2 GB
+      if(space > 2000000) { // 4 GB
         fileNames_[tid].push_back(genFileName(bridgeDirs_[i]));
         madeFile = true;
         break;
@@ -411,7 +410,6 @@ void BufferManager::copyProducerToFileReal(THREADID tid, bool checkSpace)
     cerr << "Pipe open error: " << fd << " Errcode:" << strerror(errno) << endl;
     this->abort();
   }
-
   while(!produceBuffer_[tid]->empty()) {
     writeHandshake(tid, fd, produceBuffer_[tid]->front());
     produceBuffer_[tid]->pop();
@@ -484,8 +482,12 @@ static ssize_t do_write(const int fd, const void* buff, const size_t size)
   ssize_t bytesWritten = 0;
   do {
     ssize_t res = write(fd, (void*)((char*)buff + bytesWritten), size - bytesWritten);
-    if(res == -1)
+    if(res == -1) {
+      cerr << "failed write!" << endl;
+      cerr << "bytesWritten:" << bytesWritten << endl;
+      cerr << "size:" << size << endl;
       return -1;
+    }
     bytesWritten += res;
   } while (bytesWritten < (ssize_t)size);
   return bytesWritten;
@@ -528,6 +530,20 @@ void  BufferManager::writeHandshake(THREADID tid, int fd, handshake_container_t*
   int bytesWritten = do_write(fd, writeBuffer, totalBytes);
   if(bytesWritten == -1) {
     cerr << "Pipe write error: " << bytesWritten << " Errcode:" << strerror(errno) << endl;
+
+    cerr << "Opened to write: " << fileNames_[tid].back() << endl;
+    cerr << "Thread Id:" << tid << endl;
+    cerr << "fd:" << fd << endl;
+    cerr << "Queue Size:" << queueSizes_[tid] << endl;
+    cerr << "ConsumeBuffer size:" << consumeBuffer_[tid]->size() << endl;
+    cerr << "ProduceBuffer size:" << produceBuffer_[tid]->size() << endl;
+    cerr << "file entry count:" << fileEntryCount_[tid] << endl;
+
+    cerr << "BridgeDirs:" << endl;
+    for(int i = 0; i < (int)bridgeDirs_.size(); i++) {
+      int space = getKBFreeSpace(bridgeDirs_[i]);
+      cerr << bridgeDirs_[i] << ":" << space << " in KB" << endl;
+    }
     this->abort();
   }
   if(bytesWritten != totalBytes) {
@@ -674,10 +690,8 @@ string BufferManager::genFileName(string path)
 
 void BufferManager::resetPool(THREADID tid)
 {
-  int poolFactor = 1;
-  if(num_cores > 1) {
-    poolFactor = 6;
-  }
+  int poolFactor = 3;
+  assert(poolFactor >= 1);
   pool_[tid] = (consumeBuffer_[tid]->capacity() + produceBuffer_[tid]->capacity()) * poolFactor;
   //  pool_[tid] = 2000000000;
 }
