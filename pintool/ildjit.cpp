@@ -94,7 +94,6 @@ static BOOL simulating_parallel_loop = false;
 
 UINT32 getSignalAddress(ADDRINT ssID);
 BOOL signalCallback(THREADID tid, INT32 sig, CONTEXT *ctxt, BOOL hasHandler, const EXCEPTION_INFO *pExceptInfo, VOID *v);
-void signalCallback2(int signum);
 static void initializePerThreadLoopState(THREADID tid);
 
 static bool loopMatches(string loop, UINT32 invocationNum, UINT32 iterationNum);
@@ -104,7 +103,7 @@ static VOID shutdownSimulation(THREADID tid);
 extern VOID doLateILDJITInstrumentation();
 
 stack<loop_state_t> loop_states;
-loop_state_t* loop_state;
+loop_state_t* loop_state = NULL;
 
 bool disable_wait_signal;
 bool only_heavy_waits;
@@ -147,14 +146,6 @@ VOID MOLECOOL_Init()
     PIN_InterceptSignal(SIGSEGV, signalCallback, NULL);
     PIN_InterceptSignal(SIGTERM, signalCallback, NULL);
     PIN_InterceptSignal(SIGKILL, signalCallback, NULL);
-
-    signal(SIGINT, signalCallback2);
-    signal(SIGABRT, signalCallback2);
-    signal(SIGFPE, signalCallback2);
-    signal(SIGILL, signalCallback2);
-    signal(SIGSEGV, signalCallback2);
-    signal(SIGTERM, signalCallback2);
-    signal(SIGKILL, signalCallback2);
 
     last_time = time(NULL);
 
@@ -382,6 +373,7 @@ VOID ILDJIT_startIteration(THREADID tid)
     return;
   }
 
+  assert(loop_state != NULL);
   loop_state->iterationCount++;
 
   // Check if this is the first iteration
@@ -971,15 +963,13 @@ VOID AddILDJITCallbacks(IMG img)
 
 BOOL signalCallback(THREADID tid, INT32 sig, CONTEXT *ctxt, BOOL hasHandler, const EXCEPTION_INFO *pExceptInfo, VOID *v)
 {
+    ADDRINT addr;
+    cerr << "Caught signal " <<  sig << " at " << hex << PIN_GetExceptionAddress(pExceptInfo) << dec << endl;
+    cerr << PIN_ExceptionToString(pExceptInfo) << endl;
+
     xiosim::buffer_management::signalCallback(sig);
     PIN_ExitProcess(1);
     return false;
-}
-
-void signalCallback2(int signum)
-{
-    xiosim::buffer_management::signalCallback(signum);
-    PIN_ExitProcess(1);
 }
 
 UINT32 getSignalAddress(ADDRINT ssID)
