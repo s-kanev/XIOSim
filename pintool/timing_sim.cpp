@@ -379,9 +379,6 @@ void CheckIPCMessageQueue(bool isEarly, int caller_coreID)
             case SCHEDULE_NEW_THREAD:
                 ScheduleNewThread(ipcMessage.arg1);
                 break;
-            case HARDCODE_SCHEDULE:
-                HardcodeSchedule(ipcMessage.arg1, ipcMessage.arg2);
-                break;
             case ALLOCATE_THREAD:
                 xiosim::buffer_management::AllocateThreadConsumer(ipcMessage.arg1, ipcMessage.arg2);
                 break;
