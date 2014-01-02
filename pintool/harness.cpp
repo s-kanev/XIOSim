@@ -19,7 +19,6 @@
 #include <boost/interprocess/permissions.hpp>
 
 #include <boost/algorithm/string/replace.hpp>
-#include <boost/tokenizer.hpp>
 
 #include <iostream>
 #include <sstream>
@@ -125,37 +124,16 @@ std::string get_timing_sim_args(std::string harness_args) {
     return res;
 }
 
-pair<char*, char**> tokenize_process_args(std::string args) {
-    //XXX: Deal with escapes
-    boost::char_separator<char> sep(" ");
-    boost::tokenizer<boost::char_separator<char> > tok(args, sep);
-
-    int tok_count = 0;
-    for (auto it = tok.begin(); it != tok.end(); it++)
-        tok_count++;
-
-    char* prog = strdup(tok.begin()->c_str()); //Prog path
-    char** argv = (char**) malloc((tok_count + 2) * sizeof(char*));
-
-    int i=0;
-    for (auto it = tok.begin(); it != tok.end(); it++, i++) {
-        argv[i] = strdup(it->c_str());
-    }
-
-    argv[i] = NULL; //Last arg is NULL
-    return pair<char*, char**>(prog, argv);
-}
-
 // Fork the timing simulator process and return its pid.
 pid_t fork_timing_simulator(std::string run_str) {
   pid_t timing_sim_pid = fork();
   switch (timing_sim_pid) {
     case 0: {   // child
       std::string timing_cmd = get_timing_sim_args(run_str);
-      pair<char*, char**> args = tokenize_process_args(timing_cmd);
-      execv(args.first, args.second);
-      std::cerr << "Execv failed: " << args.first << std::endl;
-      break;
+      int ret = system(timing_cmd.c_str());
+      if (WEXITSTATUS(ret) != 0)
+        std::cerr << "Execv failed: " << timing_cmd << std::endl;
+      exit(0);
     }
     case 1: {
       perror("Fork failed.");
@@ -300,13 +278,12 @@ int main(int argc, char **argv) {
             cfg_getstr(program_cfg, "command_line_args");
       run_str += ss.str();
 
-      std::pair<char*, char**> prog = tokenize_process_args(run_str);
-
       switch (harness_pids[nthprocess]) {
         case 0:  {  // child
-          execv(prog.first, prog.second);
-          std::cerr << "Execv failed " << prog.first << std::endl;
-          exit(0);
+          int ret = system(run_str.c_str());
+          if (WIFSIGNALED(ret))
+            abort();
+          exit(WEXITSTATUS(ret));
           break;
         }
         case -1:  {
