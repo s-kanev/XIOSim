@@ -100,10 +100,12 @@ void kill_children(int sig) {
   else
     output << "Detected signal " << sig << ", ";
   output << "killing child processes." << std::endl;
-  std::cout << output.str();
   for (int i = 0; i < harness_num_processes; i++) {
-    kill(harness_pids[i], SIGKILL);
+    pid_t pgid = getpgid(harness_pids[i]);
+    killpg(pgid, SIGKILL);
+    output << " " << pgid;
   }
+  std::cout << output.str();
   remove_shared_memory();
   exit(1);
 }
