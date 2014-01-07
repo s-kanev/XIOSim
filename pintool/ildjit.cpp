@@ -30,10 +30,21 @@ BOOL ILDJIT_executorCreation = false;
 
 XIOSIM_LOCK ildjit_lock;
 
+/* A load instruction with immediate address */
+const UINT8 wait_template_1_ld[] = {0xa1, 0xad, 0xfb, 0xca, 0xde};
 /* A store instruction with immediate address and data */
-const UINT8 wait_template_1[] = {0xc7, 0x05, 0xad, 0xfb, 0xca, 0xde, 0x00, 0x00, 0x00, 0x00 };
+const UINT8 wait_template_1_st[] = {0xc7, 0x05, 0xad, 0xfb, 0xca, 0xde, 0x00, 0x00, 0x00, 0x00 };
+
+static const UINT8 * wait_template_1;
+static size_t wait_template_1_size;
+static size_t wait_template_1_addr_offset;
+
+KNOB<BOOL> KnobWaitsAsLoads(KNOB_MODE_WRITEONCE,    "pintool",
+        "waits_as_loads", "false", "Wait instructions seen as loads");
+
 /* A MFENCE instruction */
 const UINT8 wait_template_2[] = {0x0f, 0xae, 0xf0};
+
 /* A store instruction with immediate address and data */
 const UINT8 signal_template[] = {0xc7, 0x05, 0xad, 0xfb, 0xca, 0xde, 0x00, 0x00, 0x00, 0x00 };
 /* An INT 80 instruction */
@@ -44,7 +55,6 @@ static map<string, UINT32> invocation_counts;
 
 KNOB<BOOL> KnobDisableWaitSignal(KNOB_MODE_WRITEONCE,     "pintool",
         "disable_wait_signal", "false", "Don't insert any waits or signals into the pipeline");
-
 static string start_loop = "";
 static UINT32 start_loop_invocation = -1;
 static UINT32 start_loop_iteration = -1;
@@ -138,6 +148,17 @@ VOID MOLECOOL_Init()
 
     ss_curr = 100000;
     ss_prev = 100000;
+
+    if (KnobWaitsAsLoads.Value()) {
+        wait_template_1 = wait_template_1_ld;
+        wait_template_1_size = sizeof(wait_template_1_ld);
+        wait_template_1_addr_offset = 1; // 1 opcode byte
+    }
+    else {
+        wait_template_1 = wait_template_1_st;
+        wait_template_1_size = sizeof(wait_template_1_st);
+        wait_template_1_addr_offset = 2; // 1 opcode byte, 1 ModRM byte
+    }
 }
 
 /* ========================================================================== */
@@ -517,9 +538,9 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
     handshake->handshake.npc = (ADDRINT)wait_template_2;
     handshake->handshake.tpc = (ADDRINT)wait_template_2;
     handshake->handshake.brtaken = false;
-    memcpy(handshake->handshake.ins, wait_template_1, sizeof(wait_template_1));
-    // Address comes right after opcode and ModRM bytes
-    *(INT32*)(&handshake->handshake.ins[2]) = getSignalAddress(ssID) | HELIX_WAIT_MASK;
+    memcpy(handshake->handshake.ins, wait_template_1, wait_template_1_size);
+    *(INT32*)(&handshake->handshake.ins[wait_template_1_addr_offset]) =
+                        getSignalAddress(ssID) | HELIX_WAIT_MASK;
 
 #ifdef PRINT_DYN_TRACE
     printTrace("sim", handshake->handshake.pc, tid);
