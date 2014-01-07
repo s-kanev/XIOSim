@@ -16,6 +16,7 @@ class core_commit_DPM_t:public core_commit_t
                        CSTALL_EMPTY,     /* ROB is empty, nothing to commit */
                        CSTALL_JECLEAR_INFLIGHT, /* Mop is done, but its jeclear hasn't been handled yet */
                        CSTALL_MAX_BRANCHES, /* exceeded maximum number of branches committed per cycle */
+                       CSTALL_STQ, /* Store can't deallocate from STQ */
                        CSTALL_num
                      };
 
@@ -72,7 +73,8 @@ const char *core_commit_DPM_t::commit_stall_str[CSTALL_num] = {
   "oldest inst partially done ",
   "ROB is empty               ",
   "Mop done, jeclear in flight",
-  "branch commit limit        "
+  "branch commit limit        ",
+  "store can't deallocate     "
 };
 
 /*******************/
@@ -363,8 +365,9 @@ void core_commit_DPM_t::step(void)
     return;
   }
 
-  /* deallocate at most one store from the (senior) STQ per cycle */
-  core->exec->STQ_deallocate_senior();
+  /* deallocate at most commit_width stores from the (senior) STQ per cycle */
+  for(int STQ_commit_count = 0; STQ_commit_count < knobs->commit.width; STQ_commit_count++)
+    core->exec->STQ_deallocate_senior();
 
   /* MAIN COMMIT LOOP */
   for(commit_count=0;commit_count<knobs->commit.width;commit_count++)
@@ -409,8 +412,8 @@ void core_commit_DPM_t::step(void)
 #endif
           if(Mop->fetch.bpred_update)
           {
-            core->fetch->bpred->update(Mop->fetch.bpred_update,Mop->decode.opflags,
-                Mop->fetch.PC, Mop->fetch.PC+Mop->fetch.inst.len, Mop->decode.targetPC, Mop->oracle.NextPC, (Mop->oracle.NextPC != (Mop->fetch.PC + Mop->fetch.inst.len)));
+            core->fetch->bpred->update(Mop->fetch.bpred_update, Mop->decode.opflags,
+                Mop->fetch.PC, Mop->fetch.ftPC, Mop->decode.targetPC, Mop->oracle.NextPC, Mop->oracle.taken_branch);
             core->fetch->bpred->return_state_cache(Mop->fetch.bpred_update);
             Mop->fetch.bpred_update = NULL;
           }
@@ -429,14 +432,16 @@ void core_commit_DPM_t::step(void)
       if(uop->decode.BOM && (uop->Mop->timing.when_commit_started == TICK_T_MAX))
         uop->Mop->timing.when_commit_started = core->sim_cycle;
 
-      if(uop->decode.is_load)
+      if(uop->decode.is_load || uop->decode.is_fence)
         core->exec->LDQ_deallocate(uop);
       else if(uop->decode.is_sta)
         core->exec->STQ_deallocate_sta();
       else if(uop->decode.is_std) /* we alloc on STA, dealloc on STD */
       {
-        if(!core->exec->STQ_deallocate_std(uop))
+        if(!core->exec->STQ_deallocate_std(uop)) {
+          stall_reason = CSTALL_STQ;
           break;
+        }
       }
 
       /* any remaining transactions in-flight (only for loads)
@@ -517,7 +522,7 @@ void core_commit_DPM_t::step(void)
         {
           total_commit_insn ++;
           ZESTO_STAT(core->stat.commit_insn++;)
-          ZESTO_STAT(core->stat.commit_bytes += Mop->fetch.inst.len;) /* REP counts as only 1 fetch */
+          ZESTO_STAT(core->stat.commit_bytes += Mop->fetch.inst.len;)
         }
 
         if(Mop->decode.is_ctrl)
@@ -712,7 +717,7 @@ core_commit_DPM_t::recover(const struct Mop_t * const Mop)
 
         /* In the following, we have to check it the uop has even been allocated yet... this has
            to do with our non-atomic implementation of allocation for fused-uops */
-        if(dead_uop->decode.is_load)
+        if(dead_uop->decode.is_load || dead_uop->decode.is_fence)
         {
           if(dead_uop->timing.when_allocated != TICK_T_MAX)
             core->exec->LDQ_squash(dead_uop);
@@ -839,7 +844,7 @@ core_commit_DPM_t::recover(void)
         /* In the following, we have to check it the uop has even
            been allocated yet... this has to do with our non-atomic
            implementation of allocation for fused-uops */
-        if(dead_uop->decode.is_load)
+        if(dead_uop->decode.is_load || dead_uop->decode.is_fence)
         {
           if(dead_uop->timing.when_allocated != TICK_T_MAX)
             core->exec->LDQ_squash(dead_uop);

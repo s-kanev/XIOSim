@@ -147,7 +147,7 @@ core_decode_STM_t::check_target(struct Mop_t * const Mop)
 {
   if(Mop->decode.is_ctrl)
   {
-    if((Mop->fetch.pred_NPC != (Mop->fetch.PC + Mop->fetch.inst.len)) /* branch is predicted taken */
+    if((Mop->fetch.pred_NPC != Mop->fetch.ftPC) /* branch is predicted taken */
         || (Mop->decode.opflags | F_UNCOND))
     {
       if(Mop->fetch.pred_NPC != Mop->decode.targetPC) /* wrong target */

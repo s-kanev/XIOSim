@@ -75,6 +75,8 @@ class core_exec_DPM_t:public core_exec_t
   virtual void STQ_squash_sta(struct uop_t * const dead_uop);
   virtual void STQ_squash_std(struct uop_t * const dead_uop);
   virtual void STQ_squash_senior(void);
+  virtual void STQ_set_addr(struct uop_t * const uop);
+  virtual void STQ_set_data(struct uop_t * const uop);
 
   virtual void recover_check_assertions(void);
 
@@ -177,6 +179,7 @@ class core_exec_DPM_t:public core_exec_t
   void snatch_back(struct uop_t * const replayed_uop);
 
   void load_writeback(struct uop_t * const uop);
+  void ST_ALU_exec(const struct uop_t * const uop);
 
   /* callbacks need to be static */
   static void DL1_callback(void * const op);
@@ -929,6 +932,14 @@ bool core_exec_DPM_t::check_load_issue_conditions(const struct uop_t * const uop
   zesto_assert((uop->alloc.LDQ_index >= 0) && (uop->alloc.LDQ_index < knobs->exec.LDQ_size),false);
   if(LDQ[uop->alloc.LDQ_index].when_issued != TICK_T_MAX)
     return false;
+
+  /* Conservative fence implementation -- if there is an older fence in LDQ,
+   * don't issue. */
+  for (int j = LDQ_head; j != uop->alloc.LDQ_index; j = modinc(j, knobs->exec.LDQ_size)) {
+    if (LDQ[j].uop->decode.is_fence &&
+        LDQ[j].uop->timing.when_completed == TICK_T_MAX)
+      return false;
+  }
 
   md_addr_t ld_addr1 = LDQ[uop->alloc.LDQ_index].uop->oracle.virt_addr;
   md_addr_t ld_addr2 = LDQ[uop->alloc.LDQ_index].virt_addr + uop->decode.mem_size - 1;
@@ -1793,10 +1804,45 @@ void core_exec_DPM_t::LDQ_schedule(void)
   struct core_knobs_t * knobs = core->knobs;
   int i;
   /* walk LDQ, if anyone's ready, issue to DTLB/DL1 */
+
   int index = LDQ_head;
   for(i=0;i<LDQ_num;i++)
   {
     //int index = (LDQ_head + i) % knobs->exec.LDQ_size;
+
+    /* Load fences */
+    if(LDQ[index].uop->decode.is_fence) {
+      if (LDQ[index].uop->timing.when_completed != TICK_T_MAX)
+        continue;
+
+      /* Only let a fence commit from the head of the LDQ. */
+      if (index != LDQ_head) {
+        index = modinc(index,knobs->exec.LDQ_size);
+        continue;
+      }
+
+      /* MFENCE needs to wait until stores prior to it complete */
+      if (LDQ[index].uop->decode.op == MFENCE_UOP) {
+        int stq_ind = LDQ[index].store_color;
+
+        /* The youngest store (at allocation time of the fence) still hasn't
+         * completed (gone out of STQ -- for now it is safe to assume we
+         * can wait until commit, not until the request comes back, because
+         * the repeater doesn't reorder accesses) */
+        if (STQ[stq_ind].std && 
+            (STQ[stq_ind].std->decode.uop_seq < LDQ[index].uop->decode.uop_seq))
+          continue;
+      }
+
+      /* Now let the fence commit */
+      zesto_assert(LDQ[index].uop->timing.when_completed == TICK_T_MAX,(void)0);
+      LDQ[index].uop->timing.when_completed = core->sim_cycle;
+
+      index = modinc(index,knobs->exec.LDQ_size);
+      continue;
+    }
+
+    /* Regular loads */
     if(LDQ[index].addr_valid) /* agen has finished */
     {
       if((!LDQ[index].partial_forward || !partial_forward_throttle) /* load not blocked on partially matching store */ )
@@ -1968,6 +2014,192 @@ void core_exec_DPM_t::LDQ_schedule(void)
   }
 }
 
+/* both parts of store have now made it to the STQ: walk
+   forward in LDQ to see if there are any loads waiting on this
+   this STD.  If so, unblock them. */
+void core_exec_DPM_t::ST_ALU_exec(const struct uop_t * const uop)
+{
+  int idx;
+  int num_loads = 0;
+  int overwrite_index = uop->alloc.STQ_index;
+  struct core_knobs_t * knobs = core->knobs;
+
+  /* XXX using oracle info here. */
+  zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
+  md_addr_t st_addr1 = STQ[uop->alloc.STQ_index].sta->oracle.virt_addr;
+  md_addr_t st_addr2 = st_addr1 + STQ[uop->alloc.STQ_index].mem_size - 1;
+
+  /* this is a bit mask for each byte of the stored value; if it reaches zero,
+     then we've been completely overwritten and we can stop.
+     least-sig bit corresponds to lowest address byte. */
+  int overwrite_mask = (1<< STQ[uop->alloc.STQ_index].mem_size)-1;
+
+  for(idx=STQ[uop->alloc.STQ_index].next_load;
+      LDQ[idx].uop && (LDQ[idx].uop->decode.uop_seq > uop->decode.uop_seq) && (num_loads < LDQ_num);
+      idx=modinc(idx,knobs->exec.LDQ_size))
+  {
+    if(!LDQ[idx].uop->decode.is_load) {
+      num_loads++;
+      continue;
+    }
+
+    if(LDQ[idx].store_color != uop->alloc.STQ_index) /* some younger stores present */
+    {
+      /* scan store queue for younger loads to see if we've been overwritten */
+      while(overwrite_index != LDQ[idx].store_color)
+      {
+        overwrite_index = modinc(overwrite_index,knobs->exec.STQ_size); //(overwrite_index + 1) % knobs->exec.STQ_size;
+        if(overwrite_index == STQ_tail) {
+          zesto_assert(false, (void)0);
+          zesto_fatal("searching for matching store color but hit the end of the STQ",(void)0);
+        }
+
+        md_addr_t new_st_addr1 = STQ[overwrite_index].virt_addr;
+        md_addr_t new_st_addr2 = new_st_addr1 + STQ[overwrite_index].mem_size - 1;
+
+        /* does this store overwrite any of our bytes? 
+           (1) address has been computed and
+           (2) addr does NOT come completely before or after us */
+        if(STQ[overwrite_index].addr_valid &&
+          !((st_addr2 < new_st_addr1) || (st_addr1 > new_st_addr2)))
+        {
+          /* If the old store does a write of 8 bytes at addres 1000, then
+             its mask is:  0000000011111111 (with the lsb representing the
+             byte at address 1000, and the 8th '1' bit mapping to 1007).
+             If the next store is a 2 byte write to address 1002, then
+             its initial mask is 00..00011, which gets shifted up to:
+             0000000000001100.  We then use this to mask out those two
+             bits to get: 0000000011110011, with the remaining 1's indicating
+             which bytes are still "in play" (i.e. have not been overwritten
+             by a younger store) */
+          int new_write_mask = (1<<STQ[overwrite_index].mem_size)-1;
+          int offset = new_st_addr1 - st_addr1;
+          if(offset < 0) /* new_addr is at lower address */
+            new_write_mask >>= (-offset);
+          else
+            new_write_mask <<= offset;
+          overwrite_mask &= ~new_write_mask;
+
+          if(overwrite_mask == 0)
+            break; /* while */
+        }
+      }
+
+      if(overwrite_mask == 0)
+        break; /* for */
+    }
+
+    if(LDQ[idx].addr_valid && /* if addr not valid, load hasn't finished AGEN... it'll pick up the right value after AGEN */
+       (LDQ[idx].when_issued != TICK_T_MAX)) /* similar to addr not valid, the load'll grab the value when it issues from the LDQ */
+    {
+      md_addr_t ld_addr1 = LDQ[idx].virt_addr;
+      md_addr_t ld_addr2 = ld_addr1 + LDQ[idx].mem_size - 1;
+
+      /* order violation/forwarding case/partial forwarding can
+         occur if there's any overlap in the addresses */
+      if(!((st_addr2 < ld_addr1) || (st_addr1 > ld_addr2)))
+      {
+        /* Similar to the store-overwrite mask above, we take the store
+           mask to see which bytes are still in play (if all bytes overwritten,
+           then the overwriting stores would have been responsible for forwarding
+           to this load/checking for misspeculations).  Taking the same mask
+           as above, if the store wrote to address 1000, and there was that
+           one intervening store, the mask would still be 0000000011110011.
+           Now if we have a 2-byte load from address 1002, it would generate
+           a mask of 00..00011,then shifted to 00..0001100.  When AND'ed with
+           the store mask, we would get all zeros indicating no conflict (this
+           is ok, even though the store overlaps the load's address range,
+           the latter 2-byte store would have forwarded the value to this 2-byte
+           load).  However, if the load was say 4-byte read from 09FE, it would
+           have a mask of 000..001111.  We would then shift the store's mask
+           (since the load is at a lower address) to 00..0001111001100.  ANDing
+           these gives 00...001100, which indicates that the 2 least significant
+           bytes of the store overlapped with the two most-significant bytes of
+           the load, which reveals a match.  Hooray for non-aligned loads and
+           stores of every which size! */
+        int load_read_mask = (1<<LDQ[idx].mem_size) - 1;
+        int offset = ld_addr1 - st_addr1;
+        if(offset < 0) /* load is at lower address */
+          overwrite_mask <<= (-offset);
+        else
+          load_read_mask <<= offset;
+
+        if(load_read_mask & overwrite_mask)
+        {
+          if(LDQ[idx].uop->timing.when_completed != TICK_T_MAX) /* completed --> memory-ordering violation */
+          {
+            memdep->update(LDQ[idx].uop->Mop->fetch.PC);
+
+            ZESTO_STAT(core->stat.load_nukes++;)
+            if(LDQ[idx].uop->Mop->oracle.spec_mode)
+              ZESTO_STAT(core->stat.wp_load_nukes++;)
+
+#ifdef ZTRACE
+            ztrace_print(uop,"e|order-violation:STQ=%d|store uncovered mis-ordered load",uop->alloc.STQ_index);
+            ztrace_print(LDQ[idx].uop,"e|order-violation:LDQ=%d|load squashed",idx);
+#endif
+            core->oracle->pipe_flush(LDQ[idx].uop->Mop);
+          }
+          else /* attempted to issue, but STD not available or still in flight in the memory hierarchy */
+          {
+            /* mark load as schedulable */
+            LDQ[idx].when_issued = TICK_T_MAX; /* this will allow it to get issued from LDQ_schedule */
+            zesto_assert(LDQ[idx].uop->timing.when_completed == TICK_T_MAX,(void)0);
+            LDQ[idx].hit_in_STQ = false; /* it's possible the store commits before the load gets back to searching the STQ */
+            LDQ[idx].first_byte_requested = false;
+            LDQ[idx].last_byte_requested = false;
+            LDQ[idx].first_byte_arrived = false;
+            LDQ[idx].last_byte_arrived = false;
+
+            /* invalidate any in-flight loads from cache hierarchy */
+            LDQ[idx].uop->exec.action_id = core->new_action_id();
+
+            /* since load attempted to issue, its dependents may have been mis-scheduled */
+            if(LDQ[idx].speculative_broadcast)
+            {
+              LDQ[idx].uop->timing.when_otag_ready = TICK_T_MAX;
+              LDQ[idx].uop->timing.when_completed = TICK_T_MAX;
+              struct odep_t * odep = LDQ[idx].uop->exec.odep_uop;
+              while(odep)
+              {
+                odep->uop->timing.when_itag_ready[odep->op_num] = TICK_T_MAX;
+                odep->uop->exec.ivalue_valid[odep->op_num] = false;
+#ifdef ZTRACE
+                if(odep->uop->timing.when_issued != TICK_T_MAX)
+                  ztrace_print(odep->uop,"e|snatch-back|STA hit, but STD not ready");
+#endif
+                snatch_back(odep->uop);
+
+                odep = odep->next;
+              }
+              /* clear flag so we don't keep doing this over and over again */
+              LDQ[idx].speculative_broadcast = false;
+            }
+          }
+        }
+      }
+    }
+
+    num_loads++;
+  }
+}
+
+void core_exec_DPM_t::STQ_set_addr(struct uop_t * const uop)
+{
+  zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < core->knobs->exec.STQ_size),(void)0);
+  zesto_assert(!STQ[uop->alloc.STQ_index].addr_valid,(void)0);
+  STQ[uop->alloc.STQ_index].virt_addr = uop->oracle.virt_addr;
+  STQ[uop->alloc.STQ_index].addr_valid = true;
+}
+
+void core_exec_DPM_t::STQ_set_data(struct uop_t * const uop)
+{
+  zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < core->knobs->exec.STQ_size),(void)0);
+  zesto_assert(!STQ[uop->alloc.STQ_index].value_valid,(void)0);
+  STQ[uop->alloc.STQ_index].value = uop->exec.ovalue;
+  STQ[uop->alloc.STQ_index].value_valid = true;
+}
+
 /* Process actual execution (in ALUs) of uops, as well as shuffling of
    uops through the payload pipeline. */
 void core_exec_DPM_t::ALU_exec(void)
@@ -2052,182 +2284,20 @@ void core_exec_DPM_t::ALU_exec(void)
               }
               else if(uop->decode.is_sta)
               {
-                zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
-                zesto_assert(!STQ[uop->alloc.STQ_index].addr_valid,(void)0);
-                STQ[uop->alloc.STQ_index].virt_addr = uop->oracle.virt_addr;
-                STQ[uop->alloc.STQ_index].addr_valid = true;
+                STQ_set_addr(uop);
               }
               else if(uop->decode.is_std)
               {
-                zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
-                zesto_assert(!STQ[uop->alloc.STQ_index].value_valid,(void)0);
-                STQ[uop->alloc.STQ_index].value = uop->exec.ovalue;
-                STQ[uop->alloc.STQ_index].value_valid = true;
+                STQ_set_data(uop);
               }
 
               if((uop->decode.is_sta || uop->decode.is_std) &&
                   STQ[uop->alloc.STQ_index].addr_valid &&
                   STQ[uop->alloc.STQ_index].value_valid)
               {
-                /* both parts of store have now made it to the STQ: walk
-                   forward in LDQ to see if there are any loads waiting on this
-                   this STD.  If so, unblock them. */
-                int idx;
-                int num_loads = 0;
-                int overwrite_index = uop->alloc.STQ_index;
-
-                /* XXX using oracle info here. */
-                zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
-                md_addr_t st_addr1 = STQ[uop->alloc.STQ_index].sta->oracle.virt_addr;
-                md_addr_t st_addr2 = st_addr1 + STQ[uop->alloc.STQ_index].mem_size - 1;
-
-                /* this is a bit mask for each byte of the stored value; if it reaches zero,
-                   then we've been completely overwritten and we can stop.
-                   least-sig bit corresponds to lowest address byte. */
-                int overwrite_mask = (1<< STQ[uop->alloc.STQ_index].mem_size)-1;
-
-                for(idx=STQ[uop->alloc.STQ_index].next_load;
-                    LDQ[idx].uop && (LDQ[idx].uop->decode.uop_seq > uop->decode.uop_seq) && (num_loads < LDQ_num);
-                    idx=modinc(idx,knobs->exec.LDQ_size))
-                {
-                  if(LDQ[idx].store_color != uop->alloc.STQ_index) /* some younger stores present */
-                  {
-                    /* scan store queue for younger loads to see if we've been overwritten */
-                    while(overwrite_index != LDQ[idx].store_color)
-                    {
-                      overwrite_index = modinc(overwrite_index,knobs->exec.STQ_size); //(overwrite_index + 1) % knobs->exec.STQ_size;
-                      if(overwrite_index == STQ_tail)
-                        zesto_fatal("searching for matching store color but hit the end of the STQ",(void)0);
-
-                      md_addr_t new_st_addr1 = STQ[overwrite_index].virt_addr;
-                      md_addr_t new_st_addr2 = new_st_addr1 + STQ[overwrite_index].mem_size - 1;
-
-                      /* does this store overwrite any of our bytes? 
-                         (1) address has been computed and
-                         (2) addr does NOT come completely before or after us */
-                      if(STQ[overwrite_index].addr_valid &&
-                        !((st_addr2 < new_st_addr1) || (st_addr1 > new_st_addr2)))
-                      {
-                        /* If the old store does a write of 8 bytes at addres 1000, then
-                           its mask is:  0000000011111111 (with the lsb representing the
-                           byte at address 1000, and the 8th '1' bit mapping to 1007).
-                           If the next store is a 2 byte write to address 1002, then
-                           its initial mask is 00..00011, which gets shifted up to:
-                           0000000000001100.  We then use this to mask out those two
-                           bits to get: 0000000011110011, with the remaining 1's indicating
-                           which bytes are still "in play" (i.e. have not been overwritten
-                           by a younger store) */
-                        int new_write_mask = (1<<STQ[overwrite_index].mem_size)-1;
-                        int offset = new_st_addr1 - st_addr1;
-                        if(offset < 0) /* new_addr is at lower address */
-                          new_write_mask >>= (-offset);
-                        else
-                          new_write_mask <<= offset;
-                        overwrite_mask &= ~new_write_mask;
-
-                        if(overwrite_mask == 0)
-                          break; /* while */
-                      }
-                    }
-
-                    if(overwrite_mask == 0)
-                      break; /* for */
-                  }
-
-                  if(LDQ[idx].addr_valid && /* if addr not valid, load hasn't finished AGEN... it'll pick up the right value after AGEN */
-                     (LDQ[idx].when_issued != TICK_T_MAX)) /* similar to addr not valid, the load'll grab the value when it issues from the LDQ */
-                  {
-                    md_addr_t ld_addr1 = LDQ[idx].virt_addr;
-                    md_addr_t ld_addr2 = ld_addr1 + LDQ[idx].mem_size - 1;
-
-                    /* order violation/forwarding case/partial forwarding can
-                       occur if there's any overlap in the addresses */
-                    if(!((st_addr2 < ld_addr1) || (st_addr1 > ld_addr2)))
-                    {
-                      /* Similar to the store-overwrite mask above, we take the store
-                         mask to see which bytes are still in play (if all bytes overwritten,
-                         then the overwriting stores would have been responsible for forwarding
-                         to this load/checking for misspeculations).  Taking the same mask
-                         as above, if the store wrote to address 1000, and there was that
-                         one intervening store, the mask would still be 0000000011110011.
-                         Now if we have a 2-byte load from address 1002, it would generate
-                         a mask of 00..00011,then shifted to 00..0001100.  When AND'ed with
-                         the store mask, we would get all zeros indicating no conflict (this
-                         is ok, even though the store overlaps the load's address range,
-                         the latter 2-byte store would have forwarded the value to this 2-byte
-                         load).  However, if the load was say 4-byte read from 09FE, it would
-                         have a mask of 000..001111.  We would then shift the store's mask
-                         (since the load is at a lower address) to 00..0001111001100.  ANDing
-                         these gives 00...001100, which indicates that the 2 least significant
-                         bytes of the store overlapped with the two most-significant bytes of
-                         the load, which reveals a match.  Hooray for non-aligned loads and
-                         stores of every which size! */
-                      int load_read_mask = (1<<LDQ[idx].mem_size) - 1;
-                      int offset = ld_addr1 - st_addr1;
-                      if(offset < 0) /* load is at lower address */
-                        overwrite_mask <<= (-offset);
-                      else
-                        load_read_mask <<= offset;
-
-                      if(load_read_mask & overwrite_mask)
-                      {
-                        if(LDQ[idx].uop->timing.when_completed != TICK_T_MAX) /* completed --> memory-ordering violation */
-                        {
-                          memdep->update(LDQ[idx].uop->Mop->fetch.PC);
-
-                          ZESTO_STAT(core->stat.load_nukes++;)
-                          if(LDQ[idx].uop->Mop->oracle.spec_mode)
-                            ZESTO_STAT(core->stat.wp_load_nukes++;)
-
-#ifdef ZTRACE
-                          ztrace_print(uop,"e|order-violation:STQ=%d|store uncovered mis-ordered load",uop->alloc.STQ_index);
-                          ztrace_print(LDQ[idx].uop,"e|order-violation:LDQ=%d|load squashed",idx);
-#endif
-                          core->oracle->pipe_flush(LDQ[idx].uop->Mop);
-                        }
-                        else /* attempted to issue, but STD not available or still in flight in the memory hierarchy */
-                        {
-                          /* mark load as schedulable */
-                          LDQ[idx].when_issued = TICK_T_MAX; /* this will allow it to get issued from LDQ_schedule */
-                          zesto_assert(LDQ[idx].uop->timing.when_completed == TICK_T_MAX,(void)0);
-                          LDQ[idx].hit_in_STQ = false; /* it's possible the store commits before the load gets back to searching the STQ */
-                          LDQ[idx].first_byte_requested = false;
-                          LDQ[idx].last_byte_requested = false;
-                          LDQ[idx].first_byte_arrived = false;
-                          LDQ[idx].last_byte_arrived = false;
-
-                          /* invalidate any in-flight loads from cache hierarchy */
-                          LDQ[idx].uop->exec.action_id = core->new_action_id();
-
-                          /* since load attempted to issue, its dependents may have been mis-scheduled */
-                          if(LDQ[idx].speculative_broadcast)
-                          {
-                            LDQ[idx].uop->timing.when_otag_ready = TICK_T_MAX;
-                            LDQ[idx].uop->timing.when_completed = TICK_T_MAX;
-                            struct odep_t * odep = LDQ[idx].uop->exec.odep_uop;
-                            while(odep)
-                            {
-                              odep->uop->timing.when_itag_ready[odep->op_num] = TICK_T_MAX;
-                              odep->uop->exec.ivalue_valid[odep->op_num] = false;
-#ifdef ZTRACE
-                              if(odep->uop->timing.when_issued != TICK_T_MAX)
-                                ztrace_print(odep->uop,"e|snatch-back|STA hit, but STD not ready");
-#endif
-                              snatch_back(odep->uop);
-
-                              odep = odep->next;
-                            }
-                            /* clear flag so we don't keep doing this over and over again */
-                            LDQ[idx].speculative_broadcast = false;
-                          }
-                        }
-                      }
-                    }
-                  }
-
-                  num_loads++;
-                }
+                this->ST_ALU_exec(uop);
               }
+
               zesto_assert(uop->timing.when_completed == TICK_T_MAX,(void)0);
               uop->timing.when_completed = core->sim_cycle+fp_penalty;
               update_last_completed(core->sim_cycle+fp_penalty); /* for deadlock detection */
@@ -2580,8 +2650,9 @@ bool core_exec_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
      DTLB2 (See "Intel 64 and IA-32 Architectures Optimization Reference
      Manual"). */
   struct cache_t * tlb = (core->memory.DTLB2)?core->memory.DTLB2:core->memory.DTLB;
-  /* Wait until we can submit to DTLB */
-  if(!cache_enqueuable(tlb,core->current_thread->id,PAGE_TABLE_ADDR(core->current_thread->id,uop->oracle.virt_addr)))
+  /* Wait until we can submit to DTLB (sync ops don't use TLB) */
+  if(get_STQ_request_type(uop) == CACHE_WRITE && 
+     !cache_enqueuable(tlb,core->current_thread->id,PAGE_TABLE_ADDR(core->current_thread->id,uop->oracle.virt_addr)))
     return false;
   /* Wait until we can submit to DL1 */
   if(send_to_dl1 && !cache_enqueuable(core->memory.DL1,core->current_thread->id,uop->oracle.virt_addr))
@@ -2589,10 +2660,12 @@ bool core_exec_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
 
   /* Wait until we can submit to repeater */
   if(uop->oracle.is_repeated) {
-    if(!core->memory.mem_repeater->enqueuable(uop->oracle.is_sync_op ? CACHE_SIGNAL : CACHE_WRITE,
+    if(!core->memory.mem_repeater->enqueuable(get_STQ_request_type(uop),
                             core->current_thread->id, uop->oracle.virt_addr))
     return false;
   }
+
+  /* TODO: Add mfence handling to wait for loads */
 
   if(!STQ[STQ_head].first_byte_requested)
   {
@@ -2647,7 +2720,7 @@ bool core_exec_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
       rep_uop->oracle.is_repeated = uop->oracle.is_repeated;
       rep_uop->oracle.is_sync_op = uop->oracle.is_sync_op;
 
-      core->memory.mem_repeater->enqueue(uop->oracle.is_sync_op ? CACHE_SIGNAL : CACHE_WRITE,
+      core->memory.mem_repeater->enqueue(get_STQ_request_type(uop),
                        core->current_thread->id, uop->oracle.virt_addr, rep_uop, repeater_store_callback, get_uop_action_id);
     }
 

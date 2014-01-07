@@ -25,6 +25,7 @@
 #include "../buffer.h"
 #include "BufferManager.h"
 #include "scheduler.h"
+#include "ignore_ins.h"
 
 #include "sync_pthreads.h"
 #include "syscall_handling.h"
@@ -74,8 +75,6 @@ static TLS_KEY tls_key;
 
 PIN_SEMAPHORE consumer_sleep_lock;
 PIN_SEMAPHORE producer_sleep_lock;
-
-map<THREADID, Buffer> lookahead_buffer;
 
 BufferManager handshake_buffer;
 XIOSIM_LOCK thread_list_lock;
@@ -558,13 +557,16 @@ VOID GrabInstructionMemory(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_m
     }
     lk_unlock(&tstate->lock);
 
+    if (IsInstructionIgnored(pc))
+        return;
+
     handshake_container_t* handshake;
     if (first_mem_op) {
-        handshake = lookahead_buffer[tid].get_buffer();
+        handshake = handshake_buffer.get_buffer(tid);
         ASSERTX(!handshake->flags.valid);
     }
     else {
-        handshake = lookahead_buffer[tid].get_buffer();
+        handshake = handshake_buffer.back(tid);
     }
 
     /* should be the common case */
@@ -600,12 +602,23 @@ VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, A
     BOOL first_insn = tstate->firstInstruction;
     lk_unlock(&tstate->lock);
 
+    if (IsInstructionIgnored(pc)) {
+#ifdef PRINT_DYN_TRACE
+        printTrace("jit", pc, tid);
+#endif
+        return;
+    }
+
+#ifdef PRINT_DYN_TRACE
+    printTrace("sim", pc, tid);
+#endif
+
     handshake_container_t* handshake;
     if (has_memory) {
-        handshake = lookahead_buffer[tid].get_buffer();
+        handshake = handshake_buffer.back(tid);
     }
     else {
-        handshake = lookahead_buffer[tid].get_buffer();
+        handshake = handshake_buffer.get_buffer(tid);
         ASSERTX(!handshake->flags.valid);
     }
 
@@ -638,7 +651,7 @@ VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, A
     }
 
     // Populate handshake buffer
-    MakeSSRequest(tid, pc, npc, tpc, taken, ictxt, handshake);
+    MakeSSRequest(tid, pc, NextUnignoredPC(npc), NextUnignoredPC(tpc), taken, ictxt, handshake);
 
     // Clear memory sanity check buffer - callbacks should fill it in SimulatorLoop
     if (KnobSanity.Value())
@@ -647,11 +660,7 @@ VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, A
     if (done_instrumenting) {
         // Let simulator consume instruction from SimulatorLoop
         handshake->flags.valid = true;
-
-        lookahead_buffer[tid].push_done();
-        if(lookahead_buffer[tid].full()) {
-            flushOneToHandshakeBuffer(tid);
-        }
+        handshake_buffer.producer_done(tid);
 
         if (tstate->num_inst && (tstate->num_inst % 1000000 == 0))
             handshake_buffer.flushBuffers(tid);
@@ -680,7 +689,10 @@ VOID FixRepInstructionNPC(THREADID tid, ADDRINT pc, BOOL rep_prefix, BOOL repne_
     }
     lk_unlock(&tstate->lock);
 
-    handshake_container_t* handshake = lookahead_buffer[tid].get_buffer();
+    if (IsInstructionIgnored(pc))
+        return;
+
+    handshake_container_t* handshake = handshake_buffer.back(tid);
 
     ASSERTX(handshake != NULL);
     ASSERTX(!handshake->flags.valid);
@@ -758,11 +770,7 @@ VOID FixRepInstructionNPC(THREADID tid, ADDRINT pc, BOOL rep_prefix, BOOL repne_
 
     // Instruction is ready to be consumed
     handshake->flags.valid = true;
-
-    lookahead_buffer[tid].push_done();
-    if(lookahead_buffer[tid].full()) {
-        flushOneToHandshakeBuffer(tid);
-    }
+    handshake_buffer.producer_done(tid);
 
     if (tstate->num_inst && (tstate->num_inst % 1000000 == 0))
         handshake_buffer.flushBuffers(tid);
@@ -1037,7 +1045,6 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
         lk_unlock(&thread_list_lock);
 
         lastConsumerApply[threadIndex] = 0;
-        lookahead_buffer[threadIndex] = Buffer();
 
         if (ExecMode == EXECUTION_MODE_SIMULATE)
             ScheduleNewThread(threadIndex);
@@ -1134,14 +1141,11 @@ VOID ThreadFini(THREADID tid, const CONTEXT *ctxt, INT32 code, VOID *v)
      * Mark it as finishing and let the handshake buffer drain.
      * Once this last handshake gets executed by a core, it will make
        sure to clean up all thread resources. */
-    handshake_container_t *handshake = lookahead_buffer[tid].get_buffer();
+    handshake_container_t *handshake = handshake_buffer.get_buffer(tid);
     handshake->flags.killThread = true;
     handshake->flags.valid = true;
     handshake->handshake.real = false;
-    lookahead_buffer[tid].push_done();
-
-    while(!lookahead_buffer[tid].empty())
-        flushOneToHandshakeBuffer(tid);
+    handshake_buffer.producer_done(tid);
 
     handshake_buffer.flushBuffers(tid);
 
@@ -1236,7 +1240,8 @@ INT32 main(INT32 argc, CHAR **argv)
     // This cuts down HELIX compilation noticably for integer benchmarks.
 
     if(!KnobILDJIT.Value()) {
-      INS_AddInstrumentFunction(Instrument, 0);
+        TRACE_AddInstrumentFunction(InstrumentInsIgnoring, 0);
+        INS_AddInstrumentFunction(Instrument, 0);
     }
 
     PIN_AddThreadStartFunction(ThreadStart, NULL);
@@ -1348,6 +1353,7 @@ VOID doLateILDJITInstrumentation()
   ASSERTX(!calledAlready);
 
   PIN_LockClient();
+  TRACE_AddInstrumentFunction(InstrumentInsIgnoring, 0);
   INS_AddInstrumentFunction(Instrument, 0);
   CODECACHE_FlushCache();
   PIN_UnlockClient();
@@ -1394,87 +1400,6 @@ VOID enable_producers()
 void wait_consumers()
 {
   PIN_SemaphoreWait(&consumer_sleep_lock);
-}
-
-VOID flushLookahead(THREADID tid, int numToIgnore) {
-
-  int remainingToIgnore = numToIgnore;
-  if(remainingToIgnore > lookahead_buffer[tid].size()) {
-    remainingToIgnore = lookahead_buffer[tid].size();
-  }
-
-  set<ADDRINT> ignore_pcs;
-  if(remainingToIgnore > 0) {
-    // If there's anything at all to ignore, there's at least a call instruction
-    ADDRINT last_pc = lookahead_buffer[tid].back()->handshake.pc;
-    assert(pc_diss[last_pc].find("call") != string::npos);
-    ignore_pcs.insert(last_pc);
-    remainingToIgnore--;
-
-    // Now check backwards in time, looking for stack accesses
-    // Ignore the most recent stack accesses, assume they are the parameters
-    int back_index = lookahead_buffer[tid].size() - 1;
-    for(int i = back_index - 1; i >= 0; i--) {
-      ADDRINT pc = lookahead_buffer[tid][i]->handshake.pc;
-      string diss = pc_diss[pc];
-      bool hasMov = diss.find("mov") != string::npos;
-      bool hasEsp = diss.find("[esp") != string::npos;
-      if(hasMov && hasEsp) {
-        ignore_pcs.insert(pc);
-        remainingToIgnore--;
-        if(remainingToIgnore == 0) {
-          break;
-        }
-      }
-    }
-    if(remainingToIgnore != 0) {
-      for(int i = 0; i < lookahead_buffer[tid].size(); i++) {
-        ADDRINT pc = lookahead_buffer[tid][i]->handshake.pc;
-        string diss = pc_diss[pc];
-        thread_state_t* tstate = get_tls(tid);
-        uint32_t coreID = tstate->coreID;
-        std::cerr << coreID << " "  << hex << pc << dec << " " << diss << endl;
-      }
-    }
-    assert(remainingToIgnore == 0);
-  }
-
-  // Perform the flush from lookahead buffer to handshake buffer
-  while(!(lookahead_buffer[tid].empty())) {
-    handshake_container_t *handshake = lookahead_buffer[tid].front();
-    if(ignore_pcs.count(handshake->handshake.pc) == 0) {
-      flushOneToHandshakeBuffer(tid);
-    }
-    else {
-#ifdef PRINT_DYN_TRACE
-      printTrace("jit", handshake->handshake.pc, tid);
-#endif
-      lookahead_buffer[tid].pop();
-    }
-  }
-}
-
-void flushOneToHandshakeBuffer(THREADID tid)
-{
-  handshake_container_t *handshake = lookahead_buffer[tid].front();
-  handshake_container_t* newhandshake = handshake_buffer.get_buffer(tid);
-
-  if(pc_diss[handshake->handshake.pc].find("ret") != string::npos) {
-    if (handshake->handshake.npc == handshake->handshake.pc + 5) {
-      pc_diss[handshake->handshake.pc] = "Wait";
-    }
-    else if (handshake->handshake.npc == handshake->handshake.pc + 10) {
-      pc_diss[handshake->handshake.pc] = "Signal";
-    }
-  }
-
-#ifdef PRINT_DYN_TRACE
-    printTrace("sim", handshake->handshake.pc, tid);
-#endif
-
-  handshake->CopyTo(newhandshake);
-  handshake_buffer.producer_done(tid);
-  lookahead_buffer[tid].pop();
 }
 
 VOID printTrace(string stype, ADDRINT pc, THREADID tid)

@@ -97,6 +97,9 @@ class thread_state_t
     // Bottom-of-stack pointer used for shadow page table
     ADDRINT bos;
 
+    // Return PC for routines that we ignore (e.g. ILDJIT callbacks)
+    ADDRINT retPC;
+
     // Which simulated core this thread runs on
     ADDRINT coreID;
 
@@ -195,9 +198,6 @@ VOID disable_consumers();
 VOID enable_consumers();
 VOID disable_producers();
 VOID enable_producers();
-
-VOID flushOneToHandshakeBuffer(THREADID tid);
-VOID flushLookahead(THREADID tid, int numToIgnore);
 
 VOID printTrace(string stype, ADDRINT pc, THREADID tid);
 

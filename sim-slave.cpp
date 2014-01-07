@@ -393,6 +393,8 @@ static void global_step(void)
         bool deadlocked = true;
         for(int i=0;i<num_cores;i++)
         {
+            if (!cores[i]->current_thread->active)
+                continue;
             deadlocked &= cores[i]->commit->deadlocked;
         }
 

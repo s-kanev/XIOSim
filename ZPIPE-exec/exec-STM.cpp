@@ -75,6 +75,8 @@ class core_exec_STM_t:public core_exec_t
   virtual void STQ_squash_sta(struct uop_t * const dead_uop);
   virtual void STQ_squash_std(struct uop_t * const dead_uop);
   virtual void STQ_squash_senior(void);
+  virtual void STQ_set_addr(struct uop_t * const uop);
+  virtual void STQ_set_data(struct uop_t * const uop);
 
   virtual void recover_check_assertions(void);
 
@@ -1101,6 +1103,16 @@ void core_exec_STM_t::LDQ_schedule(void)
     }
     index = modinc(index,knobs->exec.LDQ_size);
   }
+}
+
+void core_exec_STM_t::STQ_set_addr(struct uop_t * const uop)
+{
+  zesto_assert(false, (void)0);
+}
+
+void core_exec_STM_t::STQ_set_data(struct uop_t * const uop)
+{
+  zesto_assert(false, (void)0);
 }
 
 /* Process execution (in ALUs) of uops */

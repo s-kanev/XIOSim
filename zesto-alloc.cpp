@@ -83,6 +83,7 @@
 #include "zesto-exec.h"
 #include "zesto-commit.h"
 #include "zesto-fetch.h"
+#include "helix.h"
 
 
 void alloc_reg_options(struct opt_odb_t * odb, struct core_knobs_t * knobs)

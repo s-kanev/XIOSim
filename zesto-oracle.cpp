@@ -152,7 +152,6 @@
 #include "zesto-exec.h"
 #include "zesto-commit.h"
 #include "zesto-cache.h"
-#include "zesto-dumps.h"
 
 #include <stack>
 
@@ -168,7 +167,7 @@ int core_oracle_t::spec_mem_pool_debt = 0;
 
 /* CONSTRUCTOR */
 core_oracle_t::core_oracle_t(struct core_t * const arg_core):
-  spec_mode(false), num_Mops_nuked(0), hosed(false), MopQ(NULL), MopQ_head(0), MopQ_tail(0),
+  spec_mode(false), hosed(false), MopQ(NULL), MopQ_head(0), MopQ_tail(0),
   MopQ_num(0), current_Mop(NULL)
 {
   /* MopQ should be large enough to support all in-flight
@@ -723,7 +722,7 @@ core_oracle_t::exec(const md_addr_t requested_PC)
     /* read encoding supplied by feeder */
     memcpy(&Mop->fetch.inst.code, get_shadow_Mop(Mop)->handshake.ins, MD_MAX_ILEN);
 
-    if (num_Mops_nuked > 0)
+    if (num_Mops_before_feeder() > 0)
         grab_feeder_state(get_shadow_Mop(Mop), false, true);
   }
 
@@ -861,6 +860,8 @@ core_oracle_t::exec(const md_addr_t requested_PC)
           }
           uop->decode.is_ctrl = !!(uop->decode.opflags & F_CTRL);
           uop->decode.is_nop = uop->decode.op == NOP;
+          uop->decode.is_fence = (uop->decode.op == MFENCE_UOP) ||
+                                 (uop->decode.op == LFENCE_UOP);
 
           if(knobs->decode.fusion_mode & FUSION_TYPE(uop))
           {
@@ -1124,7 +1125,7 @@ core_oracle_t::exec(const md_addr_t requested_PC)
     uop->oracle.ictrl = thread->regs.regs_C;
 
     /* Fill mem repeater fields */
-    if (uop->decode.is_load || uop->decode.is_std)
+    if (uop->decode.is_load || uop->decode.is_sta || uop->decode.is_std)
     {
       uop->oracle.is_sync_op = core->fetch->fake_insn && !spec_mode;
       uop->oracle.is_repeated = core->current_thread->in_critical_section ||
@@ -1269,7 +1270,6 @@ core_oracle_t::exec(const md_addr_t requested_PC)
   if(thread->regs.regs_PC == thread->regs.regs_NPC)
   {
     assert(Mop->oracle.spec_mode || Mop->fetch.inst.rep || Mop->decode.op == NOP);
-#ifdef ZESTO_PIN
     /* If we can't handle isntruction, at least set NPC correctly, so that we don't corrupt fetch sequence */
     if(Mop->decode.op == NOP && !Mop->oracle.spec_mode)
     {  
@@ -1283,16 +1283,28 @@ core_oracle_t::exec(const md_addr_t requested_PC)
        Mop->fetch.inst.len = thread->regs.regs_NPC - thread->regs.regs_PC;
     }
     else{
-#endif
        thread->rep_sequence ++;
-#ifdef ZESTO_PIN
     }
-#endif
   }
   else
   {
     thread->rep_sequence = 0;
   }
+
+  /* If there is an NPC coming from feeder (anything but speculation),
+   * treat it as more reliable than the one we computed here. */
+  if (!Mop->oracle.spec_mode)
+    thread->regs.regs_NPC = core->fetch->feeder_NPC;
+
+  /* If we don't have branch information coming from feeder, just
+   * check NPC against instruction length. */
+  if (Mop->oracle.spec_mode) {
+    core->fetch->feeder_ftPC = Mop->fetch.PC + Mop->fetch.inst.len;
+    core->fetch->taken_branch = (thread->regs.regs_NPC != Mop->fetch.PC + Mop->fetch.inst.len);
+  }
+
+  Mop->fetch.ftPC = core->fetch->feeder_ftPC;
+  Mop->oracle.taken_branch = core->fetch->taken_branch;
 
   /* Mark EOM -- counting REP iterations as separate instructions */
   Mop->uop[Mop->decode.last_uop_index].decode.EOM = true; 
@@ -1308,6 +1320,7 @@ core_oracle_t::exec(const md_addr_t requested_PC)
 
   /* commit this inst to the MopQ */
   MopQ_tail = modinc(MopQ_tail,MopQ_size); //(MopQ_tail + 1) % MopQ_size;
+  ZPIN_TRACE(core->id, "MopQ_tail++: %d\n", MopQ_tail);
   MopQ_num ++;
 
   current_Mop = Mop;
@@ -1329,11 +1342,6 @@ void core_oracle_t::consume(const struct Mop_t * const Mop)
 {
   assert(Mop == current_Mop);
   current_Mop = NULL;
-
-  /* If recovering from a nuke, keep track of num instructions left until the nuke reason */
-  if(num_Mops_nuked > 0 && !Mop->oracle.spec_mode)
-     num_Mops_nuked--;
-
 }
 
 void core_oracle_t::commit_uop(struct uop_t * const uop)
@@ -1479,12 +1487,7 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
   std::stack<struct uop_t *> to_delete;
   int idx = moddec(MopQ_tail,MopQ_size); //(MopQ_tail-1+MopQ_size) % MopQ_size;
 
-  /* When a nuke recovers to another nuke, consume never gets called, so we compensate */
-  if(num_Mops_nuked > 0 && !MopQ[idx].oracle.spec_mode && current_Mop != NULL)
-  {
-    num_Mops_nuked--;
-    ZPIN_TRACE(core->id, "num_Mops_nuked-- correction; recPC: 0x%x\n", Mop->fetch.PC);
-  }
+  ZPIN_TRACE(core->id, "Recovery at MopQ_num: %d; shadow_MopQ_num: %d\n", MopQ_num, shadow_MopQ->size());
 
   while(Mop != &MopQ[idx])
   {
@@ -1493,10 +1496,8 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
 
     /* Flush not caused by branch misprediction - nuke */
     bool nuke = /*!spec_mode &&*/ !MopQ[idx].oracle.spec_mode;
-    if(nuke)
-      num_Mops_nuked++;
 
-    ZPIN_TRACE(core->id, "Undoing Mop @ PC: %x, nuke: %d, num_Mops_nuked: %d\n", MopQ[idx].fetch.PC, nuke, num_Mops_nuked);
+    ZPIN_TRACE(core->id, "Undoing Mop @ PC: %x, nuke: %d, num_Mops_nuked: %d\n", MopQ[idx].fetch.PC, nuke, num_Mops_before_feeder());
 
     undo(&MopQ[idx], nuke);
     MopQ[idx].valid = false;
@@ -1526,13 +1527,14 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
   core->current_thread->regs.regs_PC = Mop->fetch.PC;
   core->current_thread->regs.regs_NPC = Mop->oracle.NextPC;
 
-  ZPIN_TRACE(core->id, "Recovering to fetchPC: %x; nuked_Mops: %d, rep_seq: %d \n", Mop->fetch.PC, num_Mops_nuked, core->current_thread->rep_sequence);
+  ZPIN_TRACE(core->id, "Recovering to fetchPC: %x; nuked_Mops: %d, rep_seq: %d \n", Mop->fetch.PC, num_Mops_before_feeder(), core->current_thread->rep_sequence);
 
   spec_mode = Mop->oracle.spec_mode;
-  current_Mop = NULL;
 
   /* Force simulation to re-check feeder if needed */ 
   core->current_thread->consumed = true;
+
+  current_Mop = NULL;
 }
 
 /* flush everything after Mop */
@@ -1738,6 +1740,8 @@ void core_oracle_t::grab_feeder_state(handshake_container_t * handshake, bool al
   core->fetch->feeder_PC = handshake->handshake.pc;
   core->fetch->prev_insn_fake = core->fetch->fake_insn;
   core->fetch->fake_insn = !handshake->handshake.real;
+  core->fetch->taken_branch = handshake->handshake.brtaken;
+  core->fetch->feeder_ftPC = handshake->handshake.npc;
 
   if (handshake->handshake.real) {
     /* Copy architectural state from pin
@@ -1759,7 +1763,7 @@ void core_oracle_t::grab_feeder_state(handshake_container_t * handshake, bool al
   }
 
 
-  /* Store a shadown handshake for recovery purposes */
+  /* Store a shadow handshake for recovery purposes */
   if (allocate_shadow) {
 
     zesto_assert(!shadow_MopQ->full(), (void)0);
@@ -1794,6 +1798,70 @@ handshake_container_t * core_oracle_t::get_shadow_Mop(const struct Mop_t* Mop)
 */
   zesto_assert(res->flags.valid, NULL);
   return res; 
+}
+
+/* Dump instructions starting from most recent */
+void core_oracle_t::trace_in_flight_ops(void)
+{
+#ifdef ZTRACE
+  if (MopQ_num == 0)
+    return;
+
+  ztrace_print(core->id, "===== TRACE OF IN-FLIGHT INS ====");
+
+  /* Walk MopQ from most recent Mop */
+  int idx = MopQ_tail;
+  struct Mop_t *Mop;
+  do {
+    idx = moddec(idx, MopQ_size);
+    Mop = &MopQ[idx];
+
+    ztrace_print(Mop);
+    ztrace_Mop_timing(Mop);
+    ztrace_print(core->id, "");
+
+    for (int i=0; i < Mop->decode.flow_length; i++) {
+      struct uop_t * uop = &Mop->uop[i];
+      if (uop->decode.is_imm)
+        continue;
+
+      ztrace_uop_ID(uop);
+      ztrace_uop_alloc(uop);
+      ztrace_uop_timing(uop);
+      ztrace_print(core->id, "");
+    }
+
+  } while (idx != MopQ_head);
+#endif
+}
+
+int core_oracle_t::num_non_spec_Mops(void) const
+{
+  int idx = MopQ_tail;
+  struct Mop_t *Mop;
+  int result = 0;
+
+  if (MopQ_num == 0)
+    return 0;
+
+  /* Walk MopQ from most recent Mop */
+  do {
+    idx = moddec(idx, MopQ_size);
+    Mop = &MopQ[idx];
+
+    if (!Mop->oracle.spec_mode)
+      result++;
+
+  } while (idx != MopQ_head);
+  zesto_assert(result <= MopQ_num, 0);
+  return result;
+}
+
+int core_oracle_t::num_Mops_before_feeder(void) const
+{
+  int result = shadow_MopQ->size() - this->num_non_spec_Mops();
+  zesto_assert(result >= 0, 0);
+  return result;
 }
 
 /**************************************/

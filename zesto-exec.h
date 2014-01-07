@@ -147,6 +147,8 @@ class core_exec_t
   virtual void STQ_squash_sta(struct uop_t * const dead_uop) = 0;
   virtual void STQ_squash_std(struct uop_t * const dead_uop) = 0;
   virtual void STQ_squash_senior(void) = 0;
+  virtual void STQ_set_addr(struct uop_t * const uop) = 0;
+  virtual void STQ_set_data(struct uop_t * const uop) = 0;
 
   /* Just a sanity-check after a recovery that the exec-stage's
      microarchitectural state is consistent. */
@@ -161,7 +163,7 @@ class core_exec_t
  
   protected:
   struct core_t * core;
-
+  enum cache_command get_STQ_request_type(const struct uop_t * uop);
 };
 
 void exec_reg_options(struct opt_odb_t * odb, struct core_knobs_t * knobs);

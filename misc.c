@@ -235,7 +235,6 @@ void vtrace(const int coreID, const char *fmt, va_list v)
 {
   int trace_id = (coreID == -1) ? MAX_CORES : coreID;
 
-  lk_lock(&printing_lock, 1);
   vsprintf(tracebuff[trace_id][tracebuff_tail[trace_id]], fmt, v);
 
   tracebuff_tail[trace_id] = modinc(tracebuff_tail[trace_id], MAX_TRACEBUFF_ITEMS);
@@ -243,7 +242,6 @@ void vtrace(const int coreID, const char *fmt, va_list v)
     tracebuff_head[trace_id] = modinc(tracebuff_head[trace_id], MAX_TRACEBUFF_ITEMS);
   else
     tracebuff_occupancy[trace_id]++;
-  lk_unlock(&printing_lock);
 }
 
 void flush_trace()

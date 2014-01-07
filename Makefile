@@ -69,14 +69,14 @@ ZSRCS = \
 zesto-core.cpp zesto-opts.cpp zesto-oracle.cpp zesto-fetch.cpp         \
 zesto-decode.cpp zesto-alloc.cpp zesto-exec.cpp zesto-commit.cpp zesto-cache.cpp   \
 zesto-dram.cpp zesto-bpred.cpp zesto-memdep.cpp zesto-prefetch.cpp                 \
-zesto-uncore.cpp zesto-MC.cpp zesto-dumps.cpp zesto-power.cpp zesto-noc.cpp        \
+zesto-uncore.cpp zesto-MC.cpp zesto-power.cpp zesto-noc.cpp        \
 zesto-repeater.cpp zesto-coherence.cpp zesto-dvfs.cpp
 
 ZHDRS = \
 zesto-structs.h zesto-core.h zesto-opts.h zesto-oracle.h zesto-fetch.h             \
 zesto-decode.h zesto-alloc.h zesto-exec.h zesto-commit.h zesto-cache.h             \
 zesto-dram.h zesto-bpred.h zesto-memdep.h zesto-prefetch.h zesto-uncore.h          \
-zesto-MC.h zesto-dumps.h zesto-power.h zesto-coherence.h zesto-noc.h               \
+zesto-MC.h zesto-power.h zesto-coherence.h zesto-noc.h               \
 zesto-repeater.h zesto-dvfs.h
 
 ZOBJS=$(ZSRCS:.cpp=.o)
@@ -238,12 +238,12 @@ zesto-commit.o: sim.h options.h stats.h host.h machine.h misc.h machine.def
 zesto-commit.o: zesto-structs.h regs.h  memory.h thread.h zesto-core.h
 zesto-commit.o: zesto-opts.h zesto-oracle.h zesto-fetch.h zesto-decode.h
 zesto-commit.o: zesto-alloc.h zesto-exec.h zesto-cache.h zesto-commit.h
-zesto-commit.o: zesto-bpred.h zesto-dumps.h zesto-repeater.h
+zesto-commit.o: zesto-bpred.h zesto-repeater.h
 zesto-power.o: sim.h options.h stats.h host.h machine.h misc.h machine.def
 zesto-power.o: zesto-structs.h regs.h  memory.h thread.h zesto-core.h
 zesto-power.o: zesto-opts.h zesto-oracle.h zesto-fetch.h zesto-decode.h
 zesto-power.o: zesto-alloc.h zesto-exec.h zesto-cache.h zesto-commit.h
-zesto-power.o: zesto-bpred.h zesto-dumps.h zesto-uncore.h mcpat/mcpat.h
+zesto-power.o: zesto-bpred.h zesto-uncore.h mcpat/mcpat.h
 zesto-power.o: mcpat/XML_Parse.h
 zesto-cache.o: thread.h machine.h host.h misc.h machine.def zesto-structs.h
 zesto-cache.o: regs.h options.h memory.h stats.h  zesto-core.h

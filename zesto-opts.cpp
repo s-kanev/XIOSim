@@ -87,8 +87,8 @@
 #include "zesto-uncore.h"
 #include "zesto-repeater.h"
 
-#ifdef ZTRACE
 const char * ztrace_filename = NULL;
+#ifdef ZTRACE
 extern FILE* ztrace_fp[MAX_CORES+1];
 #endif
 
@@ -141,10 +141,8 @@ sim_reg_options(struct opt_odb_t *odb)
   opt_reg_string(odb, "-model","pipeline model type",
       &knobs.model, /*default*/ "DPM", /*print*/true,/*format*/NULL);
 
-#if defined(ZTRACE)
   opt_reg_string(odb, "-ztrace:file_prefix","zesto-trace filename",
       &ztrace_filename, /*default*/ NULL, /*print*/true,/*format*/NULL);
-#endif
 
   opt_reg_flag(odb, "-power", "simulate power",
       &knobs.power.compute, /*default*/ false, /*print*/true,/*format*/NULL);
@@ -496,6 +494,35 @@ void ztrace_uop_ID(const struct uop_t * uop)
     ZTRACE_PRINT(coreID, ".|");
 }
 
+void ztrace_uop_alloc(const struct uop_t * uop)
+{
+  if(uop==NULL)
+    return;
+
+  int coreID = uop->core->id;
+  ZTRACE_PRINT(coreID, "ROB:%d|LDQ:%d|STQ:%d|RS:%d|port:%d|",
+    uop->alloc.ROB_index, uop->alloc.LDQ_index, uop->alloc.STQ_index,
+    uop->alloc.RS_index, uop->alloc.port_assignment);
+}
+
+void ztrace_uop_timing(const struct uop_t * uop)
+{
+  if(uop==NULL)
+    return;
+
+  int coreID = uop->core->id;
+  ZTRACE_PRINT(coreID, "wd: %lld|", uop->timing.when_decoded);
+  ZTRACE_PRINT(coreID, "wa: %lld|", uop->timing.when_allocated);
+  for (int i=0; i<MAX_IDEPS; i++)
+    ZTRACE_PRINT(coreID, "wit%d: %lld|", i, uop->timing.when_itag_ready[i]);
+  for (int i=0; i<MAX_IDEPS; i++)
+    ZTRACE_PRINT(coreID, "wiv%d: %lld|", i, uop->timing.when_ival_ready[i]);
+  ZTRACE_PRINT(coreID, "wot: %lld|", uop->timing.when_otag_ready);
+  ZTRACE_PRINT(coreID, "wr: %lld|", uop->timing.when_ready);
+  ZTRACE_PRINT(coreID, "wi: %lld|", uop->timing.when_issued);
+  ZTRACE_PRINT(coreID, "we: %lld|", uop->timing.when_exec);
+  ZTRACE_PRINT(coreID, "wc: %lld|", uop->timing.when_completed);
+}
 
 /* called by oracle when Mop first executes */
 void ztrace_print(const struct Mop_t * Mop)
@@ -554,6 +581,21 @@ void ztrace_print(const struct Mop_t * Mop)
     i += Mop->uop[i].decode.has_imm?3:1;
     count++;
   }
+}
+
+void ztrace_Mop_timing(const struct Mop_t * Mop)
+{
+  if (Mop==NULL)
+    return;
+
+  int coreID = Mop->core->id;
+  ZTRACE_PRINT(coreID, "wfs: %lld|", Mop->timing.when_fetch_started);
+  ZTRACE_PRINT(coreID, "wf: %lld|", Mop->timing.when_fetched);
+  ZTRACE_PRINT(coreID, "wMS: %lld|", Mop->timing.when_MS_started);
+  ZTRACE_PRINT(coreID, "wds: %lld|", Mop->timing.when_decode_started);
+  ZTRACE_PRINT(coreID, "wd: %lld|", Mop->timing.when_decode_finished);
+  ZTRACE_PRINT(coreID, "wcs: %lld|", Mop->timing.when_commit_started);
+  ZTRACE_PRINT(coreID, "wc: %lld|", Mop->timing.when_commit_finished);
 }
 
 void ztrace_print(const struct Mop_t * Mop, const char * fmt, ... )

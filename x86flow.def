@@ -654,7 +654,7 @@
     UOP_RLI(UV, XS(STA), XR_TMP0, XR_eSP, XR_ZERO, XE_ZERO, XE_MSIZEV, FUSION_NONE);\
   UOP_R2(UV, XV(ST), target, XR_TMP0, FUSION_STA_STD);					\
   UOP_IV(UP, XSI(ADD), XR_eSP, XR_eSP, XE_MSIZEV, FUSION_NONE);			\
-} 
+}
 
 #define PUSHA_FLOW							\
 {									\
@@ -1517,7 +1517,7 @@
 #define MOV_SwMw_FLOW							\
 {									\
   UOP_RLI_OV(UV, XAXV(LDS), XF_R, XF_SEG, XF_BASE, XF_INDEX, XF_SCALE, XF_DISP, FUSION_NONE);\
-}						                        
+}
 
 #define MOV_SwRMw_FLOW							\
 {									\
@@ -3541,29 +3541,39 @@
 #define MOVAPS_Rx_RMx_FLOW						\
 {                                                                       \
   UOP_R2(UV, SSE_MOVAPS, XF_R, XF_RM, FUSION_NONE);				\
-} 
+}
 
 #define MOVAPS_RMx_Rx_FLOW							\
 {                                                                       \
   UOP_R2(UV, SSE_MOVAPS, XF_RM, XF_R, FUSION_NONE);				\
-} 
+}
 
 #define CVTSS2SD_Rd_Rd_FLOW                                  	\
 {                                                                       \
   UOP_R2(UV, SSE_CVTSS2SD, XF_RM, XF_R, FUSION_NONE);               	\
-} 
+}
 
 #define CVTSI2SS_Rd_Rd_FLOW                                  	\
 {                                                                       \
   UOP_R2(UV, SSE_CVTSI2SS, XF_RM, XF_R, FUSION_NONE);               	\
-} 
+}
 
 #define CVTSS2SI_Rd_Rd_FLOW                                  	\
 {                                                                       \
   UOP_R2(UV, SSE_CVTSS2SI, XF_RM, XF_R, FUSION_NONE);               	\
-} 
+}
 
 #define CVTTSS2SI_Rd_Rd_FLOW                                  	\
 {                                                                       \
   UOP_R2(UV, SSE_CVTSS2SI, XF_RM, XF_R, FUSION_NONE);               	\
-} 
+}
+
+#define LFENCE_FLOW                                          	\
+{                                                                       \
+  UOP_R0(UV, LFENCE_UOP, FUSION_NONE);                                     	\
+}
+
+#define MFENCE_FLOW                                          	\
+{                                                                       \
+  UOP_R0(UV, MFENCE_UOP, FUSION_NONE);                                     	\
+}

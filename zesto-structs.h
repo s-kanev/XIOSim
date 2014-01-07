@@ -147,6 +147,7 @@ struct uop_t
     bool is_sta;  /* Is store-address uop? */
     bool is_std;  /* Is store-data uop? */
     bool is_nop;  /* Is NOP? */
+    bool is_fence; /* Is fence? */
 
     /* assume unique uop ID assigned when Mop cracked */
     seq_t Mop_seq;
@@ -247,6 +248,7 @@ struct Mop_t
   struct {
     md_addr_t PC;
     md_addr_t pred_NPC;
+    md_addr_t ftPC;
     md_inst_t inst;
     bool first_byte_requested;
     bool last_byte_requested;
@@ -287,7 +289,14 @@ struct Mop_t
     seq_t seq;
     bool zero_rep; /* TRUE if inst has REP of zero */
     bool spec_mode; /* this instruction is on wrong path? */
+    /* XXX: In most cases this can be inferred from NextPC != fetch.PC + inst.len,
+     * except when we encountered and unknown or overwritten instruction from
+     * the feeder. So we keep oracle info about branches from feeder. */
+    bool taken_branch;
     bool recover_inst; /* TRUE if the NPC for this Mop is wrong */
+    int padding1;
+    int padding2;
+    int padding3;
   } oracle;
 
   struct {

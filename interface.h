@@ -8,6 +8,7 @@
 
 #include "machine.h"
 #include "pin.h"
+#include "helix.h"
 
 /* Calls from feeder to Zesto */
 int Zesto_SlaveInit(int argc, char **argv);
