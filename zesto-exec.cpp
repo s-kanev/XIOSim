@@ -89,7 +89,7 @@
 #include "zesto-prefetch.h"
 #include "zesto-uncore.h"
 #include "zesto-coherence.h"
-
+#include "helix.h"
 
 void exec_reg_options(struct opt_odb_t * odb, struct core_knobs_t * knobs)
 {
@@ -309,6 +309,14 @@ void core_exec_t::update_last_completed(tick_t now)
 {
   last_completed = now;
   core->commit->deadlocked = false;
+}
+
+enum cache_command core_exec_t::get_STQ_request_type(const struct uop_t * const uop)
+{
+  if(!uop->oracle.is_sync_op)
+    return CACHE_WRITE;
+
+  return is_addr_helix_signal(uop->oracle.virt_addr) ? CACHE_SIGNAL : CACHE_WAIT;
 }
 
 extern int min_coreID;

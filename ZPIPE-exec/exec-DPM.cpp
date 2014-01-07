@@ -2640,18 +2640,6 @@ void core_exec_DPM_t::STQ_deallocate_sta(void)
   STQ[STQ_head].sta = NULL;
 }
 
-/* XXX: Clean up and put in helix-specific file */
-static enum cache_command get_STQ_request_type(const struct uop_t * const uop)
-{
-  if(!uop->oracle.is_sync_op)
-    return CACHE_WRITE;
-
-  if (!!(uop->oracle.virt_addr & 0x10000))
-    return CACHE_WAIT;
-  else
-    return CACHE_SIGNAL;
-}
-
 /* returns true if successful */
 bool core_exec_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
 {

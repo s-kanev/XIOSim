@@ -135,12 +135,6 @@ core_alloc_DPM_t::reg_stats(struct stat_sdb_t * const sdb)
 /************************/
 /* MAIN ALLOC FUNCTIONS */
 /************************/
-static bool is_helix_signal(const struct uop_t * uop) {
-    return (uop->decode.is_sta || uop->decode.is_std) &&
-            uop->oracle.is_sync_op &&
-            !(uop->oracle.virt_addr & 0x10000);
-}
-
 void core_alloc_DPM_t::step(void)
 {
   struct core_knobs_t * knobs = core->knobs;
@@ -204,7 +198,7 @@ void core_alloc_DPM_t::step(void)
 
             /* is the RS full? -- don't need to alloc for NOPs,fences, signals */
             if(!core->exec->RS_available() && !uop->decode.is_nop && 
-                !uop->decode.is_fence && !is_helix_signal(uop))
+                !uop->decode.is_fence && !is_uop_helix_signal(uop))
             {
               stall_reason = ASTALL_RS;
               abort_alloc = true;
@@ -233,7 +227,7 @@ void core_alloc_DPM_t::step(void)
 
             /* port bindings */
             if(!uop->decode.is_nop && !uop->Mop->decode.is_trap &&
-                !uop->decode.is_fence && !is_helix_signal(uop))
+                !uop->decode.is_fence && !is_uop_helix_signal(uop))
             {
               /* port-binding is trivial when there's only one valid port */
               if(knobs->exec.port_binding[uop->decode.FU_class].num_FUs == 1)
@@ -347,12 +341,12 @@ void core_alloc_DPM_t::step(void)
               uop->timing.when_issued = core->sim_cycle;
               if (!uop->decode.is_fence)
                 uop->timing.when_completed = core->sim_cycle;
-              if (uop->decode.is_fence || is_helix_signal(uop))
+              if (uop->decode.is_fence || is_uop_helix_signal(uop))
                 uop->timing.when_exec = core->sim_cycle;
 
-              if (is_helix_signal(uop) && uop->decode.is_sta)
+              if (is_uop_helix_signal(uop) && uop->decode.is_sta)
                 core->exec->STQ_set_addr(uop);
-              if (is_helix_signal(uop) && uop->decode.is_std)
+              if (is_uop_helix_signal(uop) && uop->decode.is_std)
                 core->exec->STQ_set_data(uop);
 
               zesto_assert(!uop->decode.is_load, (void)0);

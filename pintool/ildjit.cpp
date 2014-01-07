@@ -444,7 +444,6 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
     assert(ssID < 1024);
     thread_state_t* tstate = get_tls(tid);
     handshake_container_t *handshake, *handshake_2;
-    uint mask;
     bool first_insn;
 
     if (ExecMode != EXECUTION_MODE_SIMULATE)
@@ -519,10 +518,8 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
     handshake->handshake.tpc = (ADDRINT)wait_template_2;
     handshake->handshake.brtaken = false;
     memcpy(handshake->handshake.ins, wait_template_1, sizeof(wait_template_1));
-    // set magic 17 bit in address - makes the pipeline see them as seperate addresses
-    mask = 1 << 16;
     // Address comes right after opcode and ModRM bytes
-    *(INT32*)(&handshake->handshake.ins[2]) = getSignalAddress(ssID) | mask;
+    *(INT32*)(&handshake->handshake.ins[2]) = getSignalAddress(ssID) | HELIX_WAIT_MASK;
 
 #ifdef PRINT_DYN_TRACE
     printTrace("sim", handshake->handshake.pc, tid);
