@@ -56,6 +56,10 @@ class SharedUnorderedMap : public SharedUnorderedMapCommon<K, V> {
     }
 };
 
+//Default constructing value generates a warning on some GCC
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wuninitialized"
+
 // Specialization for plain-old-data (POD) types of values.
 template<typename K, typename V>
 class SharedUnorderedMap<
@@ -83,6 +87,8 @@ class SharedUnorderedMap<
       return internal_map->at(key);
     }
 };
+
+#pragma GCC diagnostic pop
 
 }
 }
