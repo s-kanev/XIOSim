@@ -183,6 +183,9 @@ void BufferManager::producer_done(THREADID tid, bool keepLock)
   if(!keepLock) {
     reserveHandshake(tid);
   }
+  else {
+    pool_[tid]++; // Expand in case the last handshakes need space
+  }
 
   if(produceBuffer_[tid]->full()) {// || ( (consumeBuffer_[tid]->size() == 0) && (fileEntryCount_[tid] == 0))) {
 #if defined(DEBUG) || defined(ZESTO_PIN_DBG)
@@ -276,14 +279,6 @@ uint64_t BufferManager::size(THREADID tid)
  */
 void BufferManager::reserveHandshake(THREADID tid)
 {
-  int64_t queueLimit;
-  if(num_cores > 1) {
-    queueLimit = 5000000001;
-  }
-  else {
-    queueLimit = 5000000001;
-  }
-
   if(pool_[tid] > 0) {
     return;
   }
@@ -308,19 +303,20 @@ void BufferManager::reserveHandshake(THREADID tid)
     disable_consumers();
     enable_producers();
 
-    //    if(num_cores == 1 || (!useRealFile_)) {
-    //      continue;
-    //    }
-
-    if((queueSizes_[tid] < queueLimit) && (pool_[tid] == 0)) {
-      pool_[tid] += 50000;
-#ifdef ZESTO_PIN_DBG
-      cerr << tid << " [reserveHandshake()]: Increasing file up to " << queueSizes_[tid] + pool_[tid] << endl;
-#endif
+    if(pool_[tid] > 0) {
       break;
     }
-    cerr << tid << " [reserveHandshake()]: File size too big to expand, abort():" << queueSizes_[tid] << endl;
-    this->abort();
+
+    if(num_cores == 1) {
+      continue;
+    }
+
+    pool_[tid] += 50000;
+
+#ifdef ZESTO_PIN_DBG
+    cerr << tid << " [reserveHandshake()]: Increasing file up to " << queueSizes_[tid] + pool_[tid] << endl;
+#endif
+    break;
   }
 }
 
@@ -381,7 +377,7 @@ void BufferManager::copyProducerToFileReal(THREADID tid, bool checkSpace)
   if(checkSpace) {
     for(int i = 0; i < (int)bridgeDirs_.size(); i++) {
       int space = getKBFreeSpace(bridgeDirs_[i]);
-      if(space > 2000000) { // 4 GB
+      if(space > 2500000) { // 2.5 GB
         fileNames_[tid].push_back(genFileName(bridgeDirs_[i]));
         madeFile = true;
         break;
