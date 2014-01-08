@@ -39,11 +39,6 @@
 #ifndef SHARED_MEMORY_MAP_H
 #define SHARED_MEMORY_MAP_H
 
-#include <boost/interprocess/containers/string.hpp>
-#include <boost/interprocess/containers/map.hpp>
-#include <boost/interprocess/managed_shared_memory.hpp>
-#include <boost/interprocess/allocators/allocator.hpp>
-#include <boost/interprocess/interprocess_fwd.hpp>
 #include <boost/type_traits/is_pod.hpp>
 #include <boost/utility/enable_if.hpp>
 #include <cstdlib>  // for size_t

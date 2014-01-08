@@ -1,17 +1,8 @@
-#include <boost/interprocess/containers/deque.hpp>
-#include <boost/interprocess/containers/string.hpp>
-#include <boost/interprocess/managed_shared_memory.hpp>
-#include <boost/interprocess/managed_mapped_file.hpp>
-#include <boost/interprocess/shared_memory_object.hpp>
-#include <boost/interprocess/sync/named_mutex.hpp>
-#include <boost/interprocess/interprocess_fwd.hpp>
-
 #include <sstream>
 
 #include "pin.H"
 
-#include "shared_map.h"
-#include "shared_unordered_map.h"
+#include "boost_interprocess.h"
 
 #include "../interface.h"
 #include "multiprocess_shared.h"
@@ -45,7 +36,7 @@ KNOB<pid_t> KnobHarnessPid(KNOB_MODE_WRITEONCE, "pintool",
 void InitSharedState(bool wait_for_others, pid_t harness_pid)
 {
     using namespace boost::interprocess;
-    int *process_counter;
+    int *process_counter = NULL;
     std::stringstream harness_pid_stream;
     harness_pid_stream << KnobHarnessPid.Value();
     std::string shared_memory_key =

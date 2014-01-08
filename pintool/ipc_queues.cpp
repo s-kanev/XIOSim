@@ -1,15 +1,6 @@
-#include <boost/interprocess/containers/deque.hpp>
-#include <boost/interprocess/containers/string.hpp>
-#include <boost/interprocess/managed_shared_memory.hpp>
-#include <boost/interprocess/managed_mapped_file.hpp>
-#include <boost/interprocess/shared_memory_object.hpp>
-#include <boost/interprocess/sync/named_mutex.hpp>
-#include <boost/interprocess/interprocess_fwd.hpp>
-
 #include "pin.H"
 
-#include "shared_map.h"
-#include "shared_unordered_map.h"
+#include "boost_interprocess.h"
 
 #include "../interface.h"
 #include "multiprocess_shared.h"

@@ -17,15 +17,9 @@ const char *BUFFER_MANAGER_LOCKS_ = "buffer_manager_locks";
 const char *BUFFER_MANAGER_POOL_ = "buffer_manager_pool";
 const char *BUFFER_MANAGER_QUEUE_SIZES_ = "buffer_manager_queue_sizes";
 const char *BUFFER_MANAGER_FAKE_FILE_ = "buffer_manager_fake_file";
-const char *BUFFER_MANAGER_CONSUME_BUFFER_ = "buffer_manager_consume_buffer";
-const char *BUFFER_MANAGER_PRODUCE_BUFFER_ = "buffer_manager_produce_buffer";
 const char *BUFFER_MANAGER_FILE_ENTRY_COUNT_ = "buffer_manager_file_entry_count";
 const char *BUFFER_MANAGER_FILE_NAMES_ = "buffer_manager_file_names_";
 const char *BUFFER_MANAGER_FILE_COUNTS_ = "buffer_manager_file_counts";
-const char *BUFFER_MANAGER_READ_BUFFER_SIZE_ = "buffer_manager_read_buffer_size";
-const char *BUFFER_MANAGER_READ_BUFFER_ = "buffer_manager_read_buffer";
-const char *BUFFER_MANAGER_WRITE_BUFFER_SIZE_ = "buffer_manager_write_buffer";
-const char *BUFFER_MANAGER_WRITE_BUFFER_ = "buffer_manager_write";
 
 }
 }

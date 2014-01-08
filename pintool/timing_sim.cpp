@@ -1,18 +1,8 @@
-#include <boost/interprocess/containers/deque.hpp>
-#include <boost/interprocess/containers/string.hpp>
-#include <boost/interprocess/managed_shared_memory.hpp>
-#include <boost/interprocess/managed_mapped_file.hpp>
-#include <boost/interprocess/shared_memory_object.hpp>
-#include <boost/interprocess/sync/named_mutex.hpp>
-#include <boost/interprocess/interprocess_fwd.hpp>
-#include "mpkeys.h"
-
 #include "pin.H"
 #include "instlib.H"
 using namespace INSTLIB;
 
-#include "shared_map.h"
-#include "shared_unordered_map.h"
+#include "boost_interprocess.h"
 
 #include "../interface.h"
 #include "multiprocess_shared.h"
@@ -90,7 +80,7 @@ VOID SimulatorLoop(VOID* arg)
 
         // Get the latest thread we are running from the scheduler
         pid_t instrument_tid = GetCoreThread(coreID);
-        if (instrument_tid == INVALID_THREADID) {
+        if (instrument_tid == (pid_t)INVALID_THREADID) {
             continue;
         }
 
@@ -381,6 +371,9 @@ void CheckIPCMessageQueue(bool isEarly, int caller_coreID)
                 break;
             case ALLOCATE_THREAD:
                 xiosim::buffer_management::AllocateThreadConsumer(ipcMessage.arg1, ipcMessage.arg2);
+                break;
+            default:
+                abort();
                 break;
         }
     }

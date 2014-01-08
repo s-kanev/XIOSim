@@ -1,5 +1,3 @@
-#include <boost/interprocess/containers/deque.hpp>
-
 #include <map>
 #include <syscall.h>
 #include <sys/mman.h>
@@ -8,8 +6,7 @@
 #include "rdtsc.h"
 #endif
 
-#include "shared_map.h"
-#include "shared_unordered_map.h"
+#include "boost_interprocess.h"
 
 #include "feeder.h"
 #include "multiprocess_shared.h"

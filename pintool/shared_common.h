@@ -7,10 +7,6 @@
 #ifndef ABSTRACT_SHARED_MEMORY_DATA_H
 #define ABSTRACT_SHARED_MEMORY_DATA_H
 
-#include <boost/interprocess/allocators/allocator.hpp>
-#include <boost/interprocess/containers/string.hpp>
-#include <boost/interprocess/interprocess_fwd.hpp>
-#include <boost/interprocess/managed_shared_memory.hpp>
 #include <cstdlib>  // for size_t
 #include <utility>  // for std::pair
 #include "mpkeys.h"

@@ -10,16 +10,6 @@
 //
 // Author: Sam Xi
 
-#include <boost/interprocess/managed_shared_memory.hpp>
-#include <boost/interprocess/managed_mapped_file.hpp>
-#include <boost/interprocess/containers/deque.hpp>
-#include <boost/interprocess/allocators/allocator.hpp>
-#include <boost/interprocess/shared_memory_object.hpp>
-#include <boost/interprocess/sync/named_mutex.hpp>
-#include <boost/interprocess/permissions.hpp>
-
-#include <boost/algorithm/string/replace.hpp>
-
 #include <iostream>
 #include <sstream>
 #include <stdlib.h>
@@ -33,8 +23,7 @@
 
 #include "pin.H"
 
-#include "shared_map.h"
-#include "shared_unordered_map.h"
+#include "boost_interprocess.h"
 
 #include "../interface.h"
 #include "multiprocess_shared.h"
@@ -44,6 +33,11 @@ boost::interprocess::managed_shared_memory *global_shm;
 SHARED_VAR_DEFINE(XIOSIM_LOCK, printing_lock);
 
 #include "confuse.h"  // For parsing config files.
+
+
+// Until libconfuse switches to const char*
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wwrite-strings"
 
 namespace xiosim {
 namespace shared {
@@ -116,13 +110,16 @@ std::string get_timing_sim_args(std::string harness_args) {
     size_t feeder_so_pos = harness_args.find("feeder_zesto.so");
     std::string feeder_path = harness_args.substr(feeder_opt_end_pos, feeder_so_pos - feeder_opt_end_pos);
 
-    std::string res = boost::replace_all_copy<std::string>(
-        harness_args, "feeder_zesto", "timing_sim");
+    size_t feeder_pos = 0;
+    while ((feeder_pos = harness_args.find("feeder_zesto", feeder_pos)) != std::string::npos) {
+        harness_args.replace(feeder_pos, strlen("feeder_zesto"), "timing_sim");
+        feeder_pos += strlen("timing_sim");
+    }
 
-    auto pos = res.rfind("--");
-    res.replace(pos, res.length(), "-- " + feeder_path + "timing_wait");
-    std::cout << "timing_sim args: " << res << std::endl;
-    return res;
+    auto pos = harness_args.rfind("--");
+    harness_args.replace(pos, harness_args.length(), "-- " + feeder_path + "timing_wait");
+    std::cout << "timing_sim args: " << harness_args << std::endl;
+    return harness_args;
 }
 
 // Fork the timing simulator process and return its pid.
@@ -246,8 +243,9 @@ int main(int argc, char **argv) {
   permissions perm;
   perm.set_unrestricted();
   int *counter =
-    global_shm->find_or_construct<int>(XIOSIM_INIT_COUNTER_KEY)(harness_num_processes-1);
-  named_mutex init_lock(open_or_create, XIOSIM_INIT_SHARED_LOCK, perm);
+    global_shm->find_or_construct<int>(init_counter_key.c_str())(harness_num_processes);
+  (void) counter;
+  named_mutex init_lock(open_or_create, shared_lock_key.c_str(), perm);
 
   SHARED_VAR_INIT(XIOSIM_LOCK, printing_lock);
   InitIPCQueues();
@@ -329,3 +327,5 @@ int main(int argc, char **argv) {
   delete[](harness_pids);
   return 0;
 }
+
+#pragma GCC diagnostic pop

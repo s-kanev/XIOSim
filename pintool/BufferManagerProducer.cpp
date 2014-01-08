@@ -1,10 +1,3 @@
-#include <boost/interprocess/containers/deque.hpp>
-#include <boost/interprocess/containers/string.hpp>
-#include <boost/interprocess/managed_shared_memory.hpp>
-#include <boost/interprocess/managed_mapped_file.hpp>
-#include <boost/interprocess/shared_memory_object.hpp>
-#include <boost/interprocess/interprocess_fwd.hpp>
-
 #include <sys/statvfs.h>
 
 #include <unordered_map>
@@ -12,8 +5,7 @@
 
 #include "pin.H"
 
-#include "shared_map.h"
-#include "shared_unordered_map.h"
+#include "boost_interprocess.h"
 
 #include "feeder.h"
 #include "multiprocess_shared.h"
@@ -37,7 +29,7 @@ static shm_string genFileName(boost::interprocess::string path);
 static std::unordered_map<pid_t, Buffer*> produceBuffer_;
 static std::unordered_map<pid_t, int> writeBufferSize_;
 static std::unordered_map<pid_t, void*> writeBuffer_;
-static vector<boost::interprocess::string> bridgeDirs_;
+static std::vector<boost::interprocess::string> bridgeDirs_;
 static boost::interprocess::string gpid_;
 
 void InitBufferManagerProducer(void)

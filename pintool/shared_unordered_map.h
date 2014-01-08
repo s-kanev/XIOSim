@@ -22,9 +22,6 @@
 #ifndef SHARED_UNORDERED_MAP_H
 #define SHARED_UNORDERED_MAP_H
 
-#include <boost/interprocess/managed_shared_memory.hpp>
-#include <boost/interprocess/allocators/allocator.hpp>
-
 #include "shared_unordered_common.h"
 
 namespace xiosim {

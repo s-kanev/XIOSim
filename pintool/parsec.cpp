@@ -1,16 +1,7 @@
-// Sam: These includes are needed to pass compilation. I'm not sure why.
-#include <boost/interprocess/containers/deque.hpp>
-#include <boost/interprocess/containers/string.hpp>
-#include <boost/interprocess/containers/map.hpp>
-#include <boost/interprocess/allocators/allocator.hpp>
-#include <boost/interprocess/managed_shared_memory.hpp>
-#include <boost/unordered_map.hpp>
-
 #include <map>
 #include <queue>
 
-#include "shared_map.h"
-#include "shared_unordered_map.h"
+#include "boost_interprocess.h"
 
 #include "feeder.h"
 #include "multiprocess_shared.h"

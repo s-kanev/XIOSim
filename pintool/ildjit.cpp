@@ -2,15 +2,6 @@
  * ILDJIT-specific functions for zesto feeder
  * Copyright, Svilen Kanev, 2012
  */
-
-// These includes are needed to pass compilation because of a macro conflict in
-// another header included later.
-#include <boost/interprocess/containers/deque.hpp>
-#include <boost/interprocess/containers/string.hpp>
-#include <boost/interprocess/containers/map.hpp>
-#include <boost/interprocess/allocators/allocator.hpp>
-#include <boost/interprocess/managed_shared_memory.hpp>
-
 #include <stdlib.h>
 #include <unistd.h>
 #include <map>
@@ -19,8 +10,7 @@
 #include <stack>
 #include <signal.h>
 
-#include "shared_map.h"
-#include "shared_unordered_map.h"
+#include "boost_interprocess.h"
 
 #include "feeder.h"
 
@@ -963,7 +953,6 @@ VOID AddILDJITCallbacks(IMG img)
 
 BOOL signalCallback(THREADID tid, INT32 sig, CONTEXT *ctxt, BOOL hasHandler, const EXCEPTION_INFO *pExceptInfo, VOID *v)
 {
-    ADDRINT addr;
     cerr << "Caught signal " <<  sig << " at " << hex << PIN_GetExceptionAddress(pExceptInfo) << dec << endl;
     cerr << PIN_ExceptionToString(pExceptInfo) << endl;
 
@@ -1181,7 +1170,7 @@ VOID ILDJIT_ResumeSimulation(THREADID tid)
          * resume is consumed, which can lead to nasty races of who gets
          * to resume first. */
         pid_t curr_tid = GetSHMRunqueue(coreID);
-        if (curr_tid == INVALID_THREADID)
+        if (curr_tid == (pid_t)INVALID_THREADID)
             continue;
 
         ASSERTX(xiosim::buffer_management::empty(curr_tid));

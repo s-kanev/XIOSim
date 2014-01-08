@@ -92,11 +92,10 @@ SHM_LDFLAGS = -ldl
 # build rules
 #
 ##############################################################
-all : CXXFLAGS += -DDEBUG -D_FILE_OFFSET_BITS=64 -std=c++11
-all : CXXFLAGS += -I$(BOOST_INCLUDE) $(LIBCONFUSE_FLAGS) $(BOOST_LDFLAGS) $(SHM_LDFLAGS)
-all: tools harness $(OBJDIR)feeder_zesto.so timing_wait
-harness: CXXFLAGS += -I$(BOOST_INCLUDE) $(LIBCONFUSE_FLAGS) -std=c++11
-debug:	CXXFLAGS += -DZESTO_PIN_DBG -D_FILE_OFFSET_BITS=64 -std=c++11
+all : CXXFLAGS += -DDEBUG -D_FILE_OFFSET_BITS=64 -std=c++11 -Wall -Werror
+all : CXXFLAGS += -I$(BOOST_INCLUDE) $(BOOST_LDFLAGS) $(SHM_LDFLAGS)
+all: tools $(OBJDIR)harness $(OBJDIR)feeder_zesto.so $(OBJDIR)timing_wait
+debug:	CXXFLAGS += -DZESTO_PIN_DBG -D_FILE_OFFSET_BITS=64 -std=c++11 -Wall -Werror
 debug : CXXFLAGS += -I$(BOOST_INCLUDE)
 debug:	tools
 tools: $(OBJDIR) $(TOOLS) $(OBJDIR)cp-pin.exe
@@ -138,7 +137,7 @@ $(TOOLS): %$(PINTOOL_SUFFIX) : %.o
 $(OBJDIR)feeder_zesto.so: $(FEEDER_OBJS) $(OBJDIR)feeder_zesto.o
 	${PIN_LD} -g $(PIN_LDFLAGS) -I$(ZESTO_HOME) -I$(BOOST_INCLUDE) $(LINK_DEBUG) ${LINK_OUT} $@ ${PIN_LPATHS} $^ $(PIN_LIBS) $(DBG) -lrt -pthread 
 
-harness: $(HARNESS_OBJS)
+$(OBJDIR)harness: $(HARNESS_OBJS)
 	${PIN_LD} -g $(CXXFLAGS) ${SHM_LDFLAGS} $(LINK_DEBUG) ${LINK_OUT} $@ $^ -pthread -lrt -lconfuse
 
 $(OBJDIR)timing_wait: timing_wait.cpp

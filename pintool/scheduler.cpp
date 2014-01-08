@@ -3,12 +3,6 @@
  * Copyright, Svilen Kanev, 2013
  */
 
-// Sam: These includes are needed to pass compilation. I'm not sure why.
-#include <boost/interprocess/containers/string.hpp>
-#include <boost/interprocess/containers/map.hpp>
-#include <boost/interprocess/allocators/allocator.hpp>
-#include <boost/interprocess/managed_shared_memory.hpp>
-#include <boost/unordered_map.hpp>
 
 #include <queue>
 #include <map>
@@ -17,8 +11,7 @@
 #include "instlib.H"
 using namespace INSTLIB;
 
-#include "shared_map.h"
-#include "shared_unordered_map.h"
+#include "boost_interprocess.h"
 
 #include "../interface.h"
 #include "multiprocess_shared.h"
@@ -52,14 +45,14 @@ static void UpdateSHMRunqueues(int coreID, pid_t tid)
 {
     lk_lock(lk_coreThreads, 1);
     coreThreads[coreID] = tid;
-    if (tid != INVALID_THREADID)
+    if (tid != (pid_t)INVALID_THREADID)
         threadCores->operator[](tid) = coreID;
     lk_unlock(lk_coreThreads);
 }
 
 static void UpdateSHMThreadCore(pid_t tid, int coreID)
 {
-    if (tid == INVALID_THREADID)
+    if (tid == (pid_t)INVALID_THREADID)
         return;
     lk_lock(lk_coreThreads, 1);
     threadCores->operator[](tid) = coreID;
@@ -83,7 +76,7 @@ VOID InitScheduler(INT32 num_cores)
 /* ========================================================================== */
 VOID ScheduleNewThread(pid_t tid)
 {
-    if (GetSHMThreadCore(tid) != (UINT32)-1) {
+    if (GetSHMThreadCore(tid) != -1) {
         lk_lock(printing_lock, 1);
         cerr << "ScheduleNewThread: thread " << tid << " already scheduled, ignoring." << endl;
         lk_unlock(printing_lock);

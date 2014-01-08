@@ -7,10 +7,6 @@
 #define SHARED_UNORDERED_MAP_COMMON_H
 
 #include <boost/functional/hash.hpp>  // boost::hash
-#include <boost/interprocess/containers/string.hpp>
-#include <boost/interprocess/interprocess_fwd.hpp>
-#include <boost/interprocess/allocators/allocator.hpp>
-#include <boost/unordered_map.hpp>
 
 #include <cstdlib>  // for size_t
 #include <functional>  // for std::equal_to

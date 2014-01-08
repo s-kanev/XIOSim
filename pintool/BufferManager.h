@@ -33,7 +33,6 @@ namespace buffer_management
       shm_string_deque;
 
   SHARED_VAR_DECLARE(bool, useRealFile_)
-  SHARED_VAR_DECLARE(int, numThreads_)
   SHARED_VAR_DECLARE(bool, popped_)
 
   extern SharedUnorderedMap<pid_t, XIOSIM_LOCK> locks_;

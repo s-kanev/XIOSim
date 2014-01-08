@@ -1,11 +1,3 @@
-#include <boost/interprocess/containers/deque.hpp>
-#include <boost/interprocess/managed_shared_memory.hpp>
-#include <boost/interprocess/shared_memory_object.hpp>
-#include <boost/interprocess/containers/vector.hpp>
-#include <boost/interprocess/containers/string.hpp>
-#include <boost/interprocess/allocators/allocator.hpp>
-#include <boost/interprocess/sync/named_mutex.hpp>
-
 #include <errno.h>
 #include <fcntl.h>
 #include <iostream>
@@ -27,8 +19,7 @@
 #include "instlib.H"
 using namespace INSTLIB;
 
-#include "shared_map.h"
-#include "shared_unordered_map.h"
+#include "boost_interprocess.h"
 
 #include "../interface.h"
 #include "multiprocess_shared.h"
@@ -41,7 +32,6 @@ namespace buffer_management
 {
 
 SHARED_VAR_DEFINE(bool, useRealFile_)
-SHARED_VAR_DEFINE(int, numThreads_)
 SHARED_VAR_DEFINE(bool, popped_)
 
 SharedUnorderedMap<pid_t, XIOSIM_LOCK> locks_;
@@ -65,7 +55,6 @@ void InitBufferManager()
   bm_init_lock.lock();
 
   SHARED_VAR_INIT(bool, useRealFile_, true)
-  SHARED_VAR_INIT(int, numThreads_, 0)
   SHARED_VAR_INIT(bool, popped_, false)
 
   std::string shared_memory_key = harness_pid_stream.str() +
@@ -142,8 +131,6 @@ int AllocateThread(pid_t tid)
     bufferCapacity /= 8;
     fakeFile_[tid] = new Buffer(120000);
   }
-
-  *numThreads_ ++;
 
   return bufferCapacity;
 }
