@@ -18,8 +18,7 @@ namespace buffer_management
   bool empty(pid_t tid);
   int AllocateThread(pid_t tid);
   bool hasThread(pid_t tid);
-  void signalCallback(int signum);
-  void abort(void);
+  void cleanBridge(void);
 
   typedef allocator< int, managed_shared_memory::segment_manager> int_allocator;
   typedef boost::interprocess::deque<int, int_allocator> shm_int_deque;

@@ -5,10 +5,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <map>
-#include <signal.h>
 #include <queue>
 #include <stack>
-#include <signal.h>
 
 #include "boost_interprocess.h"
 
@@ -83,7 +81,6 @@ static BOOL reached_end_iteration = false;
 static BOOL simulating_parallel_loop = false;
 
 UINT32 getSignalAddress(ADDRINT ssID);
-BOOL signalCallback(THREADID tid, INT32 sig, CONTEXT *ctxt, BOOL hasHandler, const EXCEPTION_INFO *pExceptInfo, VOID *v);
 static void initializePerThreadLoopState(THREADID tid);
 
 static bool loopMatches(string loop, UINT32 invocationNum, UINT32 iterationNum);
@@ -127,15 +124,6 @@ VOID MOLECOOL_Init()
 
     disable_wait_signal = KnobDisableWaitSignal.Value();
     only_heavy_waits = KnobOnlyHeavyWaits.Value();
-
-    // callbacks so we can delete temporary files in /dev/shm
-    PIN_InterceptSignal(SIGINT, signalCallback, NULL);
-    PIN_InterceptSignal(SIGABRT, signalCallback, NULL);
-    PIN_InterceptSignal(SIGFPE, signalCallback, NULL);
-    PIN_InterceptSignal(SIGILL, signalCallback, NULL);
-    PIN_InterceptSignal(SIGSEGV, signalCallback, NULL);
-    PIN_InterceptSignal(SIGTERM, signalCallback, NULL);
-    PIN_InterceptSignal(SIGKILL, signalCallback, NULL);
 
     last_time = time(NULL);
 
@@ -949,16 +937,6 @@ VOID AddILDJITCallbacks(IMG img)
 #ifdef ZESTO_PIN_DBG
     cerr << endl;
 #endif
-}
-
-BOOL signalCallback(THREADID tid, INT32 sig, CONTEXT *ctxt, BOOL hasHandler, const EXCEPTION_INFO *pExceptInfo, VOID *v)
-{
-    cerr << "Caught signal " <<  sig << " at " << hex << PIN_GetExceptionAddress(pExceptInfo) << dec << endl;
-    cerr << PIN_ExceptionToString(pExceptInfo) << endl;
-
-    xiosim::buffer_management::signalCallback(sig);
-    PIN_ExitProcess(1);
-    return false;
 }
 
 UINT32 getSignalAddress(ADDRINT ssID)

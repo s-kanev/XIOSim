@@ -23,6 +23,7 @@
 #include <sched.h>
 #include <unistd.h>
 #include <utility>
+#include <signal.h>
 
 #include "boost_interprocess.h"
 
@@ -104,6 +105,8 @@ INT32 slice_length = 0;
 INT32 slice_weight_times_1000 = 100*1000;
 
 BOOL in_fini = false;
+
+static VOID RegisterSignalIntercept();
 
 // Functions to access thread-specific data
 /* ========================================================================== */
@@ -282,24 +285,24 @@ VOID MakeSSContext(const CONTEXT *ictxt, FPSTATE* fpstate, ADDRINT pc, ADDRINT n
     ssregs->regs_NPC = npc;
 
     // Copy general purpose registers, which Pin provides individual access to
-    ssregs->regs_C.aflags = PIN_GetContextReg(&ssctxt, REG_EFLAGS);
-    ssregs->regs_R.dw[MD_REG_EAX] = PIN_GetContextReg(&ssctxt, REG_EAX);
-    ssregs->regs_R.dw[MD_REG_ECX] = PIN_GetContextReg(&ssctxt, REG_ECX);
-    ssregs->regs_R.dw[MD_REG_EDX] = PIN_GetContextReg(&ssctxt, REG_EDX);
-    ssregs->regs_R.dw[MD_REG_EBX] = PIN_GetContextReg(&ssctxt, REG_EBX);
-    ssregs->regs_R.dw[MD_REG_ESP] = PIN_GetContextReg(&ssctxt, REG_ESP);
-    ssregs->regs_R.dw[MD_REG_EBP] = PIN_GetContextReg(&ssctxt, REG_EBP);
-    ssregs->regs_R.dw[MD_REG_EDI] = PIN_GetContextReg(&ssctxt, REG_EDI);
-    ssregs->regs_R.dw[MD_REG_ESI] = PIN_GetContextReg(&ssctxt, REG_ESI);
+    ssregs->regs_C.aflags = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_EFLAGS);
+    ssregs->regs_R.dw[MD_REG_EAX] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_EAX);
+    ssregs->regs_R.dw[MD_REG_ECX] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_ECX);
+    ssregs->regs_R.dw[MD_REG_EDX] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_EDX);
+    ssregs->regs_R.dw[MD_REG_EBX] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_EBX);
+    ssregs->regs_R.dw[MD_REG_ESP] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_ESP);
+    ssregs->regs_R.dw[MD_REG_EBP] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_EBP);
+    ssregs->regs_R.dw[MD_REG_EDI] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_EDI);
+    ssregs->regs_R.dw[MD_REG_ESI] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_ESI);
 
 
     // Copy segment selector registers (IA32-specific)
-    ssregs->regs_S.w[MD_REG_CS] = PIN_GetContextReg(&ssctxt, REG_SEG_CS);
-    ssregs->regs_S.w[MD_REG_SS] = PIN_GetContextReg(&ssctxt, REG_SEG_SS);
-    ssregs->regs_S.w[MD_REG_DS] = PIN_GetContextReg(&ssctxt, REG_SEG_DS);
-    ssregs->regs_S.w[MD_REG_ES] = PIN_GetContextReg(&ssctxt, REG_SEG_ES);
-    ssregs->regs_S.w[MD_REG_FS] = PIN_GetContextReg(&ssctxt, REG_SEG_FS);
-    ssregs->regs_S.w[MD_REG_GS] = PIN_GetContextReg(&ssctxt, REG_SEG_GS);
+    ssregs->regs_S.w[MD_REG_CS] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_SEG_CS);
+    ssregs->regs_S.w[MD_REG_SS] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_SEG_SS);
+    ssregs->regs_S.w[MD_REG_DS] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_SEG_DS);
+    ssregs->regs_S.w[MD_REG_ES] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_SEG_ES);
+    ssregs->regs_S.w[MD_REG_FS] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_SEG_FS);
+    ssregs->regs_S.w[MD_REG_GS] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_SEG_GS);
 
     // Copy segment base registers (simulator needs them for address calculations)
     // XXX: For security reasons, we (as user code) aren't allowed to touch those.
@@ -753,7 +756,7 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
 
     ADDRINT tos, bos;
 
-    tos = PIN_GetContextReg(ictxt, REG_ESP);
+    tos = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_ESP);
     CHAR** sp = (CHAR**)tos;
 //    cerr << hex << "SP: " << (VOID*) sp << dec << endl;
 
@@ -940,6 +943,8 @@ INT32 main(INT32 argc, CHAR **argv)
     PIN_Init(argc, argv);
     PIN_InitSymbols();
 
+    RegisterSignalIntercept();
+
     // Synchronize all processes here to ensure that in multiprogramming mode,
     // no process will start too far before the others.
     InitSharedState(true, KnobHarnessPid.Value());
@@ -1097,4 +1102,25 @@ VOID printTrace(string stype, ADDRINT pc, pid_t tid)
   pc_file << coreID << " " << stype << " " << pc << " " << pc_diss[pc] << endl;
   pc_file.flush();
   lk_unlock(printing_lock);
+}
+
+/* Explicitly print signal info. Under some conditions, it does miss.
+ * This makes debugging segfaults easier. */
+static BOOL SignalInfo(THREADID tid, INT32 sig, CONTEXT *ctxt, BOOL hasHandler, const EXCEPTION_INFO *pExceptInfo, VOID *v)
+{
+    cerr << "Caught signal " <<  sig << " at " << hex << PIN_GetExceptionAddress(pExceptInfo) << dec << endl;
+    cerr << PIN_ExceptionToString(pExceptInfo) << endl;
+
+    return true;
+}
+
+static VOID RegisterSignalIntercept()
+{
+    PIN_InterceptSignal(SIGINT, SignalInfo, NULL);
+    PIN_InterceptSignal(SIGABRT, SignalInfo, NULL);
+    PIN_InterceptSignal(SIGFPE, SignalInfo, NULL);
+    PIN_InterceptSignal(SIGILL, SignalInfo, NULL);
+    PIN_InterceptSignal(SIGSEGV, SignalInfo, NULL);
+    PIN_InterceptSignal(SIGTERM, SignalInfo, NULL);
+    PIN_InterceptSignal(SIGKILL, SignalInfo, NULL);
 }

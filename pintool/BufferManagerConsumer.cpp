@@ -22,9 +22,17 @@ static std::unordered_map<pid_t, Buffer*> consumeBuffer_;
 static std::unordered_map<pid_t, int> readBufferSize_;
 static std::unordered_map<pid_t, void*> readBuffer_;
 
+VOID ConsumerSignalCallback(THREADID threadIndex, CONTEXT_CHANGE_REASON reason, const CONTEXT *from, CONTEXT *to, INT32 info, VOID *v)
+{
+    if (reason == CONTEXT_CHANGE_REASON_SIGNAL || reason == CONTEXT_CHANGE_REASON_FATALSIGNAL)
+        cleanBridge();
+}
+
 void InitBufferManagerConsumer()
 {
     InitBufferManager();
+
+    PIN_AddContextChangeFunction(ConsumerSignalCallback, 0);
 }
 
 void DeinitBufferManagerConsumer()

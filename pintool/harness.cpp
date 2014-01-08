@@ -95,10 +95,15 @@ void kill_children(int sig) {
     output << "Detected signal " << sig << ", ";
   output << "killing child processes." << std::endl;
   std::cout << output.str();
-  for (int i = 0; i < harness_num_processes; i++) {
+  for (int i = 0; i < harness_num_processes - 1; i++) {
     pid_t pgid = getpgid(harness_pids[i]);
     killpg(pgid, SIGKILL);
   }
+
+  // Kill timing_sim too, but let it execute the cleanup handlers
+  pid_t timing_pgid = getpgid(harness_pids[harness_num_processes - 1]);
+  killpg(timing_pgid, SIGTERM);
+
   remove_shared_memory();
   exit(1);
 }
@@ -127,6 +132,7 @@ pid_t fork_timing_simulator(std::string run_str) {
   pid_t timing_sim_pid = fork();
   switch (timing_sim_pid) {
     case 0: {   // child
+      setpgid(0, 0);
       std::string timing_cmd = get_timing_sim_args(run_str);
       int ret = system(timing_cmd.c_str());
       if (WEXITSTATUS(ret) != 0)
@@ -279,6 +285,7 @@ int main(int argc, char **argv) {
 
       switch (harness_pids[nthprocess]) {
         case 0:  {  // child
+          setpgid(0, 0);
           int ret = system(run_str.c_str());
           if (WIFSIGNALED(ret))
             abort();

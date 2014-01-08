@@ -104,22 +104,13 @@ bool hasThread(pid_t tid)
   return (result != 0);
 }
 
-void abort(){
-  signalCallback(SIGABRT);
-  exit(1);
-  ::abort();
-}
-
-void signalCallback(int signum)
+void cleanBridge(void)
 {
-  cerr << "BufferManager caught signal:" << signum << endl;
+  cerr << "BufferManager cleaning bridge." << endl;
 
   for(auto it_threads = fileNames_.begin(); it_threads != fileNames_.end(); it_threads++)
     for (auto it_files = it_threads->second.begin(); it_files != it_threads->second.end(); it_files++) {
-        auto cmd = "/bin/rm -rf " + *it_files + " &";
-        int retVal = system(cmd.c_str());
-        (void)retVal;
-        assert(retVal == 0);
+        unlink(it_files->c_str());
     }
 }
 
