@@ -42,6 +42,15 @@ SharedUnorderedMap<pid_t, int> fileEntryCount_;
 SharedUnorderedMap<pid_t, shm_string_deque> fileNames_;
 SharedUnorderedMap<pid_t, shm_int_deque> fileCounts_;
 
+// BufferManager keys.
+static const char *BUFFER_MANAGER_LOCKS_ = "buffer_manager_locks";
+static const char *BUFFER_MANAGER_POOL_ = "buffer_manager_pool";
+static const char *BUFFER_MANAGER_QUEUE_SIZES_ = "buffer_manager_queue_sizes";
+static const char *BUFFER_MANAGER_FAKE_FILE_ = "buffer_manager_fake_file";
+static const char *BUFFER_MANAGER_FILE_ENTRY_COUNT_ = "buffer_manager_file_entry_count";
+static const char *BUFFER_MANAGER_FILE_NAMES_ = "buffer_manager_file_names_";
+static const char *BUFFER_MANAGER_FILE_COUNTS_ = "buffer_manager_file_counts";
+
 void InitBufferManager()
 {
   using namespace boost::interprocess;
@@ -49,10 +58,10 @@ void InitBufferManager()
 
   std::stringstream harness_pid_stream;
   harness_pid_stream << KnobHarnessPid.Value();
-  std::string buffer_manager_lock = harness_pid_stream.str() +
-      std::string(XIOSIM_BUFFER_MANAGER_LOCK);
-  named_mutex bm_init_lock(open_or_create, buffer_manager_lock.c_str());
-  bm_init_lock.lock();
+  std::string init_lock_key =
+    harness_pid_stream.str() + std::string(XIOSIM_INIT_SHARED_LOCK);
+  named_mutex init_lock(open_only, init_lock_key.c_str());
+  init_lock.lock();
 
   SHARED_VAR_INIT(bool, useRealFile_, true)
   SHARED_VAR_INIT(bool, popped_, false)
@@ -74,8 +83,7 @@ void InitBufferManager()
   fileCounts_.initialize_late(shared_memory_key.c_str(), BUFFER_MANAGER_FILE_COUNTS_, MAX_CORES);
 
   std::cout << "[" << getpid() << "]" << "Initialized all SharedUnorderedMaps" << std::endl;
-
-  bm_init_lock.unlock();
+  init_lock.unlock();
 }
 
 void DeinitBufferManager()
