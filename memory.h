@@ -122,10 +122,6 @@
 #ifndef MEMORY_H
 #define MEMORY_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include <stdio.h>
 
 #include "callbacks.h"
@@ -155,12 +151,6 @@ extern "C" {
 #define DO_NOT_TRANSLATE (-1)
 
 
-/* memory access command */
-enum mem_cmd {
-  Read,      /* read memory from target (simulated prog) to host */
-  Write      /* write memory from host (simulator) to target */
-};
-
 /* page table entry */
 struct mem_pte_t {
   struct mem_pte_t *next;  /* next translation in this bucket */
@@ -168,9 +158,7 @@ struct mem_pte_t {
   md_addr_t addr;   /* virtual address */
   int dirty;         /* has this page been modified? */
   byte_t *page;      /* page pointer */
-  off_t backing_offset; /* offset (for fseeko) for where this page is stored in the backing file */
   int from_mmap_syscall; /* TRUE if mapped from mmap/mmap2 call */
-  int no_dealloc; /* if true, do not ever deallocate/page-out to backing file */
 
   /* these form a doubly-linked list through all pte's to track usage recency */
   struct mem_pte_t * lru_prev;
@@ -188,8 +176,6 @@ struct mem_t {
   /* memory object state */
   char *name;        /* name of this memory space */
   struct mem_pte_t *ptab[MEM_PTAB_SIZE];/* inverted page table */
-  FILE * backing_file; /* disk file for storing memory image */
-  off_t backing_file_tail; /* offset to allocate next page to */
   struct mem_pte_t * recency_lru; /* oldest (LRU) */
   struct mem_pte_t * recency_mru; /* youngest (MRU) */
 
@@ -219,20 +205,12 @@ struct mem_t {
 /* compute address of access within a host page */
 #define MEM_OFFSET(ADDR)  ((ADDR) & (MD_PAGE_SIZE - 1))
 
-#define MEM_ADDR2HOST(MEM, ADDR) MEM_PAGE(MEM, ADDR, 0)+MEM_OFFSET(ADDR)
-
 /* memory tickle function, allocates pages when they are first written */
-/* When running under PIN, make sure to create the page at its actual location! */
 #define MEM_TICKLE(MEM, ADDR)            \
   ((!MEM_PAGE(MEM, ADDR, 0)            \
     ? (/* allocate page at address ADDR */        \
-      (void) mem_newmap2(MEM, ROUND_DOWN(ADDR, MD_PAGE_SIZE), ROUND_DOWN(ADDR,MD_PAGE_SIZE), MD_PAGE_SIZE, 1)) \
+      (void) mem_newmap(MEM, ROUND_DOWN(ADDR, MD_PAGE_SIZE), MD_PAGE_SIZE, 1)) \
     : (/* nada... */ (void)0)))           
-
-/* memory page iterator */
-#define MEM_FORALL(MEM, ITER, PTE)          \
-  for ((ITER)=0; (ITER) < MEM_PTAB_SIZE; (ITER)++)      \
-    for ((PTE)=(MEM)->ptab[(ITER)]; (PTE) != NULL; (PTE)=(PTE)->next)
 
 
 /*
@@ -267,31 +245,12 @@ mem_translate(struct mem_t *mem,  /* memory space to access */
     md_addr_t addr,     /* virtual address to translate */
     int dirty); /* should this page be marked as dirty? */
 
-/* allocate a memory page */
-void
-mem_newpage(struct mem_t *mem,    /* memory space to allocate in */
-    md_addr_t addr);    /* virtual address to allocate */
-
-/* zero out *ALL* of memory and reset backing file info */
-void wipe_memory(struct mem_t * mem);
-
 /* given a set of pages, this creates a set of new page mappings,
  * try to use addr as the suggested addresses
  */
 md_addr_t
 mem_newmap(struct mem_t *mem,           /* memory space to access */
     md_addr_t    addr,            /* virtual address to map to */
-    size_t       length,
-    int mmap);
-
-/* given a set of pages, this creates a set of new page mappings,
- * try to use addr as the suggested addresses, but point to something
- * we allocated ourselves.
- */
-md_addr_t
-mem_newmap2(struct mem_t *mem,           /* memory space to access */
-    md_addr_t    addr,            /* virtual address to map to */
-    md_addr_t    our_addr,        /* our stuff (return value from mmap) */
     size_t       length,
     int mmap);
 
@@ -303,13 +262,6 @@ mem_delmap(struct mem_t *mem,           /* memory space to access */
     md_addr_t    addr,            /* virtual address to delete */
     size_t       length);
 
-
-/* check for memory faults */
-enum md_fault_type
-mem_check_fault(struct mem_t *mem,  /* memory space to access */
-    enum mem_cmd cmd,  /* Read (from sim mem) or Write */
-    md_addr_t addr,    /* target address to access */
-    int nbytes);    /* number of bytes to access */
 
 /* register memory system-specific statistics */
 void
@@ -324,11 +276,5 @@ mem_init(struct mem_t *mem);  /* memory space to initialize */
 md_paddr_t v2p_translate(int core_id, md_addr_t virt_addr);
 /* Wrapper around v2p_translate, to be called without holding the memory_lock */
 md_paddr_t v2p_translate_safe(int thread_id, md_addr_t virt_addr);
-/* given a physical address, return the corresponding core-id */
-int page_owner(md_paddr_t paddr);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif /* MEMORY_H */

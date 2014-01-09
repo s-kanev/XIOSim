@@ -254,7 +254,7 @@ int Zesto_Notify_Mmap(int coreID, unsigned int addr, unsigned int length, bool m
   unsigned int page_length = ROUND_UP(length, MD_PAGE_SIZE);
 
   lk_lock(&memory_lock, coreID+1);
-  md_addr_t retval = mem_newmap2(mem, page_addr, page_addr, page_length, 1);
+  md_addr_t retval = mem_newmap(mem, page_addr, page_length, 1);
   lk_unlock(&memory_lock);
 
   ZPIN_TRACE(coreID, "New memory mapping at addr: %x, length: %x ,endaddr: %x \n",addr, length, addr+length);
@@ -470,7 +470,7 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake)
       md_addr_t page_end = ROUND_UP(thread->memory.stack_base, MD_PAGE_SIZE);
 
       lk_lock(&memory_lock, coreID+1);
-      md_addr_t stack_addr = mem_newmap2(thread->mem, page_start, page_start, page_end-page_start, 1);
+      md_addr_t stack_addr = mem_newmap(thread->mem, page_start, page_end-page_start, 1);
       lk_unlock(&memory_lock);
       fprintf(stderr, "Stack pointer: %x; \n", sp);
       zesto_assert(stack_addr == ROUND_DOWN(thread->memory.stack_min, MD_PAGE_SIZE), (void)0);

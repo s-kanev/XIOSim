@@ -171,188 +171,8 @@ static inline void recency_list_remove(struct mem_t * mem, struct mem_pte_t * pt
 }
 
 /*************************************************************/
-/* The following code is for supporting the simulation of
-   multiple, large virtual memory spaces.  Since the simulator
-   itself is only operating out of a 32-bit space, emulating
-   multiple 32-bit spaces can obviously run out of room.  So we
-   manually page the emulated virtual memory spaces to disk. */
-/*************************************************************/
-static qword_t num_core_pages = 0;
-/* assume a max of 1.5GB for all simulated memory (this is real memory
-   used by the simulator to simulate *all* of the virtual memory for
-   all processes/threads.  We manually page stuff to disk to keep
-   this under control.  Otherwise there's no way we can simulate 16
-   (or more?) processes' worth of virtual memory in our own measly
-   32-bit address sapce. */
-#ifdef ZESTO_PIN
-static const qword_t max_core_pages = 0; //If we are pinned, the OS will automatically page out to disk. We only need to keep track of valid virtual addresses
-#else
-static const qword_t max_core_pages = ((1<<30)+(1<<29))/MD_PAGE_SIZE; /* use 1.5GB for memory pages */
-#endif
-static int num_locked_pages = 0; /* num mmaped pages that we don't write to backing file */
 static struct mem_page_link_t * page_free_list = NULL;
 static struct mem_page_link_t * link_free_list = NULL;
-
-/* make sure you don't write current_addr back out, as that's what we're about to write */
-static void write_core_to_backing_file(struct mem_t * mem, md_addr_t current_addr)
-{
-  assert(false);
-  /* find LRU pte */
-  struct mem_pte_t * evictee = mem->recency_lru;
-  while(evictee)
-  {
-    if(!evictee->no_dealloc && (evictee->addr != current_addr))
-      break;
-    evictee = evictee->lru_prev;
-  }
-  if(evictee)
-  {
-    if(!mem->backing_file)
-    {
-      /* allocate a temp file for paging simulated memory to disk */
-      mem->backing_file = tmpfile();
-      mem->backing_file_tail = 0LL;
-      if(!mem->backing_file)
-        fatal("failed to create memory/core backing file for %s",mem->name);
-    }
-
-    if(evictee->dirty)
-    {
-      if(evictee->backing_offset == -1)
-      {
-        evictee->backing_offset = mem->backing_file_tail;
-        mem->backing_file_tail += MD_PAGE_SIZE;
-      }
-      if(fseeko(mem->backing_file,evictee->backing_offset,SEEK_SET))
-      {
-        perror("fseeko call failed");
-        fatal("couldn't write out page %u for %s",evictee->addr,mem->name);
-      }
-      if(fwrite(evictee->page,MD_PAGE_SIZE,1,mem->backing_file) < 1)
-      {
-        perror("fwrite call failed");
-        fatal("couldn't write out page %u for %s",evictee->addr,mem->name);
-      }
-      evictee->dirty = FALSE; /* not dirty anymore */
-    }
-
-    /* 1. get page link (allocate if necessary)
-       2. memset page
-       3. place page in link, and link in free list
-       4. delink recency lru/mru pointers
-     */
-    struct mem_page_link_t * pl = link_free_list;
-    if(!pl)
-    {
-      pl = (struct mem_page_link_t*) calloc(1,sizeof(*pl));
-      if(!pl)
-        fatal("failed to calloc mem_page_link");
-    }
-    //memset(evictee->page,0,MD_PAGE_SIZE);
-    clear_page(evictee->page);
-    pl->page = evictee->page;
-    pl->next = page_free_list;
-    page_free_list = pl;
-    num_core_pages --;
-
-    recency_list_remove(mem,evictee);
-    evictee->page = NULL;
-  }
-  else
-    warnonce("we needed to page out memory for %s (addr=0x%x), but we couldn't find such a page.  consider increasing the memory allocated for simulated memory.",mem->name,current_addr);
-}
-
-static void read_core_from_backing_file(struct mem_t * mem, struct mem_pte_t * pte)
-{
-  assert(false);
-  /* 1. get page/disk info
-     2. get blank page (allocate if necessary)
-     3. place page link on free list if necessary
-     4. fread disk to page
-     5. reinsert page into recency lists
-   */
-  struct mem_page_link_t * pl = page_free_list;
-  byte_t * page = NULL;
-  assert(pte->page == NULL); /* this pte had better not already have a page allocated */
-  if(pl)
-  {
-    page_free_list = pl->next;
-    page = pl->page;
-    pl->page = NULL;
-    pl->next = link_free_list;
-    link_free_list = pl;
-  }
-  else
-  {
-    //page = (byte_t*) calloc(1,MD_PAGE_SIZE);
-    posix_memalign((void**)&page,MD_PAGE_SIZE,MD_PAGE_SIZE);
-    if(!page)
-      fatal("failed to calloc memory page");
-    clear_page(page);
-  }
-
-  if(pte->backing_offset != -1)
-  {
-    assert(mem->backing_file);
-    assert(!pte->page);
-    assert(!pte->no_dealloc);
-
-    if(fseeko(mem->backing_file,pte->backing_offset,SEEK_SET))
-    {
-      perror("fseeko call failed");
-      fatal("couldn't reload page %u for %s",pte->addr,mem->name);
-    }
-    if(fread(page,MD_PAGE_SIZE,1,mem->backing_file) < 1)
-    {
-      perror("fread call failed");
-      fatal("couldn't reload page %u for %s",pte->addr,mem->name);
-    }
-  }
-  else /* no allocated page in backing file: this page was on disk
-          when memory was wiped so just load in a zeroed out page.
-        */
-  {
-    /* in which case we don't really need to do anything because we
-       either just calloc'd the page, or we got it off the free
-       list, but all pages also get memset'd before getting inserted
-       on the free list. */
-  }
-
-  pte->page = page;
-  recency_list_insert(mem,pte);
-  num_core_pages ++;
-}
-
-/* Used when resetting an eio trace to run from beginning.  This may
-   be necessary since normally the first touch of a page would
-   return a zeroed-out page, but reusing the memory pages could
-   leave data from the previous run.  We also need to reset the
-   backing file information. */
-void wipe_memory(struct mem_t * mem)
-{
-  int i;
-  for(i=0; i< MEM_PTAB_SIZE; i++)
-  {
-    struct mem_pte_t * pte = mem->ptab[i];
-
-    while(pte)
-    {
-      if(pte->page)
-        //memset(pte->page,0,MD_PAGE_SIZE);
-        clear_page(pte->page);
-      pte->backing_offset = -1;
-      pte->dirty = TRUE; /* need to mark dirty to ensure that this
-                            zero'd page gets written back to disk
-                            (same as mem_newpage). */
-      pte = pte->next;
-    }
-  }
-  if(mem->backing_file)
-    fclose(mem->backing_file);
-  mem->backing_file = NULL;
-  mem->backing_file_tail = 0;
-}
-
 
 /* Code for providing simulated virtual-to-physical address
    translation.  This allocates physical pages to virtual pages on a
@@ -431,42 +251,6 @@ md_paddr_t v2p_translate_safe(int thread_id, md_addr_t virt_addr)
   return res;
 }
 
-/* Inverse lookup: given a physical page, returns the core-id of
-   the owner.  TODO: put into separate hash table. */
-int page_owner(md_paddr_t paddr)
-{
-  md_paddr_t PPN = paddr >> PAGE_SHIFT;
-  int tid = -1, hit = 0;
-  struct v2p_node_t * p = p2v_list_head, * prev = NULL;
-
-  while(p)
-  {
-    if(p->ppn == PPN)
-    {
-      tid = p->thread_id;
-      hit = 1;
-      break;
-    }
-    prev = p;
-    p = p->p2v_next;
-  }
-
-  /* hit, move to front of list */
-  if(hit && prev)
-  {
-    /* move p to the front of the list (MRU) */
-    prev->p2v_next = p->p2v_next;
-    p->p2v_next = p2v_list_head;
-    p2v_list_head = p;
-  }
-
-  if(hit)
-    return tid;
-  else
-    return DO_NOT_TRANSLATE;
-}
-
-
 /*************************************************************/
 
 
@@ -493,13 +277,9 @@ mem_translate(struct mem_t *mem,	/* memory space to access */
         mem->ptab[MEM_PTAB_SET(addr)] = pte;
       }
 
-      if(!pte->page)
+      if(!pte->page) // page in from disk case
       {
-        /* make room if necessary */
-        if(max_core_pages && (num_core_pages >= max_core_pages))
-          write_core_to_backing_file(mem,pte->addr);
-        /* page in from disk */
-        read_core_from_backing_file(mem,pte);
+        assert(false);
       }
       else
       {
@@ -522,57 +302,6 @@ mem_translate(struct mem_t *mem,	/* memory space to access */
 
   /* no translation found, return NULL */
   return NULL;
-}
-
-/* allocate a memory page */
-  void
-mem_newpage(struct mem_t *mem,		/* memory space to allocate in */
-    md_addr_t addr)		/* virtual address to allocate */
-{
-  byte_t *page = NULL;
-  struct mem_pte_t *pte;
-
-  if(max_core_pages && (num_core_pages >= max_core_pages))
-    write_core_to_backing_file(mem,addr);
-
-  /* see if we have any spare pages lying around */
-  struct mem_page_link_t * pl = page_free_list;
-  if(pl)
-  {
-    page_free_list = pl->next;
-    page = pl->page;
-    pl->page = NULL;
-    pl->next = link_free_list;
-    link_free_list = pl;
-  }
-  else /* if not, alloc a new one */
-  {
-    posix_memalign((void**)&page,MD_PAGE_SIZE,MD_PAGE_SIZE);
-    if(!page)
-      fatal("failed to calloc memory page");
-    clear_page(page);
-  }
-  *page = 0; /* touch the page */
-
-  /* generate a new PTE */
-  pte = (struct mem_pte_t*) calloc(1, sizeof(struct mem_pte_t));
-  if (!pte)
-    fatal("out of virtual memory");
-  pte->tag = MEM_PTAB_TAG(addr);
-  pte->addr = addr;
-  pte->page = page;
-  pte->backing_offset = -1;
-  pte->dirty = TRUE;
-
-  /* insert PTE into inverted hash table */
-  pte->next = mem->ptab[MEM_PTAB_SET(addr)];
-  mem->ptab[MEM_PTAB_SET(addr)] = pte;
-
-  recency_list_insert(mem,pte);
-
-  /* one more page allocated */
-  mem->page_count++;
-  num_core_pages++;
 }
 
 // skumar - for implementing mmap syscall
@@ -610,10 +339,6 @@ mem_newmap(struct mem_t *mem,            /* memory space to access */
       continue;
     }
 
-    /* make room if necessary */
-    if(max_core_pages && (num_core_pages >= max_core_pages))
-      write_core_to_backing_file(mem,comp_addr);
-
     /* generate a new PTE */
     pte = (struct mem_pte_t*) calloc(1, sizeof(struct mem_pte_t));
     if (!pte)
@@ -622,9 +347,6 @@ mem_newmap(struct mem_t *mem,            /* memory space to access */
     pte->addr = addr;
     pte->page = (byte_t*) comp_addr;
     pte->from_mmap_syscall = mmap;
-    pte->backing_offset = -1;
-    pte->no_dealloc = TRUE;
-    num_locked_pages++;
 
     /* insert PTE into inverted hash table */
     pte->next = mem->ptab[MEM_PTAB_SET(comp_addr)];
@@ -634,84 +356,11 @@ mem_newmap(struct mem_t *mem,            /* memory space to access */
 
     /* one more page allocated */
     mem->page_count++;
-    num_core_pages++;
   }
   return addr;
 
 }
 
-/* given a set of pages, this creates a set of new page mappings,
- * try to use addr as the suggested addresses, but point to our stuff
- */
-  md_addr_t
-mem_newmap2(struct mem_t *mem,            /* memory space to access */
-    md_addr_t    addr,            /* virtual address to map to */
-    md_addr_t    our_addr,        /* Our stuff (return from system mmap) */
-    size_t       length,
-    int mmap /* call from mmap or mmap2? */)	
-{
-  int num_pages;
-  int i;
-  md_addr_t comp_addr;
-  struct mem_pte_t *pte;
-
-  ZPIN_TRACE(INVALID_CORE, "Mem_newmap2: %x -> %x, length: %x, end_addr: %x\n", addr, our_addr, length, addr+length);
-
-  /* first check alignment */
-  if((addr & (MD_PAGE_SIZE-1))!=0) {
-    fprintf(stderr, "mem_newmap address %x, not page aligned\n", addr);
-    abort();
-  }
-  if((((int)our_addr) & (MD_PAGE_SIZE-1))!=0) {
-    fprintf(stderr, "mem_newmap our_addr %x, not page aligned\n", addr);
-    abort();
-  }
-
-  num_pages = length / MD_PAGE_SIZE + ((length % MD_PAGE_SIZE>0)? 1 : 0);
-  for(i=0;i<num_pages;i++) {
-    /* check if pages already allocated */
-    comp_addr = addr+i*MD_PAGE_SIZE;
-    if(MEM_PAGE(mem, comp_addr, 1)) {
-#ifdef DEBUG
-      if(debugging) 
-        fprintf(stderr, "mem_newmap warning addr %x(page %d), already been allocated\n", comp_addr, i);
-#endif
-      continue;
-    }
-
-    /* make room if necessary */
-    if(max_core_pages && (num_core_pages >= max_core_pages))
-      write_core_to_backing_file(mem,comp_addr);
-
-    /* generate a new PTE */
-    pte = (struct mem_pte_t*) calloc(1, sizeof(struct mem_pte_t));
-    if (!pte)
-      fatal("out of virtual memory");
-    pte->tag = MEM_PTAB_TAG(comp_addr);
-    pte->addr = addr;
-    pte->page = (byte_t*) our_addr + i * MD_PAGE_SIZE;
-    pte->from_mmap_syscall = mmap;
-    pte->backing_offset = -1;
-    pte->no_dealloc = TRUE;
-    num_locked_pages++;
-
-    /* insert PTE into inverted hash table */
-    pte->next = mem->ptab[MEM_PTAB_SET(comp_addr)];
-    mem->ptab[MEM_PTAB_SET(comp_addr)] = pte;
-
-    recency_list_insert(mem,pte);
-
-    /* one more page allocated */
-    mem->page_count++;
-    num_core_pages++;
-  }
-  return addr;
-
-}
-
-/* TODO: I think delmap will not work if the pages that were originally mmapped were
-   loaded in through an EIO checkpoint... not sure what's the best way to deal with
-   this. */
 /* given a set of pages, delete them from the page table.
  */
   void
@@ -761,10 +410,7 @@ mem_delmap(struct mem_t *mem,            /* memory space to access */
         temp->page = NULL;
         temp->next = NULL;
         temp->from_mmap_syscall = FALSE;
-        assert(temp->no_dealloc);
-        temp->no_dealloc = FALSE;
         temp->tag = (md_addr_t)NULL;
-        num_locked_pages--;
         free( temp );
 
         /* one less page allocated */
@@ -774,25 +420,6 @@ mem_delmap(struct mem_t *mem,            /* memory space to access */
       }
     }
   }
-}
-// <--- 
-
-/* check for memory related faults */
-  enum md_fault_type
-mem_check_fault(struct mem_t *mem,	/* memory */
-    enum mem_cmd cmd,	/* Read or Write */
-    md_addr_t addr,		/* target addresss */
-    int nbytes)		/* number of bytes of access */
-{
-  /* check alignments */
-  if (/* check size */(nbytes & (nbytes-1)) != 0
-      || /* check max size */nbytes > MD_PAGE_SIZE)
-    return md_fault_access;
-
-  if (/* check natural alignment */(addr & (nbytes-1)) != 0)
-    return md_fault_alignment;
-
-  return md_fault_none;
 }
 
 /* register memory system-specific statistics */
