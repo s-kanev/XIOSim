@@ -134,7 +134,6 @@
 /* number of entries in page translation hash table (must be power-of-two) */
 #define MEM_PTAB_SIZE    (256*1024)
 #define MEM_LOG_PTAB_SIZE  18
-#define MAX_LEV                 3
 
 
 /* log2(page_size) assuming 4KB pages */
@@ -156,19 +155,7 @@ struct mem_pte_t {
   struct mem_pte_t *next;  /* next translation in this bucket */
   md_addr_t tag;    /* virtual page number tag */
   md_addr_t addr;   /* virtual address */
-  int dirty;         /* has this page been modified? */
   byte_t *page;      /* page pointer */
-  int from_mmap_syscall; /* TRUE if mapped from mmap/mmap2 call */
-
-  /* these form a doubly-linked list through all pte's to track usage recency */
-  struct mem_pte_t * lru_prev;
-  struct mem_pte_t * lru_next;
-};
-
-/* just a simple container struct to track unused pages */
-struct mem_page_link_t {
-  byte_t * page;
-  struct mem_page_link_t * next;
 };
 
 /* memory object */
@@ -176,10 +163,8 @@ struct mem_t {
   /* memory object state */
   char *name;        /* name of this memory space */
   struct mem_pte_t *ptab[MEM_PTAB_SIZE];/* inverted page table */
-  struct mem_pte_t * recency_lru; /* oldest (LRU) */
-  struct mem_pte_t * recency_mru; /* youngest (MRU) */
 
-  counter_t page_count;      /* total number of pages allocated (in core and backing file) */
+  counter_t page_count;      /* total number of pages allocated */
 };
 
 /*
@@ -194,20 +179,12 @@ struct mem_t {
 #define MEM_PTAB_TAG(ADDR)            \
   ((ADDR) >> (MD_LOG_PAGE_SIZE + MEM_LOG_PTAB_SIZE))
 
-/* convert a pte entry at idx to a block address */
-#define MEM_PTE_ADDR(PTE, IDX)            \
-  (((PTE)->tag << (MD_LOG_PAGE_SIZE + MEM_LOG_PTAB_SIZE))    \
-   | ((IDX) << MD_LOG_PAGE_SIZE))
-
-/* locate host page for virtual address ADDR, returns NULL if unallocated */
-#define MEM_PAGE(MEM, ADDR, DIRTY)  mem_translate((MEM), (ADDR), (DIRTY))
-
 /* compute address of access within a host page */
 #define MEM_OFFSET(ADDR)  ((ADDR) & (MD_PAGE_SIZE - 1))
 
 /* memory tickle function, allocates pages when they are first written */
 #define MEM_TICKLE(MEM, ADDR)            \
-  ((!MEM_PAGE(MEM, ADDR, 0)            \
+  ((!mem_translate((MEM), (ADDR))            \
     ? (/* allocate page at address ADDR */        \
       (void) mem_newmap(MEM, ROUND_DOWN(ADDR, MD_PAGE_SIZE), MD_PAGE_SIZE, 1)) \
     : (/* nada... */ (void)0)))           
@@ -227,10 +204,9 @@ struct mem_t {
   core->oracle->spec_write_byte((ADDR),(VAL),uop)
 
 /* Pin does the actual write if instruction is not speculative, but we do a 
-   dummy address translate from the same page to update the MRU list and dirty flag in the page table */
+   dummy address translate from the same page to update the MRU list in the page table */
 #define MEM_WRITE_BYTE_NON_SPEC(MEM, ADDR, VAL)          \
-  MEM_TICKLE(MEM, (md_addr_t)(ADDR));                   \
-  MEM_PAGE(MEM, (md_addr_t)(ADDR),1)
+  MEM_TICKLE(MEM, (md_addr_t)(ADDR))
 
 #define MEM_DO_WRITE_BYTE_NON_SPEC(MEM, ADDR, VAL)          \
   (MEM_TICKLE(MEM, (md_addr_t)(ADDR)))
@@ -242,8 +218,7 @@ mem_create(const char *name);      /* name of the memory space */
 /* translate address ADDR in memory space MEM, returns pointer to host page */
 byte_t *
 mem_translate(struct mem_t *mem,  /* memory space to access */
-    md_addr_t addr,     /* virtual address to translate */
-    int dirty); /* should this page be marked as dirty? */
+    md_addr_t addr);     /* virtual address to translate */
 
 /* given a set of pages, this creates a set of new page mappings,
  * try to use addr as the suggested addresses
@@ -251,8 +226,7 @@ mem_translate(struct mem_t *mem,  /* memory space to access */
 md_addr_t
 mem_newmap(struct mem_t *mem,           /* memory space to access */
     md_addr_t    addr,            /* virtual address to map to */
-    size_t       length,
-    int mmap);
+    size_t       length);
 
 /* given a set of pages, this removes them from our map.  Necessary
  * for munmap.

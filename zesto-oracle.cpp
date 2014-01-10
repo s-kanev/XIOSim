@@ -438,7 +438,7 @@ uint8_t core_oracle_t::spec_do_read_byte(const md_addr_t addr, const struct Mop_
 
   /* Finally, try and access host space.
      Check shadow page table to make sure memory is there. */
-  if (mem_translate(core->current_thread->mem, addr, 0) == NULL) {
+  if (mem_translate(core->current_thread->mem, addr) == NULL) {
     res = 0;
     goto done;
   }

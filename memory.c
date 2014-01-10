@@ -145,35 +145,7 @@ mem_create(const char *name)			/* name of the memory space */
   return mem;
 }
 
-static inline void recency_list_insert(struct mem_t * mem, struct mem_pte_t * pte)
-{
-
-  /* insert PTE into recency list */
-  pte->lru_next = mem->recency_mru;
-  if(mem->recency_mru)
-    mem->recency_mru->lru_prev = pte;
-  mem->recency_mru = pte;
-  pte->lru_prev = NULL;
-  if(mem->recency_lru == NULL)
-    mem->recency_lru = pte; /* inserting first pte, so it's both lru and mru */
-}
-
-static inline void recency_list_remove(struct mem_t * mem, struct mem_pte_t * pte)
-{
-  if(mem->recency_mru == pte)
-    mem->recency_mru = pte->lru_next;
-  if(mem->recency_lru == pte)
-    mem->recency_lru = pte->lru_prev;
-  if(pte->lru_next)
-    pte->lru_next->lru_prev = pte->lru_prev;
-  if(pte->lru_prev)
-    pte->lru_prev->lru_next = pte->lru_next;
-}
-
 /*************************************************************/
-static struct mem_page_link_t * page_free_list = NULL;
-static struct mem_page_link_t * link_free_list = NULL;
-
 /* Code for providing simulated virtual-to-physical address
    translation.  This allocates physical pages to virtual pages on a
    first-come-first-serve basis.  In this fashion, pages from
@@ -189,11 +161,9 @@ struct v2p_node_t {
   md_addr_t vpn; /* virtual page number */
   md_paddr_t ppn; /* physical page number */
   struct v2p_node_t * next;
-  struct v2p_node_t * p2v_next; /* for linking the p2v table */
 };
 
 static struct v2p_node_t *v2p_hash_table[V2P_HASH_SIZE];
-static struct v2p_node_t *p2v_list_head = NULL;
 
 md_paddr_t v2p_translate(int thread_id, md_addr_t virt_addr)
 {
@@ -223,9 +193,6 @@ md_paddr_t v2p_translate(int thread_id, md_addr_t virt_addr)
     p->vpn = VPN;
     p->ppn = next_ppn_to_allocate++;
     p->next = v2p_hash_table[index];
-
-    p->p2v_next = p2v_list_head;
-    p2v_list_head = p;
 
     v2p_hash_table[index] = p;
   }
@@ -257,8 +224,7 @@ md_paddr_t v2p_translate_safe(int thread_id, md_addr_t virt_addr)
 /* translate address ADDR in memory space MEM, returns pointer to host page */
   byte_t *
 mem_translate(struct mem_t *mem,	/* memory space to access */
-    md_addr_t addr,		/* virtual address to translate */
-    int dirty) /* mark this page as dirty */
+    md_addr_t addr)		/* virtual address to translate */
 {
   struct mem_pte_t *pte, *prev;
 
@@ -277,25 +243,6 @@ mem_translate(struct mem_t *mem,	/* memory space to access */
         mem->ptab[MEM_PTAB_SET(addr)] = pte;
       }
 
-      if(!pte->page) // page in from disk case
-      {
-        assert(false);
-      }
-      else
-      {
-        /* update recency list */
-        assert(pte->lru_prev || (mem->recency_mru == pte));
-        assert(pte->lru_next || (mem->recency_lru == pte));
-      }
-
-      if(mem->recency_mru != pte) /* don't need to move if alreayd in mru position */
-      {
-        recency_list_remove(mem,pte);
-        recency_list_insert(mem,pte);
-      }
-
-      pte->dirty |= dirty;
-
       return pte->page;
     }
   }
@@ -312,8 +259,7 @@ mem_translate(struct mem_t *mem,	/* memory space to access */
   md_addr_t
 mem_newmap(struct mem_t *mem,            /* memory space to access */
     md_addr_t    addr,            /* virtual address to map to */
-    size_t       length,
-    int mmap)	
+    size_t       length)
 {
   int num_pages;
   int i;
@@ -330,7 +276,7 @@ mem_newmap(struct mem_t *mem,            /* memory space to access */
   for(i=0;i<num_pages;i++) {
     /* check if pages already allocated */
     comp_addr = addr+i*MD_PAGE_SIZE;
-    if(MEM_PAGE(mem, comp_addr, 1)) { /* new pages are marked dirty to make sure they get written out if necessary */
+    if(mem_translate(mem, comp_addr)) {
 #ifdef DEBUG
       if(debugging) 
         fprintf(stderr, "mem_newmap warning addr %x(page %d), already been allocated\n", comp_addr, i);
@@ -346,13 +292,10 @@ mem_newmap(struct mem_t *mem,            /* memory space to access */
     pte->tag = MEM_PTAB_TAG(comp_addr);
     pte->addr = addr;
     pte->page = (byte_t*) comp_addr;
-    pte->from_mmap_syscall = mmap;
 
     /* insert PTE into inverted hash table */
     pte->next = mem->ptab[MEM_PTAB_SET(comp_addr)];
     mem->ptab[MEM_PTAB_SET(comp_addr)] = pte;
-
-    recency_list_insert(mem,pte);
 
     /* one more page allocated */
     mem->page_count++;
@@ -387,14 +330,14 @@ mem_delmap(struct mem_t *mem,            /* memory space to access */
     comp_addr = addr+i*MD_PAGE_SIZE;
     int set = MEM_PTAB_SET(comp_addr);
 
-    if(!MEM_PAGE(mem, comp_addr, 0)) {
+    if(!mem_translate(mem, comp_addr)) {
       // this is OK -- pin does this all the time.
       continue;
     }
 
     for (temp = mem->ptab[set] ; temp ; before_temp = temp, temp = temp->next)
     {
-      if ((temp->tag == MEM_PTAB_TAG(comp_addr) && temp->from_mmap_syscall))
+      if (temp->tag == MEM_PTAB_TAG(comp_addr))
       {
         if (before_temp)
         {
@@ -405,11 +348,8 @@ mem_delmap(struct mem_t *mem,            /* memory space to access */
           mem->ptab[set] = temp->next;
         }
 
-        recency_list_remove(mem,temp);
-
         temp->page = NULL;
         temp->next = NULL;
-        temp->from_mmap_syscall = FALSE;
         temp->tag = (md_addr_t)NULL;
         free( temp );
 
