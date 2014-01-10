@@ -186,7 +186,7 @@ struct mem_t {
 #define MEM_TICKLE(MEM, ADDR)            \
   ((!mem_translate((MEM), (ADDR))            \
     ? (/* allocate page at address ADDR */        \
-      (void) mem_newmap(MEM, ROUND_DOWN(ADDR, MD_PAGE_SIZE), MD_PAGE_SIZE, 1)) \
+      (void) mem_newmap(MEM, ROUND_DOWN(ADDR, MD_PAGE_SIZE), MD_PAGE_SIZE)) \
     : (/* nada... */ (void)0)))           
 
 
