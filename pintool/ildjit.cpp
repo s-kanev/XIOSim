@@ -1178,7 +1178,7 @@ VOID shutdownSimulation(THREADID tid)
     printElapsedTime();
     cerr << "Stopping simulation, TID: " << tid << endl;
     ipc_message_t msg;
-    msg.SliceEnd(0, 1, 0, 100*1000);
+    msg.SliceEnd(1, 0, 100*1000);
     SendIPCMessage(msg);
     msg.StopSimulation(true);
     SendIPCMessage(msg);

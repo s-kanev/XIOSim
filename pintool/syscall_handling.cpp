@@ -198,10 +198,10 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
              << hex << retval << dec << endl;
 #endif
         if(tstate->last_syscall_arg1 != 0)
-            msg.UpdateBrk(0/*coreID*/, tstate->last_syscall_arg1, true);
+            msg.UpdateBrk(asid, tstate->last_syscall_arg1, true);
         /* Seemingly libc code calls sbrk(0) to get the initial value of the sbrk. We intercept that and send result to zesto, so that we can correclty deal with virtual memory. */
         else
-            msg.UpdateBrk(0/*coreID*/, retval, false);
+            msg.UpdateBrk(asid, retval, false);
         SendIPCMessage(msg);
         break;
 
@@ -211,7 +211,7 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
              << hex << tstate->last_syscall_arg1 << " length: " << tstate->last_syscall_arg2 << dec << endl;
 #endif
         if(retval != (ADDRINT)-1) {
-            msg.Munmap(0/*coreID*/, tstate->last_syscall_arg1, tstate->last_syscall_arg2, false);
+            msg.Munmap(asid, tstate->last_syscall_arg1, tstate->last_syscall_arg2, false);
             SendIPCMessage(msg);
         }
         break;
@@ -222,7 +222,7 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
              << hex << retval << " length: " << tstate->last_syscall_arg1 << dec << endl;
 #endif
         if(retval != (ADDRINT)-1) {
-            msg.Mmap(0/*coreID*/, retval, tstate->last_syscall_arg1, false);
+            msg.Mmap(asid, retval, tstate->last_syscall_arg1, false);
             SendIPCMessage(msg);
         }
         break;
@@ -233,7 +233,7 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
              << hex << retval << " length: " << tstate->last_syscall_arg1 << dec << endl;
 #endif
         if(retval != (ADDRINT)-1) {
-            msg.Mmap(0/*coreID*/, retval, tstate->last_syscall_arg1, false);
+            msg.Mmap(asid, retval, tstate->last_syscall_arg1, false);
             SendIPCMessage(msg);
         }
         break;
@@ -248,9 +248,9 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
 #endif
         if(retval != (ADDRINT)-1)
         {
-            msg.Munmap(0/*coreID*/, tstate->last_syscall_arg1, tstate->last_syscall_arg2, false);
+            msg.Munmap(asid, tstate->last_syscall_arg1, tstate->last_syscall_arg2, false);
             SendIPCMessage(msg);
-            msg.Mmap(0/*coreID*/, retval, tstate->last_syscall_arg3, false);
+            msg.Mmap(asid, retval, tstate->last_syscall_arg3, false);
             SendIPCMessage(msg);
         }
         break;
@@ -259,9 +259,9 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std, VO
         if(retval != (ADDRINT)-1)
         {
             if ((tstate->last_syscall_arg3 & PROT_READ) == 0)
-                msg.Munmap(0/*coreID*/, tstate->last_syscall_arg1, tstate->last_syscall_arg2, false);
+                msg.Munmap(asid, tstate->last_syscall_arg1, tstate->last_syscall_arg2, false);
             else
-                msg.Mmap(0/*coreID*/, tstate->last_syscall_arg1, tstate->last_syscall_arg2, false);
+                msg.Mmap(asid, tstate->last_syscall_arg1, tstate->last_syscall_arg2, false);
             SendIPCMessage(msg);
         }
         break;

@@ -12,8 +12,6 @@ struct handshake_flags_t
   bool valid;               /* Did we finish dumping context */
 
   bool isFirstInsn;         /* Notify sim for first instruction in a slice */
-  bool isLastInsn;          /* Same ^ for last */
-
   bool giveCoreUp;          /* Notify the scheduler to release thread */
   bool giveUpReschedule;    /* When ^ is true, should thread get re-scheduled */
   bool killThread;          /* Thread is exiting, deschedule it and clean up once consumed */
@@ -32,7 +30,6 @@ class handshake_container_t
         handshake.real = true;
         flags.valid = false;
         flags.isFirstInsn = false;
-        flags.isLastInsn = false;
         flags.giveCoreUp = false;
         flags.killThread = false;
 
@@ -58,7 +55,6 @@ class handshake_container_t
         out << "hand:" << " ";
         out << hand.flags.valid;
         out << hand.flags.isFirstInsn;
-        out << hand.flags.isLastInsn;
         out << hand.flags.killThread;
         out << " ";
         out << "mema: " << std::hex << hand.handshake.mem_addr << " val: " << hand.handshake.mem_val << std::dec << " ";
@@ -76,9 +72,6 @@ class handshake_container_t
         out << "flags: " << hand.handshake.sleep_thread << hand.handshake.resume_thread;
         out << std::dec << hand.handshake.real;
         out << hand.handshake.in_critical_section;
-        out << " slicenum: " << hand.handshake.slice_num << " ";
-        out << "feederslicelen: " << hand.handshake.feeder_slice_length << " ";
-        out << "feedersliceweight: " << hand.handshake.slice_weight_times_1000 << " ";
         out.flush();
         return out;
     }

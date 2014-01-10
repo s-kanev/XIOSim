@@ -396,12 +396,8 @@ void Zesto_Slice_Start(unsigned int slice_num)
   start_slice(slice_num);
 }
 
-void Zesto_Slice_End(int coreID, unsigned int slice_num, unsigned long long feeder_slice_length, unsigned long long slice_weight_times_1000)
+void Zesto_Slice_End(unsigned int slice_num, unsigned long long feeder_slice_length, unsigned long long slice_weight_times_1000)
 {
-  // Blow away any instructions executing
-  if (is_core_active(coreID))
-    sim_drain_pipe(coreID);
-
   // Record stats values
   end_slice(slice_num, feeder_slice_length, slice_weight_times_1000);
 }
@@ -412,7 +408,6 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake)
    struct core_t * core = cores[coreID];
    thread_t * thread = core->current_thread;
    bool slice_start = handshake->flags.isFirstInsn;
-   bool slice_end = handshake->flags.isLastInsn;
 
 
    if (!thread->active && !(slice_start || handshake->handshake.resume_thread ||
@@ -443,18 +438,6 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake)
       sim_drain_pipe(coreID);
       ReleaseHandshake(coreID);
       return;
-   }
-
-   // XXX: Check if this is called and remove unnecessary fields from P2Z
-   if(slice_end)
-   {
-      Zesto_Slice_End(coreID, handshake->handshake.slice_num, handshake->handshake.feeder_slice_length, handshake->handshake.slice_weight_times_1000);
-
-      if(!slice_start) {//start and end markers can be the same
-        ReleaseHandshake(coreID);
-        return;
-      } else
-        activate_core(coreID);
    }
 
    if(slice_start)
@@ -631,9 +614,9 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake)
    zesto_assert(core->fetch->PC == NPC, (void)0);
 }
 
-void Zesto_WarmLLC(unsigned int addr, bool is_write)
+void Zesto_WarmLLC(int asid, unsigned int addr, bool is_write)
 {
-  int threadID = 0;
+  int threadID = asid;
   struct core_t * core = cores[threadID];
 
   enum cache_command cmd = is_write ? CACHE_WRITE : CACHE_READ;

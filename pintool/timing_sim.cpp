@@ -130,9 +130,6 @@ VOID SimulatorLoop(VOID* arg)
             if (handshake->flags.isFirstInsn)
             {
                 Zesto_SetBOS(coreID, handshake->flags.BOS);
-//XXX: Re-enable afer sharing acive flag
-//                if (!control.PinPointsActive())
-                    handshake->handshake.slice_num = 1;
                 lk_lock(&tstate->lock, sim_tid+1);
                 tstate->sim_stopped = false;
                 lk_unlock(&tstate->lock);
@@ -182,7 +179,7 @@ VOID SpawnSimulatorThreads(INT32 numCores)
 VOID StopSimulation(BOOL kill_sim_threads, int caller_coreID)
 {
     /* For now, force end the slice (once!), once all processes have finished. */
-    Zesto_Slice_End(0, 1, 0, 100 * 1000);
+    Zesto_Slice_End(1, 0, 100 * 1000);
 
     if (kill_sim_threads) {
         /* Signal simulator threads to die */
@@ -335,42 +332,42 @@ void CheckIPCMessageQueue(bool isEarly, int caller_coreID)
         switch(ipcMessage.id) {
             /* Sim control related */
             case SLICE_START:
-                Zesto_Slice_Start(ipcMessage.arg1);
+                Zesto_Slice_Start(ipcMessage.arg0);
                 break;
             case SLICE_END:
-                Zesto_Slice_End(ipcMessage.coreID, ipcMessage.arg1, ipcMessage.arg2, ipcMessage.arg3);
+                Zesto_Slice_End(ipcMessage.arg0, ipcMessage.arg1, ipcMessage.arg2);
                 break;
             /* Shadow page table related */
             case MMAP:
-                Zesto_Notify_Mmap(ipcMessage.coreID, ipcMessage.arg1, ipcMessage.arg2, ipcMessage.arg3);
+                Zesto_Notify_Mmap(ipcMessage.arg0, ipcMessage.arg1, ipcMessage.arg2, ipcMessage.arg3);
                 break;
             case MUNMAP:
-                Zesto_Notify_Munmap(ipcMessage.coreID, ipcMessage.arg1, ipcMessage.arg2, ipcMessage.arg3);
+                Zesto_Notify_Munmap(ipcMessage.arg0, ipcMessage.arg1, ipcMessage.arg2, ipcMessage.arg3);
                 break;
             case UPDATE_BRK:
-                Zesto_UpdateBrk(ipcMessage.coreID, ipcMessage.arg1, ipcMessage.arg2);
+                Zesto_UpdateBrk(ipcMessage.arg0, ipcMessage.arg1, ipcMessage.arg2);
                 break;
             case UPDATE_BOS:
-                Zesto_SetBOS(ipcMessage.coreID, ipcMessage.arg1);
+                Zesto_SetBOS(ipcMessage.arg0, ipcMessage.arg1);
                 break;
             /* Warm caches */
             case WARM_LLC:
-                Zesto_WarmLLC(ipcMessage.arg1, ipcMessage.arg2);
+                Zesto_WarmLLC(ipcMessage.arg0, ipcMessage.arg1, ipcMessage.arg2);
                 break;
             case STOP_SIMULATION:
-                StopSimulation(ipcMessage.arg1, caller_coreID);
+                StopSimulation(ipcMessage.arg0, caller_coreID);
                 break;
             case ACTIVATE_CORE: 
-                activate_core(ipcMessage.coreID);
+                activate_core(ipcMessage.arg0);
                 break;
             case DEACTIVATE_CORE: 
-                deactivate_core(ipcMessage.coreID);
+                deactivate_core(ipcMessage.arg0);
                 break;
             case SCHEDULE_NEW_THREAD:
-                ScheduleNewThread(ipcMessage.arg1);
+                ScheduleNewThread(ipcMessage.arg0);
                 break;
             case ALLOCATE_THREAD:
-                xiosim::buffer_management::AllocateThreadConsumer(ipcMessage.arg1, ipcMessage.arg2);
+                xiosim::buffer_management::AllocateThreadConsumer(ipcMessage.arg0, ipcMessage.arg1);
                 break;
             default:
                 abort();

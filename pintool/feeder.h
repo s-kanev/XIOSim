@@ -28,6 +28,8 @@ extern XIOSIM_LOCK lk_tid_map;
 extern INT32 host_cpus;
 extern map<THREADID, tick_t> lastConsumerApply;
 
+extern int asid;
+
 #define ATOMIC_ITERATE(_list, _it, _lock) \
     for (lk_lock(&(_lock), 1), (_it) = (_list).begin(), lk_unlock(&(_lock)); \
          [&]{lk_lock(&(_lock), 1); bool res = (_it) != (_list).end(); lk_unlock(&(_lock)); return res;}();  \

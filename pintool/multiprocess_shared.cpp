@@ -33,10 +33,12 @@ KNOB<int> KnobNumCores(KNOB_MODE_WRITEONCE,      "pintool",
 KNOB<pid_t> KnobHarnessPid(KNOB_MODE_WRITEONCE, "pintool",
         "harness_pid", "-1", "Process id of the harness process.");
 
-void InitSharedState(bool wait_for_others, pid_t harness_pid)
+int InitSharedState(bool producer_process, pid_t harness_pid)
 {
     using namespace boost::interprocess;
     int *process_counter = NULL;
+    int asid = -1;
+
     std::stringstream harness_pid_stream;
     harness_pid_stream << KnobHarnessPid.Value();
     std::string shared_memory_key =
@@ -54,10 +56,11 @@ void InitSharedState(bool wait_for_others, pid_t harness_pid)
         shared_memory_key.c_str(), DEFAULT_SHARED_MEMORY_SIZE);
     init_lock.lock();
 
-    if (wait_for_others) {
+    if (producer_process) {
         process_counter = global_shm->find_or_construct<int>(counter_lock_key.c_str())();
         std::cout << getpid() << ": Counter value is: " << *process_counter << std::endl;
         (*process_counter)--;
+        asid = *process_counter;
     }
 
     InitIPCQueues();
@@ -81,9 +84,9 @@ void InitSharedState(bool wait_for_others, pid_t harness_pid)
 
     init_lock.unlock();
 
-    if (wait_for_others) {
-        // Spin until the counter reaches zero, indicating that all other processes
-        // have reached this point.
+    /* Spin until the counter reaches zero, indicating that all other processes
+     * have reached this point. */
+    if (producer_process) {
         while (1) {
             init_lock.lock();
             if (*process_counter == 0) {
@@ -94,6 +97,7 @@ void InitSharedState(bool wait_for_others, pid_t harness_pid)
         }
     }
     std::cout << getpid() << ": Proceeeding to execute pintool.\n";
+    return asid;
 }
 
 pid_t GetSHMRunqueue(int coreID) {

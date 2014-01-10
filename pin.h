@@ -25,10 +25,6 @@ typedef struct P2Z_HANDSHAKE {
     unsigned char mem_size;             /* size of access */
     unsigned long mem_addr;             /* adress of the access */
     unsigned long mem_val;              /* value to be read */
-
-    unsigned int slice_num;                         /* Execution slice id */
-    unsigned long long feeder_slice_length;         /* Slice length as seen by pin */
-    unsigned long long slice_weight_times_1000;     /* Slice weight in average */
 } P2Z_HANDSHAKE;
 
 class handshake_container_t;

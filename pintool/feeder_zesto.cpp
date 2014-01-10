@@ -86,6 +86,9 @@ static map<THREADID, pid_t> local_to_global_tid;
 
 INT32 host_cpus;
 
+/* Unique address space id -- the # of this feeder among all */
+int asid;
+
 /* ========================================================================== */
 /* Pinpoint related */
 // Track the number of instructions executed
@@ -128,7 +131,7 @@ VOID ImageUnload(IMG img, VOID *v)
          << " len: " << length << " end_addr: " << start + length << endl;
 #endif
     ipc_message_t msg;
-    msg.Munmap(0/*coreID*/, start, length, true);
+    msg.Munmap(asid, start, length, true);
     SendIPCMessage(msg);
 }
 
@@ -226,10 +229,10 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
             if(control.PinPointsActive())
             {
                 cerr << "PinPoint: " << control.CurrentPp(tid) << endl;
-                msg.SliceEnd(0, control.CurrentPp(tid), control.CurrentPpLength(tid), control.CurrentPpWeightTimesThousand(tid));
+                msg.SliceEnd(control.CurrentPp(tid), control.CurrentPpLength(tid), control.CurrentPpWeightTimesThousand(tid));
             }
             else {
-                msg.SliceEnd(0, slice_num, slice_length, slice_weight_times_1000);
+                msg.SliceEnd(slice_num, slice_length, slice_weight_times_1000);
             }
             SendIPCMessage(msg);
 */
@@ -266,7 +269,7 @@ VOID ImageLoad(IMG img, VOID *v)
         AddParsecCallbacks(img);
 
     ipc_message_t msg;
-    msg.Mmap(0/*coreID*/, start, length, false);
+    msg.Mmap(asid, start, length, false);
     SendIPCMessage(msg);
 }
 
@@ -794,7 +797,7 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
 #endif
                 ADDRINT vsyscall_page = (ADDRINT)(auxv->a_un.a_val & 0xfffff000);
                 ipc_message_t msg;
-                msg.Mmap(0/*coreID*/, vsyscall_page, MD_PAGE_SIZE, false);
+                msg.Mmap(asid, vsyscall_page, MD_PAGE_SIZE, false);
                 SendIPCMessage(msg);
             }
         }
@@ -810,7 +813,7 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
         ADDRINT tos_start = ROUND_DOWN(tos, MD_PAGE_SIZE);
         ADDRINT bos_end = ROUND_UP(bos, MD_PAGE_SIZE);
         ipc_message_t msg;
-        msg.Mmap(0/*coreID*/, tos_start, bos_end-tos_start, false);
+        msg.Mmap(asid, tos_start, bos_end-tos_start, false);
         SendIPCMessage(msg);
 
     }
@@ -947,7 +950,7 @@ INT32 main(INT32 argc, CHAR **argv)
 
     // Synchronize all processes here to ensure that in multiprogramming mode,
     // no process will start too far before the others.
-    InitSharedState(true, KnobHarnessPid.Value());
+    asid = InitSharedState(true, KnobHarnessPid.Value());
     xiosim::buffer_management::InitBufferManagerProducer();
 
     if(KnobAMDHack.Value()) {
