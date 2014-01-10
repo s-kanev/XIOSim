@@ -61,8 +61,6 @@ extern struct stat_sdb_t *rtp_sdb;
 
 /* redirected program/simulator output file names */
 extern const char *sim_simout;
-extern const char *sim_progout;
-extern FILE *sim_progfd;
 
 /* track first argument orphan, this is the program to execute */
 extern int exec_index;
@@ -72,9 +70,6 @@ extern bool help_me;
 
 /* random number generator seed */
 extern int rand_seed;
-
-/* default simulator scheduling priority */
-#define NICE_DEFAULT_VALUE      0
 
 extern int orphan_fn(int i, int argc, char **argv);
 extern void banner(FILE *fd, int argc, char **argv);
@@ -94,7 +89,7 @@ int
 Zesto_SlaveInit(int argc, char **argv)
 {
   char *s;
-  int i, exit_code;
+  int i;
 
   /* register an error handler */
   fatal_hook(sim_print_stats);
@@ -121,9 +116,6 @@ Zesto_SlaveInit(int argc, char **argv)
          "redirect simulator output to file (non-interactive only)",
          &sim_simout,
          /* default */NULL, /* !print */FALSE, NULL);
-  opt_reg_string(sim_odb, "-redir:prog",
-         "redirect simulated program output to file",
-         &sim_progout, /* default */NULL, /* !print */FALSE, NULL);
 
   /* register all simulator-specific options */
   sim_reg_options(sim_odb);
@@ -139,14 +131,6 @@ Zesto_SlaveInit(int argc, char **argv)
       fflush(stderr);
       if (!freopen(sim_simout, "w", stderr))
         fatal("unable to redirect simulator output to file `%s'", sim_simout);
-    }
-
-  if (sim_progout != NULL)
-    {
-      /* redirect simulated program output to file SIM_PROGOUT */
-      sim_progfd = fopen(sim_progout, "w");
-      if (!sim_progfd)
-        fatal("unable to redirect program output to file `%s'", sim_progout);
     }
 
   /* need at least two argv values to run */

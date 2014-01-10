@@ -105,8 +105,6 @@ struct stat_sdb_t *rtp_sdb;
 
 /* redirected program/simulator output file names */
 const char *sim_simout = NULL;
-const char *sim_progout = NULL;
-FILE *sim_progfd = NULL;
 
 /* track first argument orphan, this is the program to execute */
 int exec_index = -1;
@@ -116,11 +114,6 @@ bool help_me;
 
 /* random number generator seed */
 int rand_seed;
-
-/* default simulator scheduling priority */
-#define NICE_DEFAULT_VALUE		0
-
-int start_pos = 0;
 
 int
 orphan_fn(int i, int argc, char **argv)

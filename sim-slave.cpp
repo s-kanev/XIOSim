@@ -114,7 +114,6 @@
 #include "synchronization.h"
 
 extern bool *consumers_sleep;
-extern int start_pos;
 extern int heartbeat_count;
 /* power stats database */
 extern struct stat_sdb_t *rtp_sdb;

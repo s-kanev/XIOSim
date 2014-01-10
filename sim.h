@@ -70,9 +70,6 @@ extern struct opt_odb_t *sim_odb;
 /* stats database */
 extern struct stat_sdb_t *sim_sdb;
 
-/* redirected program/simulator output file names */
-extern FILE *sim_progfd;
-
 extern struct core_knobs_t knobs;
 
 /*
