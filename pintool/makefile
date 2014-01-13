@@ -26,7 +26,6 @@
 #
 PIN_HOME ?= /home/skanev/pin/2.12
 ZESTO_HOME = ..
-BOOST_HOME = /home/samxi/cs261/shm/boost_1_54_0
 TARGET = ia32
 
 ##############################################################
@@ -62,9 +61,6 @@ else
     DRAMSIM_LIB = $(ZESTO_HOME)/DRAMSim2/libdramsim.a
 endif
 
-BOOST_INCLUDE = $(BOOST_HOME)/include
-BOOST_LIB = $(BOOST_HOME)/bin
-
 ##############################################################
 #
 # Tools - you may wish to add your tool name to TOOL_ROOTS
@@ -85,10 +81,8 @@ TOOLS = $(TOOL_ROOTS:%=$(OBJDIR)%$(PINTOOL_SUFFIX))
 #
 ##############################################################
 all : CXXFLAGS += -DDEBUG -D_FILE_OFFSET_BITS=64 -std=c++11
-all : CXXFLAGS += -I$(BOOST_INCLUDE)
 all: tools
 debug:	CXXFLAGS += -DZESTO_PIN_DBG -D_FILE_OFFSET_BITS=64 -std=c++11
-debug : CXXFLAGS += -I$(BOOST_INCLUDE)
 debug:	tools
 tools: $(OBJDIR) $(TOOLS) $(OBJDIR)cp-pin.exe
 test: $(OBJDIR) $(TOOL_ROOTS:%=%.test)
@@ -123,7 +117,7 @@ $(OBJDIR)%.o : %.cpp
 $(TOOLS): $(PIN_LIBNAMES) $(TOOL_OBJS) $(SIM_LIB) $(MCPAT_LIB) $(DRAMSIM_LIB) $(REPEATER_LIB)
 
 $(TOOLS): %$(PINTOOL_SUFFIX) : %.o
-	${PIN_LD} -g $(PIN_LDFLAGS) -I$(ZESTO_HOME) -L$(ZESTO_HOME) -I$(BOOST_INCLUDE) -L$(BOOST_LIB) $(LINK_DEBUG) ${LINK_OUT} $@ $< ${PIN_LPATHS} $(TOOL_OBJS) $(SIM_LIB) $(MCPAT_LIB) $(DRAMSIM_LIB) $(REPEATER_LIB) $(PIN_LIBS) $(DBG)
+	${PIN_LD} -g $(PIN_LDFLAGS) -I$(ZESTO_HOME) -L$(ZESTO_HOME) $(LINK_DEBUG) ${LINK_OUT} $@ $< ${PIN_LPATHS} $(TOOL_OBJS) $(SIM_LIB) $(MCPAT_LIB) $(DRAMSIM_LIB) $(REPEATER_LIB) $(PIN_LIBS) $(DBG)
 
 ## cleaning
 clean:
