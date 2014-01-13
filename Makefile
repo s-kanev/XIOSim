@@ -9,7 +9,7 @@
 #
 ##################################################################
 
-CC ?= g++
+CXX ?= g++
 
 ##################################################################
 # Uncomment only one of the following OFLAGS, or make your own
@@ -98,65 +98,65 @@ libd:	sim-slave.$(OEXT) $(OBJS) $(ZOBJS)
 # directory listings of the respective source directories.
 zesto-fetch.$(OEXT): zesto-fetch.cpp zesto-fetch.h ZPIPE-fetch
 	perl make_def_lists.pl fetch
-	$(CC) $(CFLAGS) -c $*.cpp
+	$(CXX) $(CFLAGS) -c $*.cpp
 
 zesto-decode.$(OEXT): zesto-decode.cpp zesto-decode.h ZPIPE-decode
 	perl make_def_lists.pl decode
-	$(CC) $(CFLAGS) -c $*.cpp
+	$(CXX) $(CFLAGS) -c $*.cpp
 
 zesto-alloc.$(OEXT): zesto-alloc.cpp zesto-alloc.h ZPIPE-alloc
 	perl make_def_lists.pl alloc
-	$(CC) $(CFLAGS) -c $*.cpp
+	$(CXX) $(CFLAGS) -c $*.cpp
 
 zesto-exec.$(OEXT): zesto-exec.cpp zesto-exec.h ZPIPE-exec
 	perl make_def_lists.pl exec
-	$(CC) $(CFLAGS) -c $*.cpp
+	$(CXX) $(CFLAGS) -c $*.cpp
 
 zesto-commit.$(OEXT): zesto-commit.cpp zesto-commit.h ZPIPE-commit
 	perl make_def_lists.pl commit
-	$(CC) $(CFLAGS) -c $*.cpp
+	$(CXX) $(CFLAGS) -c $*.cpp
 
 zesto-bpred.$(OEXT): zesto-bpred.cpp zesto-bpred.h ZCOMPS-bpred ZCOMPS-fusion ZCOMPS-btb ZCOMPS-ras
 	perl make_def_lists.pl bpred
-	$(CC) $(CFLAGS) -c $*.cpp
+	$(CXX) $(CFLAGS) -c $*.cpp
 
 zesto-memdep.$(OEXT): zesto-memdep.cpp zesto-memdep.h ZCOMPS-memdep
 	perl make_def_lists.pl memdep
-	$(CC) $(CFLAGS) -c $*.cpp
+	$(CXX) $(CFLAGS) -c $*.cpp
 
 zesto-prefetch.$(OEXT): zesto-prefetch.cpp zesto-prefetch.h ZCOMPS-prefetch
 	perl make_def_lists.pl prefetch
-	$(CC) $(CFLAGS) -c $*.cpp
+	$(CXX) $(CFLAGS) -c $*.cpp
 
 zesto-dram.$(OEXT): zesto-dram.cpp zesto-dram.h ZCOMPS-dram
 	perl make_def_lists.pl dram
-	$(CC) $(CFLAGS) -c $*.cpp
+	$(CXX) $(CFLAGS) -c $*.cpp
 
 zesto-MC.$(OEXT): zesto-MC.cpp zesto-MC.h ZCOMPS-MC
 	perl make_def_lists.pl MC
-	$(CC) $(CFLAGS) -c $*.cpp
+	$(CXX) $(CFLAGS) -c $*.cpp
 
 zesto-power.$(OEXT): zesto-power.cpp zesto-power.h ZCORE-power
 	perl make_def_lists.pl power
-	$(CC) $(CFLAGS) -c $*.cpp
+	$(CXX) $(CFLAGS) -c $*.cpp
 
 zesto-coherence.$(OEXT): zesto-coherence.cpp zesto-coherence.h ZCOMPS-coherence
 	perl make_def_lists.pl coherence
-	$(CC) $(CFLAGS) -c $*.cpp
+	$(CXX) $(CFLAGS) -c $*.cpp
 
 zesto-repeater.$(OEXT): zesto-repeater.cpp zesto-repeater.h ZCOMPS-repeater
 	perl make_def_lists.pl repeater
-	$(CC) $(CFLAGS) -c $*.cpp
+	$(CXX) $(CFLAGS) -c $*.cpp
 
 zesto-dvfs.$(OEXT): zesto-dvfs.cpp zesto-dvfs.h ZCOMPS-dvfs
 	perl make_def_lists.pl dvfs
-	$(CC) $(CFLAGS) -c $*.cpp
+	$(CXX) $(CFLAGS) -c $*.cpp
 
 .c.$(OEXT):
-	$(CC) $(CFLAGS) -c $*.c
+	$(CXX) $(CFLAGS) -c $*.c
 
 .cpp.$(OEXT):
-	$(CC) $(CFLAGS) -c $*.cpp
+	$(CXX) $(CFLAGS) -c $*.cpp
 
 clean:
 	-$(RM) *.o *.obj core libsim*
