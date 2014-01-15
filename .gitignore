@@ -3,3 +3,5 @@
 *.a
 *.swp
 *.list
+*/obj-ia32
+*cscope*

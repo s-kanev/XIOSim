@@ -1104,7 +1104,9 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
      * and unblocked the last iteration. We need to (i) wait for them
      * to functionally reach wait 0, where they will wait until the end
      * of the loop; (ii) drain all pipelines once cores are waiting. */
+    lk_lock(&printing_lock, tid);
     cerr << "pausing..." << endl;
+    lk_unlock(&printing_lock);
 
     volatile bool done_with_iteration = false;
     do {
