@@ -16,9 +16,6 @@ using namespace INSTLIB;
 
 #include "timing_sim.h"
 
-// IDs of simulaiton threads
-static THREADID *sim_threadid;
-
 const char sim_name[] = "XIOSim";
 
 extern int num_cores;
@@ -44,7 +41,7 @@ VOID ReleaseHandshake(UINT32 coreID)
 
 /* ========================================================================== */
 /* The loop running each simulated core. */
-VOID SimulatorLoop(VOID* arg)
+void* SimulatorLoop(void* arg)
 {
     INT32 coreID = reinterpret_cast<INT32>(arg);
     sim_thread_state_t *tstate = get_sim_tls(coreID);
@@ -57,7 +54,7 @@ VOID SimulatorLoop(VOID* arg)
             deactivate_core(coreID);
             tstate->sim_stopped = true;
             lk_unlock(&tstate->lock);
-            return;
+            return NULL;
         }
         lk_unlock(&tstate->lock);
 
@@ -142,24 +139,21 @@ VOID SimulatorLoop(VOID* arg)
         lastConsumerApply[instrument_tid] = cores[coreID]->sim_cycle;
 #endif
     }
+    return NULL;
 }
 
 /* ========================================================================== */
-/* Create simulator threads and set up their local storage */
-VOID SpawnSimulatorThreads(INT32 numCores)
+/* Create simulator threads */
+void SpawnSimulatorThreads(int numCores)
 {
-    cerr << numCores << endl;
-    sim_threadid = new THREADID[numCores];
-
-    THREADID tid;
-    for(INT32 i=0; i<numCores; i++) {
-        tid = PIN_SpawnInternalThread(SimulatorLoop, reinterpret_cast<VOID*>(i), 0, NULL);
-        if (tid == INVALID_THREADID) {
+    for(int i=0; i<numCores; i++) {
+        pthread_t child;
+        int res = pthread_create(&child, NULL, SimulatorLoop, reinterpret_cast<void*>(i));
+        if (res != 0) {
             cerr << "Failed spawning sim thread " << i << endl;
-            PIN_ExitProcess(EXIT_FAILURE);
+            abort();
         }
-        sim_threadid[i] = tid;
-        cerr << "Spawned sim thread " << i << " " << tid << endl;
+        cerr << "Spawned sim thread " << i << endl;
     }
 }
 
