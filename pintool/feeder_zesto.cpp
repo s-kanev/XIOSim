@@ -389,6 +389,7 @@ VOID MakeSSRequest(THREADID tid, ADDRINT pc, ADDRINT npc, ADDRINT tpc, BOOL brta
     thread_state_t* tstate = get_tls(tid);
     MakeSSContext(ictxt, &tstate->fpstate_buf, pc, npc, &hshake->handshake.ctxt);
 
+    hshake->handshake.asid = asid;
     hshake->handshake.pc = pc;
     hshake->handshake.npc = npc;
     hshake->handshake.tpc = tpc;
@@ -797,7 +798,7 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
 #endif
                 ADDRINT vsyscall_page = (ADDRINT)(auxv->a_un.a_val & 0xfffff000);
                 ipc_message_t msg;
-                msg.Mmap(asid, vsyscall_page, MD_PAGE_SIZE, false);
+                msg.Mmap(asid, vsyscall_page, PAGE_SIZE, false);
                 SendIPCMessage(msg);
             }
         }
@@ -810,8 +811,8 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
 
         // Reserve space for environment and arguments in case
         // execution starts on another thread.
-        ADDRINT tos_start = ROUND_DOWN(tos, MD_PAGE_SIZE);
-        ADDRINT bos_end = ROUND_UP(bos, MD_PAGE_SIZE);
+        ADDRINT tos_start = ROUND_DOWN(tos, PAGE_SIZE);
+        ADDRINT bos_end = ROUND_UP(bos, PAGE_SIZE);
         ipc_message_t msg;
         msg.Mmap(asid, tos_start, bos_end-tos_start, false);
         SendIPCMessage(msg);

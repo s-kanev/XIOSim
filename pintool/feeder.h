@@ -14,6 +14,7 @@ using namespace INSTLIB;
 
 #include "../interface.h"
 #include "../synchronization.h"
+#include "../memory.h"
 
 class handshake_container_t;
 

@@ -24,6 +24,7 @@ SHARED_VAR_DEFINE(ThreadCoreMap, threadCores)
 SHARED_VAR_DEFINE(XIOSIM_LOCK, lk_coreThreads)
 
 SHARED_VAR_DEFINE(XIOSIM_LOCK, printing_lock)
+SHARED_VAR_DEFINE(int, num_processes)
 
 SHARED_VAR_DEFINE(int, ss_curr);
 SHARED_VAR_DEFINE(int, ss_prev);
@@ -78,6 +79,7 @@ int InitSharedState(bool producer_process, pid_t harness_pid)
     SHARED_VAR_INIT(XIOSIM_LOCK, lk_coreThreads);
 
     SHARED_VAR_INIT(XIOSIM_LOCK, printing_lock);
+    SHARED_VAR_INIT(int, num_processes);
 
     SHARED_VAR_INIT(int, ss_curr);
     SHARED_VAR_INIT(int, ss_prev);

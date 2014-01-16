@@ -16,8 +16,8 @@ int Zesto_SlaveInit(int argc, char **argv);
 void Zesto_Resume(int coreID, handshake_container_t * handshake);
 void Zesto_Destroy();
 
-int Zesto_Notify_Mmap(int asid, unsigned int addr, unsigned int length, bool mod_brk);
-int Zesto_Notify_Munmap(int asid, unsigned int addr, unsigned int length, bool mod_brk);
+void Zesto_Notify_Mmap(int asid, unsigned int addr, unsigned int length, bool mod_brk);
+void Zesto_Notify_Munmap(int asid, unsigned int addr, unsigned int length, bool mod_brk);
 void Zesto_SetBOS(int asid, unsigned int stack_base);
 void Zesto_UpdateBrk(int asid, unsigned int brk_end, bool do_mmap);
  
@@ -33,7 +33,7 @@ void sim_drain_pipe(int coreID);
 
 void CheckIPCMessageQueue(bool isEarly, int caller_coreID);
 
-enum ipc_message_id_t { SLICE_START, SLICE_END, MMAP, MUNMAP, UPDATE_BRK, UPDATE_BOS, WARM_LLC, STOP_SIMULATION, ACTIVATE_CORE, DEACTIVATE_CORE, SCHEDULE_NEW_THREAD, ALLOCATE_THREAD, INVALID_MSG };
+enum ipc_message_id_t { SLICE_START, SLICE_END, MMAP, MUNMAP, UPDATE_BRK, WARM_LLC, STOP_SIMULATION, ACTIVATE_CORE, DEACTIVATE_CORE, SCHEDULE_NEW_THREAD, ALLOCATE_THREAD, INVALID_MSG };
 
 struct ipc_message_t {
     ipc_message_id_t id;
@@ -98,13 +98,6 @@ struct ipc_message_t {
         this->arg0 = asid;
         this->arg1 = brk_end;
         this->arg2 = do_mmap;
-    }
-
-    void UpdateBOS(int asid, unsigned int stack_base)
-    {
-        this->id = UPDATE_BOS;
-        this->arg0 = asid;
-        this->arg1 = stack_base;
     }
 
     void StopSimulation(bool kill_sim_threads)

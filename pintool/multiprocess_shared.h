@@ -5,6 +5,7 @@
 
 extern boost::interprocess::managed_shared_memory *global_shm;
 
+/* Returns "X" */
 #define Q(X) #X
 #define SINGLE_ARG(...) __VA_ARGS__
 
@@ -42,6 +43,7 @@ pid_t GetSHMRunqueue(int coreID);
 bool IsSHMThreadSimulatingMaybe(pid_t tid);
 int GetSHMThreadCore(pid_t tid);
 
+SHARED_VAR_DECLARE(int, num_processes);
 SHARED_VAR_DECLARE(XIOSIM_LOCK, printing_lock);
 
 /* librepeater */

@@ -114,6 +114,7 @@
 #include "synchronization.h"
 
 extern bool *consumers_sleep;
+extern int *num_processes;
 extern int heartbeat_count;
 /* power stats database */
 extern struct stat_sdb_t *rtp_sdb;
@@ -131,7 +132,6 @@ struct core_knobs_t knobs;
 
 /* number of cores */
 int num_cores = 1;
-bool multi_threaded = false;
 
 bool sim_slave_running = false;
 
@@ -282,12 +282,8 @@ sim_post_init(void)
   if(!threads)
     fatal("failed to calloc threads");
 
-  mem_t *mem; /* the one and only virtual memory space in multithreaded mode */
-  if(multi_threaded)
-  {
-    mem = mem_create("mem");
-    mem_init(mem);
-  }
+  /* Initialize virtual memory */
+  mem_init(*num_processes);
 
   for(i=0;i<num_cores;i++)
   {
@@ -297,16 +293,6 @@ sim_post_init(void)
 
     threads[i]->id = i;
 
-    if (multi_threaded)
-      threads[i]->mem = mem;
-    else
-    {
-      /* allocate and initialize virtual memory space */
-      char buf[128];
-      sprintf(buf,"c%d.mem",i);
-      threads[i]->mem = mem_create(buf);
-      mem_init(threads[i]->mem);
-    }
     threads[i]->finished_cycle = false;
     threads[i]->consumed = false;
     threads[i]->first_insn = true;

@@ -120,8 +120,6 @@ sim_reg_options(struct opt_odb_t *odb)
 
   opt_reg_int(odb, "-cores", "number of cores",
       &num_cores, /* default */1, /* print */true, /* format */NULL);
-  opt_reg_flag(odb, "-multi_threaded", "do cores share an address space",
-      &multi_threaded, /*default */false, /*print */true, /*format*/NULL);
 
   /* instruction limit */
   opt_reg_long_long(odb, "-max:inst", "maximum number of inst's to execute",
@@ -142,7 +140,7 @@ sim_reg_options(struct opt_odb_t *odb)
       &knobs.model, /*default*/ "DPM", /*print*/true,/*format*/NULL);
 
   opt_reg_string(odb, "-ztrace:file_prefix","zesto-trace filename",
-      &ztrace_filename, /*default*/ NULL, /*print*/true,/*format*/NULL);
+      &ztrace_filename, /*default*/ "ztrace", /*print*/true,/*format*/NULL);
 
   opt_reg_flag(odb, "-power", "simulate power",
       &knobs.power.compute, /*default*/ false, /*print*/true,/*format*/NULL);
@@ -210,8 +208,6 @@ sim_check_options(struct opt_odb_t *odb, int argc, char **argv)
 void
 cpu_reg_stats(struct core_t * core, struct stat_sdb_t *sdb)
 {
-  struct thread_t * arch = core->current_thread;
-
   core->oracle->reg_stats(sdb);
   core->fetch->reg_stats(sdb);
   core->decode->reg_stats(sdb);
@@ -223,7 +219,7 @@ cpu_reg_stats(struct core_t * core, struct stat_sdb_t *sdb)
   if(core->current_thread->id == (num_cores-1))
   {
     uncore_reg_stats(sdb);
-    mem_reg_stats(arch->mem, sdb);
+    mem_reg_stats(sdb);
   }
 }
 

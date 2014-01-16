@@ -14,6 +14,7 @@ typedef struct P2Z_HANDSHAKE {
     unsigned int tpc;                   /* Next address Pin will execute */
     struct regs_t ctxt;                 /* Register context */
     unsigned char ins[MD_MAX_ILEN];     /* Instruction bytes */
+    int asid;                           /* Address space ID */
     bool brtaken;                       /* Taken or Not-Taken for branch instructions */
     bool sleep_thread;                  /* Deactivate core */
     bool resume_thread;                 /* Re-activate core */

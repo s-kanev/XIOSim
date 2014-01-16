@@ -21,7 +21,7 @@ set BENCHMARK_CFG_FILE = "benchmarks.cfg"
 
 setenv LD_LIBRARY_PATH "/home/skanev/lib"
 
-set CMD_LINE = "setarch i686 -3BL ./obj-ia32/harness -benchmark_cfg $BENCHMARK_CFG_FILE  \
+set CMD_LINE = "setarch i686 -BR ./obj-ia32/harness -benchmark_cfg $BENCHMARK_CFG_FILE  \
                 $PIN  \
                 -pause_tool 10  \
                 -xyzzy  \

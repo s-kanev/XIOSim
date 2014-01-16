@@ -31,6 +31,7 @@
 
 boost::interprocess::managed_shared_memory *global_shm;
 SHARED_VAR_DEFINE(XIOSIM_LOCK, printing_lock);
+SHARED_VAR_DEFINE(int, num_processes)
 
 #include "confuse.h"  // For parsing config files.
 
@@ -135,8 +136,10 @@ pid_t fork_timing_simulator(std::string run_str) {
       setpgid(0, 0);
       std::string timing_cmd = get_timing_sim_args(run_str);
       int ret = system(timing_cmd.c_str());
-      if (WEXITSTATUS(ret) != 0)
+      if (WEXITSTATUS(ret) != 0) {
         std::cerr << "Execv failed: " << timing_cmd << std::endl;
+        abort();
+      }
       exit(0);
     }
     case 1: {
@@ -254,6 +257,7 @@ int main(int argc, char **argv) {
   named_mutex init_lock(open_or_create, shared_lock_key.c_str(), perm);
 
   SHARED_VAR_INIT(XIOSIM_LOCK, printing_lock);
+  SHARED_VAR_INIT(int, num_processes, harness_num_processes);
   InitIPCQueues();
 
   init_lock.unlock();

@@ -347,9 +347,6 @@ void CheckIPCMessageQueue(bool isEarly, int caller_coreID)
             case UPDATE_BRK:
                 Zesto_UpdateBrk(ipcMessage.arg0, ipcMessage.arg1, ipcMessage.arg2);
                 break;
-            case UPDATE_BOS:
-                Zesto_SetBOS(ipcMessage.arg0, ipcMessage.arg1);
-                break;
             /* Warm caches */
             case WARM_LLC:
                 Zesto_WarmLLC(ipcMessage.arg0, ipcMessage.arg1, ipcMessage.arg2);

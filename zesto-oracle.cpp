@@ -438,7 +438,7 @@ uint8_t core_oracle_t::spec_do_read_byte(const md_addr_t addr, const struct Mop_
 
   /* Finally, try and access host space.
      Check shadow page table to make sure memory is there. */
-  if (mem_translate(core->current_thread->mem, addr) == NULL) {
+  if (!mem_is_mapped(core->current_thread->asid, addr)) {
     res = 0;
     goto done;
   }
@@ -602,18 +602,18 @@ done:
 
 
 /* speculative memory state accessor macros */
-#define READ_BYTE(SRC, FAULT)     ((FAULT) = md_fault_none, uop->oracle.virt_addr = (SRC), uop->decode.mem_size = 1, XMEM_READ_BYTE(thread->mem, (SRC)))
-#define READ_WORD(SRC, FAULT)     ((FAULT) = md_fault_none, uop->oracle.virt_addr = (SRC), uop->decode.mem_size = 2, XMEM_READ_WORD(thread->mem, (SRC)))
-#define READ_DWORD(SRC, FAULT)     ((FAULT) = md_fault_none, uop->oracle.virt_addr = (SRC), uop->decode.mem_size = 4, XMEM_READ_DWORD(thread->mem, (SRC)))
-#define READ_QWORD(SRC, FAULT)    ((FAULT) = md_fault_none, uop->oracle.virt_addr = (SRC), uop->decode.mem_size = 8, XMEM_READ_QWORD(thread->mem, (SRC)))
+#define READ_BYTE(SRC, FAULT)     ((FAULT) = md_fault_none, uop->oracle.virt_addr = (SRC), uop->decode.mem_size = 1, XMEM_READ_BYTE((SRC)))
+#define READ_WORD(SRC, FAULT)     ((FAULT) = md_fault_none, uop->oracle.virt_addr = (SRC), uop->decode.mem_size = 2, XMEM_READ_WORD((SRC)))
+#define READ_DWORD(SRC, FAULT)     ((FAULT) = md_fault_none, uop->oracle.virt_addr = (SRC), uop->decode.mem_size = 4, XMEM_READ_DWORD((SRC)))
+#define READ_QWORD(SRC, FAULT)    ((FAULT) = md_fault_none, uop->oracle.virt_addr = (SRC), uop->decode.mem_size = 8, XMEM_READ_QWORD((SRC)))
 
-#define WRITE_BYTE(SRC, DST, FAULT)   ((FAULT) = md_fault_none, uop->oracle.virt_addr = (DST), uop->decode.mem_size = 1, XMEM_WRITE_BYTE(thread->mem, (DST), (SRC)))
-#define WRITE_WORD(SRC, DST, FAULT)   ((FAULT) = md_fault_none, uop->oracle.virt_addr = (DST), uop->decode.mem_size = 2, XMEM_WRITE_WORD(thread->mem, (DST), (SRC)))
-#define WRITE_DWORD(SRC, DST, FAULT)   ((FAULT) = md_fault_none, uop->oracle.virt_addr = (DST), uop->decode.mem_size = 4, XMEM_WRITE_DWORD(thread->mem, (DST), (SRC)))
-#define WRITE_QWORD(SRC, DST, FAULT)  ((FAULT) = md_fault_none, uop->oracle.virt_addr = (DST), uop->decode.mem_size = 8, XMEM_WRITE_QWORD(thread->mem, (DST), (SRC)))
+#define WRITE_BYTE(SRC, DST, FAULT)   ((FAULT) = md_fault_none, uop->oracle.virt_addr = (DST), uop->decode.mem_size = 1, XMEM_WRITE_BYTE((DST), (SRC)))
+#define WRITE_WORD(SRC, DST, FAULT)   ((FAULT) = md_fault_none, uop->oracle.virt_addr = (DST), uop->decode.mem_size = 2, XMEM_WRITE_WORD((DST), (SRC)))
+#define WRITE_DWORD(SRC, DST, FAULT)   ((FAULT) = md_fault_none, uop->oracle.virt_addr = (DST), uop->decode.mem_size = 4, XMEM_WRITE_DWORD((DST), (SRC)))
+#define WRITE_QWORD(SRC, DST, FAULT)  ((FAULT) = md_fault_none, uop->oracle.virt_addr = (DST), uop->decode.mem_size = 8, XMEM_WRITE_QWORD((DST), (SRC)))
 
 /* this is for FSTE */
-#define WRITE_DWORD2(SRC, DST, FAULT)   (uop->decode.mem_size = 12, XMEM_WRITE_DWORD2(thread->mem, (DST), (SRC)))
+#define WRITE_DWORD2(SRC, DST, FAULT)   (uop->decode.mem_size = 12, XMEM_WRITE_DWORD2((DST), (SRC)))
   /*-----------------*/
  /* </SIMPLESCALAR> */
 /*-----------------*/
@@ -1370,7 +1370,7 @@ void core_oracle_t::commit_uop(struct uop_t * const uop)
   {
     if(!uop->oracle.spec_mem[j])
       break;
-    MEM_WRITE_BYTE_NON_SPEC(core->current_thread->mem, uop->oracle.virt_addr+j, uop->oracle.spec_mem[j]->val);
+    MEM_WRITE_BYTE_NON_SPEC(core->current_thread->asid, uop->oracle.virt_addr+j, uop->oracle.spec_mem[j]->val);
     core->oracle->commit_write_byte(uop->oracle.spec_mem[j]);
     uop->oracle.spec_mem[j] = NULL;
   }
@@ -1742,6 +1742,8 @@ void core_oracle_t::grab_feeder_state(handshake_container_t * handshake, bool al
   core->fetch->fake_insn = !handshake->handshake.real;
   core->fetch->taken_branch = handshake->handshake.brtaken;
   core->fetch->feeder_ftPC = handshake->handshake.npc;
+
+  core->current_thread->asid = handshake->handshake.asid;
 
   if (handshake->handshake.real) {
     /* Copy architectural state from pin

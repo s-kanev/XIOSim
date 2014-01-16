@@ -227,67 +227,47 @@ void Zesto_SetBOS(int coreID, unsigned int stack_base)
 
 }
 
-int Zesto_Notify_Mmap(int coreID, unsigned int addr, unsigned int length, bool mod_brk)
+void Zesto_Notify_Mmap(int asid, unsigned int addr, unsigned int length, bool mod_brk)
 {
-  assert(coreID < num_cores);
-  class core_t* core = cores[coreID];
-  struct mem_t * mem = core->current_thread->mem;
-  zesto_assert((num_cores == 1) || multi_threaded, 0);
+  md_addr_t page_addr = ROUND_DOWN((md_addr_t)addr, PAGE_SIZE);
+  unsigned int page_length = ROUND_UP(length, PAGE_SIZE);
 
-  md_addr_t page_addr = ROUND_DOWN((md_addr_t)addr, MD_PAGE_SIZE);
-  unsigned int page_length = ROUND_UP(length, MD_PAGE_SIZE);
+  lk_lock(&memory_lock, 1);
+  mem_newmap(asid, page_addr, page_length);
 
-  lk_lock(&memory_lock, coreID+1);
-  md_addr_t retval = mem_newmap(mem, page_addr, page_length);
+  md_addr_t curr_brk = mem_brk(asid);
+  if(mod_brk && page_addr > curr_brk)
+    mem_update_brk(asid, page_addr + page_length);
   lk_unlock(&memory_lock);
-
-  ZPIN_TRACE(coreID, "New memory mapping at addr: %x, length: %x ,endaddr: %x \n",addr, length, addr+length);
-
-  bool success = (retval == addr);
-  zesto_assert(success, 0);
-
-  if(mod_brk && page_addr > core->current_thread->memory.brk_point)
-    core->current_thread->memory.brk_point = page_addr + page_length;
-
-  return success;
 }
 
-int Zesto_Notify_Munmap(int coreID, unsigned int addr, unsigned int length, bool mod_brk)
+void Zesto_Notify_Munmap(int asid, unsigned int addr, unsigned int length, bool mod_brk)
 {
-  assert(coreID < num_cores);
-  class core_t *core = cores[coreID];
-  struct mem_t * mem = cores[coreID]->current_thread->mem;
-  zesto_assert((num_cores == 1) || multi_threaded, 0);
-
-  lk_lock(&memory_lock, coreID+1);
-  mem_delmap(mem, ROUND_UP((md_addr_t)addr, MD_PAGE_SIZE), length);
+  lk_lock(&memory_lock, 1);
+  mem_delmap(asid, ROUND_UP((md_addr_t)addr, PAGE_SIZE), length);
   lk_unlock(&memory_lock);
-
-  ZPIN_TRACE(coreID, "Memory un-mapping at addr: %x, len: %x\n",addr, length);
-
-  return 1;
 }
 
-void Zesto_UpdateBrk(int coreID, unsigned int brk_end, bool do_mmap)
+void Zesto_UpdateBrk(int asid, unsigned int brk_end, bool do_mmap)
 {
-  assert(coreID < num_cores);
-  struct core_t * core = cores[coreID];
-
+  struct core_t * core = cores[0];
   zesto_assert(brk_end != 0, (void)0);
 
   if(do_mmap)
   {
-    unsigned int old_brk_end = core->current_thread->memory.brk_point;
+    unsigned int old_brk_end = mem_brk(asid);
 
     if(brk_end > old_brk_end)
-      Zesto_Notify_Mmap(coreID, ROUND_UP(old_brk_end, MD_PAGE_SIZE), 
-                        ROUND_UP(brk_end - old_brk_end, MD_PAGE_SIZE), false);
+      Zesto_Notify_Mmap(asid, ROUND_UP(old_brk_end, PAGE_SIZE), 
+                        ROUND_UP(brk_end - old_brk_end, PAGE_SIZE), false);
     else if(brk_end < old_brk_end)
-      Zesto_Notify_Munmap(coreID, ROUND_UP(brk_end, MD_PAGE_SIZE),
-                          ROUND_UP(old_brk_end - brk_end, MD_PAGE_SIZE), false);
+      Zesto_Notify_Munmap(asid, ROUND_UP(brk_end, PAGE_SIZE),
+                          ROUND_UP(old_brk_end - brk_end, PAGE_SIZE), false);
   }
 
-  core->current_thread->memory.brk_point = brk_end;
+  lk_lock(&memory_lock, 1);
+  mem_update_brk(asid, brk_end);
+  lk_unlock(&memory_lock);
 }
 
 void Zesto_Destroy()
@@ -433,14 +413,13 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake)
       thread->memory.stack_min = (md_addr_t)sp;
 
       /* Create local pages for stack */ 
-      md_addr_t page_start = ROUND_DOWN(sp, MD_PAGE_SIZE);
-      md_addr_t page_end = ROUND_UP(thread->memory.stack_base, MD_PAGE_SIZE);
+      md_addr_t page_start = ROUND_DOWN(sp, PAGE_SIZE);
+      md_addr_t page_end = ROUND_UP(thread->memory.stack_base, PAGE_SIZE);
 
       lk_lock(&memory_lock, coreID+1);
-      md_addr_t stack_addr = mem_newmap(thread->mem, page_start, page_end-page_start);
+      mem_newmap(handshake->handshake.asid, page_start, page_end-page_start);
       lk_unlock(&memory_lock);
       fprintf(stderr, "Stack pointer: %x; \n", sp);
-      zesto_assert(stack_addr == ROUND_DOWN(thread->memory.stack_min, MD_PAGE_SIZE), (void)0);
 
 
       thread->regs.regs_PC = handshake->handshake.pc;

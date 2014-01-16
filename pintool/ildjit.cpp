@@ -521,6 +521,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
     handshake->handshake.resume_thread = false;
     handshake->handshake.real = false;
     handshake->handshake.in_critical_section = (KnobNumCores.Value() > 1);
+    handshake->handshake.asid = asid;
     handshake->flags.valid = true;
 
     handshake->handshake.pc = (ADDRINT)wait_template_1;
@@ -540,6 +541,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
     handshake_2 = xiosim::buffer_management::get_buffer(tstate->tid);
     handshake_2->handshake.real = false;
     handshake_2->handshake.in_critical_section = (KnobNumCores.Value() > 1);
+    handshake_2->handshake.asid = asid;
     handshake_2->flags.valid = true;
 
     handshake_2->handshake.pc = (ADDRINT)wait_template_2;
@@ -628,6 +630,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
     handshake->handshake.resume_thread = false;
     handshake->handshake.real = false;
     handshake->handshake.in_critical_section = (KnobNumCores.Value() > 1) && (tstate->loop_state->unmatchedWaits > 0);
+    handshake->handshake.asid = asid;
     handshake->flags.valid = true;
 
     handshake->handshake.pc = (ADDRINT)signal_template;

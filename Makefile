@@ -50,7 +50,7 @@ CFLAGS = $(FFLAGS) $(OFLAGS) $(BINUTILS_INC) $(BINUTILS_LIB) $(ZTRACE) $(MCPAT_I
 # all the sources
 #
 SRCS =  \
-eval.c          machine.c       memory.c         misc.c         options.c   \
+eval.c          machine.c       memory.cpp         misc.c         options.c   \
 stats.c         slave.cpp         sim-main.c       callbacks.c    slices.cpp  \
 buffer.cpp
 
