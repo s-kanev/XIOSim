@@ -400,6 +400,60 @@ VOID MakeSSRequest(THREADID tid, ADDRINT pc, ADDRINT npc, ADDRINT tpc, BOOL brta
     PIN_SafeCopy(hshake->handshake.ins, (VOID*) pc, MD_MAX_ILEN);
 }
 
+/* Helper to check if producer thread @tid will grab instruction at @pc.
+ * If return value is false, we can skip instrumentaion. Can hog execution
+ * if producers are disabled by producer_sleep. */
+static BOOL CheckIgnoreConditions(THREADID tid, ADDRINT pc)
+{
+    if(*producers_sleep) {
+        PIN_SemaphoreWait(producer_sleep_lock);
+    }
+
+    /* Check thread ignore and ignore_all flags */
+    thread_state_t* tstate = get_tls(tid);
+    lk_lock(&tstate->lock, tid+1);
+    if (tstate->ignore || tstate->ignore_all) {
+        lk_unlock(&tstate->lock);
+        return false;
+    }
+    lk_unlock(&tstate->lock);
+
+    /* Check ignore API for unnecessary instructions */
+    if (IsInstructionIgnored(pc))
+        return false;
+
+    return true;
+}
+
+/* Helper to grab the correct buffer that we put instrumentation information
+ * for thread @tid. Either a new one (@first_instrumentation == true), or the
+ * last one being filled in. */
+static handshake_container_t* GetProperBuffer(pid_t tid, BOOL first_instrumentation)
+{
+    handshake_container_t* res;
+    if (first_instrumentation) {
+        res = xiosim::buffer_management::get_buffer(tid);
+    }
+    else {
+        res = xiosim::buffer_management::back(tid);
+    }
+    ASSERTX(res != NULL);
+    ASSERTX(!res->flags.valid);
+    return res;
+}
+
+/* Helper to mark the buffer of a fully instrumented instruction as valid,
+ * and let it get eventually consumed. */
+static VOID FinalizeBuffer(thread_state_t* tstate, handshake_container_t* handshake)
+{
+    // Let simulator consume instruction from SimulatorLoop
+    handshake->flags.valid = true;
+    xiosim::buffer_management::producer_done(tstate->tid);
+
+    if (tstate->num_inst && (tstate->num_inst % 1000000 == 0))
+        xiosim::buffer_management::flushBuffers(tstate->tid);
+}
+
 /* ========================================================================== */
 /* We grab the memory location that an instruction touches BEFORE executing the
  * instructions. For reads, this is what the read will return. For writes, this
@@ -407,31 +461,11 @@ VOID MakeSSRequest(THREADID tid, ADDRINT pc, ADDRINT npc, ADDRINT tpc, BOOL brta
  * to clean up corner cases of speculation */
 VOID GrabInstructionMemory(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_mem_op, ADDRINT pc)
 {
-    if(*producers_sleep) {
-      PIN_SemaphoreWait(producer_sleep_lock);
-      return;
-    }
+    if (!CheckIgnoreConditions(tid, pc))
+        return;
 
     thread_state_t* tstate = get_tls(tid);
-    lk_lock(&tstate->lock, tid+1);
-
-    if (tstate->ignore || tstate->ignore_all) {
-        lk_unlock(&tstate->lock);
-        return;
-    }
-    lk_unlock(&tstate->lock);
-
-    if (IsInstructionIgnored(pc))
-        return;
-
-    handshake_container_t* handshake;
-    if (first_mem_op) {
-        handshake = xiosim::buffer_management::get_buffer(tstate->tid);
-        ASSERTX(!handshake->flags.valid);
-    }
-    else {
-        handshake = xiosim::buffer_management::back(tstate->tid);
-    }
+    handshake_container_t* handshake = GetProperBuffer(tstate->tid, first_mem_op);
 
     /* should be the common case */
     if (first_mem_op && size <= 4) {
@@ -451,47 +485,27 @@ VOID GrabInstructionMemory(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_m
 /* ========================================================================== */
 VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDRINT tpc, const CONTEXT *ictxt, BOOL has_memory, BOOL done_instrumenting)
 {
-    if(*producers_sleep) {
-      PIN_SemaphoreWait(producer_sleep_lock);
-      return;
+    if (!CheckIgnoreConditions(tid, pc)) {
+#ifdef PRINT_DYN_TRACE
+        printTrace("jit", pc, tid);
+#endif
+        return;
     }
+
+#ifdef PRINT_DYN_TRACE
+    printTrace("sim", pc, tid);
+#endif
 
     thread_state_t* tstate = get_tls(tid);
-    lk_lock(&tstate->lock, tid+1);
-
-    if (tstate->ignore || tstate->ignore_all) {
-        lk_unlock(&tstate->lock);
-        return;
-    }
-    BOOL first_insn = tstate->firstInstruction;
-    lk_unlock(&tstate->lock);
-
-    if (IsInstructionIgnored(pc)) {
-#ifdef PRINT_DYN_TRACE
-        printTrace("jit", pc, tstate->tid);
-#endif
-        return;
-    }
-
-#ifdef PRINT_DYN_TRACE
-    printTrace("sim", pc, tstate->tid);
-#endif
-
-    handshake_container_t* handshake;
-    if (has_memory) {
-        handshake = xiosim::buffer_management::back(tstate->tid);
-    }
-    else {
-        handshake = xiosim::buffer_management::get_buffer(tstate->tid);
-        ASSERTX(!handshake->flags.valid);
-    }
-
-    ASSERTX(handshake != NULL);
-    ASSERTX(!handshake->flags.valid);
+    handshake_container_t* handshake = GetProperBuffer(tstate->tid, !has_memory);
 
     tstate->queue_pc(pc);
     tstate->num_inst++;
 
+
+    lk_lock(&tstate->lock, tid+1);
+    BOOL first_insn = tstate->firstInstruction;
+    lk_unlock(&tstate->lock);
     if (first_insn) {
         handshake->flags.BOS = tstate->bos;
         handshake->flags.isFirstInsn = true;
@@ -503,14 +517,9 @@ VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, A
     // Populate handshake buffer
     MakeSSRequest(tid, pc, NextUnignoredPC(npc), NextUnignoredPC(tpc), taken, ictxt, handshake);
 
-    if (done_instrumenting) {
-        // Let simulator consume instruction from SimulatorLoop
-        handshake->flags.valid = true;
-        xiosim::buffer_management::producer_done(tstate->tid);
-
-        if (tstate->num_inst && (tstate->num_inst % 1000000 == 0))
-            xiosim::buffer_management::flushBuffers(tstate->tid);
-    }
+    // If no more steps, instruction is ready to be consumed
+    if (done_instrumenting)
+        FinalizeBuffer(tstate, handshake);
 }
 
 /* ========================================================================== */
@@ -521,27 +530,11 @@ VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, A
  * the last iteration. */
 VOID FixRepInstructionNPC(THREADID tid, ADDRINT pc, BOOL rep_prefix, BOOL repne_prefix, ADDRINT counter_value, UINT32 opcode)
 {
-    if(*producers_sleep) {
-      PIN_SemaphoreWait(producer_sleep_lock);
-      return;
-    }
+    if (!CheckIgnoreConditions(tid, pc))
+        return;
 
     thread_state_t* tstate = get_tls(tid);
-    lk_lock(&tstate->lock, tid+1);
-
-    if (tstate->ignore || tstate->ignore_all) {
-        lk_unlock(&tstate->lock);
-        return;
-    }
-    lk_unlock(&tstate->lock);
-
-    if (IsInstructionIgnored(pc))
-        return;
-
-    handshake_container_t* handshake = xiosim::buffer_management::back(tstate->tid);
-
-    ASSERTX(handshake != NULL);
-    ASSERTX(!handshake->flags.valid);
+    handshake_container_t* handshake = GetProperBuffer(tstate->tid, false);
 
     BOOL scan = false, zf = false;
     ADDRINT op2 = 0;
@@ -615,11 +608,7 @@ VOID FixRepInstructionNPC(THREADID tid, ADDRINT pc, BOOL rep_prefix, BOOL repne_
     handshake->handshake.ctxt.regs_NPC = NPC;
 
     // Instruction is ready to be consumed
-    handshake->flags.valid = true;
-    xiosim::buffer_management::producer_done(tstate->tid);
-
-    if (tstate->num_inst && (tstate->num_inst % 1000000 == 0))
-        xiosim::buffer_management::flushBuffers(tstate->tid);
+    FinalizeBuffer(tstate, handshake);
 }
 
 /* ========================================================================== */
