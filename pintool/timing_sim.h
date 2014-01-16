@@ -21,6 +21,6 @@ public:
     BOOL sim_stopped;
     // XXX: END SHARED
 };
-sim_thread_state_t* get_sim_tls(THREADID tid);
+sim_thread_state_t* get_sim_tls(int coreID);
 
 #endif /* __TIMING_SIM__ */

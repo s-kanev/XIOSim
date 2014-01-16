@@ -23,16 +23,11 @@ const char sim_name[] = "XIOSim";
 
 extern int num_cores;
 
-// Used to access thread-local storage
-static TLS_KEY tls_key;
+static sim_thread_state_t thread_states[MAX_CORES];
 
-// Functions to access thread-specific data
-/* ========================================================================== */
-sim_thread_state_t* get_sim_tls(THREADID threadid)
+inline sim_thread_state_t* get_sim_tls(int coreID)
 {
-    sim_thread_state_t* tstate =
-          static_cast<sim_thread_state_t*>(PIN_GetThreadData(tls_key, threadid));
-    return tstate;
+    return &thread_states[coreID];
 }
 
 /* ==========================================================================
@@ -52,14 +47,11 @@ VOID ReleaseHandshake(UINT32 coreID)
 VOID SimulatorLoop(VOID* arg)
 {
     INT32 coreID = reinterpret_cast<INT32>(arg);
-    THREADID sim_tid = PIN_ThreadId();
-
-    sim_thread_state_t* tstate = new sim_thread_state_t();
-    PIN_SetThreadData(tls_key, tstate, sim_tid);
+    sim_thread_state_t *tstate = get_sim_tls(coreID);
 
     while (true) {
         /* Check kill flag */
-        lk_lock(&tstate->lock, sim_tid+1);
+        lk_lock(&tstate->lock, 1);
 
         if (!tstate->is_running) {
             deactivate_core(coreID);
@@ -130,7 +122,7 @@ VOID SimulatorLoop(VOID* arg)
             if (handshake->flags.isFirstInsn)
             {
                 Zesto_SetBOS(coreID, handshake->flags.BOS);
-                lk_lock(&tstate->lock, sim_tid+1);
+                lk_lock(&tstate->lock, 1);
                 tstate->sim_stopped = false;
                 lk_unlock(&tstate->lock);
             }
@@ -185,7 +177,7 @@ VOID StopSimulation(BOOL kill_sim_threads, int caller_coreID)
         /* Signal simulator threads to die */
         INT32 coreID;
         for (coreID=0; coreID < num_cores; coreID++) {
-            sim_thread_state_t* curr_tstate = get_sim_tls(sim_threadid[coreID]);
+            sim_thread_state_t* curr_tstate = get_sim_tls(coreID);
             lk_lock(&curr_tstate->lock, 1);
             curr_tstate->is_running = false;
             lk_unlock(&curr_tstate->lock);
@@ -200,7 +192,7 @@ VOID StopSimulation(BOOL kill_sim_threads, int caller_coreID)
                 if (coreID == caller_coreID)
                     continue;
 
-                sim_thread_state_t* curr_tstate = get_sim_tls(sim_threadid[coreID]);
+                sim_thread_state_t* curr_tstate = get_sim_tls(coreID);
                 lk_lock(&curr_tstate->lock, 1);
                 is_stopped &= curr_tstate->sim_stopped;
                 lk_unlock(&curr_tstate->lock);
@@ -283,9 +275,6 @@ int main(int argc, char * argv[])
 {
     PIN_Init(argc, argv);
     PIN_InitSymbols();
-
-    // Obtain  a key for TLS storage.
-    tls_key = PIN_CreateThreadDataKey(0);
 
     InitSharedState(false, KnobHarnessPid.Value());
     xiosim::buffer_management::InitBufferManagerConsumer();
