@@ -247,7 +247,7 @@ SSARGS MakeSimpleScalarArgcArgv(unsigned int argc, const char *argv[])
     if (ssArgBegin)
     {
         ssArgc = (ssArgEnd - ssArgBegin)    // Specified command line args
-                 + (1);                     // Null terminator for argv
+                 + (2);                     // Null terminator for argv
     }
     else
     {
