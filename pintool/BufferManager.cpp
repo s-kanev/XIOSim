@@ -1,13 +1,8 @@
-#include <errno.h>
-#include <fcntl.h>
 #include <iostream>
-#include <signal.h>
 #include <sstream>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <sys/types.h>
-#include <sys/wait.h>
 #include <unistd.h>
 
 #include <stack>
@@ -15,15 +10,10 @@
 #include <map>
 #include <queue>
 
-#include "pin.H"
-#include "instlib.H"
-using namespace INSTLIB;
-
 #include "boost_interprocess.h"
 
 #include "../interface.h"
 #include "multiprocess_shared.h"
-#include "../buffer.h"
 #include "BufferManager.h"
 
 namespace xiosim
@@ -51,13 +41,15 @@ static const char *BUFFER_MANAGER_FILE_ENTRY_COUNT_ = "buffer_manager_file_entry
 static const char *BUFFER_MANAGER_FILE_NAMES_ = "buffer_manager_file_names_";
 static const char *BUFFER_MANAGER_FILE_COUNTS_ = "buffer_manager_file_counts";
 
-void InitBufferManager()
+static int num_cores;
+
+void InitBufferManager(pid_t harness_pid, int num_cores_)
 {
   using namespace boost::interprocess;
   using namespace xiosim::shared;
 
   std::stringstream harness_pid_stream;
-  harness_pid_stream << KnobHarnessPid.Value();
+  harness_pid_stream << harness_pid;
   std::string init_lock_key =
     harness_pid_stream.str() + std::string(XIOSIM_INIT_SHARED_LOCK);
   named_mutex init_lock(open_only, init_lock_key.c_str());
@@ -84,6 +76,8 @@ void InitBufferManager()
 
   std::cout << "[" << getpid() << "]" << "Initialized all SharedUnorderedMaps" << std::endl;
   init_lock.unlock();
+
+  num_cores = num_cores_;
 }
 
 void DeinitBufferManager()
@@ -106,7 +100,7 @@ bool hasThread(pid_t tid)
 
 void cleanBridge(void)
 {
-  cerr << "BufferManager cleaning bridge." << endl;
+  std::cerr << "BufferManager cleaning bridge." << std::endl;
 
   for(auto it_threads = fileNames_.begin(); it_threads != fileNames_.end(); it_threads++)
     for (auto it_files = it_threads->second.begin(); it_files != it_threads->second.end(); it_files++) {
@@ -125,7 +119,7 @@ int AllocateThread(pid_t tid)
   fileEntryCount_[tid] = 0;
 
   int bufferEntries = 640000 / 2;
-  int bufferCapacity = bufferEntries / 2 / KnobNumCores.Value();
+  int bufferCapacity = bufferEntries / 2 / num_cores;
   if(!*useRealFile_) {
     bufferCapacity /= 8;
     fakeFile_[tid] = new Buffer(120000);

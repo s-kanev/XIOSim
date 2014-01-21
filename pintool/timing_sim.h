@@ -16,9 +16,9 @@ public:
     XIOSIM_LOCK lock;
     // XXX: SHARED -- lock protects those
     // Signal to the simulator thread to die
-    BOOL is_running;
+    bool is_running;
     // Set by simulator thread once it dies
-    BOOL sim_stopped;
+    bool sim_stopped;
     // XXX: END SHARED
 };
 sim_thread_state_t* get_sim_tls(int coreID);

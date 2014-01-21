@@ -20,6 +20,7 @@ class handshake_container_t;
 
 extern KNOB<BOOL> KnobILDJIT;
 extern KNOB<string> KnobFluffy;
+extern KNOB<int> KnobNumCores;
 extern list<THREADID> thread_list;
 extern XIOSIM_LOCK thread_list_lock;
 

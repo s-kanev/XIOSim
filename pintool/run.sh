@@ -27,9 +27,7 @@ set CMD_LINE = "setarch i686 -BR ./obj-ia32/harness -benchmark_cfg $BENCHMARK_CF
                 -xyzzy  \
                 -t  \
                 $PINTOOL  \
-                -sanity  \
                 -num_cores 2  \
-                -pipeline_instrumentation  \
                 -s  \
                 -config $ZESTOCFG  \
                 -config $MEMCFG  \

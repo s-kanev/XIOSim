@@ -1,12 +1,12 @@
 #include <unordered_map>
 
-#include "pin.H"
-
 #include "boost_interprocess.h"
 
 #include "../interface.h"
 #include "multiprocess_shared.h"
 #include "BufferManagerConsumer.h"
+
+using namespace std;
 
 namespace xiosim
 {
@@ -22,17 +22,9 @@ static std::unordered_map<pid_t, Buffer*> consumeBuffer_;
 static std::unordered_map<pid_t, int> readBufferSize_;
 static std::unordered_map<pid_t, void*> readBuffer_;
 
-VOID ConsumerSignalCallback(THREADID threadIndex, CONTEXT_CHANGE_REASON reason, const CONTEXT *from, CONTEXT *to, INT32 info, VOID *v)
+void InitBufferManagerConsumer(pid_t harness_pid, int num_cores)
 {
-    if (reason == CONTEXT_CHANGE_REASON_SIGNAL || reason == CONTEXT_CHANGE_REASON_FATALSIGNAL)
-        cleanBridge();
-}
-
-void InitBufferManagerConsumer()
-{
-    InitBufferManager();
-
-    PIN_AddContextChangeFunction(ConsumerSignalCallback, 0);
+    InitBufferManager(harness_pid, num_cores);
 }
 
 void DeinitBufferManagerConsumer()
@@ -65,11 +57,8 @@ handshake_container_t* front(pid_t tid, bool isLocal)
 
   while (fileEntryCount_[tid] == 0) {
     lk_unlock(&locks_[tid]);
-    while(*consumers_sleep) {
-      PIN_SemaphoreWait(consumer_sleep_lock);
-      //PIN_Sleep(250);
-    }
-    PIN_Yield();
+    yield();
+    wait_consumers();
     lk_lock(&locks_[tid], tid+1);
   }
 
@@ -86,10 +75,8 @@ handshake_container_t* front(pid_t tid, bool isLocal)
   int spins = 0;
   while(consumeBuffer_[tid]->empty()) {
     lk_unlock(&locks_[tid]);
-    PIN_Yield();
-    while(*consumers_sleep) {
-      PIN_SemaphoreWait(consumer_sleep_lock);
-    }
+    yield();
+    wait_consumers();
     lk_lock(&locks_[tid], tid+1);
     spins++;
     if(spins >= 2) {
@@ -235,7 +222,7 @@ static bool readHandshake(pid_t tid, int fd, handshake_container_t* handshake)
 {
   const int handshakeBytes = sizeof(P2Z_HANDSHAKE);
   const int flagBytes = sizeof(handshake_flags_t);
-  const int mapEntryBytes = sizeof(UINT32) + sizeof(UINT8);
+  const int mapEntryBytes = sizeof(uint32_t) + sizeof(uint8_t);
 
   int mapSize;
   int bytesRead = do_read(fd, &(mapSize), sizeof(int));
@@ -267,14 +254,14 @@ static bool readHandshake(pid_t tid, int fd, handshake_container_t* handshake)
 
   handshake->mem_buffer.clear();
   for(int i = 0; i < mapSize; i++) {
-    UINT32 first;
-    UINT8 second;
+    uint32_t first;
+    uint8_t second;
 
-    first = *((UINT32*)buffPosition);
-    buffPosition = (char*)buffPosition + sizeof(UINT32);
+    first = *((uint32_t*)buffPosition);
+    buffPosition = (char*)buffPosition + sizeof(uint32_t);
 
-    second = *((UINT8*)buffPosition);
-    buffPosition = (char*)buffPosition + sizeof(UINT8);
+    second = *((uint8_t*)buffPosition);
+    buffPosition = (char*)buffPosition + sizeof(uint8_t);
 
     (handshake->mem_buffer)[first] = second;
   }

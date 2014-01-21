@@ -29,6 +29,7 @@
 #include "sim.h"
 #include "synchronization.h"
 
+#include "zesto-opts.h"
 #include "zesto-core.h"
 #include "zesto-fetch.h"
 #include "zesto-oracle.h"
@@ -61,9 +62,6 @@ extern struct stat_sdb_t *rtp_sdb;
 
 /* redirected program/simulator output file names */
 extern const char *sim_simout;
-
-/* track first argument orphan, this is the program to execute */
-extern int exec_index;
 
 /* dump help information */
 extern bool help_me;
@@ -121,8 +119,7 @@ Zesto_SlaveInit(int argc, char **argv)
   sim_reg_options(sim_odb);
 
   /* parse simulator options */
-  exec_index = -1;
-  opt_process_options(sim_odb, argc, argv);
+  opt_process_options(sim_odb, argc, (char**)argv);
 
   /* redirect I/O? */
   if (sim_simout != NULL)
@@ -162,16 +159,6 @@ Zesto_SlaveInit(int argc, char **argv)
       /* seed with default or user-specified random number generator seed */
       srand(rand_seed);
     }
-
-  /* exec_index is set in orphan_fn() */
-  if (exec_index == -1)
-    {
-      /* executable was not found */
-      fprintf(stderr, "error: no executable specified\n");
-      usage(stderr, argc, argv);
-      exit(1);
-    }
-  /* else, exec_index points to simulated program arguments */
 
   /* check simulator-specific options */
   sim_check_options(sim_odb, argc, argv);

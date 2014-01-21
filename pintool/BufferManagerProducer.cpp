@@ -32,9 +32,9 @@ static std::unordered_map<pid_t, void*> writeBuffer_;
 static std::vector<boost::interprocess::string> bridgeDirs_;
 static boost::interprocess::string gpid_;
 
-void InitBufferManagerProducer(void)
+void InitBufferManagerProducer(pid_t harness_pid, int num_cores)
 {
-    InitBufferManager();
+    InitBufferManager(harness_pid, num_cores);
 
     produceBuffer_.reserve(MAX_CORES);
     writeBufferSize_.reserve(MAX_CORES);

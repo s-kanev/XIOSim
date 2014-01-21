@@ -13,7 +13,7 @@ namespace buffer_management
   using boost::interprocess::allocator;
   using namespace xiosim::shared;
 
-  void InitBufferManager();
+  void InitBufferManager(pid_t harness_pid, int num_cores);
   void DeinitBufferManager();
   bool empty(pid_t tid);
   int AllocateThread(pid_t tid);

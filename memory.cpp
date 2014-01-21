@@ -21,7 +21,7 @@ typedef std::unordered_map<md_addr_t, md_paddr_t> page_table_t;
 
 static int num_address_spaces;
 static page_table_t * page_tables;
-static md_addr_t * brk;
+static md_addr_t * brk_point;
 
 static counter_t * page_count;
 static counter_t phys_page_count;
@@ -32,7 +32,7 @@ void mem_init(int num_processes)
 
     page_tables = new page_table_t[num_processes];
     page_count = new counter_t[num_processes];
-    brk = new md_addr_t[num_processes];
+    brk_point = new md_addr_t[num_processes];
 }
 
 /* We allocate physical pages to virtual pages on a
@@ -122,13 +122,13 @@ md_paddr_t v2p_translate_safe(int asid, md_addr_t virt_addr)
 /* Get top of data segment */
 md_addr_t mem_brk(int asid)
 {
-    return brk[asid];
+    return brk_point[asid];
 }
 
 /* Update top of data segment */
-void mem_update_brk(int asid, md_addr_t _brk)
+void mem_update_brk(int asid, md_addr_t brk_)
 {
-    brk[asid] = _brk;
+    brk_point[asid] = brk_;
 }
 
 /* register memory system-specific statistics */

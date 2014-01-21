@@ -7,7 +7,7 @@ namespace xiosim
 {
 namespace buffer_management
 {
-void InitBufferManagerConsumer();
+void InitBufferManagerConsumer(pid_t harness_pid, int num_cores);
 void DeinitBufferManagerConsumer();
 void AllocateThreadConsumer(pid_t tid, int buffer_capacity);
 

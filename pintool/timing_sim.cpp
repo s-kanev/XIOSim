@@ -1,8 +1,14 @@
-#include "pin.H"
-#include "instlib.H"
-using namespace INSTLIB;
-
 #include "boost_interprocess.h"
+
+#pragma diagnostic push
+#pragma GCC diagnostic ignored "-Wsign-compare"
+#pragma GCC diagnostic ignored "-Wreorder"
+#pragma GCC diagnostic ignored "-Wparentheses"
+#pragma GCC diagnostic ignored "-Wunused-variable"
+#pragma GCC diagnostic ignored "-Wunused-function"
+#pragma GCC diagnostic ignored "-Wformat-extra-args"
+#include "ezOptionParser.hpp"
+#pragma diagnostic pop
 
 #include "../interface.h"
 #include "multiprocess_shared.h"
@@ -27,13 +33,16 @@ inline sim_thread_state_t* get_sim_tls(int coreID)
     return &thread_states[coreID];
 }
 
+using namespace std;
+using namespace xiosim; //Until we namespace everything
+
 /* ==========================================================================
  * Called from simulator once handshake is free to be reused.
  * This allows to pipeline instrumentation and simulation. */
-VOID ReleaseHandshake(UINT32 coreID)
+void ReleaseHandshake(int coreID)
 {
     pid_t instrument_tid = GetCoreThread(coreID);
-    ASSERTX(!xiosim::buffer_management::empty(instrument_tid));
+    assert(!xiosim::buffer_management::empty(instrument_tid));
 
     // pop() invalidates the buffer
     xiosim::buffer_management::pop(instrument_tid);
@@ -43,7 +52,7 @@ VOID ReleaseHandshake(UINT32 coreID)
 /* The loop running each simulated core. */
 void* SimulatorLoop(void* arg)
 {
-    INT32 coreID = reinterpret_cast<INT32>(arg);
+    int coreID = reinterpret_cast<int>(arg);
     sim_thread_state_t *tstate = get_sim_tls(coreID);
 
     while (true) {
@@ -63,21 +72,19 @@ void* SimulatorLoop(void* arg)
         CheckIPCMessageQueue(true, coreID);
 
         if (!is_core_active(coreID)) {
-            PIN_Sleep(10);
+            xio_sleep(10);
             continue;
         }
 
         // Get the latest thread we are running from the scheduler
         pid_t instrument_tid = GetCoreThread(coreID);
-        if (instrument_tid == (pid_t)INVALID_THREADID) {
+        if (instrument_tid == INVALID_THREADID) {
             continue;
         }
 
         while (xiosim::buffer_management::empty(instrument_tid)) {
-            PIN_Yield();
-            while(*consumers_sleep) {
-                PIN_SemaphoreWait(consumer_sleep_lock);
-            }
+            yield();
+            wait_consumers();
         }
 
         int consumerHandshakes = xiosim::buffer_management::getConsumerSize(instrument_tid);
@@ -89,13 +96,11 @@ void* SimulatorLoop(void* arg)
 
         int numConsumed = 0;
         for(int i = 0; i < consumerHandshakes; i++) {
-            while(*consumers_sleep) {
-                PIN_SemaphoreWait(consumer_sleep_lock);
-            }
+            wait_consumers();
 
             handshake_container_t* handshake = xiosim::buffer_management::front(instrument_tid, true);
-            ASSERTX(handshake != NULL);
-            ASSERTX(handshake->flags.valid);
+            assert(handshake != NULL);
+            assert(handshake->flags.valid);
 
             // Check thread exit flag
             if (handshake->flags.killThread) {
@@ -104,7 +109,7 @@ void* SimulatorLoop(void* arg)
                 // Let the scheduler send something else to this core
                 DescheduleActiveThread(coreID);
 
-                ASSERTX(i == consumerHandshakes-1); // Check that there are no more handshakes
+                assert(i == consumerHandshakes-1); // Check that there are no more handshakes
                 break;
             }
 
@@ -143,10 +148,13 @@ void* SimulatorLoop(void* arg)
 }
 
 /* ========================================================================== */
-/* Create simulator threads */
+/* Create simulator threads, and wait until they finish. */
 void SpawnSimulatorThreads(int numCores)
 {
-    for(int i=0; i<numCores; i++) {
+    pthread_t * threads = new pthread_t[numCores];
+
+    /* Spawn all threads */
+    for (int i=0; i<numCores; i++) {
         pthread_t child;
         int res = pthread_create(&child, NULL, SimulatorLoop, reinterpret_cast<void*>(i));
         if (res != 0) {
@@ -154,6 +162,12 @@ void SpawnSimulatorThreads(int numCores)
             abort();
         }
         cerr << "Spawned sim thread " << i << endl;
+        threads[i] = child;
+    }
+
+    /* and sleep until the simulation finishes */
+    for (int i=0; i<numCores; i++) {
+        pthread_join(threads[i], NULL);
     }
 }
 
@@ -162,15 +176,14 @@ void SpawnSimulatorThreads(int numCores)
  * - Not in a pinpoints ROI.
  * - Anything after PauseSimulation (or the HELIX equivalent)
  * This implies all cores are inactive. And handshake buffers are already drained. */
-VOID StopSimulation(BOOL kill_sim_threads, int caller_coreID)
+void StopSimulation(bool kill_sim_threads, int caller_coreID)
 {
     /* For now, force end the slice (once!), once all processes have finished. */
     Zesto_Slice_End(1, 0, 100 * 1000);
 
     if (kill_sim_threads) {
         /* Signal simulator threads to die */
-        INT32 coreID;
-        for (coreID=0; coreID < num_cores; coreID++) {
+        for (int coreID=0; coreID < num_cores; coreID++) {
             sim_thread_state_t* curr_tstate = get_sim_tls(coreID);
             lk_lock(&curr_tstate->lock, 1);
             curr_tstate->is_running = false;
@@ -182,7 +195,7 @@ VOID StopSimulation(BOOL kill_sim_threads, int caller_coreID)
         do {
             is_stopped = true;
 
-            for (coreID=0; coreID < num_cores; coreID++) {
+            for (int coreID=0; coreID < num_cores; coreID++) {
                 if (coreID == caller_coreID)
                     continue;
 
@@ -197,7 +210,7 @@ VOID StopSimulation(BOOL kill_sim_threads, int caller_coreID)
     Zesto_Destroy();
 
     if (kill_sim_threads)
-        PIN_ExitProcess(EXIT_SUCCESS);
+        exit(EXIT_SUCCESS);
 }
 
 /* ========================================================================== */
@@ -214,15 +227,15 @@ VOID StopSimulation(BOOL kill_sim_threads, int caller_coreID)
  * second stage we nullify SimpleScalar's arguments from the original (Pin's)
  * command line so that Pin doesn't see during its own command line parsing
  * stage. */
-typedef pair <UINT32, CHAR **> SSARGS;
-SSARGS MakeSimpleScalarArgcArgv(UINT32 argc, CHAR *argv[])
+typedef pair <unsigned int, char **> SSARGS;
+SSARGS MakeSimpleScalarArgcArgv(unsigned int argc, const char *argv[])
 {
-    CHAR   **ssArgv   = 0;
-    UINT32 ssArgBegin = 0;
-    UINT32 ssArgc     = 0;
-    UINT32 ssArgEnd   = argc;
+    char   **ssArgv   = 0;
+    unsigned int ssArgBegin = 0;
+    unsigned int ssArgc     = 0;
+    unsigned int ssArgEnd   = argc;
 
-    for (UINT32 i = 0; i < argc; i++)
+    for (unsigned int i = 0; i < argc; i++)
     {
         if ((string(argv[i]) == "-s") || (string(argv[i]) == "--"))
         {
@@ -240,49 +253,58 @@ SSARGS MakeSimpleScalarArgcArgv(UINT32 argc, CHAR *argv[])
     {
         // Coming here implies the command line has not been setup properly even
         // to run Pin, so return. Pin will complain appropriately.
-        return make_pair(argc, argv);
+        return make_pair(argc, const_cast <char **>(argv));
     }
 
     // This buffer will hold SimpleScalar's argv
-    ssArgv = reinterpret_cast <CHAR **> (calloc(ssArgc, sizeof(CHAR *)));
+    ssArgv = reinterpret_cast <char **> (calloc(ssArgc, sizeof(char *)));
+    if (ssArgv == NULL) {
+        std::cerr << "Calloc argv failed" << std::endl;
+        abort();
+    }
 
-    UINT32 ssArgIndex = 0;
-    ssArgv[ssArgIndex++] = const_cast <CHAR*>(sim_name);  // Does not matter; just for sanity
-    for (UINT32 pin = ssArgBegin; pin < ssArgEnd; pin++)
+    unsigned int ssArgIndex = 0;
+    ssArgv[ssArgIndex++] = const_cast <char*>(sim_name);  // Does not matter; just for sanity
+    for (unsigned int pin = ssArgBegin; pin < ssArgEnd; pin++)
     {
         if (string(argv[pin]) != "--")
         {
             string *argvCopy = new string(argv[pin]);
-            ssArgv[ssArgIndex++] = const_cast <CHAR *> (argvCopy->c_str());
+            ssArgv[ssArgIndex++] = const_cast <char *> (argvCopy->c_str());
         }
     }
 
     // Terminate the argv. Ending must terminate with a pointer *referencing* a
     // NULL. Simply terminating the end of argv[n] w/ NULL violates conventions
-    ssArgv[ssArgIndex++] = new CHAR('\0');
+    ssArgv[ssArgIndex++] = new char('\0');
 
     return make_pair(ssArgc, ssArgv);
 }
 
 /* ========================================================================== */
-int main(int argc, char * argv[])
+int main(int argc, const char * argv[])
 {
-    PIN_Init(argc, argv);
-    PIN_InitSymbols();
+    ez::ezOptionParser opts;
+    opts.overview = "XIOSim timing_sim options";
+    opts.syntax = "XXX";
+    opts.add("-1", 1, 1, 0, "Harness PID", "-harness_pid");
+    opts.add("1", 1, 1, 0, "Number of cores simulated", "-num_cores");
+    opts.parse(argc, argv);
 
-    InitSharedState(false, KnobHarnessPid.Value());
-    xiosim::buffer_management::InitBufferManagerConsumer();
+    int harness_pid;
+    opts.get("-harness_pid")->getInt(harness_pid);
+    int num_cores;
+    opts.get("-num_cores")->getInt(num_cores);
+
+    InitSharedState(false, harness_pid, num_cores);
+    xiosim::buffer_management::InitBufferManagerConsumer(harness_pid, num_cores);
 
     // Prepare args for libsim
     SSARGS ssargs = MakeSimpleScalarArgcArgv(argc, argv);
     Zesto_SlaveInit(ssargs.first, ssargs.second);
 
-    ASSERTX( num_cores == KnobNumCores.Value() );
-
     InitScheduler(num_cores);
     SpawnSimulatorThreads(num_cores);
-
-    PIN_StartProgram();
 
     return 0;
 }

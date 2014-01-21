@@ -26,12 +26,15 @@ extern boost::interprocess::managed_shared_memory *global_shm;
 #define SHARED_VAR_CONSTRUCT(TYPE, VAR, SHM_KEY, ...) \
     VAR = new TYPE(SHM_KEY, VAR##_KEY, ## __VA_ARGS__);
 
-SHARED_VAR_DECLARE(bool, consumers_sleep)
-SHARED_VAR_DECLARE(bool, producers_sleep)
 SHARED_VAR_DECLARE(bool, sleeping_enabled)
 
-SHARED_VAR_DECLARE(PIN_SEMAPHORE, consumer_sleep_lock)
-SHARED_VAR_DECLARE(PIN_SEMAPHORE, producer_sleep_lock)
+SHARED_VAR_DECLARE(bool, consumers_sleep)
+SHARED_VAR_DECLARE(pthread_cond_t, cv_consumers)
+SHARED_VAR_DECLARE(pthread_mutex_t, cv_consumers_lock)
+
+SHARED_VAR_DECLARE(bool, producers_sleep)
+SHARED_VAR_DECLARE(pthread_cond_t, cv_consumers)
+SHARED_VAR_DECLARE(pthread_mutex_t, cv_consumers_lock)
 
 SHARED_VAR_DECLARE(pid_t, coreThreads);
 typedef xiosim::shared::SharedMemoryMap<pid_t, int> ThreadCoreMap;
@@ -51,16 +54,14 @@ SHARED_VAR_DECLARE(int, ss_curr);
 SHARED_VAR_DECLARE(int, ss_prev);
 
 /* Init state in shared memory. Returns unique address space id for producers */
-int InitSharedState(bool producer_process, pid_t harness_pid);
+int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores);
 void SendIPCMessage(ipc_message_t msg);
 
 void disable_consumers();
 void enable_consumers();
+void wait_consumers();
 void disable_producers();
 void enable_producers();
-void wait_consumers();
-
-extern KNOB<int> KnobNumCores;
-extern KNOB<pid_t> KnobHarnessPid;
+void wait_producers();
 
 #endif /* __MP_SHARED__ */

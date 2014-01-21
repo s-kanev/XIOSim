@@ -61,6 +61,11 @@ KNOB<string> KnobFluffy(KNOB_MODE_WRITEONCE,      "pintool",
         "fluffy_annotations", "", "Annotation file that specifies fluffy ROI");
 KNOB<BOOL> KnobWarmLLC(KNOB_MODE_WRITEONCE,      "pintool",
         "warm_llc", "false", "Warm LLC while fast-forwarding");
+KNOB<int> KnobNumCores(KNOB_MODE_WRITEONCE,      "pintool",
+        "num_cores", "1", "Number of cores simulated");
+KNOB<pid_t> KnobHarnessPid(KNOB_MODE_WRITEONCE, "pintool",
+        "harness_pid", "-1", "Process id of the harness process.");
+
 map<ADDRINT, string> pc_diss;
 
 ofstream pc_file;
@@ -405,9 +410,7 @@ VOID MakeSSRequest(THREADID tid, ADDRINT pc, ADDRINT npc, ADDRINT tpc, BOOL brta
  * if producers are disabled by producer_sleep. */
 static BOOL CheckIgnoreConditions(THREADID tid, ADDRINT pc)
 {
-    if(*producers_sleep) {
-        PIN_SemaphoreWait(producer_sleep_lock);
-    }
+    wait_producers();
 
     /* Check thread ignore and ignore_all flags */
     thread_state_t* tstate = get_tls(tid);
@@ -940,8 +943,8 @@ INT32 main(INT32 argc, CHAR **argv)
 
     // Synchronize all processes here to ensure that in multiprogramming mode,
     // no process will start too far before the others.
-    asid = InitSharedState(true, KnobHarnessPid.Value());
-    xiosim::buffer_management::InitBufferManagerProducer();
+    asid = InitSharedState(true, KnobHarnessPid.Value(), KnobNumCores.Value());
+    xiosim::buffer_management::InitBufferManagerProducer(KnobHarnessPid.Value(), KnobNumCores.Value());
 
     if(KnobAMDHack.Value()) {
       amd_hack();

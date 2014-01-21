@@ -114,16 +114,20 @@ std::string get_timing_sim_args(std::string harness_args) {
     size_t feeder_opt_end_pos = harness_args.find("-t ") +
                             strlen("-t ");
     size_t feeder_so_pos = harness_args.find("feeder_zesto.so");
+    size_t feeder_so_end_pos = feeder_so_pos + strlen("feeder_zesto.so");
+    
     std::string feeder_path = harness_args.substr(feeder_opt_end_pos, feeder_so_pos - feeder_opt_end_pos);
+    std::string timing_fname = feeder_path + "timing_sim";
 
-    size_t feeder_pos = 0;
-    while ((feeder_pos = harness_args.find("feeder_zesto", feeder_pos)) != std::string::npos) {
-        harness_args.replace(feeder_pos, strlen("feeder_zesto"), "timing_sim");
-        feeder_pos += strlen("timing_sim");
-    }
+    // Remove everything before and including the "-t" feeder option
+    harness_args.erase(0, feeder_so_end_pos);
 
+    // Prefix with invoking timing_sim binary
+    harness_args = timing_fname + " " + harness_args;
+
+    // Remove trailing "--"
     auto pos = harness_args.rfind("--");
-    harness_args.replace(pos, harness_args.length(), "-- " + feeder_path + "timing_wait");
+    harness_args.erase(pos);
     std::cout << "timing_sim args: " << harness_args << std::endl;
     return harness_args;
 }
@@ -135,6 +139,7 @@ pid_t fork_timing_simulator(std::string run_str) {
     case 0: {   // child
       setpgid(0, 0);
       std::string timing_cmd = get_timing_sim_args(run_str);
+      //exit(0);
       int ret = system(timing_cmd.c_str());
       if (WEXITSTATUS(ret) != 0) {
         std::cerr << "Execv failed: " << timing_cmd << std::endl;

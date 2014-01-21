@@ -38,8 +38,6 @@ TARGET = ia32
 
 PIN_KIT=$(PIN_HOME)
 KIT=1
-TESTAPP=$(OBJDIR)cp-pin.exe
-
 
 TARGET_COMPILER?=gnu
 ifeq ($(TARGET_COMPILER),gnu)
@@ -76,13 +74,13 @@ LIBCONFUSE_FLAGS = -I$(USER_LOCAL)include -L$(USER_LOCAL)lib
 
 TOOL_ROOTS = timing_sim
 
-TOOL_OBJS = $(OBJDIR)lib.o $(OBJDIR)utils.o $(OBJDIR)scheduler.o $(OBJDIR)multiprocess_shared.o  $(OBJDIR)ipc_queues.o $(OBJDIR)mpkeys_impl.o $(OBJDIR)BufferManagerConsumer.o $(OBJDIR)BufferManager.o
+TOOL_OBJS = $(OBJDIR)timing_sim.o $(OBJDIR)lib.o $(OBJDIR)scheduler.o $(OBJDIR)multiprocess_shared.o  $(OBJDIR)ipc_queues.o $(OBJDIR)mpkeys_impl.o $(OBJDIR)BufferManagerConsumer.o $(OBJDIR)BufferManager.o
 
 HARNESS_OBJS = $(OBJDIR)harness.o $(OBJDIR)ipc_queues.o $(OBJDIR)mpkeys_impl.o
 
-FEEDER_OBJS = $(ZESTO_HOME)/buffer.o $(OBJDIR)ildjit.o $(OBJDIR)fluffy.o $(OBJDIR)utils.o $(OBJDIR)sync_pthreads.o $(OBJDIR)parsec.o $(OBJDIR)syscall_handling.o $(OBJDIR)ignore_ins.o $(OBJDIR)mpkeys_impl.o $(OBJDIR)ipc_queues.o $(OBJDIR)multiprocess_shared.o $(OBJDIR)BufferManagerProducer.o $(OBJDIR)BufferManager.o 
+FEEDER_OBJS = $(OBJDIR)feeder_zesto.o $(ZESTO_HOME)/buffer.o $(OBJDIR)ildjit.o $(OBJDIR)fluffy.o $(OBJDIR)utils.o $(OBJDIR)sync_pthreads.o $(OBJDIR)parsec.o $(OBJDIR)syscall_handling.o $(OBJDIR)ignore_ins.o $(OBJDIR)mpkeys_impl.o $(OBJDIR)ipc_queues.o $(OBJDIR)multiprocess_shared.o $(OBJDIR)BufferManagerProducer.o $(OBJDIR)BufferManager.o 
 
-TOOLS = $(TOOL_ROOTS:%=$(OBJDIR)%$(PINTOOL_SUFFIX))
+TOOLS = $(OBJDIR)$(TOOL_ROOTS)
 
 STATIC_LIBS = mpkeys
 SHM_LDFLAGS = -ldl
@@ -94,13 +92,14 @@ SHM_LDFLAGS = -ldl
 ##############################################################
 all : CXXFLAGS += -DDEBUG -D_FILE_OFFSET_BITS=64 -std=c++11 -Wall -Werror
 all : CXXFLAGS += -I$(BOOST_INCLUDE) $(BOOST_LDFLAGS) $(SHM_LDFLAGS)
-all: tools $(OBJDIR)harness $(OBJDIR)feeder_zesto.so $(OBJDIR)timing_wait
+all: tools $(OBJDIR)harness $(OBJDIR)feeder_zesto.so
 debug:	CXXFLAGS += -DZESTO_PIN_DBG -D_FILE_OFFSET_BITS=64 -std=c++11 -Wall -Werror
 debug : CXXFLAGS += -I$(BOOST_INCLUDE)
 debug:	tools
-tools: $(OBJDIR) $(TOOLS) $(OBJDIR)cp-pin.exe
-test: $(OBJDIR) $(TOOL_ROOTS:%=%.test)
+tools: $(OBJDIR) $(TOOLS)
 
+##############################################################
+# Subcomponents
 $(ZESTO_HOME)/libsim.a:
 	$(MAKE) -C $(ZESTO_HOME) lib
 
@@ -113,39 +112,26 @@ $(ZESTO_HOME)/mcpat/mcpat.a:
 $(ZESTO_HOME)/mem-repeater/librepeater.a:
 	$(MAKE) -C $(ZESTO_HOME)/mem-repeater
 
-MyPinTool.test: $(OBJDIR)cp-pin.exe
-      $(MAKE) -k -C feeder_zesto PIN_HOME=$(PIN_HOME)
-
-$(OBJDIR)cp-pin.exe:
-	$(CXX) $(PIN_HOME)/source/tools/Tests/cp-pin.cpp $(APP_CXXFLAGS) -o $(OBJDIR)cp-pin.exe
-
-static_libs: $(STATIC_LIBS)_impl.cpp
-	$(CXX) -fPIC -shared $(STATIC_LIBS).h -o $(STATIC_LIBS).so
-#$(CXX) $(STATIC_LIBS).a $(OBJDIR)lib$(STATIC_LIBS).o
-
 $(OBJDIR):
 	mkdir -p $(OBJDIR)
 
 $(OBJDIR)%.o : %.cpp
 	$(CXX) -c -I$(BOOST_INCLUDE) $(CXXFLAGS) $(PIN_CXXFLAGS) ${OUTOPT}$@ $<
 
-$(TOOLS): $(PIN_LIBNAMES) $(TOOL_OBJS) $(SIM_LIB) $(MCPAT_LIB) $(DRAMSIM_LIB) $(REPEATER_LIB)
+$(TOOLS): $(TOOL_OBJS) $(SIM_LIB) $(MCPAT_LIB) $(DRAMSIM_LIB) $(REPEATER_LIB)
 
-$(TOOLS): %$(PINTOOL_SUFFIX) : %.o
-	${PIN_LD} -g $(PIN_LDFLAGS) -I$(ZESTO_HOME) -L$(ZESTO_HOME) -I$(BOOST_INCLUDE) $(LINK_DEBUG) ${LINK_OUT} $@ $< ${PIN_LPATHS} $(TOOL_OBJS) $(SIM_LIB) $(MCPAT_LIB) $(DRAMSIM_LIB) $(REPEATER_LIB) $(PIN_LIBS) $(DBG) -lrt -pthread 
+$(TOOLS):
+	${PIN_LD} -g -I$(ZESTO_HOME) -L$(ZESTO_HOME) -I$(BOOST_INCLUDE) $(LINK_DEBUG) ${LINK_OUT} $@ $^ $(DBG) -lrt -pthread 
 
-$(OBJDIR)feeder_zesto.so: $(FEEDER_OBJS) $(OBJDIR)feeder_zesto.o
+$(OBJDIR)feeder_zesto.so: $(FEEDER_OBJS) 
 	${PIN_LD} -g $(PIN_LDFLAGS) -I$(ZESTO_HOME) -I$(BOOST_INCLUDE) $(LINK_DEBUG) ${LINK_OUT} $@ ${PIN_LPATHS} $^ $(PIN_LIBS) $(DBG) -lrt -pthread 
 
 $(OBJDIR)harness: $(HARNESS_OBJS)
 	${PIN_LD} -g $(CXXFLAGS) ${SHM_LDFLAGS} $(LINK_DEBUG) ${LINK_OUT} $@ $^ -pthread -lrt -lconfuse
 
-$(OBJDIR)timing_wait: timing_wait.cpp
-	$(CXX) $(CXXFLAGS) ${OUTOPT} $@ $<
-
 ## cleaning
 clean:
-	-rm -rf $(OBJDIR) *.out *.tested *.failed makefile.copy harness
+	-rm -rf $(OBJDIR) *.out *.tested *.failed makefile.copy
 	$(MAKE) -C $(ZESTO_HOME) clean
 	$(MAKE) -C $(ZESTO_HOME)/mcpat clean
 	if [ -n "$(DRAMSIM_LIB)" ]; then $(MAKE) -C $(ZESTO_HOME)/DRAMSim2 clean; fi
@@ -162,7 +148,6 @@ clean-harness:
 
 install:
 	cp $(TOOLS) $(COOL_INSTALL_DIR)
-	cp $(OBJDIR)timing_wait $(COOL_INSTALL_DIR)
 	cp $(OBJDIR)feeder_zesto.so $(COOL_INSTALL_DIR)
 	cp $(OBJDIR)harness $(COOL_INSTALL_DIR)
 	git log -1 --format="%H" > $(COOL_INSTALL_DIR)/version

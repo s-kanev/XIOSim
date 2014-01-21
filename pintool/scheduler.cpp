@@ -7,20 +7,19 @@
 #include <queue>
 #include <map>
 
-#include "pin.H"
-#include "instlib.H"
-using namespace INSTLIB;
-
 #include "boost_interprocess.h"
 
 #include "../interface.h"
 #include "multiprocess_shared.h"
 
-#include "feeder.h"
 #include "scheduler.h"
 
 #include "../zesto-core.h"
 #include "../zesto-structs.h"
+
+extern int num_cores;
+
+namespace xiosim {
 
 struct RunQueue {
     RunQueue() {
@@ -32,27 +31,27 @@ struct RunQueue {
 
     XIOSIM_LOCK lk;
     // XXX: SHARED -- lock protects those
-    queue<pid_t> q;
+    std::queue<pid_t> q;
     // XXX: END SHARED
 };
 
 static RunQueue * run_queues;
 
-static INT32 last_coreID;
+static int last_coreID;
 
 /* Update shm array of running threads */
 static void UpdateSHMRunqueues(int coreID, pid_t tid)
 {
     lk_lock(lk_coreThreads, 1);
     coreThreads[coreID] = tid;
-    if (tid != (pid_t)INVALID_THREADID)
+    if (tid != INVALID_THREADID)
         threadCores->operator[](tid) = coreID;
     lk_unlock(lk_coreThreads);
 }
 
 static void UpdateSHMThreadCore(pid_t tid, int coreID)
 {
-    if (tid == (pid_t)INVALID_THREADID)
+    if (tid == INVALID_THREADID)
         return;
     lk_lock(lk_coreThreads, 1);
     threadCores->operator[](tid) = coreID;
@@ -67,18 +66,18 @@ static void RemoveSHMThread(pid_t tid)
 }
 
 /* ========================================================================== */
-VOID InitScheduler(INT32 num_cores)
+void InitScheduler(int num_cores)
 {
     run_queues = new RunQueue[num_cores];
     last_coreID = 0;
 }
 
 /* ========================================================================== */
-VOID ScheduleNewThread(pid_t tid)
+void ScheduleNewThread(pid_t tid)
 {
     if (GetSHMThreadCore(tid) != -1) {
         lk_lock(printing_lock, 1);
-        cerr << "ScheduleNewThread: thread " << tid << " already scheduled, ignoring." << endl;
+        std::cerr << "ScheduleNewThread: thread " << tid << " already scheduled, ignoring." << std::endl;
         lk_unlock(printing_lock);
         return;
     }
@@ -95,11 +94,11 @@ VOID ScheduleNewThread(pid_t tid)
     run_queues[last_coreID].q.push(tid);
     lk_unlock(&run_queues[last_coreID].lk);
 
-    last_coreID  = (last_coreID + 1) % KnobNumCores.Value();
+    last_coreID  = (last_coreID + 1) % num_cores;
 }
 
 /* ========================================================================== */
-VOID DescheduleActiveThread(INT32 coreID)
+void DescheduleActiveThread(int coreID)
 {
     lk_lock(&run_queues[coreID].lk, 1);
 
@@ -107,7 +106,7 @@ VOID DescheduleActiveThread(INT32 coreID)
     run_queues[coreID].last_reschedule = cores[coreID]->sim_cycle;
 
     lk_lock(printing_lock, 1);
-    cerr << "Descheduling thread " << tid << " at coreID  " << coreID << endl;
+    std::cerr << "Descheduling thread " << tid << " at coreID  " << coreID << std::endl;
     lk_unlock(printing_lock);
 
     /* Deallocate thread state -- XXX: send IPC back to feeder */
@@ -126,7 +125,7 @@ VOID DescheduleActiveThread(INT32 coreID)
         new_tid = run_queues[coreID].q.front();
 
         lk_lock(printing_lock, tid+1);
-        cerr << "Thread " << new_tid << " going on core " << coreID << endl;
+        std::cerr << "Thread " << new_tid << " going on core " << coreID << std::endl;
         lk_unlock(printing_lock);
     } else {
         /* No more work to do, let other cores progress */
@@ -139,14 +138,14 @@ VOID DescheduleActiveThread(INT32 coreID)
 
 /* ========================================================================== */
 /* XXX: This is called from a sim thread -- the one that frees up the core */
-VOID GiveUpCore(INT32 coreID, BOOL reschedule_thread)
+void GiveUpCore(int coreID, bool reschedule_thread)
 {
     lk_lock(&run_queues[coreID].lk, 1);
     pid_t tid = run_queues[coreID].q.front();
     run_queues[coreID].last_reschedule = cores[coreID]->sim_cycle;
 
     lk_lock(printing_lock, tid+1);
-    cerr << "Thread " << tid << " giving up on core " << coreID << endl;
+    std::cerr << "Thread " << tid << " giving up on core " << coreID << std::endl;
     lk_unlock(printing_lock);
 
     run_queues[coreID].q.pop();
@@ -156,7 +155,7 @@ VOID GiveUpCore(INT32 coreID, BOOL reschedule_thread)
         new_tid = run_queues[coreID].q.front();
 
         lk_lock(printing_lock, tid+1);
-        cerr << "Thread " << new_tid << " going on core " << coreID << endl;
+        std::cerr << "Thread " << new_tid << " going on core " << coreID << std::endl;
         lk_unlock(printing_lock);
     }
     else if (!reschedule_thread) {
@@ -169,7 +168,7 @@ VOID GiveUpCore(INT32 coreID, BOOL reschedule_thread)
         run_queues[coreID].q.push(tid);
 
         lk_lock(printing_lock, tid+1);
-        cerr << "Rescheduling " << tid << " on core " << coreID << endl;
+        std::cerr << "Rescheduling " << tid << " on core " << coreID << std::endl;
         lk_unlock(printing_lock);
     }
     lk_unlock(&run_queues[coreID].lk);
@@ -181,7 +180,7 @@ VOID GiveUpCore(INT32 coreID, BOOL reschedule_thread)
 }
 
 /* ========================================================================== */
-pid_t GetCoreThread(INT32 coreID)
+pid_t GetCoreThread(int coreID)
 {
     pid_t result;
     lk_lock(&run_queues[coreID].lk, 1);
@@ -194,9 +193,9 @@ pid_t GetCoreThread(INT32 coreID)
 }
 
 /* ========================================================================== */
-BOOL IsCoreBusy(INT32 coreID)
+bool IsCoreBusy(int coreID)
 {
-    BOOL result;
+    bool result;
     lk_lock(&run_queues[coreID].lk, 1);
     result = !run_queues[coreID].q.empty();
     lk_unlock(&run_queues[coreID].lk);
@@ -204,8 +203,10 @@ BOOL IsCoreBusy(INT32 coreID)
 }
 
 /* ========================================================================== */
-BOOL NeedsReschedule(INT32 coreID)
+bool NeedsReschedule(int coreID)
 {
     tick_t since_schedule = cores[coreID]->sim_cycle - run_queues[coreID].last_reschedule;
     return (knobs.scheduler_tick > 0) && (since_schedule > knobs.scheduler_tick);
 }
+
+} // namespace xiosim
