@@ -85,6 +85,11 @@ class SharedMemoryMap : public SharedMemoryMapCommon<K, V> {
 
 };
 
+//Default constructing value generates a warning on some GCC
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wuninitialized"
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+
 // A specialization for plain-old-data (POD) types of values.
 template<typename K, typename V>
 class SharedMemoryMap<K, V, typename boost::enable_if<boost::is_pod<V> >::type> :
@@ -113,6 +118,8 @@ class SharedMemoryMap<K, V, typename boost::enable_if<boost::is_pod<V> >::type> 
       return internal_map->at(key);
     }
 };
+
+#pragma GCC diagnostic pop
 
 }  // namespace shared
 }  // namespace xiosim
