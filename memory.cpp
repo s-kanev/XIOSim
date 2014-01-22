@@ -43,6 +43,8 @@ void mem_newmap(int asid, md_addr_t addr, size_t length)
 {
     ZPIN_TRACE(INVALID_CORE, "mem_newmap: %d, %x, length: %x\n", asid, addr, length);
 
+    assert(addr != 0); // Mapping 0-th page might cause hell to break loose, don't do it.
+
     /* Check alignment */
     if (MEM_OFFSET(addr)) {
         fprintf(stderr, "mem_newmap: Address %x not aligned\n", addr);
@@ -51,7 +53,7 @@ void mem_newmap(int asid, md_addr_t addr, size_t length)
 
     /* Add every page in the range to page table */
     md_addr_t last_addr = ROUND_UP(addr + length, PAGE_SIZE);
-    for (md_addr_t curr_addr = addr; curr_addr <= last_addr; curr_addr += PAGE_SIZE) {
+    for (md_addr_t curr_addr = addr; (curr_addr <= last_addr) && curr_addr; curr_addr += PAGE_SIZE) {
         if (mem_is_mapped(asid, curr_addr))
             continue; /* Attempting to double-map is ok */
 
@@ -77,7 +79,7 @@ void mem_delmap(int asid, md_addr_t addr, size_t length)
 
     /* Remove every page in the range from page table */
     md_addr_t last_addr = ROUND_UP(addr + length, PAGE_SIZE);
-    for (md_addr_t curr_addr = addr; curr_addr <= last_addr; curr_addr += PAGE_SIZE) {
+    for (md_addr_t curr_addr = addr; (curr_addr <= last_addr) && curr_addr; curr_addr += PAGE_SIZE) {
         if (!mem_is_mapped(asid, curr_addr))
             continue; /* Attempting to remove something missing is ok */
 
