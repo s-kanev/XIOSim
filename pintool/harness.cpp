@@ -19,19 +19,19 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include <algorithm>
-
-#include "pin.H"
 
 #include "boost_interprocess.h"
+
+#include "ezOptionParser_clean.hpp"
 
 #include "../interface.h"
 #include "multiprocess_shared.h"
 #include "ipc_queues.h"
 
 boost::interprocess::managed_shared_memory *global_shm;
-SHARED_VAR_DEFINE(XIOSIM_LOCK, printing_lock);
+SHARED_VAR_DEFINE(XIOSIM_LOCK, printing_lock)
 SHARED_VAR_DEFINE(int, num_processes)
+SHARED_VAR_DEFINE(int, next_asid)
 
 #include "confuse.h"  // For parsing config files.
 
@@ -45,7 +45,8 @@ namespace shared {
 
 const std::string CFG_FILE_FLAG = "-benchmark_cfg";
 const std::string HARNESS_PID_FLAG = "-harness_pid";
-const std::string LAST_PINTOOL_ARG = "-s";
+const char * LAST_PINTOOL_ARG = "-s";
+const char * FIRST_PIN_ARG = "-pin";
 
 pid_t *harness_pids;
 int harness_num_processes = 0;
@@ -89,7 +90,7 @@ void remove_shared_memory() {
 void kill_children(int sig) {
     using namespace xiosim::shared;
     // Using a stringstream to avoid races on std::cout.
-    stringstream output;
+    std::stringstream output;
     if (WEXITSTATUS(sig) == SIGINT)
         output << "Caught SIGINT, ";
     else
@@ -133,49 +134,51 @@ std::string get_timing_sim_args(std::string harness_args) {
 }
 
 // Fork the timing simulator process and return its pid.
-pid_t fork_timing_simulator(std::string run_str) {
-    pid_t timing_sim_pid = fork();
-    switch (timing_sim_pid) {
-      case 0: {   // child
-        setpgid(0, 0);
-        std::string timing_cmd = get_timing_sim_args(run_str);
-        int ret = system(timing_cmd.c_str());
-        if (WEXITSTATUS(ret) != 0) {
-            std::cerr << "Execv failed: " << timing_cmd << std::endl;
-            abort();
+pid_t fork_timing_simulator(std::string run_str, bool debug_timing) {
+    std::string timing_cmd = get_timing_sim_args(run_str);
+    pid_t timing_sim_pid;
+
+    if (!debug_timing) {
+        timing_sim_pid = fork();
+        switch (timing_sim_pid) {
+          case 0: {   // child
+            setpgid(0, 0);
+            int ret = system(timing_cmd.c_str());
+            if (WEXITSTATUS(ret) != 0) {
+                std::cerr << "Execv failed: " << timing_cmd << std::endl;
+                abort();
+            }
+            exit(0);
+          }
+          case 1: {
+            perror("Fork failed.");
+          }
+          default: {  // parent
+            std::cout << "Timing simulator: " << timing_sim_pid << std::endl;
+          }
         }
-        exit(0);
-      }
-      case 1: {
-        perror("Fork failed.");
-      }
-      default: {  // parent
-        std::cout << "Timing simulator: " << timing_sim_pid << std::endl;
-      }
+    } else {
+        std::cout << "Enter timing_sim PID:";
+        std::cin >> timing_sim_pid;
     }
     return timing_sim_pid;
 }
 
 
-int main(int argc, char **argv) {
-    if (argc < 2) {
-        std::cerr << "Insufficient command line arguments." << std::endl;
-        exit(-1);
-    }
-
+int main(int argc, const char *argv[]) {
     using namespace boost::interprocess;
     using namespace xiosim::shared;
 
-    // Get the argument to the cfg_filename flag.
-    std::string cfg_filename = "";
-    if (strncmp(CFG_FILE_FLAG.c_str(), argv[1],
-                CFG_FILE_FLAG.length()) == 0) {
-        cfg_filename = argv[2];
-    } else {
-        std::cerr << "Must specify a valid benchmark configuration file with the "
-                  << "-benchmark_cfg flag." << std::endl;
-        exit(1);
-    }
+    ez::ezOptionParser cmd_opts;
+    cmd_opts.overview = "XIOSim harness options";
+    cmd_opts.syntax = "-benchmark_cfg CFG_FILE [-debug_timing]";
+    cmd_opts.add("benchmarks.cfg", 1, 1, 0, "Programs to simulate", CFG_FILE_FLAG.c_str());
+    cmd_opts.add("", 0, 0, 0, "Debug timing_sim (start manually)", "-debug_timing");
+    cmd_opts.parse(argc, argv);
+
+    std::string cfg_filename;
+    cmd_opts.get(CFG_FILE_FLAG.c_str())->getString(cfg_filename);
+    bool debug_timing = cmd_opts.get("-debug_timing")->isSet;
 
     // Parse the benchmark configuration file.
     cfg_opt_t program_opts[] {
@@ -198,6 +201,7 @@ int main(int argc, char **argv) {
         int instances = cfg_getint(program_cfg, "instances");
         harness_num_processes += instances;
     }
+    harness_num_processes++;  // For the timing simulator.
 
     // Setup SIGINT handler to kill child processes as well.
     struct sigaction sig_int_handler;
@@ -210,21 +214,32 @@ int main(int argc, char **argv) {
     // complete.
     std::stringstream command_stream;
     pid_t harness_pid = getpid();
-    int command_start_pos = 3; // There are three harness-specific arguments.
     bool inserted_harness = false;
-    for (int i = command_start_pos; i < argc; i++) {
+    bool found_pin = false;
+    for (int i = 0; i < argc; i++) {
+        // Look for "-pin" to signal end of harness args
+        if ((strncmp(argv[i], FIRST_PIN_ARG, strlen(FIRST_PIN_ARG)) == 0) &&
+            (strnlen(argv[i], strlen(FIRST_PIN_ARG) + 1) == strlen(FIRST_PIN_ARG))) {
+            found_pin = true;
+            continue;
+        }
+
+        // Bypass harness-specific arguments and start with pin
+        if (!found_pin)
+            continue;
+
         // If the next arg is "-s", add the harness_pid flag.
-        if ((strncmp(argv[i], LAST_PINTOOL_ARG.c_str(),
-                    LAST_PINTOOL_ARG.length()) == 0 ) &&
-            (strnlen(argv[i], LAST_PINTOOL_ARG.length()+1) ==
-                    LAST_PINTOOL_ARG.length())) {
+        if ((strncmp(argv[i], LAST_PINTOOL_ARG, strlen(LAST_PINTOOL_ARG)) == 0) &&
+            (strnlen(argv[i], strlen(LAST_PINTOOL_ARG) + 1) == strlen(LAST_PINTOOL_ARG))) {
             command_stream << " " << HARNESS_PID_FLAG << " " << harness_pid << " ";
             inserted_harness = true;
         }
+
+        // Pass down arg to children
         command_stream << argv[i] << " ";
     }
-    if (!inserted_harness) {
-        std:: cerr << "Failed to add harness_pid to tool args!" << std::endl;
+    if (!found_pin || !inserted_harness) {
+        std:: cerr << "Failed to find -pin or -s args!" << std::endl;
         abort();
     }
     command_stream << "-- ";  // For appending the benchmark program arguments.
@@ -260,16 +275,16 @@ int main(int argc, char **argv) {
 
     SHARED_VAR_INIT(XIOSIM_LOCK, printing_lock);
     SHARED_VAR_INIT(int, num_processes, harness_num_processes);
+    SHARED_VAR_INIT(int, next_asid, 0);
     InitIPCQueues();
     init_lock.unlock();
 
     // Track the pids of all children.
-    harness_num_processes++;  // For the timing simulator.
     harness_pids = new pid_t[harness_num_processes];
 
     // Create a process for timing simulator and store its pid.
     harness_pids[harness_num_processes - 1] = fork_timing_simulator(
-        command_stream.str());
+        command_stream.str(), debug_timing);
 
     // Fork all the benchmark child processes.
     int status;

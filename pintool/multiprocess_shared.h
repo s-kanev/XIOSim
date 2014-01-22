@@ -26,15 +26,9 @@ extern boost::interprocess::managed_shared_memory *global_shm;
 #define SHARED_VAR_CONSTRUCT(TYPE, VAR, SHM_KEY, ...) \
     VAR = new TYPE(SHM_KEY, VAR##_KEY, ## __VA_ARGS__);
 
-SHARED_VAR_DECLARE(bool, sleeping_enabled)
-
-SHARED_VAR_DECLARE(bool, consumers_sleep)
-SHARED_VAR_DECLARE(pthread_cond_t, cv_consumers)
-SHARED_VAR_DECLARE(pthread_mutex_t, cv_consumers_lock)
-
-SHARED_VAR_DECLARE(bool, producers_sleep)
-SHARED_VAR_DECLARE(pthread_cond_t, cv_consumers)
-SHARED_VAR_DECLARE(pthread_mutex_t, cv_consumers_lock)
+SHARED_VAR_DECLARE(int, num_processes)
+SHARED_VAR_DECLARE(int, next_asid)
+SHARED_VAR_DECLARE(XIOSIM_LOCK, printing_lock)
 
 SHARED_VAR_DECLARE(pid_t, coreThreads);
 typedef xiosim::shared::SharedMemoryMap<pid_t, int> ThreadCoreMap;
@@ -46,8 +40,15 @@ pid_t GetSHMRunqueue(int coreID);
 bool IsSHMThreadSimulatingMaybe(pid_t tid);
 int GetSHMThreadCore(pid_t tid);
 
-SHARED_VAR_DECLARE(int, num_processes);
-SHARED_VAR_DECLARE(XIOSIM_LOCK, printing_lock);
+SHARED_VAR_DECLARE(bool, sleeping_enabled)
+
+SHARED_VAR_DECLARE(bool, consumers_sleep)
+SHARED_VAR_DECLARE(pthread_cond_t, cv_consumers)
+SHARED_VAR_DECLARE(pthread_mutex_t, cv_consumers_lock)
+
+SHARED_VAR_DECLARE(bool, producers_sleep)
+SHARED_VAR_DECLARE(pthread_cond_t, cv_consumers)
+SHARED_VAR_DECLARE(pthread_mutex_t, cv_consumers_lock)
 
 /* librepeater */
 SHARED_VAR_DECLARE(int, ss_curr);

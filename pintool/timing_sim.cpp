@@ -1,14 +1,6 @@
 #include "boost_interprocess.h"
 
-#pragma diagnostic push
-#pragma GCC diagnostic ignored "-Wsign-compare"
-#pragma GCC diagnostic ignored "-Wreorder"
-#pragma GCC diagnostic ignored "-Wparentheses"
-#pragma GCC diagnostic ignored "-Wunused-variable"
-#pragma GCC diagnostic ignored "-Wunused-function"
-#pragma GCC diagnostic ignored "-Wformat-extra-args"
-#include "ezOptionParser.hpp"
-#pragma diagnostic pop
+#include "ezOptionParser_clean.hpp"
 
 #include "../interface.h"
 #include "multiprocess_shared.h"

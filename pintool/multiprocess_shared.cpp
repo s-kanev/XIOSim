@@ -12,6 +12,14 @@ using namespace xiosim::shared;
 
 boost::interprocess::managed_shared_memory *global_shm;
 
+SHARED_VAR_DEFINE(XIOSIM_LOCK, printing_lock)
+SHARED_VAR_DEFINE(int, num_processes)
+SHARED_VAR_DEFINE(int, next_asid)
+
+SHARED_VAR_DEFINE(pid_t, coreThreads)
+SHARED_VAR_DEFINE(ThreadCoreMap, threadCores)
+SHARED_VAR_DEFINE(XIOSIM_LOCK, lk_coreThreads)
+
 SHARED_VAR_DEFINE(bool, sleeping_enabled)
 
 SHARED_VAR_DEFINE(bool, producers_sleep)
@@ -21,13 +29,6 @@ SHARED_VAR_DEFINE(pthread_mutex_t, cv_producers_lock)
 SHARED_VAR_DEFINE(bool, consumers_sleep)
 SHARED_VAR_DEFINE(pthread_cond_t, cv_consumers)
 SHARED_VAR_DEFINE(pthread_mutex_t, cv_consumers_lock)
-
-SHARED_VAR_DEFINE(pid_t, coreThreads)
-SHARED_VAR_DEFINE(ThreadCoreMap, threadCores)
-SHARED_VAR_DEFINE(XIOSIM_LOCK, lk_coreThreads)
-
-SHARED_VAR_DEFINE(XIOSIM_LOCK, printing_lock)
-SHARED_VAR_DEFINE(int, num_processes)
 
 SHARED_VAR_DEFINE(int, ss_curr);
 SHARED_VAR_DEFINE(int, ss_prev);
@@ -55,11 +56,14 @@ int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores)
         shared_memory_key.c_str(), DEFAULT_SHARED_MEMORY_SIZE);
     init_lock.lock();
 
+    process_counter = global_shm->find_or_construct<int>(counter_lock_key.c_str())();
+    std::cout << getpid() << ": Counter value is: " << *process_counter << std::endl;
+    (*process_counter)--;
+
     if (producer_process) {
-        process_counter = global_shm->find_or_construct<int>(counter_lock_key.c_str())();
-        std::cout << getpid() << ": Counter value is: " << *process_counter << std::endl;
-        (*process_counter)--;
-        asid = *process_counter;
+        SHARED_VAR_INIT(int, next_asid);
+        asid = *next_asid;
+        (*next_asid)++;
     }
 
     InitIPCQueues();
@@ -92,17 +96,15 @@ int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores)
 
     /* Spin until the counter reaches zero, indicating that all other processes
      * have reached this point. */
-    if (producer_process) {
-        while (1) {
-            init_lock.lock();
-            if (*process_counter == 0) {
-                init_lock.unlock();
-                break;
-            }
+    while (1) {
+        init_lock.lock();
+        if (*process_counter == 0) {
             init_lock.unlock();
+            break;
         }
+        init_lock.unlock();
     }
-    std::cout << getpid() << ": Proceeeding to execute pintool.\n";
+    std::cout << getpid() << ": Proceeeding to execute." << std::endl;
     return asid;
 }
 
