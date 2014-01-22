@@ -274,7 +274,7 @@ int main(int argc, const char *argv[]) {
     named_mutex init_lock(open_or_create, shared_lock_key.c_str(), perm);
 
     SHARED_VAR_INIT(XIOSIM_LOCK, printing_lock);
-    SHARED_VAR_INIT(int, num_processes, harness_num_processes);
+    SHARED_VAR_INIT(int, num_processes, harness_num_processes - 1);
     SHARED_VAR_INIT(int, next_asid, 0);
     InitIPCQueues();
     init_lock.unlock();
