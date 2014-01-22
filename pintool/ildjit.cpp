@@ -55,6 +55,8 @@ static map<string, UINT32> invocation_counts;
 
 KNOB<BOOL> KnobDisableWaitSignal(KNOB_MODE_WRITEONCE,     "pintool",
         "disable_wait_signal", "false", "Don't insert any waits or signals into the pipeline");
+KNOB<BOOL> KnobOnlyHeavyWaits(KNOB_MODE_WRITEONCE,     "pintool",
+        "only_heavy_waits", "false", "Don't insert any waits or signals into the pipeline");
 static string start_loop = "";
 static UINT32 start_loop_invocation = -1;
 static UINT32 start_loop_iteration = -1;
@@ -87,6 +89,7 @@ stack<loop_state_t> loop_states;
 loop_state_t* loop_state;
 
 bool disable_wait_signal;
+bool only_heavy_waits;
 UINT32* ildjit_ws_id;
 UINT32* ildjit_disable_ws;
 
@@ -119,6 +122,7 @@ VOID MOLECOOL_Init()
     readLoop(end_loop_file, &end_loop, &end_loop_invocation, &end_loop_iteration);
 
     disable_wait_signal = KnobDisableWaitSignal.Value();
+    only_heavy_waits = KnobOnlyHeavyWaits.Value();
 
     // callbacks so we can delete temporary files in /dev/shm
     PIN_InterceptSignal(SIGINT, signalCallback, NULL);
@@ -512,7 +516,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
       goto cleanup;
     }
 
-    if(is_light) {
+    if((only_heavy_waits == false) && is_light) {
       goto cleanup;
     }
 
