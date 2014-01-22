@@ -596,6 +596,9 @@ void ztrace_Mop_timing(const struct Mop_t * Mop)
 
 void ztrace_print(const struct Mop_t * Mop, const char * fmt, ... )
 {
+  if (Mop == NULL)
+    return;
+
   va_list v;
   va_start(v, fmt);
 
@@ -608,6 +611,9 @@ void ztrace_print(const struct Mop_t * Mop, const char * fmt, ... )
 
 void ztrace_print(const struct uop_t * uop, const char * fmt, ... )
 {
+  if (uop == NULL)
+    return;
+
   va_list v;
   va_start(v, fmt);
 
@@ -629,6 +635,9 @@ void ztrace_print(const int coreID, const char * fmt, ... )
 
 void ztrace_print_start(const struct uop_t * uop, const char * fmt, ... )
 {
+  if (uop == NULL)
+    return;
+
   va_list v;
   va_start(v, fmt);
 
