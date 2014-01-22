@@ -42,7 +42,7 @@ KIT=1
 TARGET_COMPILER?=gnu
 ifeq ($(TARGET_COMPILER),gnu)
     include $(PIN_HOME)/source/tools/makefile.gnu.config
-    CXXFLAGS ?= -I$(PIN_HOME)/source/tools/InstLib  -Wno-unknown-pragmas -g $(DBG) $(OPT)
+    CXXFLAGS ?= -I$(PIN_HOME)/source/tools/InstLib -Wall -Werror -Wno-unused-function -Wno-unknown-pragmas -g -std=c++11 $(DBG) $(OPT)
     PIN=$(PIN_HOME)/pin
 endif
 
@@ -90,12 +90,12 @@ SHM_LDFLAGS = -ldl
 # build rules
 #
 ##############################################################
-all : CXXFLAGS += -DDEBUG -D_FILE_OFFSET_BITS=64 -std=c++11 -Wall -Werror
+all : CXXFLAGS += -DDEBUG -D_FILE_OFFSET_BITS=64
 all : CXXFLAGS += -I$(BOOST_INCLUDE) $(BOOST_LDFLAGS) $(SHM_LDFLAGS)
 all: tools $(OBJDIR)harness $(OBJDIR)feeder_zesto.so
-debug:	CXXFLAGS += -DZESTO_PIN_DBG -D_FILE_OFFSET_BITS=64 -std=c++11 -Wall -Werror
-debug : CXXFLAGS += -I$(BOOST_INCLUDE)
-debug:	tools
+debug:	CXXFLAGS += -DZESTO_PIN_DBG -D_FILE_OFFSET_BITS=64
+debug: CXXFLAGS += -I$(BOOST_INCLUDE) $(BOOST_LDFLAGS) $(SHM_LDFLAGS)
+debug: tools $(OBJDIR)harness $(OBJDIR)feeder_zesto.so
 tools: $(OBJDIR) $(TOOLS)
 
 ##############################################################
