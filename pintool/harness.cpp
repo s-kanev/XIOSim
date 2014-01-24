@@ -347,7 +347,15 @@ int main(int argc, const char *argv[]) {
     SendIPCMessage(msg);
 
     pid_t timing_pid = harness_pids[harness_num_processes-1];
-    while (waitpid(timing_pid, &status, 0) != timing_pid);
+    pid_t wait_res;
+    do {
+        wait_res = waitpid(timing_pid, &status, 0);
+        if (wait_res == -1) {
+            std::cout << "[HARNESS] waitpid(" << timing_pid << ") failed with: " << strerror(wait_res) << std::endl;
+            break;
+        }
+    } while (wait_res != timing_pid);
+     
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
         std::cerr << "Process " << timing_pid << " failed." << std::endl;
     }
