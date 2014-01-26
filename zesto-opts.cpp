@@ -528,7 +528,7 @@ void ztrace_print(const struct Mop_t * Mop)
   int coreID = Mop->core->id;
 
   // core id, PC{virtual,physical}
-  ZTRACE_PRINT(coreID, "DEF|core=%d:virtPC=%x:physPC=%llx:op=",Mop->core->id,Mop->fetch.PC,v2p_translate(coreID,Mop->fetch.PC));
+  ZTRACE_PRINT(coreID, "DEF|core=%d:virtPC=%x:physPC=%llx:op=",Mop->core->id,Mop->fetch.PC,v2p_translate(cores[coreID]->current_thread->asid,Mop->fetch.PC));
   // rep prefix and iteration
   if(Mop->fetch.inst.rep)
     ZTRACE_PRINT(coreID, "rep{%d}",Mop->decode.rep_seq);

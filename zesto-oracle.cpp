@@ -1176,7 +1176,7 @@ core_oracle_t::exec(const md_addr_t requested_PC)
     if(uop->decode.is_load)
     {
       //zesto_assert(uop->oracle.virt_addr != 0 || uop->Mop->oracle.spec_mode,NULL);
-      uop->oracle.phys_addr = v2p_translate(thread->id, uop->oracle.virt_addr);
+      uop->oracle.phys_addr = v2p_translate(thread->asid, uop->oracle.virt_addr);
     }
     else if(uop->decode.is_std)
     {
@@ -1189,7 +1189,7 @@ core_oracle_t::exec(const md_addr_t requested_PC)
         assert(prev_uop_index >= 0);
       }
       assert(Mop->uop[prev_uop_index].decode.is_sta);
-      uop->oracle.phys_addr = v2p_translate(thread->id, uop->oracle.virt_addr);
+      uop->oracle.phys_addr = v2p_translate(thread->asid, uop->oracle.virt_addr);
       Mop->uop[prev_uop_index].oracle.virt_addr = uop->oracle.virt_addr;
       Mop->uop[prev_uop_index].oracle.phys_addr = uop->oracle.phys_addr;
       Mop->uop[prev_uop_index].decode.mem_size = uop->decode.mem_size;

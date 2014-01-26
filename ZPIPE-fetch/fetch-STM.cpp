@@ -296,6 +296,7 @@ seq_t core_fetch_STM_t::get_byteQ_action_id(void * const op)
 void core_fetch_STM_t::pre_fetch(void)
 {
   struct core_knobs_t * knobs = core->knobs;
+  int asid = core->current_thread->asid;
   int i;
 
   ZESTO_STAT(stat_add_sample(core->stat.fetch_stall, (int)stall_reason);)
@@ -306,9 +307,9 @@ void core_fetch_STM_t::pre_fetch(void)
   {
     if(byteQ[index].when_fetch_requested == TICK_T_MAX)
     {
-      if(cache_enqueuable(core->memory.IL1,core->current_thread->id,byteQ[index].addr))
+      if(cache_enqueuable(core->memory.IL1, asid, byteQ[index].addr))
       {
-        cache_enqueue(core,core->memory.IL1,NULL,CACHE_READ,core->current_thread->id,byteQ[index].addr,byteQ[index].addr,byteQ[index].action_id,0,NO_MSHR,&byteQ[index],IL1_callback,NULL,translated_callback,get_byteQ_action_id);
+        cache_enqueue(core, core->memory.IL1, NULL, CACHE_READ, asid, byteQ[index].addr, byteQ[index].addr, byteQ[index].action_id, 0, NO_MSHR, &byteQ[index], IL1_callback, NULL, translated_callback, get_byteQ_action_id);
         byteQ[index].when_fetch_requested = core->sim_cycle;
         break;
       }
@@ -321,9 +322,9 @@ void core_fetch_STM_t::pre_fetch(void)
   {
     if(byteQ[index].when_translation_requested == TICK_T_MAX)
     {
-      if(cache_enqueuable(core->memory.ITLB,core->current_thread->id,PAGE_TABLE_ADDR(core->current_thread->id,byteQ[index].addr)))
+      if(cache_enqueuable(core->memory.ITLB, asid, PAGE_TABLE_ADDR(asid, byteQ[index].addr)))
       {
-        cache_enqueue(core,core->memory.ITLB,NULL,CACHE_READ,0,core->current_thread->id,PAGE_TABLE_ADDR(core->current_thread->id,byteQ[index].addr),byteQ[index].action_id,0,NO_MSHR,&byteQ[index],ITLB_callback,NULL,NULL,get_byteQ_action_id);
+        cache_enqueue(core, core->memory.ITLB, NULL, CACHE_READ, 0, asid, PAGE_TABLE_ADDR(asid, byteQ[index].addr), byteQ[index].action_id, 0, NO_MSHR, &byteQ[index], ITLB_callback, NULL, NULL, get_byteQ_action_id);
         byteQ[index].when_translation_requested = core->sim_cycle;
         break;
       }

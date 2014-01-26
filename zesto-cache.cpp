@@ -1215,14 +1215,14 @@ static void cache_heap_remove(
    per cycle goes to the same bank, or if a bank has been locked up. */
 int cache_enqueuable(
     const struct cache_t * const cp,
-    const int thread_id,
+    const int asid,
     const md_paddr_t addr)
 {
   md_paddr_t paddr;
-  if(thread_id == DO_NOT_TRANSLATE)
+  if(asid == DO_NOT_TRANSLATE)
     paddr = addr;
   else
-    paddr = v2p_translate_safe(thread_id,addr);
+    paddr = v2p_translate_safe(asid,addr);
   const int bank = GET_BANK(paddr);
   if(cp->pipe_num[bank] < cp->latency)
     return true;
@@ -1237,7 +1237,7 @@ void cache_enqueue(
     struct cache_t * const cp,
     struct cache_t * const prev_cp,
     const enum cache_command cmd,
-    const int thread_id,
+    const int asid,
     const md_addr_t PC,
     const md_paddr_t addr,
     const seq_t action_id,
@@ -1251,10 +1251,10 @@ void cache_enqueue(
     const bool prefetcher_hint)
 {
   md_paddr_t paddr;
-  if(thread_id == DO_NOT_TRANSLATE)
+  if(asid == DO_NOT_TRANSLATE)
     paddr = addr;
   else
-    paddr = v2p_translate_safe(thread_id,addr); /* for the IL1/DL1, we need a virtual-to-physical translation */
+    paddr = v2p_translate_safe(asid,addr); /* for the IL1/DL1, we need a virtual-to-physical translation */
   const int bank = GET_BANK(paddr);
 
   /* heap initial insertion position */

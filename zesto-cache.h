@@ -350,7 +350,7 @@ struct cache_line_t * cache_get_evictee(
 
 int cache_enqueuable(
     const struct cache_t * const cp,
-    const int thread_id,
+    const int asid,
     const md_paddr_t addr);
 
 void cache_enqueue(
@@ -358,7 +358,7 @@ void cache_enqueue(
     struct cache_t * const cp,
     struct cache_t * const prev_cp,
     const enum cache_command cmd,
-    const int thread_id,
+    const int asid,
     const md_addr_t PC,
     const md_paddr_t addr,
     const seq_t action_id,
