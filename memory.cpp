@@ -43,6 +43,7 @@ void mem_newmap(int asid, md_addr_t addr, size_t length)
 {
     ZPIN_TRACE(INVALID_CORE, "mem_newmap: %d, %x, length: %x\n", asid, addr, length);
 
+    assert(asid >= 0 && asid < num_address_spaces);
     assert(addr != 0); // Mapping 0-th page might cause hell to break loose, don't do it.
 
     /* Check alignment */
@@ -71,6 +72,8 @@ void mem_delmap(int asid, md_addr_t addr, size_t length)
 {
     ZPIN_TRACE(INVALID_CORE, "mem_delmap: %d, %x, length: %x\n", asid, addr, length);
 
+    assert(asid >= 0 && asid < num_address_spaces);
+
     /* Check alignment */
     if (MEM_OFFSET(addr)) {
         fprintf(stderr, "mem_delmap: Address %x not aligned\n", addr);
@@ -94,12 +97,14 @@ void mem_delmap(int asid, md_addr_t addr, size_t length)
 /* Check if page has been touched in this address space */
 bool mem_is_mapped(int asid, md_addr_t addr)
 {
+    assert(asid >= 0 && asid < num_address_spaces);
     md_addr_t vpn = addr >> PAGE_SHIFT;
     return (page_tables[asid].count(vpn) > 0);
 }
 
 md_paddr_t v2p_translate(int asid, md_addr_t addr)
 {
+    assert(asid >= 0 && asid < num_address_spaces);
     /* Page is mapped, just look it up */
     if (mem_is_mapped(asid, addr)) {
         md_addr_t vpn = addr >> PAGE_SHIFT;
@@ -124,12 +129,14 @@ md_paddr_t v2p_translate_safe(int asid, md_addr_t virt_addr)
 /* Get top of data segment */
 md_addr_t mem_brk(int asid)
 {
+    assert(asid >= 0 && asid < num_address_spaces);
     return brk_point[asid];
 }
 
 /* Update top of data segment */
 void mem_update_brk(int asid, md_addr_t brk_)
 {
+    assert(asid >= 0 && asid < num_address_spaces);
     brk_point[asid] = brk_;
 }
 
