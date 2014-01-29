@@ -159,6 +159,7 @@ pid_t fork_timing_simulator(std::string run_str, bool debug_timing) {
         }
     } else {
         std::cout << "Enter timing_sim PID:";
+        std::cout.flush();
         std::cin >> timing_sim_pid;
     }
     return timing_sim_pid;
@@ -351,7 +352,7 @@ int main(int argc, const char *argv[]) {
     do {
         wait_res = waitpid(timing_pid, &status, 0);
         if (wait_res == -1) {
-            std::cout << "[HARNESS] waitpid(" << timing_pid << ") failed with: " << strerror(wait_res) << std::endl;
+            std::cout << "[HARNESS] waitpid(" << timing_pid << ") failed with: " << strerror(errno) << std::endl;
             break;
         }
     } while (wait_res != timing_pid);
