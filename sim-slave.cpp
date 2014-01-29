@@ -501,13 +501,16 @@ master_core:
       global_step();
 
       /* HACKEDY HACKEDY HACK */
-      /* Non-active cores should still step their DL1s because there might
+      /* Non-active cores should still step their private caches because there might
        * be accesses scheduled there from the repeater network */
-      /* XXX: This is round-robin for L2 based on core id, if that matters */
+      /* XXX: This is round-robin for LLC based on core id, if that matters */
       for(int i=0; i<num_cores; i++)
-        if(!cores[i]->current_thread->active)
+        if(!cores[i]->current_thread->active) {
           if(cores[i]->memory.DL1->check_for_work)
             cache_process(cores[i]->memory.DL1);
+          if(cores[i]->memory.DL2 && cores[i]->memory.DL2->check_for_work)
+            cache_process(cores[i]->memory.DL2);
+      }
 
       /* Unblock other cores to keep crunching. */
       for(int i=0; i<num_cores; i++)
