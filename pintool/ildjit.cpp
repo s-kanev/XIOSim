@@ -334,6 +334,7 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
     cerr << "Starting simulation, TID: " << tid << endl;
     PPointHandler(CONTROL_START, NULL, NULL, NULL, tid);
     first_invocation = false;
+    ILDJIT_ResumeSimulation(tid);
   }
   else {
     cerr << tid << ": resuming simulation" << endl;
@@ -371,6 +372,7 @@ VOID ILDJIT_startIteration(THREADID tid)
 
     simulating_parallel_loop = true;
     PPointHandler(CONTROL_START, NULL, NULL, NULL, tid);
+    ILDJIT_ResumeSimulation(tid);
   }
 
     // Check if this is the last iteration
@@ -1056,7 +1058,6 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
         memcpy(handshake->handshake.ins, syscall_template, sizeof(syscall_template));
         xiosim::buffer_management::producer_done(curr_tstate->tid, true);
 
-
         /* And finally, flush the core's pipelie to get rid of anything
          * left over (including the trap) and flush the ring cache */
         handshake_container_t* handshake_3 = xiosim::buffer_management::get_buffer(curr_tstate->tid);
@@ -1070,15 +1071,12 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
         handshake_3->flags.valid = true;
         xiosim::buffer_management::producer_done(curr_tstate->tid, true);
 
-        /* Deactivate this core, so we can advance the cycle conunter of
-         * others without waiting on it */
+        /* Let the scheduler deactivate this core. */
         handshake_container_t* handshake_2 = xiosim::buffer_management::get_buffer(curr_tstate->tid);
 
-        handshake_2->flags.isFirstInsn = false;
-        handshake_2->handshake.sleep_thread = true;
-        handshake_2->handshake.resume_thread = false;
         handshake_2->handshake.real = false;
-        handshake_2->handshake.pc = 0;
+        handshake_2->flags.giveCoreUp = true;
+        handshake_2->flags.giveUpReschedule = false;
         handshake_2->flags.valid = true;
         xiosim::buffer_management::producer_done(curr_tstate->tid, true);
 
@@ -1094,7 +1092,7 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
         list<THREADID>::iterator it;
         ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
             auto curr_tstate = get_tls(*it);
-            done &= xiosim::buffer_management::empty(curr_tstate->tid);
+            done &= !IsSHMThreadSimulatingMaybe(curr_tstate->tid);
         }
         if (!done && *sleeping_enabled && (host_cpus <= KnobNumCores.Value()))
             PIN_Sleep(10);
@@ -1142,6 +1140,32 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
 /* ========================================================================== */
 VOID ILDJIT_ResumeSimulation(THREADID tid)
 {
+    lk_lock(printing_lock, 1);
+    std::cerr << "Calling ILDJIT_Resume" << std::endl;
+    lk_unlock(printing_lock);
+
+    list<THREADID>::iterator it;
+    ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
+        lk_lock(printing_lock, 1);
+        std::cerr << "Thread " << *it << std::endl;
+        lk_unlock(printing_lock);
+
+        thread_state_t* tstate = get_tls(*it);
+
+        ASSERTX(xiosim::buffer_management::empty(tstate->tid));
+
+        lk_lock(&tstate->lock, 1);
+        tstate->ignore_all = false;
+        lk_unlock(&tstate->lock);
+
+        ipc_message_t msg;
+        msg.ScheduleNewThread(tstate->tid);
+        SendIPCMessage(msg);
+    }
+    lk_lock(printing_lock, 1);
+    std::cerr << "Leaving ILDJIT_Resume" << std::endl;
+    lk_unlock(printing_lock);
+    return;
 
     /* All cores were sleeping in between loops, wake them up now. */
     for (INT32 coreID = 0; coreID < KnobNumCores.Value(); coreID++) {
@@ -1150,7 +1174,7 @@ VOID ILDJIT_ResumeSimulation(THREADID tid)
          * If we do go through it, there are no guarantees for when the
          * resume is consumed, which can lead to nasty races of who gets
          * to resume first. */
-        pid_t curr_tid = GetSHMRunqueue(coreID);
+        pid_t curr_tid = GetSHMCoreThread(coreID);
         if (curr_tid == (pid_t)INVALID_THREADID)
             continue;
 

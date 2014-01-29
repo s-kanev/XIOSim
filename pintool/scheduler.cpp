@@ -38,63 +38,58 @@ struct RunQueue {
 static RunQueue * run_queues;
 
 static int last_coreID;
+static XIOSIM_LOCK last_coreID_lk;
 
-/* Update shm array of running threads */
-static void UpdateSHMRunqueues(int coreID, pid_t tid)
-{
-    lk_lock(lk_coreThreads, 1);
-    coreThreads[coreID] = tid;
-    if (tid != INVALID_THREADID)
-        threadCores->operator[](tid) = coreID;
-    lk_unlock(lk_coreThreads);
-}
-
-static void UpdateSHMThreadCore(pid_t tid, int coreID)
-{
-    if (tid == INVALID_THREADID)
-        return;
-    lk_lock(lk_coreThreads, 1);
-    threadCores->operator[](tid) = coreID;
-    lk_unlock(lk_coreThreads);
-}
-
-static void RemoveSHMThread(pid_t tid)
-{
-    lk_lock(lk_coreThreads, 1);
-    threadCores->erase(tid);
-    lk_unlock(lk_coreThreads);
-}
+static void UpdateSHMCoreThread(int coreID, pid_t tid);
+static void UpdateSHMThreadCore(pid_t tid, int coreID);
+static void RemoveSHMThread(pid_t tid);
 
 /* ========================================================================== */
 void InitScheduler(int num_cores)
 {
     run_queues = new RunQueue[num_cores];
     last_coreID = 0;
+    lk_init(&last_coreID_lk);
 }
 
 /* ========================================================================== */
 void ScheduleNewThread(pid_t tid)
 {
-    if (GetSHMThreadCore(tid) != -1) {
+    /* Make sure thread is queued at one and only one runqueue. */
+    if (IsSHMThreadSimulatingMaybe(tid)) {
         lk_lock(printing_lock, 1);
         std::cerr << "ScheduleNewThread: thread " << tid << " already scheduled, ignoring." << std::endl;
         lk_unlock(printing_lock);
         return;
     }
 
-    lk_lock(&run_queues[last_coreID].lk, 1);
-    if (run_queues[last_coreID].q.empty() && !is_core_active(last_coreID)) {
-        activate_core(last_coreID);
-        UpdateSHMRunqueues(last_coreID, tid);
+    /* Atomically read and adjust the next available core */
+    int coreID;
+    lk_lock(&last_coreID_lk, 1);
+    coreID = last_coreID;
+    /* For now, just round-robin on available cores. */
+    last_coreID  = (last_coreID + 1) % num_cores;
+    lk_unlock(&last_coreID_lk);
+
+    lk_lock(&run_queues[coreID].lk, 1);
+    if (run_queues[coreID].q.empty() && !is_core_active(coreID)) {
+        /* We can on @coreID straight away, activate it and update SHM state. */
+        activate_core(coreID);
+        UpdateSHMThreadCore(tid, coreID);
+        UpdateSHMCoreThread(coreID, tid);
     }
     else {
-        UpdateSHMThreadCore(tid, -1);
+        /* We need to wait for a reschedule */
+        UpdateSHMThreadCore(tid, INVALID_CORE);
     }
 
-    run_queues[last_coreID].q.push(tid);
-    lk_unlock(&run_queues[last_coreID].lk);
+    lk_lock(printing_lock, 1);
+    std::cerr << "ScheduleNewThread: thread " << tid << " on core " << coreID << std::endl;
+    lk_unlock(printing_lock);
 
-    last_coreID  = (last_coreID + 1) % num_cores;
+    run_queues[coreID].q.push(tid);
+    lk_unlock(&run_queues[coreID].lk);
+
 }
 
 /* ========================================================================== */
@@ -117,12 +112,16 @@ void DescheduleActiveThread(int coreID)
     thread_list.remove(tid);
     lk_unlock(&thread_list_lock);
 */
+    /* This thread is no more. */
     RemoveSHMThread(tid);
     run_queues[coreID].q.pop();
 
     pid_t new_tid = INVALID_THREADID;
     if (!run_queues[coreID].q.empty()) {
         new_tid = run_queues[coreID].q.front();
+
+        /* Let SHM know @new_tid is running on @coreID */
+        UpdateSHMThreadCore(new_tid, coreID);
 
         lk_lock(printing_lock, tid+1);
         std::cerr << "Thread " << new_tid << " going on core " << coreID << std::endl;
@@ -132,8 +131,9 @@ void DescheduleActiveThread(int coreID)
         deactivate_core(coreID);
     }
 
+    /* Let SHM know @coreID has @new_tid (potentially nothing) */
+    UpdateSHMCoreThread(coreID, new_tid);
     lk_unlock(&run_queues[coreID].lk);
-    UpdateSHMRunqueues(coreID, new_tid);
 }
 
 /* ========================================================================== */
@@ -148,10 +148,12 @@ void GiveUpCore(int coreID, bool reschedule_thread)
     std::cerr << "Thread " << tid << " giving up on core " << coreID << std::endl;
     lk_unlock(printing_lock);
 
+    /* This thread gets descheduled. */
     run_queues[coreID].q.pop();
 
-    pid_t new_tid = INVALID_THREADID;
+    pid_t new_tid;
     if (!run_queues[coreID].q.empty()) {
+        /* There is another thread waiting for the core. It gets scheduled. */
         new_tid = run_queues[coreID].q.front();
 
         lk_lock(printing_lock, tid+1);
@@ -161,22 +163,32 @@ void GiveUpCore(int coreID, bool reschedule_thread)
     else if (!reschedule_thread) {
         /* No more work to do, let core sleep */
         deactivate_core(coreID);
+        new_tid = INVALID_THREADID;
+    } else {
+        /* Thread is the only one waiting for this core, reschedule is moot. */
+        new_tid = tid;
     }
+    /* Let SHM know @coreID has @new_tid (potentially nothing) */
+    UpdateSHMCoreThread(coreID, new_tid);
 
     if (reschedule_thread) {
-        new_tid = tid;
+        /* Reschedule at the back of (possibly empty) runqueue for @coreID. */
         run_queues[coreID].q.push(tid);
 
         lk_lock(printing_lock, tid+1);
         std::cerr << "Rescheduling " << tid << " on core " << coreID << std::endl;
         lk_unlock(printing_lock);
+
+        /* If old thread is requeued behind a new thread, update its SHM status. */
+        if (new_tid != tid)
+            UpdateSHMThreadCore(new_tid, INVALID_CORE);
     }
+    else {
+        /* For all we know in this case, old thread will never be scheduled again. */
+        RemoveSHMThread(tid);
+    }
+
     lk_unlock(&run_queues[coreID].lk);
-
-    UpdateSHMRunqueues(coreID, new_tid);
-
-    if (new_tid != tid)
-        UpdateSHMThreadCore(tid, -1);
 }
 
 /* ========================================================================== */
@@ -207,6 +219,31 @@ bool NeedsReschedule(int coreID)
 {
     tick_t since_schedule = cores[coreID]->sim_cycle - run_queues[coreID].last_reschedule;
     return (knobs.scheduler_tick > 0) && (since_schedule > knobs.scheduler_tick);
+}
+
+/* Helpers for updating SHM thread->core and core->thread maps, which is allowed only
+ * by the scheduler. */
+static void UpdateSHMCoreThread(int coreID, pid_t tid)
+{
+    lk_lock(lk_coreThreads, 1);
+    coreThreads[coreID] = tid;
+    lk_unlock(lk_coreThreads);
+}
+
+static void UpdateSHMThreadCore(pid_t tid, int coreID)
+{
+    if (tid == INVALID_THREADID)
+        return;
+    lk_lock(lk_coreThreads, 1);
+    threadCores->operator[](tid) = coreID;
+    lk_unlock(lk_coreThreads);
+}
+
+static void RemoveSHMThread(pid_t tid)
+{
+    lk_lock(lk_coreThreads, 1);
+    threadCores->erase(tid);
+    lk_unlock(lk_coreThreads);
 }
 
 } // namespace xiosim

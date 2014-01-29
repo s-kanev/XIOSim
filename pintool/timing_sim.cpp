@@ -63,14 +63,10 @@ void* SimulatorLoop(void* arg)
          * and execute accordingly */
         CheckIPCMessageQueue(true, coreID);
 
-        if (!is_core_active(coreID)) {
-            xio_sleep(10);
-            continue;
-        }
-
         // Get the latest thread we are running from the scheduler
         pid_t instrument_tid = GetCoreThread(coreID);
         if (instrument_tid == INVALID_THREADID) {
+            xio_sleep(10);
             continue;
         }
 

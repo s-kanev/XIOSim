@@ -35,9 +35,15 @@ typedef xiosim::shared::SharedMemoryMap<pid_t, int> ThreadCoreMap;
 
 SHARED_VAR_DECLARE(ThreadCoreMap, threadCores);
 SHARED_VAR_DECLARE(XIOSIM_LOCK, lk_coreThreads);
-pid_t GetSHMRunqueue(int coreID);
+/* Get the thread currently executing on core @coreID. Returns INVALID_THREADID if none */
+pid_t GetSHMCoreThread(int coreID);
 /* Will this thread ever get simulated (now or in the future) */
 bool IsSHMThreadSimulatingMaybe(pid_t tid);
+/* Get the core that this thread is executing on.
+ * Returning INVALID_CORE means either: (i) the thread is waiting on
+ * a core runqueue and will get executed, or (ii) it has never been
+ * scheduled. Calling IsSHMThreadSimulatingMaybe() can distinguish
+ * between the two. */
 int GetSHMThreadCore(pid_t tid);
 
 SHARED_VAR_DECLARE(bool, sleeping_enabled)

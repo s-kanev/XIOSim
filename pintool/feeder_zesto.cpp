@@ -175,9 +175,11 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
             }
 
             // Let caller thread be simulated again
-            thread_state_t *tstate = get_tls(tid);
+            // XXX: Needs to be done for all threads, and probably not here.
+/*            thread_state_t *tstate = get_tls(tid);
             msg.ScheduleNewThread(tstate->tid);
             SendIPCMessage(msg);
+*/
 
             if(control.PinPointsActive())
                 cerr << "PinPoint: " << control.CurrentPp(tid) << " PhaseNo: " << control.CurrentPhase(tid) << endl;
@@ -989,7 +991,7 @@ INT32 main(INT32 argc, CHAR **argv)
     InitSyscallHandling();
 
     host_cpus = get_nprocs_conf();
-    if((host_cpus < KnobNumCores.Value() * 2) || KnobILDJIT.Value()) {
+/*    if((host_cpus < KnobNumCores.Value() * 2) || KnobILDJIT.Value()) {
       *sleeping_enabled = true;
       enable_producers();
       disable_consumers();
@@ -997,6 +999,8 @@ INT32 main(INT32 argc, CHAR **argv)
     else {
       *sleeping_enabled = false;
     }
+*/
+    *sleeping_enabled = false;
 
     PIN_StartProgram();
 
@@ -1094,8 +1098,7 @@ VOID printTrace(string stype, ADDRINT pc, pid_t tid)
   }
 
   lk_lock(printing_lock, tid+1);
-  uint32_t coreID = GetSHMThreadCore(tid);
-  pc_file << coreID << " " << stype << " " << pc << " " << pc_diss[pc] << endl;
+  pc_file << tid << " " << stype << " " << pc << " " << pc_diss[pc] << endl;
   pc_file.flush();
   lk_unlock(printing_lock);
 }

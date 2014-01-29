@@ -68,7 +68,7 @@ int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores)
 
     InitIPCQueues();
 
-    SHARED_VAR_INIT(bool, sleeping_enabled)
+    SHARED_VAR_INIT(bool, sleeping_enabled, false)
 
     SHARED_VAR_INIT(bool, producers_sleep, false)
     SHARED_VAR_INIT(pthread_cond_t, cv_producers);
@@ -108,7 +108,7 @@ int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores)
     return asid;
 }
 
-pid_t GetSHMRunqueue(int coreID) {
+pid_t GetSHMCoreThread(int coreID) {
     pid_t res;
     lk_lock(lk_coreThreads, 1);
     res = coreThreads[coreID];
@@ -117,7 +117,7 @@ pid_t GetSHMRunqueue(int coreID) {
 }
 
 int GetSHMThreadCore(pid_t tid) {
-   int res = -1;
+    int res = INVALID_CORE;
     lk_lock(lk_coreThreads, 1);
     if (threadCores->find(tid) != threadCores->end())
        res = threadCores->operator[](tid);
