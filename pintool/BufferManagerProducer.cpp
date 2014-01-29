@@ -123,6 +123,9 @@ void producer_done(pid_t tid, bool keepLock)
   if(!keepLock) {
     reserveHandshake(tid);
   }
+  else {
+    pool_[tid]++; // Expand in case the last handshakes need space
+  }
 
   if(produceBuffer_[tid]->full()) {// || ( (consumeBuffer_[tid]->size() == 0) && (fileEntryCount_[tid] == 0))) {
 #if defined(DEBUG) || defined(ZESTO_PIN_DBG)
@@ -155,10 +158,8 @@ void flushBuffers(pid_t tid)
 
 void resetPool(pid_t tid)
 {
-  int poolFactor = 1;
-  if(KnobNumCores.Value() > 1) {
-    poolFactor = 6;
-  }
+  int poolFactor = 3;
+  assert(poolFactor >= 1);
   /* Assume produceBuffer->capacity == consumeBuffer->capacity */
   pool_[tid] = (2 * produceBuffer_[tid]->capacity()) * poolFactor;
   //  pool_[tid] = 2000000000;
@@ -170,14 +171,6 @@ void resetPool(pid_t tid)
  */
 static void reserveHandshake(pid_t tid)
 {
-  int64_t queueLimit;
-  if(KnobNumCores.Value() > 1) {
-    queueLimit = 5000000001;
-  }
-  else {
-    queueLimit = 5000000001;
-  }
-
   if(pool_[tid] > 0) {
     return;
   }
@@ -190,7 +183,7 @@ static void reserveHandshake(pid_t tid)
     enable_consumers();
     disable_producers();
 
-    PIN_Sleep(1000);
+    PIN_Sleep(500);
 
     lk_lock(&locks_[tid], tid+1);
 
@@ -202,19 +195,19 @@ static void reserveHandshake(pid_t tid)
     disable_consumers();
     enable_producers();
 
-    //    if(num_cores == 1 || (!*useRealFile_)) {
-    //      continue;
-    //    }
-
-    if(queueSizes_[tid] < queueLimit) {
-      pool_[tid] += 50000;
-#ifdef ZESTO_PIN_DBG
-      cerr << tid << " [reserveHandshake()]: Increasing file up to " << queueSizes_[tid] + pool_[tid] << endl;
-#endif
+    if(pool_[tid] > 0) {
       break;
     }
-    cerr << tid << " [reserveHandshake()]: File size too big to expand, abort():" << queueSizes_[tid] << endl;
-    abort();
+
+    if(KnobNumCores.Value() == 1) {
+      continue;
+    }
+
+    pool_[tid] += 50000;
+#ifdef ZESTO_PIN_DBG
+    cerr << tid << " [reserveHandshake()]: Increasing file up to " << queueSizes_[tid] + pool_[tid] << endl;
+#endif
+    break;
   }
 }
 
@@ -248,7 +241,7 @@ static void copyProducerToFileReal(pid_t tid, bool checkSpace)
   if(checkSpace) {
     for(int i = 0; i < (int)bridgeDirs_.size(); i++) {
       int space = getKBFreeSpace(bridgeDirs_[i]);
-      if(space > 2000000) { // 2 GB
+      if(space > 2500000) { // 2.5 GB
         fileNames_[tid].push_back(genFileName(bridgeDirs_[i]));
         madeFile = true;
         break;
@@ -257,6 +250,11 @@ static void copyProducerToFileReal(pid_t tid, bool checkSpace)
     }
     if(madeFile == false) {
       cerr << "Nowhere left for the poor file bridge :(" << endl;
+      cerr << "BridgeDirs:" << endl;
+      for(int i = 0; i < (int)bridgeDirs_.size(); i++) {
+        int space = getKBFreeSpace(bridgeDirs_[i]);
+        cerr << bridgeDirs_[i] << ":" << space << " in KB" << endl;
+      }
       abort();
     }
   }
@@ -300,8 +298,12 @@ static ssize_t do_write(const int fd, const void* buff, const size_t size)
   ssize_t bytesWritten = 0;
   do {
     ssize_t res = write(fd, (void*)((char*)buff + bytesWritten), size - bytesWritten);
-    if(res == -1)
+    if(res == -1) {
+      cerr << "failed write!" << endl;
+      cerr << "bytesWritten:" << bytesWritten << endl;
+      cerr << "size:" << size << endl;
       return -1;
+    }
     bytesWritten += res;
   } while (bytesWritten < (ssize_t)size);
   return bytesWritten;
@@ -344,6 +346,19 @@ static void writeHandshake(pid_t tid, int fd, handshake_container_t* handshake)
   int bytesWritten = do_write(fd, writeBuffer, totalBytes);
   if(bytesWritten == -1) {
     cerr << "Pipe write error: " << bytesWritten << " Errcode:" << strerror(errno) << endl;
+
+    cerr << "Opened to write: " << fileNames_[tid].back() << endl;
+    cerr << "Thread Id:" << tid << endl;
+    cerr << "fd:" << fd << endl;
+    cerr << "Queue Size:" << queueSizes_[tid] << endl;
+    cerr << "ProduceBuffer size:" << produceBuffer_[tid]->size() << endl;
+    cerr << "file entry count:" << fileEntryCount_[tid] << endl;
+
+    cerr << "BridgeDirs:" << endl;
+    for(int i = 0; i < (int)bridgeDirs_.size(); i++) {
+      int space = getKBFreeSpace(bridgeDirs_[i]);
+      cerr << bridgeDirs_[i] << ":" << space << " in KB" << endl;
+    }
     abort();
   }
   if(bytesWritten != totalBytes) {
@@ -357,7 +372,7 @@ static int getKBFreeSpace(boost::interprocess::string path)
 {
   struct statvfs fsinfo;
   statvfs(path.c_str(), &fsinfo);
-  return (fsinfo.f_bsize * fsinfo.f_bfree / 1024);
+  return ((unsigned long long)fsinfo.f_bsize * (unsigned long long)fsinfo.f_bavail / 1024);
 }
 
 static shm_string genFileName(boost::interprocess::string path)

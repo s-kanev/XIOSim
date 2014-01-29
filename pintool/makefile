@@ -27,7 +27,7 @@
 PIN_HOME ?= /home/skanev/pin/2.12
 ZESTO_HOME = ..
 BOOST_HOME ?= /home/samxi/boost_1_55_0
-USER_LOCAL ?= /home/samxi/local/
+CONFUSE_HOME ?= /home/samxi/local/
 TARGET = ia32
 
 ##############################################################
@@ -63,7 +63,7 @@ endif
 
 BOOST_INCLUDE = $(BOOST_HOME)
 BOOST_LDFLAGS = -lrt -lpthread
-LIBCONFUSE_FLAGS = -I$(USER_LOCAL)include -L$(USER_LOCAL)lib
+LIBCONFUSE_FLAGS = -I$(CONFUSE_HOME)include -L$(CONFUSE_HOME)lib
 
 ##############################################################
 #
@@ -127,7 +127,7 @@ $(OBJDIR)feeder_zesto.so: $(FEEDER_OBJS)
 	${PIN_LD} -g $(PIN_LDFLAGS) -I$(ZESTO_HOME) -I$(BOOST_INCLUDE) $(LINK_DEBUG) ${LINK_OUT} $@ ${PIN_LPATHS} $^ $(PIN_LIBS) $(DBG) -lrt -pthread 
 
 $(OBJDIR)harness: $(HARNESS_OBJS)
-	${PIN_LD} -g $(CXXFLAGS) ${SHM_LDFLAGS} $(LINK_DEBUG) ${LINK_OUT} $@ $^ -pthread -lrt -lconfuse
+	${PIN_LD} -g $(CXXFLAGS) ${LIBCONFUSE_FLAGS} ${SHM_LDFLAGS} $(LINK_DEBUG) ${LINK_OUT} $@ $^ -pthread -lrt -lconfuse
 
 ## cleaning
 clean:
