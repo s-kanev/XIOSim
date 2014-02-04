@@ -1136,7 +1136,7 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
     /* XXX: Do we need this? A few lines above we set ignore_all! */
     ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
         thread_state_t* tstate = get_tls(*it);
-        lk_lock(&tstate->lock, *it+1);
+        lk_lock(&tstate->lock, 1);
         xiosim::buffer_management::resetPool(tstate->tid);
         tstate->ignore = true;
         lk_unlock(&tstate->lock);
@@ -1147,16 +1147,9 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
 /* ========================================================================== */
 VOID ILDJIT_ResumeSimulation(THREADID tid)
 {
-    lk_lock(printing_lock, 1);
-    std::cerr << "Calling ILDJIT_Resume" << std::endl;
-    lk_unlock(printing_lock);
-
+    /* Re-schedule all threads for simulation. */
     list<THREADID>::iterator it;
     ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
-        lk_lock(printing_lock, 1);
-        std::cerr << "Thread " << *it << std::endl;
-        lk_unlock(printing_lock);
-
         thread_state_t* tstate = get_tls(*it);
 
         ASSERTX(xiosim::buffer_management::empty(tstate->tid));
@@ -1169,36 +1162,20 @@ VOID ILDJIT_ResumeSimulation(THREADID tid)
         msg.ScheduleNewThread(tstate->tid);
         SendIPCMessage(msg);
     }
-    lk_lock(printing_lock, 1);
-    std::cerr << "Leaving ILDJIT_Resume" << std::endl;
-    lk_unlock(printing_lock);
-    return;
 
-    /* All cores were sleeping in between loops, wake them up now. */
-    for (INT32 coreID = 0; coreID < KnobNumCores.Value(); coreID++) {
-        /* Wake up cores right away without going through the handshake
-         * buffer (which should be empty anyway).
-         * If we do go through it, there are no guarantees for when the
-         * resume is consumed, which can lead to nasty races of who gets
-         * to resume first. */
-        pid_t curr_tid = GetSHMCoreThread(coreID);
-        if (curr_tid == (pid_t)INVALID_THREADID)
-            continue;
-
-        ASSERTX(xiosim::buffer_management::empty(curr_tid));
-        ipc_message_t msg;
-        msg.ActivateCore(coreID);
-        SendIPCMessage(msg);
-
-        lk_lock(&lk_tid_map, 1);
-        THREADID local_tid = global_to_local_tid[curr_tid];
-        lk_unlock(&lk_tid_map);
-
-        thread_state_t* tstate = get_tls(local_tid);
-        lk_lock(&tstate->lock, tid+1);
-        tstate->ignore_all = false;
-        lk_unlock(&tstate->lock);
-    }
+    /* Wait until all cores have been scheduled. 
+     * Since there is no guarantee when IPC messages are consumed, not
+     * waiting can cause a fast thread to race to ILDJIT_PauseSimulation,
+     * before everyone has been scheduled to run. */
+    volatile bool done = false;
+    do {
+        done = true;
+        list<THREADID>::iterator it;
+        ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
+            auto curr_tstate = get_tls(*it);
+            done &= IsSHMThreadSimulatingMaybe(curr_tstate->tid);
+        }
+    } while (!done);
 }
 
 /* ========================================================================== */
