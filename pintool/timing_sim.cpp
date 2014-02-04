@@ -93,7 +93,12 @@ void* SimulatorLoop(void* arg)
             // Check thread exit flag
             if (handshake->flags.killThread) {
                 ReleaseHandshake(coreID);
+                // Apply buffer changes before notifying the scheduler,
+                // doing otherwise would result in a race
                 numConsumed++;
+                xiosim::buffer_management::applyConsumerChanges(instrument_tid, numConsumed);
+                numConsumed = 0;
+
                 // Let the scheduler send something else to this core
                 DescheduleActiveThread(coreID);
 
@@ -103,7 +108,14 @@ void* SimulatorLoop(void* arg)
 
             if (handshake->flags.giveCoreUp) {
                 ReleaseHandshake(coreID);
+
+                // Apply buffer changes before notifying the scheduler,
+                // doing otherwise would result in a race
                 numConsumed++;
+                xiosim::buffer_management::applyConsumerChanges(instrument_tid, numConsumed);
+                numConsumed = 0;
+
+                // Let the scheduler send something else to this core
                 GiveUpCore(coreID, handshake->flags.giveUpReschedule);
                 break;
             }
@@ -123,6 +135,11 @@ void* SimulatorLoop(void* arg)
             numConsumed++;
 
             if (NeedsReschedule(coreID)) {
+                // Apply buffer changes before notifying the scheduler,
+                // doing otherwise would result in a race
+                xiosim::buffer_management::applyConsumerChanges(instrument_tid, numConsumed);
+                numConsumed = 0;
+
                 GiveUpCore(coreID, true);
                 break;
             }

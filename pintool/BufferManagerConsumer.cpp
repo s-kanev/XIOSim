@@ -110,6 +110,9 @@ int getConsumerSize(pid_t tid)
  */
 void applyConsumerChanges(pid_t tid, int numChanged)
 {
+  if (numChanged == 0)
+    return;
+
   lk_lock(&locks_[tid], tid+1);
 
   pool_[tid] += numChanged;
