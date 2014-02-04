@@ -1203,12 +1203,6 @@ VOID shutdownSimulation(THREADID tid)
 
     cerr << "Simulation runtime:";
     printElapsedTime();
-    cerr << "Stopping simulation, TID: " << tid << endl;
-    ipc_message_t msg;
-    msg.SliceEnd(1, 0, 100*1000);
-    SendIPCMessage(msg);
-    msg.StopSimulation(true);
-    SendIPCMessage(msg);
     cerr << "[KEVIN] Stopped simulation! " << tid << endl;
     PIN_ExitProcess(EXIT_SUCCESS);
 }
