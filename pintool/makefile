@@ -48,7 +48,7 @@ endif
 
 # additional debug flags
 ifeq ($(DEBUG),1)
-    CXXFLAGS += -DZESTO_PIN_DBG -DIPC_DEBUG -DPRINT_WAITS
+    CXXFLAGS += -DZESTO_PIN_DBG -DIPC_DEBUG -DPRINT_WAITS -DSCHEDULER_DEBUG
 endif
 
 # Non-optional subcomponents

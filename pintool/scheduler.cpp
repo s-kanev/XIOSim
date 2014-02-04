@@ -63,9 +63,11 @@ void ScheduleNewThread(pid_t tid)
 {
     /* Make sure thread is queued at one and only one runqueue. */
     if (IsSHMThreadSimulatingMaybe(tid)) {
+#ifdef SCHEDULER_DEBUG
         lk_lock(printing_lock, 1);
         std::cerr << "ScheduleNewThread: thread " << tid << " already scheduled, ignoring." << std::endl;
         lk_unlock(printing_lock);
+#endif
         return;
     }
 
@@ -94,9 +96,11 @@ void ScheduleNewThread(pid_t tid)
         UpdateSHMThreadCore(tid, INVALID_CORE);
     }
 
+#ifdef SCHEDULER_DEBUG
     lk_lock(printing_lock, 1);
     std::cerr << "ScheduleNewThread: thread " << tid << " on core " << coreID << std::endl;
     lk_unlock(printing_lock);
+#endif
 
     run_queues[coreID].q.push(tid);
     lk_unlock(&run_queues[coreID].lk);
@@ -111,9 +115,11 @@ void DescheduleActiveThread(int coreID)
     pid_t tid = run_queues[coreID].q.front();
     run_queues[coreID].last_reschedule = cores[coreID]->sim_cycle;
 
+#ifdef SCHEDULER_DEBUG
     lk_lock(printing_lock, 1);
     std::cerr << "Descheduling thread " << tid << " at coreID  " << coreID << std::endl;
     lk_unlock(printing_lock);
+#endif
 
     /* Deallocate thread state -- XXX: send IPC back to feeder */
 /*    thread_state_t* tstate = get_tls(tid);
@@ -134,9 +140,11 @@ void DescheduleActiveThread(int coreID)
         /* Let SHM know @new_tid is running on @coreID */
         UpdateSHMThreadCore(new_tid, coreID);
 
+#ifdef SCHEDULER_DEBUG
         lk_lock(printing_lock, tid+1);
         std::cerr << "Thread " << new_tid << " going on core " << coreID << std::endl;
         lk_unlock(printing_lock);
+#endif
     } else {
         /* No more work to do, let other cores progress */
         deactivate_core(coreID);
@@ -155,9 +163,11 @@ void GiveUpCore(int coreID, bool reschedule_thread)
     pid_t tid = run_queues[coreID].q.front();
     run_queues[coreID].last_reschedule = cores[coreID]->sim_cycle;
 
+#ifdef SCHEDULER_DEBUG
     lk_lock(printing_lock, tid+1);
     std::cerr << "Thread " << tid << " giving up on core " << coreID << std::endl;
     lk_unlock(printing_lock);
+#endif
 
     /* This thread gets descheduled. */
     run_queues[coreID].q.pop();
@@ -167,9 +177,11 @@ void GiveUpCore(int coreID, bool reschedule_thread)
         /* There is another thread waiting for the core. It gets scheduled. */
         new_tid = run_queues[coreID].q.front();
 
+#ifdef SCHEDULER_DEBUG
         lk_lock(printing_lock, tid+1);
         std::cerr << "Thread " << new_tid << " going on core " << coreID << std::endl;
         lk_unlock(printing_lock);
+#endif
     }
     else if (!reschedule_thread) {
         /* No more work to do, let core sleep */
@@ -186,9 +198,11 @@ void GiveUpCore(int coreID, bool reschedule_thread)
         /* Reschedule at the back of (possibly empty) runqueue for @coreID. */
         run_queues[coreID].q.push(tid);
 
+#ifdef SCHEDULER_DEBUG
         lk_lock(printing_lock, tid+1);
         std::cerr << "Rescheduling " << tid << " on core " << coreID << std::endl;
         lk_unlock(printing_lock);
+#endif
 
         /* If old thread is requeued behind a new thread, update its SHM status. */
         if (new_tid != tid)
