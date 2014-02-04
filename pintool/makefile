@@ -46,9 +46,16 @@ ifeq ($(TARGET_COMPILER),gnu)
     PIN=$(PIN_HOME)/pin
 endif
 
+# additional debug flags
+ifeq ($(DEBUG),1)
+    CXXFLAGS += -DZESTO_PIN_DBG -DIPC_DEBUG -DPRINT_WAITS
+endif
+
+# Non-optional subcomponents
 SIM_LIB = $(ZESTO_HOME)/libsim.a
 MCPAT_LIB = $(ZESTO_HOME)/mcpat/mcpat.a
 
+# Optional subcomponents
 ifeq ($(wildcard $(ZESTO_HOME)/mem-repeater/mem-repeater.h),)
     REPEATER_LIB =
 else
@@ -59,6 +66,13 @@ ifeq ($(wildcard $(ZESTO_HOME)/DRAMSim2/DRAMSim.h),)
     DRAMSIM_LIB =
 else
     DRAMSIM_LIB = $(ZESTO_HOME)/DRAMSim2/libdramsim.a
+endif
+
+# debug build option for subcomponents
+ifeq ($(DEBUG),1)
+    LIB_BUILD = libd
+else
+    LIB_BUILD = lib
 endif
 
 BOOST_INCLUDE = $(BOOST_HOME)
@@ -90,27 +104,24 @@ SHM_LDFLAGS = -ldl
 # build rules
 #
 ##############################################################
-all : CXXFLAGS += -DDEBUG -D_FILE_OFFSET_BITS=64 -DIPC_DEBUG -DPRINT_WAITS
+all : CXXFLAGS += -DDEBUG -D_FILE_OFFSET_BITS=64
 all : CXXFLAGS += -I$(BOOST_INCLUDE) $(BOOST_LDFLAGS) $(SHM_LDFLAGS)
 all: tools $(OBJDIR)harness $(OBJDIR)feeder_zesto.so
-debug:	CXXFLAGS += -DZESTO_PIN_DBG -D_FILE_OFFSET_BITS=64
-debug: CXXFLAGS += -I$(BOOST_INCLUDE) $(BOOST_LDFLAGS) $(SHM_LDFLAGS)
-debug: tools $(OBJDIR)harness $(OBJDIR)feeder_zesto.so
 tools: $(OBJDIR) $(TOOLS)
 
 ##############################################################
 # Subcomponents
 $(ZESTO_HOME)/libsim.a:
-	$(MAKE) -C $(ZESTO_HOME) lib
+	$(MAKE) -C $(ZESTO_HOME) $(LIB_BUILD)
 
 $(ZESTO_HOME)/DRAMSim2/libdramsim.a:
 	$(MAKE) -C $(ZESTO_HOME)/DRAMSim2
 
 $(ZESTO_HOME)/mcpat/mcpat.a:
-	$(MAKE) -C $(ZESTO_HOME)/mcpat lib
+	$(MAKE) -C $(ZESTO_HOME)/mcpat $(LIB_BUILD)
 
 $(ZESTO_HOME)/mem-repeater/librepeater.a:
-	$(MAKE) -C $(ZESTO_HOME)/mem-repeater
+	$(MAKE) -C $(ZESTO_HOME)/mem-repeater $(LIB_BUILD)
 
 $(OBJDIR):
 	mkdir -p $(OBJDIR)
