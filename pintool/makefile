@@ -90,7 +90,7 @@ SHM_LDFLAGS = -ldl
 # build rules
 #
 ##############################################################
-all : CXXFLAGS += -DDEBUG -D_FILE_OFFSET_BITS=64
+all : CXXFLAGS += -DDEBUG -D_FILE_OFFSET_BITS=64 -DIPC_DEBUG -DPRINT_WAITS
 all : CXXFLAGS += -I$(BOOST_INCLUDE) $(BOOST_LDFLAGS) $(SHM_LDFLAGS)
 all: tools $(OBJDIR)harness $(OBJDIR)feeder_zesto.so
 debug:	CXXFLAGS += -DZESTO_PIN_DBG -D_FILE_OFFSET_BITS=64

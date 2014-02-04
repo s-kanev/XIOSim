@@ -40,6 +40,10 @@ static RunQueue * run_queues;
 static int last_coreID;
 static XIOSIM_LOCK last_coreID_lk;
 
+static std::map<pid_t, int> affinity;
+static XIOSIM_LOCK affinity_lk;
+static int GetThreadAffinity(pid_t tid);
+
 static void UpdateSHMCoreThread(int coreID, pid_t tid);
 static void UpdateSHMThreadCore(pid_t tid, int coreID);
 static void RemoveSHMThread(pid_t tid);
@@ -50,6 +54,8 @@ void InitScheduler(int num_cores)
     run_queues = new RunQueue[num_cores];
     last_coreID = 0;
     lk_init(&last_coreID_lk);
+
+    lk_init(&affinity_lk);
 }
 
 /* ========================================================================== */
@@ -63,13 +69,18 @@ void ScheduleNewThread(pid_t tid)
         return;
     }
 
-    /* Atomically read and adjust the next available core */
-    int coreID;
-    lk_lock(&last_coreID_lk, 1);
-    coreID = last_coreID;
-    /* For now, just round-robin on available cores. */
-    last_coreID  = (last_coreID + 1) % num_cores;
-    lk_unlock(&last_coreID_lk);
+    /* Check if thread has been pinned to a core. */
+    int coreID = GetThreadAffinity(tid);
+
+    /* No affinity, just round-robin on cores. */
+    if (coreID == INVALID_CORE) {
+        /* Atomically read and adjust the next available core */
+        lk_lock(&last_coreID_lk, 1);
+        coreID = last_coreID;
+        /* For now, just round-robin on available cores. */
+        last_coreID  = (last_coreID + 1) % num_cores;
+        lk_unlock(&last_coreID_lk);
+    }
 
     lk_lock(&run_queues[coreID].lk, 1);
     if (run_queues[coreID].q.empty() && !is_core_active(coreID)) {
@@ -219,6 +230,27 @@ bool NeedsReschedule(int coreID)
 {
     tick_t since_schedule = cores[coreID]->sim_cycle - run_queues[coreID].last_reschedule;
     return (knobs.scheduler_tick > 0) && (since_schedule > knobs.scheduler_tick);
+}
+
+/* ========================================================================== */
+void SetThreadAffinity(pid_t tid, int coreID)
+{
+    assert(coreID >= 0 && coreID < num_cores);
+    lk_lock(&affinity_lk, 1);
+    assert(affinity.count(tid) == 0);
+    affinity[tid] = coreID;
+    lk_unlock(&affinity_lk);
+}
+
+/* ========================================================================== */
+static int GetThreadAffinity(pid_t tid)
+{
+    int res = INVALID_CORE;
+    lk_lock(&affinity_lk, 1);
+    if (affinity.count(tid) > 0)
+        res = affinity[tid];
+    lk_unlock(&affinity_lk);
+    return res;
 }
 
 /* Helpers for updating SHM thread->core and core->thread maps, which is allowed only

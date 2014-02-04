@@ -656,8 +656,15 @@ cleanup:
 /* ========================================================================== */
 VOID ILDJIT_setAffinity(THREADID tid, INT32 coreID)
 {
-    ASSERTX(coreID >= 0 && coreID < KnobNumCores.Value());
-    /* NADA, the scheduler should take care of it */
+    thread_state_t* tstate = get_tls(tid);
+#ifdef ZESTO_PIN_DBG
+    cerr << "Call to setAffinity: " << tstate->tid << " " << coreID << endl;
+#endif
+
+    /* Notify the scheduler of thread affinity */
+    ipc_message_t msg;
+    msg.SetThreadAffinity(tstate->tid, coreID);
+    SendIPCMessage(msg);
 }
 
 /* ========================================================================== */

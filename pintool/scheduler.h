@@ -17,6 +17,11 @@ void InitScheduler(int num_cores);
  */
 void ScheduleNewThread(pid_t tid);
 
+/* Notify the scheduler that thread @tid will only
+ * run on core @coreID.
+ */
+void SetThreadAffinity(pid_t tid, int coreID);
+
 /* Get the current running thread on core @coreID.
  * returns INVALID_THREADID if core is not active.
  */

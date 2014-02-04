@@ -376,6 +376,9 @@ void CheckIPCMessageQueue(bool isEarly, int caller_coreID)
             case ALLOCATE_THREAD:
                 xiosim::buffer_management::AllocateThreadConsumer(ipcMessage.arg0, ipcMessage.arg1);
                 break;
+            case THREAD_AFFINITY:
+                SetThreadAffinity(ipcMessage.arg0, ipcMessage.arg1);
+                break;
             default:
                 abort();
                 break;

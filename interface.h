@@ -33,7 +33,7 @@ void sim_drain_pipe(int coreID);
 
 void CheckIPCMessageQueue(bool isEarly, int caller_coreID);
 
-enum ipc_message_id_t { SLICE_START, SLICE_END, MMAP, MUNMAP, UPDATE_BRK, WARM_LLC, STOP_SIMULATION, ACTIVATE_CORE, DEACTIVATE_CORE, SCHEDULE_NEW_THREAD, ALLOCATE_THREAD, INVALID_MSG };
+enum ipc_message_id_t { SLICE_START, SLICE_END, MMAP, MUNMAP, UPDATE_BRK, WARM_LLC, STOP_SIMULATION, ACTIVATE_CORE, DEACTIVATE_CORE, SCHEDULE_NEW_THREAD, ALLOCATE_THREAD, THREAD_AFFINITY, INVALID_MSG };
 
 struct ipc_message_t {
     ipc_message_id_t id;
@@ -54,6 +54,7 @@ struct ipc_message_t {
           case ALLOCATE_THREAD:
           case SCHEDULE_NEW_THREAD:
           case STOP_SIMULATION:
+          case THREAD_AFFINITY:
             return true;
           default:
             return false;
@@ -129,6 +130,13 @@ struct ipc_message_t {
         this->id = ALLOCATE_THREAD;
         this->arg0 = tid;
         this->arg1 = buffer_capacity;
+    }
+
+    void SetThreadAffinity(int tid, int coreID)
+    {
+        this->id = THREAD_AFFINITY;
+        this->arg0 = tid;
+        this->arg1 = coreID;
     }
 };
 
