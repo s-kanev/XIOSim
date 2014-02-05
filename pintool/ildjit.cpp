@@ -1106,7 +1106,7 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
     } while (!done);
 
 #ifdef ZESTO_PIN_DBG
-    cerr << tid << " [" << cores[0]->sim_cycle << ":KEVIN]: All cores have empty buffers" << endl;
+    cerr << tid << " [KEVIN]: All cores have empty buffers" << endl;
     cerr.flush();
 #endif
 
