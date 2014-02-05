@@ -47,7 +47,7 @@ inline void lk_lock(XIOSIM_LOCK* lk, int32_t cid)
 {
     (void) cid;
     int32_t inc = 0x00010000;
-    int32_t tmp;
+    int32_t tmp = 0;
     __asm__ __volatile__ (  "lock xaddl %0, %1\n"
                             "movzwl %w0, %2\n"
                             "shrl $16, %0\n"
@@ -57,7 +57,7 @@ inline void lk_lock(XIOSIM_LOCK* lk, int32_t cid)
                             "movzwl %1, %2\n"
                             "jmp 1b\n"
                             "2:\n"
-                            :"+Q" (inc), "+m" (lk->v), "=r" (tmp)
+                            :"+Q" (inc), "+m" (lk->v), "+r" (tmp)
                             :
                             :"memory", "cc");
 }

@@ -85,6 +85,7 @@ int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores)
     SHARED_VAR_ARRAY_INIT(pid_t, coreThreads, num_cores, xiosim::INVALID_THREADID);
     SHARED_VAR_CONSTRUCT(ThreadCoreMap, threadCores, shared_memory_key.c_str());
     SHARED_VAR_INIT(XIOSIM_LOCK, lk_coreThreads);
+    lk_init(lk_coreThreads);
 
     SHARED_VAR_INIT(XIOSIM_LOCK, printing_lock);
     SHARED_VAR_INIT(int, num_processes);
