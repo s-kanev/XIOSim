@@ -295,7 +295,6 @@ sim_post_init(void)
 
     threads[i]->finished_cycle = false;
     threads[i]->consumed = false;
-    threads[i]->first_insn = true;
     threads[i]->fetches_since_feeder = 0;
   }
 

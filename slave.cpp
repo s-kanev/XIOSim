@@ -414,11 +414,6 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake)
       core->fetch->PC = handshake->handshake.pc;
    }
 
-   if(thread->first_insn) 
-   {  
-      thread->first_insn= false;
-   }
-
    // Let the oracle grab any arch state it needs
    core->oracle->grab_feeder_state(handshake, true, !slice_start);
 
