@@ -104,6 +104,10 @@ bool mem_is_mapped(int asid, md_addr_t addr)
 
 md_paddr_t v2p_translate(int asid, md_addr_t addr)
 {
+    /* Some caches call this with an already translated address. Just ignore. */
+    if (asid == DO_NOT_TRANSLATE)
+        return addr;
+
     assert(asid >= 0 && asid < num_address_spaces);
     /* Page is mapped, just look it up */
     if (mem_is_mapped(asid, addr)) {
@@ -117,11 +121,15 @@ md_paddr_t v2p_translate(int asid, md_addr_t addr)
 }
 
 /* Wrapper around v2p_translate, to be called without holding the memory_lock */
-md_paddr_t v2p_translate_safe(int asid, md_addr_t virt_addr)
+md_paddr_t v2p_translate_safe(int asid, md_addr_t addr)
 {
+    /* Some caches call this with an already translated address. Just ignore. */
+    if (asid == DO_NOT_TRANSLATE)
+        return addr;
+
     md_paddr_t res;
     lk_lock(&memory_lock, 1);
-    res = v2p_translate(asid, virt_addr);
+    res = v2p_translate(asid, addr);
     lk_unlock(&memory_lock);
     return res;
 }

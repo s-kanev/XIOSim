@@ -35,9 +35,9 @@ void mem_delmap(int asid, md_addr_t addr, size_t length);
 /* check if a virtual address has been added to the mapping */
 bool mem_is_mapped(int asid, md_addr_t addr);
 /* maps each (core-id,virtual-address) pair to a simulated physical address */
-md_paddr_t v2p_translate(int asid, md_addr_t virt_addr);
+md_paddr_t v2p_translate(int asid, md_addr_t addr);
 /* wrapper around v2p_translate, to be called without holding the memory_lock */
-md_paddr_t v2p_translate_safe(int asid, md_addr_t virt_addr);
+md_paddr_t v2p_translate_safe(int asid, md_addr_t addr);
 
 /* Get top of data segment */
 md_addr_t mem_brk(int asid);
