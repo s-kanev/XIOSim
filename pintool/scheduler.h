@@ -11,13 +11,13 @@ namespace xiosim {
 const pid_t INVALID_THREADID = -1;
 
 struct pid_cores_info {
-  float current_penalty;
+  double current_penalty;
   int num_cores_allocated;
 };
 
 const float MARGINAL_SPEEDUP_THRESHOLD = 0.4;
 extern std::map<pid_t, pid_cores_info> *process_info_map;
-extern std::map<std::string, float*> *loop_speedup_map;
+extern std::map<std::string, double*> *loop_speedup_map;
 
 void InitScheduler(int num_cores);
 

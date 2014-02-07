@@ -22,7 +22,7 @@ extern int num_cores;
 namespace xiosim {
 
 std::map<pid_t, pid_cores_info> *process_info_map;
-std::map<std::string, float*> *loop_speedup_map;
+std::map<std::string, double*> *loop_speedup_map;
 
 struct RunQueue {
     RunQueue() {
