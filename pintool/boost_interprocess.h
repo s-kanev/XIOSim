@@ -7,11 +7,13 @@
 #pragma GCC diagnostic ignored "-Wnarrowing"
 #pragma GCC diagnostic ignored "-Wunused-local-typedefs"
 #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
 #include <boost/interprocess/containers/deque.hpp>
 #include <boost/interprocess/containers/string.hpp>
 #include <boost/interprocess/containers/map.hpp>
 #include <boost/interprocess/containers/vector.hpp>
+#include <boost/tokenizer.hpp>
 #include <boost/unordered_map.hpp>
 
 #include <boost/interprocess/managed_shared_memory.hpp>
