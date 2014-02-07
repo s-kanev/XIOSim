@@ -15,11 +15,6 @@ struct thread_t {
   int asid;                  /* Address space ID that this thread belongs to. */
 
   struct {
-    md_addr_t stack_base;    /* program stack segment base (highest address in stack) */
-    md_addr_t stack_min;     /* lowest address accessed on the stack */
-  } memory;
-
-  struct {
     counter_t num_insn;
     counter_t num_refs;
     counter_t num_loads;

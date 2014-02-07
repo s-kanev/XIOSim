@@ -120,10 +120,16 @@ void* SimulatorLoop(void* arg)
                 break;
             }
 
-            // First instruction, set bottom of stack, and flag we're not safe to kill
+            // First instruction, map stack pages, and flag we're not safe to kill
             if (handshake->flags.isFirstInsn)
             {
-                Zesto_SetBOS(coreID, handshake->flags.BOS);
+                md_addr_t esp = handshake->handshake.ctxt.regs_R.dw[MD_REG_ESP];
+                md_addr_t bos;
+                lk_lock(lk_thread_bos, 1);
+                bos = thread_bos->at(instrument_tid);
+                lk_unlock(lk_thread_bos);
+                Zesto_Map_Stack(handshake->handshake.asid, esp, bos);
+
                 lk_lock(&tstate->lock, 1);
                 tstate->sim_stopped = false;
                 lk_unlock(&tstate->lock);

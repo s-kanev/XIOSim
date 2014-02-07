@@ -104,7 +104,6 @@ void ScheduleNewThread(pid_t tid)
 
     run_queues[coreID].q.push(tid);
     lk_unlock(&run_queues[coreID].lk);
-
 }
 
 /* ========================================================================== */

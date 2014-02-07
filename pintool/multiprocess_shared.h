@@ -46,6 +46,10 @@ bool IsSHMThreadSimulatingMaybe(pid_t tid);
  * between the two. */
 int GetSHMThreadCore(pid_t tid);
 
+typedef xiosim::shared::SharedMemoryMap<pid_t, md_addr_t> ThreadBOSMap;
+SHARED_VAR_DECLARE(ThreadBOSMap, thread_bos)
+SHARED_VAR_DECLARE(XIOSIM_LOCK, lk_thread_bos)
+
 SHARED_VAR_DECLARE(bool, sleeping_enabled)
 
 SHARED_VAR_DECLARE(bool, consumers_sleep)

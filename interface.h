@@ -18,8 +18,8 @@ void Zesto_Destroy();
 
 void Zesto_Notify_Mmap(int asid, unsigned int addr, unsigned int length, bool mod_brk);
 void Zesto_Notify_Munmap(int asid, unsigned int addr, unsigned int length, bool mod_brk);
-void Zesto_SetBOS(int asid, unsigned int stack_base);
 void Zesto_UpdateBrk(int asid, unsigned int brk_end, bool do_mmap);
+void Zesto_Map_Stack(int asid, unsigned int sp, unsigned int bos);
  
 void Zesto_Slice_Start(unsigned int slice_num);
 void Zesto_Slice_End(unsigned int slice_num, unsigned long long feeder_slice_length, unsigned long long slice_weight_times_1000);

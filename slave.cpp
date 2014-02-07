@@ -205,15 +205,6 @@ Zesto_SlaveInit(int argc, char **argv)
   return 0;
 }
 
-void Zesto_SetBOS(int coreID, unsigned int stack_base)
-{
-  assert(coreID < num_cores);
-
-  cores[coreID]->current_thread->memory.stack_base = (md_addr_t)stack_base;
-  //  fprintf(stderr, "Stack base[%d]: %x; \n", coreID, cores[coreID]->current_thread->memory.stack_base);
-
-}
-
 void Zesto_Notify_Mmap(int asid, unsigned int addr, unsigned int length, bool mod_brk)
 {
   md_addr_t page_addr = ROUND_DOWN((md_addr_t)addr, PAGE_SIZE);
@@ -255,6 +246,22 @@ void Zesto_UpdateBrk(int asid, unsigned int brk_end, bool do_mmap)
   lk_lock(&memory_lock, 1);
   mem_update_brk(asid, brk_end);
   lk_unlock(&memory_lock);
+}
+
+void Zesto_Map_Stack(int asid, unsigned int sp, unsigned int bos)
+{
+  core_t* core = cores[0]; // for zesto_assert
+  zesto_assert(sp != 0, (void)0);
+  zesto_assert(bos != 0, (void)0);
+
+  /* Create local pages for stack */ 
+  md_addr_t page_start = ROUND_DOWN(sp, PAGE_SIZE);
+  md_addr_t page_end = ROUND_UP(bos, PAGE_SIZE);
+
+  lk_lock(&memory_lock, 1);
+  mem_newmap(asid, page_start, page_end-page_start);
+  lk_unlock(&memory_lock);
+  fprintf(stderr, "Stack pointer: %x; BOS: %x\n", sp, bos);
 }
 
 void Zesto_Destroy()
@@ -393,22 +400,6 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake)
 
    if(slice_start)
    {
-      zesto_assert(thread->memory.stack_base, (void)0);
-
-      /* Init stack pointer */
-      md_addr_t sp = handshake->handshake.ctxt.regs_R.dw[MD_REG_ESP]; 
-      thread->memory.stack_min = (md_addr_t)sp;
-
-      /* Create local pages for stack */ 
-      md_addr_t page_start = ROUND_DOWN(sp, PAGE_SIZE);
-      md_addr_t page_end = ROUND_UP(thread->memory.stack_base, PAGE_SIZE);
-
-      lk_lock(&memory_lock, coreID+1);
-      mem_newmap(handshake->handshake.asid, page_start, page_end-page_start);
-      lk_unlock(&memory_lock);
-      fprintf(stderr, "Stack pointer: %x; \n", sp);
-
-
       thread->regs.regs_PC = handshake->handshake.pc;
       thread->regs.regs_NPC = handshake->handshake.pc;
       core->fetch->PC = handshake->handshake.pc;

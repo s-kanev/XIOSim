@@ -15,7 +15,6 @@ struct handshake_flags_t
   bool giveCoreUp;          /* Notify the scheduler to release thread */
   bool giveUpReschedule;    /* When ^ is true, should thread get re-scheduled */
   bool killThread;          /* Thread is exiting, deschedule it and clean up once consumed */
-  md_addr_t BOS;
 };
 
 class handshake_container_t

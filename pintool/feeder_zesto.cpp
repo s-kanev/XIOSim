@@ -512,7 +512,6 @@ VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, A
     BOOL first_insn = tstate->firstInstruction;
     lk_unlock(&tstate->lock);
     if (first_insn) {
-        handshake->flags.BOS = tstate->bos;
         handshake->flags.isFirstInsn = true;
         lk_lock(&tstate->lock, tid+1);
         tstate->firstInstruction = false;
@@ -816,8 +815,6 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
         bos = tos;
     }
 
-    tstate->bos = bos;
-
     // Application threads only -- create buffers for them
     if (!KnobILDJIT.Value() ||
         (KnobILDJIT.Value() && ILDJIT_IsCreatingExecutor()))
@@ -834,6 +831,11 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
         lk_lock(&lk_tid_map, 1);
         global_to_local_tid[tstate->tid] = threadIndex;
         lk_unlock(&lk_tid_map);
+
+        // Remember bottom of stack for this thread globally
+        lk_lock(lk_thread_bos, 1);
+        thread_bos->operator[](tstate->tid) = bos;
+        lk_unlock(lk_thread_bos);
 
         if (ExecMode == EXECUTION_MODE_SIMULATE)
         {

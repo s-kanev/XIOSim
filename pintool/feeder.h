@@ -58,7 +58,6 @@ class thread_state_t
 
         last_syscall_number = last_syscall_arg1 = 0;
         last_syscall_arg2 = last_syscall_arg3 = 0;
-        bos = -1;
         firstIteration = false;
         lastSignalAddr = 0xdecafbad;
 
@@ -96,9 +95,6 @@ class thread_state_t
     ADDRINT last_syscall_arg1;
     ADDRINT last_syscall_arg2;
     ADDRINT last_syscall_arg3;
-
-    // Bottom-of-stack pointer used for shadow page table
-    ADDRINT bos;
 
     // Return PC for routines that we ignore (e.g. ILDJIT callbacks)
     ADDRINT retPC;
@@ -168,7 +164,6 @@ extern EXECUTION_MODE ExecMode;
 VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREADID tid);
 VOID PauseSimulation();
 VOID StopSimulation(BOOL kill_sim_threads);
-VOID SimulatorLoop(VOID* arg);
 VOID ThreadFini(THREADID threadIndex, const CONTEXT *ctxt, INT32 code, VOID *v);
 VOID Fini(INT32 exitCode, VOID *v);
 
