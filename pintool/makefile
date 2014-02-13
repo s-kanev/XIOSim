@@ -92,6 +92,10 @@ TOOL_OBJS = $(OBJDIR)timing_sim.o $(OBJDIR)lib.o $(OBJDIR)scheduler.o $(OBJDIR)m
 
 HARNESS_OBJS = $(OBJDIR)harness.o $(OBJDIR)ipc_queues.o $(OBJDIR)mpkeys_impl.o
 
+UNIT_TESTS = test_allocation
+UNIT_TEST_FLAGS = -DDEBUG
+UNIT_TEST_DEPS = base_allocator.cpp penalty_allocator.cpp
+
 FEEDER_OBJS = $(OBJDIR)feeder_zesto.o $(ZESTO_HOME)/buffer.o $(OBJDIR)ildjit.o $(OBJDIR)fluffy.o $(OBJDIR)utils.o $(OBJDIR)sync_pthreads.o $(OBJDIR)parsec.o $(OBJDIR)syscall_handling.o $(OBJDIR)ignore_ins.o $(OBJDIR)mpkeys_impl.o $(OBJDIR)ipc_queues.o $(OBJDIR)multiprocess_shared.o $(OBJDIR)BufferManagerProducer.o $(OBJDIR)BufferManager.o 
 
 TOOLS = $(OBJDIR)$(TOOL_ROOTS)
@@ -107,6 +111,7 @@ SHM_LDFLAGS = -ldl
 all : CXXFLAGS += -DDEBUG -D_FILE_OFFSET_BITS=64
 all : CXXFLAGS += -I$(BOOST_INCLUDE) $(BOOST_LDFLAGS) $(SHM_LDFLAGS)
 all: tools $(OBJDIR)harness $(OBJDIR)feeder_zesto.so
+test: $(UNIT_TESTS)
 tools: $(OBJDIR) $(TOOLS)
 
 ##############################################################
@@ -130,6 +135,9 @@ $(OBJDIR)%.o : %.cpp
 	$(CXX) -c -I$(BOOST_INCLUDE) $(CXXFLAGS) $(PIN_CXXFLAGS) ${OUTOPT}$@ $<
 
 $(TOOLS): $(TOOL_OBJS) $(SIM_LIB) $(MCPAT_LIB) $(DRAMSIM_LIB) $(REPEATER_LIB)
+
+$(UNIT_TESTS): $(UNIT_TESTS).cpp $(UNIT_TEST_DEPS)
+	$(CXX) -I$(BOOST_INCLUDE) $(CXXFLAGS) $(UNIT_TEST_FLAGS) ${OUTOPT}$@ $< $(UNIT_TEST_DEPS)
 
 $(TOOLS):
 	${PIN_LD} -g -I$(ZESTO_HOME) -L$(ZESTO_HOME) -I$(BOOST_INCLUDE) $(LINK_DEBUG) ${LINK_OUT} $@ $^ $(DBG) -lrt -pthread 
