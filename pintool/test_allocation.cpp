@@ -76,6 +76,14 @@ void TestPenaltyPolicy(xiosim::BaseAllocator *allocator) {
     // Test for the correct core allocation.
     allocator->AllocateCoresForLoop("loop_2", process_2, &num_cores_2);
     ASSERT_EQUAL_INT(num_cores_2, process_2_cores[i]);
+
+    // Test that deallocation completes correctly.
+    allocator->DeallocateCoresForProcess(process_1);
+    allocator->get_data_for_pid(process_1, &data_p1);
+    ASSERT_EQUAL_INT(data_p1.num_cores_allocated, 1);
+    allocator->DeallocateCoresForProcess(process_1);
+    allocator->get_data_for_pid(process_1, &data_p1);
+    ASSERT_EQUAL_INT(data_p1.num_cores_allocated, 1);
   }
 }
 

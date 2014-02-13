@@ -32,6 +32,11 @@ BaseAllocator::~BaseAllocator() {
   delete process_info_map;
 }
 
+void BaseAllocator::DeallocateCoresForProcess(pid_t pid) {
+  if (process_info_map->find(pid) != process_info_map->end())
+    process_info_map->operator[](pid).num_cores_allocated = 1;
+}
+
 void BaseAllocator::LoadHelixSpeedupModelData(char* filepath) {
   using std::string;
   using boost::tokenizer;
