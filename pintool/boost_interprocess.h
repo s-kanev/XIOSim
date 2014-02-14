@@ -10,6 +10,7 @@
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
 #include <boost/interprocess/containers/deque.hpp>
+#include <boost/interprocess/containers/set.hpp>
 #include <boost/interprocess/containers/string.hpp>
 #include <boost/interprocess/containers/map.hpp>
 #include <boost/interprocess/containers/vector.hpp>

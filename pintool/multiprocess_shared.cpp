@@ -16,9 +16,15 @@ SHARED_VAR_DEFINE(XIOSIM_LOCK, printing_lock)
 SHARED_VAR_DEFINE(int, num_processes)
 SHARED_VAR_DEFINE(int, next_asid)
 
+SHARED_VAR_DEFINE(ThreadProcessMap, threadProcess)
+SHARED_VAR_DEFINE(XIOSIM_LOCK, lk_threadProcess)
+
 SHARED_VAR_DEFINE(pid_t, coreThreads)
 SHARED_VAR_DEFINE(ThreadCoreMap, threadCores)
 SHARED_VAR_DEFINE(XIOSIM_LOCK, lk_coreThreads)
+
+SHARED_VAR_DEFINE(SharedCoreSetArray, processCoreSet)
+SHARED_VAR_DEFINE(XIOSIM_LOCK, lk_processCoreSet)
 
 SHARED_VAR_DEFINE(ThreadBOSMap, thread_bos)
 SHARED_VAR_DEFINE(XIOSIM_LOCK, lk_thread_bos)
@@ -36,7 +42,13 @@ SHARED_VAR_DEFINE(pthread_mutex_t, cv_consumers_lock)
 SHARED_VAR_DEFINE(int, ss_curr);
 SHARED_VAR_DEFINE(int, ss_prev);
 
-int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores)
+static int num_cores;
+
+int_allocator* int_alloc_inst;
+shared_core_set_allocator* core_set_alloc_inst;
+
+
+int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores_)
 {
     using namespace boost::interprocess;
     int *process_counter = NULL;
@@ -71,6 +83,8 @@ int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores)
 
     InitIPCQueues();
 
+    num_cores = num_cores_;
+
     SHARED_VAR_INIT(bool, sleeping_enabled, false)
 
     SHARED_VAR_INIT(bool, producers_sleep, false)
@@ -94,8 +108,18 @@ int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores)
     SHARED_VAR_INIT(XIOSIM_LOCK, lk_thread_bos);
     lk_init(lk_thread_bos);
 
+    SHARED_VAR_CONSTRUCT(ThreadProcessMap, threadProcess, shared_memory_key.c_str());
+    SHARED_VAR_INIT(XIOSIM_LOCK, lk_threadProcess);
+    lk_init(lk_threadProcess);
+
     SHARED_VAR_INIT(XIOSIM_LOCK, printing_lock);
     SHARED_VAR_INIT(int, num_processes);
+
+    int_alloc_inst = new int_allocator(global_shm->get_segment_manager());
+    core_set_alloc_inst = new shared_core_set_allocator(global_shm->get_segment_manager());
+    SHARED_VAR_INIT(SharedCoreSetArray, processCoreSet, *num_processes, SharedCoreSet(std::less<int>(), *int_alloc_inst), *core_set_alloc_inst);
+    SHARED_VAR_INIT(XIOSIM_LOCK, lk_processCoreSet);
+    lk_init(lk_processCoreSet);
 
     SHARED_VAR_INIT(int, ss_curr);
     SHARED_VAR_INIT(int, ss_prev);
@@ -116,7 +140,8 @@ int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores)
     return asid;
 }
 
-pid_t GetSHMCoreThread(int coreID) {
+pid_t GetSHMCoreThread(int coreID)
+{
     pid_t res;
     lk_lock(lk_coreThreads, 1);
     res = coreThreads[coreID];
@@ -124,7 +149,8 @@ pid_t GetSHMCoreThread(int coreID) {
     return res;
 }
 
-int GetSHMThreadCore(pid_t tid) {
+int GetSHMThreadCore(pid_t tid)
+{
     int res = INVALID_CORE;
     lk_lock(lk_coreThreads, 1);
     if (threadCores->find(tid) != threadCores->end())
@@ -133,12 +159,49 @@ int GetSHMThreadCore(pid_t tid) {
     return res;
 }
 
-bool IsSHMThreadSimulatingMaybe(pid_t tid) {
+bool IsSHMThreadSimulatingMaybe(pid_t tid)
+{
     bool res = false;
     lk_lock(lk_coreThreads, 1);
     if (threadCores->find(tid) != threadCores->end())
         res = true;
     lk_unlock(lk_coreThreads);
+    return res;
+}
+
+CoreSet GetProcessCores(int asid)
+{
+    CoreSet res;
+    for (int coreID=0; coreID < num_cores; coreID++) {
+        pid_t tid = GetSHMCoreThread(coreID);
+        if (tid == xiosim::INVALID_THREADID)
+            continue;
+
+        lk_lock(lk_threadProcess, 1);
+        if (threadProcess->find(tid) != threadProcess->end() &&
+            threadProcess->operator[](tid) == asid)
+            res.insert(coreID);
+        lk_unlock(lk_threadProcess);
+    }
+    return res;
+}
+
+void UpdateProcessCoreSet(int asid, CoreSet val)
+{
+    lk_lock(lk_processCoreSet, 1);
+    processCoreSet->at(asid).clear();
+    for (int i : val)
+        processCoreSet->at(asid).insert(i);
+    lk_unlock(lk_processCoreSet);
+}
+
+CoreSet GetProcessCoreSet(int asid)
+{
+    CoreSet res;
+    lk_lock(lk_processCoreSet, 1);
+    for (int i : processCoreSet->at(asid))
+        res.insert(i);
+    lk_unlock(lk_processCoreSet);
     return res;
 }
 

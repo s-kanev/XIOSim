@@ -832,6 +832,11 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
         global_to_local_tid[tstate->tid] = threadIndex;
         lk_unlock(&lk_tid_map);
 
+        // Mark thread as belonging to this process
+        lk_lock(lk_threadProcess, 1);
+        threadProcess->operator[](tstate->tid) = asid;
+        lk_unlock(lk_threadProcess);
+
         // Remember bottom of stack for this thread globally
         lk_lock(lk_thread_bos, 1);
         thread_bos->operator[](tstate->tid) = bos;

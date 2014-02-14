@@ -20,7 +20,7 @@ namespace buffer_management
   bool hasThread(pid_t tid);
   void cleanBridge(void);
 
-  typedef allocator< int, managed_shared_memory::segment_manager> int_allocator;
+  typedef allocator<int, managed_shared_memory::segment_manager> int_allocator;
   typedef boost::interprocess::deque<int, int_allocator> shm_int_deque;
   typedef allocator<char, managed_shared_memory::segment_manager>
       char_allocator;

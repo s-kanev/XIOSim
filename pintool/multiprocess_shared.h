@@ -1,6 +1,7 @@
 #ifndef __MP_SHARED__
 #define __MP_SHARED__
 
+#include "../core-set.h"
 #include "mpkeys.h"
 
 extern boost::interprocess::managed_shared_memory *global_shm;
@@ -30,6 +31,10 @@ SHARED_VAR_DECLARE(int, num_processes)
 SHARED_VAR_DECLARE(int, next_asid)
 SHARED_VAR_DECLARE(XIOSIM_LOCK, printing_lock)
 
+typedef xiosim::shared::SharedMemoryMap<pid_t, int> ThreadProcessMap;
+SHARED_VAR_DECLARE(ThreadProcessMap, threadProcess)
+SHARED_VAR_DECLARE(XIOSIM_LOCK, lk_threadProcess)
+
 SHARED_VAR_DECLARE(pid_t, coreThreads);
 typedef xiosim::shared::SharedMemoryMap<pid_t, int> ThreadCoreMap;
 
@@ -45,6 +50,16 @@ bool IsSHMThreadSimulatingMaybe(pid_t tid);
  * scheduled. Calling IsSHMThreadSimulatingMaybe() can distinguish
  * between the two. */
 int GetSHMThreadCore(pid_t tid);
+
+typedef boost::interprocess::allocator<int, boost::interprocess::managed_shared_memory::segment_manager> int_allocator; 
+typedef boost::interprocess::set<int, std::less<int>, int_allocator> SharedCoreSet;
+typedef boost::interprocess::allocator<SharedCoreSet, boost::interprocess::managed_shared_memory::segment_manager> shared_core_set_allocator;
+typedef boost::interprocess::vector<SharedCoreSet, shared_core_set_allocator> SharedCoreSetArray;
+SHARED_VAR_DECLARE(SharedCoreSetArray, processCoreSet)
+SHARED_VAR_DECLARE(XIOSIM_LOCK, lk_processCoreSet)
+CoreSet GetProcessCores(int asid);
+CoreSet GetProcessCoreSet(int asid);
+void UpdateProcessCoreSet(int asid, CoreSet val);
 
 typedef xiosim::shared::SharedMemoryMap<pid_t, md_addr_t> ThreadBOSMap;
 SHARED_VAR_DECLARE(ThreadBOSMap, thread_bos)

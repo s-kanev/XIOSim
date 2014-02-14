@@ -522,7 +522,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
     handshake->handshake.sleep_thread = false;
     handshake->handshake.resume_thread = false;
     handshake->handshake.real = false;
-    handshake->handshake.in_critical_section = (KnobNumCores.Value() > 1);
+    handshake->handshake.in_critical_section = true;
     handshake->handshake.asid = asid;
     handshake->flags.valid = true;
 
@@ -542,7 +542,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
 
     handshake_2 = xiosim::buffer_management::get_buffer(tstate->tid);
     handshake_2->handshake.real = false;
-    handshake_2->handshake.in_critical_section = (KnobNumCores.Value() > 1);
+    handshake_2->handshake.in_critical_section = true;
     handshake_2->handshake.asid = asid;
     handshake_2->flags.valid = true;
 
@@ -631,7 +631,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
     handshake->handshake.sleep_thread = false;
     handshake->handshake.resume_thread = false;
     handshake->handshake.real = false;
-    handshake->handshake.in_critical_section = (KnobNumCores.Value() > 1) && (tstate->loop_state->unmatchedWaits > 0);
+    handshake->handshake.in_critical_section = (tstate->loop_state->unmatchedWaits > 0);
     handshake->handshake.asid = asid;
     handshake->flags.valid = true;
 
@@ -953,14 +953,31 @@ VOID AddILDJITCallbacks(IMG img)
 
 UINT32 getSignalAddress(ADDRINT ssID)
 {
-  UINT32 firstCore = 0;
-  if(first_invocation) {
-    firstCore = start_loop_iteration % (KnobNumCores.Value());
-  }
-  assert(firstCore < 64);
-  assert(ssID < 1024);
+    CoreSet allocatedCores = GetProcessCores(asid);
+    assert(allocatedCores.size());
 
-  return 0x7ffc0000 + (firstCore << 10) + ssID;
+    /* We need the first core that starts the loop invocation in order
+     * to initialize the signal cache differently (so cores don't wait
+     * on non-existent iterations). */
+    int offsetFromFirst = 0;
+    if (first_invocation) {
+    /* In the majority of cases, the first thread of the invocation starts
+     * the first iteration. Except, if we start sampling mid-invocation.
+     * In that case, we assume iterations are distributed to the allocated
+     * core set in increasing order. */
+        offsetFromFirst = start_loop_iteration % allocatedCores.size();
+    }
+
+    auto it = allocatedCores.begin();
+    for (int i=0; i < offsetFromFirst; i++)
+        it++;
+
+    int firstCore = *it;
+
+    assert(firstCore < MAX_CORES);
+    assert(ssID < 1024);
+
+    return 0x7ffc0000 + (firstCore << 10) + ssID;
 }
 
 bool loopMatches(string loop, UINT32 invocationNum, UINT32 iterationNum)
@@ -1142,11 +1159,31 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
         lk_unlock(&tstate->lock);
         assert(xiosim::buffer_management::empty(tstate->tid));
     }
+
+    CoreSet empty_set;
+    UpdateProcessCoreSet(asid, empty_set);
 }
 
 /* ========================================================================== */
 VOID ILDJIT_ResumeSimulation(THREADID tid)
 {
+    /*
+    int num_threads;
+    lk_lock(thread_list_lock, 1);
+    num_threads = thread_list.size();
+    lk_unlock(thread_list_lock);*/
+
+    // XXX: Might need to change GetProcessCores to look at run queues so we handle oversubscription properly.
+    /* It's important to update the set of cores for this process here atomically
+     * and not reconstruct it on demand. The difference comes at the end of an invocation
+     * when some iterations are already ready and have released their cores. In that case,
+     * reconstructing the core set leads to bad behavior in the signal cache. */
+    //XXX: Ordering here matters, if we GetProcessCores after scheudling, we are racing for the scheduler queues.
+    CoreSet scheduled_cores;
+    scheduled_cores.insert({0, 1, 2, 3});// = GetProcessCores(asid);
+    // XXX: Put in call to core allocator.
+    UpdateProcessCoreSet(asid, scheduled_cores);
+
     /* Re-schedule all threads for simulation. */
     list<THREADID>::iterator it;
     ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
@@ -1176,6 +1213,7 @@ VOID ILDJIT_ResumeSimulation(THREADID tid)
             done &= IsSHMThreadSimulatingMaybe(curr_tstate->tid);
         }
     } while (!done);
+
 }
 
 /* ========================================================================== */
