@@ -32,7 +32,7 @@ class BaseAllocator {
     BaseAllocator(int ncores);
 
     /* Deletes all state for this allocator. */
-    ~BaseAllocator();
+    virtual ~BaseAllocator();
 
     /* Allocates cores for a loop named loop_name based on its scaling behavior
      * and current penalties held and returns the number of cores allotted in

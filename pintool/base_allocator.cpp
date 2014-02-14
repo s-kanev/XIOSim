@@ -71,7 +71,7 @@ void BaseAllocator::LoadHelixSpeedupModelData(char* filepath) {
         InterpolateSpeedup(partial_speedup_data, full_speedup_data);
         loop_speedup_map->operator[](loop_name) = full_speedup_data;
 #ifdef DEBUG
-        std::cout << "Incremental speedup:\t";
+        std::cout << loop_name << " speedup:\t";
         for (int j = 0; j < num_cores; j++)
           std::cout << full_speedup_data[j] << "\t";
         std::cout << std::endl;

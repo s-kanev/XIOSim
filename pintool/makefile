@@ -48,7 +48,7 @@ endif
 
 # additional debug flags
 ifeq ($(DEBUG),1)
-    CXXFLAGS += -DZESTO_PIN_DBG -DIPC_DEBUG -DPRINT_WAITS -DSCHEDULER_DEBUG
+    CXXFLAGS += -DZESTO_PIN_DBG -DIPC_DEBUG -DPRINT_WAITS -DSCHEDULER_DEBUG -O0
 endif
 
 # Non-optional subcomponents
@@ -92,11 +92,11 @@ TOOL_OBJS = $(OBJDIR)timing_sim.o $(OBJDIR)lib.o $(OBJDIR)scheduler.o $(OBJDIR)m
 
 HARNESS_OBJS = $(OBJDIR)harness.o $(OBJDIR)ipc_queues.o $(OBJDIR)mpkeys_impl.o
 
-UNIT_TESTS = test_allocation
+UNIT_TESTS = $(OBJDIR)test_allocation
 UNIT_TEST_FLAGS = -DDEBUG
-UNIT_TEST_DEPS = base_allocator.cpp penalty_allocator.cpp
+UNIT_TEST_DEPS = $(OBJDIR)multiprocess_shared.o $(OBJDIR)base_allocator.o $(OBJDIR)penalty_allocator.o $(OBJDIR)local_opt_allocator.o $(OBJDIR)ipc_queues.o $(OBJDIR)mpkeys_impl.o $(OBJDIR)test_allocation.o
 
-FEEDER_OBJS = $(OBJDIR)feeder_zesto.o $(ZESTO_HOME)/buffer.o $(OBJDIR)ildjit.o $(OBJDIR)fluffy.o $(OBJDIR)utils.o $(OBJDIR)sync_pthreads.o $(OBJDIR)parsec.o $(OBJDIR)syscall_handling.o $(OBJDIR)ignore_ins.o $(OBJDIR)mpkeys_impl.o $(OBJDIR)ipc_queues.o $(OBJDIR)multiprocess_shared.o $(OBJDIR)BufferManagerProducer.o $(OBJDIR)BufferManager.o 
+FEEDER_OBJS = $(OBJDIR)feeder_zesto.o $(ZESTO_HOME)/buffer.o $(OBJDIR)ildjit.o $(OBJDIR)fluffy.o $(OBJDIR)utils.o $(OBJDIR)sync_pthreads.o $(OBJDIR)parsec.o $(OBJDIR)syscall_handling.o $(OBJDIR)ignore_ins.o $(OBJDIR)mpkeys_impl.o $(OBJDIR)ipc_queues.o $(OBJDIR)multiprocess_shared.o $(OBJDIR)BufferManagerProducer.o $(OBJDIR)BufferManager.o
 
 TOOLS = $(OBJDIR)$(TOOL_ROOTS)
 
@@ -111,6 +111,7 @@ SHM_LDFLAGS = -ldl
 all : CXXFLAGS += -DDEBUG -D_FILE_OFFSET_BITS=64
 all : CXXFLAGS += -I$(BOOST_INCLUDE) $(BOOST_LDFLAGS) $(SHM_LDFLAGS)
 all: tools $(OBJDIR)harness $(OBJDIR)feeder_zesto.so
+test: CXXFLAGS += $(UNIT_TEST_FLAGS) -lrt -pthread
 test: $(UNIT_TESTS)
 tools: $(OBJDIR) $(TOOLS)
 
@@ -136,14 +137,16 @@ $(OBJDIR)%.o : %.cpp
 
 $(TOOLS): $(TOOL_OBJS) $(SIM_LIB) $(MCPAT_LIB) $(DRAMSIM_LIB) $(REPEATER_LIB)
 
-$(UNIT_TESTS): $(UNIT_TESTS).cpp $(UNIT_TEST_DEPS)
-	$(CXX) -I$(BOOST_INCLUDE) $(CXXFLAGS) $(UNIT_TEST_FLAGS) ${OUTOPT}$@ $< $(UNIT_TEST_DEPS)
+$(UNIT_TEST_DEPS) : $(OBJDIR)
+
+$(UNIT_TESTS): $(UNIT_TEST_DEPS)
+	${PIN_LD} -g  $(LINK_DEBUG) ${LINK_OUT} $@ $^ $(DBG) -lrt -pthread
 
 $(TOOLS):
-	${PIN_LD} -g -I$(ZESTO_HOME) -L$(ZESTO_HOME) -I$(BOOST_INCLUDE) $(LINK_DEBUG) ${LINK_OUT} $@ $^ $(DBG) -lrt -pthread 
+	${PIN_LD} -g -I$(ZESTO_HOME) -L$(ZESTO_HOME) -I$(BOOST_INCLUDE) $(LINK_DEBUG) ${LINK_OUT} $@ $^ $(DBG) -lrt -pthread
 
-$(OBJDIR)feeder_zesto.so: $(FEEDER_OBJS) 
-	${PIN_LD} -g $(PIN_LDFLAGS) -I$(ZESTO_HOME) -I$(BOOST_INCLUDE) $(LINK_DEBUG) ${LINK_OUT} $@ ${PIN_LPATHS} $^ $(PIN_LIBS) $(DBG) -lrt -pthread 
+$(OBJDIR)feeder_zesto.so: $(FEEDER_OBJS)
+	${PIN_LD} -g $(PIN_LDFLAGS) -I$(ZESTO_HOME) -I$(BOOST_INCLUDE) $(LINK_DEBUG) ${LINK_OUT} $@ ${PIN_LPATHS} $^ $(PIN_LIBS) $(DBG) -lrt -pthread
 
 $(OBJDIR)harness: $(HARNESS_OBJS)
 	${PIN_LD} -g $(CXXFLAGS) ${LIBCONFUSE_FLAGS} ${SHM_LDFLAGS} $(LINK_DEBUG) ${LINK_OUT} $@ $^ -pthread -lrt -lconfuse
