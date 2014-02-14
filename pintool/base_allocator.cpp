@@ -11,7 +11,6 @@
 #include <iostream>
 #include <map>
 #include <string>
-#include <sys/types.h>
 
 namespace xiosim {
 
@@ -20,7 +19,7 @@ const int NUM_SPEEDUP_POINTS = 4;
 int cores[NUM_SPEEDUP_POINTS] = {2, 4, 8, 16};
 
 BaseAllocator::BaseAllocator(int ncores) {
-  process_info_map = new std::map<pid_t, pid_cores_info>();
+  process_info_map = new std::map<int, pid_cores_info>();
   loop_speedup_map = new std::map<std::string, double*>();
   num_cores = ncores;
 }
@@ -32,9 +31,9 @@ BaseAllocator::~BaseAllocator() {
   delete process_info_map;
 }
 
-void BaseAllocator::DeallocateCoresForProcess(pid_t pid) {
-  if (process_info_map->find(pid) != process_info_map->end())
-    process_info_map->operator[](pid).num_cores_allocated = 1;
+void BaseAllocator::DeallocateCoresForProcess(int asid) {
+  if (process_info_map->find(asid) != process_info_map->end())
+    process_info_map->operator[](asid).num_cores_allocated = 1;
 }
 
 void BaseAllocator::LoadHelixSpeedupModelData(char* filepath) {
@@ -106,9 +105,9 @@ void BaseAllocator::InterpolateSpeedup(
   }
 }
 
-void BaseAllocator::get_data_for_pid(pid_t pid, pid_cores_info* data) {
-  if (process_info_map->find(pid) != process_info_map->end())
-    *data = process_info_map->operator[](pid);
+void BaseAllocator::get_data_for_asid(int asid, pid_cores_info* data) {
+  if (process_info_map->find(asid) != process_info_map->end())
+    *data = process_info_map->operator[](asid);
 }
 
 }  // namespace xiosim

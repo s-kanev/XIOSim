@@ -6,11 +6,10 @@
 #include "boost_interprocess.h"
 #include "assert.h"
 #include <algorithm>
+#include <cmath>
+#include <fstream>
 #include <map>
 #include <string>
-#include <fstream>
-#include <cmath>
-#include <sys/types.h>
 
 #include "allocators_impl.h"
 
@@ -57,32 +56,34 @@ void TestPenaltyPolicy(xiosim::BaseAllocator *allocator) {
 
   xiosim::pid_cores_info data_p1;
   xiosim::pid_cores_info data_p2;
-  pid_t process_1 = 1;
-  pid_t process_2 = 2;
+  std::string loop_1("loop_1");
+  std::string loop_2("loop_2");
+  int process_1 = 1;
+  int process_2 = 2;
   int num_cores_1 = 0;
   int num_cores_2 = 0;
 
   for (int i = 0; i < num_tests; i++) {
     // Test for the current penalty.
-    allocator->get_data_for_pid(process_1, &data_p1);
+    allocator->get_data_for_asid(process_1, &data_p1);
     ASSERT_EQUAL_DOUBLE(data_p1.current_penalty, process_1_penalties[i]);
     // Test for the correct core allocation.
-    allocator->AllocateCoresForLoop("loop_1", process_1, &num_cores_1);
+    allocator->AllocateCoresForLoop(loop_1, process_1, &num_cores_1);
     ASSERT_EQUAL_INT(num_cores_1, process_1_cores[i]);
 
     // Test for the current penalty.
-    allocator->get_data_for_pid(process_2, &data_p2);
+    allocator->get_data_for_asid(process_2, &data_p2);
     ASSERT_EQUAL_DOUBLE(data_p2.current_penalty, process_2_penalties[i]);
     // Test for the correct core allocation.
-    allocator->AllocateCoresForLoop("loop_2", process_2, &num_cores_2);
+    allocator->AllocateCoresForLoop(loop_2, process_2, &num_cores_2);
     ASSERT_EQUAL_INT(num_cores_2, process_2_cores[i]);
 
     // Test that deallocation completes correctly.
     allocator->DeallocateCoresForProcess(process_1);
-    allocator->get_data_for_pid(process_1, &data_p1);
+    allocator->get_data_for_asid(process_1, &data_p1);
     ASSERT_EQUAL_INT(data_p1.num_cores_allocated, 1);
     allocator->DeallocateCoresForProcess(process_1);
-    allocator->get_data_for_pid(process_1, &data_p1);
+    allocator->get_data_for_asid(process_1, &data_p1);
     ASSERT_EQUAL_INT(data_p1.num_cores_allocated, 1);
   }
 }

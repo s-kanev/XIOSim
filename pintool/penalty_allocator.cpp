@@ -5,18 +5,21 @@
 
 #include <iostream>
 #include <map>
+#include <string>
 
 #include "allocators_impl.h"
 
 namespace xiosim {
 
-void PenaltyAllocator::AllocateCoresForLoop(
-    char* loop_name, pid_t pid, int* num_cores_alloc) {
+PenaltyAllocator::PenaltyAllocator(int num_cores) : BaseAllocator(num_cores) {}
+
+int PenaltyAllocator::AllocateCoresForLoop(
+    std::string loop_name, int asid, int* num_cores_alloc) {
   // loop_speedup_map maps loop names to arrays of size n, where n is the number
   // of cores. The nth element is the incremental amount of speedup attained if
   // running under that many cores.
 #ifdef DEBUG
-  std::cout << "Allocating cores to process " << pid << "." << std::endl;
+  std::cout << "Allocating cores to process " << asid << "." << std::endl;
 #endif
   std::string loop(loop_name);
   auto loop_it = loop_speedup_map->find(loop);
@@ -25,14 +28,13 @@ void PenaltyAllocator::AllocateCoresForLoop(
     speedup_per_core = loop_it->second;
   } else {
     std::cout << "Loop not found." << std::endl;
-    *num_cores_alloc = -1;
-    return;  // Loop not found, return...
+    return ERR_LOOP_NOT_FOUND;  // Loop not found, return...
   }
 
   // Add entry for this process if it doesn't exist.
-  if (process_info_map->find(pid) == process_info_map->end()) {
+  if (process_info_map->find(asid) == process_info_map->end()) {
     pid_cores_info data;
-    process_info_map->operator[](pid) = data;
+    process_info_map->operator[](asid) = data;
   }
 
   // Compute total cores available and optimal cores for this loop.
@@ -40,7 +42,7 @@ void PenaltyAllocator::AllocateCoresForLoop(
   int optimal_cores = 0;
   for (auto it = process_info_map->begin();
        it != process_info_map->end(); ++it) {
-    if (it->first != pid)
+    if (it->first != asid)
       available_cores -= it->second.num_cores_allocated;
   }
   for (int i = 1; i < num_cores; i++) {
@@ -55,9 +57,9 @@ void PenaltyAllocator::AllocateCoresForLoop(
     int reduced_alloc_cores = optimal_cores;
     // Pay any penalty rhis process currently holds.
     double* current_penalty =
-        &(process_info_map->operator[](pid).current_penalty);
+        &(process_info_map->operator[](asid).current_penalty);
 #ifdef DEBUG
-    std::cout << "Process " << pid << " currently has penalty of " <<
+    std::cout << "Process " << asid << " currently has penalty of " <<
       *current_penalty << "." << std::endl;
 #endif
     if (*current_penalty > 0) {
@@ -76,7 +78,7 @@ void PenaltyAllocator::AllocateCoresForLoop(
       double penalty_paid = (optimal_cores - reduced_alloc_cores) * speedup_lost;
       *current_penalty -= penalty_paid;
 #ifdef DEBUG
-      std::cout << "Process " << pid << " paid penalty of " << penalty_paid <<
+      std::cout << "Process " << asid << " paid penalty of " << penalty_paid <<
           std::endl;
 #endif
     }
@@ -93,7 +95,7 @@ void PenaltyAllocator::AllocateCoresForLoop(
         (process_info_map->size() - 1);
     for (auto it = process_info_map->begin();
          it != process_info_map->end(); ++it) {
-      if (it->first != pid) {
+      if (it->first != asid) {
        (it->second.current_penalty) += penalty_per_pid;
 #ifdef DEBUG
         std::cout << "Assessed penalty " << penalty_per_pid << " to process "
@@ -104,12 +106,13 @@ void PenaltyAllocator::AllocateCoresForLoop(
     *num_cores_alloc = available_cores;
   }
 
-  process_info_map->operator[](pid).num_cores_allocated = *num_cores_alloc;
+  process_info_map->operator[](asid).num_cores_allocated = *num_cores_alloc;
 #ifdef DEBUG
-  std::cout << "Process " << pid << " requested " << optimal_cores <<
+  std::cout << "Process " << asid << " requested " << optimal_cores <<
       " cores, was allocated " << *num_cores_alloc << " cores." <<
       std::endl << std::endl;
 #endif
+  return 0;
 }
 
 
