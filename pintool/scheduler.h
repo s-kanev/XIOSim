@@ -26,12 +26,6 @@ void InitScheduler(int num_cores);
  */
 void ScheduleNewThread(pid_t tid);
 
-/* Returns the number of cores allotted to loop loop_name for its upcoming
- * parallel loop in process pid. If the loop is not found, num_cores_alloc is
- * set to -1.
- */
-void AllocateCoresToProcess(char* loop_name, pid_t pid, int* num_cores_alloc);
-
 /* Notify the scheduler that thread @tid will only
  * run on core @coreID.
  */

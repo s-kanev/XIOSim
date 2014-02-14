@@ -9,6 +9,7 @@
 #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
+#include <boost/algorithm/string/predicate.hpp>
 #include <boost/interprocess/containers/deque.hpp>
 #include <boost/interprocess/containers/set.hpp>
 #include <boost/interprocess/containers/string.hpp>
