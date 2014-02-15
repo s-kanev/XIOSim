@@ -61,10 +61,6 @@ class thread_state_t
         firstIteration = false;
         lastSignalAddr = 0xdecafbad;
 
-        memset(pc_queue, 0, PC_QUEUE_SIZE*sizeof(INT32));
-        pc_queue_head = PC_QUEUE_SIZE-1;
-        pc_queue_valid = false;
-
         ignore = true;
         ignore_all = true;
         firstInstruction = true;
@@ -114,18 +110,6 @@ class thread_state_t
     // Per Loop State
     per_loop_state_t* loop_state;
 
-
-    // Handling a buffer of the last PC_QUEUE_SIZE instruction pointers
-    ADDRINT get_queued_pc(INT32 index) {
-        return pc_queue[(pc_queue_head + index) & (PC_QUEUE_SIZE - 1)];
-    }
-    VOID queue_pc(ADDRINT pc) {
-        pc_queue_head = (pc_queue_head - 1) & (PC_QUEUE_SIZE - 1);
-        pc_queue[pc_queue_head] = pc;
-        pc_queue_valid = true;
-    }
-    BOOL pc_queue_valid;
-
     XIOSIM_LOCK lock;
     // XXX: SHARED -- lock protects those
     // Is thread not instrumenting instructions ?
@@ -140,11 +124,6 @@ class thread_state_t
 
 private:
     std::stack<per_loop_state_t> per_loop_stack;
-    // XXX: power of 2
-    static const INT32 PC_QUEUE_SIZE = 4;
-    // Latest several pc-s instrumented
-    ADDRINT pc_queue[PC_QUEUE_SIZE];
-    INT32 pc_queue_head;
 };
 thread_state_t* get_tls(THREADID tid);
 

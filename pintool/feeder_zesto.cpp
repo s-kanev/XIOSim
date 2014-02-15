@@ -504,9 +504,7 @@ VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, A
     thread_state_t* tstate = get_tls(tid);
     handshake_container_t* handshake = GetProperBuffer(tstate->tid, !has_memory);
 
-    tstate->queue_pc(pc);
     tstate->num_inst++;
-
 
     lk_lock(&tstate->lock, tid+1);
     BOOL first_insn = tstate->firstInstruction;
