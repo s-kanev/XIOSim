@@ -14,6 +14,35 @@ class PenaltyAllocator : public BaseAllocator {
     PenaltyAllocator(int num_cores);
     int AllocateCoresForLoop(
         std::string loop_name, int asid, int* num_cores_alloc);
+    // Returns the current penalty on process asid, or -1 if the process does
+    // not exist in the allocator's knowledge.
+    double get_penalty_for_asid(int asid);
+
+  private:
+    std::map<int, double> *process_penalties;
+};
+
+/* Locally optimal allocator that waits for all loops to align before making the
+ * next allocation decision.
+ */
+class LocallyOptimalAllocator : public BaseAllocator {
+  public:
+    LocallyOptimalAllocator(int num_cores);
+    ~LocallyOptimalAllocator();
+    int AllocateCoresForLoop(
+        std::string loop_name, int asid, int* num_cores_alloc);
+  private:
+    // Stores a loop name and the number of cores allocated for the loop.
+    typedef std::pair<std::string, int> loop_alloc_pair;
+    std::map<int, loop_alloc_pair> *process_alloc_map;
+    struct process_sync_t {
+      int num_checked_in;
+      int num_checked_out;
+      bool allocation_complete;
+    } process_sync;
+
+    // Construct/reset all class global variables for sharing among threads.
+    void ResetState();
 };
 
 

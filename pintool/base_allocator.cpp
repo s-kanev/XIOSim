@@ -19,7 +19,7 @@ const int NUM_SPEEDUP_POINTS = 4;
 int cores[NUM_SPEEDUP_POINTS] = {2, 4, 8, 16};
 
 BaseAllocator::BaseAllocator(int ncores) {
-  process_info_map = new std::map<int, pid_cores_info>();
+  core_allocs = new std::map<int, int>();
   loop_speedup_map = new std::map<std::string, double*>();
   num_cores = ncores;
 }
@@ -28,12 +28,12 @@ BaseAllocator::~BaseAllocator() {
   for (auto it = loop_speedup_map->begin(); it != loop_speedup_map->end(); ++it)
     delete[] it->second;
   delete loop_speedup_map;
-  delete process_info_map;
+  delete core_allocs;
 }
 
 void BaseAllocator::DeallocateCoresForProcess(int asid) {
-  if (process_info_map->find(asid) != process_info_map->end())
-    process_info_map->operator[](asid).num_cores_allocated = 1;
+  if (core_allocs->find(asid) != core_allocs->end())
+    core_allocs->operator[](asid) = 1;
 }
 
 void BaseAllocator::LoadHelixSpeedupModelData(char* filepath) {
@@ -44,7 +44,7 @@ void BaseAllocator::LoadHelixSpeedupModelData(char* filepath) {
   std::ifstream speedup_loop_file(filepath);
   if (speedup_loop_file.is_open()) {
 #ifdef DEBUG
-    std::cout << "Cores:\t\t\t";
+    std::cout << "Cores:\t\t";
     for (int j = 1; j <= num_cores; j++)
       std::cout << j << "\t";
 #endif
@@ -71,7 +71,7 @@ void BaseAllocator::LoadHelixSpeedupModelData(char* filepath) {
         InterpolateSpeedup(partial_speedup_data, full_speedup_data);
         loop_speedup_map->operator[](loop_name) = full_speedup_data;
 #ifdef DEBUG
-        std::cout << "Incremental speedup:\t";
+        std::cout << loop_name << " speedup:\t";
         for (int j = 0; j < num_cores; j++)
           std::cout << full_speedup_data[j] << "\t";
         std::cout << std::endl;
@@ -105,9 +105,10 @@ void BaseAllocator::InterpolateSpeedup(
   }
 }
 
-void BaseAllocator::get_data_for_asid(int asid, pid_cores_info* data) {
-  if (process_info_map->find(asid) != process_info_map->end())
-    *data = process_info_map->operator[](asid);
+int BaseAllocator::get_cores_for_asid(int asid) {
+  if (core_allocs->find(asid) != core_allocs->end())
+    return core_allocs->operator[](asid);
+  return 0;
 }
 
 }  // namespace xiosim

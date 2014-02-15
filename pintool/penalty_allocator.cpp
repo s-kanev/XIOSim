@@ -11,7 +11,17 @@
 
 namespace xiosim {
 
-PenaltyAllocator::PenaltyAllocator(int num_cores) : BaseAllocator(num_cores) {}
+PenaltyAllocator::PenaltyAllocator(int num_cores) : BaseAllocator(num_cores) {
+  process_penalties = new std::map<int, double>();
+}
+
+// Use this method only for debugging purposes, as it does not exist in the base
+// class.
+double PenaltyAllocator::get_penalty_for_asid(int asid) {
+  if (process_penalties->find(asid) != process_penalties->end())
+    return process_penalties->operator[](asid);
+  return -1;
+}
 
 int PenaltyAllocator::AllocateCoresForLoop(
     std::string loop_name, int asid, int* num_cores_alloc) {
@@ -32,18 +42,18 @@ int PenaltyAllocator::AllocateCoresForLoop(
   }
 
   // Add entry for this process if it doesn't exist.
-  if (process_info_map->find(asid) == process_info_map->end()) {
-    pid_cores_info data;
-    process_info_map->operator[](asid) = data;
+  if (core_allocs->find(asid) == core_allocs->end()) {
+    core_allocs->operator[](asid) = 1;
+    process_penalties->operator[](asid) = 0;
   }
 
   // Compute total cores available and optimal cores for this loop.
   int available_cores = num_cores;
   int optimal_cores = 0;
-  for (auto it = process_info_map->begin();
-       it != process_info_map->end(); ++it) {
+  for (auto it = core_allocs->begin(); it != core_allocs->end(); ++it) {
+    // Assume that the current process is giving up its cores.
     if (it->first != asid)
-      available_cores -= it->second.num_cores_allocated;
+      available_cores -= it->second;
   }
   for (int i = 1; i < num_cores; i++) {
     if (speedup_per_core[i] >= MARGINAL_SPEEDUP_THRESHOLD)
@@ -55,9 +65,9 @@ int PenaltyAllocator::AllocateCoresForLoop(
   // Implementation of the penalty policy.
   if (optimal_cores <= available_cores) {
     int reduced_alloc_cores = optimal_cores;
-    // Pay any penalty rhis process currently holds.
+    // Pay any penalty this process currently holds.
     double* current_penalty =
-        &(process_info_map->operator[](asid).current_penalty);
+        &(process_penalties->operator[](asid));
 #ifdef DEBUG
     std::cout << "Process " << asid << " currently has penalty of " <<
       *current_penalty << "." << std::endl;
@@ -92,11 +102,11 @@ int PenaltyAllocator::AllocateCoresForLoop(
     // Divide the penalty by the number of processes in the system - 1. This is
     // a simple generalization of this policy for more than two processes.
     double penalty_per_pid = (speedup_lost * (optimal_cores - available_cores))/
-        (process_info_map->size() - 1);
-    for (auto it = process_info_map->begin();
-         it != process_info_map->end(); ++it) {
+        (core_allocs->size() - 1);
+    for (auto it = process_penalties->begin();
+         it != process_penalties->end(); ++it) {
       if (it->first != asid) {
-       (it->second.current_penalty) += penalty_per_pid;
+       (it->second) += penalty_per_pid;
 #ifdef DEBUG
         std::cout << "Assessed penalty " << penalty_per_pid << " to process "
             << it->first << std::endl;
@@ -106,7 +116,7 @@ int PenaltyAllocator::AllocateCoresForLoop(
     *num_cores_alloc = available_cores;
   }
 
-  process_info_map->operator[](asid).num_cores_allocated = *num_cores_alloc;
+  core_allocs->operator[](asid) = *num_cores_alloc;
 #ifdef DEBUG
   std::cout << "Process " << asid << " requested " << optimal_cores <<
       " cores, was allocated " << *num_cores_alloc << " cores." <<
