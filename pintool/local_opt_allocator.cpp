@@ -22,6 +22,7 @@ namespace xiosim {
 
 LocallyOptimalAllocator::LocallyOptimalAllocator(int num_cores) :
   BaseAllocator(num_cores) {
+  process_alloc_map = new std::map<int, loop_alloc_pair>();
   ResetState();
 }
 
@@ -33,10 +34,7 @@ void LocallyOptimalAllocator::ResetState() {
   process_sync.num_checked_in = 0;
   process_sync.num_checked_out = 0;
   process_sync.allocation_complete = false;
-  if (!process_alloc_map)
-    process_alloc_map = new std::map<int, loop_alloc_pair>();
-  else
-    process_alloc_map->clear();
+  process_alloc_map->clear();
 }
 
 int LocallyOptimalAllocator::AllocateCoresForLoop(
@@ -54,7 +52,7 @@ int LocallyOptimalAllocator::AllocateCoresForLoop(
   // Wait for all processes in the system to check in before proceeding.
   while (process_sync.num_checked_in < *num_processes) {
     lk_unlock(&allocator_lock);
-    usleep(10);
+    usleep(10000);
     lk_lock(&allocator_lock, 1);
   }
   assert(process_sync.num_checked_in == *num_processes);
@@ -69,8 +67,8 @@ int LocallyOptimalAllocator::AllocateCoresForLoop(
     while (!optimum_found) {
       double max_speedup = 0;
       int asid_with_max_speedup = -1;
-      // for (int i = 0; i < *num_processes; i++) {
-      for (auto it = process_alloc_map->begin(); it != process_alloc_map->end(); ++it) {
+      for (auto it = process_alloc_map->begin();
+           it != process_alloc_map->end(); ++it) {
         int curr_asid = it->first;
         std::string curr_loop = it->second.first;
         int curr_core_alloc = it->second.second;
@@ -82,7 +80,8 @@ int LocallyOptimalAllocator::AllocateCoresForLoop(
         }
       }
       if (max_speedup > 0) {
-        process_alloc_map->operator[](asid_with_max_speedup).second++; total_cores_alloc++;
+        process_alloc_map->operator[](asid_with_max_speedup).second++;
+        total_cores_alloc++;
       }
       if (max_speedup < 0 || total_cores_alloc == num_cores ) {
         // We have not decided how to deal with non-monotonic speedup curves, so
@@ -94,7 +93,7 @@ int LocallyOptimalAllocator::AllocateCoresForLoop(
   }
 
   *num_cores_alloc = process_alloc_map->operator[](asid).second++;
-  process_info_map->operator[](asid).num_cores_allocated = *num_cores_alloc;
+  core_allocs->operator[](asid) = *num_cores_alloc;
   process_sync.num_checked_out++;
   if (process_sync.num_checked_out == *num_processes) {
     // The last thread executing this code will reset class variables for the

@@ -14,6 +14,12 @@ class PenaltyAllocator : public BaseAllocator {
     PenaltyAllocator(int num_cores);
     int AllocateCoresForLoop(
         std::string loop_name, int asid, int* num_cores_alloc);
+    // Returns the current penalty on process asid, or -1 if the process does
+    // not exist in the allocator's knowledge.
+    double get_penalty_for_asid(int asid);
+
+  private:
+    std::map<int, double> *process_penalties;
 };
 
 /* Locally optimal allocator that waits for all loops to align before making the

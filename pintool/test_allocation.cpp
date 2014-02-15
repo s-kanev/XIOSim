@@ -74,13 +74,11 @@ void TestPenaltyPolicy() {
 
   // Correct output for this test.
   int num_tests = 5;
-  int process_1_cores[5] = {11, 10, 10, 11, 10};
-  double process_1_penalties[5] = {0, 0.4, -0.04375, -0.04375, 0.35625};
-  int process_2_cores[5] = {5, 6, 4, 5, 6};
-  double process_2_penalties[5] = {0, 0, 0.44375, -1.61625, -1.61625};
+  int process_1_cores[5] = {11, 10, 11, 10, 11};
+  double process_1_penalties[5] = {-1, 0.4, -0.04375, 0.35625, -0.0875};
+  int process_2_cores[5] = {5, 6, 5, 6, 5};
+  double process_2_penalties[5] = {-1, 0, 0, 0, 0};
 
-  xiosim::pid_cores_info data_p1;
-  xiosim::pid_cores_info data_p2;
   std::string loop_1("loop_1");
   std::string loop_2("loop_2");
   int process_1 = 1;
@@ -90,26 +88,28 @@ void TestPenaltyPolicy() {
 
   for (int i = 0; i < num_tests; i++) {
     // Test for the current penalty.
-    core_allocator->get_data_for_asid(process_1, &data_p1);
-    ASSERT_EQUAL_DOUBLE(data_p1.current_penalty, process_1_penalties[i]);
-    // Test for the correct core allocation.
+    ASSERT_EQUAL_DOUBLE(
+        ((PenaltyAllocator*)core_allocator)->get_penalty_for_asid(process_1),
+        process_1_penalties[i]);
     core_allocator->AllocateCoresForLoop(loop_1, process_1, &num_cores_1);
-    ASSERT_EQUAL_INT(num_cores_1, process_1_cores[i]);
+    // Test for the correct core allocation.
+    ASSERT_EQUAL_INT(core_allocator->get_cores_for_asid(
+        process_1), process_1_cores[i]);
 
     // Test for the current penalty.
-    core_allocator->get_data_for_asid(process_2, &data_p2);
-    ASSERT_EQUAL_DOUBLE(data_p2.current_penalty, process_2_penalties[i]);
-    // Test for the correct core allocation.
+    ASSERT_EQUAL_DOUBLE(
+        ((PenaltyAllocator*)core_allocator)->get_penalty_for_asid(process_2),
+        process_2_penalties[i]);
     core_allocator->AllocateCoresForLoop(loop_2, process_2, &num_cores_2);
-    ASSERT_EQUAL_INT(num_cores_2, process_2_cores[i]);
+    // Test for the correct core allocation.
+    ASSERT_EQUAL_INT(core_allocator->get_cores_for_asid(
+        process_2), process_2_cores[i]);
 
     // Test that deallocation completes correctly.
     core_allocator->DeallocateCoresForProcess(process_1);
-    core_allocator->get_data_for_asid(process_1, &data_p1);
-    ASSERT_EQUAL_INT(data_p1.num_cores_allocated, 1);
-    core_allocator->DeallocateCoresForProcess(process_1);
-    core_allocator->get_data_for_asid(process_1, &data_p1);
-    ASSERT_EQUAL_INT(data_p1.num_cores_allocated, 1);
+    ASSERT_EQUAL_INT(core_allocator->get_cores_for_asid(process_1), 1);
+    core_allocator->DeallocateCoresForProcess(process_2);
+    ASSERT_EQUAL_INT(core_allocator->get_cores_for_asid(process_2), 1);
   }
   delete core_allocator;
 }
@@ -195,6 +195,7 @@ void TestLocallyOptimalPolicy() {
     }
   }
   delete core_allocator;
+  delete global_shm;
 }
 
 

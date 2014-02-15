@@ -12,17 +12,12 @@
 
 namespace xiosim {
 
-struct pid_cores_info {
-  double current_penalty = 0;
-  int num_cores_allocated = 0;
-};
-
 const int ERR_LOOP_NOT_FOUND = -1;
 
 class BaseAllocator {
   protected:
     const double MARGINAL_SPEEDUP_THRESHOLD = 0.4;
-    std::map<int, pid_cores_info> *process_info_map;
+    std::map<int, int> *core_allocs;
     std::map<std::string, double*> *loop_speedup_map;
     int num_cores;
     XIOSIM_LOCK allocator_lock;
@@ -62,9 +57,9 @@ class BaseAllocator {
      */
     void InterpolateSpeedup(double* speedup_in, double* speedup_out);
 
-    /* Returns a copy of the process data for pid in data. If pid does not exist
-     * in the map, the data pointer is not modified. */
-    void get_data_for_asid(int asid, pid_cores_info* data);
+    /* Returns the number of cores allocated to process asid. If asid does not
+     * exist in the map, returns 0. */
+    int get_cores_for_asid(int asid);
 };
 
 }  // namespace xiosim
