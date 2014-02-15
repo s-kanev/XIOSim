@@ -8,6 +8,14 @@
 
 namespace xiosim {
 
+/* Trivial allocator that always allocates X cores. */
+class GangAllocator : public BaseAllocator {
+  public:
+    GangAllocator(int num_cores);
+    ~GangAllocator();
+    int AllocateCoresForLoop(std::string loop_name, int asid, int* num_cores_alloc);
+};
+
 /* A credit-based core allocator. */
 class PenaltyAllocator : public BaseAllocator {
   public:
