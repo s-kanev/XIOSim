@@ -44,9 +44,6 @@ SHARED_VAR_DEFINE(int, ss_prev);
 
 static int num_cores;
 
-int_allocator* int_alloc_inst;
-shared_core_set_allocator* core_set_alloc_inst;
-
 
 int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores_)
 {
@@ -115,8 +112,8 @@ int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores_)
     SHARED_VAR_INIT(XIOSIM_LOCK, printing_lock);
     SHARED_VAR_INIT(int, num_processes);
 
-    int_alloc_inst = new int_allocator(global_shm->get_segment_manager());
-    core_set_alloc_inst = new shared_core_set_allocator(global_shm->get_segment_manager());
+    int_allocator* int_alloc_inst = new int_allocator(global_shm->get_segment_manager());
+    shared_core_set_allocator* core_set_alloc_inst = new shared_core_set_allocator(global_shm->get_segment_manager());
     SHARED_VAR_INIT(SharedCoreSetArray, processCoreSet, *num_processes, SharedCoreSet(std::less<int>(), *int_alloc_inst), *core_set_alloc_inst);
     SHARED_VAR_INIT(XIOSIM_LOCK, lk_processCoreSet);
     lk_init(lk_processCoreSet);
