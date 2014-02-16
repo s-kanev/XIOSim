@@ -11,6 +11,7 @@
 #include "../buffer.h"
 #include "BufferManagerConsumer.h"
 #include "../zesto-core.h"
+#include "allocators_impl.h"
 
 #include "timing_sim.h"
 
@@ -315,6 +316,8 @@ int main(int argc, const char * argv[])
     Zesto_SlaveInit(ssargs.first, ssargs.second);
 
     InitScheduler(num_cores);
+    BaseAllocator& core_allocator = AllocatorParser::Get(knobs.allocator, num_cores);
+    (void) core_allocator;
     SpawnSimulatorThreads(num_cores);
 
     return 0;

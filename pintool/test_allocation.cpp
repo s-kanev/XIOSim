@@ -69,8 +69,8 @@ bool DoublesAreEqual(double val1, double val2) {
 void TestPenaltyPolicy() {
   using namespace xiosim;
   char* filepath = "loop_speedup_data.csv";
-  BaseAllocator *core_allocator = new PenaltyAllocator(num_cores);
-  core_allocator->LoadHelixSpeedupModelData(filepath);
+  PenaltyAllocator& core_allocator = reinterpret_cast<PenaltyAllocator&>(AllocatorParser::Get("penalty", num_cores));
+  core_allocator.LoadHelixSpeedupModelData(filepath);
 
   // Correct output for this test.
   int num_tests = 5;
@@ -89,29 +89,28 @@ void TestPenaltyPolicy() {
   for (int i = 0; i < num_tests; i++) {
     // Test for the current penalty.
     ASSERT_EQUAL_DOUBLE(
-        ((PenaltyAllocator*)core_allocator)->get_penalty_for_asid(process_1),
+        core_allocator.get_penalty_for_asid(process_1),
         process_1_penalties[i]);
-    core_allocator->AllocateCoresForLoop(loop_1, process_1, &num_cores_1);
+    core_allocator.AllocateCoresForLoop(loop_1, process_1, &num_cores_1);
     // Test for the correct core allocation.
-    ASSERT_EQUAL_INT(core_allocator->get_cores_for_asid(
+    ASSERT_EQUAL_INT(core_allocator.get_cores_for_asid(
         process_1), process_1_cores[i]);
 
     // Test for the current penalty.
     ASSERT_EQUAL_DOUBLE(
-        ((PenaltyAllocator*)core_allocator)->get_penalty_for_asid(process_2),
+        core_allocator.get_penalty_for_asid(process_2),
         process_2_penalties[i]);
-    core_allocator->AllocateCoresForLoop(loop_2, process_2, &num_cores_2);
+    core_allocator.AllocateCoresForLoop(loop_2, process_2, &num_cores_2);
     // Test for the correct core allocation.
-    ASSERT_EQUAL_INT(core_allocator->get_cores_for_asid(
+    ASSERT_EQUAL_INT(core_allocator.get_cores_for_asid(
         process_2), process_2_cores[i]);
 
     // Test that deallocation completes correctly.
-    core_allocator->DeallocateCoresForProcess(process_1);
-    ASSERT_EQUAL_INT(core_allocator->get_cores_for_asid(process_1), 1);
-    core_allocator->DeallocateCoresForProcess(process_2);
-    ASSERT_EQUAL_INT(core_allocator->get_cores_for_asid(process_2), 1);
+    core_allocator.DeallocateCoresForProcess(process_1);
+    ASSERT_EQUAL_INT(core_allocator.get_cores_for_asid(process_1), 1);
+    core_allocator.DeallocateCoresForProcess(process_2);
+    ASSERT_EQUAL_INT(core_allocator.get_cores_for_asid(process_2), 1);
   }
-  delete core_allocator;
 }
 
 void* TestLocallyOptimalPolicyThread(void* arg) {
@@ -149,8 +148,8 @@ void TestLocallyOptimalPolicy() {
 #ifdef DEBUG
   std::cout << "Number of processes: " << *num_processes << std::endl;
 #endif
-  BaseAllocator *core_allocator = new LocallyOptimalAllocator(num_cores);
-  core_allocator->LoadHelixSpeedupModelData(filepath);
+  BaseAllocator& core_allocator = AllocatorParser::Get("local", num_cores);
+  core_allocator.LoadHelixSpeedupModelData(filepath);
 
   /* Initialize test data and correct output.
    * test_loops: Each column determines which loops to run.
@@ -176,7 +175,7 @@ void TestLocallyOptimalPolicy() {
   locally_optimal_args args[*num_processes];
   for (int i = 0; i < NUM_TESTS; i++) {
     for (int j = 0; j < *num_processes; j++) {
-      args[j].allocator = core_allocator;
+      args[j].allocator = &core_allocator;
       args[j].loop_num = test_loops[j][i];
       args[j].num_cores_alloc = 0;
       args[j].asid = j;
@@ -194,7 +193,6 @@ void TestLocallyOptimalPolicy() {
       ASSERT_EQUAL_INT(args[j].num_cores_alloc, correct_output[j][i]);
     }
   }
-  delete core_allocator;
   delete global_shm;
 }
 

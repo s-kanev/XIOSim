@@ -21,11 +21,9 @@ class BaseAllocator {
     std::map<std::string, double*> *loop_speedup_map;
     int num_cores;
     XIOSIM_LOCK allocator_lock;
-
-  public:
-    /* Constructs a new allocator for a system with ncores cores. */
     BaseAllocator(int ncores);
 
+  public:
     /* Deletes all state for this allocator. */
     virtual ~BaseAllocator();
 
@@ -60,6 +58,11 @@ class BaseAllocator {
     /* Returns the number of cores allocated to process asid. If asid does not
      * exist in the map, returns 0. */
     int get_cores_for_asid(int asid);
+
+  private:
+    BaseAllocator() {};
+    BaseAllocator(BaseAllocator const&);
+    void operator=(BaseAllocator const&);
 };
 
 }  // namespace xiosim

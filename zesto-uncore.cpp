@@ -273,6 +273,8 @@ uncore_reg_options(struct opt_odb_t * const odb)
       &MC_opt_string,/*default */"simple:4:1",/*print*/true,/*format*/NULL);
   opt_reg_int(odb, "-scheduler:tick", "scheduler reshuffle interval in CPU cycles",
       &knobs.scheduler_tick, /* default */0, /* print */true, /* format */NULL);
+  opt_reg_string(odb, "-allocator", "core allocation algorithm [gang, local, penalty]",
+      &knobs.allocator, /* default */"gang", /* print */true, /* format */NULL);
 }
 
 /* register all of the stats */

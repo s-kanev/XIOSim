@@ -441,6 +441,7 @@ struct core_knobs_t
   } power;
 
   int scheduler_tick;
+  const char * allocator;
 };
 
 extern struct core_t ** cores;
