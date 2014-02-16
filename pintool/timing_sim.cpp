@@ -320,52 +320,6 @@ int main(int argc, const char * argv[])
     return 0;
 }
 
-/* Read a comma separated list of predicted marginal speedups as a function 
- * of cores for each loop and store it in a global map.
- * Example line with 4-core system:
- *   loop_name, 0, 0.9, 0.8, 0.7
- *   This means that 1 core (which is the baseline) gets you no speedup. 2 cores
- *   will produce a 90% speedup over 1 core, 3 cores will produce an 80% speedup
- *   over 2 cores, etc.
- */
-void LoadHelixSpeedupModelData(char* filepath) {
-  using std::string;
-  using boost::tokenizer;
-  using boost::escaped_list_separator;
-  string line;
-  std::ifstream speedup_loop_file(filepath);
-  loop_speedup_map = new std::map<string, double*>();
-  if (speedup_loop_file.is_open()) {
-    while (getline(speedup_loop_file, line)) {
-      tokenizer<escaped_list_separator<char>> tok(line);
-      string loop_name;
-      double* speedup_data = new double[num_cores];
-      int i = 0;
-      bool first_iteration = true;
-      for (auto it = tok.begin(); it != tok.end(); ++it) {
-        if (first_iteration) {
-          loop_name = *it;
-          first_iteration = false;
-        } else {
-          speedup_data[i] = ::atof(it->c_str());
-          i++;
-        }
-      }
-      loop_speedup_map->operator[](loop_name) = speedup_data;
-    }
-  } else {
-    std::cerr << "Speedup file could not be opened.";
-    exit(1);
-  }
-}
-
-/* Delete the loop speedup map when the simulation terminates. */
-void DeleteLoopSpeedupMap() {
-  for (auto it = loop_speedup_map->begin(); it != loop_speedup_map->end(); ++it)
-    delete[] it->second;
-  delete loop_speedup_map;
-}
-
 void CheckIPCMessageQueue(bool isEarly, int caller_coreID)
 {
     /* Grab a message from IPC queue in shared memory */
