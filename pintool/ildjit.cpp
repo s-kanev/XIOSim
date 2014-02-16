@@ -94,8 +94,9 @@ loop_state_t* loop_state = NULL;
 
 bool disable_wait_signal;
 bool only_heavy_waits;
-UINT32* ildjit_ws_id;
-UINT32* ildjit_disable_ws;
+
+// The number of allocated cores per loop, read by ildjit
+INT32* allocated_cores;
 
 extern map<ADDRINT, string> pc_diss;
 
@@ -193,10 +194,9 @@ VOID ILDJIT_startSimulation(THREADID tid, ADDRINT ip)
 }
 
 /* ========================================================================== */
-VOID ILDJIT_setupInterface(ADDRINT disable_ws, ADDRINT ws_id)
+VOID ILDJIT_setupInterface(ADDRINT coreCount)
 {
-  ildjit_ws_id = (UINT32*)ws_id;
-  ildjit_disable_ws = (UINT32*)disable_ws;
+    allocated_cores = reinterpret_cast<INT32*>(coreCount);
 }
 
 /* ========================================================================== */
@@ -289,6 +289,13 @@ VOID ILDJIT_startLoop_after(THREADID tid, ADDRINT ip)
     tstate->ignore = false;
     lk_unlock(&tstate->lock);
   }
+}
+
+/* ========================================================================== */
+VOID ILDJIT_startInitParallelLoop(ADDRINT loop)
+{
+    (void) loop;
+    //*allocated_cores = GetAllocatorDecision(loop);
 }
 
 /* ========================================================================== */
@@ -689,22 +696,18 @@ VOID AddILDJITCallbacks(IMG img)
         RTN_Close(rtn);
     }
 
-    /**/
-
-    rtn = RTN_FindByName(img, "MOLECOOL_setupInterface");
+    rtn = RTN_FindByName(img, "MOLECOOL_init");
     if (RTN_Valid(rtn))
     {
 #ifdef ZESTO_PIN_DBG
-        cerr << "MOLECOOL_setupInterface ";
+        cerr << "MOLECOOL_init ";
 #endif
         RTN_Open(rtn);
         RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_setupInterface),
-                       IARG_THREAD_ID,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
                        IARG_END);
         RTN_Close(rtn);
     }
-
-
 
     rtn = RTN_FindByName(img, "MOLECOOL_startIteration");
     if (RTN_Valid(rtn))
@@ -719,7 +722,6 @@ VOID AddILDJITCallbacks(IMG img)
                        IARG_END);
         RTN_Close(rtn);
     }
-
 
     rtn = RTN_FindByName(img, "MOLECOOL_beforeWait");
     if (RTN_Valid(rtn))
@@ -810,6 +812,19 @@ VOID AddILDJITCallbacks(IMG img)
         RTN_Open(rtn);
         RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_ExecutorCreateEnd),
                        IARG_THREAD_ID,
+                       IARG_END);
+        RTN_Close(rtn);
+    }
+
+    rtn = RTN_FindByName(img, "MOLECOOL_startInitParallelLoop");
+    if (RTN_Valid(rtn))
+    {
+#ifdef ZESTO_PIN_DBG
+        cerr << "MOLECOOL_startInitParallelLoop ";
+#endif
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_startInitParallelLoop),
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
                        IARG_END);
         RTN_Close(rtn);
     }
