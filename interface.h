@@ -42,7 +42,11 @@ struct ipc_message_t {
     int64_t arg2;
     int64_t arg3;
 
-    ipc_message_t() : id(INVALID_MSG) {}
+    /* Does sender wait until message has been *processed*,
+     * not only consumed. */
+    bool blocking;
+
+    ipc_message_t() : id(INVALID_MSG), blocking(false) {}
 
     /* Some messages need to be conusmed early in timing_sim.
      * Mostly related to setup. */
@@ -138,6 +142,13 @@ struct ipc_message_t {
         this->arg0 = tid;
         this->arg1 = coreID;
     }
-};
 
+    bool operator==(const ipc_message_t &rhs) const {
+        return (this->id == rhs.id) &&
+                (this->arg0 == rhs.arg0) &&
+                (this->arg1 == rhs.arg1) &&
+                (this->arg2 == rhs.arg2);
+                
+    }
+};
 #endif /*__PIN_ZESTO_INTERFACE__*/

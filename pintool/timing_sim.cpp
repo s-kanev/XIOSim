@@ -392,5 +392,12 @@ void CheckIPCMessageQueue(bool isEarly, int caller_coreID)
                 abort();
                 break;
         }
+
+        if (ipcMessage.blocking) {
+            lk_lock(lk_ipcMessageQueue, 1);
+            assert(ackMessages->at(ipcMessage) == false);
+            ackMessages->at(ipcMessage) = true;
+            lk_unlock(lk_ipcMessageQueue);
+        }
     }
 }

@@ -9,9 +9,18 @@ SHARED_VAR_DECLARE(MessageQueue, ipcMessageQueue);
 SHARED_VAR_DECLARE(MessageQueue, ipcEarlyMessageQueue);
 SHARED_VAR_DECLARE(XIOSIM_LOCK, lk_ipcMessageQueue);
 
+typedef xiosim::shared::SharedUnorderedMap<ipc_message_t, bool> AckMessageMap;
+SHARED_VAR_DECLARE(AckMessageMap, ackMessages)
+
 extern XIOSIM_LOCK *printing_lock;
 
-void SendIPCMessage(ipc_message_t msg);
+void SendIPCMessage(ipc_message_t msg, bool blocking = false);
 void InitIPCQueues(void);
+
+static size_t hash_value(ipc_message_t const& obj)
+{
+    boost::hash<int> hasher;
+    return hasher(obj.id); // For now
+}
 
 #endif /* __IPC_QUEUES__ */
