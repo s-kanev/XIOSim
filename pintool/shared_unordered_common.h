@@ -35,25 +35,21 @@ class SharedUnorderedMapCommon {
         MapValueAllocator> InternalMap;
 
   public:
-    SharedUnorderedMapCommon() : data_key(""), memory_key("") {
+    SharedUnorderedMapCommon() : data_key("") {
     }
 
     SharedUnorderedMapCommon(
-        const char* shared_memory_name, const char* internal_map_name,
+        managed_shared_memory* shm, const char* internal_map_name,
         std::size_t buckets = DEFAULT_NUM_BUCKETS)
-        : data_key(internal_map_name), memory_key(shared_memory_name) {
-      shm = new managed_shared_memory(open_or_create, shared_memory_name,
-          DEFAULT_SHARED_MEMORY_SIZE);
+        : data_key(internal_map_name) {
       initialize(buckets);
     }
 
     void initialize_late(
-        const char* shared_memory_name, const char* internal_map_name,
+        managed_shared_memory* shm, const char* internal_map_name,
         std::size_t buckets = DEFAULT_NUM_BUCKETS) {
-      memory_key = boost::interprocess::string(shared_memory_name);
+      this->shm = shm;
       data_key = boost::interprocess::string(internal_map_name);
-      shm = new managed_shared_memory(
-          open_or_create, memory_key.c_str(), DEFAULT_SHARED_MEMORY_SIZE);
       initialize(buckets);
     }
 
@@ -106,8 +102,6 @@ class SharedUnorderedMapCommon {
   protected:
     // Name that identifies this map in the shared memory segment.
     boost::interprocess::string data_key;
-    // Name that identifies this shared memory segment.
-    boost::interprocess::string memory_key;
     // Shared memory segment. This must always be mapped into memory in order to
     // maintain consistency.
     managed_shared_memory *shm;

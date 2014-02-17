@@ -58,21 +58,19 @@ void InitBufferManager(pid_t harness_pid, int num_cores_)
   SHARED_VAR_INIT(bool, useRealFile_, true)
   SHARED_VAR_INIT(bool, popped_, false)
 
-  std::string shared_memory_key = harness_pid_stream.str() +
-      std::string(XIOSIM_SHARED_MEMORY_KEY);
   // Reserve space in all maps for 16 cores
   // This reduces the incidence of an annoying race, see
   // comment in empty()
   // This constructor accepts a buckets parameter which negates the need to call
   // reserve on all the maps later.
-  locks_.initialize_late(shared_memory_key.c_str(), BUFFER_MANAGER_LOCKS_, MAX_CORES);
-  pool_.initialize_late(shared_memory_key.c_str(), BUFFER_MANAGER_POOL_, MAX_CORES);
+  locks_.initialize_late(global_shm, BUFFER_MANAGER_LOCKS_, MAX_CORES);
+  pool_.initialize_late(global_shm, BUFFER_MANAGER_POOL_, MAX_CORES);
 
-  queueSizes_.initialize_late(shared_memory_key.c_str(), BUFFER_MANAGER_QUEUE_SIZES_, MAX_CORES);
-  fakeFile_.initialize_late(shared_memory_key.c_str(), BUFFER_MANAGER_FAKE_FILE_, MAX_CORES);
-  fileEntryCount_.initialize_late(shared_memory_key.c_str(), BUFFER_MANAGER_FILE_ENTRY_COUNT_, MAX_CORES);
-  fileNames_.initialize_late(shared_memory_key.c_str(), BUFFER_MANAGER_FILE_NAMES_, MAX_CORES);
-  fileCounts_.initialize_late(shared_memory_key.c_str(), BUFFER_MANAGER_FILE_COUNTS_, MAX_CORES);
+  queueSizes_.initialize_late(global_shm, BUFFER_MANAGER_QUEUE_SIZES_, MAX_CORES);
+  fakeFile_.initialize_late(global_shm, BUFFER_MANAGER_FAKE_FILE_, MAX_CORES);
+  fileEntryCount_.initialize_late(global_shm, BUFFER_MANAGER_FILE_ENTRY_COUNT_, MAX_CORES);
+  fileNames_.initialize_late(global_shm, BUFFER_MANAGER_FILE_NAMES_, MAX_CORES);
+  fileCounts_.initialize_late(global_shm, BUFFER_MANAGER_FILE_COUNTS_, MAX_CORES);
 
   std::cout << "[" << getpid() << "]" << "Initialized all SharedUnorderedMaps" << std::endl;
   init_lock.unlock();

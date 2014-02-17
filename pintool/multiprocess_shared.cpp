@@ -97,15 +97,15 @@ int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores_)
     pthread_mutex_init(cv_consumers_lock, NULL);
 
     SHARED_VAR_ARRAY_INIT(pid_t, coreThreads, num_cores, xiosim::INVALID_THREADID);
-    SHARED_VAR_CONSTRUCT(ThreadCoreMap, threadCores, shared_memory_key.c_str());
+    SHARED_VAR_CONSTRUCT(ThreadCoreMap, threadCores);
     SHARED_VAR_INIT(XIOSIM_LOCK, lk_coreThreads);
     lk_init(lk_coreThreads);
 
-    SHARED_VAR_CONSTRUCT(ThreadBOSMap, thread_bos, shared_memory_key.c_str());
+    SHARED_VAR_CONSTRUCT(ThreadBOSMap, thread_bos);
     SHARED_VAR_INIT(XIOSIM_LOCK, lk_thread_bos);
     lk_init(lk_thread_bos);
 
-    SHARED_VAR_CONSTRUCT(ThreadProcessMap, threadProcess, shared_memory_key.c_str());
+    SHARED_VAR_CONSTRUCT(ThreadProcessMap, threadProcess);
     SHARED_VAR_INIT(XIOSIM_LOCK, lk_threadProcess);
     lk_init(lk_threadProcess);
 

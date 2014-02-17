@@ -22,7 +22,7 @@
 //
 // Example:
 //   managed_shared_memory shm(create_only, "shared_memory_key", 65536);
-//   SharedMemoryMap<int, int> map("shared_memory_key", "shared_data_key");
+//   SharedMemoryMap<int, int> map(&shm, "shared_data_key");
 //   map.insert(10, 10);
 //   map.insert(11, 15);
 //   int value = map.at(11);  // returns 15
@@ -63,8 +63,8 @@ class SharedMemoryMap : public SharedMemoryMapCommon<K, V> {
 
     // Initializes the size of the shared memory segment holding this shared map
     SharedMemoryMap(
-        const char* shared_memory_name, const char* internal_data_name)
-        : SharedMemoryMapCommon<K, V>(shared_memory_name, internal_data_name) {}
+        managed_shared_memory* shm, const char* internal_data_name)
+        : SharedMemoryMapCommon<K, V>(shm, internal_data_name) {}
 
     // Destroys the pointer to the shared map.
     // TODO: Only delete if no processes have mapped this structure.
@@ -100,10 +100,9 @@ class SharedMemoryMap<K, V, typename boost::enable_if<boost::is_pod<V> >::type> 
   public:
     SharedMemoryMap() : SharedMemoryMapCommon<K, V>() {}
 
-    // Initializes the size of the shared memory segment holding this shared map
     SharedMemoryMap(
-        const char* shared_memory_name, const char* internal_data_name)
-        : SharedMemoryMapCommon<K, V>(shared_memory_name, internal_data_name) {}
+        managed_shared_memory* shm, const char* internal_data_name)
+        : SharedMemoryMapCommon<K, V>(shm, internal_data_name) {}
 
     // Destroys the pointer to the shared map.
     // TODO: Only delete if no processes have mapped this structure.

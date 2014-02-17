@@ -36,9 +36,9 @@ class SharedUnorderedMap : public SharedUnorderedMapCommon<K, V> {
   public:
     // Initializes the size of the shared memory segment holding this shared map
     SharedUnorderedMap(
-        const char* shared_memory_name, const char* internal_data_name,
-        std::size_t buckets = ShmCommon::DEFAULT_BUM_BUCKETS)
-        : ShmCommon(shared_memory_name, internal_data_name, buckets) {}
+        managed_shared_memory* shm, const char* internal_data_name,
+        std::size_t buckets = ShmCommon::DEFAULT_NUM_BUCKETS)
+        : ShmCommon(shm, internal_data_name, buckets) {}
 
         SharedUnorderedMap() : ShmCommon() {}
 
@@ -73,11 +73,10 @@ class SharedUnorderedMap<
   public:
     SharedUnorderedMap() : ShmCommon() {}
 
-    // Initializes the size of the shared memory segment holding this shared map
     SharedUnorderedMap(
-        const char* shared_memory_name, const char* internal_data_name,
-        std::size_t buckets = ShmCommon::DEFAULT_BUM_BUCKETS)
-        : ShmCommon(shared_memory_name, internal_data_name, buckets) {}
+        managed_shared_memory* shm, const char* internal_data_name,
+        std::size_t buckets = ShmCommon::DEFAULT_NUM_BUCKETS)
+        : ShmCommon(shm, internal_data_name, buckets) {}
 
   private:
     V& access_operator(const K& key) {

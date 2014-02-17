@@ -24,8 +24,8 @@ extern boost::interprocess::managed_shared_memory *global_shm;
 #define SHARED_VAR_ARRAY_INIT(TYPE, VAR, SIZE, ...) \
     VAR = global_shm->find_or_construct<TYPE>(VAR##_KEY)[SIZE]( __VA_ARGS__);
 
-#define SHARED_VAR_CONSTRUCT(TYPE, VAR, SHM_KEY, ...) \
-    VAR = new TYPE(SHM_KEY, VAR##_KEY, ## __VA_ARGS__);
+#define SHARED_VAR_CONSTRUCT(TYPE, VAR, ...) \
+    VAR = new TYPE(global_shm, VAR##_KEY, ## __VA_ARGS__);
 
 SHARED_VAR_DECLARE(int, num_processes)
 SHARED_VAR_DECLARE(int, next_asid)
@@ -81,7 +81,6 @@ SHARED_VAR_DECLARE(int, ss_prev);
 
 /* Init state in shared memory. Returns unique address space id for producers */
 int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores);
-void SendIPCMessage(ipc_message_t msg);
 
 void disable_consumers();
 void enable_consumers();

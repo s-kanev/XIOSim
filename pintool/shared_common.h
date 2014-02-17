@@ -34,14 +34,13 @@ class SharedMemoryMapCommon {
         VoidAllocator;
 
   public:
-    SharedMemoryMapCommon() : data_key(""), memory_key("") {}
+    SharedMemoryMapCommon() : data_key("") {}
 
     SharedMemoryMapCommon(
-        const char* shared_memory_name, const char* internal_data_name)
-        : data_key(internal_data_name), memory_key(shared_memory_name) {
+        managed_shared_memory* shm, const char* internal_data_name)
+        : data_key(internal_data_name) {
 
-      shm = new managed_shared_memory(
-          open_or_create, memory_key.c_str(), DEFAULT_SHARED_MEMORY_SIZE);
+      this->shm = shm;
       initialize();
     }
 
@@ -50,11 +49,9 @@ class SharedMemoryMapCommon {
     ~SharedMemoryMapCommon() {}
 
     void initialize_late(
-        const char* shared_memory_name, const char* internal_map_name) {
-      memory_key = boost::interprocess::string(shared_memory_name);
+        managed_shared_memory* shm, const char* internal_map_name) {
+      this->shm = shm;
       data_key = boost::interprocess::string(internal_map_name);
-      shm = new managed_shared_memory(
-          open_or_create, memory_key.c_str(), DEFAULT_SHARED_MEMORY_SIZE);
       initialize();
     }
 
@@ -108,8 +105,6 @@ class SharedMemoryMapCommon {
   protected:
     // Name that identifies this map in the shared memory segment.
     boost::interprocess::string data_key;
-    // Name that identifies this shared memory segment.
-    boost::interprocess::string memory_key;
     // Shared memory segment. This must always be mapped into memory in order to
     // maintain consistency.
     managed_shared_memory *shm;
@@ -146,6 +141,7 @@ class SharedMemoryMapCommon {
 
       // But if we wanted to grow memory, the code would look something like
       // this.
+#if 0
       MemorySizeStateType shm_state = get_state_of_memory();
       delete shm;
       managed_shared_memory::grow(
@@ -154,6 +150,7 @@ class SharedMemoryMapCommon {
       MemorySizeStateType new_shm_state = get_state_of_memory();
       assert(
           shm_state.first + DEFAULT_GROW_MEMORY_SIZE == new_shm_state.first);
+#endif
     }
 };
 
