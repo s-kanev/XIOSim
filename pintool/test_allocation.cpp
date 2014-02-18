@@ -2,8 +2,10 @@
  *
  * Author: Sam Xi
  */
+#define CATCH_CONFIG_MAIN
 
 #include "boost_interprocess.h"
+#include "catch.hpp"  // Must come before interface.h
 #include "../interface.h"
 #include "../synchronization.h"
 #include "multiprocess_shared.h"
@@ -22,27 +24,6 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
 
-/* Assertions for testing and debugging. */
-#define PRINT_ASSERTION_MESSAGE(val1, val2) \
-  std::cerr << "Assertion failed: " << #val1 << " expected to be " << val2 << \
-      ", was " << val1 << std::endl
-
-#define ASSERT_EQUAL_INT(val1, val2) \
-  do { \
-    if (val1 != val2) { \
-      PRINT_ASSERTION_MESSAGE(val1, val2); \
-      std::exit(EXIT_FAILURE); \
-    } \
-  } while (false)
-
-#define ASSERT_EQUAL_DOUBLE(val1, val2) \
-  do { \
-    if (!DoublesAreEqual(val1, val2)) { \
-      PRINT_ASSERTION_MESSAGE(val1, val2); \
-      std::exit(EXIT_FAILURE); \
-    } \
-  } while (false)
-
 struct locally_optimal_args {
   int asid;
   int loop_num;
@@ -58,15 +39,8 @@ const std::size_t DEFAULT_SIZE = 1024;
 const int num_cores = 16;
 const int NUM_TEST_PROCESSES = 2;
 const int NUM_TESTS = 6;
-const double EPSILON = 0.00001;
 
-/* A general way to compare two double values for equality up to EPSILON. */
-bool DoublesAreEqual(double val1, double val2) {
-  using namespace std;
-  return (abs(val1 - val2) <= max(EPSILON, EPSILON*max(abs(val1), abs(val2))));
-}
-
-void TestPenaltyPolicy() {
+TEST_CASE("Penalty allocator", "penalty") {
   using namespace xiosim;
   char* filepath = "loop_speedup_data.csv";
   PenaltyAllocator& core_allocator = reinterpret_cast<PenaltyAllocator&>(AllocatorParser::Get("penalty", num_cores));
@@ -88,28 +62,24 @@ void TestPenaltyPolicy() {
 
   for (int i = 0; i < num_tests; i++) {
     // Test for the current penalty.
-    ASSERT_EQUAL_DOUBLE(
-        core_allocator.get_penalty_for_asid(process_1),
-        process_1_penalties[i]);
+    REQUIRE(core_allocator.get_penalty_for_asid(process_1) == Approx(
+        process_1_penalties[i]));
     core_allocator.AllocateCoresForLoop(loop_1, process_1, &num_cores_1);
     // Test for the correct core allocation.
-    ASSERT_EQUAL_INT(core_allocator.get_cores_for_asid(
-        process_1), process_1_cores[i]);
+    REQUIRE(core_allocator.get_cores_for_asid(process_1) == process_1_cores[i]);
 
     // Test for the current penalty.
-    ASSERT_EQUAL_DOUBLE(
-        core_allocator.get_penalty_for_asid(process_2),
-        process_2_penalties[i]);
+    REQUIRE(core_allocator.get_penalty_for_asid(process_2) == Approx(
+        process_2_penalties[i]));
     core_allocator.AllocateCoresForLoop(loop_2, process_2, &num_cores_2);
     // Test for the correct core allocation.
-    ASSERT_EQUAL_INT(core_allocator.get_cores_for_asid(
-        process_2), process_2_cores[i]);
+    REQUIRE(core_allocator.get_cores_for_asid(process_2) == process_2_cores[i]);
 
     // Test that deallocation completes correctly.
     core_allocator.DeallocateCoresForProcess(process_1);
-    ASSERT_EQUAL_INT(core_allocator.get_cores_for_asid(process_1), 1);
+    REQUIRE(core_allocator.get_cores_for_asid(process_1) == 1);
     core_allocator.DeallocateCoresForProcess(process_2);
-    ASSERT_EQUAL_INT(core_allocator.get_cores_for_asid(process_2), 1);
+    REQUIRE(core_allocator.get_cores_for_asid(process_2) == 1);
   }
 }
 
@@ -131,7 +101,7 @@ void* TestLocallyOptimalPolicyThread(void* arg) {
   return NULL;
 }
 
-void TestLocallyOptimalPolicy() {
+TEST_CASE("Locally optimal allocator", "local") {
   // Initialize shared memory segments and variables BEFORE creating the
   // allocator!
   using namespace xiosim;
@@ -190,18 +160,8 @@ void TestLocallyOptimalPolicy() {
     std::cout << "All threads have completed." << std::endl;
 #endif
     for (int j = 0; j < *num_processes; j++) {
-      ASSERT_EQUAL_INT(args[j].num_cores_alloc, correct_output[j][i]);
+      REQUIRE(args[j].num_cores_alloc == correct_output[j][i]);
     }
   }
   delete global_shm;
-}
-
-
-int main() {
-  TestPenaltyPolicy();
-  TestLocallyOptimalPolicy();
-
-  std::cout << "Test completed successfully." << std::endl;
-
-  return 0;
 }
