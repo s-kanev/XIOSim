@@ -15,7 +15,6 @@
 #include <boost/interprocess/containers/string.hpp>
 #include <boost/interprocess/containers/map.hpp>
 #include <boost/interprocess/containers/vector.hpp>
-#include <boost/tokenizer.hpp>
 #include <boost/unordered_map.hpp>
 
 #include <boost/interprocess/managed_shared_memory.hpp>

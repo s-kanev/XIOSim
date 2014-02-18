@@ -18,7 +18,7 @@ class GangAllocator : public BaseAllocator {
         return instance;
     }
     ~GangAllocator();
-    int AllocateCoresForLoop(std::string loop_name, int asid, int* num_cores_alloc);
+    int AllocateCoresForProcess(int asid, std::vector<double> scaling);
 
   private:
     GangAllocator(int num_cores);
@@ -32,8 +32,7 @@ class PenaltyAllocator : public BaseAllocator {
         static PenaltyAllocator instance(ncores);
         return instance;
     }
-    int AllocateCoresForLoop(
-        std::string loop_name, int asid, int* num_cores_alloc);
+    int AllocateCoresForProcess(int asid, std::vector<double> scaling);
     // Returns the current penalty on process asid, or -1 if the process does
     // not exist in the allocator's knowledge.
     double get_penalty_for_asid(int asid);
@@ -54,18 +53,15 @@ class LocallyOptimalAllocator : public BaseAllocator {
         return instance;
     }
     ~LocallyOptimalAllocator();
-    int AllocateCoresForLoop(
-        std::string loop_name, int asid, int* num_cores_alloc);
+    int AllocateCoresForProcess(int asid, std::vector<double> scaling);
   private:
     LocallyOptimalAllocator(int num_cores);
-    // Stores a loop name and the number of cores allocated for the loop.
-    typedef std::pair<std::string, int> loop_alloc_pair;
-    std::map<int, loop_alloc_pair> *process_alloc_map;
     struct process_sync_t {
       int num_checked_in;
       int num_checked_out;
       bool allocation_complete;
     } process_sync;
+    std::vector<std::vector<double>*> process_scaling;
 
     // Get/reset all class global variables for sharing among threads.
     void ResetState();

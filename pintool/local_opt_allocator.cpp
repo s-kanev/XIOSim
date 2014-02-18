@@ -13,6 +13,7 @@
 #include "multiprocess_shared.h"
 #include <iostream>
 #include <map>
+#include <vector>
 #include <string>
 #include <unistd.h>
 
@@ -21,33 +22,27 @@
 namespace xiosim {
 
 LocallyOptimalAllocator::LocallyOptimalAllocator(int num_cores) :
-  BaseAllocator(num_cores) {
-  process_alloc_map = new std::map<int, loop_alloc_pair>();
+  BaseAllocator(num_cores), process_scaling() {
   ResetState();
 }
 
 LocallyOptimalAllocator::~LocallyOptimalAllocator() {
-  delete process_alloc_map;
 }
 
 void LocallyOptimalAllocator::ResetState() {
   process_sync.num_checked_in = 0;
   process_sync.num_checked_out = 0;
   process_sync.allocation_complete = false;
-  process_alloc_map->clear();
+  process_scaling.resize(*num_processes);
 }
 
-int LocallyOptimalAllocator::AllocateCoresForLoop(
-    std::string loop_name, int asid, int* num_cores_alloc) {
+int LocallyOptimalAllocator::AllocateCoresForProcess(
+    int asid, std::vector<double> scaling) {
   lk_lock(&allocator_lock, 1);
-  if (loop_speedup_map->find(loop_name) == loop_speedup_map->end()) {
-    lk_unlock(&allocator_lock);
-    return ERR_LOOP_NOT_FOUND;
-  }
 
-  // Start each loop with 1 core allocated.
-  loop_alloc_pair pair(loop_name, 1);
-  process_alloc_map->operator[](asid) = pair;
+  // Start each process with 1 core allocated.
+  core_allocs[asid] = 1;
+  process_scaling[asid] = &scaling;
   process_sync.num_checked_in++;
   // Wait for all processes in the system to check in before proceeding.
   while (process_sync.num_checked_in < *num_processes) {
@@ -67,20 +62,17 @@ int LocallyOptimalAllocator::AllocateCoresForLoop(
     while (!optimum_found) {
       double max_speedup = 0;
       int asid_with_max_speedup = -1;
-      for (auto it = process_alloc_map->begin();
-           it != process_alloc_map->end(); ++it) {
-        int curr_asid = it->first;
-        std::string curr_loop = it->second.first;
-        int curr_core_alloc = it->second.second;
-        double curr_speedup =
-            loop_speedup_map->operator[](curr_loop)[curr_core_alloc];
+      for (auto alloc_pair : core_allocs) {
+        int curr_asid = alloc_pair.first;
+        int curr_core_alloc = alloc_pair.second;
+        double curr_speedup = process_scaling[curr_asid]->at(curr_core_alloc);
         if (curr_speedup > max_speedup && total_cores_alloc < num_cores) {
           max_speedup = curr_speedup;
           asid_with_max_speedup = curr_asid;
         }
       }
       if (max_speedup > 0) {
-        process_alloc_map->operator[](asid_with_max_speedup).second++;
+        core_allocs[asid_with_max_speedup]++;
         total_cores_alloc++;
       }
       if (max_speedup < 0 || total_cores_alloc == num_cores ) {
@@ -92,8 +84,7 @@ int LocallyOptimalAllocator::AllocateCoresForLoop(
     process_sync.allocation_complete = true;
   }
 
-  *num_cores_alloc = process_alloc_map->operator[](asid).second++;
-  core_allocs->operator[](asid) = *num_cores_alloc;
+  int allocated_cores = core_allocs[asid]++;
   process_sync.num_checked_out++;
   if (process_sync.num_checked_out == *num_processes) {
     // The last thread executing this code will reset class variables for the
@@ -101,7 +92,7 @@ int LocallyOptimalAllocator::AllocateCoresForLoop(
     ResetState();
   }
   lk_unlock(&allocator_lock);
-  return 0;
+  return allocated_cores;
 }
 
 }  // namespace xiosim

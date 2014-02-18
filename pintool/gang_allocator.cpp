@@ -12,15 +12,14 @@ GangAllocator::~GangAllocator()
 
 }
 
-int GangAllocator::AllocateCoresForLoop(std::string loop_name, int asid, int* num_cores_alloc)
+int GangAllocator::AllocateCoresForProcess(int asid, std::vector<double> scaling)
 {
-  (void) loop_name; (void) asid;
+  (void) scaling; (void) asid;
 
   lk_lock(&allocator_lock, 1);
-  core_allocs->at(asid) = num_cores;
-  *num_cores_alloc = num_cores;
+  core_allocs[asid] = num_cores;
   lk_unlock(&allocator_lock);
-  return 0;
+  return num_cores;
 }
 
 } //namespace xiosim

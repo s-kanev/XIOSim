@@ -17,6 +17,8 @@
 #include <string>
 #include <sys/types.h>
 
+#include "parse_speedup.h"
+
 #include "allocators_impl.h"
 
 #pragma GCC diagnostic push
@@ -70,7 +72,7 @@ void TestPenaltyPolicy() {
   using namespace xiosim;
   char* filepath = "loop_speedup_data.csv";
   PenaltyAllocator& core_allocator = reinterpret_cast<PenaltyAllocator&>(AllocatorParser::Get("penalty", num_cores));
-  core_allocator.LoadHelixSpeedupModelData(filepath);
+  LoadHelixSpeedupModelData(filepath);
 
   // Correct output for this test.
   int num_tests = 5;
@@ -81,17 +83,19 @@ void TestPenaltyPolicy() {
 
   std::string loop_1("loop_1");
   std::string loop_2("loop_2");
-  int process_1 = 1;
-  int process_2 = 2;
-  int num_cores_1 = 0;
-  int num_cores_2 = 0;
+  int process_1 = 0;
+  int process_2 = 1;
+  std::vector<double> scaling_1 = GetHelixLoopScaling(loop_1);
+  assert(scaling_1.size() == (size_t)num_cores);
+  std::vector<double> scaling_2 = GetHelixLoopScaling(loop_2);
+  assert(scaling_2.size() == (size_t)num_cores);
 
   for (int i = 0; i < num_tests; i++) {
     // Test for the current penalty.
     ASSERT_EQUAL_DOUBLE(
         core_allocator.get_penalty_for_asid(process_1),
         process_1_penalties[i]);
-    core_allocator.AllocateCoresForLoop(loop_1, process_1, &num_cores_1);
+    core_allocator.AllocateCoresForProcess(process_1, scaling_1);
     // Test for the correct core allocation.
     ASSERT_EQUAL_INT(core_allocator.get_cores_for_asid(
         process_1), process_1_cores[i]);
@@ -100,7 +104,7 @@ void TestPenaltyPolicy() {
     ASSERT_EQUAL_DOUBLE(
         core_allocator.get_penalty_for_asid(process_2),
         process_2_penalties[i]);
-    core_allocator.AllocateCoresForLoop(loop_2, process_2, &num_cores_2);
+    core_allocator.AllocateCoresForProcess(process_2, scaling_2);
     // Test for the correct core allocation.
     ASSERT_EQUAL_INT(core_allocator.get_cores_for_asid(
         process_2), process_2_cores[i]);
@@ -119,11 +123,11 @@ void* TestLocallyOptimalPolicyThread(void* arg) {
   int asid = args->asid;
   std::stringstream loop_name;
   loop_name << "loop_" << args->loop_num;
-  int status = allocator->AllocateCoresForLoop(
-      loop_name.str(), asid, &(args->num_cores_alloc));
+  std::vector<double> loop_scaling = GetHelixLoopScaling(loop_name.str());
+  args->num_cores_alloc = allocator->AllocateCoresForProcess(
+      asid, loop_scaling);
 #ifdef DEBUG
   pthread_mutex_lock(&cout_lock);
-  std::cout << "Allocation return code: " << status << std::endl;
   std::cout << "Process " << asid << " was allocated " <<
       args->num_cores_alloc << " cores." << std::endl;
   pthread_mutex_unlock(&cout_lock);
@@ -149,7 +153,7 @@ void TestLocallyOptimalPolicy() {
   std::cout << "Number of processes: " << *num_processes << std::endl;
 #endif
   BaseAllocator& core_allocator = AllocatorParser::Get("local", num_cores);
-  core_allocator.LoadHelixSpeedupModelData(filepath);
+  LoadHelixSpeedupModelData(filepath);
 
   /* Initialize test data and correct output.
    * test_loops: Each column determines which loops to run.
