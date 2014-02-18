@@ -47,7 +47,7 @@ void LoadHelixSpeedupModelData(const char* filepath)
     string line;
     std::ifstream speedup_loop_file(filepath);
     if (speedup_loop_file.is_open()) {
-#ifdef DEBUG
+#ifdef PARSE_DEBUG
         std::cout << "Cores:\t\t";
         for (int j = 1; j <= MAX_CORES; j++)
             std::cout << j << "\t";
@@ -74,7 +74,7 @@ void LoadHelixSpeedupModelData(const char* filepath)
                 }
                 InterpolateSpeedup(partial_speedup_data, full_speedup_data);
                 loop_speedup_map[loop_name] = full_speedup_data;
-#ifdef DEBUG
+#ifdef PARSE_DEBUG
                 std::cout << loop_name << " speedup:\t";
                 for (int j = 0; j < MAX_CORES; j++)
                     std::cout << full_speedup_data[j] << "\t";
@@ -82,7 +82,7 @@ void LoadHelixSpeedupModelData(const char* filepath)
 #endif
             }
         }
-#ifdef DEBUG
+#ifdef PARSE_DEBUG
         std::cout << std::endl;
 #endif
     } else {

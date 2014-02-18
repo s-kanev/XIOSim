@@ -66,7 +66,9 @@ CXXFLAGS += -I$(PIN_HOME)/source/tools/InstLib
 
 # additional debug flags
 ifeq ($(DEBUG),1)
-    CXXFLAGS += -DZESTO_PIN_DBG -DIPC_DEBUG -DPRINT_WAITS -DSCHEDULER_DEBUG -O0
+    CXXFLAGS += -DZESTO_PIN_DBG -DIPC_DEBUG -DPRINT_WAITS -DSCHEDULER_DEBUG
+    CXXFLAGS += -DPARSE_DEBUG
+    CXXFLAGS += -O0
 endif
 
 ##############################################################
@@ -79,7 +81,7 @@ FEEDER = $(OBJDIR)feeder_zesto.so
 HARNESS = $(OBJDIR)harness
 UNIT_TESTS = $(OBJDIR)test_allocation
 
-ALLOCATOR_OBJS = $(OBJDIR)base_allocator.o $(OBJDIR)penalty_allocator.o $(OBJDIR)local_opt_allocator.o $(OBJDIR)gang_allocator.o
+ALLOCATOR_OBJS = $(OBJDIR)penalty_allocator.o $(OBJDIR)local_opt_allocator.o $(OBJDIR)gang_allocator.o $(OBJDIR)base_allocator.o
 
 TIMING_OBJS = $(OBJDIR)timing_sim.o $(OBJDIR)lib.o $(OBJDIR)scheduler.o $(ALLOCATOR_OBJS) $(OBJDIR)multiprocess_shared.o  $(OBJDIR)ipc_queues.o $(OBJDIR)mpkeys_impl.o $(OBJDIR)BufferManagerConsumer.o $(OBJDIR)BufferManager.o 
 
