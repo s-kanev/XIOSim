@@ -113,6 +113,7 @@ int PenaltyAllocator::AllocateCoresForProcess(
       " cores, was allocated " << allocated_cores << " cores." <<
       std::endl << std::endl;
 #endif
+  UpdateSHMAllocation(asid, allocated_cores);
   return allocated_cores;
 }
 

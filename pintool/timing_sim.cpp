@@ -29,6 +29,8 @@ inline sim_thread_state_t* get_sim_tls(int coreID)
 using namespace std;
 using namespace xiosim; //Until we namespace everything
 
+BaseAllocator *core_allocator = NULL;
+
 /* ==========================================================================
  * Called from simulator once handshake is free to be reused.
  * This allows to pipeline instrumentation and simulation. */
@@ -316,8 +318,7 @@ int main(int argc, const char * argv[])
     Zesto_SlaveInit(ssargs.first, ssargs.second);
 
     InitScheduler(num_cores);
-    BaseAllocator& core_allocator = AllocatorParser::Get(knobs.allocator, num_cores);
-    (void) core_allocator;
+    core_allocator = &(AllocatorParser::Get(knobs.allocator, num_cores));
     SpawnSimulatorThreads(num_cores);
 
     return 0;
@@ -386,13 +387,20 @@ void CheckIPCMessageQueue(bool isEarly, int caller_coreID)
                 xiosim::buffer_management::AllocateThreadConsumer(ipcMessage.arg0, ipcMessage.arg1);
                 break;
             case THREAD_AFFINITY:
-                SetThreadAffinity(ipcMessage.arg0, ipcMessage.arg1);
+                xiosim::SetThreadAffinity(ipcMessage.arg0, ipcMessage.arg1);
+                break;
+            case ALLOCATE_CORES:
+                core_allocator->AllocateCoresForProcess(ipcMessage.arg0, vector<double>());
+                break;
+            case DEALLOCATE_CORES:
+                core_allocator->DeallocateCoresForProcess(ipcMessage.arg0);
                 break;
             default:
                 abort();
                 break;
         }
 
+        /* Ack a blocking message after processing it. */
         if (ipcMessage.blocking) {
             lk_lock(lk_ipcMessageQueue, 1);
             assert(ackMessages->at(ipcMessage) == false);

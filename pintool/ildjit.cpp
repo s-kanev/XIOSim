@@ -25,6 +25,7 @@
 #include "ildjit.h"
 #include "fluffy.h"
 #include "utils.h"
+#include "parse_speedup.h"
 
 #include "../zesto-core.h"
 
@@ -63,6 +64,9 @@ KNOB<BOOL> KnobDisableWaitSignal(KNOB_MODE_WRITEONCE,     "pintool",
         "disable_wait_signal", "false", "Don't insert any waits or signals into the pipeline");
 KNOB<BOOL> KnobOnlyHeavyWaits(KNOB_MODE_WRITEONCE,     "pintool",
         "only_heavy_waits", "false", "Don't insert any waits or signals into the pipeline");
+KNOB<string> KnobPredictedSpeedupFile(KNOB_MODE_WRITEONCE,   "pintool",
+        "speedup_file", "", "File containing speedup prediction for core allocation");
+
 static string start_loop = "";
 static UINT32 start_loop_invocation = -1;
 static UINT32 start_loop_iteration = -1;
@@ -148,6 +152,9 @@ VOID MOLECOOL_Init()
 
     *ss_curr = 100000;
     *ss_prev = 100000;
+
+    if (!KnobPredictedSpeedupFile.Value().empty())
+        LoadHelixSpeedupModelData(KnobPredictedSpeedupFile.Value().c_str());
 }
 
 /* ========================================================================== */
@@ -294,8 +301,22 @@ VOID ILDJIT_startLoop_after(THREADID tid, ADDRINT ip)
 /* ========================================================================== */
 VOID ILDJIT_startInitParallelLoop(ADDRINT loop)
 {
-    (void) loop;
-    //*allocated_cores = GetAllocatorDecision(loop);
+    vector<double> scaling;
+
+    if (!KnobPredictedSpeedupFile.Value().empty())
+    {
+        string loop_name((const char*)loop);
+        scaling = GetHelixLoopScaling(loop_name);
+    }
+
+    ipc_message_t msg;
+    msg.AllocateCores(asid, scaling);
+    SendIPCMessage(msg, /*blocking*/true);
+
+    /* Here we've finished with the allocation decision. */
+    int allocation = GetProcessCoreAllocation(asid);
+    ASSERTX(allocation > 0);
+    *allocated_cores = allocation;
 }
 
 /* ========================================================================== */
@@ -1177,6 +1198,10 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
 
     CoreSet empty_set;
     UpdateProcessCoreSet(asid, empty_set);
+
+    ipc_message_t msg;
+    msg.DeallocateCores(asid);
+    SendIPCMessage(msg, /*blocking*/true);
 }
 
 /* ========================================================================== */

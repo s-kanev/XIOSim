@@ -26,6 +26,9 @@ SHARED_VAR_DEFINE(XIOSIM_LOCK, lk_coreThreads)
 SHARED_VAR_DEFINE(SharedCoreSetArray, processCoreSet)
 SHARED_VAR_DEFINE(XIOSIM_LOCK, lk_processCoreSet)
 
+SHARED_VAR_DEFINE(SharedCoreAllocation, coreAllocation)
+SHARED_VAR_DEFINE(XIOSIM_LOCK, lk_coreAllocation)
+
 SHARED_VAR_DEFINE(ThreadBOSMap, thread_bos)
 SHARED_VAR_DEFINE(XIOSIM_LOCK, lk_thread_bos)
 
@@ -108,6 +111,10 @@ int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores_)
     SHARED_VAR_CONSTRUCT(ThreadProcessMap, threadProcess);
     SHARED_VAR_INIT(XIOSIM_LOCK, lk_threadProcess);
     lk_init(lk_threadProcess);
+
+    SHARED_VAR_CONSTRUCT(SharedCoreAllocation, coreAllocation);
+    SHARED_VAR_INIT(XIOSIM_LOCK, lk_coreAllocation)
+    lk_init(lk_coreAllocation);
 
     SHARED_VAR_INIT(XIOSIM_LOCK, printing_lock);
     SHARED_VAR_INIT(int, num_processes);
@@ -199,6 +206,23 @@ CoreSet GetProcessCoreSet(int asid)
     for (int i : processCoreSet->at(asid))
         res.insert(i);
     lk_unlock(lk_processCoreSet);
+    return res;
+}
+
+void UpdateProcessCoreAllocation(int asid, int allocated_cores)
+{
+    lk_lock(lk_coreAllocation, 1);
+    coreAllocation->operator[](asid) = allocated_cores;
+    lk_unlock(lk_coreAllocation);
+}
+
+int GetProcessCoreAllocation(int asid)
+{
+    int res = 0;
+    lk_lock(lk_coreAllocation, 1);
+    if (coreAllocation->find(asid) != coreAllocation->end())
+        res = coreAllocation->at(asid);
+    lk_unlock(lk_coreAllocation);
     return res;
 }
 

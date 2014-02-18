@@ -61,6 +61,12 @@ CoreSet GetProcessCores(int asid);
 CoreSet GetProcessCoreSet(int asid);
 void UpdateProcessCoreSet(int asid, CoreSet val);
 
+typedef xiosim::shared::SharedMemoryMap<int, int> SharedCoreAllocation;
+SHARED_VAR_DECLARE(SharedCoreAllocation, coreAllocation)
+SHARED_VAR_DECLARE(XIOSIM_LOCK, lk_coreAllocation)
+int GetProcessCoreAllocation(int asid);
+void UpdateProcessCoreAllocation(int asid, int allocated_cores);
+
 typedef xiosim::shared::SharedMemoryMap<pid_t, md_addr_t> ThreadBOSMap;
 SHARED_VAR_DECLARE(ThreadBOSMap, thread_bos)
 SHARED_VAR_DECLARE(XIOSIM_LOCK, lk_thread_bos)

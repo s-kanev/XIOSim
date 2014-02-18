@@ -20,6 +20,7 @@ class BaseAllocator {
     int num_cores;
     XIOSIM_LOCK allocator_lock;
     BaseAllocator(int ncores);
+    void UpdateSHMAllocation(int asid, int allocated_cores) const;
 
   public:
     /* Deletes all state for this allocator. */

@@ -136,7 +136,7 @@ struct ipc_message_t {
         this->arg1 = coreID;
     }
 
-    void AllocateCores(int asid, const char* name)
+    void AllocateCores(int asid, std::vector<double> scaling)
     {
         this->id = ALLOCATE_CORES;
         this->arg0 = asid;

@@ -92,6 +92,7 @@ int LocallyOptimalAllocator::AllocateCoresForProcess(
     ResetState();
   }
   lk_unlock(&allocator_lock);
+  UpdateSHMAllocation(asid, allocated_cores);
   return allocated_cores;
 }
 

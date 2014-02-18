@@ -3,10 +3,15 @@
  * Author: Sam Xi
  */
 
-#include "base_allocator.h"
-
 #include <map>
 #include <string>
+
+#include "boost_interprocess.h"
+#include "../synchronization.h"
+#include "../interface.h"
+#include "multiprocess_shared.h"
+
+#include "base_allocator.h"
 
 namespace xiosim {
 
@@ -18,14 +23,23 @@ BaseAllocator::~BaseAllocator() {
 }
 
 void BaseAllocator::DeallocateCoresForProcess(int asid) {
+  lk_lock(&allocator_lock, 1);
   if (core_allocs.find(asid) != core_allocs.end())
     core_allocs[asid] = 1;
+  lk_unlock(&allocator_lock);
 }
 
 int BaseAllocator::get_cores_for_asid(int asid) {
+  int res = 0;
+  lk_lock(&allocator_lock, 1);
   if (core_allocs.find(asid) != core_allocs.end())
-    return core_allocs[asid];
-  return 0;
+    res = core_allocs[asid];
+  lk_unlock(&allocator_lock);
+  return res;
+}
+
+void BaseAllocator::UpdateSHMAllocation(int asid, int allocated_cores) const {
+  UpdateProcessCoreAllocation(asid, allocated_cores);
 }
 
 }  // namespace xiosim

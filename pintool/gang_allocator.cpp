@@ -19,6 +19,8 @@ int GangAllocator::AllocateCoresForProcess(int asid, std::vector<double> scaling
   lk_lock(&allocator_lock, 1);
   core_allocs[asid] = num_cores;
   lk_unlock(&allocator_lock);
+
+  UpdateSHMAllocation(asid, num_cores);
   return num_cores;
 }
 
