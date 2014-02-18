@@ -41,7 +41,7 @@ class SharedUnorderedMapCommon {
     SharedUnorderedMapCommon(
         managed_shared_memory* shm, const char* internal_map_name,
         std::size_t buckets = DEFAULT_NUM_BUCKETS)
-        : data_key(internal_map_name) {
+        : data_key(internal_map_name), shm(shm) {
       initialize(buckets);
     }
 
