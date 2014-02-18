@@ -2,13 +2,14 @@
  *
  * Author: Sam Xi
  */
-#define CATCH_CONFIG_MAIN
+#define CATCH_CONFIG_RUNNER
 
 #include "boost_interprocess.h"
 #include "catch.hpp"  // Must come before interface.h
 #include "../interface.h"
 #include "../synchronization.h"
 #include "multiprocess_shared.h"
+#include "mpkeys.h"
 #include "assert.h"
 #include <algorithm>
 #include <cmath>
@@ -18,6 +19,7 @@
 #include <sstream>
 #include <string>
 #include <sys/types.h>
+#include <unistd.h>
 
 #include "parse_speedup.h"
 
@@ -34,18 +36,14 @@ struct locally_optimal_args {
 };
 pthread_mutex_t cout_lock;
 
-// boost::interprocess::managed_shared_memory *global_shm;
-const char* SHARED_MEMORY_NAME = "shared_memory_unit_test";
-const std::size_t DEFAULT_SIZE = 1024;
-
-const int num_cores = 16;
+const int NUM_CORES_TEST = 16;
 const int NUM_TEST_PROCESSES = 2;
 const int NUM_TESTS = 6;
 
 TEST_CASE("Penalty allocator", "penalty") {
   using namespace xiosim;
   char* filepath = "loop_speedup_data.csv";
-  PenaltyAllocator& core_allocator = reinterpret_cast<PenaltyAllocator&>(AllocatorParser::Get("penalty", num_cores));
+  PenaltyAllocator& core_allocator = reinterpret_cast<PenaltyAllocator&>(AllocatorParser::Get("penalty", NUM_CORES_TEST));
   LoadHelixSpeedupModelData(filepath);
 
   // Correct output for this test.
@@ -60,9 +58,9 @@ TEST_CASE("Penalty allocator", "penalty") {
   int process_1 = 0;
   int process_2 = 1;
   std::vector<double> scaling_1 = GetHelixLoopScaling(loop_1);
-  assert(scaling_1.size() == (size_t)num_cores);
+  assert(scaling_1.size() == (size_t)NUM_CORES_TEST);
   std::vector<double> scaling_2 = GetHelixLoopScaling(loop_2);
-  assert(scaling_2.size() == (size_t)num_cores);
+  assert(scaling_2.size() == (size_t)NUM_CORES_TEST);
 
   for (int i = 0; i < num_tests; i++) {
     // Test for the current penalty.
@@ -87,6 +85,10 @@ TEST_CASE("Penalty allocator", "penalty") {
   }
 }
 
+/* Thread function that calls the Allocate() method in the locally optimal
+ * allocator. Tests whether the allocator properly waits for all threads to
+ * check in before making a decision.
+ */
 void* TestLocallyOptimalPolicyThread(void* arg) {
   locally_optimal_args *args = (locally_optimal_args*) arg;
   xiosim::BaseAllocator *allocator = args->allocator;
@@ -94,7 +96,7 @@ void* TestLocallyOptimalPolicyThread(void* arg) {
   std::stringstream loop_name;
   loop_name << "loop_" << args->loop_num;
   std::vector<double> loop_scaling = GetHelixLoopScaling(loop_name.str());
-  args->num_cores_alloc = allocator->AllocateCoresForProcess(
+  args->num_cores_alloc= allocator->AllocateCoresForProcess(
       asid, loop_scaling);
 #ifdef DEBUG
   pthread_mutex_lock(&cout_lock);
@@ -106,23 +108,14 @@ void* TestLocallyOptimalPolicyThread(void* arg) {
 }
 
 TEST_CASE("Locally optimal allocator", "local") {
-  // Initialize shared memory segments and variables BEFORE creating the
-  // allocator!
   using namespace xiosim;
-  using namespace boost::interprocess;
-  struct shm_remove {
-    shm_remove() { shared_memory_object::remove(SHARED_MEMORY_NAME); }
-    ~shm_remove() { shared_memory_object::remove(SHARED_MEMORY_NAME); }
-  } remover;
-  global_shm = new managed_shared_memory(
-      open_or_create, SHARED_MEMORY_NAME, DEFAULT_SIZE);
   SHARED_VAR_INIT(int, num_processes);
   *num_processes = NUM_TEST_PROCESSES;
   char* filepath = "loop_speedup_data.csv";
 #ifdef DEBUG
   std::cout << "Number of processes: " << *num_processes << std::endl;
 #endif
-  BaseAllocator& core_allocator = AllocatorParser::Get("local", num_cores);
+  BaseAllocator& core_allocator = AllocatorParser::Get("local", NUM_CORES_TEST);
   LoadHelixSpeedupModelData(filepath);
 
   /* Initialize test data and correct output.
@@ -167,5 +160,55 @@ TEST_CASE("Locally optimal allocator", "local") {
       REQUIRE(args[j].num_cores_alloc == correct_output[j][i]);
     }
   }
+}
+
+/* We need to call InitSharedState() to set up all the shared memory state
+ * required by XIOSIM, but that requires some initial setup from the harness.
+ * That setup is mimicked here.
+ */
+void SetupSharedState() {
+  using namespace xiosim::shared;
+  using namespace boost::interprocess;
+  std::stringstream pidstream;
+  pid_t test_pid = getpid();
+  pidstream << test_pid;
+  std::string shared_memory_key = 
+      pidstream.str() + std::string(XIOSIM_SHARED_MEMORY_KEY);
+  std::string init_lock_key =
+      pidstream.str() + std::string(XIOSIM_INIT_SHARED_LOCK);
+  std::string counter_lock_key =
+      pidstream.str() + std::string(XIOSIM_INIT_COUNTER_KEY);
+
+  // To be safe, we use xiosim::shared::DEFAULT_SHARED_MEMORY_SIZE, or we might
+  // run out of shared memory space in InitSharedState().
+  global_shm = new managed_shared_memory(
+      open_or_create, shared_memory_key.c_str(), DEFAULT_SHARED_MEMORY_SIZE);
+  // InitSharedState() will expect this lock and counter to exist.
+  named_mutex init_lock(open_or_create, init_lock_key.c_str());
+  int *process_counter =
+      global_shm->find_or_construct<int>(counter_lock_key.c_str())();
+  *process_counter = 1;
+  std::cout << "===========================" << std::endl
+            << " Initializing shared state " << std::endl
+            << "===========================" << std::endl;
+  InitSharedState(false, test_pid, NUM_CORES_TEST);
+}
+
+int main(int argc, char* const argv[]) {
+  // Create the shared memory cleanup struct.
+  using namespace xiosim::shared;
+  using namespace boost::interprocess;
+  struct shm_remove {
+    shm_remove() { shared_memory_object::remove(XIOSIM_SHARED_MEMORY_KEY); }
+    ~shm_remove() { shared_memory_object::remove(XIOSIM_SHARED_MEMORY_KEY); }
+  } remover;
+  SetupSharedState();
+
+  std::cout << "===========================" << std::endl
+            << "    Beginning unit tests   " << std::endl
+            << "===========================" << std::endl;
+  int result = Catch::Session().run(argc, argv);
+
   delete global_shm;
+  return result; 
 }
