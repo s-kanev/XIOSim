@@ -65,7 +65,7 @@ CXXFLAGS += -DDEBUG -D_FILE_OFFSET_BITS=64
 CXXFLAGS += $(CONFUSE_CXXFLAGS) $(BOOST_CXXFLAGS)
 CXXFLAGS += -I$(PIN_HOME)/source/tools/InstLib
 # For compiling test cases, specify the Catch unit testing framework directory.
-test: CXXFLAGS += -I$(CATCH_HOME)
+CXXFLAGS += -I$(CATCH_HOME)
 
 # additional debug flags
 ifeq ($(DEBUG),1)
