@@ -8,9 +8,8 @@
 
 SHARED_VAR_DEFINE(MessageQueue, ipcMessageQueue)
 SHARED_VAR_DEFINE(MessageQueue, ipcEarlyMessageQueue)
-SHARED_VAR_DEFINE(XIOSIM_LOCK, lk_ipcMessageQueue)
-
 SHARED_VAR_DEFINE(AckMessageMap, ackMessages)
+SHARED_VAR_DEFINE(XIOSIM_LOCK, lk_ipcMessageQueue)
 
 void InitIPCQueues(void) {
     ipc_message_allocator_t *ipc_queue_allocator = new ipc_message_allocator_t(global_shm->get_segment_manager());
