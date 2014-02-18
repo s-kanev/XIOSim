@@ -38,9 +38,8 @@ class SharedMemoryMapCommon {
 
     SharedMemoryMapCommon(
         managed_shared_memory* shm, const char* internal_data_name)
-        : data_key(internal_data_name) {
+        : data_key(internal_data_name), shm(shm) {
 
-      this->shm = shm;
       initialize();
     }
 
