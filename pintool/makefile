@@ -13,6 +13,7 @@
 #BOOST_HOME ?= /home/skanev/boost_1_54_0
 #CONFUSE_HOME ?= /home/skanev
 ZESTO_HOME = ..
+CATCH_HOME =  Catch/single_include
 TARGET = ia32
 
 ##############################################################
@@ -63,6 +64,8 @@ CXXFLAGS += -Wall -Werror -Wno-unused-function -Wno-unknown-pragmas
 CXXFLAGS += -DDEBUG -D_FILE_OFFSET_BITS=64
 CXXFLAGS += $(CONFUSE_CXXFLAGS) $(BOOST_CXXFLAGS)
 CXXFLAGS += -I$(PIN_HOME)/source/tools/InstLib
+# For compiling test cases, specify the Catch unit testing framework directory.
+test: CXXFLAGS += -I$(CATCH_HOME)
 
 # additional debug flags
 ifeq ($(DEBUG),1)
