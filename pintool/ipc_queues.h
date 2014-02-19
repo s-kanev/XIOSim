@@ -52,6 +52,8 @@ struct ipc_message_t {
           case SCHEDULE_NEW_THREAD:
           case STOP_SIMULATION:
           case THREAD_AFFINITY:
+          case ALLOCATE_CORES:
+          case DEALLOCATE_CORES:
             return true;
           default:
             return false;

@@ -36,7 +36,7 @@ void SendIPCMessage(ipc_message_t msg, bool blocking)
     q->push_back(msg);
 
     if (blocking)
-        ackMessages->at(msg) = false;
+        ackMessages->operator[](msg) = false;
     lk_unlock(lk_ipcMessageQueue);
 
     if (blocking) {
