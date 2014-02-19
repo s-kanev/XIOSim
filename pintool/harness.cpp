@@ -183,8 +183,9 @@ int main(int argc, const char *argv[]) {
 
     // Parse the benchmark configuration file.
     cfg_opt_t program_opts[] {
-        CFG_STR("exec_path", "", CFGF_NONE),
-        CFG_STR("command_line_args", "", CFGF_NONE),
+        CFG_STR("run_path", ".", CFGF_NONE),
+        CFG_STR("exe", "", CFGF_NONE),
+        CFG_STR("args", "", CFGF_NONE),
         CFG_INT("instances", 1, CFGF_NONE),
         CFG_END()
     };
@@ -197,6 +198,7 @@ int main(int argc, const char *argv[]) {
 
     // Compute the total number of benchmark processes that will be forked.
     int num_programs = cfg_size(cfg, "program");
+    assert(num_programs > 0);
     for (int i = 0; i < num_programs; i++) {
         cfg_t *program_cfg = cfg_getnsec(cfg, "program", i);
         int instances = cfg_getint(program_cfg, "instances");
@@ -300,13 +302,18 @@ int main(int argc, const char *argv[]) {
 
             // Append program command line arguments.
             std::stringstream ss;
-            ss << cfg_getstr(program_cfg, "exec_path") << " " <<
-                cfg_getstr(program_cfg, "command_line_args");
+            ss << cfg_getstr(program_cfg, "exe") << " " <<
+                cfg_getstr(program_cfg, "args");
             run_str += ss.str();
 
             switch (harness_pids[nthprocess]) {
               case 0:  {  // child
                 setpgid(0, 0);
+                int chret = chdir(cfg_getstr(program_cfg, "run_path"));
+                if (chret != 0) {
+                    std::cerr << "chdir failed with " << strerror(errno) << std::endl;
+                    abort();
+                }
                 int ret = system(run_str.c_str());
                 if (WIFSIGNALED(ret))
                     abort();
@@ -352,7 +359,7 @@ int main(int argc, const char *argv[]) {
     do {
         wait_res = waitpid(timing_pid, &status, 0);
         if (wait_res == -1) {
-            std::cout << "[HARNESS] waitpid(" << timing_pid << ") failed with: " << strerror(errno) << std::endl;
+            std::cerr << "[HARNESS] waitpid(" << timing_pid << ") failed with: " << strerror(errno) << std::endl;
             break;
         }
     } while (wait_res != timing_pid);
