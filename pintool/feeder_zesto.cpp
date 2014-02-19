@@ -954,7 +954,7 @@ INT32 main(INT32 argc, CHAR **argv)
     xiosim::buffer_management::InitBufferManagerProducer(KnobHarnessPid.Value(), KnobNumCores.Value());
 
     if(KnobAMDHack.Value()) {
-      amd_hack();
+        amd_hack();
     }
 
     if (KnobILDJIT.Value()) {
