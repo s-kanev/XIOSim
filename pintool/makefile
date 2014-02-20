@@ -82,7 +82,7 @@ endif
 TIMING = $(OBJDIR)timing_sim
 FEEDER = $(OBJDIR)feeder_zesto.so
 HARNESS = $(OBJDIR)harness
-UNIT_TESTS = $(OBJDIR)test_allocation
+UNIT_TESTS = $(OBJDIR)test_allocation $(OBJDIR)test_parse_speedup
 
 ALLOCATOR_OBJS = $(OBJDIR)penalty_allocator.o $(OBJDIR)local_opt_allocator.o $(OBJDIR)gang_allocator.o $(OBJDIR)base_allocator.o
 

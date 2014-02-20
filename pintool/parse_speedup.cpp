@@ -42,8 +42,10 @@ static void InterpolateSpeedup(double* speedup_in, double* speedup_out)
     for (int i = 0; i < NUM_SPEEDUP_POINTS; i++)
         speedup_out[interp_cores[i]-1] = speedup_in[i];
     for (int i = 0; i < NUM_SPEEDUP_POINTS-1; i++) {
-        double slope = (speedup_in[i+1]-speedup_in[i]) / (interp_cores[i+1]-interp_cores[i]);
-        for (int j = interp_cores[i]+1; j < interp_cores[i+1]; j++) {  // Interpolate.
+        double slope = (speedup_in[i+1]-speedup_in[i]) /
+            (interp_cores[i+1]-interp_cores[i]);
+        // Interpolate.
+        for (int j = interp_cores[i]+1; j < interp_cores[i+1]; j++) {
           speedup_out[j-1] = slope*(j - interp_cores[i+1]) + speedup_in[i+1];
         }
     }
