@@ -172,7 +172,7 @@ void SetupSharedState() {
   std::stringstream pidstream;
   pid_t test_pid = getpid();
   pidstream << test_pid;
-  std::string shared_memory_key = 
+  std::string shared_memory_key =
       pidstream.str() + std::string(XIOSIM_SHARED_MEMORY_KEY);
   std::string init_lock_key =
       pidstream.str() + std::string(XIOSIM_INIT_SHARED_LOCK);
@@ -210,5 +210,5 @@ int main(int argc, char* const argv[]) {
   int result = Catch::Session().run(argc, argv);
 
   delete global_shm;
-  return result; 
+  return result;
 }

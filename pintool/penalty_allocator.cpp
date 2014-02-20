@@ -3,6 +3,7 @@
  * Author: Sam Xi
  */
 
+#include <cmath>
 #include <iostream>
 #include <map>
 #include <string>
@@ -25,8 +26,8 @@ double PenaltyAllocator::get_penalty_for_asid(int asid) {
 
 int PenaltyAllocator::AllocateCoresForProcess(
     int asid, std::vector<double> scaling) {
-  // The nth element of @scaling is the incremental amount of speedup attained if
-  // running under that many cores.
+  // The nth element of @scaling is the incremental amount of speedup attained
+  // if running under that many cores.
 #ifdef DEBUG
   std::cout << "Allocating cores to process " << asid << "." << std::endl;
 #endif
@@ -47,7 +48,11 @@ int PenaltyAllocator::AllocateCoresForProcess(
       available_cores -= it->second;
   }
   for (int i = 1; i < num_cores; i++) {
-    if (scaling[i] >= MARGINAL_SPEEDUP_THRESHOLD)
+    // Comparing if scaling[i] >= threshold, but direct comparison of doubles is
+    // inexact, so the greater than comparison needs to be separated from the
+    // equals comparison.
+    if (scaling[i] > MARGINAL_SPEEDUP_THRESHOLD ||
+        std::abs(scaling[i] - MARGINAL_SPEEDUP_THRESHOLD) <= SPEEDUP_EPSILON)
       optimal_cores = i+1;
     else
       break;
