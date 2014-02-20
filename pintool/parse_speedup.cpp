@@ -16,6 +16,20 @@ static const int NUM_SPEEDUP_POINTS = 4;
 static int interp_cores[NUM_SPEEDUP_POINTS] = {2, 4, 8, 16};
 static std::map<std::string, double*> loop_speedup_map;
 
+/* This function converts absolute speedups on x cores into marginal speedup.
+ * HELIX speedup data is given in absolute terms, but it is easier for the
+ * allocators to work with marginal speedups.
+ */
+/* ========================================================================== */
+static void ConvertToMarginalSpeedup(double* speedup, int num_points) {
+    double temp1 = speedup[0], temp2 = 0;
+    for (int i = 1; i < num_points; i++) {
+        temp2 = speedup[i];
+        speedup[i] -= temp1;
+        temp1 = temp2;
+    }
+}
+
 /* Linearly interpolates input speedup points. speedup_in is an array that
  * contains speedup values for 2, 4, 8, and 16 cores. speedup_out is an array
  * that has linearly interpolated values for 2-16 cores. The zeroth element of
@@ -72,6 +86,8 @@ void LoadHelixSpeedupModelData(const char* filepath)
                         i++;
                     }
                 }
+                ConvertToMarginalSpeedup(
+                    partial_speedup_data, NUM_SPEEDUP_POINTS);
                 InterpolateSpeedup(partial_speedup_data, full_speedup_data);
                 loop_speedup_map[loop_name] = full_speedup_data;
 #ifdef PARSE_DEBUG

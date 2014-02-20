@@ -1,4 +1,5 @@
 // These are for unit testing. Do not change without changing the unit tests too.
-loop_1,0.9,0.7,0.59,0.2
-loop_2,0.6,0.5,0.3,0.25
-loop_3,0.8,0.6,0.3,0.1
+// Speedup numbers are absolute speedups over single core execution.
+loop_1,0.9,1.6,2.19,2.39
+loop_2,0.6,1.1,1.4,1.65
+loop_3,0.8,1.4,1.7,1.8
