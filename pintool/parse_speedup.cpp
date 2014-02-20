@@ -58,19 +58,21 @@ void LoadHelixSpeedupModelData(const char* filepath)
             if (!boost::starts_with(line.c_str(), "//")) {
                 tokenizer<escaped_list_separator<char>> tok(line);
                 string loop_name;
+                double partial_speedup_data[NUM_SPEEDUP_POINTS];
                 double* full_speedup_data = new double[MAX_CORES];
-                int i = 1;  // Start at 1 so speedup for 1 core is 0.
+                int i = 0;
                 bool first_iteration = true;
                 for (auto it = tok.begin(); it != tok.end(); ++it) {
                     if (first_iteration) {
                         loop_name = *it;
                         first_iteration = false;
                     } else {
-                        assert(i < MAX_CORES);
-                        full_speedup_data[i] = atof(it->c_str());
+                        assert(i < NUM_SPEEDUP_POINTS);
+                        partial_speedup_data[i] = atof(it->c_str());
                         i++;
                     }
                 }
+                InterpolateSpeedup(partial_speedup_data, full_speedup_data);
                 loop_speedup_map[loop_name] = full_speedup_data;
 #ifdef PARSE_DEBUG
                 std::cout << loop_name << " speedup:\t";
