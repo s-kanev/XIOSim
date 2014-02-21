@@ -190,7 +190,7 @@ int main(int argc, const char *argv[]) {
         CFG_END()
     };
     cfg_opt_t opts[] {
-        CFG_SEC("program", program_opts, CFGF_MULTI | CFGF_TITLE),
+        CFG_SEC("program", program_opts, CFGF_MULTI),
         CFG_END()
     };
     cfg_t *cfg = cfg_init(opts, 0);
