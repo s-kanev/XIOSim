@@ -72,8 +72,14 @@ class LocallyOptimalAllocator : public BaseAllocator {
 class AllocatorParser {
   public:
     static BaseAllocator& Get(std::string opts, int num_cores) {
-      if (opts == "gang")
-        return GangAllocator::Get(num_cores);
+      if (opts.find("gang") != opts.npos) {
+        char name[16];
+        int max_cores;
+        if (sscanf(opts.c_str(), "%[^:]:%d", name, &max_cores) != 2)
+            assert(false);
+        assert(max_cores > 0 && max_cores <= num_cores);
+        return GangAllocator::Get(max_cores);
+      }
       if (opts == "local")
         return LocallyOptimalAllocator::Get(num_cores);
       if (opts == "penalty")
