@@ -698,7 +698,9 @@ VOID ILDJIT_setAffinity(THREADID tid, INT32 coreID)
 {
 #ifdef ZESTO_PIN_DBG
     thread_state_t* tstate = get_tls(tid);
+    lk_lock(printing_lock, 1);
     cerr << "Call to setAffinity: " << tstate->tid << " " << coreID << endl;
+    lk_unlock(printing_lock);
 #endif
 
     lk_lock(&lk_affine_threads, 1);
@@ -1099,8 +1101,9 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
         ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
             if ((*it) != tid) {
                 thread_state_t* tstate = get_tls(*it);
-                lk_lock(&tstate->lock, tid + 1);
-                bool curr_done = tstate->ignore && (tstate->lastWaitID == 0);
+                lk_lock(&tstate->lock, 1);
+                bool curr_done = tstate->ignore_all ||
+                    (tstate->ignore && (tstate->lastWaitID == 0));
                 done_with_iteration &= curr_done;
                 /* Setting ignore_all here (while ignore is set) should be a race-free way
                  * of ignoring the serial portion outside the loop after the thread goes
@@ -1118,9 +1121,11 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
     enable_consumers();
 
     /* Drainning all pipelines and deactivating cores. */
-    list<THREADID>::iterator it;
-    ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
+    vector<THREADID>::iterator it;
+    unsigned int thread_count = 0;
+    ATOMIC_ITERATE(affine_threads, it, lk_affine_threads) {
         auto curr_tstate = get_tls(*it);
+
         /* Insert a trap. This will ensure that the pipe drains before
          * consuming the next instruction.*/
         handshake_container_t* handshake = xiosim::buffer_management::get_buffer(curr_tstate->tid);
@@ -1160,6 +1165,11 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
         xiosim::buffer_management::producer_done(curr_tstate->tid, true);
 
         xiosim::buffer_management::flushBuffers(curr_tstate->tid);
+
+        /* All other threads didn't participate in the loop */
+        thread_count++;
+        if (thread_count == *allocated_cores)
+            break;
     }
 
     enable_consumers();
@@ -1168,12 +1178,12 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
     volatile bool done = false;
     do {
         done = true;
-        list<THREADID>::iterator it;
-        ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
+        vector<THREADID>::iterator it;
+        ATOMIC_ITERATE(affine_threads, it, lk_affine_threads) {
             auto curr_tstate = get_tls(*it);
             done &= !IsSHMThreadSimulatingMaybe(curr_tstate->tid);
         }
-        if (!done && *sleeping_enabled && (host_cpus <= KnobNumCores.Value()))
+        if (!done && *sleeping_enabled)
             PIN_Sleep(10);
     } while (!done);
 
@@ -1206,7 +1216,7 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
 
     /* Have thread ignore serial section after */
     /* XXX: Do we need this? A few lines above we set ignore_all! */
-    ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
+    ATOMIC_ITERATE(affine_threads, it, lk_affine_threads) {
         thread_state_t* tstate = get_tls(*it);
         lk_lock(&tstate->lock, 1);
         xiosim::buffer_management::resetPool(tstate->tid);
@@ -1259,10 +1269,15 @@ VOID ILDJIT_ResumeSimulation(THREADID tid)
     volatile bool done = false;
     do {
         done = true;
-        list<THREADID>::iterator it;
-        ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
+        vector<THREADID>::iterator it;
+        unsigned int thread_count = 0;
+        ATOMIC_ITERATE(affine_threads, it, lk_affine_threads) {
             auto curr_tstate = get_tls(*it);
             done &= IsSHMThreadSimulatingMaybe(curr_tstate->tid);
+
+            thread_count++;
+            if (thread_count == *allocated_cores)
+                break;
         }
     } while (!done);
 }
