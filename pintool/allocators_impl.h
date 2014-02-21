@@ -40,6 +40,8 @@ class PenaltyAllocator : public BaseAllocator {
   private:
     PenaltyAllocator(int num_cores);
     std::map<int, double> *process_penalties;
+    // Double precision floating point comparison accuracy.
+    double SPEEDUP_EPSILON = 0.000001;
 };
 
 /* Locally optimal allocator that waits for all loops to align before making the

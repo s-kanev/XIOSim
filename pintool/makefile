@@ -6,7 +6,7 @@
 
 #
 # 1. Change PIN_HOME, BOOST_HOME, CONFUSE_HOME to point to the top-level directories
-#    where Pin, boost and libconfuse are. 
+#    where Pin, boost and libconfuse are.
 #    These can also be set on the command line or as environment variables
 #
 #PIN_HOME ?= /home/skanev/pin/2.12
@@ -82,17 +82,18 @@ endif
 TIMING = $(OBJDIR)timing_sim
 FEEDER = $(OBJDIR)feeder_zesto.so
 HARNESS = $(OBJDIR)harness
-UNIT_TESTS = $(OBJDIR)test_allocation
+UNIT_TESTS = $(OBJDIR)test_allocation $(OBJDIR)test_parse_speedup
 
 ALLOCATOR_OBJS = $(OBJDIR)penalty_allocator.o $(OBJDIR)local_opt_allocator.o $(OBJDIR)gang_allocator.o $(OBJDIR)base_allocator.o
 
-TIMING_OBJS = $(OBJDIR)timing_sim.o $(OBJDIR)lib.o $(OBJDIR)scheduler.o $(ALLOCATOR_OBJS) $(OBJDIR)multiprocess_shared.o  $(OBJDIR)ipc_queues.o $(OBJDIR)mpkeys_impl.o $(OBJDIR)BufferManagerConsumer.o $(OBJDIR)BufferManager.o 
+TIMING_OBJS = $(OBJDIR)timing_sim.o $(OBJDIR)lib.o $(OBJDIR)scheduler.o $(ALLOCATOR_OBJS) $(OBJDIR)multiprocess_shared.o  $(OBJDIR)ipc_queues.o $(OBJDIR)mpkeys_impl.o $(OBJDIR)BufferManagerConsumer.o $(OBJDIR)BufferManager.o
 
 FEEDER_OBJS = $(OBJDIR)feeder_zesto.o $(ZESTO_HOME)/buffer.o $(OBJDIR)ildjit.o $(OBJDIR)parse_speedup.o $(OBJDIR)fluffy.o $(OBJDIR)utils.o $(OBJDIR)sync_pthreads.o $(OBJDIR)parsec.o $(OBJDIR)syscall_handling.o $(OBJDIR)ignore_ins.o $(OBJDIR)mpkeys_impl.o $(OBJDIR)ipc_queues.o $(OBJDIR)multiprocess_shared.o $(OBJDIR)BufferManagerProducer.o $(OBJDIR)BufferManager.o
 
 HARNESS_OBJS = $(OBJDIR)harness.o $(OBJDIR)ipc_queues.o $(OBJDIR)mpkeys_impl.o
 
-UNIT_TEST_OBJS = $(OBJDIR)test_allocation.o $(ALLOCATOR_OBJS) $(OBJDIR)parse_speedup.o $(OBJDIR)multiprocess_shared.o $(OBJDIR)ipc_queues.o $(OBJDIR)mpkeys_impl.o 
+UNIT_TEST_DEPS = $(ALLOCATOR_OBJS) $(OBJDIR)parse_speedup.o $(OBJDIR)multiprocess_shared.o $(OBJDIR)ipc_queues.o $(OBJDIR)mpkeys_impl.o
+UNIT_TEST_OBJS = $(UNIT_TESTS:%=%.o)
 
 ##############################################################
 #
@@ -170,7 +171,7 @@ $(FEEDER): $(FEEDER_OBJS)
 $(HARNESS): $(HARNESS_OBJS)
 	${PIN_LD} -g ${LINK_OUT} $@ ${CONFUSE_LPATHS} $^ $(BOOST_LIBS) $(CONFUSE_LIBS)
 
-$(UNIT_TESTS): $(UNIT_TEST_OBJS)
+$(UNIT_TESTS): % : %.o $(UNIT_TEST_DEPS)
 	${PIN_LD} -g ${LINK_OUT} $@ $^ $(BOOST_LIBS)
 
 ##############################################################
