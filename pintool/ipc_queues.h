@@ -23,14 +23,16 @@ void CheckIPCMessageQueue(bool isEarly, int caller_coreID);
  * by any process that want to send/receive IPC messages. */
 void InitIPCQueues(void);
 
-enum ipc_message_id_t { SLICE_START, SLICE_END, MMAP, MUNMAP, UPDATE_BRK, WARM_LLC, STOP_SIMULATION, ACTIVATE_CORE, DEACTIVATE_CORE, SCHEDULE_NEW_THREAD, ALLOCATE_THREAD, THREAD_AFFINITY, ALLOCATE_CORES, DEALLOCATE_CORES, INVALID_MSG };
+enum ipc_message_id_t { SLICE_START, SLICE_END, MMAP, MUNMAP, UPDATE_BRK, WARM_LLC, STOP_SIMULATION, ACTIVATE_CORE, DEACTIVATE_CORE, SCHEDULE_NEW_THREAD, SCHEDULE_PROCESS_THREADS, ALLOCATE_THREAD, THREAD_AFFINITY, ALLOCATE_CORES, DEALLOCATE_CORES, INVALID_MSG };
 
 struct ipc_message_t {
+    static const unsigned int MAX_ARR_SIZE = 16;
     ipc_message_id_t id;
     int64_t arg0;
     int64_t arg1;
     int64_t arg2;
     int64_t arg3;
+    int32_t arg_array[MAX_ARR_SIZE];
 
     /* Does sender wait until message has been *processed*,
      * not only consumed. */
@@ -50,6 +52,7 @@ struct ipc_message_t {
           case ACTIVATE_CORE:
           case ALLOCATE_THREAD:
           case SCHEDULE_NEW_THREAD:
+          case SCHEDULE_PROCESS_THREADS:
           case STOP_SIMULATION:
           case THREAD_AFFINITY:
           case ALLOCATE_CORES:
@@ -122,6 +125,22 @@ struct ipc_message_t {
     {
         this->id = SCHEDULE_NEW_THREAD;
         this->arg0 = tid;
+    }
+
+    void ScheduleProcessThreads(int asid, std::list<pid_t> thread)
+    {
+        this->id = SCHEDULE_PROCESS_THREADS;
+        this->arg0 = asid;
+
+        /* Ugly list serialize to POD */
+        assert(thread.size() <= MAX_ARR_SIZE);
+        unsigned int i=0;
+        for (pid_t tid : thread) {
+            arg_array[i] = tid;
+            i++;
+        }
+        for (/*nada*/; i < MAX_ARR_SIZE; i++)
+            arg_array[i] = -1;
     }
 
     void BufferManagerAllocateThread(int tid, int buffer_capacity)

@@ -383,6 +383,17 @@ void CheckIPCMessageQueue(bool isEarly, int caller_coreID)
             case SCHEDULE_NEW_THREAD:
                 ScheduleNewThread(ipcMessage.arg0);
                 break;
+            case SCHEDULE_PROCESS_THREADS:
+                {
+                    list<pid_t> threads;
+                    for (unsigned int i=0; i < ipcMessage.MAX_ARR_SIZE; i++) {
+                        int32_t tid = ipcMessage.arg_array[i];
+                        if (tid != -1)
+                            threads.push_back(tid);
+                    }
+                    xiosim::ScheduleProcessThreads(ipcMessage.arg0, threads);
+                }
+                break;
             case ALLOCATE_THREAD:
                 xiosim::buffer_management::AllocateThreadConsumer(ipcMessage.arg0, ipcMessage.arg1);
                 break;

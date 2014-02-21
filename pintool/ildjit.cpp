@@ -100,7 +100,13 @@ bool disable_wait_signal;
 bool only_heavy_waits;
 
 // The number of allocated cores per loop, read by ildjit
-INT32* allocated_cores;
+UINT32* allocated_cores;
+
+/* Threads associated with this feeder, sorted by declared affinity,
+ * so that they form the nice ring HELIX relies on. */
+vector<THREADID> affine_threads;
+map<THREADID, int> virtual_affinity;
+XIOSIM_LOCK lk_affine_threads;
 
 extern map<ADDRINT, string> pc_diss;
 
@@ -108,6 +114,7 @@ extern map<ADDRINT, string> pc_diss;
 VOID MOLECOOL_Init()
 {
     lk_init(&ildjit_lock);
+    lk_init(&lk_affine_threads);
 
     FLUFFY_Init();
 
@@ -203,7 +210,7 @@ VOID ILDJIT_startSimulation(THREADID tid, ADDRINT ip)
 /* ========================================================================== */
 VOID ILDJIT_setupInterface(ADDRINT coreCount)
 {
-    allocated_cores = reinterpret_cast<INT32*>(coreCount);
+    allocated_cores = reinterpret_cast<UINT32*>(coreCount);
 }
 
 /* ========================================================================== */
@@ -301,7 +308,9 @@ VOID ILDJIT_startLoop_after(THREADID tid, ADDRINT ip)
 /* ========================================================================== */
 VOID ILDJIT_startInitParallelLoop(ADDRINT loop)
 {
-    cerr << (const char*) loop << endl;
+    if (!reached_start_invocation)
+        return;
+
     vector<double> scaling;
 
     if (!KnobPredictedSpeedupFile.Value().empty())
@@ -316,6 +325,9 @@ VOID ILDJIT_startInitParallelLoop(ADDRINT loop)
 
     /* Here we've finished with the allocation decision. */
     int allocation = GetProcessCoreAllocation(asid);
+#ifdef ALLOCATOR_DEBUG
+    cerr << "ASID: " << asid << " allocated " << allocation << " cores." << endl;
+#endif
     ASSERTX(allocation > 0);
     *allocated_cores = allocation;
 }
@@ -684,15 +696,22 @@ cleanup:
 /* ========================================================================== */
 VOID ILDJIT_setAffinity(THREADID tid, INT32 coreID)
 {
-    thread_state_t* tstate = get_tls(tid);
 #ifdef ZESTO_PIN_DBG
+    thread_state_t* tstate = get_tls(tid);
     cerr << "Call to setAffinity: " << tstate->tid << " " << coreID << endl;
 #endif
 
-    /* Notify the scheduler of thread affinity */
-    ipc_message_t msg;
-    msg.SetThreadAffinity(tstate->tid, coreID);
-    SendIPCMessage(msg);
+    lk_lock(&lk_affine_threads, 1);
+    virtual_affinity[tid] = coreID;
+
+    /* Construct array of thread ids, ordered by virtual core affinity. */
+    auto it = affine_threads.begin();
+    for (/*nada*/; it != affine_threads.end(); it++) {
+        if (virtual_affinity[*it] > coreID)
+            break;
+    }
+    affine_threads.insert(it, tid);
+    lk_unlock(&lk_affine_threads);
 }
 
 /* ========================================================================== */
@@ -1207,38 +1226,31 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
 /* ========================================================================== */
 VOID ILDJIT_ResumeSimulation(THREADID tid)
 {
-    /*
-    int num_threads;
-    lk_lock(thread_list_lock, 1);
-    num_threads = thread_list.size();
-    lk_unlock(thread_list_lock);*/
+    UINT32 num_allocated_cores = *allocated_cores;
+    list<pid_t> scheduled_threads;
 
-    // XXX: Might need to change GetProcessCores to look at run queues so we handle oversubscription properly.
-    /* It's important to update the set of cores for this process here atomically
-     * and not reconstruct it on demand. The difference comes at the end of an invocation
-     * when some iterations are already ready and have released their cores. In that case,
-     * reconstructing the core set leads to bad behavior in the signal cache. */
-    //XXX: Ordering here matters, if we GetProcessCores after scheudling, we are racing for the scheduler queues.
-    CoreSet scheduled_cores;
-    scheduled_cores.insert({0, 1, 2, 3});// = GetProcessCores(asid);
-    // XXX: Put in call to core allocator.
-    UpdateProcessCoreSet(asid, scheduled_cores);
-
-    /* Re-schedule all threads for simulation. */
-    list<THREADID>::iterator it;
-    ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
+    /* Pick the first @allocated_cores threads, based on virtual affinity. */
+    vector<THREADID>::iterator it;
+    ATOMIC_ITERATE(affine_threads, it, lk_affine_threads) {
         thread_state_t* tstate = get_tls(*it);
-
         ASSERTX(xiosim::buffer_management::empty(tstate->tid));
 
+        /* Make sure thread starts producing instructions */
         lk_lock(&tstate->lock, 1);
         tstate->ignore_all = false;
         lk_unlock(&tstate->lock);
 
-        ipc_message_t msg;
-        msg.ScheduleNewThread(tstate->tid);
-        SendIPCMessage(msg);
+        /* This lucky thread will get scheduled */
+        scheduled_threads.push_back(tstate->tid);
+
+        if (scheduled_threads.size() == num_allocated_cores)
+            break;
     }
+
+    /* Ok, now let the scheduler schedule all these threads. */
+    ipc_message_t msg;
+    msg.ScheduleProcessThreads(asid, scheduled_threads);
+    SendIPCMessage(msg);
 
     /* Wait until all cores have been scheduled. 
      * Since there is no guarantee when IPC messages are consumed, not
@@ -1253,7 +1265,6 @@ VOID ILDJIT_ResumeSimulation(THREADID tid)
             done &= IsSHMThreadSimulatingMaybe(curr_tstate->tid);
         }
     } while (!done);
-
 }
 
 /* ========================================================================== */

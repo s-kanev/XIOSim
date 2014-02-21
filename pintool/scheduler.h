@@ -14,8 +14,11 @@ void InitScheduler(int num_cores);
 
 /* Notify the scheduler a new threads is created.
  * It will be immediately marked for scheduling on a core.
+ * Returns the scheduled coreID, or INVALID_CORE.
  */
-void ScheduleNewThread(pid_t tid);
+int ScheduleNewThread(pid_t tid);
+
+void ScheduleProcessThreads(int asid, std::list<pid_t> threads);
 
 /* Notify the scheduler that thread @tid will only
  * run on core @coreID.

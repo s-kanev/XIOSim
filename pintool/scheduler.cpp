@@ -6,6 +6,7 @@
 
 #include <queue>
 #include <map>
+#include <list>
 
 #include "boost_interprocess.h"
 
@@ -59,7 +60,7 @@ void InitScheduler(int num_cores)
 }
 
 /* ========================================================================== */
-void ScheduleNewThread(pid_t tid)
+int ScheduleNewThread(pid_t tid)
 {
     /* Make sure thread is queued at one and only one runqueue. */
     if (IsSHMThreadSimulatingMaybe(tid)) {
@@ -68,7 +69,7 @@ void ScheduleNewThread(pid_t tid)
         std::cerr << "ScheduleNewThread: thread " << tid << " already scheduled, ignoring." << std::endl;
         lk_unlock(printing_lock);
 #endif
-        return;
+        return INVALID_CORE;
     }
 
     /* Check if thread has been pinned to a core. */
@@ -104,6 +105,32 @@ void ScheduleNewThread(pid_t tid)
 
     run_queues[coreID].q.push(tid);
     lk_unlock(&run_queues[coreID].lk);
+    return coreID;
+}
+
+/* Threads are ordered by affinity to "virtual cores".
+ * We grab the first @core_allocation ones and actually schedule
+ * them to real cores (which could be different from the virtual
+ * ones, but we preserve the ordering between threads). */
+/* ========================================================================== */
+void ScheduleProcessThreads(int asid, std::list<pid_t> threads)
+{
+    CoreSet scheduled_cores;
+
+    /* Hardcoded policy for now, each process gets a
+     * hardcoded contiguous subset of cores. */
+    int offset = asid * (num_cores / *num_processes);
+
+    int i=0;
+    for (pid_t tid : threads) {
+        SetThreadAffinity(tid, offset + i);
+        int coreID = ScheduleNewThread(tid);
+        assert(coreID == offset + i);
+        scheduled_cores.insert(coreID);
+        i++;
+    }
+
+    UpdateProcessCoreSet(asid, scheduled_cores);
 }
 
 /* ========================================================================== */
@@ -250,7 +277,7 @@ void SetThreadAffinity(pid_t tid, int coreID)
 {
     assert(coreID >= 0 && coreID < num_cores);
     lk_lock(&affinity_lk, 1);
-    assert(affinity.count(tid) == 0);
+    //assert(affinity.count(tid) == 0);
     affinity[tid] = coreID;
     lk_unlock(&affinity_lk);
 }
