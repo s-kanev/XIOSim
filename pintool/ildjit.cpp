@@ -1010,7 +1010,7 @@ VOID AddILDJITCallbacks(IMG img)
 
 UINT32 getSignalAddress(ADDRINT ssID)
 {
-    CoreSet allocatedCores = GetProcessCores(asid);
+    CoreSet allocatedCores = GetProcessCoreSet(asid);
     assert(allocatedCores.size());
 
     /* We need the first core that starts the loop invocation in order

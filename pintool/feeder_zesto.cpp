@@ -89,8 +89,6 @@ XIOSIM_LOCK lk_tid_map;
  * been destroyed. Ugh. */
 static map<THREADID, pid_t> local_to_global_tid;
 
-INT32 host_cpus;
-
 /* Unique address space id -- the # of this feeder among all */
 int asid;
 
@@ -115,6 +113,10 @@ INT32 slice_weight_times_1000 = 100*1000;
 BOOL in_fini = false;
 
 static VOID RegisterSignalIntercept();
+
+static bool producers_sleep;
+static PIN_SEMAPHORE producers_sem;
+static void wait_producers();
 
 // Functions to access thread-specific data
 /* ========================================================================== */
@@ -168,9 +170,10 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
                 thread_state_t* tstate = get_tls(*it);
                 lk_lock(&tstate->lock, tid+1);
                 tstate->firstInstruction = true;
-                tstate->ignore_all = false;
-                if (!KnobILDJIT.Value())
+                if (!KnobILDJIT.Value()) {
+                    tstate->ignore_all = false;
                     tstate->ignore = false;
+                }
                 lk_unlock(&tstate->lock);
             }
 
@@ -947,6 +950,7 @@ INT32 main(INT32 argc, CHAR **argv)
     PIN_InitSymbols();
 
     RegisterSignalIntercept();
+    PIN_SemaphoreInit(&producers_sem);
 
     // Synchronize all processes here to ensure that in multiprogramming mode,
     // no process will start too far before the others.
@@ -995,17 +999,8 @@ INT32 main(INT32 argc, CHAR **argv)
     PIN_AddFiniFunction(Fini, 0);
     InitSyscallHandling();
 
-    host_cpus = get_nprocs_conf();
-/*    if((host_cpus < KnobNumCores.Value() * 2) || KnobILDJIT.Value()) {
-      *sleeping_enabled = true;
-      enable_producers();
-      disable_consumers();
-    }
-    else {
-      *sleeping_enabled = false;
-    }
-*/
-    *sleeping_enabled = false;
+    *sleeping_enabled = true;
+    enable_producers();
 
     PIN_StartProgram();
 
@@ -1127,4 +1122,29 @@ static VOID RegisterSignalIntercept()
     PIN_InterceptSignal(SIGSEGV, SignalInfo, NULL);
     PIN_InterceptSignal(SIGTERM, SignalInfo, NULL);
     PIN_InterceptSignal(SIGKILL, SignalInfo, NULL);
+}
+
+void disable_producers()
+{
+    if (*sleeping_enabled) {
+        if (!producers_sleep)
+            PIN_SemaphoreClear(&producers_sem);
+        producers_sleep = true;
+    }
+}
+
+void enable_producers()
+{
+    if (producers_sleep)
+        PIN_SemaphoreSet(&producers_sem);
+    producers_sleep = false;
+}
+
+static void wait_producers()
+{
+    if (!*sleeping_enabled)
+        return;
+
+    if (producers_sleep)
+        PIN_SemaphoreWait(&producers_sem);
 }

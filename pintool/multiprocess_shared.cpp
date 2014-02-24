@@ -34,10 +34,6 @@ SHARED_VAR_DEFINE(XIOSIM_LOCK, lk_thread_bos)
 
 SHARED_VAR_DEFINE(bool, sleeping_enabled)
 
-SHARED_VAR_DEFINE(bool, producers_sleep)
-SHARED_VAR_DEFINE(pthread_cond_t, cv_producers)
-SHARED_VAR_DEFINE(pthread_mutex_t, cv_producers_lock)
-
 SHARED_VAR_DEFINE(bool, consumers_sleep)
 SHARED_VAR_DEFINE(pthread_cond_t, cv_consumers)
 SHARED_VAR_DEFINE(pthread_mutex_t, cv_consumers_lock)
@@ -86,12 +82,6 @@ int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores_)
     num_cores = num_cores_;
 
     SHARED_VAR_INIT(bool, sleeping_enabled, false)
-
-    SHARED_VAR_INIT(bool, producers_sleep, false)
-    SHARED_VAR_INIT(pthread_cond_t, cv_producers);
-    SHARED_VAR_INIT(pthread_mutex_t, cv_producers_lock);
-    pthread_cond_init(cv_producers, NULL);
-    pthread_mutex_init(cv_producers_lock, NULL);
 
     SHARED_VAR_INIT(bool, consumers_sleep, false)
     SHARED_VAR_INIT(pthread_cond_t, cv_consumers);
@@ -226,36 +216,6 @@ int GetProcessCoreAllocation(int asid)
     return res;
 }
 
-void disable_producers()
-{
-    if (*sleeping_enabled) {
-        pthread_mutex_lock(cv_producers_lock);
-        *producers_sleep = true;
-        pthread_mutex_unlock(cv_producers_lock);
-    }
-}
-
-void enable_producers()
-{
-    pthread_mutex_lock(cv_producers_lock);
-    *producers_sleep = false;
-    pthread_cond_broadcast(cv_producers);
-    pthread_mutex_unlock(cv_producers_lock);
-}
-
-void wait_producers()
-{
-    if (!*sleeping_enabled)
-        return;
-
-    pthread_mutex_lock(cv_producers_lock);
-
-    while (*producers_sleep)
-        pthread_cond_wait(cv_producers, cv_producers_lock);
-
-    pthread_mutex_unlock(cv_producers_lock);
-}
-
 void disable_consumers()
 {
     if (*sleeping_enabled) {
@@ -275,6 +235,7 @@ void enable_consumers()
 
 void wait_consumers()
 {
+    return;
     if (!*sleeping_enabled)
         return;
 

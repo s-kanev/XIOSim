@@ -27,7 +27,6 @@ extern XIOSIM_LOCK thread_list_lock;
 extern map<pid_t, THREADID> global_to_local_tid;
 extern XIOSIM_LOCK lk_tid_map;
 
-extern INT32 host_cpus;
 extern map<THREADID, tick_t> lastConsumerApply;
 
 extern int asid;
@@ -150,5 +149,8 @@ VOID amd_hack();
 VOID doLateILDJITInstrumentation();
 
 VOID printTrace(string stype, ADDRINT pc, pid_t tid);
+
+void disable_producers();
+void enable_producers();
 
 #endif /*__FEEDER_ZESTO__ */

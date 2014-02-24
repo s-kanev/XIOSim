@@ -77,10 +77,6 @@ SHARED_VAR_DECLARE(bool, consumers_sleep)
 SHARED_VAR_DECLARE(pthread_cond_t, cv_consumers)
 SHARED_VAR_DECLARE(pthread_mutex_t, cv_consumers_lock)
 
-SHARED_VAR_DECLARE(bool, producers_sleep)
-SHARED_VAR_DECLARE(pthread_cond_t, cv_consumers)
-SHARED_VAR_DECLARE(pthread_mutex_t, cv_consumers_lock)
-
 /* librepeater */
 SHARED_VAR_DECLARE(int, ss_curr);
 SHARED_VAR_DECLARE(int, ss_prev);
@@ -91,8 +87,5 @@ int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores);
 void disable_consumers();
 void enable_consumers();
 void wait_consumers();
-void disable_producers();
-void enable_producers();
-void wait_producers();
 
 #endif /* __MP_SHARED__ */
