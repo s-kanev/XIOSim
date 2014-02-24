@@ -123,14 +123,17 @@ void ScheduleProcessThreads(int asid, std::list<pid_t> threads)
 
     int i=0;
     for (pid_t tid : threads) {
-        SetThreadAffinity(tid, offset + i);
-        int coreID = ScheduleNewThread(tid);
-        assert(coreID == offset + i);
+        int coreID = offset + i;
+        SetThreadAffinity(tid, coreID);
         scheduled_cores.insert(coreID);
         i++;
     }
 
     UpdateProcessCoreSet(asid, scheduled_cores);
+
+    for (pid_t tid : threads) {
+        ScheduleNewThread(tid);
+    }
 }
 
 /* ========================================================================== */
