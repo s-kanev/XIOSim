@@ -27,9 +27,13 @@ extern boost::interprocess::managed_shared_memory *global_shm;
 #define SHARED_VAR_CONSTRUCT(TYPE, VAR, ...) \
     VAR = new TYPE(global_shm, VAR##_KEY, ## __VA_ARGS__);
 
+SHARED_VAR_DECLARE(XIOSIM_LOCK, printing_lock)
 SHARED_VAR_DECLARE(int, num_processes)
 SHARED_VAR_DECLARE(int, next_asid)
-SHARED_VAR_DECLARE(XIOSIM_LOCK, printing_lock)
+
+SHARED_VAR_DECLARE(int, num_done_fastforward)
+SHARED_VAR_DECLARE(XIOSIM_LOCK, lk_num_done_fastforward)
+void FastForwardBarrier(int slice_num);
 
 typedef xiosim::shared::SharedMemoryMap<pid_t, int> ThreadProcessMap;
 SHARED_VAR_DECLARE(ThreadProcessMap, threadProcess)

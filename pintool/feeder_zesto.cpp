@@ -158,9 +158,7 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
             if(control.PinPointsActive())
                 slice_num = control.CurrentPp(tid);
 
-            ipc_message_t msg;
-            msg.SliceStart(slice_num);
-            SendIPCMessage(msg);
+            FastForwardBarrier(slice_num);
 
             ExecMode = EXECUTION_MODE_SIMULATE;
             CODECACHE_FlushCache();
@@ -1147,4 +1145,32 @@ static void wait_producers()
 
     if (producers_sleep)
         PIN_SemaphoreWait(&producers_sem);
+}
+
+void FastForwardBarrier(int slice_num)
+{
+    lk_lock(lk_num_done_fastforward, 1);
+    (*num_done_fastforward)++;
+    int processes_at_barrier = *num_done_fastforward;
+
+    /* Wait until all processes have gathered at this barrier.
+     * Disable own producers -- they are not doing anything useful.
+     */
+    while (*num_done_fastforward < *num_processes) {
+        lk_unlock(lk_num_done_fastforward);
+        disable_producers();
+        xio_sleep(100);
+        lk_lock(lk_num_done_fastforward, 1);
+    }
+
+    /* If this is the last process on the barrier, start a simulation slice. */
+    if (processes_at_barrier == *num_processes) {
+        ipc_message_t msg;
+        msg.SliceStart(slice_num);
+        SendIPCMessage(msg);
+    }
+
+    /* And let producers produce. */
+    enable_producers();
+    lk_unlock(lk_num_done_fastforward);
 }
