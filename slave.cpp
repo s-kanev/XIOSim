@@ -192,6 +192,9 @@ Zesto_SlaveInit(int argc, char **argv)
   if (s[strlen(s)-1] == '\n')
     s[strlen(s)-1] = '\0';
   fprintf(stderr, "\nsim: simulation started @ %s, options follow:\n", s);
+  char buff[128];
+  gethostname(buff, sizeof(buff));
+  fprintf(stderr, "Executing on host: %s\n", buff);
   opt_print_options(sim_odb, stderr, /* short */TRUE, /* notes */TRUE);
   fprintf(stderr, "\n");
 
@@ -556,11 +559,11 @@ void Zesto_WarmLLC(int asid, unsigned int addr, bool is_write)
   struct core_t * core = cores[threadID];
 
   enum cache_command cmd = is_write ? CACHE_WRITE : CACHE_READ;
-  md_paddr_t paddr = v2p_translate_safe(threadID,addr);
-  if(!cache_is_hit(uncore->LLC,cmd,paddr,core))
+  md_paddr_t paddr = v2p_translate_safe(threadID, addr);
+  if(!cache_is_hit(uncore->LLC, cmd, paddr, core))
   {
-    struct cache_line_t * p = cache_get_evictee(uncore->LLC,paddr,core);
+    struct cache_line_t * p = cache_get_evictee(uncore->LLC, paddr, core);
     p->dirty = p->valid = false;
-    cache_insert_block(uncore->LLC,cmd,paddr,core);
+    cache_insert_block(uncore->LLC, cmd, paddr, core);
   }
 }
