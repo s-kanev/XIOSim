@@ -144,11 +144,9 @@ pid_t fork_timing_simulator(std::string run_str, bool debug_timing) {
           case 0: {   // child
             setpgid(0, 0);
             int ret = system(timing_cmd.c_str());
-            if (WEXITSTATUS(ret) != 0) {
-                std::cerr << "Execv failed: " << timing_cmd << std::endl;
+            if (WIFSIGNALED(ret))
                 abort();
-            }
-            exit(0);
+            exit(WEXITSTATUS(ret));
           }
           case 1: {
             perror("Fork failed.");
