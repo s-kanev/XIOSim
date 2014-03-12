@@ -225,7 +225,7 @@ void exec_reg_options(struct opt_odb_t * odb, struct core_knobs_t * knobs)
 
   opt_reg_string_list(odb, "-dl1:pf", "1st-level data cache prefetcher configuration string(s) [DS]",
       knobs->memory.DL1PF_opt_str, MAX_PREFETCHERS, &knobs->memory.DL1_num_PF, knobs->memory.DL1PF_opt_str, /* print */true, /* format */NULL, /* !accrue */false);
-  opt_reg_string_list(odb, "-dl2:pf", "1st-level data cache prefetcher configuration string(s) [DS]",
+  opt_reg_string_list(odb, "-dl2:pf", "2nd-level data cache prefetcher configuration string(s) [DS]",
       knobs->memory.DL2PF_opt_str, MAX_PREFETCHERS, &knobs->memory.DL2_num_PF, knobs->memory.DL2PF_opt_str, /* print */true, /* format */NULL, /* !accrue */false);
 
   /* DL1 prefetch control options */
