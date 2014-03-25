@@ -66,6 +66,7 @@ class core_exec_STM_t:public core_exec_t
   virtual void LDQ_deallocate(struct uop_t * const uop);
   virtual void LDQ_squash(struct uop_t * const dead_uop);
 
+  virtual bool STQ_empty(void);
   virtual bool STQ_available(void);
   virtual void STQ_insert_sta(struct uop_t * const uop);
   virtual void STQ_insert_std(struct uop_t * const uop);
@@ -1050,9 +1051,9 @@ void core_exec_STM_t::LDST_exec(void)
   }
 
   lk_lock(&cache_lock, core->id+1);
-  if(core->memory.DTLB->check_for_work) cache_process(core->memory.DTLB);
-  if(core->memory.DL2 && core->memory.DL2->check_for_work) cache_process(core->memory.DL2);
-  if(core->memory.DL1->check_for_work) cache_process(core->memory.DL1);
+  cache_process(core->memory.DTLB);
+  if(core->memory.DL2) cache_process(core->memory.DL2);
+  cache_process(core->memory.DL1);
   lk_unlock(&cache_lock);
 }
 
@@ -1405,6 +1406,11 @@ void core_exec_STM_t::LDQ_squash(struct uop_t * const dead_uop)
   LDQ_tail = moddec(LDQ_tail,knobs->exec.LDQ_size); //(LDQ_tail - 1 + knobs->exec.LDQ_size) % knobs->exec.LDQ_size;
   zesto_assert(LDQ_num >= 0,(void)0);
   dead_uop->alloc.LDQ_index = -1;
+}
+
+bool core_exec_STM_t::STQ_empty(void)
+{
+  return STQ_num == 0;
 }
 
 bool core_exec_STM_t::STQ_available(void)

@@ -63,6 +63,7 @@ class core_exec_IO_DPM_t:public core_exec_t
   virtual void LDQ_deallocate(struct uop_t * const uop);
   virtual void LDQ_squash(struct uop_t * const dead_uop);
 
+  virtual bool STQ_empty(void);
   virtual bool STQ_available(void);
   virtual void STQ_insert_sta(struct uop_t * const uop);
   virtual void STQ_insert_std(struct uop_t * const uop);
@@ -1479,11 +1480,10 @@ void core_exec_IO_DPM_t::LDST_exec(void)
   }
 
   lk_lock(&cache_lock, core->id+1);
-  if(core->memory.DTLB2 && core->memory.DTLB2->check_for_work) cache_process(core->memory.DTLB2);
-  if(core->memory.DTLB->check_for_work) cache_process(core->memory.DTLB);
-  if(core->memory.DL2 && core->memory.DL2->check_for_work) cache_process(core->memory.DL2);
-//  if(core->memory.mem_repeater) repeater_step(core->memory.mem_repeater);
-  if(core->memory.DL1->check_for_work) cache_process(core->memory.DL1);
+  if(core->memory.DTLB2) cache_process(core->memory.DTLB2);
+  cache_process(core->memory.DTLB);
+  if(core->memory.DL2) cache_process(core->memory.DL2);
+  cache_process(core->memory.DL1);
   lk_unlock(&cache_lock);
 }
 
@@ -2009,6 +2009,11 @@ void core_exec_IO_DPM_t::LDQ_squash(struct uop_t * const dead_uop)
   zesto_assert(LDQ_tail >= 0, (void)0);
   zesto_assert(LDQ_num >= 0,(void)0);
   dead_uop->alloc.LDQ_index = -1;
+}
+
+bool core_exec_IO_DPM_t::STQ_empty(void)
+{
+  return STQ_senior_num == 0;
 }
 
 bool core_exec_IO_DPM_t::STQ_available(void)

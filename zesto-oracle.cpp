@@ -1134,6 +1134,11 @@ core_oracle_t::exec(const md_addr_t requested_PC)
         core->num_signals_in_pipe++;
     }
 
+    /* Mark fences in critical section as light.
+     * XXX: This is a hack, so I don't hijack new x86 opcodes for light fences */
+    if (uop->decode.is_fence && core->current_thread->in_critical_section)
+      uop->decode.is_light_fence = true;
+
     /* execute the instruction */
     switch (uop->decode.op)
     {
