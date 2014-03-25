@@ -128,6 +128,7 @@ struct cache_t * cache_create(
   int write_combining;
 
   cp->core = core;
+  cp->sim_cycle = 0;
 
   switch(toupper(rp)) {
     case 'L': replacement_policy = REPLACE_LRU; break;
@@ -2438,6 +2439,13 @@ static void cache_process_MSHR(struct cache_t * const cp, int start_point)
 /* simulate one cycle of the cache */
 void cache_process(struct cache_t * const cp)
 {
+  /* Advance local cycle count */
+  if (cp != uncore->LLC)
+    cp->sim_cycle++;
+
+  if (!cp->check_for_work)
+    return;
+
   //int start_point = random() & cp->bank_mask; /* randomized arbitration */
   int start_point = cp->start_point; /* round-robin arbitration */
   cp->start_point = modinc(cp->start_point,cp->banks);
@@ -2541,12 +2549,13 @@ tick_t cache_get_cycle(const struct cache_t * const cp)
 {
   if(cp == uncore->LLC)
     return uncore->sim_cycle;
-  return cp->core->sim_cycle;
+  return cp->sim_cycle;
 }
 
 void cache_print(const struct cache_t * const cp)
 {
   fprintf(stderr,"<<<<< %s >>>>>\n",cp->name);
+  fprintf(stderr, "current cycle: %lld\n", cache_get_cycle(cp));
   for(int i=0;i<cp->banks;i++)
   {
     int j;

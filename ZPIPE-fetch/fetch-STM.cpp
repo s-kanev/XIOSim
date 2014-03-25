@@ -339,8 +339,8 @@ void core_fetch_STM_t::post_fetch(void)
 
   /* This gets processed here, so that demand misses from the DL1 get higher
      priority for accessing the L2 */
-  if(core->memory.ITLB->check_for_work) cache_process(core->memory.ITLB);
-  if(core->memory.IL1->check_for_work) cache_process(core->memory.IL1);
+  cache_process(core->memory.ITLB);
+  cache_process(core->memory.IL1);
 
   /* XXX: I don't think we really should need this code here, since
      whenever a Mop gets consumed, this check should be happening

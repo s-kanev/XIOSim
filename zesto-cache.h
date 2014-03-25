@@ -170,6 +170,10 @@ struct prefetch_filter_t {
 struct cache_t {
 
   struct core_t * core; /* to which core does this belong? NULL = shared */
+  counter_t sim_cycle; /* private caches: the clock this cache is running from.
+                        * We keep it at 1:1 with the core clock, but separate,
+                        * so we can disable the core and still keep the cache up,
+                        * responding to NOC events. */
 
   char * name;
   enum read_only_t read_only;
