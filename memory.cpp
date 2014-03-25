@@ -33,6 +33,9 @@ void mem_init(int num_processes)
     page_tables = new page_table_t[num_processes];
     page_count = new counter_t[num_processes];
     brk_point = new md_addr_t[num_processes];
+
+    memset(page_count, 0, num_processes * sizeof(page_count[0]));
+    memset(brk_point, 0, num_processes * sizeof(brk_point[0]));
 }
 
 /* We allocate physical pages to virtual pages on a

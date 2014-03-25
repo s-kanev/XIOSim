@@ -72,6 +72,7 @@ class MC_dramsim_t:public MC_t
   }
 
   MC_dramsim_t(string dramsim_root_path, string dramsim_part_name)
+    : finished_init(false)
   {
     init();
 
