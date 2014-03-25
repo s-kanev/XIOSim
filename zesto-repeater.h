@@ -32,10 +32,10 @@ class repeater_t {
                 void (*const cb)(void *, bool is_hit), /* Callback once request is finished */
                 seq_t (*const get_action_id)(void* const)) = 0;
 
-    /* Flushes all of repeater contents.
+    /* Flushes all of repeater contents for process @asid.
        Some addresses are propagated to next level cache.
        cb is called once flush is finished. */
-    virtual void flush(void (*const cb)()) = 0;
+    virtual void flush(const int asid, void (*const cb)()) = 0;
 };
 
 /* Initialize the repeater.  */

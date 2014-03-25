@@ -346,7 +346,7 @@ void sim_drain_pipe(int coreID)
    core->fetch->recover(core->current_thread->regs.regs_NPC);
 
    if (core->memory.mem_repeater)
-     core->memory.mem_repeater->flush(NULL);
+     core->memory.mem_repeater->flush(core->current_thread->asid, NULL);
 
    // Do this after fetch->recover, since the latest Mop might have had a rep prefix
    core->current_thread->rep_sequence = 0;
