@@ -177,7 +177,8 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
 
             // Let caller thread be simulated again
             // XXX: Needs to be done for all threads, and probably not here.
-/*            thread_state_t *tstate = get_tls(tid);
+/*            ipc_message_t msg;
+            thread_state_t *tstate = get_tls(tid);
             msg.ScheduleNewThread(tstate->tid);
             SendIPCMessage(msg);
 */
@@ -1080,11 +1081,11 @@ VOID doLateILDJITInstrumentation()
 
   ASSERTX(!calledAlready);
 
-  PIN_LockClient();
+  GetVmLock();
   TRACE_AddInstrumentFunction(InstrumentInsIgnoring, 0);
   INS_AddInstrumentFunction(Instrument, 0);
   CODECACHE_FlushCache();
-  PIN_UnlockClient();
+  ReleaseVmLock();
 
   calledAlready = true;
 }
