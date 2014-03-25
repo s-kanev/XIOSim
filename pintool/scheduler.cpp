@@ -124,6 +124,7 @@ void ScheduleProcessThreads(int asid, std::list<pid_t> threads)
     int i=0;
     for (pid_t tid : threads) {
         int coreID = offset + i;
+        assert(coreID < num_cores);
         SetThreadAffinity(tid, coreID);
         scheduled_cores.insert(coreID);
         i++;

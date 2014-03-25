@@ -8,8 +8,7 @@ set PROGRAM = ../tests/fib
 #set PROGRAM = /home/skanev/pfmwrapper/main
 #set PINHOME = /home/skanev/pin/pin-2.10-45467-gcc.3.4.6-ia32_intel64-linux
 #set PIN = "$PINHOME/ia32/bin/pinbin"
-set PINHOME = /home/skanev/pin/2.12
-set PIN = "$PINHOME/pin.sh"
+set PIN = "$PIN_HOME/pin.sh"
 set PINTOOL = ./obj-ia32/feeder_zesto.so
 set ZESTOCFG = ../config/A.cfg
 #set MEMCFG = ../dram-config/DDR2-800-5-5-5.cfg
@@ -34,6 +33,7 @@ set CMD_LINE = "setarch i686 -BR ./obj-ia32/harness \
                 -config $ZESTOCFG  \
                 -config $MEMCFG  \
                 -cores 2  \
+                -allocator gang:2 \
                 -redir:sim tst.out  \
                 -heartbeat 10000"
 #-power true -power:rtp_interval 10000 -power:rtp_file tst.power -dvfs:interval 40000 -- $PROGRAM"

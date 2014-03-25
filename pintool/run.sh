@@ -33,6 +33,7 @@ set CMD_LINE = "setarch i686 -BR ./obj-ia32/harness \
                 -config $ZESTOCFG  \
                 -config $MEMCFG  \
                 -cores 2  \
+                -allocator gang:2 \
                 -redir:sim tst.out  \
                 -heartbeat 10000"
 #-power true -power:rtp_interval 10000 -power:rtp_file tst.power -dvfs:interval 40000 -- $PROGRAM"
