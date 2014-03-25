@@ -359,9 +359,6 @@ void core_commit_DPM_t::step(void)
   if(core->current_thread->active && ((core->sim_cycle - core->exec->last_completed) > deadlock_threshold))
   {
     deadlocked = true; 
-#ifdef ZTRACE
-    ztrace_print(core->id, "Possible deadlock detected.");
-#endif
     return;
   }
 

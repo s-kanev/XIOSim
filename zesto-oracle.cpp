@@ -1320,7 +1320,6 @@ core_oracle_t::exec(const md_addr_t requested_PC)
 
   /* commit this inst to the MopQ */
   MopQ_tail = modinc(MopQ_tail,MopQ_size); //(MopQ_tail + 1) % MopQ_size;
-  ZPIN_TRACE(core->id, "MopQ_tail++: %d\n", MopQ_tail);
   MopQ_num ++;
 
   current_Mop = Mop;
@@ -1789,15 +1788,7 @@ handshake_container_t * core_oracle_t::get_shadow_Mop(const struct Mop_t* Mop)
 {
   int Mop_ind = get_index(Mop);
   int from_head = (Mop_ind - MopQ_head) & (MopQ_size - 1);
-  ZPIN_TRACE(core->id, "MopQ index: %d\n", Mop_ind);
   handshake_container_t * res = shadow_MopQ->get_item(from_head);
-/*
-  if (!res->flags.valid) {
-    fprintf(stderr, "ABOUT TO FAIL!!!\n");
-    fflush(stderr);
-    while(1);
-  }
-*/
   zesto_assert(res->flags.valid, NULL);
   return res; 
 }
