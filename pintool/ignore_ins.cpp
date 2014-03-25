@@ -119,7 +119,6 @@ VOID InstrumentInsIgnoring(TRACE trace, VOID* v)
                 lk_lock(printing_lock, 1);
                 cerr << "WARNING: Didn't find enough stack writes to ignore before: " << hex << INS_Address(ins) << dec << endl;
                 lk_unlock(printing_lock);
-                return;
             }
             //assert(repl.ins_to_ignore == 0);
         }
