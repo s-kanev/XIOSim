@@ -148,6 +148,7 @@ struct uop_t
     bool is_std;  /* Is store-data uop? */
     bool is_nop;  /* Is NOP? */
     bool is_fence; /* Is fence? */
+    bool is_light_fence; /* Light fence? (heavy vs light == wait for commit vs wait for WB) */
 
     /* assume unique uop ID assigned when Mop cracked */
     seq_t Mop_seq;
@@ -192,9 +193,6 @@ struct uop_t
     
     int uops_in_RS; /* used only for fusion-head */
     int num_replays; /* number of times reached exec but ivalue not ready */
-    int dummy1; /* padding */
-    int dummy2; /* padding */
-    int dummy3; /* padding */
   } exec;
 
   struct {
@@ -237,7 +235,7 @@ struct uop_t
   } timing;
 
   int flow_index;
-};
+} __attribute__ ((aligned(16)));
 
 /* x86 Macro-op structure */
 struct Mop_t
@@ -294,9 +292,6 @@ struct Mop_t
      * the feeder. So we keep oracle info about branches from feeder. */
     bool taken_branch;
     bool recover_inst; /* TRUE if the NPC for this Mop is wrong */
-    int padding1;
-    int padding2;
-    int padding3;
   } oracle;
 
   struct {
@@ -316,7 +311,7 @@ struct Mop_t
     int num_loads;
     int num_branches;
   } stat;
-};
+} __attribute__ ((aligned(16)));
 
 
 /* holds all of the parameters for a core, plus any additional helper variables
