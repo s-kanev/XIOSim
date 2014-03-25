@@ -54,9 +54,10 @@ const UINT8 wait_template_2[] = {0x0f, 0xae, 0xf0};
 
 /* A store instruction with immediate address and data */
 const UINT8 signal_template[] = {0xc7, 0x05, 0xad, 0xfb, 0xca, 0xde, 0x00, 0x00, 0x00, 0x00 };
+/* A MFENCE instrction */
+const UINT8 mfence_template[] = {0x0f, 0xae, 0xf0};
 /* An INT 80 instruction */
 const UINT8 syscall_template[] = {0xcd, 0x80};
-
 
 static map<string, UINT32> invocation_counts;
 
@@ -1126,31 +1127,41 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
     ATOMIC_ITERATE(affine_threads, it, lk_affine_threads) {
         auto curr_tstate = get_tls(*it);
 
-        /* Insert a trap. This will ensure that the pipe drains before
-         * consuming the next instruction.*/
+        /* Insert a MFENCE. This makes sure that all operations to the repeater
+         * have not only been scheduled, but also completed and ack-ed. */
         handshake_container_t* handshake = xiosim::buffer_management::get_buffer(curr_tstate->tid);
-        handshake->flags.isFirstInsn = false;
-        handshake->handshake.sleep_thread = false;
-        handshake->handshake.resume_thread = false;
         handshake->handshake.real = false;
+        handshake->handshake.asid = asid;
         handshake->flags.valid = true;
 
-        handshake->handshake.pc = (ADDRINT) syscall_template;
-        handshake->handshake.npc = (ADDRINT) syscall_template + sizeof(syscall_template);
-        handshake->handshake.tpc = (ADDRINT) syscall_template + sizeof(syscall_template);
+        handshake->handshake.pc = (ADDRINT) mfence_template;
+        handshake->handshake.npc = (ADDRINT) mfence_template + sizeof(mfence_template);
+        handshake->handshake.tpc = (ADDRINT) mfence_template + sizeof(mfence_template);
         handshake->handshake.brtaken = false;
-        memcpy(handshake->handshake.ins, syscall_template, sizeof(syscall_template));
+        memcpy(handshake->handshake.ins, mfence_template, sizeof(mfence_template));
+        xiosim::buffer_management::producer_done(curr_tstate->tid, true);
+
+        /* Insert a trap. This will ensure that the pipe drains before
+         * consuming the next instruction.*/
+        handshake_container_t* handshake_1 = xiosim::buffer_management::get_buffer(curr_tstate->tid);
+        handshake_1->handshake.real = false;
+        handshake_1->handshake.asid = asid;
+        handshake_1->flags.valid = true;
+
+        handshake_1->handshake.pc = (ADDRINT) syscall_template;
+        handshake_1->handshake.npc = (ADDRINT) syscall_template + sizeof(syscall_template);
+        handshake_1->handshake.tpc = (ADDRINT) syscall_template + sizeof(syscall_template);
+        handshake_1->handshake.brtaken = false;
+        memcpy(handshake_1->handshake.ins, syscall_template, sizeof(syscall_template));
         xiosim::buffer_management::producer_done(curr_tstate->tid, true);
 
         /* And finally, flush the core's pipelie to get rid of anything
          * left over (including the trap) and flush the ring cache */
         handshake_container_t* handshake_3 = xiosim::buffer_management::get_buffer(curr_tstate->tid);
 
-        handshake_3->flags.isFirstInsn = false;
-        handshake_3->handshake.sleep_thread = false;
-        handshake_3->handshake.resume_thread = false;
         handshake_3->handshake.flush_pipe = true;
         handshake_3->handshake.real = false;
+        handshake_3->handshake.asid = asid;
         handshake_3->handshake.pc = 0;
         handshake_3->flags.valid = true;
         xiosim::buffer_management::producer_done(curr_tstate->tid, true);
@@ -1159,6 +1170,7 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
         handshake_container_t* handshake_2 = xiosim::buffer_management::get_buffer(curr_tstate->tid);
 
         handshake_2->handshake.real = false;
+        handshake_2->handshake.asid = asid;
         handshake_2->flags.giveCoreUp = true;
         handshake_2->flags.giveUpReschedule = false;
         handshake_2->flags.valid = true;
