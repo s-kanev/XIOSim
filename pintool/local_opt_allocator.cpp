@@ -18,6 +18,7 @@
 #include <unistd.h>
 
 #include "allocators_impl.h"
+#include "optimization_targets.h"
 
 namespace xiosim {
 
@@ -56,31 +57,7 @@ int LocallyOptimalAllocator::AllocateCoresForProcess(
   // allocation optimization function. All other threads can wait for this to
   // complete and then simply use the output.
   if (!process_sync.allocation_complete) {
-    // Search for optimal core allocation.
-    int total_cores_alloc = *num_processes;
-    int optimum_found = false;
-    while (!optimum_found) {
-      double max_speedup = 0;
-      int asid_with_max_speedup = -1;
-      for (auto alloc_pair : core_allocs) {
-        int curr_asid = alloc_pair.first;
-        int curr_core_alloc = alloc_pair.second;
-        double curr_speedup = process_scaling[curr_asid]->at(curr_core_alloc);
-        if (curr_speedup > max_speedup && total_cores_alloc < num_cores) {
-          max_speedup = curr_speedup;
-          asid_with_max_speedup = curr_asid;
-        }
-      }
-      if (max_speedup > 0) {
-        core_allocs[asid_with_max_speedup]++;
-        total_cores_alloc++;
-      }
-      if (max_speedup < 0 || total_cores_alloc == num_cores ) {
-        // We have not decided how to deal with non-monotonic speedup curves, so
-        // for now we stop if all processes start exhibiting negative speedup.
-        optimum_found = true;
-      }
-    }
+    OptimizeThroughput(core_allocs, process_scaling, num_cores);
     process_sync.allocation_complete = true;
   }
 
