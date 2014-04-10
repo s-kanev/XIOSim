@@ -574,6 +574,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
     memcpy(handshake->handshake.ins, wait_template_1, wait_template_1_size);
     *(INT32*)(&handshake->handshake.ins[wait_template_1_addr_offset]) =
                         getSignalAddress(ssID) | HELIX_WAIT_MASK;
+    assert(ssID < HELIX_MAX_SIGNAL_ID);
 
 #ifdef PRINT_DYN_TRACE
     printTrace("sim", handshake->handshake.pc, tstate->tid);
@@ -683,6 +684,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
     memcpy(handshake->handshake.ins, signal_template, sizeof(signal_template));
     // Address comes right after opcode and MoodRM bytes
     *(INT32*)(&handshake->handshake.ins[2]) = getSignalAddress(ssID);
+    assert(ssID < HELIX_MAX_SIGNAL_ID);
 
 #ifdef PRINT_DYN_TRACE
     printTrace("sim", handshake->handshake.pc, tstate->tid);
@@ -1033,9 +1035,9 @@ UINT32 getSignalAddress(ADDRINT ssID)
     int firstCore = *it;
 
     assert(firstCore < MAX_CORES);
-    assert(ssID < 1024);
+    assert(ssID <= HELIX_MAX_SIGNAL_ID);
 
-    return 0x7ffc0000 + (firstCore << 10) + ssID;
+    return 0x7ffc0000 + (firstCore << HELIX_SIGNAL_FIRST_CORE_SHIFT) + ssID;
 }
 
 bool loopMatches(string loop, UINT32 invocationNum, UINT32 iterationNum)
@@ -1126,6 +1128,21 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
     unsigned int thread_count = 0;
     ATOMIC_ITERATE(affine_threads, it, lk_affine_threads) {
         auto curr_tstate = get_tls(*it);
+        /* Insert a special signal that flushes the repeater. */
+        handshake_container_t* handshake_0 = xiosim::buffer_management::get_buffer(curr_tstate->tid);
+
+        handshake_0->handshake.real = false;
+        handshake_0->handshake.asid = asid;
+        handshake_0->flags.valid = true;
+
+        handshake_0->handshake.pc = (ADDRINT)signal_template;
+        handshake_0->handshake.npc = (ADDRINT)mfence_template;
+        handshake_0->handshake.tpc = (ADDRINT)signal_template + sizeof(signal_template);
+        handshake_0->handshake.brtaken = false;
+        memcpy(handshake_0->handshake.ins, signal_template, sizeof(signal_template));
+        // Address comes right after opcode and MoodRM bytes
+        *(INT32*)(&handshake_0->handshake.ins[2]) = getSignalAddress(HELIX_FLUSH_SIGNAL_ID);
+        xiosim::buffer_management::producer_done(curr_tstate->tid, true);
 
         /* Insert a MFENCE. This makes sure that all operations to the repeater
          * have not only been scheduled, but also completed and ack-ed. */
@@ -1135,7 +1152,7 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
         handshake->flags.valid = true;
 
         handshake->handshake.pc = (ADDRINT) mfence_template;
-        handshake->handshake.npc = (ADDRINT) mfence_template + sizeof(mfence_template);
+        handshake->handshake.npc = (ADDRINT)syscall_template;
         handshake->handshake.tpc = (ADDRINT) mfence_template + sizeof(mfence_template);
         handshake->handshake.brtaken = false;
         memcpy(handshake->handshake.ins, mfence_template, sizeof(mfence_template));
@@ -1156,7 +1173,7 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
         xiosim::buffer_management::producer_done(curr_tstate->tid, true);
 
         /* And finally, flush the core's pipelie to get rid of anything
-         * left over (including the trap) and flush the ring cache */
+         * left over (including the trap). */
         handshake_container_t* handshake_3 = xiosim::buffer_management::get_buffer(curr_tstate->tid);
 
         handshake_3->handshake.flush_pipe = true;
