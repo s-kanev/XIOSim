@@ -160,11 +160,10 @@
 }
 #endif
 
-#ifdef ZESTO_PIN 
 #define zesto_assert(cond, retval) {		\
   if(!(cond)) { \
     core->oracle->hosed = TRUE; \
-    fprintf(stderr,"assertion failed (%s,%d:thread %d): ",__FILE__,__LINE__,core->current_thread->id); \
+    fprintf(stderr,"assertion failed (%s,%d:core %d): ",__FILE__,__LINE__,core->id); \
     fprintf(stderr,"%s\n",#cond); \
     fprintf(stderr, "cycle: %lld, num_Mops: %lld\n", core->sim_cycle, core->stat.oracle_total_insn); \
     fprintf(stderr, "PC: %x, regs->NPC: %x, pin->PC: %x, pin->NPC: %x\n", core->fetch->PC, core->current_thread->regs.regs_NPC, core->fetch->feeder_PC, core->fetch->feeder_NPC); \
@@ -176,19 +175,6 @@
     return (retval); \
   } \
 }
-#else
-#define zesto_assert(cond, retval) { }	\
-    if(!(cond)) {		     \
-    core->oracle->hosed = TRUE; \
-    fprintf(stderr,"assertion failed (%s,%d:thread %d) (cycle: %lld):",__FILE__,__LINE__,core->current_thread->id,core->sim_cycle); \
-    fprintf(stderr,"%s\n",#cond); \
-    fprintf(stderr, "cycle: %lld, num_Mops: %lld\n", core->sim_cycle, core->stat.oracle_total_insn); \
-    fprintf(stderr, "PC: %x, regs->NPC: %x\n", core->fetch->PC, core->current_thread->regs.regs_NPC); \
-    fflush(stderr); \
-    return (retval); \
-    } \
-}
-#endif
 
 #include <stdint.h>
 #include <map>
