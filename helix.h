@@ -24,11 +24,6 @@ inline bool is_uop_helix_signal(const struct uop_t * uop)
             is_addr_helix_signal(uop->oracle.virt_addr);
 }
 
-inline bool is_helix_signal_flush(unsigned int ssID)
-{
-    return (ssID == HELIX_FLUSH_SIGNAL_ID);
-}
-
 inline unsigned int get_helix_signal_id(unsigned int addr)
 {
     return (addr & HELIX_SIGNAL_ID_MASK);
@@ -37,6 +32,11 @@ inline unsigned int get_helix_signal_id(unsigned int addr)
 inline unsigned int get_helix_signal_first_core(unsigned int addr)
 {
     return (addr & HELIX_SIGNAL_FIRST_CORE_MASK) >> HELIX_SIGNAL_FIRST_CORE_SHIFT;
+}
+
+inline bool is_helix_signal_flush(unsigned int addr)
+{
+    return (get_helix_signal_id(addr) == HELIX_FLUSH_SIGNAL_ID);
 }
 
 #endif /* __HELIX_H__ */
