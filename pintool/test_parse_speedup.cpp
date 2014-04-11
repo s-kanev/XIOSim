@@ -45,4 +45,16 @@ TEST_CASE("Complete front-to-end test of the speedup data parser", "parser") {
           REQUIRE(loop_scaling.at(i) == Approx(0.0));
         }
     }
+
+    SECTION("Test parsing of serial runtime and variance.") {
+      string loop_name = "loop_1";
+      loop_data* data = GetHelixFullLoopData(loop_name);
+      REQUIRE(data->serial_runtime == 1111);
+      REQUIRE(data->serial_runtime_variance == Approx(0.111));
+
+      loop_name = "loop_2";
+      data = GetHelixFullLoopData(loop_name);
+      REQUIRE(data->serial_runtime == 22222);
+      REQUIRE(data->serial_runtime_variance == Approx(0.5));
+    }
 }

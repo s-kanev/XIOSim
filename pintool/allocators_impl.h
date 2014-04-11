@@ -63,6 +63,7 @@ class LocallyOptimalAllocator : public BaseAllocator {
       int num_checked_out;
       bool allocation_complete;
     } process_sync;
+    /* Process speedup for 1-n cores. */
     std::vector<std::vector<double>*> process_scaling;
 
     // Get/reset all class global variables for sharing among threads.
