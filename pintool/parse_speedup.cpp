@@ -14,7 +14,7 @@
 // Cores for which speedup data is available.
 static const int NUM_SPEEDUP_POINTS = 4;
 static int interp_cores[NUM_SPEEDUP_POINTS] = {2, 4, 8, 16};
-static std::map<std::string, double*> loop_speedup_map;
+static std::map<std::string, loop_data*> loop_data_map;
 
 /* This function converts absolute speedups on x cores into marginal speedup.
  * HELIX speedup data is given in absolute terms, but it is easier for the
@@ -51,6 +51,18 @@ static void InterpolateSpeedup(double* speedup_in, double* speedup_out)
     }
 }
 
+/* Runs linear regression on the speedup data for a simple linear speedup model. */
+static void PerformLinearRegression(
+    double* speedup, int num_cores, double* slope, double* intercept) {
+  LinearRegression lr;
+  for (int i = 0; i <= num_cores; i++) {
+    Point2D p(i+1, speedup[i]);
+    lr.addPoint(p);
+  }
+  *slope = lr.getB();
+  *intercept = lr.getA();
+}
+
 /* Parses a comma separated value file that contains predicted speedups for
  * each loop when run on 2,4,8,and 16 cores and stores the data in a map.
  */
@@ -76,22 +88,33 @@ void LoadHelixSpeedupModelData(const char* filepath)
                 string loop_name;
                 double partial_speedup_data[NUM_SPEEDUP_POINTS];
                 double* full_speedup_data = new double[MAX_CORES];
+                double serial_runtime = 0;
+                double serial_runtime_variance = 0;
                 int i = 0;
                 bool first_iteration = true;
                 for (auto it = tok.begin(); it != tok.end(); ++it) {
                     if (first_iteration) {
                         loop_name = *it;
                         first_iteration = false;
-                    } else {
-                        assert(i < NUM_SPEEDUP_POINTS);
+                    } else if (i < NUM_SPEEDUP_POINTS) {
+                        // Speedup data points.
                         partial_speedup_data[i] = atof(it->c_str());
                         i++;
+                    } else {
+                        // Serial runtime and variance.
+                        serial_runtime = atof(it->c_str());
+                        it++;
+                        serial_runtime_variance = atof(it->c_str());
                     }
                 }
                 ConvertToMarginalSpeedup(
                     partial_speedup_data, NUM_SPEEDUP_POINTS);
                 InterpolateSpeedup(partial_speedup_data, full_speedup_data);
-                loop_speedup_map[loop_name] = full_speedup_data;
+                loop_data *data = new loop_data();
+                data->speedup = full_speedup_data;
+                data->serial_runtime = serial_runtime;
+                data->serial_runtime_variance = serial_runtime_variance;
+                loop_data_map[loop_name] = data;
 #ifdef PARSE_DEBUG
                 std::cout << loop_name << " speedup:\t";
                 for (int j = 0; j < MAX_CORES; j++)
@@ -109,12 +132,18 @@ void LoadHelixSpeedupModelData(const char* filepath)
     }
 }
 
+// Returns the core scaling attributes of a loop.
 std::vector<double> GetHelixLoopScaling(const std::string &loop_name)
 {
-    double *res_raw = loop_speedup_map[loop_name];
+    double *res_raw = loop_data_map[loop_name]->speedup;
     assert(res_raw != NULL);
     std::vector<double> res(MAX_CORES);
     for (int i=0; i < MAX_CORES; i++)
         res[i] = res_raw[i];
     return res;
+}
+
+// Returns the full loop scaling attributes of a loop
+loop_data* GetHelixFullLoopData(const std::string &loop_name) {
+  return loop_data_map[loop_name];
 }
