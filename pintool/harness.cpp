@@ -116,7 +116,7 @@ std::string get_timing_sim_args(std::string harness_args) {
                             strlen("-t ");
     size_t feeder_so_pos = harness_args.find("feeder_zesto.so");
     size_t feeder_so_end_pos = feeder_so_pos + strlen("feeder_zesto.so");
-    
+
     std::string feeder_path = harness_args.substr(feeder_opt_end_pos, feeder_so_pos - feeder_opt_end_pos);
     std::string timing_fname = feeder_path + "timing_sim";
 
@@ -361,7 +361,7 @@ int main(int argc, const char *argv[]) {
             break;
         }
     } while (wait_res != timing_pid);
-     
+
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
         std::cerr << "Process " << timing_pid << " failed." << std::endl;
     }

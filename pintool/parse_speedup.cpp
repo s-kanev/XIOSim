@@ -51,7 +51,8 @@ static void InterpolateSpeedup(double* speedup_in, double* speedup_out)
     }
 }
 
-/* Runs linear regression on the speedup data for a simple linear speedup model. */
+/* Runs linear regression on the speedup data for a simple linear speedup model.
+ */
 static void PerformLinearRegression(
     double* speedup, int num_cores, double* slope, double* intercept) {
   LinearRegression lr;
