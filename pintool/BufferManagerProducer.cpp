@@ -42,7 +42,6 @@ void InitBufferManagerProducer(pid_t harness_pid, int num_cores)
 
     bridgeDirs_.push_back("/dev/shm/");
     bridgeDirs_.push_back("/tmp/");
-    bridgeDirs_.push_back("./");
 
     int pid = getpgrp();
     ostringstream iss;
