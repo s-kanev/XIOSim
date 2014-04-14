@@ -1,5 +1,5 @@
-// Keys for locating variables in shared memory via the boost interprocess module.
-// Used for multiprogramming support in XIOSim.
+// Keys for locating variables in shared memory via the boost interprocess
+// module.  Used for multiprogramming support in XIOSim.
 //
 // Author: Sam Xi
 

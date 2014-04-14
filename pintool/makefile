@@ -60,7 +60,7 @@ SIMLIB_LPATHS = -L$(ZESTO_HOME)
 
 # Now the actual compilation flags
 CXXFLAGS ?= -g -std=c++11
-CXXFLAGS += -Wall -Werror -Wno-unused-function -Wno-unknown-pragmas
+CXXFLAGS += -Wall -Werror -Wno-unused-function -Wno-unknown-pragmas -Wno-unused-local-typedefs
 CXXFLAGS += -DDEBUG -D_FILE_OFFSET_BITS=64
 CXXFLAGS += $(CONFUSE_CXXFLAGS) $(BOOST_CXXFLAGS)
 CXXFLAGS += -I$(PIN_HOME)/source/tools/InstLib

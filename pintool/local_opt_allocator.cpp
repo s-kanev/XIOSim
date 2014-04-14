@@ -23,54 +23,54 @@
 namespace xiosim {
 
 LocallyOptimalAllocator::LocallyOptimalAllocator(int num_cores) :
-  BaseAllocator(num_cores), process_scaling() {
-  ResetState();
+    BaseAllocator(num_cores), process_scaling() {
+    ResetState();
 }
 
 LocallyOptimalAllocator::~LocallyOptimalAllocator() {
 }
 
 void LocallyOptimalAllocator::ResetState() {
-  process_sync.num_checked_in = 0;
-  process_sync.num_checked_out = 0;
-  process_sync.allocation_complete = false;
-  process_scaling.resize(*num_processes);
+    process_sync.num_checked_in = 0;
+    process_sync.num_checked_out = 0;
+    process_sync.allocation_complete = false;
+    process_scaling.resize(*num_processes);
 }
 
 int LocallyOptimalAllocator::AllocateCoresForProcess(
-    int asid, std::vector<double> scaling) {
-  lk_lock(&allocator_lock, 1);
-
-  // Start each process with 1 core allocated.
-  core_allocs[asid] = 1;
-  process_scaling[asid] = &scaling;
-  process_sync.num_checked_in++;
-  // Wait for all processes in the system to check in before proceeding.
-  while (process_sync.num_checked_in < *num_processes) {
-    lk_unlock(&allocator_lock);
-    usleep(10000);
+        int asid, std::vector<double> scaling) {
     lk_lock(&allocator_lock, 1);
-  }
-  assert(process_sync.num_checked_in == *num_processes);
 
-  // Only the first thread that reaches this point needs to perform the
-  // allocation optimization function. All other threads can wait for this to
-  // complete and then simply use the output.
-  if (!process_sync.allocation_complete) {
-    OptimizeThroughput(core_allocs, process_scaling, num_cores);
-    process_sync.allocation_complete = true;
-  }
+    // Start each process with 1 core allocated.
+    core_allocs[asid] = 1;
+    process_scaling[asid] = &scaling;
+    process_sync.num_checked_in++;
+    // Wait for all processes in the system to check in before proceeding.
+    while (process_sync.num_checked_in < *num_processes) {
+        lk_unlock(&allocator_lock);
+        usleep(10000);
+        lk_lock(&allocator_lock, 1);
+    }
+    assert(process_sync.num_checked_in == *num_processes);
 
-  int allocated_cores = core_allocs[asid]++;
-  process_sync.num_checked_out++;
-  if (process_sync.num_checked_out == *num_processes) {
-    // The last thread executing this code will reset class variables for the
-    // next allocation.
-    ResetState();
-  }
-  lk_unlock(&allocator_lock);
-  UpdateSHMAllocation(asid, allocated_cores);
-  return allocated_cores;
+    // Only the first thread that reaches this point needs to perform the
+    // allocation optimization function. All other threads can wait for this to
+    // complete and then simply use the output.
+    if (!process_sync.allocation_complete) {
+        OptimizeThroughput(core_allocs, process_scaling, num_cores);
+        process_sync.allocation_complete = true;
+    }
+
+    int allocated_cores = core_allocs[asid]++;
+    process_sync.num_checked_out++;
+    if (process_sync.num_checked_out == *num_processes) {
+        // The last thread executing this code will reset class variables for the
+        // next allocation.
+        ResetState();
+    }
+    lk_unlock(&allocator_lock);
+    UpdateSHMAllocation(asid, allocated_cores);
+    return allocated_cores;
 }
 
-}  // namespace xiosim
+}    // namespace xiosim

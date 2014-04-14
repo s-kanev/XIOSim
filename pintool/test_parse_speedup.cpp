@@ -36,7 +36,7 @@ TEST_CASE("Complete front-to-end test of the speedup data parser", "parser") {
     SECTION("test the weird loop name with weird speedup") {
         string loop_name = "a weird, weird loop name and speedup. $#$";
         vector<double> loop_scaling = GetHelixLoopScaling(loop_name);
-        // The first three elements will be 0, 0.5, and 0.25 due to linear 
+        // The first three elements will be 0, 0.5, and 0.25 due to linear
         // interpolation but all the others should be 0.5.
         REQUIRE(loop_scaling.at(0) == Approx(0.0));
         REQUIRE(loop_scaling.at(1) == Approx(0.5));

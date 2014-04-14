@@ -10,9 +10,9 @@
 // Describes loop scaling behavior in terms of its scaling across cores and its
 // serial runtime.
 struct loop_data {
-  double *speedup;
-  double serial_runtime;  // This is an ESTIMATE.
-  double serial_runtime_variance;
+    double *speedup;
+    double serial_runtime;  // This is an ESTIMATE.
+    double serial_runtime_variance;
 };
 
 /* Parses a comma separated value file that contains predicted speedups for
@@ -39,6 +39,6 @@ loop_data* GetHelixFullLoopData(const std::string &loop_name);
  *   intercept: A double pointer with the intercept of the fitted line.
  */
 static void PerformLinearRegression(
-    double* speedup, int num_cores, double* slope, double* intercept);
+        double* speedup, int num_cores, double* slope, double* intercept);
 
 #endif /* __PARSE_SPEEDUP_H__ */
