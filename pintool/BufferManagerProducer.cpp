@@ -310,39 +310,10 @@ static ssize_t do_write(const int fd, const void* buff, const size_t size)
 
 static void writeHandshake(pid_t tid, int fd, handshake_container_t* handshake)
 {
-  int mapSize = handshake->mem_buffer.size();
-  const int handshakeBytes = sizeof(P2Z_HANDSHAKE);
-  const int flagBytes = sizeof(handshake_flags_t);
-  const int mapEntryBytes = sizeof(UINT32) + sizeof(UINT8);
-  int mapBytes = mapSize * mapEntryBytes;
-  int totalBytes = sizeof(int) + handshakeBytes + flagBytes + mapBytes;
-
-  assert(totalBytes <= 4096);
-
   void * writeBuffer = writeBuffer_[tid];
-  void * buffPosition = writeBuffer;
+  size_t totalBytes = handshake->Serialize(writeBuffer, 4096);
 
-  memcpy((char*)buffPosition, &(mapSize), sizeof(int));
-  buffPosition = (char*)buffPosition + sizeof(int);
-
-  memcpy((char*)buffPosition, &(handshake->handshake), handshakeBytes);
-  buffPosition = (char*)buffPosition + handshakeBytes;
-
-  memcpy((char*)buffPosition, &(handshake->flags), flagBytes);
-  buffPosition = (char*)buffPosition + flagBytes;
-
-  std::map<UINT32, UINT8>::iterator it;
-  for(it = handshake->mem_buffer.begin(); it != handshake->mem_buffer.end(); it++) {
-    memcpy((char*)buffPosition, &(it->first), sizeof(UINT32));
-    buffPosition = (char*)buffPosition + sizeof(UINT32);
-
-    memcpy((char*)buffPosition, &(it->second), sizeof(UINT8));
-    buffPosition = (char*)buffPosition + sizeof(UINT8);
-  }
-
-  assert(((unsigned long long int)writeBuffer) + totalBytes == ((unsigned long long int)buffPosition));
-
-  int bytesWritten = do_write(fd, writeBuffer, totalBytes);
+  ssize_t bytesWritten = do_write(fd, writeBuffer, totalBytes);
   if(bytesWritten == -1) {
     cerr << "Pipe write error: " << bytesWritten << " Errcode:" << strerror(errno) << endl;
 
@@ -360,7 +331,7 @@ static void writeHandshake(pid_t tid, int fd, handshake_container_t* handshake)
     }
     abort();
   }
-  if(bytesWritten != totalBytes) {
+  if(bytesWritten != (ssize_t)totalBytes) {
     cerr << "File write error: " << bytesWritten << " expected:" << totalBytes << endl;
     cerr << fileNames_[tid].back() << endl;
     abort();

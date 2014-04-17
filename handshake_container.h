@@ -41,6 +41,73 @@ class handshake_container_t
         dest->mem_buffer = this->mem_buffer;
     }
 
+    size_t Serialize(void * const buffer, size_t buffer_size) const {
+        int mapSize = this->mem_buffer.size();
+        const size_t handshakeBytes = sizeof(P2Z_HANDSHAKE);
+        const size_t flagBytes = sizeof(handshake_flags_t);
+        const size_t mapEntryBytes = sizeof(uint32_t) + sizeof(uint8_t);
+        size_t mapBytes = mapSize * mapEntryBytes;
+        size_t totalBytes = sizeof(int) + handshakeBytes + flagBytes + mapBytes;
+
+        assert(totalBytes <= buffer_size);
+
+        /* First write the size of the whole structure. */
+        char * buffPosition = (char * const)buffer;
+        memcpy(buffPosition, &(totalBytes), sizeof(int));
+        buffPosition = buffPosition + sizeof(int);
+
+        /* Then, write compressed handshake */
+        memcpy(buffPosition, &(this->handshake), handshakeBytes);
+        buffPosition = buffPosition + handshakeBytes;
+
+        /* Flags */
+        memcpy(buffPosition, &(this->flags), flagBytes);
+        buffPosition = buffPosition + flagBytes;
+
+        /* If available, memory accesses */
+        for(auto it = this->mem_buffer.begin(); it != this->mem_buffer.end(); it++) {
+            memcpy(buffPosition, &(it->first), sizeof(uint32_t));
+            buffPosition = buffPosition + sizeof(uint32_t);
+
+            memcpy(buffPosition, &(it->second), sizeof(uint8_t));
+            buffPosition = buffPosition + sizeof(uint8_t);
+        }
+        assert((char*)buffer + totalBytes == buffPosition);
+        return totalBytes;
+    }
+
+    void Deserialize(void const * const buffer, size_t buffer_size) {
+        const size_t handshakeBytes = sizeof(P2Z_HANDSHAKE);
+        const size_t flagBytes = sizeof(handshake_flags_t);
+        const size_t mapEntryBytes = sizeof(uint32_t) + sizeof(uint8_t);
+
+        const size_t mapBytes = buffer_size - handshakeBytes - flagBytes;
+        assert(mapBytes % mapEntryBytes == 0);
+        const size_t mapNum = mapBytes / mapEntryBytes;
+
+        char const * buffPosition = (char const *) buffer;
+        memcpy(&(this->handshake), buffPosition, handshakeBytes);
+        buffPosition = buffPosition + handshakeBytes;
+
+        memcpy(&(this->flags), buffPosition, flagBytes);
+        buffPosition = buffPosition + flagBytes;
+
+        this->mem_buffer.clear();
+        for(unsigned int i = 0; i < mapNum; i++) {
+            uint32_t first;
+            uint8_t second;
+
+            first = *((uint32_t*)buffPosition);
+            buffPosition = buffPosition + sizeof(uint32_t);
+
+            second = *((uint8_t*)buffPosition);
+            buffPosition = buffPosition + sizeof(uint8_t);
+
+            (this->mem_buffer)[first] = second;
+        }
+        assert(((char*)buffer) + buffer_size == buffPosition);
+    }
+
     // Handshake information that gets passed on to Zesto
     struct P2Z_HANDSHAKE handshake;
 
