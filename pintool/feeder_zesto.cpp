@@ -335,16 +335,16 @@ VOID MakeSSContext(const CONTEXT *ictxt, FPSTATE* fpstate, ADDRINT pc, ADDRINT n
     ASSERTX(PIN_ContextContainsState(&ssctxt, PROCESSOR_STATE_X87));
     PIN_GetContextFPState(ictxt, fpstate);
 
-    //Copy the floating point control word
+    // Copy the floating point control word
     memcpy(&ssregs->regs_C.cwd, &fpstate->fxsave_legacy._fcw, 2);
 
     // Copy the floating point status word
     memcpy(&ssregs->regs_C.fsw, &fpstate->fxsave_legacy._fsw, 2);
 
-    //Copy floating point tag word specifying which regsiters hold valid values
+    // Copy floating point tag word specifying which regsiters hold valid values
     memcpy(&ssregs->regs_C.ftw, &fpstate->fxsave_legacy._ftw, 1);
 
-    //For Zesto, regs_F is indexed by physical register, not stack-based
+    // For Zesto, regs_F is indexed by physical register, not stack-based
     #define ST2P(num) ((FSW_TOP(ssregs->regs_C.fsw) + (num)) & 0x7)
 
     // Copy actual extended fp registers
@@ -685,6 +685,7 @@ VOID Instrument(INS ins, VOID *v)
         return;
     }
 
+    /* Add instrumentation that captures each memory operand */
     UINT32 memOperands = INS_MemoryOperandCount(ins);
     for (UINT32 memOp = 0; memOp < memOperands; memOp++)
     {
