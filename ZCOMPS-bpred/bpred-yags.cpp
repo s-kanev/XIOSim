@@ -18,7 +18,7 @@ if(!strcasecmp(COMPONENT_NAME,type))
 
   if(sscanf(opt_string,"%*[^:]:%[^:]:%d:%d:%d:%d:%d:%d",name,&l1_size,&l2_size,&his_width,&Xor,&cache_size,&tag_width) != 7)
     fatal("bad bpred options string %s (should be \"yags:name:l1_size:l2_size:his_width:xor:cache_size:tag_width\")",opt_string);
-  return new bpred_yags_t(name,l1_size,l2_size,his_width,Xor,cache_size,tag_width);
+  return new bpred_yags_t(core,name,l1_size,l2_size,his_width,Xor,cache_size,tag_width);
 }
 #else
 
@@ -64,14 +64,15 @@ class bpred_yags_t:public bpred_dir_t
   public:
 
   /* CREATE */
-  bpred_yags_t(char * const arg_name,
+  bpred_yags_t(const core_t * core,
+               char * const arg_name,
                const int arg_bht_size,
                const int arg_pht_size,
                const int arg_history_length,
                const int arg_Xor,
                const int arg_cache_size,
                const int arg_tag_width
-              )
+              ) : bpred_dir_t(core)
   {
     init();
 

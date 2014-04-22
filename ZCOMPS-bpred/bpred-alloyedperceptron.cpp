@@ -17,7 +17,7 @@ if(!strcasecmp(COMPONENT_NAME,type))
 
   if(sscanf(opt_string,"%*[^:]:%[^:]:%d:%d:%d:%d",name,&gbhr_width,&l1_size,&his_width,&top_size) != 5)
     fatal("bad bpred options string %s (should be \"alloyedperceptron:name:gbhr_width:l1_size:lhis_width:top_size\")",opt_string);
-  return new bpred_alloyedperceptron_t(name,gbhr_width,l1_size,his_width,top_size);
+  return new bpred_alloyedperceptron_t(core,name,gbhr_width,l1_size,his_width,top_size);
 }
 #else
 
@@ -63,12 +63,13 @@ class bpred_alloyedperceptron_t:public bpred_dir_t
   public:
 
   /* CREATE */
-  bpred_alloyedperceptron_t(char * const arg_name,
+  bpred_alloyedperceptron_t(const core_t * core,
+                            char * const arg_name,
                             const int arg_ghistory_length,
                             const int arg_bht_size,
                             const int arg_lhistory_length,
                             const int arg_top_size
-                           )
+                           ) : bpred_dir_t(core)
   {
     init();
 

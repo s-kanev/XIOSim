@@ -9,7 +9,7 @@
 #ifdef BPRED_PARSE_ARGS
 if(!strcasecmp(COMPONENT_NAME,type))
 {
-  return new bpred_perfect_t();
+  return new bpred_perfect_t(core);
 }
 #else
 
@@ -17,7 +17,7 @@ class bpred_perfect_t:public bpred_dir_t
 {
   public:
 
-  bpred_perfect_t()
+  bpred_perfect_t(const core_t * core) : bpred_dir_t(core)
   {
     init();
 

@@ -134,6 +134,7 @@ core_fetch_DPM_t::core_fetch_DPM_t(struct core_t * const arg_core):
 
   /* bpred */
   bpred = new bpred_t(
+      core,
       knobs->fetch.num_bpred_components,
       knobs->fetch.bpred_opt_str,
       knobs->fetch.fusion_opt_str,

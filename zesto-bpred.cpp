@@ -142,7 +142,7 @@ our_pred - what the branch predictor had predicted (some predictors
 /* argument parsing                                   */
 /*====================================================*/
 static class bpred_dir_t *
-bpred_from_string(const char * const opt_string)
+bpred_from_string(const core_t * core, const char * const opt_string)
 {
   char name[256];
   char type[256];
@@ -160,7 +160,7 @@ bpred_from_string(const char * const opt_string)
 }
 #undef BPRED_PARSE_ARGS
 
-bpred_dir_t::bpred_dir_t(void)
+bpred_dir_t::bpred_dir_t(const core_t * core) : core(core)
 {
 }
 
@@ -842,6 +842,7 @@ void RAS_t::ret_state(class RAS_chkpt_t * const cpvp)
 /*====================================================*/
 
 bpred_t::bpred_t(
+    const core_t * core,
     const int arg_num_pred         /* num direction preds */,
     const char ** const bpred_opts       /* config strings for dir preds */,
     const char  * const fusion_opt       /* config string for meta-pred */,
@@ -857,7 +858,7 @@ bpred_t::bpred_t(
   if(!bpreds)
     fatal("failed to calloc bpred array");
   for(int i=0;i<arg_num_pred;i++)
-    bpreds[i] = bpred_from_string(bpred_opts[i]);
+    bpreds[i] = bpred_from_string(core, bpred_opts[i]);
 
   /* meta-predictor */
   fusion = fusion_from_string(num_pred,bpreds,fusion_opt);

@@ -17,7 +17,7 @@ if(!strcasecmp(COMPONENT_NAME,type))
 
   if(sscanf(opt_string,"%*[^:]:%[^:]:%d:%d:%d:%d",name,&l1_size,&l2_size,&his_width,&Xor) != 5)
     fatal("bad bpred options string %s (should be \"bimode:name:l1_size:l2_size:his_width:xor\")",opt_string);
-  return new bpred_bimode_t(name,l1_size,l2_size,his_width,Xor);
+  return new bpred_bimode_t(core,name,l1_size,l2_size,his_width,Xor);
 }
 #else
 
@@ -51,12 +51,13 @@ class bpred_bimode_t:public bpred_dir_t
   public:
 
   /* CREATE */
-  bpred_bimode_t(char * const arg_name,
+  bpred_bimode_t(const core_t * core,
+                 char * const arg_name,
                  const int arg_bht_size,
                  const int arg_pht_size,
                  const int arg_history_length,
                  const int arg_Xor
-                )
+                ) : bpred_dir_t(core)
   {
     init();
 

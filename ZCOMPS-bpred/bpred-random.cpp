@@ -8,7 +8,7 @@
 #ifdef BPRED_PARSE_ARGS
 if(!strcasecmp(COMPONENT_NAME,type))
 {
-  return new bpred_random_t();
+  return new bpred_random_t(core);
 }
 #else
 
@@ -21,7 +21,7 @@ struct bpred_random_t:public bpred_dir_t
   public:
 
   /* CREATE */
-  bpred_random_t()
+  bpred_random_t(const core_t * core) : bpred_dir_t(core)
   {
     init();
 

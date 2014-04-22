@@ -12,7 +12,7 @@ if(!strcasecmp(COMPONENT_NAME,type))
            
   if(sscanf(opt_string,"%*[^:]:%[^:]:%d",name,&num_entries) != 2)
     fatal("bad bpred options string %s (should be \"2bC:name:num_entries\")",opt_string);
-  return new bpred_2bC_t(name,num_entries);
+  return new bpred_2bC_t(core,name,num_entries);
 }
 #else
 
@@ -33,9 +33,10 @@ class bpred_2bC_t:public bpred_dir_t
   public:
 
   /* CREATE */
-  bpred_2bC_t(char * const arg_name,
+  bpred_2bC_t(const core_t * core,
+              char * const arg_name,
               const int arg_num_entries
-             )
+             ) : bpred_dir_t(core)
   {
     init();
 

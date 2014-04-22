@@ -16,7 +16,7 @@ if(!strcasecmp(COMPONENT_NAME,type))
 
   if(sscanf(opt_string,"%*[^:]:%[^:]:%d:%d:%d:%d",name,&l1_size,&his_width,&top_size,&pc_bits) != 5)
     fatal("bad bpred options string %s (should be \"pwl:name:l1_size:his_width:top_size:pc-bits\")",opt_string);
-  return new bpred_pwl_t(name,l1_size,his_width,top_size,pc_bits);
+  return new bpred_pwl_t(core,name,l1_size,his_width,top_size,pc_bits);
 }
 #else
 
@@ -63,12 +63,13 @@ class bpred_pwl_t:public bpred_dir_t
   public:
 
   /* CREATE */
-  bpred_pwl_t(char * const arg_name,
+  bpred_pwl_t(const core_t * core,
+              char * const arg_name,
               const int arg_bht_size,
               const int arg_history_length,
               const int arg_top_size,
               const int arg_pc_bits
-             )
+             ) : bpred_dir_t(core)
   {
     init();
 
