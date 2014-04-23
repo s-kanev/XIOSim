@@ -1106,7 +1106,7 @@ struct cache_line_t * cache_get_evictee(
         }
 
         just_in_case++;
-        if(just_in_case > (2*cp->assoc))
+        if(just_in_case > (20*cp->assoc))
           fatal("Clock-PLRU has gone around twice without finding an evictee for %s",cp->name);
       }
     }
