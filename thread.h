@@ -14,6 +14,9 @@ struct thread_t {
   int rep_sequence;          /* for implementing REP instructions */
   int asid;                  /* Address space ID that this thread belongs to. */
 
+  char* rand_statebuf;       /* for per thread random number generation */
+  struct random_data* rand_state;
+
   struct {
     counter_t num_insn;
     counter_t num_refs;

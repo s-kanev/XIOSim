@@ -368,7 +368,9 @@ class bpred_tage_t:public bpred_dir_t
           {
             if(allocated2) /* more than one choice */
             {
-              if((random() & 0xffff) > 21845) /* choose allocated over allocated2 with 2:1 probability */
+              int r;
+              random_r(core->current_thread->rand_state, &r);
+              if((r & 0xffff) > 21845) /* choose allocated over allocated2 with 2:1 probability */
                 allocated = allocated2;
             }
             struct bpred_tage_ent_t * ent = &T[allocated][sc->index[allocated]&table_mask];
