@@ -10,6 +10,9 @@ VOID MOLECOOL_Init();
 VOID AddILDJITCallbacks(IMG img);
 BOOL ILDJIT_IsExecuting();
 BOOL ILDJIT_IsCreatingExecutor();
+BOOL ILDJIT_GetExecutingTID();
+BOOL ILDJIT_IsDoneFastForwarding();
+
 VOID printMemoryUsage(THREADID tid);
 VOID ILDJIT_PauseSimulation(THREADID tid);
 VOID ILDJIT_ResumeSimulation(THREADID tid);

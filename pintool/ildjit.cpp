@@ -35,6 +35,9 @@ BOOL ILDJIT_executionStarted = false;
 // True if a non-compiler thread is being created
 BOOL ILDJIT_executorCreation = false;
 
+// The thread id for the main execution thread
+THREADID ILDJIT_executorTID = -1;
+
 XIOSIM_LOCK ildjit_lock;
 
 /* A load instruction with immediate address */
@@ -69,6 +72,11 @@ KNOB<BOOL> KnobInsertLightWaits(KNOB_MODE_WRITEONCE,     "pintool",
         "coupled_waits", "false", "Insert light waits in the processor pipeline");
 KNOB<string> KnobPredictedSpeedupFile(KNOB_MODE_WRITEONCE,   "pintool",
         "speedup_file", "", "File containing speedup prediction for core allocation");
+extern KNOB<BOOL> KnobWarmLLC;
+
+static string warm_loop = "";
+static UINT32 warm_loop_invocation = -1;
+static UINT32 warm_loop_iteration = -1;
 
 static string start_loop = "";
 static UINT32 start_loop_invocation = -1;
@@ -80,6 +88,7 @@ static UINT32 end_loop_iteration = -1;
 
 static BOOL first_invocation = true;
 
+static BOOL reached_warm_invocation = false;
 static BOOL reached_start_invocation = false;
 static BOOL reached_end_invocation = false;
 
@@ -122,7 +131,8 @@ VOID MOLECOOL_Init()
 
     FLUFFY_Init();
 
-    ifstream start_loop_file, end_loop_file;
+    ifstream warm_loop_file, start_loop_file, end_loop_file;
+    warm_loop_file.open("phase_warm_loop", ifstream::in);
     start_loop_file.open("phase_start_loop", ifstream::in);
     end_loop_file.open("phase_end_loop", ifstream::in);
 
@@ -134,16 +144,30 @@ VOID MOLECOOL_Init()
         cerr << "Couldn't open loop id files: phase_end_loop" << endl;
         PIN_ExitProcess(1);
     }
-
+    
     readLoop(start_loop_file, &start_loop, &start_loop_invocation, &start_loop_iteration);
     readLoop(end_loop_file, &end_loop, &end_loop_invocation, &end_loop_iteration);
 
+    if(KnobWarmLLC.Value()) {
+        if (warm_loop_file.fail()) {
+            cerr << "Couldn't open loop id files: phase_warm_loop" << endl;
+            cerr << "Warming from start" << endl;
+            reached_warm_invocation = true;
+        }
+        else {
+            readLoop(warm_loop_file, &warm_loop, &warm_loop_invocation, &warm_loop_iteration);
+        }
+    }
+    
     disable_wait_signal = KnobDisableWaitSignal.Value();
     coupled_waits = KnobCoupledWaits.Value();
     insert_light_waits = KnobInsertLightWaits.Value();
 
     last_time = time(NULL);
 
+    cerr << warm_loop << endl;
+    cerr << warm_loop_invocation << endl;
+    cerr << warm_loop_iteration << endl << endl;
     cerr << start_loop << endl;
     cerr << start_loop_invocation << endl;
     cerr << start_loop_iteration << endl << endl;
@@ -180,6 +204,18 @@ BOOL ILDJIT_IsExecuting()
 }
 
 /* ========================================================================== */
+BOOL ILDJIT_IsDoneFastForwarding()
+{
+    return reached_start_invocation;
+}
+
+/* ========================================================================== */
+BOOL ILDJIT_GetExecutingTID()
+{
+    return ILDJIT_executorTID;
+}
+
+/* ========================================================================== */
 BOOL ILDJIT_IsCreatingExecutor()
 {
     bool res;
@@ -205,11 +241,19 @@ VOID ILDJIT_startSimulation(THREADID tid, ADDRINT ip)
 
     ILDJIT_executionStarted = true;
 
+    ILDJIT_executorTID = tid;
+
 //#ifdef ZESTO_PIN_DBG
     cerr << "Starting execution, TID: " << tid << endl;
 //#endif
 
     lk_unlock(&ildjit_lock);
+
+    if(reached_warm_invocation) {
+        cerr << "Do Early!" << endl;
+        doLateILDJITInstrumentation();
+        cerr << "Done Early!" << endl;
+    }
 }
 
 /* ========================================================================== */
@@ -275,6 +319,20 @@ VOID ILDJIT_startLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
     }
     else {
         invocation_counts[loop_string]++;
+    }
+
+    if(KnobWarmLLC.Value()) {
+        if((!reached_warm_invocation) && (warm_loop == loop_string) && (invocation_counts[loop_string] == warm_loop_invocation)) {
+            assert(invocation_counts[loop_string] == warm_loop_invocation);
+            cerr << "Called warmLoop() for the warm invocation!:" << loop_string << endl;
+            reached_warm_invocation = true;
+            cerr << "Detected that we need to warm!:" << loop_string << endl;
+            cerr << "FastWarm runtime:";
+            printElapsedTime();
+            cerr << "Do late!" << endl;
+            doLateILDJITInstrumentation();
+            cerr << "Done late!" << endl;      
+        }
     }
 
     if((!reached_start_invocation) && (start_loop == loop_string) && (invocation_counts[loop_string] == start_loop_invocation)) {
@@ -373,9 +431,14 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
     simulating_parallel_loop = true;
 
     if (ExecMode != EXECUTION_MODE_SIMULATE) {
-        cerr << "Do late!" << endl;
-        doLateILDJITInstrumentation();
-        cerr << "Done late!" << endl;
+        if(KnobWarmLLC.Value()) {
+            assert(reached_warm_invocation);
+        }    
+        else {    
+            cerr << "Do late!" << endl;
+            doLateILDJITInstrumentation();
+            cerr << "Done late!" << endl;
+        }    
 
         cerr << "FastForward runtime:";
         printElapsedTime();
@@ -396,6 +459,14 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
 // Must be called from within the body of MOLECOOL_beforeWait!
 VOID ILDJIT_startIteration(THREADID tid)
 {
+    if(KnobWarmLLC.Value()) {
+        if(!reached_warm_invocation) {
+            assert(!reached_start_invocation);
+            assert(!reached_end_invocation);
+            return;
+        }
+    }
+
     if((!reached_start_invocation) && (!reached_end_invocation)) {
         return;
     }
@@ -405,15 +476,20 @@ VOID ILDJIT_startIteration(THREADID tid)
 
     // Check if this is the first iteration
     if((!reached_start_iteration) && loopMatches(start_loop, start_loop_invocation, start_loop_iteration)) {
+        cerr << "FastForward runtime:";
+        printElapsedTime();
+
         reached_start_iteration = true;
         loop_state->simmed_iteration_count = 0;
 
-        cerr << "Do late!" << endl;
-        doLateILDJITInstrumentation();
-        cerr << "Done late!" << endl;
-
-        cerr << "FastForward runtime:";
-        printElapsedTime();
+        if(KnobWarmLLC.Value()) {
+            assert(reached_warm_invocation);
+        }
+        else {
+            cerr << "Do late!" << endl;
+            doLateILDJITInstrumentation();
+            cerr << "Done late!" << endl;
+        }
 
         cerr << "Starting simulation, TID: " << tid << endl;
         initializePerThreadLoopState(tid);
