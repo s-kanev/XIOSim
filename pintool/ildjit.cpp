@@ -121,6 +121,8 @@ vector<THREADID> affine_threads;
 map<THREADID, int> virtual_affinity;
 XIOSIM_LOCK lk_affine_threads;
 
+static bool ignoreSignalZero;
+
 extern map<ADDRINT, string> pc_diss;
 
 /* ========================================================================== */
@@ -426,6 +428,7 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
     }
 
     assert(reached_start_iteration);
+    ignoreSignalZero = false;
 
     initializePerThreadLoopState(tid);
     simulating_parallel_loop = true;
@@ -631,7 +634,13 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
     if(!coupled_waits && !insert_light_waits && is_light) {
         goto cleanup;
     }
-
+    // If prologue wait is light, we can ignore it and the 
+    // subsequent signal, according to Simone 
+    if(ssID == 0 && is_light && !coupled_wauts) {
+        ignoreSignalZero = true;
+        goto cleanup;
+    }
+    
     /* We're not a first instruction any more */
     if (first_insn) {
         lk_lock(&tstate->lock, tid+1);
@@ -749,6 +758,10 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
 
     if(!(loop_state->use_ring_cache)) {
         return;
+    }
+
+    if(ssID == 0 && ignoreSignalZero) {
+      goto cleanup;
     }
 
     /* Insert signal instruction in pipeline */
