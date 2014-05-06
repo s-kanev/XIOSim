@@ -23,7 +23,7 @@
 
 #include "allocators_impl.h"
 #include "parse_speedup.h"
-#include "optimization_targets.h"
+#include "speedup_models_impl.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -174,6 +174,8 @@ TEST_CASE("Energy optimization target") {
     std::vector<double> process_linear_scaling;
     std::vector<double> process_serial_runtime;
     int num_cores = 32;
+    // The optimization for linear speedup doesn't depend on power values.
+    LinearSpeedupModel speedup_model(1, 1);
 
     // Set up dummy data (not read from a file). It's too cumbersome to supply a
     // ton of complete loop scaling data if all we need are serial runtimes and
@@ -209,7 +211,7 @@ TEST_CASE("Energy optimization target") {
                     test_serial_runtimes[i][j]);
             core_allocs[j] = 1;
         }
-        xiosim::OptimizeEnergyForLinearScaling(
+        speedup_model.OptimizeEnergy(
                 core_allocs,
                 process_linear_scaling,
                 process_serial_runtime,
