@@ -64,8 +64,8 @@ int LocallyOptimalAllocator::AllocateCoresForProcess(
     int allocated_cores = core_allocs[asid]++;
     process_sync.num_checked_out++;
     if (process_sync.num_checked_out == *num_processes) {
-        // The last thread executing this code will reset class variables for the
-        // next allocation.
+        // The last thread executing this code will reset class variables for
+        // the next allocation.
         ResetState();
     }
     lk_unlock(&allocator_lock);
