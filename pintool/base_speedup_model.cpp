@@ -2,6 +2,8 @@
  * Author: Sam Xi.
  */
 
+#include <iostream>
+
 #include "base_speedup_model.h"
 
 /* This is a helper convenience method that does some setup before calling the
@@ -23,8 +25,33 @@ double BaseSpeedupModel::MinimizeCoreAllocations(
             MetricFunction = &BaseSpeedupModel::ComputeEnergy;
             break;
         case OptimizationTarget::THROUGHPUT_TARGET:
-            MetricFunction = &BaseSpeedupModel::ComputeThroughput;
+            MetricFunction = &BaseSpeedupModel::ComputeThroughputMetric;
             break;
+        default:
+            return -1;  // Invalid optimization target.
+    }
+
+    // If the initial core allocation exceeds the number of cores in the system,
+    // we incrementally subtract cores from the process with the highest
+    // allocation. This is only a problem for the logarithmic scaling model.
+    // It's not a perfect solution but for the cases we're considering I
+    // think it's fine.
+    while (ComputeCurrentCoresAllocated(core_alloc) > num_cores) {
+        int max_proc = 0;
+        double max_cores = core_alloc[max_proc];
+        for (auto it = core_alloc.begin(); it != core_alloc.end(); ++it) {
+            if (max_cores < it->second) {
+                max_cores = it->second;
+                max_proc = it->first;
+            }
+        }
+        if (max_cores > 1) {
+            core_alloc[max_proc]--;
+        } else {
+            std::cerr << "Core allocation exceeded limits and no process is "
+                      << "allocated more than one core." << std::endl;
+            exit(1);
+        }
     }
 
     return MinimizeCoreAllocations(
@@ -121,10 +148,10 @@ double BaseSpeedupModel::ComputeEnergy(
     return current_energy;
 }
 
-/* Computes the sum of speedups based on the ComputeRuntime() function that is
- * implemented in child classes.
+/* Computes the reciprocal of the sum of speedups based on the ComputeRuntime()
+ * function that is implemented in child classes.
  */
-double BaseSpeedupModel::ComputeThroughput(
+double BaseSpeedupModel::ComputeThroughputMetric(
         std::map<int, int> &core_alloc,
         std::vector<double> &process_scaling,
         std::vector<double> &process_serial_runtime) {
@@ -136,7 +163,7 @@ double BaseSpeedupModel::ComputeThroughput(
                 process_serial_runtime[it->first]);
         throughput += speedup;
     }
-    return throughput;
+    return 1.0/throughput;
 }
 
 /* Computes speedup for a single process based on the implemented

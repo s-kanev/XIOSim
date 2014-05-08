@@ -157,16 +157,19 @@ class BaseSpeedupModel {
                 std::vector<double> &process_scaling,
                 std::vector<double> &process_serial_runtime);
 
-        /* Computes the sum of speedups for a system under a given core
-         * allocation and process scaling behaviors.
+        /* Computes the reciprocal of the sum of speedups for a system under a
+         * given core allocation and process scaling behaviors. The reciprocal
+         * is required because the gradient descent function searches for a
+         * minimum, and optimization for throughput searches for LARGER values
+         * of throughput.
          *
          * Args:
          *   See OptimizeEnergy().
          *
          * Returns:
-         *   The sum of speedups of the system.
+         *   The reciprocal sum of speedups of the system.
          */
-        double ComputeThroughput(
+        double ComputeThroughputMetric(
                 std::map<int, int> &core_alloc,
                 std::vector<double> &process_scaling,
                 std::vector<double> &process_serial_runtime);
