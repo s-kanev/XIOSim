@@ -9,6 +9,11 @@
 
 #include "speedup_models.h"
 
+/* Optimizes energy for the linear speedup model. The solution is:
+ *   n_i = N * C_i / sum(C_j for all j).
+ * where N is the total number of cores and C_i is the linear scaling factor for
+ * the ith process.
+ */
 void LinearSpeedupModel::OptimizeEnergy(
         std::map<int, int> &core_allocs,
         std::vector<double> &process_scaling,
@@ -54,9 +59,55 @@ void LinearSpeedupModel::OptimizeEnergy(
     MinimizeCoreAllocations(
             core_allocs,
             process_scaling,
-            process_serial_runtime);
+            process_serial_runtime,
+            OptimizationTarget::ENERGY_TARGET);
 }
 
+/* Returns a core allocation that maximizes sum of speedups across all
+ * processes. Under linear scaling assumptions, such an allocation gives the
+ * best scaling process all cores in the system. However, we enforce the
+ * constraint that each process is allocated at least one core; thus, the best
+ * scaling process would allocated less than the total number of cores.
+ *
+ * When several processes scale equally, cores can be distributed in any manner
+ * between them. For simplicity, we distribute them as evenly as possible.
+ */
+void LinearSpeedupModel::OptimizeThroughput(
+        std::map<int, int> &core_allocs,
+        std::vector<double> &process_scaling,
+        std::vector<double> &process_serial_runtime) {
+    if (process_scaling.empty() ||
+        process_serial_runtime.empty())
+        return;
+
+    double max_scaling = process_scaling.at(0);
+    std::vector<int> best_procs;
+    best_procs.push_back(0);
+    for (size_t i = 1; i < process_scaling.size(); i++) {
+        if (process_scaling.at(i) > max_scaling) {
+            max_scaling = process_scaling.at(i);
+            best_procs.clear();
+            best_procs.push_back(i);
+        } else if (std::abs(process_scaling.at(i) - max_scaling) <=
+                   SCALING_EPSILON) {
+            // We've found a process with scaling equal to the current best.
+            best_procs.push_back(i);
+        }
+    }
+
+    // Assign cores.
+    for (size_t i = 0; i < process_scaling.size(); i++)
+        core_allocs[i] = 1;
+    int remaining_cores = num_cores - core_allocs.size() + best_procs.size();
+    for (size_t i = 0; i < best_procs.size(); i++) {
+        int cores_per_proc = int(
+                (double)remaining_cores/(best_procs.size() - i));
+        core_allocs[best_procs.at(i)] = cores_per_proc;
+        remaining_cores -= cores_per_proc;
+    }
+}
+
+/* Computes runtime under the linear model. */
 double LinearSpeedupModel::ComputeRuntime(int num_cores_alloc,
                       double process_scaling,
                       double process_serial_runtime) {
