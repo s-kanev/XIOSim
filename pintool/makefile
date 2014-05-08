@@ -36,8 +36,6 @@ TARGET = ia32
 
 PIN_KIT=$(PIN_HOME)
 KIT=1
-TESTAPP=$(OBJDIR)cp-pin.exe
-
 
 TARGET_COMPILER?=gnu
 ifeq ($(TARGET_COMPILER),gnu)
@@ -98,9 +96,6 @@ $(ZESTO_HOME)/mcpat/mcpat.a:
 
 $(ZESTO_HOME)/mem-repeater/librepeater.a:
 	$(MAKE) -C $(ZESTO_HOME)/mem-repeater
-
-MyPinTool.test: $(OBJDIR)cp-pin.exe
-      $(MAKE) -k -C feeder_zesto PIN_HOME=$(PIN_HOME)
 
 $(OBJDIR)cp-pin.exe:
 	$(CXX) $(PIN_HOME)/source/tools/Tests/cp-pin.cpp $(APP_CXXFLAGS) -o $(OBJDIR)cp-pin.exe
