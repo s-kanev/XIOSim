@@ -7,13 +7,12 @@
 #include <map>
 #include <vector>
 
-#include "speedup_models_impl.h"
+#include "speedup_models.h"
 
 void LinearSpeedupModel::OptimizeEnergy(
         std::map<int, int> &core_allocs,
         std::vector<double> &process_scaling,
-        std::vector<double> &process_serial_runtime,
-        int num_cores) {
+        std::vector<double> &process_serial_runtime) {
     std::vector<double> gammas;
     double gamma_sum = 0;
     for (auto it = core_allocs.begin(); it != core_allocs.end(); ++it) {
@@ -53,7 +52,9 @@ void LinearSpeedupModel::OptimizeEnergy(
     }
     // Now find the actual global runtime minimum around this starting point.
     MinimizeCoreAllocations(
-            core_allocs, process_scaling, process_serial_runtime, -1);
+            core_allocs,
+            process_scaling,
+            process_serial_runtime);
 }
 
 double LinearSpeedupModel::ComputeRuntime(int num_cores_alloc,
