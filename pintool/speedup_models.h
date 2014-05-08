@@ -1,8 +1,9 @@
-/* Speedup model based on the logarithmic function 1 + C log[n].
+/* Header for all speedup model classes.
  * Author: Sam Xi
  */
-#ifndef __SPEEDUP_MODELS_IMPL__
-#define __SPEEDUP_MODELS_IMPL__
+
+#ifndef __SPEEDUP_MODELS__
+#define __SPEEDUP_MODELS__
 
 #include <map>
 #include <vector>
@@ -11,13 +12,17 @@
 
 class LinearSpeedupModel : public BaseSpeedupModel {
     public:
-        LinearSpeedupModel(double core_power, double uncore_power) :
-            BaseSpeedupModel(core_power, uncore_power) {}
+        LinearSpeedupModel(
+                double core_power, double uncore_power, int num_cores) :
+            BaseSpeedupModel(core_power, uncore_power, num_cores) {}
+
+        /* Implements energy optimization under linear scaling assumptions. */
         void OptimizeEnergy(
                 std::map<int, int> &core_allocs,
                 std::vector<double> &process_scaling,
-                std::vector<double> &process_serial_runtime,
-                int num_cores);
+                std::vector<double> &process_serial_runtime);
+
+        /* Computes runtime as serial_runtime / (scaling * ncores). */
         double ComputeRuntime(
                 int num_cores_alloc,
                 double process_scaling,
@@ -26,18 +31,22 @@ class LinearSpeedupModel : public BaseSpeedupModel {
 
 class LogSpeedupModel : public BaseSpeedupModel {
     public:
-        LogSpeedupModel(double core_power, double uncore_power) :
-            BaseSpeedupModel(core_power, uncore_power) {}
+        LogSpeedupModel(double core_power, double uncore_power, int num_cores) :
+            BaseSpeedupModel(core_power, uncore_power, num_cores) {}
+
+        /* Implements energy optimization under logarithmic scaling assumptions.
+         */
         void OptimizeEnergy(
                 std::map<int, int> &core_allocs,
                 std::vector<double> &process_scaling,
-                std::vector<double> &process_serial_runtime,
-                int num_cores);
+                std::vector<double> &process_serial_runtime);
+
+        /* Computes runtime as serial_runtime / (1 + scaling * ln (ncores)). */
         double ComputeRuntime(
                 int num_cores_alloc,
                 double process_scaling,
                 double process_serial_runtime);
-    private:
+
         /* Lambert W function.
          * Was ~/C/LambertW.c written K M Briggs Keith dot Briggs at bt dot com
          * 97 May 21.
