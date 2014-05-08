@@ -1,7 +1,11 @@
-/* Unit testing for the penalty policy allocator.
+/* Unit tests for the locally optimal and penalty policy allocators. These
+ * require a non-trivial amount of initialization of global shared state in
+ * order to run, even if they do not use them, because they are tightly
+ * integrated into the rest of XIOSim.
  *
  * Author: Sam Xi
  */
+
 #define CATCH_CONFIG_RUNNER
 
 #include "boost_interprocess.h"
@@ -23,7 +27,6 @@
 
 #include "allocators_impl.h"
 #include "parse_speedup.h"
-#include "speedup_models_impl.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -166,63 +169,6 @@ TEST_CASE("Locally optimal allocator", "local") {
         for (int j = 0; j < *num_processes; j++) {
             REQUIRE(args[j].num_cores_alloc == correct_output[j][i]);
         }
-    }
-}
-
-TEST_CASE("Energy optimization target") {
-    std::map<int, int> core_allocs;
-    std::vector<double> process_linear_scaling;
-    std::vector<double> process_serial_runtime;
-    int num_cores = 32;
-    // The optimization for linear speedup doesn't depend on power values.
-    LinearSpeedupModel speedup_model(1, 1);
-
-    // Set up dummy data (not read from a file). It's too cumbersome to supply a
-    // ton of complete loop scaling data if all we need are serial runtimes and
-    // scaling factors.
-    // "3" indicates three processes. This has to be hardcoded somewhere since
-    // I'm initializing this array statically.
-    double test_serial_runtimes[NUM_TESTS][3] = {
-        {18, 3, 1},
-        {27, 1, 1},
-        {25, 3, 1},
-        {9, 27, 1},
-        {2, 21, 1},
-        {24, 1, 1}
-    };
-    double linear_scaling_factor = 1;  // Makes everything simpler.
-    double correct_allocations[NUM_TESTS][3] = {
-        {25, 5, 2},  // This case MUST be tested with minimization.
-        {28, 2, 2},
-        {26, 4, 2},
-        {8, 23, 1},
-        {3, 27, 2},
-        {28, 2, 2}
-    };
-
-    // Populate data structures.
-    for (int i = 0; i < NUM_TESTS; i++) {
-#ifdef DEBUG
-        std::cout << "Test " << i << std::endl;
-#endif
-        for (int j = 0; j < 3; j++) {
-            process_linear_scaling.push_back(linear_scaling_factor);
-            process_serial_runtime.push_back(
-                    test_serial_runtimes[i][j]);
-            core_allocs[j] = 1;
-        }
-        speedup_model.OptimizeEnergy(
-                core_allocs,
-                process_linear_scaling,
-                process_serial_runtime,
-                num_cores);
-
-        for (int j = 0; j < 3; j++) {
-            REQUIRE(core_allocs[j] == correct_allocations[i][j]);
-        }
-        process_linear_scaling.clear();
-        process_serial_runtime.clear();
-        core_allocs.clear();
     }
 }
 
