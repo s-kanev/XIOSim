@@ -4,6 +4,7 @@
  */
 
 #include <cmath>
+#include <iostream>
 #include <map>
 #include <vector>
 
@@ -68,17 +69,49 @@ void LogSpeedupModel::OptimizeEnergy(
     }
     // Build a core_allocs map of asid and core alloc key value pairs and
     // perform local minimization. Allocate at least one core.
+    // TODO: I don't think we've guaranteed that we allocate less than num_cores
+    // cores.
     for (int i = 0; i < n; i++) {
         double cores = candidate_solns[min_alloc][i];
         core_allocs[i] = int(ceil(cores));
     }
-    MinimizeCoreAllocations(core_allocs, process_scaling, process_serial_runtime);
+    MinimizeCoreAllocations(core_allocs,
+                            process_scaling,
+                            process_serial_runtime,
+                            OptimizationTarget::ENERGY_TARGET);
 
     for (int i = 0; i < n; i++)
         delete[] candidate_solns[i];
     delete[] candidate_solns;
 }
 
+/* The solution to this optimization problem has been published in Creech et al.
+ * "Efficient multiprogramming for Multicores with SCAF", MICRO 2013. The
+ * solution is: n_i = N * C_i / sum(Cj for all j), where C is the fitted scaling
+ * parameter to the speedup equation S(n) = 1 + C*ln(n).
+ */
+void LogSpeedupModel::OptimizeThroughput(
+        std::map<int, int> &core_allocs,
+        std::vector<double> &process_scaling,
+        std::vector<double> &process_serial_runtime) {
+    double sum_scaling = 0;
+    for (auto it = process_scaling.begin(); it != process_scaling.end(); ++it)
+        sum_scaling += *it;
+
+    for (size_t i = 0; i < process_scaling.size(); i++) {
+        double cores = num_cores * process_scaling.at(i) / sum_scaling;
+        // TODO: I think this should guarantee we never allocate more than
+        // num_cores cores to begin with, but I can't be certain.
+        core_allocs[i] = cores < 1 ? 1 : int(cores);
+    }
+    MinimizeCoreAllocations(
+            core_allocs,
+            process_scaling,
+            process_serial_runtime,
+            OptimizationTarget::THROUGHPUT_TARGET);
+}
+
+/* Computes runtime for log scaling. */
 double LogSpeedupModel::ComputeRuntime(
         int num_cores_alloc,
         double process_scaling,
@@ -87,6 +120,7 @@ double LogSpeedupModel::ComputeRuntime(
         (1 + process_scaling * log(num_cores_alloc));
 }
 
+/* Approximation of the LambertW function. */
 double LogSpeedupModel::LambertW(const double z) {
     int i;
     const double eps=4.0e-16, em1=0.3678794411714423215955237701614608;
