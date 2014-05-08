@@ -10,14 +10,28 @@
 double BaseSpeedupModel::MinimizeCoreAllocations(
         std::map<int, int> &core_alloc,
         std::vector<double> &process_scaling,
-        std::vector<double> &process_serial_runtime) {
+        std::vector<double> &process_serial_runtime,
+        unsigned int opt_target) {
+
     std::vector<int> process_list;
     for (auto it = core_alloc.begin(); it != core_alloc.end(); ++it)
         process_list.push_back(it->first);
+
+    metric_function_t MetricFunction;
+    switch (opt_target) {
+        case OptimizationTarget::ENERGY_TARGET:
+            MetricFunction = &BaseSpeedupModel::ComputeEnergy;
+            break;
+        case OptimizationTarget::THROUGHPUT_TARGET:
+            MetricFunction = &BaseSpeedupModel::ComputeThroughput;
+            break;
+    }
+
     return MinimizeCoreAllocations(
             core_alloc,
             process_scaling,
             process_serial_runtime,
+            MetricFunction,
             process_list,
             -1);
 }
@@ -31,12 +45,13 @@ double BaseSpeedupModel::MinimizeCoreAllocations(
         std::map<int, int> &core_alloc,
         std::vector<double> &process_scaling,
         std::vector<double> &process_serial_runtime,
+        metric_function_t MetricFunction,
         std::vector<int> &process_list,
         double previous_max) {
-    double current_min_energy = ComputeEnergy(
+    double current_min_metric = (this->*MetricFunction)(
             core_alloc, process_scaling, process_serial_runtime);
     if (process_list.empty())
-        return current_min_energy;
+        return current_min_metric;
 
     std::map<int, int> best_alloc(core_alloc);
     int num_processes = core_alloc.size();
@@ -64,10 +79,14 @@ double BaseSpeedupModel::MinimizeCoreAllocations(
                     std::vector<int> next_process_list(process_list);
                     next_process_list.erase(next_process_list.begin() + i);
                     double temp_energy = MinimizeCoreAllocations(
-                        temp_alloc, process_scaling, process_serial_runtime,
-                        next_process_list, current_min_energy);
-                    if (temp_energy < current_min_energy) {
-                        current_min_energy = temp_energy;
+                        temp_alloc,
+                        process_scaling,
+                        process_serial_runtime,
+                        MetricFunction,
+                        next_process_list,
+                        current_min_metric);
+                    if (temp_energy < current_min_metric) {
+                        current_min_metric = temp_energy;
                         best_alloc = temp_alloc;
                         updated = true;
                     }
@@ -77,7 +96,7 @@ double BaseSpeedupModel::MinimizeCoreAllocations(
     } while (updated);
 
     core_alloc = best_alloc;
-    return current_min_energy;
+    return current_min_metric;
 }
 
 /* Calls the implemented ComputeRuntime() function in child classes to compute
@@ -102,7 +121,36 @@ double BaseSpeedupModel::ComputeEnergy(
     return current_energy;
 }
 
-int BaseSpeedupModel::ComputeCurrentCoresAllocated(std::map<int, int> &core_alloc) {
+/* Computes the sum of speedups based on the ComputeRuntime() function that is
+ * implemented in child classes.
+ */
+double BaseSpeedupModel::ComputeThroughput(
+        std::map<int, int> &core_alloc,
+        std::vector<double> &process_scaling,
+        std::vector<double> &process_serial_runtime) {
+    double throughput = 0;
+    for (auto it = core_alloc.begin(); it != core_alloc.end(); ++it) {
+        double speedup = ComputeSpeedup(
+                it->second,
+                process_scaling[it->first],
+                process_serial_runtime[it->first]);
+        throughput += speedup;
+    }
+    return throughput;
+}
+
+/* Computes speedup for a single process based on the implemented
+ * ComputeRuntime() function in child classes.
+ */
+double BaseSpeedupModel::ComputeSpeedup(
+        int core_alloc, double process_scaling, double process_serial_runtime) {
+    return process_serial_runtime /
+           ComputeRuntime(core_alloc, process_scaling, process_serial_runtime);
+}
+
+/* Computes the total number of cores allocated in @core_alloc. */
+int BaseSpeedupModel::ComputeCurrentCoresAllocated(
+        std::map<int, int> &core_alloc) {
     int sum = 0;
     for (auto it = core_alloc.begin(); it != core_alloc.end(); ++it) {
         sum += it->second;

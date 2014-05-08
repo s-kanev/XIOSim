@@ -13,12 +13,22 @@
 #include <map>
 #include <vector>
 
+/* Defines the different optimization targets. This is used to specify which
+ * metric function should be used when computing the final minimal core
+ * allocation.
+ */
+enum OptimizationTarget {
+    ENERGY_TARGET,
+    THROUGHPUT_TARGET
+};
+
 class BaseSpeedupModel {
     public:
         /* Sets the core power and uncore power values, which are needed to
          * compute energy.
          */
-        BaseSpeedupModel(double core_power, double uncore_power, int num_cores) {
+        BaseSpeedupModel(
+                double core_power, double uncore_power, int num_cores) {
             this->core_power = core_power;
             this->uncore_power = uncore_power;
             this->num_cores = num_cores;
@@ -28,9 +38,9 @@ class BaseSpeedupModel {
          * the system.
          *
          * Args:
-         *   core_allocs: A reference to a map which will contain the number of
-         *     cores allocated for process asid. This must be populated with all
-         *     asids prior to calling the function (value does not matter).
+         *   core_allocs: A map which will contain the number of cores allocated
+         *     for process asid. This must be populated with all asids prior to
+         *     calling the function (value does not matter).
          *   process_scaling: The fitted logarithmic scaling constants.
          *   process_serial_runtime: Serial runtimes for each process.
          *   num_cores: Total number of cores in the system.
@@ -44,7 +54,20 @@ class BaseSpeedupModel {
                 std::vector<double> &process_scaling,
                 std::vector<double> &process_serial_runtime) = 0;
 
+        /* Returns a core allocation that maximizes sum of speedups for the
+         * system.
+         *
+         * Args and return values:  
+         *   See OptimizeEnergy().
+         */
+        virtual void OptimizeThroughput(
+                std::map<int, int> &core_allocs,
+                std::vector<double> &process_scaling,
+                std::vector<double> &process_serial_runtime) = 0;
     protected:
+        /* Two scaling factors within this value are considered equal. */
+        const double SCALING_EPSILON = 0.000001;
+
         /* The power consumed by a core. Assume that core power is constant
          * regardless of utilization.
          */
@@ -76,23 +99,29 @@ class BaseSpeedupModel {
                 double process_scaling,
                 double process_serial_runtime) = 0;
 
+        /* Computes parallel speedup under a core allocation and scaling
+         * behavior. Calls ComputeRuntime().
+         *
+         * Args:
+         *   See ComputeRuntime().
+         *
+         * Returns:
+         *   The parallel speedup under the current speedup model.
+         */
+        double ComputeSpeedup(int core_alloc,
+                              double process_scaling,
+                              double process_serial_runtime);
+
         /* Performs gradient descent to find the nearest minimum runtime point
          * to a starting core allocation, specified in core_alloc. Since the
          * analytical method is guaranteed to bring us very close to the true
          * solution, it is generally a safe assumption that any minima near
-         * this point is a global minima. 
+         * this point is a global minima.
          *
          * Args:
-         *   core_alloc: The core allocation from where to start gradient
-         *     descent. It is a map from asid to the number of cores currently
-         *     allocated.  When the function returns, the updated core
-         *     allocations are stored in this map.
-         *   process_scaling: A vector of linear scaling
-         *     factors, where the index of the element equals the asid of the
-         *     process.
-         *   process_serial_runtime: A vector of serial runtimes for
-         *     each process, where the index of the element equals the asid of
-         *     the process.
+         *   opt_target: A value of the OptimizationTarget enum indicating which
+         *     optimization metric function should be used for the minimization.
+         *   For all other arguments, see OptimizeEnergy().
          *
          * Returns: The minimum energy of the system, with the corresponding
          *   minimum core allocation stored in @core_alloc.
@@ -100,7 +129,8 @@ class BaseSpeedupModel {
         double MinimizeCoreAllocations(
                 std::map<int, int> &core_alloc,
                 std::vector<double> &process_scaling,
-                std::vector<double> &process_serial_runtime);
+                std::vector<double> &process_serial_runtime,
+                const unsigned int opt_target);
 
         /* Returns the current number of cores allocated in @core_alloc.
          *
@@ -117,12 +147,7 @@ class BaseSpeedupModel {
          * allocation and process scaling behaviors.
          *
          * Args:
-         *   process_scaling: A vector of linear scaling
-         *     factors, where the index of the element equals the asid of the
-         *     process.
-         *   process_serial_runtime: A vector of serial runtimes for
-         *     each process, where the index of the element equals the asid of
-         *     the process.
+         *   See OptimizeEnergy().
          *
          * Returns:
          *   The energy consumed by the system.
@@ -132,12 +157,37 @@ class BaseSpeedupModel {
                 std::vector<double> &process_scaling,
                 std::vector<double> &process_serial_runtime);
 
+        /* Computes the sum of speedups for a system under a given core
+         * allocation and process scaling behaviors.
+         *
+         * Args:
+         *   See OptimizeEnergy().
+         *
+         * Returns:
+         *   The sum of speedups of the system.
+         */
+        double ComputeThroughput(
+                std::map<int, int> &core_alloc,
+                std::vector<double> &process_scaling,
+                std::vector<double> &process_serial_runtime);
+
     private:
+        /* Signature for a function that defines the metric of a particular
+         * optimization target, such as a function that computes total system
+         * energy or throughput.
+         */
+        typedef double (BaseSpeedupModel::*metric_function_t)(
+                std::map<int, int>&,
+                std::vector<double>&,
+                std::vector<double>&);
+
         /* Performs gradient descent recursively. This is the function that
          * does the true work; the other overloaded function is a convenience
          * method.
          *
-         * Additional args:
+         * Args:
+         *   MetricFunction: A member function pointer to the metric function
+         *     for an optimization target.
          *   process_list: A vector of asids. Each recursion of this function
          *     explores adding, removing, or keeping constant a core to a
          *     process. When a process's allocation is tentatively modified,
@@ -149,6 +199,7 @@ class BaseSpeedupModel {
          *     worse than the previous maximum (which means the current
          *     allocation is less optimal). The first invocation of this
          *     function sets this parameter to -1.
+         *   For all other arguments, see OptimizeEnergy().
          *
          * Returns:
          *   The minimum energy point found from the provided starting point.
@@ -159,9 +210,9 @@ class BaseSpeedupModel {
                 std::map<int, int> &core_alloc,
                 std::vector<double> &process_scaling,
                 std::vector<double> &process_serial_runtime,
+                metric_function_t MetricFunction,
                 std::vector<int> &process_list,
                 double previous_max);
-
 };
 
 #endif
