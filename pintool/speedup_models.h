@@ -10,6 +10,9 @@
 
 #include "base_speedup_model.h"
 
+/* Two scaling factors within this value are considered equal. */
+const double SCALING_EPSILON = 0.000001;
+
 class LinearSpeedupModel : public BaseSpeedupModel {
     public:
         LinearSpeedupModel(
@@ -18,6 +21,13 @@ class LinearSpeedupModel : public BaseSpeedupModel {
 
         /* Implements energy optimization under linear scaling assumptions. */
         void OptimizeEnergy(
+                std::map<int, int> &core_allocs,
+                std::vector<double> &process_scaling,
+                std::vector<double> &process_serial_runtime);
+
+        /* Implements throughput optimization, where throughput is defined as
+         * the sum of speedup. */
+        void OptimizeThroughput(
                 std::map<int, int> &core_allocs,
                 std::vector<double> &process_scaling,
                 std::vector<double> &process_serial_runtime);
@@ -37,6 +47,13 @@ class LogSpeedupModel : public BaseSpeedupModel {
         /* Implements energy optimization under logarithmic scaling assumptions.
          */
         void OptimizeEnergy(
+                std::map<int, int> &core_allocs,
+                std::vector<double> &process_scaling,
+                std::vector<double> &process_serial_runtime);
+
+        /* Implements throughput optimization, where throughput is defined as
+         * the sum of speedup. */
+        void OptimizeThroughput(
                 std::map<int, int> &core_allocs,
                 std::vector<double> &process_scaling,
                 std::vector<double> &process_serial_runtime);
