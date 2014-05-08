@@ -318,7 +318,15 @@ int main(int argc, const char * argv[])
     Zesto_SlaveInit(ssargs.first, ssargs.second);
 
     InitScheduler(num_cores);
-    core_allocator = &(AllocatorParser::Get(knobs.allocator, num_cores));
+    // The following core/uncore power values correspond to 20% of total system
+    // power going to the uncore.
+    core_allocator = &(AllocatorParser::Get(
+                knobs.allocator,
+                knobs.allocator_opt_target,
+                knobs.speedup_model,
+                1,  // core_power
+                8,  // uncore_power
+                num_cores));
     SpawnSimulatorThreads(num_cores);
 
     return 0;
@@ -374,10 +382,10 @@ void CheckIPCMessageQueue(bool isEarly, int caller_coreID)
             case STOP_SIMULATION:
                 StopSimulation(ipcMessage.arg0, caller_coreID);
                 break;
-            case ACTIVATE_CORE: 
+            case ACTIVATE_CORE:
                 activate_core(ipcMessage.arg0);
                 break;
-            case DEACTIVATE_CORE: 
+            case DEACTIVATE_CORE:
                 deactivate_core(ipcMessage.arg0);
                 break;
             case SCHEDULE_NEW_THREAD:

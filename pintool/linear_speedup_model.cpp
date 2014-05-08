@@ -60,7 +60,7 @@ void LinearSpeedupModel::OptimizeEnergy(
             core_allocs,
             process_scaling,
             process_serial_runtime,
-            OptimizationTarget::ENERGY_TARGET);
+            OptimizationTarget::ENERGY);
 }
 
 /* Returns a core allocation that maximizes sum of speedups across all

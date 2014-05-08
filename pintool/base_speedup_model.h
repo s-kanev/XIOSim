@@ -18,8 +18,14 @@
  * allocation.
  */
 enum OptimizationTarget {
-    ENERGY_TARGET,
-    THROUGHPUT_TARGET
+    ENERGY,
+    THROUGHPUT
+};
+
+/* The different types of speedup models that can be created. */
+enum SpeedupModelType {
+    LINEAR,
+    LOGARITHMIC
 };
 
 class BaseSpeedupModel {
@@ -28,11 +34,17 @@ class BaseSpeedupModel {
          * compute energy.
          */
         BaseSpeedupModel(
-                double core_power, double uncore_power, int num_cores) {
+                double core_power,
+                double uncore_power,
+                int num_cores,
+                OptimizationTarget target = OptimizationTarget::THROUGHPUT) {
             this->core_power = core_power;
             this->uncore_power = uncore_power;
             this->num_cores = num_cores;
+            opt_target = target;
         }
+
+        virtual ~BaseSpeedupModel() {}
 
         /* Returns a core allocation that minimizes total energy consumption for
          * the system.
@@ -57,13 +69,26 @@ class BaseSpeedupModel {
         /* Returns a core allocation that maximizes sum of speedups for the
          * system.
          *
-         * Args and return values:  
+         * Args and return values:
          *   See OptimizeEnergy().
          */
         virtual void OptimizeThroughput(
                 std::map<int, int> &core_allocs,
                 std::vector<double> &process_scaling,
                 std::vector<double> &process_serial_runtime) = 0;
+
+        /* A convenience function that calls the appropriate optimization
+         * function based on the opt_target member of the class. This is useful
+         * when the optimization function is dynamically set at runtime, or it
+         * would be required to modify the code and recompile.
+         *
+         * For all arguments and returns, see OptimizeEnergy().
+         */
+        void OptimizeForTarget(
+                std::map<int, int> &core_allocs,
+                std::vector<double> &process_scaling,
+                std::vector<double> &process_serial_runtime);
+
     protected:
         /* Two scaling factors within this value are considered equal. */
         const double SCALING_EPSILON = 0.000001;
@@ -80,6 +105,9 @@ class BaseSpeedupModel {
 
         /* The total number of cores in the system. */
         int num_cores;
+
+        /* The target function for which to optimize core allocations. */
+        OptimizationTarget opt_target;
 
         /* Computes parallel runtime of a process given the number of allocated
          * cores and scaling data.
@@ -130,7 +158,7 @@ class BaseSpeedupModel {
                 std::map<int, int> &core_alloc,
                 std::vector<double> &process_scaling,
                 std::vector<double> &process_serial_runtime,
-                const unsigned int opt_target);
+                OptimizationTarget opt_target);
 
         /* Returns the current number of cores allocated in @core_alloc.
          *

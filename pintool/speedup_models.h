@@ -16,8 +16,11 @@ const double SCALING_EPSILON = 0.000001;
 class LinearSpeedupModel : public BaseSpeedupModel {
     public:
         LinearSpeedupModel(
-                double core_power, double uncore_power, int num_cores) :
-            BaseSpeedupModel(core_power, uncore_power, num_cores) {}
+                double core_power,
+                double uncore_power,
+                int num_cores,
+                OptimizationTarget target = OptimizationTarget::THROUGHPUT) :
+            BaseSpeedupModel(core_power, uncore_power, num_cores, target) {}
 
         /* Implements energy optimization under linear scaling assumptions. */
         void OptimizeEnergy(
@@ -41,8 +44,12 @@ class LinearSpeedupModel : public BaseSpeedupModel {
 
 class LogSpeedupModel : public BaseSpeedupModel {
     public:
-        LogSpeedupModel(double core_power, double uncore_power, int num_cores) :
-            BaseSpeedupModel(core_power, uncore_power, num_cores) {}
+        LogSpeedupModel(
+                double core_power,
+                double uncore_power,
+                int num_cores,
+                OptimizationTarget target = OptimizationTarget::THROUGHPUT) :
+            BaseSpeedupModel(core_power, uncore_power, num_cores, target) {}
 
         /* Implements energy optimization under logarithmic scaling assumptions.
          */

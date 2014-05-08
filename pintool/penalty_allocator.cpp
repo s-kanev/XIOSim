@@ -9,10 +9,17 @@
 #include <string>
 
 #include "allocators_impl.h"
+#include "base_speedup_model.h"
 
 namespace xiosim {
 
-PenaltyAllocator::PenaltyAllocator(int num_cores) : BaseAllocator(num_cores) {
+PenaltyAllocator::PenaltyAllocator(
+        OptimizationTarget opt_target,
+        SpeedupModelType model_type,
+        double core_power,
+        double uncore_power,
+        int num_cores) : BaseAllocator(
+                opt_target, model_type, core_power, uncore_power, num_cores) {
     process_penalties = new std::map<int, double>();
 }
 

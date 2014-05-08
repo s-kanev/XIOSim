@@ -84,8 +84,8 @@ FEEDER = $(OBJDIR)feeder_zesto.so
 HARNESS = $(OBJDIR)harness
 UNIT_TESTS = $(OBJDIR)test_allocation $(OBJDIR)test_parse_speedup $(OBJDIR)test_speedup_models
 
-ALLOCATOR_OBJS = $(OBJDIR)penalty_allocator.o $(OBJDIR)local_opt_allocator.o $(OBJDIR)gang_allocator.o $(OBJDIR)base_allocator.o $(OBJDIR)optimization_targets.o $(OBJDIR)linreg.o
 SPEEDUP_OBJS = $(OBJDIR)base_speedup_model.o $(OBJDIR)log_speedup_model.o $(OBJDIR)linear_speedup_model.o
+ALLOCATOR_OBJS = $(SPEEDUP_OBJS) $(OBJDIR)penalty_allocator.o $(OBJDIR)local_opt_allocator.o $(OBJDIR)gang_allocator.o $(OBJDIR)base_allocator.o $(OBJDIR)optimization_targets.o $(OBJDIR)linreg.o
 
 TIMING_OBJS = $(OBJDIR)timing_sim.o $(OBJDIR)lib.o $(OBJDIR)scheduler.o $(ALLOCATOR_OBJS) $(OBJDIR)multiprocess_shared.o  $(OBJDIR)ipc_queues.o $(OBJDIR)mpkeys_impl.o $(OBJDIR)BufferManagerConsumer.o $(OBJDIR)BufferManager.o
 

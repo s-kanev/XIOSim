@@ -2,15 +2,15 @@
 
 namespace xiosim {
 
-GangAllocator::GangAllocator(int ncores) : BaseAllocator(ncores)
-{
+GangAllocator::GangAllocator(
+        OptimizationTarget opt_target,
+        SpeedupModelType model_type,
+        double core_power,
+        double uncore_power,
+        int num_cores) : BaseAllocator(
+                opt_target, model_type, core_power, uncore_power, num_cores) {}
 
-}
-
-GangAllocator::~GangAllocator()
-{
-
-}
+GangAllocator::~GangAllocator() {}
 
 int GangAllocator::AllocateCoresForProcess(
         int asid, std::vector<double> scaling)

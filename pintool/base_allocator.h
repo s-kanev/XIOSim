@@ -11,17 +11,11 @@
 #include <string>
 #include "../synchronization.h"
 
+#include "base_speedup_model.h"
+
 namespace xiosim {
 
 class BaseAllocator {
-    protected:
-        const double MARGINAL_SPEEDUP_THRESHOLD = 0.4;
-        std::map<int, int> core_allocs;
-        int num_cores;
-        XIOSIM_LOCK allocator_lock;
-        BaseAllocator(int ncores);
-        void UpdateSHMAllocation(int asid, int allocated_cores) const;
-
     public:
         /* Deletes all state for this allocator. */
         virtual ~BaseAllocator();
@@ -45,6 +39,20 @@ class BaseAllocator {
         /* Returns the number of cores allocated to process asid. If asid does
          * not exist in the map, returns 0. */
         int get_cores_for_asid(int asid);
+
+        BaseSpeedupModel *speedup_model;
+
+    protected:
+        const double MARGINAL_SPEEDUP_THRESHOLD = 0.4;
+        std::map<int, int> core_allocs;
+        int num_cores;
+        XIOSIM_LOCK allocator_lock;
+        BaseAllocator(OptimizationTarget target,
+                      SpeedupModelType model_type,
+                      double core_power,
+                      double uncore_power,
+                      int ncores);
+        void UpdateSHMAllocation(int asid, int allocated_cores) const;
 
     private:
         BaseAllocator() {};

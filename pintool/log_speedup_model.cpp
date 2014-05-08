@@ -78,7 +78,7 @@ void LogSpeedupModel::OptimizeEnergy(
     MinimizeCoreAllocations(core_allocs,
                             process_scaling,
                             process_serial_runtime,
-                            OptimizationTarget::ENERGY_TARGET);
+                            OptimizationTarget::ENERGY);
 
     for (int i = 0; i < n; i++)
         delete[] candidate_solns[i];
@@ -108,7 +108,7 @@ void LogSpeedupModel::OptimizeThroughput(
             core_allocs,
             process_scaling,
             process_serial_runtime,
-            OptimizationTarget::THROUGHPUT_TARGET);
+            OptimizationTarget::THROUGHPUT);
 }
 
 /* Computes runtime for log scaling. */

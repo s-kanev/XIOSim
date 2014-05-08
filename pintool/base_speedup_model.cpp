@@ -6,6 +6,27 @@
 
 #include "base_speedup_model.h"
 
+/* A convenience function that calls the appropriate optimization function based
+ * on the opt_target member variable. This is useful when the optimization
+ * function is dynamically set at runtime, or it would be required to modify the
+ * code and recompile.
+ */
+void BaseSpeedupModel::OptimizeForTarget(
+        std::map<int, int> &core_allocs,
+        std::vector<double> &process_scaling,
+        std::vector<double> &process_serial_runtime) {
+    switch (opt_target) {
+        case OptimizationTarget::ENERGY:
+            OptimizeEnergy(
+                    core_allocs, process_scaling, process_serial_runtime);
+            break;
+        case OptimizationTarget::THROUGHPUT:
+            OptimizeThroughput(
+                    core_allocs, process_scaling, process_serial_runtime);
+            break;
+    }
+}
+
 /* This is a helper convenience method that does some setup before calling the
  * function that does all the actual minimization work.
  */
@@ -13,7 +34,7 @@ double BaseSpeedupModel::MinimizeCoreAllocations(
         std::map<int, int> &core_alloc,
         std::vector<double> &process_scaling,
         std::vector<double> &process_serial_runtime,
-        unsigned int opt_target) {
+        OptimizationTarget opt_target) {
 
     std::vector<int> process_list;
     for (auto it = core_alloc.begin(); it != core_alloc.end(); ++it)
@@ -21,14 +42,12 @@ double BaseSpeedupModel::MinimizeCoreAllocations(
 
     metric_function_t MetricFunction;
     switch (opt_target) {
-        case OptimizationTarget::ENERGY_TARGET:
+        case OptimizationTarget::ENERGY:
             MetricFunction = &BaseSpeedupModel::ComputeEnergy;
             break;
-        case OptimizationTarget::THROUGHPUT_TARGET:
+        case OptimizationTarget::THROUGHPUT:
             MetricFunction = &BaseSpeedupModel::ComputeThroughputMetric;
             break;
-        default:
-            return -1;  // Invalid optimization target.
     }
 
     // If the initial core allocation exceeds the number of cores in the system,

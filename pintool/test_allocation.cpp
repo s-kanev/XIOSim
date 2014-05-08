@@ -48,7 +48,9 @@ TEST_CASE("Penalty allocator", "penalty") {
     char* filepath = "loop_speedup_data.csv";
     PenaltyAllocator& core_allocator =
             reinterpret_cast<PenaltyAllocator&>(
-                    AllocatorParser::Get("penalty", NUM_CORES_TEST));
+                    AllocatorParser::Get(
+                        "penalty", "throughput", "linear",
+                        1, 8, NUM_CORES_TEST));
     LoadHelixSpeedupModelData(filepath);
 
     // Correct output for this test.
@@ -123,7 +125,8 @@ TEST_CASE("Locally optimal allocator", "local") {
     std::cout << "Number of processes: " << *num_processes << std::endl;
 #endif
     BaseAllocator& core_allocator =
-        AllocatorParser::Get("local", NUM_CORES_TEST);
+        AllocatorParser::Get("local", "throughput", "linear",
+                             1, 8, NUM_CORES_TEST);
     LoadHelixSpeedupModelData(filepath);
 
     /* Initialize test data and correct output.
