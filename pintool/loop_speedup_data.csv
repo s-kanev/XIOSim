@@ -1,5 +1,7 @@
 // These are for unit testing. Do not change without changing the unit tests
 // too. Speedup numbers are absolute speedups over single core execution.
+// Format: <loop_name>, <2 core speedup>, <4>, <8>, <16>, <serial runtime>,
+// <serial runtime variance>.
 loop_1,0.9,1.6,2.19,2.39,1111,0.111
 loop_2,0.6,1.1,1.4,1.65,22222,0.5
 loop_3,0.8,1.4,1.7,1.8,33333,1
