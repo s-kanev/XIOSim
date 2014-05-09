@@ -15,11 +15,11 @@ namespace xiosim {
 
 PenaltyAllocator::PenaltyAllocator(
         OptimizationTarget opt_target,
-        SpeedupModelType model_type,
+        SpeedupModelType speedup_model,
         double core_power,
         double uncore_power,
         int num_cores) : BaseAllocator(
-                opt_target, model_type, core_power, uncore_power, num_cores) {
+                opt_target, speedup_model, core_power, uncore_power, num_cores) {
     process_penalties = new std::map<int, double>();
 }
 
@@ -32,7 +32,7 @@ double PenaltyAllocator::get_penalty_for_asid(int asid) {
 }
 
 int PenaltyAllocator::AllocateCoresForProcess(
-        int asid, std::vector<double> scaling) {
+        int asid, std::vector<double> scaling, double serial_runtime) {
     // The nth element of @scaling is the incremental amount of speedup attained
     // if running under that many cores.
 #ifdef DEBUG

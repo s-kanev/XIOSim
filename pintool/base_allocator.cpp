@@ -18,12 +18,12 @@ namespace xiosim {
 
 BaseAllocator::BaseAllocator(
         OptimizationTarget target,
-        SpeedupModelType model_type,
+        SpeedupModelType speedup_model_type,
         double core_power,
         double uncore_power,
         int ncores) {
     num_cores = ncores;
-    switch (model_type) {
+    switch (speedup_model_type) {
         case SpeedupModelType::LINEAR:
             speedup_model = new LinearSpeedupModel(
                     core_power, uncore_power, num_cores, target);

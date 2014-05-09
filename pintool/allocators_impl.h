@@ -15,21 +15,22 @@ class GangAllocator : public BaseAllocator {
     public:
         /* Gets a singleton allocator for a system with @ncores cores. */
         static GangAllocator& Get(OptimizationTarget opt_target,
-                                  SpeedupModelType model_type,
+                                  SpeedupModelType speedup_model_type,
                                   double core_power,
                                   double uncore_power,
                                   int num_cores) {
                 static GangAllocator instance(
-                        opt_target, model_type, core_power, 
+                        opt_target, speedup_model_type, core_power,
                         uncore_power, num_cores);
                 return instance;
         }
         ~GangAllocator();
-        int AllocateCoresForProcess(int asid, std::vector<double> scaling);
+        int AllocateCoresForProcess(
+                int asid, std::vector<double> scaling, double serial_runtime);
 
     private:
         GangAllocator(OptimizationTarget opt_target,
-                      SpeedupModelType model_type,
+                      SpeedupModelType speedup_model_type,
                       double core_power,
                       double uncore_power,
                       int num_cores);
@@ -40,23 +41,24 @@ class PenaltyAllocator : public BaseAllocator {
     public:
         /* Gets a singleton allocator for a system with @ncores cores. */
         static PenaltyAllocator& Get(OptimizationTarget opt_target,
-                                     SpeedupModelType model_type,
+                                     SpeedupModelType speedup_model_type,
                                      double core_power,
                                      double uncore_power,
                                      int num_cores) {
             static PenaltyAllocator instance(
-                    opt_target, model_type, core_power, 
+                    opt_target, speedup_model_type, core_power,
                     uncore_power, num_cores);
             return instance;
         }
-        int AllocateCoresForProcess(int asid, std::vector<double> scaling);
+        int AllocateCoresForProcess(
+                int asid, std::vector<double> scaling, double serial_runtime);
         // Returns the current penalty on process asid, or -1 if the process
         // does not exist in the allocator's knowledge.
         double get_penalty_for_asid(int asid);
 
     private:
         PenaltyAllocator(OptimizationTarget opt_target,
-                         SpeedupModelType model_type,
+                         SpeedupModelType speedup_model_type,
                          double core_power,
                          double uncore_power,
                          int num_cores);
@@ -73,21 +75,22 @@ class LocallyOptimalAllocator : public BaseAllocator {
         /* Gets a singleton allocator for a system with @ncores cores. */
         static LocallyOptimalAllocator& Get(
                 OptimizationTarget opt_target,
-                SpeedupModelType model_type,
+                SpeedupModelType speedup_model_type,
                 double core_power,
                 double uncore_power,
                 int num_cores) {
             static LocallyOptimalAllocator instance(
-                    opt_target, model_type, core_power, 
+                    opt_target, speedup_model_type, core_power,
                     uncore_power, num_cores);
             return instance;
         }
         ~LocallyOptimalAllocator();
-        int AllocateCoresForProcess(int asid, std::vector<double> scaling);
+        int AllocateCoresForProcess(
+                int asid, std::vector<double> scaling, double serial_runtime);
     private:
         LocallyOptimalAllocator(
                 OptimizationTarget opt_target,
-                SpeedupModelType model_type,
+                SpeedupModelType speedup_model_type,
                 double core_power,
                 double uncore_power,
                 int num_cores);
@@ -97,8 +100,10 @@ class LocallyOptimalAllocator : public BaseAllocator {
             int num_checked_out;
             bool allocation_complete;
         } process_sync;
-        /* Process speedup for 1-n cores. */
-        std::vector<std::vector<double>*> process_scaling;
+        /* Scaling factors for each process. */
+        std::vector<double> process_scaling;
+        /* Serial runtimes for each process. */
+        std::vector<double> process_serial_runtime;
 
         // Get/reset all class global variables for sharing among threads.
         void ResetState();
@@ -108,15 +113,15 @@ class AllocatorParser {
     public:
         static BaseAllocator& Get(std::string allocator_type,
                                   std::string allocator_opt_target,
-                                  std::string speedup_model,
+                                  std::string speedup_model_str,
                                   double core_power,
                                   double uncore_power,
                                   int num_cores) {
-            SpeedupModelType model_type;
-            if (speedup_model == "linear")
-                model_type = SpeedupModelType::LINEAR;
-            else if (speedup_model == "logarithmic")
-                model_type = SpeedupModelType::LOGARITHMIC;
+            SpeedupModelType speedup_model_type;
+            if (speedup_model_str == "linear")
+                speedup_model_type = SpeedupModelType::LINEAR;
+            else if (speedup_model_str == "logarithmic")
+                speedup_model_type = SpeedupModelType::LOGARITHMIC;
             else
                 assert(false);
 
@@ -138,16 +143,16 @@ class AllocatorParser {
                         assert(false);
                 assert(max_cores > 0 && max_cores <= num_cores);
                 return GangAllocator::Get(
-                        opt_target, model_type, core_power,
+                        opt_target, speedup_model_type, core_power,
                         uncore_power, max_cores);
             }
             if (allocator_type == "local")
                 return LocallyOptimalAllocator::Get(
-                        opt_target, model_type, core_power,
+                        opt_target, speedup_model_type, core_power,
                         uncore_power, num_cores);
             if (allocator_type == "penalty")
                 return PenaltyAllocator::Get(
-                        opt_target, model_type, core_power,
+                        opt_target, speedup_model_type, core_power,
                         uncore_power, num_cores);
             assert(false);
         }

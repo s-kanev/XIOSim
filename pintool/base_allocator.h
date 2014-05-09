@@ -27,8 +27,10 @@ class BaseAllocator {
          * allocation.
          * Returns: number of allocated cores.
          */
-        virtual int AllocateCoresForProcess(int asid,
-                std::vector<double> scaling) = 0;
+        virtual int AllocateCoresForProcess(
+                int asid,
+                std::vector<double> scaling,
+                double serial_runtime) = 0;
 
         /* Releases all cores allocated for pid except for 1, so that the
          * process can continue to execute serial code on a single thread. If
@@ -48,7 +50,7 @@ class BaseAllocator {
         int num_cores;
         XIOSIM_LOCK allocator_lock;
         BaseAllocator(OptimizationTarget target,
-                      SpeedupModelType model_type,
+                      SpeedupModelType speedup_model_type,
                       double core_power,
                       double uncore_power,
                       int ncores);

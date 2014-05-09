@@ -24,12 +24,12 @@ namespace xiosim {
 
 LocallyOptimalAllocator::LocallyOptimalAllocator(
         OptimizationTarget opt_target,
-        SpeedupModelType model_type,
+        SpeedupModelType speedup_model,
         double core_power,
         double uncore_power,
         int num_cores) : BaseAllocator(
-                opt_target, model_type, core_power, uncore_power, num_cores),
-        process_scaling() {
+                opt_target, speedup_model, core_power, uncore_power, num_cores),
+        process_scaling(), process_serial_runtime() {
     ResetState();
 }
 
@@ -41,15 +41,19 @@ void LocallyOptimalAllocator::ResetState() {
     process_sync.num_checked_out = 0;
     process_sync.allocation_complete = false;
     process_scaling.resize(*num_processes);
+    process_scaling.clear();
+    process_serial_runtime.resize(*num_processes);
+    process_serial_runtime.clear();
 }
 
 int LocallyOptimalAllocator::AllocateCoresForProcess(
-        int asid, std::vector<double> scaling) {
+        int asid, std::vector<double> scaling, double serial_runtime) {
     lk_lock(&allocator_lock, 1);
 
     // Start each process with 1 core allocated.
     core_allocs[asid] = 1;
-    process_scaling[asid] = &scaling;
+    process_scaling[asid] = speedup_model->ComputeScalingFactor(scaling);
+    process_serial_runtime[asid] = serial_runtime;
     process_sync.num_checked_in++;
     // Wait for all processes in the system to check in before proceeding.
     while (process_sync.num_checked_in < *num_processes) {
@@ -63,11 +67,12 @@ int LocallyOptimalAllocator::AllocateCoresForProcess(
     // allocation optimization function. All other threads can wait for this to
     // complete and then simply use the output.
     if (!process_sync.allocation_complete) {
-        OptimizeThroughput(core_allocs, process_scaling, num_cores);
+        speedup_model->OptimizeForTarget(
+                core_allocs, process_scaling, process_serial_runtime);
         process_sync.allocation_complete = true;
     }
 
-    int allocated_cores = core_allocs[asid]++;
+    int allocated_cores = core_allocs[asid];
     process_sync.num_checked_out++;
     if (process_sync.num_checked_out == *num_processes) {
         // The last thread executing this code will reset class variables for
