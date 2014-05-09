@@ -95,4 +95,11 @@ class LinearRegression
     void Calculate(); // calculate coefficients
 };
 
+/* Linear regression where y = 1 + a*x. */
+class LinearRegressionIntercept : public LinearRegression {
+    public:
+        LinearRegressionIntercept() : LinearRegression() {}
+        void Calculate();
+};
+
 #endif  // end of linreg.h

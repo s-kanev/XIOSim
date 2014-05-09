@@ -62,6 +62,28 @@ void LinearRegression::Calculate()
     }
 }
 
+void LinearRegressionIntercept::Calculate() {
+    if (haveData())
+    {
+        if (fabs( double(n) * sumXsquared - sumX * sumX) >
+                DBL_EPSILON)
+        {
+            b = (sumXY - sumX) / sumXsquared;
+            a = 1.0;
+
+            double sx = b * ( sumXY - sumX * sumY / double(n));
+            double sy2 = sumYsquared - sumY * sumY / double(n);
+            double sy = sy2 - sx; coefD = sx / sy2;
+            coefC = sqrt(coefD);
+            stdError = sqrt(sy / double(n - 2));
+        }
+        else
+        {
+            a = b = coefD = coefC = stdError = 0.0;
+        }
+    }
+}
+
 std::ostream& operator<<(std::ostream& out, LinearRegression& lr)
 {
     if (lr.haveData())
