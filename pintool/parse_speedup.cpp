@@ -1,3 +1,4 @@
+#include <cmath>
 #include <fstream>
 #include <assert.h>
 #include <string>
@@ -51,19 +52,6 @@ static void InterpolateSpeedup(double* speedup_in, double* speedup_out)
     }
 }
 
-/* Runs linear regression on the speedup data for a simple linear speedup model.
- */
-static void PerformLinearRegression(
-    double* speedup, int num_cores, double* slope, double* intercept) {
-  LinearRegression lr;
-  for (int i = 0; i <= num_cores; i++) {
-    Point2D p(i+1, speedup[i]);
-    lr.addPoint(p);
-  }
-  *slope = lr.getB();
-  *intercept = lr.getA();
-}
-
 /* Parses a comma separated value file that contains predicted speedups for
  * each loop when run on 2,4,8,and 16 cores and stores the data in a map.
  */
@@ -87,8 +75,7 @@ void LoadHelixSpeedupModelData(const char* filepath)
             if (!boost::starts_with(line.c_str(), "//")) {
                 tokenizer<escaped_list_separator<char>> tok(line);
                 string loop_name;
-                double partial_speedup_data[NUM_SPEEDUP_POINTS];
-                double* full_speedup_data = new double[MAX_CORES];
+                double *speedup_data = new double[NUM_SPEEDUP_POINTS];
                 double serial_runtime = 0;
                 double serial_runtime_variance = 0;
                 int i = 0;
@@ -99,7 +86,7 @@ void LoadHelixSpeedupModelData(const char* filepath)
                         first_iteration = false;
                     } else if (i < NUM_SPEEDUP_POINTS) {
                         // Speedup data points.
-                        partial_speedup_data[i] = atof(it->c_str());
+                        speedup_data[i] = atof(it->c_str());
                         i++;
                     } else {
                         // Serial runtime and variance.
@@ -108,11 +95,8 @@ void LoadHelixSpeedupModelData(const char* filepath)
                         serial_runtime_variance = atof(it->c_str());
                     }
                 }
-                ConvertToMarginalSpeedup(
-                    partial_speedup_data, NUM_SPEEDUP_POINTS);
-                InterpolateSpeedup(partial_speedup_data, full_speedup_data);
                 loop_data *data = new loop_data();
-                data->speedup = full_speedup_data;
+                data->speedup = speedup_data;
                 data->serial_runtime = serial_runtime;
                 data->serial_runtime_variance = serial_runtime_variance;
                 loop_data_map[loop_name] = data;
@@ -138,9 +122,10 @@ std::vector<double> GetHelixLoopScaling(const std::string &loop_name)
 {
     double *res_raw = loop_data_map[loop_name]->speedup;
     assert(res_raw != NULL);
-    std::vector<double> res(MAX_CORES);
-    for (int i=0; i < MAX_CORES; i++)
-        res[i] = res_raw[i];
+    std::vector<double> res(NUM_SPEEDUP_POINTS+1);
+    res[0] = 1;  // for 1 core, speedup is 1.
+    for (size_t i=0; i < NUM_SPEEDUP_POINTS; i++)
+        res[i+1] = res_raw[i];
     return res;
 }
 

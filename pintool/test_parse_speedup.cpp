@@ -1,3 +1,5 @@
+/* Unit tests for the speedup data parser. */
+
 #define CATCH_CONFIG_MAIN
 #include <string>
 #include <vector>
@@ -9,28 +11,18 @@ TEST_CASE("Complete front-to-end test of the speedup data parser", "parser") {
     using namespace std;
     const char* filepath = "loop_speedup_data.csv";
     LoadHelixSpeedupModelData(filepath);
-    const int NUM_CORES = 16;
+    // Data has four points, and GetHelixLoopScaling() adds a fifth for 1 core.
+    const int NUM_POINTS = 4;
 
     SECTION("test data for loop_1") {
         string loop_name = "loop_1";
         vector<double> loop_scaling = GetHelixLoopScaling(loop_name);
-        REQUIRE(loop_scaling.size() == NUM_CORES);
-        REQUIRE(loop_scaling.at(0) == Approx(0.0));
+        REQUIRE(loop_scaling.size() == NUM_POINTS+1);
+        REQUIRE(loop_scaling.at(0) == Approx(1.0));
         REQUIRE(loop_scaling.at(1) == Approx(0.9));
-        REQUIRE(loop_scaling.at(2) == Approx(0.8));
-        REQUIRE(loop_scaling.at(3) == Approx(0.7));
-        REQUIRE(loop_scaling.at(4) == Approx(0.6725));
-        REQUIRE(loop_scaling.at(5) == Approx(0.645));
-        REQUIRE(loop_scaling.at(6) == Approx(0.6175));
-        REQUIRE(loop_scaling.at(7) == Approx(0.59));
-        REQUIRE(loop_scaling.at(8) == Approx(0.54125));
-        REQUIRE(loop_scaling.at(9) == Approx(0.4925));
-        REQUIRE(loop_scaling.at(10) == Approx(0.44375));
-        REQUIRE(loop_scaling.at(11) == Approx(0.395));
-        REQUIRE(loop_scaling.at(12) == Approx(0.34625));
-        REQUIRE(loop_scaling.at(13) == Approx(0.2975));
-        REQUIRE(loop_scaling.at(14) == Approx(0.24875));
-        REQUIRE(loop_scaling.at(15) == Approx(0.2));
+        REQUIRE(loop_scaling.at(2) == Approx(1.6));
+        REQUIRE(loop_scaling.at(3) == Approx(2.19));
+        REQUIRE(loop_scaling.at(4) == Approx(2.39));
     }
 
     SECTION("test the weird loop name with weird speedup") {
@@ -38,12 +30,12 @@ TEST_CASE("Complete front-to-end test of the speedup data parser", "parser") {
         vector<double> loop_scaling = GetHelixLoopScaling(loop_name);
         // The first three elements will be 0, 0.5, and 0.25 due to linear
         // interpolation but all the others should be 0.5.
-        REQUIRE(loop_scaling.at(0) == Approx(0.0));
-        REQUIRE(loop_scaling.at(1) == Approx(0.5));
-        REQUIRE(loop_scaling.at(2) == Approx(0.25));
-        for (int i = 3; i < NUM_CORES; i++) {
-          REQUIRE(loop_scaling.at(i) == Approx(0.0));
-        }
+        REQUIRE(loop_scaling.size() == NUM_POINTS+1);
+        REQUIRE(loop_scaling.at(0) == Approx(1));
+        REQUIRE(loop_scaling.at(1) == Approx(1.5));
+        REQUIRE(loop_scaling.at(2) == Approx(1.5));
+        REQUIRE(loop_scaling.at(3) == Approx(1.5));
+        REQUIRE(loop_scaling.at(4) == Approx(1.5));
     }
 
     SECTION("Test parsing of serial runtime and variance.") {

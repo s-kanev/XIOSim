@@ -8,6 +8,7 @@
 #include <map>
 #include <vector>
 
+#include "linreg.h"
 #include "speedup_models.h"
 
 /* Returns a core allocation that optimizes total energy consumption for the
@@ -164,4 +165,14 @@ double LogSpeedupModel::LambertW(const double z) {
     /* should never get here */
     fprintf(stderr,"LambertW: No convergence at z=%g, exiting.\n",z);
     exit(1);
+}
+
+double LogSpeedupModel::ComputeScalingFactor(
+        std::vector<double> &core_scaling) {
+    LinearRegressionIntercept lr;
+    for (size_t i = 0; i <= core_scaling.size(); i++) {
+        Point2D p(log(i+1.0), core_scaling[i]);
+        lr.addPoint(p);
+    }
+    return lr.getB();
 }

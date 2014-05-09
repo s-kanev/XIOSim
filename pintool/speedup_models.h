@@ -40,6 +40,16 @@ class LinearSpeedupModel : public BaseSpeedupModel {
                 int num_cores_alloc,
                 double process_scaling,
                 double process_serial_runtime);
+
+        /* Compute the scaling factor C that fits the provided core scaling data
+         * for the speeup equation S(n) = C*n.
+         *
+         * Args:
+         *   speedup: A vector of speedup data for 2, 4, 8, and 16 cores.
+         * Returns 
+         *   The fitted scaling factor.
+         */
+        double ComputeScalingFactor(std::vector<double> &core_scaling);
 };
 
 class LogSpeedupModel : public BaseSpeedupModel {
@@ -70,6 +80,16 @@ class LogSpeedupModel : public BaseSpeedupModel {
                 int num_cores_alloc,
                 double process_scaling,
                 double process_serial_runtime);
+
+        /* Compute the scaling factor C that fits the provided core scaling data
+         * for the speeup equation S(n) = 1 + C * ln(n).
+         *
+         * Args:
+         *   speedup: A vector of speedup data for 2, 4, 8, and 16 cores.
+         * Returns 
+         *   The fitted scaling factor.
+         */
+        double ComputeScalingFactor(std::vector<double> &core_scaling);
 
         /* Lambert W function.
          * Was ~/C/LambertW.c written K M Briggs Keith dot Briggs at bt dot com

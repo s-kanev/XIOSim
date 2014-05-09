@@ -5,8 +5,6 @@
 #include <vector>
 #include <string>
 
-#include "linreg.h"
-
 // Describes loop scaling behavior in terms of its scaling across cores and its
 // serial runtime.
 struct loop_data {
@@ -28,17 +26,5 @@ std::vector<double> GetHelixLoopScaling(const std::string &loop_name);
  * runtime, and serial runtime variance across invocations.
  */
 loop_data* GetHelixFullLoopData(const std::string &loop_name);
-
-/* Runs linear regression on the speedup data for a simple linear speedup model.
- *
- * Args:
- *   speedup: An array of size num_cores.
- *   num_cores: The number of total cores in the system.
- * Returns (via the parameters):
- *   slope: A double pointer with the slope of the fitted line.
- *   intercept: A double pointer with the intercept of the fitted line.
- */
-static void PerformLinearRegression(
-        double* speedup, int num_cores, double* slope, double* intercept);
 
 #endif /* __PARSE_SPEEDUP_H__ */

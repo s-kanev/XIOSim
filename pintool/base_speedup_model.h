@@ -77,6 +77,9 @@ class BaseSpeedupModel {
                 std::vector<double> &process_scaling,
                 std::vector<double> &process_serial_runtime) = 0;
 
+        virtual double ComputeScalingFactor(
+                std::vector<double> &process_scaling) = 0;
+
         /* A convenience function that calls the appropriate optimization
          * function based on the opt_target member of the class. This is useful
          * when the optimization function is dynamically set at runtime, or it
