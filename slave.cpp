@@ -285,6 +285,11 @@ void Zesto_Destroy()
 
   repeater_shutdown(cores[0]->knobs->exec.repeater_opt_str);
 
+  /* If captured, print out ztrace */
+  for (int i=0; i<num_cores; i++)
+    cores[i]->oracle->trace_in_flight_ops();
+  flush_trace();
+
   for(int i=0; i<num_cores; i++)
     if(cores[i]->stat.oracle_unknown_insn / (double) cores[i]->stat.oracle_total_insn > 0.02)
       fprintf(stderr, "WARNING: [%d] More than 2%% instructions turned to NOPs (%lld out of %lld)\n",
