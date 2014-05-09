@@ -61,6 +61,23 @@ void OptimizeThroughput(
  * been verified with extensive testing.
  * TODO: Since this method is not needed outside of this file, we may want to
  * consider a refactoring that makes this a private member of some class.
+ *
+ * Args:
+ *   core_alloc: A reference to a map from asid to the number of cores currently
+ *      allocated.  When the function returns, the updated core allocations are
+ *      stored in this map.
+ *   gammas: A reference to a vector of scaling factors. The index of the
+ *      element corresponds to the asid.
+ *   prev_max: The worst-case runtime from the previous invocation of this
+ *      function. This is used because this function is recursive. This equals
+ *      -1 if the current worst-case runtime is worse than the previous maximum
+ *      (which means the current allocation is less optimal). The first
+ *      invocation of this function sets this parameter to -1.
+ *
+ * Returns:
+ *   The maximum runtime of the system under the current core allocation (stored
+ *   in @core_alloc) if the current maximum runtime is less than the previous
+ *   maximum, or -1 otherwise.
  */
 double MinimizeCoreAllocations(
         std::map<int, int> &core_alloc,

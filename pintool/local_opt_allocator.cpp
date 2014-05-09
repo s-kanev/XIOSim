@@ -22,8 +22,14 @@
 
 namespace xiosim {
 
-LocallyOptimalAllocator::LocallyOptimalAllocator(int num_cores) :
-    BaseAllocator(num_cores), process_scaling() {
+LocallyOptimalAllocator::LocallyOptimalAllocator(
+        OptimizationTarget opt_target,
+        SpeedupModelType model_type,
+        double core_power,
+        double uncore_power,
+        int num_cores) : BaseAllocator(
+                opt_target, model_type, core_power, uncore_power, num_cores),
+        process_scaling() {
     ResetState();
 }
 
@@ -64,8 +70,8 @@ int LocallyOptimalAllocator::AllocateCoresForProcess(
     int allocated_cores = core_allocs[asid]++;
     process_sync.num_checked_out++;
     if (process_sync.num_checked_out == *num_processes) {
-        // The last thread executing this code will reset class variables for the
-        // next allocation.
+        // The last thread executing this code will reset class variables for
+        // the next allocation.
         ResetState();
     }
     lk_unlock(&allocator_lock);

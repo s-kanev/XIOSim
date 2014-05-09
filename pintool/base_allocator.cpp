@@ -12,14 +12,31 @@
 #include "multiprocess_shared.h"
 
 #include "base_allocator.h"
+#include "speedup_models.h"
 
 namespace xiosim {
 
-BaseAllocator::BaseAllocator(int ncores) {
+BaseAllocator::BaseAllocator(
+        OptimizationTarget target,
+        SpeedupModelType model_type,
+        double core_power,
+        double uncore_power,
+        int ncores) {
     num_cores = ncores;
+    switch (model_type) {
+        case SpeedupModelType::LINEAR:
+            speedup_model = new LinearSpeedupModel(
+                    core_power, uncore_power, num_cores, target);
+            break;
+        case SpeedupModelType::LOGARITHMIC:
+            speedup_model = new LogSpeedupModel(
+                    core_power, uncore_power, num_cores, target);
+            break;
+    }
 }
 
 BaseAllocator::~BaseAllocator() {
+    delete speedup_model;
 }
 
 void BaseAllocator::DeallocateCoresForProcess(int asid) {

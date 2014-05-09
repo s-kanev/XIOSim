@@ -1,12 +1,12 @@
 /* zesto-uncore.cpp - Zesto uncore wrapper class
- * 
+ *
  * Copyright © 2009 by Gabriel H. Loh and the Georgia Tech Research Corporation
  * Atlanta, GA  30332-0415
  * All Rights Reserved.
- * 
+ *
  * THIS IS A LEGAL DOCUMENT BY DOWNLOADING ZESTO, YOU ARE AGREEING TO THESE
  * TERMS AND CONDITIONS.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -18,31 +18,31 @@
  * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
- * 
+ *
  * NOTE: Portions of this release are directly derived from the SimpleScalar
  * Toolset (property of SimpleScalar LLC), and as such, those portions are
  * bound by the corresponding legal terms and conditions.  All source files
  * derived directly or in part from the SimpleScalar Toolset bear the original
  * user agreement.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
- * 
+ *
  * 1. Redistributions of source code must retain the above copyright notice,
  * this list of conditions and the following disclaimer.
- * 
+ *
  * 2. Redistributions in binary form must reproduce the above copyright notice,
  * this list of conditions and the following disclaimer in the documentation
  * and/or other materials provided with the distribution.
- * 
+ *
  * 3. Neither the name of the Georgia Tech Research Corporation nor the names of
  * its contributors may be used to endorse or promote products derived from
  * this software without specific prior written permission.
- * 
+ *
  * 4. Zesto is distributed freely for commercial and non-commercial use.  Note,
  * however, that the portions derived from the SimpleScalar Toolset are bound
  * by the terms and agreements set forth by SimpleScalar, LLC.  In particular:
- * 
+ *
  *   "Nonprofit and noncommercial use is encouraged. SimpleScalar may be
  *   downloaded, compiled, executed, copied, and modified solely for nonprofit,
  *   educational, noncommercial research, and noncommercial scholarship
@@ -51,13 +51,13 @@
  *   solely for nonprofit, educational, noncommercial research, and
  *   noncommercial scholarship purposes provided that this notice in its
  *   entirety accompanies all copies."
- * 
+ *
  * User is responsible for reading and adhering to the terms set forth by
  * SimpleScalar, LLC where appropriate.
- * 
+ *
  * 5. No nonprofit user may place any restrictions on the use of this software,
  * including as modified by the user, by any other authorized user.
- * 
+ *
  * 6. Noncommercial and nonprofit users may distribute copies of Zesto in
  * compiled or executable form as set forth in Section 2, provided that either:
  * (A) it is accompanied by the corresponding machine-readable source code, or
@@ -67,7 +67,7 @@
  * verbatim duplication by anyone, or (C) it is distributed by someone who
  * received only the executable form, and is accompanied by a copy of the
  * written offer of source code.
- * 
+ *
  * 7. Zesto was developed by Gabriel H. Loh, Ph.D.  US Mail: 266 Ferst Drive,
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
@@ -220,7 +220,7 @@ uncore_t::~uncore_t()
   MC = NULL;
 }
 
-void  
+void
 uncore_reg_options(struct opt_odb_t * const odb)
 {
   opt_reg_string(odb, "-LLC","last-level cache configuration string [DS]",
@@ -268,13 +268,17 @@ uncore_reg_options(struct opt_odb_t * const odb)
   opt_reg_flag(odb, "-cache:magic", "All caches always hit",
       &cache_magic, /*default*/false, /*print*/true,/*format*/NULL);
   opt_reg_double(odb, "-cpu:speed", "CPU speed in MHz [DS]",
-      &knobs.default_cpu_speed, /*default*/4000.0,/*print*/true,/*format*/NULL); 
+      &knobs.default_cpu_speed, /*default*/4000.0,/*print*/true,/*format*/NULL);
   opt_reg_string(odb, "-MC", "memory controller configuration string [DS]",
       &MC_opt_string,/*default */"simple:4:1",/*print*/true,/*format*/NULL);
   opt_reg_int(odb, "-scheduler:tick", "scheduler reshuffle interval in CPU cycles",
       &knobs.scheduler_tick, /* default */0, /* print */true, /* format */NULL);
   opt_reg_string(odb, "-allocator", "core allocation algorithm [gang, local, penalty]",
       &knobs.allocator, /* default */"gang", /* print */true, /* format */NULL);
+  opt_reg_string(odb, "-allocator_opt_target", "allocation optimization target [energy, throughput]",
+      &knobs.allocator_opt_target, /* default */"throughput", /* print */true, /* format */NULL);
+  opt_reg_string(odb, "-speedup_model", "multicore speedup model [linear, log]",
+      &knobs.speedup_model, /* default */"linear", /* print */true, /* format */NULL);
 }
 
 /* register all of the stats */

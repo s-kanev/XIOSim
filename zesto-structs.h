@@ -436,7 +436,24 @@ struct core_knobs_t
   } power;
 
   int scheduler_tick;
+
+  /* A command line flag specifying the core allocation policy. Valid options:
+   * "gang", "local", or "penalty". See pintool/base_allocator.h for more
+   * details.
+   */
   const char * allocator;
+
+  /* A command line flag specifying the speedup model to use when calculating
+   * core allocations. Valid options: "linear" or "log". See
+   * pintool/base_speedup_model.h for more details.
+   */
+  const char * speedup_model;
+
+  /* A command line flag specifying the optimization target when computing core
+   * allocations. Valid options: "energy" or "throughput". See
+   * pintool/base_speedup_model.h for more details.
+   */
+  const char * allocator_opt_target;
 };
 
 extern struct core_t ** cores;
