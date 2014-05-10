@@ -223,53 +223,28 @@ static ssize_t do_read(const int fd, void* buff, const size_t size)
 
 static bool readHandshake(pid_t tid, int fd, handshake_container_t* handshake)
 {
-  const int handshakeBytes = sizeof(P2Z_HANDSHAKE);
-  const int flagBytes = sizeof(handshake_flags_t);
-  const int mapEntryBytes = sizeof(uint32_t) + sizeof(uint8_t);
-
-  int mapSize;
-  int bytesRead = do_read(fd, &(mapSize), sizeof(int));
+  int bufferSize;
+  int bytesRead = do_read(fd, &(bufferSize), sizeof(int));
   if(bytesRead == -1) {
     cerr << "File read error: " << bytesRead << " Errcode:" << strerror(errno) << endl;
     abort();
   }
   assert(bytesRead == sizeof(int));
 
-  int mapBytes = mapSize * mapEntryBytes;
-  int totalBytes = handshakeBytes + flagBytes + mapBytes;
+  /* We have read the size field already. Now read the rest. */
+  bufferSize -= sizeof(bufferSize);
 
   void * readBuffer = readBuffer_[tid];
   assert(readBuffer != NULL);
 
-  bytesRead = do_read(fd, readBuffer, totalBytes);
+  bytesRead = do_read(fd, readBuffer, bufferSize);
   if(bytesRead == -1) {
     cerr << "File read error: " << bytesRead << " Errcode:" << strerror(errno) << endl;
     abort();
   }
-  assert(bytesRead == totalBytes);
+  assert(bytesRead == bufferSize);
 
-  void * buffPosition = readBuffer;
-  memcpy(&(handshake->handshake), buffPosition, handshakeBytes);
-  buffPosition = (char*)buffPosition + handshakeBytes;
-
-  memcpy(&(handshake->flags), buffPosition, flagBytes);
-  buffPosition = (char*)buffPosition + flagBytes;
-
-  handshake->mem_buffer.clear();
-  for(int i = 0; i < mapSize; i++) {
-    uint32_t first;
-    uint8_t second;
-
-    first = *((uint32_t*)buffPosition);
-    buffPosition = (char*)buffPosition + sizeof(uint32_t);
-
-    second = *((uint8_t*)buffPosition);
-    buffPosition = (char*)buffPosition + sizeof(uint8_t);
-
-    (handshake->mem_buffer)[first] = second;
-  }
-
-  assert(((unsigned long long int)readBuffer) + totalBytes == ((unsigned long long int)buffPosition));
+  handshake->Deserialize(readBuffer, bufferSize);
 
   return true;
 }
