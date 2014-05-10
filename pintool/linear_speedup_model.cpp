@@ -128,3 +128,8 @@ double LinearSpeedupModel::ComputeScalingFactor(
     }
     return lr.getB();
 }
+
+/* Under linear scaling, the ideal scaling factor is just 1. */
+double LinearSpeedupModel::ComputeIdealScalingFactor() {
+    return 1.0;
+}

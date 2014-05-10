@@ -46,10 +46,15 @@ class LinearSpeedupModel : public BaseSpeedupModel {
          *
          * Args:
          *   speedup: A vector of speedup data for 2, 4, 8, and 16 cores.
-         * Returns 
+         *
+         * Returns:
          *   The fitted scaling factor.
          */
         double ComputeScalingFactor(std::vector<double> &core_scaling);
+
+        /* Returns 1, because under linear scaling, the ideal scaling factor is
+         * just 1. */
+        double ComputeIdealScalingFactor();
 };
 
 class LogSpeedupModel : public BaseSpeedupModel {
@@ -86,10 +91,17 @@ class LogSpeedupModel : public BaseSpeedupModel {
          *
          * Args:
          *   speedup: A vector of speedup data for 2, 4, 8, and 16 cores.
-         * Returns 
+         *
+         * Returns:
          *   The fitted scaling factor.
          */
         double ComputeScalingFactor(std::vector<double> &core_scaling);
+
+        /* We calculate the maximum scaling factor as the factor that would
+         * result in N-times speedup for a system of N cores. This means S(N) =
+         * N = 1+C*ln(N), so C = (N-1)/ln(N).
+         */
+        double ComputeIdealScalingFactor();
 
         /* Lambert W function.
          * Was ~/C/LambertW.c written K M Briggs Keith dot Briggs at bt dot com

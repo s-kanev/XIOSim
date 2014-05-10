@@ -77,8 +77,25 @@ class BaseSpeedupModel {
                 std::vector<double> &process_scaling,
                 std::vector<double> &process_serial_runtime) = 0;
 
+        /* Compute the scaling factor that fits the scaling data for the
+         * implemented speedup model.
+         *
+         * Args:
+         *   process_scaling: A vector that holds speedups on 1,2,4,8, and 16
+         *     cores for a process.
+         *
+         * Returns:
+         *   The scaling factor for the implemented speedup model.
+         */
         virtual double ComputeScalingFactor(
                 std::vector<double> &process_scaling) = 0;
+
+        /* Returns the maximum scaling factor possible under the implemented
+         * speedup model. Maximum scaling means as close to 1x speedup per
+         * additional core as possible, and it does not account for superlinear
+         * speedup effects.
+         */
+        virtual double ComputeIdealScalingFactor() = 0;
 
         /* A convenience function that calls the appropriate optimization
          * function based on the opt_target member of the class. This is useful

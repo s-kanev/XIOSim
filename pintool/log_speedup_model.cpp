@@ -167,6 +167,9 @@ double LogSpeedupModel::LambertW(const double z) {
     exit(1);
 }
 
+/* The scaling data is fitted to the equation y=1+b*ln(x) with the substitution
+ * x' = ln(x), so this becomes a straightforward linear regression.
+ */
 double LogSpeedupModel::ComputeScalingFactor(
         std::vector<double> &core_scaling) {
     LinearRegressionIntercept lr;
@@ -175,4 +178,8 @@ double LogSpeedupModel::ComputeScalingFactor(
         lr.addPoint(p);
     }
     return lr.getB();
+}
+
+double LogSpeedupModel::ComputeIdealScalingFactor() {
+    return (num_cores - 1.0) / (log(num_cores));
 }
