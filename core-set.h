@@ -1,6 +1,7 @@
 #ifndef __CORE_SET__
 #define __CORE_SET__
 
+#include "assert.h"
 #include <set>
 
 class CoreSet : public std::set<int>
