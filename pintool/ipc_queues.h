@@ -38,7 +38,7 @@ struct ipc_message_t {
      * not only consumed. */
     bool blocking;
 
-    ipc_message_t() : 
+    ipc_message_t() :
         id(INVALID_MSG),
         arg0(0), arg1(0), arg2(0), arg3(0),
         blocking(false) {}
@@ -157,10 +157,11 @@ struct ipc_message_t {
         this->arg1 = coreID;
     }
 
-    void AllocateCores(int asid, std::vector<double> scaling)
+    void AllocateCores(int asid, double serial_runtime)
     {
         this->id = ALLOCATE_CORES;
         this->arg0 = asid;
+        this->arg1 = serial_runtime;
     }
 
     void DeallocateCores(int asid)
@@ -174,7 +175,6 @@ struct ipc_message_t {
                 (this->arg0 == rhs.arg0) &&
                 (this->arg1 == rhs.arg1) &&
                 (this->arg2 == rhs.arg2);
-                
     }
 };
 static size_t hash_value(ipc_message_t const& obj)

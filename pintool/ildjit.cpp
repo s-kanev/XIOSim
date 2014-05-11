@@ -313,15 +313,18 @@ VOID ILDJIT_startInitParallelLoop(ADDRINT loop)
         return;
 
     vector<double> scaling;
+    double serial_runtime = 0;
 
     if (!KnobPredictedSpeedupFile.Value().empty())
     {
         string loop_name((const char*)loop);
         scaling = GetHelixLoopScaling(loop_name);
+        loop_data* data = GetHelixFullLoopData(loop_name);
+        serial_runtime = data->serial_runtime;
     }
 
     ipc_message_t msg;
-    msg.AllocateCores(asid, scaling);
+    msg.AllocateCores(asid, serial_runtime);
     SendIPCMessage(msg, /*blocking*/true);
 
     /* Here we've finished with the allocation decision. */

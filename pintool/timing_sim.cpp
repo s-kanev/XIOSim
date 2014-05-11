@@ -357,6 +357,7 @@ void CheckIPCMessageQueue(bool isEarly, int caller_coreID)
 
         /* And execute the appropriate call based on the protocol
          * defined in interface.h */
+        bool ackBlockingMessage = true;
         switch(ipcMessage.id) {
             /* Sim control related */
             case SLICE_START:
@@ -409,8 +410,14 @@ void CheckIPCMessageQueue(bool isEarly, int caller_coreID)
                 xiosim::SetThreadAffinity(ipcMessage.arg0, ipcMessage.arg1);
                 break;
             case ALLOCATE_CORES:
-                core_allocator->AllocateCoresForProcess(ipcMessage.arg0, vector<double>());
-                break;
+                {
+                    int result = core_allocator->AllocateCoresForProcess(
+                            ipcMessage.arg0, vector<double>(), ipcMessage.arg1);
+                    if (result == -1) {
+                        ackBlockingMessage = false;
+                    }
+                    break;
+                }
             case DEALLOCATE_CORES:
                 core_allocator->DeallocateCoresForProcess(ipcMessage.arg0);
                 break;
@@ -419,11 +426,16 @@ void CheckIPCMessageQueue(bool isEarly, int caller_coreID)
                 break;
         }
 
-        /* Ack a blocking message after processing it. */
-        if (ipcMessage.blocking) {
+        /* Ack all ALLOCATE_CORES blocking messages after processing the final
+         * core allocation call. */
+        if (ipcMessage.blocking || ackBlockingMessage) {
             lk_lock(lk_ipcMessageQueue, 1);
-            assert(ackMessages->at(ipcMessage) == false);
-            ackMessages->at(ipcMessage) = true;
+            for (auto it = ackMessages->begin(); it != ackMessages->end(); ++it) {
+                if (it->first.blocking && it->first.id == ALLOCATE_CORES) {
+                    assert(it->second == false);
+                    ackMessages->at(it->first) = true;
+                }
+            }
             lk_unlock(lk_ipcMessageQueue);
         }
     }
