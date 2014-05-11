@@ -97,6 +97,17 @@ class BaseSpeedupModel {
          */
         virtual double ComputeIdealScalingFactor() = 0;
 
+        /* Compute parallel speedup for @ncores for some scaling factor.
+         *
+         * Args:
+         *   ncores: The number of cores on which to run this process.
+         *   scaling_factor: The scaling factor of the current process.
+         *
+         * Returns:
+         *   The parallel speedup for this process on @ncores cores.
+         */
+        virtual double ComputeSpeedup(int ncores, double scaling_factor) = 0;
+
         /* A convenience function that calls the appropriate optimization
          * function based on the opt_target member of the class. This is useful
          * when the optimization function is dynamically set at runtime, or it

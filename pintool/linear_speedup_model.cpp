@@ -133,3 +133,7 @@ double LinearSpeedupModel::ComputeScalingFactor(
 double LinearSpeedupModel::ComputeIdealScalingFactor() {
     return 1.0;
 }
+
+double LinearSpeedupModel::ComputeSpeedup(int ncores, double scaling_factor) {
+    return ncores * scaling_factor;
+}

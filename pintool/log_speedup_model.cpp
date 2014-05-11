@@ -183,3 +183,7 @@ double LogSpeedupModel::ComputeScalingFactor(
 double LogSpeedupModel::ComputeIdealScalingFactor() {
     return (num_cores - 1.0) / (log(num_cores));
 }
+
+double LogSpeedupModel::ComputeSpeedup(int ncores, double scaling_factor) {
+    return 1.0 + scaling_factor * log(ncores);
+}

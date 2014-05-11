@@ -55,6 +55,9 @@ class LinearSpeedupModel : public BaseSpeedupModel {
         /* Returns 1, because under linear scaling, the ideal scaling factor is
          * just 1. */
         double ComputeIdealScalingFactor();
+
+        /* Returns scaling_factor * ncores. */
+        double ComputeSpeedup(int ncores, double scaling_factor);
 };
 
 class LogSpeedupModel : public BaseSpeedupModel {
@@ -102,6 +105,9 @@ class LogSpeedupModel : public BaseSpeedupModel {
          * N = 1+C*ln(N), so C = (N-1)/ln(N).
          */
         double ComputeIdealScalingFactor();
+
+        /* Returns 1 + scaling_factor * ln(ncores). */
+        double ComputeSpeedup(int ncores, double scaling_factor);
 
         /* Lambert W function.
          * Was ~/C/LambertW.c written K M Briggs Keith dot Briggs at bt dot com
