@@ -2,6 +2,9 @@
 #define __MP_SHARED__
 
 #include "../core-set.h"
+#include "../synchronization.h"
+#include "boost_interprocess.h"
+#include "../machine.h"
 #include "mpkeys.h"
 
 extern boost::interprocess::managed_shared_memory *global_shm;

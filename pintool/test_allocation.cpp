@@ -8,13 +8,13 @@
 
 #define CATCH_CONFIG_RUNNER
 
+#include "assert.h"
 #include "boost_interprocess.h"
 #include "catch.hpp"  // Must come before interface.h
 #include "../interface.h"
 #include "../synchronization.h"
 #include "multiprocess_shared.h"
 #include "mpkeys.h"
-#include "assert.h"
 #include <algorithm>
 #include <cmath>
 #include <fstream>
@@ -39,59 +39,63 @@ struct locally_optimal_args {
 };
 pthread_mutex_t cout_lock;
 
+std::map<int, bool> ackTestMessages;
+pthread_mutex_t ackTestMessages_lock;
+
 const int NUM_CORES_TEST = 16;
 const int NUM_TEST_PROCESSES = 2;
-const int NUM_TESTS = 6;
+const size_t NUM_DATA_POINTS = 4;
 
 TEST_CASE("Penalty allocator", "penalty") {
     using namespace xiosim;
+    SHARED_VAR_INIT(int, num_processes);
+    *num_processes = 3;
     char* filepath = "loop_speedup_data.csv";
+    // We need a smaller allocation to actuall trigger the penalty policies.
+    const int PENALTY_NUM_CORES = 8;
     PenaltyAllocator& core_allocator =
             reinterpret_cast<PenaltyAllocator&>(
                     AllocatorParser::Get(
-                        "penalty", "throughput", "linear",
-                        1, 8, NUM_CORES_TEST));
+                        "penalty", "energy", "logarithmic",
+                        1, 8, PENALTY_NUM_CORES));
     LoadHelixSpeedupModelData(filepath);
 
-    // Correct output for this test.
-    int num_tests = 5;
-    int process_1_cores[5] = {11, 10, 11, 10, 11};
-    double process_1_penalties[5] = {-1, 0.4, -0.04375, 0.35625, -0.0875};
-    int process_2_cores[5] = {5, 6, 5, 6, 5};
-    double process_2_penalties[5] = {-1, 0, 0, 0, 0};
-
-    std::string loop_1("loop_1");
-    std::string loop_2("loop_2");
+    std::string loop_1("art_loop_2");
+    std::string loop_2("art_loop_1");
+    std::string loop_3("art_loop_1");
     int process_1 = 0;
     int process_2 = 1;
+    int process_3 = 2;
     std::vector<double> scaling_1 = GetHelixLoopScaling(loop_1);
-    assert(scaling_1.size() == (size_t)NUM_CORES_TEST);
+    double serial_runtime_1 = GetHelixFullLoopData(loop_1)->serial_runtime;
     std::vector<double> scaling_2 = GetHelixLoopScaling(loop_2);
-    assert(scaling_2.size() == (size_t)NUM_CORES_TEST);
+    double serial_runtime_2 = GetHelixFullLoopData(loop_2)->serial_runtime;
+    std::vector<double> scaling_3 = GetHelixLoopScaling(loop_3);
+    double serial_runtime_3 = GetHelixFullLoopData(loop_3)->serial_runtime;
 
-    for (int i = 0; i < num_tests; i++) {
-        // Test for the current penalty.
-        REQUIRE(core_allocator.get_penalty_for_asid(process_1) == Approx(
-                process_1_penalties[i]));
-        core_allocator.AllocateCoresForProcess(process_1, scaling_1);
-        // Test for the correct core allocation.
-        REQUIRE(core_allocator.get_cores_for_asid(process_1) ==
-                process_1_cores[i]);
+    REQUIRE(core_allocator.get_penalty_for_asid(process_1) == Approx(0));
+    core_allocator.AllocateCoresForProcess(
+            process_1, scaling_1, serial_runtime_1);
+    REQUIRE(core_allocator.get_cores_for_asid(process_1) == 2);
 
-        // Test for the current penalty.
-        REQUIRE(core_allocator.get_penalty_for_asid(process_2) == Approx(
-                process_2_penalties[i]));
-        core_allocator.AllocateCoresForProcess(process_2, scaling_2);
-        // Test for the correct core allocation.
-        REQUIRE(core_allocator.get_cores_for_asid(process_2) ==
-                process_2_cores[i]);
+    REQUIRE(core_allocator.get_penalty_for_asid(process_2) == Approx(0));
+    core_allocator.AllocateCoresForProcess(
+            process_2, scaling_2, serial_runtime_2);
+    REQUIRE(core_allocator.get_cores_for_asid(process_2) == 4);
 
-        // Test that deallocation completes correctly.
-        core_allocator.DeallocateCoresForProcess(process_1);
-        REQUIRE(core_allocator.get_cores_for_asid(process_1) == 1);
-        core_allocator.DeallocateCoresForProcess(process_2);
-        REQUIRE(core_allocator.get_cores_for_asid(process_2) == 1);
-    }
+    REQUIRE(core_allocator.get_penalty_for_asid(process_3) == Approx(0));
+    core_allocator.AllocateCoresForProcess(
+            process_3, scaling_3, serial_runtime_3);
+    REQUIRE(core_allocator.get_cores_for_asid(process_3) == 2);
+
+    core_allocator.DeallocateCoresForProcess(process_1);
+    REQUIRE(core_allocator.get_cores_for_asid(process_1) == 1);
+
+    REQUIRE(core_allocator.get_penalty_for_asid(process_1) == Approx(0.682392));
+    core_allocator.AllocateCoresForProcess(
+            process_1, scaling_1, serial_runtime_1);
+    REQUIRE(core_allocator.get_cores_for_asid(process_1) == 1);
+    REQUIRE(core_allocator.get_penalty_for_asid(process_1) == Approx(-2.040744));
 }
 
 /* Thread function that calls the Allocate() method in the locally optimal
@@ -103,10 +107,36 @@ void* TestLocallyOptimalPolicyThread(void* arg) {
     xiosim::BaseAllocator *allocator = args->allocator;
     int asid = args->asid;
     std::stringstream loop_name;
-    loop_name << "loop_" << args->loop_num;
+    loop_name << "art_loop_" << args->loop_num;
     std::vector<double> loop_scaling = GetHelixLoopScaling(loop_name.str());
-    args->num_cores_alloc= allocator->AllocateCoresForProcess(
-            asid, loop_scaling);
+    double serial_runtime =
+        GetHelixFullLoopData(loop_name.str())->serial_runtime;
+    // Push a blocking ack message on to the queue.
+    pthread_mutex_lock(&ackTestMessages_lock);
+    ackTestMessages[asid] = false;
+    pthread_mutex_unlock(&ackTestMessages_lock);
+    // Initiate the core allocation request.
+    args->num_cores_alloc = allocator->AllocateCoresForProcess(
+            asid, loop_scaling,serial_runtime);
+    pthread_mutex_lock(&ackTestMessages_lock);
+    // If you are the last thread to check in, unblock all others.
+    if (args->num_cores_alloc != -1) {
+        for (auto it = ackTestMessages.begin(); it != ackTestMessages.end(); ++it) {
+            if (it->second == false)
+                ackTestMessages[it->first] = true;
+        }
+    } else {
+        // Wait for the final process to check in.
+        while (ackTestMessages[asid] == false) {
+            pthread_mutex_unlock(&ackTestMessages_lock);
+            usleep(1000);
+            pthread_mutex_lock(&ackTestMessages_lock);
+        }
+        // Now get the actual allocation.
+        args->num_cores_alloc= allocator->AllocateCoresForProcess(
+                asid, loop_scaling,serial_runtime);
+    }
+    pthread_mutex_unlock(&ackTestMessages_lock);
 #ifdef DEBUG
     pthread_mutex_lock(&cout_lock);
     std::cout << "Process " << asid << " was allocated " <<
@@ -124,6 +154,7 @@ TEST_CASE("Locally optimal allocator", "local") {
 #ifdef DEBUG
     std::cout << "Number of processes: " << *num_processes << std::endl;
 #endif
+    const int NUM_TESTS = 4;
     BaseAllocator& core_allocator =
         AllocatorParser::Get("local", "throughput", "linear",
                              1, 8, NUM_CORES_TEST);
@@ -135,20 +166,21 @@ TEST_CASE("Locally optimal allocator", "local") {
      * runs loop_2.
      */
     int test_loops[NUM_TEST_PROCESSES][NUM_TESTS] = {
-        {1, 1, 2, 2, 3, 3},
-        {1, 2, 3, 1, 1, 3}
+        {1, 1, 2, 2},
+        {1, 2, 1, 2}
     };
     /* correct_output: Each column is the correct number of cores to be
      * allocated to the process for that row.
      * Example: 2nd column
      */
     int correct_output[NUM_TEST_PROCESSES][NUM_TESTS] = {
-        {8, 11, 8, 5, 6, 8},
-        {8, 5, 8, 11, 10, 8}
+        {8, 1, 15, 8},
+        {8, 15, 1, 8}
     };
 
     // Initialize thread variables.
     pthread_mutex_init(&cout_lock, NULL);
+    pthread_mutex_init(&ackTestMessages_lock, NULL);
     pthread_t threads[*num_processes];
     locally_optimal_args args[*num_processes];
     for (int i = 0; i < NUM_TESTS; i++) {
@@ -227,7 +259,7 @@ int main(int argc, char* const argv[]) {
               << "    Beginning unit tests   " << std::endl
               << "===========================" << std::endl;
     int result = Catch::Session().run(argc, argv);
-
+    std::cout << std::endl << "REMEMBER TO CLEAN UP /dev/shm!!" << std::endl;
     delete global_shm;
     return result;
 }

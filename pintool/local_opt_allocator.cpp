@@ -40,27 +40,31 @@ void LocallyOptimalAllocator::ResetState() {
     process_sync.num_checked_in = 0;
     process_sync.num_checked_out = 0;
     process_sync.allocation_complete = false;
-    process_scaling.resize(*num_processes);
     process_scaling.clear();
-    process_serial_runtime.resize(*num_processes);
+    process_scaling.resize(*num_processes);
     process_serial_runtime.clear();
+    process_serial_runtime.resize(*num_processes);
+    core_allocs.clear();
 }
 
 int LocallyOptimalAllocator::AllocateCoresForProcess(
         int asid, std::vector<double> scaling, double serial_runtime) {
     lk_lock(&allocator_lock, 1);
 
-    // Start each process with 1 core allocated.
-    core_allocs[asid] = 1;
-    process_scaling[asid] = speedup_model->ComputeScalingFactor(scaling);
-    process_serial_runtime[asid] = serial_runtime;
-    process_sync.num_checked_in++;
-    // Wait for all processes in the system to check in before proceeding.
-    while (process_sync.num_checked_in < *num_processes) {
-        lk_unlock(&allocator_lock);
-        usleep(10000);
-        lk_lock(&allocator_lock, 1);
+    // On the first call for this process, initialize some parameters.
+    if (core_allocs.find(asid) == core_allocs.end()) {
+        core_allocs[asid] = 1;
+        process_scaling[asid] = speedup_model->ComputeScalingFactor(scaling);
+        process_serial_runtime[asid] = serial_runtime;
+        process_sync.num_checked_in++;
     }
+    // Wait for all processes in the system to check in before proceeding. If
+    // not all processes have checked in, return -1.
+    if (process_sync.num_checked_in < *num_processes) {
+        lk_unlock(&allocator_lock);
+        return -1;
+    }
+    // lk_lock(&allocator_lock, 1);
     assert(process_sync.num_checked_in == *num_processes);
 
     // Only the first thread that reaches this point needs to perform the

@@ -62,9 +62,24 @@ class PenaltyAllocator : public BaseAllocator {
                          double core_power,
                          double uncore_power,
                          int num_cores);
-        std::map<int, double> *process_penalties;
-        // Double precision floating point comparison accuracy.
+        /* On the first time a parallel loop begins, the scaling data of other
+         * programs is unknown. We assume that all other programs scale equally
+         * with the current program and initialize the allocator state as such.
+         *
+         * Args:
+         *   current_scaling_factor: The scaling factor of the current process.
+         *   current_serial_runtime: The serial runtime of the current process.
+         */
+        void FirstAllocationInit(
+                double current_scaling_factor, double current_serial_runtiem);
+        /* Double precision floating point comparison accuracy. */
         double SPEEDUP_EPSILON = 0.000001;
+        /* Penalties for each process. */
+        std::map<int, double> *process_penalties;
+        /* Scaling factors for each process. */
+        std::vector<double> process_scaling;
+        /* Serial runtimes for each process. */
+        std::vector<double> process_serial_runtime;
 };
 
 /* Locally optimal allocator that waits for all loops to align before making the
@@ -85,6 +100,12 @@ class LocallyOptimalAllocator : public BaseAllocator {
             return instance;
         }
         ~LocallyOptimalAllocator();
+
+        // Computes the optimal core allocation for an optimization target and
+        // returns the number of cores allocated for process asid. This function
+        // waits for all parallel loops to align before making a decision. If
+        // all processes have not arrived at a loop boundary, this function
+        // returns -1.
         int AllocateCoresForProcess(
                 int asid, std::vector<double> scaling, double serial_runtime);
     private:
