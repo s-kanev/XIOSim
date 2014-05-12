@@ -21,6 +21,7 @@ static bool readHandshake(pid_t tid, int fd, handshake_container_t* handshake);
 static std::unordered_map<pid_t, Buffer*> consumeBuffer_;
 static std::unordered_map<pid_t, int> readBufferSize_;
 static std::unordered_map<pid_t, void*> readBuffer_;
+static std::unordered_map<pid_t, regs_t*> shadowRegs_;
 
 void InitBufferManagerConsumer(pid_t harness_pid, int num_cores)
 {
@@ -38,6 +39,7 @@ void AllocateThreadConsumer(pid_t tid, int buffer_capacity)
     readBufferSize_[tid] = 4096;
     readBuffer_[tid] = malloc(4096);
     assert(readBuffer_[tid]);
+    shadowRegs_[tid] = (regs_t*)calloc(1, sizeof(regs_t));
 
     consumeBuffer_[tid] = new Buffer(buffer_capacity);
 }
@@ -244,7 +246,15 @@ static bool readHandshake(pid_t tid, int fd, handshake_container_t* handshake)
   }
   assert(bytesRead == bufferSize);
 
+  /* Prepare handshake regs from shadow regs. So we can apply delta compression. */
+  regs_t * shadow_regs = shadowRegs_[tid];
+  memcpy(&(handshake->handshake.ctxt), shadow_regs, sizeof(regs_t));
+
   handshake->Deserialize(readBuffer, bufferSize);
+
+  /* This is ugly and maybe costly. Update the shadow copy.
+   * If we care enough, we should double-buffer */
+  memcpy(shadow_regs, &(handshake->handshake.ctxt), sizeof(regs_t));
 
   return true;
 }

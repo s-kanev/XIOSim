@@ -30,7 +30,7 @@ VOID PTHREAD_beforeJoin(THREADID tid)
 
     handshake_container_t *handshake = xiosim::buffer_management::get_buffer(tstate->tid);
     handshake->flags.valid = true;
-    handshake->handshake.real = false;
+    handshake->flags.real = false;
     handshake->flags.giveCoreUp = true;
     handshake->flags.giveUpReschedule = true;
     xiosim::buffer_management::producer_done(tstate->tid);
@@ -50,7 +50,7 @@ VOID PTHREAD_beforeMutexLock(THREADID tid)
 
     handshake_container_t *handshake = xiosim::buffer_management::get_buffer(tstate->tid);
     handshake->flags.valid = true;
-    handshake->handshake.real = false;
+    handshake->flags.real = false;
     handshake->flags.giveCoreUp = true;
     handshake->flags.giveUpReschedule = true;
     xiosim::buffer_management::producer_done(tstate->tid);
@@ -70,7 +70,7 @@ VOID PTHREAD_beforeCondWait(THREADID tid)
 
     handshake_container_t *handshake = xiosim::buffer_management::get_buffer(tstate->tid);
     handshake->flags.valid = true;
-    handshake->handshake.real = false;
+    handshake->flags.real = false;
     handshake->flags.giveCoreUp = true;
     handshake->flags.giveUpReschedule = true;
     xiosim::buffer_management::producer_done(tstate->tid);

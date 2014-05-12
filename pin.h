@@ -12,20 +12,10 @@ typedef struct P2Z_HANDSHAKE {
     unsigned int pc;                    /* Current instruction address */
     unsigned int npc;                   /* Fallthrough instruction address */
     unsigned int tpc;                   /* Next address Pin will execute */
-    struct regs_t ctxt;                 /* Register context */
     unsigned char ins[MD_MAX_ILEN];     /* Instruction bytes */
-    int asid;                           /* Address space ID */
-    bool brtaken;                       /* Taken or Not-Taken for branch instructions */
-    bool sleep_thread;                  /* Deactivate core */
-    bool resume_thread;                 /* Re-activate core */
-    bool flush_pipe;                    /* Flush core pipelie */
-    bool real;                          /* Is this a real instruction */
-    bool in_critical_section;           /* Thread executing a sequential cut? */
-
-                                        /* Shortcut for <= 4 byte mem reads */
-    unsigned char mem_size;             /* size of access */
-    unsigned long mem_addr;             /* adress of the access */
-    unsigned long mem_val;              /* value to be read */
+    char asid;                          /* Address space ID */
+    /* XXX: This MUST be the last member! (see handshake_container.h) */
+    struct regs_t ctxt;                 /* Register context */
 } P2Z_HANDSHAKE;
 
 class handshake_container_t;

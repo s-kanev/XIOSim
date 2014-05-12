@@ -31,7 +31,7 @@ VOID Parsec_EndROI(THREADID tid, ADDRINT pc)
     handshake->flags.giveCoreUp = true;
     handshake->flags.giveUpReschedule = false;
     handshake->flags.valid = true;
-    handshake->handshake.real = false;
+    handshake->flags.real = false;
     xiosim::buffer_management::producer_done(tstate->tid, true);
 
     xiosim::buffer_management::flushBuffers(tstate->tid);

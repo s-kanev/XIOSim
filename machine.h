@@ -206,12 +206,16 @@ typedef union {
 
 /* floating point register file entry type */
 typedef union {
+  sfloat_t f[MD_NUM_FREGS][(sizeof(dfloat_t) + sizeof(sfloat_t)) /  sizeof(sfloat_t)];
+  struct { dfloat_t lo; sfloat_t hi; } d[MD_NUM_FREGS];
   efloat_t e[MD_NUM_FREGS];    /* extended-precision floating point view */
 } md_fpr_t;
+/* size in bytes of fp registers */
+#define MD_FPR_HOST_SIZE (sizeof(md_fpr_t) / MD_NUM_FREGS)
 
 /* segment selector entry type */
 typedef union {
-  word_t w[MD_NUM_SREGS]; // UCSD
+  word_t w[MD_NUM_SREGS]; 
 } md_seg_t;
 
 typedef union {

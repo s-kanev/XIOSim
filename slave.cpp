@@ -376,8 +376,8 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake)
    bool slice_start = handshake->flags.isFirstInsn;
 
 
-   if (!thread->active && !(slice_start || handshake->handshake.resume_thread ||
-                            handshake->handshake.sleep_thread || handshake->handshake.flush_pipe)) {
+   if (!thread->active && !(slice_start || handshake->flags.resume_thread ||
+                            handshake->flags.sleep_thread || handshake->flags.flush_pipe)) {
      fprintf(stderr, "DEBUG DEBUG: Start/stop out of sync? %d PC: %x\n", coreID, handshake->handshake.pc);
      ReleaseHandshake(coreID);
      return;
@@ -386,21 +386,21 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake)
    zesto_assert(core->oracle->num_Mops_before_feeder() == 0, (void)0);
    zesto_assert(!core->oracle->spec_mode, (void)0);
 
-   if (handshake->handshake.sleep_thread)
+   if (handshake->flags.sleep_thread)
    {
       deactivate_core(coreID);
       ReleaseHandshake(coreID);
       return;
    }
 
-   if (handshake->handshake.resume_thread)
+   if (handshake->flags.resume_thread)
    {
       activate_core(coreID);
       ReleaseHandshake(coreID);
       return;
    }
 
-   if(handshake->handshake.flush_pipe) {
+   if(handshake->flags.flush_pipe) {
       sim_drain_pipe(coreID);
       ReleaseHandshake(coreID);
       return;
@@ -417,7 +417,7 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake)
    core->oracle->grab_feeder_state(handshake, true, !slice_start);
 
    thread->fetches_since_feeder = 0;
-   md_addr_t NPC = handshake->handshake.brtaken ? handshake->handshake.tpc : handshake->handshake.npc;  
+   md_addr_t NPC = handshake->flags.brtaken ? handshake->handshake.tpc : handshake->handshake.npc;  
    ZPIN_TRACE(coreID, "PIN -> PC: %x, NPC: %x \n", handshake->handshake.pc, NPC);
 
    // The handshake can be recycled now

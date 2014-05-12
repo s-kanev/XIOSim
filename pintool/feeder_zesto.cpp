@@ -183,6 +183,7 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
             SendIPCMessage(msg);
 */
 
+
             if(control.PinPointsActive())
                 cerr << "PinPoint: " << control.CurrentPp(tid) << " PhaseNo: " << control.CurrentPhase(tid) << endl;
         }
@@ -215,7 +216,7 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
                 handshake->flags.giveCoreUp = true;
                 handshake->flags.giveUpReschedule = false;
                 handshake->flags.valid = true;
-                handshake->handshake.real = false;
+                handshake->flags.real = false;
                 xiosim::buffer_management::producer_done(global_tid, true);
 
                 xiosim::buffer_management::flushBuffers(global_tid);
@@ -402,10 +403,10 @@ VOID MakeSSRequest(THREADID tid, ADDRINT pc, ADDRINT npc, ADDRINT tpc, BOOL brta
     hshake->handshake.pc = pc;
     hshake->handshake.npc = npc;
     hshake->handshake.tpc = tpc;
-    hshake->handshake.brtaken = brtaken;
-    hshake->handshake.sleep_thread = FALSE;
-    hshake->handshake.resume_thread = FALSE;
-    hshake->handshake.real = TRUE;
+    hshake->flags.brtaken = brtaken;
+    hshake->flags.sleep_thread = FALSE;
+    hshake->flags.resume_thread = FALSE;
+    hshake->flags.real = TRUE;
     PIN_SafeCopy(hshake->handshake.ins, (VOID*) pc, MD_MAX_ILEN);
 }
 
@@ -474,18 +475,10 @@ VOID GrabInstructionMemory(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_m
     thread_state_t* tstate = get_tls(tid);
     handshake_container_t* handshake = GetProperBuffer(tstate->tid, first_mem_op);
 
-    /* should be the common case */
-    if (first_mem_op && size <= 4) {
-        handshake->handshake.mem_addr = addr;
-        PIN_SafeCopy(&handshake->handshake.mem_val, (VOID*)addr, size);
-        handshake->handshake.mem_size = size;
-        return;
-    }
-
     UINT8 val;
     for (UINT32 i=0; i < size; i++) {
-        PIN_SafeCopy(&val, (VOID*) (addr+i), 1);
-        handshake->mem_buffer.insert(pair<UINT32, UINT8>(addr + i,val));
+        PIN_SafeCopy(&val, (VOID*) (addr + i), 1);
+        handshake->mem_buffer.insert(pair<UINT32, UINT8>(addr + i, val));
     }
 }
 
@@ -541,6 +534,7 @@ VOID FixRepInstructionNPC(THREADID tid, ADDRINT pc, BOOL rep_prefix, BOOL repne_
     handshake_container_t* handshake = GetProperBuffer(tstate->tid, false);
 
     BOOL scan = false, zf = false;
+    ADDRINT op1 = 0;
     ADDRINT op2 = 0;
 
     // REPE and REPNE only matter for CMPS and SCAS,
@@ -550,26 +544,41 @@ VOID FixRepInstructionNPC(THREADID tid, ADDRINT pc, BOOL rep_prefix, BOOL repne_
         case XED_ICLASS_CMPSW:
         case XED_ICLASS_CMPSD:
         case XED_ICLASS_CMPSQ:
-            // CMPS does two mem reads, second one is already stored in mem_buffer
+            // CMPS does two mem reads of the same size
             {
-                ASSERTX(handshake->mem_buffer.size() <= 4);
-                int i=0;
-                for (auto it = handshake->mem_buffer.begin(); it != handshake->mem_buffer.end(); it++, i++)
-                    op2 |= ((ADDRINT)it->second << (8*i));
+                size_t bytes_read = handshake->mem_buffer.size();
+                ASSERTX(bytes_read <= 8);
+                size_t i = 0;
+
+                for (auto &mem_read : handshake->mem_buffer) {
+                    size_t byte_ind = i % (bytes_read / 2);
+                    if (i < bytes_read / 2)
+                        op1 |= ((ADDRINT)mem_read.second << (8*byte_ind));
+                    else
+                        op2 |= ((ADDRINT)mem_read.second << (8*byte_ind));
+
+                    i++;
+                }
 
             }
             scan = true;
-            zf = (op2 == handshake->handshake.mem_val);
+            zf = (op1 == op2);
             break;
         case XED_ICLASS_SCASB:
         case XED_ICLASS_SCASW:
         case XED_ICLASS_SCASD:
         case XED_ICLASS_SCASQ:
-            // SCAS only does one read, gets second operand from rAX
-            ASSERTX(handshake->mem_buffer.size() <= 4);
-            op2 = handshake->handshake.ctxt.regs_R.dw[MD_REG_EAX]; // 0-extended anyways
+            {
+                // SCAS only does one read, gets second operand from rAX
+                size_t bytes_read = handshake->mem_buffer.size();
+                ASSERTX(bytes_read <= 4);
+                size_t i = 0;
+                for (auto &mem_read : handshake->mem_buffer)
+                    op1 |= ((ADDRINT)mem_read.second << (8*i));
+                op2 = handshake->handshake.ctxt.regs_R.dw[MD_REG_EAX]; // 0-extended anyways
+            }
             scan = true;
-            zf = (op2 == handshake->handshake.mem_val);
+            zf = (op1 == op2);
             break;
         case XED_ICLASS_INSB:
         case XED_ICLASS_INSW:
@@ -919,7 +928,7 @@ VOID ThreadFini(THREADID tid, const CONTEXT *ctxt, INT32 code, VOID *v)
     handshake_container_t *handshake = xiosim::buffer_management::get_buffer(tstate->tid);
     handshake->flags.killThread = true;
     handshake->flags.valid = true;
-    handshake->handshake.real = false;
+    handshake->flags.real = false;
     xiosim::buffer_management::producer_done(tstate->tid);
 
     xiosim::buffer_management::flushBuffers(tstate->tid);

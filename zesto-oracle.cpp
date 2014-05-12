@@ -1731,7 +1731,7 @@ void core_oracle_t::grab_feeder_state(handshake_container_t * handshake, bool al
   // Just use the feeder PC since the instruction context is from there.
   if(check_pc_mismatch && core->fetch->PC != handshake->handshake.pc)
   {
-    if (handshake->handshake.real && !core->fetch->prev_insn_fake) {
+    if (handshake->flags.real && !core->fetch->prev_insn_fake) {
       ZPIN_TRACE(core->id, "PIN->PC (0x%x) different from fetch->PC (0x%x). Overwriting with Pin value!\n", handshake->handshake.pc, core->fetch->PC);
       //       info("PIN->PC (0x%x) different from fetch->PC (0x%x). Overwriting with Pin value!\n", handshake->pc, core->fetch->PC);
     }
@@ -1740,16 +1740,16 @@ void core_oracle_t::grab_feeder_state(handshake_container_t * handshake, bool al
     regs->regs_NPC = handshake->handshake.pc;
   }
 
-  core->fetch->feeder_NPC = handshake->handshake.brtaken ? handshake->handshake.tpc : handshake->handshake.npc;
+  core->fetch->feeder_NPC = handshake->flags.brtaken ? handshake->handshake.tpc : handshake->handshake.npc;
   core->fetch->feeder_PC = handshake->handshake.pc;
   core->fetch->prev_insn_fake = core->fetch->fake_insn;
-  core->fetch->fake_insn = !handshake->handshake.real;
-  core->fetch->taken_branch = handshake->handshake.brtaken;
+  core->fetch->fake_insn = !handshake->flags.real;
+  core->fetch->taken_branch = handshake->flags.brtaken;
   core->fetch->feeder_ftPC = handshake->handshake.npc;
 
   core->current_thread->asid = handshake->handshake.asid;
 
-  if (handshake->handshake.real) {
+  if (handshake->flags.real) {
     /* Copy architectural state from pin
        XXX: This is arch state BEFORE executed the instruction we're about to simulate */
     regs->regs_R = handshake->handshake.ctxt.regs_R;
@@ -1765,7 +1765,7 @@ void core_oracle_t::grab_feeder_state(handshake_container_t * handshake, bool al
         memcpy(&regs->regs_F.e[j], &handshake->handshake.ctxt.regs_F.e[j], MD_FPR_SIZE);
   }
   else {
-    core->current_thread->in_critical_section = handshake->handshake.in_critical_section;
+    core->current_thread->in_critical_section = handshake->flags.in_critical_section;
   }
 
 
@@ -1775,15 +1775,6 @@ void core_oracle_t::grab_feeder_state(handshake_container_t * handshake, bool al
     zesto_assert(!shadow_MopQ->full(), (void)0);
     handshake_container_t* shadow_handshake = shadow_MopQ->get_buffer();
     handshake->CopyTo(shadow_handshake);
-
-    /* Grab fast-path mem reads and break them up into byte-sized chunks to be read by oracle */
-    if (handshake->handshake.mem_size) {
-      for (uint32_t t=0; t < handshake->handshake.mem_size; t++) {
-        shadow_handshake->mem_buffer.insert(pair<uint32_t, uint8_t>(
-             handshake->handshake.mem_addr+t,
-             (uint8_t)(handshake->handshake.mem_val >> 8*t)));
-      }
-    }
 
     shadow_MopQ->push_done();
   }

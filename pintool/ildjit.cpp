@@ -563,17 +563,17 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
 
     handshake->flags.isFirstInsn = first_insn;
     handshake->handshake.ctxt.regs_R.dw[MD_REG_ESP] = esp_val; /* Needed when first_insn to set up stack pages */
-    handshake->handshake.sleep_thread = false;
-    handshake->handshake.resume_thread = false;
-    handshake->handshake.real = false;
-    handshake->handshake.in_critical_section = true;
+    handshake->flags.sleep_thread = false;
+    handshake->flags.resume_thread = false;
+    handshake->flags.real = false;
+    handshake->flags.in_critical_section = true;
     handshake->handshake.asid = asid;
     handshake->flags.valid = true;
 
     handshake->handshake.pc = (ADDRINT)wait_template_1;
     handshake->handshake.npc = (ADDRINT)wait_template_2;
     handshake->handshake.tpc = (ADDRINT)wait_template_2;
-    handshake->handshake.brtaken = false;
+    handshake->flags.brtaken = false;
     memcpy(handshake->handshake.ins, wait_template_1, wait_template_1_size);
     *(INT32*)(&handshake->handshake.ins[wait_template_1_addr_offset]) =
                         getSignalAddress(ssID) | HELIX_WAIT_MASK;
@@ -586,15 +586,15 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
     xiosim::buffer_management::producer_done(tstate->tid);
 
     handshake_2 = xiosim::buffer_management::get_buffer(tstate->tid);
-    handshake_2->handshake.real = false;
-    handshake_2->handshake.in_critical_section = true;
+    handshake_2->flags.real = false;
+    handshake_2->flags.in_critical_section = true;
     handshake_2->handshake.asid = asid;
     handshake_2->flags.valid = true;
 
     handshake_2->handshake.pc = (ADDRINT)wait_template_2;
     handshake_2->handshake.npc = NextUnignoredPC(tstate->retPC);
     handshake_2->handshake.tpc = (ADDRINT)wait_template_2 + sizeof(wait_template_2);
-    handshake_2->handshake.brtaken = false;
+    handshake_2->flags.brtaken = false;
     memcpy(handshake_2->handshake.ins, wait_template_2, sizeof(wait_template_2));
 
 #ifdef PRINT_DYN_TRACE
@@ -673,17 +673,17 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
     handshake = xiosim::buffer_management::get_buffer(tstate->tid);
 
     handshake->flags.isFirstInsn = false;
-    handshake->handshake.sleep_thread = false;
-    handshake->handshake.resume_thread = false;
-    handshake->handshake.real = false;
-    handshake->handshake.in_critical_section = (tstate->loop_state->unmatchedWaits > 0);
+    handshake->flags.sleep_thread = false;
+    handshake->flags.resume_thread = false;
+    handshake->flags.real = false;
+    handshake->flags.in_critical_section = (tstate->loop_state->unmatchedWaits > 0);
     handshake->handshake.asid = asid;
     handshake->flags.valid = true;
 
     handshake->handshake.pc = (ADDRINT)signal_template;
     handshake->handshake.npc = NextUnignoredPC(tstate->retPC);
     handshake->handshake.tpc = (ADDRINT)signal_template + sizeof(signal_template);
-    handshake->handshake.brtaken = false;
+    handshake->flags.brtaken = false;
     memcpy(handshake->handshake.ins, signal_template, sizeof(signal_template));
     // Address comes right after opcode and MoodRM bytes
     *(INT32*)(&handshake->handshake.ins[2]) = getSignalAddress(ssID);
@@ -1134,14 +1134,14 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
         /* Insert a special signal that flushes the repeater. */
         handshake_container_t* handshake_0 = xiosim::buffer_management::get_buffer(curr_tstate->tid);
 
-        handshake_0->handshake.real = false;
+        handshake_0->flags.real = false;
         handshake_0->handshake.asid = asid;
         handshake_0->flags.valid = true;
 
         handshake_0->handshake.pc = (ADDRINT)signal_template;
         handshake_0->handshake.npc = (ADDRINT)mfence_template;
         handshake_0->handshake.tpc = (ADDRINT)signal_template + sizeof(signal_template);
-        handshake_0->handshake.brtaken = false;
+        handshake_0->flags.brtaken = false;
         memcpy(handshake_0->handshake.ins, signal_template, sizeof(signal_template));
         // Address comes right after opcode and MoodRM bytes
         *(INT32*)(&handshake_0->handshake.ins[2]) = getSignalAddress(HELIX_FLUSH_SIGNAL_ID);
@@ -1150,28 +1150,28 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
         /* Insert a MFENCE. This makes sure that all operations to the repeater
          * have not only been scheduled, but also completed and ack-ed. */
         handshake_container_t* handshake = xiosim::buffer_management::get_buffer(curr_tstate->tid);
-        handshake->handshake.real = false;
+        handshake->flags.real = false;
         handshake->handshake.asid = asid;
         handshake->flags.valid = true;
 
         handshake->handshake.pc = (ADDRINT) mfence_template;
         handshake->handshake.npc = (ADDRINT)syscall_template;
         handshake->handshake.tpc = (ADDRINT) mfence_template + sizeof(mfence_template);
-        handshake->handshake.brtaken = false;
+        handshake->flags.brtaken = false;
         memcpy(handshake->handshake.ins, mfence_template, sizeof(mfence_template));
         xiosim::buffer_management::producer_done(curr_tstate->tid, true);
 
         /* Insert a trap. This will ensure that the pipe drains before
          * consuming the next instruction.*/
         handshake_container_t* handshake_1 = xiosim::buffer_management::get_buffer(curr_tstate->tid);
-        handshake_1->handshake.real = false;
+        handshake_1->flags.real = false;
         handshake_1->handshake.asid = asid;
         handshake_1->flags.valid = true;
 
         handshake_1->handshake.pc = (ADDRINT) syscall_template;
         handshake_1->handshake.npc = (ADDRINT) syscall_template + sizeof(syscall_template);
         handshake_1->handshake.tpc = (ADDRINT) syscall_template + sizeof(syscall_template);
-        handshake_1->handshake.brtaken = false;
+        handshake_1->flags.brtaken = false;
         memcpy(handshake_1->handshake.ins, syscall_template, sizeof(syscall_template));
         xiosim::buffer_management::producer_done(curr_tstate->tid, true);
 
@@ -1179,8 +1179,8 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
          * left over (including the trap). */
         handshake_container_t* handshake_3 = xiosim::buffer_management::get_buffer(curr_tstate->tid);
 
-        handshake_3->handshake.flush_pipe = true;
-        handshake_3->handshake.real = false;
+        handshake_3->flags.flush_pipe = true;
+        handshake_3->flags.real = false;
         handshake_3->handshake.asid = asid;
         handshake_3->handshake.pc = 0;
         handshake_3->flags.valid = true;
@@ -1189,7 +1189,7 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
         /* Let the scheduler deactivate this core. */
         handshake_container_t* handshake_2 = xiosim::buffer_management::get_buffer(curr_tstate->tid);
 
-        handshake_2->handshake.real = false;
+        handshake_2->flags.real = false;
         handshake_2->handshake.asid = asid;
         handshake_2->flags.giveCoreUp = true;
         handshake_2->flags.giveUpReschedule = false;
