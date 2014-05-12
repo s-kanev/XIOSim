@@ -13,7 +13,7 @@
 #include "parse_speedup.h"
 
 // Cores for which speedup data is available.
-static const int NUM_SPEEDUP_POINTS = 4;
+static const size_t NUM_SPEEDUP_POINTS = 4;
 static int interp_cores[NUM_SPEEDUP_POINTS] = {2, 4, 8, 16};
 static std::map<std::string, loop_data*> loop_data_map;
 
@@ -40,9 +40,9 @@ static void ConvertToMarginalSpeedup(double* speedup, int num_points) {
 static void InterpolateSpeedup(double* speedup_in, double* speedup_out)
 {
     // Copy the existing data points.
-    for (int i = 0; i < NUM_SPEEDUP_POINTS; i++)
+    for (size_t i = 0; i < NUM_SPEEDUP_POINTS; i++)
         speedup_out[interp_cores[i]-1] = speedup_in[i];
-    for (int i = 0; i < NUM_SPEEDUP_POINTS-1; i++) {
+    for (size_t i = 0; i < NUM_SPEEDUP_POINTS-1; i++) {
         double slope = (speedup_in[i+1]-speedup_in[i]) /
             (interp_cores[i+1]-interp_cores[i]);
         // Interpolate.
@@ -66,7 +66,7 @@ void LoadHelixSpeedupModelData(const char* filepath)
     if (speedup_loop_file.is_open()) {
 #ifdef PARSE_DEBUG
         std::cout << "Cores:\t\t";
-        for (int j = 1; j <= NUM_SPEEDUP_POINTS; j++)
+        for (size_t j = 1; j <= NUM_SPEEDUP_POINTS; j++)
             std::cout << j << "\t";
 #endif
         std::cout << std::endl;
@@ -78,7 +78,7 @@ void LoadHelixSpeedupModelData(const char* filepath)
                 double *speedup_data = new double[NUM_SPEEDUP_POINTS];
                 double serial_runtime = 0;
                 double serial_runtime_variance = 0;
-                int i = 0;
+                size_t i = 0;
                 bool first_iteration = true;
                 for (auto it = tok.begin(); it != tok.end(); ++it) {
                     if (first_iteration) {
@@ -102,7 +102,7 @@ void LoadHelixSpeedupModelData(const char* filepath)
                 loop_data_map[loop_name] = data;
 #ifdef PARSE_DEBUG
                 std::cout << loop_name << " speedup:\t";
-                for (int j = 0; j < NUM_SPEEDUP_POINTS; j++)
+                for (size_t j = 0; j < NUM_SPEEDUP_POINTS; j++)
                     std::cout << speedup_data[j] << "\t";
                 std::cout << std::endl;
 #endif
