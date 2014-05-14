@@ -32,7 +32,7 @@ struct ipc_message_t {
     int64_t arg1;
     int64_t arg2;
     int64_t arg3;
-    int32_t arg_array[MAX_ARR_SIZE];
+    double arg_array[MAX_ARR_SIZE];
 
     /* Does sender wait until message has been *processed*,
      * not only consumed. */
@@ -136,7 +136,7 @@ struct ipc_message_t {
         assert(thread.size() <= MAX_ARR_SIZE);
         unsigned int i=0;
         for (pid_t tid : thread) {
-            arg_array[i] = tid;
+            arg_array[i] = (double) tid;
             i++;
         }
         for (/*nada*/; i < MAX_ARR_SIZE; i++)
@@ -157,11 +157,21 @@ struct ipc_message_t {
         this->arg1 = coreID;
     }
 
-    void AllocateCores(int asid, double serial_runtime)
+    void AllocateCores(int asid, std::vector<double> scaling, double serial_runtime)
     {
         this->id = ALLOCATE_CORES;
         this->arg0 = asid;
         this->arg1 = serial_runtime;
+
+        /* Ugly list serialize to POD */
+        assert(scaling.size() <= MAX_ARR_SIZE);
+        unsigned int i=0;
+        for (double speedup : scaling) {
+            arg_array[i] = speedup;
+            i++;
+        }
+        for (/*nada*/; i < MAX_ARR_SIZE; i++)
+            arg_array[i] = -1;
     }
 
     void DeallocateCores(int asid)

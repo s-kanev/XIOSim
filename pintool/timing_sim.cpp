@@ -396,7 +396,7 @@ void CheckIPCMessageQueue(bool isEarly, int caller_coreID)
                 {
                     list<pid_t> threads;
                     for (unsigned int i=0; i < ipcMessage.MAX_ARR_SIZE; i++) {
-                        int32_t tid = ipcMessage.arg_array[i];
+                        int32_t tid = (int32_t)ipcMessage.arg_array[i];
                         if (tid != -1)
                             threads.push_back(tid);
                     }
@@ -411,8 +411,14 @@ void CheckIPCMessageQueue(bool isEarly, int caller_coreID)
                 break;
             case ALLOCATE_CORES:
                 {
+                    vector<double> scaling;
+                    for (unsigned int i=0; i < ipcMessage.MAX_ARR_SIZE; i++) {
+                        double speedup = ipcMessage.arg_array[i];
+                        if (speedup != -1)
+                            scaling.push_back(speedup);
+                    }
                     int result = core_allocator->AllocateCoresForProcess(
-                            ipcMessage.arg0, vector<double>(), ipcMessage.arg1);
+                            ipcMessage.arg0, scaling, ipcMessage.arg1);
                     if (result == -1) {
                         ackBlockingMessage = false;
                     }

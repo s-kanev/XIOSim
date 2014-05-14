@@ -324,7 +324,7 @@ VOID ILDJIT_startInitParallelLoop(ADDRINT loop)
     }
 
     ipc_message_t msg;
-    msg.AllocateCores(asid, serial_runtime);
+    msg.AllocateCores(asid, scaling, serial_runtime);
     SendIPCMessage(msg, /*blocking*/true);
 
     /* Here we've finished with the allocation decision. */
