@@ -325,7 +325,7 @@ int main(int argc, const char * argv[])
                 knobs.allocator_opt_target,
                 knobs.speedup_model,
                 1,  // core_power
-                8,  // uncore_power
+                num_cores / (1/0.2 - 1),  // uncore_power
                 num_cores));
     SpawnSimulatorThreads(num_cores);
 
