@@ -432,14 +432,20 @@ void CheckIPCMessageQueue(bool isEarly, int caller_coreID)
                 break;
         }
 
-        /* Ack all ALLOCATE_CORES blocking messages after processing the final
-         * core allocation call. */
+        /* Ack all blocking messages corresponding to this core allocation call
+         * after processing the final core allocation call. */
         if (ipcMessage.blocking || ackBlockingMessage) {
             lk_lock(lk_ipcMessageQueue, 1);
-            for (auto it = ackMessages->begin(); it != ackMessages->end(); ++it) {
-                if (it->first.blocking && it->first.id == ALLOCATE_CORES) {
-                    assert(it->second == false);
-                    ackMessages->at(it->first) = true;
+            std::vector<int> unblock_list =
+                core_allocator->get_processes_to_unblock(ipcMessage.arg0);
+            for (auto unblock_it = unblock_list.begin();
+                 unblock_it != unblock_list.end(); ++unblock_it) {
+                for (auto ack_it = ackMessages->begin();
+                     ack_it != ackMessages->end(); ++ack_it) {
+                    if (*unblock_it == ack_it->first.arg0) {
+                        assert(ack_it->second == false);
+                        ackMessages->at(ack_it->first) = true;
+                    }
                 }
             }
             lk_unlock(lk_ipcMessageQueue);
