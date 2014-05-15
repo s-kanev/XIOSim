@@ -36,7 +36,9 @@ LocallyOptimalAllocator::LocallyOptimalAllocator(
 LocallyOptimalAllocator::~LocallyOptimalAllocator() {
 }
 
+/* Resets the checked-in process tracker and scaling data. */
 void LocallyOptimalAllocator::ResetState() {
+    BaseAllocator::ResetState();
     process_sync.num_checked_in = 0;
     process_sync.num_checked_out = 0;
     process_sync.allocation_complete = false;
@@ -44,7 +46,6 @@ void LocallyOptimalAllocator::ResetState() {
     process_scaling.resize(*num_processes);
     process_serial_runtime.clear();
     process_serial_runtime.resize(*num_processes);
-    core_allocs.clear();
 }
 
 int LocallyOptimalAllocator::AllocateCoresForProcess(

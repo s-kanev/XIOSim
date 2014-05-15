@@ -27,6 +27,16 @@ PenaltyAllocator::PenaltyAllocator(
     process_serial_runtime.resize(*num_processes);
 }
 
+/* Resets all penalty and scaling data. */
+void PenaltyAllocator::ResetState() {
+    BaseAllocator::ResetState();
+    process_scaling.clear();
+    process_scaling.resize(*num_processes);
+    process_serial_runtime.clear();
+    process_serial_runtime.resize(*num_processes);
+    process_penalties->clear();
+}
+
 /* On the first time a parallel loop begins, the scaling data of other programs
  * is unknown. We assume that all other programs scale equally with the current
  * program and initialize the allocator's state as such.

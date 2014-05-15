@@ -44,6 +44,9 @@ class BaseAllocator {
 
         BaseSpeedupModel *speedup_model;
 
+        /* Resets the core allocation tracker. Children can override this
+         * function to reset additional variables. */
+        virtual void ResetState();
     protected:
         const double MARGINAL_SPEEDUP_THRESHOLD = 0.4;
         std::map<int, int> core_allocs;

@@ -35,6 +35,10 @@ BaseAllocator::BaseAllocator(
     }
 }
 
+void BaseAllocator::ResetState() {
+    core_allocs.clear();
+}
+
 BaseAllocator::~BaseAllocator() {
     delete speedup_model;
 }

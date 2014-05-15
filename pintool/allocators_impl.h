@@ -56,6 +56,9 @@ class PenaltyAllocator : public BaseAllocator {
         // does not exist in the allocator's knowledge.
         double get_penalty_for_asid(int asid);
 
+        /* Clear all stored state. */
+        void ResetState();
+
     private:
         PenaltyAllocator(OptimizationTarget opt_target,
                          SpeedupModelType speedup_model_type,
@@ -108,6 +111,9 @@ class LocallyOptimalAllocator : public BaseAllocator {
         // returns -1.
         int AllocateCoresForProcess(
                 int asid, std::vector<double> scaling, double serial_runtime);
+
+        // Get/reset all class global variables for sharing among threads.
+        void ResetState();
     private:
         LocallyOptimalAllocator(
                 OptimizationTarget opt_target,
@@ -125,9 +131,6 @@ class LocallyOptimalAllocator : public BaseAllocator {
         std::vector<double> process_scaling;
         /* Serial runtimes for each process. */
         std::vector<double> process_serial_runtime;
-
-        // Get/reset all class global variables for sharing among threads.
-        void ResetState();
 };
 
 class AllocatorParser {
