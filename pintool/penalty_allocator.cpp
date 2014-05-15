@@ -25,9 +25,13 @@ PenaltyAllocator::PenaltyAllocator(
     process_penalties = new std::map<int, double>();
     process_scaling.resize(*num_processes);
     process_serial_runtime.resize(*num_processes);
+    processes_to_unblock.clear();
 }
 
-/* Resets all penalty and scaling data. */
+/* Resets all penalty and scaling data.
+ * Note: processes_to_unblock CAN be cleared here because this method is not
+ * called after every allocation request.
+ */
 void PenaltyAllocator::ResetState() {
     BaseAllocator::ResetState();
     process_scaling.clear();
@@ -35,6 +39,7 @@ void PenaltyAllocator::ResetState() {
     process_serial_runtime.clear();
     process_serial_runtime.resize(*num_processes);
     process_penalties->clear();
+    processes_to_unblock.clear();
 }
 
 /* On the first time a parallel loop begins, the scaling data of other programs
@@ -63,6 +68,7 @@ double PenaltyAllocator::get_penalty_for_asid(int asid) {
 
 int PenaltyAllocator::AllocateCoresForProcess(
         int asid, std::vector<double> scaling, double serial_runtime) {
+    lk_lock(&allocator_lock, 1);
     // The nth element of @scaling is the incremental amount of speedup attained
     // if running under that many cores.
 #ifdef DEBUG
@@ -160,9 +166,12 @@ int PenaltyAllocator::AllocateCoresForProcess(
             " cores, was allocated " << allocated_cores << " cores." <<
             std::endl << std::endl;
 #endif
+    std::vector<int> unblock_list;
+    unblock_list.push_back(asid);
+    processes_to_unblock[asid] = unblock_list;
+    lk_unlock(&allocator_lock);
     UpdateSHMAllocation(asid, allocated_cores);
     return allocated_cores;
 }
-
 
 }    // namespace xiosim

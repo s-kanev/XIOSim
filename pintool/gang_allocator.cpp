@@ -20,6 +20,9 @@ int GangAllocator::AllocateCoresForProcess(
 
     lk_lock(&allocator_lock, 1);
     core_allocs[asid] = num_cores;
+    std::vector<int> unblock_list;
+    unblock_list.push_back(asid);
+    processes_to_unblock[asid] = unblock_list;
     lk_unlock(&allocator_lock);
 
     UpdateSHMAllocation(asid, num_cores);

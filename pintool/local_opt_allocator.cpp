@@ -36,7 +36,11 @@ LocallyOptimalAllocator::LocallyOptimalAllocator(
 LocallyOptimalAllocator::~LocallyOptimalAllocator() {
 }
 
-/* Resets the checked-in process tracker and scaling data. */
+/* Resets the checked-in process tracker and scaling data.
+ * Note: do not clear processes_to_unblock, because this structure can be called
+ * at any time after an allocation request to get the list of processes to
+ * unblock, and ResetState() is called when every allocation finishes.
+ */
 void LocallyOptimalAllocator::ResetState() {
     BaseAllocator::ResetState();
     process_sync.num_checked_in = 0;
@@ -62,10 +66,11 @@ int LocallyOptimalAllocator::AllocateCoresForProcess(
     // Wait for all processes in the system to check in before proceeding. If
     // not all processes have checked in, return -1.
     if (process_sync.num_checked_in < *num_processes) {
+        // Erase this entry since this thread was not the last to check in.
+        processes_to_unblock.erase(asid);
         lk_unlock(&allocator_lock);
         return -1;
     }
-    // lk_lock(&allocator_lock, 1);
     assert(process_sync.num_checked_in == *num_processes);
 
     // Only the first thread that reaches this point needs to perform the
@@ -75,6 +80,11 @@ int LocallyOptimalAllocator::AllocateCoresForProcess(
         speedup_model->OptimizeForTarget(
                 core_allocs, process_scaling, process_serial_runtime);
         process_sync.allocation_complete = true;
+        // Add all asids in core_allocs into the unblocking list.
+        // std::vector<int> unblock_asids;
+        processes_to_unblock[asid] = std::vector<int>();
+        for (auto it = core_allocs.begin(); it != core_allocs.end(); ++it)
+            processes_to_unblock[asid].push_back(it->first);
     }
 
     int allocated_cores = core_allocs[asid];

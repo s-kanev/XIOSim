@@ -63,4 +63,15 @@ void BaseAllocator::UpdateSHMAllocation(int asid, int allocated_cores) const {
     UpdateProcessCoreAllocation(asid, allocated_cores);
 }
 
+std::vector<int> BaseAllocator::get_processes_to_unblock(int asid) {
+    lk_lock(&allocator_lock, 1);
+    auto it = processes_to_unblock.find(asid);
+    if (it != processes_to_unblock.end()) {
+        lk_unlock(&allocator_lock);
+        return it->second;
+    }
+    lk_unlock(&allocator_lock);
+    return std::vector<int>();
+}
+
 }    // namespace xiosim

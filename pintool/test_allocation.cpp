@@ -8,6 +8,7 @@
 
 #define CATCH_CONFIG_RUNNER
 
+#include "algorithm"  // For std::find.
 #include "assert.h"
 #include "boost_interprocess.h"
 #include "catch.hpp"  // Must come before interface.h
@@ -36,6 +37,7 @@ struct locally_optimal_args {
     int loop_num;
     xiosim::BaseAllocator *allocator;
     int num_cores_alloc;
+    bool last_to_check_in;
 };
 pthread_mutex_t cout_lock;
 
@@ -44,6 +46,57 @@ pthread_mutex_t ackTestMessages_lock;
 
 const int NUM_CORES_TEST = 16;
 const size_t NUM_DATA_POINTS = 4;
+
+/* Thread function that calls the Allocate() method in the locally optimal
+ * allocator. Tests whether the allocator properly waits for all threads to
+ * check in before making a decision.
+ */
+void* TestLocallyOptimalPolicyThread(void* arg) {
+    locally_optimal_args *args = (locally_optimal_args*) arg;
+    xiosim::BaseAllocator *allocator = args->allocator;
+    int asid = args->asid;
+    std::stringstream loop_name;
+    loop_name << "art_loop_" << args->loop_num;
+    std::vector<double> loop_scaling = GetHelixLoopScaling(loop_name.str());
+    double serial_runtime =
+        GetHelixFullLoopData(loop_name.str())->serial_runtime;
+    // Push a blocking ack message on to the queue.
+    pthread_mutex_lock(&ackTestMessages_lock);
+    ackTestMessages[asid] = false;
+    pthread_mutex_unlock(&ackTestMessages_lock);
+    // Initiate the core allocation request.
+    args->num_cores_alloc = allocator->AllocateCoresForProcess(
+            asid, loop_scaling, serial_runtime);
+    pthread_mutex_lock(&ackTestMessages_lock);
+    // If you are the last thread to check in, unblock all others.
+    if (args->num_cores_alloc != -1) {
+        for (auto it = ackTestMessages.begin();
+             it != ackTestMessages.end(); ++it) {
+            if (it->second == false)
+                ackTestMessages[it->first] = true;
+        }
+        args->last_to_check_in = true;
+    } else {
+        // Wait for the final process to check in.
+        while (ackTestMessages[asid] == false) {
+            pthread_mutex_unlock(&ackTestMessages_lock);
+            usleep(1000);
+            pthread_mutex_lock(&ackTestMessages_lock);
+        }
+        // Now get the actual allocation.
+        args->num_cores_alloc= allocator->AllocateCoresForProcess(
+                asid, loop_scaling, serial_runtime);
+        args->last_to_check_in = false;
+    }
+    pthread_mutex_unlock(&ackTestMessages_lock);
+#ifdef DEBUG
+    pthread_mutex_lock(&cout_lock);
+    std::cout << "Process " << asid << " was allocated " <<
+            args->num_cores_alloc << " cores." << std::endl;
+    pthread_mutex_unlock(&cout_lock);
+#endif
+    return NULL;
+}
 
 TEST_CASE("Penalty allocator", "penalty") {
     using namespace xiosim;
@@ -77,16 +130,25 @@ TEST_CASE("Penalty allocator", "penalty") {
     core_allocator.AllocateCoresForProcess(
             process_1, scaling_1, serial_runtime_1);
     REQUIRE(core_allocator.get_cores_for_asid(process_1) == 2);
+    REQUIRE(core_allocator.get_processes_to_unblock(process_1).size() == 1);
+    REQUIRE(core_allocator.get_processes_to_unblock(process_1)[0] ==
+            process_1);
 
     REQUIRE(core_allocator.get_penalty_for_asid(process_2) == Approx(0));
     core_allocator.AllocateCoresForProcess(
             process_2, scaling_2, serial_runtime_2);
     REQUIRE(core_allocator.get_cores_for_asid(process_2) == 4);
+    REQUIRE(core_allocator.get_processes_to_unblock(process_2).size() == 1);
+    REQUIRE(core_allocator.get_processes_to_unblock(process_2)[0] ==
+            process_2);
 
     REQUIRE(core_allocator.get_penalty_for_asid(process_3) == Approx(0));
     core_allocator.AllocateCoresForProcess(
             process_3, scaling_3, serial_runtime_3);
     REQUIRE(core_allocator.get_cores_for_asid(process_3) == 2);
+    REQUIRE(core_allocator.get_processes_to_unblock(process_3).size() == 1);
+    REQUIRE(core_allocator.get_processes_to_unblock(process_3)[0] ==
+            process_3);
 
     core_allocator.DeallocateCoresForProcess(process_1);
     REQUIRE(core_allocator.get_cores_for_asid(process_1) == 1);
@@ -96,54 +158,9 @@ TEST_CASE("Penalty allocator", "penalty") {
             process_1, scaling_1, serial_runtime_1);
     REQUIRE(core_allocator.get_cores_for_asid(process_1) == 1);
     REQUIRE(core_allocator.get_penalty_for_asid(process_1) == Approx(-3.88100));
-}
-
-/* Thread function that calls the Allocate() method in the locally optimal
- * allocator. Tests whether the allocator properly waits for all threads to
- * check in before making a decision.
- */
-void* TestLocallyOptimalPolicyThread(void* arg) {
-    locally_optimal_args *args = (locally_optimal_args*) arg;
-    xiosim::BaseAllocator *allocator = args->allocator;
-    int asid = args->asid;
-    std::stringstream loop_name;
-    loop_name << "art_loop_" << args->loop_num;
-    std::vector<double> loop_scaling = GetHelixLoopScaling(loop_name.str());
-    double serial_runtime =
-        GetHelixFullLoopData(loop_name.str())->serial_runtime;
-    // Push a blocking ack message on to the queue.
-    pthread_mutex_lock(&ackTestMessages_lock);
-    ackTestMessages[asid] = false;
-    pthread_mutex_unlock(&ackTestMessages_lock);
-    // Initiate the core allocation request.
-    args->num_cores_alloc = allocator->AllocateCoresForProcess(
-            asid, loop_scaling, serial_runtime);
-    pthread_mutex_lock(&ackTestMessages_lock);
-    // If you are the last thread to check in, unblock all others.
-    if (args->num_cores_alloc != -1) {
-        for (auto it = ackTestMessages.begin(); it != ackTestMessages.end(); ++it) {
-            if (it->second == false)
-                ackTestMessages[it->first] = true;
-        }
-    } else {
-        // Wait for the final process to check in.
-        while (ackTestMessages[asid] == false) {
-            pthread_mutex_unlock(&ackTestMessages_lock);
-            usleep(1000);
-            pthread_mutex_lock(&ackTestMessages_lock);
-        }
-        // Now get the actual allocation.
-        args->num_cores_alloc= allocator->AllocateCoresForProcess(
-                asid, loop_scaling, serial_runtime);
-    }
-    pthread_mutex_unlock(&ackTestMessages_lock);
-#ifdef DEBUG
-    pthread_mutex_lock(&cout_lock);
-    std::cout << "Process " << asid << " was allocated " <<
-            args->num_cores_alloc << " cores." << std::endl;
-    pthread_mutex_unlock(&cout_lock);
-#endif
-    return NULL;
+    REQUIRE(core_allocator.get_processes_to_unblock(process_1).size() == 1);
+    REQUIRE(core_allocator.get_processes_to_unblock(process_1)[0] ==
+            process_1);
 }
 
 TEST_CASE("Locally optimal allocator, 1 process", "local_1") {
@@ -210,6 +227,8 @@ TEST_CASE("Locally optimal allocator, 2 processes", "local_2") {
         {8, 1, 15, 8},
         {8, 15, 1, 8}
     };
+    /* The correct contents of the unblock list. */
+    int unblock_list[NUM_TEST_PROCESSES] = {0, 1};
 
     // Initialize thread variables.
     pthread_mutex_init(&cout_lock, NULL);
@@ -217,7 +236,7 @@ TEST_CASE("Locally optimal allocator, 2 processes", "local_2") {
     pthread_t threads[*num_processes];
     locally_optimal_args args[*num_processes];
     for (int i = 0; i < NUM_TESTS; i++) {
-        for (int j = 0; j < *num_processes; j++) {
+        for (int j = 0; j < NUM_TEST_PROCESSES; j++) {
             args[j].allocator = &core_allocator;
             args[j].loop_num = test_loops[j][i];
             args[j].num_cores_alloc = 0;
@@ -228,14 +247,27 @@ TEST_CASE("Locally optimal allocator, 2 processes", "local_2") {
                            (void*)&args[j]);
         }
         void* status;
-        for (int j = 0; j < *num_processes; j++) {
+        for (int j = 0; j < NUM_TEST_PROCESSES; j++) {
             pthread_join(threads[j], &status);
         }
 #ifdef DEBUG
         std::cout << "All threads have completed." << std::endl;
 #endif
-        for (int j = 0; j < *num_processes; j++) {
+        // Check the unblock list.
+        for (int j = 0; j < NUM_TEST_PROCESSES; j++) {
             REQUIRE(args[j].num_cores_alloc == correct_output[j][i]);
+            std::vector<int> returned_unblock_list =
+                core_allocator.get_processes_to_unblock(j);
+            if (args[j].last_to_check_in) {
+                for (int k = 0; k < NUM_TEST_PROCESSES; k++) {
+                    REQUIRE(std::find(returned_unblock_list.begin(),
+                                      returned_unblock_list.end(),
+                                      unblock_list[k]) !=
+                            returned_unblock_list.end());
+                }
+            } else {
+                REQUIRE(returned_unblock_list.empty());
+            }
         }
     }
 }
