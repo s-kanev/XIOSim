@@ -43,7 +43,6 @@ std::map<int, bool> ackTestMessages;
 pthread_mutex_t ackTestMessages_lock;
 
 const int NUM_CORES_TEST = 16;
-const int NUM_TEST_PROCESSES = 2;
 const size_t NUM_DATA_POINTS = 4;
 
 TEST_CASE("Penalty allocator", "penalty") {
@@ -58,6 +57,7 @@ TEST_CASE("Penalty allocator", "penalty") {
                     AllocatorParser::Get(
                         "penalty", "energy", "logarithmic",
                         1, 8, PENALTY_NUM_CORES));
+    core_allocator.ResetState();
     LoadHelixSpeedupModelData(filepath);
 
     std::string loop_1("art_loop_2");
@@ -91,11 +91,11 @@ TEST_CASE("Penalty allocator", "penalty") {
     core_allocator.DeallocateCoresForProcess(process_1);
     REQUIRE(core_allocator.get_cores_for_asid(process_1) == 1);
 
-    REQUIRE(core_allocator.get_penalty_for_asid(process_1) == Approx(0.682392));
+    REQUIRE(core_allocator.get_penalty_for_asid(process_1) == Approx(1.666822));
     core_allocator.AllocateCoresForProcess(
             process_1, scaling_1, serial_runtime_1);
     REQUIRE(core_allocator.get_cores_for_asid(process_1) == 1);
-    REQUIRE(core_allocator.get_penalty_for_asid(process_1) == Approx(-2.040744));
+    REQUIRE(core_allocator.get_penalty_for_asid(process_1) == Approx(-3.88100));
 }
 
 /* Thread function that calls the Allocate() method in the locally optimal
@@ -117,7 +117,7 @@ void* TestLocallyOptimalPolicyThread(void* arg) {
     pthread_mutex_unlock(&ackTestMessages_lock);
     // Initiate the core allocation request.
     args->num_cores_alloc = allocator->AllocateCoresForProcess(
-            asid, loop_scaling,serial_runtime);
+            asid, loop_scaling, serial_runtime);
     pthread_mutex_lock(&ackTestMessages_lock);
     // If you are the last thread to check in, unblock all others.
     if (args->num_cores_alloc != -1) {
@@ -134,7 +134,7 @@ void* TestLocallyOptimalPolicyThread(void* arg) {
         }
         // Now get the actual allocation.
         args->num_cores_alloc= allocator->AllocateCoresForProcess(
-                asid, loop_scaling,serial_runtime);
+                asid, loop_scaling, serial_runtime);
     }
     pthread_mutex_unlock(&ackTestMessages_lock);
 #ifdef DEBUG
@@ -146,9 +146,41 @@ void* TestLocallyOptimalPolicyThread(void* arg) {
     return NULL;
 }
 
-TEST_CASE("Locally optimal allocator", "local") {
+TEST_CASE("Locally optimal allocator, 1 process", "local_1") {
     using namespace xiosim;
     SHARED_VAR_INIT(int, num_processes);
+    const int NUM_TEST_PROCESSES = 1;
+    *num_processes = NUM_TEST_PROCESSES;
+    char* filepath = "loop_speedup_data.csv";
+    LoadHelixSpeedupModelData(filepath);
+#ifdef DEBUG
+    std::cout << "Number of processes: " << *num_processes << std::endl;
+#endif
+    const int NUM_TESTS = 2;
+    BaseAllocator& core_allocator =
+        AllocatorParser::Get("local", "throughput", "linear",
+                             1, 8, NUM_CORES_TEST);
+    core_allocator.ResetState();
+
+    // Initialize test data and correct output.
+    int test_loops[NUM_TESTS] = {1, 2};
+    int correct_output[NUM_TESTS] = {NUM_CORES_TEST, NUM_CORES_TEST};
+
+    for (int i = 0; i < NUM_TESTS; i++) {
+        locally_optimal_args arg;
+        arg.allocator = &core_allocator;
+        arg.loop_num = test_loops[i];
+        arg.num_cores_alloc = 0;
+        arg.asid = 0;
+        TestLocallyOptimalPolicyThread(&arg);
+        REQUIRE(arg.num_cores_alloc == correct_output[i]);
+    }
+}
+
+TEST_CASE("Locally optimal allocator, 2 processes", "local_2") {
+    using namespace xiosim;
+    SHARED_VAR_INIT(int, num_processes);
+    const int NUM_TEST_PROCESSES = 2;
     *num_processes = NUM_TEST_PROCESSES;
     char* filepath = "loop_speedup_data.csv";
 #ifdef DEBUG
@@ -158,6 +190,7 @@ TEST_CASE("Locally optimal allocator", "local") {
     BaseAllocator& core_allocator =
         AllocatorParser::Get("local", "throughput", "linear",
                              1, 8, NUM_CORES_TEST);
+    core_allocator.ResetState();
     LoadHelixSpeedupModelData(filepath);
 
     /* Initialize test data and correct output.

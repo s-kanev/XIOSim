@@ -120,10 +120,10 @@ double LinearSpeedupModel::ComputeRuntime(int num_cores_alloc,
 double LinearSpeedupModel::ComputeScalingFactor(
         std::vector<double> &core_scaling) {
     LinearRegressionIntercept lr;
-    for (size_t i = 0; i <= core_scaling.size(); i++) {
+    for (size_t i = 0; i < core_scaling.size(); i++) {
         // Subtract 1 because the regression equation is y = 1 + bx, and we want
         // y = bx, which we can get with a simple change of variable y' = y-1.
-        Point2D p(i+1, core_scaling[i]-1);
+        Point2D p(i, core_scaling[i]-1);
         lr.addPoint(p);
     }
     return lr.getB();

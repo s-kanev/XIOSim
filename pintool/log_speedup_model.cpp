@@ -173,7 +173,7 @@ double LogSpeedupModel::LambertW(const double z) {
 double LogSpeedupModel::ComputeScalingFactor(
         std::vector<double> &core_scaling) {
     LinearRegressionIntercept lr;
-    for (size_t i = 0; i <= core_scaling.size(); i++) {
+    for (size_t i = 0; i < core_scaling.size(); i++) {
         Point2D p(log(i+1.0), core_scaling[i]);
         lr.addPoint(p);
     }
