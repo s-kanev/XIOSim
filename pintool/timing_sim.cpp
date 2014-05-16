@@ -355,9 +355,11 @@ void CheckIPCMessageQueue(bool isEarly, int caller_coreID)
         lk_unlock(printing_lock);
 #endif
 
+        std::vector<int> ack_list;
+        bool ack_list_valid = false;
+
         /* And execute the appropriate call based on the protocol
          * defined in interface.h */
-        bool ackBlockingMessage = true;
         switch(ipcMessage.id) {
             /* Sim control related */
             case SLICE_START:
@@ -417,11 +419,10 @@ void CheckIPCMessageQueue(bool isEarly, int caller_coreID)
                         if (speedup != -1)
                             scaling.push_back(speedup);
                     }
-                    int result = core_allocator->AllocateCoresForProcess(
-                            ipcMessage.arg0, scaling, ipcMessage.arg1);
-                    if (result == -1) {
-                        ackBlockingMessage = false;
-                    }
+                    core_allocator->AllocateCoresForProcess(ipcMessage.arg0,
+                        scaling, ipcMessage.arg1);
+                    ack_list = core_allocator->get_processes_to_unblock(ipcMessage.arg0);
+                    ack_list_valid = true;
                     break;
                 }
             case DEALLOCATE_CORES:
@@ -432,23 +433,33 @@ void CheckIPCMessageQueue(bool isEarly, int caller_coreID)
                 break;
         }
 
-        /* Ack all blocking messages corresponding to this core allocation call
-         * after processing the final core allocation call. */
-        if (ipcMessage.blocking || ackBlockingMessage) {
-            lk_lock(lk_ipcMessageQueue, 1);
-            std::vector<int> unblock_list =
-                core_allocator->get_processes_to_unblock(ipcMessage.arg0);
-            for (auto unblock_it = unblock_list.begin();
-                 unblock_it != unblock_list.end(); ++unblock_it) {
-                for (auto ack_it = ackMessages->begin();
-                     ack_it != ackMessages->end(); ++ack_it) {
-                    if (*unblock_it == ack_it->first.arg0) {
-                        assert(ack_it->second == false);
-                        ackMessages->at(ack_it->first) = true;
+        /* Handle blocking message acknowledgement. */
+        if (ipcMessage.blocking) {
+            /* Typically, a blocking message is ack-ed straight away and
+             * all is good with the world. */
+            if (!ack_list_valid) {
+                lk_lock(lk_ipcMessageQueue, 1);
+                assert(ackMessages->at(ipcMessage) == false);
+                ackMessages->at(ipcMessage) = true;
+                lk_unlock(lk_ipcMessageQueue);
+            }
+            else {
+            /* Some messages are special. They want to ack a (possibly empty)
+             * list of messages of the same type (say, ack everyone after we are
+             * done with the last one). */
+                lk_lock(lk_ipcMessageQueue, 1);
+                for (int unblock_asid : ack_list) {
+                    for (auto ack_it = ackMessages->begin();
+                         ack_it != ackMessages->end(); ++ack_it) {
+                        if (ack_it->first.id == ipcMessage.id &&
+                            ack_it->first.arg0 == unblock_asid) {
+                            assert(ack_it->second == false);
+                            ackMessages->at(ack_it->first) = true;
+                        }
                     }
                 }
+                lk_unlock(lk_ipcMessageQueue);
             }
-            lk_unlock(lk_ipcMessageQueue);
         }
     }
 }
