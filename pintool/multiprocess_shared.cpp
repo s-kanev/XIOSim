@@ -225,6 +225,7 @@ int GetProcessCoreAllocation(int asid)
 
 void disable_consumers()
 {
+    return;
     if (*sleeping_enabled) {
         pthread_mutex_lock(cv_consumers_lock);
         *consumers_sleep = true;
@@ -234,6 +235,7 @@ void disable_consumers()
 
 void enable_consumers()
 {
+    return;
     pthread_mutex_lock(cv_consumers_lock);
     *consumers_sleep = false;
     pthread_cond_broadcast(cv_consumers);
