@@ -636,7 +636,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
     }
     // If prologue wait is light, we can ignore it and the 
     // subsequent signal, according to Simone 
-    if(ssID == 0 && is_light && !coupled_wauts) {
+    if(ssID == 0 && is_light && !coupled_waits) {
         ignoreSignalZero = true;
         goto cleanup;
     }
@@ -1193,9 +1193,9 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
      * and unblocked the last iteration. We need to (i) wait for them
      * to functionally reach wait 0, where they will wait until the end
      * of the loop; (ii) drain all pipelines once cores are waiting. */
-    lk_lock(&printing_lock, tid);
+    lk_lock(printing_lock, tid);
     cerr << "pausing..." << endl;
-    lk_unlock(&printing_lock);
+    lk_unlock(printing_lock);
 
     volatile bool done_with_iteration = false;
     do {
