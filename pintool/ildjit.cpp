@@ -63,8 +63,10 @@ static map<string, UINT32> invocation_counts;
 
 KNOB<BOOL> KnobDisableWaitSignal(KNOB_MODE_WRITEONCE,     "pintool",
         "disable_wait_signal", "false", "Don't insert any waits or signals into the pipeline");
-KNOB<BOOL> KnobOnlyHeavyWaits(KNOB_MODE_WRITEONCE,     "pintool",
-        "only_heavy_waits", "false", "Don't insert any waits or signals into the pipeline");
+KNOB<BOOL> KnobCoupledWaits(KNOB_MODE_WRITEONCE,     "pintool",
+        "coupled_waits", "false", "Wait semantics: coupled == one iteration unblocking the next, uncoupled == all iterations unblocking one");
+KNOB<BOOL> KnobInsertLightWaits(KNOB_MODE_WRITEONCE,     "pintool",
+        "coupled_waits", "false", "Insert light waits in the processor pipeline");
 KNOB<string> KnobPredictedSpeedupFile(KNOB_MODE_WRITEONCE,   "pintool",
         "speedup_file", "", "File containing speedup prediction for core allocation");
 
@@ -98,7 +100,8 @@ stack<loop_state_t> loop_states;
 loop_state_t* loop_state = NULL;
 
 bool disable_wait_signal;
-bool only_heavy_waits;
+bool coupled_waits;
+bool insert_light_waits;
 
 // The number of allocated cores per loop, read by ildjit
 UINT32* allocated_cores;
@@ -136,7 +139,8 @@ VOID MOLECOOL_Init()
     readLoop(end_loop_file, &end_loop, &end_loop_invocation, &end_loop_iteration);
 
     disable_wait_signal = KnobDisableWaitSignal.Value();
-    only_heavy_waits = KnobOnlyHeavyWaits.Value();
+    coupled_waits = KnobCoupledWaits.Value();
+    insert_light_waits = KnobInsertLightWaits.Value();
 
     last_time = time(NULL);
 
@@ -501,6 +505,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
     thread_state_t* tstate = get_tls(tid);
     handshake_container_t *handshake, *handshake_2;
     bool first_insn;
+    INT32 wait_address;
 
     if (ExecMode != EXECUTION_MODE_SIMULATE)
         goto cleanup;
@@ -547,7 +552,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
         goto cleanup;
     }
 
-    if((only_heavy_waits == false) && is_light) {
+    if(!coupled_waits && !insert_light_waits && is_light) {
         goto cleanup;
     }
 
@@ -575,8 +580,9 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
     handshake->handshake.tpc = (ADDRINT)wait_template_2;
     handshake->flags.brtaken = false;
     memcpy(handshake->handshake.ins, wait_template_1, wait_template_1_size);
-    *(INT32*)(&handshake->handshake.ins[wait_template_1_addr_offset]) =
-                        getSignalAddress(ssID) | HELIX_WAIT_MASK;
+    wait_address = getSignalAddress(ssID) | HELIX_WAIT_MASK |
+                        is_light ? HELIX_LIGHT_WAIT_MASK : 0;
+    *(INT32*)(&handshake->handshake.ins[wait_template_1_addr_offset]) = wait_address;
     assert(ssID < HELIX_MAX_SIGNAL_ID);
 
 #ifdef PRINT_DYN_TRACE
