@@ -117,7 +117,6 @@ loop_state_t* loop_state = NULL;
 bool disable_wait_signal;
 bool coupled_waits;
 bool insert_light_waits;
-bool waits_as_loads;
 
 // The number of allocated cores per loop, read by ildjit
 UINT32* allocated_cores;
