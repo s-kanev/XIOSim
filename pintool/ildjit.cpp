@@ -666,7 +666,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
     handshake->flags.brtaken = false;
     memcpy(handshake->handshake.ins, wait_template_1, wait_template_1_size);
     wait_address = getSignalAddress(ssID) | HELIX_WAIT_MASK |
-                        is_light ? HELIX_LIGHT_WAIT_MASK : 0;
+                        (is_light ? HELIX_LIGHT_WAIT_MASK : 0);
     *(INT32*)(&handshake->handshake.ins[wait_template_1_addr_offset]) = wait_address;
     assert(ssID < HELIX_MAX_SIGNAL_ID);
 
