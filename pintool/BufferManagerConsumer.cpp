@@ -129,17 +129,6 @@ void pop(pid_t tid)
 {
   consumeBuffer_[tid]->pop();
   *popped_ = true;
-  return;
-  lk_lock(&locks_[tid], tid+1);
-
-  assert(consumeBuffer_[tid]->size() > 0);
-  consumeBuffer_[tid]->pop();
-
-  pool_[tid] += 1;
-  assert(queueSizes_[tid] > 0);
-  queueSizes_[tid] -= 1;
-
-  lk_unlock(&locks_[tid]);
 }
 
 static void copyFileToConsumer(pid_t tid)

@@ -41,6 +41,7 @@ SHARED_VAR_DEFINE(bool, consumers_sleep)
 SHARED_VAR_DEFINE(pthread_cond_t, cv_consumers)
 SHARED_VAR_DEFINE(pthread_mutex_t, cv_consumers_lock)
 
+SHARED_VAR_DEFINE(bool, waits_as_loads);
 SHARED_VAR_DEFINE(int, ss_curr);
 SHARED_VAR_DEFINE(int, ss_prev);
 

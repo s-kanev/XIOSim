@@ -45,15 +45,21 @@ const UINT8 wait_template_1_ld[] = {0xa1, 0xad, 0xfb, 0xca, 0xde};
 /* A store instruction with immediate address and data */
 const UINT8 wait_template_1_st[] = {0xc7, 0x05, 0xad, 0xfb, 0xca, 0xde, 0x00, 0x00, 0x00, 0x00 };
 
+/* A MFENCE instruction */
+const UINT8 wait_template_2_mfence[] = {0x0f, 0xae, 0xf0};
+/* A LFENCE instruction */
+const UINT8 wait_template_2_lfence[] = {0x0f, 0xae, 0xe8};
+
+
 static const UINT8 * wait_template_1;
 static size_t wait_template_1_size;
 static size_t wait_template_1_addr_offset;
 
+static const UINT8 * wait_template_2;
+static size_t wait_template_2_size;
+
 KNOB<BOOL> KnobWaitsAsLoads(KNOB_MODE_WRITEONCE,    "pintool",
         "waits_as_loads", "false", "Wait instructions seen as loads");
-
-/* A MFENCE instruction */
-const UINT8 wait_template_2[] = {0x0f, 0xae, 0xf0};
 
 /* A store instruction with immediate address and data */
 const UINT8 signal_template[] = {0xc7, 0x05, 0xad, 0xfb, 0xca, 0xde, 0x00, 0x00, 0x00, 0x00 };
@@ -181,11 +187,19 @@ VOID MOLECOOL_Init()
         wait_template_1 = wait_template_1_ld;
         wait_template_1_size = sizeof(wait_template_1_ld);
         wait_template_1_addr_offset = 1; // 1 opcode byte
+
+        wait_template_2 = wait_template_2_lfence;
+        wait_template_2_size = sizeof(wait_template_2_lfence);
+        waits_as_loads = true;
     }
     else {
         wait_template_1 = wait_template_1_st;
         wait_template_1_size = sizeof(wait_template_1_st);
         wait_template_1_addr_offset = 2; // 1 opcode byte, 1 ModRM byte
+
+        wait_template_2 = wait_template_2_mfence;
+        wait_template_2_size = sizeof(wait_template_2_mfence);
+        waits_as_loads = false;
     }
 
     *ss_curr = 100000;
@@ -618,29 +632,31 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
         goto cleanup;
 
     tstate->loop_state->unmatchedWaits++;
-
-    /* Ignore injecting waits until the end of the first iteration,
-     * so we can start simulating */
-
     assert(loop_state->simmed_iteration_count > 0);
-    if (loop_state->simmed_iteration_count == 1) {
-        goto cleanup;
-    }
 
+    // If ring cache is disabled, don't insert waits
     if(!(loop_state->use_ring_cache)) {
         goto cleanup;
     }
 
-    if(!coupled_waits && !insert_light_waits && is_light) {
-        goto cleanup;
-    }
-    // If prologue wait is light, we can ignore it and the 
-    // subsequent signal, according to Simone 
+    // If prologue wait is light, we can ignore it and the
+    // subsequent signal, according to Simone
     if(ssID == 0 && is_light && !coupled_waits) {
         ignoreSignalZero = true;
         goto cleanup;
     }
     
+    /* Ignore injecting waits until the end of the first iteration,
+     * so we can start simulating */
+    if (loop_state->simmed_iteration_count == 1) {
+      goto cleanup;
+    }
+    
+    // Don't insert light waits into pipeline
+    if(!coupled_waits && !insert_light_waits && is_light) {
+        goto cleanup;
+    }
+
     /* We're not a first instruction any more */
     if (first_insn) {
         lk_lock(&tstate->lock, tid+1);
@@ -684,9 +700,9 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
 
     handshake_2->handshake.pc = (ADDRINT)wait_template_2;
     handshake_2->handshake.npc = NextUnignoredPC(tstate->retPC);
-    handshake_2->handshake.tpc = (ADDRINT)wait_template_2 + sizeof(wait_template_2);
-    handshake_2->flags.brtaken = false;
-    memcpy(handshake_2->handshake.ins, wait_template_2, sizeof(wait_template_2));
+    handshake_2->handshake.tpc = (ADDRINT)wait_template_2 + wait_template_2_size;
+    handshake_2->handshake.brtaken = false;
+    memcpy(handshake_2->handshake.ins, wait_template_2, wait_template_2_size);
 
 #ifdef PRINT_DYN_TRACE
     printTrace("sim", handshake_2->handshake.pc, tstate->tid);
