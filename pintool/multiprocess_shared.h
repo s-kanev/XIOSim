@@ -85,6 +85,7 @@ SHARED_VAR_DECLARE(pthread_cond_t, cv_consumers)
 SHARED_VAR_DECLARE(pthread_mutex_t, cv_consumers_lock)
 
 /* librepeater */
+SHARED_VAR_DECLARE(bool, waits_as_loads);
 SHARED_VAR_DECLARE(int, ss_curr);
 SHARED_VAR_DECLARE(int, ss_prev);
 
