@@ -75,7 +75,7 @@ KNOB<BOOL> KnobDisableWaitSignal(KNOB_MODE_WRITEONCE,     "pintool",
 KNOB<BOOL> KnobCoupledWaits(KNOB_MODE_WRITEONCE,     "pintool",
         "coupled_waits", "false", "Wait semantics: coupled == one iteration unblocking the next, uncoupled == all iterations unblocking one");
 KNOB<BOOL> KnobInsertLightWaits(KNOB_MODE_WRITEONCE,     "pintool",
-        "coupled_waits", "false", "Insert light waits in the processor pipeline");
+        "insert_light_waits", "false", "Insert light waits in the processor pipeline");
 KNOB<string> KnobPredictedSpeedupFile(KNOB_MODE_WRITEONCE,   "pintool",
         "speedup_file", "", "File containing speedup prediction for core allocation");
 extern KNOB<BOOL> KnobWarmLLC;
@@ -190,7 +190,7 @@ VOID MOLECOOL_Init()
 
         wait_template_2 = wait_template_2_lfence;
         wait_template_2_size = sizeof(wait_template_2_lfence);
-        waits_as_loads = true;
+        *waits_as_loads = true;
     }
     else {
         wait_template_1 = wait_template_1_st;
@@ -199,7 +199,7 @@ VOID MOLECOOL_Init()
 
         wait_template_2 = wait_template_2_mfence;
         wait_template_2_size = sizeof(wait_template_2_mfence);
-        waits_as_loads = false;
+        *waits_as_loads = false;
     }
 
     *ss_curr = 100000;
@@ -701,7 +701,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
     handshake_2->handshake.pc = (ADDRINT)wait_template_2;
     handshake_2->handshake.npc = NextUnignoredPC(tstate->retPC);
     handshake_2->handshake.tpc = (ADDRINT)wait_template_2 + wait_template_2_size;
-    handshake_2->handshake.brtaken = false;
+    handshake_2->flags.brtaken = false;
     memcpy(handshake_2->handshake.ins, wait_template_2, wait_template_2_size);
 
 #ifdef PRINT_DYN_TRACE

@@ -31,7 +31,6 @@ using namespace xiosim; //Until we namespace everything
 
 BaseAllocator *core_allocator = NULL;
 
-bool waits_as_loads = false; // XXX: REMOVE ME -- for RC right now.
 /* ==========================================================================
  * Called from simulator once handshake is free to be reused.
  * This allows to pipeline instrumentation and simulation. */

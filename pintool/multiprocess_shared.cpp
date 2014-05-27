@@ -125,6 +125,7 @@ int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores_)
 
     SHARED_VAR_INIT(int, ss_curr);
     SHARED_VAR_INIT(int, ss_prev);
+    SHARED_VAR_INIT(bool, waits_as_loads);
 
     init_lock.unlock();
 
