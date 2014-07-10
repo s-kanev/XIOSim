@@ -31,6 +31,7 @@
 #include "syscall_handling.h"
 #include "ildjit.h"
 #include "parsec.h"
+#include "machsuite.h"
 
 #include "../zesto-core.h"
 
@@ -257,6 +258,9 @@ VOID ImageLoad(IMG img, VOID *v)
 
     if (KnobParsec.Value())
         AddParsecCallbacks(img);
+
+    if (KnobMachsuite.Value())
+        AddMachsuiteCallbacks(img);
 
     ASSERTX( Zesto_Notify_Mmap(0/*coreID*/, start, length, false) );
 }
@@ -1207,7 +1211,7 @@ INT32 main(INT32 argc, CHAR **argv)
         MOLECOOL_Init();
     }
 
-    if (!KnobILDJIT.Value() && !KnobParsec.Value()) {
+    if (!KnobILDJIT.Value() && !KnobParsec.Value() && !KnobMachsuite.Value()) {
         // Try activate pinpoints alarm, must be done before PIN_StartProgram
         if(control.CheckKnobs(PPointHandler, 0) != 1) {
             cerr << "Error reading control parametrs, exiting." << endl;
