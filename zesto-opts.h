@@ -99,7 +99,7 @@ extern counter_t total_commit_eff_uops;
 void sim_reg_options(struct opt_odb_t *odb);
 
 /* check simulator-specific option values */
-void sim_check_options(struct opt_odb_t *odb, int argc, char **argv);
+void sim_check_options(int argc, char **argv);
 
 extern int sim_elapsed_time;
 

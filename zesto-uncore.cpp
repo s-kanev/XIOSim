@@ -98,30 +98,35 @@
 /* prototype for call to zesto-MC.c */
 MC_t * MC_from_string(char * opt_string);
 
-static int fsb_width;    /* in bytes */
-static bool fsb_DDR;     /* true if DDR */
-static double fsb_speed; /* in MHz */
+// TODO: Removing static modifier. See zesto-dram for more details.
+int fsb_width;    /* in bytes */
+bool fsb_DDR;     /* true if DDR */
+double fsb_speed; /* in MHz */
+
 double LLC_speed; /* in MHz */
 bool fsb_magic; /* ideal FSB flag */
 bool cache_magic; /* ideal cache flag */
-static const char * MC_opt_string = NULL;
-static const char * LLC_opt_str = "LLC:4096:16:64:16:64:9:L:W:B:8:1:C";
-static const char * LLC_controller_str = "none";
-static const char * LLC_MSHR_cmd = "RPWB";
 
-/* LLC prefetcher options */
-static const char * LLC_PF_opt_str[MAX_PREFETCHERS];
-static int LLC_num_PF = 0;
-static int LLC_PFFsize = 8;
-static int LLC_PFthresh = 2;
-static int LLC_PFmax = 1;
-static int LLC_PF_buffer_size = 0;
-static int LLC_PF_filter_size = 0;
-static int LLC_PF_filter_reset = 0;
-static int LLC_WMinterval = 10000;
-static bool LLC_PF_on_miss = false;
-static double LLC_low_watermark = 0.1;
-static double LLC_high_watermark = 0.3;
+// TODO: Removing static modifier. See zesto-dram for more details.
+const char * MC_opt_string = NULL;
+const char * LLC_opt_str = "LLC:4096:16:64:16:64:9:L:W:B:8:1:C";
+const char * LLC_controller_str = "none";
+const char * LLC_MSHR_cmd = "RPWB";
+
+// LLC prefetcher options.
+// TODO: Removing static modifier. See zesto-dram for more details.
+const char * LLC_PF_opt_str[MAX_PREFETCHERS];
+int LLC_num_PF = 0;
+int LLC_PFFsize = 8;
+int LLC_PFthresh = 2;
+int LLC_PFmax = 1;
+int LLC_PF_buffer_size = 0;
+int LLC_PF_filter_size = 0;
+int LLC_PF_filter_reset = 0;
+int LLC_WMinterval = 10000;
+bool LLC_PF_on_miss = false;
+double LLC_low_watermark = 0.1;
+double LLC_high_watermark = 0.3;
 
 /* The global pointer to the uncore object */
 class uncore_t * uncore = NULL;

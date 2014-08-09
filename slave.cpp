@@ -1,4 +1,4 @@
-/* 
+/*
  * Exports called by instruction feeder.
  * Main entry point for simulated instructions.
  * Copyright, Svilen Kanev, 2011
@@ -17,6 +17,7 @@
 
 #include <map>
 
+#include "confuse.h"
 #include "interface.h"
 #include "callbacks.h"
 #include "host.h"
@@ -29,6 +30,7 @@
 #include "sim.h"
 #include "synchronization.h"
 
+#include "zesto-config.h"
 #include "zesto-opts.h"
 #include "zesto-core.h"
 #include "zesto-fetch.h"
@@ -51,8 +53,8 @@ extern void sim_main_slave_post_pin(int coreID);
 extern void sim_main_slave_post_pin(void);
 extern bool sim_main_slave_fetch_insn(int coreID);
 
-/* options database */
-extern struct opt_odb_t *sim_odb;
+/* libconfuse options database */
+extern cfg_t* all_opts;
 
 /* stats database */
 extern struct stat_sdb_t *sim_sdb;
@@ -92,34 +94,9 @@ Zesto_SlaveInit(int argc, char **argv)
   /* register an error handler */
   fatal_hook(sim_print_stats);
 
-  sim_pre_init();
-
-  /* register global options */
-  sim_odb = opt_new(orphan_fn);
-  opt_reg_flag(sim_odb, "-h", "print help message",
-           &help_me, /* default */FALSE, /* !print */FALSE, NULL);
-
-#ifdef DEBUG
-  opt_reg_flag(sim_odb, "-d", "enable debug message",
-           &debugging, /* default */FALSE, /* !print */FALSE, NULL);
-#endif /* DEBUG */
-  opt_reg_int(sim_odb, "-seed",
-          "random number generator seed (0 for timer seed)",
-          &rand_seed, /* default */1, /* print */TRUE, NULL);
-  opt_reg_flag(sim_odb, "-ignore_notes", "suppresses printing of notes",
-           &opt_ignore_notes, /* default */FALSE, /* !print */FALSE, NULL);
-
-  /* stdio redirection options */
-  opt_reg_string(sim_odb, "-redir:sim",
-         "redirect simulator output to file (non-interactive only)",
-         &sim_simout,
-         /* default */NULL, /* !print */FALSE, NULL);
-
-  /* register all simulator-specific options */
-  sim_reg_options(sim_odb);
-
-  /* parse simulator options */
-  opt_process_options(sim_odb, argc, (char**)argv);
+  /* Parse Zesto configuration file. This will populate both knobs and all_opts. */
+  // TODO: Get rid of c-style cast.
+  read_config_file(argc, (const char**)argv, &knobs);
 
   /* redirect I/O? */
   if (sim_simout != NULL)
@@ -161,7 +138,7 @@ Zesto_SlaveInit(int argc, char **argv)
     }
 
   /* check simulator-specific options */
-  sim_check_options(sim_odb, argc, argv);
+  sim_check_options(argc, argv);
 
   /* initialize the instruction decoder */
   md_init_decoder();
@@ -195,7 +172,8 @@ Zesto_SlaveInit(int argc, char **argv)
   char buff[128];
   gethostname(buff, sizeof(buff));
   fprintf(stderr, "Executing on host: %s\n", buff);
-  opt_print_options(sim_odb, stderr, /* short */TRUE, /* notes */TRUE);
+
+  cfg_print(all_opts, stderr);
   fprintf(stderr, "\n");
 
   if(cores[0]->knobs->power.compute)
@@ -239,7 +217,7 @@ void Zesto_UpdateBrk(int asid, unsigned int brk_end, bool do_mmap)
     unsigned int old_brk_end = mem_brk(asid);
 
     if(brk_end > old_brk_end)
-      Zesto_Notify_Mmap(asid, ROUND_UP(old_brk_end, PAGE_SIZE), 
+      Zesto_Notify_Mmap(asid, ROUND_UP(old_brk_end, PAGE_SIZE),
                         ROUND_UP(brk_end - old_brk_end, PAGE_SIZE), false);
     else if(brk_end < old_brk_end)
       Zesto_Notify_Munmap(asid, ROUND_UP(brk_end, PAGE_SIZE),
@@ -257,7 +235,7 @@ void Zesto_Map_Stack(int asid, unsigned int sp, unsigned int bos)
   zesto_assert(sp != 0, (void)0);
   zesto_assert(bos != 0, (void)0);
 
-  /* Create local pages for stack */ 
+  /* Create local pages for stack */
   md_addr_t page_start = ROUND_DOWN(sp, PAGE_SIZE);
   md_addr_t page_end = ROUND_UP(bos, PAGE_SIZE);
 
@@ -294,6 +272,9 @@ void Zesto_Destroy()
     if(cores[i]->stat.oracle_unknown_insn / (double) cores[i]->stat.oracle_total_insn > 0.02)
       fprintf(stderr, "WARNING: [%d] More than 2%% instructions turned to NOPs (%lld out of %lld)\n",
               i, cores[i]->stat.oracle_unknown_insn, cores[i]->stat.oracle_total_insn);
+
+  // Free memory allocated by libconfuse for the configuration options.
+  cfg_free(all_opts);
 }
 
 
@@ -417,7 +398,7 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake)
    core->oracle->grab_feeder_state(handshake, true, !slice_start);
 
    thread->fetches_since_feeder = 0;
-   md_addr_t NPC = handshake->flags.brtaken ? handshake->handshake.tpc : handshake->handshake.npc;  
+   md_addr_t NPC = handshake->flags.brtaken ? handshake->handshake.tpc : handshake->handshake.npc;
    ZPIN_TRACE(coreID, "PIN -> PC: %x, NPC: %x \n", handshake->handshake.pc, NPC);
 
    // The handshake can be recycled now
@@ -438,7 +419,7 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake)
      {
        while(fetch_more && core->oracle->num_Mops_before_feeder() > 0 &&
              !core->oracle->spec_mode)
-       {       
+       {
          fetch_more = sim_main_slave_fetch_insn(coreID);
          thread->fetches_since_feeder++;
 
@@ -453,13 +434,13 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake)
          }
        }
 
-       //Fetch can get more insns this cycle, but not on nuke path 
+       //Fetch can get more insns this cycle, but not on nuke path
        if(fetch_more)
        {
           thread->consumed = false;
           continue;
        }
-      
+
        sim_main_slave_post_pin(coreID);
 
        sim_main_slave_pre_pin(coreID);
@@ -482,14 +463,14 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake)
        }
 
      }
-     /*XXX: here oracle still doesn't know if we're speculating or not. But if we predicted 
+     /*XXX: here oracle still doesn't know if we're speculating or not. But if we predicted
      the wrong path, we'd better not return to Pin, because that will mess the state up */
      else if(core->fetch->PC != NPC || core->oracle->spec_mode)
      {
        bool spec = false;
        do
        {
-         while(fetch_more) 
+         while(fetch_more)
          {
             fetch_more = sim_main_slave_fetch_insn(coreID);
             thread->fetches_since_feeder++;
@@ -502,10 +483,10 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake)
                return;
             }
          }
-        
+
          sim_main_slave_post_pin(coreID);
 
-         /* Next cycle */ 
+         /* Next cycle */
          sim_main_slave_pre_pin(coreID);
 
          if(!thread->consumed)
@@ -548,7 +529,7 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake)
           zesto_assert(core->fetch->PC == NPC, (void)0);
           return;
        }
-    
+
        sim_main_slave_post_pin(coreID);
 
        /* This is already next cycle, up to fetch */

@@ -273,6 +273,9 @@ sim_post_init(void)
   int i;
   assert(num_cores > 0);
 
+  uncore_create();
+  dram_create();
+
   /* Initialize synchronization primitives */
   lk_init(&cycle_lock);
   lk_init(&memory_lock);

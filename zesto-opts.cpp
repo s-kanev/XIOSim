@@ -170,7 +170,7 @@ sim_reg_options(struct opt_odb_t *odb)
 
 /* check simulator-specific option values */
 void
-sim_check_options(struct opt_odb_t *odb, int argc, char **argv)
+sim_check_options(int argc, char **argv)
 {
   if(max_uops && max_uops < max_insts)
     warn("-max:uops is less than -max:inst, so -max:inst is useless");
@@ -180,9 +180,6 @@ sim_check_options(struct opt_odb_t *odb, int argc, char **argv)
 
   if((num_cores < 1) || (num_cores > MAX_CORES))
     fatal("-cores must be between 1 and %d (inclusive)",MAX_CORES);
-
-  uncore_create();
-  dram_create();
 
 #if defined(ZTRACE)
   if(ztrace_filename && strcmp(ztrace_filename,""))

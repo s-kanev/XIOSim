@@ -37,7 +37,7 @@ PIN=$(PIN_HOME)/pin
 # set up flags
 #
 ##############################################################
-CONFUSE_LIBS = -lconfuse
+CONFUSE_LIB = -lconfuse
 
 ifneq ($(CONFUSE_HOME),)
     CONFUSE_LPATHS = -L$(CONFUSE_HOME)/lib
@@ -56,7 +56,7 @@ else
     BOOST_CXXFLAGS =
 endif
 
-SIMLIB_LPATHS = -L$(ZESTO_HOME)
+SIMLIB_LPATHS = -L$(ZESTO_HOME) -L$(CONFUSE_LPATHS)
 
 # Now the actual compilation flags
 CXXFLAGS ?= -g -std=c++11
@@ -65,7 +65,7 @@ CXXFLAGS += -DDEBUG -D_FILE_OFFSET_BITS=64
 CXXFLAGS += $(CONFUSE_CXXFLAGS) $(BOOST_CXXFLAGS)
 CXXFLAGS += -I$(PIN_HOME)/source/tools/InstLib
 # For compiling test cases, specify the Catch unit testing framework directory.
-CXXFLAGS += -I$(CATCH_HOME)
+CXXFLAGS += -I$(CATCH_HOME) -I$(ZESTO_HOME)
 
 # additional debug flags
 ifeq ($(DEBUG),1)
@@ -82,7 +82,7 @@ endif
 TIMING = $(OBJDIR)timing_sim
 FEEDER = $(OBJDIR)feeder_zesto.so
 HARNESS = $(OBJDIR)harness
-UNIT_TESTS = $(OBJDIR)test_allocation $(OBJDIR)test_parse_speedup $(OBJDIR)test_speedup_models $(OBJDIR)test_handshake_compression
+UNIT_TESTS = $(OBJDIR)test_allocation $(OBJDIR)test_parse_speedup $(OBJDIR)test_speedup_models $(OBJDIR)test_handshake_compression $(OBJDIR)test_parse_configs
 
 SPEEDUP_OBJS = $(OBJDIR)base_speedup_model.o $(OBJDIR)log_speedup_model.o $(OBJDIR)linear_speedup_model.o $(OBJDIR)linreg.o
 ALLOCATOR_OBJS = $(SPEEDUP_OBJS) $(OBJDIR)penalty_allocator.o $(OBJDIR)local_opt_allocator.o $(OBJDIR)gang_allocator.o $(OBJDIR)base_allocator.o $(OBJDIR)optimization_targets.o
@@ -93,7 +93,7 @@ FEEDER_OBJS = $(OBJDIR)feeder_zesto.o $(ZESTO_HOME)/buffer.o $(OBJDIR)ildjit.o $
 
 HARNESS_OBJS = $(OBJDIR)harness.o $(OBJDIR)ipc_queues.o $(OBJDIR)mpkeys_impl.o
 
-UNIT_TEST_DEPS = $(ALLOCATOR_OBJS) $(SPEEDUP_OBJS) $(OBJDIR)parse_speedup.o $(OBJDIR)linreg.o $(OBJDIR)multiprocess_shared.o $(OBJDIR)ipc_queues.o $(OBJDIR)mpkeys_impl.o
+UNIT_TEST_DEPS = $(ALLOCATOR_OBJS) $(SPEEDUP_OBJS) $(OBJDIR)parse_speedup.o $(OBJDIR)linreg.o $(OBJDIR)multiprocess_shared.o $(OBJDIR)ipc_queues.o $(OBJDIR)mpkeys_impl.o $(ZESTO_HOME)/zesto-config-params.o $(OBJDIR)lib.o
 UNIT_TEST_OBJS = $(UNIT_TESTS:%=%.o)
 
 ##############################################################
@@ -164,16 +164,16 @@ $(OBJDIR)%.o : %.cpp
 #
 ##############################################################
 $(TIMING): $(TIMING_OBJS) $(SIM_LIB) $(MCPAT_LIB) $(DRAMSIM_LIB) $(REPEATER_LIB)
-	${PIN_LD} -g ${LINK_OUT} $@ ${SIMLIB_LPATHS} $^ $(BOOST_LIBS)
+	${PIN_LD} -g ${LINK_OUT} $@ ${SIMLIB_LPATHS} $^ $(BOOST_LIBS) $(CONFUSE_LIB)
 
 $(FEEDER): $(FEEDER_OBJS)
 	${PIN_LD} -g $(PIN_LDFLAGS) ${LINK_OUT} $@ ${PIN_LPATHS} $^ $(PIN_LIBS) $(BOOST_LIBS)
 
 $(HARNESS): $(HARNESS_OBJS)
-	${PIN_LD} -g ${LINK_OUT} $@ ${CONFUSE_LPATHS} $^ $(BOOST_LIBS) $(CONFUSE_LIBS)
+	${PIN_LD} -g ${LINK_OUT} $@ ${CONFUSE_LPATHS} $^ $(BOOST_LIBS) $(CONFUSE_LIB)
 
-$(UNIT_TESTS): % : %.o $(UNIT_TEST_DEPS)
-	${PIN_LD} -g ${LINK_OUT} $@ $^ $(BOOST_LIBS)
+$(UNIT_TESTS): % : %.o $(UNIT_TEST_DEPS) $(SIM_LIB) $(REPEATER_LIB) $(DRAMSIM_LIB) $(MCPAT_LIB)
+	${PIN_LD} -g ${LINK_OUT} $@ $^ ${CONFUSE_LPATHS} $(BOOST_LIBS) $(CONFUSE_LIB)
 
 ##############################################################
 #

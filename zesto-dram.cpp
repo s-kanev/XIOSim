@@ -88,7 +88,11 @@
 /* this pointer hold DRAM implementation/model-specific state */
 class dram_t * dram = NULL;
 
-static const char * dram_opt_string = NULL;
+// TODO: Making this nonstatic for now, because it has to be available for
+// zesto-config as an extern variable. In the future, we may put all the new
+// configuration code into the appropriate zesto file and restore these back to
+// static.
+const char * dram_opt_string = NULL;
 
 void  
 dram_reg_options(struct opt_odb_t * const odb)
