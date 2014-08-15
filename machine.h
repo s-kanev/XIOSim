@@ -457,14 +457,6 @@ extern const unsigned int md_opshift[];
 #define MD_OP_NAME(OP)        (md_op2name[OP])
 extern const char *md_op2name[];
 
-/* enum md_opcode -> enum name string */
-#define MD_OP_ENUM(OP)        (md_op2enum[OP])
-extern const char *md_op2enum[];
-
-/* enum md_opcode -> opcode operand format, used by disassembler */
-#define MD_OP_FORMAT(OP)    (md_op2format[OP])
-extern const char *md_op2format[];
-
 /* function unit classes, update md_fu2name if you update this definition */
 enum md_fu_class {
   FU_INVALID = -1,  /* inst cannot use a functional unit (assigned to Macro-Ops who
@@ -1739,61 +1731,6 @@ int md_fcc_eval(int cond, dword_t aflags, bool * bogus);
 #define stat_reg_addr            stat_reg_uint
 
 
-  /*
-   * configure the DLite! debugger
-   */
-
-  /* register bank specifier */
-  enum md_reg_type {
-    rt_gpr,        /* general purpose register */
-    rt_lpr,        /* integer-precision floating pointer register */
-    rt_fpr,        /* single-precision floating pointer register */
-    rt_dpr,        /* double-precision floating pointer register */
-    rt_ctrl,        /* control register */
-    rt_PC,        /* program counter */
-    rt_NPC,        /* next program counter */
-    rt_NUM
-  };
-
-/* register name specifier */
-struct md_reg_names_t {
-  const char *str;            /* register name */
-  enum md_reg_type file;      /* register file */
-  int reg;                    /* register index */
-};
-
-/* symbolic register names, parser is case-insensitive */
-extern const struct md_reg_names_t md_reg_names[];
-
-/* returns a register name string */
-const char *md_reg_name(const enum md_reg_type rt, const int reg);
-
-/* default register accessor object */
-struct eval_value_t;
-struct regs_t;
-const char *                        /* err str, NULL for no err */
-md_reg_obj(struct regs_t *regs,            /* registers to access */
-    const int is_write,            /* access type */
-    const enum md_reg_type rt,            /* reg bank to probe */
-    const int reg,                /* register number */
-    struct eval_value_t *val);        /* input, output */
-
-/* print integer REG(S) to STREAM */
-void md_print_ireg(md_gpr_t regs, int reg, FILE *stream);
-void md_print_iregs(md_gpr_t regs, FILE *stream);
-
-/* print floating point REG(S) to STREAM */
-void md_print_fpreg(md_fpr_t regs, int reg, FILE *stream);
-void md_print_fpregs(md_fpr_t regs, FILE *stream);
-
-/* print control REG(S) to STREAM */
-void md_print_creg(md_ctrl_t regs, int reg, FILE *stream);
-void md_print_cregs(md_ctrl_t regs, FILE *stream);
-
-/* Print out the contets of extended-width fp register file */
-void
-trace_fp_regfile(const int coreID, const md_fpr_t *regs_F, const md_ctrl_t *regs_C);
-
 /*
  * configure sim-outorder specifics
  */
@@ -1930,24 +1867,6 @@ typedef qword_t uop_inst_t;
 int
 md_get_flow(struct Mop_t * Mop,
     uop_inst_t flow[MD_MAX_FLOWLEN], bool * bogus);
-
-/* disassemble a SimpleScalar instruction */
-void
-md_print_insn(struct Mop_t * Mop,        /* instruction to disassemble */
-    FILE *stream);        /* output stream */
-
-/* print uop function */
-void
-md_print_uop(const enum md_opcode op,
-    const md_inst_t instruction,    /* instruction to disassemble */
-    const md_addr_t pc,        /* addr of inst, used for PC-rels */
-    FILE *stream);        /* output stream */
-
-void
-md_print_uop_1(struct uop_t *uop,
-    md_inst_t instruction,    /* instruction to disassemble */
-    md_addr_t pc,        /* addr of inst, used for PC-rels */
-    FILE *stream);        /* output stream */
 
 word_t
 md_uop_opc(const enum md_opcode uopcode);
