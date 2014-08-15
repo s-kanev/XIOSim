@@ -1,3 +1,5 @@
+#include <cstddef>
+
 #include "buffer.h"
 
 Buffer::Buffer()

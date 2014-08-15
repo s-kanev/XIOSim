@@ -83,6 +83,7 @@
 #include <sys/time.h>
 #include <sys/io.h>
 #include <stdint.h>
+#include <cstddef>
 
 #include "host.h"
 #include "machine.h"
@@ -92,6 +93,7 @@
 #include "options.h"
 #include "stats.h"
 #include "sim.h"
+#include "regs.h"
 
 #include "zesto-cache.h"
 #include "zesto-repeater.h"

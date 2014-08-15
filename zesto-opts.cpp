@@ -72,6 +72,8 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
+#include <cstddef>
+
 #include "thread.h"
 
 #include "zesto-opts.h"

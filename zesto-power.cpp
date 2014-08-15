@@ -1,3 +1,5 @@
+#include <cstddef>
+
 #include "thread.h"
 
 #include "stats.h"
