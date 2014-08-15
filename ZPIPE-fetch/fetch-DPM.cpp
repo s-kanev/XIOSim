@@ -157,9 +157,9 @@ core_fetch_DPM_t::core_fetch_DPM_t(struct core_t * const arg_core):
 
   /* the write-related options don't matter since the IL1 will(should) never see any stores */
   if(core->memory.DL2)
-    core->memory.IL1 = cache_create(core,name,CACHE_READONLY,sets,assoc,linesize,rp,'w','t','n',banks,bank_width,latency,MSHR_entries,4,1,core->memory.DL2,core->memory.DL2_bus);
+    core->memory.IL1 = cache_create(core,name,CACHE_READONLY,sets,assoc,linesize,rp,'w','t','n',banks,bank_width,latency,MSHR_entries,4,1,core->memory.DL2,core->memory.DL2_bus,knobs->memory.IL1_magic_hit_rate);
   else
-    core->memory.IL1 = cache_create(core,name,CACHE_READONLY,sets,assoc,linesize,rp,'w','t','n',banks,bank_width,latency,MSHR_entries,4,1,uncore->LLC,uncore->LLC_bus);
+    core->memory.IL1 = cache_create(core,name,CACHE_READONLY,sets,assoc,linesize,rp,'w','t','n',banks,bank_width,latency,MSHR_entries,4,1,uncore->LLC,uncore->LLC_bus,knobs->memory.IL1_magic_hit_rate);
   core->memory.IL1->MSHR_cmd_order = NULL;
 
   core->memory.IL1->PFF_size = knobs->memory.IL1_PFFsize;
@@ -190,9 +190,9 @@ core_fetch_DPM_t::core_fetch_DPM_t(struct core_t * const arg_core):
     fatal("invalid ITLB options: <name:sets:assoc:banks:latency:repl-policy:num-MSHR>");
 
   if(core->memory.DL2)
-    core->memory.ITLB = cache_create(core,name,CACHE_READONLY,sets,assoc,1,rp,'w','t','n',banks,1,latency,MSHR_entries,4,1,core->memory.DL2,core->memory.DL2_bus);
+    core->memory.ITLB = cache_create(core,name,CACHE_READONLY,sets,assoc,1,rp,'w','t','n',banks,1,latency,MSHR_entries,4,1,core->memory.DL2,core->memory.DL2_bus, -1.0);
   else
-    core->memory.ITLB = cache_create(core,name,CACHE_READONLY,sets,assoc,1,rp,'w','t','n',banks,1,latency,MSHR_entries,4,1,uncore->LLC,uncore->LLC_bus);
+    core->memory.ITLB = cache_create(core,name,CACHE_READONLY,sets,assoc,1,rp,'w','t','n',banks,1,latency,MSHR_entries,4,1,uncore->LLC,uncore->LLC_bus, -1.0);
   core->memory.ITLB->MSHR_cmd_order = NULL;
 
   core->memory.IL1->controller = controller_create(knobs->memory.IL1_controller_opt_str, core, core->memory.IL1);

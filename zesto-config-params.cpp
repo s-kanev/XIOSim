@@ -20,14 +20,13 @@ cfg_opt_t system_cfg[] {
   CFG_INT("max_insts", 0, CFGF_NONE),
   CFG_INT("max_uops", 0, CFGF_NONE),
   CFG_INT("max_cycles", 0, CFGF_NONE),
-  CFG_BOOL("magic_caches", cfg_false, CFGF_NONE),
   CFG_INT("heartbeat_interval", 0, CFGF_NONE),
   CFG_STR("pipeline_model", "DPM", CFGF_NONE),  // Add callback
   CFG_STR("ztrace_file_prefix", "ztrace", CFGF_NONE),
   CFG_BOOL("simulate_power", cfg_false, CFGF_NONE),
   CFG_INT("power_rtp_interval", 0, CFGF_NONE),
   CFG_STR("power_rtp_file", "", CFGF_NONE),
-  CFG_STR("output_redir", NULL, CFGF_NONE),
+  CFG_STR("output_redir", "sim.out", CFGF_NONE),
   CFG_END()
 };
 
@@ -57,6 +56,7 @@ cfg_opt_t itlb_cfg[] {
 cfg_opt_t icache_cfg[] {
   CFG_STR("config", "IL1:64:8:64:4:16:3:L:8", CFGF_NONE),
   CFG_STR("coherency_controller", "none", CFGF_NONE),
+  CFG_FLOAT("magic_hit_rate", -1.0, CFGF_NONE),
   CFG_STR("mshr_cmd", "none", CFGF_NONE),
   CFG_FLOAT("clock", 0, CFGF_NONE),
   CFG_SEC("iprefetch_cfg", iprefetch_cfg, CFGF_TITLE),
@@ -90,6 +90,7 @@ cfg_opt_t dtlb_cfg[] {
 cfg_opt_t dcache_cfg[] {
   CFG_STR("config", "DL1:64:8:64:8:64:2:L:W:T:8:C", CFGF_NONE),
   CFG_STR("coherency_controller", "none", CFGF_NONE),  // CB
+  CFG_FLOAT("magic_hit_rate", -1.0, CFGF_NONE),
   CFG_STR("mshr_cmd", "RWPB", CFGF_NONE),
   CFG_FLOAT("clock", 0, CFGF_NONE),
   CFG_SEC("dprefetch_cfg", dprefetch_cfg, CFGF_TITLE),
@@ -123,6 +124,7 @@ cfg_opt_t l2tlb_cfg[] {
 cfg_opt_t l2cache_cfg[] {
   CFG_STR("config", "DL2:512:8:64:8:64:9:L:W:T:8:C", CFGF_NONE),
   CFG_STR("coherency_controller", "none", CFGF_NONE),  // CB
+  CFG_FLOAT("magic_hit_rate", -1.0, CFGF_NONE),
   CFG_STR("mshr_cmd", "RPWB", CFGF_NONE),
   CFG_FLOAT("clock", 0, CFGF_NONE),
   CFG_SEC("l2prefetch_cfg", l2prefetch_cfg, CFGF_TITLE),
@@ -157,6 +159,7 @@ cfg_opt_t llccache_cfg[] {
   CFG_STR("config", "LLC:2048:16:64:16:64:12:L:W:B:8:1:8:C", CFGF_NONE),
   CFG_STR("coherency_controller", "none", CFGF_NONE),  // CB
   CFG_STR("mshr_cmd", "RPWB", CFGF_NODEFAULT),
+  CFG_FLOAT("magic_hit_rate", -1.0, CFGF_NONE),
   CFG_FLOAT("clock", 800.0, CFGF_NONE),
   CFG_SEC("llcprefetch_cfg", llcprefetch_cfg, CFGF_TITLE),
   CFG_SEC("llctlb_cfg", llctlb_cfg, CFGF_TITLE),

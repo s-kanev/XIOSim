@@ -5,6 +5,10 @@
  */
 
 #include <cmath>
+#include <string>
+#include <sstream>
+
+#include "pintool/ezOptionParser_clean.hpp"
 
 #include "machine.h"  // Make sure this won't interfere with Boost.
 #include "confuse.h"
@@ -34,6 +38,7 @@ void store_fetch_options(cfg_t *fetch_opt, core_knobs_t *knobs) {
   knobs->memory.IL1_opt_str = cfg_getstr(icache_opt, "config");
   knobs->memory.IL1_controller_opt_str =
       cfg_getstr(icache_opt, "coherency_controller");
+  knobs->memory.IL1_magic_hit_rate = cfg_getfloat(icache_opt, "magic_hit_rate");
   store_str_list(prefetch_opt, "config", knobs->memory.IL1PF_opt_str,
                  &knobs->memory.IL1_num_PF, MAX_PREFETCHERS);
   knobs->memory.IL1_PFFsize = cfg_getint(prefetch_opt, "fifosize");
@@ -143,10 +148,12 @@ void store_exec_stage_options(cfg_t *exec_opt, core_knobs_t *knobs) {
   knobs->memory.DL1_MSHR_cmd = cfg_getstr(dcache_opt, "mshr_cmd");
   knobs->memory.DL1_controller_opt_str =
       cfg_getstr(dcache_opt, "coherency_controller");
+  knobs->memory.DL1_magic_hit_rate = cfg_getfloat(dcache_opt, "magic_hit_rate");
   knobs->memory.DL2_opt_str = cfg_getstr(l2_opt, "config");
   knobs->memory.DL2_MSHR_cmd = cfg_getstr(l2_opt, "mshr_cmd");
   knobs->memory.DL2_controller_opt_str =
       cfg_getstr(l2_opt, "coherency_controller");
+  knobs->memory.DL2_magic_hit_rate = cfg_getfloat(l2_opt, "magic_hit_rate");
 
   store_str_list(dpf_opt, "config", knobs->memory.DL1PF_opt_str,
                  &knobs->memory.DL1_num_PF, MAX_PREFETCHERS);
@@ -234,6 +241,7 @@ void store_uncore_options(cfg_t *uncore_opt, core_knobs_t *knobs) {
   LLC_MSHR_cmd = cfg_getstr(llccache_opt, "mshr_cmd");
   LLC_speed = cfg_getfloat(llccache_opt, "clock");
   LLC_controller_str = cfg_getstr(llccache_opt, "coherency_controller");
+  LLC_magic_hit_rate = cfg_getfloat(llccache_opt, "magic_hit_rate");
   store_str_list(llcprefetch_opt, "config", LLC_PF_opt_str,
                  &LLC_num_PF, MAX_PREFETCHERS);
   LLC_PFFsize = cfg_getint(llcprefetch_opt, "fifosize");
@@ -274,7 +282,6 @@ void store_system_options(cfg_t *system_opt, core_knobs_t *knobs) {
   max_insts = cfg_getint(system_opt, "max_insts");
   max_uops = cfg_getint(system_opt, "max_uops");
   max_cycles = cfg_getint(system_opt, "max_cycles");
-  cache_magic = cfg_getbool(system_opt, "magic_caches");
   heartbeat_frequency = cfg_getint(system_opt, "heartbeat_interval");
   knobs->model = cfg_getstr(system_opt, "pipeline_model");
   ztrace_filename = cfg_getstr(system_opt, "ztrace_file_prefix");
@@ -284,11 +291,24 @@ void store_system_options(cfg_t *system_opt, core_knobs_t *knobs) {
   sim_simout = cfg_getstr(system_opt, "output_redir");
 }
 
+// TODO(skanev): No need for reconstructing argc, argv. Move to "one set of
+// flags to rule them all" in timing_sim
 int read_config_file(int argc, const char* argv[], core_knobs_t *knobs) {
+  ez::ezOptionParser opts;
+  opts.overview = "XIOSim Zesto options";
+  opts.syntax = "XXX";
+  opts.add("", 1, 1, 0, "Simulator config file", "-config");
+  opts.parse(argc, argv);
+
+  std::string cfg_file;
+  opts.get("-config")->getString(cfg_file);
+
   all_opts = cfg_init(top_level_cfg, CFGF_NOCASE);
-  int ret = cfg_parse(all_opts, argc > 1 ? argv[1] : "test.conf");
+  int ret = cfg_parse(all_opts, cfg_file.c_str());
   if (ret == CFG_FILE_ERROR) {
-    perror("Failed to open configuration file");
+    std::stringstream err;
+    err << "Failed to open configuration file " << cfg_file;
+    perror(err.str().c_str());
     return 1;
   } else if (ret == CFG_PARSE_ERROR) {
     fprintf(stderr, "Parsing error.\n");

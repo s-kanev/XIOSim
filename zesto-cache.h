@@ -267,6 +267,8 @@ struct cache_t {
   /* coherency controllers */
   struct cache_controller_t * controller;
 
+  float magic_hit_rate;
+
   struct {
     counter_t load_lookups;
     counter_t load_misses;
@@ -311,7 +313,8 @@ struct cache_t * cache_create(
     const int MSHR_WB_size,
     const int MSHR_banked,
     struct cache_t * const next_level_cache,
-    struct bus_t * const bus_next);
+    struct bus_t * const bus_next,
+    const float magic_hit_rate);
 
 void cache_reg_stats(
     struct stat_sdb_t * const sdb,

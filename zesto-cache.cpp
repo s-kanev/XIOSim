@@ -94,8 +94,6 @@
 #define GET_BANK(x) (((x)>>cp->bank_shift) & cp->bank_mask)
 #define GET_MSHR_BANK(x) (((x)>>cp->bank_shift) & cp->MSHR_mask)
 
-extern bool cache_magic;
-
 struct cache_t * cache_create(
     struct core_t * const core,
     const char * const name,
@@ -114,7 +112,8 @@ struct cache_t * cache_create(
     const int MSHR_WB_size, /* MSHRs reserved for writebacks (per bank), in requests */
     const int MSHR_banks, /* number of MSHR banks */
     struct cache_t * const next_level_cache, /* e.g., for the DL1, this should point to the L2 */
-    struct bus_t * const next_bus /* e.g., for the DL1, this should point to the bus between DL1 and L2 */
+    struct bus_t * const next_bus, /* e.g., for the DL1, this should point to the bus between DL1 and L2 */
+    const float magic_hit_rate
     )
 {
   int i;
@@ -179,6 +178,7 @@ struct cache_t * cache_create(
   cp->next_bus = next_bus;
   cp->check_for_work = true;
   cp->check_for_MSHR_fill_work = true;
+  cp->magic_hit_rate = magic_hit_rate;
 
   if((cp->replacement_policy == REPLACE_PLRU) && (assoc & (assoc-1)))
     fatal("Tree-based PLRU only works when associativity is a power of two");
@@ -762,9 +762,16 @@ struct cache_line_t * cache_is_hit(
   struct cache_line_t * p = cp->blocks[index];
   struct cache_line_t * prev = NULL;
 
-  if(cache_magic) {
-    assert(p != NULL);    
-    return p;
+  /* Predefined hit rate for magic simulation. Doesn't properly maintain
+   * replacement state, but hey, magic. */
+  if(cp->magic_hit_rate != -1.0) {
+    float r = random() / float(RAND_MAX);
+    if (r < cp->magic_hit_rate) {
+      assert(p != NULL);
+      return p;
+    }
+    else
+      return NULL;
   }
 
   while(p) /* search all of the ways */

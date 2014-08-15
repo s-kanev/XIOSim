@@ -391,14 +391,17 @@ struct core_knobs_t
     int IL1_num_PF; int IL1_PFFsize; int IL1_PFthresh; int IL1_PFmax; int IL1_PF_buffer_size;
     int IL1_PF_filter_size; int IL1_PF_filter_reset; bool IL1_PF_on_miss;
     int IL1_WMinterval; double IL1_low_watermark; double IL1_high_watermark;
+    float IL1_magic_hit_rate;
     int DL1_num_PF; int DL1_PFFsize; int DL1_PFthresh; int DL1_PFmax; int DL1_PF_buffer_size;
     int DL1_PF_filter_size; int DL1_PF_filter_reset; bool DL1_PF_on_miss;
     int DL1_WMinterval; double DL1_low_watermark; double DL1_high_watermark;
     const char * DL1_MSHR_cmd;
+    float DL1_magic_hit_rate;
     int DL2_num_PF; int DL2_PFFsize; int DL2_PFthresh; int DL2_PFmax; int DL2_PF_buffer_size;
     int DL2_PF_filter_size; int DL2_PF_filter_reset; bool DL2_PF_on_miss;
     int DL2_WMinterval; double DL2_low_watermark; double DL2_high_watermark;
     const char * DL2_MSHR_cmd;
+    float DL2_magic_hit_rate;
 
     /* for storing command line parameters */
     const char * IL1_opt_str;

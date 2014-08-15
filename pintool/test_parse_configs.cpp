@@ -38,7 +38,7 @@ void CheckIPCMessageQueue(bool isEarly, int caller_coreID) {}
 
 TEST_CASE("Test configuration parsing", "config") {
     const char* config_file = "../config/default.cfg";
-    const char* argv[2] = {"--config", config_file};
+    const char* argv[2] = {"-config", config_file};
     read_config_file(2, argv, &knobs);
 
     // Only test a subset of the configuration parameters.
@@ -109,8 +109,8 @@ TEST_CASE("Test configuration parsing", "config") {
     SECTION("Checking commit stage configuration") {
         REQUIRE(knobs.commit.ROB_size == 64);
         REQUIRE(knobs.commit.width == 4);
-        REQUIRE(knobs.commit.branch_limit == 2);
-        REQUIRE(knobs.commit.pre_commit_depth == 2);
+        REQUIRE(knobs.commit.branch_limit == 0);
+        REQUIRE(knobs.commit.pre_commit_depth == -1);
     }
 
     SECTION("Checking uncore configuration") {

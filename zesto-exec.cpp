@@ -287,6 +287,12 @@ void exec_reg_options(struct opt_odb_t * odb, struct core_knobs_t * knobs)
   opt_reg_string(odb, "-dtlb2:controller","2nd-level TLB cache coherency controller configuration [DS]",
       &knobs->memory.DTLB2_controller_opt_str, /*default*/ "none", /*print*/true,/*format*/NULL);
 
+  /* Magic options */
+  opt_reg_float(odb, "-dl1:magic_hit_rate", "magic DL1 hit rate (-1 = no magic)",
+      &knobs->memory.DL1_magic_hit_rate, /*default*/ -1.0, /*print*/true, /*format*/NULL);
+  opt_reg_float(odb, "-dl2:magic_hit_rate", "magic DL2 hit rate (-1 = no magic)",
+      &knobs->memory.DL2_magic_hit_rate, /*default*/ -1.0, /*print*/true, /*format*/NULL);
+
   /*******************************/
   /* memory dependence predictor */
   /*******************************/

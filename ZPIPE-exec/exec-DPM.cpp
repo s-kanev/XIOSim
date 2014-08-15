@@ -264,7 +264,8 @@ core_exec_DPM_t::core_exec_DPM_t(struct core_t * const arg_core):
       fatal("invalid DL2 options: <name:sets:assoc:linesize:banks:bank-width:latency:repl-policy:alloc-policy:write-policy:num-MSHR:WB-buffers:write-combining>\n\t(%s)",knobs->memory.DL2_opt_str);
     core->memory.DL2 = cache_create(core,name,CACHE_READWRITE,sets,assoc,linesize,
                              rp,ap,wp,wc,banks,bank_width,latency,
-                             MSHR_entries,MSHR_WB_entries,1,uncore->LLC,uncore->LLC_bus);
+                             MSHR_entries,MSHR_WB_entries,1,uncore->LLC,uncore->LLC_bus,
+                             knobs->memory.DL2_magic_hit_rate);
 
     if(!knobs->memory.DL2_MSHR_cmd || !strcasecmp(knobs->memory.DL2_MSHR_cmd,"fcfs"))
       core->memory.DL2->MSHR_cmd_order = NULL;
@@ -327,11 +328,13 @@ core_exec_DPM_t::core_exec_DPM_t(struct core_t * const arg_core):
   if(core->memory.DL2)
     core->memory.DL1 = cache_create(core,name,CACHE_READWRITE,sets,assoc,linesize,
                              rp,ap,wp,wc,banks,bank_width,latency,
-                             MSHR_entries,MSHR_WB_entries,1,core->memory.DL2,core->memory.DL2_bus);
+                             MSHR_entries,MSHR_WB_entries,1,core->memory.DL2,core->memory.DL2_bus,
+                             knobs->memory.DL1_magic_hit_rate);
   else
     core->memory.DL1 = cache_create(core,name,CACHE_READWRITE,sets,assoc,linesize,
                              rp,ap,wp,wc,banks,bank_width,latency,
-                             MSHR_entries,MSHR_WB_entries,1,uncore->LLC,uncore->LLC_bus);
+                             MSHR_entries,MSHR_WB_entries,1,uncore->LLC,uncore->LLC_bus,
+                             knobs->memory.DL1_magic_hit_rate);
   if(!knobs->memory.DL1_MSHR_cmd || !strcasecmp(knobs->memory.DL1_MSHR_cmd,"fcfs"))
     core->memory.DL1->MSHR_cmd_order = NULL;
   else
@@ -406,9 +409,9 @@ core_exec_DPM_t::core_exec_DPM_t(struct core_t * const arg_core):
       fatal("invalid DTLB2 options: <name:sets:assoc:banks:latency:repl-policy:num-MSHR>");
 
     if(core->memory.DL2)
-      core->memory.DTLB2 = cache_create(core,name,CACHE_READONLY,sets,assoc,1,rp,'w','t','n',banks,1,latency,MSHR_entries,4,1,core->memory.DL2,core->memory.DL2_bus); /* on a complete TLB miss, go to the L2 cache to simulate the traffic from a HW page-table walker */
+      core->memory.DTLB2 = cache_create(core,name,CACHE_READONLY,sets,assoc,1,rp,'w','t','n',banks,1,latency,MSHR_entries,4,1,core->memory.DL2,core->memory.DL2_bus,-1.0); /* on a complete TLB miss, go to the L2 cache to simulate the traffic from a HW page-table walker */
     else
-      core->memory.DTLB2 = cache_create(core,name,CACHE_READONLY,sets,assoc,1,rp,'w','t','n',banks,1,latency,MSHR_entries,4,1,uncore->LLC,uncore->LLC_bus); /* on a complete TLB miss, go to the LLC to simulate the traffic from a HW page-table walker */
+      core->memory.DTLB2 = cache_create(core,name,CACHE_READONLY,sets,assoc,1,rp,'w','t','n',banks,1,latency,MSHR_entries,4,1,uncore->LLC,uncore->LLC_bus,-1.0); /* on a complete TLB miss, go to the LLC to simulate the traffic from a HW page-table walker */
     core->memory.DTLB2->MSHR_cmd_order = NULL;
   }
 
@@ -419,12 +422,12 @@ core_exec_DPM_t::core_exec_DPM_t(struct core_t * const arg_core):
 
   if(core->memory.DTLB2)
   {
-    core->memory.DTLB = cache_create(core,name,CACHE_READONLY,sets,assoc,1,rp,'w','t','n',banks,1,latency,MSHR_entries,4,1,core->memory.DTLB2,core->memory.DTLB_bus);
+    core->memory.DTLB = cache_create(core,name,CACHE_READONLY,sets,assoc,1,rp,'w','t','n',banks,1,latency,MSHR_entries,4,1,core->memory.DTLB2,core->memory.DTLB_bus,-1.0);
     core->memory.DTLB->MSHR_cmd_order = NULL;
   }
   else
   {
-    core->memory.DTLB = cache_create(core,name,CACHE_READONLY,sets,assoc,1,rp,'w','t','n',banks,1,latency,MSHR_entries,4,1,uncore->LLC,uncore->LLC_bus);
+    core->memory.DTLB = cache_create(core,name,CACHE_READONLY,sets,assoc,1,rp,'w','t','n',banks,1,latency,MSHR_entries,4,1,uncore->LLC,uncore->LLC_bus,-1.0);
     core->memory.DTLB->MSHR_cmd_order = NULL;
   }
 

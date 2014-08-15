@@ -105,13 +105,12 @@ double fsb_speed; /* in MHz */
 
 double LLC_speed; /* in MHz */
 bool fsb_magic; /* ideal FSB flag */
-bool cache_magic; /* ideal cache flag */
-
 // TODO: Removing static modifier. See zesto-dram for more details.
 const char * MC_opt_string = NULL;
 const char * LLC_opt_str = "LLC:4096:16:64:16:64:9:L:W:B:8:1:C";
 const char * LLC_controller_str = "none";
 const char * LLC_MSHR_cmd = "RPWB";
+float LLC_magic_hit_rate;
 
 // LLC prefetcher options.
 // TODO: Removing static modifier. See zesto-dram for more details.
@@ -162,7 +161,8 @@ uncore_t::uncore_t(
 
   LLC = cache_create(NULL,name,CACHE_READWRITE,sets,assoc,linesize,
                      rp,ap,wp,wc,banks,bank_width,latency_scaled,
-                     MSHR_entries,MSHR_WB_entries,MSHR_banks,NULL,fsb);
+                     MSHR_entries,MSHR_WB_entries,MSHR_banks,NULL,fsb,
+                     LLC_magic_hit_rate);
   if(!LLC_MSHR_cmd || !strcasecmp(LLC_MSHR_cmd,"fcfs"))
     LLC->MSHR_cmd_order = NULL;
   else
@@ -261,6 +261,8 @@ uncore_reg_options(struct opt_odb_t * const odb)
 
   opt_reg_string(odb, "-LLC:controller","last-level cache controller string [DS]",
       &LLC_controller_str, /*default*/ "none", /*print*/true,/*format*/NULL);
+  opt_reg_float(odb, "-LLC:magic_hit_rate", "magic LLC hit rate (-1 = no magic)",
+      &LLC_magic_hit_rate, /*default*/ -1.0, /*print*/true, /*format*/NULL);
 
   opt_reg_int(odb, "-fsb:width", "front-side bus width (bytes) [DS]",
       &fsb_width, /* default */4, /* print */true, /* format */NULL);
@@ -270,8 +272,6 @@ uncore_reg_options(struct opt_odb_t * const odb)
       &fsb_speed, /*default*/100.0,/*print*/true,/*format*/NULL);
   opt_reg_flag(odb, "-fsb:magic", "Unlimited bandwidth FSB",
       &fsb_magic, /*default*/false, /*print*/true,/*format*/NULL);
-  opt_reg_flag(odb, "-cache:magic", "All caches always hit",
-      &cache_magic, /*default*/false, /*print*/true,/*format*/NULL);
   opt_reg_double(odb, "-cpu:speed", "CPU speed in MHz [DS]",
       &knobs.default_cpu_speed, /*default*/4000.0,/*print*/true,/*format*/NULL);
   opt_reg_string(odb, "-MC", "memory controller configuration string [DS]",

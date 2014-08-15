@@ -18,7 +18,6 @@
 // the functions into their original files.
 extern int num_cores;
 extern long long max_insts;
-extern bool cache_magic;
 extern int heartbeat_frequency;
 extern const char* ztrace_filename;
 extern bool simulate_power;
@@ -37,6 +36,7 @@ extern const char * LLC_MSHR_cmd;
 extern const char * LLC_controller_str;
 extern const char * MC_opt_string;
 // Static
+extern float LLC_magic_hit_rate;
 extern int LLC_num_PF;
 extern int LLC_PFFsize;
 extern int LLC_PFthresh;
@@ -54,7 +54,6 @@ extern double fsb_speed;
 
 extern double LLC_speed;
 extern bool fsb_magic;
-extern bool cache_magic;
 extern const char* dram_opt_string;
 
 // Declaration of all configuration parameters.
@@ -92,9 +91,8 @@ extern cfg_opt_t uncore_cfg[];
 extern cfg_opt_t top_level_cfg[];
 
 /* Entry point for parsing Zesto configuration file. This function expects the
- * Zesto configuration file path to be the first argument in argv; that is,
- * argv[0] is the flag "-config" and argv[1] is the config file path. Options
- * are stored in the knobs struct.
+ * Zesto configuration file path to be in the flag "-config". Options are
+ * stored in the knobs struct.
  */
 int read_config_file(int argc, const char* argv[], core_knobs_t* knobs);
 
