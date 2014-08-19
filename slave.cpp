@@ -16,6 +16,7 @@
 #include <sys/io.h>
 
 #include <map>
+#include <cstddef>
 
 #include "confuse.h"
 #include "interface.h"
