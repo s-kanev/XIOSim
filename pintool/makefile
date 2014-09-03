@@ -40,7 +40,7 @@ PIN=$(PIN_HOME)/pin
 CONFUSE_LIB = -lconfuse
 
 ifneq ($(CONFUSE_HOME),)
-    CONFUSE_LPATHS = -L$(CONFUSE_HOME)/lib
+    CONFUSE_LPATHS = $(CONFUSE_HOME)/lib
     CONFUSE_CXXFLAGS = -I$(CONFUSE_HOME)/include
 else
     CONFUSE_LPATHS =
@@ -82,7 +82,7 @@ endif
 TIMING = $(OBJDIR)timing_sim
 FEEDER = $(OBJDIR)feeder_zesto.so
 HARNESS = $(OBJDIR)harness
-UNIT_TESTS = $(OBJDIR)test_allocation $(OBJDIR)test_parse_speedup $(OBJDIR)test_speedup_models $(OBJDIR)test_handshake_compression $(OBJDIR)test_parse_configs
+UNIT_TESTS = $(OBJDIR)test_allocation $(OBJDIR)test_parse_speedup $(OBJDIR)test_speedup_models $(OBJDIR)test_handshake_compression $(OBJDIR)test_parse_configs $(OBJDIR)test_stat_database
 
 SPEEDUP_OBJS = $(OBJDIR)base_speedup_model.o $(OBJDIR)log_speedup_model.o $(OBJDIR)linear_speedup_model.o $(OBJDIR)linreg.o
 ALLOCATOR_OBJS = $(SPEEDUP_OBJS) $(OBJDIR)penalty_allocator.o $(OBJDIR)local_opt_allocator.o $(OBJDIR)gang_allocator.o $(OBJDIR)base_allocator.o $(OBJDIR)optimization_targets.o
@@ -170,10 +170,10 @@ $(FEEDER): $(FEEDER_OBJS)
 	${PIN_LD} -g $(PIN_LDFLAGS) ${LINK_OUT} $@ ${PIN_LPATHS} $^ $(PIN_LIBS) $(BOOST_LIBS)
 
 $(HARNESS): $(HARNESS_OBJS)
-	${PIN_LD} -g ${LINK_OUT} $@ ${CONFUSE_LPATHS} $^ $(BOOST_LIBS) $(CONFUSE_LIB)
+	${PIN_LD} -g ${LINK_OUT} $@ -L${CONFUSE_LPATHS} $^ $(BOOST_LIBS) $(CONFUSE_LIB)
 
 $(UNIT_TESTS): % : %.o $(UNIT_TEST_DEPS) $(SIM_LIB) $(REPEATER_LIB) $(DRAMSIM_LIB) $(MCPAT_LIB)
-	${PIN_LD} -g ${LINK_OUT} $@ $^ ${CONFUSE_LPATHS} $(BOOST_LIBS) $(CONFUSE_LIB)
+	${PIN_LD} -g ${LINK_OUT} $@ $^ -L${CONFUSE_LPATHS} $(BOOST_LIBS) $(CONFUSE_LIB)
 
 ##############################################################
 #
