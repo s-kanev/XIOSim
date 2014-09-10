@@ -260,7 +260,7 @@ void core_exec_NONE_t::LDST_exec(void)
     return;
   }
 
-  for (int i = 0; i < Mop->decode.flow_length; i++) {
+  for (size_t i = 0; i < Mop->decode.flow_length; i++) {
     uop_t* uop = &Mop->uop[i];
 
     // Skip immediates.

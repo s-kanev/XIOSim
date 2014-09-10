@@ -172,7 +172,7 @@ class handshake_container_t {
 
         /* Write IREGS */
         const size_t iregOffset = offsetof(regs_t, regs_R);
-        for (int i = 0; i < MD_NUM_IREGS; i++) {
+        for (size_t i=0; i < xiosim::x86::NUM_IREGS; i++) {
             if (this->handshake.ctxt.regs_R.dw[i] != shadow_regs->regs_R.dw[i]) {
                 /* Offset -- relative to the P2Z_HANDSHAKE struct */
                 size_t offset = regsOffset + iregOffset + i * sizeof(dword_t);
@@ -183,13 +183,13 @@ class handshake_container_t {
 
         /* Write FREGS */
         const size_t fregOffset = offsetof(regs_t, regs_F);
-        for (int i = 0; i < MD_NUM_FREGS; i++) {
+        for (size_t i=0; i < xiosim::x86::NUM_FREGS; i++) {
             if (memcmp(&this->handshake.ctxt.regs_F.e[i],
                        &shadow_regs->regs_F.e[i],
                        sizeof(shadow_regs->regs_F.e[0]))) {
-                for (size_t float_ind = 0; float_ind < MD_FPR_HOST_SIZE / sizeof(sfloat_t);
+                for (size_t float_ind = 0; float_ind < xiosim::x86::FREG_HOST_SIZE / sizeof(sfloat_t);
                      float_ind++) {
-                    size_t offset = regsOffset + fregOffset + i * MD_FPR_HOST_SIZE +
+                    size_t offset = regsOffset + fregOffset + i * xiosim::x86::FREG_HOST_SIZE +
                                     float_ind * sizeof(sfloat_t);
                     buffer = WriteCompressedToBuffer(buffer,
                                                      offset,
@@ -224,7 +224,7 @@ class handshake_container_t {
 
         /* Write segment regs */
         const size_t segOffset = offsetof(regs_t, regs_S);
-        for (int i = 0; i < MD_NUM_SREGS; i++) {
+        for (size_t i=0; i < xiosim::x86::NUM_SREGS; i++) {
             if (this->handshake.ctxt.regs_S.w[i] != shadow_regs->regs_S.w[i]) {
                 size_t offset = regsOffset + segOffset + i * sizeof(word_t);
                 buffer = WriteCompressedToBuffer(
@@ -234,7 +234,7 @@ class handshake_container_t {
 
         /* Write segment base regs */
         const size_t segBaseOffset = offsetof(regs_t, regs_SD);
-        for (int i = 0; i < MD_NUM_SREGS; i++) {
+        for (size_t i=0; i < xiosim::x86::NUM_SREGS; i++) {
             if (this->handshake.ctxt.regs_SD.dw[i] != shadow_regs->regs_SD.dw[i]) {
                 size_t offset = regsOffset + segBaseOffset + i * sizeof(dword_t);
                 buffer = WriteCompressedToBuffer(
@@ -244,19 +244,20 @@ class handshake_container_t {
 
         /* Write XMMS */
         const size_t xregOffset = offsetof(regs_t, regs_XMM);
-        for (int i = 0; i < MD_NUM_XMMREGS; i++) {
+        for (size_t i=0; i < xiosim::x86::NUM_XMMREGS; i++) {
             if (memcmp(&this->handshake.ctxt.regs_XMM.qw[i],
                        &shadow_regs->regs_XMM.qw[i],
                        sizeof(shadow_regs->regs_XMM.qw[0]))) {
-                for (size_t float_ind = 0; float_ind < MD_XMM_SIZE / sizeof(sfloat_t);
+                for (size_t float_ind = 0; float_ind < xiosim::x86::XMMREG_SIZE / sizeof(sfloat_t);
                      float_ind++) {
-                    /* Write the offset -- relative to the P2Z_HANDSHAKE struct */
+                    /* Write the offset -- relative to the P2Z_HANDSHAKE struct */ 
                     size_t offset =
-                        regsOffset + xregOffset + i * MD_XMM_SIZE + float_ind * sizeof(sfloat_t);
+                        regsOffset + xregOffset + i * xiosim::x86::XMMREG_SIZE +
+                        float_ind * sizeof(sfloat_t);
                     buffer = WriteCompressedToBuffer(buffer,
-                                                     offset,
-                                                     &this->handshake.ctxt.regs_XMM.f[i][float_ind],
-                                                     sizeof(sfloat_t));
+                                                    offset,
+                                                    &this->handshake.ctxt.regs_XMM.f[i][float_ind],
+                                                    sizeof(sfloat_t));
                 }
             }
         }
@@ -341,7 +342,7 @@ class handshake_container_t {
         out << "tpc: " << hand.handshake.tpc << " ";
         out << std::dec << "brtaken: " << hand.flags.brtaken << " ";
         out << std::hex << "ins: ";
-        for (int i = 0; i < MD_MAX_ILEN; i++)
+        for (size_t i=0; i < xiosim::x86::MAX_ILEN; i++)
             out << (uint32_t)hand.handshake.ins[i] << " ";
         out << "flags: ";
         out << std::dec << hand.flags.real;

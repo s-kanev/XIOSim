@@ -72,6 +72,7 @@ extern "C" {
  * a highly standardized and stylized fashion using stat_print_stats().
  */
 
+#define stat_reg_counter        stat_reg_sqword
 /* stat variable classes */
 enum stat_class_t {
   sc_int = 0,			/* integer stat */

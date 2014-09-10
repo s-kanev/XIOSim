@@ -7,12 +7,13 @@
 #define __PIN_ZESTO_H__
 
 #include "host.h"
+#include "decode.h"
 
 typedef struct P2Z_HANDSHAKE {
     unsigned int pc;                    /* Current instruction address */
     unsigned int npc;                   /* Fallthrough instruction address */
     unsigned int tpc;                   /* Next address Pin will execute */
-    unsigned char ins[MD_MAX_ILEN];     /* Instruction bytes */
+    unsigned char ins[xiosim::x86::MAX_ILEN];   /* Instruction bytes */
     char asid;                          /* Address space ID */
     /* XXX: This MUST be the last member! (see handshake_container.h) */
     struct regs_t ctxt;                 /* Register context */

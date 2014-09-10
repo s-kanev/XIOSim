@@ -24,7 +24,6 @@
 #include "misc.h"
 #include "machine.h"
 #include "endian.h"
-#include "version.h"
 #include "stats.h"
 #include "sim.h"
 #include "synchronization.h"
@@ -67,7 +66,6 @@ extern const char *sim_simout;
 extern int rand_seed;
 
 extern int orphan_fn(int i, int argc, char **argv);
-extern void banner(FILE *fd, int argc, char **argv);
 
 extern bool sim_slave_running;
 
@@ -101,16 +99,6 @@ Zesto_SlaveInit(int argc, char **argv)
         fatal("unable to redirect simulator output to file `%s'", sim_simout);
     }
 
-  /* need at least two argv values to run */
-  if (argc < 2)
-    {
-      banner(stderr, argc, argv);
-      exit(1);
-    }
-
-  /* opening banner */
-  banner(stderr, argc, argv);
-
   /* seed the random number generator */
   if (rand_seed == 0)
     {
@@ -124,7 +112,7 @@ Zesto_SlaveInit(int argc, char **argv)
     }
 
   /* initialize the instruction decoder */
-  md_init_decoder();
+  init_decoder();
 
   /* initialize all simulation modules */
   sim_post_init();
@@ -257,9 +245,6 @@ void sim_drain_pipe(int coreID)
 
    if (core->memory.mem_repeater)
      core->memory.mem_repeater->flush(core->current_thread->asid, NULL);
-
-   // Do this after fetch->recover, since the latest Mop might have had a rep prefix
-   core->current_thread->rep_sequence = 0;
 }
 
 void Zesto_Slice_Start(unsigned int slice_num)

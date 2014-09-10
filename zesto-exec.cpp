@@ -77,6 +77,7 @@
 #include "thread.h"
 #include "synchronization.h"
 
+#include "zesto-structs.h"
 #include "zesto-cache.h"
 #include "zesto-noc.h"
 #include "zesto-repeater.h"
@@ -116,6 +117,13 @@ enum cache_command core_exec_t::get_STQ_request_type(const struct uop_t * const 
     return CACHE_WRITE;
 
   return is_addr_helix_signal(uop->oracle.virt_addr) ? CACHE_SIGNAL : CACHE_WAIT;
+}
+
+int core_exec_t::get_fp_penalty(const struct uop_t * const uop)
+{
+  bool freg_output = x86::is_freg(uop->decode.odep_name[0]);
+  bool fp_op = (uop->decode.opflags & F_FCOMP);
+  return (freg_output ^ fp_op) ? core->knobs->exec.fp_penalty : 0;
 }
 
 extern int min_coreID;

@@ -1,5 +1,5 @@
-#ifndef ARCH_CPU_INCLUDED
-#define ARCH_CPU_INCLUDED
+#ifndef __THREAD_H__
+#define __THREAD_H__
 
 #include "machine.h"
 #include "memory.h"
@@ -8,10 +8,6 @@
 struct thread_t {
 
   int id;                    /* unique ID for each thread */
-
-  struct regs_t regs;        /* simulated registers */
-
-  int rep_sequence;          /* for implementing REP instructions */
   int asid;                  /* Address space ID that this thread belongs to. */
 
   char* rand_statebuf;       /* for per thread random number generation */
@@ -30,10 +26,12 @@ struct thread_t {
   long long fetches_since_feeder; /* Instructions since last pin call */
   bool in_critical_section; /* Are we executing a HELIX sequential cut? */
   tick_t last_active_cycle; /* Last time this core was active */
+
+  struct xiosim::x86::regs_t regs; // XXX: Should go away
 };
 
 /* architected state for each simulated thread/process */
 extern struct thread_t ** threads;
 extern int num_cores;
 
-#endif /* ARCH_CPU_INCLUDED */
+#endif /* __THREAD_H__ */

@@ -97,10 +97,6 @@ core_t::core_t(const int core_id):
 {
   memzero(&memory,sizeof(memory));
   memzero(&stat,sizeof(stat));
-
-  assert(sizeof(struct uop_array_t) % 16 == 0);
-
-  memzero(uop_array_pool,sizeof(uop_array_pool));
 }
 
 /* assign a new, unique id */
@@ -108,55 +104,6 @@ seq_t core_t::new_action_id(void)
 {
   global_action_id++;
   return global_action_id;
-}
-
-/* Returns an array of uop structs; manages its own free pool by
-   size.  The input to this function should be the Mop's uop flow
-   length.  The implementation of this is slightly (very?) ugly; see
-   the definition of struct uop_array_t.  We basically define a
-   struct that contains a pointer for linking everything up in the
-   free lists, but we don't actually want the outside world to know
-   about these pointers, so we actually return a pointer that is !=
-   to the original address returned by calloc.  If you're familiar
-   with the original cache structures from the old SimpleScalar, we
-   declare our uop_array_t similar to that. */
-struct uop_t * core_t::get_uop_array(const int size)
-{
-  struct uop_array_t * p;
-
-  if(uop_array_pool[size])
-  {
-    p = uop_array_pool[size];
-    uop_array_pool[size] = p->next;
-    p->next = NULL;
-    assert(p->size == size);
-  }
-  else
-  {
-    //p = (struct uop_array_t*) calloc(1,sizeof(*p)+size*sizeof(struct uop_t));
-    int res = posix_memalign((void**)&p,16,sizeof(*p)+size*sizeof(struct uop_t)); // force all uops to be 16-byte aligned
-    if(!p || res != 0)
-      fatal("couldn't calloc new uop array");
-    p->size = size;
-    p->next = NULL;
-  }
-  /* initialize the uop array */
-  for(int i=0;i<size;i++)
-    uop_init(&p->uop[i]);
-
-  return p->uop;
-}
-
-void core_t::return_uop_array(struct uop_t * const p)
-{
-  struct uop_array_t * ap;
-  byte_t * bp = (byte_t*)p;
-  bp -= offsetof(struct uop_array_t,uop);
-  ap = (struct uop_array_t *) bp;
-
-  assert(ap->next == NULL);
-  ap->next = uop_array_pool[ap->size];
-  uop_array_pool[ap->size] = ap;
 }
 
 /* Alloc/dealloc of the linked-list container nodes */
@@ -187,47 +134,6 @@ void core_t::return_odep_link(struct odep_t * const p)
   p->uop = NULL;
   odep_free_pool_debt--;
   /* p->next used for free list, will be cleared on "get" */
-}
-
-/* all sizes/loop lengths known at compile time; compiler
-   should be able to optimize this pretty well.  Assumes
-   uop is aligned to 16 bytes. */
-void core_t::zero_uop(struct uop_t * const uop)
-{
-#if USE_SSE_MOVE
-  char * addr = (char*) uop;
-  int bytes = sizeof(*uop);
-  int remainder = bytes - (bytes>>7)*128;
-
-  /* zero xmm0 */
-  asm ("xorps %%xmm0, %%xmm0"
-       : : : "%xmm0");
-  /* clear the uop 64 bytes at a time */
-  for(int i=0;i<bytes>>7;i++)
-  {
-    asm ("movaps %%xmm0,    (%0)\n\t"
-         "movaps %%xmm0,  16(%0)\n\t"
-         "movaps %%xmm0,  32(%0)\n\t"
-         "movaps %%xmm0,  48(%0)\n\t"
-         "movaps %%xmm0,  64(%0)\n\t"
-         "movaps %%xmm0,  80(%0)\n\t"
-         "movaps %%xmm0,  96(%0)\n\t"
-         "movaps %%xmm0, 112(%0)\n\t"
-         : : "r"(addr) : "memory");
-    addr += 128;
-  }
-
-  /* handle any remaining bytes; optimizer should remove this
-     when sizeof(uop) has no remainder */
-  for(int i=0;i<remainder>>3;i++)
-  {
-    asm ("movlps %%xmm0,   (%0)\n\t"
-         : : "r"(addr) : "memory");
-    addr += 8;
-  }
-#else
-  memset(uop,0,sizeof(*uop));
-#endif
 }
 
 void core_t::zero_Mop(struct Mop_t * const Mop)
@@ -263,35 +169,6 @@ void core_t::zero_Mop(struct Mop_t * const Mop)
 #endif
 }
 
-
-/* Initialize a uop struct */
-void core_t::uop_init(struct uop_t * const uop)
-{
-  int i;
-  zero_uop(uop);
-  memset(&uop->alloc,-1,sizeof(uop->alloc));
-  uop->core = this;
-  uop->decode.Mop_seq = (seq_t)-1;
-  uop->decode.uop_seq = (seq_t)-1;
-  uop->alloc.port_assignment = -1;
-
-  uop->timing.when_decoded = TICK_T_MAX;
-  uop->timing.when_allocated = TICK_T_MAX;
-  for(i=0;i<MAX_IDEPS;i++)
-  {
-    uop->timing.when_itag_ready[i] = TICK_T_MAX;
-    uop->timing.when_ival_ready[i] = TICK_T_MAX;
-  }
-  uop->timing.when_otag_ready = TICK_T_MAX;
-  uop->timing.when_ready = TICK_T_MAX;
-  uop->timing.when_issued = TICK_T_MAX;
-  uop->timing.when_exec = TICK_T_MAX;
-  uop->timing.when_completed = TICK_T_MAX;
-
-  uop->exec.action_id = new_action_id();
-  uop->exec.when_data_loaded = TICK_T_MAX;
-  uop->exec.when_addr_translated = TICK_T_MAX;
-}
 
 void core_t::reg_stats(struct stat_sdb_t *sdb)
 {

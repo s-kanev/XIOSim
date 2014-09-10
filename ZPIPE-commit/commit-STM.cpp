@@ -214,7 +214,7 @@ void core_commit_STM_t::step(void)
         struct uop_t * uop = &Mop->uop[Mop->commit.complete_index];
 
         Mop->commit.complete_index += uop->decode.has_imm ? 3 : 1;
-        if(Mop->commit.complete_index >= Mop->decode.flow_length)
+        if(Mop->commit.complete_index >= (int) Mop->decode.flow_length)
         {
           Mop->commit.complete_index = -1; /* Mark this Mop as all done */
           if(Mop->fetch.bpred_update)
@@ -273,7 +273,7 @@ void core_commit_STM_t::step(void)
       /* mark uop as committed in Mop */
       Mop->commit.commit_index += uop->decode.has_imm ? 3 : 1;
 
-      if(Mop->commit.commit_index >= Mop->decode.flow_length)
+      if(Mop->commit.commit_index >= (int) Mop->decode.flow_length)
       {
         Mop->commit.commit_index = -1; /* The entire Mop has been committed */
 

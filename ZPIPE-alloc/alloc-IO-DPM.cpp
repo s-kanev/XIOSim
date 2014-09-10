@@ -337,7 +337,7 @@ void core_alloc_IO_DPM_t::step(void)
                 odep->next = uop->exec.idep_uop[j]->exec.odep_uop;
                 uop->exec.idep_uop[j]->exec.odep_uop = odep;
                 odep->uop = uop;
-                odep->aflags = (uop->decode.idep_name[j] == DCREG(MD_REG_AFLAGS));
+                //odep->aflags = (uop->decode.idep_name[j] == DCREG(MD_REG_AFLAGS));
                 odep->op_num = j;
               }
             }
@@ -345,9 +345,9 @@ void core_alloc_IO_DPM_t::step(void)
             /* Update read stats */
             for(int j=0;j<MAX_IDEPS;j++)
             {
-              if(REG_IS_GPR(uop->decode.idep_name[j]))
+              if(x86::is_ireg(uop->decode.idep_name[j]))
                 core->stat.regfile_reads++;
-              else if(REG_IS_FPR(uop->decode.idep_name[j]))
+              else if(x86::is_freg(uop->decode.idep_name[j]))
                 core->stat.fp_regfile_reads++;
             }
 
@@ -364,10 +364,6 @@ void core_alloc_IO_DPM_t::step(void)
                 {
                   uop->timing.when_ival_ready[j] = uop->exec.idep_uop[j]->timing.when_completed;
                   uop->exec.ivalue_valid[j] = true;
-                  if(uop->decode.idep_name[j] == DCREG(MD_REG_AFLAGS))
-                    uop->exec.ivalue[j].dw = uop->exec.idep_uop[j]->exec.oflags;
-                  else
-                    uop->exec.ivalue[j] = uop->exec.idep_uop[j]->exec.ovalue;
                 }
               }
               else /* read from ARF */
@@ -375,8 +371,6 @@ void core_alloc_IO_DPM_t::step(void)
                 uop->timing.when_itag_ready[j] = core->sim_cycle;
                 uop->timing.when_ival_ready[j] = core->sim_cycle;
                 uop->exec.ivalue_valid[j] = true; /* applies to invalid (DNA) inputs as well */
-                if(uop->decode.idep_name[j] != DNA)
-                  uop->exec.ivalue[j] = uop->oracle.ivalue[j]; /* oracle value == architected value */
               }
               if(when_ready < uop->timing.when_itag_ready[j])
                 when_ready = uop->timing.when_itag_ready[j];

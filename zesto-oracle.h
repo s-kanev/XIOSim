@@ -170,7 +170,7 @@ extern bool assert_spin;
     fprintf(stderr,"assertion failed (%s,%d:core %d): ",__FILE__,__LINE__,core->id); \
     fprintf(stderr,"%s\n",#cond); \
     fprintf(stderr, "cycle: %lld, num_Mops: %lld\n", core->sim_cycle, core->stat.oracle_total_insn); \
-    fprintf(stderr, "PC: %x, regs->NPC: %x, pin->PC: %x, pin->NPC: %x\n", core->fetch->PC, core->current_thread->regs.regs_NPC, core->fetch->feeder_PC, core->fetch->feeder_NPC); \
+    fprintf(stderr, "PC: %x, pin->PC: %x, pin->NPC: %x\n", core->fetch->PC, core->fetch->feeder_PC, core->fetch->feeder_NPC); \
     fflush(stderr); \
     for (int __i=0; __i < num_cores; __i++) \
       cores[__i]->oracle->trace_in_flight_ops(); \
@@ -183,7 +183,9 @@ extern bool assert_spin;
 }
 
 #include <stdint.h>
+#include <list>
 #include <map>
+#include <unordered_map>
 
 class core_oracle_t {
 
@@ -192,17 +194,6 @@ class core_oracle_t {
     struct uop_t * uop;
     struct map_node_t * prev;
     struct map_node_t * next;
-  };
-
-  /* structs for tracking pre-commit memory writes */
-#define MEM_HASH_SIZE 32768
-#define MEM_HASH_MASK (MEM_HASH_SIZE-1)
-
-  struct spec_mem_t {
-    struct {
-      struct spec_byte_t * head;
-      struct spec_byte_t * tail;
-    } hash[MEM_HASH_SIZE];
   };
 
   public:
@@ -225,8 +216,7 @@ class core_oracle_t {
 
   bool non_spec_read_byte(const md_addr_t addr, const struct Mop_t* Mop, byte_t * res);
   uint8_t spec_do_read_byte(const md_addr_t addr, const struct Mop_t* Mop);
-  bool spec_read_byte(const md_addr_t addr, byte_t * const valp, bool no_tail=false);
-  struct spec_byte_t * spec_write_byte(const md_addr_t addr, const byte_t val,  struct uop_t * uop);
+  void spec_write_byte(const md_addr_t addr, const byte_t val,  struct uop_t * uop);
 
   struct Mop_t * exec(const md_addr_t requested_PC);
   void consume(const struct Mop_t * const Mop);
@@ -246,10 +236,6 @@ class core_oracle_t {
 
   protected:
 
-  /* static members shared by all cores */
-
-  static bool static_members_initialized;
-
   seq_t Mop_seq; /* Mop sequence number */
 
   struct Mop_t * MopQ;
@@ -262,41 +248,19 @@ class core_oracle_t {
 
   Buffer * shadow_MopQ;
 
-  static struct map_node_t * map_free_pool;  /* for decode.dep_map */
-  static int map_free_pool_debt;
-  static struct spec_byte_t * spec_mem_free_pool; /* for oracle spec-memory map */
-  static int spec_mem_pool_debt;
-
   struct core_t * core;
-  struct spec_mem_t spec_mem_map;
   /* dependency tracking used by oracle */
-  struct {
-    struct map_node_t * head[MD_TOTAL_REGS];
-    struct map_node_t * tail[MD_TOTAL_REGS];
-  } dep_map;
+  std::unordered_map<xed_reg_enum_t, std::list<struct uop_t *>, std::hash<unsigned long> > dep_map;
 
   void undo(struct Mop_t * const Mop, bool nuke);
 
   void install_mapping(struct uop_t * const uop);
   void commit_mapping(const struct uop_t * const uop);
   void undo_mapping(const struct uop_t * const uop);
-  struct map_node_t * get_map_node(void);
-  void return_map_node(struct map_node_t * const p);
 
   void install_dependencies(struct uop_t * const uop);
   void commit_dependencies(struct uop_t * const uop);
   void undo_dependencies(struct uop_t * const uop);
-
-  struct spec_byte_t * get_spec_mem_node(void);
-  void return_spec_mem_node(struct spec_byte_t * const p);
-
-  void commit_write_byte(struct spec_byte_t * const p);
-  void squash_write_byte(struct spec_byte_t * const p);
-
-  void write_spec_byte_to_mem(struct uop_t * const uop, struct spec_byte_t * p, bool skip_last);
-  void write_Mop_spec_bytes_to_mem(const struct Mop_t * const Mop, bool skip_last);
-
-  void cleanup_aborted_mop(struct Mop_t * const Mop);
 };
 
 #endif /* ZESTO_ORACLE_INCLUDED */

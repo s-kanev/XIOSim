@@ -115,19 +115,6 @@ orphan_fn(int i, int argc, char **argv)
   return /* done */FALSE;
 }
 
-void
-banner(FILE *fd, int argc, char **argv)
-{
-  fprintf(fd,
-	  "%s: SimpleScalar/%s Tool Set version %d.%d of %s.\n"
-	  "Copyright (C) 2000-2002 by The Regents of The University of Michigan.\n"
-          "Copyright (C) 1994-2002 by Todd M. Austin, Ph.D. and SimpleScalar, LLC.\n"
-	  "This version of SimpleScalar is licensed for academic non-commercial use only.\n"
-	  "\n",
-	  (argv[0]),
-	  VER_TARGET, VER_MAJOR, VER_MINOR, VER_UPDATE);
-}
-
 /* print all simulator stats */
 void
 sim_print_stats(FILE *fd)		/* output stream */

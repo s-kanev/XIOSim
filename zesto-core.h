@@ -146,31 +146,6 @@ class core_t {
 
   friend class core_oracle_t;
 
-/* (See get_uop_array/return_uop_array functions)
-   The following struct and the functions after that are for
-   implementing our own "malloc/free" for the uop arrays.  The
-   original Mop_t implementation contained a static uop_t array
-   sized for the worst-case flow, which caused the Mop_t struct to
-   be very large and unwieldly.
-
-   The outside world just wants a struct uop_t *, but
-   uop_array_pool has additional fields (namely the size and a
-   pointer for chaining all of the free entries together).  This
-   unfortunately means that when you return the struct uop_t * to
-   the free pool we have to do some ugly pointer munging to get the
-   address of the overall uop_array_pool struct.  However, you'll
-   be fine if you just use the interface functions, and you
-   probably don't even need to do that. */
-  struct uop_array_t {
-    int size; /* 4 bytes */
-    struct uop_array_t * next; /* 4 bytes */
-    int padding0; /* 4 bytes */
-    int padding1; /* 4 bytes  - want uop array to start aligned to 16 bytes */
-    struct uop_t uop[0]; /* we calloc different sized arrays and use this as the
-                            base for the array (see the original simplescalar
-                            cache data block structure) */
-  };
-
   public:
 
   /* pointer to configuration information */
@@ -363,9 +338,6 @@ class core_t {
   core_t(const int core_id);
   seq_t new_action_id(void);
 
-  struct uop_t * get_uop_array(const int size);
-  void return_uop_array(struct uop_t * const p);
-
   struct odep_t * get_odep_link(void);
   void return_odep_link(struct odep_t * const p);
 
@@ -378,14 +350,8 @@ class core_t {
 
   seq_t global_action_id; /* tag for squashable "actions" */
 
-  /* to reduce overhead of constantly malloc/freeing arrays to
-     store the uop flows of all of the Mops, we just maintain our
-     own free pool.  pool entry i contains arrays with length i. */
-  struct uop_array_t * uop_array_pool[MD_MAX_FLOWLEN+2+1]; /* the extra +2+1 is for REP u-jump uops */
   struct odep_t * odep_free_pool;     /* for uop->odep links */
   int odep_free_pool_debt;
-
-  void uop_init(struct uop_t * const uop);
 };
 
 #endif /* ZESTO_UARCH_INCLUDED */

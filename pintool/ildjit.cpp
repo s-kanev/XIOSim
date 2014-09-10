@@ -652,7 +652,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
     handshake = xiosim::buffer_management::GetBuffer(tstate->tid);
 
     handshake->flags.isFirstInsn = first_insn;
-    handshake->handshake.ctxt.regs_R.dw[MD_REG_ESP] =
+    handshake->handshake.ctxt.regs_R.dw[x86::REG_ESP] =
         esp_val; /* Needed when first_insn to set up stack pages */
     handshake->flags.real = false;
     handshake->flags.in_critical_section = true;

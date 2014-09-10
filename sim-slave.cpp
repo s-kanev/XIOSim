@@ -89,11 +89,11 @@
 #include "machine.h"
 #include "misc.h"
 #include "endian.h"
-#include "version.h"
 #include "stats.h"
 #include "sim.h"
 #include "regs.h"
 
+#include "zesto-structs.h"
 #include "zesto-cache.h"
 #include "zesto-repeater.h"
 #include "zesto-core.h"

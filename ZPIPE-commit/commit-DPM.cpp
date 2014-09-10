@@ -401,7 +401,7 @@ void core_commit_DPM_t::step(void)
         struct uop_t * uop = &Mop->uop[Mop->commit.complete_index];
 
         Mop->commit.complete_index += uop->decode.has_imm ? 3 : 1;
-        if(Mop->commit.complete_index >= Mop->decode.flow_length)
+        if(Mop->commit.complete_index >= (int) Mop->decode.flow_length)
         {
           Mop->commit.complete_index = -1; /* Mark this Mop as all done */
 #ifdef ZTRACE
@@ -496,9 +496,9 @@ void core_commit_DPM_t::step(void)
         zesto_assert(uop->timing.when_exec != TICK_T_MAX,(void)0);
       }
 
-      if(REG_IS_GPR(uop->decode.odep_name))
+      if(x86::is_ireg(uop->decode.odep_name[0]))
         core->stat.regfile_writes++;
-      else if(REG_IS_FPR(uop->decode.odep_name))
+      else if(x86::is_ireg(uop->decode.odep_name[0]))
         core->stat.fp_regfile_writes++;
 
       /* this cleans up idep/odep ptrs, register mappings, and
@@ -508,7 +508,7 @@ void core_commit_DPM_t::step(void)
       /* mark uop as committed in Mop */
       Mop->commit.commit_index += uop->decode.has_imm ? 3 : 1;
 
-      if(Mop->commit.commit_index >= Mop->decode.flow_length)
+      if(Mop->commit.commit_index >= (int) Mop->decode.flow_length)
       {
         Mop->commit.commit_index = -1; /* The entire Mop has been committed */
 

@@ -58,7 +58,7 @@ void core_commit_NONE_t::IO_step()
   if (Mop->timing.when_commit_finished > core->sim_cycle) {
     // Partially complete, have to check all uops.
     bool all_completed = true;
-    for (int i = 0; i < Mop->decode.flow_length; i++) {
+    for (size_t i = 0; i < Mop->decode.flow_length; i++) {
       uop_t * uop = &Mop->uop[i];
       if (uop->decode.is_imm)
         continue;
@@ -70,7 +70,7 @@ void core_commit_NONE_t::IO_step()
   }
 
   // Mop is complete, commit all uops.
-  for (int i = 0; i < Mop->decode.flow_length; i++) {
+  for (size_t i = 0; i < Mop->decode.flow_length; i++) {
     if (!Mop->uop[i].decode.is_imm) {
       core->oracle->commit_uop(&Mop->uop[i]);
     }

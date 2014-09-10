@@ -385,11 +385,13 @@ core_exec_STM_t::core_exec_STM_t(struct core_t * arg_core):
   {
     int j;
     knobs->exec.port_binding[i].ports = (int*) calloc(knobs->exec.port_binding[i].num_FUs,sizeof(int));
-    if(!knobs->exec.port_binding[i].ports) fatal("couldn't calloc %s ports",MD_FU_NAME(i));
+    if(!knobs->exec.port_binding[i].ports) fatal("couldn't calloc %s ports", fu_name(static_cast<md_fu_class>(i)));
     for(j=0;j<knobs->exec.port_binding[i].num_FUs;j++)
     {
       if((knobs->exec.fu_bindings[i][j] < 0) || (knobs->exec.fu_bindings[i][j] >= knobs->exec.num_exec_ports))
-        fatal("port binding for %s is negative or exceeds the execution width (should be > 0 and < %d)",MD_FU_NAME(i),knobs->exec.num_exec_ports);
+        fatal("port binding for %s is negative or exceeds the execution width (should be > 0 and < %d)",
+               static_cast<md_fu_class>(i),
+               knobs->exec.num_exec_ports);
       knobs->exec.port_binding[i].ports[j] = knobs->exec.fu_bindings[i][j];
     }
   }
@@ -413,7 +415,7 @@ core_exec_STM_t::core_exec_STM_t(struct core_t * arg_core):
       port[port_num].FU[i]->issue_rate = issue_rate;
       port[port_num].FU[i]->pipe = (struct uop_action_t*) calloc(heap_size,sizeof(struct uop_action_t));
       if(!port[port_num].FU[i]->pipe)
-        fatal("couldn't calloc %s function unit execution pipeline",MD_FU_NAME(i));
+        fatal("couldn't calloc %s function unit execution pipeline", static_cast<md_fu_class>(i));
 
       if(i==FU_LD) /* load has AGEN and STQ access pipelines */
       {
@@ -816,7 +818,6 @@ void core_exec_STM_t::load_writeback(struct uop_t * const uop)
   zesto_assert((uop->alloc.LDQ_index >= 0) && (uop->alloc.LDQ_index < knobs->exec.LDQ_size),(void)0);
   if(!LDQ[uop->alloc.LDQ_index].hit_in_STQ) /* no match in STQ, so use cache value */
   {
-    uop->exec.ovalue = uop->oracle.ovalue; /* XXX: just using oracle value for now */
     uop->exec.ovalue_valid = true;
     zesto_assert(uop->timing.when_completed == TICK_T_MAX,(void)0);
     uop->timing.when_completed = core->sim_cycle;
@@ -853,13 +854,6 @@ void core_exec_STM_t::load_writeback(struct uop_t * const uop)
       }
 
       odep->uop->exec.ivalue_valid[odep->op_num] = true;
-      if(odep->aflags) /* shouldn't happen for loads? */
-      {
-        warn("load modified flags?\n");
-        odep->uop->exec.ivalue[odep->op_num].dw = uop->exec.oflags;
-      }
-      else
-        odep->uop->exec.ivalue[odep->op_num] = uop->exec.ovalue;
 
       odep = odep->next;
     }
@@ -973,7 +967,6 @@ void core_exec_STM_t::LDST_exec(void)
               zesto_assert(uop->timing.when_completed == TICK_T_MAX,(void)0);
               if(STQ[j].value_valid)
               {
-                uop->exec.ovalue = STQ[j].value;
                 uop->exec.ovalue_valid = true;
                 uop->timing.when_completed = core->sim_cycle;
                 update_last_completed(core->sim_cycle); /* for deadlock detection */
@@ -1010,13 +1003,6 @@ void core_exec_STM_t::LDST_exec(void)
 
                   /* bypass output value to dependents */
                   odep->uop->exec.ivalue_valid[odep->op_num] = true;
-                  if(odep->aflags) /* shouldn't happen for loads? */
-                  {
-                    warn("load modified flags?");
-                    odep->uop->exec.ivalue[odep->op_num].dw = uop->exec.oflags;
-                  }
-                  else
-                    odep->uop->exec.ivalue[odep->op_num] = uop->exec.ovalue;
 
                   odep = odep->next;
                 }
@@ -1165,9 +1151,7 @@ void core_exec_STM_t::ALU_exec(void)
             }
             else
             {
-              /* XXX for now just copy oracle value */
               uop->exec.ovalue_valid = true;
-              uop->exec.ovalue = uop->oracle.ovalue;
 
               /* alloc, uopQ, and decode all have to search for the
                  recovery point (Mop) because a long flow may have
@@ -1191,7 +1175,6 @@ void core_exec_STM_t::ALU_exec(void)
               {
                 zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
                 zesto_assert(!STQ[uop->alloc.STQ_index].value_valid,(void)0);
-                STQ[uop->alloc.STQ_index].value = uop->exec.ovalue;
                 STQ[uop->alloc.STQ_index].value_valid = true;
               }
 
@@ -1290,10 +1273,6 @@ void core_exec_STM_t::ALU_exec(void)
 
                 zesto_assert(!odep->uop->exec.ivalue_valid[odep->op_num],(void)0);
                 odep->uop->exec.ivalue_valid[odep->op_num] = true;
-                if(odep->aflags)
-                  odep->uop->exec.ivalue[odep->op_num].dw = uop->exec.oflags;
-                else
-                  odep->uop->exec.ivalue[odep->op_num] = uop->exec.ovalue;
 
                 odep = odep->next;
               }
@@ -1470,8 +1449,8 @@ bool core_exec_STM_t::STQ_deallocate_std(struct uop_t * const uop)
      entries until the store actually finishes accessing
      memory, but commit can proceed past this store once the
      request has entered into the cache hierarchy. */
-  struct uop_t * dl1_uop = core->get_uop_array(1);
-  struct uop_t * dtlb_uop = core->get_uop_array(1);
+  struct uop_t * dl1_uop = new uop_t();
+  struct uop_t * dtlb_uop = new uop_t();
   dl1_uop->core = core;
   dtlb_uop->core = core;
 
@@ -1544,7 +1523,7 @@ void core_exec_STM_t::store_dl1_callback(void * const op)
   struct core_knobs_t * knobs = core->knobs;
 
   zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
-  core->return_uop_array(uop);
+  delete uop;
 }
 
 void core_exec_STM_t::store_dtlb_callback(void * const op)
@@ -1554,7 +1533,7 @@ void core_exec_STM_t::store_dtlb_callback(void * const op)
   struct core_knobs_t * knobs = core->knobs;
 
   zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
-  core->return_uop_array(uop);
+  delete uop;
 }
 
 bool core_exec_STM_t::store_translated_callback(void * const op, const seq_t action_id /* ignored */)

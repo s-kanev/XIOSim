@@ -95,7 +95,7 @@ void* SimulatorLoop(void* arg) {
 
             // First instruction, map stack pages, and flag we're not safe to kill
             if (handshake->flags.isFirstInsn) {
-                md_addr_t esp = handshake->handshake.ctxt.regs_R.dw[MD_REG_ESP];
+                md_addr_t esp = handshake->handshake.ctxt.regs_R.dw[x86::REG_ESP];
                 md_addr_t bos;
                 lk_lock(lk_thread_bos, 1);
                 bos = thread_bos->at(instrument_tid);

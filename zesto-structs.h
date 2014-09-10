@@ -75,20 +75,19 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
-#include "machine.h"
+extern "C" {
+#include "xed-interface.h"
+}
+#include "fu.h"
 #include "regs.h"
 
 #define MAX_IDEPS 3
-#define MD_STA_OP_INDEX 0
-#define MD_STD_OP_INDEX 1
-
+#define MAX_ODEPS 2
 
 #define MAX_HYBRID_BPRED 8 /* maximum number of sub-components in a hybrid branch predictor */
 #define MAX_DECODE_WIDTH 16
 #define MAX_EXEC_WIDTH 16
 #define MAX_PREFETCHERS 4 /* per cache; so IL1 can have MAX_PREFETCHERS prefetchers independent of the DL1 or LLC */
-
-typedef qword_t seq_t;
 
 union val_t {
   byte_t b;
@@ -108,32 +107,28 @@ struct odep_t {
   struct odep_t * next;
 };
 
-/* Note, the memory table is per-byte indexed */
-struct spec_byte_t {
-  byte_t val;
-  md_addr_t addr;
-  struct spec_byte_t * next;
-  struct spec_byte_t * prev;
-  enum md_fault_type fault;
-};
+namespace xiosim {
+namespace x86 {
+}
+}
+using namespace xiosim;
+using namespace xiosim::x86;
 
 /* uArch micro-op structure */
-struct uop_t
+struct alignas(16) uop_t
 {
   struct core_t * core; /* back pointer to core so we know which core this uop is from */
   struct Mop_t * Mop; /* back pointer to parent marco-inst */
 
   struct {
     uop_inst_t raw_op; /* original undecoded uop format  (from md_get_flow::flowtab) */
-    enum md_opcode op; /* specific opcode for this uop */
+    //enum md_opcode op; /* specific opcode for this uop */
     unsigned int opflags; /* decoded flags */
 
     bool has_imm; /* TRUE if this uop has an immediate (which is stored in the next two consecutive uops */
     bool is_imm; /* TRUE if this uop is not a real uop, but just part of an immediate */
-    int idep_name[MAX_IDEPS]; /* register input dependencies */
-    int odep_name; /* register output dependencies */
-    int iflags; /* flag input dependencies */
-    int oflags; /* flags modified by this uop */
+    xed_reg_enum_t idep_name[MAX_IDEPS]; /* register input dependencies */
+    xed_reg_enum_t odep_name[MAX_ODEPS]; /* register output dependencies */
 
     int mem_size; /* size of memory data; if load/store */
 
@@ -180,11 +175,7 @@ struct uop_t
     struct odep_t * odep_uop;
 
     bool ivalue_valid[MAX_IDEPS];   /* the value is valid */
-    union val_t ivalue[MAX_IDEPS]; /* input value */
-
     bool ovalue_valid;
-    union val_t ovalue; /* output value */
-    dword_t oflags;     /* output flags */
 
     /* for load instructions */
     tick_t when_data_loaded;
@@ -195,24 +186,13 @@ struct uop_t
   } exec;
 
   struct {
-    /* register information */
-    union val_t ivalue[MAX_IDEPS];
-    union val_t ovalue;
-    union val_t prev_ovalue; /* value before this instruction (for recovery) */
-
-    md_ctrl_t ictrl;		/* control regs input values */
-    md_ctrl_t octrl;		/* control regs output values */
-
     /* memory information */
     md_addr_t virt_addr;
     md_paddr_t phys_addr;
-    enum md_fault_type fault;
     union val_t mem_value;
     // XXX: Clean-up
     int is_repeated; /* uses cache hierarchy or mem-repater */
     int is_sync_op;  /* repeater-bound ops -- are they wait/signal */
-
-    struct spec_byte_t * spec_mem[12]; /* 12 for FSTE */
 
     /* register dependence pointers */
     struct uop_t * idep_uop[MAX_IDEPS];
@@ -234,10 +214,78 @@ struct uop_t
   } timing;
 
   int flow_index;
-} __attribute__ ((aligned(16)));
+
+  /* all sizes/loop lengths known at compile time; compiler
+     should be able to optimize this pretty well.  Assumes
+     uop is aligned to 16 bytes. */
+  void zero() {
+#if USE_SSE_MOVE
+    char * addr = (char*) this;
+    assert((long long) addr % 16 == 0);
+    int bytes = sizeof(*this);
+    int remainder = bytes - (bytes>>7)*128;
+
+    /* zero xmm0 */
+    asm ("xorps %%xmm0, %%xmm0"
+         : : : "%xmm0");
+    /* clear the uop 64 bytes at a time */
+    for(int i=0;i<bytes>>7;i++)
+    {
+      asm ("movaps %%xmm0,    (%0)\n\t"
+           "movaps %%xmm0,  16(%0)\n\t"
+           "movaps %%xmm0,  32(%0)\n\t"
+           "movaps %%xmm0,  48(%0)\n\t"
+           "movaps %%xmm0,  64(%0)\n\t"
+           "movaps %%xmm0,  80(%0)\n\t"
+           "movaps %%xmm0,  96(%0)\n\t"
+           "movaps %%xmm0, 112(%0)\n\t"
+           : : "r"(addr) : "memory");
+      addr += 128;
+    }
+
+    /* handle any remaining bytes; optimizer should remove this
+       when sizeof(uop) has no remainder */
+    for(int i=0;i<remainder>>3;i++)
+    {
+      asm ("movlps %%xmm0,   (%0)\n\t"
+           : : "r"(addr) : "memory");
+      addr += 8;
+    }
+#else
+    memset(this,0,sizeof(*this));
+#endif
+  }
+
+  uop_t() {
+      int i;
+      zero();
+      memset(&this->alloc,-1,sizeof(this->alloc));
+      this->decode.Mop_seq = (seq_t)-1;
+      this->decode.uop_seq = (seq_t)-1;
+      this->alloc.port_assignment = -1;
+
+      this->timing.when_decoded = TICK_T_MAX;
+      this->timing.when_allocated = TICK_T_MAX;
+      for(i = 0;i < MAX_IDEPS; i++)
+      {
+        this->timing.when_itag_ready[i] = TICK_T_MAX;
+        this->timing.when_ival_ready[i] = TICK_T_MAX;
+      }
+      this->timing.when_otag_ready = TICK_T_MAX;
+      this->timing.when_ready = TICK_T_MAX;
+      this->timing.when_issued = TICK_T_MAX;
+      this->timing.when_exec = TICK_T_MAX;
+      this->timing.when_completed = TICK_T_MAX;
+
+      this->exec.action_id = (seq_t)-1;
+      this->exec.when_data_loaded = TICK_T_MAX;
+      this->exec.when_addr_translated = TICK_T_MAX;
+  }
+
+};
 
 /* x86 Macro-op structure */
-struct Mop_t
+struct alignas(16) Mop_t
 {
   struct core_t * core; /* back pointer to core so we know which core this uop is from */
   int valid;
@@ -255,21 +303,16 @@ struct Mop_t
   } fetch;
 
   struct {
-    enum md_opcode op;
+    xed_decoded_inst_t inst;
     unsigned int opflags;
-    int flow_length;
-    int last_uop_index; /* index of last uop (maybe != flow_length due to imm's) */
-    int rep_seq; /* number indicating REP iteration */
-    bool first_rep; /* TRUE if this is the iteration */
+    size_t flow_length;
+    size_t last_uop_index; /* index of last uop (maybe != flow_length due to imm's) */
     md_addr_t targetPC; /* for branches, target PC */
 
-    /* pre-decode to save repeated MD_OP_FLAGS lookups */
     bool is_trap;
     bool is_ctrl;
 
-    int last_stage_index; /* index of next uop to remove from decode pipe */
-
-    enum fpstack_ops_t fpstack_op; /* nop/push/pop/poppop FP/x87 top-of-stack */
+    size_t last_stage_index; /* index of next uop to remove from decode pipe */
   } decode;
 
   /* pointer to the raw uops that implement this Mop */
@@ -310,7 +353,7 @@ struct Mop_t
     int num_loads;
     int num_branches;
   } stat;
-} __attribute__ ((aligned(16)));
+};
 
 
 /* holds all of the parameters for a core, plus any additional helper variables

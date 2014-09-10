@@ -77,4 +77,6 @@ typedef sqword_t counter_t;
 typedef sqword_t tick_t;		/* NOTE: unsigned breaks caches */
 #define TICK_T_MAX  ((tick_t)(9223372036854775807ULL))
 
+typedef qword_t seq_t;
+
 #endif /* HOST_H */

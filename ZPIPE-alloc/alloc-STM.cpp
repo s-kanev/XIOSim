@@ -227,7 +227,7 @@ void core_alloc_STM_t::step(void)
             odep->next = uop->exec.idep_uop[j]->exec.odep_uop;
             uop->exec.idep_uop[j]->exec.odep_uop = odep;
             odep->uop = uop;
-            odep->aflags = (uop->decode.idep_name[j] == DCREG(MD_REG_AFLAGS));
+            //odep->aflags = (uop->decode.idep_name[j] == DCREG(MD_REG_AFLAGS));
             odep->op_num = j;
           }
         }
@@ -245,18 +245,12 @@ void core_alloc_STM_t::step(void)
             {
               uop->timing.when_ival_ready[j] = uop->exec.idep_uop[j]->timing.when_completed;
               uop->exec.ivalue_valid[j] = true;
-              if(uop->decode.idep_name[j] == DCREG(MD_REG_AFLAGS))
-                uop->exec.ivalue[j].dw = uop->exec.idep_uop[j]->exec.oflags;
-              else
-                uop->exec.ivalue[j] = uop->exec.idep_uop[j]->exec.ovalue;
             }
           }
           else /* read from ARF */
           {
             uop->timing.when_ival_ready[j] = core->sim_cycle;
             uop->exec.ivalue_valid[j] = true; /* applies to invalid (DNA) inputs as well */
-            if(uop->decode.idep_name[j] != DNA)
-              uop->exec.ivalue[j] = uop->oracle.ivalue[j]; /* oracle value == architected value */
           }
           if(when_ready < uop->timing.when_ival_ready[j])
             when_ready = uop->timing.when_ival_ready[j];

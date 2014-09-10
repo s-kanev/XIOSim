@@ -258,10 +258,16 @@ VOID ImageLoad(IMG img, VOID* v) {
 
 /* ========================================================================== */
 VOID
-MakeSSContext(const CONTEXT* ictxt, FPSTATE* fpstate, ADDRINT pc, ADDRINT npc, regs_t* ssregs) {
+MakeSSContext(const CONTEXT *ictxt, FPSTATE* fpstate, ADDRINT pc, ADDRINT npc, regs_t *ssregs) {
     ssregs->regs_PC = pc;
     ssregs->regs_NPC = npc;
 
+// XXX: We won't/shouldn't need actual reg values in the brave new world. Then we can kill ssregs altogether.
+    // Ok, we might need the stack pointer for shadow page tables.
+    ssregs->regs_R.dw[x86::REG_ESP] = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_ESP);
+    // And EAX for some of the REP handling
+    ssregs->regs_R.dw[x86::REG_EAX] = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_EAX);
+#if 0
     // Copy general purpose registers, which Pin provides individual access to
     ssregs->regs_C.aflags = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_EFLAGS);
     ssregs->regs_R.dw[MD_REG_EAX] = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_EAX);
@@ -357,6 +363,7 @@ MakeSSContext(const CONTEXT* ictxt, FPSTATE* fpstate, ADDRINT pc, ADDRINT npc, r
     memcpy(&ssregs->regs_XMM.qw[MD_REG_XMM7].lo,
            &fpstate->fxsave_legacy._xmms[MD_REG_XMM7],
            MD_XMM_SIZE);
+#endif
 }
 
 /* ========================================================================== */
@@ -388,7 +395,7 @@ VOID MakeSSRequest(THREADID tid,
     hshake->handshake.tpc = tpc;
     hshake->flags.brtaken = brtaken;
     hshake->flags.real = TRUE;
-    PIN_SafeCopy(hshake->handshake.ins, (VOID*)pc, MD_MAX_ILEN);
+    PIN_SafeCopy(hshake->handshake.ins, (VOID*) pc, x86::MAX_ILEN);
 }
 
 /* Helper to check if producer thread @tid will grab instruction at @pc.
@@ -550,15 +557,16 @@ VOID FixRepInstructionNPC(THREADID tid,
     case XED_ICLASS_SCASB:
     case XED_ICLASS_SCASW:
     case XED_ICLASS_SCASD:
-    case XED_ICLASS_SCASQ: {
+    case XED_ICLASS_SCASQ:
         // SCAS only does one read, gets second operand from rAX
-        size_t bytes_read = handshake->mem_buffer.size();
-        ASSERTX(bytes_read <= 4);
-        size_t i = 0;
-        for (auto& mem_read : handshake->mem_buffer)
-            op1 |= ((ADDRINT)mem_read.second << (8 * i));
-        op2 = handshake->handshake.ctxt.regs_R.dw[MD_REG_EAX];  // 0-extended anyways
-    }
+        {
+            size_t bytes_read = handshake->mem_buffer.size();
+            ASSERTX(bytes_read <= 4);
+            size_t i = 0;
+            for (auto& mem_read : handshake->mem_buffer)
+                op1 |= ((ADDRINT)mem_read.second << (8 * i));
+            op2 = handshake->handshake.ctxt.regs_R.dw[x86::REG_EAX];  // 0-extended anyways
+        }
         scan = true;
         zf = (op1 == op2);
         break;

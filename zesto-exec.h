@@ -165,6 +165,8 @@ class core_exec_t
   protected:
   struct core_t * core;
   enum cache_command get_STQ_request_type(const struct uop_t * uop);
+  /* Calculate penalty for cronssing int / fp pipelines. */
+  int get_fp_penalty(const struct uop_t * const uop);
 };
 
 class core_exec_t * exec_create(const char * exec_opt_string, struct core_t * core);

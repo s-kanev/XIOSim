@@ -140,6 +140,7 @@
 #include "thread.h"
 #include "memory.h"
 #include "synchronization.h"
+#include "uop_cracker.h"
 
 #include "zesto-core.h"
 #include "zesto-oracle.h"
@@ -156,14 +157,6 @@
 
 using namespace std;
 
-bool core_oracle_t::static_members_initialized = false;
- /* for decode.dep_map */
-struct core_oracle_t::map_node_t * core_oracle_t::map_free_pool = NULL;
-int core_oracle_t::map_free_pool_debt = 0;
-/* for oracle spec-memory map */
-struct spec_byte_t * core_oracle_t::spec_mem_free_pool = NULL;
-int core_oracle_t::spec_mem_pool_debt = 0;
-
 /* CONSTRUCTOR */
 core_oracle_t::core_oracle_t(struct core_t * const arg_core):
   spec_mode(false), hosed(false), Mop_seq(0),
@@ -176,15 +169,6 @@ core_oracle_t::core_oracle_t(struct core_t * const arg_core):
      correspond to a single Mop), and then add a few and round up
      just in case. */
   core = arg_core;
-  memset(&dep_map,0,sizeof(dep_map));
-  memset(&spec_mem_map,0,sizeof(spec_mem_map));
-
-  if(!static_members_initialized)
-  {
-    lk_init(&oracle_pools_lock);
-    static_members_initialized = true;
-  }
-
 
   struct core_knobs_t * knobs = core->knobs;
   int temp_MopQ_size = knobs->commit.ROB_size +
@@ -349,30 +333,12 @@ int core_oracle_t::next_index(const int index)
   return modinc(index,MopQ_size); //return (index+1)%MopQ_size;
 }
 
-/* create a new entry in the spec_mem table, insert the entry,
-   and return a pointer to the entry. */
-struct spec_byte_t * core_oracle_t::spec_write_byte(
+void core_oracle_t::spec_write_byte(
     const md_addr_t addr,
     const byte_t val,
     struct uop_t * uop)
 {
-  int index = addr & MEM_HASH_MASK;
-  struct spec_byte_t * p;
-
-  p = get_spec_mem_node();
-  if(spec_mem_map.hash[index].tail)
-    spec_mem_map.hash[index].tail->next = p;
-  p->prev = spec_mem_map.hash[index].tail;
-  spec_mem_map.hash[index].tail = p;
-  if(spec_mem_map.hash[index].head == NULL)
-    spec_mem_map.hash[index].head = p;
-
-
   ZTRACE_PRINT(core->id, "Write to specQ at 0x%x, val: %x, spec_mode: %d\n", addr, val, uop->Mop->oracle.spec_mode);
-
-  p->val = val;
-  p->addr = addr;
-  return p;
 }
 
 bool core_oracle_t::non_spec_read_byte(const md_addr_t addr, const struct Mop_t* Mop, byte_t * res)
@@ -387,32 +353,8 @@ bool core_oracle_t::non_spec_read_byte(const md_addr_t addr, const struct Mop_t*
   return false;
 }
 
-/* return true/false if byte is in table (read from most recent).
-   If present, store value in valp. */
-bool core_oracle_t::spec_read_byte(
-    const md_addr_t addr,
-    byte_t * const valp,
-    bool ignore_tail)
-{
-  int index = addr & MEM_HASH_MASK;
-  struct spec_byte_t * p = ignore_tail ? spec_mem_map.hash[index].tail->prev :
-                                         spec_mem_map.hash[index].tail;
-  while(p)
-  {
-    if(p->addr == addr)
-    {
-      *valp = p->val;
-      return true;
-    }
-    p = p->prev;
-  }
-
-  return false;
-}
-
 /* Memory reads:
  * - try Pin-captured mem for the current Mop.
- * - if speculating, go trhough spec memory.
  * - if we are speculating (no valid Mop), try host memory.
  */
 uint8_t core_oracle_t::spec_do_read_byte(const md_addr_t addr, const struct Mop_t* Mop)
@@ -430,11 +372,6 @@ uint8_t core_oracle_t::spec_do_read_byte(const md_addr_t addr, const struct Mop_
         goto done;
     }
   }
-
-  /* Try speculative memory */
-  found = spec_read_byte(addr, &res);
-  if (found)
-    goto done;
 
   /* Finally, try and access host space.
      Check shadow page table to make sure memory is there. */
@@ -464,186 +401,6 @@ done:
   return res;
 }
 
-  /*----------------*/
- /* <SIMPLESCALAR> */
-/*----------------*/
-
-#define SYSCALL(INST) 
-
-/**********************************************************/
-/* CODE FOR ACTUAL ORACLE EXECUTION, RECOVERY, AND COMMIT */
-/**********************************************************/
-
-/* current program counter */
-#define CPC            (thread->regs.regs_PC)
-
-/* next program counter */
-#define NPC            (thread->regs.regs_NPC)
-#define SET_NPC(EXPR)        (thread->regs.regs_NPC = (EXPR))
-#define SET_NPC_D(EXPR)         SET_NPC(EXPR)
-#define SET_NPC_V(EXPR)                            \
-  ((Mop->fetch.inst.mode & MODE_OPER32) ? SET_NPC((EXPR)) : SET_NPC((EXPR) & 0xffff))
-
-                                                 /* general purpose registers */
-#define _HI(N)            ((N) & 0x04)
-#define _ID(N)            ((N) & 0x03)
-#define _ARCH(N)        ((N) < MD_REG_TMP0)
-
-                                                 /* segment registers ; UCSD*/
-#define SEG_W(N)        (thread->regs.regs_S.w[N])
-#define SET_SEG_W(N,EXPR)    (thread->regs.regs_S.w[N] = (EXPR))
-
-                                                /* segment base */
-#define SEG_BASE(N)     (thread->regs.regs_SD.dw[N])
-
-#define GPR_B(N)        (_ARCH(N)                \
-    ? (_HI(N)                \
-      ? thread->regs.regs_R.b[_ID(N)].hi        \
-      : thread->regs.regs_R.b[_ID(N)].lo)      \
-    : thread->regs.regs_R.b[N].lo)
-#define SET_GPR_B(N,EXPR)    (_ARCH(N)                   \
-    ? (_HI(N)                   \
-      ? (thread->regs.regs_R.b[_ID(N)].hi = (EXPR))  \
-      : (thread->regs.regs_R.b[_ID(N)].lo = (EXPR))) \
-    : (thread->regs.regs_R.b[N].lo = (EXPR)))
-
-#define GPR_W(N)        (thread->regs.regs_R.w[N].lo)
-#define SET_GPR_W(N,EXPR)    (thread->regs.regs_R.w[N].lo = (EXPR))
-
-#define GPR_D(N)        (thread->regs.regs_R.dw[N])
-#define SET_GPR_D(N,EXPR)    (thread->regs.regs_R.dw[N] = (EXPR))
-
-                                                 /* FIXME: move these to the DEF file? */
-#define GPR_V(N)        ((Mop->fetch.inst.mode & MODE_OPER32)        \
-    ? GPR_D(N)                \
-    : (dword_t)GPR_W(N))
-#define SET_GPR_V(N,EXPR)    ((Mop->fetch.inst.mode & MODE_OPER32)        \
-    ? SET_GPR_D(N, EXPR)            \
-    : SET_GPR_W(N, EXPR))
-
-#define GPR_A(N)        ((Mop->fetch.inst.mode & MODE_ADDR32)        \
-    ? GPR_D(N)                \
-    : (dword_t)GPR_W(N))
-#define SET_GPR_A(N,EXPR)    ((Mop->fetch.inst.mode & MODE_ADDR32)        \
-    ? SET_GPR_D(N, EXPR)            \
-    : SET_GPR_W(N, EXPR))
-
-#define GPR_S(N)        ((Mop->fetch.inst.mode & MODE_STACK32)        \
-    ? GPR_D(N)                \
-    : (dword_t)GPR_W(N))
-#define SET_GPR_S(N,EXPR)    ((Mop->fetch.inst.mode & MODE_STACK32)        \
-    ? SET_GPR_D(N, EXPR)            \
-    : SET_GPR_W(N, EXPR))
-
-/* these are to read/write a 32-bit register corresponding
-   to an 8-bit register name (AL/AH/BL/...) */
-#define GPR_DB(N)		(_ARCH(N)				\
-    ? thread->regs.regs_R.dw[_ID(N)]		\
-    : thread->regs.regs_R.dw[N])
-#define SET_GPR_DB(N,EXPR)	(_ARCH(N)				   \
-    ? (thread->regs.regs_R.dw[_ID(N)] = (EXPR))  \
-    : (thread->regs.regs_R.dw[N] = (EXPR)))
-
-#define GPR(N)                  GPR_D(N)
-#define SET_GPR(N,EXPR)         SET_GPR_D(N,EXPR)
-
-#define AFLAGS(MSK)        (thread->regs.regs_C.aflags & (MSK))
-#define SET_AFLAGS(EXPR,MSK)    (assert(((EXPR) & ~(MSK)) == 0),    \
-    thread->regs.regs_C.aflags =            \
-    ((thread->regs.regs_C.aflags & ~(MSK))    \
-     | ((EXPR) & (MSK))))
-#define DAFLAGS(MSK) (MSK)
-
-#define FSW(MSK)        (thread->regs.regs_C.fsw & (MSK))
-#define SET_FSW(EXPR,MSK)    (assert(((EXPR) & ~(MSK)) == 0),    \
-    thread->regs.regs_C.fsw =            \
-    ((thread->regs.regs_C.fsw & ~(MSK))        \
-     | ((EXPR) & (MSK))))
-
-                                                 /* added by cristiano */
-#define CWD(MSK)                (thread->regs.regs_C.cwd & (MSK))
-#define SET_CWD(EXPR,MSK)       (assert(((EXPR) & ~(MSK)) == 0),        \
-    thread->regs.regs_C.cwd =                      \
-    ((thread->regs.regs_C.cwd & ~(MSK))            \
-     | ((EXPR) & (MSK))))
-
-                                                 /* floating point registers, L->word, F->single-prec, D->double-prec */
-                                                 /* FIXME: bad overlap, also need to support stack indexing... */
-#define _FPARCH(N)      ((N) < MD_REG_FTMP0)
-#define F2P(N)          (_FPARCH(N) ? ((FSW_TOP(thread->regs.regs_C.fsw) + (N)) & 0x07) : (N))
-#define FPR(N)            (thread->regs.regs_F.e[F2P(N)])
-#define SET_FPR(N,EXPR)        (thread->regs.regs_F.e[F2P(N)] = (EXPR))
-
-#define FPSTACK_POP()   SET_FSW_TOP(thread->regs.regs_C.fsw, (FSW_TOP(thread->regs.regs_C.fsw) + 1) & 0x07)
-#define FPSTACK_PUSH()  SET_FSW_TOP(thread->regs.regs_C.fsw, (FSW_TOP(thread->regs.regs_C.fsw) + 7) & 0x07)
-
-#define FPSTACK_IMPL(OP)                            \
-{                                    \
-  /* if ((OP) == fpstk_nop) - already checked before call of macro */                        \
-  /* ; */                            \
-  /* else */ if ((OP) == fpstk_pop)                        \
-    SET_FSW_TOP(thread->regs.regs_C.fsw, (FSW_TOP(thread->regs.regs_C.fsw)+1)&0x07);\
-  else if ((OP) == fpstk_poppop)                    \
-    SET_FSW_TOP(thread->regs.regs_C.fsw, (FSW_TOP(thread->regs.regs_C.fsw)+2)&0x07);\
-  else if ((OP) == fpstk_push)                    \
-    SET_FSW_TOP(thread->regs.regs_C.fsw, (FSW_TOP(thread->regs.regs_C.fsw)+7)&0x07);\
-  else                                \
-  fatal("bogus FP stack operation");                \
-}
-
-#define XMM_QW_LO(N)        (thread->regs.regs_XMM.qw[(N)].lo)
-#define XMM_QW_HI(N)        (thread->regs.regs_XMM.qw[(N)].hi)
-#define SET_XMM_QW_LO(N, VAL)    (thread->regs.regs_XMM.qw[(N)].lo = (VAL))
-#define SET_XMM_QW_HI(N, VAL)    (thread->regs.regs_XMM.qw[(N)].hi = (VAL))
-
-#define XMM_D_LO(N)        (thread->regs.regs_XMM.d[(N)].lo)
-#define XMM_D_HI(N)        (thread->regs.regs_XMM.d[(N)].hi)
-#define SET_XMM_D_LO(N, VAL)    (thread->regs.regs_XMM.d[(N)].lo = (VAL))
-#define SET_XMM_D_HI(N, VAL)    (thread->regs.regs_XMM.d[(N)].hi = (VAL))
-
-#define XMM_F(N, IND)          (thread->regs.regs_XMM.f[(N)][(IND)])
-#define SET_XMM_F(N, IND, VAL)       (thread->regs.regs_XMM.f[(N)][(IND)] = (VAL))
-
-
-
-/* speculative memory state accessor macros */
-#define READ_BYTE(SRC, FAULT)     ((FAULT) = md_fault_none, uop->oracle.virt_addr = (SRC), uop->decode.mem_size = 1, XMEM_READ_BYTE((SRC)))
-#define READ_WORD(SRC, FAULT)     ((FAULT) = md_fault_none, uop->oracle.virt_addr = (SRC), uop->decode.mem_size = 2, XMEM_READ_WORD((SRC)))
-#define READ_DWORD(SRC, FAULT)     ((FAULT) = md_fault_none, uop->oracle.virt_addr = (SRC), uop->decode.mem_size = 4, XMEM_READ_DWORD((SRC)))
-#define READ_QWORD(SRC, FAULT)    ((FAULT) = md_fault_none, uop->oracle.virt_addr = (SRC), uop->decode.mem_size = 8, XMEM_READ_QWORD((SRC)))
-
-#define WRITE_BYTE(SRC, DST, FAULT)   ((FAULT) = md_fault_none, uop->oracle.virt_addr = (DST), uop->decode.mem_size = 1, XMEM_WRITE_BYTE((DST), (SRC)))
-#define WRITE_WORD(SRC, DST, FAULT)   ((FAULT) = md_fault_none, uop->oracle.virt_addr = (DST), uop->decode.mem_size = 2, XMEM_WRITE_WORD((DST), (SRC)))
-#define WRITE_DWORD(SRC, DST, FAULT)   ((FAULT) = md_fault_none, uop->oracle.virt_addr = (DST), uop->decode.mem_size = 4, XMEM_WRITE_DWORD((DST), (SRC)))
-#define WRITE_QWORD(SRC, DST, FAULT)  ((FAULT) = md_fault_none, uop->oracle.virt_addr = (DST), uop->decode.mem_size = 8, XMEM_WRITE_QWORD((DST), (SRC)))
-
-/* this is for FSTE */
-#define WRITE_DWORD2(SRC, DST, FAULT)   (uop->decode.mem_size = 12, XMEM_WRITE_DWORD2((DST), (SRC)))
-  /*-----------------*/
- /* </SIMPLESCALAR> */
-/*-----------------*/
-
-
-/* Inst/uop execution functions: doing this allows you to actually
-   compile this file (zesto-oracle.c) with optimizations turned on
-   (e.g. gcc -O3), since without it, the giant switch was making gcc
-   run out of memory. */
-#define DEFINST(OP,MSK,NAME,OPFORM,RES,FLAGS,O1,I1,I2,I3,OFLAGS,IFLAGS)\
-static inline void SYMCAT(OP,_IMPL_FUNC)(struct thread_t * const thread, struct core_t * const core, struct Mop_t * const Mop, struct uop_t * const uop, bool * const bogus)               \
-     SYMCAT(OP,_IMPL)
-#define DEFUOP(OP,MSK,NAME,OPFORM,RES,FLAGS,O1,I1,I2,I3,OFLAGS,IFLAGS)\
-static inline void SYMCAT(OP,_IMPL_FUNC)(struct thread_t * const thread, struct core_t * const core, struct Mop_t * const Mop, struct uop_t * const uop, bool * const bogus)               \
-     SYMCAT(OP,_IMPL)
-#define DEFLINK(OP,MSK,NAME,MASK,SHIFT)
-#define CONNECT(OP)
-#define DECLARE_FAULT(FAULT)                        \
-      { uop->oracle.fault = (FAULT); return; }
-#include "machine.def"
-#undef DEFINST
-#undef DEFUOP
-#undef DEFLINK
-#undef DECLARE_FAULT
-
 
 /* The following code is derived from the original execution
    code in the SimpleScalar/x86 pre-release, but it has been
@@ -654,13 +411,10 @@ struct Mop_t *
 core_oracle_t::exec(const md_addr_t requested_PC)
 {
   struct thread_t * thread = core->current_thread;
-  struct core_knobs_t * knobs = core->knobs;
-  int flow_index = 0;        /* index into flowtab */
-  uop_inst_t flowtab[MD_MAX_FLOWLEN+2];    /* table of uops, +2 for REP control uops */
+  //struct core_knobs_t * knobs = core->knobs;
+  size_t flow_index = 0;
   struct Mop_t * Mop = NULL;
   bool * bogus = &core->fetch->bogus;
-
-  int wrote_spec_mem = false;
 
   if(*bogus) /* are we on a wrong path and fetched bogus insts? */
   {
@@ -692,9 +446,9 @@ core_oracle_t::exec(const md_addr_t requested_PC)
 
   if(MopQ_num >= MopQ_size-1)
   {
-    //warnonce("MopQ full: consider increasing MopQ size");
-    core->current_thread->consumed = false;
-    return NULL;
+      //warnonce("MopQ full: consider increasing MopQ size");
+      core->current_thread->consumed = false;
+      return NULL;
   }
 
   /* reset Mop state */
@@ -710,64 +464,60 @@ core_oracle_t::exec(const md_addr_t requested_PC)
   Mop->core = core;
 
   /* go to next instruction */
-  if(requested_PC != thread->regs.regs_NPC)
-    spec_mode = true;
-
-  Mop->oracle.spec_mode = spec_mode;
+  if (requested_PC != thread->regs.regs_NPC)
+      spec_mode = true;
 
   thread->regs.regs_PC = requested_PC;
 
+  /* XXX: For now, don't go down a speculative path! */
+  if (spec_mode) {
+      spec_mode = false;
+      thread->regs.regs_PC = thread->regs.regs_NPC;
+  }
+
+  Mop->oracle.spec_mode = spec_mode;
+
   /* get the next instruction to execute */
   if (spec_mode) {
-    /* read raw bytes from (speculative) virtual memory */
-    for (int k=0; k < MD_MAX_ILEN; k++)
-      Mop->fetch.inst.code[k] = spec_do_read_byte(thread->regs.regs_PC + k, NULL);
+      /* read raw bytes from (speculative) virtual memory */
+      /* XXX: nope, assume, we'll have a handshake for that too */
   }
   else {
-    /* read encoding supplied by feeder */
-    memcpy(&Mop->fetch.inst.code, get_shadow_Mop(Mop)->handshake.ins, MD_MAX_ILEN);
+      /* read encoding supplied by feeder */
+      memcpy(&Mop->fetch.inst.code, get_shadow_Mop(Mop)->handshake.ins, xiosim::x86::MAX_ILEN);
 
-    if (num_Mops_before_feeder() > 0)
-        grab_feeder_state(get_shadow_Mop(Mop), false, true);
+      if (num_Mops_before_feeder() > 0)
+          grab_feeder_state(get_shadow_Mop(Mop), false, true);
   }
 
   //zesto_assert(MopQ_num == shadow_MopQ->size(), NULL);
 
   /* then decode the instruction */
-  MD_SET_OPCODE_DURING_FETCH(Mop->decode.op, Mop->fetch.inst);
+  x86::decode(Mop);
 
-  /* convert XCHG X,X to NOPs (XCHG EAX,EAX already identified-as/synonomous-with NOP) */
-  if( ((Mop->decode.op == XCHG_RMvRv) || (Mop->decode.op == XCHG_RMbRb)) && (R==RM))
-    Mop->decode.op = NOP;
-  if(Mop->decode.op == OP_NA)
+#if 0
   /* Skip invalid instruction */
-  {
-    core->fetch->invalid = true;
-    Mop->decode.op = NOP;
+  if(Mop->decode.op == OP_NA) {
+      core->fetch->invalid = true;
+      Mop->decode.op = NOP;
   }
+#endif
 
-  Mop->decode.rep_seq = thread->rep_sequence;
+  x86::decode_flags(Mop);
 
-  Mop->decode.opflags = MD_OP_FLAGS(Mop->decode.op);
-  if(Mop->fetch.inst.rep)
-    Mop->decode.opflags |= F_COND|F_CTRL;
-
-  Mop->decode.is_trap = !!(Mop->decode.opflags & F_TRAP);
-  Mop->decode.is_ctrl = !!(Mop->decode.opflags & F_CTRL);
-
-  if(Mop->decode.is_trap)
-  {
-    /* make sure pipeline has drained */
-    if(MopQ_num > 0) {
-      core->current_thread->consumed = false;
-      return NULL;
-    }
-    else
-      assert(!spec_mode);
+  if(Mop->decode.is_trap) {
+      /* make sure pipeline has drained */
+      if(MopQ_num > 0) {
+          core->current_thread->consumed = false;
+          return NULL;
+      }
+      else {
+          assert(!spec_mode);
+      }
   }
 
   /* set up initial default next PC */
-  thread->regs.regs_NPC = thread->regs.regs_PC + MD_INST_SIZE(Mop->fetch.inst);
+  thread->regs.regs_NPC = thread->regs.regs_PC + Mop->fetch.inst.len;
 
   /* grab values for Mop */
   Mop->fetch.PC = thread->regs.regs_PC;
@@ -776,73 +526,21 @@ core_oracle_t::exec(const md_addr_t requested_PC)
   /* set unique id */
   Mop->oracle.seq = Mop_seq++;
 
-  /*********************************************************/
-  /* REP implementation:
-     1. Before any instances of the REP'd instruction, we
-        insert a "micro-branch" uop that implements the check
-        for whether there are zero iterations.  Note that this
-        branch doesn't actually do anything architecturally
-        (see notes in machine.def), but it can still be tagged
-        as a recover_inst in case of a micro-branch misprediction.
-     2. Each REP iteration is manifested in a separate macro-op
-        instantiation, but as far as the stats go, it all still
-        counts as a single x86 instruction.
-     3. At the end of each REP iteration, we append two extra
-        uops to implement the REP control flow.  One decrements
-        ECX/CX, and the other implements a branch back to the
-        same instruction if more REP's are needed.
-                                                           */
-  /*********************************************************/
+    /* Crack Mop into uops */
+    x86::crack(Mop);
 
-  /* check for insts with repeat count of 0 */
-  if(!REP_FIRST(thread->regs))
-    Mop->oracle.zero_rep = true;
+    /* XXX: Handle uop flags. */
 
-  /* For the first in a sequence of REPs (including zero REPs), insert
-     a microbranch into the flow-table; uop conversion happens later */
-  if(Mop->fetch.inst.rep && (thread->rep_sequence == 0))
-  {
-    Mop->decode.first_rep = true;
+    /* XXX: Handle uop fusion. */
 
-    /* inject an initial micro-branch to test if there are any iterations at all */
-    if(Mop->fetch.inst.mode & MODE_ADDR32)
-      flowtab[0] = (!!(UP) << 30) | (md_uop_opc(REPFIRST_MICROBR_D) << 16);
-    else
-      flowtab[0] = (!!(UP) << 30) | (md_uop_opc(REPFIRST_MICROBR_W) << 16);
-
-    Mop->decode.flow_length = 1;
-  }
-  else
-    Mop->decode.first_rep = false;
-
-  /* If there are more than zero instances of the instruction, then fill in the uops */
-  if(!Mop->oracle.zero_rep || (thread->rep_sequence != 0)) /* a mispredicted zero rep will have rep_sequence != 0 */
-  {
-    assert(Mop->decode.opflags & F_UCODE); /* all instructions should have a flow mapping (even for 1-uop codes) */
-
-    /* get instruction flow */
-    Mop->decode.flow_length += md_get_flow(Mop, flowtab + Mop->decode.first_rep, bogus); /* have to adjust for the micro-branch we may have already injected */
-
-    /* allocate a uop-array of appropriate length */
-    Mop->uop = core->get_uop_array(Mop->decode.flow_length + (Mop->fetch.inst.rep?2:0));
-
-    if(Mop->fetch.inst.rep && (thread->rep_sequence == 0)) /* insert ubranch for 1st iteration of REP */
-    {
-      struct uop_t * uop = &Mop->uop[0];
-      uop->decode.raw_op = flowtab[0];
-      MD_SET_UOPCODE(uop->decode.op,&uop->decode.raw_op);
-      uop->decode.opflags = MD_OP_FLAGS(uop->decode.op);
-      uop->decode.is_ctrl = true;
-      uop->Mop = Mop;
-    }
-
-    if((!*bogus) && Mop->decode.flow_length > Mop->decode.first_rep) /* if 1st rep, flow_length already was equal to 1 */
+#if 0
+    if(!*bogus)
     {
       int imm_uops_left = 0;
       struct uop_t * fusion_head = NULL; /* if currently fused, points at head. */
       struct uop_t * prev_uop = NULL;
 
-      for(int i=Mop->decode.first_rep;i<Mop->decode.flow_length;i++)
+      for(int i=0;i<Mop->decode.flow_length;i++)
       {
         struct uop_t * uop = &Mop->uop[i];
         uop->decode.raw_op = flowtab[i];
@@ -851,22 +549,6 @@ core_oracle_t::exec(const md_addr_t requested_PC)
           uop->decode.has_imm = UHASIMM;
           MD_SET_UOPCODE(uop->decode.op,&uop->decode.raw_op);
           uop->decode.opflags = MD_OP_FLAGS(uop->decode.op);
-          uop->decode.is_load = !!(uop->decode.opflags & F_LOAD);
-          if(Mop->decode.opflags & F_STORE)
-          {
-            uop->decode.is_sta = !!( (uop->decode.op == STAD) |
-                                     (uop->decode.op == STAW) |
-                                     (uop->decode.op == STA_BGENW) |
-                                     (uop->decode.op == STA_BGENWI) |
-                                     (uop->decode.op == STA_BGEND) |
-                                     (uop->decode.op == STA_BGENDI)
-                                   );
-            uop->decode.is_std = !!(uop->decode.opflags & F_STORE);
-          }
-          uop->decode.is_ctrl = !!(uop->decode.opflags & F_CTRL);
-          uop->decode.is_nop = uop->decode.op == NOP;
-          uop->decode.is_fence = (uop->decode.op == MFENCE_UOP) ||
-                                 (uop->decode.op == LFENCE_UOP);
 
           if(knobs->decode.fusion_mode & FUSION_TYPE(uop))
           {
@@ -911,406 +593,167 @@ core_oracle_t::exec(const md_addr_t requested_PC)
       if(spec_mode)
       {
         *bogus = true;
-        if(wrote_spec_mem)
-          warn("(%s:%d) leaking spec mem",__FILE__,__LINE__);
         return NULL;
       }
       else
         fatal("could not locate UCODE flow");
     }
+#endif
 
-    /* mark repeat iteration for repeating instructions;
-       inject corresponding uops (one ECX update, one micro-branch */
-    if(Mop->fetch.inst.rep)
-    {
-      /* ECX/CX update */
-      int idx = Mop->decode.flow_length;
-      if(Mop->fetch.inst.mode & MODE_ADDR32)
-      {
-        flowtab[idx] = ((!!(UP) << 30) | (md_uop_opc(SUBDI) << 16)
-                                       | (md_uop_reg(XR_ECX, Mop, bogus) << 12)
-                                       | (md_uop_reg(XR_ECX, Mop, bogus) << 8)
-                                       | (md_uop_immb(XE_ONE, Mop, bogus)));
-        Mop->uop[idx].decode.raw_op = flowtab[idx];
-        MD_SET_UOPCODE(Mop->uop[idx].decode.op,&Mop->uop[idx].decode.raw_op);
-        Mop->uop[idx].decode.opflags = MD_OP_FLAGS(Mop->uop[idx].decode.op);
-        Mop->uop[idx].Mop = Mop;
-      }
-      else
-      {
-        flowtab[idx] = ((!!(UP) << 30) | (md_uop_opc(SUBWI) << 16)
-                                       | (md_uop_reg(XR_CX, Mop, bogus) << 12)
-                                       | (md_uop_reg(XR_CX, Mop, bogus) << 8)
-                                       | (md_uop_immb(XE_ONE, Mop, bogus)));
-        Mop->uop[idx].decode.raw_op = flowtab[idx];
-        MD_SET_UOPCODE(Mop->uop[idx].decode.op,&Mop->uop[idx].decode.raw_op);
-        Mop->uop[idx].decode.opflags = MD_OP_FLAGS(Mop->uop[idx].decode.op);
-        Mop->uop[idx].Mop = Mop;
-      }
-
-      idx++;
-
-
-      /* micro-jump to test for end of REP */
-      if(Mop->fetch.inst.mode & MODE_ADDR32)
-      {
-        if(Mop->fetch.inst.rep == REP_REPNZ)
-          flowtab[idx] = (!!(UP) << 30) | (md_uop_opc(REPNZ_MICROBR_D) << 16);
-        else if(Mop->fetch.inst.rep == REP_REPZ)
-          flowtab[idx] = (!!(UP) << 30) | (md_uop_opc(REPZ_MICROBR_D) << 16);
-        else if(Mop->fetch.inst.rep == REP_REP)
-          flowtab[idx] = (!!(UP) << 30) | (md_uop_opc(REP_MICROBR_D) << 16);
-        else
-        {
-          if(spec_mode)
-          {
-            *bogus = true;
-            if(wrote_spec_mem)
-              warn("(%s:%d) leaking spec mem",__FILE__,__LINE__);
-                return NULL;
-          }
-          else
-            fatal("bogus repeat code");
-        }
-      }
-      else
-      {
-        if(Mop->fetch.inst.rep == REP_REPNZ)
-          flowtab[idx] = (!!(UP) << 30) | (md_uop_opc(REPNZ_MICROBR_W) << 16);
-        else if(Mop->fetch.inst.rep == REP_REPZ)
-          flowtab[idx] = (!!(UP) << 30) | (md_uop_opc(REPZ_MICROBR_W) << 16);
-        else if(Mop->fetch.inst.rep == REP_REP)
-          flowtab[idx] = (!!(UP) << 30) | (md_uop_opc(REP_MICROBR_W) << 16);
-        else
-        {
-          if(spec_mode)
-          {
-            *bogus = true;
-            return NULL;
-          }
-          else
-            fatal("bogus repeat code");
-        }
-      }
-      Mop->uop[idx].decode.raw_op = flowtab[idx];
-      Mop->uop[idx].decode.is_ctrl = true;
-      MD_SET_UOPCODE(Mop->uop[idx].decode.op,&Mop->uop[idx].decode.raw_op);
-      Mop->uop[idx].Mop = Mop;
-
-      Mop->decode.flow_length += 2;
+    for (size_t i = 0; i < Mop->decode.flow_length; i++) {
+        Mop->uop[i].core = core;
+        Mop->uop[i].flow_index = i;
+        Mop->uop[i].Mop = Mop;
+        Mop->uop[i].decode.Mop_seq = Mop->oracle.seq;
+        Mop->uop[i].decode.uop_seq = (Mop->oracle.seq << UOP_SEQ_SHIFT) + i;
     }
 
-    for(int i=0;i<Mop->decode.flow_length;i++)
-    {
-      Mop->uop[i].flow_index = i;
-      Mop->uop[i].decode.Mop_seq = Mop->oracle.seq;
-      Mop->uop[i].decode.uop_seq = (Mop->oracle.seq << UOP_SEQ_SHIFT) + i;
-    }
 
-  }
-  else /* zero-rep inst */
-  {
-    Mop->uop = core->get_uop_array(1);
-    struct uop_t * uop = &Mop->uop[0];
-    uop->decode.raw_op = flowtab[0];
-    MD_SET_UOPCODE(uop->decode.op,&uop->decode.raw_op);
-    uop->decode.opflags = MD_OP_FLAGS(uop->decode.op);
-    uop->decode.is_ctrl = true;
-    uop->Mop = Mop;
-    uop->decode.Mop_seq = Mop->oracle.seq;
-    uop->decode.uop_seq = (Mop->oracle.seq << UOP_SEQ_SHIFT);
-  }
+    Mop->uop[0].decode.BOM = true;
 
-  Mop->uop[0].decode.BOM = true;
+    // XXX: No immediates for now
+    Mop->decode.last_uop_index = Mop->decode.flow_length - 1;
 
+#if 0
+  flow_index = 0;
   while(flow_index < Mop->decode.flow_length)
   {
-    /* If we have a microcode op, get the op and inst, this
-     * has already been done for non-microcode instructions */
     struct uop_t * uop = &Mop->uop[flow_index];
-    uop->decode.FU_class = MD_OP_FUCLASS(uop->decode.op);
+    // uop->decode.FU_class = MD_OP_FUCLASS(uop->decode.op);
     /* Overwrite FU_class for OoO cores (done because only IO core has a dedicated AGU unit) */
     if (strcasecmp(knobs->model, "IO-DPM") && (uop->decode.FU_class == FU_AGEN))
       uop->decode.FU_class = FU_IEU;
 
-    /* get dependency names */
-    switch (uop->decode.op)
-    {
-#define DEFINST(OP,MSK,NAME,OPFORM,RES,FLAGS,O1,I1,I2,I3,OFLAGS,IFLAGS)\
-      case OP: uop->decode.idep_name[0] = I1; uop->decode.odep_name = O1;  \
-               uop->decode.idep_name[1] = I2;  \
-               uop->decode.idep_name[2] = I3;  \
-               uop->decode.iflags = (IFLAGS!=DNA)?IFLAGS:0; \
-               uop->decode.oflags = (OFLAGS!=DNA)?OFLAGS:0; \
-      break;
-#define DEFUOP(OP,MSK,NAME,OPFORM,RES,FLAGS,O1,I1,I2,I3,OFLAGS,IFLAGS)\
-      case OP: uop->decode.idep_name[0] = I1; uop->decode.odep_name = O1;  \
-               uop->decode.idep_name[1] = I2;  \
-               uop->decode.idep_name[2] = I3;  \
-               uop->decode.iflags = (IFLAGS!=DNA)?IFLAGS:0; \
-               uop->decode.oflags = (OFLAGS!=DNA)?OFLAGS:0; \
-      break;
-#define DEFLINK(OP,MSK,NAME,MASK,SHIFT)          \
-      case OP:                            \
-                            fatal("attempted to execute a linking opcode");
-#define CONNECT(OP)
-#include "machine.def"
-      default:
-        if(spec_mode)
-        {
-          *bogus = true;
-          if(wrote_spec_mem)
-            cleanup_aborted_mop(Mop);
-          return NULL;
-        }
-        else
-          fatal("attempted to execute a bogus opcode");
-    }
+    // XXX
+    // x86::decode_dependences(uop);
 
-    /* check for completed flow at top of loop */
-    int offset = MD_INC_FLOW;
-    Mop->decode.last_uop_index = flow_index;
-    flow_index += offset;
   }
+#endif
 
   flow_index = 0;
-  while(flow_index < Mop->decode.flow_length)
-  {
-    /* If we have a microcode op, get the op and inst, this
-     * has already been done for non-microcode instructions */
+  while(flow_index < Mop->decode.flow_length) {
     struct uop_t * uop = &Mop->uop[flow_index];
 
-    assert((!(uop->decode.opflags & F_STORE)) || uop->decode.is_std);
-    assert((!(uop->decode.opflags & F_LOAD)) || uop->decode.is_load);
-
-    /* are all operands valid? */
-    if( (uop->decode.idep_name[0] >= MD_TOTAL_REGS) ||
-        (uop->decode.idep_name[1] >= MD_TOTAL_REGS) ||
-        (uop->decode.idep_name[2] >= MD_TOTAL_REGS) ||
-        (uop->decode.odep_name >= MD_TOTAL_REGS) )
-    {
-      if(spec_mode)
-      {
-        *bogus = true;
-        if(wrote_spec_mem)
-          cleanup_aborted_mop(Mop);
-        return NULL;
-      }
-      else
-        fatal("decoded an instruction with an invalid register specifier (%d=%d,%d,%d max should be %d)",uop->decode.odep_name, uop->decode.idep_name[0], uop->decode.idep_name[1], uop->decode.idep_name[2],MD_TOTAL_REGS);
-    }
-
-    /* break addr dependency to allow STA/STD to execute independently */
-    if(uop->decode.is_std)
-      uop->decode.idep_name[MD_STA_OP_INDEX] = DNA;
-
-    /* read input dep values */
-    for(int i=0;i<MAX_IDEPS;i++)
-    {
-      if((uop->decode.idep_name[i] != DNA) && (uop->decode.idep_name[i] != MD_REG_ZERO))
-      {
-        if(REG_IS_GPR(uop->decode.idep_name[i]))
-          uop->oracle.ivalue[i].dw = thread->regs.regs_R.dw[_DGPR(uop->decode.idep_name[i])];
-        else if(REG_IS_FPR(uop->decode.idep_name[i]))
-          uop->oracle.ivalue[i].e = thread->regs.regs_F.e[_DFPR(uop->decode.idep_name[i])];
-        else if(REG_IS_SEG(uop->decode.idep_name[i]))
-          uop->oracle.ivalue[i].w = thread->regs.regs_S.w[_DSEG(uop->decode.idep_name[i])];
-      }
-    }
-    /* copy previous values of odep for possible recovery */
-    if((uop->decode.odep_name != DNA) && (uop->decode.odep_name != MD_REG_ZERO))
-    {
-      if(REG_IS_GPR(uop->decode.odep_name))
-        uop->oracle.prev_ovalue.dw = thread->regs.regs_R.dw[_DGPR(uop->decode.odep_name)];
-      else if(REG_IS_FPR(uop->decode.odep_name))
-        uop->oracle.prev_ovalue.e = thread->regs.regs_F.e[_DFPR(uop->decode.odep_name)];
-      else if(REG_IS_SEG(uop->decode.odep_name))
-        uop->oracle.prev_ovalue.w = thread->regs.regs_S.w[_DSEG(uop->decode.odep_name)];
-    }
-    uop->oracle.ictrl = thread->regs.regs_C;
-
     /* Fill mem repeater fields */
-    if (uop->decode.is_load || uop->decode.is_sta || uop->decode.is_std)
-    {
-      uop->oracle.is_sync_op = core->fetch->fake_insn && !spec_mode;
-      uop->oracle.is_repeated = core->current_thread->in_critical_section ||
-                                uop->oracle.is_sync_op;
-      if (uop->oracle.is_sync_op && uop->decode.is_std)
-        core->num_signals_in_pipe++;
+    if (uop->decode.is_load || uop->decode.is_sta || uop->decode.is_std) {
+        uop->oracle.is_sync_op = core->fetch->fake_insn && !spec_mode;
+        uop->oracle.is_repeated = core->current_thread->in_critical_section ||
+                                  uop->oracle.is_sync_op;
+        if (uop->oracle.is_sync_op && uop->decode.is_std)
+            core->num_signals_in_pipe++;
     }
 
     /* Mark fences in critical section as light.
      * XXX: This is a hack, so I don't hijack new x86 opcodes for light fences */
     if (uop->decode.is_fence && core->current_thread->in_critical_section)
-      uop->decode.is_light_fence = true;
+        uop->decode.is_light_fence = true;
 
-    /* execute the instruction */
-    switch (uop->decode.op)
-    {
-#define DEFINST(OP,MSK,NAME,OPFORM,RES,FLAGS,O1,I1,I2,I3,OFLAGS,IFLAGS)\
-      case OP: SYMCAT(OP,_IMPL_FUNC)(thread,core,Mop,uop,bogus);               \
-      break;
-#define DEFUOP(OP,MSK,NAME,OPFORM,RES,FLAGS,O1,I1,I2,I3,OFLAGS,IFLAGS)\
-      case OP: SYMCAT(OP,_IMPL_FUNC)(thread,core,Mop,uop,bogus);               \
-      break;
-#define DEFLINK(OP,MSK,NAME,MASK,SHIFT)          \
-      case OP:                            \
-                            fatal("attempted to execute a linking opcode");
-#define CONNECT(OP)
-#include "machine.def"
-#undef DEFINST
-#undef DEFUOP
-#undef CONNECT
-      default:
-        fatal("attempted to execute a bogus opcode");
+    /* XXX: execute the instruction */
+
+    /* XXX: for loads and stas, we need to grab virt_addr and mem_size from feeder. */
+    if (uop->decode.is_load || uop->decode.is_std) {
+        handshake_container_t *handshake = get_shadow_Mop(Mop);
+        assert(!handshake->mem_buffer.empty());
+        uop->oracle.virt_addr = handshake->mem_buffer.begin()->first;
+        uop->decode.mem_size = 1;
     }
 
-    if(uop->oracle.spec_mem[0])
-      wrote_spec_mem = true;
-
-    /* maintain $r0 semantics */
-    thread->regs.regs_R.dw[MD_REG_ZERO] = 0;
-
-    /* copy output value */
-    if((uop->decode.odep_name != DNA) && (uop->decode.odep_name != MD_REG_ZERO))
-    {
-      if(REG_IS_GPR(uop->decode.odep_name))
-        uop->oracle.ovalue.dw = thread->regs.regs_R.dw[_DGPR(uop->decode.odep_name)];
-      else if(REG_IS_FPR(uop->decode.odep_name))
-        uop->oracle.ovalue.e = thread->regs.regs_F.e[_DFPR(uop->decode.odep_name)];
-      else if(REG_IS_SEG(uop->decode.odep_name))
-        uop->oracle.ovalue.w = thread->regs.regs_S.w[_DSEG(uop->decode.odep_name)];
+    if(uop->decode.is_load) {
+        zesto_assert(uop->oracle.virt_addr != 0 || uop->Mop->oracle.spec_mode, NULL);
+        uop->oracle.phys_addr = xiosim::memory::v2p_translate(thread->asid, uop->oracle.virt_addr);
     }
-    uop->oracle.octrl = thread->regs.regs_C;
-
-    if(uop->decode.is_load)
-    {
-      //zesto_assert(uop->oracle.virt_addr != 0 || uop->Mop->oracle.spec_mode,NULL);
-      uop->oracle.phys_addr = xiosim::memory::v2p_translate(thread->asid, uop->oracle.virt_addr);
-    }
-    else if(uop->decode.is_std)
-    {
-      /* virt_addr and mem_size set by execution of STD uop, copy back to STA */
-      int prev_uop_index = flow_index-1;
-      assert(prev_uop_index >= 0);
-      while(Mop->uop[prev_uop_index].decode.is_imm)
-      {
-        prev_uop_index --;
+    else if(uop->decode.is_std) {
+        /* virt_addr and mem_size set by execution of STD uop, copy back to STA */
+        int prev_uop_index = flow_index-1;
         assert(prev_uop_index >= 0);
-      }
-      assert(Mop->uop[prev_uop_index].decode.is_sta);
-      uop->oracle.phys_addr = xiosim::memory::v2p_translate(thread->asid, uop->oracle.virt_addr);
-      Mop->uop[prev_uop_index].oracle.virt_addr = uop->oracle.virt_addr;
-      Mop->uop[prev_uop_index].oracle.phys_addr = uop->oracle.phys_addr;
-      Mop->uop[prev_uop_index].decode.mem_size = uop->decode.mem_size;
-      if(!spec_mode)
-        zesto_assert(uop->oracle.virt_addr && uop->decode.mem_size, NULL);
-    }
-
-    if (uop->oracle.fault != md_fault_none)
-    {
-      if(spec_mode)
-      {
-        *bogus = true;
-        if(wrote_spec_mem)
-          cleanup_aborted_mop(Mop);
-        return NULL;
-      }
-      else
-#ifdef ZESTO_PIN
-        info("fault (%d) detected @ 0x%08p", uop->oracle.fault, thread->regs.regs_PC);
-#else
-        fault("fault (%d) detected @ 0x%08p", uop->oracle.fault, thread->regs.regs_PC);
+#if 0
+        while(Mop->uop[prev_uop_index].decode.is_imm) {
+            prev_uop_index --;
+            assert(prev_uop_index >= 0);
+        }
 #endif
+        assert(Mop->uop[prev_uop_index].decode.is_sta);
+        uop->oracle.phys_addr = xiosim::memory::v2p_translate(thread->asid, uop->oracle.virt_addr);
+        Mop->uop[prev_uop_index].oracle.virt_addr = uop->oracle.virt_addr;
+        Mop->uop[prev_uop_index].oracle.phys_addr = uop->oracle.phys_addr;
+        Mop->uop[prev_uop_index].decode.mem_size = uop->decode.mem_size;
+        if(!spec_mode)
+            zesto_assert(uop->oracle.virt_addr && uop->decode.mem_size, NULL);
     }
 
     /* Update stats */
     if((!uop->decode.in_fusion) || uop->decode.is_fusion_head)
     {
-      Mop->stat.num_uops++;
-      ZESTO_STAT(core->stat.oracle_total_uops++;)
+        Mop->stat.num_uops++;
+        ZESTO_STAT(core->stat.oracle_total_uops++;)
     }
     Mop->stat.num_eff_uops++;
     ZESTO_STAT(core->stat.oracle_total_eff_uops++;)
 
-    if (uop->decode.opflags & F_CTRL) {
-      Mop->stat.num_branches++;
-      ZESTO_STAT(core->stat.oracle_total_branches++;)
-      if(!spec_mode)
-        ZESTO_STAT(core->stat.oracle_num_branches++;)
-    }
-    if (uop->decode.opflags & F_MEM) 
-    {
-      Mop->stat.num_refs++;
-      ZESTO_STAT(core->stat.oracle_total_refs++;)
-      if(!spec_mode)
-        ZESTO_STAT(core->stat.oracle_num_refs++;)
-      if (uop->decode.opflags & F_LOAD) {
-        Mop->stat.num_loads++;
-        ZESTO_STAT(core->stat.oracle_total_loads++;)
+    if (uop->decode.is_ctrl) {
+        Mop->stat.num_branches++;
+        ZESTO_STAT(core->stat.oracle_total_branches++;)
         if(!spec_mode)
-          ZESTO_STAT(core->stat.oracle_num_loads++;)
-      }
+            ZESTO_STAT(core->stat.oracle_num_branches++;)
     }
-    flow_index += MD_INC_FLOW;
+
+    if (uop->decode.is_load || uop->decode.is_std) {
+        Mop->stat.num_refs++;
+        ZESTO_STAT(core->stat.oracle_total_refs++;)
+        if(!spec_mode)
+            ZESTO_STAT(core->stat.oracle_num_refs++;)
+        if (uop->decode.is_load) {
+            Mop->stat.num_loads++;
+            ZESTO_STAT(core->stat.oracle_total_loads++;)
+            if(!spec_mode)
+                ZESTO_STAT(core->stat.oracle_num_loads++;)
+        }
+    }
+    flow_index += 1;//MD_INC_FLOW;
   }
 
-  /* Do FP-stack adjustments if necessary */
-  if(Mop->decode.fpstack_op != fpstk_nop)
-    FPSTACK_IMPL(Mop->decode.fpstack_op);
-
-  if(MD_IS_CALL(Mop->decode.opflags))
-    ZESTO_STAT(core->stat.oracle_total_calls++;)
-
+  if(xed_decoded_inst_get_category(&Mop->decode.inst) == XED_CATEGORY_CALL)
+      ZESTO_STAT(core->stat.oracle_total_calls++;)
+    
   /* update register mappings, inter-uop dependencies */
   /* NOTE: this occurs in its own loop because the above loop
      may terminate prematurely if a bogus fetch condition is
      encountered. */
   flow_index = 0;
-  while(flow_index < Mop->decode.flow_length)
-  {
-    struct uop_t * uop = &Mop->uop[flow_index];
-
-    install_dependencies(uop); /* update back/fwd pointers between uop and parent */
-    install_mapping(uop); /* add self to register mapping (oracle's rename table) */
-    flow_index += MD_INC_FLOW;
+  while (flow_index < Mop->decode.flow_length) {
+      struct uop_t * uop = &Mop->uop[flow_index];
+      /* update back/fwd pointers between uop and parent */
+      install_dependencies(uop);
+      /* add self to register mapping (oracle's rename table) */
+      install_mapping(uop);
+      flow_index += 1;//MD_INC_FLOW;
   }
 
-  /* if PC==NPC, means we're still REP'ing, or we've encountered an instruction we can't handle (which is fine if running in slave mode) */
-  if(thread->regs.regs_PC == thread->regs.regs_NPC)
-  {
-    assert(Mop->oracle.spec_mode || Mop->fetch.inst.rep || Mop->decode.op == NOP);
-    /* If we can't handle isntruction, at least set NPC correctly, so that we don't corrupt fetch sequence */
-    if(Mop->decode.op == NOP && !Mop->oracle.spec_mode)
-    {  
-       ZTRACE_PRINT(core->id, "XXX: Ignoring unknown instruction at pc: %x\n", thread->regs.regs_PC);
-       ZESTO_STAT(core->stat.oracle_unknown_insn++;)
-       Mop->uop[Mop->decode.last_uop_index].decode.EOM = true;
-       thread->rep_sequence = 0;
-       assert(core->fetch->invalid);
-       thread->regs.regs_NPC = core->fetch->feeder_NPC;
-       Mop->fetch.pred_NPC = thread->regs.regs_NPC;
-       Mop->fetch.inst.len = thread->regs.regs_NPC - thread->regs.regs_PC;
-    }
-    else{
-       thread->rep_sequence ++;
-    }
-  }
-  else
-  {
-    thread->rep_sequence = 0;
-  }
-
-  /* If there is an NPC coming from feeder (anything but speculation),
-   * treat it as more reliable than the one we computed here. */
+  /* Set NPC -- just use feeder value. */
   if (!Mop->oracle.spec_mode)
     thread->regs.regs_NPC = core->fetch->feeder_NPC;
+
+#if 0
+  /* if PC == NPC, we're still REP'ing, or we've encountered an instruction
+   * we can't handle */
+  if(thread->regs.regs_PC == thread->regs.regs_NPC) {
+      assert(Mop->oracle.spec_mode || Mop->fetch.inst.rep || Mop->decode.op == NOP);
+      /* If we can't handle isntruction, at least set NPC correctly, so that we don't corrupt fetch sequence */
+      if(Mop->decode.op == NOP && !Mop->oracle.spec_mode) {
+          ZTRACE_PRINT(core->id, "XXX: Ignoring unknown instruction at pc: %x\n", thread->regs.regs_PC);
+          ZESTO_STAT(core->stat.oracle_unknown_insn++;)
+          assert(core->fetch->invalid);
+          Mop->fetch.pred_NPC = thread->regs.regs_NPC;
+          Mop->fetch.inst.len = thread->regs.regs_NPC - thread->regs.regs_PC;
+      }
+  }
+#endif
 
   /* If we don't have branch information coming from feeder, just
    * check NPC against instruction length. */
   if (Mop->oracle.spec_mode) {
-    core->fetch->feeder_ftPC = Mop->fetch.PC + Mop->fetch.inst.len;
-    core->fetch->taken_branch = (thread->regs.regs_NPC != Mop->fetch.PC + Mop->fetch.inst.len);
+      core->fetch->feeder_ftPC = Mop->fetch.PC + Mop->fetch.inst.len;
+      core->fetch->taken_branch = (thread->regs.regs_NPC != Mop->fetch.PC + Mop->fetch.inst.len);
   }
 
   Mop->fetch.ftPC = core->fetch->feeder_ftPC;
@@ -1320,19 +763,16 @@ core_oracle_t::exec(const md_addr_t requested_PC)
   Mop->uop[Mop->decode.last_uop_index].decode.EOM = true; 
 
   if(!Mop->oracle.spec_mode)
-    thread->stat.num_insn++;
+      thread->stat.num_insn++;
   ZESTO_STAT(core->stat.oracle_total_insn++;)
 
   /* Magic instructions: fake NOPs go to a special magic ALU with a
    * configurable latency. Convenient to simulate various fixed-function HW. */
-  if (Mop->decode.op == NOP && core->fetch->fake_insn && !spec_mode) {
-    zesto_assert(Mop->decode.last_uop_index == 0, NULL);
-    Mop->uop[0].decode.is_nop = false;
-    Mop->uop[0].decode.FU_class = FU_MAGIC;
+  if (x86::is_nop(Mop) && core->fetch->fake_insn && !spec_mode) {
+      zesto_assert(Mop->decode.last_uop_index == 0, NULL);
+      Mop->uop[0].decode.is_nop = false;
+      Mop->uop[0].decode.FU_class = FU_MAGIC;
   }
-
-  /* maintain $r0 semantics */
-  thread->regs.regs_R.dw[MD_REG_ZERO] = 0;
 
   Mop->oracle.NextPC = thread->regs.regs_NPC;
 
@@ -1340,11 +780,9 @@ core_oracle_t::exec(const md_addr_t requested_PC)
   MopQ_tail = modinc(MopQ_tail,MopQ_size); //(MopQ_tail + 1) % MopQ_size;
   MopQ_num ++;
   if (Mop->oracle.spec_mode)
-    MopQ_spec_num++;
+      MopQ_spec_num++;
 
   current_Mop = Mop;
-
-  assert(Mop->decode.flow_length); /* there had better be at least one uop */
 
 #ifdef ZTRACE
   ztrace_print(Mop);
@@ -1382,17 +820,6 @@ void core_oracle_t::commit_uop(struct uop_t * const uop)
 
   /* clear oracle's back/fwd pointers between uop and children */
   commit_dependencies(uop);
-
-
-  /* commit memory writes to real memory system */
-  for(int j=0;j<12;j++)
-  {
-    if(!uop->oracle.spec_mem[j])
-      break;
-    core->oracle->commit_write_byte(uop->oracle.spec_mem[j]);
-    uop->oracle.spec_mem[j] = NULL;
-    xiosim::memory::notify_write(core->current_thread->asid, uop->oracle.virt_addr+j);
-  }
 }
 
 /* This is called by the backend to inform the oracle that the pipeline has
@@ -1416,8 +843,7 @@ core_oracle_t::commit(const struct Mop_t * const commit_Mop)
   MopQ_head = modinc(MopQ_head,MopQ_size); //(MopQ_head + 1) % MopQ_size;
   MopQ_num--;
   assert(MopQ_num >= 0);
-  if(Mop->uop)
-    core->return_uop_array(Mop->uop);
+  x86::clear_uop_array(Mop);
   Mop->uop = NULL;
 
   shadow_MopQ->pop();
@@ -1460,32 +886,8 @@ core_oracle_t::undo(struct Mop_t * const Mop, bool nuke)
     }
 
     /* undo register write */
-    if((uop->decode.odep_name != DNA) && (uop->decode.odep_name != MD_REG_ZERO))
-    {
-      if(REG_IS_GPR(uop->decode.odep_name))
-        thread->regs.regs_R.dw[_DGPR(uop->decode.odep_name)] = uop->oracle.prev_ovalue.dw;
-      else if(REG_IS_FPR(uop->decode.odep_name))
-        thread->regs.regs_F.e[_DFPR(uop->decode.odep_name)] = uop->oracle.prev_ovalue.e;
-      else if(REG_IS_SEG(uop->decode.odep_name))
-        thread->regs.regs_S.w[_DSEG(uop->decode.odep_name)] = uop->oracle.prev_ovalue.w;
-    }
-
-    /* undo ctrl register updates */
-    thread->regs.regs_C = uop->oracle.ictrl;
 
     /* undo memory changes */
-    if(uop->decode.is_std)
-    {
-      for(int j=0;j<12;j++)
-      {
-        spec_byte_t* p = uop->oracle.spec_mem[j];
-        if(p == NULL)
-          break;
-
-        squash_write_byte(p);
-        uop->oracle.spec_mem[j] = NULL;
-      }
-    }
 
     /* remove self from register mapping */
     undo_mapping(uop);
@@ -1494,8 +896,6 @@ core_oracle_t::undo(struct Mop_t * const Mop, bool nuke)
     undo_dependencies(uop);
   }
 
-  thread->rep_sequence = Mop->decode.rep_seq;
-
   Mop->fetch.jeclear_action_id = core->new_action_id();
 }
 
@@ -1503,7 +903,7 @@ core_oracle_t::undo(struct Mop_t * const Mop, bool nuke)
 void
 core_oracle_t::recover(const struct Mop_t * const Mop)
 {
-  std::stack<struct uop_t *> to_delete;
+  std::stack<struct Mop_t *> to_delete;
   int idx = moddec(MopQ_tail,MopQ_size); //(MopQ_tail-1+MopQ_size) % MopQ_size;
 
   ZTRACE_PRINT(core->id, "Recovery at MopQ_num: %d; shadow_MopQ_num: %d\n", MopQ_num, shadow_MopQ->size());
@@ -1520,10 +920,7 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
 
     undo(&MopQ[idx], nuke);
     MopQ[idx].valid = false;
-    if(MopQ[idx].uop) {
-      to_delete.push(MopQ[idx].uop);
-      MopQ[idx].uop = NULL;
-    }
+    to_delete.push(&MopQ[idx]);
     if(MopQ[idx].fetch.bpred_update)
     {
       core->fetch->bpred->flush(MopQ[idx].fetch.bpred_update);
@@ -1539,16 +936,16 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
   }
 
   while(!to_delete.empty()) {
-    struct uop_t * uop_arr = to_delete.top();
+    struct Mop_t * Mop_r = to_delete.top();
     to_delete.pop();
-    core->return_uop_array(uop_arr);
+    x86::clear_uop_array(Mop_r);
   }
 
   /* reset PC */
   core->current_thread->regs.regs_PC = Mop->fetch.PC;
   core->current_thread->regs.regs_NPC = Mop->oracle.NextPC;
 
-  ZTRACE_PRINT(core->id, "Recovering to fetchPC: %x; nuked_Mops: %d, rep_seq: %d \n", Mop->fetch.PC, num_Mops_before_feeder(), core->current_thread->rep_sequence);
+  ZTRACE_PRINT(core->id, "Recovering to fetchPC: %x; nuked_Mops: %d \n", Mop->fetch.PC, num_Mops_before_feeder());
 
   spec_mode = Mop->oracle.spec_mode;
 
@@ -1599,7 +996,7 @@ void core_oracle_t::pipe_flush(struct Mop_t * const Mop)
 void
 core_oracle_t::complete_flush(void)
 {
-  std::stack<struct uop_t *> to_delete;
+  std::stack<struct Mop_t *> to_delete;
   int idx = moddec(MopQ_tail,MopQ_size); //(MopQ_tail-1+MopQ_size) % MopQ_size;
   md_addr_t arch_PC = 0x00000000LL;
   while(MopQ_num)
@@ -1608,10 +1005,7 @@ core_oracle_t::complete_flush(void)
     assert(MopQ[idx].valid);
     undo(&MopQ[idx],false);
     MopQ[idx].valid = false;
-    if (MopQ[idx].uop) {
-      to_delete.push(MopQ[idx].uop);
-      MopQ[idx].uop = NULL;
-    }
+    to_delete.push(&MopQ[idx]);
     if(MopQ[idx].fetch.bpred_update)
     {
       core->fetch->bpred->flush(MopQ[idx].fetch.bpred_update);
@@ -1630,9 +1024,9 @@ core_oracle_t::complete_flush(void)
     shadow_MopQ->pop();
 
   while(!to_delete.empty()) {
-    struct uop_t * uop_arr = to_delete.top();
+    struct Mop_t * Mop_r = to_delete.top();
     to_delete.pop();
-    core->return_uop_array(uop_arr);
+    x86::clear_uop_array(Mop_r);
   }
 
   /* reset PC */
@@ -1645,101 +1039,6 @@ core_oracle_t::complete_flush(void)
   current_Mop = NULL;
   /* Force simulation to re-check feeder if needed */ 
   core->current_thread->consumed = true;
-}
-
-/* Called when a uop commits; removes uop from list of producers. */
-void core_oracle_t::commit_mapping(const struct uop_t * const uop)
-{
-  struct map_node_t * p;
-
-  /* regular register output */
-  if((uop->decode.odep_name != DNA) && (uop->decode.odep_name != DGPR(MD_REG_ZERO)))
-  {
-    p = dep_map.head[uop->decode.odep_name];
-
-    /* if you're committing this, it better be in the mapping */
-    assert(p);
-    /* if you're committing this, it better be the oldest one */
-    zesto_assert(uop == p->uop, (void)0);
-
-    /* remove from head */
-    dep_map.head[uop->decode.odep_name] = p->next;
-    if(p->next)
-      p->next->prev = NULL;
-
-    /* if only mapping, remove from tail as well */
-    if(dep_map.tail[uop->decode.odep_name] == p)
-      dep_map.tail[uop->decode.odep_name] = NULL;
-
-    return_map_node(p);
-  }
-
-  /* flags output */
-  if(uop->decode.oflags && uop->decode.oflags != DNA)
-  {
-    p = dep_map.head[DCREG(MD_REG_AFLAGS)];
-
-    /* if you're committing this, it better be in the mapping */
-    assert(p);
-    /* if you're committing this, it better be the oldest one */
-    if(uop != p->uop)
-    {
-       warn("Asetion about to fail. (cycle: %lld), (uop->uop_seq: %lld), (p->uop->uop_seq: %lld)",
-            core->sim_cycle, uop->decode.uop_seq, p->uop->decode.uop_seq);
-    }
-    assert(uop == p->uop);
-
-    /* remove from head */
-    dep_map.head[DCREG(MD_REG_AFLAGS)] = p->next;
-    if(p->next)
-      p->next->prev = NULL;
-
-    /* if only mapping, remove from tail as well */
-    if(dep_map.tail[DCREG(MD_REG_AFLAGS)] == p)
-      dep_map.tail[DCREG(MD_REG_AFLAGS)] = NULL;
-
-    return_map_node(p);
-  }
-}
-
-/* Cleans up dependency pointers between uop and CHILDREN. */
-void core_oracle_t::commit_dependencies(struct uop_t * const uop)
-{
-  struct odep_t * odep = uop->oracle.odep_uop;
-
-  while(odep)
-  {
-    struct odep_t * next = odep->next;
-
-    /* remove from child's idep vector */
-    assert(odep->uop->oracle.idep_uop[odep->op_num] == uop);
-    odep->uop->oracle.idep_uop[odep->op_num] = NULL;
-
-    odep->uop = NULL;
-    odep->op_num = -1;
-    core->return_odep_link(odep);
-
-    odep = next;
-  }
-  uop->oracle.odep_uop = NULL;
-}
-
-/* remove the entry from the table */
-void core_oracle_t::commit_write_byte(struct spec_byte_t * const p)
-{
-  const int index = p->addr & MEM_HASH_MASK;
-  assert(spec_mem_map.hash[index].head == p);
-
-  if(p->next)
-    p->next->prev = NULL;
-  spec_mem_map.hash[index].head = p->next;
-  if(p->next == NULL)
-  {
-    spec_mem_map.hash[index].tail = NULL;
-    assert(spec_mem_map.hash[index].head == NULL);
-  }
-
-  return_spec_mem_node(p);
 }
 
 void core_oracle_t::grab_feeder_state(handshake_container_t * handshake, bool allocate_shadow, bool check_pc_mismatch)
@@ -1778,10 +1077,9 @@ void core_oracle_t::grab_feeder_state(handshake_container_t * handshake, bool al
     regs->regs_XMM = handshake->handshake.ctxt.regs_XMM;
 
     /* Copy only valid FP registers (PIN uses invalid ones and they may differ) */
-    int j;
-    for(j=0; j< MD_NUM_ARCH_FREGS; j++)
+    for(size_t j=0; j< xiosim::x86::NUM_ARCH_FREGS; j++)
       if(FPR_VALID(handshake->handshake.ctxt.regs_C.ftw, j))
-        memcpy(&regs->regs_F.e[j], &handshake->handshake.ctxt.regs_F.e[j], MD_FPR_SIZE);
+        memcpy(&regs->regs_F.e[j], &handshake->handshake.ctxt.regs_F.e[j], sizeof(xiosim::x86::md_fpr_t));
   }
   else {
     core->current_thread->in_critical_section = handshake->flags.in_critical_section;
@@ -1875,52 +1173,27 @@ unsigned int core_oracle_t::num_Mops_before_feeder(void) const
 /* adds uop as most recent producer of its output(s) */
 void core_oracle_t::install_mapping(struct uop_t * const uop)
 {
-  struct map_node_t * p = NULL;
+    for (size_t i = 0; i < MAX_ODEPS; i++) {
+        auto produced_reg = uop->decode.odep_name[i];
+        if (produced_reg == XED_REG_INVALID)
+            continue;
 
-  /* regular register output */
-  if((uop->decode.odep_name != DNA) && (uop->decode.odep_name != DGPR(MD_REG_ZERO)))
-  {
-    p = get_map_node();
-    p->uop = uop;
+        dep_map[produced_reg].push_back(uop);
+    }
+}
 
-    /* install in tail (newest) position */
-    
-    if(dep_map.head[uop->decode.odep_name] == NULL) /* if no in-flight producers */
-    {
-      dep_map.head[uop->decode.odep_name] = p;
-      assert(dep_map.tail[uop->decode.odep_name] == NULL);
-      dep_map.tail[uop->decode.odep_name] = p;
-      /* p's next/prev pointers are already cleared */
-    }
-    else /* at least one other producer still in-flight */
-    {
-      p->prev = dep_map.tail[uop->decode.odep_name];
-      assert(p->prev);
-      p->prev->next = p;
-      dep_map.tail[uop->decode.odep_name] = p;
-    }
-  }
+/* Called when a uop commits; removes uop from list of producers. */
+void core_oracle_t::commit_mapping(const struct uop_t * const uop)
+{
+    for (size_t i = 0; i < MAX_ODEPS; i++) {
+        auto produced_reg = uop->decode.odep_name[i];
+        if (produced_reg == XED_REG_INVALID)
+            continue;
 
-  /* flags output - same thing as above */
-  if(uop->decode.oflags && uop->decode.oflags != DNA)
-  {
-    p = get_map_node();
-    p->uop = uop;
-    if(dep_map.head[DCREG(MD_REG_AFLAGS)] == NULL)
-    {
-      dep_map.head[DCREG(MD_REG_AFLAGS)] = p;
-      assert(dep_map.tail[DCREG(MD_REG_AFLAGS)] == NULL);
-      dep_map.tail[DCREG(MD_REG_AFLAGS)] = p;
-      /* p's next/prev pointers are already cleared */
+        /* if you're committing this, it better be the oldest producer */
+        zesto_assert(dep_map[produced_reg].front() == uop, (void)0);
+        dep_map[produced_reg].pop_front();
     }
-    else
-    {
-      p->prev = dep_map.tail[DCREG(MD_REG_AFLAGS)];
-      assert(p->prev);
-      p->prev->next = p;
-      dep_map.tail[DCREG(MD_REG_AFLAGS)] = p;
-    }
-  }
 }
 
 /* Called when a uop is undone (during pipe flush); removes uop from
@@ -1928,92 +1201,19 @@ void core_oracle_t::install_mapping(struct uop_t * const uop)
    undo removes from the tail. */
 void core_oracle_t::undo_mapping(const struct uop_t * const uop)
 {
-  struct map_node_t * p;
-  
-  /* regular register output */
-  if(uop->decode.odep_name != DNA && uop->decode.odep_name != MD_REG_ZERO)
-  {
-    p = dep_map.tail[uop->decode.odep_name];
+    for (size_t i = 0; i < MAX_ODEPS; i++) {
+        auto produced_reg = uop->decode.odep_name[i];
+        if (produced_reg == XED_REG_INVALID)
+            continue;
 
-    /* XXX might not be in mapping if oldest inst? */
-    if(!p)
-      goto flags;
+        /* map can be empty if we undo before having added ourselves */
+        if (dep_map[produced_reg].empty())
+            continue;
 
-    /* if you're undoing this, it better be the youngest one */
-    zesto_assert(uop == p->uop, (void)0);
-
-    /* remove from tail */
-    dep_map.tail[uop->decode.odep_name] = p->prev;
-    if(p->prev)
-      p->prev->next = NULL;
-
-    /* if only mapping, remove from head as well */
-    if(dep_map.head[uop->decode.odep_name] == p)
-      dep_map.head[uop->decode.odep_name] = NULL;
-
-    return_map_node(p);
-  }
-
-flags:
-
-  /* flags output */
-  if(uop->decode.oflags && uop->decode.oflags != DNA)
-  {
-    p = dep_map.tail[DCREG(MD_REG_AFLAGS)];
-
-    /* XXX might not be in mapping if oldest inst? */
-    if(!p)
-      return;
-    /* if you're undoing this, it better be the oldest one */
-    assert(uop == p->uop);
-
-    /* remove from tail */
-    dep_map.tail[DCREG(MD_REG_AFLAGS)] = p->prev;
-    if(p->prev)
-      p->prev->next = NULL;
-
-    /* if only mapping, remove from head as well */
-    if(dep_map.head[DCREG(MD_REG_AFLAGS)] == p)
-      dep_map.head[DCREG(MD_REG_AFLAGS)] = NULL;
-
-    return_map_node(p);
-  }
-}
-
-/* Mapping table node alloc/dealloc */
-struct core_oracle_t::map_node_t * core_oracle_t::get_map_node(void)
-{
-  struct map_node_t * p = NULL;
-  lk_lock(&oracle_pools_lock, core->id+1);
-  if(map_free_pool)
-  {
-    p = map_free_pool;
-    map_free_pool = p->next;
-  }
-  else
-  {
-    p = (struct map_node_t*) calloc(1,sizeof(*p));
-    if(!p)
-      fatal("couldn't calloc a dependency node");
-  }
-  assert(p);
-  p->next = NULL;
-  /* other fields were cleared when p was "return"ed (see below) */
-  map_free_pool_debt++;
-  lk_unlock(&oracle_pools_lock);
-  return p;
-}
-
-void core_oracle_t::return_map_node(struct map_node_t * const p)
-{
-  lk_lock(&oracle_pools_lock, core->id+1);
-  p->next = map_free_pool;
-  map_free_pool = p;
-  p->uop = NULL;
-  p->prev = NULL;
-  map_free_pool_debt--;
-  /* p->next used for free list, will be cleared on "get" */
-  lk_unlock(&oracle_pools_lock);
+        /* if you're undoing this, it better be the youngest producer */
+        zesto_assert(dep_map[produced_reg].back() == uop, (void)0);
+        dep_map[produced_reg].pop_back();
+    }
 }
 
 
@@ -2022,193 +1222,79 @@ void core_oracle_t::return_map_node(struct map_node_t * const p)
    of parents, add uop to each parent's list of children.) */
 void core_oracle_t::install_dependencies(struct uop_t * const uop)
 {
-  for(int i=0;i<MAX_IDEPS;i++)
-  {
-    /* get pointers to parent uops */
-    int reg_name = uop->decode.idep_name[i];
-    if(reg_name != DNA && reg_name != MD_REG_ZERO)
-    {
-      /* my parent is the most recent producer (dep_map.tail) of my operand */
-      if(dep_map.tail[reg_name])
-      {
-        uop->oracle.idep_uop[i] = dep_map.tail[reg_name]->uop;
-        assert(uop->oracle.idep_uop[i]->Mop->oracle.seq <= uop->Mop->oracle.seq);
-      }
+    for (size_t i = 0; i < MAX_IDEPS; i++) {
+        /* get pointers to parent uops */
+        auto reg_name = uop->decode.idep_name[i];
+        if (reg_name == XED_REG_INVALID)
+            continue;
 
-      /* install pointers from parent to this uop (add to parent's odep list) */
-      if(uop->oracle.idep_uop[i])
-      {
+        /* parent has already committed */
+        if (dep_map[reg_name].empty())
+            continue;
+
+        /* parent is the most recent producer of my operand */
+        struct uop_t * parent_uop = dep_map[reg_name].back();
+
+        /* make sure parent is older than me */
+        assert(parent_uop->Mop->oracle.seq <= uop->Mop->oracle.seq);
+        uop->oracle.idep_uop[i] = parent_uop;
+
+        /* install pointers from parent to this uop (add to parent's odep list) */
         struct odep_t * odep = core->get_odep_link();
-        odep->next = uop->oracle.idep_uop[i]->oracle.odep_uop;
-        uop->oracle.idep_uop[i]->oracle.odep_uop = odep;
+        odep->next = parent_uop->oracle.odep_uop;
         odep->uop = uop;
-        odep->aflags = false;
+        odep->aflags = false; // XXX
         odep->op_num = i;
-      }
-      /* else parent already committed */
+        parent_uop->oracle.odep_uop = odep;
     }
-  }
-
-  if(uop->decode.iflags && uop->decode.iflags != DNA)
-  {
-    /* get pointers to parent uop */
-    int reg_name = DCREG(MD_REG_AFLAGS);
-    int idx = MAX_IDEPS-1; /* always install AFLAGS idep in last entry */
-    assert(uop->decode.idep_name[idx] == DNA);
-    uop->decode.idep_name[idx] = DCREG(MD_REG_AFLAGS);
-
-    /* my parent is the most recent producer (dep_map.tail) of my operand */
-    if(dep_map.tail[reg_name])
-      uop->oracle.idep_uop[idx] = dep_map.tail[reg_name]->uop;
-
-    /* install pointers from parent to this uop (add to parent's odep list) */
-    if(uop->oracle.idep_uop[idx])
-    {
-      struct odep_t * odep = core->get_odep_link();
-      odep->next = uop->oracle.idep_uop[idx]->oracle.odep_uop;
-      uop->oracle.idep_uop[idx]->oracle.odep_uop = odep;
-      odep->aflags = true;
-      odep->uop = uop;
-      odep->op_num = idx;
-    }
-    /* else parent already committed */
-  }
 }
 
 /* Cleans up dependency pointers between uop and PARENTS. */
 void core_oracle_t::undo_dependencies(struct uop_t * const uop)
 {
-  for(int i=0;i<MAX_IDEPS;i++)
-  {
-    struct uop_t * parent = uop->oracle.idep_uop[i];
-    if(parent)
-    {
-      struct odep_t * odep = NULL;
-      struct odep_t * odep_prev = NULL;
+    for(size_t i = 0; i < MAX_IDEPS; i++) {
+        struct uop_t * parent = uop->oracle.idep_uop[i];
+        if (parent == nullptr)
+            continue;
 
-      odep = parent->oracle.odep_uop;
-      while(odep)
-      {
-        if((odep->uop == uop) && (odep->op_num == i))
-        {
-          if(odep_prev)
-            odep_prev->next = odep->next;
-          else
-            parent->oracle.odep_uop = odep->next;
-          core->return_odep_link(odep);
-          break;
+        struct odep_t * odep = parent->oracle.odep_uop;
+        struct odep_t * odep_prev = nullptr;
+        while(odep) {
+            if((odep->uop == uop) && ((size_t)odep->op_num == i)) {
+                if(odep_prev)
+                    odep_prev->next = odep->next;
+                else
+                    parent->oracle.odep_uop = odep->next;
+                core->return_odep_link(odep);
+                break;
+            }
+            odep_prev = odep;
+            odep = odep->next;
         }
-        odep_prev = odep;
-        odep = odep->next;
-      }
-      assert(odep); /* if I point back at a parent, the parent should point fwd to me. */
+        /* if I point back at a parent, the parent should point fwd to me. */
+        assert(odep);
+        /* remove my back pointer */
+        uop->oracle.idep_uop[i] = nullptr;
     }
-    uop->oracle.idep_uop[i] = NULL; /* remove my back pointer */
-  }
-
-  /* don't need to special-case AFLAGS since those were added to the idep list */
 }
 
-
-/* Code for pre-commit memory handling */
-/* Stores get inserted into the hash table, and loads check the
-   hash table before retrieving a value from memory.  This is very
-   similar to the speculative memory handling approach used in MASE.
-   Stores do not update the simulated memory (mem_t) until they
-   actually commit.  All speculative updates get stored in a
-   separate table, and loads have to check this first before
-   retrieving values from main memory.  Note that almost everything
-   here is performed on a byte-by-byte basis due to the lack of
-   alignment restrictions in x86. */
-
-struct spec_byte_t * core_oracle_t::get_spec_mem_node(void)
+/* Cleans up dependency pointers between uop and CHILDREN. */
+void core_oracle_t::commit_dependencies(struct uop_t * const uop)
 {
-  struct spec_byte_t * p;
-  lk_lock(&oracle_pools_lock, core->id+1);
-  if(spec_mem_free_pool)
-  {
-    p = spec_mem_free_pool;
-    spec_mem_free_pool = p->next;
-    p->next = NULL;
-    /* other fields were cleared when returned to free pool */
-    assert(p->val == 0);
-    assert(p->addr == 0);
-    assert(p->prev == NULL);
+    struct odep_t * odep = uop->oracle.odep_uop;
 
-    lk_unlock(&oracle_pools_lock);
-    return p;
-  }
-  else
-  {
-    p = (struct spec_byte_t*) calloc(1,sizeof(*p));
-    if(!p)
-      fatal("couldn't malloc spec_mem node");
+    while(odep) {
+        struct odep_t * next = odep->next;
 
-    assert(p->val == 0);
-    assert(p->addr == 0);
-    assert(p->prev == NULL);
+        /* remove from child's idep vector */
+        assert(odep->uop->oracle.idep_uop[odep->op_num] == uop);
+        odep->uop->oracle.idep_uop[odep->op_num] = nullptr;
 
-    lk_unlock(&oracle_pools_lock);
-    return p;
-  }
-}
+        odep->uop = nullptr;
+        odep->op_num = -1;
+        core->return_odep_link(odep);
 
-void core_oracle_t::return_spec_mem_node(struct spec_byte_t * const p)
-{
-  assert(p);
-  lk_lock(&oracle_pools_lock, core->id+1);
-  p->next = spec_mem_free_pool;
-  spec_mem_free_pool = p;
-  p->prev = NULL;
-  p->addr = 0;
-  p->val = 0;
-  lk_unlock(&oracle_pools_lock);
-}
-
-/* similar to commit_write_byte, but remove the tail entry
-   instead (used on a uop-flush/squash). */
-void core_oracle_t::squash_write_byte(struct spec_byte_t * const p)
-{
-  const int index = p->addr & MEM_HASH_MASK;
-  assert(spec_mem_map.hash[index].tail == p);
-
-  ZTRACE_PRINT(core->id, "Squashing spec mem write at addr: %x, val: %x\n", p->addr, p->val);
-
-  if(p->prev)
-    p->prev->next = NULL;
-  spec_mem_map.hash[index].tail = p->prev;
-  if(p->prev == NULL)
-  {
-    spec_mem_map.hash[index].head = NULL;
-    assert(spec_mem_map.hash[index].tail == NULL);
-  }
-
-  return_spec_mem_node(p);
-}
-
-
-/* if a Mop is partially executed in oracle-exec and then
-   aborts (likely due to it being on the wrong path and
-   containing bogus ops), speculative writes from the
-   partially executed uops need to be cleaned up. */
-void core_oracle_t::cleanup_aborted_mop(struct Mop_t * const Mop)
-{
-  int i = Mop->decode.flow_length - 1;
-  while(i>=0)
-  {
-    struct uop_t * uop = &Mop->uop[i];
-
-    if(!uop->decode.is_imm)
-    {
-      for(int j=0;j<12;j++)
-      {
-        if(uop->oracle.spec_mem[j] == NULL)
-          break;
-        squash_write_byte(uop->oracle.spec_mem[j]);
-        uop->oracle.spec_mem[j] = NULL;
-      }
+        odep = next;
     }
-    i--;
-  }
+    uop->oracle.odep_uop = nullptr;
 }
-
