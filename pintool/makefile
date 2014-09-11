@@ -7,11 +7,11 @@
 ##
 ##      make
 ## or
-##      make PIN_HOME=<top-level directory where Pin was installed>
+##      make PIN_ROOT=<top-level directory where Pin was installed>
 ##
 ## After building your tool, you would invoke Pin like this:
 ##
-##      $PIN_HOME/pin -t MyPinTool -- /bin/ls
+##      $PIN_ROOT/pin -t MyPinTool -- /bin/ls
 ##
 ##############################################################
 #
@@ -20,11 +20,11 @@
 ##############################################################
 
 #
-# 1. Change PIN_HOME to point to the top-level directory where
+# 1. Change PIN_ROOT to point to the top-level directory where
 #    Pin was installed. This can also be set on the command line,
 #    or as an environment variable.
 #
-PIN_HOME ?= /home/skanev/pin/2.12
+PIN_ROOT ?= /home/skanev/pin/2.14
 ZESTO_HOME = ..
 TARGET = ia32
 
@@ -34,15 +34,12 @@ TARGET = ia32
 #
 ##############################################################
 
-PIN_KIT=$(PIN_HOME)
-KIT=1
+KIT = 1
+COMPILER ?= gcc
+TARGET_OS = linux
 
-TARGET_COMPILER?=gnu
-ifeq ($(TARGET_COMPILER),gnu)
-    include $(PIN_HOME)/source/tools/makefile.gnu.config
-    CXXFLAGS ?= -I$(PIN_HOME)/source/tools/InstLib -Wall -Werror -Wno-unknown-pragmas -g $(DBG) $(OPT)
-    PIN=$(PIN_HOME)/pin
-endif
+include $(PIN_ROOT)/source/tools/Config/unix.vars
+include $(PIN_ROOT)/source/tools/Config/makefile.unix.config
 
 SIM_LIB = $(ZESTO_HOME)/libsim.a
 MCPAT_LIB = $(ZESTO_HOME)/mcpat/mcpat.a
@@ -59,6 +56,11 @@ else
     DRAMSIM_LIB = $(ZESTO_HOME)/DRAMSim2/libdramsim.a
 endif
 
+# Since pin 2.13(4?) the version of InstLib having PinPoints suppot is no more,
+# in favor of the shiny new PinPlay kit. Integrating with PinPlay is not surprisingly
+# non-trivial for XIOSim, so for now we keep a local version of 'good ole InstLib'.
+INSTLIB_HOME = InstLib
+CXXFLAGS ?= -I$(INSTLIB_HOME)
 ##############################################################
 #
 # Tools - you may wish to add your tool name to TOOL_ROOTS
@@ -82,7 +84,7 @@ all : CXXFLAGS += -DDEBUG -D_FILE_OFFSET_BITS=64 -std=c++11
 all: tools
 debug:	CXXFLAGS += -DZESTO_PIN_DBG -D_FILE_OFFSET_BITS=64 -std=c++11
 debug:	tools
-tools: $(OBJDIR) $(TOOLS) $(OBJDIR)cp-pin.exe
+tools: $(OBJDIR) $(TOOLS)
 test: $(OBJDIR) $(TOOL_ROOTS:%=%.test)
 
 $(ZESTO_HOME)/libsim.a:
@@ -97,22 +99,19 @@ $(ZESTO_HOME)/mcpat/mcpat.a:
 $(ZESTO_HOME)/mem-repeater/librepeater.a:
 	$(MAKE) -C $(ZESTO_HOME)/mem-repeater
 
-$(OBJDIR)cp-pin.exe:
-	$(CXX) $(PIN_HOME)/source/tools/Tests/cp-pin.cpp $(APP_CXXFLAGS) -o $(OBJDIR)cp-pin.exe
-
 $(OBJDIR):
 	mkdir -p $(OBJDIR)
 
 $(OBJDIR)%.o : %.C
-	$(CXX) -c $(CXXFLAGS) $(PIN_CXXFLAGS) ${OUTOPT}$@ $<
+	$(CXX) -c $(CXXFLAGS) $(TOOL_CXXFLAGS) ${COMP_OBJ}$@ $<
 
 $(OBJDIR)%.o : %.cpp
-	$(CXX) -c $(CXXFLAGS) $(PIN_CXXFLAGS) ${OUTOPT}$@ $<
+	$(CXX) -c $(CXXFLAGS) $(TOOL_CXXFLAGS) ${COMP_OBJ}$@ $<
 
 $(TOOLS): $(PIN_LIBNAMES) $(TOOL_OBJS) $(SIM_LIB) $(MCPAT_LIB) $(DRAMSIM_LIB) $(REPEATER_LIB)
 
 $(TOOLS): %$(PINTOOL_SUFFIX) : %.o
-	${PIN_LD} -g $(PIN_LDFLAGS) -I$(ZESTO_HOME) -L$(ZESTO_HOME) $(LINK_DEBUG) ${LINK_OUT} $@ $< ${PIN_LPATHS} $(TOOL_OBJS) $(SIM_LIB) $(MCPAT_LIB) $(DRAMSIM_LIB) $(REPEATER_LIB) $(PIN_LIBS) $(DBG)
+	${LINKER} -g $(TOOL_LDFLAGS) -I$(ZESTO_HOME) -L$(ZESTO_HOME) ${LINK_EXE}$@ $< ${TOOL_LPATHS} $(TOOL_OBJS) $(SIM_LIB) $(MCPAT_LIB) $(DRAMSIM_LIB) $(REPEATER_LIB) $(TOOL_LIBS)
 
 ## cleaning
 clean:

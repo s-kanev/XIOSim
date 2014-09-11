@@ -8,7 +8,7 @@
 */
 
 #include "pin.H"
-#include "instlib.H"
+#include "legacy_instlib.H"
 #include <stack>
 using namespace INSTLIB;
 
