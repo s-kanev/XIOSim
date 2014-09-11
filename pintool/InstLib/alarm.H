@@ -70,7 +70,7 @@ class ARMED_COUNT
             _count[i] = 0;
             _armed[i] = FALSE;
         }
-        InitLock(&_pin_lock);
+        PIN_InitLock(&_pin_lock);
     }
 
     ~ARMED_COUNT() {
@@ -212,10 +212,10 @@ class ARMED_COUNT
     VOID SetArmed(THREADID tid=0) {
         if (tid == ALL_THREADS) 
         {
-            GetLock(&_pin_lock, tid+1);
+            PIN_GetLock(&_pin_lock, tid+1);
             for(unsigned int i=0;i<_maxThreads;i++)
                 _armed[i]=TRUE;
-            ReleaseLock(&_pin_lock);
+            PIN_ReleaseLock(&_pin_lock);
         }
         else 
         {
@@ -229,10 +229,10 @@ class ARMED_COUNT
     VOID SetCount(THREADID tid, INT64 count) {
         if (tid == ALL_THREADS) 
         {
-            GetLock(&_pin_lock, tid+1);
+            PIN_GetLock(&_pin_lock, tid+1);
             for(unsigned int i=0;i<_maxThreads;i++)
                 _count[i]=count;
-            ReleaseLock(&_pin_lock);
+            PIN_ReleaseLock(&_pin_lock);
         }
         else 
         {
@@ -252,10 +252,10 @@ class ARMED_COUNT
     VOID Disarm(THREADID tid=0) {
         if (tid == ALL_THREADS) 
         {
-            GetLock(&_pin_lock, tid+1);
+            PIN_GetLock(&_pin_lock, tid+1);
             for(unsigned int i=0;i<_maxThreads;i++)
                 _armed[i]=FALSE;
-            ReleaseLock(&_pin_lock);
+            PIN_ReleaseLock(&_pin_lock);
         }
         else 
         {

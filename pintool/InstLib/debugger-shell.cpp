@@ -117,9 +117,9 @@ END_LEGAL */
  *
  *      if TestCondition(....)
  *      {
- *          GetLock(....);
+ *          PIN_GetLock(....);
  *          TraceLog.push_back(....);
- *          ReleaseLock(....);
+ *          PIN_ReleaseLock(....);
  *      }
  */
 
@@ -392,7 +392,7 @@ public:
             PrintError("Unable to allocate Pin virtual register");
             return FALSE;
         }
-        InitLock(&_traceLock);
+        PIN_InitLock(&_traceLock);
         _nextHelpCategory = DEBUGGER_SHELL::HELP_CATEGORY_END;
         _nextEventId = 1;
         _isEnabled = FALSE;
@@ -2967,9 +2967,9 @@ private:
         rec._id = static_cast<unsigned>(id);
         rec._pc = pc;
 
-        GetLock(&me->_traceLock, 1);
+        PIN_GetLock(&me->_traceLock, 1);
         me->_traceLog.push_back(rec);
-        ReleaseLock(&me->_traceLock);
+        PIN_ReleaseLock(&me->_traceLock);
     }
 
 
@@ -2988,9 +2988,9 @@ private:
         rec._pc = pc;
         rec._regValue = regValue;
 
-        GetLock(&me->_traceLock, 1);
+        PIN_GetLock(&me->_traceLock, 1);
         me->_traceLog.push_back(rec);
-        ReleaseLock(&me->_traceLock);
+        PIN_ReleaseLock(&me->_traceLock);
     }
 };
 
