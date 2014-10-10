@@ -2073,7 +2073,8 @@ bool core_exec_IO_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
      Manual"). */
   struct cache_t * tlb = (core->memory.DTLB2)?core->memory.DTLB2:core->memory.DTLB;
   /* Wait until we can submit to DTLB */
-  if(!cache_enqueuable(tlb, asid, PAGE_TABLE_ADDR(asid, uop->oracle.virt_addr)))
+  if(get_STQ_request_type(uop) == CACHE_WRITE &&
+     !cache_enqueuable(tlb, asid, PAGE_TABLE_ADDR(asid, uop->oracle.virt_addr)))
     return false;
   /* Wait until we can submit to DL1 */
   if(send_to_dl1 && !cache_enqueuable(core->memory.DL1, asid, uop->oracle.virt_addr))
@@ -2081,8 +2082,7 @@ bool core_exec_IO_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
 
   /* Wait until we can submit to repeater */
   if(uop->oracle.is_repeated) {
-    if(!core->memory.mem_repeater->enqueuable(uop->oracle.is_sync_op ? CACHE_SIGNAL : CACHE_WRITE,
-                            asid, uop->oracle.virt_addr))
+    if(!core->memory.mem_repeater->enqueuable(get_STQ_request_type(uop), asid, uop->oracle.virt_addr))
     return false;
   }
 
@@ -2139,7 +2139,7 @@ bool core_exec_IO_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
       rep_uop->oracle.is_repeated = uop->oracle.is_repeated;
       rep_uop->oracle.is_sync_op = uop->oracle.is_sync_op;
 
-      core->memory.mem_repeater->enqueue(uop->oracle.is_sync_op ? CACHE_SIGNAL : CACHE_WRITE,
+      core->memory.mem_repeater->enqueue(get_STQ_request_type(uop),
                        asid, uop->oracle.virt_addr, rep_uop, repeater_store_callback, get_uop_action_id);
     }
 
