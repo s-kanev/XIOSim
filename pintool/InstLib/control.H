@@ -139,6 +139,8 @@ class CONTROL_LENGTH
         return 0;
     }
 
+    bool IsActive() const { return _length > 0; }
+
     /*! @ingroup CONTROLLER_LENGTH
       Notify the controller about a start event. It counts instructions until the end
       of the interval
@@ -1926,6 +1928,7 @@ class CONTROL
     bool StopISAExtensionActive() const { return _stopISAExtension.IsActive(); };
     bool StopISACategoryActive() const { return _stopISACategory.IsActive(); };
 #endif
+    bool LengthActive() const { return _length.IsActive(); }
     bool StartAddressActive() const { return _startAddress.IsActive(); }
     bool StartTIDActive()     const { return _startTID.IsActive(); }
 

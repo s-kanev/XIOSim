@@ -1,4 +1,4 @@
-#! /bin/bash
+#!/bin/bash
 
 PROGRAM=../tests/fib
 PINHOME=/home/skanev/pin/2.14

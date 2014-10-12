@@ -227,6 +227,18 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
                 Zesto_Slice_End(0, slice_num, slice_length, slice_weight_times_1000);
             }
 
+            /* Stop simulation if we've reached the last slice, so we
+             * don't wait for fast-forwarding a potentially very long time until the app
+             * exits cleanly.
+             * XXX: As anything to do with slices, this won't work in the multi-threaded
+               case and has to be redone with a clean API. */
+            if ((control.PinPointsActive() && control.CurrentPp(tid) == control.NumPp(tid)) ||
+                control.LengthActive()) {
+                StopSimulation(false);
+                PIN_ExitProcess(EXIT_SUCCESS);
+
+            }
+
             ExecMode = EXECUTION_MODE_FASTFORWARD;
             CODECACHE_FlushCache();
         }
