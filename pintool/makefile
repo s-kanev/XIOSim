@@ -40,7 +40,7 @@ PIN=$(PIN_HOME)/pin
 CONFUSE_LIB = -lconfuse
 
 ifneq ($(CONFUSE_HOME),)
-    CONFUSE_LPATHS = $(CONFUSE_HOME)/lib
+    CONFUSE_LPATHS = -L$(CONFUSE_HOME)/lib
     CONFUSE_CXXFLAGS = -I$(CONFUSE_HOME)/include
 else
     CONFUSE_LPATHS =
@@ -56,7 +56,7 @@ else
     BOOST_CXXFLAGS =
 endif
 
-SIMLIB_LPATHS = -L$(ZESTO_HOME) -L$(CONFUSE_LPATHS)
+SIMLIB_LPATHS = -L$(ZESTO_HOME) $(CONFUSE_LPATHS)
 
 # Now the actual compilation flags
 CXXFLAGS ?= -g -std=c++11
@@ -170,10 +170,10 @@ $(FEEDER): $(FEEDER_OBJS)
 	${PIN_LD} -g $(PIN_LDFLAGS) ${LINK_OUT} $@ ${PIN_LPATHS} $^ $(PIN_LIBS) $(BOOST_LIBS)
 
 $(HARNESS): $(HARNESS_OBJS)
-	${PIN_LD} -g ${LINK_OUT} $@ -L${CONFUSE_LPATHS} $^ $(BOOST_LIBS) $(CONFUSE_LIB)
+	${PIN_LD} -g ${LINK_OUT} $@ ${CONFUSE_LPATHS} $^ $(BOOST_LIBS) $(CONFUSE_LIB)
 
 $(UNIT_TESTS): % : %.o $(UNIT_TEST_DEPS) $(SIM_LIB) $(REPEATER_LIB) $(DRAMSIM_LIB) $(MCPAT_LIB)
-	${PIN_LD} -g ${LINK_OUT} $@ $^ -L${CONFUSE_LPATHS} $(BOOST_LIBS) $(CONFUSE_LIB)
+	${PIN_LD} -g ${LINK_OUT} $@ $^ ${CONFUSE_LPATHS} $(BOOST_LIBS) $(CONFUSE_LIB)
 
 ##############################################################
 #
