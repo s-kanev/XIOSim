@@ -11,6 +11,10 @@ const unsigned int HELIX_LIGHT_WAIT_MASK = 0x8000;
 // bit 16 for wait vs. signal
 const unsigned int HELIX_WAIT_MASK = 0x10000;
 
+const unsigned int HELIX_SYNC_SIGNAL_ID = 1020;
+const unsigned int HELIX_COLLECT_SIGNAL_ID = 1021;
+const unsigned int HELIX_FINISH_SIGNAL_ID = 1022;
+
 const unsigned int HELIX_FLUSH_SIGNAL_ID = 1023;
 const unsigned int HELIX_MAX_SIGNAL_ID = 1023;
 
@@ -35,6 +39,22 @@ inline unsigned int get_helix_signal_first_core(unsigned int addr)
 {
     return (addr & HELIX_SIGNAL_FIRST_CORE_MASK) >> HELIX_SIGNAL_FIRST_CORE_SHIFT;
 }
+
+inline bool is_helix_signal_collect(unsigned int addr)
+{
+    return (get_helix_signal_id(addr) == HELIX_COLLECT_SIGNAL_ID);
+}
+
+inline bool is_helix_signal_sync(unsigned int addr)
+{
+    return (get_helix_signal_id(addr) == HELIX_SYNC_SIGNAL_ID);
+}
+
+inline bool is_helix_signal_finish(unsigned int addr)
+{
+    return (get_helix_signal_id(addr) == HELIX_FINISH_SIGNAL_ID);
+}
+
 
 inline bool is_helix_signal_flush(unsigned int addr)
 {

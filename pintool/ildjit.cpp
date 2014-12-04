@@ -1202,6 +1202,114 @@ void readLoop(ifstream& fin, string* name, UINT32* invocation, UINT32* iteration
     }
 }
 
+VOID insertBasicSafetySync(thread_state_t* curr_tstate)
+{
+  /* Insert a special signal that flushes the repeater. */
+  handshake_container_t* handshake_0 = xiosim::buffer_management::get_buffer(curr_tstate->tid);
+
+  handshake_0->flags.real = false;
+  handshake_0->handshake.asid = asid;
+  handshake_0->flags.valid = true;
+
+  handshake_0->handshake.pc = (ADDRINT)signal_template;
+  handshake_0->handshake.npc = (ADDRINT)mfence_template;
+  handshake_0->handshake.tpc = (ADDRINT)signal_template + sizeof(signal_template);
+  handshake_0->flags.brtaken = false;
+  memcpy(handshake_0->handshake.ins, signal_template, sizeof(signal_template));
+  // Address comes right after opcode and MoodRM bytes
+  *(INT32*)(&handshake_0->handshake.ins[2]) = getSignalAddress(HELIX_SYNC_SIGNAL_ID);
+  xiosim::buffer_management::producer_done(curr_tstate->tid, true);
+
+
+  /* Insert a MFENCE. This makes sure that all operations to the repeater
+   * have been scheduled */
+  handshake_container_t* handshake = xiosim::buffer_management::get_buffer(curr_tstate->tid);
+  handshake->flags.real = false;
+  handshake->handshake.asid = asid;
+  handshake->flags.valid = true;
+
+  handshake->handshake.pc = (ADDRINT) mfence_template;
+  handshake->handshake.npc = (ADDRINT)wait_template_1;
+  handshake->handshake.tpc = (ADDRINT) mfence_template + sizeof(mfence_template);
+  handshake->flags.brtaken = false;
+  memcpy(handshake->handshake.ins, mfence_template, sizeof(mfence_template));
+  xiosim::buffer_management::producer_done(curr_tstate->tid, true);
+
+
+  /* Insert a wait for the above signal.  Ensures every core is informed that
+     every other core is finished executing
+  */
+  handshake_container_t* handshake_w = xiosim::buffer_management::get_buffer(curr_tstate->tid);
+
+  handshake_w->flags.real = false;
+  handshake_w->handshake.asid = asid;
+  handshake_w->flags.valid = true;
+
+  handshake_w->handshake.pc = (ADDRINT)wait_template_1;
+  handshake_w->handshake.npc = (ADDRINT)mfence_template;
+  handshake_w->handshake.tpc = (ADDRINT)wait_template_1 + wait_template_1_size;
+  handshake_w->flags.brtaken = false;
+
+  memcpy(handshake_w->handshake.ins, wait_template_1, wait_template_1_size);
+  // Address comes right after opcode and MoodRM bytes
+  *(INT32*)(&handshake_w->handshake.ins[wait_template_1_addr_offset]) = getSignalAddress(HELIX_SYNC_SIGNAL_ID) | HELIX_WAIT_MASK;
+  xiosim::buffer_management::producer_done(curr_tstate->tid, true);
+
+}
+
+VOID insertCollectionOnZero(thread_state_t* curr_tstate, bool threadZero)
+{
+  if(threadZero) {
+    handshake_container_t* handshake_w = xiosim::buffer_management::get_buffer(curr_tstate->tid);
+
+    handshake_w->flags.real = false;
+    handshake_w->handshake.asid = asid;
+    handshake_w->flags.valid = true;
+
+    handshake_w->handshake.pc = (ADDRINT)wait_template_1;
+    handshake_w->handshake.npc = (ADDRINT)wait_template_1;
+    handshake_w->handshake.tpc = (ADDRINT)wait_template_1 + wait_template_1_size;
+    handshake_w->flags.brtaken = false;
+
+    memcpy(handshake_w->handshake.ins, wait_template_1, wait_template_1_size);
+    // Address comes right after opcode and MoodRM bytes
+    *(INT32*)(&handshake_w->handshake.ins[wait_template_1_addr_offset]) = getSignalAddress(HELIX_COLLECT_SIGNAL_ID) | HELIX_WAIT_MASK;
+    xiosim::buffer_management::producer_done(curr_tstate->tid, true);
+  }
+  else {
+      handshake_container_t* handshake_0 = xiosim::buffer_management::get_buffer(curr_tstate->tid);
+
+      handshake_0->flags.real = false;
+      handshake_0->handshake.asid = asid;
+      handshake_0->flags.valid = true;
+
+      handshake_0->handshake.pc = (ADDRINT)signal_template;
+      handshake_0->handshake.npc = (ADDRINT)wait_template_1;
+      handshake_0->handshake.tpc = (ADDRINT)signal_template + sizeof(signal_template);
+      handshake_0->flags.brtaken = false;
+      memcpy(handshake_0->handshake.ins, signal_template, sizeof(signal_template));
+      // Address comes right after opcode and MoodRM bytes
+      *(INT32*)(&handshake_0->handshake.ins[2]) = getSignalAddress(HELIX_COLLECT_SIGNAL_ID);
+      xiosim::buffer_management::producer_done(curr_tstate->tid, true);
+  }
+
+  handshake_container_t* handshake_w = xiosim::buffer_management::get_buffer(curr_tstate->tid);
+
+  handshake_w->flags.real = false;
+  handshake_w->handshake.asid = asid;
+  handshake_w->flags.valid = true;
+
+  handshake_w->handshake.pc = (ADDRINT)wait_template_1;
+  handshake_w->handshake.npc = (ADDRINT)mfence_template;
+  handshake_w->handshake.tpc = (ADDRINT)wait_template_1 + wait_template_1_size;
+  handshake_w->flags.brtaken = false;
+
+  memcpy(handshake_w->handshake.ins, wait_template_1, wait_template_1_size);
+  // Address comes right after opcode and MoodRM bytes
+  *(INT32*)(&handshake_w->handshake.ins[wait_template_1_addr_offset]) = getSignalAddress(HELIX_FINISH_SIGNAL_ID) | HELIX_WAIT_MASK;
+  xiosim::buffer_management::producer_done(curr_tstate->tid, true);
+}
+
 /* ========================================================================== */
 VOID ILDJIT_PauseSimulation(THREADID tid)
 {
@@ -1244,21 +1352,13 @@ VOID ILDJIT_PauseSimulation(THREADID tid)
     unsigned int thread_count = 0;
     ATOMIC_ITERATE(affine_threads, it, lk_affine_threads) {
         auto curr_tstate = get_tls(*it);
-        /* Insert a special signal that flushes the repeater. */
-        handshake_container_t* handshake_0 = xiosim::buffer_management::get_buffer(curr_tstate->tid);
 
-        handshake_0->flags.real = false;
-        handshake_0->handshake.asid = asid;
-        handshake_0->flags.valid = true;
-
-        handshake_0->handshake.pc = (ADDRINT)signal_template;
-        handshake_0->handshake.npc = (ADDRINT)mfence_template;
-        handshake_0->handshake.tpc = (ADDRINT)signal_template + sizeof(signal_template);
-        handshake_0->flags.brtaken = false;
-        memcpy(handshake_0->handshake.ins, signal_template, sizeof(signal_template));
-        // Address comes right after opcode and MoodRM bytes
-        *(INT32*)(&handshake_0->handshake.ins[2]) = getSignalAddress(HELIX_FLUSH_SIGNAL_ID);
-        xiosim::buffer_management::producer_done(curr_tstate->tid, true);
+        if(loop_state->use_ring_cache) {
+          insertCollectionOnZero(curr_tstate, thread_count == 0);
+        }
+        else {
+          insertBasicSafetySync(curr_tstate);
+        }
 
         /* Insert a MFENCE. This makes sure that all operations to the repeater
          * have not only been scheduled, but also completed and ack-ed. */
