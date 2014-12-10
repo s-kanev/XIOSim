@@ -1,25 +1,39 @@
-import shlex, subprocess
+import os
+import shlex
+import subprocess
 
 class XIOSimDriver(object):
-    def __init__(self, PIN, PINTOOL):
+    def __init__(self, PIN_ROOT, INSTALL_DIR, TREE_DIR, clean_arch=None, env=None):
         self.cmd = ""
-        self.PIN = PIN
-        self.PINTOOL = PINTOOL
+        self.PIN = os.path.join(PIN_ROOT, "pin.sh")
+        self.INSTALL_DIR = INSTALL_DIR
+        self.TREE_DIR = TREE_DIR
+        if clean_arch:
+            self.AddCleanArch()
+        if env:
+            self.AddEnvironment(env)
+        self.AddHarness()
 
     def AddCleanArch(self):
-        self.cmd += "/usr/bin/setarch i686 -3BL "
+        self.cmd += "/usr/bin/setarch i686 -BR "
 
     def AddEnvironment(self, env):
         self.cmd += "/usr/bin/env -i " + env + " "
 
-    def AddPinOptions(self):
-        self.cmd += self.PIN + " "
-        self.cmd += "-xyzzy "
-        self.cmd += "-separate_memory -pause_tool 1 -t "
-        self.cmd += self.PINTOOL + " "
+    def AddHarness(self):
+        self.cmd +=  os.path.join(self.INSTALL_DIR, "harness") + " "
 
-    def AddPintoolOptions(self):
-        self.cmd += "-pipeline_instrumentation "
+    def AddBmks(self, bmk_cfg):
+        self.cmd += "-benchmark_cfg " + bmk_cfg + " "
+
+    def AddPinOptions(self):
+        self.cmd += "-pin " + self.PIN + " "
+        self.cmd += "-xyzzy "
+        self.cmd += "-pause_tool 1 "
+        self.cmd += "-t " + os.path.join(self.INSTALL_DIR, "feeder_zesto.so") + " "
+
+    def AddPintoolOptions(self, num_cores):
+        self.cmd += "-num_cores %d " % num_cores
 
     def AddPinPointFile(self, file):
         self.cmd += "-ppfile %s " % file
@@ -30,10 +44,11 @@ class XIOSimDriver(object):
     def AddTraceFile(self, file):
         self.cmd += "-trace %s " % file
 
-    def AddZestoOptions(self, cfg, mem_cfg):
+    def AddZestoOptions(self, cfg, mem_cfg=None):
         self.cmd += "-s "
         self.cmd += "-config " + cfg + " "
-        self.cmd += "-config " + mem_cfg + " "
+        if mem_cfg:
+            self.cmd += "-config " + mem_cfg + " "
 
     def AddZestoOut(self, ofile):
         self.cmd += "-redir:sim " + ofile + " "
@@ -50,13 +65,13 @@ class XIOSimDriver(object):
     def AddILDJITOptions(self):
         self.cmd += "-- iljit --static -O3 -M -N -R -T "
 
-    def AddApp(self, program, args):
-        self.cmd += "-- " + program + " " + args
-
     def Exec(self, stdin_file=None, stdout_file=None, stderr_file=None, cwd=None):
         print self.cmd
 
-        #Provide input/output redirection
+        if cwd:
+            self.run_dir = cwd
+
+        # Provide input/output redirection
         if stdin_file:
             stdin = open(stdin_file, "r")
         else:
@@ -80,3 +95,22 @@ class XIOSimDriver(object):
             print "Completed"
         else:
             print "Failed! Error code: %d" % retcode
+        return retcode
+
+    def GetRunDir(self):
+        return self.run_dir
+
+    def GetSimOut(self):
+        return os.path.join(self.GetRunDir(), "sim.out")
+
+    def GetTreeDir(self):
+        return self.TREE_DIR
+
+    def GenerateTestConfig(self, test):
+        res = []
+        res.append("program {\n")
+        res.append("  exe = \"%s\"\n" % os.path.join(self.TREE_DIR, "tests", test))
+        res.append("  args = \"> %s.out 2> %s.err\"\n" % (test, test))
+        res.append("  instances = 1\n")
+        res.append("}\n")
+        return res
