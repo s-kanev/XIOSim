@@ -63,7 +63,7 @@ class Fib1Test(XIOSimTest):
         self.xio.AddBmks(bmk_cfg)
 
         self.xio.AddPinOptions()
-        self.xio.AddPintoolOptions(1)
+        self.xio.AddPintoolOptions(num_cores=1)
         self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
                                               "config", "Nconfuse.cfg"))
 
@@ -73,6 +73,94 @@ class Fib1Test(XIOSimTest):
 
     def runTest(self):
         self.runAndValidate()
+
+
+@unittest.skip("Hangs for now")
+class Fib1LengthTest(XIOSimTest):
+    ''' End-to-end test with a single binary running for X instructions.'''
+    def setDriverParams(self):
+        bmk_cfg = self.writeTestBmkConfig("fib")
+        self.xio.AddBmks(bmk_cfg)
+
+        self.xio.AddPinOptions()
+        self.xio.AddPintoolOptions(num_cores=1)
+        self.xio.AddInstLength(10000)
+        self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
+                                              "config", "Nconfuse.cfg"))
+
+    def setUp(self):
+        super(Fib1LengthTest, self).setUp()
+        self.expected_vals.append(("^all_insn", 10000.0))
+
+    def runTest(self):
+        self.runAndValidate()
+
+
+class Fib1SkipTest(XIOSimTest):
+    ''' End-to-end test with a single binary skipping first X instructions.'''
+    def setDriverParams(self):
+        bmk_cfg = self.writeTestBmkConfig("fib")
+        self.xio.AddBmks(bmk_cfg)
+
+        self.xio.AddPinOptions()
+        self.xio.AddPintoolOptions(num_cores=1)
+        self.xio.AddSkipInst(50000)
+        self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
+                                              "config", "Nconfuse.cfg"))
+
+    def setUp(self):
+        super(Fib1SkipTest, self).setUp()
+        self.expected_vals.append(("^all_insn", 68369.0))
+
+    def runTest(self):
+        self.runAndValidate()
+
+
+@unittest.skip("Hangs for now")
+class Fib1PinPointTest(XIOSimTest):
+    ''' End-to-end test with a single binary and one pinpoint.'''
+    def setDriverParams(self):
+        bmk_cfg = self.writeTestBmkConfig("fib")
+        self.xio.AddBmks(bmk_cfg)
+
+        self.xio.AddPinOptions()
+        self.xio.AddPintoolOptions(num_cores=1)
+        ppfile = os.path.join(self.xio.GetTreeDir(), "tests",
+                              "fib..pintool.1.pp")
+        self.xio.AddPinPointFile(ppfile)
+        self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
+                                              "config", "Nconfuse.cfg"))
+
+    def setUp(self):
+        super(Fib1PinPointTest, self).setUp()
+        self.expected_vals.append(("^all_insn", 30000.0))
+
+    def runTest(self):
+        self.runAndValidate()
+
+
+@unittest.skip("Hangs for now")
+class Fib1PinPointsTest(XIOSimTest):
+    ''' End-to-end test with a single binary and multiple pinpoints.'''
+    def setDriverParams(self):
+        bmk_cfg = self.writeTestBmkConfig("fib")
+        self.xio.AddBmks(bmk_cfg)
+
+        self.xio.AddPinOptions()
+        self.xio.AddPintoolOptions(num_cores=1)
+        ppfile = os.path.join(self.xio.GetTreeDir(), "tests",
+                              "fib..pintool.2.pp")
+        self.xio.AddPinPointFile(ppfile)
+        self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
+                                              "config", "Nconfuse.cfg"))
+
+    def setUp(self):
+        super(Fib1PinPointsTest, self).setUp()
+        self.expected_vals.append(("^all_insn", 20000.0))
+
+    def runTest(self):
+        self.runAndValidate()
+
 
 if __name__ == "__main__":
     unittest.main()

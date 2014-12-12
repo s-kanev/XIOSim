@@ -38,6 +38,12 @@ class XIOSimDriver(object):
     def AddPinPointFile(self, file):
         self.cmd += "-ppfile %s " % file
 
+    def AddInstLength(self, ninsn):
+        self.cmd += "-length %d " % ninsn
+
+    def AddSkipInst(self, ninsn):
+        self.cmd += "-skip %d " % ninsn
+
     def AddMolecoolOptions(self):
         self.cmd += "-ildjit "
 
