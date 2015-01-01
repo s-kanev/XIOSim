@@ -1,43 +1,33 @@
-/*------------------------------------------------------------
- *                              CACTI 6.5
- *         Copyright 2008 Hewlett-Packard Development Corporation
- *                         All Rights Reserved
+/*****************************************************************************
+ *                                McPAT/CACTI
+ *                      SOFTWARE LICENSE AGREEMENT
+ *            Copyright 2012 Hewlett-Packard Development Company, L.P.
+ *                          All Rights Reserved
  *
- * Permission to use, copy, and modify this software and its documentation is
- * hereby granted only under the following terms and conditions.  Both the
- * above copyright notice and this permission notice must appear in all copies
- * of the software, derivative works or modified versions, and any portions
- * thereof, and both notices must appear in supporting documentation.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met: redistributions of source code must retain the above copyright
+ * notice, this list of conditions and the following disclaimer;
+ * redistributions in binary form must reproduce the above copyright
+ * notice, this list of conditions and the following disclaimer in the
+ * documentation and/or other materials provided with the distribution;
+ * neither the name of the copyright holders nor the names of its
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.”
  *
- * Users of this software agree to the terms and conditions set forth herein, and
- * hereby grant back to Hewlett-Packard Company and its affiliated companies ("HP")
- * a non-exclusive, unrestricted, royalty-free right and license under any changes,
- * enhancements or extensions  made to the core functions of the software, including
- * but not limited to those affording compatibility with other hardware or software
- * environments, but excluding applications which incorporate this software.
- * Users further agree to use their best efforts to return to HP any such changes,
- * enhancements or extensions that they make and inform HP of noteworthy uses of
- * this software.  Correspondence should be provided to HP at:
- *
- *                       Director of Intellectual Property Licensing
- *                       Office of Strategy and Technology
- *                       Hewlett-Packard Company
- *                       1501 Page Mill Road
- *                       Palo Alto, California  94304
- *
- * This software may be distributed (but not offered for sale or transferred
- * for compensation) to third parties, provided such third parties agree to
- * abide by the terms and conditions of this notice.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" AND HP DISCLAIMS ALL
- * WARRANTIES WITH REGARD TO THIS SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS.   IN NO EVENT SHALL HP
- * CORPORATION BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
- * DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR
- * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS
- * ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
- * SOFTWARE.
- *------------------------------------------------------------*/
+ ***************************************************************************/
 
 
 #include <time.h>
@@ -274,6 +264,31 @@ bool calculate_time(
   }
   else
   {
+
+	  collect_uca_results(Nspd, Ndwl, Ndbl, Ndcm, Ndsam_lev_1, Ndsam_lev_2, uca, ptr_array, is_main_mem);
+  }
+
+  delete uca;
+  return true;
+}
+
+void collect_uca_results(
+//    bool is_tag,
+//    int pure_ram,
+//    bool pure_cam,
+    double Nspd,
+    unsigned int Ndwl,
+    unsigned int Ndbl,
+    unsigned int Ndcm,
+    unsigned int Ndsam_lev_1,
+    unsigned int Ndsam_lev_2,
+    UCA const * const uca,
+    mem_array * const ptr_array,
+//    int flag_results_populate,
+//    results_mem_array *ptr_results,
+//    uca_org_t *ptr_fin_res,
+    bool is_main_mem)
+{
 	  int num_act_mats_hor_dir = uca->bank.dp.num_act_mats_hor_dir;
 	  int num_mats = uca->bank.dp.num_mats;
 	  bool is_fa = uca->bank.dp.fully_assoc;
@@ -281,7 +296,7 @@ bool calculate_time(
 	ptr_array->Ndwl = Ndwl;
     ptr_array->Ndbl = Ndbl;
     ptr_array->Nspd = Nspd;
-    ptr_array->deg_bl_muxing = dyn_p.deg_bl_muxing;
+    ptr_array->deg_bl_muxing = uca->bank.dp.deg_bl_muxing;
     ptr_array->Ndsam_lev_1 = Ndsam_lev_1;
     ptr_array->Ndsam_lev_2 = Ndsam_lev_2;
     ptr_array->access_time = uca->access_time;
@@ -323,7 +338,6 @@ bool calculate_time(
 //    *out_file<<"power_data_input_htree"<<uca->bank.htree_in_data->power.readOp.leakage<<endl;
     ptr_array->power_data_output_htree = uca->bank.htree_out_data->power;
 //    *out_file<<"power_data_output_htree"<<uca->bank.htree_out_data->power.readOp.leakage<<endl;
-
     ptr_array->power_row_predecoder_drivers = uca->bank.mat.r_predec->driver_power;
     ptr_array->power_row_predecoder_drivers.readOp.dynamic *= num_act_mats_hor_dir;
     ptr_array->power_row_predecoder_drivers.writeOp.dynamic *= num_act_mats_hor_dir;
@@ -453,13 +467,39 @@ bool calculate_time(
 //    } else
 //  	  *out_file <<  "  num of cols: " << dyn_p.tag_num_c_subarray<< endl;
 //      *out_file <<  uca->bank.mat.subarray.get_total_cell_area()<<endl;
-  }
+
+	ptr_array->array_leakage= uca->bank.array_leakage;
+	ptr_array->wl_leakage= uca->bank.wl_leakage;
+	ptr_array->cl_leakage= uca->bank.cl_leakage;
+    if (g_ip->power_gating)
+    {
+    	ptr_array->sram_sleep_tx_width= uca->bank.mat.sram_sleep_tx->width;
+    	ptr_array->sram_sleep_tx_area= uca->bank.mat.array_sleep_tx_area;
+    	ptr_array->sram_sleep_wakeup_latency= uca->bank.mat.array_wakeup_t;
+    	ptr_array->sram_sleep_wakeup_energy= uca->bank.mat.array_wakeup_e.readOp.dynamic;
+
+    	ptr_array->wl_sleep_tx_width= uca->bank.mat.row_dec->sleeptx->width;
+    	ptr_array->wl_sleep_tx_area= uca->bank.mat.wl_sleep_tx_area;
+    	ptr_array->wl_sleep_wakeup_latency= uca->bank.mat.wl_wakeup_t;
+    	ptr_array->wl_sleep_wakeup_energy= uca->bank.mat.wl_wakeup_e.readOp.dynamic;
+
+    	ptr_array->bl_floating_wakeup_latency= uca->bank.mat.blfloating_wakeup_t;
+    	ptr_array->bl_floating_wakeup_energy= uca->bank.mat.blfloating_wakeup_e.readOp.dynamic;
 
 
-  delete uca;
-  return true;
+    }
+
+
+    ptr_array->num_active_mats = uca->bank.dp.num_act_mats_hor_dir;
+    ptr_array->num_submarray_mats = uca->bank.mat.num_subarrays_per_mat;
+    //    cout<<"array_leakage"<<ptr_array->array_leakage<<endl;
+//    cout<<"wl_leakage"<<ptr_array->wl_leakage<<endl;
+//    cout<<"cl_leakage"<<ptr_array->cl_leakage<<endl;
+
+    ptr_array->long_channel_leakage_reduction_periperal = uca->long_channel_leakage_reduction_periperal;
+    ptr_array->long_channel_leakage_reduction_memcell = uca->long_channel_leakage_reduction_memcell;
+
 }
-
 
 
 bool check_uca_org(uca_org_t & u, min_values_t *minval)
@@ -838,7 +878,7 @@ void solve(uca_org_t *fin_res)
   {
     for (miter = data_arr.begin(); miter != data_arr.end(); miter++)
     {
-      uca_org_t & curr_org  = sol_list.back();
+      uca_org_t & curr_org  = sol_list.back(); //essentially adds value to sol_list, with no extra memory copying.
       curr_org.tag_array2  = NULL;
       curr_org.data_array2 = (*miter);
 
@@ -850,7 +890,7 @@ void solve(uca_org_t *fin_res)
       //update min values for the entire cache
       cache_min->update_min_values(curr_org);
 
-      sol_list.push_back(uca_org_t());
+      sol_list.push_back(uca_org_t());//add a new node to the back
     }
   }
   else
@@ -859,13 +899,13 @@ void solve(uca_org_t *fin_res)
     {
       mem_array * arr_temp = (tag_arr.back());
       //delete tag_arr.back();
-      tag_arr.pop_back();
+      tag_arr.pop_back();//this causes double free problem if uca_org_t has a destructor to release all contained pointers---when called by sol_list.clear(); so uca_org_t does not use destructor to delete contained pointers
 
       for (miter = data_arr.begin(); miter != data_arr.end(); miter++)
       {
         uca_org_t & curr_org  = sol_list.back();
         curr_org.tag_array2  = arr_temp;
-        curr_org.data_array2 = (*miter);
+        curr_org.data_array2 = (*miter); //try all combinations of tag and data array
 
         curr_org.find_delay();
         curr_org.find_energy();
@@ -880,7 +920,7 @@ void solve(uca_org_t *fin_res)
     }
   }
 
-  sol_list.pop_back();
+  sol_list.pop_back();//delete the last unused node added in the loop above
 
   find_optimal_uca(fin_res, cache_min, sol_list);
 
@@ -907,3 +947,190 @@ void solve(uca_org_t *fin_res)
   delete t_min;
 }
 
+void update_dvs(uca_org_t *fin_res)
+{
+	if(fin_res->tag_array2 || fin_res->data_array2)
+	{
+//		Wire::print_wire();
+		Wire winit;//init before changing dvs
+//		fin_res->uca_q = vector<uca_org_t * >(g_ip->dvs_voltage.size());
+		for (unsigned int i=0; i< g_ip->dvs_voltage.size(); i++)
+		{
+
+			fin_res->uca_q.push_back(new uca_org_t());
+
+			g_ip->hp_Vdd = g_ip->dvs_voltage[i];
+			g_ip->specific_hp_vdd = true;
+			g_ip->lstp_Vdd = g_ip->dvs_voltage[i];
+			g_ip->specific_lstp_vdd = true;
+			g_ip->lop_Vdd = g_ip->dvs_voltage[i];
+			g_ip->specific_lop_vdd = true;
+//			g_ip->power_gating = false;
+//			g_ip->bitline_floating = false;
+//			g_ip->wl_power_gated = false;
+//			g_ip->interconect_power_gated = false;
+//			g_ip->cl_power_gated = false;
+//			g_ip->array_power_gated = false;
+
+			init_tech_params(g_ip->F_sz_um,true);
+			winit.wire_dvs_update();//Wire::wire_dvs_update();//Wire winit (1,1, false);
+//			Wire::print_wire();
+
+			if(fin_res->tag_array2)
+			{
+				DynamicParameter tag_arr_dyn_p(true, g_ip->pure_ram, g_ip->pure_cam, fin_res->tag_array2->Nspd, fin_res->tag_array2->Ndwl, fin_res->tag_array2->Ndbl, fin_res->tag_array2->deg_bl_muxing, fin_res->tag_array2->Ndsam_lev_1, fin_res->tag_array2->Ndsam_lev_2, g_ip->is_main_mem);
+				if(tag_arr_dyn_p.is_valid)
+				{
+
+					UCA * tag_arr = new UCA(tag_arr_dyn_p);
+					fin_res->uca_q[i]->tag_array2 = new mem_array();
+
+					collect_uca_results(fin_res->tag_array2->Nspd, fin_res->tag_array2->Ndwl, fin_res->tag_array2->Ndbl, fin_res->tag_array2->deg_bl_muxing, fin_res->tag_array2->Ndsam_lev_1, fin_res->tag_array2->Ndsam_lev_2, tag_arr, fin_res->uca_q[i]->tag_array2, g_ip->is_main_mem);
+					delete tag_arr;
+				}
+
+			}
+			DynamicParameter data_arr_dyn_p(false, g_ip->pure_ram, g_ip->pure_cam, fin_res->data_array2->Nspd, fin_res->data_array2->Ndwl, fin_res->data_array2->Ndbl, fin_res->data_array2->deg_bl_muxing, fin_res->data_array2->Ndsam_lev_1, fin_res->data_array2->Ndsam_lev_2, g_ip->is_main_mem);
+			if(data_arr_dyn_p.is_valid)
+			{
+				UCA * data_arr = new UCA(data_arr_dyn_p);
+				fin_res->uca_q[i]->data_array2 = new mem_array();
+				collect_uca_results(fin_res->data_array2->Nspd, fin_res->data_array2->Ndwl, fin_res->data_array2->Ndbl, fin_res->data_array2->deg_bl_muxing, fin_res->data_array2->Ndsam_lev_1, fin_res->data_array2->Ndsam_lev_2, data_arr, fin_res->uca_q[i]->data_array2, g_ip->is_main_mem);
+				delete data_arr;
+			}
+
+			fin_res->uca_q[i]->find_delay();
+			fin_res->uca_q[i]->find_energy();
+			fin_res->uca_q[i]->find_area();
+			fin_res->uca_q[i]->find_cyc();
+
+//            output_UCA(fin_res->uca_q[i]);
+//            Wire::print_wire();
+		}
+		//reset input to original values in *.cfg file
+		g_ip->specific_hp_vdd = false;
+		g_ip->specific_lstp_vdd = false;
+		g_ip->specific_lop_vdd = false;
+		init_tech_params(g_ip->F_sz_um,true);
+	}
+	else
+	{
+		cout << "ERROR: Cannot retrieve array structure for tag and data array" << endl;
+		exit(1);
+	}
+}
+
+void update_pg(uca_org_t *fin_res)
+{
+
+	if(fin_res->tag_array2 || fin_res->data_array2)
+	{
+		Wire winit;
+		fin_res->uca_pg_reference = new uca_org_t();
+		/*
+			if (i == 0) {g_ip->hp_Vdd = 0.8; }
+			else g_ip->hp_Vdd = 1.1;
+			g_ip->specific_hp_vdd = true;
+			cout<<"VDD=====" << g_ip->hp_Vdd <<endl;
+			//Wire winit;
+			winit.wire_dvs_update();
+			Wire::print_wire();
+			init_tech_params(g_ip->F_sz_um,true);
+			winit.wire_dvs_update();//Wire::wire_dvs_update();//Wire winit (1,1, false);
+			Wire::print_wire();
+		 */
+		g_ip->array_power_gated = false;
+		g_ip->bitline_floating = false;
+		g_ip->wl_power_gated = false;
+		g_ip->cl_power_gated = false;
+		g_ip->interconect_power_gated 	= false;
+		g_ip->power_gating 	= false;
+//		winit.wire_dvs_update();
+//		Wire::print_wire();
+//		init_tech_params(g_ip->F_sz_um,true);
+//		winit.wire_dvs_update();//Wire::wire_dvs_update();//Wire winit (1,1, false);
+//		Wire::print_wire();
+		if(fin_res->tag_array2)
+		{
+			//			init_tech_params(g_ip->F_sz_um,true);
+			DynamicParameter tag_arr_dyn_p(true, g_ip->pure_ram, g_ip->pure_cam, fin_res->tag_array2->Nspd, fin_res->tag_array2->Ndwl, fin_res->tag_array2->Ndbl, fin_res->tag_array2->deg_bl_muxing, fin_res->tag_array2->Ndsam_lev_1, fin_res->tag_array2->Ndsam_lev_2, g_ip->is_main_mem);
+			if(tag_arr_dyn_p.is_valid)
+			{
+
+				UCA * tag_arr = new UCA(tag_arr_dyn_p);
+				fin_res->uca_pg_reference->tag_array2 = new mem_array();
+
+				collect_uca_results(fin_res->tag_array2->Nspd, fin_res->tag_array2->Ndwl, fin_res->tag_array2->Ndbl, fin_res->tag_array2->deg_bl_muxing, fin_res->tag_array2->Ndsam_lev_1, fin_res->tag_array2->Ndsam_lev_2, tag_arr, fin_res->uca_pg_reference->tag_array2, g_ip->is_main_mem);
+				delete tag_arr;
+
+			}
+
+		}
+		//		init_tech_params(g_ip->F_sz_um,false);
+		DynamicParameter data_arr_dyn_p(false, g_ip->pure_ram, g_ip->pure_cam, fin_res->data_array2->Nspd, fin_res->data_array2->Ndwl, fin_res->data_array2->Ndbl, fin_res->data_array2->deg_bl_muxing, fin_res->data_array2->Ndsam_lev_1, fin_res->data_array2->Ndsam_lev_2, g_ip->is_main_mem);
+		if(data_arr_dyn_p.is_valid)
+		{
+			UCA * data_arr = new UCA(data_arr_dyn_p);
+			fin_res->uca_pg_reference->data_array2 = new mem_array();
+			collect_uca_results(fin_res->data_array2->Nspd, fin_res->data_array2->Ndwl, fin_res->data_array2->Ndbl, fin_res->data_array2->deg_bl_muxing, fin_res->data_array2->Ndsam_lev_1, fin_res->data_array2->Ndsam_lev_2, data_arr, fin_res->uca_pg_reference->data_array2, g_ip->is_main_mem);
+			delete data_arr;
+		}
+
+		fin_res->uca_pg_reference->find_delay();
+		fin_res->uca_pg_reference->find_energy();
+		fin_res->uca_pg_reference->find_area();
+		fin_res->uca_pg_reference->find_cyc();
+
+//		output_UCA(fin_res->uca_pg_reference);
+//		Wire::print_wire();
+	}
+	else
+	{
+		cout << "ERROR: Cannot retrieve array structure for tag and data array" << endl;
+		exit(1);
+	}
+	//reset input to original values in *.cfg file
+	g_ip->array_power_gated = true;
+	g_ip->bitline_floating = true;
+	g_ip->wl_power_gated = true;
+	g_ip->cl_power_gated = true;
+	g_ip->interconect_power_gated 	= true;
+	g_ip->power_gating 	= true;
+
+
+}
+
+/* update for thermal
+void update(uca_org_t *fin_res)
+{
+  if(fin_res->tag_array2)
+  {
+    init_tech_params(g_ip->F_sz_um,true);
+    DynamicParameter tag_arr_dyn_p(true, g_ip->pure_ram, g_ip->pure_cam, fin_res->tag_array2->Nspd, fin_res->tag_array2->Ndwl, fin_res->tag_array2->Ndbl, fin_res->tag_array2->Ndcm, fin_res->tag_array2->Ndsam_lev_1, fin_res->tag_array2->Ndsam_lev_2, g_ip->is_main_mem);
+    if(tag_arr_dyn_p.is_valid)
+    {
+      UCA * tag_arr = new UCA(tag_arr_dyn_p);
+      fin_res->tag_array2->power = tag_arr->power;
+    }
+    else
+    {
+      cout << "ERROR: Cannot retrieve array structure for leakage feedback" << endl;
+      exit(1);
+    }
+  }
+  init_tech_params(g_ip->F_sz_um,false);
+  DynamicParameter data_arr_dyn_p(false, g_ip->pure_ram, g_ip->pure_cam, fin_res->data_array2->Nspd, fin_res->data_array2->Ndwl, fin_res->data_array2->Ndbl, fin_res->data_array2->Ndcm, fin_res->data_array2->Ndsam_lev_1, fin_res->data_array2->Ndsam_lev_2, g_ip->is_main_mem);
+  if(data_arr_dyn_p.is_valid)
+  {
+    UCA * data_arr = new UCA(data_arr_dyn_p);
+    fin_res->data_array2->power = data_arr->power;
+  }
+  else
+  {
+    cout << "ERROR: Cannot retrieve array structure for leakage feedback" << endl;
+    exit(1);
+  }
+
+  fin_res->find_energy();
+}
+*/

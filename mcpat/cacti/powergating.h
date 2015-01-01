@@ -1,5 +1,5 @@
 /*****************************************************************************
- *                                McPAT
+ *                                McPAT/CACTI
  *                      SOFTWARE LICENSE AGREEMENT
  *            Copyright 2012 Hewlett-Packard Development Company, L.P.
  *                          All Rights Reserved
@@ -28,59 +28,55 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.”
  *
  ***************************************************************************/
-#ifndef IOCONTROLLERS_H_
-#define IOCONTROLLERS_H_
+
+#ifndef POWERGATING_H_
+#define POWERGATING_H_
+
+#include "component.h"
+
+class Sleep_tx : public Component
+{
+public:
+	Sleep_tx(
+				double  _perf_with_sleep_tx,
+				double  _active_Isat,//of circuit block, not sleep tx
+	            bool    _is_footer,
+	            double _c_circuit_wakeup,
+	            double _V_delta,
+	            int     _num_sleep_tx,
+	//            double  _vt_circuit,
+	//			double  _vt_sleep_tx,
+	//			double  _mobility,//of sleep tx
+	//			double  _c_ox,//of sleep tx
+				const  Area & cell_);
+
+	double  perf_with_sleep_tx;
+	double  active_Isat;
+	bool    is_footer;
+	int     num_sleep_tx;
+	double  vt_circuit;
+	double  vt_sleep_tx;
+	double  vdd;// of circuit block not sleep tx
+	double  mobility;//of sleep tx
+	double  c_ox;
+	double  width;
+	double  c_circuit_wakeup;
+	double  c_intrinsic_sleep;
+	double  delay, wakeup_delay;
+	powerDef power, wakeup_power;
+//	double  c_circuit_sleep;
+//	double  sleep_delay;
+//	powerDef sleep_power;
+	const  Area & cell;
+	bool    is_sleep_tx;
+	double  V_delta;
 
 
-#endif /* IOCONTROLLERS_H_ */
+//	void   compute_area();
+	double compute_penalty();  // return outrisetime
 
-#include "XML_Parse.h"
-#include "parameter.h"
-//#include "io.h"
-#include "array.h"
-//#include "Undifferentiated_Core_Area.h"
-#include <vector>
-#include "basic_components.h"
-
-class NIUController : public Component {
-  public:
-	ParseXML *XML;
-	InputParameter interface_ip;
-    NIUParam  niup;
-    powerDef power_t;
-    uca_org_t local_result;
-    NIUController(ParseXML *XML_interface,InputParameter* interface_ip_);
-    void set_niu_param();
-    void computeEnergy(bool is_tdp=true);
-    void displayEnergy(uint32_t indent = 0,int plevel = 100, bool is_tdp=true);
-    ~NIUController(){};
+	void leakage_feedback(double temperature){};
+	~Sleep_tx(){};
 };
 
-class PCIeController : public Component {
-  public:
-	ParseXML *XML;
-	InputParameter interface_ip;
-    PCIeParam  pciep;
-    powerDef power_t;
-    uca_org_t local_result;
-    PCIeController(ParseXML *XML_interface,InputParameter* interface_ip_);
-    void set_pcie_param();
-    void computeEnergy(bool is_tdp=true);
-    void displayEnergy(uint32_t indent = 0,int plevel = 100, bool is_tdp=true);
-    ~PCIeController(){};
-};
-
-class FlashController : public Component {
-  public:
-	ParseXML *XML;
-	InputParameter interface_ip;
-    MCParam  fcp;
-    powerDef power_t;
-    uca_org_t local_result;
-    FlashController(ParseXML *XML_interface,InputParameter* interface_ip_);
-    void set_fc_param();
-    void computeEnergy(bool is_tdp=true);
-    void displayEnergy(uint32_t indent = 0,int plevel = 100, bool is_tdp=true);
-    ~FlashController(){};
-};
-
+#endif /* POWERGATING_H_ */

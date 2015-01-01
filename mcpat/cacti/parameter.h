@@ -1,43 +1,33 @@
-/*------------------------------------------------------------
- *                              CACTI 6.5
- *         Copyright 2008 Hewlett-Packard Development Corporation
- *                         All Rights Reserved
+/*****************************************************************************
+ *                                McPAT/CACTI
+ *                      SOFTWARE LICENSE AGREEMENT
+ *            Copyright 2012 Hewlett-Packard Development Company, L.P.
+ *                          All Rights Reserved
  *
- * Permission to use, copy, and modify this software and its documentation is
- * hereby granted only under the following terms and conditions.  Both the
- * above copyright notice and this permission notice must appear in all copies
- * of the software, derivative works or modified versions, and any portions
- * thereof, and both notices must appear in supporting documentation.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met: redistributions of source code must retain the above copyright
+ * notice, this list of conditions and the following disclaimer;
+ * redistributions in binary form must reproduce the above copyright
+ * notice, this list of conditions and the following disclaimer in the
+ * documentation and/or other materials provided with the distribution;
+ * neither the name of the copyright holders nor the names of its
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.”
  *
- * Users of this software agree to the terms and conditions set forth herein, and
- * hereby grant back to Hewlett-Packard Company and its affiliated companies ("HP")
- * a non-exclusive, unrestricted, royalty-free right and license under any changes,
- * enhancements or extensions  made to the core functions of the software, including
- * but not limited to those affording compatibility with other hardware or software
- * environments, but excluding applications which incorporate this software.
- * Users further agree to use their best efforts to return to HP any such changes,
- * enhancements or extensions that they make and inform HP of noteworthy uses of
- * this software.  Correspondence should be provided to HP at:
- *
- *                       Director of Intellectual Property Licensing
- *                       Office of Strategy and Technology
- *                       Hewlett-Packard Company
- *                       1501 Page Mill Road
- *                       Palo Alto, California  94304
- *
- * This software may be distributed (but not offered for sale or transferred
- * for compensation) to third parties, provided such third parties agree to
- * abide by the terms and conditions of this notice.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" AND HP DISCLAIMS ALL
- * WARRANTIES WITH REGARD TO THIS SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS.   IN NO EVENT SHALL HP
- * CORPORATION BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
- * DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR
- * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS
- * ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
- * SOFTWARE.
- *------------------------------------------------------------*/
+ ***************************************************************************/
 
 
 
@@ -66,7 +56,10 @@ class TechnologyParameter
     double R_nch_on;
     double R_pch_on;
     double Vdd;
+    double Vdd_default;
     double Vth;
+    double Vcc_min_default;//allowed min vcc; for memory cell it is the lowest vcc for data retention. for logic it is the vcc to balance the leakage reduction and wakeup latency; This is the value constrained by the IC technology and cannot by changed by external/user voltage supply
+    double Vcc_min;//same meaning as Vcc_min_default, however, this value is set by user, once it is lower than Vcc_min_default; circuit (e.g. SRAM cells) cannot retain state.
     double I_on_n;
     double I_on_p;
     double I_off_n;
@@ -77,12 +70,14 @@ class TechnologyParameter
     double t_ox;
     double n_to_p_eff_curr_drv_ratio;
     double long_channel_leakage_reduction;
+    double Mobility_n;
 
     DeviceType(): C_g_ideal(0), C_fringe(0), C_overlap(0), C_junc(0),
                   C_junc_sidewall(0), l_phy(0), l_elec(0), R_nch_on(0), R_pch_on(0),
-                  Vdd(0), Vth(0),
+                  Vdd(0), Vdd_default(0), Vth(0), Vcc_min(0),
                   I_on_n(0), I_on_p(0), I_off_n(0), I_off_p(0),I_g_on_n(0),I_g_on_p(0),
-                  C_ox(0), t_ox(0), n_to_p_eff_curr_drv_ratio(0), long_channel_leakage_reduction(0) { };
+                  C_ox(0), t_ox(0), n_to_p_eff_curr_drv_ratio(0), long_channel_leakage_reduction(0),
+                  Mobility_n(0) { };
     void reset()
     {
       C_g_ideal = 0;
@@ -94,7 +89,10 @@ class TechnologyParameter
       R_nch_on  = 0;
       R_pch_on  = 0;
       Vdd       = 0;
+      Vdd_default =0;
       Vth       = 0;
+      Vcc_min_default = 0;
+      Vcc_min   = 0;
       I_on_n    = 0;
       I_on_p    = 0;
       I_off_n   = 0;
@@ -105,6 +103,7 @@ class TechnologyParameter
       t_ox      = 0;
       n_to_p_eff_curr_drv_ratio = 0;
       long_channel_leakage_reduction = 0;
+      Mobility_n = 0;
     }
 
     void display(uint32_t indent = 0);
@@ -146,6 +145,7 @@ class TechnologyParameter
     double cell_pmos_w;
     double cell_nmos_w;
     double Vbitpre;
+    double Vbitfloating;//voltage when floating bitline is supported
 
     void reset()
     {
@@ -155,6 +155,7 @@ class TechnologyParameter
       cell_pmos_w = 0;
       cell_nmos_w = 0;
       Vbitpre = 0;
+      Vbitfloating = 0;
     }
 
     void display(uint32_t indent = 0);
@@ -238,6 +239,8 @@ class TechnologyParameter
   DeviceType peri_global; // peripheral global
   DeviceType cam_cell;   // SRAM cell transistor
 
+  DeviceType sleep_tx;   // Sleep transistor cell transistor
+
   InterconnectType wire_local;
   InterconnectType wire_inside_mat;
   InterconnectType wire_outside_mat;
@@ -273,6 +276,7 @@ class TechnologyParameter
     dram_wl.reset();
     peri_global.reset();
     cam_cell.reset();
+    sleep_tx.reset();
 
     scaling_factor.reset();
 

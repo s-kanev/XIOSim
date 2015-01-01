@@ -28,59 +28,16 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.”
  *
  ***************************************************************************/
-#ifndef IOCONTROLLERS_H_
-#define IOCONTROLLERS_H_
 
+#ifndef VERSION_H_
+#define VERSION_H_
 
-#endif /* IOCONTROLLERS_H_ */
+#include <string>
 
-#include "XML_Parse.h"
-#include "parameter.h"
-//#include "io.h"
-#include "array.h"
-//#include "Undifferentiated_Core_Area.h"
-#include <vector>
-#include "basic_components.h"
+#define VER_MAJOR_CACTI		6	/* CACTI-P and DVS */
+#define VER_MINOR_CACTI		5
+const string VER_postfix_CACTI =  "-P";
+#define VER_COMMENT_CACTI	"CAM and fully associative cache, power gating, and DVS"
+#define VER_UPDATE_CACTI	"June, 2014"
 
-class NIUController : public Component {
-  public:
-	ParseXML *XML;
-	InputParameter interface_ip;
-    NIUParam  niup;
-    powerDef power_t;
-    uca_org_t local_result;
-    NIUController(ParseXML *XML_interface,InputParameter* interface_ip_);
-    void set_niu_param();
-    void computeEnergy(bool is_tdp=true);
-    void displayEnergy(uint32_t indent = 0,int plevel = 100, bool is_tdp=true);
-    ~NIUController(){};
-};
-
-class PCIeController : public Component {
-  public:
-	ParseXML *XML;
-	InputParameter interface_ip;
-    PCIeParam  pciep;
-    powerDef power_t;
-    uca_org_t local_result;
-    PCIeController(ParseXML *XML_interface,InputParameter* interface_ip_);
-    void set_pcie_param();
-    void computeEnergy(bool is_tdp=true);
-    void displayEnergy(uint32_t indent = 0,int plevel = 100, bool is_tdp=true);
-    ~PCIeController(){};
-};
-
-class FlashController : public Component {
-  public:
-	ParseXML *XML;
-	InputParameter interface_ip;
-    MCParam  fcp;
-    powerDef power_t;
-    uca_org_t local_result;
-    FlashController(ParseXML *XML_interface,InputParameter* interface_ip_);
-    void set_fc_param();
-    void computeEnergy(bool is_tdp=true);
-    void displayEnergy(uint32_t indent = 0,int plevel = 100, bool is_tdp=true);
-    ~FlashController(){};
-};
-
+#endif /* VERSION_H_ */

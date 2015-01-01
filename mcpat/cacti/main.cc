@@ -49,7 +49,7 @@ int main(int argc,char *argv[])
 {
 
   uca_org_t result;
-  if (argc != 51 && argc != 55)
+  if (argc != 53 && argc != 55)
   {
     bool infile_specified = false;
     string infile_name("");
@@ -68,7 +68,7 @@ int main(int argc,char *argv[])
     {
       cerr << " Invalid arguments -- how to use CACTI:" << endl;
       cerr << "  1) cacti -infile <input file name>" << endl;
-      cerr << "  2) cacti arg1 ... arg54 -- please refer to the README file" << endl;
+      cerr << "  2) cacti arg1 ... arg52 -- please refer to the README file" << endl;
       cerr << " No. of arguments input - " << argc << endl;
       exit(1);
     }
@@ -77,7 +77,7 @@ int main(int argc,char *argv[])
       result = cacti_interface(infile_name);
     }
   }
-  else if (argc == 51)
+  else if (argc == 53)
   {
 	  result = cacti_interface(atoi(argv[ 1]),
 			  atoi(argv[ 2]),
@@ -128,7 +128,9 @@ int main(int argc,char *argv[])
 			  atoi(argv[47]),
 			  atoi(argv[48]),
 			  atoi(argv[49]),
-			  atoi(argv[50]));
+			  atoi(argv[50]),
+			  atoi(argv[51]),
+			  atoi(argv[52]));
   }
   else
   {

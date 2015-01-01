@@ -1,43 +1,33 @@
-/*------------------------------------------------------------
- *                              CACTI 6.5
- *         Copyright 2008 Hewlett-Packard Development Corporation
- *                         All Rights Reserved
+/*****************************************************************************
+ *                                McPAT/CACTI
+ *                      SOFTWARE LICENSE AGREEMENT
+ *            Copyright 2012 Hewlett-Packard Development Company, L.P.
+ *                          All Rights Reserved
  *
- * Permission to use, copy, and modify this software and its documentation is
- * hereby granted only under the following terms and conditions.  Both the
- * above copyright notice and this permission notice must appear in all copies
- * of the software, derivative works or modified versions, and any portions
- * thereof, and both notices must appear in supporting documentation.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met: redistributions of source code must retain the above copyright
+ * notice, this list of conditions and the following disclaimer;
+ * redistributions in binary form must reproduce the above copyright
+ * notice, this list of conditions and the following disclaimer in the
+ * documentation and/or other materials provided with the distribution;
+ * neither the name of the copyright holders nor the names of its
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.”
  *
- * Users of this software agree to the terms and conditions set forth herein, and
- * hereby grant back to Hewlett-Packard Company and its affiliated companies ("HP")
- * a non-exclusive, unrestricted, royalty-free right and license under any changes,
- * enhancements or extensions  made to the core functions of the software, including
- * but not limited to those affording compatibility with other hardware or software
- * environments, but excluding applications which incorporate this software.
- * Users further agree to use their best efforts to return to HP any such changes,
- * enhancements or extensions that they make and inform HP of noteworthy uses of
- * this software.  Correspondence should be provided to HP at:
- *
- *                       Director of Intellectual Property Licensing
- *                       Office of Strategy and Technology
- *                       Hewlett-Packard Company
- *                       1501 Page Mill Road
- *                       Palo Alto, California  94304
- *
- * This software may be distributed (but not offered for sale or transferred
- * for compensation) to third parties, provided such third parties agree to
- * abide by the terms and conditions of this notice.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" AND HP DISCLAIMS ALL
- * WARRANTIES WITH REGARD TO THIS SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS.   IN NO EVENT SHALL HP
- * CORPORATION BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
- * DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR
- * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS
- * ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
- * SOFTWARE.
- *------------------------------------------------------------*/
+ ***************************************************************************/
 
 
 
@@ -66,14 +56,15 @@ class Wire : public Component
 
     Wire( double width_scaling = 1,
          double spacing_scaling = 1,
+//         bool reset_repeater_sizing = true,
          enum Wire_placement wire_placement = outside_mat,
          double resistivity = CU_RESISTIVITY,
          TechnologyParameter::DeviceType *dt = &(g_tp.peri_global)
     ); // should be used only once for initializing static members
-    void init_wire();
+    void init_wire(/*bool reset_repeater_sizing = true*/);
 
     void calculate_wire_stats();
-    void delay_optimal_wire();
+    void delay_optimal_wire(/*bool reset_repeater_sizing = true*/);
     double wire_cap(double len, bool call_from_outside=false);
     double wire_res(double len);
     void low_swing_model();
@@ -87,6 +78,8 @@ class Wire : public Component
     enum Wire_placement wire_placement;
     double repeater_size;
     double repeater_spacing;
+    static double repeater_size_init; // value used in initialization should not be reused in final output
+    static double repeater_spacing_init;
     double wire_length;
     double in_rise_time, out_rise_time;
 
@@ -102,7 +95,8 @@ class Wire : public Component
     static Component low_swing;
     static double wire_width_init;
     static double wire_spacing_init;
-    void print_wire();
+    static void print_wire();
+    void wire_dvs_update();
 
   private:
 

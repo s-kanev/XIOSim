@@ -1,45 +1,35 @@
-/*------------------------------------------------------------
- *                              CACTI 6.5
- *         Copyright 2008 Hewlett-Packard Development Corporation
- *                         All Rights Reserved
+/*****************************************************************************
+ *                                McPAT/CACTI
+ *                      SOFTWARE LICENSE AGREEMENT
+ *            Copyright 2012 Hewlett-Packard Development Company, L.P.
+ *                          All Rights Reserved
  *
- * Permission to use, copy, and modify this software and its documentation is
- * hereby granted only under the following terms and conditions.  Both the
- * above copyright notice and this permission notice must appear in all copies
- * of the software, derivative works or modified versions, and any portions
- * thereof, and both notices must appear in supporting documentation.
- *
- * Users of this software agree to the terms and conditions set forth herein, and
- * hereby grant back to Hewlett-Packard Company and its affiliated companies ("HP")
- * a non-exclusive, unrestricted, royalty-free right and license under any changes,
- * enhancements or extensions  made to the core functions of the software, including
- * but not limited to those affording compatibility with other hardware or software
- * environments, but excluding applications which incorporate this software.
- * Users further agree to use their best efforts to return to HP any such changes,
- * enhancements or extensions that they make and inform HP of noteworthy uses of
- * this software.  Correspondence should be provided to HP at:
- *
- *                       Director of Intellectual Property Licensing
- *                       Office of Strategy and Technology
- *                       Hewlett-Packard Company
- *                       1501 Page Mill Road
- *                       Palo Alto, California  94304
- *
- * This software may be distributed (but not offered for sale or transferred
- * for compensation) to third parties, provided such third parties agree to
- * abide by the terms and conditions of this notice.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" AND HP DISCLAIMS ALL
- * WARRANTIES WITH REGARD TO THIS SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS.   IN NO EVENT SHALL HP
- * CORPORATION BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
- * DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR
- * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS
- * ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
- * SOFTWARE.
- *------------------------------------------------------------*/
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met: redistributions of source code must retain the above copyright
+ * notice, this list of conditions and the following disclaimer;
+ * redistributions in binary form must reproduce the above copyright
+ * notice, this list of conditions and the following disclaimer in the
+ * documentation and/or other materials provided with the distribution;
+ * neither the name of the copyright holders nor the names of its
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.”
+ *
+ ***************************************************************************/
 
+#include <math.h>
 #include "basic_circuit.h"
 
 #include "parameter.h"
@@ -184,7 +174,9 @@ void init_tech_params(double technology, bool is_tag)
   	  exit(0);
     }
 
-  double vdd[NUMBER_TECH_FLAVORS];
+  double vdd[NUMBER_TECH_FLAVORS];//default vdd from itrs
+  double vdd_real[NUMBER_TECH_FLAVORS]; //real vdd defined by user, this is for changing vdd from itrs; it actually does not dependent on technology node since it is user defined
+  double alpha_power_law[NUMBER_TECH_FLAVORS];//co-efficient for ap-law
   double Lphy[NUMBER_TECH_FLAVORS];
   double Lelec[NUMBER_TECH_FLAVORS];
   double t_ox[NUMBER_TECH_FLAVORS];
@@ -240,10 +232,13 @@ void init_tech_params(double technology, bool is_tag)
       //180nm technology-node. Corresponds to year 1999 in ITRS
       //Only HP transistor was of interest that 180nm since leakage power was not a big issue. Performance was the king
       //MASTAR does not contain data for 0.18um process. The following parameters are projected based on ITRS 2000 update and IBM 0.18 Cu Spice input
-      bool Aggre_proj = false;
+      //180nm does not support DVS
+    	bool Aggre_proj = false;
       SENSE_AMP_D = .28e-9; // s
       SENSE_AMP_P = 14.7e-15; // J
       vdd[0]   = 1.5;
+      vdd_real[0] = g_ip->specific_hp_vdd ? g_ip->hp_Vdd : vdd[0];
+      alpha_power_law[0]=1.4;
       Lphy[0]  = 0.12;//Lphy is the physical gate-length. micron
       Lelec[0] = 0.10;//Lelec is the electrical gate-length. micron
       t_ox[0]  = 1.2e-3*(Aggre_proj? 1.9/1.2:2);//micron
@@ -254,7 +249,7 @@ void init_tech_params(double technology, bool is_tag)
       c_g_ideal[0] = (Aggre_proj? 1.9/1.2:2)*6.64e-16;//F/micron
       c_fringe[0]  = (Aggre_proj? 1.9/1.2:2)*0.08e-15;//F/micron
       c_junc[0] = (Aggre_proj? 1.9/1.2:2)*1e-15;//F/micron2
-      I_on_n[0] = 750e-6;//A/micron
+      I_on_n[0] = 750e-6*pow((vdd_real[0]-v_th[0])/(vdd[0]-v_th[0]),alpha_power_law[0]);//A/micron
       I_on_p[0] = 350e-6;//A/micron
       //Note that nmos_effective_resistance_multiplier, n_to_p_eff_curr_drv_ratio and gmp_to_gmn_multiplier values are calculated offline
       nmos_effective_resistance_multiplier = 1.54;
@@ -315,6 +310,8 @@ void init_tech_params(double technology, bool is_tag)
       //90nm technology-node. Corresponds to year 2004 in ITRS
       //ITRS HP device type
       vdd[0]   = 1.2;
+      vdd_real[0] = g_ip->specific_hp_vdd ? g_ip->hp_Vdd : vdd[0];
+      alpha_power_law[0]=1.34;
       Lphy[0]  = 0.037;//Lphy is the physical gate-length. micron
       Lelec[0] = 0.0266;//Lelec is the electrical gate-length. micron
       t_ox[0]  = 1.2e-3;//micron
@@ -325,26 +322,26 @@ void init_tech_params(double technology, bool is_tag)
       c_g_ideal[0] = 6.64e-16;//F/micron
       c_fringe[0]  = 0.08e-15;//F/micron
       c_junc[0] = 1e-15;//F/micron2
-      I_on_n[0] = 1076.9e-6;//A/micron
+      I_on_n[0] = 1076.9e-6*pow((vdd_real[0]-v_th[0])/(vdd[0]-v_th[0]),alpha_power_law[0]);//A/micron with ap-law applied for dvs and arbitrary vdd
       I_on_p[0] = 712.6e-6;//A/micron
       //Note that nmos_effective_resistance_multiplier, n_to_p_eff_curr_drv_ratio and gmp_to_gmn_multiplier values are calculated offline
       nmos_effective_resistance_multiplier = 1.54;
       n_to_p_eff_curr_drv_ratio[0] = 2.45;
       gmp_to_gmn_multiplier[0] = 1.22;
-      Rnchannelon[0] = nmos_effective_resistance_multiplier * vdd[0] / I_on_n[0];//ohm-micron
+      Rnchannelon[0] = nmos_effective_resistance_multiplier * vdd_real[0] / I_on_n[0];//ohm-micron
       Rpchannelon[0] = n_to_p_eff_curr_drv_ratio[0] * Rnchannelon[0];//ohm-micron
       long_channel_leakage_reduction[0] = 1;
-      I_off_n[0][0]  = 3.24e-8;//A/micron
-      I_off_n[0][10] = 4.01e-8;
-      I_off_n[0][20] = 4.90e-8;
-      I_off_n[0][30] = 5.92e-8;
-      I_off_n[0][40] = 7.08e-8;
-      I_off_n[0][50] = 8.38e-8;
-      I_off_n[0][60] = 9.82e-8;
-      I_off_n[0][70] = 1.14e-7;
-      I_off_n[0][80] = 1.29e-7;
-      I_off_n[0][90] = 1.43e-7;
-      I_off_n[0][100] = 1.54e-7;
+      I_off_n[0][0]  = 3.24e-8*pow(vdd_real[0]/(vdd[0]),4);//A/micron
+      I_off_n[0][10] = 4.01e-8*pow(vdd_real[0]/(vdd[0]),4);
+      I_off_n[0][20] = 4.90e-8*pow(vdd_real[0]/(vdd[0]),4);
+      I_off_n[0][30] = 5.92e-8*pow(vdd_real[0]/(vdd[0]),4);
+      I_off_n[0][40] = 7.08e-8*pow(vdd_real[0]/(vdd[0]),4);
+      I_off_n[0][50] = 8.38e-8*pow(vdd_real[0]/(vdd[0]),4);
+      I_off_n[0][60] = 9.82e-8*pow(vdd_real[0]/(vdd[0]),4);
+      I_off_n[0][70] = 1.14e-7*pow(vdd_real[0]/(vdd[0]),4);
+      I_off_n[0][80] = 1.29e-7*pow(vdd_real[0]/(vdd[0]),4);
+      I_off_n[0][90] = 1.43e-7*pow(vdd_real[0]/(vdd[0]),4);
+      I_off_n[0][100] = 1.54e-7*pow(vdd_real[0]/(vdd[0]),4);
 
       I_g_on_n[0][0]  = 1.65e-8;//A/micron
       I_g_on_n[0][10] = 1.65e-8;
@@ -360,6 +357,8 @@ void init_tech_params(double technology, bool is_tag)
 
       //ITRS LSTP device type
       vdd[1]   = 1.3;
+      vdd_real[1] = g_ip->specific_lstp_vdd ? g_ip->lstp_Vdd : vdd[1];
+      alpha_power_law[1]=1.47;
       Lphy[1]  = 0.075;
       Lelec[1] = 0.0486;
       t_ox[1]  = 2.2e-3;
@@ -370,25 +369,25 @@ void init_tech_params(double technology, bool is_tag)
       c_g_ideal[1] = 9.15e-16;
       c_fringe[1]  = 0.08e-15;
       c_junc[1] = 1e-15;
-      I_on_n[1] = 503.6e-6;
+      I_on_n[1] = 503.6e-6*pow((vdd_real[1]-v_th[1])/(vdd[1]-v_th[1]),alpha_power_law[1]);
       I_on_p[1] = 235.1e-6;
       nmos_effective_resistance_multiplier = 1.92;
       n_to_p_eff_curr_drv_ratio[1] = 2.44;
       gmp_to_gmn_multiplier[1] =0.88;
-      Rnchannelon[1] = nmos_effective_resistance_multiplier * vdd[1] / I_on_n[1];
+      Rnchannelon[1] = nmos_effective_resistance_multiplier * vdd_real[1] / I_on_n[1];
       Rpchannelon[1] = n_to_p_eff_curr_drv_ratio[1] * Rnchannelon[1];
       long_channel_leakage_reduction[1] = 1;
-      I_off_n[1][0]  = 2.81e-12;
-      I_off_n[1][10] = 4.76e-12;
-      I_off_n[1][20] = 7.82e-12;
-      I_off_n[1][30] = 1.25e-11;
-      I_off_n[1][40] = 1.94e-11;
-      I_off_n[1][50] = 2.94e-11;
-      I_off_n[1][60] = 4.36e-11;
-      I_off_n[1][70] = 6.32e-11;
-      I_off_n[1][80] = 8.95e-11;
-      I_off_n[1][90] = 1.25e-10;
-      I_off_n[1][100] = 1.7e-10;
+      I_off_n[1][0]  = 2.81e-12*pow(vdd_real[1]/(vdd[1]),4);
+      I_off_n[1][10] = 4.76e-12*pow(vdd_real[1]/(vdd[1]),4);
+      I_off_n[1][20] = 7.82e-12*pow(vdd_real[1]/(vdd[1]),4);
+      I_off_n[1][30] = 1.25e-11*pow(vdd_real[1]/(vdd[1]),4);
+      I_off_n[1][40] = 1.94e-11*pow(vdd_real[1]/(vdd[1]),4);
+      I_off_n[1][50] = 2.94e-11*pow(vdd_real[1]/(vdd[1]),4);
+      I_off_n[1][60] = 4.36e-11*pow(vdd_real[1]/(vdd[1]),4);
+      I_off_n[1][70] = 6.32e-11*pow(vdd_real[1]/(vdd[1]),4);
+      I_off_n[1][80] = 8.95e-11*pow(vdd_real[1]/(vdd[1]),4);
+      I_off_n[1][90] = 1.25e-10*pow(vdd_real[1]/(vdd[1]),4);
+      I_off_n[1][100] = 1.7e-10*pow(vdd_real[1]/(vdd[1]),4);
 
       I_g_on_n[1][0]  = 3.87e-11;//A/micron
       I_g_on_n[1][10] = 3.87e-11;
@@ -404,6 +403,8 @@ void init_tech_params(double technology, bool is_tag)
 
       //ITRS LOP device type
       vdd[2] = 0.9;
+      vdd_real[2] = g_ip->specific_lop_vdd ? g_ip->lop_Vdd : vdd[2];
+      alpha_power_law[2]=1.55;
       Lphy[2] = 0.053;
       Lelec[2] = 0.0354;
       t_ox[2] = 1.5e-3;
@@ -414,25 +415,25 @@ void init_tech_params(double technology, bool is_tag)
       c_g_ideal[2] = 8.45e-16;
       c_fringe[2] = 0.08e-15;
       c_junc[2] = 1e-15;
-      I_on_n[2] = 386.6e-6;
+      I_on_n[2] = 386.6e-6*pow((vdd_real[2]-v_th[2])/(vdd[2]-v_th[2]),alpha_power_law[2]);
       I_on_p[2] = 209.7e-6;
       nmos_effective_resistance_multiplier = 1.77;
       n_to_p_eff_curr_drv_ratio[2] = 2.54;
       gmp_to_gmn_multiplier[2] = 0.98;
-      Rnchannelon[2] = nmos_effective_resistance_multiplier * vdd[2] / I_on_n[2];
+      Rnchannelon[2] = nmos_effective_resistance_multiplier * vdd_real[2] / I_on_n[2];
       Rpchannelon[2] = n_to_p_eff_curr_drv_ratio[2] * Rnchannelon[2];
       long_channel_leakage_reduction[2] = 1;
-      I_off_n[2][0] = 2.14e-9;
-      I_off_n[2][10] = 2.9e-9;
-      I_off_n[2][20] = 3.87e-9;
-      I_off_n[2][30] = 5.07e-9;
-      I_off_n[2][40] = 6.54e-9;
-      I_off_n[2][50] = 8.27e-8;
-      I_off_n[2][60] = 1.02e-7;
-      I_off_n[2][70] = 1.20e-7;
-      I_off_n[2][80] = 1.36e-8;
-      I_off_n[2][90] = 1.52e-8;
-      I_off_n[2][100] = 1.73e-8;
+      I_off_n[2][0]  = 2.14e-9*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][10] = 2.9e-9*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][20] = 3.87e-9*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][30] = 5.07e-9*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][40] = 6.54e-9*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][50] = 8.27e-8*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][60] = 1.02e-7*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][70] = 1.20e-7*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][80] = 1.36e-8*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][90] = 1.52e-8*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][100] = 1.73e-8*pow(vdd_real[2]/(vdd[2]),5);
 
       I_g_on_n[2][0]  = 4.31e-8;//A/micron
       I_g_on_n[2][10] = 4.31e-8;
@@ -569,6 +570,8 @@ void init_tech_params(double technology, bool is_tag)
       SENSE_AMP_D = .2e-9; // s
       SENSE_AMP_P = 5.7e-15; // J
       vdd[0] = 1.1;
+      vdd_real[0] = g_ip->specific_hp_vdd ? g_ip->hp_Vdd : vdd[0];
+      alpha_power_law[0]=1.27;
       Lphy[0] = 0.025;
       Lelec[0] = 0.019;
       t_ox[0] = 1.1e-3;
@@ -579,27 +582,27 @@ void init_tech_params(double technology, bool is_tag)
       c_g_ideal[0] = 4.69e-16;
       c_fringe[0] = 0.077e-15;
       c_junc[0] = 1e-15;
-      I_on_n[0] = 1197.2e-6;
+      I_on_n[0] = 1197.2e-6*pow((vdd_real[0]-v_th[0])/(vdd[0]-v_th[0]),alpha_power_law[0]);
       I_on_p[0] = 870.8e-6;
       nmos_effective_resistance_multiplier = 1.50;
       n_to_p_eff_curr_drv_ratio[0] = 2.41;
       gmp_to_gmn_multiplier[0] = 1.38;
-      Rnchannelon[0] = nmos_effective_resistance_multiplier * vdd[0] / I_on_n[0];
+      Rnchannelon[0] = nmos_effective_resistance_multiplier * vdd_real[0] / I_on_n[0];
       Rpchannelon[0] = n_to_p_eff_curr_drv_ratio[0] * Rnchannelon[0];
       long_channel_leakage_reduction[0] = 1/3.74;
       //Using MASTAR, @380K, increase Lgate until Ion reduces to 90% or Lgate increase by 10%, whichever comes first
       //Ioff(Lgate normal)/Ioff(Lgate long)= 3.74.
-      I_off_n[0][0] = 1.96e-7;
-      I_off_n[0][10] = 2.29e-7;
-      I_off_n[0][20] = 2.66e-7;
-      I_off_n[0][30] = 3.05e-7;
-      I_off_n[0][40] = 3.49e-7;
-      I_off_n[0][50] = 3.95e-7;
-      I_off_n[0][60] = 4.45e-7;
-      I_off_n[0][70] = 4.97e-7;
-      I_off_n[0][80] = 5.48e-7;
-      I_off_n[0][90] = 5.94e-7;
-      I_off_n[0][100] = 6.3e-7;
+      I_off_n[0][0] = 1.96e-7*pow(vdd_real[0]/(vdd[0]),4);
+      I_off_n[0][10] = 2.29e-7*pow(vdd_real[0]/(vdd[0]),4);
+      I_off_n[0][20] = 2.66e-7*pow(vdd_real[0]/(vdd[0]),4);
+      I_off_n[0][30] = 3.05e-7*pow(vdd_real[0]/(vdd[0]),4);
+      I_off_n[0][40] = 3.49e-7*pow(vdd_real[0]/(vdd[0]),4);
+      I_off_n[0][50] = 3.95e-7*pow(vdd_real[0]/(vdd[0]),4);
+      I_off_n[0][60] = 4.45e-7*pow(vdd_real[0]/(vdd[0]),4);
+      I_off_n[0][70] = 4.97e-7*pow(vdd_real[0]/(vdd[0]),4);
+      I_off_n[0][80] = 5.48e-7*pow(vdd_real[0]/(vdd[0]),4);
+      I_off_n[0][90] = 5.94e-7*pow(vdd_real[0]/(vdd[0]),4);
+      I_off_n[0][100] = 6.3e-7*pow(vdd_real[0]/(vdd[0]),4);
       I_g_on_n[0][0]  = 4.09e-8;//A/micron
       I_g_on_n[0][10] = 4.09e-8;
       I_g_on_n[0][20] = 4.09e-8;
@@ -614,6 +617,8 @@ void init_tech_params(double technology, bool is_tag)
 
       //ITRS LSTP device type
       vdd[1] = 1.2;
+      vdd_real[1] = g_ip->specific_lstp_vdd ? g_ip->lstp_Vdd : vdd[1];//TODO
+      alpha_power_law[1]=1.40;
       Lphy[1] = 0.045;
       Lelec[1] = 0.0298;
       t_ox[1] = 1.9e-3;
@@ -624,25 +629,25 @@ void init_tech_params(double technology, bool is_tag)
       c_g_ideal[1] = 6.14e-16;
       c_fringe[1] = 0.08e-15;
       c_junc[1] = 1e-15;
-      I_on_n[1] = 519.2e-6;
+      I_on_n[1] = 519.2e-6*pow((vdd_real[1]-v_th[1])/(vdd[1]-v_th[1]),alpha_power_law[1]);
       I_on_p[1] = 266e-6;
       nmos_effective_resistance_multiplier = 1.96;
       n_to_p_eff_curr_drv_ratio[1] = 2.23;
       gmp_to_gmn_multiplier[1] = 0.99;
-      Rnchannelon[1] = nmos_effective_resistance_multiplier * vdd[1] / I_on_n[1];
+      Rnchannelon[1] = nmos_effective_resistance_multiplier * vdd_real[1] / I_on_n[1];
       Rpchannelon[1] = n_to_p_eff_curr_drv_ratio[1] * Rnchannelon[1];
       long_channel_leakage_reduction[1] = 1/2.82;
-      I_off_n[1][0] = 9.12e-12;
-      I_off_n[1][10] = 1.49e-11;
-      I_off_n[1][20] = 2.36e-11;
-      I_off_n[1][30] = 3.64e-11;
-      I_off_n[1][40] = 5.48e-11;
-      I_off_n[1][50] = 8.05e-11;
-      I_off_n[1][60] = 1.15e-10;
-      I_off_n[1][70] = 1.59e-10;
-      I_off_n[1][80] = 2.1e-10;
-      I_off_n[1][90] = 2.62e-10;
-      I_off_n[1][100] = 3.21e-10;
+      I_off_n[1][0] = 9.12e-12*pow(vdd_real[1]/(vdd[1]),4);
+      I_off_n[1][10] = 1.49e-11*pow(vdd_real[1]/(vdd[1]),4);
+      I_off_n[1][20] = 2.36e-11*pow(vdd_real[1]/(vdd[1]),4);
+      I_off_n[1][30] = 3.64e-11*pow(vdd_real[1]/(vdd[1]),4);
+      I_off_n[1][40] = 5.48e-11*pow(vdd_real[1]/(vdd[1]),4);
+      I_off_n[1][50] = 8.05e-11*pow(vdd_real[1]/(vdd[1]),4);
+      I_off_n[1][60] = 1.15e-10*pow(vdd_real[1]/(vdd[1]),4);
+      I_off_n[1][70] = 1.59e-10*pow(vdd_real[1]/(vdd[1]),4);
+      I_off_n[1][80] = 2.1e-10*pow(vdd_real[1]/(vdd[1]),4);
+      I_off_n[1][90] = 2.62e-10*pow(vdd_real[1]/(vdd[1]),4);
+      I_off_n[1][100] = 3.21e-10*pow(vdd_real[1]/(vdd[1]),4);
 
       I_g_on_n[1][0]  = 1.09e-10;//A/micron
       I_g_on_n[1][10] = 1.09e-10;
@@ -658,6 +663,8 @@ void init_tech_params(double technology, bool is_tag)
 
       //ITRS LOP device type
       vdd[2] = 0.8;
+      alpha_power_law[2]=1.43;
+      vdd_real[2] = g_ip->specific_lop_vdd ? g_ip->lop_Vdd : vdd[2];
       Lphy[2] = 0.032;
       Lelec[2] = 0.0216;
       t_ox[2] = 1.2e-3;
@@ -668,25 +675,25 @@ void init_tech_params(double technology, bool is_tag)
       c_g_ideal[2] = 6e-16;
       c_fringe[2] = 0.08e-15;
       c_junc[2] = 1e-15;
-      I_on_n[2] = 573.1e-6;
+      I_on_n[2] = 573.1e-6*pow((vdd_real[2]-v_th[2])/(vdd[2]-v_th[2]),alpha_power_law[2]);
       I_on_p[2] = 340.6e-6;
       nmos_effective_resistance_multiplier = 1.82;
       n_to_p_eff_curr_drv_ratio[2] = 2.28;
       gmp_to_gmn_multiplier[2] = 1.11;
-      Rnchannelon[2] = nmos_effective_resistance_multiplier * vdd[2] / I_on_n[2];
+      Rnchannelon[2] = nmos_effective_resistance_multiplier * vdd_real[2] / I_on_n[2];
       Rpchannelon[2] = n_to_p_eff_curr_drv_ratio[2] * Rnchannelon[2];
       long_channel_leakage_reduction[2] = 1/2.05;
-      I_off_n[2][0] = 4.9e-9;
-      I_off_n[2][10] = 6.49e-9;
-      I_off_n[2][20] = 8.45e-9;
-      I_off_n[2][30] = 1.08e-8;
-      I_off_n[2][40] = 1.37e-8;
-      I_off_n[2][50] = 1.71e-8;
-      I_off_n[2][60] = 2.09e-8;
-      I_off_n[2][70] = 2.48e-8;
-      I_off_n[2][80] = 2.84e-8;
-      I_off_n[2][90] = 3.13e-8;
-      I_off_n[2][100] = 3.42e-8;
+      I_off_n[2][0] = 4.9e-9*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][10] = 6.49e-9*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][20] = 8.45e-9*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][30] = 1.08e-8*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][40] = 1.37e-8*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][50] = 1.71e-8*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][60] = 2.09e-8*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][70] = 2.48e-8*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][80] = 2.84e-8*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][90] = 3.13e-8*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][100] = 3.42e-8*pow(vdd_real[2]/(vdd[2]),5);
 
       I_g_on_n[2][0]  = 9.61e-9;//A/micron
       I_g_on_n[2][10] = 9.61e-9;
@@ -821,6 +828,8 @@ void init_tech_params(double technology, bool is_tag)
       SENSE_AMP_D = .04e-9; // s
       SENSE_AMP_P = 2.7e-15; // J
       vdd[0] = 1.2;
+      vdd_real[0] = g_ip->specific_hp_vdd ? g_ip->hp_Vdd : vdd[0];//TODO
+      alpha_power_law[0]=1.21;
       Lphy[0] = 0.018;
       Lelec[0] = 0.01345;
       t_ox[0] = 0.65e-3;
@@ -831,27 +840,27 @@ void init_tech_params(double technology, bool is_tag)
       c_g_ideal[0] = 6.78e-16;
       c_fringe[0] = 0.05e-15;
       c_junc[0] = 1e-15;
-      I_on_n[0] = 2046.6e-6;
+      I_on_n[0] = 2046.6e-6*pow((vdd_real[0]-v_th[0])/(vdd[0]-v_th[0]),alpha_power_law[0]);
       //There are certain problems with the ITRS PMOS numbers in MASTAR for 45nm. So we are using 65nm values of
       //n_to_p_eff_curr_drv_ratio and gmp_to_gmn_multiplier for 45nm
       I_on_p[0] = I_on_n[0] / 2;//This value is fixed arbitrarily but I_on_p is not being used in CACTI
       nmos_effective_resistance_multiplier = 1.51;
       n_to_p_eff_curr_drv_ratio[0] = 2.41;
       gmp_to_gmn_multiplier[0] = 1.38;
-      Rnchannelon[0] = nmos_effective_resistance_multiplier * vdd[0] / I_on_n[0];
+      Rnchannelon[0] = nmos_effective_resistance_multiplier * vdd_real[0] / I_on_n[0];
       Rpchannelon[0] = n_to_p_eff_curr_drv_ratio[0] * Rnchannelon[0];
       long_channel_leakage_reduction[0] = 1/3.546;//Using MASTAR, @380K, increase Lgate until Ion reduces to 90%, Ioff(Lgate normal)/Ioff(Lgate long)= 3.74
-      I_off_n[0][0] = 2.8e-7;
-      I_off_n[0][10] = 3.28e-7;
-      I_off_n[0][20] = 3.81e-7;
-      I_off_n[0][30] = 4.39e-7;
-      I_off_n[0][40] = 5.02e-7;
-      I_off_n[0][50] = 5.69e-7;
-      I_off_n[0][60] = 6.42e-7;
-      I_off_n[0][70] = 7.2e-7;
-      I_off_n[0][80] = 8.03e-7;
-      I_off_n[0][90] = 8.91e-7;
-      I_off_n[0][100] = 9.84e-7;
+      I_off_n[0][0] = 2.8e-7*pow(vdd_real[0]/(vdd[0]),4);
+      I_off_n[0][10] = 3.28e-7*pow(vdd_real[0]/(vdd[0]),4);
+      I_off_n[0][20] = 3.81e-7*pow(vdd_real[0]/(vdd[0]),4);
+      I_off_n[0][30] = 4.39e-7*pow(vdd_real[0]/(vdd[0]),4);
+      I_off_n[0][40] = 5.02e-7*pow(vdd_real[0]/(vdd[0]),4);
+      I_off_n[0][50] = 5.69e-7*pow(vdd_real[0]/(vdd[0]),4);
+      I_off_n[0][60] = 6.42e-7*pow(vdd_real[0]/(vdd[0]),4);
+      I_off_n[0][70] = 7.2e-7*pow(vdd_real[0]/(vdd[0]),4);
+      I_off_n[0][80] = 8.03e-7*pow(vdd_real[0]/(vdd[0]),4);
+      I_off_n[0][90] = 8.91e-7*pow(vdd_real[0]/(vdd[0]),4);
+      I_off_n[0][100] = 9.84e-7*pow(vdd_real[0]/(vdd[0]),4);
 
       I_g_on_n[0][0]  = 3.59e-8;//A/micron
       I_g_on_n[0][10] = 3.59e-8;
@@ -867,6 +876,8 @@ void init_tech_params(double technology, bool is_tag)
 
       //ITRS LSTP device type
       vdd[1] = 1.1;
+      vdd_real[1] = g_ip->specific_lstp_vdd ? g_ip->lstp_Vdd : vdd[1];
+      alpha_power_law[1]=1.33;
       Lphy[1] =  0.028;
       Lelec[1] = 0.0212;
       t_ox[1] = 1.4e-3;
@@ -877,25 +888,25 @@ void init_tech_params(double technology, bool is_tag)
       c_g_ideal[1] = 5.18e-16;
       c_fringe[1] = 0.08e-15;
       c_junc[1] = 1e-15;
-      I_on_n[1] = 666.2e-6;
+      I_on_n[1] = 666.2e-6*pow((vdd_real[1]-v_th[1])/(vdd[1]-v_th[1]),alpha_power_law[1]);
       I_on_p[1] = I_on_n[1] / 2;
       nmos_effective_resistance_multiplier = 1.99;
       n_to_p_eff_curr_drv_ratio[1] = 2.23;
       gmp_to_gmn_multiplier[1] = 0.99;
-      Rnchannelon[1] = nmos_effective_resistance_multiplier * vdd[1] / I_on_n[1];
+      Rnchannelon[1] = nmos_effective_resistance_multiplier * vdd_real[1] / I_on_n[1];
       Rpchannelon[1] = n_to_p_eff_curr_drv_ratio[1] * Rnchannelon[1];
       long_channel_leakage_reduction[1] = 1/2.08;
-      I_off_n[1][0] = 1.01e-11;
-      I_off_n[1][10] = 1.65e-11;
-      I_off_n[1][20] = 2.62e-11;
-      I_off_n[1][30] = 4.06e-11;
-      I_off_n[1][40] = 6.12e-11;
-      I_off_n[1][50] = 9.02e-11;
-      I_off_n[1][60] = 1.3e-10;
-      I_off_n[1][70] = 1.83e-10;
-      I_off_n[1][80] = 2.51e-10;
-      I_off_n[1][90] = 3.29e-10;
-      I_off_n[1][100] = 4.1e-10;
+      I_off_n[1][0] = 1.01e-11*pow(vdd_real[1]/(vdd[1]),4);
+      I_off_n[1][10] = 1.65e-11*pow(vdd_real[1]/(vdd[1]),4);
+      I_off_n[1][20] = 2.62e-11*pow(vdd_real[1]/(vdd[1]),4);
+      I_off_n[1][30] = 4.06e-11*pow(vdd_real[1]/(vdd[1]),4);
+      I_off_n[1][40] = 6.12e-11*pow(vdd_real[1]/(vdd[1]),4);
+      I_off_n[1][50] = 9.02e-11*pow(vdd_real[1]/(vdd[1]),4);
+      I_off_n[1][60] = 1.3e-10*pow(vdd_real[1]/(vdd[1]),4);
+      I_off_n[1][70] = 1.83e-10*pow(vdd_real[1]/(vdd[1]),4);
+      I_off_n[1][80] = 2.51e-10*pow(vdd_real[1]/(vdd[1]),4);
+      I_off_n[1][90] = 3.29e-10*pow(vdd_real[1]/(vdd[1]),4);
+      I_off_n[1][100] = 4.1e-10*pow(vdd_real[1]/(vdd[1]),4);
 
       I_g_on_n[1][0]  = 9.47e-12;//A/micron
       I_g_on_n[1][10] = 9.47e-12;
@@ -911,6 +922,8 @@ void init_tech_params(double technology, bool is_tag)
 
       //ITRS LOP device type
       vdd[2] = 0.7;
+      vdd_real[2] = g_ip->specific_lop_vdd ? g_ip->lop_Vdd : vdd[2];//TODO
+      alpha_power_law[2]=1.39;
       Lphy[2] = 0.022;
       Lelec[2] = 0.016;
       t_ox[2] = 0.9e-3;
@@ -921,25 +934,25 @@ void init_tech_params(double technology, bool is_tag)
       c_g_ideal[2] = 6.2e-16;
       c_fringe[2] = 0.073e-15;
       c_junc[2] = 1e-15;
-      I_on_n[2] = 748.9e-6;
+      I_on_n[2] = 748.9e-6*pow((vdd_real[2]-v_th[2])/(vdd[2]-v_th[2]),alpha_power_law[2]);
       I_on_p[2] = I_on_n[2] / 2;
       nmos_effective_resistance_multiplier = 1.76;
       n_to_p_eff_curr_drv_ratio[2] = 2.28;
       gmp_to_gmn_multiplier[2] = 1.11;
-      Rnchannelon[2] = nmos_effective_resistance_multiplier * vdd[2] / I_on_n[2];
+      Rnchannelon[2] = nmos_effective_resistance_multiplier * vdd_real[2] / I_on_n[2];
       Rpchannelon[2] = n_to_p_eff_curr_drv_ratio[2] * Rnchannelon[2];
       long_channel_leakage_reduction[2] = 1/1.92;
-      I_off_n[2][0] = 4.03e-9;
-      I_off_n[2][10] = 5.02e-9;
-      I_off_n[2][20] = 6.18e-9;
-      I_off_n[2][30] = 7.51e-9;
-      I_off_n[2][40] = 9.04e-9;
-      I_off_n[2][50] = 1.08e-8;
-      I_off_n[2][60] = 1.27e-8;
-      I_off_n[2][70] = 1.47e-8;
-      I_off_n[2][80] = 1.66e-8;
-      I_off_n[2][90] = 1.84e-8;
-      I_off_n[2][100] = 2.03e-8;
+      I_off_n[2][0] = 4.03e-9*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][10] = 5.02e-9*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][20] = 6.18e-9*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][30] = 7.51e-9*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][40] = 9.04e-9*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][50] = 1.08e-8*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][60] = 1.27e-8*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][70] = 1.47e-8*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][80] = 1.66e-8*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][90] = 1.84e-8*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][100] = 2.03e-8*pow(vdd_real[2]/(vdd[2]),5);
 
       I_g_on_n[2][0]  = 3.24e-8;//A/micron
       I_g_on_n[2][10] = 4.01e-8;
@@ -1077,6 +1090,8 @@ void init_tech_params(double technology, bool is_tag)
       //technology i.e. FEATURESIZE = 0.032). Using the SOI process numbers for
       //HP and LSTP.
       vdd[0] = 0.9;
+      vdd_real[0] = g_ip->specific_hp_vdd ? g_ip->hp_Vdd : vdd[0];
+      alpha_power_law[0]=1.19;
       Lphy[0] = 0.013;
       Lelec[0] = 0.01013;
       t_ox[0] = 0.5e-3;
@@ -1087,27 +1102,27 @@ void init_tech_params(double technology, bool is_tag)
       c_g_ideal[0] = 5.34e-16;
       c_fringe[0] = 0.04e-15;
       c_junc[0] = 1e-15;
-      I_on_n[0] =  2211.7e-6;
+      I_on_n[0] =  2211.7e-6*pow((vdd_real[0]-v_th[0])/(vdd[0]-v_th[0]),alpha_power_law[0]);
       I_on_p[0] = I_on_n[0] / 2;
       nmos_effective_resistance_multiplier = 1.49;
       n_to_p_eff_curr_drv_ratio[0] = 2.41;
       gmp_to_gmn_multiplier[0] = 1.38;
-      Rnchannelon[0] = nmos_effective_resistance_multiplier * vdd[0] / I_on_n[0];//ohm-micron
+      Rnchannelon[0] = nmos_effective_resistance_multiplier * vdd_real[0] / I_on_n[0];//ohm-micron
       Rpchannelon[0] = n_to_p_eff_curr_drv_ratio[0] * Rnchannelon[0];//ohm-micron
       long_channel_leakage_reduction[0] = 1/3.706;
       //Using MASTAR, @300K (380K does not work in MASTAR), increase Lgate until Ion reduces to 95% or Lgate increase by 5% (DG device can only increase by 5%),
       //whichever comes first
-      I_off_n[0][0] = 1.52e-7;
-      I_off_n[0][10] = 1.55e-7;
-      I_off_n[0][20] = 1.59e-7;
-      I_off_n[0][30] = 1.68e-7;
-      I_off_n[0][40] = 1.90e-7;
-      I_off_n[0][50] = 2.69e-7;
-      I_off_n[0][60] = 5.32e-7;
-      I_off_n[0][70] = 1.02e-6;
-      I_off_n[0][80] = 1.62e-6;
-      I_off_n[0][90] = 2.73e-6;
-      I_off_n[0][100] = 6.1e-6;
+      I_off_n[0][0] = 1.52e-7*pow(vdd_real[0]/(vdd[0]),2);
+      I_off_n[0][10] = 1.55e-7*pow(vdd_real[0]/(vdd[0]),2);
+      I_off_n[0][20] = 1.59e-7*pow(vdd_real[0]/(vdd[0]),2);
+      I_off_n[0][30] = 1.68e-7*pow(vdd_real[0]/(vdd[0]),2);
+      I_off_n[0][40] = 1.90e-7*pow(vdd_real[0]/(vdd[0]),2);
+      I_off_n[0][50] = 2.69e-7*pow(vdd_real[0]/(vdd[0]),2);
+      I_off_n[0][60] = 5.32e-7*pow(vdd_real[0]/(vdd[0]),2);
+      I_off_n[0][70] = 1.02e-6*pow(vdd_real[0]/(vdd[0]),2);
+      I_off_n[0][80] = 1.62e-6*pow(vdd_real[0]/(vdd[0]),2);
+      I_off_n[0][90] = 2.73e-6*pow(vdd_real[0]/(vdd[0]),2);
+      I_off_n[0][100] = 6.1e-6*pow(vdd_real[0]/(vdd[0]),2);
 
       I_g_on_n[0][0]  = 6.55e-8;//A/micron
       I_g_on_n[0][10] = 6.55e-8;
@@ -1136,6 +1151,8 @@ void init_tech_params(double technology, bool is_tag)
 
       //LSTP device type
       vdd[1] = 1;
+      vdd_real[1] = g_ip->specific_lstp_vdd ? g_ip->lstp_Vdd : vdd[1];
+      alpha_power_law[1]=1.27;
       Lphy[1] = 0.020;
       Lelec[1] = 0.0173;
       t_ox[1] = 1.2e-3;
@@ -1146,25 +1163,25 @@ void init_tech_params(double technology, bool is_tag)
       c_g_ideal[1] = 4.58e-16;
       c_fringe[1] = 0.053e-15;
       c_junc[1] = 1e-15;
-      I_on_n[1] = 683.6e-6;
+      I_on_n[1] = 683.6e-6*pow((vdd_real[1]-v_th[1])/(vdd[1]-v_th[1]),alpha_power_law[1]);
       I_on_p[1] = I_on_n[1] / 2;
       nmos_effective_resistance_multiplier = 1.99;
       n_to_p_eff_curr_drv_ratio[1] = 2.23;
       gmp_to_gmn_multiplier[1] = 0.99;
-      Rnchannelon[1] = nmos_effective_resistance_multiplier * vdd[1] / I_on_n[1];
+      Rnchannelon[1] = nmos_effective_resistance_multiplier * vdd_real[1] / I_on_n[1];
       Rpchannelon[1] = n_to_p_eff_curr_drv_ratio[1] * Rnchannelon[1];
       long_channel_leakage_reduction[1] = 1/1.93;
-      I_off_n[1][0] = 2.06e-11;
-      I_off_n[1][10] = 3.30e-11;
-      I_off_n[1][20] = 5.15e-11;
-      I_off_n[1][30] = 7.83e-11;
-      I_off_n[1][40] = 1.16e-10;
-      I_off_n[1][50] = 1.69e-10;
-      I_off_n[1][60] = 2.40e-10;
-      I_off_n[1][70] = 3.34e-10;
-      I_off_n[1][80] = 4.54e-10;
-      I_off_n[1][90] = 5.96e-10;
-      I_off_n[1][100] = 7.44e-10;
+      I_off_n[1][0] = 2.06e-11*pow(vdd_real[1]/(vdd[1]),1);
+      I_off_n[1][10] = 3.30e-11*pow(vdd_real[1]/(vdd[1]),1);
+      I_off_n[1][20] = 5.15e-11*pow(vdd_real[1]/(vdd[1]),1);
+      I_off_n[1][30] = 7.83e-11*pow(vdd_real[1]/(vdd[1]),1);
+      I_off_n[1][40] = 1.16e-10*pow(vdd_real[1]/(vdd[1]),1);
+      I_off_n[1][50] = 1.69e-10*pow(vdd_real[1]/(vdd[1]),1);
+      I_off_n[1][60] = 2.40e-10*pow(vdd_real[1]/(vdd[1]),1);
+      I_off_n[1][70] = 3.34e-10*pow(vdd_real[1]/(vdd[1]),1);
+      I_off_n[1][80] = 4.54e-10*pow(vdd_real[1]/(vdd[1]),1);
+      I_off_n[1][90] = 5.96e-10*pow(vdd_real[1]/(vdd[1]),1);
+      I_off_n[1][100] = 7.44e-10*pow(vdd_real[1]/(vdd[1]),1);
 
       I_g_on_n[1][0]  = 3.73e-11;//A/micron
       I_g_on_n[1][10] = 3.73e-11;
@@ -1181,6 +1198,8 @@ void init_tech_params(double technology, bool is_tag)
 
       //LOP device type
       vdd[2] = 0.6;
+      vdd_real[2] = g_ip->specific_lop_vdd ? g_ip->lop_Vdd : vdd[2];//TODO
+      alpha_power_law[2]=1.26;
       Lphy[2] = 0.016;
       Lelec[2] = 0.01232;
       t_ox[2] = 0.9e-3;
@@ -1191,25 +1210,25 @@ void init_tech_params(double technology, bool is_tag)
       c_g_ideal[2] = 4.54e-16;
       c_fringe[2] = 0.057e-15;
       c_junc[2] = 1e-15;
-      I_on_n[2] = 827.8e-6;
+      I_on_n[2] = 827.8e-6*pow((vdd_real[2]-v_th[2])/(vdd[2]-v_th[2]),alpha_power_law[2]);
       I_on_p[2] = I_on_n[2] / 2;
       nmos_effective_resistance_multiplier = 1.73;
       n_to_p_eff_curr_drv_ratio[2] = 2.28;
       gmp_to_gmn_multiplier[2] = 1.11;
-      Rnchannelon[2] = nmos_effective_resistance_multiplier * vdd[2] / I_on_n[2];
+      Rnchannelon[2] = nmos_effective_resistance_multiplier * vdd_real[2] / I_on_n[2];
       Rpchannelon[2] = n_to_p_eff_curr_drv_ratio[2] * Rnchannelon[2];
       long_channel_leakage_reduction[2] = 1/1.89;
-      I_off_n[2][0] = 5.94e-8;
-      I_off_n[2][10] = 7.23e-8;
-      I_off_n[2][20] = 8.7e-8;
-      I_off_n[2][30] = 1.04e-7;
-      I_off_n[2][40] = 1.22e-7;
-      I_off_n[2][50] = 1.43e-7;
-      I_off_n[2][60] = 1.65e-7;
-      I_off_n[2][70] = 1.90e-7;
-      I_off_n[2][80] = 2.15e-7;
-      I_off_n[2][90] = 2.39e-7;
-      I_off_n[2][100] = 2.63e-7;
+      I_off_n[2][0] = 5.94e-8*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][10] = 7.23e-8*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][20] = 8.7e-8*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][30] = 1.04e-7*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][40] = 1.22e-7*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][50] = 1.43e-7*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][60] = 1.65e-7*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][70] = 1.90e-7*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][80] = 2.15e-7*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][90] = 2.39e-7*pow(vdd_real[2]/(vdd[2]),5);
+      I_off_n[2][100] = 2.63e-7*pow(vdd_real[2]/(vdd[2]),5);
 
       I_g_on_n[2][0]  = 2.93e-9;//A/micron
       I_g_on_n[2][10] = 2.93e-9;
@@ -1340,11 +1359,13 @@ void init_tech_params(double technology, bool is_tag)
 
     if(tech == 22){
         SENSE_AMP_D = .03e-9; // s
-	SENSE_AMP_P = 2.16e-15; // J
+        SENSE_AMP_P = 2.16e-15; // J
     	//For 2016, MPU/ASIC stagger-contacted M1 half-pitch is 22 nm (so this is 22 nm
     	//technology i.e. FEATURESIZE = 0.022). Using the DG process numbers for HP.
     	//22 nm HP
     	vdd[0] = 0.8;
+        vdd_real[0] = g_ip->specific_hp_vdd ? g_ip->hp_Vdd : vdd[0];//TODO
+        alpha_power_law[0]=1.2;//1.3//1.15;
     	Lphy[0] = 0.009;//Lphy is the physical gate-length.
     	Lelec[0] = 0.00468;//Lelec is the electrical gate-length.
     	t_ox[0] = 0.55e-3;//micron
@@ -1355,26 +1376,26 @@ void init_tech_params(double technology, bool is_tag)
     	c_g_ideal[0] = 3.27e-16;//F/micron
     	c_fringe[0] = 0.06e-15;//F/micron
     	c_junc[0] = 0;//F/micron2
-    	I_on_n[0] =  2626.4e-6;//A/micron
+    	I_on_n[0] =  2626.4e-6*pow((vdd_real[0]-v_th[0])/(vdd[0]-v_th[0]),alpha_power_law[0]);//A/micron
     	I_on_p[0] = I_on_n[0] / 2;//A/micron //This value for I_on_p is not really used.
         nmos_effective_resistance_multiplier = 1.45;
         n_to_p_eff_curr_drv_ratio[0] = 2; //Wpmos/Wnmos = 2 in 2007 MASTAR. Look in
     	//"Dynamic" tab of Device workspace.
         gmp_to_gmn_multiplier[0] = 1.38; //Just using the 32nm SOI value.
-        Rnchannelon[0] = nmos_effective_resistance_multiplier * vdd[0] / I_on_n[0];//ohm-micron
+        Rnchannelon[0] = nmos_effective_resistance_multiplier * vdd_real[0] / I_on_n[0];//ohm-micron
         Rpchannelon[0] = n_to_p_eff_curr_drv_ratio[0] * Rnchannelon[0];//ohm-micron
         long_channel_leakage_reduction[0] = 1/3.274;
-        I_off_n[0][0] = 1.52e-7/1.5*1.2;//From 22nm, leakage current are directly from ITRS report rather than MASTAR, since MASTAR has serious bugs there.
-        I_off_n[0][10] = 1.55e-7/1.5*1.2;
-        I_off_n[0][20] = 1.59e-7/1.5*1.2;
-        I_off_n[0][30] = 1.68e-7/1.5*1.2;
-        I_off_n[0][40] = 1.90e-7/1.5*1.2;
-        I_off_n[0][50] = 2.69e-7/1.5*1.2;
-        I_off_n[0][60] = 5.32e-7/1.5*1.2;
-        I_off_n[0][70] = 1.02e-6/1.5*1.2;
-        I_off_n[0][80] = 1.62e-6/1.5*1.2;
-        I_off_n[0][90] = 2.73e-6/1.5*1.2;
-        I_off_n[0][100] = 6.1e-6/1.5*1.2;
+        I_off_n[0][0] = 1.52e-7/1.5*1.2*pow(vdd_real[0]/(vdd[0]),2);//From 22nm, leakage current are directly from ITRS report rather than MASTAR, since MASTAR has serious bugs there.
+        I_off_n[0][10] = 1.55e-7/1.5*1.2*pow(vdd_real[0]/(vdd[0]),2);
+        I_off_n[0][20] = 1.59e-7/1.5*1.2*pow(vdd_real[0]/(vdd[0]),2);
+        I_off_n[0][30] = 1.68e-7/1.5*1.2*pow(vdd_real[0]/(vdd[0]),2);
+        I_off_n[0][40] = 1.90e-7/1.5*1.2*pow(vdd_real[0]/(vdd[0]),2);
+        I_off_n[0][50] = 2.69e-7/1.5*1.2*pow(vdd_real[0]/(vdd[0]),2);
+        I_off_n[0][60] = 5.32e-7/1.5*1.2*pow(vdd_real[0]/(vdd[0]),2);
+        I_off_n[0][70] = 1.02e-6/1.5*1.2*pow(vdd_real[0]/(vdd[0]),2);
+        I_off_n[0][80] = 1.62e-6/1.5*1.2*pow(vdd_real[0]/(vdd[0]),2);
+        I_off_n[0][90] = 2.73e-6/1.5*1.2*pow(vdd_real[0]/(vdd[0]),2);
+        I_off_n[0][100] = 6.1e-6/1.5*1.2*pow(vdd_real[0]/(vdd[0]),2);
         //for 22nm DG HP
         I_g_on_n[0][0]  = 1.81e-9;//A/micron
         I_g_on_n[0][10] = 1.81e-9;
@@ -1390,6 +1411,8 @@ void init_tech_params(double technology, bool is_tag)
 
     	//22 nm LSTP DG
     	vdd[1] = 0.8;
+        vdd_real[1] = g_ip->specific_lstp_vdd ? g_ip->lstp_Vdd : vdd[1];//TODO
+        alpha_power_law[1]=1.23;
     	Lphy[1] = 0.014;
     	Lelec[1] = 0.008;//Lelec is the electrical gate-length.
     	t_ox[1] = 1.1e-3;//micron
@@ -1400,25 +1423,25 @@ void init_tech_params(double technology, bool is_tag)
     	c_g_ideal[1] = 3.22e-16;//F/micron
     	c_fringe[1] = 0.08e-15;
     	c_junc[1] = 0;//F/micron2
-    	I_on_n[1] = 727.6e-6;//A/micron
+    	I_on_n[1] = 727.6e-6*pow((vdd_real[1]-v_th[1])/(vdd[1]-v_th[1]),alpha_power_law[1]);//A/micron
     	I_on_p[1] = I_on_n[1] / 2;
     	nmos_effective_resistance_multiplier = 1.99;
     	n_to_p_eff_curr_drv_ratio[1] = 2;
     	gmp_to_gmn_multiplier[1] = 0.99;
-    	Rnchannelon[1] = nmos_effective_resistance_multiplier * vdd[1] / I_on_n[1];//ohm-micron
+    	Rnchannelon[1] = nmos_effective_resistance_multiplier * vdd_real[1] / I_on_n[1];//ohm-micron
     	Rpchannelon[1] = n_to_p_eff_curr_drv_ratio[1] * Rnchannelon[1];//ohm-micron
     	long_channel_leakage_reduction[1] = 1/1.89;
-    	I_off_n[1][0] = 2.43e-11;
-    	I_off_n[1][10] = 4.85e-11;
-    	I_off_n[1][20] = 9.68e-11;
-    	I_off_n[1][30] = 1.94e-10;
-    	I_off_n[1][40] = 3.87e-10;
-    	I_off_n[1][50] = 7.73e-10;
-    	I_off_n[1][60] = 3.55e-10;
-    	I_off_n[1][70] = 3.09e-9;
-    	I_off_n[1][80] = 6.19e-9;
-    	I_off_n[1][90] = 1.24e-8;
-    	I_off_n[1][100]= 2.48e-8;
+    	I_off_n[1][0] = 2.43e-11*pow(vdd_real[1]/(vdd[1]),1);
+    	I_off_n[1][10] = 4.85e-11*pow(vdd_real[1]/(vdd[1]),1);
+    	I_off_n[1][20] = 9.68e-11*pow(vdd_real[1]/(vdd[1]),1);
+    	I_off_n[1][30] = 1.94e-10*pow(vdd_real[1]/(vdd[1]),1);
+    	I_off_n[1][40] = 3.87e-10*pow(vdd_real[1]/(vdd[1]),1);
+    	I_off_n[1][50] = 7.73e-10*pow(vdd_real[1]/(vdd[1]),1);
+    	I_off_n[1][60] = 3.55e-10*pow(vdd_real[1]/(vdd[1]),1);
+    	I_off_n[1][70] = 3.09e-9*pow(vdd_real[1]/(vdd[1]),1);
+    	I_off_n[1][80] = 6.19e-9*pow(vdd_real[1]/(vdd[1]),1);
+    	I_off_n[1][90] = 1.24e-8*pow(vdd_real[1]/(vdd[1]),1);
+    	I_off_n[1][100]= 2.48e-8*pow(vdd_real[1]/(vdd[1]),1);
 
     	I_g_on_n[1][0]  = 4.51e-10;//A/micron
     	I_g_on_n[1][10] = 4.51e-10;
@@ -1434,6 +1457,8 @@ void init_tech_params(double technology, bool is_tag)
 
     	//22 nm LOP
     	vdd[2] = 0.6;
+        vdd_real[2] = g_ip->specific_lop_vdd ? g_ip->lop_Vdd : vdd[2];//TODO
+        alpha_power_law[2]=1.21;
     	Lphy[2] = 0.011;
     	Lelec[2] = 0.00604;//Lelec is the electrical gate-length.
     	t_ox[2] = 0.8e-3;//micron
@@ -1444,26 +1469,26 @@ void init_tech_params(double technology, bool is_tag)
     	c_g_ideal[2] = 3.16e-16;//F/micron
     	c_fringe[2] = 0.08e-15;
     	c_junc[2] = 0;//F/micron2 This is Cj0 not Cjunc in MASTAR results->Dynamic Tab
-    	I_on_n[2] = 916.1e-6;//A/micron
+    	I_on_n[2] = 916.1e-6*pow((vdd_real[2]-v_th[2])/(vdd[2]-v_th[2]),alpha_power_law[2]);//A/micron
     	I_on_p[2] = I_on_n[2] / 2;
     	nmos_effective_resistance_multiplier = 1.73;
     	n_to_p_eff_curr_drv_ratio[2] = 2;
     	gmp_to_gmn_multiplier[2] = 1.11;
-    	Rnchannelon[2] = nmos_effective_resistance_multiplier * vdd[2] / I_on_n[2];//ohm-micron
+    	Rnchannelon[2] = nmos_effective_resistance_multiplier * vdd_real[2] / I_on_n[2];//ohm-micron
     	Rpchannelon[2] = n_to_p_eff_curr_drv_ratio[2] * Rnchannelon[2];//ohm-micron
     	long_channel_leakage_reduction[2] = 1/2.38;
 
-    	I_off_n[2][0] = 1.31e-8;
-    	I_off_n[2][10] = 2.60e-8;
-    	I_off_n[2][20] = 5.14e-8;
-    	I_off_n[2][30] = 1.02e-7;
-    	I_off_n[2][40] = 2.02e-7;
-    	I_off_n[2][50] = 3.99e-7;
-    	I_off_n[2][60] = 7.91e-7;
-    	I_off_n[2][70] = 1.09e-6;
-    	I_off_n[2][80] = 2.09e-6;
-    	I_off_n[2][90] = 4.04e-6;
-    	I_off_n[2][100]= 4.48e-6;
+    	I_off_n[2][0] = 1.31e-8*pow(vdd_real[2]/(vdd[2]),5);
+    	I_off_n[2][10] = 2.60e-8*pow(vdd_real[2]/(vdd[2]),5);
+    	I_off_n[2][20] = 5.14e-8*pow(vdd_real[2]/(vdd[2]),5);
+    	I_off_n[2][30] = 1.02e-7*pow(vdd_real[2]/(vdd[2]),5);
+    	I_off_n[2][40] = 2.02e-7*pow(vdd_real[2]/(vdd[2]),5);
+    	I_off_n[2][50] = 3.99e-7*pow(vdd_real[2]/(vdd[2]),5);
+    	I_off_n[2][60] = 7.91e-7*pow(vdd_real[2]/(vdd[2]),5);
+    	I_off_n[2][70] = 1.09e-6*pow(vdd_real[2]/(vdd[2]),5);
+    	I_off_n[2][80] = 2.09e-6*pow(vdd_real[2]/(vdd[2]),5);
+    	I_off_n[2][90] = 4.04e-6*pow(vdd_real[2]/(vdd[2]),5);
+    	I_off_n[2][100]= 4.48e-6*pow(vdd_real[2]/(vdd[2]),5);
 
     	I_g_on_n[2][0]  = 2.74e-9;//A/micron
     	I_g_on_n[2][10] = 2.74e-9;
@@ -1732,10 +1757,15 @@ void init_tech_params(double technology, bool is_tag)
         curr_macro_layout_overhead = 1.1;//EDA placement and routing tool rule of thumb
     	}
 
-
-    g_tp.peri_global.Vdd       += curr_alpha * vdd[peri_global_tech_type];
-    g_tp.peri_global.t_ox      += curr_alpha * t_ox[peri_global_tech_type];
+    /*
+     * TODO:WL_Vcc does not need to retain data as long as the wordline enable signal is not active (of course enable signal will not be active since it is idle)
+     * So, the WL_Vcc only need to balance the leakage reduction and the required waking up restore time (as mentioned in the 4.0Ghz 291 Mb SRAM Intel Paper)
+    */
+    g_tp.peri_global.Vdd       += curr_alpha * vdd_real[peri_global_tech_type];//real vdd, user defined or itrs
+    g_tp.peri_global.Vdd_default  += curr_alpha * vdd[peri_global_tech_type];//itrs vdd this does not have to do within line interpolation loop, can be assigned directly
     g_tp.peri_global.Vth       += curr_alpha * v_th[peri_global_tech_type];
+    g_tp.peri_global.Vcc_min_default   += g_tp.peri_global.Vdd_default * 0.45;// Use minimal voltage to keep the device conducted.//g_tp.peri_global.Vth;
+    g_tp.peri_global.t_ox      += curr_alpha * t_ox[peri_global_tech_type];
     g_tp.peri_global.C_ox      += curr_alpha * c_ox[peri_global_tech_type];
     g_tp.peri_global.C_g_ideal += curr_alpha * c_g_ideal[peri_global_tech_type];
     g_tp.peri_global.C_fringe  += curr_alpha * c_fringe[peri_global_tech_type];
@@ -1750,17 +1780,48 @@ void init_tech_params(double technology, bool is_tag)
       += curr_alpha * n_to_p_eff_curr_drv_ratio[peri_global_tech_type];
     g_tp.peri_global.long_channel_leakage_reduction
       += curr_alpha * long_channel_leakage_reduction[peri_global_tech_type];
-    g_tp.peri_global.I_off_n   += curr_alpha * I_off_n[peri_global_tech_type][g_ip->temp - 300];
-    g_tp.peri_global.I_off_p   += curr_alpha * I_off_n[peri_global_tech_type][g_ip->temp - 300];
+    g_tp.peri_global.I_off_n   += curr_alpha * I_off_n[peri_global_tech_type][g_ip->temp - 300];//*pow(g_tp.peri_global.Vdd/g_tp.peri_global.Vdd_default,3);//Consider the voltage change may affect the current density as well. TODO: polynomial curve-fitting based on MASTAR may not be accurate enough
+    g_tp.peri_global.I_off_p   += curr_alpha * I_off_n[peri_global_tech_type][g_ip->temp - 300];//*pow(g_tp.peri_global.Vdd/g_tp.peri_global.Vdd_default,3);//To mimic the Vdd effect on Ioff (for the same device, dvs should not change default Ioff---only changes if device is different?? but MASTAR shows different results)
     g_tp.peri_global.I_g_on_n   += curr_alpha * I_g_on_n[peri_global_tech_type][g_ip->temp - 300];
     g_tp.peri_global.I_g_on_p   += curr_alpha * I_g_on_n[peri_global_tech_type][g_ip->temp - 300];
     gmp_to_gmn_multiplier_periph_global += curr_alpha * gmp_to_gmn_multiplier[peri_global_tech_type];
+    g_tp.peri_global.Mobility_n += curr_alpha *mobility_eff[peri_global_tech_type];
 
-    g_tp.sram_cell.Vdd       += curr_alpha * vdd[ram_cell_tech_type];
+    //Sleep tx uses LSTP devices
+    g_tp.sleep_tx.Vdd       += curr_alpha * vdd_real[1];
+    g_tp.sleep_tx.Vdd_default  += curr_alpha * vdd[1];
+    g_tp.sleep_tx.Vth       += curr_alpha * v_th[1];
+    g_tp.sleep_tx.Vcc_min_default   += g_tp.sleep_tx.Vdd;
+    g_tp.sleep_tx.Vcc_min = g_tp.sleep_tx.Vcc_min_default;//user cannot change this, has to be decided by technology
+    g_tp.sleep_tx.t_ox      += curr_alpha * t_ox[1];
+    g_tp.sleep_tx.C_ox      += curr_alpha * c_ox[1];
+    g_tp.sleep_tx.C_g_ideal += curr_alpha * c_g_ideal[1];
+    g_tp.sleep_tx.C_fringe  += curr_alpha * c_fringe[1];
+    g_tp.sleep_tx.C_junc    += curr_alpha * c_junc[1];
+    g_tp.sleep_tx.C_junc_sidewall = 0.25e-15;  // F/micron
+    g_tp.sleep_tx.l_phy     += curr_alpha * Lphy[1];
+    g_tp.sleep_tx.l_elec    += curr_alpha * Lelec[1];
+    g_tp.sleep_tx.I_on_n    += curr_alpha * I_on_n[1];
+    g_tp.sleep_tx.R_nch_on  += curr_alpha * Rnchannelon[1];
+    g_tp.sleep_tx.R_pch_on  += curr_alpha * Rpchannelon[1];
+    g_tp.sleep_tx.n_to_p_eff_curr_drv_ratio
+      += curr_alpha * n_to_p_eff_curr_drv_ratio[1];
+    g_tp.sleep_tx.long_channel_leakage_reduction
+      += curr_alpha * long_channel_leakage_reduction[1];
+    g_tp.sleep_tx.I_off_n   += curr_alpha * I_off_n[1][g_ip->temp - 300];//**pow(g_tp.sleep_tx.Vdd/g_tp.sleep_tx.Vdd_default,4);
+    g_tp.sleep_tx.I_off_p   += curr_alpha * I_off_n[1][g_ip->temp - 300];//**pow(g_tp.sleep_tx.Vdd/g_tp.sleep_tx.Vdd_default,4);
+    g_tp.sleep_tx.I_g_on_n   += curr_alpha * I_g_on_n[1][g_ip->temp - 300];
+    g_tp.sleep_tx.I_g_on_p   += curr_alpha * I_g_on_n[1][g_ip->temp - 300];
+    g_tp.sleep_tx.Mobility_n += curr_alpha *mobility_eff[1];
+ //   gmp_to_gmn_multiplier_periph_global += curr_alpha * gmp_to_gmn_multiplier[1];
+
+    g_tp.sram_cell.Vdd       += curr_alpha * vdd_real[ram_cell_tech_type];
+    g_tp.sram_cell.Vdd_default       += curr_alpha * vdd[ram_cell_tech_type];
+    g_tp.sram_cell.Vth       += curr_alpha * v_th[ram_cell_tech_type];
+    g_tp.sram_cell.Vcc_min_default   += g_tp.sram_cell.Vdd_default * 0.6;
     g_tp.sram_cell.l_phy     += curr_alpha * Lphy[ram_cell_tech_type];
     g_tp.sram_cell.l_elec    += curr_alpha * Lelec[ram_cell_tech_type];
     g_tp.sram_cell.t_ox      += curr_alpha * t_ox[ram_cell_tech_type];
-    g_tp.sram_cell.Vth       += curr_alpha * v_th[ram_cell_tech_type];
     g_tp.sram_cell.C_g_ideal += curr_alpha * c_g_ideal[ram_cell_tech_type];
     g_tp.sram_cell.C_fringe  += curr_alpha * c_fringe[ram_cell_tech_type];
     g_tp.sram_cell.C_junc    += curr_alpha * c_junc[ram_cell_tech_type];
@@ -1770,8 +1831,8 @@ void init_tech_params(double technology, bool is_tag)
     g_tp.sram_cell.R_pch_on  += curr_alpha * Rpchannelon[ram_cell_tech_type];
     g_tp.sram_cell.n_to_p_eff_curr_drv_ratio += curr_alpha * n_to_p_eff_curr_drv_ratio[ram_cell_tech_type];
     g_tp.sram_cell.long_channel_leakage_reduction += curr_alpha * long_channel_leakage_reduction[ram_cell_tech_type];
-    g_tp.sram_cell.I_off_n   += curr_alpha * I_off_n[ram_cell_tech_type][g_ip->temp - 300];
-    g_tp.sram_cell.I_off_p   += curr_alpha * I_off_n[ram_cell_tech_type][g_ip->temp - 300];
+    g_tp.sram_cell.I_off_n   += curr_alpha * I_off_n[ram_cell_tech_type][g_ip->temp - 300];//**pow(g_tp.sram_cell.Vdd/g_tp.sram_cell.Vdd_default,4);
+    g_tp.sram_cell.I_off_p   += curr_alpha * I_off_n[ram_cell_tech_type][g_ip->temp - 300];//**pow(g_tp.sram_cell.Vdd/g_tp.sram_cell.Vdd_default,4);
     g_tp.sram_cell.I_g_on_n   += curr_alpha * I_g_on_n[ram_cell_tech_type][g_ip->temp - 300];
     g_tp.sram_cell.I_g_on_p   += curr_alpha * I_g_on_n[ram_cell_tech_type][g_ip->temp - 300];
 
@@ -1802,7 +1863,8 @@ void init_tech_params(double technology, bool is_tag)
     g_tp.dram_wl.I_off_n    += curr_alpha * I_off_n[dram_cell_tech_flavor][g_ip->temp - 300];
     g_tp.dram_wl.I_off_p    += curr_alpha * I_off_n[dram_cell_tech_flavor][g_ip->temp - 300];
 
-    g_tp.cam_cell.Vdd       += curr_alpha * vdd[ram_cell_tech_type];
+    g_tp.cam_cell.Vdd       += curr_alpha * vdd_real[ram_cell_tech_type];
+    g_tp.cam_cell.Vdd_default       += curr_alpha * vdd[ram_cell_tech_type];
     g_tp.cam_cell.l_phy     += curr_alpha * Lphy[ram_cell_tech_type];
     g_tp.cam_cell.l_elec    += curr_alpha * Lelec[ram_cell_tech_type];
     g_tp.cam_cell.t_ox      += curr_alpha * t_ox[ram_cell_tech_type];
@@ -1816,8 +1878,8 @@ void init_tech_params(double technology, bool is_tag)
     g_tp.cam_cell.R_pch_on  += curr_alpha * Rpchannelon[ram_cell_tech_type];
     g_tp.cam_cell.n_to_p_eff_curr_drv_ratio += curr_alpha * n_to_p_eff_curr_drv_ratio[ram_cell_tech_type];
     g_tp.cam_cell.long_channel_leakage_reduction += curr_alpha * long_channel_leakage_reduction[ram_cell_tech_type];
-    g_tp.cam_cell.I_off_n   += curr_alpha * I_off_n[ram_cell_tech_type][g_ip->temp - 300];
-    g_tp.cam_cell.I_off_p   += curr_alpha * I_off_n[ram_cell_tech_type][g_ip->temp - 300];
+    g_tp.cam_cell.I_off_n   += curr_alpha * I_off_n[ram_cell_tech_type][g_ip->temp - 300];//*pow(g_tp.cam_cell.Vdd/g_tp.cam_cell.Vdd_default,4);
+    g_tp.cam_cell.I_off_p   += curr_alpha * I_off_n[ram_cell_tech_type][g_ip->temp - 300];//**pow(g_tp.cam_cell.Vdd/g_tp.cam_cell.Vdd_default,4);
     g_tp.cam_cell.I_g_on_n   += curr_alpha * I_g_on_n[ram_cell_tech_type][g_ip->temp - 300];
     g_tp.cam_cell.I_g_on_p   += curr_alpha * I_g_on_n[ram_cell_tech_type][g_ip->temp - 300];
 
@@ -1853,7 +1915,7 @@ void init_tech_params(double technology, bool is_tag)
 
 
   //Currently we are not modeling the resistance/capacitance of poly anywhere.
-  //Continuous function (or date have been processed) does not need linear interpolation
+  //following data are continuous function (or data have been processed) does not need linear interpolation
   g_tp.w_comp_inv_p1 = 12.5 * g_ip->F_sz_um;//this was 10 micron for the 0.8 micron process
   g_tp.w_comp_inv_n1 =  7.5 * g_ip->F_sz_um;//this was  6 micron for the 0.8 micron process
   g_tp.w_comp_inv_p2 =   25 * g_ip->F_sz_um;//this was 20 micron for the 0.8 micron process
@@ -1906,7 +1968,7 @@ void init_tech_params(double technology, bool is_tag)
 
   double gmn_sense_amp_latch = (mobility_eff_periph_global / 2) * g_tp.peri_global.C_ox * (g_tp.w_sense_n / g_tp.peri_global.l_elec) * Vdsat_periph_global;
   double gmp_sense_amp_latch = gmp_to_gmn_multiplier_periph_global * gmn_sense_amp_latch;
-  g_tp.gm_sense_amp_latch = gmn_sense_amp_latch + gmp_sense_amp_latch;
+  g_tp.gm_sense_amp_latch = gmn_sense_amp_latch + gmp_sense_amp_latch * pow((g_tp.peri_global.Vdd-g_tp.peri_global.Vth)/(g_tp.peri_global.Vdd_default-g_tp.peri_global.Vth),1.3)/(g_tp.peri_global.Vdd/g_tp.peri_global.Vdd_default);
 
   g_tp.dram.b_w = sqrt(area_cell_dram / (asp_ratio_cell_dram));
   g_tp.dram.b_h = asp_ratio_cell_dram * g_tp.dram.b_w;
@@ -1916,13 +1978,56 @@ void init_tech_params(double technology, bool is_tag)
   g_tp.cam.b_h = asp_ratio_cell_cam * g_tp.cam.b_w;
 
   g_tp.dram.Vbitpre = g_tp.dram_cell_Vdd;
-  g_tp.sram.Vbitpre = vdd[ram_cell_tech_type];
-  g_tp.cam.Vbitpre = vdd[ram_cell_tech_type];//Sheng
+  g_tp.sram.Vbitpre = g_tp.sram_cell.Vdd;//vdd[ram_cell_tech_type];
+  g_tp.cam.Vbitpre = g_tp.cam_cell.Vdd;//vdd[ram_cell_tech_type];//Sheng
   pmos_to_nmos_sizing_r = pmos_to_nmos_sz_ratio();
   g_tp.w_pmos_bl_precharge = 6 * pmos_to_nmos_sizing_r * g_tp.min_w_nmos_;
   g_tp.w_pmos_bl_eq = pmos_to_nmos_sizing_r * g_tp.min_w_nmos_;
 
+  //DVS and power-gating voltage finalization
+  if (g_tp.sram_cell.Vcc_min_default > g_tp.sram_cell.Vdd
+		  || g_tp.peri_global.Vdd < g_tp.peri_global.Vdd_default*0.75
+		  || g_tp.sram_cell.Vdd < g_tp.sram_cell.Vdd_default*0.75)
+    {
+      cerr << "User defined Vdd is too low.\n\n"<< endl;
+      exit(0);
+    }
 
+  if (g_ip->specific_vcc_min)
+  {
+	  g_tp.sram_cell.Vcc_min = g_ip->user_defined_vcc_min;
+	  g_tp.peri_global.Vcc_min = g_ip->user_defined_vcc_min;
+	  g_tp.sram.Vbitfloating = g_tp.sram.Vbitpre*0.7*(g_tp.sram_cell.Vcc_min/g_tp.peri_global.Vcc_min_default);
+//	  if (g_ip->user_defined_vcc_min < g_tp.peri_global.Vcc_min_default)
+//	  {
+//		  g_tp.peri_global.Vcc_min = g_ip->user_defined_vcc_min;
+//	  }
+//	  else {
+//
+//	  }
+  }
+  else
+  {
+	  g_tp.sram_cell.Vcc_min = g_tp.sram_cell.Vcc_min_default;
+	  g_tp.peri_global.Vcc_min = g_tp.peri_global.Vcc_min_default;
+	  g_tp.sram.Vbitfloating = g_tp.sram.Vbitpre*0.7;
+  }
+
+  if (g_tp.sram_cell.Vcc_min < g_tp.sram_cell.Vcc_min_default )//if want to compute multiple power-gating vdd settings in one run, should have multiple results copies (each copy containing such flag) in update_pg ()
+  {
+	  g_ip->user_defined_vcc_underflow = true;
+  }
+  else
+  {
+	  g_ip->user_defined_vcc_underflow = false;
+  }
+
+  if (g_tp.sram_cell.Vcc_min > g_tp.sram_cell.Vdd
+		  || g_tp.peri_global.Vcc_min > g_tp.peri_global.Vdd)
+    {
+      cerr << "User defined power-saving supply voltage cannot be lower than Vdd (DVS0).\n\n"<< endl;
+      exit(0);
+    }
   double wire_pitch       [NUMBER_INTERCONNECT_PROJECTION_TYPES][NUMBER_WIRE_TYPES],
          wire_r_per_micron[NUMBER_INTERCONNECT_PROJECTION_TYPES][NUMBER_WIRE_TYPES],
          wire_c_per_micron[NUMBER_INTERCONNECT_PROJECTION_TYPES][NUMBER_WIRE_TYPES],

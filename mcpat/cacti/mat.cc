@@ -1,43 +1,33 @@
-/*------------------------------------------------------------
- *                              CACTI 6.5
- *         Copyright 2008 Hewlett-Packard Development Corporation
- *                         All Rights Reserved
+/*****************************************************************************
+ *                                McPAT/CACTI
+ *                      SOFTWARE LICENSE AGREEMENT
+ *            Copyright 2012 Hewlett-Packard Development Company, L.P.
+ *                          All Rights Reserved
  *
- * Permission to use, copy, and modify this software and its documentation is
- * hereby granted only under the following terms and conditions.  Both the
- * above copyright notice and this permission notice must appear in all copies
- * of the software, derivative works or modified versions, and any portions
- * thereof, and both notices must appear in supporting documentation.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met: redistributions of source code must retain the above copyright
+ * notice, this list of conditions and the following disclaimer;
+ * redistributions in binary form must reproduce the above copyright
+ * notice, this list of conditions and the following disclaimer in the
+ * documentation and/or other materials provided with the distribution;
+ * neither the name of the copyright holders nor the names of its
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.”
  *
- * Users of this software agree to the terms and conditions set forth herein, and
- * hereby grant back to Hewlett-Packard Company and its affiliated companies ("HP")
- * a non-exclusive, unrestricted, royalty-free right and license under any changes,
- * enhancements or extensions  made to the core functions of the software, including
- * but not limited to those affording compatibility with other hardware or software
- * environments, but excluding applications which incorporate this software.
- * Users further agree to use their best efforts to return to HP any such changes,
- * enhancements or extensions that they make and inform HP of noteworthy uses of
- * this software.  Correspondence should be provided to HP at:
- *
- *                       Director of Intellectual Property Licensing
- *                       Office of Strategy and Technology
- *                       Hewlett-Packard Company
- *                       1501 Page Mill Road
- *                       Palo Alto, California  94304
- *
- * This software may be distributed (but not offered for sale or transferred
- * for compensation) to third parties, provided such third parties agree to
- * abide by the terms and conditions of this notice.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" AND HP DISCLAIMS ALL
- * WARRANTIES WITH REGARD TO THIS SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS.   IN NO EVENT SHALL HP
- * CORPORATION BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
- * DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR
- * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS
- * ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
- * SOFTWARE.
- *------------------------------------------------------------*/
+ ***************************************************************************/
 
 
 
@@ -71,8 +61,12 @@ Mat::Mat(const DynamicParameter & dyn_p)
   delay_comparator(0), power_comparator(),
   num_do_b_mat(dyn_p.num_do_b_mat), num_so_b_mat(dyn_p.num_so_b_mat),
   num_subarrays_per_mat(dp.num_subarrays/dp.num_mats),
-  num_subarrays_per_row(dp.Ndwl/dp.num_mats_h_dir)
-{
+  num_subarrays_per_row(dp.Ndwl/dp.num_mats_h_dir),
+  array_leakage(0),
+  wl_leakage(0),
+  cl_leakage(0),
+  sram_sleep_tx(0)
+ {
   assert(num_subarrays_per_mat <= 4);
   assert(num_subarrays_per_row <= 2);
   is_fa = (dp.fully_assoc) ? true : false;
@@ -169,7 +163,11 @@ Mat::Mat(const DynamicParameter & dyn_p)
       false/*is_fa*/,
       is_dram,
       true,
-      camFlag? cam_cell:cell);
+      camFlag? cam_cell:cell,
+      g_ip->power_gating? true:false,
+      subarray.num_rows);
+
+//  row_dec->nodes_DSTN = subarray.num_rows;//TODO: this is not a good way for OOO programming
 //  if (is_fa && (!dp.is_tag))
 //  {
 //    row_dec->exist = true;
@@ -182,7 +180,8 @@ Mat::Mat(const DynamicParameter & dyn_p)
       false/*is_fa*/,
       is_dram,
       false,
-      camFlag? cam_cell:cell);
+      camFlag? cam_cell:cell,
+      g_ip->power_gating? true:false);
   sa_mux_lev_1_dec = new Decoder(
       dp.deg_senseamp_muxing_non_associativity, // This number is 1 for FA or CAM
       dp.number_way_select_signals_mat ? true : false,//only sa_mux_lev_1_dec needs way select signal
@@ -191,7 +190,8 @@ Mat::Mat(const DynamicParameter & dyn_p)
       false/*is_fa*/,
       is_dram,
       false,
-      camFlag? cam_cell:cell);
+      camFlag? cam_cell:cell,
+      g_ip->power_gating? true:false);
   sa_mux_lev_2_dec = new Decoder(
       dp.Ndsam_lev_2, // This number is 1 for FA or CAM
       false,
@@ -200,7 +200,8 @@ Mat::Mat(const DynamicParameter & dyn_p)
       false/*is_fa*/,
       is_dram,
       false,
-      camFlag? cam_cell:cell);
+      camFlag? cam_cell:cell,
+      g_ip->power_gating? true:false);
 
   double C_wire_predec_blk_out;
   double R_wire_predec_blk_out;
@@ -263,7 +264,7 @@ Mat::Mat(const DynamicParameter & dyn_p)
   sa_mux_lev_1_predec = new Predec(sa_mux_lev_1_predec_blk_drv1, sa_mux_lev_1_predec_blk_drv2);
   sa_mux_lev_2_predec = new Predec(sa_mux_lev_2_predec_blk_drv1, sa_mux_lev_2_predec_blk_drv2);
 
-  subarray_out_wire   = new Wire(g_ip->wt, subarray.area.h);//Bug should be subarray.area.w Owen and Sheng
+  subarray_out_wire   = new Wire(Global, (g_ip->cl_vertical?subarray.area.w:subarray.area.h),1,1,inside_mat);//should be subarray.area.w;  if with /2 means average length
 
   double driver_c_gate_load;
   double driver_c_wire_load;
@@ -312,6 +313,13 @@ Mat::Mat(const DynamicParameter & dyn_p)
   double h_bit_mux_sense_amp_precharge_sa_mux_write_driver_write_mux =
     compute_bit_mux_sa_precharge_sa_mux_wr_drv_wr_mux_h();
 
+  /* This means the subarray drivers are along the vertical (y) direction since / subarray.area.get_w() is used;
+   * so the subarray_out_wire (actually the drivers) under the subarray and along the horizontal (x) direction
+   * So as mentioned above @ line 271
+   * subarray_out_wire   = new Wire(g_ip->wt, subarray.area.h);//should be subarray.area.w
+   * change the out_wire (driver to along y direction need carefully rethinking
+   * rather than just simply switch w with h )
+   * */
   double h_subarray_out_drv = subarray_out_wire->area.get_area() *
     (subarray.num_cols / (deg_bl_muxing * dp.Ndsam_lev_1 * dp.Ndsam_lev_2)) / subarray.area.get_w();
 
@@ -328,6 +336,33 @@ Mat::Mat(const DynamicParameter & dyn_p)
     //tagbits = (4 * num_cols_subarray / (deg_bl_muxing * dp.Ndsam_lev_1 * dp.Ndsam_lev_2)) / num_do_b_mat;
     h_comparators  = compute_comparators_height(dp.tagbits, dyn_p.num_do_b_mat, subarray.area.get_w());
     h_comparators *= (RWP + ERP);
+  }
+
+  //power-gating circuit
+  bool is_footer = false;
+  double Isat_subarray = 2* simplified_nmos_Isat(g_tp.sram.cell_nmos_w, is_dram, true);//only one wordline active in a subarray 2 means two inverters in an SRAM cell
+  double detalV_array, deltaV_wl, deltaV_floatingBL;
+  double c_wakeup_array;
+
+  if (!(is_fa || pure_cam) && g_ip->power_gating)
+  {//for SRAM only at this moment
+	  c_wakeup_array = drain_C_(g_tp.sram.cell_pmos_w, _PCH, 1, 1, cell.h, is_dram, true);//1 inv
+	  c_wakeup_array +=  2*drain_C_(g_tp.sram.cell_pmos_w, _PCH, 1, 1, cell.h, is_dram, true)
+						  + drain_C_(g_tp.sram.cell_nmos_w, NCH, 1, 1, cell.h, is_dram, true);//1 inv
+	  c_wakeup_array *= subarray.num_rows;//all the SRAM cells in a bitline is connected to the sleep tx to provide Vcc_min
+	  detalV_array = g_tp.sram_cell.Vdd-g_tp.sram_cell.Vcc_min;
+
+	  sram_sleep_tx =  new Sleep_tx (g_ip->perfloss,
+			                        Isat_subarray,
+			                        is_footer,
+			                        c_wakeup_array,
+			                        detalV_array,
+			                        1,
+			                        cell);
+
+	  subarray.area.set_h(subarray.area.h+ sram_sleep_tx->area.h);
+
+	  //TODO: add the sleep tx in the wl driver and
   }
 
 
@@ -483,6 +518,10 @@ Mat::~Mat()
     delete ml_precharge_drv;
     delete ml_to_ram_wl_drv;
   }
+  if (sram_sleep_tx !=0)
+  {
+	  delete sram_sleep_tx;
+  }
 }
 
 
@@ -608,6 +647,8 @@ double Mat::compute_delays(double inrisetime)
     {
       delay_wl_reset = MAX(r_predec->blk1->delay, r_predec->blk2->delay);
     }
+
+//  *out_file<<"r_predec delay=" <<r_predec->delay<<" row_dec delay = " <<row_dec->delay<<endl;
   return outrisetime;
 }
 
@@ -1031,6 +1072,7 @@ double Mat::compute_bitline_delay(double inrisetime)
   double V_b_pre, v_th_mem_cell, V_wl;
   double tstep;
   double dynRdEnergy = 0.0, dynWriteEnergy = 0.0;
+  double blfloating_c =0.0;
   double R_cell_pull_down=0.0, R_cell_acc =0.0, r_dev=0.0;
   int deg_senseamp_muxing = dp.Ndsam_lev_1 * dp.Ndsam_lev_2;
 
@@ -1040,17 +1082,25 @@ double Mat::compute_bitline_delay(double inrisetime)
 
   // TODO: no leakage for DRAMs?
   double leak_power_cc_inverters_sram_cell = 0;
+  double leak_power_cc_inverters_sram_cell_gated = 0;
   double gate_leak_power_cc_inverters_sram_cell = 0;
   double leak_power_acc_tr_RW_or_WR_port_sram_cell = 0;
+  double leak_power_acc_tr_RW_or_WR_port_sram_cell_gated = 0;
   double leak_power_RD_port_sram_cell = 0;
+  double leak_power_RD_port_sram_cell_gated = 0;
   double gate_leak_power_RD_port_sram_cell = 0;
+
+//  double leak_power_cc_inverters_sram_cell_gated = 0;
+//  double leak_power_acc_tr_RW_or_WR_port_sram_cell_floating = 0;
+//  double leak_power_RD_port_sram_cell_floating = 0;
+
 
   if (is_dram == true)
   {
     V_b_pre = g_tp.dram.Vbitpre;
     v_th_mem_cell = g_tp.dram_acc.Vth;
     V_wl = g_tp.vpp;
-    //The access transistor is not folded. So we just need to specify a theshold value for the
+    //The access transistor is not folded. So we just need to specify a threshold value for the
     //folding width that is equal to or greater than Wmemcella.
     R_cell_acc = tr_R_on(g_tp.dram.cell_a_w, NCH, 1, true, true);
     r_dev = g_tp.dram_cell_Vdd / g_tp.dram_cell_I_on + R_bl / 2;
@@ -1068,9 +1118,23 @@ double Mat::compute_bitline_delay(double inrisetime)
     double Iport_erp = cmos_Isub_leakage(g_tp.sram.cell_a_w, 0,  2, nmos,false, true);
     double Icell     = cmos_Isub_leakage(g_tp.sram.cell_nmos_w, g_tp.sram.cell_pmos_w, 1, inv,false, true)*2;//two invs per cell
 
-    leak_power_cc_inverters_sram_cell         = Icell * g_tp.sram_cell.Vdd;
-    leak_power_acc_tr_RW_or_WR_port_sram_cell = Iport * g_tp.sram_cell.Vdd;
-    leak_power_RD_port_sram_cell              = Iport_erp * g_tp.sram_cell.Vdd;
+    leak_power_cc_inverters_sram_cell         = Icell *    g_tp.sram_cell.Vdd;
+    leak_power_acc_tr_RW_or_WR_port_sram_cell = Iport *    g_tp.sram_cell.Vdd;
+    leak_power_RD_port_sram_cell              = Iport_erp *  g_tp.sram_cell.Vdd;
+
+
+//    leak_power_cc_inverters_sram_cell         = Icell *     (g_ip->array_power_gated? g_tp.sram_cell.Vcc_min : g_tp.sram_cell.Vdd);
+//    leak_power_acc_tr_RW_or_WR_port_sram_cell = Iport *     (g_ip->bitline_floating?  g_tp.sram.Vbitfloating : g_tp.sram_cell.Vdd);
+//    leak_power_RD_port_sram_cell              = Iport_erp * (g_ip->bitline_floating?  g_tp.sram.Vbitfloating : g_tp.sram_cell.Vdd);
+
+    leak_power_cc_inverters_sram_cell_gated         = Icell *     g_tp.sram_cell.Vcc_min;
+    leak_power_acc_tr_RW_or_WR_port_sram_cell_gated = Iport *     g_tp.sram.Vbitfloating;
+    leak_power_RD_port_sram_cell_gated              = Iport_erp * g_tp.sram.Vbitfloating;
+//
+//    leak_power_cc_inverters_sram_cell_gated = leak_power_cc_inverters_sram_cell/g_tp.sram_cell.Vdd*g_tp.sram_cell.Vcc_min;
+//    leak_power_acc_tr_RW_or_WR_port_sram_cell_floating = leak_power_acc_tr_RW_or_WR_port_sram_cell/g_tp.sram_cell.Vdd*g_tp.sram.Vbitfloating;
+//    leak_power_RD_port_sram_cell_floating = leak_power_RD_port_sram_cell_floating/g_tp.sram_cell.Vdd*g_tp.sram.Vbitfloating;
+//
 
 
     //in idle state, Ig_on only possibly exist in access transistors of read only ports
@@ -1118,11 +1182,14 @@ double Mat::compute_bitline_delay(double inrisetime)
         R_sense_amp_iso * (C_drain_sense_amp_iso + C_sense_amp_latch + C_drain_sense_amp_mux);
       dynRdEnergy += (C_bl + 2 * C_drain_bit_mux) * 2 * dp.V_b_sense * g_tp.sram_cell.Vdd /*
         subarray.num_cols * num_subarrays_per_mat*/;
+      blfloating_c += (C_bl + 2 * C_drain_bit_mux) * 2;
       dynRdEnergy += (2 * C_drain_sense_amp_iso + C_sense_amp_latch +  C_drain_sense_amp_mux) *
         2 * dp.V_b_sense * g_tp.sram_cell.Vdd * (1.0/*subarray.num_cols * num_subarrays_per_mat*/ / deg_bl_muxing);
+      blfloating_c += (2 * C_drain_sense_amp_iso + C_sense_amp_latch +  C_drain_sense_amp_mux) *2;
       dynWriteEnergy += ((1.0/*subarray.num_cols *num_subarrays_per_mat*/ / deg_bl_muxing) / deg_senseamp_muxing) *
           num_act_mats_hor_dir * (C_bl + 2*C_drain_bit_mux) * g_tp.sram_cell.Vdd * g_tp.sram_cell.Vdd*2;
       //Write Ops are differential for SRAM
+
     }
     else
     {
@@ -1131,16 +1198,34 @@ double Mat::compute_bitline_delay(double inrisetime)
         R_sense_amp_iso * (C_drain_sense_amp_iso + C_sense_amp_latch + C_drain_sense_amp_mux);
       dynRdEnergy += (C_bl + 2 * C_drain_sense_amp_iso + C_sense_amp_latch + C_drain_sense_amp_mux) *
         2 * dp.V_b_sense * g_tp.sram_cell.Vdd /* subarray.num_cols * num_subarrays_per_mat*/;
+
+      blfloating_c += (C_bl + 2 * C_drain_sense_amp_iso + C_sense_amp_latch + C_drain_sense_amp_mux) * 2;
       dynWriteEnergy += (((1.0/*subarray.num_cols * num_subarrays_per_mat*/ / deg_bl_muxing) / deg_senseamp_muxing) *
           num_act_mats_hor_dir * C_bl) * g_tp.sram_cell.Vdd * g_tp.sram_cell.Vdd*2;
 
     }
     tstep = tau * log(V_b_pre / (V_b_pre - dp.V_b_sense));
+//    *out_file<<"R_cell_pull_down ="<<R_cell_pull_down<<" R_cell_acc="<<R_cell_acc<<" R_bl="<<R_bl<<" tstep="<<tstep<<" tau="<<tau<<endl;
+
+//   if (g_ip->array_power_gated)
+//	   power_bitline.readOp.leakage =
+//		      leak_power_cc_inverters_sram_cell_gated +
+//		      leak_power_acc_tr_RW_or_WR_port_sram_cell_floating +
+//		      leak_power_acc_tr_RW_or_WR_port_sram_cell_floating * (RWP + EWP - 1) +
+//		      leak_power_RD_port_sram_cell_floating * ERP;
+//   else
     power_bitline.readOp.leakage =
-      leak_power_cc_inverters_sram_cell +
-      leak_power_acc_tr_RW_or_WR_port_sram_cell +
-      leak_power_acc_tr_RW_or_WR_port_sram_cell * (RWP + EWP - 1) +
-      leak_power_RD_port_sram_cell * ERP;
+    	leak_power_cc_inverters_sram_cell +
+    	leak_power_acc_tr_RW_or_WR_port_sram_cell +
+    	leak_power_acc_tr_RW_or_WR_port_sram_cell * (RWP + EWP - 1) +
+    	leak_power_RD_port_sram_cell * ERP;
+
+    power_bitline.readOp.power_gated_leakage =
+    	leak_power_cc_inverters_sram_cell_gated +
+    	leak_power_acc_tr_RW_or_WR_port_sram_cell_gated +
+    	leak_power_acc_tr_RW_or_WR_port_sram_cell_gated * (RWP + EWP - 1) +
+    	leak_power_RD_port_sram_cell_gated * ERP;//TODO:
+
     power_bitline.readOp.gate_leakage = gate_leak_power_cc_inverters_sram_cell +
       gate_leak_power_RD_port_sram_cell * ERP;
 
@@ -1163,6 +1248,22 @@ double Mat::compute_bitline_delay(double inrisetime)
     delay_bitline = tstep + (V_wl - v_th_mem_cell) / (2 * m);
   }
 
+//  double m = V_wl/inrisetime;
+//  if (tstep <= (0.5*(V_wl-v_th_mem_cell)/m)) {
+//	  double  a = m;
+//	  double  b = 2*((V_wl*0.5)-v_th_mem_cell);
+//	  double  c = -2*tstep*(V_wl-v_th_mem_cell)+1/m*((V_wl*0.5)-v_th_mem_cell)*((V_wl*0.5)-v_th_mem_cell);
+//	  delay_bitline = (-b+sqrt(b*b-4*a*c))/(2*a);
+//	  *out_file<<"here"<<endl;
+//  }
+//  else
+//  {
+//	  delay_bitline = tstep + (V_wl+v_th_mem_cell)/(2*m) - (V_wl*0.5)/m;
+//	  *out_file<<"here2"<<endl;
+//  }
+
+//          *outrisetime = Tbit/(log((Vbitpre-Vbitsense)/Vdd));
+
   bool is_fa = (dp.fully_assoc) ? true : false;
 
   if (dp.is_tag == false || is_fa == false)
@@ -1170,6 +1271,11 @@ double Mat::compute_bitline_delay(double inrisetime)
     power_bitline.readOp.dynamic  = dynRdEnergy;
     power_bitline.writeOp.dynamic = dynWriteEnergy;
   }
+
+  //bitfloating
+  blfloating_wakeup_t = blfloating_c * (g_tp.sram_cell.Vdd-g_tp.sram.Vbitfloating) / (simplified_pmos_Isat(g_tp.w_pmos_bl_precharge)/Ilinear_to_Isat_ratio) ;
+  blfloating_wakeup_e.readOp.dynamic = dynRdEnergy/dp.V_b_sense*(g_tp.sram_cell.Vdd-g_tp.sram.Vbitfloating)*subarray.num_rows * num_subarrays_per_mat * dp.num_act_mats_hor_dir;
+
 
   double outrisetime = 0;
   return outrisetime;
@@ -1205,10 +1311,12 @@ double Mat::compute_sa_delay(double inrisetime)
     drain_C_(g_tp.w_iso,_PCH,1, 0, camFlag? cam_cell.w:cell.w * deg_bl_muxing / (RWP + ERP + SCHP), is_dram) +
     drain_C_(g_tp.w_nmos_sa_mux, NCH, 1, 0, camFlag? cam_cell.w:cell.w * deg_bl_muxing / (RWP + ERP + SCHP), is_dram);
   double tau = C_ld / g_tp.gm_sense_amp_latch;
-  delay_sa = tau * log(g_tp.peri_global.Vdd / dp.V_b_sense);
+  delay_sa = tau * log(g_tp.peri_global.Vdd / dp.V_b_sense);//unlike senseAmps has longer time for higher voltage since the starting voltage (switching point) does not changes (dp.V_b_sense)
+  //while for other circuit, the switching point is always assumed to be at mid--0.5 of vdd, no matter what the vdd is. So the log part does not add extra latency (percentage wise) when vdd increases.
   power_sa.readOp.dynamic = C_ld * g_tp.peri_global.Vdd * g_tp.peri_global.Vdd /* num_sa_subarray
                             num_subarrays_per_mat * num_act_mats_hor_dir*/;
   power_sa.readOp.leakage = lkgIdle * g_tp.peri_global.Vdd;
+  power_sa.readOp.power_gated_leakage = lkgIdle * g_tp.peri_global.Vcc_min;
 
   double outrisetime = 0;
   return outrisetime;
@@ -1231,6 +1339,7 @@ double Mat::compute_subarray_out_drv(double inrisetime)
   inrisetime = this_delay/(1.0 - 0.5);
   power_subarray_out_drv.readOp.dynamic += C_ld * 0.5 * g_tp.peri_global.Vdd * g_tp.peri_global.Vdd;
   power_subarray_out_drv.readOp.leakage += 0;  // for now, let leakage of the pass transistor be 0
+  power_subarray_out_drv.readOp.power_gated_leakage += 0;
   power_subarray_out_drv.readOp.gate_leakage += cmos_Ig_leakage(g_tp.w_nmos_sa_mux, 0, 1, nmos)* g_tp.peri_global.Vdd;
   // delay of signal through inverter-buffer to second level of sense-amp mux.
   // internal delay of buffer
@@ -1244,6 +1353,7 @@ double Mat::compute_subarray_out_drv(double inrisetime)
   inrisetime = this_delay/(1.0 - 0.5);
   power_subarray_out_drv.readOp.dynamic      += C_ld * 0.5 * g_tp.peri_global.Vdd * g_tp.peri_global.Vdd;
   power_subarray_out_drv.readOp.leakage      += cmos_Isub_leakage(g_tp.min_w_nmos_, p_to_n_sz_r * g_tp.min_w_nmos_, 1, inv, is_dram)* g_tp.peri_global.Vdd;
+  power_subarray_out_drv.readOp.power_gated_leakage += cmos_Isub_leakage(g_tp.min_w_nmos_, p_to_n_sz_r * g_tp.min_w_nmos_, 1, inv, is_dram)* g_tp.peri_global.Vcc_min;
   power_subarray_out_drv.readOp.gate_leakage += cmos_Ig_leakage(g_tp.min_w_nmos_, p_to_n_sz_r * g_tp.min_w_nmos_, 1, inv)* g_tp.peri_global.Vdd;
 
   // inverter driving drain of pass transistor of second level of sense-amp mux.
@@ -1257,6 +1367,7 @@ double Mat::compute_subarray_out_drv(double inrisetime)
   inrisetime = this_delay/(1.0 - 0.5);
   power_subarray_out_drv.readOp.dynamic      += C_ld * 0.5 * g_tp.peri_global.Vdd * g_tp.peri_global.Vdd;
   power_subarray_out_drv.readOp.leakage      += cmos_Isub_leakage(g_tp.min_w_nmos_, p_to_n_sz_r * g_tp.min_w_nmos_, 1, inv)* g_tp.peri_global.Vdd;
+  power_subarray_out_drv.readOp.power_gated_leakage += cmos_Isub_leakage(g_tp.min_w_nmos_, p_to_n_sz_r * g_tp.min_w_nmos_, 1, inv, is_dram)* g_tp.peri_global.Vcc_min;
   power_subarray_out_drv.readOp.gate_leakage += cmos_Ig_leakage(g_tp.min_w_nmos_, p_to_n_sz_r * g_tp.min_w_nmos_, 1, inv)* g_tp.peri_global.Vdd;
 
 
@@ -1271,6 +1382,7 @@ double Mat::compute_subarray_out_drv(double inrisetime)
   inrisetime = this_delay/(1.0 - 0.5);
   power_subarray_out_drv.readOp.dynamic += C_ld * 0.5 * g_tp.peri_global.Vdd * g_tp.peri_global.Vdd;
   power_subarray_out_drv.readOp.leakage += 0;  // for now, let leakage of the pass transistor be 0
+  power_subarray_out_drv.readOp.power_gated_leakage += 0;
   power_subarray_out_drv.readOp.gate_leakage += cmos_Ig_leakage(g_tp.w_nmos_sa_mux, 0, 1, nmos)* g_tp.peri_global.Vdd;
 
 
@@ -1362,6 +1474,7 @@ double Mat::compute_comparator_delay(double inrisetime)
   }
   delay_comparator = Tcomparatorni+st1del+st2del+st3del;
   power_comparator.readOp.leakage = lkgCurrent * g_tp.peri_global.Vdd;
+  power_comparator.readOp.power_gated_leakage = lkgCurrent * g_tp.peri_global.Vcc_min;
   power_comparator.readOp.gate_leakage = gatelkgCurrent * g_tp.peri_global.Vdd;
 
   return Tcomparatorni / (1.0 - VTHMUXNAND);;
@@ -1533,14 +1646,17 @@ void Mat::compute_power_energy()
   }
 
 
-
-  // calculate leakage power
+  int number_output_drivers_subarray;
+//  // calculate leakage power
   if (!(is_fa || pure_cam))
   {
-	int number_output_drivers_subarray = num_sa_subarray / (dp.Ndsam_lev_1 * dp.Ndsam_lev_2);
+	number_output_drivers_subarray = num_sa_subarray / (dp.Ndsam_lev_1 * dp.Ndsam_lev_2);
 
 	power_bitline.readOp.leakage            *= subarray.num_rows * subarray.num_cols * num_subarrays_per_mat;
+	power_bitline.readOp.power_gated_leakage *= subarray.num_rows * subarray.num_cols * num_subarrays_per_mat;
     power_bl_precharge_eq_drv.readOp.leakage = bl_precharge_eq_drv->power.readOp.leakage * num_subarrays_per_mat;
+    //bl precharge drv is not power gated to turn off the precharge and equalization circuit (PMOS, thus turn-off signal is "1") for bitline floating
+    power_bl_precharge_eq_drv.readOp.power_gated_leakage = bl_precharge_eq_drv->power.readOp.power_gated_leakage * num_subarrays_per_mat;
     power_sa.readOp.leakage                 *= num_sa_subarray*num_subarrays_per_mat*(RWP + ERP);
 
     //num_sa_subarray             = subarray.num_cols / deg_bl_muxing;
@@ -1548,32 +1664,90 @@ void Mat::compute_power_energy()
       (power_subarray_out_drv.readOp.leakage + subarray_out_wire->power.readOp.leakage) *
       number_output_drivers_subarray * num_subarrays_per_mat * (RWP + ERP);
 
+    power_subarray_out_drv.readOp.power_gated_leakage =
+      (power_subarray_out_drv.readOp.power_gated_leakage + subarray_out_wire->power.readOp.power_gated_leakage) *
+      number_output_drivers_subarray * num_subarrays_per_mat * (RWP + ERP);
+
     power.readOp.leakage += power_bitline.readOp.leakage +
                             power_bl_precharge_eq_drv.readOp.leakage +
                             power_sa.readOp.leakage +
                             power_subarray_out_drv.readOp.leakage;
-    //*out_file<<"leakage"<<power.readOp.leakage<<endl;
+
+    power.readOp.power_gated_leakage += power_bitline.readOp.power_gated_leakage +
+                            power_bl_precharge_eq_drv.readOp.power_gated_leakage +
+                            power_sa.readOp.power_gated_leakage +
+                            power_subarray_out_drv.readOp.power_gated_leakage;
 
     power_comparator.readOp.leakage *= num_do_b_mat * (RWP + ERP);
     power.readOp.leakage += power_comparator.readOp.leakage;
 
-    //*out_file<<"leakage1"<<power.readOp.leakage<<endl;
+    power_comparator.readOp.power_gated_leakage *= num_do_b_mat * (RWP + ERP);
+    power.readOp.power_gated_leakage += power_comparator.readOp.power_gated_leakage;
 
-    // leakage power
+    array_leakage = power_bitline.readOp.leakage;
+
+    cl_leakage =
+		power_bl_precharge_eq_drv.readOp.leakage +
+		power_sa.readOp.leakage +
+		power_subarray_out_drv.readOp.leakage +
+		power_comparator.readOp.leakage;
+
+
+
+    //Decoder blocks
     power_row_decoders.readOp.leakage = row_dec->power.readOp.leakage * subarray.num_rows * num_subarrays_per_mat;
     power_bit_mux_decoders.readOp.leakage      = bit_mux_dec->power.readOp.leakage * deg_bl_muxing;
     power_sa_mux_lev_1_decoders.readOp.leakage = sa_mux_lev_1_dec->power.readOp.leakage * dp.Ndsam_lev_1;
     power_sa_mux_lev_2_decoders.readOp.leakage = sa_mux_lev_2_dec->power.readOp.leakage * dp.Ndsam_lev_2;
 
-    power.readOp.leakage += r_predec->power.readOp.leakage +
-                          b_mux_predec->power.readOp.leakage +
-                          sa_mux_lev_1_predec->power.readOp.leakage +
-                          sa_mux_lev_2_predec->power.readOp.leakage +
-                          power_row_decoders.readOp.leakage +
-                          power_bit_mux_decoders.readOp.leakage +
-                          power_sa_mux_lev_1_decoders.readOp.leakage +
-                          power_sa_mux_lev_2_decoders.readOp.leakage;
-    //*out_file<<"leakage2"<<power.readOp.leakage<<endl;
+    power_row_decoders.readOp.power_gated_leakage = row_dec->power.readOp.power_gated_leakage * subarray.num_rows * num_subarrays_per_mat;
+    power_bit_mux_decoders.readOp.power_gated_leakage      = bit_mux_dec->power.readOp.power_gated_leakage * deg_bl_muxing;
+    power_sa_mux_lev_1_decoders.readOp.power_gated_leakage = sa_mux_lev_1_dec->power.readOp.power_gated_leakage * dp.Ndsam_lev_1;
+    power_sa_mux_lev_2_decoders.readOp.power_gated_leakage = sa_mux_lev_2_dec->power.readOp.power_gated_leakage * dp.Ndsam_lev_2;
+
+//    if (!g_ip->wl_power_gated)
+//    {
+    	power.readOp.leakage += r_predec->power.readOp.leakage +
+    	b_mux_predec->power.readOp.leakage +
+    	sa_mux_lev_1_predec->power.readOp.leakage +
+    	sa_mux_lev_2_predec->power.readOp.leakage +
+    	power_row_decoders.readOp.leakage +
+    	power_bit_mux_decoders.readOp.leakage +
+    	power_sa_mux_lev_1_decoders.readOp.leakage +
+    	power_sa_mux_lev_2_decoders.readOp.leakage;
+
+    	power.readOp.power_gated_leakage += r_predec->power.readOp.power_gated_leakage +
+    	b_mux_predec->power.readOp.power_gated_leakage +
+    	sa_mux_lev_1_predec->power.readOp.power_gated_leakage +
+    	sa_mux_lev_2_predec->power.readOp.power_gated_leakage +
+    	power_row_decoders.readOp.power_gated_leakage +
+    	power_bit_mux_decoders.readOp.power_gated_leakage +
+    	power_sa_mux_lev_1_decoders.readOp.power_gated_leakage +
+    	power_sa_mux_lev_2_decoders.readOp.power_gated_leakage;
+
+//    }
+//    else
+//    	{
+//    	power.readOp.power_gated_leakage += (r_predec->power.readOp.leakage +
+//
+//    			b_mux_predec->power.readOp.leakage +
+//    			sa_mux_lev_1_predec->power.readOp.leakage +
+//    			sa_mux_lev_2_predec->power.readOp.leakage +
+//    			power_row_decoders.readOp.leakage +
+//    			power_bit_mux_decoders.readOp.leakage +
+//    			power_sa_mux_lev_1_decoders.readOp.leakage +
+//    			power_sa_mux_lev_2_decoders.readOp.leakage)/g_tp.peri_global.Vdd*g_tp.peri_global.Vcc_min;
+
+//    	}
+
+    wl_leakage = r_predec->power.readOp.leakage +
+		b_mux_predec->power.readOp.leakage +
+		sa_mux_lev_1_predec->power.readOp.leakage +
+		sa_mux_lev_2_predec->power.readOp.leakage +
+		power_row_decoders.readOp.leakage +
+		power_bit_mux_decoders.readOp.leakage +
+		power_sa_mux_lev_1_decoders.readOp.leakage +
+		power_sa_mux_lev_2_decoders.readOp.leakage;
 
     //++++Below is gate leakage
 	power_bitline.readOp.gate_leakage            *= subarray.num_rows * subarray.num_cols * num_subarrays_per_mat;
@@ -1594,7 +1768,29 @@ void Mat::compute_power_energy()
     power_comparator.readOp.gate_leakage *= num_do_b_mat * (RWP + ERP);
     power.readOp.gate_leakage += power_comparator.readOp.gate_leakage;
 
-    //*out_file<<"leakage1"<<power.readOp.gate_leakage<<endl;
+    if (g_ip->power_gating)
+    {
+
+    	//*out_file<<"leakage1"<<power.readOp.gate_leakage<<endl;
+
+    	//Power gating data summary
+    	array_sleep_tx_area = sram_sleep_tx->area.get_area()*subarray.num_cols * num_subarrays_per_mat*dp.num_mats;
+    	array_wakeup_e.readOp.dynamic = sram_sleep_tx->wakeup_power.readOp.dynamic * num_subarrays_per_mat*subarray.num_cols*dp.num_act_mats_hor_dir;
+    	array_wakeup_t = sram_sleep_tx->wakeup_delay;
+
+    	wl_sleep_tx_area = (row_dec->exist ? row_dec->sleeptx->area.get_area() : 0)*subarray.num_rows * num_subarrays_per_mat*dp.num_mats
+    			+ (bit_mux_dec->exist ? bit_mux_dec->sleeptx->area.get_area() : 0)*dp.num_mats
+    			+ (sa_mux_lev_1_dec->exist ? sa_mux_lev_1_dec->sleeptx->area.get_area() : 0)*dp.num_mats
+    			+ (sa_mux_lev_2_dec->exist ? sa_mux_lev_2_dec->sleeptx->area.get_area() : 0)*dp.num_mats;
+    	wl_wakeup_e.readOp.dynamic = (row_dec->exist ? row_dec->sleeptx->wakeup_power.readOp.dynamic :0) * num_subarrays_per_mat*subarray.num_rows*dp.num_act_mats_hor_dir
+    			+ (bit_mux_dec->exist ? bit_mux_dec->sleeptx->wakeup_power.readOp.dynamic : 0)*dp.num_mats
+    			+ (sa_mux_lev_1_dec->exist ? sa_mux_lev_1_dec->sleeptx->wakeup_power.readOp.dynamic : 0)*dp.num_mats
+    			+ (sa_mux_lev_2_dec->exist ? sa_mux_lev_2_dec->sleeptx->wakeup_power.readOp.dynamic : 0)*dp.num_mats;
+    	wl_wakeup_t = (row_dec->exist ? row_dec->sleeptx->wakeup_delay : 0)
+    			+ (bit_mux_dec->exist ? bit_mux_dec->sleeptx->wakeup_delay : 0)*dp.num_mats
+    			+ (sa_mux_lev_1_dec->exist ? sa_mux_lev_1_dec->sleeptx->wakeup_delay : 0)*dp.num_mats
+    			+ (sa_mux_lev_2_dec->exist ? sa_mux_lev_2_dec->sleeptx->wakeup_delay : 0)*dp.num_mats;;
+    }
 
     // gate_leakage power
     power_row_decoders.readOp.gate_leakage = row_dec->power.readOp.gate_leakage * subarray.num_rows * num_subarrays_per_mat;
@@ -1611,7 +1807,7 @@ void Mat::compute_power_energy()
                           power_sa_mux_lev_1_decoders.readOp.gate_leakage +
                           power_sa_mux_lev_2_decoders.readOp.gate_leakage;
   }
-  else if (is_fa)
+  else if (is_fa) //fully assoc
   {
 	  int number_output_drivers_subarray = num_sa_subarray;// / (dp.Ndsam_lev_1 * dp.Ndsam_lev_2);
 
@@ -1691,7 +1887,7 @@ void Mat::compute_power_energy()
 	  power.readOp.gate_leakage += power_cam_all_active.searchOp.gate_leakage;
 
   }
-  else
+  else //pure CAM
   {
 	  int number_output_drivers_subarray = num_sa_subarray;// / (dp.Ndsam_lev_1 * dp.Ndsam_lev_2);
 

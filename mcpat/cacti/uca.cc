@@ -1,43 +1,33 @@
-/*------------------------------------------------------------
- *                              CACTI 6.5
- *         Copyright 2008 Hewlett-Packard Development Corporation
- *                         All Rights Reserved
+/*****************************************************************************
+ *                                McPAT/CACTI
+ *                      SOFTWARE LICENSE AGREEMENT
+ *            Copyright 2012 Hewlett-Packard Development Company, L.P.
+ *                          All Rights Reserved
  *
- * Permission to use, copy, and modify this software and its documentation is
- * hereby granted only under the following terms and conditions.  Both the
- * above copyright notice and this permission notice must appear in all copies
- * of the software, derivative works or modified versions, and any portions
- * thereof, and both notices must appear in supporting documentation.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met: redistributions of source code must retain the above copyright
+ * notice, this list of conditions and the following disclaimer;
+ * redistributions in binary form must reproduce the above copyright
+ * notice, this list of conditions and the following disclaimer in the
+ * documentation and/or other materials provided with the distribution;
+ * neither the name of the copyright holders nor the names of its
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.”
  *
- * Users of this software agree to the terms and conditions set forth herein, and
- * hereby grant back to Hewlett-Packard Company and its affiliated companies ("HP")
- * a non-exclusive, unrestricted, royalty-free right and license under any changes,
- * enhancements or extensions  made to the core functions of the software, including
- * but not limited to those affording compatibility with other hardware or software
- * environments, but excluding applications which incorporate this software.
- * Users further agree to use their best efforts to return to HP any such changes,
- * enhancements or extensions that they make and inform HP of noteworthy uses of
- * this software.  Correspondence should be provided to HP at:
- *
- *                       Director of Intellectual Property Licensing
- *                       Office of Strategy and Technology
- *                       Hewlett-Packard Company
- *                       1501 Page Mill Road
- *                       Palo Alto, California  94304
- *
- * This software may be distributed (but not offered for sale or transferred
- * for compensation) to third parties, provided such third parties agree to
- * abide by the terms and conditions of this notice.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" AND HP DISCLAIMS ALL
- * WARRANTIES WITH REGARD TO THIS SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS.   IN NO EVENT SHALL HP
- * CORPORATION BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
- * DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR
- * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS
- * ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
- * SOFTWARE.
- *------------------------------------------------------------*/
+ ***************************************************************************/
 
 
 
@@ -115,6 +105,8 @@ UCA::UCA(const DynamicParameter & dyn_p)
   double inrisetime = 0.0;
   compute_delays(inrisetime);
   compute_power_energy();
+  long_channel_leakage_reduction_periperal = g_tp.peri_global.long_channel_leakage_reduction;
+  long_channel_leakage_reduction_memcell = g_tp.sram_cell.long_channel_leakage_reduction;
 }
 
 
@@ -124,6 +116,11 @@ UCA::~UCA()
   delete htree_in_add;
   delete htree_in_data;
   delete htree_out_data;
+  if (dp.fully_assoc || dp.pure_cam)
+  {
+	  delete htree_in_search;
+	  delete htree_out_search;
+  }
 }
 
 
@@ -246,11 +243,16 @@ void UCA::compute_power_energy()
   power_routing_to_bank.readOp.dynamic  = htree_in_add->power.readOp.dynamic + htree_out_data->power.readOp.dynamic;
   power_routing_to_bank.writeOp.dynamic = htree_in_add->power.readOp.dynamic + htree_in_data->power.readOp.dynamic;
   if (dp.fully_assoc || dp.pure_cam)
+  {
       power_routing_to_bank.searchOp.dynamic= htree_in_search->power.searchOp.dynamic + htree_out_search->power.searchOp.dynamic;
-
+  }
   power_routing_to_bank.readOp.leakage += htree_in_add->power.readOp.leakage +
                                           htree_in_data->power.readOp.leakage +
                                           htree_out_data->power.readOp.leakage;
+
+  power_routing_to_bank.readOp.power_gated_leakage += htree_in_add->power.readOp.power_gated_leakage +
+                                          htree_in_data->power.readOp.power_gated_leakage +
+                                          htree_out_data->power.readOp.power_gated_leakage;
 
   power_routing_to_bank.readOp.gate_leakage += htree_in_add->power.readOp.gate_leakage +
                                           htree_in_data->power.readOp.gate_leakage +
@@ -264,6 +266,7 @@ void UCA::compute_power_energy()
   power.searchOp.dynamic += power_routing_to_bank.searchOp.dynamic;
   power.readOp.dynamic += power_routing_to_bank.readOp.dynamic;
   power.readOp.leakage += power_routing_to_bank.readOp.leakage;
+  power.readOp.power_gated_leakage += power_routing_to_bank.readOp.power_gated_leakage;
   power.readOp.gate_leakage += power_routing_to_bank.readOp.gate_leakage;
 
   // calculate total write energy per access
@@ -325,6 +328,7 @@ void UCA::compute_power_energy()
   precharge_energy = (bank.mat.power_bitline.readOp.dynamic +
                       bank.mat.power_bl_precharge_eq_drv.readOp.dynamic) * dp.num_act_mats_hor_dir;
 
+  //The follow 6 parameters are only used in DRAM/eDRAM output for now
   leak_power_subbank_closed_page =
     (bank.mat.r_predec->power.readOp.leakage +
      bank.mat.b_mux_predec->power.readOp.leakage +
@@ -397,7 +401,7 @@ void UCA::compute_power_energy()
     refresh_power += bank.mat.power_sa.readOp.dynamic * dp.num_act_mats_hor_dir;
     refresh_power /= dp.dram_refresh_period;
   }
-
+//  The follow 6 parameters are only used in DRAM/eDRAM output for now
 
   if (dp.is_tag == false)
   {

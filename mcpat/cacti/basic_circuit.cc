@@ -1,43 +1,33 @@
-/*------------------------------------------------------------
- *                              CACTI 6.5
- *         Copyright 2008 Hewlett-Packard Development Corporation
- *                         All Rights Reserved
+/*****************************************************************************
+ *                                McPAT/CACTI
+ *                      SOFTWARE LICENSE AGREEMENT
+ *            Copyright 2012 Hewlett-Packard Development Company, L.P.
+ *                          All Rights Reserved
  *
- * Permission to use, copy, and modify this software and its documentation is
- * hereby granted only under the following terms and conditions.  Both the
- * above copyright notice and this permission notice must appear in all copies
- * of the software, derivative works or modified versions, and any portions
- * thereof, and both notices must appear in supporting documentation.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met: redistributions of source code must retain the above copyright
+ * notice, this list of conditions and the following disclaimer;
+ * redistributions in binary form must reproduce the above copyright
+ * notice, this list of conditions and the following disclaimer in the
+ * documentation and/or other materials provided with the distribution;
+ * neither the name of the copyright holders nor the names of its
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.”
  *
- * Users of this software agree to the terms and conditions set forth herein, and
- * hereby grant back to Hewlett-Packard Company and its affiliated companies ("HP")
- * a non-exclusive, unrestricted, royalty-free right and license under any changes,
- * enhancements or extensions  made to the core functions of the software, including
- * but not limited to those affording compatibility with other hardware or software
- * environments, but excluding applications which incorporate this software.
- * Users further agree to use their best efforts to return to HP any such changes,
- * enhancements or extensions that they make and inform HP of noteworthy uses of
- * this software.  Correspondence should be provided to HP at:
- *
- *                       Director of Intellectual Property Licensing
- *                       Office of Strategy and Technology
- *                       Hewlett-Packard Company
- *                       1501 Page Mill Road
- *                       Palo Alto, California  94304
- *
- * This software may be distributed (but not offered for sale or transferred
- * for compensation) to third parties, provided such third parties agree to
- * abide by the terms and conditions of this notice.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" AND HP DISCLAIMS ALL
- * WARRANTIES WITH REGARD TO THIS SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS.   IN NO EVENT SHALL HP
- * CORPORATION BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
- * DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR
- * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS
- * ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
- * SOFTWARE.
- *------------------------------------------------------------*/
+ ***************************************************************************/
 
 
 
@@ -111,7 +101,8 @@ double gate_C(
     double wirelength,
     bool   _is_dram,
     bool   _is_cell,
-    bool   _is_wl_tr)
+    bool   _is_wl_tr,
+    bool   _is_sleep_tx)
 {
   const TechnologyParameter::DeviceType * dt;
 
@@ -126,6 +117,10 @@ double gate_C(
   else if (!_is_dram && _is_cell)
   {
     dt = &g_tp.sram_cell;  // SRAM cell access transistor
+  }
+  else if (_is_sleep_tx)
+  {
+    dt = &g_tp.sleep_tx;  // Sleep transistor
   }
   else
   {
@@ -143,7 +138,8 @@ double gate_C_pass(
     double wirelength,  // poly wire length going to gate in lambda
     bool   _is_dram,
     bool   _is_cell,
-    bool   _is_wl_tr)
+    bool   _is_wl_tr,
+    bool   _is_sleep_tx)
 {
   // v5.0
   const TechnologyParameter::DeviceType * dt;
@@ -159,6 +155,10 @@ double gate_C_pass(
   else if ((!_is_dram) && _is_cell)
   {
     dt = &g_tp.sram_cell;  // SRAM cell access transistor
+  }
+  else if (_is_sleep_tx)
+  {
+    dt = &g_tp.sleep_tx;  // Sleep transistor
   }
   else
   {
@@ -178,7 +178,8 @@ double drain_C_(
     double fold_dimension,
     bool _is_dram,
     bool _is_cell,
-    bool _is_wl_tr)
+    bool _is_wl_tr,
+    bool _is_sleep_tx)
 {
   double w_folded_tr;
   const  TechnologyParameter::DeviceType * dt;
@@ -194,6 +195,10 @@ double drain_C_(
   else if ((!_is_dram) && _is_cell)
   {
     dt = &g_tp.sram_cell;  // SRAM cell access transistor
+  }
+  else if (_is_sleep_tx)
+  {
+    dt = &g_tp.sleep_tx;  // Sleep transistor
   }
   else
   {
@@ -264,7 +269,8 @@ double tr_R_on(
     int stack,
     bool _is_dram,
     bool _is_cell,
-    bool _is_wl_tr)
+    bool _is_wl_tr,
+    bool _is_sleep_tx)
 {
   const TechnologyParameter::DeviceType * dt;
 
@@ -279,6 +285,10 @@ double tr_R_on(
   else if ((!_is_dram) && _is_cell)
   {
     dt = &g_tp.sram_cell;  // SRAM cell access transistor
+  }
+  else if (_is_sleep_tx)
+  {
+    dt = &g_tp.sleep_tx;  // Sleep transistor
   }
   else
   {
@@ -300,7 +310,8 @@ double R_to_w(
     int   nchannel,
     bool _is_dram,
     bool _is_cell,
-    bool _is_wl_tr)
+    bool _is_wl_tr,
+    bool _is_sleep_tx)
 {
   const TechnologyParameter::DeviceType * dt;
 
@@ -316,6 +327,10 @@ double R_to_w(
   {
     dt = &g_tp.sram_cell;  // SRAM cell access transistor
   }
+  else if (_is_sleep_tx)
+  {
+    dt = &g_tp.sleep_tx;  // Sleep transistor
+  }
   else
   {
     dt = &g_tp.peri_global;
@@ -328,12 +343,17 @@ double R_to_w(
 
 double pmos_to_nmos_sz_ratio(
     bool _is_dram,
-    bool _is_wl_tr)
+    bool _is_wl_tr,
+    bool _is_sleep_tx)
 {
   double p_to_n_sizing_ratio;
   if ((_is_dram) && (_is_wl_tr))
   { //DRAM wordline transistor
     p_to_n_sizing_ratio = g_tp.dram_wl.n_to_p_eff_curr_drv_ratio;
+  }
+  else if (_is_sleep_tx)
+  {
+	p_to_n_sizing_ratio = g_tp.sleep_tx.n_to_p_eff_curr_drv_ratio;  // Sleep transistor
   }
   else
   { //DRAM or SRAM all other transistors
@@ -347,8 +367,8 @@ double pmos_to_nmos_sz_ratio(
 double horowitz(
     double inputramptime, // input rise time
     double tf,            // time constant of gate
-    double vs1,           // threshold voltage
-    double vs2,           // threshold voltage
+    double vs1,           //  threshold voltage1/Vdd
+    double vs2,           // threshold voltage2/vdd
     int    rise)          // whether input rises or fall
 {
   if (inputramptime == 0 && vs1 == vs2)
@@ -376,7 +396,8 @@ double cmos_Ileak(
     double pWidth,
     bool _is_dram,
     bool _is_cell,
-    bool _is_wl_tr)
+    bool _is_wl_tr,
+    bool _is_sleep_tx)
 {
   TechnologyParameter::DeviceType * dt;
 
@@ -387,36 +408,16 @@ double cmos_Ileak(
   else if ((_is_dram)&&(_is_wl_tr))
   { //DRAM wordline transistor
     dt = &(g_tp.dram_wl);
+  }
+  else if (_is_sleep_tx)
+  {
+    dt = &g_tp.sleep_tx;  // Sleep transistor
   }
   else
   { //DRAM or SRAM all other transistors
     dt = &(g_tp.peri_global);
   }
   return nWidth*dt->I_off_n + pWidth*dt->I_off_p;
-}
-
-
-double simplified_nmos_leakage(
-    double nwidth,
-    bool _is_dram,
-    bool _is_cell,
-    bool _is_wl_tr)
-{
-  TechnologyParameter::DeviceType * dt;
-
-  if ((!_is_dram)&&(_is_cell))
-  { //SRAM cell access transistor
-    dt = &(g_tp.sram_cell);
-  }
-  else if ((_is_dram)&&(_is_wl_tr))
-  { //DRAM wordline transistor
-    dt = &(g_tp.dram_wl);
-  }
-  else
-  { //DRAM or SRAM all other transistors
-    dt = &(g_tp.peri_global);
-  }
-  return nwidth * dt->I_off_n;
 }
 
 int factorial(int n, int m)
@@ -434,11 +435,12 @@ int combination(int n, int m)
   return ret;
 }
 
-double simplified_pmos_leakage(
-    double pwidth,
+double simplified_nmos_Isat(
+    double nwidth,
     bool _is_dram,
     bool _is_cell,
-    bool _is_wl_tr)
+    bool _is_wl_tr,
+    bool _is_sleep_tx)
 {
   TechnologyParameter::DeviceType * dt;
 
@@ -449,6 +451,95 @@ double simplified_pmos_leakage(
   else if ((_is_dram)&&(_is_wl_tr))
   { //DRAM wordline transistor
     dt = &(g_tp.dram_wl);
+  }
+  else if (_is_sleep_tx)
+  {
+    dt = &g_tp.sleep_tx;  // Sleep transistor
+  }
+  else
+  { //DRAM or SRAM all other transistors
+    dt = &(g_tp.peri_global);
+  }
+  return nwidth * dt->I_on_n;
+}
+
+double simplified_pmos_Isat(
+    double pwidth,
+    bool _is_dram,
+    bool _is_cell,
+    bool _is_wl_tr,
+    bool _is_sleep_tx)
+{
+  TechnologyParameter::DeviceType * dt;
+
+  if ((!_is_dram)&&(_is_cell))
+  { //SRAM cell access transistor
+    dt = &(g_tp.sram_cell);
+  }
+  else if ((_is_dram)&&(_is_wl_tr))
+  { //DRAM wordline transistor
+    dt = &(g_tp.dram_wl);
+  }
+  else if (_is_sleep_tx)
+  {
+    dt = &g_tp.sleep_tx;  // Sleep transistor
+  }
+  else
+  { //DRAM or SRAM all other transistors
+    dt = &(g_tp.peri_global);
+  }
+  return pwidth * dt->I_on_n/dt->n_to_p_eff_curr_drv_ratio;
+}
+
+
+double simplified_nmos_leakage(
+    double nwidth,
+    bool _is_dram,
+    bool _is_cell,
+    bool _is_wl_tr,
+    bool _is_sleep_tx)
+{
+  TechnologyParameter::DeviceType * dt;
+
+  if ((!_is_dram)&&(_is_cell))
+  { //SRAM cell access transistor
+    dt = &(g_tp.sram_cell);
+  }
+  else if ((_is_dram)&&(_is_wl_tr))
+  { //DRAM wordline transistor
+    dt = &(g_tp.dram_wl);
+  }
+  else if (_is_sleep_tx)
+  {
+    dt = &g_tp.sleep_tx;  // Sleep transistor
+  }
+  else
+  { //DRAM or SRAM all other transistors
+    dt = &(g_tp.peri_global);
+  }
+  return nwidth * dt->I_off_n;
+}
+
+double simplified_pmos_leakage(
+    double pwidth,
+    bool _is_dram,
+    bool _is_cell,
+    bool _is_wl_tr,
+    bool _is_sleep_tx)
+{
+  TechnologyParameter::DeviceType * dt;
+
+  if ((!_is_dram)&&(_is_cell))
+  { //SRAM cell access transistor
+    dt = &(g_tp.sram_cell);
+  }
+  else if ((_is_dram)&&(_is_wl_tr))
+  { //DRAM wordline transistor
+    dt = &(g_tp.dram_wl);
+  }
+  else if (_is_sleep_tx)
+  {
+    dt = &g_tp.sleep_tx;  // Sleep transistor
   }
   else
   { //DRAM or SRAM all other transistors
@@ -461,7 +552,8 @@ double cmos_Ig_n(
     double nWidth,
     bool _is_dram,
     bool _is_cell,
-    bool _is_wl_tr)
+    bool _is_wl_tr,
+    bool _is_sleep_tx)
 {
   TechnologyParameter::DeviceType * dt;
 
@@ -472,6 +564,10 @@ double cmos_Ig_n(
   else if ((_is_dram)&&(_is_wl_tr))
   { //DRAM wordline transistor
     dt = &(g_tp.dram_wl);
+  }
+  else if (_is_sleep_tx)
+  {
+    dt = &g_tp.sleep_tx;  // Sleep transistor
   }
   else
   { //DRAM or SRAM all other transistors
@@ -484,7 +580,8 @@ double cmos_Ig_p(
     double pWidth,
     bool _is_dram,
     bool _is_cell,
-    bool _is_wl_tr)
+    bool _is_wl_tr,
+    bool _is_sleep_tx)
 {
   TechnologyParameter::DeviceType * dt;
 
@@ -495,6 +592,10 @@ double cmos_Ig_p(
   else if ((_is_dram)&&(_is_wl_tr))
   { //DRAM wordline transistor
     dt = &(g_tp.dram_wl);
+  }
+  else if (_is_sleep_tx)
+  {
+    dt = &g_tp.sleep_tx;  // Sleep transistor
   }
   else
   { //DRAM or SRAM all other transistors
@@ -511,11 +612,12 @@ double cmos_Isub_leakage(
     bool _is_dram,
     bool _is_cell,
     bool _is_wl_tr,
+    bool _is_sleep_tx,
     enum Half_net_topology topo)
 {
 	assert (fanin>=1);
-	double nmos_leak = simplified_nmos_leakage(nWidth, _is_dram, _is_cell, _is_wl_tr);
-	double pmos_leak = simplified_pmos_leakage(pWidth, _is_dram, _is_cell, _is_wl_tr);
+	double nmos_leak = simplified_nmos_leakage(nWidth, _is_dram, _is_cell, _is_wl_tr, _is_sleep_tx);
+	double pmos_leak = simplified_pmos_leakage(pWidth, _is_dram, _is_cell, _is_wl_tr, _is_sleep_tx);
     double Isub=0;
     int    num_states;
     int    num_off_tx;
@@ -616,11 +718,12 @@ double cmos_Ig_leakage(
     bool _is_dram,
     bool _is_cell,
     bool _is_wl_tr,
+    bool _is_sleep_tx,
     enum Half_net_topology topo)
 {
 	assert (fanin>=1);
-		double nmos_leak = cmos_Ig_n(nWidth, _is_dram, _is_cell, _is_wl_tr);
-		double pmos_leak = cmos_Ig_p(pWidth, _is_dram, _is_cell, _is_wl_tr);
+		double nmos_leak = cmos_Ig_n(nWidth, _is_dram, _is_cell, _is_wl_tr, _is_sleep_tx);
+		double pmos_leak = cmos_Ig_p(pWidth, _is_dram, _is_cell, _is_wl_tr, _is_sleep_tx);
 	    double Ig_on=0;
 	    int    num_states;
 	    int    num_on_tx;
@@ -836,3 +939,4 @@ double shortcircuit(
 	p_short_circuit_discharge = k_v*vdd*vdd*c_in*fo_p*fo_p/((vdd-vt)*g_v_alpha*fanout*beta_ratio/2/k_v + h_v_alpha*fo_p);
   return (p_short_circuit);
 }
+

@@ -1,48 +1,31 @@
 /*****************************************************************************
  *                                McPAT
  *                      SOFTWARE LICENSE AGREEMENT
- *            Copyright 2009 Hewlett-Packard Development Company, L.P.
+ *            Copyright 2012 Hewlett-Packard Development Company, L.P.
  *                          All Rights Reserved
  *
- * Permission to use, copy, and modify this software and its documentation is
- * hereby granted only under the following terms and conditions.  Both the
- * above copyright notice and this permission notice must appear in all copies
- * of the software, derivative works or modified versions, and any portions
- * thereof, and both notices must appear in supporting documentation.
- *
- * Any User of the software ("User"), by accessing and using it, agrees to the
- * terms and conditions set forth herein, and hereby grants back to Hewlett-
- * Packard Development Company, L.P. and its affiliated companies ("HP") a
- * non-exclusive, unrestricted, royalty-free right and license to copy,
- * modify, distribute copies, create derivate works and publicly display and
- * use, any changes, modifications, enhancements or extensions made to the
- * software by User, including but not limited to those affording
- * compatibility with other hardware or software, but excluding pre-existing
- * software applications that may incorporate the software.  User further
- * agrees to use its best efforts to inform HP of any such changes,
- * modifications, enhancements or extensions.
- *
- * Correspondence should be provided to HP at:
- *
- * Director of Intellectual Property Licensing
- * Office of Strategy and Technology
- * Hewlett-Packard Company
- * 1501 Page Mill Road
- * Palo Alto, California  94304
- *
- * The software may be further distributed by User (but not offered for
- * sale or transferred for compensation) to third parties, under the
- * condition that such third parties agree to abide by the terms and
- * conditions of this license.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" WITH ANY AND ALL ERRORS AND DEFECTS
- * AND USER ACKNOWLEDGES THAT THE SOFTWARE MAY CONTAIN ERRORS AND DEFECTS.
- * HP DISCLAIMS ALL WARRANTIES WITH REGARD TO THE SOFTWARE, INCLUDING ALL
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS.   IN NO EVENT SHALL
- * HP BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES
- * OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
- * WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER ACTION, ARISING
- * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THE SOFTWARE.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met: redistributions of source code must retain the above copyright
+ * notice, this list of conditions and the following disclaimer;
+ * redistributions in binary form must reproduce the above copyright
+ * notice, this list of conditions and the following disclaimer in the
+ * documentation and/or other materials provided with the distribution;
+ * neither the name of the copyright holders nor the names of its
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.”
  *
  ***************************************************************************/
 #include "io.h"
@@ -128,7 +111,7 @@ void MCBackend::compute()
 		  area.set_area(0.15*mcp.dataBusWidth/72.0*(l_ip.F_sz_um/0.065)* (l_ip.F_sz_um/0.065)*mcp.num_channels*1e6);//um^2
 		  backend_dyn = 0.9e-9/800e6*mcp.clockRate/12800*mcp.peakDataTransferRate*mcp.dataBusWidth/72.0*g_tp.peri_global.Vdd/1.1*g_tp.peri_global.Vdd/1.1*(l_ip.F_sz_nm/65.0);//Average on DDR2/3 protocol controller and DDRC 1600/800A in Cadence ChipEstimate
 		  //Scaling to technology and DIMM feature. The base IP support DDR3-1600(PC3 12800)
-		  backend_gates = 50000*mcp.dataBusWidth/64.0;
+		  backend_gates = 50000*mcp.dataBusWidth/64.0;//50000 is from Cadence ChipEstimator
 
 		  power_t.readOp.dynamic = backend_dyn;
 		  power_t.readOp.leakage = (backend_gates)*cmos_Isub_leakage(NMOS_sizing, PMOS_sizing, 2, nand)*g_tp.peri_global.Vdd;//unit W
@@ -151,6 +134,12 @@ void MCBackend::compute()
   }
   double long_channel_device_reduction = longer_channel_device_reduction(Uncore_device);
   power_t.readOp.longer_channel_leakage = power_t.readOp.leakage * long_channel_device_reduction;
+
+  double pg_reduction = power_gating_leakage_reduction(false);
+  power_t.readOp.power_gated_leakage	= power_t.readOp.leakage*pg_reduction;
+  power_t.readOp.power_gated_with_long_channel_leakage = power_t.readOp.power_gated_leakage * long_channel_device_reduction;
+
+
 }
 
 void MCBackend::computeEnergy(bool is_tdp)
@@ -251,6 +240,11 @@ void MCPHY::compute()
 
   double long_channel_device_reduction = longer_channel_device_reduction(Uncore_device);
   power_t.readOp.longer_channel_leakage = power_t.readOp.leakage * long_channel_device_reduction;
+
+  double pg_reduction = power_gating_leakage_reduction(false);
+  power_t.readOp.power_gated_leakage	= power_t.readOp.leakage*pg_reduction;
+  power_t.readOp.power_gated_with_long_channel_leakage = power_t.readOp.power_gated_leakage * long_channel_device_reduction;
+
 }
 
 
@@ -344,6 +338,7 @@ MCFrontEnd::MCFrontEnd(ParseXML *XML_interface,InputParameter* interface_ip_, co
   area.set_area(area.get_area()+ frontendBuffer->local_result.area*XML->sys.mc.memory_channels_per_mc);
 
   //selection and arbitration logic
+  interface_ip.assoc               = 1; //reset to prevent unnecessary warning messages when init_interface
   MC_arb = new selection_logic(is_default, XML->sys.mc.req_window_size_per_channel,1,&interface_ip, Uncore_device);
 
   //read buffers.
@@ -472,6 +467,8 @@ void MCFrontEnd::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 {
 	string indent_str(indent, ' ');
 	string indent_str_next(indent+2, ' ');
+	bool long_channel = XML->sys.longer_channel_device;
+	bool power_gating = XML->sys.power_gating;
 
 	if (is_tdp)
 	{
@@ -479,6 +476,8 @@ void MCFrontEnd::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 		*out_file << indent_str_next << "Area = " << frontendBuffer->area.get_area()*1e-6<< " mm^2" << endl;
 		*out_file << indent_str_next << "Peak Dynamic = " << frontendBuffer->power.readOp.dynamic*mcp.clockRate << " W" << endl;
 		*out_file << indent_str_next << "Subthreshold Leakage = " << frontendBuffer->power.readOp.leakage <<" W" << endl;
+		if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+				<< (long_channel? frontendBuffer->power.readOp.power_gated_with_long_channel_leakage : frontendBuffer->power.readOp.power_gated_leakage)  << " W" << endl;
 		*out_file << indent_str_next << "Gate Leakage = " << frontendBuffer->power.readOp.gate_leakage << " W" << endl;
 		*out_file << indent_str_next << "Runtime Dynamic = " << frontendBuffer->rt_power.readOp.dynamic/mcp.executionTime << " W" << endl;
 
@@ -487,6 +486,8 @@ void MCFrontEnd::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 		*out_file << indent_str_next << "Area = " << readBuffer->area.get_area()*1e-6  << " mm^2" << endl;
 		*out_file << indent_str_next << "Peak Dynamic = " << readBuffer->power.readOp.dynamic*mcp.clockRate  << " W" << endl;
 		*out_file << indent_str_next << "Subthreshold Leakage = " << readBuffer->power.readOp.leakage  << " W" << endl;
+		if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+				<< (long_channel? readBuffer->power.readOp.power_gated_with_long_channel_leakage : readBuffer->power.readOp.power_gated_leakage)  << " W" << endl;
 		*out_file << indent_str_next << "Gate Leakage = " << readBuffer->power.readOp.gate_leakage  << " W" << endl;
 		*out_file << indent_str_next << "Runtime Dynamic = " << readBuffer->rt_power.readOp.dynamic/mcp.executionTime << " W" << endl;
 		*out_file <<endl;
@@ -494,6 +495,8 @@ void MCFrontEnd::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 		*out_file << indent_str_next << "Area = " << writeBuffer->area.get_area() *1e-6 << " mm^2" << endl;
 		*out_file << indent_str_next << "Peak Dynamic = " << writeBuffer->power.readOp.dynamic*mcp.clockRate  << " W" << endl;
 		*out_file << indent_str_next << "Subthreshold Leakage = " << writeBuffer->power.readOp.leakage  << " W" << endl;
+		if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+				<< (long_channel? writeBuffer->power.readOp.power_gated_with_long_channel_leakage : writeBuffer->power.readOp.power_gated_leakage)  << " W" << endl;
 		*out_file << indent_str_next << "Gate Leakage = " << writeBuffer->power.readOp.gate_leakage  << " W" << endl;
 		*out_file << indent_str_next << "Runtime Dynamic = " << writeBuffer->rt_power.readOp.dynamic/mcp.executionTime << " W" << endl;
 		*out_file <<endl;
@@ -621,6 +624,7 @@ void MemoryController::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 	string indent_str(indent, ' ');
 	string indent_str_next(indent+2, ' ');
 	bool long_channel = XML->sys.longer_channel_device;
+	bool power_gating = XML->sys.power_gating;
 
 	if (is_tdp)
 	{
@@ -629,7 +633,8 @@ void MemoryController::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 		*out_file << indent_str << "Peak Dynamic = " << power.readOp.dynamic*mcp.clockRate  << " W" << endl;
 		*out_file << indent_str<< "Subthreshold Leakage = "
 			<< (long_channel? power.readOp.longer_channel_leakage:power.readOp.leakage) <<" W" << endl;
-		//*out_file << indent_str<< "Subthreshold Leakage = " << power.readOp.longer_channel_leakage <<" W" << endl;
+		if (power_gating) *out_file << indent_str << "Subthreshold Leakage with power gating = "
+				<< (long_channel? power.readOp.power_gated_with_long_channel_leakage : power.readOp.power_gated_leakage)  << " W" << endl;
 		*out_file << indent_str<< "Gate Leakage = " << power.readOp.gate_leakage << " W" << endl;
 		*out_file << indent_str << "Runtime Dynamic = " << rt_power.readOp.dynamic/mcp.executionTime << " W" << endl;
 		*out_file<<endl;
@@ -638,6 +643,8 @@ void MemoryController::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 		*out_file << indent_str_next << "Peak Dynamic = " << frontend->power.readOp.dynamic*mcp.clockRate << " W" << endl;
 		*out_file << indent_str_next << "Subthreshold Leakage = "
 			<< (long_channel? frontend->power.readOp.longer_channel_leakage:frontend->power.readOp.leakage) <<" W" << endl;
+		if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+				<< (long_channel? frontend->power.readOp.power_gated_with_long_channel_leakage : frontend->power.readOp.power_gated_leakage)  << " W" << endl;
 		*out_file << indent_str_next << "Gate Leakage = " << frontend->power.readOp.gate_leakage << " W" << endl;
 		*out_file << indent_str_next << "Runtime Dynamic = " << frontend->rt_power.readOp.dynamic/mcp.executionTime << " W" << endl;
 		*out_file <<endl;
@@ -649,6 +656,8 @@ void MemoryController::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 		*out_file << indent_str_next << "Peak Dynamic = " << transecEngine->power.readOp.dynamic*mcp.clockRate << " W" << endl;
 		*out_file << indent_str_next << "Subthreshold Leakage = "
 			<< (long_channel? transecEngine->power.readOp.longer_channel_leakage:transecEngine->power.readOp.leakage) <<" W" << endl;
+		if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+				<< (long_channel? transecEngine->power.readOp.power_gated_with_long_channel_leakage : transecEngine->power.readOp.power_gated_leakage)  << " W" << endl;
 		*out_file << indent_str_next << "Gate Leakage = " << transecEngine->power.readOp.gate_leakage << " W" << endl;
 		*out_file << indent_str_next << "Runtime Dynamic = " << transecEngine->rt_power.readOp.dynamic/mcp.executionTime << " W" << endl;
 		*out_file <<endl;
@@ -659,6 +668,8 @@ void MemoryController::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 			*out_file << indent_str_next << "Peak Dynamic = " << PHY->power.readOp.dynamic*mcp.clockRate << " W" << endl;
 			*out_file << indent_str_next << "Subthreshold Leakage = "
 			<< (long_channel? PHY->power.readOp.longer_channel_leakage:PHY->power.readOp.leakage) <<" W" << endl;
+			if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+					<< (long_channel? PHY->power.readOp.power_gated_with_long_channel_leakage : PHY->power.readOp.power_gated_leakage)  << " W" << endl;
 			*out_file << indent_str_next << "Gate Leakage = " << PHY->power.readOp.gate_leakage << " W" << endl;
 			*out_file << indent_str_next << "Runtime Dynamic = " << PHY->rt_power.readOp.dynamic/mcp.executionTime << " W" << endl;
 			*out_file <<endl;
@@ -681,28 +692,44 @@ void MemoryController::set_mc_param()
 
 	if (mc_type==MC)
 	{
-	  mcp.clockRate       =XML->sys.mc.mc_clock*2;//DDR double pumped
-	  mcp.clockRate       *= 1e6;
-	  mcp.executionTime   = XML->sys.total_cycles/(XML->sys.target_core_clockrate*1e6);
+		mcp.clockRate       =XML->sys.mc.mc_clock*2;//DDR double pumped
+		mcp.clockRate       *= 1e6;
+		mcp.executionTime   = XML->sys.total_cycles/(XML->sys.target_core_clockrate*1e6);
 
-	  mcp.llcBlockSize    =int(ceil(XML->sys.mc.llc_line_length/8.0))+XML->sys.mc.llc_line_length;//ecc overhead
-	  mcp.dataBusWidth    =int(ceil(XML->sys.mc.databus_width/8.0)) + XML->sys.mc.databus_width;
-	  mcp.addressBusWidth =int(ceil((double)XML->sys.mc.addressbus_width));//XML->sys.physical_address_width;
-	  mcp.opcodeW         =16;
-	  mcp.num_mcs         = XML->sys.mc.number_mcs;
-	  mcp.num_channels    = XML->sys.mc.memory_channels_per_mc;
-	  mcp.reads  = XML->sys.mc.memory_reads;
-	  mcp.writes = XML->sys.mc.memory_writes;
-	  //+++++++++Transaction engine +++++++++++++++++ ////TODO needs better numbers, Run the RTL code from OpenSparc.
-	  mcp.peakDataTransferRate = XML->sys.mc.peak_transfer_rate;
-	  mcp.memRank = XML->sys.mc.number_ranks;
-	  //++++++++++++++PHY ++++++++++++++++++++++++++ //TODO needs better numbers
-	  //PHY.memAccesses=PHY.peakDataTransferRate;//this is the max power
-	  //PHY.llcBlocksize=llcBlockSize;
-	  mcp.frontend_duty_cycle = 0.5;//for max power, the actual off-chip links is bidirectional but time shared
-	  mcp.LVDS = XML->sys.mc.LVDS;
-	  mcp.type = XML->sys.mc.type;
-	  mcp.withPHY = XML->sys.mc.withPHY;
+		mcp.llcBlockSize    =int(ceil(XML->sys.mc.llc_line_length/8.0))+XML->sys.mc.llc_line_length;//ecc overhead
+		mcp.dataBusWidth    =int(ceil(XML->sys.mc.databus_width/8.0)) + XML->sys.mc.databus_width;
+		mcp.addressBusWidth =int(ceil((double)XML->sys.mc.addressbus_width));//XML->sys.physical_address_width;
+		mcp.opcodeW         =16;
+		mcp.num_mcs         = XML->sys.mc.number_mcs;
+		mcp.num_channels    = XML->sys.mc.memory_channels_per_mc;
+		mcp.reads  = XML->sys.mc.memory_reads;
+		mcp.writes = XML->sys.mc.memory_writes;
+		//+++++++++Transaction engine +++++++++++++++++ ////TODO needs better numbers, Run the RTL code from OpenSparc.
+		mcp.peakDataTransferRate = XML->sys.mc.peak_transfer_rate;
+		mcp.memRank = XML->sys.mc.number_ranks;
+		//++++++++++++++PHY ++++++++++++++++++++++++++ //TODO needs better numbers
+		//PHY.memAccesses=PHY.peakDataTransferRate;//this is the max power
+		//PHY.llcBlocksize=llcBlockSize;
+		mcp.frontend_duty_cycle = 0.5;//for max power, the actual off-chip links is bidirectional but time shared
+		mcp.LVDS = XML->sys.mc.LVDS;
+		mcp.type = XML->sys.mc.type;
+		mcp.withPHY = XML->sys.mc.withPHY;
+
+		if ( XML->sys.mc.vdd>0)
+		{
+			interface_ip.specific_hp_vdd = true;
+			interface_ip.specific_lop_vdd = true;
+			interface_ip.specific_lstp_vdd = true;
+			interface_ip.hp_Vdd   = XML->sys.mc.vdd;
+			interface_ip.lop_Vdd  = XML->sys.mc.vdd;
+			interface_ip.lstp_Vdd = XML->sys.mc.vdd;
+		}
+		if ( XML->sys.mc.power_gating_vcc > -1)
+		{
+			interface_ip.specific_vcc_min = true;
+			interface_ip.user_defined_vcc_min   = XML->sys.mc.power_gating_vcc;
+
+		}
 	}
 //	else if (mc_type==FLASHC)
 //	{

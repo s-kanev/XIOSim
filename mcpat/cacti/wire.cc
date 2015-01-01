@@ -1,43 +1,33 @@
-/*------------------------------------------------------------
- *                              CACTI 6.5
- *         Copyright 2008 Hewlett-Packard Development Corporation
- *                         All Rights Reserved
+/*****************************************************************************
+ *                                McPAT/CACTI
+ *                      SOFTWARE LICENSE AGREEMENT
+ *            Copyright 2012 Hewlett-Packard Development Company, L.P.
+ *                          All Rights Reserved
  *
- * Permission to use, copy, and modify this software and its documentation is
- * hereby granted only under the following terms and conditions.  Both the
- * above copyright notice and this permission notice must appear in all copies
- * of the software, derivative works or modified versions, and any portions
- * thereof, and both notices must appear in supporting documentation.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met: redistributions of source code must retain the above copyright
+ * notice, this list of conditions and the following disclaimer;
+ * redistributions in binary form must reproduce the above copyright
+ * notice, this list of conditions and the following disclaimer in the
+ * documentation and/or other materials provided with the distribution;
+ * neither the name of the copyright holders nor the names of its
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.”
  *
- * Users of this software agree to the terms and conditions set forth herein, and
- * hereby grant back to Hewlett-Packard Company and its affiliated companies ("HP")
- * a non-exclusive, unrestricted, royalty-free right and license under any changes,
- * enhancements or extensions  made to the core functions of the software, including
- * but not limited to those affording compatibility with other hardware or software
- * environments, but excluding applications which incorporate this software.
- * Users further agree to use their best efforts to return to HP any such changes,
- * enhancements or extensions that they make and inform HP of noteworthy uses of
- * this software.  Correspondence should be provided to HP at:
- *
- *                       Director of Intellectual Property Licensing
- *                       Office of Strategy and Technology
- *                       Hewlett-Packard Company
- *                       1501 Page Mill Road
- *                       Palo Alto, California  94304
- *
- * This software may be distributed (but not offered for sale or transferred
- * for compensation) to third parties, provided such third parties agree to
- * abide by the terms and conditions of this notice.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" AND HP DISCLAIMS ALL
- * WARRANTIES WITH REGARD TO THIS SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS.   IN NO EVENT SHALL HP
- * CORPORATION BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
- * DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR
- * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS
- * ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
- * SOFTWARE.
- *------------------------------------------------------------*/
+ ***************************************************************************/
 
 #include "wire.h"
 #include "cmath"
@@ -87,9 +77,11 @@ Wire::Wire(
     int Wire::initialized;
     double Wire::wire_width_init;
     double Wire::wire_spacing_init;
+    double Wire::repeater_size_init; // value used in initialization should not be reused in final output
+    double Wire::repeater_spacing_init;
 
 
-Wire::Wire(double w_s, double s_s, enum Wire_placement wp, double resis, TechnologyParameter::DeviceType *dt)
+Wire::Wire(double w_s, double s_s, /*bool reset_repeater_sizing,*/ enum Wire_placement wp, double resis, TechnologyParameter::DeviceType *dt)
 {
   w_scale        = w_s;
   s_scale        = s_s;
@@ -114,6 +106,7 @@ Wire::Wire(double w_s, double s_s, enum Wire_placement wp, double resis, Technol
 
   initialized = 1;
   init_wire();
+  //init_wire(reset_repeater_sizing);
   wire_width_init = wire_width;
   wire_spacing_init = wire_spacing;
 
@@ -210,15 +203,25 @@ Wire::calculate_wire_stats()
 						  g_tp.min_w_nmos_ * repeater_size, g_tp.cell_h_def));
 	  }
     out_rise_time = delay*repeater_spacing/deviceType->Vth;
+
   }
   else if (wt == Low_swing) {
     low_swing_model ();
     repeater_spacing = wire_length;
     repeater_size = 1;
+
   }
   else {
     assert(0);
   }
+
+//  if (g_ip->interconect_power_gated)//TODO:actual sleep txs need to be added as in the wordline drivers,
+//      	//but since wires have enough space underneath for placement and routing of the sleep tx, the area overhead should be very small.
+//      	//performance loss and energy overhead is also very small because of the property of sleep tx.
+//      {
+//      	power.readOp.leakage = power.readOp.leakage/deviceType->Vdd*deviceType->Vcc_min;
+//      }
+	power.readOp.power_gated_leakage = power.readOp.leakage/deviceType->Vdd*deviceType->Vcc_min;//TODO:
 }
 
 
@@ -558,7 +561,7 @@ Wire::sense_amp_input_cap()
 }
 
 
-void Wire::delay_optimal_wire ()
+void Wire::delay_optimal_wire (/*bool reset_repeater_sizing*/)
 {
   double len       = wire_length;
   //double min_wire_width = wire_width; //m
@@ -586,47 +589,50 @@ void Wire::delay_optimal_wire ()
 
    // calc the optimum spacing between the repeaters (m)
 
-  repeater_spacing = sqrt(2 * out_res * (out_cap + input_cap)/
-      ((wr/len)*(wc/len)));
-  repeater_size = repeater_scaling;
+//  if (reset_repeater_sizing==true) {
+
+	  repeater_spacing_init = sqrt(2 * out_res * (out_cap + input_cap)/
+			  ((wr/len)*(wc/len)));
+	  repeater_size_init = repeater_scaling;
+//  }
 
   switching = (repeater_scaling * (input_cap + out_cap) +
-      repeater_spacing * (wc/len)) * deviceType->Vdd * deviceType->Vdd;
+		  repeater_spacing_init  * (wc/len)) * deviceType->Vdd * deviceType->Vdd;
 
   tc = out_res * (input_cap + out_cap) +
-    out_res * wc/len * repeater_spacing/repeater_scaling +
-    wr/len * repeater_spacing * input_cap * repeater_scaling +
-    0.5 * (wr/len) * (wc/len)* repeater_spacing * repeater_spacing;
+		  out_res * wc/len * repeater_spacing_init /repeater_scaling +
+		  wr/len * repeater_spacing_init  * input_cap * repeater_scaling +
+		  0.5 * (wr/len) * (wc/len)* repeater_spacing_init  * repeater_spacing_init ;
 
-  delay = 0.693 * tc * len/repeater_spacing;
+  delay = 0.693 * tc * len/repeater_spacing_init ;
 
 #define Ishort_ckt 65e-6 /* across all tech Ref:Banerjee et al. {IEEE TED} */
   short_ckt = deviceType->Vdd * g_tp.min_w_nmos_ * Ishort_ckt * 1.0986 *
-    repeater_scaling * tc;
+		  repeater_scaling * tc;
 
-  area.set_area((len/repeater_spacing) *
-                compute_gate_area(INV, 1, min_w_pmos * repeater_scaling,
-                                          g_tp.min_w_nmos_ * repeater_scaling, g_tp.cell_h_def));
-  power.readOp.dynamic = ((len/repeater_spacing)*(switching + short_ckt));
-  power.readOp.leakage = ((len/repeater_spacing)*
-      deviceType->Vdd*
-      cmos_Isub_leakage(g_tp.min_w_nmos_*repeater_scaling, beta*g_tp.min_w_nmos_*repeater_scaling, 1, inv));
-  power.readOp.gate_leakage = ((len/repeater_spacing)*
-      deviceType->Vdd*
-      cmos_Ig_leakage(g_tp.min_w_nmos_*repeater_scaling, beta*g_tp.min_w_nmos_*repeater_scaling, 1, inv));
+  area.set_area((len/repeater_spacing_init ) *
+		  compute_gate_area(INV, 1, min_w_pmos * repeater_scaling,
+				  g_tp.min_w_nmos_ * repeater_scaling, g_tp.cell_h_def));
+  power.readOp.dynamic = ((len/repeater_spacing_init )*(switching + short_ckt));
+  power.readOp.leakage = ((len/repeater_spacing_init )*
+		  deviceType->Vdd*
+		  cmos_Isub_leakage(g_tp.min_w_nmos_*repeater_scaling, beta*g_tp.min_w_nmos_*repeater_scaling, 1, inv));
+  power.readOp.gate_leakage = ((len/repeater_spacing_init )*
+		  deviceType->Vdd*
+		  cmos_Ig_leakage(g_tp.min_w_nmos_*repeater_scaling, beta*g_tp.min_w_nmos_*repeater_scaling, 1, inv));
 }
 
 
 
 // calculate power/delay values for wires with suboptimal repeater sizing/spacing
 void
-Wire::init_wire(){
+Wire::init_wire(/*bool reset_repeater_sizing*/){
   wire_length = 1;
-  delay_optimal_wire();
+  delay_optimal_wire(/*reset_repeater_sizing*/);
     double sp, si;
   powerDef pow;
-  si = repeater_size;
-  sp = repeater_spacing;
+  si = repeater_size_init ;
+  sp = repeater_spacing_init ;
   sp *= 1e6; // in microns
 
   double i, j, del;
@@ -716,6 +722,9 @@ void Wire::update_fullswing()
     }
     i--;
   }
+  citer = repeated_wire.begin();
+  while (!repeated_wire.empty()) //TODO: code optimize
+      {citer=repeated_wire.erase(citer);}
 }
 
 
@@ -781,7 +790,7 @@ void
 Wire::print_wire()
 {
 
-  *out_file << "\nWire Properties:\n\n";
+  *out_file << "\nWire Properties at DVS level 0:\n\n";
   *out_file << "  Delay Optimal\n\tRepeater size - "<< global.area.h <<
     " \n\tRepeater spacing - " << global.area.w*1e3 << " (mm)"
     " \n\tDelay - " << global.delay*1e6 <<  " (ns/mm)"
@@ -839,5 +848,37 @@ Wire::print_wire()
   *out_file <<endl;
   *out_file <<endl;
 
+//  cout<<"repeater_size_init"<<repeater_size_init<<endl;
+//  cout<<"repeater_spacing_init"<<repeater_spacing_init<<endl;
+
+
 }
 
+void
+Wire::wire_dvs_update()
+{
+
+	double i, j, del;
+	powerDef pow;
+	pow = wire_model(global.area.w, global.area.h, &del);
+	global.delay = del;
+	global.power = pow;
+	pow = wire_model(global_5.area.w, global_5.area.h, &del);
+	global_5.delay = del;
+	global_5.power = pow;
+	pow = wire_model(global_10.area.w, global_10.area.h, &del);
+	global_10.delay = del;
+	global_10.power = pow;
+	pow = wire_model(global_20.area.w, global_20.area.h, &del);
+	global_20.delay = del;
+	global_20.power = pow;
+	pow = wire_model(global_30.area.w, global_30.area.h, &del);
+	global_30.delay = del;
+	global_30.power = pow;
+
+	Wire *l_wire = new Wire(Low_swing, 0.001/* 1 mm*/, 1);
+	low_swing.delay = l_wire->delay;
+	low_swing.power = l_wire->power;
+	delete l_wire;
+
+}
