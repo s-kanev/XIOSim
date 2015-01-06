@@ -76,7 +76,8 @@ InstFetchU::InstFetchU(ParseXML* XML_interface, int ithCore_, InputParameter* in
 	  interface_ip.line_sz             = debug?64:(int)XML->sys.core[ithCore].icache.icache_config[1];
 	  interface_ip.assoc               = debug?8:(int)XML->sys.core[ithCore].icache.icache_config[2];
 	  interface_ip.nbanks              = debug?1:(int)XML->sys.core[ithCore].icache.icache_config[3];
-	  interface_ip.out_w               = interface_ip.line_sz*8;
+	  //XXX: SK: Icaches on intel fetch 16B at a time (despite larger line size).
+	  interface_ip.out_w               = 16 * 8;
 	  interface_ip.access_mode         = 0;//debug?0:XML->sys.core[ithCore].icache.icache_config[5];
 	  interface_ip.throughput          = debug?1.0/clockRate:XML->sys.core[ithCore].icache.icache_config[4]/clockRate;
 	  interface_ip.latency             = debug?3.0/clockRate:XML->sys.core[ithCore].icache.icache_config[5]/clockRate;
@@ -715,7 +716,8 @@ LoadStoreU::LoadStoreU(ParseXML* XML_interface, int ithCore_, InputParameter* in
 	  interface_ip.line_sz             = debug?64:(int)XML->sys.core[ithCore].dcache.dcache_config[1];
 	  interface_ip.assoc               = debug?8:(int)XML->sys.core[ithCore].dcache.dcache_config[2];
 	  interface_ip.nbanks              = debug?1:(int)XML->sys.core[ithCore].dcache.dcache_config[3];
-	  interface_ip.out_w               = interface_ip.line_sz*8;
+	  // XXX: SK: hardcore for pre-Haswell Intel machines (HSW is 256).
+	  interface_ip.out_w               = 16 * 8;
 	  interface_ip.access_mode         = 0;//debug?0:XML->sys.core[ithCore].dcache.dcache_config[5];
 	  interface_ip.throughput          = debug?1.0/clockRate:XML->sys.core[ithCore].dcache.dcache_config[4]/clockRate;
 	  interface_ip.latency             = debug?3.0/clockRate:XML->sys.core[ithCore].dcache.dcache_config[5]/clockRate;
@@ -1773,8 +1775,6 @@ Core::Core(ParseXML* XML_interface, int ithCore_, InputParameter* interface_ip_)
 
   }
 
-  clockRate = coredynp.clockRate;
-  executionTime = coredynp.executionTime;
   ifu          = new InstFetchU(XML, ithCore, &interface_ip, &coredynp,exit_flag);
   lsu          = new LoadStoreU(XML, ithCore, &interface_ip, &coredynp,exit_flag);
   mmu          = new MemManU   (XML, ithCore, &interface_ip, &coredynp,exit_flag);
@@ -1950,7 +1950,9 @@ void BranchPredictor::computeEnergy(bool is_tdp)
            	chooser->power = chooser->power_t + chooser->local_result.power*pppm_lkg;
     	RAS->power = RAS->power_t + RAS->local_result.power*coredynp->pppm_lkg_multhread;
 
-    	power = power + globalBPT->power + L1_localBPT->power + L2_localBPT->power +  RAS->power;
+    	power = power + globalBPT->power + L1_localBPT->power + RAS->power;
+        if (L2_localBPT)
+            power = power + L2_localBPT->power;
         if (chooser)
             power = power + chooser->power;
     }
@@ -1963,7 +1965,9 @@ void BranchPredictor::computeEnergy(bool is_tdp)
         if (chooser)
            	chooser->rt_power = chooser->power_t + chooser->local_result.power*pppm_lkg;
     	RAS->rt_power = RAS->power_t + RAS->local_result.power*coredynp->pppm_lkg_multhread;
-    	rt_power = rt_power + globalBPT->rt_power + L1_localBPT->rt_power + L2_localBPT->rt_power + RAS->rt_power;
+    	rt_power = rt_power + globalBPT->rt_power + L1_localBPT->rt_power + RAS->rt_power;
+        if (L2_localBPT)
+            rt_power = rt_power + L2_localBPT->rt_power;
         if (chooser)
             rt_power = rt_power + chooser->rt_power;
     }

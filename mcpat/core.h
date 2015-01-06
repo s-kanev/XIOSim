@@ -232,7 +232,6 @@ public:
 
    ParseXML *XML;
    int  ithCore;
-   double executionTime, clockRate;
    InputParameter interface_ip;
    double scktRatio, chip_PR_overhead, macro_PR_overhead;
    InstFetchU * ifu;

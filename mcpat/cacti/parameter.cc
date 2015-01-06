@@ -61,7 +61,7 @@ void TechnologyParameter::DeviceType::display(uint32_t indent)
   *out_file << indent_str << "R_pch_on  = " << setw(12) << R_pch_on  << " ohm-um" << endl;
   *out_file << indent_str << "Vdd       = " << setw(12) << Vdd       << " V" << endl;
   *out_file << indent_str << "Vth       = " << setw(12) << Vth       << " V" << endl;
-  cout << indent_str << "Vdd_default  = " << setw(12) << Vdd_default       << " V" << endl;
+  *out_file << indent_str << "Vdd_default  = " << setw(12) << Vdd_default       << " V" << endl;
   *out_file << indent_str << "I_on_n    = " << setw(12) << I_on_n    << " A/um" << endl;
   *out_file << indent_str << "I_on_p    = " << setw(12) << I_on_p    << " A/um" << endl;
   *out_file << indent_str << "I_off_n   = " << setw(12) << I_off_n   << " A/um" << endl;
