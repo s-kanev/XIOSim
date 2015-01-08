@@ -199,3 +199,20 @@ install:
 	git diff --no-prefix > $(COOL_INSTALL_DIR)/diff
 	if [ -n "$(REPEATER_LIB)" ]; then cd ../mem-repeater/ ; git log -1 --format="%H" > $(COOL_INSTALL_DIR)/repeater_version; fi
 	if [ -n "$(REPEATER_LIB)" ]; then cd ../mem-repeater/ ; git diff --no-prefix > $(COOL_INSTALL_DIR)/repeater_diff; fi
+
+##############################################################
+#
+# Test harness
+#
+##############################################################
+run_unit_tests: test
+	$(foreach t,$(UNIT_TESTS),$t;)
+
+run_unit_tests_junit: test
+	$(foreach t,$(UNIT_TESTS),$t -r junit -o $(subst $(OBJDIR),$(ZESTO_HOME)/,$t.xml;))
+
+run_integration_tests: all
+	cd $(ZESTO_HOME); py.test scripts/run_tests.py
+
+run_integration_tests_junit: all
+	cd $(ZESTO_HOME); py.test --junitxml integration.xml scripts/run_tests.py
