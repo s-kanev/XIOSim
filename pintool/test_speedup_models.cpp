@@ -296,10 +296,42 @@ TEST_CASE("Throughput optimization under logarithmic scaling") {
                 core_allocs,
                 process_scaling,
                 process_serial_runtime);
-
+        /* If multiple processes have the same scaling factors, then any
+         * permutation of their allocations is valid. */
         for (int j = 0; j < NUM_PROCESSES; j++) {
-            REQUIRE(core_allocs[j] == correct_allocations[i][j]);
+            bool is_similar = false;
+            bool test = false;
+            for (int k = j+1; k < NUM_PROCESSES; k++) {
+                if (test_scaling_factors[i][j] ==
+                        Approx(test_scaling_factors[i][k])) {
+                    is_similar = true;
+                    // Catch doesn't support any boolean expressions with more
+                    // than a single comparison, so we have to test this
+                    // manually and fail with a descriptive message.
+                    test = test ||
+                           core_allocs[j] == correct_allocations[i][j] ||
+                           core_allocs[j] == correct_allocations[i][k];
+                    if (test) {
+                        // If the current processes's core allocation checks
+                        // out, then we don't need to check the other scaling
+                        // factors.
+                        REQUIRE(test);
+                        break;
+                    }
+                } else {
+                    REQUIRE(core_allocs[j] == correct_allocations[i][j]);
+                    break;
+                }
+            }
+            if (is_similar && !test) {
+                // If we get here, then we didn't match any of the valid
+                // allocation solutions.
+                FAIL("Core allocation of " << core_allocs[j] << " for process "
+                     << j << " with similar scaling did not match any valid "
+                     "permutations.");
+            }
         }
+
         process_scaling.clear();
         process_serial_runtime.clear();
         core_allocs.clear();

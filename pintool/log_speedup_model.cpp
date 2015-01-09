@@ -18,7 +18,7 @@
  *
  * The two solved solutions are of the form n1 = B/W(B/A), where A = exp(1-1/c),
  * B = Pu/Pc, c is the logarithmic scaling constant, and Pu/Pc is the ratio of
- * uncore to core power; and n2 = A as defined above. W(t) is the principle
+ * uncore to core power; and n2 = A as defined above. W(t) is the principal
  * branch of the Lambert-W function. Ask Sam for more details about the
  * solutions...code documentation is not the right place for math proofs.
  *
