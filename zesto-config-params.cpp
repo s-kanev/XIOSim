@@ -15,6 +15,7 @@ cfg_t *all_opts;
 cfg_opt_t system_cfg[] {
   CFG_BOOL("help", cfg_false, CFGF_NONE),
   CFG_BOOL("debug", cfg_false, CFGF_NONE),
+  CFG_BOOL("assert_spin", cfg_false, CFGF_NONE),
   CFG_INT("seed", 1, CFGF_NONE),
   CFG_INT("num_cores", 1, CFGF_NONE),
   CFG_INT("max_insts", 0, CFGF_NONE),

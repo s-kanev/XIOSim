@@ -72,6 +72,9 @@ extern struct stat_sdb_t *sim_sdb;
 
 extern struct core_knobs_t knobs;
 
+/* spin on assertion failure so we can attach a debbuger */
+extern bool assert_spin;
+
 /*
  * main simulator interfaces, called in the following order
  */

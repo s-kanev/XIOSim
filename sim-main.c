@@ -112,6 +112,9 @@ bool help_me;
 /* random number generator seed */
 int rand_seed;
 
+/* spin on assertion failure so we can attach a debbuger */
+bool assert_spin;
+
 int
 orphan_fn(int i, int argc, char **argv)
 {

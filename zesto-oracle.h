@@ -160,6 +160,8 @@
 }
 #endif
 
+extern bool assert_spin;
+
 #define zesto_assert(cond, retval) {		\
   if(!(cond)) { \
     core->oracle->hosed = TRUE; \
@@ -171,6 +173,8 @@
     for (int __i=0; __i < num_cores; __i++) \
       cores[__i]->oracle->trace_in_flight_ops(); \
     flush_trace(); \
+    if (assert_spin) \
+      while(1); \
     exit(6); \
     return (retval); \
   } \
