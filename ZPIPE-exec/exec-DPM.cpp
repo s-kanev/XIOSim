@@ -2849,7 +2849,9 @@ void core_exec_DPM_t::STQ_deallocate_senior(void)
     STQ[STQ_senior_head].first_byte_requested = false;
     STQ[STQ_senior_head].last_byte_requested = false;
     /* In case request was fullfilled by only one of parallel caches (DL1 and repeater)
-     * get a new action_id, to ignore callbacks from the other one */
+     * get a new action_id, to ignore callbacks from the other one.
+     * MFENCEs also rely on the new action_id to check that a store has
+     * returned from all caches. */
     STQ[STQ_senior_head].action_id = core->new_action_id();
     STQ_senior_head = modinc(STQ_senior_head,knobs->exec.STQ_size); //(STQ_senior_head + 1) % knobs->exec.STQ_size;
     STQ_senior_num--;
@@ -2931,8 +2933,10 @@ void core_exec_DPM_t::store_dl1_callback(void * const op)
     if(uop->exec.action_id == E->STQ[uop->alloc.STQ_index].action_id)
     {
       E->STQ[uop->alloc.STQ_index].first_byte_written = true;
-      if(E->STQ[uop->alloc.STQ_index].last_byte_written)
+      if(E->STQ[uop->alloc.STQ_index].last_byte_written) {
         E->STQ[uop->alloc.STQ_index].write_complete = true;
+        E->update_last_completed(core->sim_cycle);
+      }
     }
   }
   core->return_uop_array(uop);
@@ -2956,8 +2960,10 @@ void core_exec_DPM_t::store_dl1_split_callback(void * const op)
     if(uop->exec.action_id == E->STQ[uop->alloc.STQ_index].action_id)
     {
       E->STQ[uop->alloc.STQ_index].last_byte_written = true;
-      if(E->STQ[uop->alloc.STQ_index].first_byte_written)
+      if(E->STQ[uop->alloc.STQ_index].first_byte_written) {
         E->STQ[uop->alloc.STQ_index].write_complete = true;
+        E->update_last_completed(core->sim_cycle);
+      }
     }
   }
   core->return_uop_array(uop);
@@ -3015,8 +3021,10 @@ void core_exec_DPM_t::repeater_store_callback(void * const op, bool is_hit)
       zesto_assert(core->num_signals_in_pipe >= 0, (void)0);
     }
     E->STQ[uop->alloc.STQ_index].first_byte_written = true;
-    if(E->STQ[uop->alloc.STQ_index].last_byte_written)
+    if(E->STQ[uop->alloc.STQ_index].last_byte_written) {
       E->STQ[uop->alloc.STQ_index].write_complete = true;
+      E->update_last_completed(core->sim_cycle);
+    }
   }
   core->return_uop_array(uop);
 }
@@ -3041,8 +3049,10 @@ void core_exec_DPM_t::repeater_split_store_callback(void * const op, bool is_hit
     zesto_assert(!uop->oracle.is_sync_op, (void)0);
 
     E->STQ[uop->alloc.STQ_index].last_byte_written = true;
-    if(E->STQ[uop->alloc.STQ_index].first_byte_written)
+    if(E->STQ[uop->alloc.STQ_index].first_byte_written) {
       E->STQ[uop->alloc.STQ_index].write_complete = true;
+      E->update_last_completed(core->sim_cycle);
+    }
   }
   core->return_uop_array(uop);
 }

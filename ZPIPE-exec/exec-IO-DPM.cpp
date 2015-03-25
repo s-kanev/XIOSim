@@ -2317,8 +2317,10 @@ void core_exec_IO_DPM_t::store_dl1_callback(void * const op)
     if(uop->exec.action_id == E->STQ[uop->alloc.STQ_index].action_id)
     {
       E->STQ[uop->alloc.STQ_index].first_byte_written = true;
-      if(E->STQ[uop->alloc.STQ_index].last_byte_written)
+      if(E->STQ[uop->alloc.STQ_index].last_byte_written) {
         E->STQ[uop->alloc.STQ_index].write_complete = true;
+        E->update_last_completed(core->sim_cycle);
+      }
     }
   }
   core->return_uop_array(uop);
@@ -2342,8 +2344,10 @@ void core_exec_IO_DPM_t::store_dl1_split_callback(void * const op)
     if(uop->exec.action_id == E->STQ[uop->alloc.STQ_index].action_id)
     {
       E->STQ[uop->alloc.STQ_index].last_byte_written = true;
-      if(E->STQ[uop->alloc.STQ_index].first_byte_written)
+      if(E->STQ[uop->alloc.STQ_index].first_byte_written) {
         E->STQ[uop->alloc.STQ_index].write_complete = true;
+        E->update_last_completed(core->sim_cycle);
+      }
     }
   }
   core->return_uop_array(uop);
@@ -2401,8 +2405,10 @@ void core_exec_IO_DPM_t::repeater_store_callback(void * const op, bool is_hit)
       zesto_assert(core->num_signals_in_pipe >= 0, (void)0);
     }
     E->STQ[uop->alloc.STQ_index].first_byte_written = true;
-    if(E->STQ[uop->alloc.STQ_index].last_byte_written)
+    if(E->STQ[uop->alloc.STQ_index].last_byte_written) {
       E->STQ[uop->alloc.STQ_index].write_complete = true;
+      E->update_last_completed(core->sim_cycle);
+    }
   }
   core->return_uop_array(uop);
 }
@@ -2427,8 +2433,10 @@ void core_exec_IO_DPM_t::repeater_split_store_callback(void * const op, bool is_
     zesto_assert(!uop->oracle.is_sync_op, (void)0);
 
     E->STQ[uop->alloc.STQ_index].last_byte_written = true;
-    if(E->STQ[uop->alloc.STQ_index].first_byte_written)
+    if(E->STQ[uop->alloc.STQ_index].first_byte_written) {
       E->STQ[uop->alloc.STQ_index].write_complete = true;
+      E->update_last_completed(core->sim_cycle);
+    }
   }
   core->return_uop_array(uop);
 }
