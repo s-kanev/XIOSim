@@ -939,29 +939,13 @@ bool core_exec_DPM_t::check_load_issue_conditions(const struct uop_t * const uop
   if(LDQ[uop->alloc.LDQ_index].when_issued != TICK_T_MAX)
     return false;
 
-  // Find the youngest fence in the LDQ
-  int youngestFenceIndex = -1;
+  /* Conservative fence implementation -- if there is an older fence in LDQ,
+   * don't issue. */
   for (int j = LDQ_head; j != uop->alloc.LDQ_index; j = modinc(j, knobs->exec.LDQ_size)) {
-    if (LDQ[j].uop->decode.is_fence && (LDQ[j].uop->timing.when_completed == TICK_T_MAX)) {
-      youngestFenceIndex = j;
-    }
+    if (LDQ[j].uop->decode.is_fence &&
+        LDQ[j].uop->timing.when_completed == TICK_T_MAX)
+      return false;
   }
-  
-  // Found a fence that is not completed
-  // Make sure there are no un-returned loads older than it
-  if(youngestFenceIndex != -1) {
-    for (int j = LDQ_head; j != youngestFenceIndex; j = modinc(j, knobs->exec.LDQ_size)) {
-      if(LDQ[j].uop->decode.is_fence) {
-        continue;
-      }
-      if(LDQ[j].uop->exec.when_data_loaded == TICK_T_MAX) {
-#ifdef ZTRACE
-        ztrace_print(uop,"e|load|load failed on being trapped behind a fence with an older unreturned load");
-#endif
-        return false;
-      }
-    }
-  }    
 
   md_addr_t ld_addr1 = LDQ[uop->alloc.LDQ_index].uop->oracle.virt_addr;
   md_addr_t ld_addr2 = LDQ[uop->alloc.LDQ_index].virt_addr + uop->decode.mem_size - 1;
