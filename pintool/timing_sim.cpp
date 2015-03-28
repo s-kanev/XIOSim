@@ -154,9 +154,6 @@ void* SimulatorLoop(void* arg)
             }
         }
         xiosim::buffer_management::applyConsumerChanges(instrument_tid, numConsumed);
-#if 0
-        lastConsumerApply[instrument_tid] = cores[coreID]->sim_cycle;
-#endif
     }
     return NULL;
 }
@@ -188,13 +185,10 @@ void SpawnSimulatorThreads(int numCores)
 /* ========================================================================== */
 /* Invariant: we are not simulating anything here. Either:
  * - Not in a pinpoints ROI.
- * - Anything after PauseSimulation (or the HELIX equivalent)
+ * - Anything after PauseSimulation.
  * This implies all cores are inactive. And handshake buffers are already drained. */
 void StopSimulation(bool kill_sim_threads, int caller_coreID)
 {
-    /* For now, force end the slice (once!), once all processes have finished. */
-    Zesto_Slice_End(1, 0, 100 * 1000);
-
     if (kill_sim_threads) {
         /* Signal simulator threads to die */
         for (int coreID=0; coreID < num_cores; coreID++) {

@@ -19,16 +19,23 @@ using namespace INSTLIB;
 class handshake_container_t;
 
 extern KNOB<BOOL> KnobILDJIT;
-extern KNOB<string> KnobFluffy;
 extern KNOB<int> KnobNumCores;
+
+/* A list of the threads in this feeder. */
 extern list<THREADID> thread_list;
 extern XIOSIM_LOCK thread_list_lock;
+/* Mapping from a feeder thread to a *virtual* core. We use it to let the application
+ * enforce an ordering among threads. When we do something that affects all threads,
+ * say, pause the simulation, we traverse thread_list in the order set by virtual_affinity.
+ * Only used by HELIX for now, but we can easily hijack pthread_setaffinity. */
+extern map<THREADID, int> virtual_affinity;
 
+
+/* Mapping from system-wide thread pid to the Pin-local, zero-based thread id. */
 extern map<pid_t, THREADID> global_to_local_tid;
 extern XIOSIM_LOCK lk_tid_map;
 
-extern map<THREADID, tick_t> lastConsumerApply;
-
+/* Unique address space id -- the # of this feeder among all */
 extern int asid;
 
 #define ATOMIC_ITERATE(_list, _it, _lock) \
@@ -138,18 +145,44 @@ enum EXECUTION_MODE
 };
 extern EXECUTION_MODE ExecMode;
 
+/* Pause/Resume API. The underlying abstraction is a *simulation slice*.
+ * It's just an ROI that we simulate, and ignore anything in between.
+ * For regular programs, that's typically one SimPoint, but we abuse it
+ * for HELIX to ignore things between parallel loops.
+ * The typical sequence of calls is:
+ * StartSimSlice(), ResumeSimulation(), SIMULATION_HAPPENS_HERE, PauseSimulation(), EndSimSlice().
+ * For HELIX, we do ResumeSimulation(), -----------------------, PauseSimulation() for every parallel loop.
+*/
 
-VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREADID tid);
+/* Make sure that all sim threads drain any handshake buffers that could be in
+ * their respective scheduler run queues.
+ * Start ignoring all produced instructions. Deallocate all cores.
+ * Invariant: after this call, all sim threads are spinning in SimulatorLoop */
 VOID PauseSimulation();
-VOID StopSimulation(BOOL kill_sim_threads);
-VOID ThreadFini(THREADID threadIndex, const CONTEXT *ctxt, INT32 code, VOID *v);
-VOID Fini(INT32 exitCode, VOID *v);
+/* Allocate cores. Make sure threads start producing instructions.
+ * Schedule threads for simulation. */
+VOID ResumeSimulation(bool allocate_cores);
+/* Start a new simulation slice (after waiting for all processes).
+ * Add instrumentation calls and set ExecMode. */
+VOID StartSimSlice(int slice_num);
+/* End simulation slice (after waiting for all processes).
+ * Remove all instrumetation so we can FF fast between slices. */
+VOID EndSimSlice(int slice_num, int slice_length, int slice_weight_times_1000);
+/* Call the current core allocator and get the # of cores we are allowed to use.
+ * Some allocators use profiled scaling and serial runtimes to make their decisions.
+ * Check out base_allocator.h for the API. */
+int AllocateCores(std::vector<double> scaling, double serial_runtime);
 
-VOID amd_hack();
+/* Insert instrumentation that we didn't add so we can skip ILDJIT compilation even faster. */
 VOID doLateILDJITInstrumentation();
 
+/* Print an instruction to the dynamic pc trace. */
+/* XXX: We probably need a cleaner "insert fake instruction" API */
 VOID printTrace(string stype, ADDRINT pc, pid_t tid);
 
+/* Control the "putting producer threads to sleep" optimization.
+ * It helps significantly when we are crunched for cores on the simulation host
+ * (e.g. simulating 16-cores on a 16-core machine). */
 void disable_producers();
 void enable_producers();
 

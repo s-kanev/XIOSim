@@ -19,6 +19,9 @@ SHARED_VAR_DEFINE(int, next_asid)
 SHARED_VAR_DEFINE(int, num_done_fastforward)
 SHARED_VAR_DEFINE(XIOSIM_LOCK, lk_num_done_fastforward)
 
+SHARED_VAR_DEFINE(int, num_done_slice)
+SHARED_VAR_DEFINE(XIOSIM_LOCK, lk_num_done_slice)
+
 SHARED_VAR_DEFINE(ThreadProcessMap, threadProcess)
 SHARED_VAR_DEFINE(XIOSIM_LOCK, lk_threadProcess)
 
@@ -116,6 +119,10 @@ int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores_)
     SHARED_VAR_INIT(int, num_done_fastforward, 0);
     SHARED_VAR_INIT(XIOSIM_LOCK, lk_num_done_fastforward);
     lk_init(lk_num_done_fastforward);
+
+    SHARED_VAR_INIT(int, num_done_slice, 0);
+    SHARED_VAR_INIT(XIOSIM_LOCK, lk_num_done_slice);
+    lk_init(lk_num_done_slice);
 
     int_allocator* int_alloc_inst = new int_allocator(global_shm->get_segment_manager());
     shared_core_set_allocator* core_set_alloc_inst = new shared_core_set_allocator(global_shm->get_segment_manager());

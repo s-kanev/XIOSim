@@ -15,29 +15,14 @@ KNOB<BOOL> KnobParsec(KNOB_MODE_WRITEONCE,      "pintool",
 
 VOID Parsec_BeginROI(THREADID tid, ADDRINT pc)
 {
-    PPointHandler(CONTROL_START, NULL, NULL, (VOID*)pc, tid);
+    StartSimSlice(1);
+    ResumeSimulation(true);
 }
 
 VOID Parsec_EndROI(THREADID tid, ADDRINT pc)
 {
-    /* Ignore subsequent instructions that we may see on this thread */
-    thread_state_t* tstate = get_tls(tid);
-    lk_lock(&tstate->lock, tid+1);
-    tstate->ignore = true;
-    lk_unlock(&tstate->lock);
-
-    /* Mark this thread for descheduling */
-    handshake_container_t *handshake = xiosim::buffer_management::get_buffer(tstate->tid);
-    handshake->flags.giveCoreUp = true;
-    handshake->flags.giveUpReschedule = false;
-    handshake->flags.valid = true;
-    handshake->flags.real = false;
-    xiosim::buffer_management::producer_done(tstate->tid, true);
-
-    xiosim::buffer_management::flushBuffers(tstate->tid);
-
-    /* Let core pipes drain an pause simulation */
-    PPointHandler(CONTROL_STOP, NULL, NULL, (VOID*)pc, tid);
+    PauseSimulation();
+    EndSimSlice(1, 0, 1000 * 100);
 }
 
 VOID AddParsecCallbacks(IMG img)

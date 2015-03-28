@@ -106,18 +106,20 @@ int ScheduleNewThread(pid_t tid)
     run_queues[coreID].q.push(tid);
     lk_unlock(&run_queues[coreID].lk);
     return coreID;
+
+    /* TODO: UpdateProcessCoreSet if not called from ScheduleProcessThreads,
+     * which can happen on a newly created thread during a slice. */
 }
 
 /* Threads are ordered by affinity to "virtual cores".
- * We grab the first @core_allocation ones and actually schedule
- * them to real cores (which could be different from the virtual
- * ones, but we preserve the ordering between threads). */
+ * We actually schedule them to real cores (which could be different from the
+ * virtual ones, but we preserve the ordering between @threads). */
 /* ========================================================================== */
 void ScheduleProcessThreads(int asid, std::list<pid_t> threads)
 {
     CoreSet scheduled_cores;
 
-    /* Hardcoded policy for now, each process gets a
+    /* XXX: Hardcoded policy for now, each process gets a
      * hardcoded contiguous subset of cores. */
     int offset = asid * (num_cores / *num_processes);
 

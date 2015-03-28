@@ -12,7 +12,7 @@ const pid_t INVALID_THREADID = -1;
 
 void InitScheduler(int num_cores);
 
-/* Notify the scheduler a new threads is created.
+/* Notify the scheduler a new thread is created.
  * It will be immediately marked for scheduling on a core.
  * Returns the scheduled coreID, or INVALID_CORE.
  */

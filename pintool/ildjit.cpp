@@ -23,7 +23,6 @@
 
 #include "scheduler.h"
 #include "ildjit.h"
-#include "fluffy.h"
 #include "utils.h"
 #include "parse_speedup.h"
 
@@ -78,6 +77,8 @@ KNOB<BOOL> KnobInsertLightWaits(KNOB_MODE_WRITEONCE,     "pintool",
         "insert_light_waits", "false", "Insert light waits in the processor pipeline");
 KNOB<string> KnobPredictedSpeedupFile(KNOB_MODE_WRITEONCE,   "pintool",
         "speedup_file", "", "File containing speedup prediction for core allocation");
+KNOB<BOOL> KnobHelixDistributedFlush(KNOB_MODE_WRITEONCE,   "pintool",
+        "helix_distributed_flush", "false", "Use two-stage distributed ring cache flush (still buggy)");
 extern KNOB<BOOL> KnobWarmLLC;
 
 static string warm_loop = "";
@@ -108,8 +109,7 @@ static void initializePerThreadLoopState(THREADID tid);
 static bool loopMatches(string loop, UINT32 invocationNum, UINT32 iterationNum);
 static void readLoop(ifstream& fin, string* name, UINT32* invocation, UINT32* iteration);
 
-static VOID shutdownSimulation(THREADID tid);
-extern VOID doLateILDJITInstrumentation();
+static VOID shutdownSimulation();
 
 stack<loop_state_t> loop_states;
 loop_state_t* loop_state = NULL;
@@ -121,12 +121,6 @@ bool insert_light_waits;
 // The number of allocated cores per loop, read by ildjit
 UINT32* allocated_cores;
 
-/* Threads associated with this feeder, sorted by declared affinity,
- * so that they form the nice ring HELIX relies on. */
-vector<THREADID> affine_threads;
-map<THREADID, int> virtual_affinity;
-XIOSIM_LOCK lk_affine_threads;
-
 static bool ignoreSignalZero;
 
 extern map<ADDRINT, string> pc_diss;
@@ -135,9 +129,6 @@ extern map<ADDRINT, string> pc_diss;
 VOID MOLECOOL_Init()
 {
     lk_init(&ildjit_lock);
-    lk_init(&lk_affine_threads);
-
-    FLUFFY_Init();
 
     ifstream warm_loop_file, start_loop_file, end_loop_file;
     warm_loop_file.open("phase_warm_loop", ifstream::in);
@@ -291,8 +282,7 @@ VOID ILDJIT_endSimulation(THREADID tid, ADDRINT ip)
     cerr << "Stopping simulation, TID: " << tid << endl;
 //#endif
 
-    if (KnobFluffy.Value().empty())
-        PauseSimulation();
+    PauseSimulation();
 }
 
 /* ========================================================================== */
@@ -387,8 +377,9 @@ VOID ILDJIT_startLoop_after(THREADID tid, ADDRINT ip)
 /* ========================================================================== */
 VOID ILDJIT_startInitParallelLoop(ADDRINT loop)
 {
-    if (!reached_start_invocation)
-        return;
+// XXX: HELIX will make this check, so we don't need to.
+//    if (!reached_start_invocation)
+//        return;
 
     vector<double> scaling;
     double serial_runtime = 0;
@@ -401,17 +392,17 @@ VOID ILDJIT_startInitParallelLoop(ADDRINT loop)
         serial_runtime = data->serial_runtime;
     }
 
-    ipc_message_t msg;
-    msg.AllocateCores(asid, scaling, serial_runtime);
-    SendIPCMessage(msg, /*blocking*/true);
-
-    /* Here we've finished with the allocation decision. */
-    int allocation = GetProcessCoreAllocation(asid);
-#ifdef ALLOCATOR_DEBUG
-    cerr << "ASID: " << asid << " allocated " << allocation << " cores." << endl;
-#endif
-    ASSERTX(allocation > 0);
+    /* Invoke the allocator and let HELIX adjust its number of threads
+     * before starting the loop. */
+    int allocation = AllocateCores(scaling, serial_runtime);
     *allocated_cores = allocation;
+
+    /* TODO: we need some special logic here if allocation == 1.
+     * In that case, HELIX still tries to form a ring between cores 0 and 0,
+     * and bad things happen. The right thing is to fix it in the HELIX runtime.
+     * A dirty hack would be to overwrite automaticParallelizationSingleThread
+     * from this callback, and set it back in endParallelLoop. This might get ugly
+     * fast. */
 }
 
 /* ========================================================================== */
@@ -450,24 +441,24 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
     if (ExecMode != EXECUTION_MODE_SIMULATE) {
         if(KnobWarmLLC.Value()) {
             assert(reached_warm_invocation);
-        }    
-        else {    
+        }
+        else {
             cerr << "Do late!" << endl;
             doLateILDJITInstrumentation();
             cerr << "Done late!" << endl;
-        }    
+        }
 
         cerr << "FastForward runtime:";
         printElapsedTime();
 
         cerr << "Starting simulation, TID: " << tid << endl;
-        PPointHandler(CONTROL_START, NULL, NULL, NULL, tid);
+        StartSimSlice(1);
         first_invocation = false;
     }
     else {
         cerr << tid << ": resuming simulation" << endl;
     }
-    ILDJIT_ResumeSimulation(tid);
+    ResumeSimulation(false);
 }
 /* ========================================================================== */
 
@@ -512,14 +503,14 @@ VOID ILDJIT_startIteration(THREADID tid)
         initializePerThreadLoopState(tid);
 
         simulating_parallel_loop = true;
-        PPointHandler(CONTROL_START, NULL, NULL, NULL, tid);
-        ILDJIT_ResumeSimulation(tid);
+        StartSimSlice(1);
+        ResumeSimulation(false);
     }
 
     // Check if this is the last iteration
     if(reached_end_iteration || loopMatches(end_loop, end_loop_invocation, end_loop_iteration)) {
         assert(reached_start_invocation && reached_end_invocation && reached_start_iteration);
-        shutdownSimulation(tid);
+        shutdownSimulation();
     }
 
     if(reached_start_iteration) {
@@ -537,10 +528,10 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
     if (ExecMode == EXECUTION_MODE_SIMULATE) {
         if(reached_end_invocation) {
             cerr << tid << ": Shutting down early!" << endl;
-            shutdownSimulation(tid);
+            shutdownSimulation();
         }
 
-        ILDJIT_PauseSimulation(tid);
+        PauseSimulation();
         cerr << tid << ": Paused simulation!" << endl;
 
         first_invocation = false;
@@ -583,9 +574,8 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID, ADDRINT pc, ADDRINT retPC)
     tstate->ignore = true;
     lk_unlock(&tstate->lock);
 
-    if(KnobNumCores.Value() == 1) {
+    if (GetProcessCoreAllocation(asid) == 1)
         return;
-    }
 
     tstate->lastWaitID = ssID;
     tstate->retPC = retPC;
@@ -628,7 +618,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
     lk_unlock(&tstate->lock);
 
     /* Don't insert waits in single-core mode */
-    if (KnobNumCores.Value() == 1)
+    if (GetProcessCoreAllocation(asid) == 1)
         goto cleanup;
 
     tstate->loop_state->unmatchedWaits++;
@@ -766,7 +756,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
 
 
     /* Don't insert signals in single-core mode */
-    if (KnobNumCores.Value() == 1)
+    if (GetProcessCoreAllocation(asid) == 1)
         goto cleanup;
 
     tstate->loop_state->unmatchedWaits--;
@@ -820,17 +810,9 @@ VOID ILDJIT_setAffinity(THREADID tid, INT32 coreID)
     lk_unlock(printing_lock);
 #endif
 
-    lk_lock(&lk_affine_threads, 1);
+    lk_lock(&thread_list_lock, 1);
     virtual_affinity[tid] = coreID;
-
-    /* Construct array of thread ids, ordered by virtual core affinity. */
-    auto it = affine_threads.begin();
-    for (/*nada*/; it != affine_threads.end(); it++) {
-        if (virtual_affinity[*it] > coreID)
-            break;
-    }
-    affine_threads.insert(it, tid);
-    lk_unlock(&lk_affine_threads);
+    lk_unlock(&thread_list_lock);
 }
 
 /* ========================================================================== */
@@ -1080,46 +1062,6 @@ VOID AddILDJITCallbacks(IMG img)
                        IARG_END);
         RTN_Close(rtn);
     }
-
-//==========================================================
-//FLUFFY-related
-    if (!KnobFluffy.Value().empty())
-    {
-
-        rtn = RTN_FindByName(img, "step3_start_inst");
-        if (RTN_Valid(rtn))
-        {
-#ifdef ZESTO_PIN_DBG
-            cerr << "FLUFFY_step3_start_inst ";
-#endif
-            RTN_Open(rtn);
-
-            RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(FLUFFY_StartInsn),
-                           IARG_THREAD_ID,
-                           IARG_INST_PTR,
-                           IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
-                           IARG_END);
-
-            RTN_Close(rtn);
-        }
-
-        rtn = RTN_FindByName(img, "step3_end_inst");
-        if (RTN_Valid(rtn))
-        {
-#ifdef ZESTO_PIN_DBG
-            cerr << "FLUFFY_step3_end_inst ";
-#endif
-            RTN_Open(rtn);
-
-            RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(FLUFFY_StopInsn),
-                           IARG_THREAD_ID,
-                           IARG_INST_PTR,
-                           IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
-                           IARG_END);
-
-            RTN_Close(rtn);
-        }
-    }
 #ifdef ZESTO_PIN_DBG
     cerr << endl;
 #endif
@@ -1311,231 +1253,65 @@ VOID insertCollectionOnZero(thread_state_t* curr_tstate, bool threadZero)
 }
 
 /* ========================================================================== */
-VOID ILDJIT_PauseSimulation(THREADID tid)
+VOID InsertHELIXPauseCode(THREADID tid, bool first_thread)
 {
-    /* The context is that all cores functionally have sent signal 0
-     * and unblocked the last iteration. We need to (i) wait for them
-     * to functionally reach wait 0, where they will wait until the end
-     * of the loop; (ii) drain all pipelines once cores are waiting. */
-    lk_lock(printing_lock, tid);
-    cerr << "pausing..." << endl;
-    lk_unlock(printing_lock);
+    auto curr_tstate = get_tls(tid);
 
-    volatile bool done_with_iteration = false;
-    do {
-        done_with_iteration = true;
-        list<THREADID>::iterator it;
-        ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
-            if ((*it) != tid) {
-                thread_state_t* tstate = get_tls(*it);
-                lk_lock(&tstate->lock, 1);
-                bool curr_done = tstate->ignore_all ||
-                    (tstate->ignore && (tstate->lastWaitID == 0));
-                done_with_iteration &= curr_done;
-                /* Setting ignore_all here (while ignore is set) should be a race-free way
-                 * of ignoring the serial portion outside the loop after the thread goes
-                 * on an unsets ignore locally. */
-                if (curr_done) {
-                    tstate->ignore_all = true;
-                }
-                lk_unlock(&tstate->lock);
-            }
-        }
-    } while (!done_with_iteration);
-
-    /* Here we have produced everything for this loop! */
-    disable_producers();
-    enable_consumers();
-
-    /* Drainning all pipelines and deactivating cores. */
-    vector<THREADID>::iterator it;
-    unsigned int thread_count = 0;
-    ATOMIC_ITERATE(affine_threads, it, lk_affine_threads) {
-        auto curr_tstate = get_tls(*it);
-
-        if(loop_state->use_ring_cache) {
-          insertCollectionOnZero(curr_tstate, thread_count == 0);
+    /* Only insert extra sync code in multi-threaded mode. */
+    if (GetProcessCoreAllocation(asid) > 1) {
+        if (KnobHelixDistributedFlush.Value() && loop_state->use_ring_cache) {
+            insertCollectionOnZero(curr_tstate, first_thread);
         }
         else {
-          insertBasicSafetySync(curr_tstate);
-        }
-
-        /* Insert a MFENCE. This makes sure that all operations to the repeater
-         * have not only been scheduled, but also completed and ack-ed. */
-        handshake_container_t* handshake = xiosim::buffer_management::get_buffer(curr_tstate->tid);
-        handshake->flags.real = false;
-        handshake->handshake.asid = asid;
-        handshake->flags.valid = true;
-
-        handshake->handshake.pc = (ADDRINT) mfence_template;
-        handshake->handshake.npc = (ADDRINT)syscall_template;
-        handshake->handshake.tpc = (ADDRINT) mfence_template + sizeof(mfence_template);
-        handshake->flags.brtaken = false;
-        memcpy(handshake->handshake.ins, mfence_template, sizeof(mfence_template));
-        xiosim::buffer_management::producer_done(curr_tstate->tid, true);
-
-        /* Insert a trap. This will ensure that the pipe drains before
-         * consuming the next instruction.*/
-        handshake_container_t* handshake_1 = xiosim::buffer_management::get_buffer(curr_tstate->tid);
-        handshake_1->flags.real = false;
-        handshake_1->handshake.asid = asid;
-        handshake_1->flags.valid = true;
-
-        handshake_1->handshake.pc = (ADDRINT) syscall_template;
-        handshake_1->handshake.npc = (ADDRINT) syscall_template + sizeof(syscall_template);
-        handshake_1->handshake.tpc = (ADDRINT) syscall_template + sizeof(syscall_template);
-        handshake_1->flags.brtaken = false;
-        memcpy(handshake_1->handshake.ins, syscall_template, sizeof(syscall_template));
-        xiosim::buffer_management::producer_done(curr_tstate->tid, true);
-
-        /* And finally, flush the core's pipelie to get rid of anything
-         * left over (including the trap). */
-        handshake_container_t* handshake_3 = xiosim::buffer_management::get_buffer(curr_tstate->tid);
-
-        handshake_3->flags.flush_pipe = true;
-        handshake_3->flags.real = false;
-        handshake_3->handshake.asid = asid;
-        handshake_3->handshake.pc = 0;
-        handshake_3->flags.valid = true;
-        xiosim::buffer_management::producer_done(curr_tstate->tid, true);
-
-        /* Let the scheduler deactivate this core. */
-        handshake_container_t* handshake_2 = xiosim::buffer_management::get_buffer(curr_tstate->tid);
-
-        handshake_2->flags.real = false;
-        handshake_2->handshake.asid = asid;
-        handshake_2->flags.giveCoreUp = true;
-        handshake_2->flags.giveUpReschedule = false;
-        handshake_2->flags.valid = true;
-        xiosim::buffer_management::producer_done(curr_tstate->tid, true);
-
-        xiosim::buffer_management::flushBuffers(curr_tstate->tid);
-
-        /* All other threads didn't participate in the loop */
-        thread_count++;
-        if (thread_count == *allocated_cores)
-            break;
-    }
-
-    enable_consumers();
-
-    /* Wait until all cores are done -- consumed their buffers. */
-    volatile bool done = false;
-    do {
-        done = true;
-        vector<THREADID>::iterator it;
-        ATOMIC_ITERATE(affine_threads, it, lk_affine_threads) {
-            auto curr_tstate = get_tls(*it);
-            done &= !IsSHMThreadSimulatingMaybe(curr_tstate->tid);
-        }
-        if (!done && *sleeping_enabled)
-            PIN_Sleep(10);
-    } while (!done);
-
-#ifdef ZESTO_PIN_DBG
-    cerr << tid << " [KEVIN]: All cores have empty buffers" << endl;
-    cerr.flush();
-#endif
-
-#if 0
-    tick_t most_cycles = 0;
-    ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
-        auto curr_tstate = get_tls(*it);
-        int coreID = GetSHMThreadCore(curr_tstate->tid);
-        if(cores[coreID]->sim_cycle > most_cycles) {
-            most_cycles = cores[coreID]->sim_cycle;
+            insertBasicSafetySync(curr_tstate);
         }
     }
 
-    ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
-        auto curr_tstate = get_tls(*it);
-        int coreID = GetSHMThreadCore(curr_tstate->tid);
-        assert(tstate != NULL);
-        cores[coreID]->sim_cycle = most_cycles;
-        cerr << coreID << ":OverlapCycles:" << most_cycles - lastConsumerApply[*it] << endl;
-    }
-#endif
+    /* Insert a MFENCE. This makes sure that all operations to the repeater
+     * have not only been scheduled, but also completed and ack-ed. */
+    handshake_container_t* handshake = xiosim::buffer_management::get_buffer(curr_tstate->tid);
+    handshake->flags.real = false;
+    handshake->handshake.asid = asid;
+    handshake->flags.valid = true;
 
-    disable_consumers();
-    enable_producers();
+    handshake->handshake.pc = (ADDRINT) mfence_template;
+    handshake->handshake.npc = (ADDRINT)syscall_template;
+    handshake->handshake.tpc = (ADDRINT) mfence_template + sizeof(mfence_template);
+    handshake->flags.brtaken = false;
+    memcpy(handshake->handshake.ins, mfence_template, sizeof(mfence_template));
+    xiosim::buffer_management::producer_done(curr_tstate->tid, true);
 
-    /* Have thread ignore serial section after */
-    /* XXX: Do we need this? A few lines above we set ignore_all! */
-    ATOMIC_ITERATE(affine_threads, it, lk_affine_threads) {
-        thread_state_t* tstate = get_tls(*it);
-        lk_lock(&tstate->lock, 1);
-        xiosim::buffer_management::resetPool(tstate->tid);
-        tstate->ignore = true;
-        lk_unlock(&tstate->lock);
-        assert(xiosim::buffer_management::empty(tstate->tid));
-    }
+    /* Insert a trap. This will ensure that the pipe drains before
+     * consuming the next instruction.*/
+    handshake_container_t* handshake_1 = xiosim::buffer_management::get_buffer(curr_tstate->tid);
+    handshake_1->flags.real = false;
+    handshake_1->handshake.asid = asid;
+    handshake_1->flags.valid = true;
 
-    CoreSet empty_set;
-    UpdateProcessCoreSet(asid, empty_set);
+    handshake_1->handshake.pc = (ADDRINT) syscall_template;
+    handshake_1->handshake.npc = (ADDRINT) syscall_template + sizeof(syscall_template);
+    handshake_1->handshake.tpc = (ADDRINT) syscall_template + sizeof(syscall_template);
+    handshake_1->flags.brtaken = false;
+    memcpy(handshake_1->handshake.ins, syscall_template, sizeof(syscall_template));
+    xiosim::buffer_management::producer_done(curr_tstate->tid, true);
 
-    ipc_message_t msg;
-    msg.DeallocateCores(asid);
-    SendIPCMessage(msg, /*blocking*/true);
+    /* And finally, flush the core's pipelie to get rid of anything
+     * left over (including the trap). */
+    handshake_container_t* handshake_2 = xiosim::buffer_management::get_buffer(curr_tstate->tid);
+
+    handshake_2->flags.flush_pipe = true;
+    handshake_2->flags.real = false;
+    handshake_2->handshake.asid = asid;
+    handshake_2->handshake.pc = 0;
+    handshake_2->flags.valid = true;
+    xiosim::buffer_management::producer_done(curr_tstate->tid, true);
 }
 
 /* ========================================================================== */
-VOID ILDJIT_ResumeSimulation(THREADID tid)
+VOID shutdownSimulation()
 {
-    UINT32 num_allocated_cores = *allocated_cores;
-    list<pid_t> scheduled_threads;
+    PauseSimulation();
+    EndSimSlice(1, 0, 1000 * 100);
 
-    /* Pick the first @allocated_cores threads, based on virtual affinity. */
-    vector<THREADID>::iterator it;
-    ATOMIC_ITERATE(affine_threads, it, lk_affine_threads) {
-        thread_state_t* tstate = get_tls(*it);
-        ASSERTX(xiosim::buffer_management::empty(tstate->tid));
-
-        /* Make sure thread starts producing instructions */
-        lk_lock(&tstate->lock, 1);
-        tstate->ignore_all = false;
-        lk_unlock(&tstate->lock);
-
-        /* This lucky thread will get scheduled */
-        scheduled_threads.push_back(tstate->tid);
-
-        if (scheduled_threads.size() == num_allocated_cores)
-            break;
-    }
-
-    /* Ok, now let the scheduler schedule all these threads. */
-    ipc_message_t msg;
-    msg.ScheduleProcessThreads(asid, scheduled_threads);
-    SendIPCMessage(msg);
-
-    /* Wait until all cores have been scheduled. 
-     * Since there is no guarantee when IPC messages are consumed, not
-     * waiting can cause a fast thread to race to ILDJIT_PauseSimulation,
-     * before everyone has been scheduled to run. */
-    volatile bool done = false;
-    do {
-        done = true;
-        vector<THREADID>::iterator it;
-        unsigned int thread_count = 0;
-        ATOMIC_ITERATE(affine_threads, it, lk_affine_threads) {
-            auto curr_tstate = get_tls(*it);
-            done &= IsSHMThreadSimulatingMaybe(curr_tstate->tid);
-
-            thread_count++;
-            if (thread_count == *allocated_cores)
-                break;
-        }
-    } while (!done);
-}
-
-/* ========================================================================== */
-VOID shutdownSimulation(THREADID tid)
-{
-    ILDJIT_PauseSimulation(tid);
-    int iterCount = loop_state->simmed_iteration_count - 1;
-    cerr << "Ending loop: anonymous" << " NumIterations:" << iterCount << endl;
-
-    cerr << "Simulation runtime:";
-    printElapsedTime();
-    cerr << "[KEVIN] Stopped simulation! " << tid << endl;
     PIN_ExitProcess(EXIT_SUCCESS);
 }

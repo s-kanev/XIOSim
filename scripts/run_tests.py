@@ -25,12 +25,14 @@ class XIOSimTest(unittest.TestCase):
         ''' Set up a driver with common options and a temp run directory.'''
         self.xio = CreateDriver()
         self.run_dir = tempfile.mkdtemp()
+        self.clean_run_dir = ("LEAVE_TEST_DIR" not in os.environ)
         self.setDriverParams()
         self.expected_vals = []
 
 
     def tearDown(self):
-        shutil.rmtree(self.xio.GetRunDir())
+        if self.clean_run_dir:
+            shutil.rmtree(self.xio.GetRunDir())
 
 
     def runAndValidate(self):
@@ -75,7 +77,6 @@ class Fib1Test(XIOSimTest):
         self.runAndValidate()
 
 
-@unittest.skip("Hangs for now")
 class Fib1LengthTest(XIOSimTest):
     ''' End-to-end test with a single binary running for X instructions.'''
     def setDriverParams(self):
@@ -90,7 +91,7 @@ class Fib1LengthTest(XIOSimTest):
 
     def setUp(self):
         super(Fib1LengthTest, self).setUp()
-        self.expected_vals.append(("^all_insn", 10000.0))
+        self.expected_vals.append(("^all_insn", 9900.0))
 
     def runTest(self):
         self.runAndValidate()
@@ -116,7 +117,6 @@ class Fib1SkipTest(XIOSimTest):
         self.runAndValidate()
 
 
-@unittest.skip("Hangs for now")
 class Fib1PinPointTest(XIOSimTest):
     ''' End-to-end test with a single binary and one pinpoint.'''
     def setDriverParams(self):
@@ -139,7 +139,6 @@ class Fib1PinPointTest(XIOSimTest):
         self.runAndValidate()
 
 
-@unittest.skip("Hangs for now")
 class Fib1PinPointsTest(XIOSimTest):
     ''' End-to-end test with a single binary and multiple pinpoints.'''
     def setDriverParams(self):
@@ -156,7 +155,7 @@ class Fib1PinPointsTest(XIOSimTest):
 
     def setUp(self):
         super(Fib1PinPointsTest, self).setUp()
-        self.expected_vals.append(("^all_insn", 20000.0))
+        self.expected_vals.append(("^all_insn", 10100.0))
 
     def runTest(self):
         self.runAndValidate()

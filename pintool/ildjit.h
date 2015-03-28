@@ -14,8 +14,8 @@ BOOL ILDJIT_GetExecutingTID();
 BOOL ILDJIT_IsDoneFastForwarding();
 
 VOID printMemoryUsage(THREADID tid);
-VOID ILDJIT_PauseSimulation(THREADID tid);
-VOID ILDJIT_ResumeSimulation(THREADID tid);
+/* Insert additional fake instructions to end the loop properly (flush RC, etc.). */
+VOID InsertHELIXPauseCode(THREADID tid, bool first_thread);
 
 class loop_state_t
 {

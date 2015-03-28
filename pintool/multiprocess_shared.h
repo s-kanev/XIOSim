@@ -36,7 +36,9 @@ SHARED_VAR_DECLARE(int, next_asid)
 
 SHARED_VAR_DECLARE(int, num_done_fastforward)
 SHARED_VAR_DECLARE(XIOSIM_LOCK, lk_num_done_fastforward)
-void FastForwardBarrier(int slice_num);
+
+SHARED_VAR_DECLARE(int, num_done_slice)
+SHARED_VAR_DECLARE(XIOSIM_LOCK, lk_num_done_slice)
 
 typedef xiosim::shared::SharedMemoryMap<pid_t, int> ThreadProcessMap;
 SHARED_VAR_DECLARE(ThreadProcessMap, threadProcess)

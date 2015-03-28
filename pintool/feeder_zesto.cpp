@@ -57,8 +57,6 @@ KNOB<BOOL> KnobILDJIT(KNOB_MODE_WRITEONCE,      "pintool",
         "ildjit", "false", "Application run is ildjit");
 KNOB<BOOL> KnobAMDHack(KNOB_MODE_WRITEONCE,      "pintool",
         "amd_hack", "false", "Using AMD syscall hack for use with hpc cluster");
-KNOB<string> KnobFluffy(KNOB_MODE_WRITEONCE,      "pintool",
-        "fluffy_annotations", "", "Annotation file that specifies fluffy ROI");
 KNOB<BOOL> KnobWarmLLC(KNOB_MODE_WRITEONCE,      "pintool",
         "warm_llc", "false", "Warm LLC while fast-forwarding");
 KNOB<int> KnobNumCores(KNOB_MODE_WRITEONCE,      "pintool",
@@ -70,13 +68,13 @@ map<ADDRINT, string> pc_diss;
 
 ofstream pc_file;
 ofstream trace_file;
-ifstream sanity_trace;
 
 // Used to access thread-local storage
 static TLS_KEY tls_key;
 
 XIOSIM_LOCK thread_list_lock;
 list<THREADID> thread_list;
+map<THREADID, int> virtual_affinity;
 
 static inline pid_t gettid() {
     return syscall(SYS_gettid);
@@ -84,12 +82,6 @@ static inline pid_t gettid() {
 map<pid_t, THREADID> global_to_local_tid;
 XIOSIM_LOCK lk_tid_map;
 
-/* This only matters for a Fini callback where we
- * can't get this information from TLS, which has
- * been destroyed. Ugh. */
-static map<THREADID, pid_t> local_to_global_tid;
-
-/* Unique address space id -- the # of this feeder among all */
 int asid;
 
 /* ========================================================================== */
@@ -101,22 +93,23 @@ ICOUNT icount;
 CONTROL control;
 
 EXECUTION_MODE ExecMode = EXECUTION_MODE_INVALID;
-#if 0
-map<THREADID, tick_t> lastConsumerApply;
-#endif
 
-/* Fallbacks for cases without pinpoints */
-INT32 slice_num = 1;
-INT32 slice_length = 0;
-INT32 slice_weight_times_1000 = 100*1000;
-
-BOOL in_fini = false;
+static BOOL in_fini = false;
 
 static VOID RegisterSignalIntercept();
 
 static bool producers_sleep;
 static PIN_SEMAPHORE producers_sem;
 static void wait_producers();
+
+/* Wait for all processes to finish fast-forwarding, before starting a simulation
+ * slice. Then notify timing_sim to start the slice -- prepare stats, etc. */
+static void FastForwardBarrier(int slice_num);
+/* Wait for all processes to finish with a simulation slice, and tell timing_sim
+ * to mark it as finished -- scale stats, etc. */
+static void SliceEndBarrier(int slice_num, int slice_length, int slice_weight_times_1000);
+
+static VOID amd_hack();
 
 // Functions to access thread-specific data
 /* ========================================================================== */
@@ -126,6 +119,20 @@ thread_state_t* get_tls(THREADID threadid)
           static_cast<thread_state_t*>(PIN_GetThreadData(tls_key, threadid));
     return tstate;
 }
+
+/* Return the threads for this feeder, ordered by virtual affinity */
+/* ========================================================================== */
+list<THREADID> GetAffineThreads()
+{
+    /* Order threads by affinity. */
+    lk_lock(&thread_list_lock, 1);
+    list<THREADID> affine_threads = thread_list;
+    affine_threads.sort([](THREADID a, THREADID b)
+                          { return virtual_affinity[a] < virtual_affinity[b];});
+    lk_unlock(&thread_list_lock);
+    return affine_threads;
+}
+
 
 /* ========================================================================== */
 VOID ImageUnload(IMG img, VOID *v)
@@ -140,6 +147,34 @@ VOID ImageUnload(IMG img, VOID *v)
     ipc_message_t msg;
     msg.Munmap(asid, start, length, true);
     SendIPCMessage(msg);
+}
+
+/* ========================================================================== */
+VOID StartSimSlice(int slice_num)
+{
+    /* Gather all processes -- they are all done with the FF -- and tell
+     * timing_sim to start the slice */
+    FastForwardBarrier(slice_num);
+
+    /* Start instrumenting again */
+    ExecMode = EXECUTION_MODE_SIMULATE;
+    CODECACHE_FlushCache();
+}
+
+/* ========================================================================== */
+VOID EndSimSlice(int slice_num, int slice_length, int slice_weight_times_1000)
+{
+    /* Returning from PauseSimulation() guarantees that all sim threads
+     * are spinning in SimulatorLoop. So we can safely call Slice_End
+     * without racing any of them. */
+
+    /* Now we need to make sure we gather all processes, so we don't race
+     * any of them. SliceEndBarrier tells timing_sim to to end the slice */
+    SliceEndBarrier(slice_num, slice_length, slice_weight_times_1000);
+
+    /* Stop instrumenting, time to fast forward */
+    ExecMode = EXECUTION_MODE_FASTFORWARD;
+    CODECACHE_FlushCache();
 }
 
 /* ========================================================================== */
@@ -158,31 +193,8 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
             if(control.PinPointsActive())
                 slice_num = control.CurrentPp(tid);
 
-            FastForwardBarrier(slice_num);
-
-            ExecMode = EXECUTION_MODE_SIMULATE;
-            CODECACHE_FlushCache();
-
-            list<THREADID>::iterator it;
-            ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
-                thread_state_t* tstate = get_tls(*it);
-                lk_lock(&tstate->lock, tid+1);
-                tstate->firstInstruction = true;
-                if (!KnobILDJIT.Value()) {
-                    tstate->ignore_all = false;
-                    tstate->ignore = false;
-                }
-                lk_unlock(&tstate->lock);
-            }
-
-            // Let caller thread be simulated again
-            // XXX: Needs to be done for all threads, and probably not here.
-/*            ipc_message_t msg;
-            thread_state_t *tstate = get_tls(tid);
-            msg.ScheduleNewThread(tstate->tid);
-            SendIPCMessage(msg);
-*/
-
+            StartSimSlice(slice_num);
+            ResumeSimulation(true);
 
             if(control.PinPointsActive())
                 cerr << "PinPoint: " << control.CurrentPp(tid) << " PhaseNo: " << control.CurrentPhase(tid) << endl;
@@ -191,63 +203,26 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
 
       case CONTROL_STOP:
         {
-            /* XXX: This can be called from a Fini callback (end of program).
-             * We can't access any TLS in that case. */
-            if (!in_fini) {
-                list<THREADID>::iterator it;
-                ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
-                    thread_state_t* tstate = get_tls(*it);
-                    lk_lock(&tstate->lock, tid+1);
-                    tstate->ignore_all = true;
-                    lk_unlock(&tstate->lock);
-                }
-
-                /* In this case, we need to flush all buffers for this thread
-                 * and cleanly let the scheduler know to deschedule it once
-                 * all instructions are conusmed. */
-                pid_t global_tid;
-                if (in_fini)
-                    global_tid = local_to_global_tid[tid];
-                else {
-                    global_tid = get_tls(tid)->tid;
-                }
-
-                handshake_container_t *handshake = xiosim::buffer_management::get_buffer(global_tid);
-                handshake->flags.giveCoreUp = true;
-                handshake->flags.giveUpReschedule = false;
-                handshake->flags.valid = true;
-                handshake->flags.real = false;
-                xiosim::buffer_management::producer_done(global_tid, true);
-
-                xiosim::buffer_management::flushBuffers(global_tid);
-            }
-
             lk_lock(printing_lock, 1);
             cerr << "Stop" << endl;
             lk_unlock(printing_lock);
 
-            PauseSimulation();
+            INT32 slice_num = 1;
+            INT32 slice_length = 0;
+            INT32 slice_weight_times_1000 = 100 * 1000;
 
-            /* Here, nothing guarantees that there is still a thread with an active
-             * handshake buffer (this handler can be called from a Fini callback
-             * after all threads have exited).
-             * Returning from PauseSimulation() guarantees that all sim threads
-             * are spinning in SimulatorLoop. So we can safely call Slice_End
-             * without racing any of them. */
-/*
-            ipc_message_t msg;
             if(control.PinPointsActive())
             {
-                cerr << "PinPoint: " << control.CurrentPp(tid) << endl;
-                msg.SliceEnd(control.CurrentPp(tid), control.CurrentPpLength(tid), control.CurrentPpWeightTimesThousand(tid));
+                slice_num = control.CurrentPp(tid);
+                slice_length = control.CurrentPpLength(tid);
+                slice_weight_times_1000 = control.CurrentPpWeightTimesThousand(tid);
+                lk_lock(printing_lock, 1);
+                cerr << "PinPoint: " << slice_num << endl;
+                lk_unlock(printing_lock);
             }
-            else {
-                msg.SliceEnd(slice_num, slice_length, slice_weight_times_1000);
-            }
-            SendIPCMessage(msg);
-*/
-            ExecMode = EXECUTION_MODE_FASTFORWARD;
-            CODECACHE_FlushCache();
+
+            PauseSimulation();
+            EndSimSlice(slice_num, slice_length, slice_weight_times_1000);
         }
         break;
 
@@ -376,14 +351,6 @@ VOID MakeSSContext(const CONTEXT *ictxt, FPSTATE* fpstate, ADDRINT pc, ADDRINT n
 VOID BeforeFini(INT32 exitCode, VOID *v)
 {
     in_fini = true;
-
-    /* Make sure we have a mappig to global tid, which we'll
-     * need to clean stuff up. */
-    list<THREADID>::iterator it;
-    ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
-        auto curr_tstate = get_tls(*it);
-        local_to_global_tid[*it] = curr_tstate->tid;
-    }
 }
 
 /* ========================================================================== */
@@ -835,9 +802,6 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
         // Create new buffer to store thread context
         xiosim::buffer_management::AllocateThreadProducer(tstate->tid);
 
-#if 0
-        lastConsumerApply[threadIndex] = 0;
-#endif
         lk_lock(&lk_tid_map, 1);
         global_to_local_tid[tstate->tid] = threadIndex;
         lk_unlock(&lk_tid_map);
@@ -871,6 +835,7 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
          * it don't race on a not yet fully initialized structure.
          */
         lk_lock(&thread_list_lock, threadIndex+1);
+        virtual_affinity[threadIndex] = INVALID_CORE;
         thread_list.push_back(threadIndex);
         lk_unlock(&thread_list_lock);
     }
@@ -879,19 +844,87 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
 }
 
 /* ========================================================================== */
-/* Make sure that all sim threads drain any handshake buffers that could be in
- * their respective scheduler run queues.
- * Invariant: after this call, all sim threads are spinning in SimulatorLoop */
+int AllocateCores(vector<double> scaling, double serial_runtime)
+{
+    /* Ask timing_sim for an allocation, and block until it comes back. */
+    ipc_message_t msg;
+    msg.AllocateCores(asid, scaling, serial_runtime);
+    SendIPCMessage(msg, /*blocking*/true);
+
+    /* Here we've finished with the allocation decision. */
+    int allocation = GetProcessCoreAllocation(asid);
+#ifdef ALLOCATOR_DEBUG
+    cerr << "ASID: " << asid << " allocated " << allocation << " cores." << endl;
+#endif
+    ASSERTX(allocation > 0);
+    return allocation;
+}
+
+/* ========================================================================== */
+VOID DeallocateCores()
+{
+    CoreSet empty_set;
+    UpdateProcessCoreSet(asid, empty_set);
+
+    ipc_message_t msg;
+    msg.DeallocateCores(asid);
+    SendIPCMessage(msg, /*blocking*/true);
+}
+
+/* ========================================================================== */
 VOID PauseSimulation()
 {
-    /* Here we have produced everything for this loop! */
+    /* Here we have produced everything, we can only consume */
     disable_producers();
     enable_consumers();
 
-    /* Since the scheduler is updated from the sim threads in SimulatorLoop,
+    /* Flush all buffers and cleanly let the scheduler know to deschedule
+     * once all instructions are conusmed.
+     * XXX: This can be called from a Fini callback (end of program).
+     * We can't access any TLS in that case. */
+    if (!in_fini) {
+        /* Get threads ordered by affinity */
+        auto affine_threads = GetAffineThreads();
+
+        for (THREADID tid : affine_threads) {
+            thread_state_t* tstate = get_tls(tid);
+
+            lk_lock(&tstate->lock, 1);
+            tstate->ignore_all = true;
+            lk_unlock(&tstate->lock);
+
+            /* If the thread is not seen in the scheduler queues
+             * *before de-scheduling it*, just ignore it. This covers
+             * the HELIX case, where we ignore extra threads past the
+             * number of allocated cores. */
+            if (!IsSHMThreadSimulatingMaybe(tstate->tid))
+                continue;
+
+            bool first_thread = (tid == affine_threads.front());
+            if (KnobILDJIT.Value())
+                InsertHELIXPauseCode(tid, first_thread);
+
+            /* When the handshake is consumed, this will let the scheduler
+             * de-schedule the thread */
+            pid_t curr_tid = tstate->tid;
+            handshake_container_t *handshake = xiosim::buffer_management::get_buffer(curr_tid);
+            handshake->flags.giveCoreUp = true;
+            handshake->flags.giveUpReschedule = false;
+            handshake->flags.valid = true;
+            handshake->flags.real = false;
+            xiosim::buffer_management::producer_done(curr_tid, true);
+
+            xiosim::buffer_management::flushBuffers(curr_tid);
+            if (KnobILDJIT.Value())
+                xiosim::buffer_management::resetPool(curr_tid);
+        }
+    }
+
+    /* Wait until all the processes' consumer threads are done consuming.
+     * Since the scheduler is updated from the sim threads in SimulatorLoop,
      * seeing empty run queues is enough to determine that the sim thread
      * is done simulating instructions. No need for fancier synchronization. */
-    bool threads_done = true;
+    bool threads_done;
     do {
         threads_done = true;
         list<THREADID>::iterator it;
@@ -899,7 +932,75 @@ VOID PauseSimulation()
             thread_state_t* tstate = get_tls(*it);
             threads_done &= !IsSHMThreadSimulatingMaybe(tstate->tid);
         }
+        if (!threads_done && *sleeping_enabled)
+            PIN_Sleep(10);
     } while (!threads_done);
+
+    /* Re-enable producers once we are past the barrier. This way, they can continue
+     * ignoring instructions until the next slice. */
+    enable_producers();
+
+    /* We are done with de-scheduling threads, now we can de-allocate the cores
+     * for this process */
+    DeallocateCores();
+}
+
+/* ========================================================================== */
+VOID ResumeSimulation(bool allocate_cores)
+{
+    /* Get cores for the allocator */
+    if (allocate_cores)
+        AllocateCores(vector<double>(), 0);
+
+    /* Make sure threads start producing instructions */
+    list<THREADID>::iterator it;
+    ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
+        thread_state_t* tstate = get_tls(*it);
+        lk_lock(&tstate->lock, 1);
+        tstate->firstInstruction = true;
+        tstate->ignore_all = false;
+        if (!KnobILDJIT.Value())
+            tstate->ignore = false;
+        lk_unlock(&tstate->lock);
+    }
+
+    /* Get threads ordered by affinity */
+    auto affine_threads = GetAffineThreads();
+
+    size_t allocation = GetProcessCoreAllocation(asid);
+    ASSERTX(allocation > 0);
+
+    list<pid_t> scheduled_threads;
+    bool no_oversubscribe = KnobILDJIT.Value();
+    /* If the scheduler doesn't oversubscribe (HELIX), pick the first
+     * @allocation threads, based on virtual affinity. Otherwise,
+     * schedule all threads and let them round-robin on the scheduler queues. */
+    for (THREADID curr_tid : affine_threads) {
+        thread_state_t* tstate = get_tls(curr_tid);
+        ASSERTX(xiosim::buffer_management::empty(tstate->tid));
+
+        scheduled_threads.push_back(tstate->tid);
+
+        if (no_oversubscribe && (scheduled_threads.size() == allocation))
+            break;
+    }
+
+    /* Let the scheduler schedule all these threads. */
+    ipc_message_t msg;
+    msg.ScheduleProcessThreads(asid, scheduled_threads);
+    SendIPCMessage(msg);
+
+    /* Wait until all threads have been scheduled.
+     * Since there is no guarantee when IPC messages are consumed, not
+     * waiting can cause a fast thread to race to PauseSimulation,
+     * before everyone has been scheduled to run. */
+    bool done;
+    do {
+        done = true;
+        for (pid_t curr_tid : scheduled_threads) {
+            done &= IsSHMThreadSimulatingMaybe(curr_tid);
+        }
+    } while (!done);
 }
 
 /* ========================================================================== */
@@ -1016,7 +1117,7 @@ INT32 main(INT32 argc, CHAR **argv)
     return 0;
 }
 
-VOID amd_hack()
+static VOID amd_hack()
 {
     // use kernel version to distinguish between RHEL5 and RHEL6
     bool rhel6 = false;
@@ -1158,7 +1259,8 @@ static void wait_producers()
         PIN_SemaphoreWait(&producers_sem);
 }
 
-void FastForwardBarrier(int slice_num)
+/* ========================================================================== */
+static void FastForwardBarrier(int slice_num)
 {
     lk_lock(lk_num_done_fastforward, 1);
     (*num_done_fastforward)++;
@@ -1176,6 +1278,8 @@ void FastForwardBarrier(int slice_num)
 
     /* If this is the last process on the barrier, start a simulation slice. */
     if (processes_at_barrier == *num_processes) {
+        *num_done_fastforward = 0;
+
         ipc_message_t msg;
         msg.SliceStart(slice_num);
         SendIPCMessage(msg);
@@ -1184,4 +1288,31 @@ void FastForwardBarrier(int slice_num)
     /* And let producers produce. */
     enable_producers();
     lk_unlock(lk_num_done_fastforward);
+}
+
+/* ========================================================================== */
+static void SliceEndBarrier(int slice_num, int slice_length, int slice_weight_times_1000)
+{
+    lk_lock(lk_num_done_slice, 1);
+    (*num_done_slice)++;
+    int processes_at_barrier = *num_done_slice;
+
+    /* Wait until all processes have gathered at this barrier. */
+    while (*num_done_slice < *num_processes) {
+        lk_unlock(lk_num_done_slice);
+        disable_producers();
+        xio_sleep(100);
+        lk_lock(lk_num_done_slice, 1);
+    }
+
+    /* If this is the last process on the barrier, end a simulation slice. */
+    if (processes_at_barrier == *num_processes) {
+        *num_done_slice = 0;
+
+        ipc_message_t msg;
+        msg.SliceEnd(slice_num, slice_length, slice_weight_times_1000);
+        SendIPCMessage(msg);
+    }
+
+    lk_unlock(lk_num_done_slice);
 }
