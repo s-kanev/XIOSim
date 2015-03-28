@@ -20,22 +20,22 @@ class repeater_t {
     virtual void step() = 0;
 
     /* Checks if we can insert request in repeater. Returns 1 if possible */
-    virtual int enqueuable(const enum cache_command cmd, const int thread_id, const md_addr_t addr) = 0;
+    virtual int enqueuable(const enum cache_command cmd, const int asid, const md_addr_t addr) = 0;
 
     /* Send a request to the repeater.
        Assumes repeater_enqueuable() has been called in the same cycle.
        cb is called with op once request is not blocking any more. */
     virtual void enqueue(const enum cache_command cmd,
-                const int thread_id,
+                const int asid,
                 const md_addr_t addr,
                 void * const op,    /* To be passed to callback for identification */
                 void (*const cb)(void *, bool is_hit), /* Callback once request is finished */
                 seq_t (*const get_action_id)(void* const)) = 0;
 
-    /* Flushes all of repeater contents.
+    /* Flushes all of repeater contents for process @asid.
        Some addresses are propagated to next level cache.
        cb is called once flush is finished. */
-    virtual void flush(void (*const cb)()) = 0;
+    virtual void flush(const int asid, void (*const cb)()) = 0;
 };
 
 /* Initialize the repeater.  */

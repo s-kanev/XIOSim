@@ -8,7 +8,7 @@
 #ifdef BPRED_PARSE_ARGS
 if(!strcasecmp(COMPONENT_NAME,type))
 {
-  return new bpred_nottaken_t();
+  return new bpred_nottaken_t(core);
 }
 #else
 
@@ -17,7 +17,7 @@ class bpred_nottaken_t:public bpred_dir_t
   public:
 
   /* CREATE */
-  bpred_nottaken_t(void)
+  bpred_nottaken_t(const core_t * core) : bpred_dir_t(core)
   {
     init();
 

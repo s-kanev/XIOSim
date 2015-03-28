@@ -55,21 +55,26 @@ void core_power_DPM_t::translate_params(system_core *core_params, system_L2 *L2_
     L2_params->L2_config[1] = core->memory.DL2->linesize;
     L2_params->L2_config[2] = core->memory.DL2->assoc;
     L2_params->L2_config[3] = core->memory.DL2->banks;
-    L2_params->L2_config[4] = 1;
     L2_params->L2_config[5] = core->memory.DL2->latency;
+    // See LLC comment in base class for setting throughput == latency.
+    L2_params->L2_config[4] = L2_params->L2_config[5];
     L2_params->L2_config[6] = core->memory.DL2->bank_width;
     L2_params->L2_config[7] = (core->memory.DL2->write_policy == WRITE_THROUGH) ? 0 : 1;
 
     L2_params->device_type = XML->sys.device_type;
 
-    L2_params->ports[0] = 1;
+    L2_params->ports[0] = 0;
     L2_params->ports[1] = 0;
-    L2_params->ports[2] = 0;
+    L2_params->ports[2] = 1;
 
-    L2_params->buffer_sizes[0] = 1;
-    L2_params->buffer_sizes[1] = 2;
-    L2_params->buffer_sizes[2] = 2;
-    L2_params->buffer_sizes[3] = 2;
+    // # MSHRs
+    L2_params->buffer_sizes[0] = core->memory.DL2->MSHR_size;
+    // # fill buffers
+    L2_params->buffer_sizes[1] = core->memory.DL2->heap_size;
+    // # PF buffers
+    L2_params->buffer_sizes[2] = core->memory.DL2->PFF_size;
+    // # WB buffers
+    L2_params->buffer_sizes[3] = core->memory.DL2->MSHR_WB_size;
   }
 }
 

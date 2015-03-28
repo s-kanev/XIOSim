@@ -1,48 +1,31 @@
 /*****************************************************************************
  *                                McPAT
  *                      SOFTWARE LICENSE AGREEMENT
- *            Copyright 2009 Hewlett-Packard Development Company, L.P.
+ *            Copyright 2012 Hewlett-Packard Development Company, L.P.
  *                          All Rights Reserved
  *
- * Permission to use, copy, and modify this software and its documentation is
- * hereby granted only under the following terms and conditions.  Both the
- * above copyright notice and this permission notice must appear in all copies
- * of the software, derivative works or modified versions, and any portions
- * thereof, and both notices must appear in supporting documentation.
- *
- * Any User of the software ("User"), by accessing and using it, agrees to the
- * terms and conditions set forth herein, and hereby grants back to Hewlett-
- * Packard Development Company, L.P. and its affiliated companies ("HP") a
- * non-exclusive, unrestricted, royalty-free right and license to copy,
- * modify, distribute copies, create derivate works and publicly display and
- * use, any changes, modifications, enhancements or extensions made to the
- * software by User, including but not limited to those affording
- * compatibility with other hardware or software, but excluding pre-existing
- * software applications that may incorporate the software.  User further
- * agrees to use its best efforts to inform HP of any such changes,
- * modifications, enhancements or extensions.
- *
- * Correspondence should be provided to HP at:
- *
- * Director of Intellectual Property Licensing
- * Office of Strategy and Technology
- * Hewlett-Packard Company
- * 1501 Page Mill Road
- * Palo Alto, California  94304
- *
- * The software may be further distributed by User (but not offered for
- * sale or transferred for compensation) to third parties, under the
- * condition that such third parties agree to abide by the terms and
- * conditions of this license.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" WITH ANY AND ALL ERRORS AND DEFECTS
- * AND USER ACKNOWLEDGES THAT THE SOFTWARE MAY CONTAIN ERRORS AND DEFECTS.
- * HP DISCLAIMS ALL WARRANTIES WITH REGARD TO THE SOFTWARE, INCLUDING ALL
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS.   IN NO EVENT SHALL
- * HP BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES
- * OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
- * WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER ACTION, ARISING
- * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THE SOFTWARE.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met: redistributions of source code must retain the above copyright
+ * notice, this list of conditions and the following disclaimer;
+ * redistributions in binary form must reproduce the above copyright
+ * notice, this list of conditions and the following disclaimer in the
+ * documentation and/or other materials provided with the distribution;
+ * neither the name of the copyright holders nor the names of its
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.”
  *
  ***************************************************************************/
 
@@ -73,6 +56,7 @@ ArrayST::ArrayST(const InputParameter *configure_interface,
     {
 
 	if (l_ip.cache_sz<64) l_ip.cache_sz=64;
+	if (l_ip.power_gating && (l_ip.assoc==0)) {l_ip.power_gating = false;}
 	l_ip.error_checking();//not only do the error checking but also fill some missing parameters
 	optimize_array();
 
@@ -83,6 +67,17 @@ void ArrayST::compute_base_power()
     {
 	//l_ip.out_w               =l_ip.line_sz*8;
     local_result=cacti_interface(&l_ip);
+	assert(local_result.cycle_time>0);
+	assert(local_result.access_time>0);
+//    if (name == "Int FrontRAT")
+//    {
+//    	cout<<name<<endl;
+//    	l_ip.display_ip();
+//    	cout<<"cycle time dev = "<< l_ip.cycle_time_dev <<endl;
+//    	cout<<endl;
+//    	output_UCA(&local_result);
+//    	cout<<endl;
+//    }
 
     }
 
@@ -97,6 +92,7 @@ void ArrayST::optimize_array()
 	double 	throughput=l_ip.throughput, latency=l_ip.latency;
 	double  area_efficiency_threshold = 20.0;
 	bool 	throughput_overflow=true, latency_overflow=true;
+	int     optimization_end = 20;
 	compute_base_power();
 
 	if ((local_result.cycle_time - throughput) <= 1e-10 )
@@ -104,7 +100,7 @@ void ArrayST::optimize_array()
 	if ((local_result.access_time - latency)<= 1e-10)
 		latency_overflow=false;
 
-	if (opt_for_clk && opt_local)
+	if ((opt_for_clk && opt_local) && ((l_ip.cache_sz>2048 && l_ip.assoc!=0) ||(l_ip.cache_sz>256 && l_ip.assoc==0)))//over opt small array lead to sub-optimal solutions
 	{
 		if (throughput_overflow || latency_overflow)
 		{
@@ -132,7 +128,7 @@ void ArrayST::optimize_array()
 		}
 
 
-		while ((throughput_overflow || latency_overflow)&&l_ip.cycle_time_dev > 10)// && l_ip.delay_dev > 10
+		while ((throughput_overflow || latency_overflow)&&l_ip.cycle_time_dev > optimization_end)// l_ip.delay_dev <40 will have over-opt results
 		{
 			compute_base_power();
 
@@ -160,7 +156,7 @@ void ArrayST::optimize_array()
 				if ((local_result.access_time - latency)<= 1e-10)
 										latency_overflow=false;
 
-				if (l_ip.cycle_time_dev > 10)
+				if (l_ip.cycle_time_dev > optimization_end)
 				{   //if not >10 local_result is the last result, it cannot be cleaned up
 					temp_res = &local_result; //Only solutions not saved in the list need to be cleaned up
 					temp_res->cleanup();
@@ -228,6 +224,7 @@ void ArrayST::optimize_array()
 	}
 
 	double long_channel_device_reduction = longer_channel_device_reduction(device_ty,core_ty);
+	double pg_reduction = power_gating_leakage_reduction(false);//array structure all retain state;
 
 	double macro_layout_overhead   = g_tp.macro_layout_overhead;
 	double chip_PR_overhead        = g_tp.chip_layout_overhead;
@@ -244,7 +241,21 @@ void ArrayST::optimize_array()
 	local_result.power.readOp.leakage *= l_ip.nbanks;
 	local_result.power.readOp.longer_channel_leakage =
 		local_result.power.readOp.leakage*long_channel_device_reduction;
+
+	if (l_ip.assoc==0)//only use this function for CAM/FA since other array types compute pg leakage automatically
+	{
+		local_result.power.readOp.power_gated_leakage =
+			local_result.power.readOp.leakage*pg_reduction;
+	}
+	else
+	{
+		local_result.power.readOp.power_gated_leakage *= l_ip.nbanks;//normal array types
+	}
+
+	local_result.power.readOp.power_gated_with_long_channel_leakage = local_result.power.readOp.power_gated_leakage * long_channel_device_reduction;//power-gating atop long channel
+
 	local_result.power = local_result.power* pppm_t;
+
 
 	local_result.data_array2->power.readOp.dynamic *= sckRation;
 	local_result.data_array2->power.writeOp.dynamic *= sckRation;
@@ -252,6 +263,17 @@ void ArrayST::optimize_array()
 	local_result.data_array2->power.readOp.leakage *= l_ip.nbanks;
 	local_result.data_array2->power.readOp.longer_channel_leakage =
 		local_result.data_array2->power.readOp.leakage*long_channel_device_reduction;
+	if (l_ip.assoc==0)//only use this function for CAM/FA since other array types compute pg leakage automatically
+	{
+		local_result.data_array2->power.readOp.power_gated_leakage =
+			local_result.data_array2->power.readOp.leakage*pg_reduction;
+	}
+	else
+	{
+		local_result.data_array2->power.readOp.power_gated_leakage *= l_ip.nbanks;//normal array types
+	}
+	local_result.data_array2->power.readOp.power_gated_with_long_channel_leakage = local_result.data_array2->power.readOp.power_gated_leakage * long_channel_device_reduction;
+
 	local_result.data_array2->power = local_result.data_array2->power* pppm_t;
 
 
@@ -261,12 +283,59 @@ void ArrayST::optimize_array()
 		local_result.tag_array2->power.writeOp.dynamic *= sckRation;
 		local_result.tag_array2->power.searchOp.dynamic *= sckRation;
 		local_result.tag_array2->power.readOp.leakage *= l_ip.nbanks;
+		local_result.tag_array2->power.readOp.power_gated_leakage *= l_ip.nbanks;
 		local_result.tag_array2->power.readOp.longer_channel_leakage =
 			local_result.tag_array2->power.readOp.leakage*long_channel_device_reduction;
+
+		local_result.tag_array2->power.readOp.power_gated_with_long_channel_leakage =
+			local_result.tag_array2->power.readOp.power_gated_leakage*long_channel_device_reduction;
 		local_result.tag_array2->power = local_result.tag_array2->power* pppm_t;
 	}
 
 
+}
+
+void ArrayST::leakage_feedback(double temperature)//TODO: add the code to process power-gating leakage
+{
+  // Update the temperature. l_ip is already set and error-checked in the creator function.
+  l_ip.temp = (unsigned int)round(temperature/10.0)*10;
+
+  // This corresponds to cacti_interface() in the initialization process. Leakage power is updated here.
+  reconfigure(&l_ip,&local_result);
+
+  // Scale the power values. This is part of ArrayST::optimize_array().
+  double long_channel_device_reduction = longer_channel_device_reduction(device_ty,core_ty);
+
+  double macro_layout_overhead   = g_tp.macro_layout_overhead;
+  double chip_PR_overhead        = g_tp.chip_layout_overhead;
+  double total_overhead          = macro_layout_overhead*chip_PR_overhead;
+
+  double pppm_t[4]    = {total_overhead,1,1,total_overhead};
+
+  double sckRation = g_tp.sckt_co_eff;
+  local_result.power.readOp.dynamic *= sckRation;
+  local_result.power.writeOp.dynamic *= sckRation;
+  local_result.power.searchOp.dynamic *= sckRation;
+  local_result.power.readOp.leakage *= l_ip.nbanks;
+  local_result.power.readOp.longer_channel_leakage = local_result.power.readOp.leakage*long_channel_device_reduction;
+  local_result.power = local_result.power* pppm_t;
+
+  local_result.data_array2->power.readOp.dynamic *= sckRation;
+  local_result.data_array2->power.writeOp.dynamic *= sckRation;
+  local_result.data_array2->power.searchOp.dynamic *= sckRation;
+  local_result.data_array2->power.readOp.leakage *= l_ip.nbanks;
+  local_result.data_array2->power.readOp.longer_channel_leakage = local_result.data_array2->power.readOp.leakage*long_channel_device_reduction;
+  local_result.data_array2->power = local_result.data_array2->power* pppm_t;
+
+  if (!(l_ip.pure_cam || l_ip.pure_ram || l_ip.fully_assoc) && l_ip.is_cache)
+  {
+    local_result.tag_array2->power.readOp.dynamic *= sckRation;
+    local_result.tag_array2->power.writeOp.dynamic *= sckRation;
+    local_result.tag_array2->power.searchOp.dynamic *= sckRation;
+    local_result.tag_array2->power.readOp.leakage *= l_ip.nbanks;
+    local_result.tag_array2->power.readOp.longer_channel_leakage = local_result.tag_array2->power.readOp.leakage*long_channel_device_reduction;
+    local_result.tag_array2->power = local_result.tag_array2->power* pppm_t;
+  }
 }
 
 ArrayST:: ~ArrayST()

@@ -94,8 +94,6 @@
 #define GET_BANK(x) (((x)>>cp->bank_shift) & cp->bank_mask)
 #define GET_MSHR_BANK(x) (((x)>>cp->bank_shift) & cp->MSHR_mask)
 
-extern bool cache_magic;
-
 struct cache_t * cache_create(
     struct core_t * const core,
     const char * const name,
@@ -114,7 +112,8 @@ struct cache_t * cache_create(
     const int MSHR_WB_size, /* MSHRs reserved for writebacks (per bank), in requests */
     const int MSHR_banks, /* number of MSHR banks */
     struct cache_t * const next_level_cache, /* e.g., for the DL1, this should point to the L2 */
-    struct bus_t * const next_bus /* e.g., for the DL1, this should point to the bus between DL1 and L2 */
+    struct bus_t * const next_bus, /* e.g., for the DL1, this should point to the bus between DL1 and L2 */
+    const float magic_hit_rate
     )
 {
   int i;
@@ -128,6 +127,7 @@ struct cache_t * cache_create(
   int write_combining;
 
   cp->core = core;
+  cp->sim_cycle = 0;
 
   switch(toupper(rp)) {
     case 'L': replacement_policy = REPLACE_LRU; break;
@@ -178,6 +178,7 @@ struct cache_t * cache_create(
   cp->next_bus = next_bus;
   cp->check_for_work = true;
   cp->check_for_MSHR_fill_work = true;
+  cp->magic_hit_rate = magic_hit_rate;
 
   if((cp->replacement_policy == REPLACE_PLRU) && (assoc & (assoc-1)))
     fatal("Tree-based PLRU only works when associativity is a power of two");
@@ -761,9 +762,16 @@ struct cache_line_t * cache_is_hit(
   struct cache_line_t * p = cp->blocks[index];
   struct cache_line_t * prev = NULL;
 
-  if(cache_magic) {
-    assert(p != NULL);    
-    return p;
+  /* Predefined hit rate for magic simulation. Doesn't properly maintain
+   * replacement state, but hey, magic. */
+  if(cp->magic_hit_rate != -1.0) {
+    float r = random() / float(RAND_MAX);
+    if (r < cp->magic_hit_rate) {
+      assert(p != NULL);
+      return p;
+    }
+    else
+      return NULL;
   }
 
   while(p) /* search all of the ways */
@@ -1105,7 +1113,7 @@ struct cache_line_t * cache_get_evictee(
         }
 
         just_in_case++;
-        if(just_in_case > (2*cp->assoc))
+        if(just_in_case > (20*cp->assoc))
           fatal("Clock-PLRU has gone around twice without finding an evictee for %s",cp->name);
       }
     }
@@ -1215,14 +1223,10 @@ static void cache_heap_remove(
    per cycle goes to the same bank, or if a bank has been locked up. */
 int cache_enqueuable(
     const struct cache_t * const cp,
-    const int thread_id,
+    const int asid,
     const md_paddr_t addr)
 {
-  md_paddr_t paddr;
-  if(thread_id == DO_NOT_TRANSLATE)
-    paddr = addr;
-  else
-    paddr = v2p_translate_safe(thread_id,addr);
+  md_paddr_t paddr = v2p_translate_safe(asid, addr);
   const int bank = GET_BANK(paddr);
   if(cp->pipe_num[bank] < cp->latency)
     return true;
@@ -1237,7 +1241,7 @@ void cache_enqueue(
     struct cache_t * const cp,
     struct cache_t * const prev_cp,
     const enum cache_command cmd,
-    const int thread_id,
+    const int asid,
     const md_addr_t PC,
     const md_paddr_t addr,
     const seq_t action_id,
@@ -1250,11 +1254,7 @@ void cache_enqueue(
     seq_t (*const get_action_id)(void *),
     const bool prefetcher_hint)
 {
-  md_paddr_t paddr;
-  if(thread_id == DO_NOT_TRANSLATE)
-    paddr = addr;
-  else
-    paddr = v2p_translate_safe(thread_id,addr); /* for the IL1/DL1, we need a virtual-to-physical translation */
+  md_paddr_t paddr = v2p_translate_safe(asid, addr);
   const int bank = GET_BANK(paddr);
 
   /* heap initial insertion position */
@@ -2446,6 +2446,13 @@ static void cache_process_MSHR(struct cache_t * const cp, int start_point)
 /* simulate one cycle of the cache */
 void cache_process(struct cache_t * const cp)
 {
+  /* Advance local cycle count */
+  if (cp != uncore->LLC)
+    cp->sim_cycle++;
+
+  if (!cp->check_for_work)
+    return;
+
   //int start_point = random() & cp->bank_mask; /* randomized arbitration */
   int start_point = cp->start_point; /* round-robin arbitration */
   cp->start_point = modinc(cp->start_point,cp->banks);
@@ -2549,12 +2556,13 @@ tick_t cache_get_cycle(const struct cache_t * const cp)
 {
   if(cp == uncore->LLC)
     return uncore->sim_cycle;
-  return cp->core->sim_cycle;
+  return cp->sim_cycle;
 }
 
 void cache_print(const struct cache_t * const cp)
 {
   fprintf(stderr,"<<<<< %s >>>>>\n",cp->name);
+  fprintf(stderr, "current cycle: %lld\n", cache_get_cycle(cp));
   for(int i=0;i<cp->banks;i++)
   {
     int j;

@@ -438,7 +438,7 @@ uint8_t core_oracle_t::spec_do_read_byte(const md_addr_t addr, const struct Mop_
 
   /* Finally, try and access host space.
      Check shadow page table to make sure memory is there. */
-  if (mem_translate(core->current_thread->mem, addr, 0) == NULL) {
+  if (!mem_is_mapped(core->current_thread->asid, addr)) {
     res = 0;
     goto done;
   }
@@ -602,18 +602,18 @@ done:
 
 
 /* speculative memory state accessor macros */
-#define READ_BYTE(SRC, FAULT)     ((FAULT) = md_fault_none, uop->oracle.virt_addr = (SRC), uop->decode.mem_size = 1, XMEM_READ_BYTE(thread->mem, (SRC)))
-#define READ_WORD(SRC, FAULT)     ((FAULT) = md_fault_none, uop->oracle.virt_addr = (SRC), uop->decode.mem_size = 2, XMEM_READ_WORD(thread->mem, (SRC)))
-#define READ_DWORD(SRC, FAULT)     ((FAULT) = md_fault_none, uop->oracle.virt_addr = (SRC), uop->decode.mem_size = 4, XMEM_READ_DWORD(thread->mem, (SRC)))
-#define READ_QWORD(SRC, FAULT)    ((FAULT) = md_fault_none, uop->oracle.virt_addr = (SRC), uop->decode.mem_size = 8, XMEM_READ_QWORD(thread->mem, (SRC)))
+#define READ_BYTE(SRC, FAULT)     ((FAULT) = md_fault_none, uop->oracle.virt_addr = (SRC), uop->decode.mem_size = 1, XMEM_READ_BYTE((SRC)))
+#define READ_WORD(SRC, FAULT)     ((FAULT) = md_fault_none, uop->oracle.virt_addr = (SRC), uop->decode.mem_size = 2, XMEM_READ_WORD((SRC)))
+#define READ_DWORD(SRC, FAULT)     ((FAULT) = md_fault_none, uop->oracle.virt_addr = (SRC), uop->decode.mem_size = 4, XMEM_READ_DWORD((SRC)))
+#define READ_QWORD(SRC, FAULT)    ((FAULT) = md_fault_none, uop->oracle.virt_addr = (SRC), uop->decode.mem_size = 8, XMEM_READ_QWORD((SRC)))
 
-#define WRITE_BYTE(SRC, DST, FAULT)   ((FAULT) = md_fault_none, uop->oracle.virt_addr = (DST), uop->decode.mem_size = 1, XMEM_WRITE_BYTE(thread->mem, (DST), (SRC)))
-#define WRITE_WORD(SRC, DST, FAULT)   ((FAULT) = md_fault_none, uop->oracle.virt_addr = (DST), uop->decode.mem_size = 2, XMEM_WRITE_WORD(thread->mem, (DST), (SRC)))
-#define WRITE_DWORD(SRC, DST, FAULT)   ((FAULT) = md_fault_none, uop->oracle.virt_addr = (DST), uop->decode.mem_size = 4, XMEM_WRITE_DWORD(thread->mem, (DST), (SRC)))
-#define WRITE_QWORD(SRC, DST, FAULT)  ((FAULT) = md_fault_none, uop->oracle.virt_addr = (DST), uop->decode.mem_size = 8, XMEM_WRITE_QWORD(thread->mem, (DST), (SRC)))
+#define WRITE_BYTE(SRC, DST, FAULT)   ((FAULT) = md_fault_none, uop->oracle.virt_addr = (DST), uop->decode.mem_size = 1, XMEM_WRITE_BYTE((DST), (SRC)))
+#define WRITE_WORD(SRC, DST, FAULT)   ((FAULT) = md_fault_none, uop->oracle.virt_addr = (DST), uop->decode.mem_size = 2, XMEM_WRITE_WORD((DST), (SRC)))
+#define WRITE_DWORD(SRC, DST, FAULT)   ((FAULT) = md_fault_none, uop->oracle.virt_addr = (DST), uop->decode.mem_size = 4, XMEM_WRITE_DWORD((DST), (SRC)))
+#define WRITE_QWORD(SRC, DST, FAULT)  ((FAULT) = md_fault_none, uop->oracle.virt_addr = (DST), uop->decode.mem_size = 8, XMEM_WRITE_QWORD((DST), (SRC)))
 
 /* this is for FSTE */
-#define WRITE_DWORD2(SRC, DST, FAULT)   (uop->decode.mem_size = 12, XMEM_WRITE_DWORD2(thread->mem, (DST), (SRC)))
+#define WRITE_DWORD2(SRC, DST, FAULT)   (uop->decode.mem_size = 12, XMEM_WRITE_DWORD2((DST), (SRC)))
   /*-----------------*/
  /* </SIMPLESCALAR> */
 /*-----------------*/
@@ -1134,6 +1134,11 @@ core_oracle_t::exec(const md_addr_t requested_PC)
         core->num_signals_in_pipe++;
     }
 
+    /* Mark fences in critical section as light.
+     * XXX: This is a hack, so I don't hijack new x86 opcodes for light fences */
+    if (uop->decode.is_fence && core->current_thread->in_critical_section)
+      uop->decode.is_light_fence = true;
+
     /* execute the instruction */
     switch (uop->decode.op)
     {
@@ -1176,7 +1181,7 @@ core_oracle_t::exec(const md_addr_t requested_PC)
     if(uop->decode.is_load)
     {
       //zesto_assert(uop->oracle.virt_addr != 0 || uop->Mop->oracle.spec_mode,NULL);
-      uop->oracle.phys_addr = v2p_translate(thread->id, uop->oracle.virt_addr);
+      uop->oracle.phys_addr = v2p_translate(thread->asid, uop->oracle.virt_addr);
     }
     else if(uop->decode.is_std)
     {
@@ -1189,7 +1194,7 @@ core_oracle_t::exec(const md_addr_t requested_PC)
         assert(prev_uop_index >= 0);
       }
       assert(Mop->uop[prev_uop_index].decode.is_sta);
-      uop->oracle.phys_addr = v2p_translate(thread->id, uop->oracle.virt_addr);
+      uop->oracle.phys_addr = v2p_translate(thread->asid, uop->oracle.virt_addr);
       Mop->uop[prev_uop_index].oracle.virt_addr = uop->oracle.virt_addr;
       Mop->uop[prev_uop_index].oracle.phys_addr = uop->oracle.phys_addr;
       Mop->uop[prev_uop_index].decode.mem_size = uop->decode.mem_size;
@@ -1320,7 +1325,6 @@ core_oracle_t::exec(const md_addr_t requested_PC)
 
   /* commit this inst to the MopQ */
   MopQ_tail = modinc(MopQ_tail,MopQ_size); //(MopQ_tail + 1) % MopQ_size;
-  ZPIN_TRACE(core->id, "MopQ_tail++: %d\n", MopQ_tail);
   MopQ_num ++;
 
   current_Mop = Mop;
@@ -1370,7 +1374,7 @@ void core_oracle_t::commit_uop(struct uop_t * const uop)
   {
     if(!uop->oracle.spec_mem[j])
       break;
-    MEM_WRITE_BYTE_NON_SPEC(core->current_thread->mem, uop->oracle.virt_addr+j, uop->oracle.spec_mem[j]->val);
+    MEM_WRITE_BYTE_NON_SPEC(core->current_thread->asid, uop->oracle.virt_addr+j, uop->oracle.spec_mem[j]->val);
     core->oracle->commit_write_byte(uop->oracle.spec_mem[j]);
     uop->oracle.spec_mem[j] = NULL;
   }
@@ -1727,7 +1731,7 @@ void core_oracle_t::grab_feeder_state(handshake_container_t * handshake, bool al
   // Just use the feeder PC since the instruction context is from there.
   if(check_pc_mismatch && core->fetch->PC != handshake->handshake.pc)
   {
-    if (handshake->handshake.real && !core->fetch->prev_insn_fake) {
+    if (handshake->flags.real && !core->fetch->prev_insn_fake) {
       ZPIN_TRACE(core->id, "PIN->PC (0x%x) different from fetch->PC (0x%x). Overwriting with Pin value!\n", handshake->handshake.pc, core->fetch->PC);
       //       info("PIN->PC (0x%x) different from fetch->PC (0x%x). Overwriting with Pin value!\n", handshake->pc, core->fetch->PC);
     }
@@ -1736,14 +1740,16 @@ void core_oracle_t::grab_feeder_state(handshake_container_t * handshake, bool al
     regs->regs_NPC = handshake->handshake.pc;
   }
 
-  core->fetch->feeder_NPC = handshake->handshake.brtaken ? handshake->handshake.tpc : handshake->handshake.npc;
+  core->fetch->feeder_NPC = handshake->flags.brtaken ? handshake->handshake.tpc : handshake->handshake.npc;
   core->fetch->feeder_PC = handshake->handshake.pc;
   core->fetch->prev_insn_fake = core->fetch->fake_insn;
-  core->fetch->fake_insn = !handshake->handshake.real;
-  core->fetch->taken_branch = handshake->handshake.brtaken;
+  core->fetch->fake_insn = !handshake->flags.real;
+  core->fetch->taken_branch = handshake->flags.brtaken;
   core->fetch->feeder_ftPC = handshake->handshake.npc;
 
-  if (handshake->handshake.real) {
+  core->current_thread->asid = handshake->handshake.asid;
+
+  if (handshake->flags.real) {
     /* Copy architectural state from pin
        XXX: This is arch state BEFORE executed the instruction we're about to simulate */
     regs->regs_R = handshake->handshake.ctxt.regs_R;
@@ -1759,7 +1765,7 @@ void core_oracle_t::grab_feeder_state(handshake_container_t * handshake, bool al
         memcpy(&regs->regs_F.e[j], &handshake->handshake.ctxt.regs_F.e[j], MD_FPR_SIZE);
   }
   else {
-    core->current_thread->in_critical_section = handshake->handshake.in_critical_section;
+    core->current_thread->in_critical_section = handshake->flags.in_critical_section;
   }
 
 
@@ -1770,15 +1776,6 @@ void core_oracle_t::grab_feeder_state(handshake_container_t * handshake, bool al
     handshake_container_t* shadow_handshake = shadow_MopQ->get_buffer();
     handshake->CopyTo(shadow_handshake);
 
-    /* Grab fast-path mem reads and break them up into byte-sized chunks to be read by oracle */
-    if (handshake->handshake.mem_size) {
-      for (uint32_t t=0; t < handshake->handshake.mem_size; t++) {
-        shadow_handshake->mem_buffer.insert(pair<uint32_t, uint8_t>(
-             handshake->handshake.mem_addr+t,
-             (uint8_t)(handshake->handshake.mem_val >> 8*t)));
-      }
-    }
-
     shadow_MopQ->push_done();
   }
 }
@@ -1787,15 +1784,7 @@ handshake_container_t * core_oracle_t::get_shadow_Mop(const struct Mop_t* Mop)
 {
   int Mop_ind = get_index(Mop);
   int from_head = (Mop_ind - MopQ_head) & (MopQ_size - 1);
-  ZPIN_TRACE(core->id, "MopQ index: %d\n", Mop_ind);
   handshake_container_t * res = shadow_MopQ->get_item(from_head);
-/*
-  if (!res->flags.valid) {
-    fprintf(stderr, "ABOUT TO FAIL!!!\n");
-    fflush(stderr);
-    while(1);
-  }
-*/
   zesto_assert(res->flags.valid, NULL);
   return res; 
 }

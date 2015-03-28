@@ -1,78 +1,65 @@
-XIOSim 0.3 Pre-release
-Svilen Kanev,
-Harvard University, 2013
-===================================================
-XIOSim is a detailed user-mode microarchitectural simulator for the x86 architecture. It features detailed models for in-order (Atom-like) and out-of-order (Nehalem-like) cores, tightly integrated power models and integrates with existing Pintools.
+XIOSim
+======
+XIOSim is a detailed user-mode microarchitectural simulator for the x86 architecture.
+It has detailed models for in-order (Atom-like) and out-of-order (Nehalem-like) cores
+and tightly-integrated power models. XIOSim supports multiprogram and multithreaded
+execution, regions-of-interest (including SimPoints). It runs at 10s KIPS per simulated
+core and uses cores on the simulation host to speed up muliticore simulation
+(fastest runs use 2x the number of simulated cores).
 
 XIOSim builds up on and integrates a significant amount of others' work:
-- the out-of-order performance model from the Zesto framework.
-- the Pin binary instrumentation engine.
-- the power models from McPAT.
-- the DRAM models from DRAMSim2.
 
-===================================================
-REQUIREMENTS:
-Pin kit version 2.14
-Available at http://www.pintool.org/downloads.html
+- The out-of-order performance model from [Zesto](http://zesto.cc.gatech.edu/).
+- The [Pin](http://www.pintool.org) binary instrumentation engine.
+- The power models from [McPAT](http://www.hpl.hp.com/research/mcpat/).
+- The DRAM models from [DRAMSim2](http://wiki.umd.edu/DRAMSim2/index.php/Main_Page).
 
-===================================================
-BUILD INSTRUCTIONS:
+### Dependences ###
+- Pin kit version 2.14+ [Download](http://www.pintool.org/downloads.html)
+- Recent version of GCC including C++11 support (4.7+ is ok)
+- Boost 1.54+
+- libconfuse
+- (integration tests only) Python and py.test
 
-0. Set PIN_HOME in pintool/makefile to pin kit location
-2. Build pintool
-cd pintool; make
+To install dependent libraries on an Ubuntu system:
 
-Additional build targets:
-- make libd (slave mode with tracing enabled -- on error, last 50,000 lines of trace are added to the output file)
-- make tags (generate ctags)
-- make clean
+~~~
+sudo apt-get install libboost-all-dev libconfuse-dev:i386
+~~~
 
-- cd pintool; make debug (adds a trace of syscalls to simulator output)
+### Try it out ###
+~~~
+export PIN_ROOT=</path/to/your/pin/installation>
+cd pintool
+make
+./run.sh
+~~~
 
-REBUILDING: After making changes to the simulator core, you first need to rebuild libsim. In the root of the simulator, do "make; cd pintool; make".
+### Build status ###
+[![Build Status](http://ci.xiosim.org:8080/buildStatus/icon?job=XIOSim)](http://ci.xiosim.org:8080/job/XIOSim/)
 
-REQUIREMENTS: Recent version of GCC including some C++11 features (GCC 4.5+ should be ok). We use GCC 4.7.2.
+### Configuration and flags ###
+Most simulated parameters are contained in a configuration file.
+Feel free to browse [a Nehalem-based machine](config/Nconfuse.cfg) to get a feel for them.
 
-===================================================
-RUNNING IN SLAVE MODE:
-Running as a pintool frees the simulator for certain responsibilities, like implementing an elf file loader and emulating/dispatching system calls. Instead, these are done natively by the host operating system, and we only grab information that is relevant for simulation.
+Simulated applications are specified in their own configuration file.
+Check out [how that looks](pintool/benchmarks.cfg).
+You can add as many as you want for a single multiprogram simulation.
 
-Flags should be given in this order:
+A few parameters (mostly related to regions-of-interest) are
+passed as command-line flags (between the -t and -s switches).
+For example:
 
-Pin flags [immediately after pin executable].
+~~~
+-ppfile test.pp     # to use a PinPoints file.
+-skip 10000         # to fast-forward the first 10,000 instructions.
+-length 10000       # to only simmulate 10,000 instructions.
+-parsec             # to properly use the Parsec suite region-of-interest hooks (ROI).
+~~~
 
-Pintool flags [after -t in command line]:
--ppfile, skip, etc. -- as defined by the CONTROLLER_PINPOINT class.
--skip -- exit after a number of simulated instructions.
--parsec -- support for the Parsec suite region-of-interest (ROI).
--pthreads -- EXPERIMENTAL support for pthreads synchronization.
--iljit -- Experimental support for running the high-level VM ILDJIT on top of the simulator.
-
-Simulator command line flags [after -s in command line]:
--f.e. -redir:sim to redirect simulator output (see Zesto documentation).
-
-Simulated executable and parameters [after -- in command line].
-
-===================================================
-SIMULATING POWER:
-Setting the "-power" option to true (either in the configuration file or through the simulator command line) enables power computation. Power statistics for the whole duration of the simulation (or the current simulation slice) are appended to the appropriate output file.
-
-Setting the "-power:rtp_interval" and "-power:rtp_file" options allows generating power traces that track core and uncore dynamic power every "rtp_interval" cycles.
-
-Performance overheads: Power simulation adds a significant overhead to simulator start times and memory consumption during initialization, while the McPAT power models are trained. After initialization, there is no significant performance overhead, regardless whether power traces are generated.
-
-===================================================
-STABILITY NOTE:
-Running under Pin and sharing its address space can cause issues with repeatability of the results between runs. This can completely ruin techniques that require the exact same call path, like PinPoints. To mitigate that:
-- disable address space randomization (f.e. "setarch i686 -3BL");
-- clear the environment (f.e. "/usr/bin/env -i"); note that all paths need to be absolute after this;
-- run Pin with the "-separate_memory" flag to minimize issues with sharing of a single address space;
-
-===================================================
-ISA SUPPORT:
-The simulator supports user-mode, 32-bit instructions. Some basic SSE instructions are supported for doing floating point, but by no means the whole extension set (a warning is printed if more than 2% instructions are unsupported. In that case, ping Svilen to add your fancy instructions).
+### ISA support ####
+The simulator supports user-mode, 32-bit instructions. Some basic SSE instructions
+are supported for doing floating point, but by no means the whole extension set
+(a warning is printed if more than 2% instructions are unsupported.
+In that case, ping Svilen to add your fancy instructions).
 Support for 64-bit mode, SSEx and/or AVX is planned.
-
-===================================================
-SEGMENTATION SUPPORT NOTE:
-Because OS functions are executed by the host OS itself, support for segmenting is limited to the ES and GS registers. The gcc/glibc/Linux toolchain appears to set other segment registers to a segment base of 0, so this is not a big issue. Note that other OS/compiler combinations may not do that.

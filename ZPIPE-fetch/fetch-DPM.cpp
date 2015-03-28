@@ -134,6 +134,7 @@ core_fetch_DPM_t::core_fetch_DPM_t(struct core_t * const arg_core):
 
   /* bpred */
   bpred = new bpred_t(
+      core,
       knobs->fetch.num_bpred_components,
       knobs->fetch.bpred_opt_str,
       knobs->fetch.fusion_opt_str,
@@ -156,9 +157,9 @@ core_fetch_DPM_t::core_fetch_DPM_t(struct core_t * const arg_core):
 
   /* the write-related options don't matter since the IL1 will(should) never see any stores */
   if(core->memory.DL2)
-    core->memory.IL1 = cache_create(core,name,CACHE_READONLY,sets,assoc,linesize,rp,'w','t','n',banks,bank_width,latency,MSHR_entries,4,1,core->memory.DL2,core->memory.DL2_bus);
+    core->memory.IL1 = cache_create(core,name,CACHE_READONLY,sets,assoc,linesize,rp,'w','t','n',banks,bank_width,latency,MSHR_entries,4,1,core->memory.DL2,core->memory.DL2_bus,knobs->memory.IL1_magic_hit_rate);
   else
-    core->memory.IL1 = cache_create(core,name,CACHE_READONLY,sets,assoc,linesize,rp,'w','t','n',banks,bank_width,latency,MSHR_entries,4,1,uncore->LLC,uncore->LLC_bus);
+    core->memory.IL1 = cache_create(core,name,CACHE_READONLY,sets,assoc,linesize,rp,'w','t','n',banks,bank_width,latency,MSHR_entries,4,1,uncore->LLC,uncore->LLC_bus,knobs->memory.IL1_magic_hit_rate);
   core->memory.IL1->MSHR_cmd_order = NULL;
 
   core->memory.IL1->PFF_size = knobs->memory.IL1_PFFsize;
@@ -189,9 +190,9 @@ core_fetch_DPM_t::core_fetch_DPM_t(struct core_t * const arg_core):
     fatal("invalid ITLB options: <name:sets:assoc:banks:latency:repl-policy:num-MSHR>");
 
   if(core->memory.DL2)
-    core->memory.ITLB = cache_create(core,name,CACHE_READONLY,sets,assoc,1,rp,'w','t','n',banks,1,latency,MSHR_entries,4,1,core->memory.DL2,core->memory.DL2_bus);
+    core->memory.ITLB = cache_create(core,name,CACHE_READONLY,sets,assoc,1,rp,'w','t','n',banks,1,latency,MSHR_entries,4,1,core->memory.DL2,core->memory.DL2_bus, -1.0);
   else
-    core->memory.ITLB = cache_create(core,name,CACHE_READONLY,sets,assoc,1,rp,'w','t','n',banks,1,latency,MSHR_entries,4,1,uncore->LLC,uncore->LLC_bus);
+    core->memory.ITLB = cache_create(core,name,CACHE_READONLY,sets,assoc,1,rp,'w','t','n',banks,1,latency,MSHR_entries,4,1,uncore->LLC,uncore->LLC_bus, -1.0);
   core->memory.ITLB->MSHR_cmd_order = NULL;
 
   core->memory.IL1->controller = controller_create(knobs->memory.IL1_controller_opt_str, core, core->memory.IL1);
@@ -461,8 +462,8 @@ void core_fetch_DPM_t::post_fetch(void)
   /* This gets processed here, so that demand misses from the DL1 get higher
      priority for accessing the L2 */
   lk_lock(&cache_lock, core->id+1);
-  if(core->memory.ITLB->check_for_work) cache_process(core->memory.ITLB);
-  if(core->memory.IL1->check_for_work) cache_process(core->memory.IL1);
+  cache_process(core->memory.ITLB);
+  cache_process(core->memory.IL1);
   lk_unlock(&cache_lock);
 
   /* check predecode pipe's last stage for instructions to put into the IQ */
@@ -564,6 +565,7 @@ void core_fetch_DPM_t::post_fetch(void)
 void core_fetch_DPM_t::pre_fetch(void)
 {
   struct core_knobs_t * knobs = core->knobs;
+  int asid = core->current_thread->asid;
   int i;
 
   ZESTO_STAT(stat_add_sample(core->stat.fetch_stall, (int)stall_reason);)
@@ -574,9 +576,9 @@ void core_fetch_DPM_t::pre_fetch(void)
   {
     if(byteQ[index].when_fetch_requested == TICK_T_MAX)
     {
-      if(cache_enqueuable(core->memory.IL1,core->current_thread->id,byteQ[index].addr))
+      if(cache_enqueuable(core->memory.IL1, asid, byteQ[index].addr))
       {
-        cache_enqueue(core,core->memory.IL1,NULL,CACHE_READ,core->current_thread->id,byteQ[index].addr,byteQ[index].addr,byteQ[index].action_id,0,NO_MSHR,&byteQ[index],IL1_callback,NULL,translated_callback,get_byteQ_action_id);
+        cache_enqueue(core, core->memory.IL1, NULL, CACHE_READ, asid, byteQ[index].addr, byteQ[index].addr, byteQ[index].action_id, 0, NO_MSHR, &byteQ[index], IL1_callback, NULL, translated_callback, get_byteQ_action_id);
         byteQ[index].when_fetch_requested = core->sim_cycle;
         break;
       }
@@ -589,9 +591,9 @@ void core_fetch_DPM_t::pre_fetch(void)
   {
     if(byteQ[index].when_translation_requested == TICK_T_MAX)
     {
-      if(cache_enqueuable(core->memory.ITLB,core->current_thread->id,PAGE_TABLE_ADDR(core->current_thread->id,byteQ[index].addr)))
+      if(cache_enqueuable(core->memory.ITLB, asid, PAGE_TABLE_ADDR(asid, byteQ[index].addr)))
       {
-        cache_enqueue(core,core->memory.ITLB,NULL,CACHE_READ,0,core->current_thread->id,PAGE_TABLE_ADDR(core->current_thread->id,byteQ[index].addr),byteQ[index].action_id,0,NO_MSHR,&byteQ[index],ITLB_callback,NULL,NULL,get_byteQ_action_id);
+        cache_enqueue(core, core->memory.ITLB, NULL, CACHE_READ, 0, asid, PAGE_TABLE_ADDR(asid, byteQ[index].addr), byteQ[index].action_id, 0, NO_MSHR, &byteQ[index], ITLB_callback, NULL, NULL, get_byteQ_action_id);
         byteQ[index].when_translation_requested = core->sim_cycle;
         break;
       }
@@ -637,13 +639,10 @@ bool core_fetch_DPM_t::do_fetch(void)
   md_addr_t current_line = PC & byteQ_linemask;
   struct Mop_t * Mop = NULL;
 
-  ZPIN_TRACE(core->id, "Fetch PC: %x, rep_seq: %d\n", PC, core->current_thread->rep_sequence);
-
   lk_lock(&memory_lock, core->id+1);
   Mop = core->oracle->exec(PC);
   lk_unlock(&memory_lock);
 
-  ZPIN_TRACE(core->id, "After. PC: %x, nuked_Mops: %d, rep_seq: %d\n", PC, core->oracle->num_Mops_before_feeder(), core->current_thread->rep_sequence);
   if(Mop && ((PC >> PAGE_SHIFT) == 0))
   {
     zesto_assert(core->oracle->spec_mode, false);

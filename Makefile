@@ -9,22 +9,22 @@
 #
 ##################################################################
 
-CXX ?= g++
+CXX?= g++
 
 ##################################################################
 # Uncomment only one of the following OFLAGS, or make your own
 
 # For debug:
-OFLAGS = -O3 -g -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -DDEBUG -Wall -msse4a -mfpmath=sse -std=c++11
+OFLAGS = -O3 -g -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -DDEBUG -msse4a -mfpmath=sse -std=c++11 -Wall -Wno-unused-function
 
 # Fully-optimized, but with profiling for gprof:
-#OFLAGS = -O3 -g -pg -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -Wall -static -fexpensive-optimizations -mtune=core2 -march=core2 -msse4a -mfpmath=sse -funroll-loops
+#OFLAGS = -O3 -g -pg -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -static -fexpensive-optimizations -mtune=core2 -march=core2 -msse4a -mfpmath=sse -funroll-loops -Wall -Wno-unused-function
 
 # Fully-optimized:
-#OFLAGS = -O3 -m32 -g -DNDEBUG -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -Wall -static  -msse4a -mfpmath=sse
+#OFLAGS = -O3 -m32 -g -DNDEBUG -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -static  -msse4a -mfpmath=sse -Wall -Wno-unused-function
 
 ##################################################################
-# Uncomment to turn on pipeline event logging 
+# Uncomment to turn on pipeline event logging
 ZTRACE = #-DZTRACE
 
 ##################################################################
@@ -43,15 +43,20 @@ OEXT = o
 #
 MCPAT_INC = -Imcpat
 REPEATER_INC = -Imem-repeater
+ifneq ($(CONFUSE_HOME),)
+  CONFUSE_INC = -I$(CONFUSE_HOME)/include
+else
+  CONFUSE_INC =
+endif
 
-CFLAGS = $(FFLAGS) $(OFLAGS) $(BINUTILS_INC) $(BINUTILS_LIB) $(ZTRACE) $(MCPAT_INC) $(REPEATER_INC) -DZESTO_PIN
+CFLAGS = $(FFLAGS) $(OFLAGS) $(BINUTILS_INC) $(BINUTILS_LIB) $(ZTRACE) $(MCPAT_INC) $(CONFUSE_INC) $(REPEATER_INC) -DZESTO_PIN
 
 #
 # all the sources
 #
 SRCS =  \
-eval.c          machine.c       memory.c         misc.c         options.c   \
-stats.c         slave.c         sim-main.c       callbacks.c    slices.cpp  \
+eval.c          machine.c       memory.cpp         misc.c         options.c   \
+stats.c         slave.cpp         sim-main.c       callbacks.c    slices.cpp  \
 buffer.cpp
 
 HDRS = \
@@ -70,14 +75,15 @@ zesto-core.cpp zesto-opts.cpp zesto-oracle.cpp zesto-fetch.cpp         \
 zesto-decode.cpp zesto-alloc.cpp zesto-exec.cpp zesto-commit.cpp zesto-cache.cpp   \
 zesto-dram.cpp zesto-bpred.cpp zesto-memdep.cpp zesto-prefetch.cpp                 \
 zesto-uncore.cpp zesto-MC.cpp zesto-power.cpp zesto-noc.cpp        \
-zesto-repeater.cpp zesto-coherence.cpp zesto-dvfs.cpp
+zesto-repeater.cpp zesto-coherence.cpp zesto-dvfs.cpp zesto-config.cpp \
+zesto-config-params.cpp
 
 ZHDRS = \
 zesto-structs.h zesto-core.h zesto-opts.h zesto-oracle.h zesto-fetch.h             \
 zesto-decode.h zesto-alloc.h zesto-exec.h zesto-commit.h zesto-cache.h             \
 zesto-dram.h zesto-bpred.h zesto-memdep.h zesto-prefetch.h zesto-uncore.h          \
 zesto-MC.h zesto-power.h zesto-coherence.h zesto-noc.h               \
-zesto-repeater.h zesto-dvfs.h
+zesto-repeater.h zesto-dvfs.h zesto-config.h
 
 ZOBJS=$(ZSRCS:.cpp=.o)
 
@@ -162,7 +168,7 @@ clean:
 	-$(RM) *.o *.obj core libsim*
 
 .PHONY: tags
-tags: 
+tags:
 	ctags -R --extra=+q .
 
 eval.o: host.h misc.h  machine.h machine.def zesto-structs.h regs.h
@@ -281,20 +287,20 @@ zesto-MC.o: zesto-coherence.h zesto-noc.h
 
 # SimpleScalar(TM) Tool Suite
 # Copyright (C) 1994-2002 by Todd M. Austin, Ph.D. and SimpleScalar, LLC.
-# All Rights Reserved. 
-# 
+# All Rights Reserved.
+#
 # THIS IS A LEGAL DOCUMENT, BY USING SIMPLESCALAR,
 # YOU ARE AGREEING TO THESE TERMS AND CONDITIONS.
-# 
+#
 # No portion of this work may be used by any commercial entity, or for any
 # commercial purpose, without the prior, written permission of SimpleScalar,
 # LLC (info@simplescalar.com). Nonprofit and noncommercial use is permitted
 # as described below.
-# 
+#
 # 1. SimpleScalar is provided AS IS, with no warranty of any kind, express
 # or implied. The user of the program accepts full responsibility for the
 # application of the program and the use of any results.
-# 
+#
 # 2. Nonprofit and noncommercial use is encouraged. SimpleScalar may be
 # downloaded, compiled, executed, copied, and modified solely for nonprofit,
 # educational, noncommercial research, and noncommercial scholarship
@@ -303,13 +309,13 @@ zesto-MC.o: zesto-coherence.h zesto-noc.h
 # solely for nonprofit, educational, noncommercial research, and
 # noncommercial scholarship purposes provided that this notice in its
 # entirety accompanies all copies.
-# 
+#
 # 3. ALL COMMERCIAL USE, AND ALL USE BY FOR PROFIT ENTITIES, IS EXPRESSLY
 # PROHIBITED WITHOUT A LICENSE FROM SIMPLESCALAR, LLC (info@simplescalar.com).
-# 
+#
 # 4. No nonprofit user may place any restrictions on the use of this software,
 # including as modified by the user, by any other authorized user.
-# 
+#
 # 5. Noncommercial and nonprofit users may distribute copies of SimpleScalar
 # in compiled or executable form as set forth in Section 2, provided that
 # either: (A) it is accompanied by the corresponding machine-readable source
@@ -319,11 +325,11 @@ zesto-MC.o: zesto-coherence.h zesto-noc.h
 # must permit verbatim duplication by anyone, or (C) it is distributed by
 # someone who received only the executable form, and is accompanied by a
 # copy of the written offer of source code.
-# 
+#
 # 6. SimpleScalar was developed by Todd M. Austin, Ph.D. The tool suite is
 # currently maintained by SimpleScalar LLC (info@simplescalar.com). US Mail:
 # 2395 Timbercrest Court, Ann Arbor, MI 48105.
-# 
+#
 # Copyright (C) 2000-2002 by The Regents of The University of Michigan.
 # Copyright (C) 1994-2002 by Todd M. Austin, Ph.D. and SimpleScalar, LLC.
 #
@@ -331,10 +337,10 @@ zesto-MC.o: zesto-coherence.h zesto-noc.h
 # Copyright © 2009 by Gabriel H. Loh and the Georgia Tech Research Corporation
 # Atlanta, GA  30332-0415
 # All Rights Reserved.
-# 
+#
 # THIS IS A LEGAL DOCUMENT BY DOWNLOADING ZESTO, YOU ARE AGREEING TO THESE
 # TERMS AND CONDITIONS.
-# 
+#
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 # AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 # IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -346,31 +352,31 @@ zesto-MC.o: zesto-coherence.h zesto-noc.h
 # CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
-# 
+#
 # NOTE: Portions of this release are directly derived from the SimpleScalar
 # Toolset (property of SimpleScalar LLC), and as such, those portions are
 # bound by the corresponding legal terms and conditions.  All source files
 # derived directly or in part from the SimpleScalar Toolset bear the original
 # user agreement.
-# 
+#
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
-# 
+#
 # 1. Redistributions of source code must retain the above copyright notice,
 # this list of conditions and the following disclaimer.
-# 
+#
 # 2. Redistributions in binary form must reproduce the above copyright notice,
 # this list of conditions and the following disclaimer in the documentation
 # and/or other materials provided with the distribution.
-# 
+#
 # 3. Neither the name of the Georgia Tech Research Corporation nor the names of
 # its contributors may be used to endorse or promote products derived from
 # this software without specific prior written permission.
-# 
+#
 # 4. Zesto is distributed freely for commercial and non-commercial use.  Note,
 # however, that the portions derived from the SimpleScalar Toolset are bound
 # by the terms and agreements set forth by SimpleScalar, LLC.  In particular:
-# 
+#
 #   "Nonprofit and noncommercial use is encouraged. SimpleScalar may be
 #   downloaded, compiled, executed, copied, and modified solely for nonprofit,
 #   educational, noncommercial research, and noncommercial scholarship
@@ -379,13 +385,13 @@ zesto-MC.o: zesto-coherence.h zesto-noc.h
 #   solely for nonprofit, educational, noncommercial research, and
 #   noncommercial scholarship purposes provided that this notice in its
 #   entirety accompanies all copies."
-# 
+#
 # User is responsible for reading and adhering to the terms set forth by
 # SimpleScalar, LLC where appropriate.
-# 
+#
 # 5. No nonprofit user may place any restrictions on the use of this software,
 # including as modified by the user, by any other authorized user.
-# 
+#
 # 6. Noncommercial and nonprofit users may distribute copies of Zesto in
 # compiled or executable form as set forth in Section 2, provided that either:
 # (A) it is accompanied by the corresponding machine-readable source code, or
@@ -395,6 +401,6 @@ zesto-MC.o: zesto-coherence.h zesto-noc.h
 # verbatim duplication by anyone, or (C) it is distributed by someone who
 # received only the executable form, and is accompanied by a copy of the
 # written offer of source code.
-# 
+#
 # 7. Zesto was developed by Gabriel H. Loh, Ph.D.  US Mail: 266 Ferst Drive,
 # Georgia Institute of Technology, Atlanta, GA 30332-0765

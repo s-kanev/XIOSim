@@ -170,6 +170,10 @@ struct prefetch_filter_t {
 struct cache_t {
 
   struct core_t * core; /* to which core does this belong? NULL = shared */
+  counter_t sim_cycle; /* private caches: the clock this cache is running from.
+                        * We keep it at 1:1 with the core clock, but separate,
+                        * so we can disable the core and still keep the cache up,
+                        * responding to NOC events. */
 
   char * name;
   enum read_only_t read_only;
@@ -263,6 +267,8 @@ struct cache_t {
   /* coherency controllers */
   struct cache_controller_t * controller;
 
+  float magic_hit_rate;
+
   struct {
     counter_t load_lookups;
     counter_t load_misses;
@@ -307,7 +313,8 @@ struct cache_t * cache_create(
     const int MSHR_WB_size,
     const int MSHR_banked,
     struct cache_t * const next_level_cache,
-    struct bus_t * const bus_next);
+    struct bus_t * const bus_next,
+    const float magic_hit_rate);
 
 void cache_reg_stats(
     struct stat_sdb_t * const sdb,
@@ -350,7 +357,7 @@ struct cache_line_t * cache_get_evictee(
 
 int cache_enqueuable(
     const struct cache_t * const cp,
-    const int thread_id,
+    const int asid,
     const md_paddr_t addr);
 
 void cache_enqueue(
@@ -358,7 +365,7 @@ void cache_enqueue(
     struct cache_t * const cp,
     struct cache_t * const prev_cp,
     const enum cache_command cmd,
-    const int thread_id,
+    const int asid,
     const md_addr_t PC,
     const md_paddr_t addr,
     const seq_t action_id,

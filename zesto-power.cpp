@@ -1,3 +1,5 @@
+#include <cstddef>
+
 #include "thread.h"
 
 #include "stats.h"
@@ -29,6 +31,8 @@ bool private_l2 = false;
 
 double core_power_t::default_vdd;
 
+enum device_type_t { HP = 0, LSTP = 1, LOP = 2 };
+
 void init_power(void)
 {
   XML = new ParseXML();
@@ -53,6 +57,7 @@ void init_power(void)
   XML->sys.virtual_address_width = 64;
   XML->sys.physical_address_width = 52;
   XML->sys.virtual_memory_page_size = 4096;
+  XML->sys.vdd = 1.0;
 
   int num_l2 = 0;
   bool has_hp_core = false;
@@ -70,7 +75,7 @@ void init_power(void)
       has_hp_core = true;
   } 
 
-  XML->sys.device_type = has_hp_core ? 0 /*HP*/: 2 /*LOP*/;
+  XML->sys.device_type = has_hp_core ? HP : LOP;
 
   XML->sys.Private_L2 = private_l2;
   XML->sys.number_of_L2s = private_l2 ? num_l2 : 1;
@@ -83,45 +88,77 @@ void init_power(void)
     XML->sys.L2[0].L2_config[0] = uncore->LLC->sets * uncore->LLC->assoc * uncore->LLC->linesize;
     XML->sys.L2[0].L2_config[1] = uncore->LLC->linesize;
     XML->sys.L2[0].L2_config[2] = uncore->LLC->assoc;
-    XML->sys.L2[0].L2_config[3] = uncore->LLC->banks;
-    XML->sys.L2[0].L2_config[4] = 1;
-    XML->sys.L2[0].L2_config[5] = uncore->LLC->latency;
-    XML->sys.L2[0].L2_config[6] = uncore->LLC->bank_width;
+    // McPAT seems too optimistic for area and leakeage of multi-banked caches.
+    // We hardcode banking to 1, which produces LLC leakage closer to our
+    // Atom 330 measurements.
+    XML->sys.L2[0].L2_config[3] = 1;
+    // uncore->LLC->latency is in core clock cycles.
+    // McPAT docs say they also use core clocks, but sharedcache.cc:1130 begs
+    // to differ (for both L2_config[4,5]). So, we convert to uncore cycles.
+    // Throughput [4] seems to be a misnomer. [4] is the target array
+    // cycle time. Arrays with *higher* times gets discarded.
+    // We can think of the ratio [5] / [4] as the # pipeline stages of the cache.
+    // Setting that ratio to 1 (we know [5]) would leave both pipelined and
+    // non-pipelined designs on the table. >1 would mean we always want pipelining
+    // and sometimes cacti has to try harder to give us that. <1 doesn't make sense.
+    XML->sys.L2[0].L2_config[5] = uncore->LLC->latency * (LLC_speed / knobs.default_cpu_speed);
+    XML->sys.L2[0].L2_config[4] = XML->sys.L2[0].L2_config[5];
+
+    // McPAT doesn't use below two apparantly
+    XML->sys.L2[0].L2_config[6] = uncore->LLC->linesize;
     XML->sys.L2[0].L2_config[7] = (uncore->LLC->write_policy == WRITE_THROUGH) ? 0 : 1;
 
+    // # read ports
     XML->sys.L2[0].ports[0] = 1;
-    XML->sys.L2[0].ports[1] = 0;
-    XML->sys.L2[0].ports[2] = 0;
+    // # write ports
+    XML->sys.L2[0].ports[1] = 1;
+    // # rw ports
+    XML->sys.L2[0].ports[2] = 1;
 
-    XML->sys.L2[0].buffer_sizes[0] = 1;
-    XML->sys.L2[0].buffer_sizes[1] = 2;
-    XML->sys.L2[0].buffer_sizes[2] = 2;
-    XML->sys.L2[0].buffer_sizes[3] = 2;
+    // # MSHRs
+    XML->sys.L2[0].buffer_sizes[0] = uncore->LLC->MSHR_size;
+    // # fill buffers
+    XML->sys.L2[0].buffer_sizes[1] = uncore->LLC->heap_size;
+    // # PF buffers
+    XML->sys.L2[0].buffer_sizes[2] = uncore->LLC->PFF_size;
+    // # WB buffers
+    XML->sys.L2[0].buffer_sizes[3] = uncore->LLC->MSHR_WB_size;
 
     XML->sys.L2[0].clockrate = (int)LLC_speed;
-    XML->sys.L2[0].device_type = 2;
+    XML->sys.L2[0].device_type = LOP;
+
+    XML->sys.L2[0].vdd = 0;
+    XML->sys.L2[0].power_gating_vcc = -1;
   } else if (uncore->LLC) // LLC is L3
   {
     XML->sys.L3[0].L3_config[0] = uncore->LLC->sets * uncore->LLC->assoc * uncore->LLC->linesize;
     XML->sys.L3[0].L3_config[1] = uncore->LLC->linesize;
     XML->sys.L3[0].L3_config[2] = uncore->LLC->assoc;
-    XML->sys.L3[0].L3_config[3] = 1;//uncore->LLC->banks;
-    XML->sys.L3[0].L3_config[4] = 1;
-    XML->sys.L3[0].L3_config[5] = uncore->LLC->latency;
-    XML->sys.L3[0].L3_config[6] = uncore->LLC->bank_width;
-    XML->sys.L3[0].L3_config[7] = (uncore->LLC->write_policy == WRITE_THROUGH) ? 0 : 1;
+    // McPAT doesn't seem to like heavily banked caches.
+    // We might want to hardcode this to 1,2,4 for big multicores.
+    XML->sys.L3[0].L3_config[3] = uncore->LLC->banks;
+    // Same as L2 case above -- convert to uncore cycles and set throughput == latency.
+    XML->sys.L3[0].L3_config[5] = uncore->LLC->latency * (LLC_speed / knobs.default_cpu_speed);
+    XML->sys.L3[0].L3_config[4] = XML->sys.L3[0].L3_config[4];
 
+    // # read ports
     XML->sys.L3[0].ports[0] = 1;
-    XML->sys.L3[0].ports[1] = 0;
-    XML->sys.L3[0].ports[2] = 0;
+    // # write ports
+    XML->sys.L3[0].ports[1] = 1;
+    // # rw ports
+    XML->sys.L3[0].ports[2] = 1;
 
-    XML->sys.L3[0].buffer_sizes[0] = 1;
-    XML->sys.L3[0].buffer_sizes[1] = 2;
-    XML->sys.L3[0].buffer_sizes[2] = 2;
-    XML->sys.L3[0].buffer_sizes[3] = 2;
+    // # MSHRs
+    XML->sys.L3[0].buffer_sizes[0] = uncore->LLC->MSHR_size;
+    // # fill buffers
+    XML->sys.L3[0].buffer_sizes[1] = uncore->LLC->heap_size;
+    // # PF buffers
+    XML->sys.L3[0].buffer_sizes[2] = uncore->LLC->PFF_size;
+    // # WB buffers
+    XML->sys.L3[0].buffer_sizes[3] = uncore->LLC->MSHR_WB_size;
 
     XML->sys.L3[0].clockrate = (int)LLC_speed;
-    XML->sys.L3[0].device_type = 0;
+    XML->sys.L3[0].device_type = LOP;
   }
 
   XML->sys.mc.number_mcs = 0;
@@ -263,18 +300,22 @@ void core_power_t::translate_params(system_core *core_params, system_L2 *L2_para
     core_params->dcache.dcache_config[0] = core->memory.DL1->sets * core->memory.DL1->assoc * core->memory.DL1->linesize;
     core_params->dcache.dcache_config[1] = core->memory.DL1->linesize;
     core_params->dcache.dcache_config[2] = core->memory.DL1->assoc;
-    // Hardcode banks to 1, McPAT adds big overhead for multibanked caches
-    core_params->dcache.dcache_config[3] = 1;
-    core_params->dcache.dcache_config[4] = 1;
+    core_params->dcache.dcache_config[3] = core->memory.DL1->banks;
     core_params->dcache.dcache_config[5] = core->memory.DL1->latency;
-    core_params->dcache.dcache_config[6] = core->memory.DL1->bank_width;
+    // See LLC comment for setting throughput == latency.
+    core_params->dcache.dcache_config[4] = core_params->dcache.dcache_config[5];
+    core_params->dcache.dcache_config[6] = core->memory.DL1->linesize;
     core_params->dcache.dcache_config[7] = (core->memory.DL1->write_policy == WRITE_THROUGH) ? 0 : 1;
 
 
-    core_params->dcache.buffer_sizes[0] = 4;//core->memory.DL1->MSHR_size;
-    core_params->dcache.buffer_sizes[1] = 4;//core->memory.DL1->fill_num[0]; //XXX
-    core_params->dcache.buffer_sizes[2] = 4;//core->memory.DL1->PFF_size;
-    core_params->dcache.buffer_sizes[3] = 4;//core->memory.DL1->WBB_size;
+    // # MSHRs
+    core_params->dcache.buffer_sizes[0] = core->memory.DL1->MSHR_size;
+    // # fill buffers
+    core_params->dcache.buffer_sizes[1] = core->memory.DL1->heap_size;
+    // # PF buffers
+    core_params->dcache.buffer_sizes[2] = core->memory.DL1->PFF_size;
+    // # WB buffers
+    core_params->dcache.buffer_sizes[3] = core->memory.DL1->MSHR_WB_size;
   }
 
   if (core->memory.IL1)
@@ -282,17 +323,17 @@ void core_power_t::translate_params(system_core *core_params, system_L2 *L2_para
     core_params->icache.icache_config[0] = core->memory.IL1->sets * core->memory.IL1->assoc * core->memory.IL1->linesize;
     core_params->icache.icache_config[1] = core->memory.IL1->linesize;
     core_params->icache.icache_config[2] = core->memory.IL1->assoc;
-    // Hardcode banks to 1, McPAT adds big overhead for multibanked caches
-    core_params->icache.icache_config[3] = 1;
-    core_params->icache.icache_config[4] = 1;
+    core_params->icache.icache_config[3] = core->memory.IL1->banks;
     core_params->icache.icache_config[5] = core->memory.IL1->latency;
-    core_params->icache.icache_config[6] = core->memory.IL1->bank_width;
-    core_params->icache.icache_config[7] = 1;//(core->memory.IL1->write_policy == WRITE_THROUGH) ? 0 : 1;
+    // See LLC comment for setting throughput == latency.
+    core_params->icache.icache_config[4] = core_params->icache.icache_config[5];
+    core_params->icache.icache_config[6] = core->memory.IL1->linesize;
+    core_params->icache.icache_config[7] = 1;
 
-    core_params->icache.buffer_sizes[0] = 2;//core->memory.IL1->MSHR_size;
-    core_params->icache.buffer_sizes[1] = 2;//core->memory.IL1->fill_num[0]; //XXX
-    core_params->icache.buffer_sizes[2] = 2;//core->memory.IL1->PFF_size;
-    core_params->icache.buffer_sizes[3] = 2;//core->memory.IL1->WBB_size;
+    core_params->icache.buffer_sizes[0] = 2;
+    core_params->icache.buffer_sizes[1] = 2;
+    core_params->icache.buffer_sizes[2] = 2;
+    core_params->icache.buffer_sizes[3] = 2;
   }
 
   if (core->memory.ITLB)
@@ -350,6 +391,7 @@ void core_power_t::translate_stats(struct stat_sdb_t* sdb, system_core *core_sta
 
   struct core_knobs_t* knobs = core->knobs;
   (void) L2_stats;
+  core_stats->vdd = 1.0;
 
   stat = stat_find_core_stat(sdb, coreID, "oracle_total_uops");
   core_stats->total_instructions = stat->variant.for_sqword.end_val;

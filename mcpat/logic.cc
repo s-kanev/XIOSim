@@ -1,48 +1,31 @@
 /*****************************************************************************
  *                                McPAT
  *                      SOFTWARE LICENSE AGREEMENT
- *            Copyright 2009 Hewlett-Packard Development Company, L.P.
+ *            Copyright 2012 Hewlett-Packard Development Company, L.P.
  *                          All Rights Reserved
  *
- * Permission to use, copy, and modify this software and its documentation is
- * hereby granted only under the following terms and conditions.  Both the
- * above copyright notice and this permission notice must appear in all copies
- * of the software, derivative works or modified versions, and any portions
- * thereof, and both notices must appear in supporting documentation.
- *
- * Any User of the software ("User"), by accessing and using it, agrees to the
- * terms and conditions set forth herein, and hereby grants back to Hewlett-
- * Packard Development Company, L.P. and its affiliated companies ("HP") a
- * non-exclusive, unrestricted, royalty-free right and license to copy,
- * modify, distribute copies, create derivate works and publicly display and
- * use, any changes, modifications, enhancements or extensions made to the
- * software by User, including but not limited to those affording
- * compatibility with other hardware or software, but excluding pre-existing
- * software applications that may incorporate the software.  User further
- * agrees to use its best efforts to inform HP of any such changes,
- * modifications, enhancements or extensions.
- *
- * Correspondence should be provided to HP at:
- *
- * Director of Intellectual Property Licensing
- * Office of Strategy and Technology
- * Hewlett-Packard Company
- * 1501 Page Mill Road
- * Palo Alto, California  94304
- *
- * The software may be further distributed by User (but not offered for
- * sale or transferred for compensation) to third parties, under the
- * condition that such third parties agree to abide by the terms and
- * conditions of this license.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" WITH ANY AND ALL ERRORS AND DEFECTS
- * AND USER ACKNOWLEDGES THAT THE SOFTWARE MAY CONTAIN ERRORS AND DEFECTS.
- * HP DISCLAIMS ALL WARRANTIES WITH REGARD TO THE SOFTWARE, INCLUDING ALL
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS.   IN NO EVENT SHALL
- * HP BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES
- * OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
- * WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER ACTION, ARISING
- * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THE SOFTWARE.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met: redistributions of source code must retain the above copyright
+ * notice, this list of conditions and the following disclaimer;
+ * redistributions in binary form must reproduce the above copyright
+ * notice, this list of conditions and the following disclaimer in the
+ * documentation and/or other materials provided with the distribution;
+ * neither the name of the copyright holders nor the names of its
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.”
  *
  ***************************************************************************/
 
@@ -78,6 +61,11 @@ selection_logic::selection_logic(
 
     	double long_channel_device_reduction = longer_channel_device_reduction(device_ty,core_ty);
     	power.readOp.longer_channel_leakage	= power.readOp.leakage*long_channel_device_reduction;
+
+    	double pg_reduction = power_gating_leakage_reduction(false);
+    	power.readOp.power_gated_leakage	= power.readOp.leakage*pg_reduction;
+  	    power.readOp.power_gated_with_long_channel_leakage = power.readOp.power_gated_leakage * long_channel_device_reduction;
+
 	 }
 
 void selection_logic::selection_power()
@@ -184,6 +172,12 @@ void dep_resource_conflict_check::conflict_check_power()
 	power.readOp.longer_channel_leakage	= power.readOp.leakage*long_channel_device_reduction;
 	power.readOp.gate_leakage=num_comparators*compare_bits*2*cmos_Ig_leakage(Wcompn, 0, 2, nmos);
 
+	double pg_reduction = power_gating_leakage_reduction(false);
+	power.readOp.power_gated_leakage	= power.readOp.leakage*pg_reduction;
+	power.readOp.power_gated_with_long_channel_leakage = power.readOp.power_gated_leakage * long_channel_device_reduction;
+
+
+
 }
 
 /* estimate comparator power consumption (this comparator is similar
@@ -202,6 +196,26 @@ double dep_resource_conflict_check::compare_cap()
 		  drain_C_(Wcomppreequ,NCH,1,1, g_tp.cell_h_def)) +  gate_C(WNORn + WNORp,10.0) +
 		  drain_C_(WNORp,NCH,2,1, g_tp.cell_h_def) + compare_bits*drain_C_(WNORn,NCH,2,1, g_tp.cell_h_def);
   return(c1 + c2);
+
+}
+
+void dep_resource_conflict_check::leakage_feedback(double temperature)
+{
+  l_ip.temp = (unsigned int)round(temperature/10.0)*10;
+  uca_org_t init_result = init_interface(&l_ip); // init_result is dummy
+
+  // This is part of conflict_check_power()
+  int num_comparators = 3*((coredynp->decodeW) * (coredynp->decodeW)-coredynp->decodeW);//2(N*N-N) is used for source to dest comparison, (N*N-N) is used for dest to dest comparision.
+  power.readOp.leakage=num_comparators*compare_bits*2*simplified_nmos_leakage(Wcompn,  false);
+
+  double long_channel_device_reduction = longer_channel_device_reduction(Core_device, coredynp->core_ty);
+  power.readOp.longer_channel_leakage	= power.readOp.leakage*long_channel_device_reduction;
+  power.readOp.gate_leakage=num_comparators*compare_bits*2*cmos_Ig_leakage(Wcompn, 0, 2, nmos);
+
+  double pg_reduction = power_gating_leakage_reduction(false);
+  power.readOp.power_gated_leakage	= power.readOp.leakage*pg_reduction;
+  power.readOp.power_gated_with_long_channel_leakage = power.readOp.power_gated_leakage * long_channel_device_reduction;
+
 
 }
 
@@ -313,6 +327,12 @@ void Pipeline::compute()
 
 	double long_channel_device_reduction = longer_channel_device_reduction(device_ty, coredynp->core_ty);
 	power.readOp.longer_channel_leakage	= power.readOp.leakage*long_channel_device_reduction;
+
+	double pg_reduction = power_gating_leakage_reduction(false);
+	power.readOp.power_gated_leakage	= power.readOp.leakage*pg_reduction;
+	power.readOp.power_gated_with_long_channel_leakage = power.readOp.power_gated_leakage * long_channel_device_reduction;
+
+
 
 
 	double sckRation = g_tp.sckt_co_eff;
@@ -454,7 +474,7 @@ FunctionalUnit::FunctionalUnit(ParseXML *XML_interface, int ithCore_, InputParam
 		else if (fu_type == ALU)
 		{
 			num_fu=coredynp->num_alus;
-			area_t = 280*260*num_fu*g_tp.scaling_factor.logic_scaling_co_eff;//this is um^2 ALU + MUl
+			area_t = 280*260*g_tp.scaling_factor.logic_scaling_co_eff;//this is um^2 ALU + MUl
 			leakage = area_t *(g_tp.scaling_factor.core_tx_density)*cmos_Isub_leakage(20*g_tp.min_w_nmos_, 20*g_tp.min_w_nmos_*pmos_to_nmos_sizing_r, 1, inv)*g_tp.peri_global.Vdd/2;//unit W
 			gate_leakage = area_t*(g_tp.scaling_factor.core_tx_density)*cmos_Ig_leakage(20*g_tp.min_w_nmos_, 20*g_tp.min_w_nmos_*pmos_to_nmos_sizing_r, 1, inv)*g_tp.peri_global.Vdd/2;
 //			base_energy = coredynp.core_ty==Inorder? 0:89e-3; //W The base energy of ALU average numbers from Intel 4G and 773Mhz (Wattch)
@@ -467,7 +487,7 @@ FunctionalUnit::FunctionalUnit(ParseXML *XML_interface, int ithCore_, InputParam
 		else if (fu_type == MUL)
 		{
 			num_fu=coredynp->num_muls;
-			area_t = 280*260*3*num_fu*g_tp.scaling_factor.logic_scaling_co_eff;//this is um^2 ALU + MUl
+			area_t = 280*260*3*g_tp.scaling_factor.logic_scaling_co_eff;//this is um^2 ALU + MUl
 			leakage = area_t *(g_tp.scaling_factor.core_tx_density)*cmos_Isub_leakage(20*g_tp.min_w_nmos_, 20*g_tp.min_w_nmos_*pmos_to_nmos_sizing_r, 1, inv)*g_tp.peri_global.Vdd/2;//unit W
 			gate_leakage = area_t*(g_tp.scaling_factor.core_tx_density)*cmos_Ig_leakage(20*g_tp.min_w_nmos_, 20*g_tp.min_w_nmos_*pmos_to_nmos_sizing_r, 1, inv)*g_tp.peri_global.Vdd/2;
 //			base_energy = coredynp.core_ty==Inorder? 0:89e-3*2; //W The base energy of ALU average numbers from Intel 4G and 773Mhz (Wattch)
@@ -503,7 +523,7 @@ FunctionalUnit::FunctionalUnit(ParseXML *XML_interface, int ithCore_, InputParam
 		else if (fu_type == ALU)
 		{
 			num_fu=coredynp->num_alus;
-			area_t = 280*260*2*num_fu*g_tp.scaling_factor.logic_scaling_co_eff;//this is um^2 ALU + MUl
+			area_t = 280*260*2*g_tp.scaling_factor.logic_scaling_co_eff;//this is um^2 ALU + MUl
 			leakage = area_t *(g_tp.scaling_factor.core_tx_density)*cmos_Isub_leakage(20*g_tp.min_w_nmos_, 20*g_tp.min_w_nmos_*pmos_to_nmos_sizing_r, 1, inv)*g_tp.peri_global.Vdd/2;//unit W
 			gate_leakage = area_t*(g_tp.scaling_factor.core_tx_density)*cmos_Ig_leakage(20*g_tp.min_w_nmos_, 20*g_tp.min_w_nmos_*pmos_to_nmos_sizing_r, 1, inv)*g_tp.peri_global.Vdd/2;
 			base_energy = coredynp->core_ty==Inorder? 0:89e-3; //W The base energy of ALU average numbers from Intel 4G and 773Mhz (Wattch)
@@ -515,7 +535,7 @@ FunctionalUnit::FunctionalUnit(ParseXML *XML_interface, int ithCore_, InputParam
 		else if (fu_type == MUL)
 		{
 			num_fu=coredynp->num_muls;
-			area_t = 280*260*2*3*num_fu*g_tp.scaling_factor.logic_scaling_co_eff;//this is um^2 ALU + MUl
+			area_t = 280*260*2*3*g_tp.scaling_factor.logic_scaling_co_eff;//this is um^2 ALU + MUl
 			leakage = area_t *(g_tp.scaling_factor.core_tx_density)*cmos_Isub_leakage(20*g_tp.min_w_nmos_, 20*g_tp.min_w_nmos_*pmos_to_nmos_sizing_r, 1, inv)*g_tp.peri_global.Vdd/2;//unit W
 			gate_leakage = area_t*(g_tp.scaling_factor.core_tx_density)*cmos_Ig_leakage(20*g_tp.min_w_nmos_, 20*g_tp.min_w_nmos_*pmos_to_nmos_sizing_r, 1, inv)*g_tp.peri_global.Vdd/2;
 			base_energy = coredynp->core_ty==Inorder? 0:89e-3*2; //W The base energy of ALU average numbers from Intel 4G and 773Mhz (Wattch)
@@ -584,6 +604,12 @@ void FunctionalUnit::computeEnergy(bool is_tdp)
 	    double long_channel_device_reduction = longer_channel_device_reduction(Core_device, coredynp->core_ty);
 	    power.readOp.longer_channel_leakage	= power.readOp.leakage*long_channel_device_reduction;
 
+    	double pg_reduction = power_gating_leakage_reduction(false);
+    	power.readOp.power_gated_leakage	= power.readOp.leakage*pg_reduction;
+  	    power.readOp.power_gated_with_long_channel_leakage = power.readOp.power_gated_leakage * long_channel_device_reduction;
+
+
+
 	}
 	else
 	{
@@ -620,6 +646,7 @@ void FunctionalUnit::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 	string indent_str(indent, ' ');
 	string indent_str_next(indent+2, ' ');
 	bool long_channel = XML->sys.longer_channel_device;
+	bool power_gating = XML->sys.power_gating;
 
 //	*out_file << indent_str_next << "Results Broadcast Bus Area = " << bypass->area.get_area() *1e-6 << " mm^2" << endl;
 	if (is_tdp)
@@ -777,6 +804,7 @@ void UndiffCore::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 	string indent_str(indent, ' ');
 	string indent_str_next(indent+2, ' ');
 	bool long_channel = XML->sys.longer_channel_device;
+	bool power_gating = XML->sys.power_gating;
 
 	if (is_tdp)
 	{
@@ -784,22 +812,73 @@ void UndiffCore::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 		*out_file << indent_str_next << "Area = " << area.get_area()*1e-6<< " mm^2" << endl;
 		*out_file << indent_str_next << "Peak Dynamic = " << power.readOp.dynamic*clockRate << " W" << endl;
 		//*out_file << indent_str_next << "Subthreshold Leakage = " << power.readOp.leakage <<" W" << endl;
-		*out_file << indent_str_next<< "Subthreshold Leakage = "
-					<< (long_channel? power.readOp.longer_channel_leakage:power.readOp.leakage) <<" W" << endl;
-		*out_file << indent_str_next << "Gate Leakage = " << power.readOp.gate_leakage << " W" << endl;
-		//*out_file << indent_str_next << "Runtime Dynamic = " << rt_power.readOp.dynamic/executionTime << " W" << endl;
-		*out_file <<endl;
+			*out_file << indent_str_next<< "Subthreshold Leakage = "
+						<< (long_channel? power.readOp.longer_channel_leakage:power.readOp.leakage) <<" W" << endl;
+			if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+					<< (long_channel? power.readOp.power_gated_with_long_channel_leakage : power.readOp.power_gated_leakage)  << " W" << endl;
+			*out_file << indent_str_next << "Gate Leakage = " << power.readOp.gate_leakage  << " W" << endl;
+			*out_file << indent_str_next << "Runtime Dynamic = " << rt_power.readOp.dynamic/executionTime << " W" << endl;
+			*out_file <<endl;
 	}
 	else
 	{
 		*out_file << indent_str << "UndiffCore:" << endl;
 		*out_file << indent_str_next << "Area = " << area.get_area()*1e-6<< " mm^2" << endl;
 		*out_file << indent_str_next << "Peak Dynamic = " << power.readOp.dynamic*clockRate << " W" << endl;
-		*out_file << indent_str_next << "Subthreshold Leakage = " << power.readOp.leakage <<" W" << endl;
-		*out_file << indent_str_next << "Gate Leakage = " << power.readOp.gate_leakage << " W" << endl;
-		//*out_file << indent_str_next << "Runtime Dynamic = " << rt_power.readOp.dynamic/executionTime << " W" << endl;
-		*out_file <<endl;
-	}
+			*out_file << indent_str_next<< "Subthreshold Leakage = "
+						<< (long_channel? power.readOp.longer_channel_leakage:power.readOp.leakage) <<" W" << endl;
+			if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+					<< (long_channel? power.readOp.power_gated_with_long_channel_leakage : power.readOp.power_gated_leakage)  << " W" << endl;
+			*out_file << indent_str_next << "Gate Leakage = " << power.readOp.gate_leakage  << " W" << endl;
+			*out_file << indent_str_next << "Runtime Dynamic = " << rt_power.readOp.dynamic/executionTime << " W" << endl;
+			*out_file <<endl;
+
+  }
+}
+
+void FunctionalUnit::leakage_feedback(double temperature)
+{
+  // Update the temperature and initialize the global interfaces.
+  interface_ip.temp = (unsigned int)round(temperature/10.0)*10;
+
+  uca_org_t init_result = init_interface(&interface_ip); // init_result is dummy
+
+  // This is part of FunctionalUnit()
+  double area_t, leakage, gate_leakage;
+  double pmos_to_nmos_sizing_r = pmos_to_nmos_sz_ratio();
+
+  if (fu_type == FPU)
+  {
+	area_t = 4.47*1e6*(g_ip->F_sz_nm*g_ip->F_sz_nm/90.0/90.0);//this is um^2 The base number
+	if (g_ip->F_sz_nm>90)
+		area_t = 4.47*1e6*g_tp.scaling_factor.logic_scaling_co_eff;//this is um^2
+	leakage = area_t *(g_tp.scaling_factor.core_tx_density)*cmos_Isub_leakage(5*g_tp.min_w_nmos_, 5*g_tp.min_w_nmos_*pmos_to_nmos_sizing_r, 1, inv)*g_tp.peri_global.Vdd/2;//unit W
+	gate_leakage = area_t *(g_tp.scaling_factor.core_tx_density)*cmos_Ig_leakage(5*g_tp.min_w_nmos_, 5*g_tp.min_w_nmos_*pmos_to_nmos_sizing_r, 1, inv)*g_tp.peri_global.Vdd/2;//unit W
+  }
+  else if (fu_type == ALU)
+  {
+    area_t = 280*260*2*num_fu*g_tp.scaling_factor.logic_scaling_co_eff;//this is um^2 ALU + MUl
+    leakage = area_t *(g_tp.scaling_factor.core_tx_density)*cmos_Isub_leakage(20*g_tp.min_w_nmos_, 20*g_tp.min_w_nmos_*pmos_to_nmos_sizing_r, 1, inv)*g_tp.peri_global.Vdd/2;//unit W
+    gate_leakage = area_t*(g_tp.scaling_factor.core_tx_density)*cmos_Ig_leakage(20*g_tp.min_w_nmos_, 20*g_tp.min_w_nmos_*pmos_to_nmos_sizing_r, 1, inv)*g_tp.peri_global.Vdd/2;
+  }
+  else if (fu_type == MUL)
+  {
+    area_t = 280*260*2*3*num_fu*g_tp.scaling_factor.logic_scaling_co_eff;//this is um^2 ALU + MUl
+    leakage = area_t *(g_tp.scaling_factor.core_tx_density)*cmos_Isub_leakage(20*g_tp.min_w_nmos_, 20*g_tp.min_w_nmos_*pmos_to_nmos_sizing_r, 1, inv)*g_tp.peri_global.Vdd/2;//unit W
+    gate_leakage = area_t*(g_tp.scaling_factor.core_tx_density)*cmos_Ig_leakage(20*g_tp.min_w_nmos_, 20*g_tp.min_w_nmos_*pmos_to_nmos_sizing_r, 1, inv)*g_tp.peri_global.Vdd/2;
+  }
+  else
+  {
+    *out_file<<"Unknown Functional Unit Type"<<endl;
+    exit(1);
+  }
+
+  power.readOp.leakage = leakage*num_fu;
+  power.readOp.gate_leakage = gate_leakage*num_fu;
+  power.readOp.longer_channel_leakage = longer_channel_device_reduction(Core_device, coredynp->core_ty)*power.readOp.leakage;
+
+  double pg_reduction = power_gating_leakage_reduction(false);
+  power.readOp.power_gated_leakage	= power.readOp.leakage*pg_reduction;
 
 }
 
@@ -901,6 +980,7 @@ inst_decoder::inst_decoder(
 					predec_blk2->area.get_area())*
 					num_decoder_segments*num_decoders;
 			area.set_area(area.get_area()+ area_decoder + area_pre_dec);
+
 			double macro_layout_overhead   = g_tp.macro_layout_overhead;
 			double chip_PR_overhead        = g_tp.chip_layout_overhead;
 			area.set_area(area.get_area()*macro_layout_overhead*chip_PR_overhead);
@@ -911,11 +991,17 @@ inst_decoder::inst_decoder(
 			power.readOp.dynamic *= sckRation;
 			power.writeOp.dynamic *= sckRation;
 			power.searchOp.dynamic *= sckRation;
+	double long_channel_device_reduction = longer_channel_device_reduction(device_ty, core_ty);
+	power.readOp.longer_channel_leakage	= power.readOp.leakage*long_channel_device_reduction;
 
-			double long_channel_device_reduction = longer_channel_device_reduction(device_ty,core_ty);
-			power.readOp.longer_channel_leakage	= power.readOp.leakage*long_channel_device_reduction;
+
+	double pg_reduction = power_gating_leakage_reduction(false);
+	power.readOp.power_gated_leakage	= power.readOp.leakage*pg_reduction;
+	power.readOp.power_gated_with_long_channel_leakage = power.readOp.power_gated_leakage * long_channel_device_reduction;
+
 
 }
+
 
 void inst_decoder::inst_decoder_delay_power()
 {
@@ -932,6 +1018,38 @@ void inst_decoder::inst_decoder_delay_power()
     set_pppm(pppm_t, squencer_passes*num_decoder_segments, num_decoder_segments*num_decoded_signals,
     		num_decoder_segments*num_decoded_signals, squencer_passes*num_decoder_segments);
     power = power + final_dec->power*pppm_t;
+}
+void inst_decoder::leakage_feedback(double temperature)
+{
+  l_ip.temp = (unsigned int)round(temperature/10.0)*10;
+  uca_org_t init_result = init_interface(&l_ip); // init_result is dummy
+
+  final_dec->leakage_feedback(temperature);
+  pre_dec->leakage_feedback(temperature);
+
+  double pppm_t[4]    = {1,1,1,1};
+  double squencer_passes = x86?2:1;
+
+  set_pppm(pppm_t, squencer_passes*num_decoder_segments, num_decoder_segments, squencer_passes*num_decoder_segments, num_decoder_segments);
+  power = pre_dec->power*pppm_t;
+
+  set_pppm(pppm_t, squencer_passes*num_decoder_segments, num_decoder_segments*num_decoded_signals,num_decoder_segments*num_decoded_signals, squencer_passes*num_decoder_segments);
+  power = power + final_dec->power*pppm_t;
+
+  double sckRation = g_tp.sckt_co_eff;
+
+  power.readOp.dynamic *= sckRation;
+  power.writeOp.dynamic *= sckRation;
+  power.searchOp.dynamic *= sckRation;
+
+  double long_channel_device_reduction = longer_channel_device_reduction(device_ty,core_ty);
+  power.readOp.longer_channel_leakage = power.readOp.leakage*long_channel_device_reduction;
+
+  double pg_reduction = power_gating_leakage_reduction(false);
+  power.readOp.power_gated_leakage	= power.readOp.leakage*pg_reduction;
+  power.readOp.power_gated_with_long_channel_leakage = power.readOp.power_gated_leakage * long_channel_device_reduction;
+
+
 }
 
 inst_decoder::~inst_decoder()

@@ -1,48 +1,31 @@
 /*****************************************************************************
  *                                McPAT
  *                      SOFTWARE LICENSE AGREEMENT
- *            Copyright 2009 Hewlett-Packard Development Company, L.P.
+ *            Copyright 2012 Hewlett-Packard Development Company, L.P.
  *                          All Rights Reserved
  *
- * Permission to use, copy, and modify this software and its documentation is
- * hereby granted only under the following terms and conditions.  Both the
- * above copyright notice and this permission notice must appear in all copies
- * of the software, derivative works or modified versions, and any portions
- * thereof, and both notices must appear in supporting documentation.
- *
- * Any User of the software ("User"), by accessing and using it, agrees to the
- * terms and conditions set forth herein, and hereby grants back to Hewlett-
- * Packard Development Company, L.P. and its affiliated companies ("HP") a
- * non-exclusive, unrestricted, royalty-free right and license to copy,
- * modify, distribute copies, create derivate works and publicly display and
- * use, any changes, modifications, enhancements or extensions made to the
- * software by User, including but not limited to those affording
- * compatibility with other hardware or software, but excluding pre-existing
- * software applications that may incorporate the software.  User further
- * agrees to use its best efforts to inform HP of any such changes,
- * modifications, enhancements or extensions.
- *
- * Correspondence should be provided to HP at:
- *
- * Director of Intellectual Property Licensing
- * Office of Strategy and Technology
- * Hewlett-Packard Company
- * 1501 Page Mill Road
- * Palo Alto, California  94304
- *
- * The software may be further distributed by User (but not offered for
- * sale or transferred for compensation) to third parties, under the
- * condition that such third parties agree to abide by the terms and
- * conditions of this license.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" WITH ANY AND ALL ERRORS AND DEFECTS
- * AND USER ACKNOWLEDGES THAT THE SOFTWARE MAY CONTAIN ERRORS AND DEFECTS.
- * HP DISCLAIMS ALL WARRANTIES WITH REGARD TO THE SOFTWARE, INCLUDING ALL
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS.   IN NO EVENT SHALL
- * HP BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES
- * OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
- * WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER ACTION, ARISING
- * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THE SOFTWARE.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met: redistributions of source code must retain the above copyright
+ * notice, this list of conditions and the following disclaimer;
+ * redistributions in binary form must reproduce the above copyright
+ * notice, this list of conditions and the following disclaimer in the
+ * documentation and/or other materials provided with the distribution;
+ * neither the name of the copyright holders nor the names of its
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.”
  *
  ***************************************************************************/
 #include "io.h"
@@ -90,15 +73,16 @@ NIUController::NIUController(ParseXML *XML_interface,InputParameter* interface_i
 :XML(XML_interface),
  interface_ip(*interface_ip_)
  {
-	  local_result = init_interface(&interface_ip);
+
 
 	  double frontend_area, phy_area, mac_area, SerDer_area;
       double frontend_dyn, mac_dyn, SerDer_dyn;
-      double frontend_gates, mac_gates, SerDer_gates;
+      double frontend_gates, mac_gates, SerDer_gates = 0.;
 	  double pmos_to_nmos_sizing_r = pmos_to_nmos_sz_ratio();
 	  double NMOS_sizing, PMOS_sizing;
 
 	  set_niu_param();
+	  local_result = init_interface(&interface_ip);
 
 	  if (niup.type == 0) //high performance NIU
 	  {
@@ -164,7 +148,11 @@ NIUController::NIUController(ParseXML *XML_interface,InputParameter* interface_i
 	  power_t.readOp.dynamic = mac_dyn + frontend_dyn + SerDer_dyn;
 	  power_t.readOp.leakage = (mac_gates + frontend_gates + frontend_gates)*cmos_Isub_leakage(NMOS_sizing, PMOS_sizing, 2, nand)*g_tp.peri_global.Vdd;//unit W
 	  double long_channel_device_reduction = longer_channel_device_reduction(Uncore_device);
+	  double pg_reduction = power_gating_leakage_reduction(false);
 	  power_t.readOp.longer_channel_leakage = power_t.readOp.leakage * long_channel_device_reduction;
+	  power_t.readOp.power_gated_leakage = power_t.readOp.leakage * pg_reduction;
+	  power_t.readOp.power_gated_with_long_channel_leakage = power_t.readOp.power_gated_leakage * long_channel_device_reduction;
+
 	  power_t.readOp.gate_leakage = (mac_gates + frontend_gates + frontend_gates)*cmos_Ig_leakage(NMOS_sizing, PMOS_sizing, 2, nand)*g_tp.peri_global.Vdd;//unit W
  }
 
@@ -190,6 +178,7 @@ void NIUController::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 	string indent_str(indent, ' ');
 	string indent_str_next(indent+2, ' ');
 	bool long_channel = XML->sys.longer_channel_device;
+	bool power_gating = XML->sys.power_gating;
 
 	if (is_tdp)
 	{
@@ -198,7 +187,8 @@ void NIUController::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 		*out_file << indent_str << "Peak Dynamic = " << power.readOp.dynamic*niup.clockRate  << " W" << endl;
 		*out_file << indent_str<< "Subthreshold Leakage = "
 			<< (long_channel? power.readOp.longer_channel_leakage:power.readOp.leakage) <<" W" << endl;
-		//*out_file << indent_str<< "Subthreshold Leakage = " << power.readOp.longer_channel_leakage <<" W" << endl;
+		if (power_gating) *out_file << indent_str << "Subthreshold Leakage with power gating = "
+				<< (long_channel? power.readOp.power_gated_with_long_channel_leakage : power.readOp.power_gated_leakage)  << " W" << endl;
 		*out_file << indent_str<< "Gate Leakage = " << power.readOp.gate_leakage << " W" << endl;
 		*out_file << indent_str << "Runtime Dynamic = " << rt_power.readOp.dynamic*niup.clockRate << " W" << endl;
 		*out_file<<endl;
@@ -212,12 +202,28 @@ void NIUController::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 
 void NIUController::set_niu_param()
 {
-	  niup.clockRate       = XML->sys.niu.clockrate;
-	  niup.clockRate       *= 1e6;
-	  niup.num_units       = XML->sys.niu.number_units;
-	  niup.duty_cycle      = XML->sys.niu.duty_cycle;
-	  niup.perc_load       = XML->sys.niu.total_load_perc;
-	  niup.type            = XML->sys.niu.type;
+	niup.clockRate       = XML->sys.niu.clockrate;
+	niup.clockRate       *= 1e6;
+	niup.num_units       = XML->sys.niu.number_units;
+	niup.duty_cycle      = XML->sys.niu.duty_cycle;
+	niup.perc_load       = XML->sys.niu.total_load_perc;
+	niup.type            = XML->sys.niu.type;
+	if ( XML->sys.niu.vdd>0)
+	{
+		interface_ip.specific_hp_vdd = true;
+		interface_ip.specific_lop_vdd = true;
+		interface_ip.specific_lstp_vdd = true;
+		interface_ip.hp_Vdd   = XML->sys.niu.vdd;
+		interface_ip.lop_Vdd  = XML->sys.niu.vdd;
+		interface_ip.lstp_Vdd = XML->sys.niu.vdd;
+	}
+
+	if ( XML->sys.niu.power_gating_vcc > -1)
+	{
+		interface_ip.specific_vcc_min = true;
+		interface_ip.user_defined_vcc_min   = XML->sys.niu.power_gating_vcc;
+
+	}
 //	  niup.executionTime   = XML->sys.total_cycles/(XML->sys.target_core_clockrate*1e6);
 }
 
@@ -225,10 +231,10 @@ PCIeController::PCIeController(ParseXML *XML_interface,InputParameter* interface
 :XML(XML_interface),
  interface_ip(*interface_ip_)
  {
-	  local_result = init_interface(&interface_ip);
+
 	  double frontend_area, phy_area, ctrl_area, SerDer_area;
       double ctrl_dyn, frontend_dyn, SerDer_dyn;
-      double ctrl_gates,frontend_gates, SerDer_gates;
+      double ctrl_gates,frontend_gates, SerDer_gates=0.;
 	  double pmos_to_nmos_sizing_r = pmos_to_nmos_sz_ratio();
 	  double NMOS_sizing, PMOS_sizing;
 
@@ -236,8 +242,9 @@ PCIeController::PCIeController(ParseXML *XML_interface,InputParameter* interface
 	   * This is the reason for /8 in both area and power calculation
 	   * to get per lane numbers
 	   */
-
 	  set_pcie_param();
+	  local_result = init_interface(&interface_ip);
+
 	  if (pciep.type == 0) //high performance NIU
 	  {
 		  //Area estimation based on average of die photo from Niagara 2 and Cadence ChipEstimate @ 65nm.
@@ -293,7 +300,10 @@ PCIeController::PCIeController(ParseXML *XML_interface,InputParameter* interface
 	  power_t.readOp.dynamic = (ctrl_dyn + (pciep.withPHY? SerDer_dyn:0))*pciep.num_channels;
 	  power_t.readOp.leakage = (ctrl_gates + (pciep.withPHY? SerDer_gates:0))*cmos_Isub_leakage(NMOS_sizing, PMOS_sizing, 2, nand)*g_tp.peri_global.Vdd;//unit W
 	  double long_channel_device_reduction = longer_channel_device_reduction(Uncore_device);
+	  double pg_reduction = power_gating_leakage_reduction(false);
 	  power_t.readOp.longer_channel_leakage = power_t.readOp.leakage * long_channel_device_reduction;
+  	  power_t.readOp.power_gated_leakage = power_t.readOp.leakage * pg_reduction;
+	  power_t.readOp.power_gated_with_long_channel_leakage = power_t.readOp.power_gated_leakage * long_channel_device_reduction;
 	  power_t.readOp.gate_leakage = (ctrl_gates + (pciep.withPHY? SerDer_gates:0))*cmos_Ig_leakage(NMOS_sizing, PMOS_sizing, 2, nand)*g_tp.peri_global.Vdd;//unit W
  }
 
@@ -319,6 +329,7 @@ void PCIeController::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 	string indent_str(indent, ' ');
 	string indent_str_next(indent+2, ' ');
 	bool long_channel = XML->sys.longer_channel_device;
+	bool power_gating = XML->sys.power_gating;
 
 	if (is_tdp)
 	{
@@ -327,7 +338,8 @@ void PCIeController::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 		*out_file << indent_str << "Peak Dynamic = " << power.readOp.dynamic*pciep.clockRate  << " W" << endl;
 		*out_file << indent_str<< "Subthreshold Leakage = "
 			<< (long_channel? power.readOp.longer_channel_leakage:power.readOp.leakage) <<" W" << endl;
-		//*out_file << indent_str<< "Subthreshold Leakage = " << power.readOp.longer_channel_leakage <<" W" << endl;
+		if (power_gating) *out_file << indent_str << "Subthreshold Leakage with power gating = "
+				<< (long_channel? power.readOp.power_gated_with_long_channel_leakage : power.readOp.power_gated_leakage)  << " W" << endl;
 		*out_file << indent_str<< "Gate Leakage = " << power.readOp.gate_leakage << " W" << endl;
 		*out_file << indent_str << "Runtime Dynamic = " << rt_power.readOp.dynamic*pciep.clockRate << " W" << endl;
 		*out_file<<endl;
@@ -349,6 +361,23 @@ void PCIeController::set_pcie_param()
 	  pciep.perc_load       = XML->sys.pcie.total_load_perc;
 	  pciep.type            = XML->sys.pcie.type;
 	  pciep.withPHY         = XML->sys.pcie.withPHY;
+
+		if ( XML->sys.pcie.vdd>0)
+		{
+			interface_ip.specific_hp_vdd = true;
+			interface_ip.specific_lop_vdd = true;
+			interface_ip.specific_lstp_vdd = true;
+			interface_ip.hp_Vdd   = XML->sys.pcie.vdd;
+			interface_ip.lop_Vdd  = XML->sys.pcie.vdd;
+			interface_ip.lstp_Vdd = XML->sys.pcie.vdd;
+		}
+
+		if ( XML->sys.pcie.power_gating_vcc > -1)
+		{
+			interface_ip.specific_vcc_min = true;
+			interface_ip.user_defined_vcc_min   = XML->sys.pcie.power_gating_vcc;
+
+		}
 //	  pciep.executionTime   = XML->sys.total_cycles/(XML->sys.target_core_clockrate*1e6);
 
 }
@@ -357,10 +386,10 @@ FlashController::FlashController(ParseXML *XML_interface,InputParameter* interfa
 :XML(XML_interface),
  interface_ip(*interface_ip_)
  {
-	  local_result = init_interface(&interface_ip);
+
 	  double frontend_area, phy_area, ctrl_area, SerDer_area;
       double ctrl_dyn, frontend_dyn, SerDer_dyn;
-      double ctrl_gates,frontend_gates, SerDer_gates;
+      double ctrl_gates,frontend_gates, SerDer_gates=0.;
 	  double pmos_to_nmos_sizing_r = pmos_to_nmos_sz_ratio();
 	  double NMOS_sizing, PMOS_sizing;
 
@@ -370,6 +399,7 @@ FlashController::FlashController(ParseXML *XML_interface,InputParameter* interfa
 	   */
 
 	  set_fc_param();
+	  local_result = init_interface(&interface_ip);
 	  if (fcp.type == 0) //high performance NIU
 	  {
 		  *out_file<<"Current McPAT does not support high performance flash contorller since even low power designs are enough for maintain throughput"<<endl;
@@ -402,6 +432,9 @@ FlashController::FlashController(ParseXML *XML_interface,InputParameter* interfa
 	  power_t.readOp.leakage = ((ctrl_gates + (fcp.withPHY? SerDer_gates:0))*number_channel)*cmos_Isub_leakage(NMOS_sizing, PMOS_sizing, 2, nand)*g_tp.peri_global.Vdd;//unit W
 	  double long_channel_device_reduction = longer_channel_device_reduction(Uncore_device);
 	  power_t.readOp.longer_channel_leakage = power_t.readOp.leakage * long_channel_device_reduction;
+	  double pg_reduction = power_gating_leakage_reduction(false);//array structure all retain state;
+	  power_t.readOp.power_gated_leakage = power_t.readOp.leakage * pg_reduction;
+	  power_t.readOp.power_gated_with_long_channel_leakage = power_t.readOp.power_gated_leakage * long_channel_device_reduction;
 	  power_t.readOp.gate_leakage = ((ctrl_gates + (fcp.withPHY? SerDer_gates:0))*number_channel)*cmos_Ig_leakage(NMOS_sizing, PMOS_sizing, 2, nand)*g_tp.peri_global.Vdd;//unit W
  }
 
@@ -427,6 +460,7 @@ void FlashController::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 	string indent_str(indent, ' ');
 	string indent_str_next(indent+2, ' ');
 	bool long_channel = XML->sys.longer_channel_device;
+	bool power_gating = XML->sys.power_gating;
 
 	if (is_tdp)
 	{
@@ -435,7 +469,8 @@ void FlashController::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 		*out_file << indent_str << "Peak Dynamic = " << power.readOp.dynamic << " W" << endl;//no multiply of clock since this is power already
 		*out_file << indent_str<< "Subthreshold Leakage = "
 			<< (long_channel? power.readOp.longer_channel_leakage:power.readOp.leakage) <<" W" << endl;
-		//*out_file << indent_str<< "Subthreshold Leakage = " << power.readOp.longer_channel_leakage <<" W" << endl;
+		if (power_gating) *out_file << indent_str << "Subthreshold Leakage with power gating = "
+				<< (long_channel? power.readOp.power_gated_with_long_channel_leakage : power.readOp.power_gated_leakage)  << " W" << endl;
 		*out_file << indent_str<< "Gate Leakage = " << power.readOp.gate_leakage << " W" << endl;
 		*out_file << indent_str << "Runtime Dynamic = " << rt_power.readOp.dynamic << " W" << endl;
 		*out_file<<endl;
@@ -459,5 +494,20 @@ void FlashController::set_fc_param()
 	  fcp.type            = XML->sys.flashc.type;
 	  fcp.withPHY         = XML->sys.flashc.withPHY;
 //	  flashcp.executionTime   = XML->sys.total_cycles/(XML->sys.target_core_clockrate*1e6);
+	  if ( XML->sys.flashc.vdd>0)
+	  {
+		  interface_ip.specific_hp_vdd = true;
+		  interface_ip.specific_lop_vdd = true;
+		  interface_ip.specific_lstp_vdd = true;
+		  interface_ip.hp_Vdd   = XML->sys.flashc.vdd;
+		  interface_ip.lop_Vdd  = XML->sys.flashc.vdd;
+		  interface_ip.lstp_Vdd = XML->sys.flashc.vdd;
+	  }
+		if ( XML->sys.flashc.power_gating_vcc > -1)
+		{
+			interface_ip.specific_vcc_min = true;
+			interface_ip.user_defined_vcc_min   = XML->sys.flashc.power_gating_vcc;
+
+		}
 
 }

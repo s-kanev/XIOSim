@@ -72,6 +72,8 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
+#include <cstddef>
+
 #include "thread.h"
 
 #include "zesto-opts.h"
@@ -120,8 +122,6 @@ sim_reg_options(struct opt_odb_t *odb)
 
   opt_reg_int(odb, "-cores", "number of cores",
       &num_cores, /* default */1, /* print */true, /* format */NULL);
-  opt_reg_flag(odb, "-multi_threaded", "do cores share an address space",
-      &multi_threaded, /*default */false, /*print */true, /*format*/NULL);
 
   /* instruction limit */
   opt_reg_long_long(odb, "-max:inst", "maximum number of inst's to execute",
@@ -142,7 +142,7 @@ sim_reg_options(struct opt_odb_t *odb)
       &knobs.model, /*default*/ "DPM", /*print*/true,/*format*/NULL);
 
   opt_reg_string(odb, "-ztrace:file_prefix","zesto-trace filename",
-      &ztrace_filename, /*default*/ NULL, /*print*/true,/*format*/NULL);
+      &ztrace_filename, /*default*/ "ztrace", /*print*/true,/*format*/NULL);
 
   opt_reg_flag(odb, "-power", "simulate power",
       &knobs.power.compute, /*default*/ false, /*print*/true,/*format*/NULL);
@@ -172,7 +172,7 @@ sim_reg_options(struct opt_odb_t *odb)
 
 /* check simulator-specific option values */
 void
-sim_check_options(struct opt_odb_t *odb, int argc, char **argv)
+sim_check_options(int argc, char **argv)
 {
   if(max_uops && max_uops < max_insts)
     warn("-max:uops is less than -max:inst, so -max:inst is useless");
@@ -182,9 +182,6 @@ sim_check_options(struct opt_odb_t *odb, int argc, char **argv)
 
   if((num_cores < 1) || (num_cores > MAX_CORES))
     fatal("-cores must be between 1 and %d (inclusive)",MAX_CORES);
-
-  uncore_create();
-  dram_create();
 
 #if defined(ZTRACE)
   if(ztrace_filename && strcmp(ztrace_filename,""))
@@ -210,8 +207,6 @@ sim_check_options(struct opt_odb_t *odb, int argc, char **argv)
 void
 cpu_reg_stats(struct core_t * core, struct stat_sdb_t *sdb)
 {
-  struct thread_t * arch = core->current_thread;
-
   core->oracle->reg_stats(sdb);
   core->fetch->reg_stats(sdb);
   core->decode->reg_stats(sdb);
@@ -223,7 +218,7 @@ cpu_reg_stats(struct core_t * core, struct stat_sdb_t *sdb)
   if(core->current_thread->id == (num_cores-1))
   {
     uncore_reg_stats(sdb);
-    mem_reg_stats(arch->mem, sdb);
+    mem_reg_stats(sdb);
   }
 }
 
@@ -532,7 +527,7 @@ void ztrace_print(const struct Mop_t * Mop)
   int coreID = Mop->core->id;
 
   // core id, PC{virtual,physical}
-  ZTRACE_PRINT(coreID, "DEF|core=%d:virtPC=%x:physPC=%llx:op=",Mop->core->id,Mop->fetch.PC,v2p_translate(coreID,Mop->fetch.PC));
+  ZTRACE_PRINT(coreID, "DEF|core=%d:virtPC=%x:physPC=%llx:op=",Mop->core->id,Mop->fetch.PC,v2p_translate(cores[coreID]->current_thread->asid,Mop->fetch.PC));
   // rep prefix and iteration
   if(Mop->fetch.inst.rep)
     ZTRACE_PRINT(coreID, "rep{%d}",Mop->decode.rep_seq);
@@ -600,6 +595,9 @@ void ztrace_Mop_timing(const struct Mop_t * Mop)
 
 void ztrace_print(const struct Mop_t * Mop, const char * fmt, ... )
 {
+  if (Mop == NULL)
+    return;
+
   va_list v;
   va_start(v, fmt);
 
@@ -612,6 +610,9 @@ void ztrace_print(const struct Mop_t * Mop, const char * fmt, ... )
 
 void ztrace_print(const struct uop_t * uop, const char * fmt, ... )
 {
+  if (uop == NULL)
+    return;
+
   va_list v;
   va_start(v, fmt);
 
@@ -633,6 +634,9 @@ void ztrace_print(const int coreID, const char * fmt, ... )
 
 void ztrace_print_start(const struct uop_t * uop, const char * fmt, ... )
 {
+  if (uop == NULL)
+    return;
+
   va_list v;
   va_start(v, fmt);
 

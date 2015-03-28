@@ -70,10 +70,10 @@ extern struct opt_odb_t *sim_odb;
 /* stats database */
 extern struct stat_sdb_t *sim_sdb;
 
-/* redirected program/simulator output file names */
-extern FILE *sim_progfd;
-
 extern struct core_knobs_t knobs;
+
+/* spin on assertion failure so we can attach a debbuger */
+extern bool assert_spin;
 
 /*
  * main simulator interfaces, called in the following order
@@ -83,9 +83,6 @@ extern struct core_knobs_t knobs;
 void sim_reg_options(struct opt_odb_t *odb);
 
 /* main() parses options next... */
-
-/* check simulator-specific option values */
-void sim_check_options(struct opt_odb_t *odb, int argc, char **argv);
 
 /* register simulator-specific statistics */
 void sim_reg_stats(struct thread_t ** cores, struct stat_sdb_t *sdb);

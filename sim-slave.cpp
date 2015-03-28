@@ -83,6 +83,7 @@
 #include <sys/time.h>
 #include <sys/io.h>
 #include <stdint.h>
+#include <cstddef>
 
 #include "host.h"
 #include "machine.h"
@@ -92,6 +93,7 @@
 #include "options.h"
 #include "stats.h"
 #include "sim.h"
+#include "regs.h"
 
 #include "zesto-cache.h"
 #include "zesto-repeater.h"
@@ -113,8 +115,9 @@
 #include "interface.h"
 #include "synchronization.h"
 
-extern bool consumers_sleep;
-extern int start_pos;
+extern bool *consumers_sleep;
+extern int *num_processes;
+extern void CheckIPCMessageQueue(bool isEarly, int caller_coreID);
 extern int heartbeat_count;
 /* power stats database */
 extern struct stat_sdb_t *rtp_sdb;
@@ -132,7 +135,6 @@ struct core_knobs_t knobs;
 
 /* number of cores */
 int num_cores = 1;
-bool multi_threaded = false;
 
 bool sim_slave_running = false;
 
@@ -273,23 +275,21 @@ sim_post_init(void)
   int i;
   assert(num_cores > 0);
 
+  uncore_create();
+  dram_create();
+
   /* Initialize synchronization primitives */
   lk_init(&cycle_lock);
   lk_init(&memory_lock);
   lk_init(&cache_lock);
-  lk_init(&printing_lock);
 
   /* initialize architected state(s) */
   threads = (struct thread_t **)calloc(num_cores,sizeof(*threads));
   if(!threads)
     fatal("failed to calloc threads");
 
-  mem_t *mem; /* the one and only virtual memory space in multithreaded mode */
-  if(multi_threaded)
-  {
-    mem = mem_create("mem");
-    mem_init(mem);
-  }
+  /* Initialize virtual memory */
+  mem_init(*num_processes);
 
   for(i=0;i<num_cores;i++)
   {
@@ -299,20 +299,13 @@ sim_post_init(void)
 
     threads[i]->id = i;
 
-    if (multi_threaded)
-      threads[i]->mem = mem;
-    else
-    {
-      /* allocate and initialize virtual memory space */
-      char buf[128];
-      sprintf(buf,"c%d.mem",i);
-      threads[i]->mem = mem_create(buf);
-      mem_init(threads[i]->mem);
-    }
     threads[i]->finished_cycle = false;
     threads[i]->consumed = false;
-    threads[i]->first_insn = true;
     threads[i]->fetches_since_feeder = 0;
+
+    threads[i]->rand_state = (struct random_data*)calloc(1, sizeof(struct random_data));
+    threads[i]->rand_statebuf = (char*)calloc(1, 32); // 32 bits for random generation
+    initstate_r(random(), threads[i]->rand_statebuf, 32, threads[i]->rand_state);
   }
 
   /* initialize microarchitecture state */
@@ -371,7 +364,7 @@ static void global_step(void)
       /* Heartbeat -> print that the simulator is still alive */
       if((heartbeat_frequency > 0) && (heartbeat_count >= heartbeat_frequency))
       {
-        lk_lock(&printing_lock, 1);
+        lk_lock(printing_lock, 1);
         fprintf(stderr,"##HEARTBEAT## %lld: {",uncore->sim_cycle);
         long long int sum = 0;
         for(int i=0;i<num_cores;i++)
@@ -383,7 +376,7 @@ static void global_step(void)
             fprintf(stderr,"%lld, all=%lld}\n",cores[i]->stat.commit_insn, sum);
         }
         fflush(stderr);
-        lk_unlock(&printing_lock);
+        lk_unlock(printing_lock);
         heartbeat_count = 0;
       }
 
@@ -434,6 +427,10 @@ static void global_step(void)
 
       heartbeat_count++;
       deadlock_count++;
+
+      /* Check for messages coming from producer processes
+       * and execute accordingly */
+      CheckIPCMessageQueue(false, min_coreID);
 
       /*********************************************/
       /* step through pipe stages in reverse order */
@@ -501,10 +498,8 @@ master_core:
 
         lk_unlock(&cycle_lock);
         /* Spin, spin, spin */
-        while(consumers_sleep) {
-          lk_wait_consumers();
-        }
         yield();
+        lk_wait_consumers();
         lk_lock(&cycle_lock, coreID+1);
 
         if (coreID != min_coreID)
@@ -515,13 +510,15 @@ master_core:
       global_step();
 
       /* HACKEDY HACKEDY HACK */
-      /* Non-active cores should still step their DL1s because there might
+      /* Non-active cores should still step their private caches because there might
        * be accesses scheduled there from the repeater network */
-      /* XXX: This is round-robin for L2 based on core id, if that matters */
-      for(int i=0; i<num_cores; i++)
-        if(!cores[i]->current_thread->active)
-          if(cores[i]->memory.DL1->check_for_work)
-            cache_process(cores[i]->memory.DL1);
+      /* XXX: This is round-robin for LLC based on core id, if that matters */
+      for(int i=0; i<num_cores; i++) {
+        if(!cores[i]->current_thread->active) {
+          if(cores[i]->memory.DL2) cache_process(cores[i]->memory.DL2);
+          cache_process(cores[i]->memory.DL1);
+        }
+      }
 
       /* Unblock other cores to keep crunching. */
       for(int i=0; i<num_cores; i++)
@@ -548,10 +545,8 @@ master_core:
 non_master_core:
         /* Spin, spin, spin */
         lk_unlock(&cycle_lock);
-        while(consumers_sleep) {
-          lk_wait_consumers();
-        }
         yield();
+        lk_wait_consumers();
         lk_lock(&cycle_lock, coreID+1);
       }
       lk_unlock(&cycle_lock);

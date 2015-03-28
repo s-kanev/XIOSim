@@ -17,7 +17,7 @@ VOID printElapsedTime()
 
 VOID printMemoryUsage(THREADID tid)
 {
-    lk_lock(&printing_lock, tid+1);
+    lk_lock(printing_lock, tid+1);
     int myPid = getpid();
     char str[50];
     sprintf(str, "%d", myPid);
@@ -32,5 +32,5 @@ VOID printMemoryUsage(THREADID tid)
         }
     }
     fin.close();
-    lk_unlock(&printing_lock);
+    lk_unlock(printing_lock);
 }

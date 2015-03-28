@@ -2,23 +2,29 @@
  * ILDJIT-specific functions for zesto feeder
  * Copyright, Svilen Kanev, 2012
  */
-
 #include <stdlib.h>
 #include <unistd.h>
 #include <map>
-#include <signal.h>
 #include <queue>
 #include <stack>
-#include <signal.h>
+
+#include "boost_interprocess.h"
+
 #include "feeder.h"
-#include "ildjit.h"
-#include "fluffy.h"
-#include "utils.h"
-#include "scheduler.h"
+
+#include "../interface.h"
+#include "multiprocess_shared.h"
+#include "ipc_queues.h"
+
 
 #include "../buffer.h"
-#include "BufferManager.h"
+#include "BufferManagerProducer.h"
 #include "ignore_ins.h"
+
+#include "scheduler.h"
+#include "ildjit.h"
+#include "utils.h"
+#include "parse_speedup.h"
 
 #include "../zesto-core.h"
 
@@ -28,6 +34,9 @@ BOOL ILDJIT_executionStarted = false;
 // True if a non-compiler thread is being created
 BOOL ILDJIT_executorCreation = false;
 
+// The thread id for the main execution thread
+THREADID ILDJIT_executorTID = -1;
+
 XIOSIM_LOCK ildjit_lock;
 
 /* A load instruction with immediate address */
@@ -35,28 +44,47 @@ const UINT8 wait_template_1_ld[] = {0xa1, 0xad, 0xfb, 0xca, 0xde};
 /* A store instruction with immediate address and data */
 const UINT8 wait_template_1_st[] = {0xc7, 0x05, 0xad, 0xfb, 0xca, 0xde, 0x00, 0x00, 0x00, 0x00 };
 
+/* A MFENCE instruction */
+const UINT8 wait_template_2_mfence[] = {0x0f, 0xae, 0xf0};
+/* A LFENCE instruction */
+const UINT8 wait_template_2_lfence[] = {0x0f, 0xae, 0xe8};
+
+
 static const UINT8 * wait_template_1;
 static size_t wait_template_1_size;
 static size_t wait_template_1_addr_offset;
 
+static const UINT8 * wait_template_2;
+static size_t wait_template_2_size;
+
 KNOB<BOOL> KnobWaitsAsLoads(KNOB_MODE_WRITEONCE,    "pintool",
         "waits_as_loads", "false", "Wait instructions seen as loads");
 
-/* A MFENCE instruction */
-const UINT8 wait_template_2[] = {0x0f, 0xae, 0xf0};
-
 /* A store instruction with immediate address and data */
 const UINT8 signal_template[] = {0xc7, 0x05, 0xad, 0xfb, 0xca, 0xde, 0x00, 0x00, 0x00, 0x00 };
+/* A MFENCE instrction */
+const UINT8 mfence_template[] = {0x0f, 0xae, 0xf0};
 /* An INT 80 instruction */
 const UINT8 syscall_template[] = {0xcd, 0x80};
-
 
 static map<string, UINT32> invocation_counts;
 
 KNOB<BOOL> KnobDisableWaitSignal(KNOB_MODE_WRITEONCE,     "pintool",
         "disable_wait_signal", "false", "Don't insert any waits or signals into the pipeline");
-KNOB<BOOL> KnobOnlyHeavyWaits(KNOB_MODE_WRITEONCE,     "pintool",
-        "only_heavy_waits", "false", "Don't insert any waits or signals into the pipeline");
+KNOB<BOOL> KnobCoupledWaits(KNOB_MODE_WRITEONCE,     "pintool",
+        "coupled_waits", "false", "Wait semantics: coupled == one iteration unblocking the next, uncoupled == all iterations unblocking one");
+KNOB<BOOL> KnobInsertLightWaits(KNOB_MODE_WRITEONCE,     "pintool",
+        "insert_light_waits", "false", "Insert light waits in the processor pipeline");
+KNOB<string> KnobPredictedSpeedupFile(KNOB_MODE_WRITEONCE,   "pintool",
+        "speedup_file", "", "File containing speedup prediction for core allocation");
+KNOB<BOOL> KnobHelixDistributedFlush(KNOB_MODE_WRITEONCE,   "pintool",
+        "helix_distributed_flush", "false", "Use two-stage distributed ring cache flush (still buggy)");
+extern KNOB<BOOL> KnobWarmLLC;
+
+static string warm_loop = "";
+static UINT32 warm_loop_invocation = -1;
+static UINT32 warm_loop_iteration = -1;
+
 static string start_loop = "";
 static UINT32 start_loop_invocation = -1;
 static UINT32 start_loop_iteration = -1;
@@ -67,6 +95,7 @@ static UINT32 end_loop_iteration = -1;
 
 static BOOL first_invocation = true;
 
+static BOOL reached_warm_invocation = false;
 static BOOL reached_start_invocation = false;
 static BOOL reached_end_invocation = false;
 
@@ -75,26 +104,24 @@ static BOOL reached_end_iteration = false;
 static BOOL simulating_parallel_loop = false;
 
 UINT32 getSignalAddress(ADDRINT ssID);
-BOOL signalCallback(THREADID tid, INT32 sig, CONTEXT *ctxt, BOOL hasHandler, const EXCEPTION_INFO *pExceptInfo, VOID *v);
-void signalCallback2(int signum);
 static void initializePerThreadLoopState(THREADID tid);
 
 static bool loopMatches(string loop, UINT32 invocationNum, UINT32 iterationNum);
 static void readLoop(ifstream& fin, string* name, UINT32* invocation, UINT32* iteration);
 
-static VOID shutdownSimulation(THREADID tid);
-extern VOID doLateILDJITInstrumentation();
+static VOID shutdownSimulation();
 
 stack<loop_state_t> loop_states;
-loop_state_t* loop_state;
+loop_state_t* loop_state = NULL;
 
 bool disable_wait_signal;
-bool only_heavy_waits;
-UINT32* ildjit_ws_id;
-UINT32* ildjit_disable_ws;
+bool coupled_waits;
+bool insert_light_waits;
 
-int ss_curr;
-int ss_prev;
+// The number of allocated cores per loop, read by ildjit
+UINT32* allocated_cores;
+
+static bool ignoreSignalZero;
 
 extern map<ADDRINT, string> pc_diss;
 
@@ -103,46 +130,43 @@ VOID MOLECOOL_Init()
 {
     lk_init(&ildjit_lock);
 
-    FLUFFY_Init();
-
-    ifstream start_loop_file, end_loop_file;
+    ifstream warm_loop_file, start_loop_file, end_loop_file;
+    warm_loop_file.open("phase_warm_loop", ifstream::in);
     start_loop_file.open("phase_start_loop", ifstream::in);
     end_loop_file.open("phase_end_loop", ifstream::in);
 
     if (start_loop_file.fail()) {
-      cerr << "Couldn't open loop id files: phase_start_loop" << endl;
-      PIN_ExitProcess(1);
+        cerr << "Couldn't open loop id files: phase_start_loop" << endl;
+        PIN_ExitProcess(1);
     }
     if (end_loop_file.fail()) {
-      cerr << "Couldn't open loop id files: phase_end_loop" << endl;
-      PIN_ExitProcess(1);
+        cerr << "Couldn't open loop id files: phase_end_loop" << endl;
+        PIN_ExitProcess(1);
     }
-
+    
     readLoop(start_loop_file, &start_loop, &start_loop_invocation, &start_loop_iteration);
     readLoop(end_loop_file, &end_loop, &end_loop_invocation, &end_loop_iteration);
 
+    if(KnobWarmLLC.Value()) {
+        if (warm_loop_file.fail()) {
+            cerr << "Couldn't open loop id files: phase_warm_loop" << endl;
+            cerr << "Warming from start" << endl;
+            reached_warm_invocation = true;
+        }
+        else {
+            readLoop(warm_loop_file, &warm_loop, &warm_loop_invocation, &warm_loop_iteration);
+        }
+    }
+    
     disable_wait_signal = KnobDisableWaitSignal.Value();
-    only_heavy_waits = KnobOnlyHeavyWaits.Value();
-
-    // callbacks so we can delete temporary files in /dev/shm
-    PIN_InterceptSignal(SIGINT, signalCallback, NULL);
-    PIN_InterceptSignal(SIGABRT, signalCallback, NULL);
-    PIN_InterceptSignal(SIGFPE, signalCallback, NULL);
-    PIN_InterceptSignal(SIGILL, signalCallback, NULL);
-    PIN_InterceptSignal(SIGSEGV, signalCallback, NULL);
-    PIN_InterceptSignal(SIGTERM, signalCallback, NULL);
-    PIN_InterceptSignal(SIGKILL, signalCallback, NULL);
-
-    signal(SIGINT, signalCallback2);
-    signal(SIGABRT, signalCallback2);
-    signal(SIGFPE, signalCallback2);
-    signal(SIGILL, signalCallback2);
-    signal(SIGSEGV, signalCallback2);
-    signal(SIGTERM, signalCallback2);
-    signal(SIGKILL, signalCallback2);
+    coupled_waits = KnobCoupledWaits.Value();
+    insert_light_waits = KnobInsertLightWaits.Value();
 
     last_time = time(NULL);
 
+    cerr << warm_loop << endl;
+    cerr << warm_loop_invocation << endl;
+    cerr << warm_loop_iteration << endl << endl;
     cerr << start_loop << endl;
     cerr << start_loop_invocation << endl;
     cerr << start_loop_iteration << endl << endl;
@@ -150,19 +174,30 @@ VOID MOLECOOL_Init()
     cerr << end_loop_invocation << endl;
     cerr << end_loop_iteration << endl << endl;
 
-    ss_curr = 100000;
-    ss_prev = 100000;
-
     if (KnobWaitsAsLoads.Value()) {
         wait_template_1 = wait_template_1_ld;
         wait_template_1_size = sizeof(wait_template_1_ld);
         wait_template_1_addr_offset = 1; // 1 opcode byte
+
+        wait_template_2 = wait_template_2_lfence;
+        wait_template_2_size = sizeof(wait_template_2_lfence);
+        *waits_as_loads = true;
     }
     else {
         wait_template_1 = wait_template_1_st;
         wait_template_1_size = sizeof(wait_template_1_st);
         wait_template_1_addr_offset = 2; // 1 opcode byte, 1 ModRM byte
+
+        wait_template_2 = wait_template_2_mfence;
+        wait_template_2_size = sizeof(wait_template_2_mfence);
+        *waits_as_loads = false;
     }
+
+    *ss_curr = 100000;
+    *ss_prev = 100000;
+
+    if (!KnobPredictedSpeedupFile.Value().empty())
+        LoadHelixSpeedupModelData(KnobPredictedSpeedupFile.Value().c_str());
 }
 
 /* ========================================================================== */
@@ -173,6 +208,18 @@ BOOL ILDJIT_IsExecuting()
     res = ILDJIT_executionStarted;
     lk_unlock(&ildjit_lock);
     return res;
+}
+
+/* ========================================================================== */
+BOOL ILDJIT_IsDoneFastForwarding()
+{
+    return reached_start_invocation;
+}
+
+/* ========================================================================== */
+BOOL ILDJIT_GetExecutingTID()
+{
+    return ILDJIT_executorTID;
 }
 
 /* ========================================================================== */
@@ -201,35 +248,41 @@ VOID ILDJIT_startSimulation(THREADID tid, ADDRINT ip)
 
     ILDJIT_executionStarted = true;
 
+    ILDJIT_executorTID = tid;
+
 //#ifdef ZESTO_PIN_DBG
     cerr << "Starting execution, TID: " << tid << endl;
 //#endif
 
     lk_unlock(&ildjit_lock);
+
+    if(reached_warm_invocation) {
+        cerr << "Do Early!" << endl;
+        doLateILDJITInstrumentation();
+        cerr << "Done Early!" << endl;
+    }
 }
 
 /* ========================================================================== */
-VOID ILDJIT_setupInterface(ADDRINT disable_ws, ADDRINT ws_id)
+VOID ILDJIT_setupInterface(ADDRINT coreCount)
 {
-  ildjit_ws_id = (UINT32*)ws_id;
-  ildjit_disable_ws = (UINT32*)disable_ws;
+    allocated_cores = reinterpret_cast<UINT32*>(coreCount);
 }
 
 /* ========================================================================== */
 
 VOID ILDJIT_endSimulation(THREADID tid, ADDRINT ip)
 {
-  // This should cover the helix case
-  if (end_loop.size() != 0)
-    return;
+    // This should cover the helix case
+    if (end_loop.size() != 0)
+        return;
 
     // If we reach this, we're done with all parallel loops, just exit
 //#ifdef ZESTO_PIN_DBG
     cerr << "Stopping simulation, TID: " << tid << endl;
 //#endif
 
-    if (KnobFluffy.Value().empty())
-        PauseSimulation(tid);
+    PauseSimulation();
 }
 
 /* ========================================================================== */
@@ -256,105 +309,156 @@ VOID ILDJIT_ExecutorCreateEnd(THREADID tid)
 
 VOID ILDJIT_startLoop(THREADID tid, ADDRINT ip, ADDRINT loop)
 {
-  // This is for when there are serial loops within an executing parallel loop.
-  if (simulating_parallel_loop) {
-    thread_state_t* tstate = get_tls(tid);
-    lk_lock(&tstate->lock, tid+1);
-    tstate->ignore = true;
-    lk_unlock(&tstate->lock);
-  }
-
-  string loop_string = (string)(char*)loop;
-
-  // Increment invocation counter for this loop
-  if(invocation_counts.count(loop_string) == 0) {
-    invocation_counts[loop_string] = 0;
-  }
-  else {
-    invocation_counts[loop_string]++;
-  }
-
-  if((!reached_start_invocation) && (start_loop == loop_string) && (invocation_counts[loop_string] == start_loop_invocation)) {
-    assert(invocation_counts[loop_string] == start_loop_invocation);
-    cerr << "Called startLoop() for the start invocation!:" << loop_string << endl;
-    reached_start_invocation = true;
-    if(start_loop_iteration == (UINT32)-1) {
-      cerr << "Detected that we need to start the next parallel loop!:" << loop_string << endl;
-      reached_start_iteration = true;
+    // This is for when there are serial loops within an executing parallel loop.
+    if (simulating_parallel_loop) {
+        thread_state_t* tstate = get_tls(tid);
+        lk_lock(&tstate->lock, tid+1);
+        tstate->ignore = true;
+        lk_unlock(&tstate->lock);
     }
-  }
 
-  if((!reached_end_invocation) && (end_loop == loop_string) && (invocation_counts[loop_string] == end_loop_invocation)) {
-    assert(invocation_counts[loop_string] == end_loop_invocation);
-    cerr << "Called startLoop() for the end invocation!:" << (CHAR*)loop << endl;
-    reached_end_invocation = true;
-    if(end_loop_iteration == (UINT32)-1) {
-      cerr << "Detected that we need to end the next parallel loop!:" << loop_string << endl;
-      reached_end_iteration = true;
+    string loop_string = (string)(char*)loop;
+
+    // Increment invocation counter for this loop
+    if(invocation_counts.count(loop_string) == 0) {
+        invocation_counts[loop_string] = 0;
     }
-  }
+    else {
+        invocation_counts[loop_string]++;
+    }
+
+    if(KnobWarmLLC.Value()) {
+        if((!reached_warm_invocation) && (warm_loop == loop_string) && (invocation_counts[loop_string] == warm_loop_invocation)) {
+            assert(invocation_counts[loop_string] == warm_loop_invocation);
+            cerr << "Called warmLoop() for the warm invocation!:" << loop_string << endl;
+            reached_warm_invocation = true;
+            cerr << "Detected that we need to warm!:" << loop_string << endl;
+            cerr << "FastWarm runtime:";
+            printElapsedTime();
+            cerr << "Do late!" << endl;
+            doLateILDJITInstrumentation();
+            cerr << "Done late!" << endl;      
+        }
+    }
+
+    if((!reached_start_invocation) && (start_loop == loop_string) && (invocation_counts[loop_string] == start_loop_invocation)) {
+        assert(invocation_counts[loop_string] == start_loop_invocation);
+        cerr << "Called startLoop() for the start invocation!:" << loop_string << endl;
+        reached_start_invocation = true;
+        if(start_loop_iteration == (UINT32)-1) {
+            cerr << "Detected that we need to start the next parallel loop!:" << loop_string << endl;
+            reached_start_iteration = true;
+        }
+    }
+
+    if((!reached_end_invocation) && (end_loop == loop_string) && (invocation_counts[loop_string] == end_loop_invocation)) {
+        assert(invocation_counts[loop_string] == end_loop_invocation);
+        cerr << "Called startLoop() for the end invocation!:" << (CHAR*)loop << endl;
+        reached_end_invocation = true;
+        if(end_loop_iteration == (UINT32)-1) {
+            cerr << "Detected that we need to end the next parallel loop!:" << loop_string << endl;
+            reached_end_iteration = true;
+        }
+    }
 }
 
 /* ========================================================================== */
 VOID ILDJIT_startLoop_after(THREADID tid, ADDRINT ip)
 {
-  // This is for when there are serial loops within an executing parallel loop.
-  if (simulating_parallel_loop) {
-    thread_state_t* tstate = get_tls(tid);
-    lk_lock(&tstate->lock, tid+1);
-    tstate->ignore = false;
-    lk_unlock(&tstate->lock);
-  }
+    // This is for when there are serial loops within an executing parallel loop.
+    if (simulating_parallel_loop) {
+        thread_state_t* tstate = get_tls(tid);
+        lk_lock(&tstate->lock, tid+1);
+        tstate->ignore = false;
+        lk_unlock(&tstate->lock);
+    }
+}
+
+/* ========================================================================== */
+VOID ILDJIT_startInitParallelLoop(ADDRINT loop)
+{
+// XXX: HELIX will make this check, so we don't need to.
+//    if (!reached_start_invocation)
+//        return;
+
+    vector<double> scaling;
+    double serial_runtime = 0;
+
+    if (!KnobPredictedSpeedupFile.Value().empty())
+    {
+        string loop_name((const char*)loop);
+        scaling = GetHelixLoopScaling(loop_name);
+        loop_data* data = GetHelixFullLoopData(loop_name);
+        serial_runtime = data->serial_runtime;
+    }
+
+    /* Invoke the allocator and let HELIX adjust its number of threads
+     * before starting the loop. */
+    int allocation = AllocateCores(scaling, serial_runtime);
+    *allocated_cores = allocation;
+
+    /* TODO: we need some special logic here if allocation == 1.
+     * In that case, HELIX still tries to form a ring between cores 0 and 0,
+     * and bad things happen. The right thing is to fix it in the HELIX runtime.
+     * A dirty hack would be to overwrite automaticParallelizationSingleThread
+     * from this callback, and set it back in endParallelLoop. This might get ugly
+     * fast. */
 }
 
 /* ========================================================================== */
 VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc)
 {
-  if(reached_start_invocation) {
-    loop_states.push(loop_state_t());
-    loop_state = &(loop_states.top());
-    loop_state->simmed_iteration_count = 0;
-    loop_state->current_loop = loop;
-    loop_state->invocationCount = invocation_counts[(string)(char*)loop];
-    loop_state->iterationCount = -1;
+    if(reached_start_invocation) {
+        loop_states.push(loop_state_t());
+        loop_state = &(loop_states.top());
+        loop_state->simmed_iteration_count = 0;
+        loop_state->current_loop = loop;
+        loop_state->invocationCount = invocation_counts[(string)(char*)loop];
+        loop_state->iterationCount = -1;
 
-    CHAR* loop_name = (CHAR*) loop;
-    cerr << "Starting loop: " << loop_name << "[" << invocation_counts[(string)(char*)loop] << "]" << endl;
- 
-    ss_curr = rc;
-    loop_state->use_ring_cache = (rc > 0);
+        CHAR* loop_name = (CHAR*) loop;
+        cerr << "Starting loop: " << loop_name << "[" << invocation_counts[(string)(char*)loop] << "]" << endl;
 
-    if(disable_wait_signal) {
-      loop_state->use_ring_cache = false;
+        *ss_curr = rc;
+        loop_state->use_ring_cache = (rc > 0);
+
+        if(disable_wait_signal) {
+            loop_state->use_ring_cache = false;
+        }
     }
-  }
 
-  // If we didn't get to the start of the phase, return
-  if(!reached_start_iteration) {
-    return;
-  }
+    // If we didn't get to the start of the phase, return
+    if(!reached_start_iteration) {
+        return;
+    }
 
-  assert(reached_start_iteration);
+    assert(reached_start_iteration);
+    ignoreSignalZero = false;
 
-  initializePerThreadLoopState(tid);
-  simulating_parallel_loop = true;
+    initializePerThreadLoopState(tid);
+    simulating_parallel_loop = true;
 
-  if (ExecMode != EXECUTION_MODE_SIMULATE) {
-    cerr << "Do late!" << endl;
-    doLateILDJITInstrumentation();
-    cerr << "Done late!" << endl;
+    if (ExecMode != EXECUTION_MODE_SIMULATE) {
+        if(KnobWarmLLC.Value()) {
+            assert(reached_warm_invocation);
+        }
+        else {
+            cerr << "Do late!" << endl;
+            doLateILDJITInstrumentation();
+            cerr << "Done late!" << endl;
+        }
 
-    cerr << "FastForward runtime:";
-    printElapsedTime();
+        cerr << "FastForward runtime:";
+        printElapsedTime();
 
-    cerr << "Starting simulation, TID: " << tid << endl;
-    PPointHandler(CONTROL_START, NULL, NULL, NULL, tid);
-    first_invocation = false;
-  }
-  else {
-    cerr << tid << ": resuming simulation" << endl;
-    ILDJIT_ResumeSimulation(tid);
-  }
+        cerr << "Starting simulation, TID: " << tid << endl;
+        StartSimSlice(1);
+        first_invocation = false;
+    }
+    else {
+        cerr << tid << ": resuming simulation" << endl;
+    }
+    ResumeSimulation(false);
 }
 /* ========================================================================== */
 
@@ -363,41 +467,56 @@ VOID ILDJIT_startParallelLoop(THREADID tid, ADDRINT ip, ADDRINT loop, ADDRINT rc
 // Must be called from within the body of MOLECOOL_beforeWait!
 VOID ILDJIT_startIteration(THREADID tid)
 {
-  if((!reached_start_invocation) && (!reached_end_invocation)) {
-    return;
-  }
+    if(KnobWarmLLC.Value()) {
+        if(!reached_warm_invocation) {
+            assert(!reached_start_invocation);
+            assert(!reached_end_invocation);
+            return;
+        }
+    }
 
-  loop_state->iterationCount++;
+    if((!reached_start_invocation) && (!reached_end_invocation)) {
+        return;
+    }
 
-  // Check if this is the first iteration
-  if((!reached_start_iteration) && loopMatches(start_loop, start_loop_invocation, start_loop_iteration)) {
-    reached_start_iteration = true;
-    loop_state->simmed_iteration_count = 0;
+    assert(loop_state != NULL);
+    loop_state->iterationCount++;
 
-    cerr << "Do late!" << endl;
-    doLateILDJITInstrumentation();
-    cerr << "Done late!" << endl;
+    // Check if this is the first iteration
+    if((!reached_start_iteration) && loopMatches(start_loop, start_loop_invocation, start_loop_iteration)) {
+        cerr << "FastForward runtime:";
+        printElapsedTime();
 
-    cerr << "FastForward runtime:";
-    printElapsedTime();
+        reached_start_iteration = true;
+        loop_state->simmed_iteration_count = 0;
 
-    cerr << "Starting simulation, TID: " << tid << endl;
-    initializePerThreadLoopState(tid);
+        if(KnobWarmLLC.Value()) {
+            assert(reached_warm_invocation);
+        }
+        else {
+            cerr << "Do late!" << endl;
+            doLateILDJITInstrumentation();
+            cerr << "Done late!" << endl;
+        }
 
-    simulating_parallel_loop = true;
-    PPointHandler(CONTROL_START, NULL, NULL, NULL, tid);
-  }
+        cerr << "Starting simulation, TID: " << tid << endl;
+        initializePerThreadLoopState(tid);
+
+        simulating_parallel_loop = true;
+        StartSimSlice(1);
+        ResumeSimulation(false);
+    }
 
     // Check if this is the last iteration
-  if(reached_end_iteration || loopMatches(end_loop, end_loop_invocation, end_loop_iteration)) {
-    assert(reached_start_invocation && reached_end_invocation && reached_start_iteration);
-    shutdownSimulation(tid);
-  }
+    if(reached_end_iteration || loopMatches(end_loop, end_loop_invocation, end_loop_iteration)) {
+        assert(reached_start_invocation && reached_end_invocation && reached_start_iteration);
+        shutdownSimulation();
+    }
 
-  if(reached_start_iteration) {
-    assert(reached_start_invocation);
-    loop_state->simmed_iteration_count++;
-  }
+    if(reached_start_iteration) {
+        assert(reached_start_invocation);
+        loop_state->simmed_iteration_count++;
+    }
 }
 
 /* ========================================================================== */
@@ -408,11 +527,11 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
 #endif
     if (ExecMode == EXECUTION_MODE_SIMULATE) {
         if(reached_end_invocation) {
-          cerr << tid << ": Shutting down early!" << endl;
-          shutdownSimulation(tid);
+            cerr << tid << ": Shutting down early!" << endl;
+            shutdownSimulation();
         }
-        
-        ILDJIT_PauseSimulation(tid);
+
+        PauseSimulation();
         cerr << tid << ": Paused simulation!" << endl;
 
         first_invocation = false;
@@ -430,12 +549,12 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
         UINT32 iterCount = loop_state->simmed_iteration_count - 1;
         cerr << "Ending loop: " << loop_name << " NumIterations:" << iterCount << endl;
         simulating_parallel_loop = false;
-        ss_prev = ss_curr;
+        *ss_prev = *ss_curr;
 
         assert(loop_states.size() > 0);
         loop_states.pop();
         if(loop_states.size() > 0) {
-          loop_state = &(loop_states.top());
+            loop_state = &(loop_states.top());
         }
     }
 }
@@ -444,10 +563,10 @@ VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations)
 VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID, ADDRINT pc, ADDRINT retPC)
 {
 #ifdef PRINT_WAITS
-    lk_lock(&printing_lock, tid+1);
+    lk_lock(printing_lock, tid+1);
     if (ExecMode == EXECUTION_MODE_SIMULATE)
         cerr << tid <<" :Before Wait "<< hex << pc << dec  << " ID: " << dec << ssID << endl;
-    lk_unlock(&printing_lock);
+    lk_unlock(printing_lock);
 #endif
 
     thread_state_t* tstate = get_tls(tid);
@@ -455,9 +574,8 @@ VOID ILDJIT_beforeWait(THREADID tid, ADDRINT ssID, ADDRINT pc, ADDRINT retPC)
     tstate->ignore = true;
     lk_unlock(&tstate->lock);
 
-    if(num_cores == 1) {
+    if (GetProcessCoreAllocation(asid) == 1)
         return;
-    }
 
     tstate->lastWaitID = ssID;
     tstate->retPC = retPC;
@@ -470,19 +588,20 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
     thread_state_t* tstate = get_tls(tid);
     handshake_container_t *handshake, *handshake_2;
     bool first_insn;
+    INT32 wait_address;
 
     if (ExecMode != EXECUTION_MODE_SIMULATE)
-      goto cleanup;
+        goto cleanup;
 
     lk_lock(&tstate->lock, tid+1);
 
     tstate->ignore = false;
 
 #ifdef PRINT_WAITS
-    lk_lock(&printing_lock, tid+1);
+    lk_lock(printing_lock, tid+1);
     if (ExecMode == EXECUTION_MODE_SIMULATE)
       cerr << tid <<": After Wait "<< hex << pc << dec  << " ID: " << tstate->lastWaitID << ":" << ssID << endl;
-    lk_unlock(&printing_lock);
+    lk_unlock(printing_lock);
 #endif
 
     // Indicates not in a wait any more
@@ -499,25 +618,33 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
     lk_unlock(&tstate->lock);
 
     /* Don't insert waits in single-core mode */
-    if (num_cores == 1)
+    if (GetProcessCoreAllocation(asid) == 1)
         goto cleanup;
 
     tstate->loop_state->unmatchedWaits++;
+    assert(loop_state->simmed_iteration_count > 0);
 
+    // If ring cache is disabled, don't insert waits
+    if(!(loop_state->use_ring_cache)) {
+        goto cleanup;
+    }
+
+    // If prologue wait is light, we can ignore it and the
+    // subsequent signal, according to Simone
+    if(ssID == 0 && is_light && !coupled_waits) {
+        ignoreSignalZero = true;
+        goto cleanup;
+    }
+    
     /* Ignore injecting waits until the end of the first iteration,
      * so we can start simulating */
-
-    assert(loop_state->simmed_iteration_count > 0);
     if (loop_state->simmed_iteration_count == 1) {
       goto cleanup;
     }
-
-    if(!(loop_state->use_ring_cache)) {
-      goto cleanup;
-    }
-
-    if((only_heavy_waits == false) && is_light) {
-      goto cleanup;
+    
+    // Don't insert light waits into pipeline
+    if(!coupled_waits && !insert_light_waits && is_light) {
+        goto cleanup;
     }
 
     /* We're not a first instruction any more */
@@ -528,46 +655,50 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
     }
 
     /* Insert wait instruction in pipeline */
-    handshake = handshake_buffer.get_buffer(tid);
+    handshake = xiosim::buffer_management::get_buffer(tstate->tid);
 
     handshake->flags.isFirstInsn = first_insn;
     handshake->handshake.ctxt.regs_R.dw[MD_REG_ESP] = esp_val; /* Needed when first_insn to set up stack pages */
-    handshake->handshake.sleep_thread = false;
-    handshake->handshake.resume_thread = false;
-    handshake->handshake.real = false;
-    handshake->handshake.in_critical_section = (num_cores > 1);
+    handshake->flags.sleep_thread = false;
+    handshake->flags.resume_thread = false;
+    handshake->flags.real = false;
+    handshake->flags.in_critical_section = true;
+    handshake->handshake.asid = asid;
     handshake->flags.valid = true;
 
     handshake->handshake.pc = (ADDRINT)wait_template_1;
     handshake->handshake.npc = (ADDRINT)wait_template_2;
     handshake->handshake.tpc = (ADDRINT)wait_template_2;
-    handshake->handshake.brtaken = false;
+    handshake->flags.brtaken = false;
     memcpy(handshake->handshake.ins, wait_template_1, wait_template_1_size);
-    *(INT32*)(&handshake->handshake.ins[wait_template_1_addr_offset]) =
-                        getSignalAddress(ssID) | HELIX_WAIT_MASK;
+    wait_address = getSignalAddress(ssID) | HELIX_WAIT_MASK |
+                        (is_light ? HELIX_LIGHT_WAIT_MASK : 0);
+    *(INT32*)(&handshake->handshake.ins[wait_template_1_addr_offset]) = wait_address;
+    assert(ssID < HELIX_MAX_SIGNAL_ID);
 
 #ifdef PRINT_DYN_TRACE
-    printTrace("sim", handshake->handshake.pc, tid);
+    printTrace("sim", handshake->handshake.pc, tstate->tid);
 #endif
 
-    handshake_buffer.producer_done(tid);
+    xiosim::buffer_management::producer_done(tstate->tid);
 
-    handshake_2 = handshake_buffer.get_buffer(tid);
-    handshake_2->handshake.real = false;
-    handshake_2->handshake.in_critical_section = (num_cores > 1);
+    handshake_2 = xiosim::buffer_management::get_buffer(tstate->tid);
+    handshake_2->flags.real = false;
+    handshake_2->flags.in_critical_section = true;
+    handshake_2->handshake.asid = asid;
     handshake_2->flags.valid = true;
 
     handshake_2->handshake.pc = (ADDRINT)wait_template_2;
     handshake_2->handshake.npc = NextUnignoredPC(tstate->retPC);
-    handshake_2->handshake.tpc = (ADDRINT)wait_template_2 + sizeof(wait_template_2);
-    handshake_2->handshake.brtaken = false;
-    memcpy(handshake_2->handshake.ins, wait_template_2, sizeof(wait_template_2));
+    handshake_2->handshake.tpc = (ADDRINT)wait_template_2 + wait_template_2_size;
+    handshake_2->flags.brtaken = false;
+    memcpy(handshake_2->handshake.ins, wait_template_2, wait_template_2_size);
 
 #ifdef PRINT_DYN_TRACE
-    printTrace("sim", handshake_2->handshake.pc, tid);
+    printTrace("sim", handshake_2->handshake.pc, tstate->tid);
 #endif
 
-    handshake_buffer.producer_done(tid);    
+    xiosim::buffer_management::producer_done(tstate->tid);
 
 cleanup:
     tstate->lastSignalAddr = 0xdecafbad;
@@ -582,10 +713,10 @@ VOID ILDJIT_beforeSignal(THREADID tid, ADDRINT ssID, ADDRINT pc, ADDRINT retPC)
     tstate->ignore = true;
     lk_unlock(&tstate->lock);
 #ifdef PRINT_WAITS
-    lk_lock(&printing_lock, tid+1);
+    lk_lock(printing_lock, tid+1);
     if (ExecMode == EXECUTION_MODE_SIMULATE)
         cerr << tid <<": Before Signal " << hex << pc << " ID: " << ssID << dec << endl;
-    lk_unlock(&printing_lock);
+    lk_unlock(printing_lock);
 #endif
 
 //    ASSERTX(tstate->lastSignalAddr == 0xdecafbad);
@@ -617,15 +748,15 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
     lk_unlock(&tstate->lock);
 
 #ifdef PRINT_WAITS
-    lk_lock(&printing_lock, tid+1);
+    lk_lock(printing_lock, tid+1);
     if (ExecMode == EXECUTION_MODE_SIMULATE)
         cerr << tid <<": After Signal " << hex << pc << dec << endl;
-    lk_unlock(&printing_lock);
+    lk_unlock(printing_lock);
 #endif
 
 
     /* Don't insert signals in single-core mode */
-    if (num_cores == 1)
+    if (GetProcessCoreAllocation(asid) == 1)
         goto cleanup;
 
     tstate->loop_state->unmatchedWaits--;
@@ -635,29 +766,35 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc)
         return;
     }
 
+    if(ssID == 0 && ignoreSignalZero) {
+      goto cleanup;
+    }
+
     /* Insert signal instruction in pipeline */
-    handshake = handshake_buffer.get_buffer(tid);
+    handshake = xiosim::buffer_management::get_buffer(tstate->tid);
 
     handshake->flags.isFirstInsn = false;
-    handshake->handshake.sleep_thread = false;
-    handshake->handshake.resume_thread = false;
-    handshake->handshake.real = false;
-    handshake->handshake.in_critical_section = (num_cores > 1) && (tstate->loop_state->unmatchedWaits > 0);
+    handshake->flags.sleep_thread = false;
+    handshake->flags.resume_thread = false;
+    handshake->flags.real = false;
+    handshake->flags.in_critical_section = (tstate->loop_state->unmatchedWaits > 0);
+    handshake->handshake.asid = asid;
     handshake->flags.valid = true;
 
     handshake->handshake.pc = (ADDRINT)signal_template;
     handshake->handshake.npc = NextUnignoredPC(tstate->retPC);
     handshake->handshake.tpc = (ADDRINT)signal_template + sizeof(signal_template);
-    handshake->handshake.brtaken = false;
+    handshake->flags.brtaken = false;
     memcpy(handshake->handshake.ins, signal_template, sizeof(signal_template));
     // Address comes right after opcode and MoodRM bytes
     *(INT32*)(&handshake->handshake.ins[2]) = getSignalAddress(ssID);
+    assert(ssID < HELIX_MAX_SIGNAL_ID);
 
 #ifdef PRINT_DYN_TRACE
-    printTrace("sim", handshake->handshake.pc, tid);
+    printTrace("sim", handshake->handshake.pc, tstate->tid);
 #endif
 
-    handshake_buffer.producer_done(tid);
+    xiosim::buffer_management::producer_done(tstate->tid);
 
 cleanup:
     tstate->lastSignalAddr = 0xdecafbad;
@@ -666,8 +803,16 @@ cleanup:
 /* ========================================================================== */
 VOID ILDJIT_setAffinity(THREADID tid, INT32 coreID)
 {
-    ASSERTX(coreID >= 0 && coreID < num_cores);
-    HardcodeSchedule(tid, coreID);
+#ifdef ZESTO_PIN_DBG
+    thread_state_t* tstate = get_tls(tid);
+    lk_lock(printing_lock, 1);
+    cerr << "Call to setAffinity: " << tstate->tid << " " << coreID << endl;
+    lk_unlock(printing_lock);
+#endif
+
+    lk_lock(&thread_list_lock, 1);
+    virtual_affinity[tid] = coreID;
+    lk_unlock(&thread_list_lock);
 }
 
 /* ========================================================================== */
@@ -692,22 +837,18 @@ VOID AddILDJITCallbacks(IMG img)
         RTN_Close(rtn);
     }
 
-    /**/
-
-    rtn = RTN_FindByName(img, "MOLECOOL_setupInterface");
+    rtn = RTN_FindByName(img, "MOLECOOL_init");
     if (RTN_Valid(rtn))
     {
 #ifdef ZESTO_PIN_DBG
-        cerr << "MOLECOOL_setupInterface ";
+        cerr << "MOLECOOL_init ";
 #endif
         RTN_Open(rtn);
         RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_setupInterface),
-                       IARG_THREAD_ID,
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
                        IARG_END);
         RTN_Close(rtn);
     }
-
-
 
     rtn = RTN_FindByName(img, "MOLECOOL_startIteration");
     if (RTN_Valid(rtn))
@@ -722,7 +863,6 @@ VOID AddILDJITCallbacks(IMG img)
                        IARG_END);
         RTN_Close(rtn);
     }
-
 
     rtn = RTN_FindByName(img, "MOLECOOL_beforeWait");
     if (RTN_Valid(rtn))
@@ -813,6 +953,19 @@ VOID AddILDJITCallbacks(IMG img)
         RTN_Open(rtn);
         RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(ILDJIT_ExecutorCreateEnd),
                        IARG_THREAD_ID,
+                       IARG_END);
+        RTN_Close(rtn);
+    }
+
+    rtn = RTN_FindByName(img, "MOLECOOL_startInitParallelLoop");
+    if (RTN_Valid(rtn))
+    {
+#ifdef ZESTO_PIN_DBG
+        cerr << "MOLECOOL_startInitParallelLoop ";
+#endif
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn, IPOINT_AFTER, AFUNPTR(ILDJIT_startInitParallelLoop),
+                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
                        IARG_END);
         RTN_Close(rtn);
     }
@@ -909,290 +1062,256 @@ VOID AddILDJITCallbacks(IMG img)
                        IARG_END);
         RTN_Close(rtn);
     }
-
-//==========================================================
-//FLUFFY-related
-    if (!KnobFluffy.Value().empty())
-    {
-
-        rtn = RTN_FindByName(img, "step3_start_inst");
-        if (RTN_Valid(rtn))
-        {
-#ifdef ZESTO_PIN_DBG
-            cerr << "FLUFFY_step3_start_inst ";
-#endif
-            RTN_Open(rtn);
-
-            RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(FLUFFY_StartInsn),
-                           IARG_THREAD_ID,
-                           IARG_INST_PTR,
-                           IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
-                           IARG_END);
-
-            RTN_Close(rtn);
-        }
-
-        rtn = RTN_FindByName(img, "step3_end_inst");
-        if (RTN_Valid(rtn))
-        {
-#ifdef ZESTO_PIN_DBG
-            cerr << "FLUFFY_step3_end_inst ";
-#endif
-            RTN_Open(rtn);
-
-            RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(FLUFFY_StopInsn),
-                           IARG_THREAD_ID,
-                           IARG_INST_PTR,
-                           IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
-                           IARG_END);
-
-            RTN_Close(rtn);
-        }
-    }
 #ifdef ZESTO_PIN_DBG
     cerr << endl;
 #endif
 }
 
-BOOL signalCallback(THREADID tid, INT32 sig, CONTEXT *ctxt, BOOL hasHandler, const EXCEPTION_INFO *pExceptInfo, VOID *v)
-{
-    handshake_buffer.signalCallback(sig);
-    PIN_ExitProcess(1);
-    return false;
-}
-
-void signalCallback2(int signum)
-{
-    handshake_buffer.signalCallback(signum);
-    PIN_ExitProcess(1);
-}
-
 UINT32 getSignalAddress(ADDRINT ssID)
 {
-  UINT32 firstCore = 0;
-  if(first_invocation) {
-    firstCore = start_loop_iteration % num_cores;
-  }
-  assert(firstCore < 64);
-  assert(ssID < 1024);
+    CoreSet allocatedCores = GetProcessCoreSet(asid);
+    assert(allocatedCores.size());
 
-  return 0x7ffc0000 + (firstCore << 10) + ssID;
+    /* We need the first core that starts the loop invocation in order
+     * to initialize the signal cache differently (so cores don't wait
+     * on non-existent iterations). */
+    int offsetFromFirst = 0;
+    if (first_invocation) {
+    /* In the majority of cases, the first thread of the invocation starts
+     * the first iteration. Except, if we start sampling mid-invocation.
+     * In that case, we assume iterations are distributed to the allocated
+     * core set in increasing order. */
+        offsetFromFirst = start_loop_iteration % allocatedCores.size();
+    }
+
+    auto it = allocatedCores.begin();
+    for (int i=0; i < offsetFromFirst; i++)
+        it++;
+
+    int firstCore = *it;
+
+    assert(firstCore < MAX_CORES);
+    assert(ssID <= HELIX_MAX_SIGNAL_ID);
+
+    return 0x7ffc0000 + (firstCore << HELIX_SIGNAL_FIRST_CORE_SHIFT) + ssID;
 }
 
 bool loopMatches(string loop, UINT32 invocationNum, UINT32 iterationNum)
 {
-  if(loop_state->invocationCount != invocationNum) {
-    return false;
-  }
+    if(loop_state->invocationCount != invocationNum) {
+        return false;
+    }
 
-  if(loop_state->iterationCount != iterationNum) {
-    return false;
-  }
+    if(loop_state->iterationCount != iterationNum) {
+        return false;
+    }
 
-  if(string((char*)loop_state->current_loop) != loop) {
-    return false;
-  }
+    if(string((char*)loop_state->current_loop) != loop) {
+        return false;
+    }
 
-  return true;
+    return true;
 }
 
 void initializePerThreadLoopState(THREADID tid)
 {
-  list<THREADID>::iterator it;
-  ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
-    thread_state_t* curr_tstate = get_tls(*it);
-    lk_lock(&curr_tstate->lock, tid+1);
-    curr_tstate->push_loop_state();
-    lk_unlock(&curr_tstate->lock);
-  }
+    list<THREADID>::iterator it;
+    ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
+        thread_state_t* curr_tstate = get_tls(*it);
+        lk_lock(&curr_tstate->lock, tid+1);
+        curr_tstate->push_loop_state();
+        lk_unlock(&curr_tstate->lock);
+    }
 }
 
 void readLoop(ifstream& fin, string* name, UINT32* invocation, UINT32* iteration)
 {
-  string line;
+    string line;
 
-  getline(fin, *name);
+    getline(fin, *name);
 
-  getline(fin, line);
-  *invocation = Uint32FromString(line);
-  assert((UINT64)(*invocation) == Uint64FromString(line));
+    getline(fin, line);
+    *invocation = Uint32FromString(line);
+    assert((UINT64)(*invocation) == Uint64FromString(line));
 
-  getline(fin, line);
-  if(line == "-1") {
-    *iteration = -1;
+    getline(fin, line);
+    if(line == "-1") {
+        *iteration = -1;
+    }
+    else {
+        *iteration = Uint32FromString(line);
+        assert((UINT64)(*iteration) == Uint64FromString(line));
+    }
+}
+
+VOID insertBasicSafetySync(thread_state_t* curr_tstate)
+{
+  /* Insert a special signal that flushes the repeater. */
+  handshake_container_t* handshake_0 = xiosim::buffer_management::get_buffer(curr_tstate->tid);
+
+  handshake_0->flags.real = false;
+  handshake_0->handshake.asid = asid;
+  handshake_0->flags.valid = true;
+
+  handshake_0->handshake.pc = (ADDRINT)signal_template;
+  handshake_0->handshake.npc = (ADDRINT)mfence_template;
+  handshake_0->handshake.tpc = (ADDRINT)signal_template + sizeof(signal_template);
+  handshake_0->flags.brtaken = false;
+  memcpy(handshake_0->handshake.ins, signal_template, sizeof(signal_template));
+  // Address comes right after opcode and MoodRM bytes
+  *(INT32*)(&handshake_0->handshake.ins[2]) = getSignalAddress(HELIX_SYNC_SIGNAL_ID);
+  xiosim::buffer_management::producer_done(curr_tstate->tid, true);
+
+
+  /* Insert a MFENCE. This makes sure that all operations to the repeater
+   * have been scheduled */
+  handshake_container_t* handshake = xiosim::buffer_management::get_buffer(curr_tstate->tid);
+  handshake->flags.real = false;
+  handshake->handshake.asid = asid;
+  handshake->flags.valid = true;
+
+  handshake->handshake.pc = (ADDRINT) mfence_template;
+  handshake->handshake.npc = (ADDRINT)wait_template_1;
+  handshake->handshake.tpc = (ADDRINT) mfence_template + sizeof(mfence_template);
+  handshake->flags.brtaken = false;
+  memcpy(handshake->handshake.ins, mfence_template, sizeof(mfence_template));
+  xiosim::buffer_management::producer_done(curr_tstate->tid, true);
+
+
+  /* Insert a wait for the above signal.  Ensures every core is informed that
+     every other core is finished executing
+  */
+  handshake_container_t* handshake_w = xiosim::buffer_management::get_buffer(curr_tstate->tid);
+
+  handshake_w->flags.real = false;
+  handshake_w->handshake.asid = asid;
+  handshake_w->flags.valid = true;
+
+  handshake_w->handshake.pc = (ADDRINT)wait_template_1;
+  handshake_w->handshake.npc = (ADDRINT)mfence_template;
+  handshake_w->handshake.tpc = (ADDRINT)wait_template_1 + wait_template_1_size;
+  handshake_w->flags.brtaken = false;
+
+  memcpy(handshake_w->handshake.ins, wait_template_1, wait_template_1_size);
+  // Address comes right after opcode and MoodRM bytes
+  *(INT32*)(&handshake_w->handshake.ins[wait_template_1_addr_offset]) = getSignalAddress(HELIX_SYNC_SIGNAL_ID) | HELIX_WAIT_MASK;
+  xiosim::buffer_management::producer_done(curr_tstate->tid, true);
+
+}
+
+VOID insertCollectionOnZero(thread_state_t* curr_tstate, bool threadZero)
+{
+  if(threadZero) {
+    handshake_container_t* handshake_w = xiosim::buffer_management::get_buffer(curr_tstate->tid);
+
+    handshake_w->flags.real = false;
+    handshake_w->handshake.asid = asid;
+    handshake_w->flags.valid = true;
+
+    handshake_w->handshake.pc = (ADDRINT)wait_template_1;
+    handshake_w->handshake.npc = (ADDRINT)wait_template_1;
+    handshake_w->handshake.tpc = (ADDRINT)wait_template_1 + wait_template_1_size;
+    handshake_w->flags.brtaken = false;
+
+    memcpy(handshake_w->handshake.ins, wait_template_1, wait_template_1_size);
+    // Address comes right after opcode and MoodRM bytes
+    *(INT32*)(&handshake_w->handshake.ins[wait_template_1_addr_offset]) = getSignalAddress(HELIX_COLLECT_SIGNAL_ID) | HELIX_WAIT_MASK;
+    xiosim::buffer_management::producer_done(curr_tstate->tid, true);
   }
   else {
-    *iteration = Uint32FromString(line);
-    assert((UINT64)(*iteration) == Uint64FromString(line));
+      handshake_container_t* handshake_0 = xiosim::buffer_management::get_buffer(curr_tstate->tid);
+
+      handshake_0->flags.real = false;
+      handshake_0->handshake.asid = asid;
+      handshake_0->flags.valid = true;
+
+      handshake_0->handshake.pc = (ADDRINT)signal_template;
+      handshake_0->handshake.npc = (ADDRINT)wait_template_1;
+      handshake_0->handshake.tpc = (ADDRINT)signal_template + sizeof(signal_template);
+      handshake_0->flags.brtaken = false;
+      memcpy(handshake_0->handshake.ins, signal_template, sizeof(signal_template));
+      // Address comes right after opcode and MoodRM bytes
+      *(INT32*)(&handshake_0->handshake.ins[2]) = getSignalAddress(HELIX_COLLECT_SIGNAL_ID);
+      xiosim::buffer_management::producer_done(curr_tstate->tid, true);
   }
+
+  handshake_container_t* handshake_w = xiosim::buffer_management::get_buffer(curr_tstate->tid);
+
+  handshake_w->flags.real = false;
+  handshake_w->handshake.asid = asid;
+  handshake_w->flags.valid = true;
+
+  handshake_w->handshake.pc = (ADDRINT)wait_template_1;
+  handshake_w->handshake.npc = (ADDRINT)mfence_template;
+  handshake_w->handshake.tpc = (ADDRINT)wait_template_1 + wait_template_1_size;
+  handshake_w->flags.brtaken = false;
+
+  memcpy(handshake_w->handshake.ins, wait_template_1, wait_template_1_size);
+  // Address comes right after opcode and MoodRM bytes
+  *(INT32*)(&handshake_w->handshake.ins[wait_template_1_addr_offset]) = getSignalAddress(HELIX_FINISH_SIGNAL_ID) | HELIX_WAIT_MASK;
+  xiosim::buffer_management::producer_done(curr_tstate->tid, true);
 }
 
 /* ========================================================================== */
-VOID ILDJIT_PauseSimulation(THREADID tid)
+VOID InsertHELIXPauseCode(THREADID tid, bool first_thread)
 {
-    /* The context is that all cores functionally have sent signal 0
-     * and unblocked the last iteration. We need to (i) wait for them
-     * to functionally reach wait 0, where they will wait until the end
-     * of the loop; (ii) drain all pipelines once cores are waiting. */
-    cerr << "pausing..." << endl;
+    auto curr_tstate = get_tls(tid);
 
-    volatile bool done_with_iteration = false;
-    do {
-        done_with_iteration = true;
-        list<THREADID>::iterator it;
-        ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
-            if ((*it) != tid) {
-                thread_state_t* tstate = get_tls(*it);
-                lk_lock(&tstate->lock, tid + 1);
-                bool curr_done = tstate->ignore && (tstate->lastWaitID == 0);
-                done_with_iteration &= curr_done;
-                /* Setting ignore_all here (while ignore is set) should be a race-free way
-                 * of ignoring the serial portion outside the loop after the thread goes
-                 * on an unsets ignore locally. */
-                if (curr_done) {
-                    tstate->ignore_all = true;
-                }
-                lk_unlock(&tstate->lock);
-            }
+    /* Only insert extra sync code in multi-threaded mode. */
+    if (GetProcessCoreAllocation(asid) > 1) {
+        if (KnobHelixDistributedFlush.Value() && loop_state->use_ring_cache) {
+            insertCollectionOnZero(curr_tstate, first_thread);
         }
-    } while (!done_with_iteration);
-
-    /* Here we have produced everything for this loop! */
-    disable_producers();
-    enable_consumers();
-
-    /* Drainning all pipelines and deactivating cores. */
-    list<THREADID>::iterator it;
-    ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
-        /* Insert a trap. This will ensure that the pipe drains before
-         * consuming the next instruction.*/
-        handshake_container_t* handshake = handshake_buffer.get_buffer(*it);
-        handshake->flags.isFirstInsn = false;
-        handshake->handshake.sleep_thread = false;
-        handshake->handshake.resume_thread = false;
-        handshake->handshake.real = false;
-        handshake->flags.valid = true;
-
-        handshake->handshake.pc = (ADDRINT) syscall_template;
-        handshake->handshake.npc = (ADDRINT) syscall_template + sizeof(syscall_template);
-        handshake->handshake.tpc = (ADDRINT) syscall_template + sizeof(syscall_template);
-        handshake->handshake.brtaken = false;
-        memcpy(handshake->handshake.ins, syscall_template, sizeof(syscall_template));
-        handshake_buffer.producer_done(*it, true);
-
-        /* And finally, flush the core's pipelie to get rid of anything
-         * left over (including the trap) and flush the ring cache */
-        handshake_container_t* handshake_3 = handshake_buffer.get_buffer(*it);
-
-        handshake_3->flags.isFirstInsn = false;
-        handshake_3->handshake.sleep_thread = false;
-        handshake_3->handshake.resume_thread = false;
-        handshake_3->handshake.flush_pipe = true;
-        handshake_3->handshake.real = false;
-        handshake_3->handshake.pc = 0;
-        handshake_3->flags.valid = true;
-        handshake_buffer.producer_done(*it, true);
-        
-        /* Deactivate this core, so we can advance the cycle conunter of
-         * others without waiting on it */
-        handshake_container_t* handshake_2 = handshake_buffer.get_buffer(*it);
-
-        handshake_2->flags.isFirstInsn = false;
-        handshake_2->handshake.sleep_thread = true;
-        handshake_2->handshake.resume_thread = false;
-        handshake_2->handshake.real = false;
-        handshake_2->handshake.pc = 0;
-        handshake_2->flags.valid = true;
-        handshake_buffer.producer_done(*it, true);
-
-        handshake_buffer.flushBuffers(*it);
-    }
-
-    enable_consumers();
-
-    /* Wait until all cores are done -- consumed their buffers. */
-    volatile bool done = false;
-    do {
-        done = true;
-        list<THREADID>::iterator it;
-        ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
-            done &= handshake_buffer.empty((*it));
+        else {
+            insertBasicSafetySync(curr_tstate);
         }
-        if (!done && sleeping_enabled && (host_cpus <= num_cores))
-            PIN_Sleep(10);
-    } while (!done);
-
-#ifdef ZESTO_PIN_DBG
-    cerr << tid << " [" << cores[0]->sim_cycle << ":KEVIN]: All cores have empty buffers" << endl;
-    cerr.flush();
-#endif
-
-    tick_t most_cycles = 0;
-    ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
-      thread_state_t* tstate = get_tls(*it);
-      if(cores[tstate->coreID]->sim_cycle > most_cycles) {
-        most_cycles = cores[tstate->coreID]->sim_cycle;
-      }
     }
 
-    ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
-      thread_state_t* tstate = get_tls(*it);
-      assert(tstate != NULL);
-      cores[tstate->coreID]->sim_cycle = most_cycles;
-      cerr << tstate->coreID << ":OverlapCycles:" << most_cycles - lastConsumerApply[*it] << endl;
-    }
+    /* Insert a MFENCE. This makes sure that all operations to the repeater
+     * have not only been scheduled, but also completed and ack-ed. */
+    handshake_container_t* handshake = xiosim::buffer_management::get_buffer(curr_tstate->tid);
+    handshake->flags.real = false;
+    handshake->handshake.asid = asid;
+    handshake->flags.valid = true;
 
-    disable_consumers();
-    enable_producers();
+    handshake->handshake.pc = (ADDRINT) mfence_template;
+    handshake->handshake.npc = (ADDRINT)syscall_template;
+    handshake->handshake.tpc = (ADDRINT) mfence_template + sizeof(mfence_template);
+    handshake->flags.brtaken = false;
+    memcpy(handshake->handshake.ins, mfence_template, sizeof(mfence_template));
+    xiosim::buffer_management::producer_done(curr_tstate->tid, true);
 
-    /* Have thread ignore serial section after */
-    /* XXX: Do we need this? A few lines above we set ignore_all! */
-    ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
-        thread_state_t* tstate = get_tls(*it);
-        lk_lock(&tstate->lock, *it+1);
-        handshake_buffer.resetPool(*it);
-        tstate->ignore = true;
-        lk_unlock(&tstate->lock);
-        assert(handshake_buffer.empty(*it));
-    }
+    /* Insert a trap. This will ensure that the pipe drains before
+     * consuming the next instruction.*/
+    handshake_container_t* handshake_1 = xiosim::buffer_management::get_buffer(curr_tstate->tid);
+    handshake_1->flags.real = false;
+    handshake_1->handshake.asid = asid;
+    handshake_1->flags.valid = true;
+
+    handshake_1->handshake.pc = (ADDRINT) syscall_template;
+    handshake_1->handshake.npc = (ADDRINT) syscall_template + sizeof(syscall_template);
+    handshake_1->handshake.tpc = (ADDRINT) syscall_template + sizeof(syscall_template);
+    handshake_1->flags.brtaken = false;
+    memcpy(handshake_1->handshake.ins, syscall_template, sizeof(syscall_template));
+    xiosim::buffer_management::producer_done(curr_tstate->tid, true);
+
+    /* And finally, flush the core's pipelie to get rid of anything
+     * left over (including the trap). */
+    handshake_container_t* handshake_2 = xiosim::buffer_management::get_buffer(curr_tstate->tid);
+
+    handshake_2->flags.flush_pipe = true;
+    handshake_2->flags.real = false;
+    handshake_2->handshake.asid = asid;
+    handshake_2->handshake.pc = 0;
+    handshake_2->flags.valid = true;
+    xiosim::buffer_management::producer_done(curr_tstate->tid, true);
 }
 
 /* ========================================================================== */
-VOID ILDJIT_ResumeSimulation(THREADID tid)
+VOID shutdownSimulation()
 {
+    PauseSimulation();
+    EndSimSlice(1, 0, 1000 * 100);
 
-    /* All cores were sleeping in between loops, wake them up now. */
-    for (INT32 coreID = 0; coreID < num_cores; coreID++) {
-        /* Wake up cores right away without going through the handshake
-         * buffer (which should be empty anyway).
-         * If we do go through it, there are no guarantees for when the
-         * resume is consumed, which can lead to nasty races of who gets
-         * to resume first. */
-        THREADID curr_tid = GetCoreThread(coreID);
-        if (curr_tid == INVALID_THREADID)
-            continue;
-
-        ASSERTX(handshake_buffer.empty(curr_tid));
-        activate_core(coreID);
-        thread_state_t* tstate = get_tls(curr_tid);
-        lk_lock(&tstate->lock, tid+1);
-        tstate->ignore_all = false;
-        lk_unlock(&tstate->lock);
-    }
-}
-
-/* ========================================================================== */
-VOID shutdownSimulation(THREADID tid)
-{
-    ILDJIT_PauseSimulation(tid);
-    int iterCount = loop_state->simmed_iteration_count - 1;
-    cerr << "Ending loop: anonymous" << " NumIterations:" << iterCount << endl;
-
-    cerr << "Simulation runtime:";
-    printElapsedTime();
-    cerr << "Stopping simulation, TID: " << tid << endl;
-    Zesto_Slice_End(0, 1, 0, 100*1000);
-    StopSimulation(true);
-    cerr << "[KEVIN] Stopped simulation! " << tid << endl;
     PIN_ExitProcess(EXIT_SUCCESS);
 }

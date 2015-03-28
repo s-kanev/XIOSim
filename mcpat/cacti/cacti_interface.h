@@ -1,43 +1,33 @@
-/*------------------------------------------------------------
- *                              CACTI 6.5
- *         Copyright 2008 Hewlett-Packard Development Corporation
- *                         All Rights Reserved
+/*****************************************************************************
+ *                                McPAT/CACTI
+ *                      SOFTWARE LICENSE AGREEMENT
+ *            Copyright 2012 Hewlett-Packard Development Company, L.P.
+ *                          All Rights Reserved
  *
- * Permission to use, copy, and modify this software and its documentation is
- * hereby granted only under the following terms and conditions.  Both the
- * above copyright notice and this permission notice must appear in all copies
- * of the software, derivative works or modified versions, and any portions
- * thereof, and both notices must appear in supporting documentation.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met: redistributions of source code must retain the above copyright
+ * notice, this list of conditions and the following disclaimer;
+ * redistributions in binary form must reproduce the above copyright
+ * notice, this list of conditions and the following disclaimer in the
+ * documentation and/or other materials provided with the distribution;
+ * neither the name of the copyright holders nor the names of its
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.”
  *
- * Users of this software agree to the terms and conditions set forth herein, and
- * hereby grant back to Hewlett-Packard Company and its affiliated companies ("HP")
- * a non-exclusive, unrestricted, royalty-free right and license under any changes,
- * enhancements or extensions  made to the core functions of the software, including
- * but not limited to those affording compatibility with other hardware or software
- * environments, but excluding applications which incorporate this software.
- * Users further agree to use their best efforts to return to HP any such changes,
- * enhancements or extensions that they make and inform HP of noteworthy uses of
- * this software.  Correspondence should be provided to HP at:
- *
- *                       Director of Intellectual Property Licensing
- *                       Office of Strategy and Technology
- *                       Hewlett-Packard Company
- *                       1501 Page Mill Road
- *                       Palo Alto, California  94304
- *
- * This software may be distributed (but not offered for sale or transferred
- * for compensation) to third parties, provided such third parties agree to
- * abide by the terms and conditions of this notice.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" AND HP DISCLAIMS ALL
- * WARRANTIES WITH REGARD TO THIS SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS.   IN NO EVENT SHALL HP
- * CORPORATION BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
- * DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR
- * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS
- * ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
- * SOFTWARE.
- *------------------------------------------------------------*/
+ ***************************************************************************/
 
 
 
@@ -67,8 +57,12 @@ class powerComponents
     double gate_leakage;
     double short_circuit;
     double longer_channel_leakage;
+    double power_gated_leakage;
+    double power_gated_with_long_channel_leakage;
 
-    powerComponents() : dynamic(0), leakage(0), gate_leakage(0), short_circuit(0), longer_channel_leakage(0)  { }
+    powerComponents() : dynamic(0), leakage(0), gate_leakage(0), short_circuit(0),
+    		longer_channel_leakage(0), power_gated_leakage(0),
+    		power_gated_with_long_channel_leakage (0) { }
     powerComponents(const powerComponents & obj) { *this = obj; }
     powerComponents & operator=(const powerComponents & rhs)
     {
@@ -77,9 +71,12 @@ class powerComponents
       gate_leakage  = rhs.gate_leakage;
       short_circuit = rhs.short_circuit;
       longer_channel_leakage = rhs.longer_channel_leakage;
+      power_gated_leakage = rhs.power_gated_leakage;
+      power_gated_with_long_channel_leakage = rhs.power_gated_with_long_channel_leakage;
       return *this;
     }
-    void reset() { dynamic = 0; leakage = 0; gate_leakage = 0; short_circuit = 0;longer_channel_leakage = 0;}
+    void reset() { dynamic = 0; leakage = 0; gate_leakage = 0; short_circuit = 0;
+    longer_channel_leakage = 0; power_gated_leakage = 0;power_gated_with_long_channel_leakage=0;}
 
     friend powerComponents operator+(const powerComponents & x, const powerComponents & y);
     friend powerComponents operator*(const powerComponents & x, double const * const y);
@@ -120,6 +117,8 @@ enum Wire_type
 class InputParameter
 {
   public:
+
+    InputParameter();
     void parse_cfg(const string & infile);
 
     bool error_checking();  // return false if the input parameters are problematic
@@ -140,11 +139,20 @@ class InputParameter
 
     double   F_sz_nm;          // feature size in nm
     double   F_sz_um;          // feature size in um
+    bool     specific_hp_vdd;     // whether to have user defined vdd that is different from ITRS
+    double   hp_Vdd;			   // user specified vdd
+    bool     specific_lstp_vdd;     // whether to have user defined vdd that is different from ITRS
+    double   lstp_Vdd;
+    bool     specific_lop_vdd;     // whether to have user defined vdd that is different from ITRS
+    double   lop_Vdd;
+    bool     specific_vcc_min;     // whether to have user defined vcc_min for power-gating that is different from the value constrained by technology for maintaining states
+    double   user_defined_vcc_min;
+    bool     user_defined_vcc_underflow; //flag to indicate when user defined vcc is too low for the circuit to retain state
     unsigned int num_rw_ports;
     unsigned int num_rd_ports;
     unsigned int num_wr_ports;
     unsigned int num_se_rd_ports;  // number of single ended read ports
-    unsigned int num_search_ports;  // Sheng: number of search ports for CAM
+    unsigned int num_search_ports;  // number of search ports for CAM
     bool     is_main_mem;
     bool     is_cache;
     bool     pure_ram;
@@ -210,6 +218,21 @@ class InputParameter
   int pipeline_stages;
   int per_stage_vector;
   bool with_clock_grid;
+
+  bool array_power_gated;
+  bool bitline_floating;
+  bool wl_power_gated;
+  bool cl_power_gated;
+  bool interconect_power_gated;
+  bool power_gating;
+
+  double perfloss;
+
+  bool cl_vertical;
+
+  std::vector<double> dvs_voltage;
+
+  bool long_channel_device;
 };
 
 
@@ -379,7 +402,8 @@ class uca_org_t
     bool valid;
     results_mem_array tag_array;
     results_mem_array data_array;
-
+    std::vector<uca_org_t * > uca_q;//for results share the same settings (g_ip and dyn_p) but with different tech settings such as DVFS
+    uca_org_t * uca_pg_reference;//for references results when power gating is enabled.
     uca_org_t();
     void find_delay();
     void find_energy();
@@ -387,9 +411,10 @@ class uca_org_t
     void find_cyc();
     void adjust_area();//for McPAT only to adjust routing overhead
     void cleanup();
-    ~uca_org_t(){};
+    ~uca_org_t();
 };
 
+void reconfigure(InputParameter *local_interface, uca_org_t *fin_res);
 
 uca_org_t cacti_interface(const string & infile_name);
 //McPAT's plain interface, please keep !!!
@@ -417,14 +442,16 @@ uca_org_t cacti_interface(
 	    int obj_func_delay,
 	    int obj_func_dynamic_power,
 	    int obj_func_leakage_power,
-	    int obj_func_area,
 	    int obj_func_cycle_time,
+	    int obj_func_area,
 	    int dev_func_delay,
 	    int dev_func_dynamic_power,
 	    int dev_func_leakage_power,
 	    int dev_func_area,
 	    int dev_func_cycle_time,
+	    int ed_ed2_none, // 0 - ED, 1 - ED^2, 2 - use weight and deviate
 	    int temp,
+	    int wt, //0 - default(search across everything), 1 - global, 2 - 5% delay penalty, 3 - 10%, 4 - 20 %, 5 - 30%, 6 - low-swing
 	    int data_arr_ram_cell_tech_flavor_in,
 	    int data_arr_peri_global_tech_flavor_in,
 	    int tag_arr_ram_cell_tech_flavor_in,
@@ -551,6 +578,7 @@ uca_org_t cacti_interface(
 class mem_array
 {
   public:
+  int    Ndcm;
   int    Ndwl;
   int    Ndbl;
   double Nspd;
@@ -630,6 +658,22 @@ class mem_array
   leak_power_request_and_reply_networks;
 
   double precharge_delay;
+
+  //Power-gating stats
+  double  array_leakage;
+  double  wl_leakage;
+  double  cl_leakage;
+
+  double sram_sleep_tx_width, wl_sleep_tx_width, cl_sleep_tx_width;
+  double sram_sleep_tx_area, wl_sleep_tx_area, cl_sleep_tx_area;
+  double sram_sleep_wakeup_latency, wl_sleep_wakeup_latency, cl_sleep_wakeup_latency, bl_floating_wakeup_latency;
+  double sram_sleep_wakeup_energy, wl_sleep_wakeup_energy, cl_sleep_wakeup_energy, bl_floating_wakeup_energy;
+
+  int num_active_mats;
+  int num_submarray_mats;
+
+  double long_channel_leakage_reduction_periperal;
+  double long_channel_leakage_reduction_memcell;
 
   static bool lt(const mem_array * m1, const mem_array * m2);
 };

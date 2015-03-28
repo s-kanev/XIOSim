@@ -112,7 +112,7 @@ class bpred_t
 
   public:
 
-  bpred_t(int, const char**, const char*, const char*, const char*, const char*);
+  bpred_t(const core_t*, int, const char**, const char*, const char*, const char*, const char*);
   ~bpred_t();
 
   /* PC = current PC of the branch being predicted
@@ -208,7 +208,8 @@ class bpred_dir_t
   bool frozen; /* set to TRUE when the core has reached its inst limit and stats should not longer be updated */
 
   public:
-           bpred_dir_t();
+  const core_t * core;
+           bpred_dir_t(const core_t * core);
   virtual ~bpred_dir_t();
 
   virtual bool lookup(

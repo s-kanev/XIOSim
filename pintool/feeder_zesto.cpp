@@ -14,16 +14,24 @@
 #include <queue>
 #include <set>
 #include <list>
+#include <sstream>
 #include <stdlib.h>
 #include <elf.h>
 #include <sys/mman.h>
 #include <sys/sysinfo.h>
+#include <syscall.h>
 #include <sched.h>
 #include <unistd.h>
+#include <utility>
+#include <signal.h>
+
+#include "boost_interprocess.h"
 
 #include "feeder.h"
+#include "multiprocess_shared.h"
+#include "ipc_queues.h"
 #include "../buffer.h"
-#include "BufferManager.h"
+#include "BufferManagerProducer.h"
 #include "scheduler.h"
 #include "ignore_ins.h"
 
@@ -35,6 +43,7 @@
 
 #include "../zesto-core.h"
 
+
 using namespace std;
 
 /* ========================================================================== */
@@ -43,50 +52,38 @@ using namespace std;
 /* ========================================================================== */
 /* ========================================================================== */
 
-CHAR sim_name[] = "Zesto";
-
 KNOB<string> KnobInsTraceFile(KNOB_MODE_WRITEONCE,   "pintool",
         "trace", "", "File where instruction trace is written");
-KNOB<string> KnobSanityInsTraceFile(KNOB_MODE_WRITEONCE,   "pintool",
-        "sanity_trace", "", "Instruction trace file to use for sanity checking of codepaths");
-KNOB<BOOL> KnobSanity(KNOB_MODE_WRITEONCE,     "pintool",
-        "sanity", "false", "Sanity-check if simulator corrupted memory (expensive)");
 KNOB<BOOL> KnobILDJIT(KNOB_MODE_WRITEONCE,      "pintool",
         "ildjit", "false", "Application run is ildjit");
 KNOB<BOOL> KnobAMDHack(KNOB_MODE_WRITEONCE,      "pintool",
         "amd_hack", "false", "Using AMD syscall hack for use with hpc cluster");
-KNOB<string> KnobFluffy(KNOB_MODE_WRITEONCE,      "pintool",
-        "fluffy_annotations", "", "Annotation file that specifies fluffy ROI");
-KNOB<BOOL> KnobPipelineInstrumentation(KNOB_MODE_WRITEONCE, "pintool",
-        "pipeline_instrumentation", "false", "Overlap instrumentation and simulation threads (still unstable)");
 KNOB<BOOL> KnobWarmLLC(KNOB_MODE_WRITEONCE,      "pintool",
         "warm_llc", "false", "Warm LLC while fast-forwarding");
+KNOB<int> KnobNumCores(KNOB_MODE_WRITEONCE,      "pintool",
+        "num_cores", "1", "Number of cores simulated");
+KNOB<pid_t> KnobHarnessPid(KNOB_MODE_WRITEONCE, "pintool",
+        "harness_pid", "-1", "Process id of the harness process.");
 
-map<ADDRINT, UINT8> sanity_writes;
 map<ADDRINT, string> pc_diss;
-BOOL sim_release_handshake;
-BOOL sleeping_enabled;
 
 ofstream pc_file;
 ofstream trace_file;
-ifstream sanity_trace;
 
 // Used to access thread-local storage
 static TLS_KEY tls_key;
 
-PIN_SEMAPHORE consumer_sleep_lock;
-PIN_SEMAPHORE producer_sleep_lock;
-
-BufferManager handshake_buffer;
 XIOSIM_LOCK thread_list_lock;
 list<THREADID> thread_list;
+map<THREADID, int> virtual_affinity;
 
-// IDs of simulaiton threads
-static THREADID *sim_threadid;
+static inline pid_t gettid() {
+    return syscall(SYS_gettid);
+}
+map<pid_t, THREADID> global_to_local_tid;
+XIOSIM_LOCK lk_tid_map;
 
-bool producers_sleep = false;
-bool consumers_sleep = false;
-INT32 host_cpus;
+int asid;
 
 /* ========================================================================== */
 /* Pinpoint related */
@@ -97,16 +94,23 @@ ICOUNT icount;
 CONTROL control;
 
 EXECUTION_MODE ExecMode = EXECUTION_MODE_INVALID;
-map<THREADID, tick_t> lastConsumerApply;
 
-/* Fallbacks for cases without pinpoints */
-INT32 slice_num = 1;
-INT32 slice_length = 0;
-INT32 slice_weight_times_1000 = 100*1000;
+static BOOL in_fini = false;
 
-BOOL in_fini = false;
+static VOID RegisterSignalIntercept();
 
-typedef pair <UINT32, CHAR **> SSARGS;
+static bool producers_sleep;
+static PIN_SEMAPHORE producers_sem;
+static void wait_producers();
+
+/* Wait for all processes to finish fast-forwarding, before starting a simulation
+ * slice. Then notify timing_sim to start the slice -- prepare stats, etc. */
+static void FastForwardBarrier(int slice_num);
+/* Wait for all processes to finish with a simulation slice, and tell timing_sim
+ * to mark it as finished -- scale stats, etc. */
+static void SliceEndBarrier(int slice_num, int slice_length, int slice_weight_times_1000);
+
+static VOID amd_hack();
 
 // Functions to access thread-specific data
 /* ========================================================================== */
@@ -117,13 +121,19 @@ thread_state_t* get_tls(THREADID threadid)
     return tstate;
 }
 
+/* Return the threads for this feeder, ordered by virtual affinity */
 /* ========================================================================== */
-sim_thread_state_t* get_sim_tls(THREADID threadid)
+list<THREADID> GetAffineThreads()
 {
-    sim_thread_state_t* tstate =
-          static_cast<sim_thread_state_t*>(PIN_GetThreadData(tls_key, threadid));
-    return tstate;
+    /* Order threads by affinity. */
+    lk_lock(&thread_list_lock, 1);
+    list<THREADID> affine_threads = thread_list;
+    affine_threads.sort([](THREADID a, THREADID b)
+                          { return virtual_affinity[a] < virtual_affinity[b];});
+    lk_unlock(&thread_list_lock);
+    return affine_threads;
 }
+
 
 /* ========================================================================== */
 VOID ImageUnload(IMG img, VOID *v)
@@ -135,8 +145,37 @@ VOID ImageUnload(IMG img, VOID *v)
     cerr << "Image unload, addr: " << hex << start
          << " len: " << length << " end_addr: " << start + length << endl;
 #endif
+    ipc_message_t msg;
+    msg.Munmap(asid, start, length, true);
+    SendIPCMessage(msg);
+}
 
-    ASSERTX( Zesto_Notify_Munmap(0/*coreID*/, start, length, true));
+/* ========================================================================== */
+VOID StartSimSlice(int slice_num)
+{
+    /* Gather all processes -- they are all done with the FF -- and tell
+     * timing_sim to start the slice */
+    FastForwardBarrier(slice_num);
+
+    /* Start instrumenting again */
+    ExecMode = EXECUTION_MODE_SIMULATE;
+    CODECACHE_FlushCache();
+}
+
+/* ========================================================================== */
+VOID EndSimSlice(int slice_num, int slice_length, int slice_weight_times_1000)
+{
+    /* Returning from PauseSimulation() guarantees that all sim threads
+     * are spinning in SimulatorLoop. So we can safely call Slice_End
+     * without racing any of them. */
+
+    /* Now we need to make sure we gather all processes, so we don't race
+     * any of them. SliceEndBarrier tells timing_sim to to end the slice */
+    SliceEndBarrier(slice_num, slice_length, slice_weight_times_1000);
+
+    /* Stop instrumenting, time to fast forward */
+    ExecMode = EXECUTION_MODE_FASTFORWARD;
+    CODECACHE_FlushCache();
 }
 
 /* ========================================================================== */
@@ -154,27 +193,9 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
             UINT32 slice_num = 1;
             if(control.PinPointsActive())
                 slice_num = control.CurrentPp(tid);
-            Zesto_Slice_Start(slice_num);
 
-            ExecMode = EXECUTION_MODE_SIMULATE;
-            CODECACHE_FlushCache();
-
-            list<THREADID>::iterator it;
-            ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
-                thread_state_t* tstate = get_tls(*it);
-                lk_lock(&tstate->lock, tid+1);
-                tstate->firstInstruction = true;
-                tstate->ignore_all = false;
-                if (!KnobILDJIT.Value())
-                    tstate->ignore = false;
-                lk_unlock(&tstate->lock);
-            }
-
-            
-            // Let caller thread be simulated again
-            if (!KnobILDJIT.Value()) {
-              ScheduleNewThread(tid);
-            }
+            StartSimSlice(slice_num);
+            ResumeSimulation(true);
 
             if(control.PinPointsActive())
                 cerr << "PinPoint: " << control.CurrentPp(tid) << " PhaseNo: " << control.CurrentPhase(tid) << endl;
@@ -183,64 +204,34 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREAD
 
       case CONTROL_STOP:
         {
-            /* XXX: This can be called from a Fini callback (end of program).
-             * We can't access any TLS in that case. */
-            if (!in_fini) {
-                list<THREADID>::iterator it;
-                ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
-                    thread_state_t* tstate = get_tls(*it);
-                    lk_lock(&tstate->lock, tid+1);
-                    tstate->ignore_all = true;
-                    lk_unlock(&tstate->lock);
-                }
-
-                /* In this case, we need to flush all buffers for this thread
-                 * and cleanly let the scheduler know to deschedule it once
-                 * all instructions are conusmed. */
-                handshake_container_t *handshake = handshake_buffer.get_buffer(tid);
-                handshake->flags.giveCoreUp = true;
-                handshake->flags.giveUpReschedule = false;
-                handshake->flags.valid = true;
-                handshake->handshake.real = false;
-                handshake_buffer.producer_done(tid, true);
-
-                handshake_buffer.flushBuffers(tid);
-            }
-
+            lk_lock(printing_lock, 1);
             cerr << "Stop" << endl;
+            lk_unlock(printing_lock);
 
-            PauseSimulation(INVALID_THREADID);
-
-            /* Here, nothing guarantees that there is still a thread with an active
-             * handshake buffer (this handler can be called from a Fini callback
-             * after all threads have exited).
-             * Returning from PauseSimulation() guarantees that all sim threads
-             * are spinning in SimulatorLoop. So we can safely call Slice_End
-             * without racing any of them. */
+            INT32 slice_num = 1;
+            INT32 slice_length = 0;
+            INT32 slice_weight_times_1000 = 100 * 1000;
 
             if(control.PinPointsActive())
             {
-                cerr << "PinPoint: " << control.CurrentPp(tid) << endl;
-                Zesto_Slice_End(0, control.CurrentPp(tid), control.CurrentPpLength(tid), control.CurrentPpWeightTimesThousand(tid));
+                slice_num = control.CurrentPp(tid);
+                slice_length = control.CurrentPpLength(tid);
+                slice_weight_times_1000 = control.CurrentPpWeightTimesThousand(tid);
+                lk_lock(printing_lock, 1);
+                cerr << "PinPoint: " << slice_num << endl;
+                lk_unlock(printing_lock);
             }
-            else {
-                Zesto_Slice_End(0, slice_num, slice_length, slice_weight_times_1000);
-            }
+
+            PauseSimulation();
+            EndSimSlice(slice_num, slice_length, slice_weight_times_1000);
 
             /* Stop simulation if we've reached the last slice, so we
              * don't wait for fast-forwarding a potentially very long time until the app
-             * exits cleanly.
-             * XXX: As anything to do with slices, this won't work in the multi-threaded
-               case and has to be redone with a clean API. */
+             * exits cleanly. */
             if ((control.PinPointsActive() && control.CurrentPp(tid) == control.NumPp(tid)) ||
                 control.LengthActive()) {
-                StopSimulation(false);
                 PIN_ExitProcess(EXIT_SUCCESS);
-
             }
-
-            ExecMode = EXECUTION_MODE_FASTFORWARD;
-            CODECACHE_FlushCache();
         }
         break;
 
@@ -274,7 +265,9 @@ VOID ImageLoad(IMG img, VOID *v)
     if (KnobMachsuite.Value())
         AddMachsuiteCallbacks(img);
 
-    ASSERTX( Zesto_Notify_Mmap(0/*coreID*/, start, length, false) );
+    ipc_message_t msg;
+    msg.Mmap(asid, start, length, false);
+    SendIPCMessage(msg);
 }
 
 /* ========================================================================== */
@@ -292,24 +285,24 @@ VOID MakeSSContext(const CONTEXT *ictxt, FPSTATE* fpstate, ADDRINT pc, ADDRINT n
     ssregs->regs_NPC = npc;
 
     // Copy general purpose registers, which Pin provides individual access to
-    ssregs->regs_C.aflags = PIN_GetContextReg(&ssctxt, REG_EFLAGS);
-    ssregs->regs_R.dw[MD_REG_EAX] = PIN_GetContextReg(&ssctxt, REG_EAX);
-    ssregs->regs_R.dw[MD_REG_ECX] = PIN_GetContextReg(&ssctxt, REG_ECX);
-    ssregs->regs_R.dw[MD_REG_EDX] = PIN_GetContextReg(&ssctxt, REG_EDX);
-    ssregs->regs_R.dw[MD_REG_EBX] = PIN_GetContextReg(&ssctxt, REG_EBX);
-    ssregs->regs_R.dw[MD_REG_ESP] = PIN_GetContextReg(&ssctxt, REG_ESP);
-    ssregs->regs_R.dw[MD_REG_EBP] = PIN_GetContextReg(&ssctxt, REG_EBP);
-    ssregs->regs_R.dw[MD_REG_EDI] = PIN_GetContextReg(&ssctxt, REG_EDI);
-    ssregs->regs_R.dw[MD_REG_ESI] = PIN_GetContextReg(&ssctxt, REG_ESI);
+    ssregs->regs_C.aflags = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_EFLAGS);
+    ssregs->regs_R.dw[MD_REG_EAX] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_EAX);
+    ssregs->regs_R.dw[MD_REG_ECX] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_ECX);
+    ssregs->regs_R.dw[MD_REG_EDX] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_EDX);
+    ssregs->regs_R.dw[MD_REG_EBX] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_EBX);
+    ssregs->regs_R.dw[MD_REG_ESP] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_ESP);
+    ssregs->regs_R.dw[MD_REG_EBP] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_EBP);
+    ssregs->regs_R.dw[MD_REG_EDI] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_EDI);
+    ssregs->regs_R.dw[MD_REG_ESI] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_ESI);
 
 
     // Copy segment selector registers (IA32-specific)
-    ssregs->regs_S.w[MD_REG_CS] = PIN_GetContextReg(&ssctxt, REG_SEG_CS);
-    ssregs->regs_S.w[MD_REG_SS] = PIN_GetContextReg(&ssctxt, REG_SEG_SS);
-    ssregs->regs_S.w[MD_REG_DS] = PIN_GetContextReg(&ssctxt, REG_SEG_DS);
-    ssregs->regs_S.w[MD_REG_ES] = PIN_GetContextReg(&ssctxt, REG_SEG_ES);
-    ssregs->regs_S.w[MD_REG_FS] = PIN_GetContextReg(&ssctxt, REG_SEG_FS);
-    ssregs->regs_S.w[MD_REG_GS] = PIN_GetContextReg(&ssctxt, REG_SEG_GS);
+    ssregs->regs_S.w[MD_REG_CS] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_SEG_CS);
+    ssregs->regs_S.w[MD_REG_SS] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_SEG_SS);
+    ssregs->regs_S.w[MD_REG_DS] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_SEG_DS);
+    ssregs->regs_S.w[MD_REG_ES] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_SEG_ES);
+    ssregs->regs_S.w[MD_REG_FS] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_SEG_FS);
+    ssregs->regs_S.w[MD_REG_GS] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_SEG_GS);
 
     // Copy segment base registers (simulator needs them for address calculations)
     // XXX: For security reasons, we (as user code) aren't allowed to touch those.
@@ -330,16 +323,16 @@ VOID MakeSSContext(const CONTEXT *ictxt, FPSTATE* fpstate, ADDRINT pc, ADDRINT n
     ASSERTX(PIN_ContextContainsState(&ssctxt, PROCESSOR_STATE_X87));
     PIN_GetContextFPState(ictxt, fpstate);
 
-    //Copy the floating point control word
+    // Copy the floating point control word
     memcpy(&ssregs->regs_C.cwd, &fpstate->fxsave_legacy._fcw, 2);
 
     // Copy the floating point status word
     memcpy(&ssregs->regs_C.fsw, &fpstate->fxsave_legacy._fsw, 2);
 
-    //Copy floating point tag word specifying which regsiters hold valid values
+    // Copy floating point tag word specifying which regsiters hold valid values
     memcpy(&ssregs->regs_C.ftw, &fpstate->fxsave_legacy._ftw, 1);
 
-    //For Zesto, regs_F is indexed by physical register, not stack-based
+    // For Zesto, regs_F is indexed by physical register, not stack-based
     #define ST2P(num) ((FSW_TOP(ssregs->regs_C.fsw) + (num)) & 0x7)
 
     // Copy actual extended fp registers
@@ -375,165 +368,8 @@ VOID BeforeFini(INT32 exitCode, VOID *v)
 /* ========================================================================== */
 VOID Fini(INT32 exitCode, VOID *v)
 {
-    StopSimulation(false);
-
     if (exitCode != EXIT_SUCCESS)
-        cerr << "ERROR! Exit code = " << dec << exitCode << endl;
-}
-
-/* ========================================================================== */
-//Callback to collect memory addresses modified by a given instruction
-//We grab the actual address before the simulator modifies it
-//(assumes it is called before the actual write occurs)
-VOID Zesto_WriteByteCallback(ADDRINT addr, UINT8 val_to_write)
-{
-    (VOID) val_to_write;
-
-    UINT8* _addr = (UINT8*) addr;
-    UINT8 val = *_addr;
-
-    // Since map.insert doesn't change existing keys, we only capture the value
-    // before the first write on that address by this inst (as we should)
-    sanity_writes.insert(pair<ADDRINT, UINT8>(addr, val));
-}
-
-/* ========================================================================== */
-//Checks if instruction correctly rolled back any writes it may have done.
-VOID SanityMemCheck()
-{
-    map<ADDRINT, UINT8>::iterator it;
-
-    UINT8* addr;
-    UINT8 written_val;
-
-    for (it = sanity_writes.begin(); it != sanity_writes.end(); it++)
-    {
-        addr = (UINT8*) (*it).first;
-        written_val = (*it).second;
-
-        ASSERTX(written_val == *addr);
-    }
-}
-
-/* ==========================================================================
- * Called from simulator once handshake is free to be reused.
- * This allows to pipeline instrumentation and simulation. */
-VOID ReleaseHandshake(UINT32 coreID)
-{
-    THREADID instrument_tid = GetCoreThread(coreID);
-    ASSERTX(!handshake_buffer.empty(instrument_tid));
-
-    // pop() invalidates the buffer
-    handshake_buffer.pop(instrument_tid);
-}
-
-/* ========================================================================== */
-/* The loop running each simulated core. */
-VOID SimulatorLoop(VOID* arg)
-{
-    INT32 coreID = reinterpret_cast<INT32>(arg);
-    THREADID tid = PIN_ThreadId();
-
-    sim_thread_state_t* tstate = new sim_thread_state_t();
-    PIN_SetThreadData(tls_key, tstate, tid);
-
-    while (true) {
-        /* Check kill flag */
-        lk_lock(&tstate->lock, tid+1);
-
-        if (!tstate->is_running) {
-            deactivate_core(coreID);
-            tstate->sim_stopped = true;
-            lk_unlock(&tstate->lock);
-            return;
-        }
-        lk_unlock(&tstate->lock);
-
-        if (!is_core_active(coreID)) {
-            PIN_Sleep(10);
-            continue;
-        }
-
-        // Get the latest thread we are running from the scheduler
-        THREADID instrument_tid = GetCoreThread(coreID);
-        if (instrument_tid == INVALID_THREADID) {
-            continue;
-        }
-
-        while (handshake_buffer.empty(instrument_tid)) {
-            PIN_Yield();
-            while(consumers_sleep) {
-                PIN_SemaphoreWait(&consumer_sleep_lock);
-            }
-        }
-
-        int consumerHandshakes = handshake_buffer.getConsumerSize(instrument_tid);
-        if(consumerHandshakes == 0) {
-            handshake_buffer.front(instrument_tid, false);
-            consumerHandshakes = handshake_buffer.getConsumerSize(instrument_tid);
-        }
-        assert(consumerHandshakes > 0);
-
-        int numConsumed = 0;
-        for(int i = 0; i < consumerHandshakes; i++) {
-            while(consumers_sleep) {
-                PIN_SemaphoreWait(&consumer_sleep_lock);
-            }
-
-            handshake_container_t* handshake = handshake_buffer.front(instrument_tid, true);
-            ASSERTX(handshake != NULL);
-            ASSERTX(handshake->flags.valid);
-
-            // Check thread exit flag
-            if (handshake->flags.killThread) {
-                ReleaseHandshake(coreID);
-                numConsumed++;
-                // Let the scheduler send something else to this core
-                DescheduleActiveThread(coreID);
-
-                ASSERTX(i == consumerHandshakes-1); // Check that there are no more handshakes
-                break;
-            }
-
-            if (handshake->flags.giveCoreUp) {
-                ReleaseHandshake(coreID);
-                numConsumed++;
-                GiveUpCore(coreID, handshake->flags.giveUpReschedule);
-                break;
-            }
-
-            // Perform memory sanity checks for values touched by simulator
-            // on previous instruction
-            if (KnobSanity.Value())
-                SanityMemCheck();
-
-            // First instruction, set bottom of stack, and flag we're not safe to kill
-            if (handshake->flags.isFirstInsn)
-            {
-                thread_state_t* inst_tstate = get_tls(instrument_tid);
-                Zesto_SetBOS(coreID, inst_tstate->bos);
-                if (!control.PinPointsActive())
-                    handshake->handshake.slice_num = 1;
-                lk_lock(&tstate->lock, tid+1);
-                tstate->sim_stopped = false;
-                lk_unlock(&tstate->lock);
-            }
-
-            // Actual simulation happens here
-            Zesto_Resume(coreID, handshake);
-
-            if(!KnobPipelineInstrumentation.Value())
-                ReleaseHandshake(coreID);
-            numConsumed++;
-
-            if (NeedsReschedule(coreID)) {
-                GiveUpCore(coreID, true);
-                break;
-            }
-        }
-        handshake_buffer.applyConsumerChanges(instrument_tid, numConsumed);
-        lastConsumerApply[instrument_tid] = cores[coreID]->sim_cycle;
-    }
+        cerr << "[" << getpid() << "]" << "ERROR! Exit code = " << dec << exitCode << endl;
 }
 
 /* ========================================================================== */
@@ -542,14 +378,67 @@ VOID MakeSSRequest(THREADID tid, ADDRINT pc, ADDRINT npc, ADDRINT tpc, BOOL brta
     thread_state_t* tstate = get_tls(tid);
     MakeSSContext(ictxt, &tstate->fpstate_buf, pc, npc, &hshake->handshake.ctxt);
 
+    hshake->handshake.asid = asid;
     hshake->handshake.pc = pc;
     hshake->handshake.npc = npc;
     hshake->handshake.tpc = tpc;
-    hshake->handshake.brtaken = brtaken;
-    hshake->handshake.sleep_thread = FALSE;
-    hshake->handshake.resume_thread = FALSE;
-    hshake->handshake.real = TRUE;
+    hshake->flags.brtaken = brtaken;
+    hshake->flags.sleep_thread = FALSE;
+    hshake->flags.resume_thread = FALSE;
+    hshake->flags.real = TRUE;
     PIN_SafeCopy(hshake->handshake.ins, (VOID*) pc, MD_MAX_ILEN);
+}
+
+/* Helper to check if producer thread @tid will grab instruction at @pc.
+ * If return value is false, we can skip instrumentaion. Can hog execution
+ * if producers are disabled by producer_sleep. */
+static BOOL CheckIgnoreConditions(THREADID tid, ADDRINT pc)
+{
+    wait_producers();
+
+    /* Check thread ignore and ignore_all flags */
+    thread_state_t* tstate = get_tls(tid);
+    lk_lock(&tstate->lock, tid+1);
+    if (tstate->ignore || tstate->ignore_all) {
+        lk_unlock(&tstate->lock);
+        return false;
+    }
+    lk_unlock(&tstate->lock);
+
+    /* Check ignore API for unnecessary instructions */
+    if (IsInstructionIgnored(pc))
+        return false;
+
+    return true;
+}
+
+/* Helper to grab the correct buffer that we put instrumentation information
+ * for thread @tid. Either a new one (@first_instrumentation == true), or the
+ * last one being filled in. */
+static handshake_container_t* GetProperBuffer(pid_t tid, BOOL first_instrumentation)
+{
+    handshake_container_t* res;
+    if (first_instrumentation) {
+        res = xiosim::buffer_management::get_buffer(tid);
+    }
+    else {
+        res = xiosim::buffer_management::back(tid);
+    }
+    ASSERTX(res != NULL);
+    ASSERTX(!res->flags.valid);
+    return res;
+}
+
+/* Helper to mark the buffer of a fully instrumented instruction as valid,
+ * and let it get eventually consumed. */
+static VOID FinalizeBuffer(thread_state_t* tstate, handshake_container_t* handshake)
+{
+    // Let simulator consume instruction from SimulatorLoop
+    handshake->flags.valid = true;
+    xiosim::buffer_management::producer_done(tstate->tid);
+
+    if (tstate->num_inst && (tstate->num_inst % 1000000 == 0))
+        xiosim::buffer_management::flushBuffers(tstate->tid);
 }
 
 /* ========================================================================== */
@@ -559,66 +448,23 @@ VOID MakeSSRequest(THREADID tid, ADDRINT pc, ADDRINT npc, ADDRINT tpc, BOOL brta
  * to clean up corner cases of speculation */
 VOID GrabInstructionMemory(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_mem_op, ADDRINT pc)
 {
-    if(producers_sleep) {
-      PIN_SemaphoreWait(&producer_sleep_lock);
-      return;
-    }
+    if (!CheckIgnoreConditions(tid, pc))
+        return;
 
     thread_state_t* tstate = get_tls(tid);
-    lk_lock(&tstate->lock, tid+1);
-
-    if (tstate->ignore || tstate->ignore_all) {
-        lk_unlock(&tstate->lock);
-        return;
-    }
-    lk_unlock(&tstate->lock);
-
-    if (IsInstructionIgnored(pc))
-        return;
-
-    handshake_container_t* handshake;
-    if (first_mem_op) {
-        handshake = handshake_buffer.get_buffer(tid);
-        ASSERTX(!handshake->flags.valid);
-    }
-    else {
-        handshake = handshake_buffer.back(tid);
-    }
-
-    /* should be the common case */
-    if (first_mem_op && size <= 4) {
-        handshake->handshake.mem_addr = addr;
-        PIN_SafeCopy(&handshake->handshake.mem_val, (VOID*)addr, size);
-        handshake->handshake.mem_size = size;
-        return;
-    }
+    handshake_container_t* handshake = GetProperBuffer(tstate->tid, first_mem_op);
 
     UINT8 val;
     for (UINT32 i=0; i < size; i++) {
-        PIN_SafeCopy(&val, (VOID*) (addr+i), 1);
-        handshake->mem_buffer.insert(pair<UINT32, UINT8>(addr + i,val));
+        PIN_SafeCopy(&val, (VOID*) (addr + i), 1);
+        handshake->mem_buffer.insert(pair<UINT32, UINT8>(addr + i, val));
     }
 }
 
 /* ========================================================================== */
 VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDRINT tpc, const CONTEXT *ictxt, BOOL has_memory, BOOL done_instrumenting)
 {
-    if(producers_sleep) {
-      PIN_SemaphoreWait(&producer_sleep_lock);
-      return;
-    }
-
-    thread_state_t* tstate = get_tls(tid);
-    lk_lock(&tstate->lock, tid+1);
-
-    if (tstate->ignore || tstate->ignore_all) {
-        lk_unlock(&tstate->lock);
-        return;
-    }
-    BOOL first_insn = tstate->firstInstruction;
-    lk_unlock(&tstate->lock);
-
-    if (IsInstructionIgnored(pc)) {
+    if (!CheckIgnoreConditions(tid, pc)) {
 #ifdef PRINT_DYN_TRACE
         printTrace("jit", pc, tid);
 #endif
@@ -629,36 +475,14 @@ VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, A
     printTrace("sim", pc, tid);
 #endif
 
-    handshake_container_t* handshake;
-    if (has_memory) {
-        handshake = handshake_buffer.back(tid);
-    }
-    else {
-        handshake = handshake_buffer.get_buffer(tid);
-        ASSERTX(!handshake->flags.valid);
-    }
+    thread_state_t* tstate = get_tls(tid);
+    handshake_container_t* handshake = GetProperBuffer(tstate->tid, !has_memory);
 
-    ASSERTX(handshake != NULL);
-    ASSERTX(!handshake->flags.valid);
-
-    // Sanity trace
-    if (!KnobSanityInsTraceFile.Value().empty())
-    {
-        ADDRINT sanity_pc;
-        sanity_trace >> sanity_pc;
-#ifdef ZESTO_PIN_DBG
-        if (sanity_pc != pc)
-        {
-            cerr << "Sanity_pc != pc. Bad things will happen!" << endl << "sanity_pc: " <<
-            hex << sanity_pc << " pc: " << pc << " sim_icount: " << dec << tstate->num_inst << endl;
-        }
-#endif
-        ASSERTX(sanity_pc == pc);
-    }
-
-    tstate->queue_pc(pc);
     tstate->num_inst++;
 
+    lk_lock(&tstate->lock, tid+1);
+    BOOL first_insn = tstate->firstInstruction;
+    lk_unlock(&tstate->lock);
     if (first_insn) {
         handshake->flags.isFirstInsn = true;
         lk_lock(&tstate->lock, tid+1);
@@ -669,18 +493,9 @@ VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, A
     // Populate handshake buffer
     MakeSSRequest(tid, pc, NextUnignoredPC(npc), NextUnignoredPC(tpc), taken, ictxt, handshake);
 
-    // Clear memory sanity check buffer - callbacks should fill it in SimulatorLoop
-    if (KnobSanity.Value())
-        sanity_writes.clear();
-
-    if (done_instrumenting) {
-        // Let simulator consume instruction from SimulatorLoop
-        handshake->flags.valid = true;
-        handshake_buffer.producer_done(tid);
-
-        if (tstate->num_inst && (tstate->num_inst % 1000000 == 0))
-            handshake_buffer.flushBuffers(tid);
-    }
+    // If no more steps, instruction is ready to be consumed
+    if (done_instrumenting)
+        FinalizeBuffer(tstate, handshake);
 }
 
 /* ========================================================================== */
@@ -691,29 +506,14 @@ VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, A
  * the last iteration. */
 VOID FixRepInstructionNPC(THREADID tid, ADDRINT pc, BOOL rep_prefix, BOOL repne_prefix, ADDRINT counter_value, UINT32 opcode)
 {
-    if(producers_sleep) {
-      PIN_SemaphoreWait(&producer_sleep_lock);
-      return;
-    }
+    if (!CheckIgnoreConditions(tid, pc))
+        return;
 
     thread_state_t* tstate = get_tls(tid);
-    lk_lock(&tstate->lock, tid+1);
-
-    if (tstate->ignore || tstate->ignore_all) {
-        lk_unlock(&tstate->lock);
-        return;
-    }
-    lk_unlock(&tstate->lock);
-
-    if (IsInstructionIgnored(pc))
-        return;
-
-    handshake_container_t* handshake = handshake_buffer.back(tid);
-
-    ASSERTX(handshake != NULL);
-    ASSERTX(!handshake->flags.valid);
+    handshake_container_t* handshake = GetProperBuffer(tstate->tid, false);
 
     BOOL scan = false, zf = false;
+    ADDRINT op1 = 0;
     ADDRINT op2 = 0;
 
     // REPE and REPNE only matter for CMPS and SCAS,
@@ -723,26 +523,41 @@ VOID FixRepInstructionNPC(THREADID tid, ADDRINT pc, BOOL rep_prefix, BOOL repne_
         case XED_ICLASS_CMPSW:
         case XED_ICLASS_CMPSD:
         case XED_ICLASS_CMPSQ:
-            // CMPS does two mem reads, second one is already stored in mem_buffer
+            // CMPS does two mem reads of the same size
             {
-                ASSERTX(handshake->mem_buffer.size() <= 4);
-                int i=0;
-                for (auto it = handshake->mem_buffer.begin(); it != handshake->mem_buffer.end(); it++, i++)
-                    op2 |= ((ADDRINT)it->second << (8*i));
-                
+                size_t bytes_read = handshake->mem_buffer.size();
+                ASSERTX(bytes_read <= 8);
+                size_t i = 0;
+
+                for (auto &mem_read : handshake->mem_buffer) {
+                    size_t byte_ind = i % (bytes_read / 2);
+                    if (i < bytes_read / 2)
+                        op1 |= ((ADDRINT)mem_read.second << (8*byte_ind));
+                    else
+                        op2 |= ((ADDRINT)mem_read.second << (8*byte_ind));
+
+                    i++;
+                }
+
             }
             scan = true;
-            zf = (op2 == handshake->handshake.mem_val);
+            zf = (op1 == op2);
             break;
         case XED_ICLASS_SCASB:
         case XED_ICLASS_SCASW:
         case XED_ICLASS_SCASD:
         case XED_ICLASS_SCASQ:
-            // SCAS only does one read, gets second operand from rAX
-            ASSERTX(handshake->mem_buffer.size() <= 4);
-            op2 = handshake->handshake.ctxt.regs_R.dw[MD_REG_EAX]; // 0-extended anyways
+            {
+                // SCAS only does one read, gets second operand from rAX
+                size_t bytes_read = handshake->mem_buffer.size();
+                ASSERTX(bytes_read <= 4);
+                size_t i = 0;
+                for (auto &mem_read : handshake->mem_buffer)
+                    op1 |= ((ADDRINT)mem_read.second << (8*i));
+                op2 = handshake->handshake.ctxt.regs_R.dw[MD_REG_EAX]; // 0-extended anyways
+            }
             scan = true;
-            zf = (op2 == handshake->handshake.mem_val);
+            zf = (op1 == op2);
             break;
         case XED_ICLASS_INSB:
         case XED_ICLASS_INSW:
@@ -785,11 +600,7 @@ VOID FixRepInstructionNPC(THREADID tid, ADDRINT pc, BOOL rep_prefix, BOOL repne_
     handshake->handshake.ctxt.regs_NPC = NPC;
 
     // Instruction is ready to be consumed
-    handshake->flags.valid = true;
-    handshake_buffer.producer_done(tid);
-
-    if (tstate->num_inst && (tstate->num_inst % 1000000 == 0))
-        handshake_buffer.flushBuffers(tid);
+    FinalizeBuffer(tstate, handshake);
 }
 
 /* ========================================================================== */
@@ -801,12 +612,16 @@ ADDRINT returnArg(BOOL arg)
 
 VOID WarmCacheRead(VOID * addr)
 {
+#if 0
     Zesto_WarmLLC((ADDRINT)addr, false);
+#endif
 }
 
 VOID WarmCacheWrite(VOID * addr)
 {
+#if 0
     Zesto_WarmLLC((ADDRINT)addr, true);
+#endif
 }
 
 /* ========================================================================== */
@@ -858,6 +673,7 @@ VOID Instrument(INS ins, VOID *v)
         return;
     }
 
+    /* Add instrumentation that captures each memory operand */
     UINT32 memOperands = INS_MemoryOperandCount(ins);
     for (UINT32 memOp = 0; memOp < memOperands; memOp++)
     {
@@ -913,69 +729,6 @@ VOID Instrument(INS ins, VOID *v)
 }
 
 /* ========================================================================== */
-/** The command line arguments passed upon invocation need paring because (1) the
- * command line can have arguments for SimpleScalar and (2) Pin cannot see the
- * SimpleScalar's arguments otherwise it will barf; it'll expect KNOB
- * declarations for those arguments. Thereforce, we follow a convention that
- * anything declared past "-s" and before "--" on the command line must be
- * passed along as SimpleScalar's argument list.
- *
- * SimpleScalar's arguments are extracted out of the command line in twos steps:
- * First, we create a new argument vector that can be passed to SimpleScalar.
- * This is done by calloc'ing and copying the arguments over. Thereafter, in the
- * second stage we nullify SimpleScalar's arguments from the original (Pin's)
- * command line so that Pin doesn't see during its own command line parsing
- * stage. */
-SSARGS MakeSimpleScalarArgcArgv(UINT32 argc, CHAR *argv[])
-{
-    CHAR   **ssArgv   = 0;
-    UINT32 ssArgBegin = 0;
-    UINT32 ssArgc     = 0;
-    UINT32 ssArgEnd   = argc;
-
-    for (UINT32 i = 0; i < argc; i++)
-    {
-        if ((string(argv[i]) == "-s") || (string(argv[i]) == "--"))
-        {
-            ssArgBegin = i + 1;             // Points to a valid arg
-            break;
-        }
-    }
-
-    if (ssArgBegin)
-    {
-        ssArgc = (ssArgEnd - ssArgBegin)    // Specified command line args
-                 + (1);                     // Null terminator for argv
-    }
-    else
-    {
-        // Coming here implies the command line has not been setup properly even
-        // to run Pin, so return. Pin will complain appropriately.
-        return make_pair(argc, argv);
-    }
-
-    // This buffer will hold SimpleScalar's argv
-    ssArgv = reinterpret_cast <CHAR **> (calloc(ssArgc, sizeof(CHAR *)));
-
-    UINT32 ssArgIndex = 0;
-    ssArgv[ssArgIndex++] = sim_name;  // Does not matter; just for sanity
-    for (UINT32 pin = ssArgBegin; pin < ssArgEnd; pin++)
-    {
-        if (string(argv[pin]) != "--")
-        {
-            string *argvCopy = new string(argv[pin]);
-            ssArgv[ssArgIndex++] = const_cast <CHAR *> (argvCopy->c_str());
-        }
-    }
-
-    // Terminate the argv. Ending must terminate with a pointer *referencing* a
-    // NULL. Simply terminating the end of argv[n] w/ NULL violates conventions
-    ssArgv[ssArgIndex++] = new CHAR('\0');
-
-    return make_pair(ssArgc, ssArgv);
-}
-
-/* ========================================================================== */
 VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
 {
     // ILDJIT is forking a compiler thread, ignore
@@ -989,7 +742,7 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
 
     ADDRINT tos, bos;
 
-    tos = PIN_GetContextReg(ictxt, REG_ESP);
+    tos = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_ESP);
     CHAR** sp = (CHAR**)tos;
 //    cerr << hex << "SP: " << (VOID*) sp << dec << endl;
 
@@ -1026,7 +779,9 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
                 cerr << "AT_SYSINFO: " << hex << auxv->a_un.a_val << endl;
 #endif
                 ADDRINT vsyscall_page = (ADDRINT)(auxv->a_un.a_val & 0xfffff000);
-                ASSERTX( Zesto_Notify_Mmap(0/*coreID*/, vsyscall_page, MD_PAGE_SIZE, false) );
+                ipc_message_t msg;
+                msg.Mmap(asid, vsyscall_page, PAGE_SIZE, false);
+                SendIPCMessage(msg);
             }
         }
 
@@ -1038,32 +793,47 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
 
         // Reserve space for environment and arguments in case
         // execution starts on another thread.
-        ADDRINT tos_start = ROUND_DOWN(tos, MD_PAGE_SIZE);
-        ADDRINT bos_end = ROUND_UP(bos, MD_PAGE_SIZE);
-        ASSERTX( Zesto_Notify_Mmap(0/*coreID*/, tos_start, bos_end-tos_start, false));
+        ADDRINT tos_start = ROUND_DOWN(tos, PAGE_SIZE);
+        ADDRINT bos_end = ROUND_UP(bos, PAGE_SIZE);
+        ipc_message_t msg;
+        msg.Mmap(asid, tos_start, bos_end-tos_start, false);
+        SendIPCMessage(msg);
 
     }
     else {
         bos = tos;
     }
 
-    tstate->bos = bos;
-
     // Application threads only -- create buffers for them
     if (!KnobILDJIT.Value() ||
         (KnobILDJIT.Value() && ILDJIT_IsCreatingExecutor()))
     {
+        /* Store globally unique thread id */
+        tstate->tid = gettid();
+
         // Create new buffer to store thread context
-        handshake_buffer.allocateThread(threadIndex);
+        xiosim::buffer_management::AllocateThreadProducer(tstate->tid);
 
-        lk_lock(&thread_list_lock, threadIndex+1);
-        thread_list.push_back(threadIndex);
-        lk_unlock(&thread_list_lock);
+        lk_lock(&lk_tid_map, 1);
+        global_to_local_tid[tstate->tid] = threadIndex;
+        lk_unlock(&lk_tid_map);
 
-        lastConsumerApply[threadIndex] = 0;
+        // Mark thread as belonging to this process
+        lk_lock(lk_threadProcess, 1);
+        threadProcess->operator[](tstate->tid) = asid;
+        lk_unlock(lk_threadProcess);
+
+        // Remember bottom of stack for this thread globally
+        lk_lock(lk_thread_bos, 1);
+        thread_bos->operator[](tstate->tid) = bos;
+        lk_unlock(lk_thread_bos);
 
         if (ExecMode == EXECUTION_MODE_SIMULATE)
-            ScheduleNewThread(threadIndex);
+        {
+            ipc_message_t msg;
+            msg.ScheduleNewThread(tstate->tid);
+            SendIPCMessage(msg);
+        }
 
         if (!KnobILDJIT.Value())
         {
@@ -1072,74 +842,185 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
             tstate->ignore_all = false;
             lk_unlock(&tstate->lock);
         }
+
+        /* Add to thread_list in the end, so other threads that iterate
+         * it don't race on a not yet fully initialized structure.
+         */
+        lk_lock(&thread_list_lock, threadIndex+1);
+        virtual_affinity[threadIndex] = INVALID_CORE;
+        thread_list.push_back(threadIndex);
+        lk_unlock(&thread_list_lock);
     }
 
     lk_unlock(&syscall_lock);
 }
 
 /* ========================================================================== */
-/* Make sure that all sim threads drain any handshake buffers that could be in
- * their respective scheduler run queues.
- * Invariant: after this call, all sim threads are spinning in SimulatorLoop */
-VOID PauseSimulation(THREADID tid)
+int AllocateCores(vector<double> scaling, double serial_runtime)
 {
-    /* Here we have produced everything for this loop! */
-    disable_producers();
-    enable_consumers();
+    /* Ask timing_sim for an allocation, and block until it comes back. */
+    ipc_message_t msg;
+    msg.AllocateCores(asid, scaling, serial_runtime);
+    SendIPCMessage(msg, /*blocking*/true);
 
-    /* Since the scheduler is updated from the sim threads in SimulatorLoop,
-     * seeing empty run queues is enough to determine that the sim thread
-     * is done simulating instructions. No need for fancier synchronization. */
-
-    volatile bool cores_done = false;
-    do {
-        cores_done = true;
-        for (INT32 coreID=0; coreID < num_cores; coreID++) {
-            cores_done &= !IsCoreBusy(coreID);
-        }
-    } while (!cores_done);
+    /* Here we've finished with the allocation decision. */
+    int allocation = GetProcessCoreAllocation(asid);
+#ifdef ALLOCATOR_DEBUG
+    cerr << "ASID: " << asid << " allocated " << allocation << " cores." << endl;
+#endif
+    ASSERTX(allocation > 0);
+    return allocation;
 }
 
 /* ========================================================================== */
-/* Invariant: we are not simulating anything here. Either:
- * - Not in a pinpoints ROI.
- * - Anything after PauseSimulation (or the HELIX equivalent)
- * This implies all cores are inactive. And handshake buffers are already drained. */
-VOID StopSimulation(BOOL kill_sim_threads)
+VOID DeallocateCores()
 {
-    if (kill_sim_threads) {
-        /* Signal simulator threads to die */
-        INT32 coreID;
-        for (coreID=0; coreID < num_cores; coreID++) {
-            sim_thread_state_t* curr_tstate = get_sim_tls(sim_threadid[coreID]);
-            lk_lock(&curr_tstate->lock, 1);
-            curr_tstate->is_running = false;
-            lk_unlock(&curr_tstate->lock);
+    CoreSet empty_set;
+    UpdateProcessCoreSet(asid, empty_set);
+
+    ipc_message_t msg;
+    msg.DeallocateCores(asid);
+    SendIPCMessage(msg, /*blocking*/true);
+}
+
+/* ========================================================================== */
+VOID PauseSimulation()
+{
+    /* Here we have produced everything, we can only consume */
+    disable_producers();
+    enable_consumers();
+
+    /* Flush all buffers and cleanly let the scheduler know to deschedule
+     * once all instructions are conusmed.
+     * XXX: This can be called from a Fini callback (end of program).
+     * We can't access any TLS in that case. */
+    if (!in_fini) {
+        /* Get threads ordered by affinity */
+        auto affine_threads = GetAffineThreads();
+
+        for (THREADID tid : affine_threads) {
+            thread_state_t* tstate = get_tls(tid);
+
+            lk_lock(&tstate->lock, 1);
+            tstate->ignore_all = true;
+            lk_unlock(&tstate->lock);
+
+            /* If the thread is not seen in the scheduler queues
+             * *before de-scheduling it*, just ignore it. This covers
+             * the HELIX case, where we ignore extra threads past the
+             * number of allocated cores. */
+            if (!IsSHMThreadSimulatingMaybe(tstate->tid))
+                continue;
+
+            bool first_thread = (tid == affine_threads.front());
+            if (KnobILDJIT.Value())
+                InsertHELIXPauseCode(tid, first_thread);
+
+            /* When the handshake is consumed, this will let the scheduler
+             * de-schedule the thread */
+            pid_t curr_tid = tstate->tid;
+            handshake_container_t *handshake = xiosim::buffer_management::get_buffer(curr_tid);
+            handshake->flags.giveCoreUp = true;
+            handshake->flags.giveUpReschedule = false;
+            handshake->flags.valid = true;
+            handshake->flags.real = false;
+            xiosim::buffer_management::producer_done(curr_tid, true);
+
+            xiosim::buffer_management::flushBuffers(curr_tid);
+            if (KnobILDJIT.Value())
+                xiosim::buffer_management::resetPool(curr_tid);
         }
-
-        /* Spin until SimulatorLoop actually finishes */
-        volatile bool is_stopped;
-        do {
-            is_stopped = true;
-
-            for (coreID=0; coreID < num_cores; coreID++) {
-                sim_thread_state_t* curr_tstate = get_sim_tls(sim_threadid[coreID]);
-                lk_lock(&curr_tstate->lock, 1);
-                is_stopped &= curr_tstate->sim_stopped;
-                lk_unlock(&curr_tstate->lock);
-            }
-        } while(!is_stopped);
     }
 
-    Zesto_Destroy();
+    /* Wait until all the processes' consumer threads are done consuming.
+     * Since the scheduler is updated from the sim threads in SimulatorLoop,
+     * seeing empty run queues is enough to determine that the sim thread
+     * is done simulating instructions. No need for fancier synchronization. */
+    bool threads_done;
+    do {
+        threads_done = true;
+        list<THREADID>::iterator it;
+        ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
+            thread_state_t* tstate = get_tls(*it);
+            threads_done &= !IsSHMThreadSimulatingMaybe(tstate->tid);
+        }
+        if (!threads_done && *sleeping_enabled)
+            PIN_Sleep(10);
+    } while (!threads_done);
+
+    /* Re-enable producers once we are past the barrier. This way, they can continue
+     * ignoring instructions until the next slice. */
+    enable_producers();
+
+    /* We are done with de-scheduling threads, now we can de-allocate the cores
+     * for this process */
+    DeallocateCores();
+}
+
+/* ========================================================================== */
+VOID ResumeSimulation(bool allocate_cores)
+{
+    /* Get cores for the allocator */
+    if (allocate_cores)
+        AllocateCores(vector<double>(), 0);
+
+    /* Make sure threads start producing instructions */
+    list<THREADID>::iterator it;
+    ATOMIC_ITERATE(thread_list, it, thread_list_lock) {
+        thread_state_t* tstate = get_tls(*it);
+        lk_lock(&tstate->lock, 1);
+        tstate->firstInstruction = true;
+        tstate->ignore_all = false;
+        if (!KnobILDJIT.Value())
+            tstate->ignore = false;
+        lk_unlock(&tstate->lock);
+    }
+
+    /* Get threads ordered by affinity */
+    auto affine_threads = GetAffineThreads();
+
+    size_t allocation = GetProcessCoreAllocation(asid);
+    ASSERTX(allocation > 0);
+
+    list<pid_t> scheduled_threads;
+    bool no_oversubscribe = KnobILDJIT.Value();
+    /* If the scheduler doesn't oversubscribe (HELIX), pick the first
+     * @allocation threads, based on virtual affinity. Otherwise,
+     * schedule all threads and let them round-robin on the scheduler queues. */
+    for (THREADID curr_tid : affine_threads) {
+        thread_state_t* tstate = get_tls(curr_tid);
+        ASSERTX(xiosim::buffer_management::empty(tstate->tid));
+
+        scheduled_threads.push_back(tstate->tid);
+
+        if (no_oversubscribe && (scheduled_threads.size() == allocation))
+            break;
+    }
+
+    /* Let the scheduler schedule all these threads. */
+    ipc_message_t msg;
+    msg.ScheduleProcessThreads(asid, scheduled_threads);
+    SendIPCMessage(msg);
+
+    /* Wait until all threads have been scheduled.
+     * Since there is no guarantee when IPC messages are consumed, not
+     * waiting can cause a fast thread to race to PauseSimulation,
+     * before everyone has been scheduled to run. */
+    bool done;
+    do {
+        done = true;
+        for (pid_t curr_tid : scheduled_threads) {
+            done &= IsSHMThreadSimulatingMaybe(curr_tid);
+        }
+    } while (!done);
 }
 
 /* ========================================================================== */
 VOID ThreadFini(THREADID tid, const CONTEXT *ctxt, INT32 code, VOID *v)
 {
-    lk_lock(&printing_lock, tid+1);
+    lk_lock(printing_lock, tid+1);
     cerr << "Thread exit. ID: " << tid << endl;
-    lk_unlock(&printing_lock);
+    lk_unlock(printing_lock);
 
     thread_state_t* tstate = get_tls(tid);
 
@@ -1157,13 +1038,13 @@ VOID ThreadFini(THREADID tid, const CONTEXT *ctxt, INT32 code, VOID *v)
      * Mark it as finishing and let the handshake buffer drain.
      * Once this last handshake gets executed by a core, it will make
        sure to clean up all thread resources. */
-    handshake_container_t *handshake = handshake_buffer.get_buffer(tid);
+    handshake_container_t *handshake = xiosim::buffer_management::get_buffer(tstate->tid);
     handshake->flags.killThread = true;
     handshake->flags.valid = true;
-    handshake->handshake.real = false;
-    handshake_buffer.producer_done(tid);
+    handshake->flags.real = false;
+    xiosim::buffer_management::producer_done(tstate->tid);
 
-    handshake_buffer.flushBuffers(tid);
+    xiosim::buffer_management::flushBuffers(tstate->tid);
 
     /* Ignore subsequent instructions that we may see on this thread before
      * destroying its tstate.
@@ -1175,38 +1056,14 @@ VOID ThreadFini(THREADID tid, const CONTEXT *ctxt, INT32 code, VOID *v)
 }
 
 /* ========================================================================== */
-/* Create simulator threads and set up their local storage */
-VOID SpawnSimulatorThreads(INT32 numCores)
-{
-    cerr << numCores << endl;
-    sim_threadid = new THREADID[numCores];
-
-    THREADID tid;
-    for(INT32 i=0; i<numCores; i++) {
-        tid = PIN_SpawnInternalThread(SimulatorLoop, reinterpret_cast<VOID*>(i), 0, NULL);
-        if (tid == INVALID_THREADID) {
-            cerr << "Failed spawning sim thread " << i << endl;
-            PIN_ExitProcess(EXIT_FAILURE);
-        }
-        sim_threadid[i] = tid;
-        cerr << "Spawned sim thread " << i << " " << tid << endl;
-    }
-}
-
-/* ========================================================================== */
 INT32 main(INT32 argc, CHAR **argv)
 {
 #ifdef ZESTO_PIN_DBG
-    cerr << "Command line: ";
+    cerr << "[" << getpid() << "]" << " feeder_zesto args: ";
     for(int i=0; i<argc; i++)
        cerr << argv[i] << " ";
     cerr << endl;
 #endif
-
-    SSARGS ssargs = MakeSimpleScalarArgcArgv(argc, argv);
-
-    PIN_SemaphoreInit(&consumer_sleep_lock);
-    PIN_SemaphoreInit(&producer_sleep_lock);
 
     // Obtain  a key for TLS storage.
     tls_key = PIN_CreateThreadDataKey(0);
@@ -1214,9 +1071,16 @@ INT32 main(INT32 argc, CHAR **argv)
     PIN_Init(argc, argv);
     PIN_InitSymbols();
 
+    RegisterSignalIntercept();
+    PIN_SemaphoreInit(&producers_sem);
+
+    // Synchronize all processes here to ensure that in multiprogramming mode,
+    // no process will start too far before the others.
+    asid = InitSharedState(true, KnobHarnessPid.Value(), KnobNumCores.Value());
+    xiosim::buffer_management::InitBufferManagerProducer(KnobHarnessPid.Value(), KnobNumCores.Value());
 
     if(KnobAMDHack.Value()) {
-      amd_hack();
+        amd_hack();
     }
 
     if (KnobILDJIT.Value()) {
@@ -1241,17 +1105,6 @@ INT32 main(INT32 argc, CHAR **argv)
         pc_file << hex;
     }
 
-    if(!KnobSanityInsTraceFile.Value().empty())
-    {
-        sanity_trace.open(KnobSanityInsTraceFile.Value().c_str(), ifstream::in);
-        if(sanity_trace.fail())
-        {
-            cerr << "Couldn't open sanity trace file " << KnobSanityInsTraceFile.Value() << endl;
-            return 1;
-        }
-        sanity_trace >> hex;
-    }
-
     // Delay this instrumentation until startSimulation call in ILDJIT.
     // This cuts down HELIX compilation noticably for integer benchmarks.
 
@@ -1268,32 +1121,15 @@ INT32 main(INT32 argc, CHAR **argv)
     PIN_AddFiniFunction(Fini, 0);
     InitSyscallHandling();
 
-    if(KnobSanity.Value())
-        Zesto_Add_WriteByteCallback(Zesto_WriteByteCallback);
-    sim_release_handshake = KnobPipelineInstrumentation.Value();
-
-    Zesto_SlaveInit(ssargs.first, ssargs.second);
-
-    host_cpus = get_nprocs_conf();
-    if((host_cpus < num_cores * 2) || KnobILDJIT.Value()) {
-      sleeping_enabled = true;
-      enable_producers();
-      disable_consumers();
-    }
-    else {
-      sleeping_enabled = false;
-    }
-
-    InitScheduler(num_cores);
-
-    SpawnSimulatorThreads(num_cores);
+    *sleeping_enabled = true;
+    enable_producers();
 
     PIN_StartProgram();
 
     return 0;
 }
 
-VOID amd_hack()
+static VOID amd_hack()
 {
     // use kernel version to distinguish between RHEL5 and RHEL6
     bool rhel6 = false;
@@ -1368,66 +1204,127 @@ VOID doLateILDJITInstrumentation()
 
   ASSERTX(!calledAlready);
 
-  PIN_LockClient();
+  GetVmLock();
   TRACE_AddInstrumentFunction(InstrumentInsIgnoring, 0);
   INS_AddInstrumentFunction(Instrument, 0);
   CODECACHE_FlushCache();
-  PIN_UnlockClient();
+  ReleaseVmLock();
 
   calledAlready = true;
 }
 
-VOID disable_consumers()
-{
-  if(sleeping_enabled) {
-    if(!consumers_sleep) {
-      PIN_SemaphoreClear(&consumer_sleep_lock);
-    }
-    consumers_sleep = true;
-  }
-}
-
-VOID disable_producers()
-{
-  if(sleeping_enabled) {
-    if(!producers_sleep) {
-      PIN_SemaphoreClear(&producer_sleep_lock);
-    }
-    producers_sleep = true;
-  }
-}
-
-VOID enable_consumers()
-{
-  if(consumers_sleep) {
-    PIN_SemaphoreSet(&consumer_sleep_lock);
-  }
-  consumers_sleep = false;
-}
-
-VOID enable_producers()
-{
-  if(producers_sleep) {
-    PIN_SemaphoreSet(&producer_sleep_lock);
-  }
-  producers_sleep = false;
-}
-
-void wait_consumers()
-{
-  PIN_SemaphoreWait(&consumer_sleep_lock);
-}
-
-VOID printTrace(string stype, ADDRINT pc, THREADID tid)
+VOID printTrace(string stype, ADDRINT pc, pid_t tid)
 {
   if(ExecMode != EXECUTION_MODE_SIMULATE) {
     return;
   }
 
-  lk_lock(&printing_lock, tid+1);
-  thread_state_t* tstate = get_tls(tid);
-  uint32_t coreID = tstate->coreID;
-  pc_file << coreID << " " << stype << " " << pc << " " << pc_diss[pc] << endl;
+  lk_lock(printing_lock, tid+1);
+  pc_file << tid << " " << stype << " " << pc << " " << pc_diss[pc] << endl;
   pc_file.flush();
-  lk_unlock(&printing_lock);
+  lk_unlock(printing_lock);
+}
+
+/* Explicitly print signal info. Under some conditions, it does miss.
+ * This makes debugging segfaults easier. */
+static BOOL SignalInfo(THREADID tid, INT32 sig, CONTEXT *ctxt, BOOL hasHandler, const EXCEPTION_INFO *pExceptInfo, VOID *v)
+{
+    cerr << "Caught signal " <<  sig << " at " << hex << PIN_GetExceptionAddress(pExceptInfo) << dec << endl;
+    cerr << PIN_ExceptionToString(pExceptInfo) << endl;
+
+    return true;
+}
+
+static VOID RegisterSignalIntercept()
+{
+    PIN_InterceptSignal(SIGINT, SignalInfo, NULL);
+    PIN_InterceptSignal(SIGABRT, SignalInfo, NULL);
+    PIN_InterceptSignal(SIGFPE, SignalInfo, NULL);
+    PIN_InterceptSignal(SIGILL, SignalInfo, NULL);
+    PIN_InterceptSignal(SIGSEGV, SignalInfo, NULL);
+    PIN_InterceptSignal(SIGTERM, SignalInfo, NULL);
+    PIN_InterceptSignal(SIGKILL, SignalInfo, NULL);
+}
+
+void disable_producers()
+{
+    if (*sleeping_enabled) {
+        if (!producers_sleep)
+            PIN_SemaphoreClear(&producers_sem);
+        producers_sleep = true;
+    }
+}
+
+void enable_producers()
+{
+    if (producers_sleep)
+        PIN_SemaphoreSet(&producers_sem);
+    producers_sleep = false;
+}
+
+static void wait_producers()
+{
+    if (!*sleeping_enabled)
+        return;
+
+    if (producers_sleep)
+        PIN_SemaphoreWait(&producers_sem);
+}
+
+/* ========================================================================== */
+static void FastForwardBarrier(int slice_num)
+{
+    lk_lock(lk_num_done_fastforward, 1);
+    (*num_done_fastforward)++;
+    int processes_at_barrier = *num_done_fastforward;
+
+    /* Wait until all processes have gathered at this barrier.
+     * Disable own producers -- they are not doing anything useful.
+     */
+    while (*num_done_fastforward < *num_processes) {
+        lk_unlock(lk_num_done_fastforward);
+        disable_producers();
+        xio_sleep(100);
+        lk_lock(lk_num_done_fastforward, 1);
+    }
+
+    /* If this is the last process on the barrier, start a simulation slice. */
+    if (processes_at_barrier == *num_processes) {
+        *num_done_fastforward = 0;
+
+        ipc_message_t msg;
+        msg.SliceStart(slice_num);
+        SendIPCMessage(msg);
+    }
+
+    /* And let producers produce. */
+    enable_producers();
+    lk_unlock(lk_num_done_fastforward);
+}
+
+/* ========================================================================== */
+static void SliceEndBarrier(int slice_num, int slice_length, int slice_weight_times_1000)
+{
+    lk_lock(lk_num_done_slice, 1);
+    (*num_done_slice)++;
+    int processes_at_barrier = *num_done_slice;
+
+    /* Wait until all processes have gathered at this barrier. */
+    while (*num_done_slice < *num_processes) {
+        lk_unlock(lk_num_done_slice);
+        disable_producers();
+        xio_sleep(100);
+        lk_lock(lk_num_done_slice, 1);
+    }
+
+    /* If this is the last process on the barrier, end a simulation slice. */
+    if (processes_at_barrier == *num_processes) {
+        *num_done_slice = 0;
+
+        ipc_message_t msg;
+        msg.SliceEnd(slice_num, slice_length, slice_weight_times_1000);
+        SendIPCMessage(msg);
+    }
+
+    lk_unlock(lk_num_done_slice);
 }

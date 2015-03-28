@@ -1,43 +1,33 @@
-/*------------------------------------------------------------
- *                              CACTI 6.5
- *         Copyright 2008 Hewlett-Packard Development Corporation
- *                         All Rights Reserved
+/*****************************************************************************
+ *                                McPAT/CACTI
+ *                      SOFTWARE LICENSE AGREEMENT
+ *            Copyright 2012 Hewlett-Packard Development Company, L.P.
+ *                          All Rights Reserved
  *
- * Permission to use, copy, and modify this software and its documentation is
- * hereby granted only under the following terms and conditions.  Both the
- * above copyright notice and this permission notice must appear in all copies
- * of the software, derivative works or modified versions, and any portions
- * thereof, and both notices must appear in supporting documentation.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met: redistributions of source code must retain the above copyright
+ * notice, this list of conditions and the following disclaimer;
+ * redistributions in binary form must reproduce the above copyright
+ * notice, this list of conditions and the following disclaimer in the
+ * documentation and/or other materials provided with the distribution;
+ * neither the name of the copyright holders nor the names of its
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.”
  *
- * Users of this software agree to the terms and conditions set forth herein, and
- * hereby grant back to Hewlett-Packard Company and its affiliated companies ("HP")
- * a non-exclusive, unrestricted, royalty-free right and license under any changes,
- * enhancements or extensions  made to the core functions of the software, including
- * but not limited to those affording compatibility with other hardware or software
- * environments, but excluding applications which incorporate this software.
- * Users further agree to use their best efforts to return to HP any such changes,
- * enhancements or extensions that they make and inform HP of noteworthy uses of
- * this software.  Correspondence should be provided to HP at:
- *
- *                       Director of Intellectual Property Licensing
- *                       Office of Strategy and Technology
- *                       Hewlett-Packard Company
- *                       1501 Page Mill Road
- *                       Palo Alto, California  94304
- *
- * This software may be distributed (but not offered for sale or transferred
- * for compensation) to third parties, provided such third parties agree to
- * abide by the terms and conditions of this notice.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" AND HP DISCLAIMS ALL
- * WARRANTIES WITH REGARD TO THIS SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS.   IN NO EVENT SHALL HP
- * CORPORATION BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
- * DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR
- * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS
- * ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
- * SOFTWARE.
- *------------------------------------------------------------*/
+ ***************************************************************************/
 
 
 
@@ -59,7 +49,9 @@ Decoder::Decoder(
     bool   fully_assoc_,
     bool   is_dram_,
     bool   is_wl_tr_,
-    const  Area & cell_)
+    const  Area & cell_,
+    bool power_gating_,
+    int nodes_DSTN_)
 :exist(false),
   C_ld_dec_out(_C_ld_dec_out),
   R_wire_dec_out(_R_wire_dec_out),
@@ -67,7 +59,13 @@ Decoder::Decoder(
   delay(0),
   //power(),
   fully_assoc(fully_assoc_), is_dram(is_dram_),
-  is_wl_tr(is_wl_tr_), cell(cell_)
+  is_wl_tr(is_wl_tr_),
+  total_driver_nwidth(0),
+  total_driver_pwidth(0),
+  cell(cell_),
+  power_gating(power_gating_),
+  nodes_DSTN(nodes_DSTN_),
+  sleeptx(NULL)
 {
 
   for (int i = 0; i < MAX_NUMBER_GATES_STAGE; i++)
@@ -117,6 +115,7 @@ Decoder::Decoder(
 
   compute_widths();
   compute_area();
+
 }
 
 
@@ -156,6 +155,7 @@ void Decoder::compute_widths()
         is_dram,
         is_wl_tr,
         g_tp.max_w_nmos_dec);
+
   }
 }
 
@@ -189,13 +189,46 @@ void Decoder::compute_area()
       cumulative_curr_Ig = cmos_Ig_leakage(w_dec_n[i], w_dec_p[i], 1, inv, is_dram);
     }
     power.readOp.leakage = cumulative_curr * g_tp.peri_global.Vdd;
+    power.readOp.power_gated_leakage = cumulative_curr * g_tp.peri_global.Vcc_min;
     power.readOp.gate_leakage = cumulative_curr_Ig * g_tp.peri_global.Vdd;
 
     area.w = (cumulative_area / area.h);
+    if (power_gating)
+    	{
+    		compute_power_gating();
+    	    cumulative_area += sleeptx->area.get_area();
+    	    area.w = (cumulative_area / area.h);
+    	}
   }
 }
 
+void Decoder::compute_power_gating()
+{
+	//For all driver chains there is only one sleep transistors to save area
+    //Total transistor width for sleep tx calculation
+    for (int i = 0;  i <num_gates; i++)
+      {
+    	total_driver_nwidth += w_dec_n[i];
+    	total_driver_pwidth += w_dec_p[i];
+      }
 
+    //compute sleep tx
+    bool is_footer = false;
+    double Isat_subarray = simplified_nmos_Isat(total_driver_nwidth);
+    double detalV;
+    double c_wakeup;
+
+    c_wakeup = drain_C_(total_driver_pwidth, _PCH, 1, 1, cell.h);//Psleep tx
+    detalV = g_tp.peri_global.Vdd-g_tp.peri_global.Vcc_min;
+//    if (g_ip->power_gating)
+    	sleeptx =  new Sleep_tx (g_ip->perfloss,
+    			Isat_subarray,
+    			is_footer,
+    			c_wakeup,
+    			detalV,
+    			nodes_DSTN,
+    			area);
+}
 
 double Decoder::compute_delays(double inrisetime)
 {
@@ -229,6 +262,7 @@ double Decoder::compute_delays(double inrisetime)
     delay += this_delay;
     inrisetime = this_delay / (1.0 - 0.5);
     power.readOp.dynamic += (c_load + c_intrinsic) * Vdd * Vdd;
+//    cout<<"w_dec_n["<<0<<"] = "<<w_dec_n[0]<<" delay = "<<this_delay<<" tf= "<<tf  <<endl;
 
     for (i = 1; i < num_gates - 1; ++i)
     {
@@ -241,7 +275,9 @@ double Decoder::compute_delays(double inrisetime)
       delay += this_delay;
       inrisetime = this_delay / (1.0 - 0.5);
       power.readOp.dynamic += (c_load + c_intrinsic) * Vdd * Vdd;
+//      cout<<"w_dec_n["<<i<<"] = "<<w_dec_n[i]<<" delay = "<<this_delay<<" tf= "<<tf  <<endl;
     }
+//    cout<<endl;
 
     // add delay of final inverter that drives the wordline
     i = num_gates - 1;
@@ -255,6 +291,7 @@ double Decoder::compute_delays(double inrisetime)
     ret_val = this_delay / (1.0 - 0.5);
     power.readOp.dynamic += c_load * Vpp * Vpp + c_intrinsic * Vdd * Vdd;
 
+//    cout<<"w_dec_n["<<i<<"] = "<<w_dec_n[i]<<" delay = "<<this_delay<<" tf= "<<tf  << " tr_R_on "<< rd <<" R_wire_dec_out = " <<R_wire_dec_out <<endl;
     return ret_val;
   }
   else
@@ -263,7 +300,34 @@ double Decoder::compute_delays(double inrisetime)
   }
 }
 
+void Decoder::leakage_feedback(double temperature)
+{
+  double cumulative_curr = 0;  // cumulative leakage current
+  double cumulative_curr_Ig = 0;  // cumulative leakage current
 
+  if (exist)
+  { // First check if this decoder exists
+    if (num_in_signals == 2)
+    {
+      cumulative_curr = cmos_Isub_leakage(w_dec_n[0], w_dec_p[0], 2, nand,is_dram);
+      cumulative_curr_Ig = cmos_Ig_leakage(w_dec_n[0], w_dec_p[0], 2, nand,is_dram);
+    }
+    else if (num_in_signals == 3)
+    {
+      cumulative_curr = cmos_Isub_leakage(w_dec_n[0], w_dec_p[0], 3, nand, is_dram);;
+      cumulative_curr_Ig = cmos_Ig_leakage(w_dec_n[0], w_dec_p[0], 3, nand, is_dram);
+    }
+
+    for (int i = 1; i < num_gates; i++)
+    {
+      cumulative_curr += cmos_Isub_leakage(w_dec_n[i], w_dec_p[i], 1, inv, is_dram);
+      cumulative_curr_Ig = cmos_Ig_leakage(w_dec_n[i], w_dec_p[i], 1, inv, is_dram);
+    }
+
+    power.readOp.leakage = cumulative_curr * g_tp.peri_global.Vdd;
+    power.readOp.gate_leakage = cumulative_curr_Ig * g_tp.peri_global.Vdd;
+  }
+}
 
 PredecBlk::PredecBlk(
     int    num_dec_signals,
@@ -678,6 +742,11 @@ void PredecBlk::compute_area()
     power_nand2_path.readOp.leakage = leak_L1_nand2 * g_tp.peri_global.Vdd;
     power_nand3_path.readOp.leakage = leak_L1_nand3 * g_tp.peri_global.Vdd;
     power_L2.readOp.leakage         = leakage_L2    * g_tp.peri_global.Vdd;
+
+    power_nand2_path.readOp.power_gated_leakage = leak_L1_nand2 * g_tp.peri_global.Vcc_min;
+    power_nand3_path.readOp.power_gated_leakage = leak_L1_nand3 * g_tp.peri_global.Vcc_min;
+    power_L2.readOp.power_gated_leakage         = leakage_L2    * g_tp.peri_global.Vcc_min;
+
     area.set_area(cumulative_area_L1 + cumulative_area_L2);
     power_nand2_path.readOp.gate_leakage = gate_leak_L1_nand2 * g_tp.peri_global.Vdd;
     power_nand3_path.readOp.gate_leakage = gate_leak_L1_nand3 * g_tp.peri_global.Vdd;
@@ -879,7 +948,137 @@ pair<double, double> PredecBlk::compute_delays(
   return ret_val;
 }
 
+void PredecBlk::leakage_feedback(double temperature)
+{
+  if (exist)
+  { // First check whether a predecoder block is needed
+    int num_L1_nand2 = 0;
+    int num_L1_nand3 = 0;
+    int num_L2 = 0;
+    double leak_L1_nand3      =0;
+    double gate_leak_L1_nand3 =0;
 
+    double leak_L1_nand2      = cmos_Isub_leakage(w_L1_nand2_n[0], w_L1_nand2_p[0], 2, nand, is_dram_);
+    double gate_leak_L1_nand2 = cmos_Ig_leakage(w_L1_nand2_n[0], w_L1_nand2_p[0], 2, nand, is_dram_);
+    if (number_inputs_L1_gate != 3) {
+      leak_L1_nand3 = 0;
+      gate_leak_L1_nand3 =0;
+    }
+    else {
+      leak_L1_nand3      = cmos_Isub_leakage(w_L1_nand3_n[0], w_L1_nand3_p[0], 3, nand);
+      gate_leak_L1_nand3 = cmos_Ig_leakage(w_L1_nand3_n[0], w_L1_nand3_p[0], 3, nand);
+    }
+
+    switch (number_input_addr_bits)
+    {
+      case 1: //2 NAND2 gates
+        num_L1_nand2 = 2;
+        num_L2       = 0;
+        num_L1_active_nand2_path =1;
+        num_L1_active_nand3_path =0;
+        break;
+      case 2: //4 NAND2 gates
+        num_L1_nand2 = 4;
+        num_L2       = 0;
+        num_L1_active_nand2_path =1;
+        num_L1_active_nand3_path =0;
+        break;
+      case 3: //8 NAND3 gates
+        num_L1_nand3 = 8;
+        num_L2       = 0;
+        num_L1_active_nand2_path =0;
+        num_L1_active_nand3_path =1;
+        break;
+      case 4: //4 + 4 NAND2 gates
+        num_L1_nand2 = 8;
+        num_L2       = 16;
+        num_L1_active_nand2_path =2;
+        num_L1_active_nand3_path =0;
+        break;
+      case 5: //4 NAND2 gates, 8 NAND3 gates
+        num_L1_nand2 = 4;
+        num_L1_nand3 = 8;
+        num_L2       = 32;
+        num_L1_active_nand2_path =1;
+        num_L1_active_nand3_path =1;
+        break;
+      case 6: //8 + 8 NAND3 gates
+        num_L1_nand3 = 16;
+        num_L2       = 64;
+        num_L1_active_nand2_path =0;
+        num_L1_active_nand3_path =2;
+        break;
+      case 7: //4 + 4 NAND2 gates, 8 NAND3 gates
+        num_L1_nand2 = 8;
+        num_L1_nand3 = 8;
+        num_L2       = 128;
+        num_L1_active_nand2_path =2;
+        num_L1_active_nand3_path =1;
+        break;
+      case 8: //4 NAND2 gates, 8 + 8 NAND3 gates
+        num_L1_nand2 = 4;
+        num_L1_nand3 = 16;
+        num_L2       = 256;
+        num_L1_active_nand2_path =2;
+        num_L1_active_nand3_path =2;
+        break;
+      case 9: //8 + 8 + 8 NAND3 gates
+        num_L1_nand3 = 24;
+        num_L2       = 512;
+        num_L1_active_nand2_path =0;
+        num_L1_active_nand3_path =3;
+        break;
+      default:
+        break;
+    }
+
+    for (int i = 1; i < number_gates_L1_nand2_path; ++i)
+    {
+      leak_L1_nand2      += cmos_Isub_leakage(w_L1_nand2_n[i], w_L1_nand2_p[i], 2, nand, is_dram_);
+      gate_leak_L1_nand2 += cmos_Ig_leakage(w_L1_nand2_n[i], w_L1_nand2_p[i], 2, nand, is_dram_);
+    }
+    leak_L1_nand2      *= num_L1_nand2;
+    gate_leak_L1_nand2 *= num_L1_nand2;
+
+    for (int i = 1; i < number_gates_L1_nand3_path; ++i)
+    {
+      leak_L1_nand3      += cmos_Isub_leakage(w_L1_nand3_n[i], w_L1_nand3_p[i], 3, nand, is_dram_);
+      gate_leak_L1_nand3 += cmos_Ig_leakage(w_L1_nand3_n[i], w_L1_nand3_p[i], 3, nand, is_dram_);
+    }
+    leak_L1_nand3      *= num_L1_nand3;
+    gate_leak_L1_nand3 *= num_L1_nand3;
+
+    double leakage_L2         = 0.0;
+    double gate_leakage_L2    = 0.0;
+
+    if (flag_L2_gate == 2)
+    {
+      leakage_L2         = cmos_Isub_leakage(w_L2_n[0], w_L2_p[0], 2, nand, is_dram_);
+      gate_leakage_L2    = cmos_Ig_leakage(w_L2_n[0], w_L2_p[0], 2, nand, is_dram_);
+    }
+    else if (flag_L2_gate == 3)
+    {
+      leakage_L2         = cmos_Isub_leakage(w_L2_n[0], w_L2_p[0], 3, nand, is_dram_);
+      gate_leakage_L2    = cmos_Ig_leakage(w_L2_n[0], w_L2_p[0], 3, nand, is_dram_);
+    }
+
+    for (int i = 1; i < number_gates_L2; ++i)
+    {
+      leakage_L2         += cmos_Isub_leakage(w_L2_n[i], w_L2_p[i], 2, inv, is_dram_);
+      gate_leakage_L2    += cmos_Ig_leakage(w_L2_n[i], w_L2_p[i], 2, inv, is_dram_);
+    }
+    leakage_L2         *= num_L2;
+    gate_leakage_L2    *= num_L2;
+
+    power_nand2_path.readOp.leakage = leak_L1_nand2 * g_tp.peri_global.Vdd;
+    power_nand3_path.readOp.leakage = leak_L1_nand3 * g_tp.peri_global.Vdd;
+    power_L2.readOp.leakage         = leakage_L2    * g_tp.peri_global.Vdd;
+
+    power_nand2_path.readOp.gate_leakage = gate_leak_L1_nand2 * g_tp.peri_global.Vdd;
+    power_nand3_path.readOp.gate_leakage = gate_leak_L1_nand3 * g_tp.peri_global.Vdd;
+    power_L2.readOp.gate_leakage         = gate_leakage_L2    * g_tp.peri_global.Vdd;
+  }
+}
 
 PredecBlkDrv::PredecBlkDrv(
     int    way_select_,
@@ -1095,6 +1294,8 @@ void PredecBlkDrv::compute_area()
 
     power_nand2_path.readOp.leakage = leak_nand2_path * g_tp.peri_global.Vdd;
     power_nand3_path.readOp.leakage = leak_nand3_path * g_tp.peri_global.Vdd;
+    power_nand2_path.readOp.power_gated_leakage = leak_nand2_path * g_tp.peri_global.Vcc_min;
+    power_nand3_path.readOp.power_gated_leakage = leak_nand3_path * g_tp.peri_global.Vcc_min;
     power_nand2_path.readOp.gate_leakage = gate_leak_nand2_path * g_tp.peri_global.Vdd;
     power_nand3_path.readOp.gate_leakage = gate_leak_nand3_path * g_tp.peri_global.Vdd;
     area.set_area(area_nand2_path + area_nand3_path);
@@ -1142,6 +1343,7 @@ pair<double, double> PredecBlkDrv::compute_delays(
       delay_nand2_path += this_delay;
       ret_val.first = this_delay / (1.0 - 0.5);
       power_nand2_path.readOp.dynamic += (c_intrinsic + c_load) * 0.5 * Vdd * Vdd;
+//      cout<< "c_intrinsic = " << c_intrinsic << "c_load" << c_load <<endl;
     }
 
     for (i = 0; i < number_gates_nand3_path - 1; ++i)
@@ -1199,7 +1401,21 @@ Predec::Predec(
                                blk2->power_nand2_path.readOp.leakage +
                                blk2->power_nand3_path.readOp.leakage +
                                blk2->power_L2.readOp.leakage;
+
+  driver_power.readOp.power_gated_leakage = drv1->power_nand2_path.readOp.power_gated_leakage +
+                                drv1->power_nand3_path.readOp.power_gated_leakage +
+                                drv2->power_nand2_path.readOp.power_gated_leakage +
+                                drv2->power_nand3_path.readOp.power_gated_leakage;
+  block_power.readOp.power_gated_leakage = blk1->power_nand2_path.readOp.power_gated_leakage +
+                               blk1->power_nand3_path.readOp.power_gated_leakage +
+                               blk1->power_L2.readOp.power_gated_leakage +
+                               blk2->power_nand2_path.readOp.power_gated_leakage +
+                               blk2->power_nand3_path.readOp.power_gated_leakage +
+                               blk2->power_L2.readOp.power_gated_leakage;
+
   power.readOp.leakage = driver_power.readOp.leakage + block_power.readOp.leakage;
+
+  power.readOp.power_gated_leakage = driver_power.readOp.power_gated_leakage + block_power.readOp.power_gated_leakage;
 
   driver_power.readOp.gate_leakage = drv1->power_nand2_path.readOp.gate_leakage +
                                   drv1->power_nand3_path.readOp.gate_leakage +
@@ -1214,7 +1430,41 @@ Predec::Predec(
   power.readOp.gate_leakage = driver_power.readOp.gate_leakage + block_power.readOp.gate_leakage;
 }
 
+void PredecBlkDrv::leakage_feedback(double temperature)
+{
+  double leak_nand2_path = 0;
+  double leak_nand3_path = 0;
+  double gate_leak_nand2_path = 0;
+  double gate_leak_nand3_path = 0;
 
+  if (flag_driver_exists)
+  { // first check whether a predecoder block driver is needed
+    for (int i = 0; i < number_gates_nand2_path; ++i)
+    {
+      leak_nand2_path += cmos_Isub_leakage(width_nand2_path_n[i], width_nand2_path_p[i], 1, inv,is_dram_);
+      gate_leak_nand2_path += cmos_Ig_leakage(width_nand2_path_n[i], width_nand2_path_p[i], 1, inv,is_dram_);
+    }
+    leak_nand2_path *= (num_buffers_driving_1_nand2_load +
+                        num_buffers_driving_2_nand2_load +
+                        num_buffers_driving_4_nand2_load);
+    gate_leak_nand2_path *= (num_buffers_driving_1_nand2_load +
+                            num_buffers_driving_2_nand2_load +
+                            num_buffers_driving_4_nand2_load);
+
+    for (int i = 0; i < number_gates_nand3_path; ++i)
+    {
+      leak_nand3_path += cmos_Isub_leakage(width_nand3_path_n[i], width_nand3_path_p[i], 1, inv,is_dram_);
+      gate_leak_nand3_path += cmos_Ig_leakage(width_nand3_path_n[i], width_nand3_path_p[i], 1, inv,is_dram_);
+    }
+    leak_nand3_path *= (num_buffers_driving_2_nand3_load + num_buffers_driving_8_nand3_load);
+    gate_leak_nand3_path *= (num_buffers_driving_2_nand3_load + num_buffers_driving_8_nand3_load);
+
+    power_nand2_path.readOp.leakage = leak_nand2_path * g_tp.peri_global.Vdd;
+    power_nand3_path.readOp.leakage = leak_nand3_path * g_tp.peri_global.Vdd;
+    power_nand2_path.readOp.gate_leakage = gate_leak_nand2_path * g_tp.peri_global.Vdd;
+    power_nand3_path.readOp.gate_leakage = gate_leak_nand3_path * g_tp.peri_global.Vdd;
+  }
+}
 
 double Predec::compute_delays(double inrisetime)
 {
@@ -1247,6 +1497,37 @@ double Predec::compute_delays(double inrisetime)
 }
 
 
+void Predec::leakage_feedback(double temperature)
+{
+  drv1->leakage_feedback(temperature);
+  drv2->leakage_feedback(temperature);
+  blk1->leakage_feedback(temperature);
+  blk2->leakage_feedback(temperature);
+
+  driver_power.readOp.leakage = drv1->power_nand2_path.readOp.leakage +
+                                drv1->power_nand3_path.readOp.leakage +
+                                drv2->power_nand2_path.readOp.leakage +
+                                drv2->power_nand3_path.readOp.leakage;
+  block_power.readOp.leakage = blk1->power_nand2_path.readOp.leakage +
+                               blk1->power_nand3_path.readOp.leakage +
+                               blk1->power_L2.readOp.leakage +
+                               blk2->power_nand2_path.readOp.leakage +
+                               blk2->power_nand3_path.readOp.leakage +
+                               blk2->power_L2.readOp.leakage;
+  power.readOp.leakage = driver_power.readOp.leakage + block_power.readOp.leakage;
+
+  driver_power.readOp.gate_leakage = drv1->power_nand2_path.readOp.gate_leakage +
+                                  drv1->power_nand3_path.readOp.gate_leakage +
+                                  drv2->power_nand2_path.readOp.gate_leakage +
+                                  drv2->power_nand3_path.readOp.gate_leakage;
+  block_power.readOp.gate_leakage = blk1->power_nand2_path.readOp.gate_leakage +
+                                 blk1->power_nand3_path.readOp.gate_leakage +
+                                 blk1->power_L2.readOp.gate_leakage +
+                                 blk2->power_nand2_path.readOp.gate_leakage +
+                                 blk2->power_nand3_path.readOp.gate_leakage +
+                                 blk2->power_L2.readOp.gate_leakage;
+  power.readOp.gate_leakage = driver_power.readOp.gate_leakage + block_power.readOp.gate_leakage;
+}
 
 // returns <delay, risetime>
 pair<double, double> Predec::get_max_delay_before_decoder(
@@ -1283,15 +1564,20 @@ pair<double, double> Predec::get_max_delay_before_decoder(
 
 
 
-Driver::Driver(double c_gate_load_, double c_wire_load_, double r_wire_load_, bool is_dram)
+Driver::Driver(double c_gate_load_, double c_wire_load_, double r_wire_load_, bool is_dram, bool power_gating_, int nodes_DSTN_)
 :number_gates(0),
   min_number_gates(2),
   c_gate_load(c_gate_load_),
   c_wire_load(c_wire_load_),
   r_wire_load(r_wire_load_),
   delay(0),
-  power(),
-  is_dram_(is_dram)
+//  power(),
+  is_dram_(is_dram),
+  total_driver_nwidth(0),
+  total_driver_pwidth(0),
+  power_gating(power_gating_),
+  nodes_DSTN(nodes_DSTN_),
+  sleeptx(NULL)
 {
   for (int i = 0; i < MAX_NUMBER_GATES_STAGE; i++)
   {
@@ -1300,6 +1586,7 @@ Driver::Driver(double c_gate_load_, double c_wire_load_, double r_wire_load_, bo
   }
 
   compute_widths();
+  compute_area();
 }
 
 
@@ -1323,6 +1610,52 @@ void Driver::compute_widths()
       g_tp.max_w_nmos_);
 }
 
+void Driver::compute_area()
+{
+  double cumulative_area = 0;
+
+    area.h = g_tp.cell_h_def;
+    for (int i = 0; i < number_gates; i++)
+    {
+      cumulative_area += compute_gate_area(INV, 1, width_p[i], width_n[i], area.h);
+
+    }
+    area.w = (cumulative_area / area.h);
+    if (power_gating)
+    	{
+    		compute_power_gating();
+    	    cumulative_area += sleeptx->area.get_area();
+    	    area.w = (cumulative_area / area.h);
+    	}
+}
+
+void Driver::compute_power_gating()
+{
+	//For all driver chains there is only one sleep transistors to save area
+    //Total transistor width for sleep tx calculation
+    for (int i = 0;  i <number_gates; i++)
+      {
+    	total_driver_nwidth += width_n[i];
+    	total_driver_pwidth += width_p[i];
+      }
+
+    //compute sleep tx
+    bool is_footer = false;
+    double Isat_subarray = simplified_nmos_Isat(total_driver_nwidth);
+    double detalV;
+    double c_wakeup;
+
+    c_wakeup = drain_C_(total_driver_pwidth, _PCH, 1, 1, area.h);//Psleep tx
+    detalV = g_tp.peri_global.Vdd-g_tp.peri_global.Vcc_min;
+//    if (g_ip->power_gating)
+    	sleeptx =  new Sleep_tx (g_ip->perfloss,
+    			Isat_subarray,
+    			is_footer,
+    			c_wakeup,
+    			detalV,
+    			nodes_DSTN,//default is 1 for drivers
+    			area);
+}
 
 
 double Driver::compute_delay(double inrisetime)
@@ -1343,6 +1676,7 @@ double Driver::compute_delay(double inrisetime)
     inrisetime = this_delay / (1.0 - 0.5);
     power.readOp.dynamic += (c_intrinsic + c_load) * g_tp.peri_global.Vdd * g_tp.peri_global.Vdd;
     power.readOp.leakage += cmos_Isub_leakage(width_n[i], width_p[i], 1, inv, is_dram_) *g_tp.peri_global.Vdd;
+    power.readOp.power_gated_leakage += cmos_Isub_leakage(width_n[i], width_p[i], 1, inv, is_dram_) *g_tp.peri_global.Vcc_min;
     power.readOp.gate_leakage += cmos_Ig_leakage(width_n[i], width_p[i], 1, inv, is_dram_)* g_tp.peri_global.Vdd;
   }
 
@@ -1356,8 +1690,10 @@ double Driver::compute_delay(double inrisetime)
   delay += this_delay;
   power.readOp.dynamic += (c_intrinsic + c_load) * g_tp.peri_global.Vdd * g_tp.peri_global.Vdd;
   power.readOp.leakage += cmos_Isub_leakage(width_n[i], width_p[i], 1, inv, is_dram_) * g_tp.peri_global.Vdd;
+  power.readOp.power_gated_leakage += cmos_Isub_leakage(width_n[i], width_p[i], 1, inv, is_dram_) * g_tp.peri_global.Vcc_min;
   power.readOp.gate_leakage += cmos_Ig_leakage(width_n[i], width_p[i], 1, inv, is_dram_)* g_tp.peri_global.Vdd;
 
   return this_delay / (1.0 - 0.5);
 }
 
+//TODO: add sleep tx in predec/predecblk/predecdriver

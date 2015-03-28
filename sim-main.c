@@ -105,11 +105,6 @@ struct stat_sdb_t *rtp_sdb;
 
 /* redirected program/simulator output file names */
 const char *sim_simout = NULL;
-const char *sim_progout = NULL;
-FILE *sim_progfd = NULL;
-
-/* track first argument orphan, this is the program to execute */
-int exec_index = -1;
 
 /* dump help information */
 bool help_me;
@@ -117,30 +112,26 @@ bool help_me;
 /* random number generator seed */
 int rand_seed;
 
-/* default simulator scheduling priority */
-#define NICE_DEFAULT_VALUE		0
-
-int start_pos = 0;
+/* spin on assertion failure so we can attach a debbuger */
+bool assert_spin;
 
 int
 orphan_fn(int i, int argc, char **argv)
 {
-  exec_index = i;
+  (void)i; (void) argc; (void)argv;
   return /* done */FALSE;
 }
 
 void
 banner(FILE *fd, int argc, char **argv)
 {
-  char *s;
-
   fprintf(fd,
 	  "%s: SimpleScalar/%s Tool Set version %d.%d of %s.\n"
 	  "Copyright (C) 2000-2002 by The Regents of The University of Michigan.\n"
           "Copyright (C) 1994-2002 by Todd M. Austin, Ph.D. and SimpleScalar, LLC.\n"
 	  "This version of SimpleScalar is licensed for academic non-commercial use only.\n"
 	  "\n",
-	  ((s = strrchr(argv[0], '/')) ? s+1 : argv[0]),
+	  (argv[0]),
 	  VER_TARGET, VER_MAJOR, VER_MINOR, VER_UPDATE);
 }
 

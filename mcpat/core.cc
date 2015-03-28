@@ -1,48 +1,31 @@
 /*****************************************************************************
  *                                McPAT
  *                      SOFTWARE LICENSE AGREEMENT
- *            Copyright 2009 Hewlett-Packard Development Company, L.P.
+ *            Copyright 2012 Hewlett-Packard Development Company, L.P.
  *                          All Rights Reserved
  *
- * Permission to use, copy, and modify this software and its documentation is
- * hereby granted only under the following terms and conditions.  Both the
- * above copyright notice and this permission notice must appear in all copies
- * of the software, derivative works or modified versions, and any portions
- * thereof, and both notices must appear in supporting documentation.
- *
- * Any User of the software ("User"), by accessing and using it, agrees to the
- * terms and conditions set forth herein, and hereby grants back to Hewlett-
- * Packard Development Company, L.P. and its affiliated companies ("HP") a
- * non-exclusive, unrestricted, royalty-free right and license to copy,
- * modify, distribute copies, create derivate works and publicly display and
- * use, any changes, modifications, enhancements or extensions made to the
- * software by User, including but not limited to those affording
- * compatibility with other hardware or software, but excluding pre-existing
- * software applications that may incorporate the software.  User further
- * agrees to use its best efforts to inform HP of any such changes,
- * modifications, enhancements or extensions.
- *
- * Correspondence should be provided to HP at:
- *
- * Director of Intellectual Property Licensing
- * Office of Strategy and Technology
- * Hewlett-Packard Company
- * 1501 Page Mill Road
- * Palo Alto, California  94304
- *
- * The software may be further distributed by User (but not offered for
- * sale or transferred for compensation) to third parties, under the
- * condition that such third parties agree to abide by the terms and
- * conditions of this license.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" WITH ANY AND ALL ERRORS AND DEFECTS
- * AND USER ACKNOWLEDGES THAT THE SOFTWARE MAY CONTAIN ERRORS AND DEFECTS.
- * HP DISCLAIMS ALL WARRANTIES WITH REGARD TO THE SOFTWARE, INCLUDING ALL
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS.   IN NO EVENT SHALL
- * HP BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES
- * OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
- * WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER ACTION, ARISING
- * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THE SOFTWARE.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met: redistributions of source code must retain the above copyright
+ * notice, this list of conditions and the following disclaimer;
+ * redistributions in binary form must reproduce the above copyright
+ * notice, this list of conditions and the following disclaimer in the
+ * documentation and/or other materials provided with the distribution;
+ * neither the name of the copyright holders nor the names of its
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.”
  *
  ***************************************************************************/
 
@@ -93,7 +76,8 @@ InstFetchU::InstFetchU(ParseXML* XML_interface, int ithCore_, InputParameter* in
 	  interface_ip.line_sz             = debug?64:(int)XML->sys.core[ithCore].icache.icache_config[1];
 	  interface_ip.assoc               = debug?8:(int)XML->sys.core[ithCore].icache.icache_config[2];
 	  interface_ip.nbanks              = debug?1:(int)XML->sys.core[ithCore].icache.icache_config[3];
-	  interface_ip.out_w               = interface_ip.line_sz*8;
+	  //XXX: SK: Icaches on intel fetch 16B at a time (despite larger line size).
+	  interface_ip.out_w               = 16 * 8;
 	  interface_ip.access_mode         = 0;//debug?0:XML->sys.core[ithCore].icache.icache_config[5];
 	  interface_ip.throughput          = debug?1.0/clockRate:XML->sys.core[ithCore].icache.icache_config[4]/clockRate;
 	  interface_ip.latency             = debug?3.0/clockRate:XML->sys.core[ithCore].icache.icache_config[5]/clockRate;
@@ -529,7 +513,7 @@ SchedulerU::SchedulerU(ParseXML* XML_interface, int ithCore_, InputParameter* in
 		 * instructions from multiple ready ones(although these ready ones are from different threads).While SMT processors do not distinguish which thread belongs to who
 		 * at the issue stage.
 		 */
-
+		interface_ip.assoc               = 1; //reset to prevent unnecessary warning messages when init_interface
 		instruction_selection = new selection_logic(is_default, XML->sys.core[ithCore].instruction_window_size,
 				coredynp->peak_issueW*XML->sys.core[ithCore].number_hardware_threads,
 				&interface_ip, Core_device, coredynp->core_ty);
@@ -703,6 +687,7 @@ LoadStoreU::LoadStoreU(ParseXML* XML_interface, int ithCore_, InputParameter* in
  interface_ip(*interface_ip_),
  coredynp(dyn_p_),
  LSQ(0),
+ LoadQ(0),
  exist(exist_)
 {
 	  if (!exist) return;
@@ -731,7 +716,8 @@ LoadStoreU::LoadStoreU(ParseXML* XML_interface, int ithCore_, InputParameter* in
 	  interface_ip.line_sz             = debug?64:(int)XML->sys.core[ithCore].dcache.dcache_config[1];
 	  interface_ip.assoc               = debug?8:(int)XML->sys.core[ithCore].dcache.dcache_config[2];
 	  interface_ip.nbanks              = debug?1:(int)XML->sys.core[ithCore].dcache.dcache_config[3];
-	  interface_ip.out_w               = interface_ip.line_sz*8;
+	  // XXX: SK: hardcore for pre-Haswell Intel machines (HSW is 256).
+	  interface_ip.out_w               = 16 * 8;
 	  interface_ip.access_mode         = 0;//debug?0:XML->sys.core[ithCore].dcache.dcache_config[5];
 	  interface_ip.throughput          = debug?1.0/clockRate:XML->sys.core[ithCore].dcache.dcache_config[4]/clockRate;
 	  interface_ip.latency             = debug?3.0/clockRate:XML->sys.core[ithCore].dcache.dcache_config[5]/clockRate;
@@ -889,7 +875,6 @@ LoadStoreU::LoadStoreU(ParseXML* XML_interface, int ithCore_, InputParameter* in
 	  LSQ = new ArrayST(&interface_ip, "Load(Store)Queue", Core_device, coredynp->opt_local, coredynp->core_ty);
 	  LSQ->area.set_area(LSQ->area.get_area()+ LSQ->local_result.area);
 	  area.set_area(area.get_area()+ LSQ->local_result.area);
-	  area.set_area(area.get_area()*cdb_overhead);
 	  //output_data_csv(LSQ.LSQ.local_result);
 	  lsq_height=LSQ->local_result.cache_ht*sqrt(cdb_overhead);/*XML->sys.core[ithCore].number_hardware_threads*/
 
@@ -917,11 +902,10 @@ LoadStoreU::LoadStoreU(ParseXML* XML_interface, int ithCore_, InputParameter* in
 		  LoadQ = new ArrayST(&interface_ip, "LoadQueue", Core_device, coredynp->opt_local, coredynp->core_ty);
 		  LoadQ->area.set_area(LoadQ->area.get_area()+ LoadQ->local_result.area);
 		  area.set_area(area.get_area()+ LoadQ->local_result.area);
-		  area.set_area(area.get_area()*cdb_overhead);
 		  //output_data_csv(LoadQ.LoadQ.local_result);
 		  lsq_height=(LSQ->local_result.cache_ht + LoadQ->local_result.cache_ht)*sqrt(cdb_overhead);/*XML->sys.core[ithCore].number_hardware_threads*/
 	  }
-
+	  area.set_area(area.get_area()*cdb_overhead);
 }
 
 MemManU::MemManU(ParseXML* XML_interface, int ithCore_, InputParameter* interface_ip_, const CoreDynParam * dyn_p_,bool exist_)
@@ -1121,6 +1105,7 @@ EXECU::EXECU(ParseXML* XML_interface, int ithCore_, InputParameter* interface_ip
  fpTagBypass(0),
  exist(exist_)
 {
+	  bool exist_flag = true;
 	  if (!exist) return;
 	  double fu_height = 0.0;
 	  rfu   = new RegFU(XML, ithCore, &interface_ip,coredynp);
@@ -1211,6 +1196,7 @@ EXECU::EXECU(ParseXML* XML_interface, int ithCore_, InputParameter* interface_ip
 			  intTagBypass = new interconnect("Int Bypass tag" , Core_device, 1, 1, coredynp->phy_ireg_width,
 					            rfu->int_regfile_height + exeu->FU_height + lsq_height + scheu->Iw_height + scheu->ROB_height , &interface_ip, 3,
 								false, 1.0, coredynp->opt_local, coredynp->core_ty);
+			  bypass.area.set_area(bypass.area.get_area()  +intTagBypass->area.get_area());
 
 			  if (coredynp->num_muls>0)
 			  {
@@ -1405,7 +1391,7 @@ RENAMINGU::RENAMINGU(ParseXML* XML_interface, int ithCore_, InputParameter* inte
 			interface_ip.num_rd_ports    = 2*coredynp->fp_decodeW;
 			interface_ip.num_wr_ports    = coredynp->fp_decodeW;
 			interface_ip.num_se_rd_ports = 0;
-			fFRAT = new ArrayST(&interface_ip, "Int FrontRAT", Core_device, coredynp->opt_local, coredynp->core_ty);
+			fFRAT = new ArrayST(&interface_ip, "FP FrontRAT", Core_device, coredynp->opt_local, coredynp->core_ty);
 			fFRAT->area.set_area(fFRAT->area.get_area()+ fFRAT->local_result.area*XML->sys.core[ithCore].number_hardware_threads);
 			area.set_area(area.get_area()+ fFRAT->area.get_area());
 
@@ -1468,7 +1454,7 @@ RENAMINGU::RENAMINGU(ParseXML* XML_interface, int ithCore_, InputParameter* inte
 			interface_ip.num_wr_ports    = coredynp->fp_decodeW;
 			interface_ip.num_se_rd_ports = 0;
 			interface_ip.num_search_ports= 2*coredynp->fp_decodeW;
-			fFRAT = new ArrayST(&interface_ip, "Int FrontRAT", Core_device, coredynp->opt_local, coredynp->core_ty);
+			fFRAT = new ArrayST(&interface_ip, "FP FrontRAT", Core_device, coredynp->opt_local, coredynp->core_ty);
 			fFRAT->area.set_area(fFRAT->area.get_area()+ fFRAT->local_result.area*XML->sys.core[ithCore].number_hardware_threads);
 			area.set_area(area.get_area()+ fFRAT->area.get_area());
 
@@ -1520,7 +1506,7 @@ RENAMINGU::RENAMINGU(ParseXML* XML_interface, int ithCore_, InputParameter* inte
 		interface_ip.num_rd_ports    = coredynp->fp_decodeW;
 		interface_ip.num_wr_ports    = coredynp->fp_decodeW;
 		interface_ip.num_se_rd_ports = 0;
-		fRRAT = new ArrayST(&interface_ip, "Int RetireRAT", Core_device, coredynp->opt_local, coredynp->core_ty);
+		fRRAT = new ArrayST(&interface_ip, "FP RetireRAT", Core_device, coredynp->opt_local, coredynp->core_ty);
 		fRRAT->area.set_area(fRRAT->area.get_area()+ fRRAT->local_result.area*XML->sys.core[ithCore].number_hardware_threads);
 		area.set_area(area.get_area()+ fRRAT->area.get_area());
 
@@ -1574,7 +1560,7 @@ RENAMINGU::RENAMINGU(ParseXML* XML_interface, int ithCore_, InputParameter* inte
 		interface_ip.num_rd_ports    = coredynp->fp_decodeW;
 		interface_ip.num_wr_ports    = coredynp->fp_decodeW -1 + XML->sys.core[ithCore].commit_width;
 		interface_ip.num_se_rd_ports = 0;
-		ffreeL = new ArrayST(&interface_ip, "Int Free List", Core_device, coredynp->opt_local, coredynp->core_ty);
+		ffreeL = new ArrayST(&interface_ip, "FP Free List", Core_device, coredynp->opt_local, coredynp->core_ty);
 		ffreeL->area.set_area(ffreeL->area.get_area()+ ffreeL->local_result.area*XML->sys.core[ithCore].number_hardware_threads);
 		area.set_area(area.get_area()+ ffreeL->area.get_area());
 
@@ -1591,13 +1577,13 @@ RENAMINGU::RENAMINGU(ParseXML* XML_interface, int ithCore_, InputParameter* inte
 			 * CAM based RAT so that it is more scalable as number of ROB/physical regs increases.
 			 */
 			tag							     = coredynp->phy_ireg_width;
-			data							 = int(ceil(coredynp->phy_ireg_width*(1+coredynp->globalCheckpoint)/8.0));
+			data							 = int(ceil(coredynp->phy_ireg_width/8.0));//int(ceil(coredynp->phy_ireg_width*(1+coredynp->globalCheckpoint)/8.0));
 			out_w                            = int(ceil(coredynp->phy_ireg_width/8.0));
 			interface_ip.is_cache			 = true;
 			interface_ip.pure_cam            = false;
 			interface_ip.pure_ram            = false;
 			interface_ip.line_sz             = data;
-			interface_ip.cache_sz            = data*XML->sys.core[ithCore].archi_Regs_IRF_size;
+			interface_ip.cache_sz            = data*XML->sys.core[ithCore].archi_Regs_IRF_size*(1+coredynp->globalCheckpoint);//TODO: either putting GC here or at "data" is most accurate implementation, this is limited by current array implementation
 			interface_ip.assoc               = 0;
 			interface_ip.nbanks              = 1;
 			interface_ip.out_w               = out_w*8;
@@ -1613,20 +1599,24 @@ RENAMINGU::RENAMINGU(ParseXML* XML_interface, int ithCore_, InputParameter* inte
 			interface_ip.num_wr_ports    = coredynp->decodeW;
 			interface_ip.num_se_rd_ports = 0;
 			interface_ip.num_search_ports= coredynp->commitW;//TODO
+			interface_ip.specific_tag        = 1;
+			interface_ip.tag_w               = tag;
 			iFRAT = new ArrayST(&interface_ip, "Int FrontRAT", Core_device, coredynp->opt_local, coredynp->core_ty);
 			iFRAT->local_result.adjust_area();
+			iFRAT->local_result.power.readOp.dynamic *=1.5;
+			iFRAT->local_result.power.writeOp.dynamic *=1.5;//compensate for GC
 			iFRAT->area.set_area(iFRAT->area.get_area()+ iFRAT->local_result.area*XML->sys.core[ithCore].number_hardware_threads);
 			area.set_area(area.get_area()+ iFRAT->area.get_area());
 
 			//FP
 			tag							     = coredynp->phy_freg_width;
-			data							 = int(ceil(coredynp->phy_freg_width*(1+coredynp->globalCheckpoint)/8.0));
+			data							 = int(ceil(coredynp->phy_freg_width/8.0));//int(ceil(coredynp->phy_freg_width*(1+coredynp->globalCheckpoint)/8.0));
 			out_w                            = int(ceil(coredynp->phy_freg_width/8.0));
 			interface_ip.is_cache			 = true;
 			interface_ip.pure_cam            = false;
 			interface_ip.pure_ram            = false;
 			interface_ip.line_sz             = data;
-			interface_ip.cache_sz            = data*XML->sys.core[ithCore].archi_Regs_FRF_size;
+			interface_ip.cache_sz            = data*XML->sys.core[ithCore].archi_Regs_FRF_size*(1+coredynp->globalCheckpoint);
 			interface_ip.assoc               = 0;
 			interface_ip.nbanks              = 1;
 			interface_ip.out_w               = out_w*8;
@@ -1642,8 +1632,10 @@ RENAMINGU::RENAMINGU(ParseXML* XML_interface, int ithCore_, InputParameter* inte
 			interface_ip.num_wr_ports    = coredynp->fp_decodeW;
 			interface_ip.num_se_rd_ports = 0;
 			interface_ip.num_search_ports= coredynp->fp_decodeW;//actually is fp commit width
-			fFRAT = new ArrayST(&interface_ip, "Int FrontRAT", Core_device, coredynp->opt_local, coredynp->core_ty);
+			fFRAT = new ArrayST(&interface_ip, "FP FrontRAT", Core_device, coredynp->opt_local, coredynp->core_ty);
 			fFRAT->local_result.adjust_area();
+			fFRAT->local_result.power.readOp.dynamic *=1.5;//compensate for GC
+			fFRAT->local_result.power.writeOp.dynamic *=1.5;
 			fFRAT->area.set_area(fFRAT->area.get_area()+ fFRAT->local_result.area*XML->sys.core[ithCore].number_hardware_threads);
 			area.set_area(area.get_area()+ fFRAT->area.get_area());
 
@@ -1706,7 +1698,7 @@ RENAMINGU::RENAMINGU(ParseXML* XML_interface, int ithCore_, InputParameter* inte
 			interface_ip.num_wr_ports    = coredynp->fp_decodeW;
 			interface_ip.num_se_rd_ports = 0;
 			interface_ip.num_search_ports= 2*coredynp->fp_decodeW;
-			fFRAT = new ArrayST(&interface_ip, "Int FrontRAT", Core_device, coredynp->opt_local, coredynp->core_ty);
+			fFRAT = new ArrayST(&interface_ip, "FP FrontRAT", Core_device, coredynp->opt_local, coredynp->core_ty);
 			fFRAT->area.set_area(fFRAT->area.get_area()+ fFRAT->local_result.area*XML->sys.core[ithCore].number_hardware_threads);
 			area.set_area(area.get_area()+ fFRAT->area.get_area());
 
@@ -1769,21 +1761,25 @@ Core::Core(ParseXML* XML_interface, int ithCore_, InputParameter* interface_ip_)
   * initialize, compute and optimize individual components.
   */
 
+  bool exit_flag = true;
+
   double pipeline_area_per_unit;
+  //  interface_ip.wire_is_mat_type = 2;
+  //  interface_ip.wire_os_mat_type = 2;
+  //  interface_ip.wt               =Global_30;
+  set_core_param();
+
   if (XML->sys.Private_L2)
   {
 	  l2cache = new SharedCache(XML,ithCore, &interface_ip);
 
   }
-//  interface_ip.wire_is_mat_type = 2;
-//  interface_ip.wire_os_mat_type = 2;
-//  interface_ip.wt               =Global_30;
-  set_core_param();
-  ifu          = new InstFetchU(XML, ithCore, &interface_ip, &coredynp);
-  lsu          = new LoadStoreU(XML, ithCore, &interface_ip, &coredynp);
-  mmu          = new MemManU   (XML, ithCore, &interface_ip, &coredynp);
-  exu          = new EXECU     (XML, ithCore, &interface_ip,lsu->lsq_height, &coredynp);
-  undiffCore   = new UndiffCore(XML, ithCore, &interface_ip, &coredynp);
+
+  ifu          = new InstFetchU(XML, ithCore, &interface_ip, &coredynp,exit_flag);
+  lsu          = new LoadStoreU(XML, ithCore, &interface_ip, &coredynp,exit_flag);
+  mmu          = new MemManU   (XML, ithCore, &interface_ip, &coredynp,exit_flag);
+  exu          = new EXECU     (XML, ithCore, &interface_ip,lsu->lsq_height, &coredynp,exit_flag);
+  undiffCore   = new UndiffCore(XML, ithCore, &interface_ip, &coredynp,exit_flag);
   if (coredynp.core_ty==OOO)
   {
 	  rnu = new RENAMINGU(XML, ithCore, &interface_ip, &coredynp, (coredynp.rm_ty != None));
@@ -1954,7 +1950,9 @@ void BranchPredictor::computeEnergy(bool is_tdp)
            	chooser->power = chooser->power_t + chooser->local_result.power*pppm_lkg;
     	RAS->power = RAS->power_t + RAS->local_result.power*coredynp->pppm_lkg_multhread;
 
-    	power = power + globalBPT->power + L1_localBPT->power +  RAS->power;
+    	power = power + globalBPT->power + L1_localBPT->power + RAS->power;
+        if (L2_localBPT)
+            power = power + L2_localBPT->power;
         if (chooser)
             power = power + chooser->power;
     }
@@ -1968,6 +1966,8 @@ void BranchPredictor::computeEnergy(bool is_tdp)
            	chooser->rt_power = chooser->power_t + chooser->local_result.power*pppm_lkg;
     	RAS->rt_power = RAS->power_t + RAS->local_result.power*coredynp->pppm_lkg_multhread;
     	rt_power = rt_power + globalBPT->rt_power + L1_localBPT->rt_power + RAS->rt_power;
+        if (L2_localBPT)
+            rt_power = rt_power + L2_localBPT->rt_power;
         if (chooser)
             rt_power = rt_power + chooser->rt_power;
     }
@@ -1979,6 +1979,7 @@ void BranchPredictor::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 	string indent_str(indent, ' ');
 	string indent_str_next(indent+2, ' ');
 	bool long_channel = XML->sys.longer_channel_device;
+	bool power_gating = XML->sys.power_gating;
 	if (is_tdp)
 	{
 		*out_file << indent_str<< "Global Predictor:" << endl;
@@ -1986,6 +1987,8 @@ void BranchPredictor::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 		*out_file << indent_str_next << "Peak Dynamic = " << globalBPT->power.readOp.dynamic*coredynp->clockRate << " W" << endl;
 		*out_file << indent_str_next << "Subthreshold Leakage = "
 			<< (long_channel? globalBPT->power.readOp.longer_channel_leakage:globalBPT->power.readOp.leakage) <<" W" << endl;
+		if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+						<< (long_channel? globalBPT->power.readOp.power_gated_with_long_channel_leakage : globalBPT->power.readOp.power_gated_leakage)  << " W" << endl;
 		*out_file << indent_str_next << "Gate Leakage = " << globalBPT->power.readOp.gate_leakage << " W" << endl;
 		*out_file << indent_str_next << "Runtime Dynamic = " << globalBPT->rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
 		*out_file <<endl;
@@ -1995,6 +1998,8 @@ void BranchPredictor::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 		*out_file << indent_str_next << "Peak Dynamic = " << L1_localBPT->power.readOp.dynamic*coredynp->clockRate  << " W" << endl;
 		*out_file << indent_str_next << "Subthreshold Leakage = "
 			<< (long_channel? L1_localBPT->power.readOp.longer_channel_leakage:L1_localBPT->power.readOp.leakage)  << " W" << endl;
+		if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+						<< (long_channel ? L1_localBPT->power.readOp.power_gated_with_long_channel_leakage : L1_localBPT->power.readOp.power_gated_leakage)  << " W" << endl;
 		*out_file << indent_str_next << "Gate Leakage = " << L1_localBPT->power.readOp.gate_leakage  << " W" << endl;
 		*out_file << indent_str_next << "Runtime Dynamic = " << L1_localBPT->rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
 		*out_file <<endl;
@@ -2002,27 +2007,33 @@ void BranchPredictor::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
             *out_file << indent_str << "L2_Local Predictor:" << endl;
             *out_file << indent_str_next << "Area = " << L2_localBPT->area.get_area() *1e-6 << " mm^2" << endl;
             *out_file << indent_str_next << "Peak Dynamic = " << L2_localBPT->power.readOp.dynamic*coredynp->clockRate  << " W" << endl;
-            *out_file << indent_str_next << "Subthreshold Leakage = "
-                << (long_channel? L2_localBPT->power.readOp.longer_channel_leakage:L2_localBPT->power.readOp.leakage)  << " W" << endl;
-            *out_file << indent_str_next << "Gate Leakage = " << L2_localBPT->power.readOp.gate_leakage  << " W" << endl;
-            *out_file << indent_str_next << "Runtime Dynamic = " << L2_localBPT->rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
-            *out_file <<endl;
+		*out_file << indent_str_next << "Subthreshold Leakage = "
+			<< (long_channel? L2_localBPT->power.readOp.longer_channel_leakage:L2_localBPT->power.readOp.leakage)  << " W" << endl;
+		if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+						<< (long_channel ? L2_localBPT->power.readOp.power_gated_with_long_channel_leakage : L2_localBPT->power.readOp.power_gated_leakage)  << " W" << endl;
+		*out_file << indent_str_next << "Gate Leakage = " << L2_localBPT->power.readOp.gate_leakage  << " W" << endl;
+		*out_file << indent_str_next << "Runtime Dynamic = " << L2_localBPT->rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
+		*out_file <<endl;
         }
         if (chooser) {
             *out_file << indent_str << "Chooser:" << endl;
             *out_file << indent_str_next << "Area = " << chooser->area.get_area()  *1e-6 << " mm^2" << endl;
             *out_file << indent_str_next << "Peak Dynamic = " << chooser->power.readOp.dynamic*coredynp->clockRate  << " W" << endl;
-            *out_file << indent_str_next << "Subthreshold Leakage = "
-                << (long_channel? chooser->power.readOp.longer_channel_leakage:chooser->power.readOp.leakage)  << " W" << endl;
-            *out_file << indent_str_next << "Gate Leakage = " << chooser->power.readOp.gate_leakage  << " W" << endl;
-            *out_file << indent_str_next << "Runtime Dynamic = " << chooser->rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
-            *out_file <<endl;
+		*out_file << indent_str_next << "Subthreshold Leakage = "
+			<< (long_channel? chooser->power.readOp.longer_channel_leakage:chooser->power.readOp.leakage)  << " W" << endl;
+		if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+						<< (long_channel? chooser->power.readOp.power_gated_with_long_channel_leakage : chooser->power.readOp.power_gated_leakage)  << " W" << endl;
+		*out_file << indent_str_next << "Gate Leakage = " << chooser->power.readOp.gate_leakage  << " W" << endl;
+		*out_file << indent_str_next << "Runtime Dynamic = " << chooser->rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
+		*out_file <<endl;
         }
 		*out_file << indent_str << "RAS:" << endl;
 		*out_file << indent_str_next << "Area = " << RAS->area.get_area() *1e-6 << " mm^2" << endl;
 		*out_file << indent_str_next << "Peak Dynamic = " << RAS->power.readOp.dynamic*coredynp->clockRate  << " W" << endl;
 		*out_file << indent_str_next << "Subthreshold Leakage = "
 			<< (long_channel? RAS->power.readOp.longer_channel_leakage:RAS->power.readOp.leakage)  << " W" << endl;
+		if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+				<< (long_channel? RAS->power.readOp.power_gated_with_long_channel_leakage : RAS->power.readOp.power_gated_leakage)  << " W" << endl;
 		*out_file << indent_str_next << "Gate Leakage = " << RAS->power.readOp.gate_leakage  << " W" << endl;
 		*out_file << indent_str_next << "Runtime Dynamic = " << RAS->rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
 		*out_file <<endl;
@@ -2056,16 +2067,16 @@ void InstFetchU::computeEnergy(bool is_tdp)
     	icache.caches->stats_t.readAc.hit     = icache.caches->stats_t.readAc.access - icache.caches->stats_t.readAc.miss;
     	icache.caches->tdp_stats = icache.caches->stats_t;
 
-    	icache.missb->stats_t.readAc.access  = icache.missb->stats_t.readAc.hit=  icache.missb->l_ip.num_search_ports;
-    	icache.missb->stats_t.writeAc.access = icache.missb->stats_t.writeAc.hit= icache.missb->l_ip.num_search_ports;
+    	icache.missb->stats_t.readAc.access  = icache.missb->stats_t.readAc.hit=  icache.missb->l_ip.num_search_ports*coredynp->IFU_duty_cycle;
+    	icache.missb->stats_t.writeAc.access = icache.missb->stats_t.writeAc.hit= icache.missb->l_ip.num_search_ports*coredynp->IFU_duty_cycle;
     	icache.missb->tdp_stats = icache.missb->stats_t;
 
-    	icache.ifb->stats_t.readAc.access  = icache.ifb->stats_t.readAc.hit=  icache.ifb->l_ip.num_search_ports;
-    	icache.ifb->stats_t.writeAc.access = icache.ifb->stats_t.writeAc.hit= icache.ifb->l_ip.num_search_ports;
+    	icache.ifb->stats_t.readAc.access  = icache.ifb->stats_t.readAc.hit=  icache.ifb->l_ip.num_search_ports*coredynp->IFU_duty_cycle;
+    	icache.ifb->stats_t.writeAc.access = icache.ifb->stats_t.writeAc.hit= icache.ifb->l_ip.num_search_ports*coredynp->IFU_duty_cycle;
     	icache.ifb->tdp_stats = icache.ifb->stats_t;
 
-    	icache.prefetchb->stats_t.readAc.access  = icache.prefetchb->stats_t.readAc.hit= icache.prefetchb->l_ip.num_search_ports;
-    	icache.prefetchb->stats_t.writeAc.access = icache.ifb->stats_t.writeAc.hit= icache.ifb->l_ip.num_search_ports;
+    	icache.prefetchb->stats_t.readAc.access  = icache.prefetchb->stats_t.readAc.hit= icache.prefetchb->l_ip.num_search_ports*coredynp->IFU_duty_cycle;
+    	icache.prefetchb->stats_t.writeAc.access = icache.ifb->stats_t.writeAc.hit= icache.ifb->l_ip.num_search_ports*coredynp->IFU_duty_cycle;
     	icache.prefetchb->tdp_stats = icache.prefetchb->stats_t;
 
     	IB->stats_t.readAc.access = IB->stats_t.writeAc.access = XML->sys.core[ithCore].peak_issue_width;
@@ -2228,7 +2239,7 @@ void InstFetchU::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 	string indent_str(indent, ' ');
 	string indent_str_next(indent+2, ' ');
 	bool long_channel = XML->sys.longer_channel_device;
-
+    bool power_gating = XML->sys.power_gating;
 
 	if (is_tdp)
 	{
@@ -2238,6 +2249,8 @@ void InstFetchU::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 		*out_file << indent_str_next << "Peak Dynamic = " << icache.power.readOp.dynamic*coredynp->clockRate << " W" << endl;
 		*out_file << indent_str_next << "Subthreshold Leakage = "
 			<< (long_channel? icache.power.readOp.longer_channel_leakage:icache.power.readOp.leakage) <<" W" << endl;
+		if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+				<< (long_channel? icache.power.readOp.power_gated_with_long_channel_leakage : icache.power.readOp.power_gated_leakage)  << " W" << endl;
 		*out_file << indent_str_next << "Gate Leakage = " << icache.power.readOp.gate_leakage << " W" << endl;
 		*out_file << indent_str_next << "Runtime Dynamic = " << icache.rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
 		*out_file <<endl;
@@ -2248,6 +2261,8 @@ void InstFetchU::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 			*out_file << indent_str_next << "Peak Dynamic = " << BTB->power.readOp.dynamic*coredynp->clockRate  << " W" << endl;
 			*out_file << indent_str_next << "Subthreshold Leakage = "
 				<< (long_channel? BTB->power.readOp.longer_channel_leakage:BTB->power.readOp.leakage)  << " W" << endl;
+			if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+					<< (long_channel? BTB->power.readOp.power_gated_with_long_channel_leakage : BTB->power.readOp.power_gated_leakage)  << " W" << endl;
 			*out_file << indent_str_next << "Gate Leakage = " << BTB->power.readOp.gate_leakage  << " W" << endl;
 			*out_file << indent_str_next << "Runtime Dynamic = " << BTB->rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
 			*out_file <<endl;
@@ -2259,6 +2274,8 @@ void InstFetchU::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 				*out_file << indent_str_next << "Peak Dynamic = " << BPT->power.readOp.dynamic*coredynp->clockRate  << " W" << endl;
 				*out_file << indent_str_next << "Subthreshold Leakage = "
 					<< (long_channel? BPT->power.readOp.longer_channel_leakage:BPT->power.readOp.leakage)  << " W" << endl;
+				if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+						<< (long_channel? BPT->power.readOp.power_gated_with_long_channel_leakage : BPT->power.readOp.power_gated_leakage)  << " W" << endl;
 				*out_file << indent_str_next << "Gate Leakage = " << BPT->power.readOp.gate_leakage  << " W" << endl;
 				*out_file << indent_str_next << "Runtime Dynamic = " << BPT->rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
 				*out_file <<endl;
@@ -2273,6 +2290,8 @@ void InstFetchU::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 		*out_file << indent_str_next << "Peak Dynamic = " << IB->power.readOp.dynamic*coredynp->clockRate  << " W" << endl;
 		*out_file << indent_str_next << "Subthreshold Leakage = "
 		<< (long_channel? IB->power.readOp.longer_channel_leakage:IB->power.readOp.leakage)  << " W" << endl;
+		if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+				<< (long_channel? IB->power.readOp.power_gated_with_long_channel_leakage : IB->power.readOp.power_gated_leakage)  << " W" << endl;
 		*out_file << indent_str_next << "Gate Leakage = " << IB->power.readOp.gate_leakage  << " W" << endl;
 		*out_file << indent_str_next << "Runtime Dynamic = " << IB->rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
 		*out_file <<endl;
@@ -2290,6 +2309,15 @@ void InstFetchU::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 					(ID_inst->power.readOp.leakage +
 							ID_operand->power.readOp.leakage +
 							ID_misc->power.readOp.leakage))  << " W" << endl;
+
+		double tot_leakage = (ID_inst->power.readOp.leakage + ID_operand->power.readOp.leakage + ID_misc->power.readOp.leakage);
+		double tot_leakage_longchannel = (ID_inst->power.readOp.longer_channel_leakage + ID_operand->power.readOp.longer_channel_leakage + ID_misc->power.readOp.longer_channel_leakage);
+		double tot_leakage_pg = (ID_inst->power.readOp.power_gated_leakage + ID_operand->power.readOp.power_gated_leakage + ID_misc->power.readOp.power_gated_leakage);
+		double tot_leakage_pg_with_long_channel = (ID_inst->power.readOp.power_gated_with_long_channel_leakage + ID_operand->power.readOp.power_gated_with_long_channel_leakage + ID_misc->power.readOp.power_gated_with_long_channel_leakage);
+
+
+		if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+						<< (long_channel ? tot_leakage_pg_with_long_channel : tot_leakage_pg)  << " W" << endl;
 		*out_file << indent_str_next << "Gate Leakage = " << (ID_inst->power.readOp.gate_leakage +
 				ID_operand->power.readOp.gate_leakage +
 				ID_misc->power.readOp.gate_leakage)  << " W" << endl;
@@ -2661,7 +2689,7 @@ void RENAMINGU::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 	string indent_str(indent, ' ');
 	string indent_str_next(indent+2, ' ');
 	bool long_channel = XML->sys.longer_channel_device;
-
+	bool power_gating = XML->sys.power_gating;
 
 	if (is_tdp)
 	{
@@ -2673,6 +2701,8 @@ void RENAMINGU::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 			*out_file << indent_str_next << "Peak Dynamic = " << iFRAT->power.readOp.dynamic*coredynp->clockRate << " W" << endl;
 			*out_file << indent_str_next << "Subthreshold Leakage = "
 				<< (long_channel? iFRAT->power.readOp.longer_channel_leakage:iFRAT->power.readOp.leakage) <<" W" << endl;
+			if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+					<< (long_channel? iFRAT->power.readOp.power_gated_with_long_channel_leakage : iFRAT->power.readOp.power_gated_leakage)  << " W" << endl;
 			*out_file << indent_str_next << "Gate Leakage = " << iFRAT->power.readOp.gate_leakage << " W" << endl;
 			*out_file << indent_str_next << "Runtime Dynamic = " << iFRAT->rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
 			*out_file <<endl;
@@ -2681,6 +2711,8 @@ void RENAMINGU::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 			*out_file << indent_str_next << "Peak Dynamic = " << fFRAT->power.readOp.dynamic*coredynp->clockRate  << " W" << endl;
 			*out_file << indent_str_next << "Subthreshold Leakage = "
 				<< (long_channel? fFRAT->power.readOp.longer_channel_leakage:fFRAT->power.readOp.leakage)  << " W" << endl;
+			if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+					<< (long_channel? fFRAT->power.readOp.power_gated_with_long_channel_leakage : fFRAT->power.readOp.power_gated_leakage)  << " W" << endl;
 			*out_file << indent_str_next << "Gate Leakage = " << fFRAT->power.readOp.gate_leakage  << " W" << endl;
 			*out_file << indent_str_next << "Runtime Dynamic = " << fFRAT->rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
 			*out_file <<endl;
@@ -2689,6 +2721,8 @@ void RENAMINGU::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 			*out_file << indent_str_next << "Peak Dynamic = " << ifreeL->power.readOp.dynamic*coredynp->clockRate  << " W" << endl;
 			*out_file << indent_str_next << "Subthreshold Leakage = "
 				<< (long_channel? ifreeL->power.readOp.longer_channel_leakage:ifreeL->power.readOp.leakage)  << " W" << endl;
+			if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+					<< (long_channel? ifreeL->power.readOp.power_gated_with_long_channel_leakage : ifreeL->power.readOp.power_gated_leakage)  << " W" << endl;
 			*out_file << indent_str_next << "Gate Leakage = " << ifreeL->power.readOp.gate_leakage  << " W" << endl;
 			*out_file << indent_str_next << "Runtime Dynamic = " << ifreeL->rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
 			*out_file <<endl;
@@ -2700,6 +2734,8 @@ void RENAMINGU::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 				*out_file << indent_str_next << "Peak Dynamic = " << iRRAT->power.readOp.dynamic*coredynp->clockRate  << " W" << endl;
 				*out_file << indent_str_next << "Subthreshold Leakage = "
 					<< (long_channel? iRRAT->power.readOp.longer_channel_leakage:iRRAT->power.readOp.leakage)  << " W" << endl;
+				if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+						<< (long_channel? iRRAT->power.readOp.power_gated_with_long_channel_leakage : iRRAT->power.readOp.power_gated_leakage)  << " W" << endl;
 				*out_file << indent_str_next << "Gate Leakage = " << iRRAT->power.readOp.gate_leakage  << " W" << endl;
 				*out_file << indent_str_next << "Runtime Dynamic = " << iRRAT->rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
 				*out_file <<endl;
@@ -2708,6 +2744,8 @@ void RENAMINGU::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 				*out_file << indent_str_next << "Peak Dynamic = " << fRRAT->power.readOp.dynamic*coredynp->clockRate  << " W" << endl;
 				*out_file << indent_str_next << "Subthreshold Leakage = "
 					<< (long_channel? fRRAT->power.readOp.longer_channel_leakage:fRRAT->power.readOp.leakage)  << " W" << endl;
+				if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+						<< (long_channel? fRRAT->power.readOp.power_gated_with_long_channel_leakage : fRRAT->power.readOp.power_gated_leakage)  << " W" << endl;
 				*out_file << indent_str_next << "Gate Leakage = " << fRRAT->power.readOp.gate_leakage  << " W" << endl;
 				*out_file << indent_str_next << "Runtime Dynamic = " << fRRAT->rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
 				*out_file <<endl;
@@ -2716,6 +2754,8 @@ void RENAMINGU::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 				*out_file << indent_str_next << "Peak Dynamic = " << ffreeL->power.readOp.dynamic*coredynp->clockRate  << " W" << endl;
 				*out_file << indent_str_next << "Subthreshold Leakage = "
 					<< (long_channel? ffreeL->power.readOp.longer_channel_leakage:ffreeL->power.readOp.leakage)  << " W" << endl;
+				if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+						<< (long_channel? ffreeL->power.readOp.power_gated_with_long_channel_leakage : ffreeL->power.readOp.power_gated_leakage)  << " W" << endl;
 				*out_file << indent_str_next << "Gate Leakage = " << ffreeL->power.readOp.gate_leakage  << " W" << endl;
 				*out_file << indent_str_next << "Runtime Dynamic = " << ffreeL->rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
 				*out_file <<endl;
@@ -2727,12 +2767,16 @@ void RENAMINGU::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 			*out_file << indent_str_next << "Peak Dynamic = " << idcl->power.readOp.dynamic*coredynp->clockRate  << " W" << endl;
 			*out_file << indent_str_next << "Subthreshold Leakage = "
 				<< (long_channel? idcl->power.readOp.longer_channel_leakage:idcl->power.readOp.leakage)  << " W" << endl;
+			if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+					<< (long_channel? idcl->power.readOp.power_gated_with_long_channel_leakage : idcl->power.readOp.power_gated_leakage)  << " W" << endl;
 			*out_file << indent_str_next << "Gate Leakage = " << idcl->power.readOp.gate_leakage  << " W" << endl;
 			*out_file << indent_str_next << "Runtime Dynamic = " << idcl->rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
 			*out_file << indent_str<<"FP DCL:" << endl;
 			*out_file << indent_str_next << "Peak Dynamic = " << fdcl->power.readOp.dynamic*coredynp->clockRate  << " W" << endl;
 			*out_file << indent_str_next << "Subthreshold Leakage = "
 				<< (long_channel? fdcl->power.readOp.longer_channel_leakage:fdcl->power.readOp.leakage)  << " W" << endl;
+			if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+					<< (long_channel? fdcl->power.readOp.power_gated_with_long_channel_leakage : fdcl->power.readOp.power_gated_leakage)  << " W" << endl;
 			*out_file << indent_str_next << "Gate Leakage = " << fdcl->power.readOp.gate_leakage  << " W" << endl;
 			*out_file << indent_str_next << "Runtime Dynamic = " << fdcl->rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
 		}
@@ -2965,7 +3009,7 @@ void SchedulerU::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 	string indent_str(indent, ' ');
 	string indent_str_next(indent+2, ' ');
 	bool long_channel = XML->sys.longer_channel_device;
-
+	bool power_gating = XML->sys.power_gating;
 
 	if (is_tdp)
 	{
@@ -2976,6 +3020,8 @@ void SchedulerU::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 			*out_file << indent_str_next << "Peak Dynamic = " << int_inst_window->power.readOp.dynamic*coredynp->clockRate << " W" << endl;
 			*out_file << indent_str_next << "Subthreshold Leakage = "
 				<< (long_channel? int_inst_window->power.readOp.longer_channel_leakage:int_inst_window->power.readOp.leakage) <<" W" << endl;
+			if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+					<< (long_channel? int_inst_window->power.readOp.power_gated_with_long_channel_leakage : int_inst_window->power.readOp.power_gated_leakage)  << " W" << endl;
 			*out_file << indent_str_next << "Gate Leakage = " << int_inst_window->power.readOp.gate_leakage << " W" << endl;
 			*out_file << indent_str_next << "Runtime Dynamic = " << int_inst_window->rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
 			*out_file <<endl;
@@ -2984,6 +3030,8 @@ void SchedulerU::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 			*out_file << indent_str_next << "Peak Dynamic = " << fp_inst_window->power.readOp.dynamic*coredynp->clockRate  << " W" << endl;
 			*out_file << indent_str_next << "Subthreshold Leakage = "
 				<< (long_channel? fp_inst_window->power.readOp.longer_channel_leakage:fp_inst_window->power.readOp.leakage ) << " W" << endl;
+			if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+					<< (long_channel? fp_inst_window->power.readOp.power_gated_with_long_channel_leakage : fp_inst_window->power.readOp.power_gated_leakage)  << " W" << endl;
 			*out_file << indent_str_next << "Gate Leakage = " << fp_inst_window->power.readOp.gate_leakage  << " W" << endl;
 			*out_file << indent_str_next << "Runtime Dynamic = " << fp_inst_window->rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
 			*out_file <<endl;
@@ -2994,6 +3042,8 @@ void SchedulerU::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 				*out_file << indent_str_next << "Peak Dynamic = " << ROB->power.readOp.dynamic*coredynp->clockRate  << " W" << endl;
 				*out_file << indent_str_next << "Subthreshold Leakage = "
 				<< (long_channel? ROB->power.readOp.longer_channel_leakage:ROB->power.readOp.leakage)  << " W" << endl;
+				if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+						<< (long_channel? ROB->power.readOp.power_gated_with_long_channel_leakage : ROB->power.readOp.power_gated_leakage)  << " W" << endl;
 				*out_file << indent_str_next << "Gate Leakage = " << ROB->power.readOp.gate_leakage  << " W" << endl;
 				*out_file << indent_str_next << "Runtime Dynamic = " << ROB->rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
 				*out_file <<endl;
@@ -3006,6 +3056,8 @@ void SchedulerU::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 			*out_file << indent_str_next << "Peak Dynamic = " << int_inst_window->power.readOp.dynamic*coredynp->clockRate << " W" << endl;
 			*out_file << indent_str_next << "Subthreshold Leakage = "
 				<< (long_channel? int_inst_window->power.readOp.longer_channel_leakage:int_inst_window->power.readOp.leakage) <<" W" << endl;
+			if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+					<< (long_channel? int_inst_window->power.readOp.power_gated_with_long_channel_leakage : int_inst_window->power.readOp.power_gated_leakage)  << " W" << endl;
 			*out_file << indent_str_next << "Gate Leakage = " << int_inst_window->power.readOp.gate_leakage << " W" << endl;
 			*out_file << indent_str_next << "Runtime Dynamic = " << int_inst_window->rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
 			*out_file <<endl;
@@ -3052,16 +3104,16 @@ void LoadStoreU::computeEnergy(bool is_tdp)
     		dcache.caches->stats_t.writeAc.hit    = dcache.caches->stats_t.writeAc.access -	dcache.caches->stats_t.writeAc.miss;
 	    	dcache.caches->tdp_stats = dcache.caches->stats_t;
 
-	    	dcache.missb->stats_t.readAc.access  = dcache.missb->l_ip.num_search_ports;
-	    	dcache.missb->stats_t.writeAc.access = dcache.missb->l_ip.num_search_ports;
+	    	dcache.missb->stats_t.readAc.access  = dcache.missb->l_ip.num_search_ports*coredynp->LSU_duty_cycle;
+	    	dcache.missb->stats_t.writeAc.access = dcache.missb->l_ip.num_search_ports*coredynp->LSU_duty_cycle;
 	    	dcache.missb->tdp_stats = dcache.missb->stats_t;
 
-	    	dcache.ifb->stats_t.readAc.access  = dcache.ifb->l_ip.num_search_ports;
-	    	dcache.ifb->stats_t.writeAc.access = dcache.ifb->l_ip.num_search_ports;
+	    	dcache.ifb->stats_t.readAc.access  = dcache.ifb->l_ip.num_search_ports*coredynp->LSU_duty_cycle;
+	    	dcache.ifb->stats_t.writeAc.access = dcache.ifb->l_ip.num_search_ports*coredynp->LSU_duty_cycle;
 	    	dcache.ifb->tdp_stats = dcache.ifb->stats_t;
 
-	    	dcache.prefetchb->stats_t.readAc.access  = dcache.prefetchb->l_ip.num_search_ports;
-	    	dcache.prefetchb->stats_t.writeAc.access = dcache.ifb->l_ip.num_search_ports;
+	    	dcache.prefetchb->stats_t.readAc.access  = dcache.prefetchb->l_ip.num_search_ports*coredynp->LSU_duty_cycle;
+	    	dcache.prefetchb->stats_t.writeAc.access = dcache.ifb->l_ip.num_search_ports*coredynp->LSU_duty_cycle;
 	    	dcache.prefetchb->tdp_stats = dcache.prefetchb->stats_t;
 	    	if (cache_p==Write_back)
 	    	{
@@ -3138,7 +3190,7 @@ void LoadStoreU::computeEnergy(bool is_tdp)
 	dcache.power_t.reset();
 	LSQ->power_t.reset();
     dcache.power_t.readOp.dynamic	+= (dcache.caches->stats_t.readAc.hit*dcache.caches->local_result.power.readOp.dynamic+
-    		dcache.caches->stats_t.readAc.miss*dcache.caches->local_result.power.readOp.dynamic+
+    		dcache.caches->stats_t.readAc.miss*dcache.caches->local_result.power.readOp.dynamic+ //assuming D cache is in the fast model which read tag and data together
     		dcache.caches->stats_t.writeAc.miss*dcache.caches->local_result.tag_array2->power.readOp.dynamic+
     		dcache.caches->stats_t.writeAc.access*dcache.caches->local_result.power.writeOp.dynamic);
 
@@ -3235,7 +3287,7 @@ void LoadStoreU::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 	string indent_str(indent, ' ');
 	string indent_str_next(indent+2, ' ');
 	bool long_channel = XML->sys.longer_channel_device;
-
+	bool power_gating = XML->sys.power_gating;
 
 	if (is_tdp)
 	{
@@ -3244,6 +3296,8 @@ void LoadStoreU::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 		*out_file << indent_str_next << "Peak Dynamic = " << dcache.power.readOp.dynamic*coredynp->clockRate << " W" << endl;
 		*out_file << indent_str_next << "Subthreshold Leakage = "
 			<< (long_channel? dcache.power.readOp.longer_channel_leakage:dcache.power.readOp.leakage )<<" W" << endl;
+		if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+				<< (long_channel? dcache.power.readOp.power_gated_with_long_channel_leakage : dcache.power.readOp.power_gated_leakage)  << " W" << endl;
 		*out_file << indent_str_next << "Gate Leakage = " << dcache.power.readOp.gate_leakage << " W" << endl;
 		*out_file << indent_str_next << "Runtime Dynamic = " << dcache.rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
 		*out_file <<endl;
@@ -3253,7 +3307,9 @@ void LoadStoreU::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 			*out_file << indent_str_next << "Area = " << LSQ->area.get_area()*1e-6  << " mm^2" << endl;
 			*out_file << indent_str_next << "Peak Dynamic = " << LSQ->power.readOp.dynamic*coredynp->clockRate  << " W" << endl;
 			*out_file << indent_str_next << "Subthreshold Leakage = "
-				<< (long_channel? LSQ->power.readOp.longer_channel_leakage:LSQ->power.readOp.leakage)  << " W" << endl;
+				<< (long_channel? LSQ->power.readOp.longer_channel_leakage:LSQ->power.readOp.leakage )  << " W" << endl;
+			if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+					<< (long_channel? LSQ->power.readOp.power_gated_with_long_channel_leakage : LSQ->power.readOp.power_gated_leakage)  << " W" << endl;
 			*out_file << indent_str_next << "Gate Leakage = " << LSQ->power.readOp.gate_leakage  << " W" << endl;
 			*out_file << indent_str_next << "Runtime Dynamic = " << LSQ->rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
 			*out_file <<endl;
@@ -3268,6 +3324,8 @@ void LoadStoreU::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 				*out_file << indent_str_next << "Peak Dynamic = " << LoadQ->power.readOp.dynamic*coredynp->clockRate  << " W" << endl;
 				*out_file << indent_str_next << "Subthreshold Leakage = "
 				<< (long_channel? LoadQ->power.readOp.longer_channel_leakage:LoadQ->power.readOp.leakage)  << " W" << endl;
+				if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+						<< (long_channel? LoadQ->power.readOp.power_gated_with_long_channel_leakage : LoadQ->power.readOp.power_gated_leakage)  << " W" << endl;
 				*out_file << indent_str_next << "Gate Leakage = " << LoadQ->power.readOp.gate_leakage  << " W" << endl;
 				*out_file << indent_str_next << "Runtime Dynamic = " << LoadQ->rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
 				*out_file <<endl;
@@ -3277,6 +3335,8 @@ void LoadStoreU::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 			*out_file << indent_str_next << "Peak Dynamic = " << LSQ->power.readOp.dynamic*coredynp->clockRate  << " W" << endl;
 			*out_file << indent_str_next << "Subthreshold Leakage = "
 				<< (long_channel? LSQ->power.readOp.longer_channel_leakage:LSQ->power.readOp.leakage)  << " W" << endl;
+			if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+					<< (long_channel? LSQ->power.readOp.power_gated_with_long_channel_leakage : LSQ->power.readOp.power_gated_leakage)  << " W" << endl;
 			*out_file << indent_str_next << "Gate Leakage = " << LSQ->power.readOp.gate_leakage  << " W" << endl;
 			*out_file << indent_str_next << "Runtime Dynamic = " << LSQ->rt_power.readOp.dynamic/coredynp->executionTime<< " W" << endl;
 			*out_file <<endl;
@@ -3313,7 +3373,7 @@ void MemManU::computeEnergy(bool is_tdp)
 	if (is_tdp)
     {
     	//init stats for Peak
-    	itlb->stats_t.readAc.access  = itlb->l_ip.num_search_ports;
+    	itlb->stats_t.readAc.access  = itlb->l_ip.num_search_ports*coredynp->IFU_duty_cycle;
     	itlb->stats_t.readAc.miss    = 0;
     	itlb->stats_t.readAc.hit     = itlb->stats_t.readAc.access - itlb->stats_t.readAc.miss;
     	itlb->tdp_stats = itlb->stats_t;
@@ -3364,7 +3424,7 @@ void MemManU::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 	string indent_str(indent, ' ');
 	string indent_str_next(indent+2, ' ');
 	bool long_channel = XML->sys.longer_channel_device;
-
+	bool power_gating = XML->sys.power_gating;
 
 
 
@@ -3375,6 +3435,8 @@ void MemManU::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 		*out_file << indent_str_next << "Peak Dynamic = " << itlb->power.readOp.dynamic*coredynp->clockRate << " W" << endl;
 		*out_file << indent_str_next << "Subthreshold Leakage = "
 			<< (long_channel? itlb->power.readOp.longer_channel_leakage:itlb->power.readOp.leakage) <<" W" << endl;
+		if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+				<< (long_channel? itlb->power.readOp.power_gated_with_long_channel_leakage : itlb->power.readOp.power_gated_leakage)  << " W" << endl;
 		*out_file << indent_str_next << "Gate Leakage = " << itlb->power.readOp.gate_leakage << " W" << endl;
 		*out_file << indent_str_next << "Runtime Dynamic = " << itlb->rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
 		*out_file <<endl;
@@ -3383,6 +3445,8 @@ void MemManU::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 		*out_file << indent_str_next << "Peak Dynamic = " << dtlb->power.readOp.dynamic*coredynp->clockRate  << " W" << endl;
 		*out_file << indent_str_next << "Subthreshold Leakage = "
 			<< (long_channel? dtlb->power.readOp.longer_channel_leakage:dtlb->power.readOp.leakage)  << " W" << endl;
+		if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+				<< (long_channel? dtlb->power.readOp.power_gated_with_long_channel_leakage : dtlb->power.readOp.power_gated_leakage)  << " W" << endl;
 		*out_file << indent_str_next << "Gate Leakage = " << dtlb->power.readOp.gate_leakage  << " W" << endl;
 		*out_file << indent_str_next << "Runtime Dynamic = " << dtlb->rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
 		*out_file <<endl;
@@ -3500,6 +3564,7 @@ void RegFU::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 	string indent_str(indent, ' ');
 	string indent_str_next(indent+2, ' ');
 	bool long_channel = XML->sys.longer_channel_device;
+	bool power_gating = XML->sys.power_gating;
 
 	if (is_tdp)
 	{	*out_file << indent_str << "Integer RF:" << endl;
@@ -3507,6 +3572,8 @@ void RegFU::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 		*out_file << indent_str_next << "Peak Dynamic = " << IRF->power.readOp.dynamic*coredynp->clockRate << " W" << endl;
 		*out_file << indent_str_next << "Subthreshold Leakage = "
 			<< (long_channel? IRF->power.readOp.longer_channel_leakage:IRF->power.readOp.leakage) <<" W" << endl;
+		if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+				<< (long_channel? IRF->power.readOp.power_gated_with_long_channel_leakage : IRF->power.readOp.power_gated_leakage)  << " W" << endl;
 		*out_file << indent_str_next << "Gate Leakage = " << IRF->power.readOp.gate_leakage << " W" << endl;
 		*out_file << indent_str_next << "Runtime Dynamic = " << IRF->rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
 		*out_file <<endl;
@@ -3515,6 +3582,8 @@ void RegFU::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 		*out_file << indent_str_next << "Peak Dynamic = " << FRF->power.readOp.dynamic*coredynp->clockRate  << " W" << endl;
 		*out_file << indent_str_next << "Subthreshold Leakage = "
 			<< (long_channel? FRF->power.readOp.longer_channel_leakage:FRF->power.readOp.leakage)  << " W" << endl;
+		if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+				<< (long_channel? FRF->power.readOp.power_gated_with_long_channel_leakage : FRF->power.readOp.power_gated_leakage)  << " W" << endl;
 		*out_file << indent_str_next << "Gate Leakage = " << FRF->power.readOp.gate_leakage  << " W" << endl;
 		*out_file << indent_str_next << "Runtime Dynamic = " << FRF->rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
 		*out_file <<endl;
@@ -3525,6 +3594,8 @@ void RegFU::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 			*out_file << indent_str_next << "Peak Dynamic = " << RFWIN->power.readOp.dynamic*coredynp->clockRate  << " W" << endl;
 			*out_file << indent_str_next << "Subthreshold Leakage = "
 				<< (long_channel? RFWIN->power.readOp.longer_channel_leakage:RFWIN->power.readOp.leakage)  << " W" << endl;
+			if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+					<< (long_channel? RFWIN->power.readOp.power_gated_with_long_channel_leakage : RFWIN->power.readOp.power_gated_leakage)  << " W" << endl;
 			*out_file << indent_str_next << "Gate Leakage = " << RFWIN->power.readOp.gate_leakage  << " W" << endl;
 			*out_file << indent_str_next << "Runtime Dynamic = " << RFWIN->rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
 			*out_file <<endl;
@@ -3632,7 +3703,7 @@ void EXECU::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 	string indent_str(indent, ' ');
 	string indent_str_next(indent+2, ' ');
 	bool long_channel = XML->sys.longer_channel_device;
-
+	bool power_gating = XML->sys.power_gating;
 
 //	*out_file << indent_str_next << "Results Broadcast Bus Area = " << bypass->area.get_area() *1e-6 << " mm^2" << endl;
 	if (is_tdp)
@@ -3642,6 +3713,8 @@ void EXECU::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 		*out_file << indent_str_next << "Peak Dynamic = " << rfu->power.readOp.dynamic*coredynp->clockRate << " W" << endl;
 		*out_file << indent_str_next << "Subthreshold Leakage = "
 			<< (long_channel? rfu->power.readOp.longer_channel_leakage:rfu->power.readOp.leakage) <<" W" << endl;
+		if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+				<< (long_channel? rfu->power.readOp.power_gated_with_long_channel_leakage : rfu->power.readOp.power_gated_leakage)  << " W" << endl;
 		*out_file << indent_str_next << "Gate Leakage = " << rfu->power.readOp.gate_leakage << " W" << endl;
 		*out_file << indent_str_next << "Runtime Dynamic = " << rfu->rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
 		*out_file <<endl;
@@ -3653,6 +3726,8 @@ void EXECU::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 		*out_file << indent_str_next << "Peak Dynamic = " << scheu->power.readOp.dynamic*coredynp->clockRate  << " W" << endl;
 		*out_file << indent_str_next << "Subthreshold Leakage = "
 			<< (long_channel? scheu->power.readOp.longer_channel_leakage:scheu->power.readOp.leakage)  << " W" << endl;
+		if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+				<< (long_channel? scheu->power.readOp.power_gated_with_long_channel_leakage : scheu->power.readOp.power_gated_leakage)  << " W" << endl;
 		*out_file << indent_str_next << "Gate Leakage = " << scheu->power.readOp.gate_leakage  << " W" << endl;
 		*out_file << indent_str_next << "Runtime Dynamic = " << scheu->rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
 		*out_file <<endl;
@@ -3673,6 +3748,8 @@ void EXECU::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 		*out_file << indent_str_next << "Peak Dynamic = " << bypass.power.readOp.dynamic*coredynp->clockRate  << " W" << endl;
 		*out_file << indent_str_next << "Subthreshold Leakage = "
 			<< (long_channel? bypass.power.readOp.longer_channel_leakage:bypass.power.readOp.leakage ) << " W" << endl;
+		if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+				<< (long_channel? bypass.power.readOp.power_gated_with_long_channel_leakage : bypass.power.readOp.power_gated_leakage)  << " W" << endl;
 		*out_file << indent_str_next << "Gate Leakage = " << bypass.power.readOp.gate_leakage  << " W" << endl;
 		*out_file << indent_str_next << "Runtime Dynamic = " << bypass.rt_power.readOp.dynamic/coredynp->executionTime << " W" << endl;
 		*out_file <<endl;
@@ -3708,6 +3785,10 @@ void Core::resetRtPower()
 
 void Core::computeEnergy(bool is_tdp)
 {
+	/*
+	 * When computing TDP, power = energy_per_cycle (the value computed in this function) * clock_rate (in the display_energy function)
+	 * When computing dyn_power; power = total energy (the value computed in this function) / Total execution time (cycle count / clock rate)
+	 */
 	//power_point_product_masks
 	double pppm_t[4]    = {1,1,1,1};
     double rtp_pipeline_coe;
@@ -3723,7 +3804,7 @@ void Core::computeEnergy(bool is_tdp)
 		{
 			num_units = 5.0;
 			rnu->computeEnergy(is_tdp);
-			set_pppm(pppm_t, coredynp.num_pipelines/num_units, coredynp.num_pipelines/num_units, coredynp.num_pipelines/num_units, coredynp.num_pipelines/num_units);
+			set_pppm(pppm_t, coredynp.num_pipelines/num_units, coredynp.num_pipelines/num_units, coredynp.num_pipelines/num_units, coredynp.num_pipelines/num_units);//User need to feed a duty cycle to improve accuracy
 			if (rnu->exist)
 			{
 				rnu->power = rnu->power + corepipe->power*pppm_t;
@@ -3776,6 +3857,7 @@ void Core::computeEnergy(bool is_tdp)
 			//l2cache->power = l2cache->power*pppm_t;
 			power = power  + l2cache->power*pppm_t;
 		}
+
 	}
 	else
 	{
@@ -3783,11 +3865,20 @@ void Core::computeEnergy(bool is_tdp)
 		lsu->computeEnergy(is_tdp);
 		mmu->computeEnergy(is_tdp);
 		exu->computeEnergy(is_tdp);
+
 		if (coredynp.core_ty==OOO)
 		{
 			num_units = 5.0;
 			rnu->computeEnergy(is_tdp);
-        	set_pppm(pppm_t, coredynp.num_pipelines/num_units, coredynp.num_pipelines/num_units, coredynp.num_pipelines/num_units, coredynp.num_pipelines/num_units);
+			if (XML->sys.homogeneous_cores==1)
+			{
+				rtp_pipeline_coe = coredynp.pipeline_duty_cycle * XML->sys.total_cycles * XML->sys.number_of_cores;
+			}
+			else
+			{
+				rtp_pipeline_coe = coredynp.pipeline_duty_cycle * coredynp.total_cycles;
+			}
+        	set_pppm(pppm_t, coredynp.num_pipelines*rtp_pipeline_coe/num_units, coredynp.num_pipelines/num_units, coredynp.num_pipelines/num_units, coredynp.num_pipelines/num_units);
 			if (rnu->exist)
 			{
         	rnu->rt_power = rnu->rt_power + corepipe->power*pppm_t;
@@ -3797,36 +3888,66 @@ void Core::computeEnergy(bool is_tdp)
 		}
 		else
 		{
-			if (XML->sys.homogeneous_cores==1)
-			{
-				rtp_pipeline_coe = coredynp.pipeline_duty_cycle * XML->sys.total_cycles * XML->sys.number_of_cores;
-			}
-			else
-			{
-				rtp_pipeline_coe = coredynp.pipeline_duty_cycle * coredynp.total_cycles;
-			}
-		set_pppm(pppm_t, coredynp.num_pipelines*rtp_pipeline_coe/num_units, coredynp.num_pipelines/num_units, coredynp.num_pipelines/num_units, coredynp.num_pipelines/num_units);
+			num_units = 4.0;
 		}
 
 		if (ifu->exist)
 		{
+			if (XML->sys.homogeneous_cores==1)
+			{
+				rtp_pipeline_coe = coredynp.pipeline_duty_cycle * coredynp.IFU_duty_cycle * XML->sys.total_cycles * XML->sys.number_of_cores;
+			}
+			else
+			{
+				rtp_pipeline_coe = coredynp.pipeline_duty_cycle * coredynp.IFU_duty_cycle * coredynp.total_cycles;
+			}
+			set_pppm(pppm_t, coredynp.num_pipelines*rtp_pipeline_coe/num_units, coredynp.num_pipelines/num_units, coredynp.num_pipelines/num_units, coredynp.num_pipelines/num_units);
 			ifu->rt_power = ifu->rt_power + corepipe->power*pppm_t;
 			rt_power     = rt_power + ifu->rt_power ;
 		}
 		if (lsu->exist)
 		{
+			if (XML->sys.homogeneous_cores==1)
+			{
+				rtp_pipeline_coe = coredynp.pipeline_duty_cycle * coredynp.LSU_duty_cycle * XML->sys.total_cycles * XML->sys.number_of_cores;
+			}
+			else
+			{
+				rtp_pipeline_coe = coredynp.pipeline_duty_cycle * coredynp.LSU_duty_cycle * coredynp.total_cycles;
+			}
+			set_pppm(pppm_t, coredynp.num_pipelines*rtp_pipeline_coe/num_units, coredynp.num_pipelines/num_units, coredynp.num_pipelines/num_units, coredynp.num_pipelines/num_units);
+
 			lsu->rt_power = lsu->rt_power + corepipe->power*pppm_t;
 			rt_power     = rt_power  + lsu->rt_power;
 		}
 		if (exu->exist)
 		{
+			if (XML->sys.homogeneous_cores==1)
+			{
+				rtp_pipeline_coe = coredynp.pipeline_duty_cycle * coredynp.ALU_duty_cycle * XML->sys.total_cycles * XML->sys.number_of_cores;
+			}
+			else
+			{
+				rtp_pipeline_coe = coredynp.pipeline_duty_cycle * coredynp.ALU_duty_cycle * coredynp.total_cycles;
+			}
+			set_pppm(pppm_t, coredynp.num_pipelines*rtp_pipeline_coe/num_units, coredynp.num_pipelines/num_units, coredynp.num_pipelines/num_units, coredynp.num_pipelines/num_units);
 			exu->rt_power = exu->rt_power + corepipe->power*pppm_t;
 			rt_power     = rt_power  + exu->rt_power;
 		}
 		if (mmu->exist)
 		{
+			if (XML->sys.homogeneous_cores==1)
+			{
+				rtp_pipeline_coe = coredynp.pipeline_duty_cycle * (0.5+0.5*coredynp.LSU_duty_cycle) * XML->sys.total_cycles * XML->sys.number_of_cores;
+			}
+			else
+			{
+				rtp_pipeline_coe = coredynp.pipeline_duty_cycle * (0.5+0.5*coredynp.LSU_duty_cycle) * coredynp.total_cycles;
+			}
+			set_pppm(pppm_t, coredynp.num_pipelines*rtp_pipeline_coe/num_units, coredynp.num_pipelines/num_units, coredynp.num_pipelines/num_units, coredynp.num_pipelines/num_units);
 			mmu->rt_power = mmu->rt_power + corepipe->power*pppm_t;
 			rt_power     = rt_power +  mmu->rt_power ;
+
 		}
 
 		rt_power     = rt_power +  undiffCore->power;
@@ -3848,6 +3969,8 @@ void Core::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 	string indent_str(indent, ' ');
 	string indent_str_next(indent+2, ' ');
 	bool long_channel = XML->sys.longer_channel_device;
+	bool power_gating = XML->sys.power_gating;
+
 	if (is_tdp)
 	{
 		*out_file << "Core:" << endl;
@@ -3855,7 +3978,8 @@ void Core::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 		*out_file << indent_str << "Peak Dynamic = " << power.readOp.dynamic*coredynp.clockRate << " W" << endl;
 		*out_file << indent_str << "Subthreshold Leakage = "
 			<< (long_channel? power.readOp.longer_channel_leakage:power.readOp.leakage) <<" W" << endl;
-		//*out_file << indent_str << "Subthreshold Leakage = " << power.readOp.longer_channel_leakage <<" W" << endl;
+		if (power_gating) *out_file << indent_str << "Subthreshold Leakage with power gating = "
+				<< (long_channel? power.readOp.power_gated_with_long_channel_leakage : power.readOp.power_gated_leakage)  << " W" << endl;
 		*out_file << indent_str << "Gate Leakage = " << power.readOp.gate_leakage << " W" << endl;
 		*out_file << indent_str << "Runtime Dynamic = " << rt_power.readOp.dynamic/coredynp.executionTime << " W" << endl;
 		*out_file<<endl;
@@ -3866,7 +3990,8 @@ void Core::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 			*out_file << indent_str_next << "Peak Dynamic = " << ifu->power.readOp.dynamic*coredynp.clockRate << " W" << endl;
 			*out_file << indent_str_next << "Subthreshold Leakage = "
 				<< (long_channel? ifu->power.readOp.longer_channel_leakage:ifu->power.readOp.leakage) <<" W" << endl;
-			//*out_file << indent_str_next << "Subthreshold Leakage = " << ifu->power.readOp.longer_channel_leakage <<" W" << endl;
+			if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+					<< (long_channel? ifu->power.readOp.power_gated_with_long_channel_leakage : ifu->power.readOp.power_gated_leakage)  << " W" << endl;
 			*out_file << indent_str_next << "Gate Leakage = " << ifu->power.readOp.gate_leakage << " W" << endl;
 			*out_file << indent_str_next << "Runtime Dynamic = " << ifu->rt_power.readOp.dynamic/coredynp.executionTime << " W" << endl;
 			*out_file <<endl;
@@ -3883,7 +4008,8 @@ void Core::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 				*out_file << indent_str_next << "Peak Dynamic = " << rnu->power.readOp.dynamic*coredynp.clockRate  << " W" << endl;
 				*out_file << indent_str_next << "Subthreshold Leakage = "
 					<< (long_channel? rnu->power.readOp.longer_channel_leakage:rnu->power.readOp.leakage)  << " W" << endl;
-				//*out_file << indent_str_next << "Subthreshold Leakage = " << rnu->power.readOp.longer_channel_leakage  << " W" << endl;
+				if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+						<< (long_channel? rnu->power.readOp.power_gated_with_long_channel_leakage : rnu->power.readOp.power_gated_leakage)  << " W" << endl;
 				*out_file << indent_str_next << "Gate Leakage = " << rnu->power.readOp.gate_leakage  << " W" << endl;
 				*out_file << indent_str_next << "Runtime Dynamic = " << rnu->rt_power.readOp.dynamic/coredynp.executionTime << " W" << endl;
 				*out_file <<endl;
@@ -3900,7 +4026,8 @@ void Core::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 			*out_file << indent_str_next << "Peak Dynamic = " << lsu->power.readOp.dynamic*coredynp.clockRate  << " W" << endl;
 			*out_file << indent_str_next << "Subthreshold Leakage = "
 				<< (long_channel? lsu->power.readOp.longer_channel_leakage:lsu->power.readOp.leakage ) << " W" << endl;
-			//*out_file << indent_str_next << "Subthreshold Leakage = " << lsu->power.readOp.longer_channel_leakage  << " W" << endl;
+			if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+					<< (long_channel? lsu->power.readOp.power_gated_with_long_channel_leakage : lsu->power.readOp.power_gated_leakage)  << " W" << endl;
 			*out_file << indent_str_next << "Gate Leakage = " << lsu->power.readOp.gate_leakage  << " W" << endl;
 			*out_file << indent_str_next << "Runtime Dynamic = " << lsu->rt_power.readOp.dynamic/coredynp.executionTime << " W" << endl;
 			*out_file <<endl;
@@ -3915,8 +4042,8 @@ void Core::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 			*out_file << indent_str_next << "Peak Dynamic = " << mmu->power.readOp.dynamic*coredynp.clockRate  << " W" << endl;
 			*out_file << indent_str_next << "Subthreshold Leakage = "
 				<< (long_channel? mmu->power.readOp.longer_channel_leakage:mmu->power.readOp.leakage)   << " W" << endl;
-			//*out_file << indent_str_next << "Subthreshold Leakage = " << mmu->power.readOp.longer_channel_leakage   << " W" << endl;
-			*out_file << indent_str_next << "Gate Leakage = " << mmu->power.readOp.gate_leakage  << " W" << endl;
+			if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+					<< (long_channel? mmu->power.readOp.power_gated_with_long_channel_leakage : mmu->power.readOp.power_gated_leakage)  << " W" << endl;
 			*out_file << indent_str_next << "Runtime Dynamic = " << mmu->rt_power.readOp.dynamic/coredynp.executionTime << " W" << endl;
 			*out_file <<endl;
 			if (plevel >2){
@@ -3930,8 +4057,8 @@ void Core::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 			*out_file << indent_str_next << "Peak Dynamic = " << exu->power.readOp.dynamic*coredynp.clockRate  << " W" << endl;
 			*out_file << indent_str_next << "Subthreshold Leakage = "
 				<< (long_channel? exu->power.readOp.longer_channel_leakage:exu->power.readOp.leakage)   << " W" << endl;
-			//*out_file << indent_str_next << "Subthreshold Leakage = " << exu->power.readOp.longer_channel_leakage << " W" << endl;
-			*out_file << indent_str_next << "Gate Leakage = " << exu->power.readOp.gate_leakage  << " W" << endl;
+			if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+					<< (long_channel? exu->power.readOp.power_gated_with_long_channel_leakage : exu->power.readOp.power_gated_leakage)  << " W" << endl;
 			*out_file << indent_str_next << "Runtime Dynamic = " << exu->rt_power.readOp.dynamic/coredynp.executionTime << " W" << endl;
 			*out_file <<endl;
 			if (plevel >2){
@@ -4005,13 +4132,14 @@ RENAMINGU ::~RENAMINGU(){
 
 	if (!exist) return;
 	if(iFRAT ) 	               {delete iFRAT; iFRAT = 0;}
-    if(fFRAT ) 	               {delete fFRAT; fFRAT =0;}
     if(iRRAT)                  {delete iRRAT; iRRAT = 0;}
     if(iFRAT)                  {delete iFRAT; iFRAT = 0;}
     if(ifreeL)                 {delete ifreeL;ifreeL= 0;}
-    if(ffreeL)                 {delete ffreeL;ffreeL= 0;}
     if(idcl)                   {delete idcl;  idcl = 0;}
+    if(fFRAT ) 	               {delete fFRAT; fFRAT =0;}
+    if(fRRAT ) 	               {delete fRRAT; fRRAT =0;}
     if(fdcl)                   {delete fdcl;  fdcl = 0;}
+    if(ffreeL)                 {delete ffreeL;ffreeL= 0;}
     if(RAHT)                   {delete RAHT;  RAHT = 0;}
 	}
 
@@ -4019,7 +4147,8 @@ LoadStoreU ::~LoadStoreU(){
 
 	if (!exist) return;
 	if(LSQ) 	               {delete LSQ; LSQ = 0;}
-	}
+	if(LoadQ) 	               {delete LoadQ; LoadQ = 0;}
+}
 
 MemManU ::~MemManU(){
 
@@ -4040,7 +4169,7 @@ SchedulerU ::~SchedulerU(){
 
 	if (!exist) return;
 	if(int_inst_window) 	   {delete int_inst_window; int_inst_window = 0;}
-	if(fp_inst_window) 	       {delete int_inst_window; int_inst_window = 0;}
+	if(fp_inst_window) 	       {delete fp_inst_window; fp_inst_window = 0;}
 	if(ROB) 	               {delete ROB; ROB = 0;}
     if(instruction_selection)  {delete instruction_selection;instruction_selection = 0;}
 	}
@@ -4092,6 +4221,9 @@ void Core::set_core_param()
    coredynp.num_alus      = XML->sys.core[ithCore].ALU_per_core;
    coredynp.num_fpus      = XML->sys.core[ithCore].FPU_per_core;
    coredynp.num_muls      = XML->sys.core[ithCore].MUL_per_core;
+    coredynp.vdd	       = XML->sys.core[ithCore].vdd;
+    coredynp.power_gating_vcc	       = XML->sys.core[ithCore].power_gating_vcc;
+
 
 
    coredynp.num_hthreads	     = XML->sys.core[ithCore].number_hardware_threads;
@@ -4191,7 +4323,7 @@ void Core::set_core_param()
       }
 
    }
-   coredynp.globalCheckpoint   =  32;//best check pointing entries for a 4~8 issue OOO should be 16~48;See TR for reference.
+   coredynp.globalCheckpoint   =  8;//best check pointing entries for a 4~8 issue OOO should be 8~48;See TR for reference.
    coredynp.perThreadState     =  8;
    coredynp.instruction_length = 32;
    coredynp.clockRate          =  XML->sys.core[ithCore].clock_rate;
@@ -4199,4 +4331,21 @@ void Core::set_core_param()
    coredynp.regWindowing= (XML->sys.core[ithCore].register_windows_size>0&&coredynp.core_ty==Inorder)?true:false;
    coredynp.executionTime = XML->sys.total_cycles/coredynp.clockRate;
    set_pppm(coredynp.pppm_lkg_multhread, 0, coredynp.num_hthreads, coredynp.num_hthreads, 0);
+
+	//does not care device types, since all core device types are set at sys. level
+	if (coredynp.vdd > 0)
+	{
+	  interface_ip.specific_hp_vdd = true;
+	  interface_ip.specific_lop_vdd = true;
+	  interface_ip.specific_lstp_vdd = true;
+	  interface_ip.hp_Vdd   = coredynp.vdd;
+	  interface_ip.lop_Vdd  = coredynp.vdd;
+	  interface_ip.lstp_Vdd = coredynp.vdd;
+	}
+
+	if (coredynp.power_gating_vcc > -1)
+	{
+	  interface_ip.specific_vcc_min = true;
+	  interface_ip.user_defined_vcc_min   = coredynp.power_gating_vcc;
+	}
 }

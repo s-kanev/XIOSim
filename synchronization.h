@@ -1,30 +1,25 @@
 
-/* Synchronization primitives provided by feeder:
- * These are wrappers to pin internal threading functions.
- * Using pthreads inside a pintool is not safe.
+/* Synchronization primitives in xiosim.
  * Copyright, Svilen Kanev, 2011
  */
 
 
 #ifndef __SYNCHRONIZATION_H__
 #define __SYNCHRONIZATION_H__
+#include <pthread.h>
 #include <stdint.h>
+#include <unistd.h>
 
 extern void wait_consumers();
 
-namespace LEVEL_PINCLIENT {
-extern void PIN_Yield();
-extern void PIN_Sleep(uint32_t msecs);
-}
-
 inline void xio_sleep(int msecs)
 {
-  LEVEL_PINCLIENT::PIN_Sleep(msecs);
+  usleep(msecs * 1000);
 }
 
 inline void yield()
 {
-    LEVEL_PINCLIENT::PIN_Yield();
+  pthread_yield();
 }
 
 inline void lk_wait_consumers()
@@ -32,33 +27,6 @@ inline void lk_wait_consumers()
   wait_consumers();
 };
 
-#ifdef USE_PIN_LOCK
-/* Wrappers around pin locks */
-namespace LEVEL_BASE {
-struct PIN_LOCK;
-extern void GetLock(PIN_LOCK* lk, int32_t tid);
-extern int32_t ReleaseLock(PIN_LOCK* lk);
-extern void InitLock(PIN_LOCK* lk);
-}
-
-typedef XIOSIM_LOCK PIN_LOCK;
-
-inline void lk_lock(XIOSIM_LOCK* lk, int32_t cid)
-{
-    LEVEL_BASE::GetLock(lk, cid);
-}
-
-inline int32_t lk_unlock(XIOSIM_LOCK* lk)
-{
-    return LEVEL_BASE::ReleaseLock(lk);
-}
-
-inline void lk_init(XIOSIM_LOCK* lk)
-{
-    LEVEL_BASE::InitLock(lk);
-}
-
-#else
 /* Custom lock implementaion -- faster than the futeces that pin uses
  * because it stays in userspace only */
 
@@ -73,13 +41,13 @@ inline void lk_init(XIOSIM_LOCK* lk)
 
 struct XIOSIM_LOCK {
   int32_t v;
-  XIOSIM_LOCK() : v(0) {};
 } __attribute__ ((aligned (64)));
 
 inline void lk_lock(XIOSIM_LOCK* lk, int32_t cid)
 {
+    (void) cid;
     int32_t inc = 0x00010000;
-    int32_t tmp;
+    int32_t tmp = 0;
     __asm__ __volatile__ (  "lock xaddl %0, %1\n"
                             "movzwl %w0, %2\n"
                             "shrl $16, %0\n"
@@ -89,7 +57,7 @@ inline void lk_lock(XIOSIM_LOCK* lk, int32_t cid)
                             "movzwl %1, %2\n"
                             "jmp 1b\n"
                             "2:\n"
-                            :"+Q" (inc), "+m" (lk->v), "=r" (tmp)
+                            :"+Q" (inc), "+m" (lk->v), "+r" (tmp)
                             :
                             :"memory", "cc");
 }
@@ -108,8 +76,6 @@ inline void lk_init(XIOSIM_LOCK* lk)
     __asm__ __volatile__ ("":::"memory");
     lk->v = 0;
 }
-
-#endif
 
 /* Protecting shared state among cores */
 /* Lock acquire order (outmost to inmost):
@@ -139,6 +105,6 @@ extern XIOSIM_LOCK core_pools_lock;
 extern XIOSIM_LOCK oracle_pools_lock;
 
 /* Make sure printing to the console is deadlock-free */
-extern XIOSIM_LOCK printing_lock;
+extern XIOSIM_LOCK *printing_lock;
 
 #endif // __SYNCHRONIZATION_H__

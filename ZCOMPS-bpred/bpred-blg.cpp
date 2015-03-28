@@ -22,7 +22,7 @@ if(!strcasecmp(COMPONENT_NAME,type))
 
   if(sscanf(opt_string,"%*[^:]:%[^:]:%d:%d:%d:%d:%d:%d:%d",name,&B_size,&L_size,&L_hist_len,&L_hist_size,&L_tag_size,&G_size,&G_tag_size) != 8)
     fatal("bad bpred options string %s (should be \"blg:name:B_size:L_size:L_hist_len:L_hist_size:L_tag_size:G_size:G_tag_size\")",opt_string);
-  return new bpred_blg_t(name,B_size,L_size,L_hist_len,L_hist_size,L_tag_size,G_size,G_tag_size);
+  return new bpred_blg_t(core,name,B_size,L_size,L_hist_len,L_hist_size,L_tag_size,G_size,G_tag_size);
 }
 #else
 
@@ -82,7 +82,8 @@ class bpred_blg_t:public bpred_dir_t
   public:
 
   /* CREATE */
-  bpred_blg_t(char * const arg_name,
+  bpred_blg_t(const core_t * core,
+              char * const arg_name,
               const int arg_B_size,
               const int arg_L_size,
               const int arg_L_hist_len,
@@ -90,7 +91,7 @@ class bpred_blg_t:public bpred_dir_t
               const int arg_L_tag_size,
               const int arg_G_size,
               const int arg_G_tag_size
-             )
+             ) : bpred_dir_t(core)
   {
     init();
 

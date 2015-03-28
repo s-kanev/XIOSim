@@ -15,7 +15,7 @@ if(!strcasecmp(COMPONENT_NAME,type))
 
   if(sscanf(opt_string,"%*[^:]:%[^:]:%d:%d:%d",name,&l1_size,&his_width,&top_size) != 4)
     fatal("bad bpred options string %s (should be \"pathneural:name:l1_size:his_width:top_size\")",opt_string);
-  return new bpred_pathneural_t(name,l1_size,his_width,top_size);
+  return new bpred_pathneural_t(core,name,l1_size,his_width,top_size);
 }
 #else
 
@@ -61,11 +61,12 @@ class bpred_pathneural_t:public bpred_dir_t
   public:
 
   /* CREATE */
-  bpred_pathneural_t(char * const arg_name,
+  bpred_pathneural_t(const core_t * core,
+                     char * const arg_name,
                      const int arg_bht_size,
                      const int arg_history_length,
                      const int arg_top_size
-                    )
+                    ) : bpred_dir_t(core)
   {
     init();
 

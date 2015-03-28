@@ -138,6 +138,7 @@ class core_exec_t
      STQ_squash_senior() squashes and removes the store-writeback
         from the senior STQ
    */
+  virtual bool STQ_empty(void) = 0;
   virtual bool STQ_available(void) = 0;
   virtual void STQ_insert_sta(struct uop_t * const uop) = 0;
   virtual void STQ_insert_std(struct uop_t * const uop) = 0;

@@ -9,20 +9,20 @@ else
 endif
 
 
-LIBS = 
+LIBS =
 INCS = -lm
 
 ifeq ($(TAG),dbg)
-  DBG = -Wall 
+  DBG = -Wall
   OPT = -ggdb -g -O0 -DNTHREADS=1 -Icacti -I.
 else
-  DBG = 
+  DBG =
   OPT = -O3 -msse2 -mfpmath=sse -DNTHREADS=$(NTHREADS) -Icacti -I.
   #OPT = -O0 -DNTHREADS=$(NTHREADS)
 endif
 
-#CXXFLAGS = -Wall -Wno-unknown-pragmas -Winline $(DBG) $(OPT) 
-CXXFLAGS = -m32 -g -Wno-unknown-pragmas $(DBG) $(OPT) 
+#CXXFLAGS = -Wall -Wno-unknown-pragmas -Winline $(DBG) $(OPT)
+CXXFLAGS = -m32 -g -Wno-unknown-pragmas $(DBG) $(OPT)
 CXX ?= g++
 CC  ?= gcc
 AR = ar rs
@@ -72,7 +72,8 @@ SRCS  = \
   technology.cc \
   uca.cc \
   wire.cc \
-  xmlParser.cc 
+  xmlParser.cc \
+  powergating.cc
 
 ifeq ($(TGT),exe)
 SRCS += \
@@ -90,7 +91,7 @@ obj_$(TAG)/$(TARGET) : $(OBJS)
 ifeq ($(TGT),exe)
 	$(CXX) $(OBJS) -o $@ $(INCS) $(CXXFLAGS) $(LIBS) -pthread
 else
-	$(AR) $@ $(OBJS) 
+	$(AR) $@ $(OBJS)
 	$(RANLIB) $@
 endif
 

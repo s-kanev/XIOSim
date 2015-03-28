@@ -72,6 +72,8 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
+#include <cstddef>
+
 #include "thread.h"
 #include "synchronization.h"
 
@@ -141,6 +143,8 @@ void fetch_reg_options(struct opt_odb_t * odb, struct core_knobs_t * knobs)
       &knobs->memory.IL1_WMinterval, /*default*/ 0, /*print*/true,/*format*/NULL);
   opt_reg_flag(odb, "-il1:pf:miss","generate IL1 prefetches only from miss traffic [DS]",
       &knobs->memory.IL1_PF_on_miss, /*default*/ false, /*print*/true,/*format*/NULL);
+  opt_reg_float(odb, "-il1:magic_hit_rate", "magic IL1 hit rate (-1 = no magic)",
+      &knobs->memory.IL1_magic_hit_rate, /*default*/ -1.0, /*print*/true, /*format*/NULL);
 
   opt_reg_int(odb, "-byteQ:size","number of entries in byteQ [DS]",
       &knobs->fetch.byteQ_size, /*default*/ knobs->fetch.byteQ_size, /*print*/true,/*format*/NULL);

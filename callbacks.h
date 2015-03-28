@@ -10,6 +10,6 @@
 extern "C" void Zesto_Call_WriteByteCallback(unsigned int addr, unsigned char val_to_write);
 
 /* Called once a core has consumed the handshake and it can be reused */
-extern void ReleaseHandshake(unsigned int instrument_tid);
+extern void ReleaseHandshake(int instrument_tid);
 
 #endif /* __PIN_ZESTO_CALLBACKS__ */

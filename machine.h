@@ -107,10 +107,6 @@ typedef qword_t md_paddr_t;
  * target-dependent memory module configuration
  */
 
-/* physical memory page size (must be a power-of-two) */
-#define MD_PAGE_SIZE        4096
-#define MD_LOG_PAGE_SIZE    12
-
 /* convert 64-bit inst text addresses to 32-bit inst equivalents */
 #define IACOMPRESS(A)        (A)
 #define ISCOMPRESS(SZ)        (SZ)
@@ -210,12 +206,16 @@ typedef union {
 
 /* floating point register file entry type */
 typedef union {
+  sfloat_t f[MD_NUM_FREGS][(sizeof(dfloat_t) + sizeof(sfloat_t)) /  sizeof(sfloat_t)];
+  struct { dfloat_t lo; sfloat_t hi; } d[MD_NUM_FREGS];
   efloat_t e[MD_NUM_FREGS];    /* extended-precision floating point view */
 } md_fpr_t;
+/* size in bytes of fp registers */
+#define MD_FPR_HOST_SIZE (sizeof(md_fpr_t) / MD_NUM_FREGS)
 
 /* segment selector entry type */
 typedef union {
-  word_t w[MD_NUM_SREGS]; // UCSD
+  word_t w[MD_NUM_SREGS]; 
 } md_seg_t;
 
 typedef union {
@@ -456,14 +456,6 @@ extern const unsigned int md_opshift[];
 /* enum md_opcode -> description string */
 #define MD_OP_NAME(OP)        (md_op2name[OP])
 extern const char *md_op2name[];
-
-/* enum md_opcode -> enum name string */
-#define MD_OP_ENUM(OP)        (md_op2enum[OP])
-extern const char *md_op2enum[];
-
-/* enum md_opcode -> opcode operand format, used by disassembler */
-#define MD_OP_FORMAT(OP)    (md_op2format[OP])
-extern const char *md_op2format[];
 
 /* function unit classes, update md_fu2name if you update this definition */
 enum md_fu_class {
@@ -1739,61 +1731,6 @@ int md_fcc_eval(int cond, dword_t aflags, bool * bogus);
 #define stat_reg_addr            stat_reg_uint
 
 
-  /*
-   * configure the DLite! debugger
-   */
-
-  /* register bank specifier */
-  enum md_reg_type {
-    rt_gpr,        /* general purpose register */
-    rt_lpr,        /* integer-precision floating pointer register */
-    rt_fpr,        /* single-precision floating pointer register */
-    rt_dpr,        /* double-precision floating pointer register */
-    rt_ctrl,        /* control register */
-    rt_PC,        /* program counter */
-    rt_NPC,        /* next program counter */
-    rt_NUM
-  };
-
-/* register name specifier */
-struct md_reg_names_t {
-  const char *str;            /* register name */
-  enum md_reg_type file;      /* register file */
-  int reg;                    /* register index */
-};
-
-/* symbolic register names, parser is case-insensitive */
-extern const struct md_reg_names_t md_reg_names[];
-
-/* returns a register name string */
-const char *md_reg_name(const enum md_reg_type rt, const int reg);
-
-/* default register accessor object */
-struct eval_value_t;
-struct regs_t;
-const char *                        /* err str, NULL for no err */
-md_reg_obj(struct regs_t *regs,            /* registers to access */
-    const int is_write,            /* access type */
-    const enum md_reg_type rt,            /* reg bank to probe */
-    const int reg,                /* register number */
-    struct eval_value_t *val);        /* input, output */
-
-/* print integer REG(S) to STREAM */
-void md_print_ireg(md_gpr_t regs, int reg, FILE *stream);
-void md_print_iregs(md_gpr_t regs, FILE *stream);
-
-/* print floating point REG(S) to STREAM */
-void md_print_fpreg(md_fpr_t regs, int reg, FILE *stream);
-void md_print_fpregs(md_fpr_t regs, FILE *stream);
-
-/* print control REG(S) to STREAM */
-void md_print_creg(md_ctrl_t regs, int reg, FILE *stream);
-void md_print_cregs(md_ctrl_t regs, FILE *stream);
-
-/* Print out the contets of extended-width fp register file */
-void
-trace_fp_regfile(const int coreID, const md_fpr_t *regs_F, const md_ctrl_t *regs_C);
-
 /*
  * configure sim-outorder specifics
  */
@@ -1931,24 +1868,6 @@ int
 md_get_flow(struct Mop_t * Mop,
     uop_inst_t flow[MD_MAX_FLOWLEN], bool * bogus);
 
-/* disassemble a SimpleScalar instruction */
-void
-md_print_insn(struct Mop_t * Mop,        /* instruction to disassemble */
-    FILE *stream);        /* output stream */
-
-/* print uop function */
-void
-md_print_uop(const enum md_opcode op,
-    const md_inst_t instruction,    /* instruction to disassemble */
-    const md_addr_t pc,        /* addr of inst, used for PC-rels */
-    FILE *stream);        /* output stream */
-
-void
-md_print_uop_1(struct uop_t *uop,
-    md_inst_t instruction,    /* instruction to disassemble */
-    md_addr_t pc,        /* addr of inst, used for PC-rels */
-    FILE *stream);        /* output stream */
-
 word_t
 md_uop_opc(const enum md_opcode uopcode);
 
@@ -1964,75 +1883,75 @@ md_uop_immv(const enum md_xfield_t xval, const struct Mop_t * Mop, bool * bogus)
 inline dword_t
 md_uop_lit(const enum md_xfield_t xval, const struct Mop_t * Mop, bool * bogus);
 
-#define XMEM_READ_BYTE(M,A)                        \
-  ({ const word_t _x = (word_t)MEM_READ_BYTE(M,A, Mop);   \
+#define XMEM_READ_BYTE(A)                        \
+  ({ const word_t _x = (word_t)MEM_READ_BYTE(A, Mop);   \
    _x; })
 
-#define XMEM_READ_WORD(M,A)                        \
-  ({ const word_t _x = ((word_t)MEM_READ_BYTE(M,A, Mop)   \
-     | ((word_t)MEM_READ_BYTE(M,(A)+1, Mop) << 8));     \
+#define XMEM_READ_WORD(A)                        \
+  ({ const word_t _x = ((word_t)MEM_READ_BYTE(A, Mop)   \
+     | ((word_t)MEM_READ_BYTE((A)+1, Mop) << 8));     \
    _x; })
 
-#define XMEM_READ_DWORD(M,A)                       \
-  ({ const dword_t _x = ((dword_t)MEM_READ_BYTE(M,A, Mop) \
-     | ((dword_t)MEM_READ_BYTE(M,(A)+1, Mop) << 8)      \
-     | ((dword_t)MEM_READ_BYTE(M,(A)+2, Mop) << 16)     \
-     | ((dword_t)MEM_READ_BYTE(M,(A)+3, Mop) << 24));   \
+#define XMEM_READ_DWORD(A)                       \
+  ({ const dword_t _x = ((dword_t)MEM_READ_BYTE(A, Mop) \
+     | ((dword_t)MEM_READ_BYTE((A)+1, Mop) << 8)      \
+     | ((dword_t)MEM_READ_BYTE((A)+2, Mop) << 16)     \
+     | ((dword_t)MEM_READ_BYTE((A)+3, Mop) << 24));   \
    _x; })
 
-#define XMEM_READ_QWORD(M,A)                       \
-  ({ const qword_t _x = ((qword_t)MEM_READ_BYTE(M,A, Mop) \
-     | ((qword_t)MEM_READ_BYTE(M,(A)+1, Mop) << 8)      \
-     | ((qword_t)MEM_READ_BYTE(M,(A)+2, Mop) << 16)     \
-     | ((qword_t)MEM_READ_BYTE(M,(A)+3, Mop) << 24)     \
-     | ((qword_t)MEM_READ_BYTE(M,(A)+4, Mop) << 32)     \
-     | ((qword_t)MEM_READ_BYTE(M,(A)+5, Mop) << 40)     \
-     | ((qword_t)MEM_READ_BYTE(M,(A)+6, Mop) << 48)     \
-     | ((qword_t)MEM_READ_BYTE(M,(A)+7, Mop) << 56));   \
+#define XMEM_READ_QWORD(A)                       \
+  ({ const qword_t _x = ((qword_t)MEM_READ_BYTE(A, Mop) \
+     | ((qword_t)MEM_READ_BYTE((A)+1, Mop) << 8)      \
+     | ((qword_t)MEM_READ_BYTE((A)+2, Mop) << 16)     \
+     | ((qword_t)MEM_READ_BYTE((A)+3, Mop) << 24)     \
+     | ((qword_t)MEM_READ_BYTE((A)+4, Mop) << 32)     \
+     | ((qword_t)MEM_READ_BYTE((A)+5, Mop) << 40)     \
+     | ((qword_t)MEM_READ_BYTE((A)+6, Mop) << 48)     \
+     | ((qword_t)MEM_READ_BYTE((A)+7, Mop) << 56));   \
    _x; })
 
-#define XMEM_WRITE_BYTE(M,A,S)                         \
+#define XMEM_WRITE_BYTE(A,S)                         \
   ({ const byte_t _x = (S);                            \
    assert(uop->oracle.spec_mem[0] == NULL);            \
-   uop->oracle.spec_mem[0] = MEM_WRITE_BYTE(M,(A),_x); \
+   uop->oracle.spec_mem[0] = MEM_WRITE_BYTE((A),_x); \
    })
 
-#define XMEM_WRITE_WORD(M,A,S)                                       \
+#define XMEM_WRITE_WORD(A,S)                                       \
   ({ const word_t _x = (S);                                          \
    assert(uop->oracle.spec_mem[0] == NULL);                          \
-   uop->oracle.spec_mem[0] = MEM_WRITE_BYTE(M,(A),_x&0xff);          \
-   uop->oracle.spec_mem[1] = MEM_WRITE_BYTE(M,(A)+1,(_x >> 8)&0xff); \
+   uop->oracle.spec_mem[0] = MEM_WRITE_BYTE((A),_x&0xff);          \
+   uop->oracle.spec_mem[1] = MEM_WRITE_BYTE((A)+1,(_x >> 8)&0xff); \
    })
 
-#define XMEM_WRITE_DWORD(M,A,S)                                       \
+#define XMEM_WRITE_DWORD(A,S)                                       \
   ({ const dword_t _x = (S);                                          \
    assert(uop->oracle.spec_mem[0] == NULL);                           \
-   uop->oracle.spec_mem[0] = MEM_WRITE_BYTE(M,(A),_x&0xff);           \
-   uop->oracle.spec_mem[1] = MEM_WRITE_BYTE(M,(A)+1,(_x >> 8)&0xff);  \
-   uop->oracle.spec_mem[2] = MEM_WRITE_BYTE(M,(A)+2,(_x >> 16)&0xff); \
-   uop->oracle.spec_mem[3] = MEM_WRITE_BYTE(M,(A)+3,(_x >> 24)&0xff); \
+   uop->oracle.spec_mem[0] = MEM_WRITE_BYTE((A),_x&0xff);           \
+   uop->oracle.spec_mem[1] = MEM_WRITE_BYTE((A)+1,(_x >> 8)&0xff);  \
+   uop->oracle.spec_mem[2] = MEM_WRITE_BYTE((A)+2,(_x >> 16)&0xff); \
+   uop->oracle.spec_mem[3] = MEM_WRITE_BYTE((A)+3,(_x >> 24)&0xff); \
    })
 
-#define XMEM_WRITE_DWORD2(M,A,S)                                       \
+#define XMEM_WRITE_DWORD2(A,S)                                       \
   ({ const dword_t _x = (S);                                           \
    assert(uop->oracle.spec_mem[8] == NULL);                            \
-   uop->oracle.spec_mem[8] = MEM_WRITE_BYTE(M,(A),_x&0xff);            \
-   uop->oracle.spec_mem[9] = MEM_WRITE_BYTE(M,(A)+1,(_x >> 8)&0xff);   \
-   uop->oracle.spec_mem[10] = MEM_WRITE_BYTE(M,(A)+2,(_x >> 16)&0xff); \
-   uop->oracle.spec_mem[11] = MEM_WRITE_BYTE(M,(A)+3,(_x >> 24)&0xff); \
+   uop->oracle.spec_mem[8] = MEM_WRITE_BYTE((A),_x&0xff);            \
+   uop->oracle.spec_mem[9] = MEM_WRITE_BYTE((A)+1,(_x >> 8)&0xff);   \
+   uop->oracle.spec_mem[10] = MEM_WRITE_BYTE((A)+2,(_x >> 16)&0xff); \
+   uop->oracle.spec_mem[11] = MEM_WRITE_BYTE((A)+3,(_x >> 24)&0xff); \
    })
 
-#define XMEM_WRITE_QWORD(M,A,S)                                       \
+#define XMEM_WRITE_QWORD(A,S)                                       \
   ({ const qword_t _x = (S);                                          \
    assert(uop->oracle.spec_mem[0] == NULL);                           \
-   uop->oracle.spec_mem[0] = MEM_WRITE_BYTE(M,(A),_x&0xff);           \
-   uop->oracle.spec_mem[1] = MEM_WRITE_BYTE(M,(A)+1,(_x >> 8)&0xff);  \
-   uop->oracle.spec_mem[2] = MEM_WRITE_BYTE(M,(A)+2,(_x >> 16)&0xff); \
-   uop->oracle.spec_mem[3] = MEM_WRITE_BYTE(M,(A)+3,(_x >> 24)&0xff); \
-   uop->oracle.spec_mem[4] = MEM_WRITE_BYTE(M,(A)+4,(_x >> 32)&0xff); \
-   uop->oracle.spec_mem[5] = MEM_WRITE_BYTE(M,(A)+5,(_x >> 40)&0xff); \
-   uop->oracle.spec_mem[6] = MEM_WRITE_BYTE(M,(A)+6,(_x >> 48)&0xff); \
-   uop->oracle.spec_mem[7] = MEM_WRITE_BYTE(M,(A)+7,(_x >> 56)&0xff); \
+   uop->oracle.spec_mem[0] = MEM_WRITE_BYTE((A),_x&0xff);           \
+   uop->oracle.spec_mem[1] = MEM_WRITE_BYTE((A)+1,(_x >> 8)&0xff);  \
+   uop->oracle.spec_mem[2] = MEM_WRITE_BYTE((A)+2,(_x >> 16)&0xff); \
+   uop->oracle.spec_mem[3] = MEM_WRITE_BYTE((A)+3,(_x >> 24)&0xff); \
+   uop->oracle.spec_mem[4] = MEM_WRITE_BYTE((A)+4,(_x >> 32)&0xff); \
+   uop->oracle.spec_mem[5] = MEM_WRITE_BYTE((A)+5,(_x >> 40)&0xff); \
+   uop->oracle.spec_mem[6] = MEM_WRITE_BYTE((A)+6,(_x >> 48)&0xff); \
+   uop->oracle.spec_mem[7] = MEM_WRITE_BYTE((A)+7,(_x >> 56)&0xff); \
    })
 
 #define READ_V(ADDR, FAULT)                         \

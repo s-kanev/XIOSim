@@ -148,6 +148,7 @@ struct uop_t
     bool is_std;  /* Is store-data uop? */
     bool is_nop;  /* Is NOP? */
     bool is_fence; /* Is fence? */
+    bool is_light_fence; /* Light fence? (heavy vs light == wait for commit vs wait for WB) */
 
     /* assume unique uop ID assigned when Mop cracked */
     seq_t Mop_seq;
@@ -192,9 +193,6 @@ struct uop_t
     
     int uops_in_RS; /* used only for fusion-head */
     int num_replays; /* number of times reached exec but ivalue not ready */
-    int dummy1; /* padding */
-    int dummy2; /* padding */
-    int dummy3; /* padding */
   } exec;
 
   struct {
@@ -237,7 +235,7 @@ struct uop_t
   } timing;
 
   int flow_index;
-};
+} __attribute__ ((aligned(16)));
 
 /* x86 Macro-op structure */
 struct Mop_t
@@ -294,9 +292,6 @@ struct Mop_t
      * the feeder. So we keep oracle info about branches from feeder. */
     bool taken_branch;
     bool recover_inst; /* TRUE if the NPC for this Mop is wrong */
-    int padding1;
-    int padding2;
-    int padding3;
   } oracle;
 
   struct {
@@ -316,7 +311,7 @@ struct Mop_t
     int num_loads;
     int num_branches;
   } stat;
-};
+} __attribute__ ((aligned(16)));
 
 
 /* holds all of the parameters for a core, plus any additional helper variables
@@ -396,14 +391,17 @@ struct core_knobs_t
     int IL1_num_PF; int IL1_PFFsize; int IL1_PFthresh; int IL1_PFmax; int IL1_PF_buffer_size;
     int IL1_PF_filter_size; int IL1_PF_filter_reset; bool IL1_PF_on_miss;
     int IL1_WMinterval; double IL1_low_watermark; double IL1_high_watermark;
+    float IL1_magic_hit_rate;
     int DL1_num_PF; int DL1_PFFsize; int DL1_PFthresh; int DL1_PFmax; int DL1_PF_buffer_size;
     int DL1_PF_filter_size; int DL1_PF_filter_reset; bool DL1_PF_on_miss;
     int DL1_WMinterval; double DL1_low_watermark; double DL1_high_watermark;
     const char * DL1_MSHR_cmd;
+    float DL1_magic_hit_rate;
     int DL2_num_PF; int DL2_PFFsize; int DL2_PFthresh; int DL2_PFmax; int DL2_PF_buffer_size;
     int DL2_PF_filter_size; int DL2_PF_filter_reset; bool DL2_PF_on_miss;
     int DL2_WMinterval; double DL2_low_watermark; double DL2_high_watermark;
     const char * DL2_MSHR_cmd;
+    float DL2_magic_hit_rate;
 
     /* for storing command line parameters */
     const char * IL1_opt_str;
@@ -441,6 +439,24 @@ struct core_knobs_t
   } power;
 
   int scheduler_tick;
+
+  /* A command line flag specifying the core allocation policy. Valid options:
+   * "gang", "local", or "penalty". See pintool/base_allocator.h for more
+   * details.
+   */
+  const char * allocator;
+
+  /* A command line flag specifying the speedup model to use when calculating
+   * core allocations. Valid options: "linear" or "log". See
+   * pintool/base_speedup_model.h for more details.
+   */
+  const char * speedup_model;
+
+  /* A command line flag specifying the optimization target when computing core
+   * allocations. Valid options: "energy" or "throughput". See
+   * pintool/base_speedup_model.h for more details.
+   */
+  const char * allocator_opt_target;
 };
 
 extern struct core_t ** cores;

@@ -17,7 +17,7 @@ if(!strcasecmp(COMPONENT_NAME,type))
 
   if(sscanf(opt_string,"%*[^:]:%[^:]:%d:%d:%d:%d:%d:%d",name,&num_tables,&bim_size,&table_size,&tag_width,&first_length,&last_length) != 7)
     fatal("bad bpred options string %s (should be \"tage:name:num-tables:bim-size:table-size:tag-width:first-hist-length:last-hist-length\")",opt_string);
-  return new bpred_tage_t(name,num_tables,bim_size,table_size,tag_width,first_length,last_length);
+  return new bpred_tage_t(core,name,num_tables,bim_size,table_size,tag_width,first_length,last_length);
 }
 #else
 
@@ -131,14 +131,15 @@ class bpred_tage_t:public bpred_dir_t
   public:
 
   /* CREATE */
-  bpred_tage_t(char * const arg_name,
+  bpred_tage_t(const core_t * core,
+               char * const arg_name,
                const int arg_num_tables,
                const int arg_bim_size,
                const int arg_table_size,
                const int arg_tag_width,
                const int arg_first_length,
                const int arg_last_length
-              )
+              ) : bpred_dir_t(core)
   {
     init();
 
@@ -367,7 +368,9 @@ class bpred_tage_t:public bpred_dir_t
           {
             if(allocated2) /* more than one choice */
             {
-              if((random() & 0xffff) > 21845) /* choose allocated over allocated2 with 2:1 probability */
+              int r;
+              random_r(core->current_thread->rand_state, &r);
+              if((r & 0xffff) > 21845) /* choose allocated over allocated2 with 2:1 probability */
                 allocated = allocated2;
             }
             struct bpred_tage_ent_t * ent = &T[allocated][sc->index[allocated]&table_mask];

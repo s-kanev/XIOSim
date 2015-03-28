@@ -1,48 +1,31 @@
 /*****************************************************************************
  *                                McPAT
  *                      SOFTWARE LICENSE AGREEMENT
- *            Copyright 2009 Hewlett-Packard Development Company, L.P.
+ *            Copyright 2012 Hewlett-Packard Development Company, L.P.
  *                          All Rights Reserved
  *
- * Permission to use, copy, and modify this software and its documentation is
- * hereby granted only under the following terms and conditions.  Both the
- * above copyright notice and this permission notice must appear in all copies
- * of the software, derivative works or modified versions, and any portions
- * thereof, and both notices must appear in supporting documentation.
- *
- * Any User of the software ("User"), by accessing and using it, agrees to the
- * terms and conditions set forth herein, and hereby grants back to Hewlett-
- * Packard Development Company, L.P. and its affiliated companies ("HP") a
- * non-exclusive, unrestricted, royalty-free right and license to copy,
- * modify, distribute copies, create derivate works and publicly display and
- * use, any changes, modifications, enhancements or extensions made to the
- * software by User, including but not limited to those affording
- * compatibility with other hardware or software, but excluding pre-existing
- * software applications that may incorporate the software.  User further
- * agrees to use its best efforts to inform HP of any such changes,
- * modifications, enhancements or extensions.
- *
- * Correspondence should be provided to HP at:
- *
- * Director of Intellectual Property Licensing
- * Office of Strategy and Technology
- * Hewlett-Packard Company
- * 1501 Page Mill Road
- * Palo Alto, California  94304
- *
- * The software may be further distributed by User (but not offered for
- * sale or transferred for compensation) to third parties, under the
- * condition that such third parties agree to abide by the terms and
- * conditions of this license.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" WITH ANY AND ALL ERRORS AND DEFECTS
- * AND USER ACKNOWLEDGES THAT THE SOFTWARE MAY CONTAIN ERRORS AND DEFECTS.
- * HP DISCLAIMS ALL WARRANTIES WITH REGARD TO THE SOFTWARE, INCLUDING ALL
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS.   IN NO EVENT SHALL
- * HP BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES
- * OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
- * WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER ACTION, ARISING
- * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THE SOFTWARE.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met: redistributions of source code must retain the above copyright
+ * notice, this list of conditions and the following disclaimer;
+ * redistributions in binary form must reproduce the above copyright
+ * notice, this list of conditions and the following disclaimer in the
+ * documentation and/or other materials provided with the distribution;
+ * neither the name of the copyright holders nor the names of its
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.”
  *
  ***************************************************************************/
 
@@ -122,10 +105,28 @@ void NoC::init_router()
 	area.set_area(area.get_area()+ router->area.get_area()*nocdynp.total_nodes);
 
 	double long_channel_device_reduction = longer_channel_device_reduction(Uncore_device);
+	double pg_reduction_retain = power_gating_leakage_reduction(false);//state retaining array structure;
+	double pg_reduction_nonretain = power_gating_leakage_reduction(false);//non-state-retaining array structure;
+
 	router->power.readOp.longer_channel_leakage          = router->power.readOp.leakage * long_channel_device_reduction;
 	router->buffer.power.readOp.longer_channel_leakage   = router->buffer.power.readOp.leakage * long_channel_device_reduction;
 	router->crossbar.power.readOp.longer_channel_leakage = router->crossbar.power.readOp.leakage * long_channel_device_reduction;
 	router->arbiter.power.readOp.longer_channel_leakage  = router->arbiter.power.readOp.leakage * long_channel_device_reduction;
+
+	router->buffer.power.readOp.power_gated_leakage   = router->buffer.power.readOp.leakage * pg_reduction_retain;//TODO: this is a simplified version; should use the power_gated_leakage generated in buff
+	router->crossbar.power.readOp.power_gated_leakage = router->crossbar.power.readOp.leakage * pg_reduction_nonretain;
+	router->arbiter.power.readOp.power_gated_leakage  = router->arbiter.power.readOp.leakage * pg_reduction_nonretain;
+	router->power.readOp.power_gated_leakage          = router->buffer.power.readOp.power_gated_leakage
+														+ router->crossbar.power.readOp.power_gated_leakage
+														+ router->arbiter.power.readOp.power_gated_leakage;
+
+	router->buffer.power.readOp.power_gated_with_long_channel_leakage   = router->buffer.power.readOp.power_gated_leakage * long_channel_device_reduction;//TODO: this is a simplified version; should use the power_gated_leakage generated in buff
+	router->crossbar.power.readOp.power_gated_with_long_channel_leakage = router->crossbar.power.readOp.power_gated_leakage * long_channel_device_reduction;
+	router->arbiter.power.readOp.power_gated_with_long_channel_leakage  = router->arbiter.power.readOp.power_gated_leakage * long_channel_device_reduction;
+	router->power.readOp.power_gated_with_long_channel_leakage          = router->buffer.power.readOp.power_gated_with_long_channel_leakage
+														+ router->crossbar.power.readOp.power_gated_with_long_channel_leakage
+														+ router->arbiter.power.readOp.power_gated_with_long_channel_leakage;
+
 	router_exist = true;
 }
 
@@ -226,6 +227,7 @@ void NoC::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 	string indent_str(indent, ' ');
 	string indent_str_next(indent+2, ' ');
 	bool long_channel = XML->sys.longer_channel_device;
+	bool power_gating = XML->sys.power_gating;
 
 	double M =M_traffic_pattern*nocdynp.duty_cycle;
 	/*only router as a whole has been applied the M_traffic_pattern(0.6 by default) factor in router.cc;
@@ -239,6 +241,8 @@ void NoC::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 		*out_file << indent_str<< "Peak Dynamic = " << power.readOp.dynamic*nocdynp.clockRate << " W" << endl;
 		*out_file << indent_str << "Subthreshold Leakage = "
 			<< (long_channel? power.readOp.longer_channel_leakage:power.readOp.leakage) <<" W" << endl;
+		if (power_gating) *out_file << indent_str << "Subthreshold Leakage with power gating = "
+						<< (power.readOp.power_gated_leakage * (long_channel? power.readOp.longer_channel_leakage/power.readOp.leakage:1) )  << " W" << endl;
 		*out_file << indent_str << "Gate Leakage = " << power.readOp.gate_leakage << " W" << endl;
 		*out_file << indent_str<< "Runtime Dynamic = " << rt_power.readOp.dynamic/nocdynp.executionTime << " W" << endl;
 		*out_file<<endl;
@@ -250,6 +254,8 @@ void NoC::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 			*out_file << indent_str_next<< "Peak Dynamic = " << router->power.readOp.dynamic*nocdynp.clockRate << " W" << endl;
 			*out_file << indent_str_next << "Subthreshold Leakage = "
 			<< (long_channel? router->power.readOp.longer_channel_leakage:router->power.readOp.leakage)  <<" W" << endl;
+			if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+					<< (long_channel? router->power.readOp.power_gated_with_long_channel_leakage : router->power.readOp.power_gated_leakage)  << " W" << endl;
 			*out_file << indent_str_next << "Gate Leakage = " << router->power.readOp.gate_leakage << " W" << endl;
 			*out_file << indent_str_next<< "Runtime Dynamic = " << router->rt_power.readOp.dynamic/nocdynp.executionTime << " W" << endl;
 			*out_file<<endl;
@@ -260,6 +266,8 @@ void NoC::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 				*nocdynp.min_ports*M*nocdynp.clockRate << " W" << endl;
 				*out_file << indent_str<< indent_str_next << "Subthreshold Leakage = "
 				<< (long_channel? router->buffer.power.readOp.longer_channel_leakage*nocdynp.input_ports:router->buffer.power.readOp.leakage*nocdynp.input_ports)  <<" W" << endl;
+				if (power_gating) *out_file << indent_str<< indent_str_next << "Subthreshold Leakage with power gating = "
+						<< (long_channel? router->buffer.power.readOp.power_gated_with_long_channel_leakage : router->buffer.power.readOp.power_gated_leakage)  << " W" << endl;
 				*out_file << indent_str<< indent_str_next << "Gate Leakage = " << router->buffer.power.readOp.gate_leakage*nocdynp.input_ports << " W" << endl;
 				*out_file << indent_str<< indent_str_next << "Runtime Dynamic = " << router->buffer.rt_power.readOp.dynamic/nocdynp.executionTime << " W" << endl;
 				*out_file <<endl;
@@ -268,6 +276,8 @@ void NoC::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 				*out_file << indent_str<< indent_str_next << "Peak Dynamic = " << router->crossbar.power.readOp.dynamic*nocdynp.clockRate*nocdynp.min_ports*M << " W" << endl;
 				*out_file << indent_str<< indent_str_next << "Subthreshold Leakage = "
 				<< (long_channel? router->crossbar.power.readOp.longer_channel_leakage:router->crossbar.power.readOp.leakage)  << " W" << endl;
+				if (power_gating) *out_file << indent_str<< indent_str_next << "Subthreshold Leakage with power gating = "
+						<< (long_channel? router->crossbar.power.readOp.power_gated_with_long_channel_leakage : router->crossbar.power.readOp.power_gated_leakage)  << " W" << endl;
 				*out_file << indent_str<< indent_str_next << "Gate Leakage = " << router->crossbar.power.readOp.gate_leakage  << " W" << endl;
 				*out_file << indent_str<< indent_str_next << "Runtime Dynamic = " << router->crossbar.rt_power.readOp.dynamic/nocdynp.executionTime << " W" << endl;
 				*out_file <<endl;
@@ -275,6 +285,8 @@ void NoC::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 				*out_file << indent_str<< indent_str_next << "Peak Dynamic = " << router->arbiter.power.readOp.dynamic*nocdynp.clockRate*nocdynp.min_ports*M  << " W" << endl;
 				*out_file << indent_str<< indent_str_next << "Subthreshold Leakage = "
 				<< (long_channel? router->arbiter.power.readOp.longer_channel_leakage:router->arbiter.power.readOp.leakage)  << " W" << endl;
+				if (power_gating) *out_file << indent_str<< indent_str_next << "Subthreshold Leakage with power gating = "
+						<< (long_channel? router->arbiter.power.readOp.power_gated_with_long_channel_leakage : router->arbiter.power.readOp.power_gated_leakage)  << " W" << endl;
 				*out_file << indent_str<< indent_str_next << "Gate Leakage = " << router->arbiter.power.readOp.gate_leakage  << " W" << endl;
 				*out_file << indent_str<< indent_str_next << "Runtime Dynamic = " << router->arbiter.rt_power.readOp.dynamic/nocdynp.executionTime << " W" << endl;
 				*out_file <<endl;
@@ -289,6 +301,8 @@ void NoC::displayEnergy(uint32_t indent,int plevel,bool is_tdp)
 			*out_file << indent_str_next << "Subthreshold Leakage = "
 			<< (long_channel? link_bus_tot_per_Router.power.readOp.longer_channel_leakage:link_bus_tot_per_Router.power.readOp.leakage)
 			     <<" W" << endl;
+			if (power_gating) *out_file << indent_str_next << "Subthreshold Leakage with power gating = "
+					<< (long_channel? link_bus_tot_per_Router.power.readOp.power_gated_with_long_channel_leakage : link_bus_tot_per_Router.power.readOp.power_gated_leakage)  << " W" << endl;
 			*out_file << indent_str_next << "Gate Leakage = " << link_bus_tot_per_Router.power.readOp.gate_leakage
 				<< " W" << endl;
 			*out_file << indent_str_next<< "Runtime Dynamic = " << link_bus->rt_power.readOp.dynamic/nocdynp.executionTime << " W" << endl;
@@ -362,6 +376,23 @@ void NoC::set_noc_param()
 		name = "NOC";
 	else
 		name = "BUSES";
+
+	if ( XML->sys.NoC[ithNoC].vdd>0)
+	{
+		interface_ip.specific_hp_vdd = true;
+		interface_ip.specific_lop_vdd = true;
+		interface_ip.specific_lstp_vdd = true;
+		interface_ip.hp_Vdd   = XML->sys.NoC[ithNoC].vdd;
+		interface_ip.lop_Vdd  = XML->sys.NoC[ithNoC].vdd;
+		interface_ip.lstp_Vdd = XML->sys.NoC[ithNoC].vdd;
+	}
+
+	if ( XML->sys.NoC[ithNoC].power_gating_vcc > -1)
+	{
+		interface_ip.specific_vcc_min = true;
+		interface_ip.user_defined_vcc_min   = XML->sys.NoC[ithNoC].power_gating_vcc;
+
+	}
 
 }
 

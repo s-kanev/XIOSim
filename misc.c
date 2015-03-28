@@ -233,7 +233,7 @@ void trace(const int coreID, const char *fmt, ...)
 
 void vtrace(const int coreID, const char *fmt, va_list v)
 {
-  int trace_id = (coreID == -1) ? MAX_CORES : coreID;
+  int trace_id = (coreID == INVALID_CORE) ? num_cores : coreID;
 
   vsprintf(tracebuff[trace_id][tracebuff_tail[trace_id]], fmt, v);
 
@@ -339,7 +339,7 @@ void clear_page(void * base)
 
   asm ("xorps %%xmm0, %%xmm0"
        : : : "%xmm0");
-  for(int i=0;i<MD_PAGE_SIZE/16/8;i++)
+  for(int i=0;i<PAGE_SIZE/16/8;i++)
   {
     asm ("movntps %%xmm0,    (%0)\n\t"
          "movntps %%xmm0,  16(%0)\n\t"
@@ -353,7 +353,7 @@ void clear_page(void * base)
     addr += 16*8;
   }
 #else
-  memset(base,0,MD_PAGE_SIZE);
+  memset(base,0,PAGE_SIZE);
 #endif
 }
 

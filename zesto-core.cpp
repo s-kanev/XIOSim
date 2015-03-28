@@ -82,11 +82,12 @@ seq_t core_t::global_seq = 0;
 
 /* CONSTRUCTOR */
 core_t::core_t(const int core_id):
-  knobs(NULL), current_thread(NULL), id(core_id), ns_passed(0.0), 
+  knobs(NULL), current_thread(NULL), id(core_id),
+  sim_cycle(0), ns_passed(0.0), 
   num_emergency_recoveries(0), last_emergency_recovery_count(0),
   oracle(NULL), fetch(NULL), decode(NULL), alloc(NULL),
   exec(NULL), commit(NULL), num_signals_in_pipe(0),
-  global_action_id(0)
+  global_action_id(0), odep_free_pool(NULL)
   
 {
   memzero(&memory,sizeof(memory));
@@ -94,12 +95,7 @@ core_t::core_t(const int core_id):
 
   assert(sizeof(struct uop_array_t) % 16 == 0);
 
-  if(!static_members_initialized)
-  {
-    memzero(uop_array_pool,sizeof(uop_array_pool));
-    lk_init(&core_pools_lock);
-    static_members_initialized = true;
-  }
+  memzero(uop_array_pool,sizeof(uop_array_pool));
 }
 
 /* assign a new, unique id */

@@ -73,6 +73,8 @@
  */
 
 #include <limits.h>
+#include <cstddef>
+
 #include "thread.h"
 
 #include "zesto-core.h"

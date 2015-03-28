@@ -66,6 +66,7 @@ class core_exec_STM_t:public core_exec_t
   virtual void LDQ_deallocate(struct uop_t * const uop);
   virtual void LDQ_squash(struct uop_t * const dead_uop);
 
+  virtual bool STQ_empty(void);
   virtual bool STQ_available(void);
   virtual void STQ_insert_sta(struct uop_t * const uop);
   virtual void STQ_insert_std(struct uop_t * const uop);
@@ -224,7 +225,8 @@ core_exec_STM_t::core_exec_STM_t(struct core_t * arg_core):
       fatal("invalid DL2 options: <name:sets:assoc:linesize:banks:bank-width:latency:repl-policy:alloc-policy:write-policy:num-MSHR:WB-buffers:write-combining>\n\t(%s)",knobs->memory.DL2_opt_str);
     core->memory.DL2 = cache_create(core,name,CACHE_READWRITE,sets,assoc,linesize,
                              rp,ap,wp,wc,banks,bank_width,latency,
-                             MSHR_entries,MSHR_WB_entries,1,uncore->LLC,uncore->LLC_bus);
+                             MSHR_entries,MSHR_WB_entries,1,uncore->LLC,uncore->LLC_bus,
+                             knobs->memory.DL2_magic_hit_rate);
 
     if(!knobs->memory.DL2_MSHR_cmd || !strcasecmp(knobs->memory.DL2_MSHR_cmd,"fcfs"))
       core->memory.DL2->MSHR_cmd_order = NULL;
@@ -287,11 +289,13 @@ core_exec_STM_t::core_exec_STM_t(struct core_t * arg_core):
   if(core->memory.DL2)
     core->memory.DL1 = cache_create(core,name,CACHE_READWRITE,sets,assoc,linesize,
                              rp,ap,wp,wc,banks,bank_width,latency,
-                             MSHR_entries,MSHR_WB_entries,1,core->memory.DL2,core->memory.DL2_bus);
+                             MSHR_entries,MSHR_WB_entries,1,core->memory.DL2,core->memory.DL2_bus,
+                             knobs->memory.DL1_magic_hit_rate);
   else
     core->memory.DL1 = cache_create(core,name,CACHE_READWRITE,sets,assoc,linesize,
                              rp,ap,wp,wc,banks,bank_width,latency,
-                             MSHR_entries,MSHR_WB_entries,1,uncore->LLC,uncore->LLC_bus);
+                             MSHR_entries,MSHR_WB_entries,1,uncore->LLC,uncore->LLC_bus,
+                             knobs->memory.DL1_magic_hit_rate);
   if(!knobs->memory.DL1_MSHR_cmd || !strcasecmp(knobs->memory.DL1_MSHR_cmd,"fcfs"))
     core->memory.DL1->MSHR_cmd_order = NULL;
   else
@@ -358,9 +362,9 @@ core_exec_STM_t::core_exec_STM_t(struct core_t * arg_core):
     fatal("invalid DTLB options: <name:sets:assoc:banks:latency:repl-policy:num-MSHR>");
 
   if(core->memory.DL2)
-    core->memory.DTLB = cache_create(core,name,CACHE_READONLY,sets,assoc,1,rp,'w','t','n',banks,1,latency,MSHR_entries,4,1,core->memory.DL2,core->memory.DL2_bus);
+    core->memory.DTLB = cache_create(core,name,CACHE_READONLY,sets,assoc,1,rp,'w','t','n',banks,1,latency,MSHR_entries,4,1,core->memory.DL2,core->memory.DL2_bus,-1.0);
   else
-    core->memory.DTLB = cache_create(core,name,CACHE_READONLY,sets,assoc,1,rp,'w','t','n',banks,1,latency,MSHR_entries,4,1,uncore->LLC,uncore->LLC_bus);
+    core->memory.DTLB = cache_create(core,name,CACHE_READONLY,sets,assoc,1,rp,'w','t','n',banks,1,latency,MSHR_entries,4,1,uncore->LLC,uncore->LLC_bus,-1.0);
   core->memory.DTLB->MSHR_cmd_order = NULL;
 
   core->memory.DTLB->controller = controller_create(knobs->memory.DTLB_controller_opt_str, core, core->memory.DTLB);
@@ -1050,9 +1054,9 @@ void core_exec_STM_t::LDST_exec(void)
   }
 
   lk_lock(&cache_lock, core->id+1);
-  if(core->memory.DTLB->check_for_work) cache_process(core->memory.DTLB);
-  if(core->memory.DL2 && core->memory.DL2->check_for_work) cache_process(core->memory.DL2);
-  if(core->memory.DL1->check_for_work) cache_process(core->memory.DL1);
+  cache_process(core->memory.DTLB);
+  if(core->memory.DL2) cache_process(core->memory.DL2);
+  cache_process(core->memory.DL1);
   lk_unlock(&cache_lock);
 }
 
@@ -1062,6 +1066,7 @@ void core_exec_STM_t::LDST_exec(void)
 void core_exec_STM_t::LDQ_schedule(void)
 {
   struct core_knobs_t * knobs = core->knobs;
+  int asid = core->current_thread->asid;
   int i;
   int index = LDQ_head;
   /* walk LDQ, if anyone's ready, issue to DTLB/DL1 */
@@ -1075,14 +1080,14 @@ void core_exec_STM_t::LDQ_schedule(void)
         if(check_load_issue_conditions(LDQ[index].uop)) /* retval of true means load is predicted to be cleared for issue */
         {
           struct uop_t * uop = LDQ[index].uop;
-          if((cache_enqueuable(core->memory.DTLB,core->current_thread->id,PAGE_TABLE_ADDR(core->current_thread->id,uop->oracle.virt_addr))) &&
-             (cache_enqueuable(core->memory.DL1,core->current_thread->id,uop->oracle.virt_addr)) &&
+          if((cache_enqueuable(core->memory.DTLB, asid, PAGE_TABLE_ADDR(asid, uop->oracle.virt_addr))) &&
+             (cache_enqueuable(core->memory.DL1, asid, uop->oracle.virt_addr)) &&
              (port[uop->alloc.port_assignment].STQ->occupancy < port[uop->alloc.port_assignment].STQ->latency))
           {
             uop->exec.when_data_loaded = TICK_T_MAX;
             uop->exec.when_addr_translated = TICK_T_MAX;
-            cache_enqueue(core,core->memory.DTLB,NULL,CACHE_READ,core->current_thread->id,uop->Mop->fetch.PC,PAGE_TABLE_ADDR(core->current_thread->id,uop->oracle.virt_addr),uop->exec.action_id,0,NO_MSHR,uop,DTLB_callback,NULL,NULL,get_uop_action_id);
-            cache_enqueue(core,core->memory.DL1,NULL,CACHE_READ,core->current_thread->id,uop->Mop->fetch.PC,uop->oracle.virt_addr,uop->exec.action_id,0,NO_MSHR,uop,DL1_callback,NULL,translated_callback,get_uop_action_id);
+            cache_enqueue(core, core->memory.DTLB, NULL, CACHE_READ, asid, uop->Mop->fetch.PC, PAGE_TABLE_ADDR(asid, uop->oracle.virt_addr), uop->exec.action_id, 0, NO_MSHR, uop, DTLB_callback, NULL, NULL, get_uop_action_id);
+            cache_enqueue(core, core->memory.DL1, NULL, CACHE_READ, asid, uop->Mop->fetch.PC, uop->oracle.virt_addr, uop->exec.action_id, 0, NO_MSHR, uop, DL1_callback, NULL, translated_callback, get_uop_action_id);
 
             int insert_position = port[uop->alloc.port_assignment].STQ->occupancy+1;
             port[uop->alloc.port_assignment].STQ->pipe[insert_position].uop = uop;
@@ -1406,6 +1411,11 @@ void core_exec_STM_t::LDQ_squash(struct uop_t * const dead_uop)
   dead_uop->alloc.LDQ_index = -1;
 }
 
+bool core_exec_STM_t::STQ_empty(void)
+{
+  return STQ_num == 0;
+}
+
 bool core_exec_STM_t::STQ_available(void)
 {
   struct core_knobs_t * knobs = core->knobs;
@@ -1448,9 +1458,11 @@ void core_exec_STM_t::STQ_deallocate_sta(void)
 bool core_exec_STM_t::STQ_deallocate_std(struct uop_t * const uop)
 {
   struct core_knobs_t * knobs = core->knobs;
+  int asid = core->current_thread->asid;
+
   /* Store write back occurs here at commit. */
-  if(!cache_enqueuable(core->memory.DL1,core->current_thread->id,uop->oracle.virt_addr) ||
-     !cache_enqueuable(core->memory.DTLB,core->current_thread->id,PAGE_TABLE_ADDR(core->current_thread->id,uop->oracle.virt_addr)))
+  if(!cache_enqueuable(core->memory.DL1, asid, uop->oracle.virt_addr) ||
+     !cache_enqueuable(core->memory.DTLB, asid, PAGE_TABLE_ADDR(asid, uop->oracle.virt_addr)))
     return false;
 
   /* These are just dummy placeholders, but we need them
@@ -1472,8 +1484,8 @@ bool core_exec_STM_t::STQ_deallocate_std(struct uop_t * const uop)
   dl1_uop->exec.action_id = STQ[STQ_head].action_id;
   dtlb_uop->exec.action_id = dl1_uop->exec.action_id;
 
-  cache_enqueue(core,core->memory.DTLB,NULL,CACHE_READ,core->current_thread->id,uop->Mop->fetch.PC,PAGE_TABLE_ADDR(core->current_thread->id,uop->oracle.virt_addr),dtlb_uop->exec.action_id,0,NO_MSHR,dtlb_uop,store_dtlb_callback,NULL,NULL,get_uop_action_id);
-  cache_enqueue(core,core->memory.DL1,NULL,CACHE_WRITE,core->current_thread->id,uop->Mop->fetch.PC,uop->oracle.virt_addr,dl1_uop->exec.action_id,0,NO_MSHR,dl1_uop,store_dl1_callback,NULL,store_translated_callback,get_uop_action_id);
+  cache_enqueue(core, core->memory.DTLB, NULL, CACHE_READ, asid, uop->Mop->fetch.PC, PAGE_TABLE_ADDR(asid, uop->oracle.virt_addr), dtlb_uop->exec.action_id, 0, NO_MSHR, dtlb_uop, store_dtlb_callback, NULL, NULL, get_uop_action_id);
+  cache_enqueue(core, core->memory.DL1, NULL, CACHE_WRITE, asid, uop->Mop->fetch.PC, uop->oracle.virt_addr, dl1_uop->exec.action_id, 0, NO_MSHR, dl1_uop, store_dl1_callback, NULL, store_translated_callback, get_uop_action_id);
 
   STQ[STQ_head].std = NULL;
   STQ[STQ_head].translation_complete = false;

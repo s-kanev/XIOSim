@@ -1,48 +1,31 @@
 /*****************************************************************************
  *                                McPAT
  *                      SOFTWARE LICENSE AGREEMENT
- *            Copyright 2009 Hewlett-Packard Development Company, L.P.
+ *            Copyright 2012 Hewlett-Packard Development Company, L.P.
  *                          All Rights Reserved
  *
- * Permission to use, copy, and modify this software and its documentation is
- * hereby granted only under the following terms and conditions.  Both the
- * above copyright notice and this permission notice must appear in all copies
- * of the software, derivative works or modified versions, and any portions
- * thereof, and both notices must appear in supporting documentation.
- *
- * Any User of the software ("User"), by accessing and using it, agrees to the
- * terms and conditions set forth herein, and hereby grants back to Hewlett-
- * Packard Development Company, L.P. and its affiliated companies ("HP") a
- * non-exclusive, unrestricted, royalty-free right and license to copy,
- * modify, distribute copies, create derivate works and publicly display and
- * use, any changes, modifications, enhancements or extensions made to the
- * software by User, including but not limited to those affording
- * compatibility with other hardware or software, but excluding pre-existing
- * software applications that may incorporate the software.  User further
- * agrees to use its best efforts to inform HP of any such changes,
- * modifications, enhancements or extensions.
- *
- * Correspondence should be provided to HP at:
- *
- * Director of Intellectual Property Licensing
- * Office of Strategy and Technology
- * Hewlett-Packard Company
- * 1501 Page Mill Road
- * Palo Alto, California  94304
- *
- * The software may be further distributed by User (but not offered for
- * sale or transferred for compensation) to third parties, under the
- * condition that such third parties agree to abide by the terms and
- * conditions of this license.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" WITH ANY AND ALL ERRORS AND DEFECTS
- * AND USER ACKNOWLEDGES THAT THE SOFTWARE MAY CONTAIN ERRORS AND DEFECTS.
- * HP DISCLAIMS ALL WARRANTIES WITH REGARD TO THE SOFTWARE, INCLUDING ALL
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS.   IN NO EVENT SHALL
- * HP BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES
- * OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
- * WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER ACTION, ARISING
- * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THE SOFTWARE.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met: redistributions of source code must retain the above copyright
+ * notice, this list of conditions and the following disclaimer;
+ * redistributions in binary form must reproduce the above copyright
+ * notice, this list of conditions and the following disclaimer in the
+ * documentation and/or other materials provided with the distribution;
+ * neither the name of the copyright holders nor the names of its
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.”
  *
  ***************************************************************************/
 
@@ -51,6 +34,7 @@
 #include "xmlParser.h"
 #include <string>
 #include "XML_Parse.h"
+#include <iostream>
 
 using namespace std;
 
@@ -99,6 +83,7 @@ void ParseXML::parse(const char* filepath)
 		if (strcmp(xNode2.getChildNode("param",i).getAttribute("name"),"Max_power_deviation")==0) {sys.Max_power_deviation=atoi(xNode2.getChildNode("param",i).getAttribute("value"));continue;}
 		if (strcmp(xNode2.getChildNode("param",i).getAttribute("name"),"device_type")==0) {sys.device_type=atoi(xNode2.getChildNode("param",i).getAttribute("value"));continue;}
 		if (strcmp(xNode2.getChildNode("param",i).getAttribute("name"),"longer_channel_device")==0) {sys.longer_channel_device=(bool)atoi(xNode2.getChildNode("param",i).getAttribute("value"));continue;}
+		if (strcmp(xNode2.getChildNode("param",i).getAttribute("name"),"power_gating")==0) {sys.power_gating=(bool)atoi(xNode2.getChildNode("param",i).getAttribute("value"));continue;}
 		if (strcmp(xNode2.getChildNode("param",i).getAttribute("name"),"opt_dynamic_power")==0) {sys.opt_dynamic_power=(bool)atoi(xNode2.getChildNode("param",i).getAttribute("value"));continue;}
 		if (strcmp(xNode2.getChildNode("param",i).getAttribute("name"),"opt_lakage_power")==0) {sys.opt_lakage_power=(bool)atoi(xNode2.getChildNode("param",i).getAttribute("value"));continue;}
 		if (strcmp(xNode2.getChildNode("param",i).getAttribute("name"),"opt_clockrate")==0) {sys.opt_clockrate=(bool)atoi(xNode2.getChildNode("param",i).getAttribute("value"));continue;}
@@ -109,6 +94,10 @@ void ParseXML::parse(const char* filepath)
 		if (strcmp(xNode2.getChildNode("param",i).getAttribute("name"),"virtual_address_width")==0) {sys.virtual_address_width=atoi(xNode2.getChildNode("param",i).getAttribute("value"));continue;}
 		if (strcmp(xNode2.getChildNode("param",i).getAttribute("name"),"physical_address_width")==0) {sys.physical_address_width=atoi(xNode2.getChildNode("param",i).getAttribute("value"));continue;}
 		if (strcmp(xNode2.getChildNode("param",i).getAttribute("name"),"virtual_memory_page_size")==0) {sys.virtual_memory_page_size=atoi(xNode2.getChildNode("param",i).getAttribute("value"));continue;}
+		if (strcmp(xNode2.getChildNode("param",i).getAttribute("name"),"vdd")==0) {sys.vdd=atof(xNode2.getChildNode("param",i).getAttribute("value"));continue;}
+		if (strcmp(xNode2.getChildNode("param",i).getAttribute("name"),"power_gating_vcc")==0) {sys.power_gating_vcc=atof(xNode2.getChildNode("param",i).getAttribute("value"));continue;}
+
+
 	}
 
 //	if (sys.Private_L2 && sys.number_of_cores!=sys.number_of_L2s)
@@ -173,6 +162,8 @@ void ParseXML::parse(const char* filepath)
 							if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"commit_width")==0) {sys.core[i].commit_width=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
 							if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"fp_issue_width")==0) {sys.core[i].fp_issue_width=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
 							if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"prediction_width")==0) {sys.core[i].prediction_width=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
+							if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"vdd")==0) {sys.core[i].vdd=atof(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
+							if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"power_gating_vcc")==0) {sys.core[i].power_gating_vcc=atof(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
 
 							if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"pipelines_per_core")==0)
 							{
@@ -319,7 +310,7 @@ void ParseXML::parse(const char* filepath)
 							if (strcmp(xNode3.getChildNode("stat",k).getAttribute("name"),"FPU_duty_cycle")==0) {sys.core[i].FPU_duty_cycle=atof(xNode3.getChildNode("stat",k).getAttribute("value"));continue;}
 							if (strcmp(xNode3.getChildNode("stat",k).getAttribute("name"),"ALU_cdb_duty_cycle")==0) {sys.core[i].ALU_cdb_duty_cycle=atof(xNode3.getChildNode("stat",k).getAttribute("value"));continue;}
 							if (strcmp(xNode3.getChildNode("stat",k).getAttribute("name"),"MUL_cdb_duty_cycle")==0) {sys.core[i].MUL_cdb_duty_cycle=atof(xNode3.getChildNode("stat",k).getAttribute("value"));continue;}
-							if (strcmp(xNode3.getChildNode("stat",k).getAttribute("name"),"FPU_cdb_duty_cycle")==0) {sys.core[i].FPU_cdb_duty_cycle=atoi(xNode3.getChildNode("stat",k).getAttribute("value"));continue;}
+							if (strcmp(xNode3.getChildNode("stat",k).getAttribute("name"),"FPU_cdb_duty_cycle")==0) {sys.core[i].FPU_cdb_duty_cycle=atof(xNode3.getChildNode("stat",k).getAttribute("value"));continue;}
 						}
 					}
 
@@ -670,6 +661,9 @@ void ParseXML::parse(const char* filepath)
 						}
 
 						if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"clockrate")==0) {sys.L1Directory[i].clockrate=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
+						if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"vdd")==0) {sys.L1Directory[i].vdd=atof(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
+						if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"power_gating_vcc")==0) {sys.L1Directory[i].power_gating_vcc=atof(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
+
 						if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"ports")==0)
 						{
 							strtmp.assign(xNode3.getChildNode("param",k).getAttribute("value"));
@@ -782,6 +776,9 @@ void ParseXML::parse(const char* filepath)
 						}
 
 						if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"clockrate")==0) {sys.L2Directory[i].clockrate=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
+						if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"vdd")==0) {sys.L2Directory[i].vdd=atof(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
+						if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"power_gating_vcc")==0) {sys.L2Directory[i].power_gating_vcc=atof(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
+
 						if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"Directory_type")==0) {sys.L2Directory[i].Directory_type=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
 						if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"ports")==0)
 						{
@@ -874,6 +871,9 @@ void ParseXML::parse(const char* filepath)
 								continue;
 							}
 							if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"clockrate")==0) {sys.L2[i].clockrate=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
+							if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"vdd")==0) {sys.L2[i].vdd=atof(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
+							if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"power_gating_vcc")==0) {sys.L2[i].power_gating_vcc=atof(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
+
 							if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"merged_dir")==0) {sys.L2[i].merged_dir=(bool)atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
 							if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"ports")==0)
 							{
@@ -1011,6 +1011,8 @@ void ParseXML::parse(const char* filepath)
 								continue;
 							}
 							if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"clockrate")==0) {sys.L3[i].clockrate=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
+							if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"vdd")==0) {sys.L3[i].vdd=atof(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
+							if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"power_gating_vcc")==0) {sys.L3[i].power_gating_vcc=atof(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
 							if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"merged_dir")==0) {sys.L3[i].merged_dir=(bool)atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
 							if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"ports")==0)
 							{
@@ -1127,6 +1129,8 @@ void ParseXML::parse(const char* filepath)
 						{
 							if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"clockrate")==0) {sys.NoC[i].clockrate=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
 							if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"type")==0) {sys.NoC[i].type=(bool)atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
+							if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"vdd")==0) {sys.NoC[i].vdd=atof(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
+							if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"power_gating_vcc")==0) {sys.NoC[i].power_gating_vcc=atof(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
 							if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"topology")==0) {strcpy(sys.NoC[i].topology,(xNode3.getChildNode("param",k).getAttribute("value")));continue;}
 							if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"horizontal_nodes")==0) {sys.NoC[i].horizontal_nodes=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
 							if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"vertical_nodes")==0) {sys.NoC[i].vertical_nodes=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
@@ -1223,42 +1227,42 @@ void ParseXML::parse(const char* filepath)
 			}
 		}
 		//__________________________________________Get system.mem____________________________________________
-		OrderofComponents_3layer=OrderofComponents_3layer+1;
-		xNode3=xNode2.getChildNode("component",OrderofComponents_3layer);
-		if (xNode3.isEmpty()==1) {
-			printf("some value(s) of number_of_cores/number_of_L2s/number_of_L3s/number_of_NoCs is/are not correct!");
-			exit(0);
-		}
-		if (strstr(xNode3.getAttribute("id"),"system.mem")!=NULL)
-		{
-
-			itmp=xNode3.nChildNode("param");
-			for(k=0; k<itmp; k++)
-			{ //get all items of param in system.mem
-				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"mem_tech_node")==0) {sys.mem.mem_tech_node=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
-				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"device_clock")==0) {sys.mem.device_clock=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
-				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"peak_transfer_rate")==0) {sys.mem.peak_transfer_rate=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
-				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"capacity_per_channel")==0) {sys.mem.capacity_per_channel=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
-				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"number_ranks")==0) {sys.mem.number_ranks=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
-				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"num_banks_of_DRAM_chip")==0) {sys.mem.num_banks_of_DRAM_chip=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
-				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"Block_width_of_DRAM_chip")==0) {sys.mem.Block_width_of_DRAM_chip=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
-				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"output_width_of_DRAM_chip")==0) {sys.mem.output_width_of_DRAM_chip=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
-				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"page_size_of_DRAM_chip")==0) {sys.mem.page_size_of_DRAM_chip=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
-				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"burstlength_of_DRAM_chip")==0) {sys.mem.burstlength_of_DRAM_chip=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
-				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"internal_prefetch_of_DRAM_chip")==0) {sys.mem.internal_prefetch_of_DRAM_chip=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
-			}
-			itmp=xNode3.nChildNode("stat");
-			for(k=0; k<itmp; k++)
-			{ //get all items of stat in system.mem
-				if (strcmp(xNode3.getChildNode("stat",k).getAttribute("name"),"memory_accesses")==0) {sys.mem.memory_accesses=atof(xNode3.getChildNode("stat",k).getAttribute("value"));continue;}
-				if (strcmp(xNode3.getChildNode("stat",k).getAttribute("name"),"memory_reads")==0) {sys.mem.memory_reads=atof(xNode3.getChildNode("stat",k).getAttribute("value"));continue;}
-				if (strcmp(xNode3.getChildNode("stat",k).getAttribute("name"),"memory_writes")==0) {sys.mem.memory_writes=atof(xNode3.getChildNode("stat",k).getAttribute("value"));continue;}
-			}
-		}
-		else{
-			printf("some value(s) of number_of_cores/number_of_L2s/number_of_L3s/number_of_NoCs is/are not correct!");
-			exit(0);
-		}
+//		OrderofComponents_3layer=OrderofComponents_3layer+1;
+//		xNode3=xNode2.getChildNode("component",OrderofComponents_3layer);
+//		if (xNode3.isEmpty()==1) {
+//			printf("some value(s) of number_of_cores/number_of_L2s/number_of_L3s/number_of_NoCs is/are not correct!");
+//			exit(0);
+//		}
+//		if (strstr(xNode3.getAttribute("id"),"system.mem")!=NULL)
+//		{
+//
+//			itmp=xNode3.nChildNode("param");
+//			for(k=0; k<itmp; k++)
+//			{ //get all items of param in system.mem
+//				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"mem_tech_node")==0) {sys.mem.mem_tech_node=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
+//				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"device_clock")==0) {sys.mem.device_clock=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
+//				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"peak_transfer_rate")==0) {sys.mem.peak_transfer_rate=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
+//				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"capacity_per_channel")==0) {sys.mem.capacity_per_channel=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
+//				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"number_ranks")==0) {sys.mem.number_ranks=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
+//				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"num_banks_of_DRAM_chip")==0) {sys.mem.num_banks_of_DRAM_chip=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
+//				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"Block_width_of_DRAM_chip")==0) {sys.mem.Block_width_of_DRAM_chip=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
+//				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"output_width_of_DRAM_chip")==0) {sys.mem.output_width_of_DRAM_chip=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
+//				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"page_size_of_DRAM_chip")==0) {sys.mem.page_size_of_DRAM_chip=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
+//				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"burstlength_of_DRAM_chip")==0) {sys.mem.burstlength_of_DRAM_chip=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
+//				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"internal_prefetch_of_DRAM_chip")==0) {sys.mem.internal_prefetch_of_DRAM_chip=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
+//			}
+//			itmp=xNode3.nChildNode("stat");
+//			for(k=0; k<itmp; k++)
+//			{ //get all items of stat in system.mem
+//				if (strcmp(xNode3.getChildNode("stat",k).getAttribute("name"),"memory_accesses")==0) {sys.mem.memory_accesses=atof(xNode3.getChildNode("stat",k).getAttribute("value"));continue;}
+//				if (strcmp(xNode3.getChildNode("stat",k).getAttribute("name"),"memory_reads")==0) {sys.mem.memory_reads=atof(xNode3.getChildNode("stat",k).getAttribute("value"));continue;}
+//				if (strcmp(xNode3.getChildNode("stat",k).getAttribute("name"),"memory_writes")==0) {sys.mem.memory_writes=atof(xNode3.getChildNode("stat",k).getAttribute("value"));continue;}
+//			}
+//		}
+//		else{
+//			printf("some value(s) of number_of_cores/number_of_L2s/number_of_L3s/number_of_NoCs is/are not correct!");
+//			exit(0);
+//		}
 		//__________________________________________Get system.mc____________________________________________
 		OrderofComponents_3layer=OrderofComponents_3layer+1;
 		xNode3=xNode2.getChildNode("component",OrderofComponents_3layer);
@@ -1272,6 +1276,8 @@ void ParseXML::parse(const char* filepath)
 			for(k=0; k<itmp; k++)
 			{ //get all items of param in system.mem
 				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"mc_clock")==0) {sys.mc.mc_clock=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
+				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"vdd")==0) {sys.mc.vdd=atof(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
+				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"power_gating_vcc")==0) {sys.mc.power_gating_vcc=atof(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
 				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"block_size")==0) {sys.mc.llc_line_length=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
 				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"number_mcs")==0) {sys.mc.number_mcs=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
 				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"memory_channels_per_mc")==0) {sys.mc.memory_channels_per_mc=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
@@ -1313,6 +1319,9 @@ void ParseXML::parse(const char* filepath)
 				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"clockrate")==0) {sys.niu.clockrate=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
 				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"number_units")==0) {sys.niu.number_units=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
 				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"type")==0) {sys.niu.type=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
+				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"vdd")==0) {sys.niu.vdd=atof(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
+				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"power_gating_vcc")==0) {sys.niu.power_gating_vcc=atof(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
+
 			}
 			itmp=xNode3.nChildNode("stat");
 			for(k=0; k<itmp; k++)
@@ -1342,6 +1351,8 @@ void ParseXML::parse(const char* filepath)
 				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"number_units")==0) {sys.pcie.number_units=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
 				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"num_channels")==0) {sys.pcie.num_channels=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
 				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"type")==0) {sys.pcie.type=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
+				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"vdd")==0) {sys.pcie.vdd=atof(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
+				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"power_gating_vcc")==0) {sys.pcie.power_gating_vcc=atof(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
 				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"withPHY")==0) {sys.pcie.withPHY=(bool)atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
 
 			}
@@ -1371,6 +1382,8 @@ void ParseXML::parse(const char* filepath)
 //				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"flashc_clock")==0) {sys.flashc.mc_clock=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
 //				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"block_size")==0) {sys.flashc.llc_line_length=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
 				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"number_flashcs")==0) {sys.flashc.number_mcs=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
+				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"vdd")==0) {sys.flashc.vdd=atof(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
+				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"power_gating_vcc")==0) {sys.flashc.power_gating_vcc=atof(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
 //				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"memory_channels_per_flashc")==0) {sys.flashc.memory_channels_per_mc=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
 //				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"req_window_size_per_channel")==0) {sys.flashc.req_window_size_per_channel=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
 //				if (strcmp(xNode3.getChildNode("param",k).getAttribute("name"),"IO_buffer_size_per_channel")==0) {sys.flashc.IO_buffer_size_per_channel=atoi(xNode3.getChildNode("param",k).getAttribute("value"));continue;}
@@ -1416,7 +1429,7 @@ void ParseXML::initialize() //Initialize all
 	sys.core_tech_node=1;
 	sys.target_core_clockrate=1;
 	sys.target_chip_area=1;
-	sys.temperature=1;
+	sys.temperature=360;
 	sys.number_cache_levels=1;
 	sys.homogeneous_cores=1;
 	sys.homogeneous_L1Directories=1;
@@ -1430,15 +1443,20 @@ void ParseXML::initialize() //Initialize all
 	sys.Max_power_deviation=1;
 	sys.device_type=1;
 	sys.longer_channel_device =true;
+	sys.power_gating =false;
 	sys.Embedded =false;
 	sys.opt_dynamic_power=false;
 	sys.opt_lakage_power=false;
 	sys.opt_clockrate=true;
 	sys.opt_area=false;
 	sys.interconnect_projection_type=1;
+	sys.vdd =0;
+	sys.power_gating_vcc = -1;
 	int i,j;
 	for (i=0; i<=63; i++)
 	{
+		sys.core[i].vdd =0;
+		sys.core[i].power_gating_vcc = -1;
 		sys.core[i].clock_rate=1;
 		sys.core[i].opt_local = true;
 		sys.core[i].x86 = false;
@@ -1618,11 +1636,14 @@ void ParseXML::initialize() //Initialize all
 	//system_L1directory
 	for (i=0; i<=63; i++)
 	{
+
 		for (j=0; j<20; j++) sys.L1Directory[i].Dir_config[j]=1;
 		for (j=0; j<20; j++) sys.L1Directory[i].buffer_sizes[j]=1;
 		sys.L1Directory[i].clockrate=1;
 		sys.L1Directory[i].ports[20]=1;
 		sys.L1Directory[i].device_type=1;
+		sys.L1Directory[i].vdd =0;
+		sys.L1Directory[i].power_gating_vcc = -1;
 		strcpy(sys.L1Directory[i].threeD_stack,"default");
 		sys.L1Directory[i].total_accesses=1;
 		sys.L1Directory[i].read_accesses=1;
@@ -1637,6 +1658,8 @@ void ParseXML::initialize() //Initialize all
 		sys.L2Directory[i].clockrate=1;
 		sys.L2Directory[i].ports[20]=1;
 		sys.L2Directory[i].device_type=1;
+		sys.L2Directory[i].vdd =0;
+		sys.L2Directory[i].power_gating_vcc = -1;
 		strcpy(sys.L2Directory[i].threeD_stack,"default");
 		sys.L2Directory[i].total_accesses=1;
 		sys.L2Directory[i].read_accesses=1;
@@ -1650,6 +1673,8 @@ void ParseXML::initialize() //Initialize all
 		sys.L2[i].clockrate=1;
 		for (j=0; j<20; j++) sys.L2[i].ports[j]=1;
 		sys.L2[i].device_type=1;
+		sys.L2[i].vdd =0;
+		sys.L2[i].power_gating_vcc = -1;
 		strcpy(sys.L2[i].threeD_stack,"default");
 		for (j=0; j<20; j++) sys.L2[i].buffer_sizes[j]=1;
 		sys.L2[i].total_accesses=1;
@@ -1688,6 +1713,8 @@ void ParseXML::initialize() //Initialize all
 		sys.L3[i].clockrate=1;
 		for (j=0; j<20; j++) sys.L3[i].ports[j]=1;
 		sys.L3[i].device_type=1;
+		sys.L3[i].vdd =0;
+		sys.L2[i].power_gating_vcc = -1;
 		strcpy(sys.L3[i].threeD_stack,"default");
 		for (j=0; j<20; j++) sys.L3[i].buffer_sizes[j]=1;
 		sys.L3[i].total_accesses=1;
@@ -1725,6 +1752,8 @@ void ParseXML::initialize() //Initialize all
 		sys.NoC[i].clockrate=1;
 		sys.NoC[i].type=true;
 		sys.NoC[i].chip_coverage=1;
+		sys.NoC[i].vdd =0;
+		sys.NoC[i].power_gating_vcc = -1;
 		sys.NoC[i].has_global_link = true;
 		strcpy(sys.NoC[i].topology,"default");
 		sys.NoC[i].horizontal_nodes=1;
@@ -1779,10 +1808,14 @@ void ParseXML::initialize() //Initialize all
 	sys.mc.memory_writes=1;
 	sys.mc.LVDS=true;
 	sys.mc.type=1;
+	sys.mc.vdd =0;
+	sys.mc.power_gating_vcc = -1;
 	//system_niu
 	sys.niu.clockrate =1;
 	sys.niu.number_units=1;
 	sys.niu.type = 1;
+	sys.niu.vdd =0;
+	sys.niu.power_gating_vcc = -1;
 	sys.niu.duty_cycle =1;
 	sys.niu.total_load_perc=1;
 	//system_pcie
@@ -1790,12 +1823,16 @@ void ParseXML::initialize() //Initialize all
 	sys.pcie.number_units=1;
 	sys.pcie.num_channels=1;
 	sys.pcie.type = 1;
+	sys.pcie.vdd =0;
+	sys.pcie.power_gating_vcc = -1;
 	sys.pcie.withPHY = false;
 	sys.pcie.duty_cycle =1;
 	sys.pcie.total_load_perc=1;
 	//system_flash_controller
 	sys.flashc.mc_clock =1;
 	sys.flashc.number_mcs=1;
+	sys.flashc.vdd =0;
+	sys.flashc.power_gating_vcc = -1;
 	sys.flashc.peak_transfer_rate =1;
 	sys.flashc.memory_channels_per_mc=1;
 	sys.flashc.number_ranks=1;

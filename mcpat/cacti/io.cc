@@ -1,50 +1,40 @@
-/*------------------------------------------------------------
- *                              CACTI 6.5
- *         Copyright 2008 Hewlett-Packard Development Corporation
- *                         All Rights Reserved
+/*****************************************************************************
+ *                                McPAT/CACTI
+ *                      SOFTWARE LICENSE AGREEMENT
+ *            Copyright 2012 Hewlett-Packard Development Company, L.P.
+ *                          All Rights Reserved
  *
- * Permission to use, copy, and modify this software and its documentation is
- * hereby granted only under the following terms and conditions.  Both the
- * above copyright notice and this permission notice must appear in all copies
- * of the software, derivative works or modified versions, and any portions
- * thereof, and both notices must appear in supporting documentation.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met: redistributions of source code must retain the above copyright
+ * notice, this list of conditions and the following disclaimer;
+ * redistributions in binary form must reproduce the above copyright
+ * notice, this list of conditions and the following disclaimer in the
+ * documentation and/or other materials provided with the distribution;
+ * neither the name of the copyright holders nor the names of its
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.”
  *
- * Users of this software agree to the terms and conditions set forth herein, and
- * hereby grant back to Hewlett-Packard Company and its affiliated companies ("HP")
- * a non-exclusive, unrestricted, royalty-free right and license under any changes,
- * enhancements or extensions  made to the core functions of the software, including
- * but not limited to those affording compatibility with other hardware or software
- * environments, but excluding applications which incorporate this software.
- * Users further agree to use their best efforts to return to HP any such changes,
- * enhancements or extensions that they make and inform HP of noteworthy uses of
- * this software.  Correspondence should be provided to HP at:
- *
- *                       Director of Intellectual Property Licensing
- *                       Office of Strategy and Technology
- *                       Hewlett-Packard Company
- *                       1501 Page Mill Road
- *                       Palo Alto, California  94304
- *
- * This software may be distributed (but not offered for sale or transferred
- * for compensation) to third parties, provided such third parties agree to
- * abide by the terms and conditions of this notice.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" AND HP DISCLAIMS ALL
- * WARRANTIES WITH REGARD TO THIS SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS.   IN NO EVENT SHALL HP
- * CORPORATION BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
- * DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR
- * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS
- * ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
- * SOFTWARE.
- *------------------------------------------------------------*/
+ ***************************************************************************/
 
 
 
 #include <fstream>
 #include <iostream>
 #include <sstream>
-
+#include <string.h>
 
 #include "io.h"
 #include "area.h"
@@ -54,11 +44,26 @@
 #include "nuca.h"
 #include "crossbar.h"
 #include "arbiter.h"
+#include "version_cacti.h"
 //#include "highradix.h"
 #include "globalvar.h"
 
 using namespace std;
 
+
+InputParameter::InputParameter()
+:  array_power_gated(false),
+ bitline_floating(false),
+ wl_power_gated(false),
+ cl_power_gated(false),
+ interconect_power_gated(false),
+ power_gating(false),
+ perfloss(0.01),
+ cl_vertical (true),
+ long_channel_device(false)
+{
+	dvs_voltage = std::vector<double>(0);
+}
 
 /* Parses "cache.cfg" file */
   void
@@ -68,6 +73,9 @@ InputParameter::parse_cfg(const string & in_file)
   char line[5000];
   char jk[5000];
   char temp_var[5000];
+  double temp_double;
+  char *data = line;
+  int offset= 0;
 
   if(!fp) {
     *out_file << in_file << " is missing!\n";
@@ -142,6 +150,77 @@ InputParameter::parse_cfg(const string & in_file)
       F_sz_nm = F_sz_um*1000;
       continue;
     }
+
+    if (!strncmp("-hp Vdd", line, strlen("-hp Vdd"))) {
+      sscanf(line, "-hp Vdd%[^\"]\"%[^\"]\"", jk, temp_var);
+      if (!strncmp("default", temp_var, sizeof("default"))) {
+        specific_hp_vdd = false;
+        hp_Vdd = 1.0; /*
+                     * if this is by default, then the vdd value in g_ip here does not matter
+                     */
+      }
+      else {
+    	specific_hp_vdd = true;
+        sscanf(line, "-hp Vdd (V) %lf", &(hp_Vdd));
+      }
+      continue;
+    }
+
+    if (!strncmp("-lstp Vdd", line, strlen("-lstp Vdd"))) {
+      sscanf(line, "-lstp Vdd%[^\"]\"%[^\"]\"", jk, temp_var);
+      if (!strncmp("default", temp_var, sizeof("default"))) {
+        specific_lstp_vdd = false;
+        lstp_Vdd = 1.0; /*
+                     * if this is by default, then the vdd value in g_ip here does not matter
+                     */
+      }
+      else {
+    	specific_lstp_vdd = true;
+        sscanf(line, "-lstp Vdd (V) %lf", &(lstp_Vdd));
+      }
+      continue;
+    }
+
+    if (!strncmp("-lop Vdd", line, strlen("-lop Vdd"))) {
+      sscanf(line, "-lop Vdd%[^\"]\"%[^\"]\"", jk, temp_var);
+      if (!strncmp("default", temp_var, sizeof("default"))) {
+        specific_lop_vdd = false;
+        lop_Vdd = 1.0; /*
+                     * if this is by default, then the vdd value in g_ip here does not matter
+                     */
+      }
+      else {
+    	specific_lop_vdd = true;
+        sscanf(line, "-lop Vdd (V) %lf", &(lop_Vdd));
+      }
+      continue;
+    }
+
+    if (!strncmp("-DVS(V):", line, strlen("-DVS(V):"))) {
+        memmove (line,line+9,strlen(line));
+    	while (1 == sscanf(data, "%lf%n", &temp_double, &offset)) {
+    		data += offset;
+    		dvs_voltage.push_back(temp_double);
+    	}
+//    	dvs_levels = dvs_voltage.size();
+    	continue;
+    }
+
+    if (!strncmp("-Powergating voltage", line, strlen("-Powergating voltage"))) {
+      sscanf(line, "-Powergating voltage%[^\"]\"%[^\"]\"", jk, temp_var);
+      if (!strncmp("default", temp_var, sizeof("default"))) {
+        specific_vcc_min= false;
+        user_defined_vcc_min = 1.0; /*
+                     * if this is by default, then the vdd value in g_ip here does not matter
+                     */
+      }
+      else {
+    	specific_vcc_min = true;
+        sscanf(line, "-Powergating voltage (V) %lf", &(user_defined_vcc_min));
+      }
+      continue;
+    }
+
 
     if (!strncmp("-output/input", line, strlen("-output/input"))) {
       sscanf(line, "-output/input bus %[(:-~)*]%d", jk, &(out_w));
@@ -494,6 +573,91 @@ InputParameter::parse_cfg(const string & in_file)
       }
     }
 
+    if(!strncmp("-CLDriver vertical", line, strlen("-CLDriver vertical"))) {
+    	sscanf(line, "-CLDriver vertical %[^\"]\"%[^\"]\"", jk, temp_var);
+    	if (!strncmp("true", temp_var, strlen("true"))) {
+    		cl_vertical = true;
+    	}
+    	else {
+    		cl_vertical = false;
+    	}
+    }
+
+    if(!strncmp("-Array Power Gating", line, strlen("-Array Power Gating"))) {
+    	sscanf(line, "-Array Power Gating %[^\"]\"%[^\"]\"", jk, temp_var);
+    	if (!strncmp("true", temp_var, strlen("true"))) {
+    		array_power_gated = true;
+    	}
+    	else {
+    		array_power_gated = false;
+    	}
+    }
+
+    if(!strncmp("-Bitline floating", line, strlen("-Bitline floating"))) {
+    	sscanf(line, "-Bitline floating %[^\"]\"%[^\"]\"", jk, temp_var);
+    	if (!strncmp("true", temp_var, strlen("true"))) {
+    		bitline_floating = true;
+    	}
+    	else {
+    		bitline_floating = false;
+    	}
+    }
+
+    if(!strncmp("-WL Power Gating", line, strlen("-WL Power Gating"))) {
+    	sscanf(line, "-WL Power Gating %[^\"]\"%[^\"]\"", jk, temp_var);
+    	if (!strncmp("true", temp_var, strlen("true"))) {
+    		wl_power_gated = true;
+    	}
+    	else {
+    		wl_power_gated = false;
+    	}
+    }
+
+    if(!strncmp("-CL Power Gating", line, strlen("-CL Power Gating"))) {
+    	sscanf(line, "-CL Power Gating %[^\"]\"%[^\"]\"", jk, temp_var);
+    	if (!strncmp("true", temp_var, strlen("true"))) {
+    		cl_power_gated = true;
+    	}
+    	else {
+    		cl_power_gated = false;
+    	}
+    }
+
+    if(!strncmp("-Interconnect Power Gating", line, strlen("-Interconnect Power Gating"))) {
+    	sscanf(line, "-Interconnect Power Gating %[^\"]\"%[^\"]\"", jk, temp_var);
+    	if (!strncmp("true", temp_var, strlen("true"))) {
+    		interconect_power_gated = true;
+    	}
+    	else {
+    		interconect_power_gated = false;
+    	}
+    }
+
+    if(!strncmp("-Power Gating Performance Loss", line, strlen("-Power Gating Performance Loss"))) {
+        sscanf(line, "-Power Gating Performance Loss %lf", &(perfloss));
+        continue;
+    }
+
+    if(!strncmp("-Power Gating", line, strlen("-Power Gating"))) {
+    	sscanf(line, "-Power Gating %[^\"]\"%[^\"]\"", jk, temp_var);
+    	if (!strncmp("true", temp_var, strlen("true"))) {
+    		power_gating = true;
+    	}
+    	else {
+    		power_gating = false;
+    	}
+    }
+
+    if(!strncmp("-Long channel devices", line, strlen("-Long channel devices"))) {
+      sscanf(line, "-Long channel devices %[^\"]\"%[^\"]\"", jk, temp_var);
+      if (!strncmp("true", temp_var, strlen("true"))) {
+    	  long_channel_device = true;
+      }
+      else {
+    	  long_channel_device = false;
+      }
+    }
+
     if(!strncmp("-Print input parameters", line, strlen("-Print input parameters"))) {
       sscanf(line, "-Print input %[^\"]\"%[^\"]\"", jk, temp_var);
       if (!strncmp("true", temp_var, strlen("true"))) {
@@ -560,6 +724,21 @@ InputParameter::display_ip()
   }
   *out_file << "Cache banks (UCA)             : " << nbanks << endl;
   *out_file << "Technology                    : " << F_sz_um << endl;
+  *out_file << "User specified HP   Vdd (v)?  : " << std::boolalpha << specific_hp_vdd << endl;
+  if (specific_hp_vdd)
+  {
+	  *out_file << "User defined HP Vdd (v)       : " << hp_Vdd << endl;
+  }
+  *out_file << "User specified LSTP Vdd (v)?  : " << std::boolalpha << specific_lstp_vdd << endl;
+  if (specific_lstp_vdd)
+  {
+	  *out_file << "User defined HP Vdd (v)       : " << lstp_Vdd << endl;
+  }
+  *out_file << "User specified LOP  Vdd (v)?  : " << std::boolalpha << specific_lop_vdd << endl;
+  if (specific_lop_vdd)
+  {
+	  *out_file << "User defined HP Vdd (v)       : " << lop_Vdd << endl;
+  }
   *out_file << "Temperature                   : " << temp << endl;
   *out_file << "Tag size                      : " << tag_w << endl;
   if (is_cache) {
@@ -578,6 +757,7 @@ InputParameter::display_ip()
   *out_file << "Data array peripheral type    : " << data_arr_peri_global_tech_type << endl;
   *out_file << "Tag array cell type           : " << tag_arr_ram_cell_tech_type << endl;
   *out_file << "Tag array peripheral type     : " << tag_arr_peri_global_tech_type << endl;
+  *out_file << "Optimization target           : " << ed << endl;
   *out_file << "Design objective (UCA wt)     : " << delay_wt << " "
                                                 << dynamic_power_wt << " " << leakage_power_wt << " " << cycle_time_wt
                                                 << " " << area_wt << endl;
@@ -616,6 +796,7 @@ InputParameter::display_ip()
     *out_file << "Ndsam1                        : " << g_ip->ndsam1 << endl;
     *out_file << "Ndsam2                        : " << g_ip->ndsam2 << endl;
   }
+ // *out_file << "Placing subarray out driver vertical?     : " << g_ip->cl_vertical << endl;
 }
 
 
@@ -629,6 +810,8 @@ powerComponents operator+(const powerComponents & x, const powerComponents & y)
   z.gate_leakage  = x.gate_leakage  + y.gate_leakage;
   z.short_circuit = x.short_circuit + y.short_circuit;
   z.longer_channel_leakage = x.longer_channel_leakage + y.longer_channel_leakage;
+  z.power_gated_leakage = x.power_gated_leakage + y.power_gated_leakage;
+  z.power_gated_with_long_channel_leakage = x.power_gated_with_long_channel_leakage + y.power_gated_with_long_channel_leakage;
 
   return z;
 }
@@ -642,7 +825,8 @@ powerComponents operator*(const powerComponents & x, double const * const y)
   z.gate_leakage  = x.gate_leakage*y[2];
   z.short_circuit = x.short_circuit*y[3];
   z.longer_channel_leakage = x.longer_channel_leakage*y[1];//longer channel leakage has the same behavior as normal leakage
-
+  z.power_gated_leakage = x.power_gated_leakage*y[1];//power_gated_leakage has the same behavior as normal leakage
+  z.power_gated_with_long_channel_leakage = x.power_gated_with_long_channel_leakage*y[1];//power_gated_with_long_channel_leakage has the same behavior as normal leakage
   return z;
 }
 
@@ -681,8 +865,10 @@ uca_org_t cacti_interface(const string & infile_name)
   if (g_ip->print_input_args)
     g_ip->display_ip();
 
-  init_tech_params(g_ip->F_sz_um, false);
+  init_tech_params(g_ip->F_sz_um, false);//this init is for initializing wires
   Wire winit; // Do not delete this line. It initializes wires.
+//  g_tp.peri_global.display();
+//  g_tp.sram_cell.display();
 
 
 //  For HighRadix Only
@@ -719,11 +905,26 @@ uca_org_t cacti_interface(const string & infile_name)
     Nuca n(&g_tp.peri_global);
     n.sim_nuca();
   }
+  
   //g_ip->display_ip();
-  solve(&fin_res);
 
-  output_UCA(&fin_res);
+  solve(&fin_res);
+//  output_UCA(&fin_res);
+//  Wire::print_wire();
   output_data_csv(fin_res);
+
+  if (!g_ip->dvs_voltage.empty())
+  {
+	  update_dvs(&fin_res);
+  }
+  if (g_ip->power_gating)
+  {
+	  update_pg(&fin_res);//this is needed for compute area overhead of power-gating, even the gated power is calculated together un-gated leakage
+  }
+  output_UCA(&fin_res);
+
+  Wire wprint;//reset wires to original configuration as in *.cfg file (dvs level 0)
+  Wire::print_wire();
 
   delete (g_ip);
   return fin_res;
@@ -928,55 +1129,56 @@ uca_org_t cacti_interface(
     int line_size,
     int associativity,
     int rw_ports,
-    int excl_read_ports,
+    int excl_read_ports,// para5
     int excl_write_ports,
     int single_ended_read_ports,
     int search_ports,
     int banks,
-    double tech_node,
+    double tech_node,//para10
     int output_width,
     int specific_tag,
     int tag_width,
     int access_mode,
-    int cache,
+    int cache,      //para15
     int main_mem,
     int obj_func_delay,
     int obj_func_dynamic_power,
     int obj_func_leakage_power,
+    int obj_func_cycle_time, //para20
     int obj_func_area,
-    int obj_func_cycle_time,
     int dev_func_delay,
     int dev_func_dynamic_power,
     int dev_func_leakage_power,
-    int dev_func_area,
+    int dev_func_area, //para25
     int dev_func_cycle_time,
+    int ed_ed2_none, // 0 - ED, 1 - ED^2, 2 - use weight and deviate
     int temp,
-    int data_arr_ram_cell_tech_flavor_in,
+    int wt, //0 - default(search across everything), 1 - global, 2 - 5% delay penalty, 3 - 10%, 4 - 20 %, 5 - 30%, 6 - low-swing
+    int data_arr_ram_cell_tech_flavor_in,//para30
     int data_arr_peri_global_tech_flavor_in,
     int tag_arr_ram_cell_tech_flavor_in,
     int tag_arr_peri_global_tech_flavor_in,
     int interconnect_projection_type_in,
-    int wire_inside_mat_type_in,
+    int wire_inside_mat_type_in,//para35
     int wire_outside_mat_type_in,
     int REPEATERS_IN_HTREE_SEGMENTS_in,
     int VERTICAL_HTREE_WIRES_OVER_THE_ARRAY_in,
     int BROADCAST_ADDR_DATAIN_OVER_VERTICAL_HTREES_in,
-    int PAGE_SIZE_BITS_in,
+    int PAGE_SIZE_BITS_in,//para40
     int BURST_LENGTH_in,
     int INTERNAL_PREFETCH_WIDTH_in,
     int force_wiretype,
     int wiretype,
-    int force_config,
+    int force_config,//para45
     int ndwl,
     int ndbl,
     int nspd,
     int ndcm,
-    int ndsam1,
+    int ndsam1,//para50
     int ndsam2,
     int ecc)
 {
   g_ip = new InputParameter();
-  //g_ip->add_ecc_b_ = true;
 
   uca_org_t fin_res;
   fin_res.valid = false;
@@ -999,7 +1201,7 @@ uca_org_t cacti_interface(
   g_ip->nbanks              = banks;
   g_ip->out_w               = output_width;
   g_ip->specific_tag        = specific_tag;
-  if (tag_width == 0) {
+  if (specific_tag == 0) {
     g_ip->tag_w = 42;
   }
   else {
@@ -1018,6 +1220,7 @@ uca_org_t cacti_interface(
   g_ip->area_dev = dev_func_area;
   g_ip->cycle_time_dev    = dev_func_cycle_time;
   g_ip->temp = temp;
+  g_ip->ed = ed_ed2_none;
 
   g_ip->F_sz_nm         = tech_node;
   g_ip->F_sz_um         = tech_node / 1000;
@@ -1093,9 +1296,8 @@ uca_org_t cacti_interface(
 
   init_tech_params(g_ip->F_sz_um, false);
   Wire winit; // Do not delete this line. It initializes wires.
-  //solve(&fin_res);
-  g_ip->display_ip();
 
+  g_ip->display_ip();
   solve(&fin_res);
   output_UCA(&fin_res);
   output_data_csv(fin_res);
@@ -1111,6 +1313,7 @@ bool InputParameter::error_checking()
   int  A;
   bool seq_access  = false;
   fast_access = true;
+  fully_assoc = false;
 
   switch (access_mode)
   {
@@ -1156,12 +1359,18 @@ bool InputParameter::error_checking()
     cerr << "Feature size must be > 0" << endl;
     return false;
   }
-  else if (F_sz_um > 0.091)
+  else if (F_sz_um > 0.181)
   {
-    cerr << "Feature size must be <= 90 nm" << endl;
+    cerr << "Feature size must be <= 180 nm" << endl;
     return false;
+  }else if (F_sz_um >0.091 && (data_arr_ram_cell_tech_type!= itrs_hp
+		  	  	  	  	  	  || tag_arr_ram_cell_tech_type!= itrs_hp
+		  	  	  	  	  	  || data_arr_peri_global_tech_type != itrs_hp
+		  	  	  	  		  ||tag_arr_peri_global_tech_type != itrs_hp))
+  {
+	    cerr << "Feature size from 90nm to 180 nm only support the ITRS HP device type" << endl;
+	    return false;
   }
-
 
   uint32_t RWP  = num_rw_ports;
   uint32_t ERP  = num_rd_ports;
@@ -1348,6 +1557,99 @@ bool InputParameter::error_checking()
     return false;
   }
 
+//  power_gating = (array_power_gated
+//				  || bitline_floating
+//				  || wl_power_gated
+//				  || cl_power_gated
+//				  || interconect_power_gated)?true:false;
+
+  if (power_gating)
+  {
+	  array_power_gated 		= true;
+      bitline_floating  		= true;
+	  wl_power_gated    		= true;
+	  cl_power_gated    		= true;
+	  interconect_power_gated 	= true;
+  }
+  else
+  {
+	  array_power_gated 		= false;
+      bitline_floating  		= false;
+	  wl_power_gated    		= false;
+	  cl_power_gated    		= false;
+	  interconect_power_gated 	= false;
+  }
+
+//  if (power_gating && (!dvs_voltage.empty()))
+//  {
+//    cerr << "Power gating and DVS cannot be active simultaneously, please model them in two runs.\n\n";
+//    return false;
+//  }
+
+  if (power_gating && (pure_cam||fully_assoc))
+    {
+      cerr << "Power gating in CAM is not supported yet.\n\n"<< endl;
+      return false;
+    }
+
+  if (power_gating && (is_main_mem
+		  	  	  	  ||data_arr_ram_cell_tech_type== lp_dram
+		  	  	  	  ||data_arr_ram_cell_tech_type== comm_dram
+		  	  	      ||tag_arr_ram_cell_tech_type== lp_dram
+		  	  	      ||tag_arr_ram_cell_tech_type== comm_dram
+		  	  	      ||data_arr_peri_global_tech_type== lp_dram
+		  	  	      ||data_arr_peri_global_tech_type== comm_dram
+		  	          ||tag_arr_peri_global_tech_type== lp_dram
+		  	          || tag_arr_peri_global_tech_type== comm_dram))
+    {
+      cerr << "Power gating in DRAM is not supported. \n\n"<< endl;
+      return false;
+    }
+
+  if (long_channel_device && (is_main_mem
+		  	  	  	  ||data_arr_ram_cell_tech_type== lp_dram
+		  	  	  	  ||data_arr_ram_cell_tech_type== comm_dram
+		  	  	      ||tag_arr_ram_cell_tech_type== lp_dram
+		  	  	      ||tag_arr_ram_cell_tech_type== comm_dram
+		  	  	      ||data_arr_peri_global_tech_type== lp_dram
+		  	  	      ||data_arr_peri_global_tech_type== comm_dram
+		  	          ||tag_arr_peri_global_tech_type== lp_dram
+		  	          || tag_arr_peri_global_tech_type== comm_dram))
+    {
+      cerr << "Long Channel Device in DRAM is not supported. \n\n"<< endl;
+      return false;
+    }
+
+  if ((!dvs_voltage.empty()) && (is_main_mem
+		  	  	  	  ||data_arr_ram_cell_tech_type== lp_dram
+		  	  	  	  ||data_arr_ram_cell_tech_type== comm_dram
+		  	  	      ||tag_arr_ram_cell_tech_type== lp_dram
+		  	  	      ||tag_arr_ram_cell_tech_type== comm_dram
+		  	  	      ||data_arr_peri_global_tech_type== lp_dram
+		  	  	      ||data_arr_peri_global_tech_type== comm_dram
+		  	          ||tag_arr_peri_global_tech_type== lp_dram
+		  	          || tag_arr_peri_global_tech_type== comm_dram))
+    {
+      cerr << "DVS in DRAM is not supported. \n\n"<< endl;
+      return false;
+    }
+
+//  if (power_gating && (specific_hp_vdd
+//		  	  	  	  || specific_lstp_vdd
+//		  	  	  	  || specific_lop_vdd))
+//    {
+//      cerr << "Default Vdd is recommended when enabling power gating.\n\n"<< endl;
+//      return false;
+//    }
+
+  if ((!dvs_voltage.empty())&& ((data_arr_ram_cell_tech_type !=data_arr_peri_global_tech_type)
+		                      ||(tag_arr_peri_global_tech_type !=tag_arr_ram_cell_tech_type)
+		                      ||(data_arr_ram_cell_tech_type !=tag_arr_ram_cell_tech_type)))
+  {
+    cerr << "Same device types is recommended for tag/data/cell/peripheral for DVS. Same DVS voltage will be applied to different device types\n\n";
+    return false;
+  }
+
   return true;
 }
 
@@ -1355,6 +1657,7 @@ bool InputParameter::error_checking()
 
 void output_data_csv(const uca_org_t & fin_res)
 {
+  //TODO: the csv output should remain
   fstream file("out.csv", ios::in);
   bool    print_index = file.fail();
   file.close();
@@ -1375,23 +1678,25 @@ void output_data_csv(const uca_org_t & fin_res)
       file << "Output width (bits), ";
       file << "Access time (ns), ";
       file << "Random cycle time (ns), ";
-      file << "Multisubbank interleave cycle time (ns), ";
-      file << "Delay request network (ns), ";
-      file << "Delay inside mat (ns), ";
-      file << "Delay reply network (ns), ";
-      file << "Tag array access time (ns), ";
-      file << "Data array access time (ns), ";
-      file << "Refresh period (microsec), ";
-      file << "DRAM array availability (%), ";
+//      file << "Multisubbank interleave cycle time (ns), ";
+
+//      file << "Delay request network (ns), ";
+//      file << "Delay inside mat (ns), ";
+//      file << "Delay reply network (ns), ";
+//      file << "Tag array access time (ns), ";
+//      file << "Data array access time (ns), ";
+//      file << "Refresh period (microsec), ";
+//      file << "DRAM array availability (%), ";
       file << "Dynamic search energy (nJ), ";
       file << "Dynamic read energy (nJ), ";
       file << "Dynamic write energy (nJ), ";
-      file << "Tag Dynamic read energy (nJ), ";
-      file << "Data Dynamic read energy (nJ), ";
-      file << "Dynamic read power (mW), ";
+//      file << "Tag Dynamic read energy (nJ), ";
+//      file << "Data Dynamic read energy (nJ), ";
+//      file << "Dynamic read power (mW), ";
       file << "Standby leakage per bank(mW), ";
-      file << "Leakage per bank with leak power management (mW), ";
-      file << "Refresh power as percentage of standby leakage, ";
+//      file << "Leakage per bank with leak power management (mW), ";
+//      file << "Leakage per bank with leak power management (mW), ";
+//      file << "Refresh power as percentage of standby leakage, ";
       file << "Area (mm2), ";
       file << "Ndwl, ";
       file << "Ndbl, ";
@@ -1399,40 +1704,43 @@ void output_data_csv(const uca_org_t & fin_res)
       file << "Ndcm, ";
       file << "Ndsam_level_1, ";
       file << "Ndsam_level_2, ";
+      file << "Data arrary area efficiency %, ";
       file << "Ntwl, ";
       file << "Ntbl, ";
       file << "Ntspd, ";
       file << "Ntcm, ";
       file << "Ntsam_level_1, ";
       file << "Ntsam_level_2, ";
-      file << "Area efficiency, ";
-      file << "Resistance per unit micron (ohm-micron), ";
-      file << "Capacitance per unit micron (fF per micron), ";
-      file << "Unit-length wire delay (ps), ";
-      file << "FO4 delay (ps), ";
-      file << "delay route to bank (including crossb delay) (ps), ";
-      file << "Crossbar delay (ps), ";
-      file << "Dyn read energy per access from closed page (nJ), ";
-      file << "Dyn read energy per access from open page (nJ), ";
-      file << "Leak power of an subbank with page closed (mW), ";
-      file << "Leak power of a subbank with page  open (mW), ";
-      file << "Leak power of request and reply networks (mW), ";
-      file << "Number of subbanks, ";
-      file << "Page size in bits, ";
-      file << "Activate power, ";
-      file << "Read power, ";
-      file << "Write power, ";
-      file << "Precharge power, ";
-      file << "tRCD, ";
-      file << "CAS latency, ";
-      file << "Precharge delay, ";
-      file << "Perc dyn energy bitlines, ";
-      file << "perc dyn energy wordlines, ";
-      file << "perc dyn energy outside mat, ";
-      file << "Area opt (perc), ";
-      file << "Delay opt (perc), ";
-      file << "Repeater opt (perc), ";
-      file << "Aspect ratio" << endl;
+      file << "Tag arrary area efficiency %, ";
+
+//      file << "Resistance per unit micron (ohm-micron), ";
+//      file << "Capacitance per unit micron (fF per micron), ";
+//      file << "Unit-length wire delay (ps), ";
+//      file << "FO4 delay (ps), ";
+//      file << "delay route to bank (including crossb delay) (ps), ";
+//      file << "Crossbar delay (ps), ";
+//      file << "Dyn read energy per access from closed page (nJ), ";
+//      file << "Dyn read energy per access from open page (nJ), ";
+//      file << "Leak power of an subbank with page closed (mW), ";
+//      file << "Leak power of a subbank with page  open (mW), ";
+//      file << "Leak power of request and reply networks (mW), ";
+//      file << "Number of subbanks, ";
+//      file << "Page size in bits, ";
+//      file << "Activate power, ";
+//      file << "Read power, ";
+//      file << "Write power, ";
+//      file << "Precharge power, ";
+//      file << "tRCD, ";
+//      file << "CAS latency, ";
+//      file << "Precharge delay, ";
+//      file << "Perc dyn energy bitlines, ";
+//      file << "perc dyn energy wordlines, ";
+//      file << "perc dyn energy outside mat, ";
+//      file << "Area opt (perc), ";
+//      file << "Delay opt (perc), ";
+//      file << "Repeater opt (perc), ";
+//      file << "Aspect ratio";
+      file << endl;
     }
     file << g_ip->F_sz_nm << ", ";
     file << g_ip->cache_sz << ", ";
@@ -1441,60 +1749,62 @@ void output_data_csv(const uca_org_t & fin_res)
     file << g_ip->out_w << ", ";
     file << fin_res.access_time*1e+9 << ", ";
     file << fin_res.cycle_time*1e+9 << ", ";
-    file << fin_res.data_array.multisubbank_interleave_cycle_time*1e+9 << ", ";
-    file << fin_res.data_array.delay_request_network*1e+9 << ", ";
-    file << fin_res.data_array.delay_inside_mat*1e+9 <<  ", ";
-    file << fin_res.data_array.delay_reply_network*1e+9 << ", ";
+//    file << fin_res.data_array2->multisubbank_interleave_cycle_time*1e+9 << ", ";
+//    file << fin_res.data_array2->delay_request_network*1e+9 << ", ";
+//    file << fin_res.data_array2->delay_inside_mat*1e+9 <<  ", ";
+//    file << fin_res.data_array2.delay_reply_network*1e+9 << ", ";
 
-    if (!(g_ip->fully_assoc || g_ip->pure_cam || g_ip->pure_ram))
-        {
-    	  file << fin_res.tag_array2->access_time*1e+9 << ", ";
-        }
-    else
-    {
-    	file << 0 << ", ";
-    }
-    file << fin_res.data_array2->access_time*1e+9 << ", ";
-    file << fin_res.data_array.dram_refresh_period*1e+6 << ", ";
-    file << fin_res.data_array.dram_array_availability <<  ", ";
+//    if (!(g_ip->fully_assoc || g_ip->pure_cam || g_ip->pure_ram))
+//        {
+//    	  file << fin_res.tag_array2->access_time*1e+9 << ", ";
+//        }
+//    else
+//    {
+//    	file << 0 << ", ";
+//    }
+//    file << fin_res.data_array2->access_time*1e+9 << ", ";
+//    file << fin_res.data_array2->dram_refresh_period*1e+6 << ", ";
+//    file << fin_res.data_array2->dram_array_availability <<  ", ";
     if (g_ip->fully_assoc || g_ip->pure_cam)
     {
     	file << fin_res.power.searchOp.dynamic*1e+9 << ", ";
     }
     	else
     {
-    		file << 0 << ", ";
+    		file << "N/A" << ", ";
     }
     file << fin_res.power.readOp.dynamic*1e+9 << ", ";
     file << fin_res.power.writeOp.dynamic*1e+9 << ", ";
-    if (!(g_ip->fully_assoc || g_ip->pure_cam || g_ip->pure_ram))
-        {
-        	file << fin_res.tag_array2->power.readOp.dynamic*1e+9 << ", ";
-        }
-        	else
-        {
-        		file << 0 << ", ";
-        }
-    file << fin_res.data_array2->power.readOp.dynamic*1e+9 << ", ";
-    if (g_ip->fully_assoc || g_ip->pure_cam)
-        {
-    	    file << fin_res.power.searchOp.dynamic*1000/fin_res.cycle_time << ", ";
-        }
-        	else
-        {
-        	file << fin_res.power.readOp.dynamic*1000/fin_res.cycle_time << ", ";
-        }
+//    if (!(g_ip->fully_assoc || g_ip->pure_cam || g_ip->pure_ram))
+//        {
+//        	file << fin_res.tag_array2->power.readOp.dynamic*1e+9 << ", ";
+//        }
+//        	else
+//        {
+//        		file << "NA" << ", ";
+//        }
+//    file << fin_res.data_array2->power.readOp.dynamic*1e+9 << ", ";
+//    if (g_ip->fully_assoc || g_ip->pure_cam)
+//        {
+//    	    file << fin_res.power.searchOp.dynamic*1000/fin_res.cycle_time << ", ";
+//        }
+//        	else
+//        {
+//        	file << fin_res.power.readOp.dynamic*1000/fin_res.cycle_time << ", ";
+//        }
 
-    file << fin_res.power.readOp.leakage*1000 << ", ";
-    file << fin_res.leak_power_with_sleep_transistors_in_mats*1000 << ", ";
-    file << fin_res.data_array.refresh_power / fin_res.data_array.total_power.readOp.leakage << ", ";
+    file <<( fin_res.power.readOp.leakage + fin_res.power.readOp.gate_leakage )*1000 << ", ";
+//    file << fin_res.leak_power_with_sleep_transistors_in_mats*1000 << ", ";
+//    file << fin_res.data_array.refresh_power / fin_res.data_array.total_power.readOp.leakage << ", ";
     file << fin_res.area*1e-6 << ", ";
+
     file << fin_res.data_array2->Ndwl << ", ";
     file << fin_res.data_array2->Ndbl << ", ";
     file << fin_res.data_array2->Nspd << ", ";
     file << fin_res.data_array2->deg_bl_muxing << ", ";
     file << fin_res.data_array2->Ndsam_lev_1 << ", ";
     file << fin_res.data_array2->Ndsam_lev_2 << ", ";
+    file << fin_res.data_array2->area_efficiency << ", ";
     if (!(g_ip->fully_assoc || g_ip->pure_cam || g_ip->pure_ram))
     {
     file << fin_res.tag_array2->Ndwl << ", ";
@@ -1503,38 +1813,41 @@ void output_data_csv(const uca_org_t & fin_res)
     file << fin_res.tag_array2->deg_bl_muxing << ", ";
     file << fin_res.tag_array2->Ndsam_lev_1 << ", ";
     file << fin_res.tag_array2->Ndsam_lev_2 << ", ";
+    file << fin_res.tag_array2->area_efficiency << ", ";
     }
     else
     {
-    	file << 0 << ", ";
-    	file << 0<< ", ";
-    	file << 0 << ", ";
-    	file << 0 << ", ";
-    	file << 0 << ", ";
-    	file << 0 << ", ";
+    	file << "N/A" << ", ";
+    	file << "N/A"<< ", ";
+    	file << "N/A" << ", ";
+    	file << "N/A" << ", ";
+    	file << "N/A" << ", ";
+    	file << "N/A" << ", ";
+    	file << "N/A" << ", ";
     }
-    file << fin_res.area_efficiency << ", ";
-    file << g_tp.wire_inside_mat.R_per_um << ", ";
-    file << g_tp.wire_inside_mat.C_per_um / 1e-15 << ", ";
-    file << g_tp.unit_len_wire_del / 1e-12 << ", ";
-    file << g_tp.FO4 / 1e-12 << ", ";
-    file << fin_res.data_array.delay_route_to_bank / 1e-9 << ", ";
-    file << fin_res.data_array.delay_crossbar / 1e-9 << ", ";
-    file << fin_res.data_array.dyn_read_energy_from_closed_page / 1e-9 << ", ";
-    file << fin_res.data_array.dyn_read_energy_from_open_page / 1e-9 << ", ";
-    file << fin_res.data_array.leak_power_subbank_closed_page / 1e-3 << ", ";
-    file << fin_res.data_array.leak_power_subbank_open_page / 1e-3 << ", ";
-    file << fin_res.data_array.leak_power_request_and_reply_networks / 1e-3 << ", ";
-    file << fin_res.data_array.number_subbanks << ", " ;
-    file << fin_res.data_array.page_size_in_bits << ", " ;
-    file << fin_res.data_array.activate_energy * 1e9 << ", " ;
-    file << fin_res.data_array.read_energy * 1e9 << ", " ;
-    file << fin_res.data_array.write_energy * 1e9 << ", " ;
-    file << fin_res.data_array.precharge_energy * 1e9 << ", " ;
-    file << fin_res.data_array.trcd * 1e9 << ", " ;
-    file << fin_res.data_array.cas_latency * 1e9 << ", " ;
-    file << fin_res.data_array.precharge_delay * 1e9 << ", " ;
-    file << fin_res.data_array.all_banks_height / fin_res.data_array.all_banks_width << endl;
+
+//    file << g_tp.wire_inside_mat.R_per_um << ", ";
+//    file << g_tp.wire_inside_mat.C_per_um / 1e-15 << ", ";
+//    file << g_tp.unit_len_wire_del / 1e-12 << ", ";
+//    file << g_tp.FO4 / 1e-12 << ", ";
+//    file << fin_res.data_array.delay_route_to_bank / 1e-9 << ", ";
+//    file << fin_res.data_array.delay_crossbar / 1e-9 << ", ";
+//    file << fin_res.data_array.dyn_read_energy_from_closed_page / 1e-9 << ", ";
+//    file << fin_res.data_array.dyn_read_energy_from_open_page / 1e-9 << ", ";
+//    file << fin_res.data_array.leak_power_subbank_closed_page / 1e-3 << ", ";
+//    file << fin_res.data_array.leak_power_subbank_open_page / 1e-3 << ", ";
+//    file << fin_res.data_array.leak_power_request_and_reply_networks / 1e-3 << ", ";
+//    file << fin_res.data_array.number_subbanks << ", " ;
+//    file << fin_res.data_array.page_size_in_bits << ", " ;
+//    file << fin_res.data_array.activate_energy * 1e9 << ", " ;
+//    file << fin_res.data_array.read_energy * 1e9 << ", " ;
+//    file << fin_res.data_array.write_energy * 1e9 << ", " ;
+//    file << fin_res.data_array.precharge_energy * 1e9 << ", " ;
+//    file << fin_res.data_array.trcd * 1e9 << ", " ;
+//    file << fin_res.data_array.cas_latency * 1e9 << ", " ;
+//    file << fin_res.data_array.precharge_delay * 1e9 << ", " ;
+//    file << fin_res.data_array.all_banks_height / fin_res.data_array.all_banks_width;
+    file<<endl;
   }
   file.close();
 }
@@ -1543,7 +1856,15 @@ void output_data_csv(const uca_org_t & fin_res)
 
 void output_UCA(uca_org_t *fr)
 {
-  //    if (NUCA)
+
+double long_channel_leakage_reduction = 0.1 + 0.9*(0.8*fr->data_array2->long_channel_leakage_reduction_memcell
+														+ 0.2*fr->data_array2->long_channel_leakage_reduction_periperal);//TODO
+double areaoverhead, overhead_data, overhead_tag;
+double wakeup_E, wakeup_T,  wakeup_E_data, wakeup_T_data,  wakeup_E_tag, wakeup_T_tag;
+int dvs_levels = g_ip->dvs_voltage.size();
+int i;
+bool dvs  = !g_ip->dvs_voltage.empty();
+	//    if (NUCA)
   if (0) {
     *out_file << "\n\n Detailed Bank Stats:\n";
     *out_file << "    Bank Size (bytes): %d\n" <<
@@ -1551,17 +1872,23 @@ void output_UCA(uca_org_t *fr)
   }
   else {
     if (g_ip->data_arr_ram_cell_tech_type == 3) {
-      *out_file << "\n---------- CACTI version 6.5, Uniform Cache Access " <<
+      *out_file << "\n---------- CACTI-P,  with new features: "<<VER_COMMENT_CACTI
+    		  << " of " << VER_UPDATE_CACTI << "), Uniform Cache Access " <<
         "Logic Process Based DRAM Model ----------\n";
     }
     else if (g_ip->data_arr_ram_cell_tech_type == 4) {
-      *out_file << "\n---------- CACTI version 6.5, Uniform" <<
+        *out_file << "\n---------- CACTI-P,  with new features: "<<VER_COMMENT_CACTI
+    		  << " of " << VER_UPDATE_CACTI << "), Uniform" <<
         "Cache Access Commodity DRAM Model ----------\n";
     }
     else {
-      *out_file << "\n---------- CACTI version 6.5, Uniform Cache Access "
+        *out_file << "\n---------- CACTI-P,  with new features: "<<VER_COMMENT_CACTI
+    		  << " of " << VER_UPDATE_CACTI << "), Uniform Cache Access "
         "SRAM Model ----------\n";
     }
+//    (version "<< VER_MAJOR_CACTI <<"."<< VER_MINOR_CACTI<< VER_postfix_CACTI<<";
+    //    (version "<< VER_MAJOR_CACTI <<"."<< VER_MINOR_CACTI<<"."VER_COMMENT_CACTI << VER_postfix_CACTI
+//    								<< " of " << VER_UPDATE_CACTI << ")
     *out_file << "\nCache Parameters:\n";
     *out_file << "    Total cache size (bytes): " <<
       (int) (g_ip->cache_sz) << endl;
@@ -1590,10 +1917,26 @@ void output_UCA(uca_org_t *fr)
 	  *out_file << "    search ports: " <<
 	      g_ip->num_search_ports << endl;
   *out_file << "    Technology size (nm): " <<
-    g_ip->F_sz_nm << endl << endl;
+		  g_ip->F_sz_nm << endl << endl;
 
-  *out_file << "    Access time (ns): " << fr->access_time*1e9 << endl;
-  *out_file << "    Cycle time (ns):  " << fr->cycle_time*1e9 << endl;
+
+  *out_file << "    Access time (ns): " << fr->access_time*1e9;
+  if (dvs)
+  {
+	  *out_file<<" (@DVS_Level0); ";
+	  for (i = 0; i<dvs_levels; i++)
+		  *out_file<<fr->uca_q[i]->access_time*1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+  }
+  *out_file << endl;
+
+  *out_file << "    Cycle time (ns):  " << fr->cycle_time*1e9;
+		  if (dvs)
+		  {
+			  *out_file<<" (@DVS_Level0); ";
+			  for (i = 0; i<dvs_levels; i++)
+				  *out_file<<fr->uca_q[i]->cycle_time*1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+		  }
+  *out_file<< endl;
   if (g_ip->data_arr_ram_cell_tech_type >= 4) {
     *out_file << "    Precharge Delay (ns): " << fr->data_array2->precharge_delay*1e9 << endl;
     *out_file << "    Activate Energy (nJ): " << fr->data_array2->activate_energy*1e9 << endl;
@@ -1610,32 +1953,113 @@ void output_UCA(uca_org_t *fr)
 	  if ((g_ip->fully_assoc|| g_ip->pure_cam))
 	  {
 		  *out_file << "    Total dynamic associative search energy per access (nJ): " <<
-		  fr->power.searchOp.dynamic*1e9 << endl;
-//		  *out_file << "    Total dynamic read energy per access (nJ): " <<
-//		  fr->power.readOp.dynamic*1e9 << endl;
-//		  *out_file << "    Total dynamic write energy per access (nJ): " <<
-//		  fr->power.writeOp.dynamic*1e9 << endl;
+				  fr->power.searchOp.dynamic*1e9;
+		  if (dvs)
+		  {
+			  *out_file<<" (@DVS_Level0); ";
+			  for (i = 0; i<dvs_levels; i++)
+				  *out_file<<fr->uca_q[i]->power.searchOp.dynamic*1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+		  }
+		  *out_file<< endl;
+		  //		  *out_file << "    Total dynamic read energy per access (nJ): " <<
+		  //		  fr->power.readOp.dynamic*1e9 << endl;
+		  //		  *out_file << "    Total dynamic write energy per access (nJ): " <<
+		  //		  fr->power.writeOp.dynamic*1e9 << endl;
 	  }
-//	  else
-//	  {
-		  *out_file << "    Total dynamic read energy per access (nJ): " <<
-		  fr->power.readOp.dynamic*1e9 << endl;
-		  *out_file << "    Total dynamic write energy per access (nJ): " <<
-		  fr->power.writeOp.dynamic*1e9 << endl;
-//	  }
-	  *out_file << "    Total leakage power of a bank"
-	  " (mW): " << fr->power.readOp.leakage*1e3 << endl;
-	  *out_file << "    Total gate leakage power of a bank"
-	  " (mW): " << fr->power.readOp.gate_leakage*1e3 << endl;
+	  //	  else
+	  //	  {
+	  *out_file << "    Total dynamic read energy per access (nJ): " <<
+			  fr->power.readOp.dynamic*1e9;
+	  if (dvs)
+	  {
+		  *out_file<<" (@DVS_Level0); ";
+		  for (i = 0; i<dvs_levels; i++)
+			  *out_file<<fr->uca_q[i]->power.readOp.dynamic*1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+	  }
+	  *out_file<< endl;
+	  *out_file << "    Total dynamic write energy per access (nJ): " <<
+			  fr->power.writeOp.dynamic*1e9;
+	  if (dvs)
+	  {
+		  *out_file<<" (@DVS_Level0); ";
+		  for (i = 0; i<dvs_levels; i++)
+			  *out_file<<fr->uca_q[i]->power.writeOp.dynamic*1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+	  }
+	  *out_file<< endl;
+	  //	  }
+	  if (g_ip->power_gating)
+	  {
+		  *out_file << "    Total leakage power of a bank, with power-gating ";
+		  if (!g_ip->user_defined_vcc_underflow)
+		  {
+			  *out_file << "(state retained)";
+		  }
+		  else
+		  {
+			  *out_file << "(non state retained)";
+		  }
+
+		  *out_file <<", including its network outside" //power gated with retaining memory content
+				  " (mW): " << (g_ip->long_channel_device ? fr->power.readOp.power_gated_leakage*long_channel_leakage_reduction : fr->power.readOp.power_gated_leakage)*1e3<<endl;
+	  }
+	  *out_file << "    Total leakage power of a bank without power gating, including its network outside"
+			  " (mW): " << (g_ip->long_channel_device ? fr->power.readOp.leakage*long_channel_leakage_reduction : fr->power.readOp.leakage)*1e3;
+
+	  if (dvs)
+	  {
+		  *out_file<<" (@DVS_Level0); ";
+		  for (i = 0; i<dvs_levels; i++)
+			  *out_file<<(g_ip->long_channel_device ? fr->uca_q[i]->power.readOp.leakage*long_channel_leakage_reduction : fr->uca_q[i]->power.readOp.leakage)*1e3 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+	  }
+	  *out_file<< endl;
   }
 
   if (g_ip->data_arr_ram_cell_tech_type ==3 || g_ip->data_arr_ram_cell_tech_type ==4)
   {
   }
   *out_file <<  "    Cache height x width (mm): " <<
-    fr->cache_ht*1e-3 << " x " << fr->cache_len*1e-3 << endl << endl;
+		  fr->cache_ht*1e-3 << " x " << fr->cache_len*1e-3 << endl;
+  *out_file << endl;
 
+  if (g_ip->power_gating)
+  {
+	  /* Energy/Power stats */
+	  *out_file << "    Power-gating results (The virtual power supply for gated circuit can only retain the state of idle circuit, not for operating the circuit):" << endl;
+	  /* Data array power-gating stats */
+	  if (g_ip->user_defined_vcc_underflow)
+	  {
+		 *out_file<<"    Warning: user defined power gating voltage is too low to retain state; Please understand the implications of deep sleep state on non state retaining and cold start effects when waking up the structure."<<endl;
+	  }
+	  else
+	  {
+		  *out_file<<"    Power-gating results when retaining state"<<endl;
+	  }
+	  areaoverhead = (fr->cache_ht*fr->cache_len/fr->uca_pg_reference->cache_ht/fr->uca_pg_reference->cache_len-1)*100;//%
+	  *out_file <<  "    \tPower gating circuits (sleep transistors) induced area overhead: " <<
+			  areaoverhead << " % " <<  endl ;
+	  wakeup_E = wakeup_E_data = fr->data_array2->sram_sleep_wakeup_energy
+			  + fr->data_array2->wl_sleep_wakeup_energy
+			  + fr->data_array2->bl_floating_wakeup_energy;
+	  wakeup_T = wakeup_T_data=MAX(fr->data_array2->sram_sleep_wakeup_latency,
+			  MAX(fr->data_array2->wl_sleep_wakeup_latency,fr->data_array2->bl_floating_wakeup_latency));
+	  if ((!(g_ip->pure_ram|| g_ip->pure_cam || g_ip->fully_assoc)) && !g_ip->is_main_mem)
+	  {
+		  wakeup_E_tag = fr->tag_array2->sram_sleep_wakeup_energy
+				  + fr->tag_array2->wl_sleep_wakeup_energy
+				  + fr->tag_array2->bl_floating_wakeup_energy;
+		  wakeup_T_tag=MAX(fr->tag_array2->sram_sleep_wakeup_latency,
+				  MAX(fr->tag_array2->wl_sleep_wakeup_latency,fr->tag_array2->bl_floating_wakeup_latency));
 
+		  wakeup_E += wakeup_E_tag;
+		  wakeup_T = MAX(wakeup_T_tag, wakeup_T_data);
+
+	  }
+	  *out_file <<  "    \tPower gating Wakeup Latency (ns): " <<
+			  wakeup_T*1e9 << endl ;
+	  *out_file <<  "    \tPower gating Wakeup Energy (nJ): " <<
+			  wakeup_E*1e9 << endl ;
+  }
+  *out_file <<endl << endl;
   *out_file << "    Best Ndwl : " << fr->data_array2->Ndwl << endl;
   *out_file << "    Best Ndbl : " << fr->data_array2->Ndbl << endl;
   *out_file << "    Best Nspd : " << fr->data_array2->Nspd << endl;
@@ -1706,70 +2130,329 @@ void output_UCA(uca_org_t *fr)
   if (g_ip->print_detail)
   {
     //if(g_ip->fully_assoc) return;
+if(0){ //detailed power-gating output
+	  if (g_ip->power_gating)
+	  {
+		  /* Energy/Power stats */
+		  *out_file << endl << endl << "Power-gating Components:" << endl << endl;
+		  /* Data array power-gating stats */
+		  areaoverhead = fr->cache_ht*fr->cache_len/fr->uca_pg_reference->cache_ht/fr->uca_pg_reference->cache_len-1;
+		  *out_file <<  "    Power gating circuits (sleep transistors) induced area overhead: " <<
+		  	  			  areaoverhead << " % " <<  endl ;
+		  wakeup_E = wakeup_E_data = fr->data_array2->sram_sleep_wakeup_energy
+				     + fr->data_array2->wl_sleep_wakeup_energy
+				     + fr->data_array2->bl_floating_wakeup_energy;
+		  wakeup_T = wakeup_T_data=MAX(fr->data_array2->sram_sleep_wakeup_latency,
+				  MAX(fr->data_array2->wl_sleep_wakeup_latency,fr->data_array2->bl_floating_wakeup_latency));
+		  if ((!(g_ip->pure_ram|| g_ip->pure_cam || g_ip->fully_assoc)) && !g_ip->is_main_mem)
+		  {
+			  wakeup_E_tag = fr->tag_array2->sram_sleep_wakeup_energy
+					     + fr->tag_array2->wl_sleep_wakeup_energy
+					     + fr->tag_array2->bl_floating_wakeup_energy;
+			  wakeup_T_tag=MAX(fr->tag_array2->sram_sleep_wakeup_latency,
+					  MAX(fr->tag_array2->wl_sleep_wakeup_latency,fr->tag_array2->bl_floating_wakeup_latency));
 
+			  wakeup_E += wakeup_E_tag;
+			  wakeup_T = MAX(wakeup_T_tag, wakeup_T_data);
+
+		  }
+		  *out_file <<  "    Power gating Wakeup Latency (ns): " <<
+				  wakeup_T*1e9 << endl ;
+		  *out_file <<  "    Power gating Wakeup Energy (nJ): " <<
+				  wakeup_E*1e9 << endl ;
+
+
+//extra power gating details
+		  if (!(g_ip->pure_cam || g_ip->fully_assoc))
+			  *out_file <<  "  Data array: " << endl;
+		  else if (g_ip->pure_cam)
+			  *out_file <<  "  CAM array: " << endl;
+		  else
+			  *out_file <<  "  Fully associative cache array: " << endl;
+
+		  *out_file <<  "\t Sub-array Sleep Tx size (um) - " <<
+		  fr->data_array2->sram_sleep_tx_width << endl;
+
+		  //    *out_file <<  "\t Sub-array Sleep Tx total size (um) - " <<
+		  //      fr->data_array2->sram_sleep_tx_width << endl;
+
+		  *out_file <<  "\t Sub-array Sleep Tx total area (mm^2) - " <<
+		  fr->data_array2->sram_sleep_tx_area*1e-6 << endl;
+
+		  *out_file <<  "\t Sub-array wakeup time (ns) - " <<
+		  fr->data_array2->sram_sleep_wakeup_latency*1e9 << endl;
+
+		  *out_file <<  "\t Sub-array Tx energy (nJ) - " <<
+		  fr->data_array2->sram_sleep_wakeup_energy*1e9 << endl;
+		  //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+		  *out_file << endl;
+		  *out_file <<  "\t WL Sleep Tx size (um) - " <<
+		  fr->data_array2->wl_sleep_tx_width << endl;
+
+		  //    *out_file <<  "\t WL Sleep total Tx size (um) - " <<
+		  //      fr->data_array2->wl_sleep_tx_width << endl;
+
+		  *out_file <<  "\t WL Sleep Tx total area (mm^2) - " <<
+		  fr->data_array2->wl_sleep_tx_area*1e-6 << endl;
+
+		  *out_file <<  "\t WL wakeup time (ns) - " <<
+		  fr->data_array2->wl_sleep_wakeup_latency*1e9 << endl;
+
+		  *out_file <<  "\t WL Tx energy (nJ) - " <<
+		  fr->data_array2->wl_sleep_wakeup_energy*1e9 << endl;
+		  //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+		  *out_file << endl;
+		  *out_file <<  "\t BL floating wakeup time (ns) - " <<
+		  fr->data_array2->bl_floating_wakeup_latency*1e9 << endl;
+
+		  *out_file <<  "\t BL floating Tx energy (nJ) - " <<
+		  fr->data_array2->bl_floating_wakeup_energy*1e9 << endl;
+		  //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+		  *out_file << endl;
+
+		  *out_file <<  "\t Active mats per access - " << fr->data_array2->num_active_mats<<endl;
+		  *out_file <<  "\t Active subarrays per mat - " << fr->data_array2->num_submarray_mats<<endl;
+		  *out_file << endl;
+		  /* Tag array area stats */
+		  if ((!(g_ip->pure_ram|| g_ip->pure_cam || g_ip->fully_assoc)) && !g_ip->is_main_mem)
+		  {
+			  *out_file <<  "  Tag array: " << endl;
+			  *out_file <<  "\t Sub-array Sleep Tx size (um) - " <<
+			  fr->tag_array2->sram_sleep_tx_width << endl;
+
+			  //    *out_file <<  "\t Sub-array Sleep Tx total size (um) - " <<
+			  //      fr->tag_array2->sram_sleep_tx_width << endl;
+
+			  *out_file <<  "\t Sub-array Sleep Tx total area (mm^2) - " <<
+			  fr->tag_array2->sram_sleep_tx_area*1e-6 << endl;
+
+			  *out_file <<  "\t Sub-array wakeup time (ns) - " <<
+			  fr->tag_array2->sram_sleep_wakeup_latency*1e9 << endl;
+
+			  *out_file <<  "\t Sub-array Tx energy (nJ) - " <<
+			  fr->tag_array2->sram_sleep_wakeup_energy*1e9 << endl;
+			  //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+			  *out_file << endl;
+			  *out_file <<  "\t WL Sleep Tx size (um) - " <<
+			  fr->tag_array2->wl_sleep_tx_width << endl;
+
+			  //    *out_file <<  "\t WL Sleep total Tx size (um) - " <<
+			  //      fr->tag_array2->wl_sleep_tx_width << endl;
+
+			  *out_file <<  "\t WL Sleep Tx total area (mm^2) - " <<
+			  fr->tag_array2->wl_sleep_tx_area*1e-6 << endl;
+
+			  *out_file <<  "\t WL wakeup time (ns) - " <<
+			  fr->tag_array2->wl_sleep_wakeup_latency*1e9 << endl;
+
+			  *out_file <<  "\t WL Tx energy (nJ) - " <<
+			  fr->tag_array2->wl_sleep_wakeup_energy*1e9 << endl;
+			  //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+			  *out_file << endl;
+			  *out_file <<  "\t BL floating wakeup time (ns) - " <<
+			  fr->tag_array2->bl_floating_wakeup_latency*1e9 << endl;
+
+			  *out_file <<  "\t BL floating Tx energy (nJ) - " <<
+			  fr->tag_array2->bl_floating_wakeup_energy*1e9 << endl;
+			  //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+			  *out_file << endl;
+
+			  *out_file <<  "\t Active mats per access - " << fr->tag_array2->num_active_mats<<endl;
+			  *out_file <<  "\t Active subarrays per mat - " << fr->tag_array2->num_submarray_mats<<endl;
+			  *out_file << endl;
+		  }
+}
+	  }
     /* Delay stats */
     /* data array stats */
     *out_file << endl << "Time Components:" << endl << endl;
 
     *out_file << "  Data side (with Output driver) (ns): " <<
-      fr->data_array2->access_time/1e-9 << endl;
+    		fr->data_array2->access_time/1e-9;
+    if (dvs)
+    {
+    	*out_file<<" (@DVS_Level0); ";
+    	for (i = 0; i<dvs_levels; i++)
+    		*out_file<<fr->uca_q[i]->data_array2->access_time/1e-9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+    }
+    *out_file<< endl;
 
-    *out_file <<  "\tH-tree input delay (ns): " <<
-      fr->data_array2->delay_route_to_bank * 1e9 +
-      fr->data_array2->delay_input_htree * 1e9 << endl;
+    *out_file <<  "\tH-tree delay outside banks (ns): " <<
+      fr->data_array2->delay_route_to_bank * 1e9 ;
+    if (dvs)
+    {
+    	*out_file<<" (@DVS_Level0); ";
+    	for (i = 0; i<dvs_levels; i++)
+    		*out_file<<fr->uca_q[i]->data_array2->delay_route_to_bank * 1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+    }
+    *out_file<< endl;
+
+    *out_file <<  "\tH-tree input delay (inside a bank) (ns): " <<
+      fr->data_array2->delay_input_htree * 1e9 ;
+    if (dvs)
+    {
+    	*out_file<<" (@DVS_Level0); ";
+    	for (i = 0; i<dvs_levels; i++)
+    		*out_file<<fr->uca_q[i]->data_array2->delay_input_htree * 1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+    }
+    *out_file<< endl;
 
     if (!(g_ip->pure_cam || g_ip->fully_assoc))
     {
       *out_file <<  "\tDecoder + wordline delay (ns): " <<
         fr->data_array2->delay_row_predecode_driver_and_block * 1e9 +
-        fr->data_array2->delay_row_decoder * 1e9 << endl;
+        fr->data_array2->delay_row_decoder * 1e9;
+      if (dvs)
+      {
+      	*out_file<<" (@DVS_Level0); ";
+      	for (i = 0; i<dvs_levels; i++)
+      		*out_file<<fr->uca_q[i]->data_array2->delay_row_predecode_driver_and_block * 1e9 +
+      		fr->uca_q[i]->data_array2->delay_row_decoder * 1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+      }
+      *out_file<< endl;
     }
     else
     {
         *out_file <<  "\tCAM search delay (ns): " <<
-          fr->data_array2->delay_matchlines * 1e9 << endl;
+          fr->data_array2->delay_matchlines * 1e9;
+        if (dvs)
+        {
+        	*out_file<<" (@DVS_Level0); ";
+        	for (i = 0; i<dvs_levels; i++)
+        		*out_file<<fr->uca_q[i]->data_array2->delay_matchlines * 1e9  <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+        }
+        *out_file<< endl;
     }
 
     *out_file <<  "\tBitline delay (ns): " <<
-      fr->data_array2->delay_bitlines/1e-9 << endl;
+      fr->data_array2->delay_bitlines/1e-9 ;
+    if (dvs)
+    {
+    	*out_file<<" (@DVS_Level0); ";
+    	for (i = 0; i<dvs_levels; i++)
+    		*out_file<<fr->uca_q[i]->data_array2->delay_bitlines/1e-9  <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+    }
+    *out_file<< endl;
 
     *out_file <<  "\tSense Amplifier delay (ns): " <<
-      fr->data_array2->delay_sense_amp * 1e9 << endl;
+      fr->data_array2->delay_sense_amp * 1e9 ;
+    if (dvs)
+    {
+    	*out_file<<" (@DVS_Level0); ";
+    	for (i = 0; i<dvs_levels; i++)
+    		*out_file<<fr->uca_q[i]->data_array2->delay_sense_amp*1e9  <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+    }
+    *out_file<< endl;
 
 
-    *out_file <<  "\tH-tree output delay (ns): " <<
+    *out_file <<  "\tH-tree output delay (inside a bank) (ns): " <<
       fr->data_array2->delay_subarray_output_driver * 1e9 +
-      fr->data_array2->delay_dout_htree * 1e9 << endl;
+      fr->data_array2->delay_dout_htree * 1e9;
+      if (dvs)
+      {
+      	*out_file<<" (@DVS_Level0); ";
+      	for (i = 0; i<dvs_levels; i++)
+      		*out_file<<fr->uca_q[i]->data_array2->delay_subarray_output_driver * 1e9 +
+      		fr->uca_q[i]->data_array2->delay_dout_htree * 1e9  <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+      }
+    *out_file<< endl;
+    if (g_ip->power_gating)
+    {
+	*out_file <<  "\tPower gating wakeup time (ns) - " <<
+	  wakeup_T_data*1e9 << endl;
+    }
 
-    *out_file <<  "\tH-tree output delay (ns): " <<
-      fr->data_array2->delay_subarray_output_driver * 1e9 +
-      fr->data_array2->delay_dout_htree * 1e9 << endl;
     if ((!(g_ip->pure_ram|| g_ip->pure_cam || g_ip->fully_assoc)) && !g_ip->is_main_mem)
     {
       /* tag array stats */
       *out_file << endl << "  Tag side (with Output driver) (ns): " <<
-        fr->tag_array2->access_time/1e-9 << endl;
+        fr->tag_array2->access_time/1e-9 ;
+      if (dvs)
+      {
+      	*out_file<<" (@DVS_Level0); ";
+      	for (i = 0; i<dvs_levels; i++)
+      		*out_file<<fr->uca_q[i]->tag_array2->access_time/1e-9  <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+      }
+      *out_file << endl;
+      *out_file <<  "\tH-tree delay outside banks (ns): " <<
+        fr->tag_array2->delay_route_to_bank * 1e9;
+      if (dvs)
+      {
+      	*out_file<<" (@DVS_Level0); ";
+      	for (i = 0; i<dvs_levels; i++)
+      		*out_file<<fr->uca_q[i]->tag_array2->delay_route_to_bank * 1e9  <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+      }
+      *out_file << endl;
 
-      *out_file <<  "\tH-tree input delay (ns): " <<
-        fr->tag_array2->delay_route_to_bank * 1e9 +
-        fr->tag_array2->delay_input_htree * 1e9 << endl;
+      *out_file <<  "\tH-tree input delay (inside a bank) (ns): " <<
+        fr->tag_array2->delay_input_htree * 1e9;
+      if (dvs)
+      {
+      	*out_file<<" (@DVS_Level0); ";
+      	for (i = 0; i<dvs_levels; i++)
+      		*out_file<<fr->uca_q[i]->tag_array2->delay_input_htree * 1e9  <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+      }
+      *out_file << endl;
 
       *out_file <<  "\tDecoder + wordline delay (ns): " <<
         fr->tag_array2->delay_row_predecode_driver_and_block * 1e9 +
-        fr->tag_array2->delay_row_decoder * 1e9 << endl;
+        fr->tag_array2->delay_row_decoder * 1e9;
+      if (dvs)
+      {
+      	*out_file<<" (@DVS_Level0); ";
+      	for (i = 0; i<dvs_levels; i++)
+      		*out_file<<fr->uca_q[i]->tag_array2->delay_row_predecode_driver_and_block * 1e9 +
+            fr->uca_q[i]->tag_array2->delay_row_decoder * 1e9  <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+      }
+      *out_file << endl;
 
       *out_file <<  "\tBitline delay (ns): " <<
-        fr->tag_array2->delay_bitlines/1e-9 << endl;
+        fr->tag_array2->delay_bitlines/1e-9;
+      if (dvs)
+      {
+      	*out_file<<" (@DVS_Level0); ";
+      	for (i = 0; i<dvs_levels; i++)
+      		*out_file<<fr->uca_q[i]->tag_array2->delay_bitlines * 1e9  <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+      }
+      *out_file << endl;
 
       *out_file <<  "\tSense Amplifier delay (ns): " <<
-        fr->tag_array2->delay_sense_amp * 1e9 << endl;
+        fr->tag_array2->delay_sense_amp * 1e9 ;
+      if (dvs)
+      {
+      	*out_file<<" (@DVS_Level0); ";
+      	for (i = 0; i<dvs_levels; i++)
+      		*out_file<<fr->uca_q[i]->tag_array2->delay_sense_amp * 1e9  <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+      }
+      *out_file << endl;
 
       *out_file <<  "\tComparator delay (ns): " <<
-        fr->tag_array2->delay_comparator * 1e9 << endl;
+        fr->tag_array2->delay_comparator * 1e9;
+      if (dvs)
+      {
+      	*out_file<<" (@DVS_Level0); ";
+      	for (i = 0; i<dvs_levels; i++)
+      		*out_file<<fr->uca_q[i]->tag_array2->delay_comparator * 1e9  <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+      }
+      *out_file << endl;
 
-      *out_file <<  "\tH-tree output delay (ns): " <<
+      *out_file <<  "\tH-tree output delay (inside a bank) (ns): " <<
         fr->tag_array2->delay_subarray_output_driver * 1e9 +
-        fr->tag_array2->delay_dout_htree * 1e9 << endl;
+        fr->tag_array2->delay_dout_htree * 1e9 ;
+      if (dvs)
+      {
+      	*out_file<<" (@DVS_Level0); ";
+      	for (i = 0; i<dvs_levels; i++)
+      		*out_file<<fr->uca_q[i]->tag_array2->delay_subarray_output_driver * 1e9 +
+            fr->uca_q[i]->tag_array2->delay_dout_htree * 1e9  <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+      }
+      *out_file << endl;
+      if (g_ip->power_gating)
+      {
+    	  *out_file <<  "\tPower gating wakeup time (ns) - " <<
+    			  wakeup_T_tag*1e9 << endl;
+      }
     }
 
 
@@ -1780,210 +2463,746 @@ void output_UCA(uca_org_t *fr)
     if (!(g_ip->pure_cam || g_ip->fully_assoc))
     {
     	*out_file << "  Data array: Total dynamic read energy/access  (nJ): " <<
-    	      fr->data_array2->power.readOp.dynamic * 1e9 << endl;
-    	*out_file << "\tTotal leakage read/write power of a bank (mW): " <<
-    	        fr->data_array2->power.readOp.leakage * 1e3 << endl;
-    	*out_file << "\tTotal energy in H-tree (that includes both "
-    	      "address and data transfer) (nJ): " <<
-    	        (fr->data_array2->power_addr_input_htree.readOp.dynamic +
-    	         fr->data_array2->power_data_output_htree.readOp.dynamic +
-    	         fr->data_array2->power_routing_to_bank.readOp.dynamic) * 1e9 << endl;
+    			fr->data_array2->power.readOp.dynamic * 1e9;
+        if (dvs)
+        {
+        	*out_file<<" (@DVS_Level0); ";
+        	for (i = 0; i<dvs_levels; i++)
+        		*out_file<<fr->uca_q[i]->data_array2->power.readOp.dynamic * 1e9  <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+        }
+        *out_file<< endl;
+
+        if (g_ip->power_gating)
+        {
+        	*out_file << "\tTotal leakage power of a bank, power gated ";
+
+        	if (!g_ip->user_defined_vcc_underflow)
+        	{
+        		*out_file << "with ";
+        	}
+        	else
+        	{
+        		*out_file << "without ";
+        	}
+        	*out_file<<"retaining memory content, including its network outside (mW): " <<
+        			(g_ip->long_channel_device ? fr->data_array2->power.readOp.power_gated_leakage*long_channel_leakage_reduction : fr->data_array2->power.readOp.power_gated_leakage)*1e3 << endl;
+        }
+//    	else
+//    	{
+    		*out_file << "\tTotal leakage power of a bank without power gating, including its network outside (mW): " <<
+    				(g_ip->long_channel_device ? fr->data_array2->power.readOp.leakage*long_channel_leakage_reduction : fr->data_array2->power.readOp.leakage)*1e3;
+            if (dvs)
+            {
+            	*out_file<<" (@DVS_Level0); ";
+            	for (i = 0; i<dvs_levels; i++)
+            		*out_file<< (g_ip->long_channel_device ?fr->uca_q[i]->data_array2->power.readOp.leakage*long_channel_leakage_reduction : fr->uca_q[i]->data_array2->power.readOp.leakage) * 1e3 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+            }
+            *out_file<< endl;
+
+//    	}
+
+    	*out_file << "\tTotal energy in H-tree outside banks (that includes both "
+    			"address and data transfer) (nJ): " <<
+    			(fr->data_array2->power_routing_to_bank.readOp.dynamic) * 1e9 ;
+        if (dvs)
+        {
+        	*out_file<<" (@DVS_Level0); ";
+        	for (i = 0; i<dvs_levels; i++)
+        		*out_file<<fr->uca_q[i]->data_array2->power_routing_to_bank.readOp.dynamic * 1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+        }
+        *out_file<< endl;
+
+    	*out_file << "\tInput H-tree inside bank Energy (nJ): " <<
+    			(fr->data_array2->power_addr_input_htree.readOp.dynamic) * 1e9 ;
+        if (dvs)
+        {
+        	*out_file<<" (@DVS_Level0); ";
+        	for (i = 0; i<dvs_levels; i++)
+        		*out_file<<fr->uca_q[i]->data_array2->power_addr_input_htree.readOp.dynamic * 1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+        }
+        *out_file<< endl;
+
 
     	*out_file << "\tOutput Htree inside bank Energy (nJ): " <<
-    	   fr->data_array2->power_data_output_htree.readOp.dynamic * 1e9 << endl;
+    			fr->data_array2->power_data_output_htree.readOp.dynamic * 1e9 ;
+        if (dvs)
+        {
+        	*out_file<<" (@DVS_Level0); ";
+        	for (i = 0; i<dvs_levels; i++)
+        		*out_file<<fr->uca_q[i]->data_array2->power_data_output_htree.readOp.dynamic * 1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+        }
+        *out_file<< endl;
+
     	*out_file <<  "\tDecoder (nJ): " <<
-    	   fr->data_array2->power_row_predecoder_drivers.readOp.dynamic * 1e9 +
-    	   fr->data_array2->power_row_predecoder_blocks.readOp.dynamic * 1e9 << endl;
+    			fr->data_array2->power_row_predecoder_drivers.readOp.dynamic * 1e9 +
+    			fr->data_array2->power_row_predecoder_blocks.readOp.dynamic * 1e9 ;
+        if (dvs)
+        {
+        	*out_file<<" (@DVS_Level0); ";
+        	for (i = 0; i<dvs_levels; i++)
+        		*out_file<<(fr->uca_q[i]->data_array2->power_row_predecoder_drivers.readOp.dynamic * 1e9 +
+    			       fr->uca_q[i]->data_array2->power_row_predecoder_blocks.readOp.dynamic * 1e9) <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+        }
+        *out_file<< endl;
+
     	*out_file <<  "\tWordline (nJ): " <<
-    	   fr->data_array2->power_row_decoders.readOp.dynamic * 1e9 << endl;
+    			fr->data_array2->power_row_decoders.readOp.dynamic * 1e9;
+        if (dvs)
+        {
+        	*out_file<<" (@DVS_Level0); ";
+        	for (i = 0; i<dvs_levels; i++)
+        		*out_file<<fr->uca_q[i]->data_array2->power_row_decoders.readOp.dynamic * 1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+        }
+        *out_file<< endl;
+
     	*out_file <<  "\tBitline mux & associated drivers (nJ): " <<
-    	   fr->data_array2->power_bit_mux_predecoder_drivers.readOp.dynamic * 1e9 +
-    	   fr->data_array2->power_bit_mux_predecoder_blocks.readOp.dynamic * 1e9 +
-    	   fr->data_array2->power_bit_mux_decoders.readOp.dynamic * 1e9 << endl;
+    			fr->data_array2->power_bit_mux_predecoder_drivers.readOp.dynamic * 1e9 +
+    			fr->data_array2->power_bit_mux_predecoder_blocks.readOp.dynamic * 1e9 +
+    			fr->data_array2->power_bit_mux_decoders.readOp.dynamic * 1e9;
+        if (dvs)
+        {
+        	*out_file<<" (@DVS_Level0); ";
+        	for (i = 0; i<dvs_levels; i++)
+        		*out_file<<(fr->uca_q[i]->data_array2->power_bit_mux_predecoder_drivers.readOp.dynamic * 1e9 +
+            			fr->uca_q[i]->data_array2->power_bit_mux_predecoder_blocks.readOp.dynamic * 1e9 +
+            			fr->uca_q[i]->data_array2->power_bit_mux_decoders.readOp.dynamic * 1e9)
+            			<<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+        }
+        *out_file<< endl;
+
     	*out_file <<  "\tSense amp mux & associated drivers (nJ): " <<
-    	   fr->data_array2->power_senseamp_mux_lev_1_predecoder_drivers.readOp.dynamic * 1e9 +
-    	   fr->data_array2->power_senseamp_mux_lev_1_predecoder_blocks.readOp.dynamic * 1e9 +
-    	   fr->data_array2->power_senseamp_mux_lev_1_decoders.readOp.dynamic * 1e9  +
-    	   fr->data_array2->power_senseamp_mux_lev_2_predecoder_drivers.readOp.dynamic * 1e9 +
-    	   fr->data_array2->power_senseamp_mux_lev_2_predecoder_blocks.readOp.dynamic * 1e9 +
-    	   fr->data_array2->power_senseamp_mux_lev_2_decoders.readOp.dynamic * 1e9 << endl;
+    			fr->data_array2->power_senseamp_mux_lev_1_predecoder_drivers.readOp.dynamic * 1e9 +
+    			fr->data_array2->power_senseamp_mux_lev_1_predecoder_blocks.readOp.dynamic * 1e9 +
+    			fr->data_array2->power_senseamp_mux_lev_1_decoders.readOp.dynamic * 1e9  +
+    			fr->data_array2->power_senseamp_mux_lev_2_predecoder_drivers.readOp.dynamic * 1e9 +
+    			fr->data_array2->power_senseamp_mux_lev_2_predecoder_blocks.readOp.dynamic * 1e9 +
+    			fr->data_array2->power_senseamp_mux_lev_2_decoders.readOp.dynamic * 1e9;
+        if (dvs)
+        {
+        	*out_file<<" (@DVS_Level0); ";
+        	for (i = 0; i<dvs_levels; i++)
+        		*out_file<<( fr->uca_q[i]->data_array2->power_senseamp_mux_lev_1_predecoder_drivers.readOp.dynamic * 1e9 +
+            			fr->uca_q[i]->data_array2->power_senseamp_mux_lev_1_predecoder_blocks.readOp.dynamic * 1e9 +
+            			fr->uca_q[i]->data_array2->power_senseamp_mux_lev_1_decoders.readOp.dynamic * 1e9  +
+            			fr->uca_q[i]->data_array2->power_senseamp_mux_lev_2_predecoder_drivers.readOp.dynamic * 1e9 +
+            			fr->uca_q[i]->data_array2->power_senseamp_mux_lev_2_predecoder_blocks.readOp.dynamic * 1e9 +
+            			fr->uca_q[i]->data_array2->power_senseamp_mux_lev_2_decoders.readOp.dynamic * 1e9)
+            			<<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+        }
+        *out_file<< endl;
 
     	*out_file <<  "\tBitlines precharge and equalization circuit (nJ): " <<
-    	    	   fr->data_array2->power_prechg_eq_drivers.readOp.dynamic * 1e9 << endl;
+    			fr->data_array2->power_prechg_eq_drivers.readOp.dynamic * 1e9;
+        if (dvs)
+        {
+        	*out_file<<" (@DVS_Level0); ";
+        	for (i = 0; i<dvs_levels; i++)
+        		*out_file<<fr->uca_q[i]->data_array2->power_prechg_eq_drivers.readOp.dynamic * 1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+        }
+        *out_file<< endl;
+
     	*out_file <<  "\tBitlines (nJ): " <<
-    	   fr->data_array2->power_bitlines.readOp.dynamic * 1e9 << endl;
+    			fr->data_array2->power_bitlines.readOp.dynamic * 1e9 ;
+        if (dvs)
+        {
+        	*out_file<<" (@DVS_Level0); ";
+        	for (i = 0; i<dvs_levels; i++)
+        		*out_file<<fr->uca_q[i]->data_array2->power_bitlines.readOp.dynamic * 1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+        }
+        *out_file<< endl;
+
     	*out_file <<  "\tSense amplifier energy (nJ): " <<
-    	   fr->data_array2->power_sense_amps.readOp.dynamic * 1e9 << endl;
+    			fr->data_array2->power_sense_amps.readOp.dynamic * 1e9 ;
+        if (dvs)
+        {
+        	*out_file<<" (@DVS_Level0); ";
+        	for (i = 0; i<dvs_levels; i++)
+        		*out_file<<fr->uca_q[i]->data_array2->power_sense_amps.readOp.dynamic * 1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+        }
+        *out_file<< endl;
+
     	*out_file <<  "\tSub-array output driver (nJ): " <<
-    	   fr->data_array2->power_output_drivers_at_subarray.readOp.dynamic * 1e9 << endl;
+    			fr->data_array2->power_output_drivers_at_subarray.readOp.dynamic * 1e9 ;
+        if (dvs)
+        {
+        	*out_file<<" (@DVS_Level0); ";
+        	for (i = 0; i<dvs_levels; i++)
+        		*out_file<<fr->uca_q[i]->data_array2->power_output_drivers_at_subarray.readOp.dynamic * 1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+        }
+        *out_file<< endl;
+
+
+    	if (g_ip->power_gating)
+    	{
+    		*out_file << "\tTotal leakage power in H-tree outside a bank when power gated (that includes both "
+    				"address and data network) ((mW)): " <<
+    				(g_ip->long_channel_device?fr->data_array2->power_routing_to_bank.readOp.power_gated_leakage * long_channel_leakage_reduction: fr->data_array2->power_routing_to_bank.readOp.power_gated_leakage) * 1e3 << endl;
+    	}
+//    	else
+//    	{
+    		*out_file << "\tTotal leakage power in H-tree outside a bank (that includes both "
+    				"address and data network) ((mW)): " <<
+    				(g_ip->long_channel_device? fr->data_array2->power_routing_to_bank.readOp.leakage * long_channel_leakage_reduction: fr->data_array2->power_routing_to_bank.readOp.leakage) * 1e3 ;
+            if (dvs)
+            {
+            	*out_file<<" (@DVS_Level0); ";
+            	for (i = 0; i<dvs_levels; i++)
+            		*out_file<<(g_ip->long_channel_device? fr->uca_q[i]->data_array2->power_routing_to_bank.readOp.leakage* long_channel_leakage_reduction: fr->uca_q[i]->data_array2->power_routing_to_bank.readOp.leakage) * 1e3 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+            }
+            *out_file<< endl;
+
+//    	}
+    	//    	*out_file << "\tTotal leakage power in H-tree (that includes both "
+    	//    	      "address and data network) ((mW)): " <<
+    	//    	        (fr->data_array2->power_addr_input_htree.readOp.leakage +
+    	//    	         fr->data_array2->power_data_output_htree.readOp.leakage +
+    	//    	         fr->data_array2->power_routing_to_bank.readOp.leakage) * 1e3 << endl;
+
+    	//    	*out_file << "\tTotal leakage power in cells (mW): " <<
+    	//    	        (fr->data_array2->array_leakage) * 1e3 << endl;
+    	//    	*out_file << "\tTotal leakage power in row logic(mW): " <<
+    	//    	        (fr->data_array2->wl_leakage) * 1e3 << endl;
+    	//    	*out_file << "\tTotal leakage power in column logic(mW): " <<
+    	//    	        (fr->data_array2->cl_leakage) * 1e3 << endl;
+    	//
+    	//    	*out_file << "\tTotal gate leakage power in H-tree (that includes both "
+    	//    	      "address and data network) ((mW)): " <<
+    	//    	        (fr->data_array2->power_addr_input_htree.readOp.gate_leakage +
+    	//    	         fr->data_array2->power_data_output_htree.readOp.gate_leakage +
+    	//    	         fr->data_array2->power_routing_to_bank.readOp.gate_leakage) * 1e3 << endl;
     }
 
-        else if (g_ip->pure_cam)
+    if (g_ip->pure_cam||g_ip->fully_assoc)
+    {
+
+    	if (g_ip->pure_cam) *out_file << "  CAM array:"<<endl;
+    	//            	*out_file << "  Total dynamic associative search energy/access  (nJ): " <<
+    	//                      fr->data_array2->power.searchOp.dynamic * 1e9 << endl;
+    	//    	        *out_file << "\tTotal energy in H-tree (that includes both "
+    	//    	            	      "match key and data transfer) (nJ): " <<
+    	//    	              (fr->data_array2->power_htree_in_search.searchOp.dynamic +
+    	//    	               fr->data_array2->power_htree_out_search.searchOp.dynamic +
+    	//    	               fr->data_array2->power_routing_to_bank.searchOp.dynamic) * 1e9 << endl;
+    	//    	        *out_file << "\tKeyword input and result output Htrees inside bank Energy (nJ): " <<
+    	//    	              (fr->data_array2->power_htree_in_search.searchOp.dynamic +
+    	//    	       	               fr->data_array2->power_htree_out_search.searchOp.dynamic) * 1e9 << endl;
+    	//    	        *out_file <<  "\tSearchlines (nJ): " <<
+    	//    	          	   fr->data_array2->power_searchline.searchOp.dynamic * 1e9 +
+    	//    	          	   fr->data_array2->power_searchline_precharge.searchOp.dynamic * 1e9 << endl;
+    	//    	        *out_file <<  "\tMatchlines  (nJ): " <<
+    	//    	               fr->data_array2->power_matchlines.searchOp.dynamic * 1e9 +
+    	//    	        	   fr->data_array2->power_matchline_precharge.searchOp.dynamic * 1e9 << endl;
+    	//    	        *out_file <<  "\tSub-array output driver (nJ): " <<
+    	//    	          	   fr->data_array2->power_output_drivers_at_subarray.searchOp.dynamic * 1e9 << endl;
+    	//
+    	//
+    	//            	*out_file <<endl<< "  Total dynamic read energy/access  (nJ): " <<
+    	//            	      fr->data_array2->power.readOp.dynamic * 1e9 << endl;
+    	//    	        *out_file << "\tTotal energy in H-tree (that includes both "
+    	//    	            	      "address and data transfer) (nJ): " <<
+    	//    	              (fr->data_array2->power_addr_input_htree.readOp.dynamic +
+    	//    	               fr->data_array2->power_data_output_htree.readOp.dynamic +
+    	//    	               fr->data_array2->power_routing_to_bank.readOp.dynamic) * 1e9 << endl;
+    	//    	        *out_file << "\tOutput Htree inside bank Energy (nJ): " <<
+    	//    	          	   fr->data_array2->power_data_output_htree.readOp.dynamic * 1e9 << endl;
+    	//    	        *out_file <<  "\tDecoder (nJ): " <<
+    	//    	          	   fr->data_array2->power_row_predecoder_drivers.readOp.dynamic * 1e9 +
+    	//    	          	   fr->data_array2->power_row_predecoder_blocks.readOp.dynamic * 1e9 << endl;
+    	//    	        *out_file <<  "\tWordline (nJ): " <<
+    	//    	          	   fr->data_array2->power_row_decoders.readOp.dynamic * 1e9 << endl;
+    	//    	        *out_file <<  "\tBitline mux & associated drivers (nJ): " <<
+    	//    	          	   fr->data_array2->power_bit_mux_predecoder_drivers.readOp.dynamic * 1e9 +
+    	//    	          	   fr->data_array2->power_bit_mux_predecoder_blocks.readOp.dynamic * 1e9 +
+    	//    	           	   fr->data_array2->power_bit_mux_decoders.readOp.dynamic * 1e9 << endl;
+    	//    	        *out_file <<  "\tSense amp mux & associated drivers (nJ): " <<
+    	//    	         	   fr->data_array2->power_senseamp_mux_lev_1_predecoder_drivers.readOp.dynamic * 1e9 +
+    	//    	          	   fr->data_array2->power_senseamp_mux_lev_1_predecoder_blocks.readOp.dynamic * 1e9 +
+    	//    	          	   fr->data_array2->power_senseamp_mux_lev_1_decoders.readOp.dynamic * 1e9  +
+    	//    	           	   fr->data_array2->power_senseamp_mux_lev_2_predecoder_drivers.readOp.dynamic * 1e9 +
+    	//    	           	   fr->data_array2->power_senseamp_mux_lev_2_predecoder_blocks.readOp.dynamic * 1e9 +
+    	//    	          	   fr->data_array2->power_senseamp_mux_lev_2_decoders.readOp.dynamic * 1e9 << endl;
+    	//    	        *out_file <<  "\tBitlines (nJ): " <<
+    	//    	          	   fr->data_array2->power_bitlines.readOp.dynamic * 1e9 +
+    	//    	          	   fr->data_array2->power_prechg_eq_drivers.readOp.dynamic * 1e9<< endl;
+    	//    	        *out_file <<  "\tSense amplifier energy (nJ): " <<
+    	//    	          	   fr->data_array2->power_sense_amps.readOp.dynamic * 1e9 << endl;
+    	//    	        *out_file <<  "\tSub-array output driver (nJ): " <<
+    	//    	          	   fr->data_array2->power_output_drivers_at_subarray.readOp.dynamic * 1e9 << endl;
+    	//
+    	//            	*out_file << endl <<"  Total leakage power of a bank (mW): " <<
+    	//                      fr->data_array2->power.readOp.leakage * 1e3 << endl;
+    	//        }
+    	//        else
+    	//        {
+    	if (g_ip->fully_assoc)  *out_file << "  Fully associative array:"<<endl;
+
+    	*out_file << "  Total dynamic associative search energy/access  (nJ): " <<
+    			fr->data_array2->power.searchOp.dynamic * 1e9 ;
+        if (dvs)
         {
-
-           	*out_file << "  CAM array:"<<endl;
-            	*out_file << "  Total dynamic associative search energy/access  (nJ): " <<
-                      fr->data_array2->power.searchOp.dynamic * 1e9 << endl;
-    	        *out_file << "\tTotal energy in H-tree (that includes both "
-    	            	      "match key and data transfer) (nJ): " <<
-    	              (fr->data_array2->power_htree_in_search.searchOp.dynamic +
-    	               fr->data_array2->power_htree_out_search.searchOp.dynamic +
-    	               fr->data_array2->power_routing_to_bank.searchOp.dynamic) * 1e9 << endl;
-    	        *out_file << "\tKeyword input and result output Htrees inside bank Energy (nJ): " <<
-    	              (fr->data_array2->power_htree_in_search.searchOp.dynamic +
-    	       	               fr->data_array2->power_htree_out_search.searchOp.dynamic) * 1e9 << endl;
-    	        *out_file <<  "\tSearchlines (nJ): " <<
-    	          	   fr->data_array2->power_searchline.searchOp.dynamic * 1e9 +
-    	          	   fr->data_array2->power_searchline_precharge.searchOp.dynamic * 1e9 << endl;
-    	        *out_file <<  "\tMatchlines  (nJ): " <<
-    	               fr->data_array2->power_matchlines.searchOp.dynamic * 1e9 +
-    	        	   fr->data_array2->power_matchline_precharge.searchOp.dynamic * 1e9 << endl;
-    	        *out_file <<  "\tSub-array output driver (nJ): " <<
-    	          	   fr->data_array2->power_output_drivers_at_subarray.searchOp.dynamic * 1e9 << endl;
-
-
-            	*out_file <<endl<< "  Total dynamic read energy/access  (nJ): " <<
-            	      fr->data_array2->power.readOp.dynamic * 1e9 << endl;
-    	        *out_file << "\tTotal energy in H-tree (that includes both "
-    	            	      "address and data transfer) (nJ): " <<
-    	              (fr->data_array2->power_addr_input_htree.readOp.dynamic +
-    	               fr->data_array2->power_data_output_htree.readOp.dynamic +
-    	               fr->data_array2->power_routing_to_bank.readOp.dynamic) * 1e9 << endl;
-    	        *out_file << "\tOutput Htree inside bank Energy (nJ): " <<
-    	          	   fr->data_array2->power_data_output_htree.readOp.dynamic * 1e9 << endl;
-    	        *out_file <<  "\tDecoder (nJ): " <<
-    	          	   fr->data_array2->power_row_predecoder_drivers.readOp.dynamic * 1e9 +
-    	          	   fr->data_array2->power_row_predecoder_blocks.readOp.dynamic * 1e9 << endl;
-    	        *out_file <<  "\tWordline (nJ): " <<
-    	          	   fr->data_array2->power_row_decoders.readOp.dynamic * 1e9 << endl;
-    	        *out_file <<  "\tBitline mux & associated drivers (nJ): " <<
-    	          	   fr->data_array2->power_bit_mux_predecoder_drivers.readOp.dynamic * 1e9 +
-    	          	   fr->data_array2->power_bit_mux_predecoder_blocks.readOp.dynamic * 1e9 +
-    	           	   fr->data_array2->power_bit_mux_decoders.readOp.dynamic * 1e9 << endl;
-    	        *out_file <<  "\tSense amp mux & associated drivers (nJ): " <<
-    	         	   fr->data_array2->power_senseamp_mux_lev_1_predecoder_drivers.readOp.dynamic * 1e9 +
-    	          	   fr->data_array2->power_senseamp_mux_lev_1_predecoder_blocks.readOp.dynamic * 1e9 +
-    	          	   fr->data_array2->power_senseamp_mux_lev_1_decoders.readOp.dynamic * 1e9  +
-    	           	   fr->data_array2->power_senseamp_mux_lev_2_predecoder_drivers.readOp.dynamic * 1e9 +
-    	           	   fr->data_array2->power_senseamp_mux_lev_2_predecoder_blocks.readOp.dynamic * 1e9 +
-    	          	   fr->data_array2->power_senseamp_mux_lev_2_decoders.readOp.dynamic * 1e9 << endl;
-    	        *out_file <<  "\tBitlines (nJ): " <<
-    	          	   fr->data_array2->power_bitlines.readOp.dynamic * 1e9 +
-    	          	   fr->data_array2->power_prechg_eq_drivers.readOp.dynamic * 1e9<< endl;
-    	        *out_file <<  "\tSense amplifier energy (nJ): " <<
-    	          	   fr->data_array2->power_sense_amps.readOp.dynamic * 1e9 << endl;
-    	        *out_file <<  "\tSub-array output driver (nJ): " <<
-    	          	   fr->data_array2->power_output_drivers_at_subarray.readOp.dynamic * 1e9 << endl;
-
-            	*out_file << endl <<"  Total leakage read/write power of a bank (mW): " <<
-                      fr->data_array2->power.readOp.leakage * 1e3 << endl;
+        	*out_file<<" (@DVS_Level0); ";
+        	for (i = 0; i<dvs_levels; i++)
+        		*out_file<<fr->uca_q[i]->data_array2->power.searchOp.dynamic * 1e9  <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
         }
-        else
+        *out_file<< endl;
+
+    	*out_file << "\tTotal energy in H-tree outside banks(that includes both "
+    			"match key and data transfer) (nJ): " <<
+    			(fr->data_array2->power_routing_to_bank.searchOp.dynamic) * 1e9;
+        if (dvs)
+         {
+         	*out_file<<" (@DVS_Level0); ";
+         	for (i = 0; i<dvs_levels; i++)
+         		*out_file<<fr->uca_q[i]->data_array2->power_routing_to_bank.searchOp.dynamic * 1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+         }
+         *out_file<< endl;
+
+    	*out_file << "\tMatch Key input Htrees inside bank Energy (nJ): " <<
+    	    			(fr->data_array2->power_htree_in_search.searchOp.dynamic ) * 1e9 ;
+        if (dvs)
         {
-        	*out_file << "  Fully associative array:"<<endl;
-        	*out_file << "  Total dynamic associative search energy/access  (nJ): " <<
-                  fr->data_array2->power.searchOp.dynamic * 1e9 << endl;
-	        *out_file << "\tTotal energy in H-tree (that includes both "
-	            	      "match key and data transfer) (nJ): " <<
-	              (fr->data_array2->power_htree_in_search.searchOp.dynamic +
-	               fr->data_array2->power_htree_out_search.searchOp.dynamic +
-	               fr->data_array2->power_routing_to_bank.searchOp.dynamic) * 1e9 << endl;
-	        *out_file << "\tKeyword input and result output Htrees inside bank Energy (nJ): " <<
-	              (fr->data_array2->power_htree_in_search.searchOp.dynamic +
-	       	               fr->data_array2->power_htree_out_search.searchOp.dynamic) * 1e9 << endl;
-	        *out_file <<  "\tSearchlines (nJ): " <<
-	          	   fr->data_array2->power_searchline.searchOp.dynamic * 1e9 +
-	          	   fr->data_array2->power_searchline_precharge.searchOp.dynamic * 1e9 << endl;
-	        *out_file <<  "\tMatchlines  (nJ): " <<
-	               fr->data_array2->power_matchlines.searchOp.dynamic * 1e9 +
-	        	   fr->data_array2->power_matchline_precharge.searchOp.dynamic * 1e9 << endl;
-	        *out_file <<  "\tData portion wordline (nJ): " <<
-	          	   fr->data_array2->power_matchline_to_wordline_drv.searchOp.dynamic * 1e9 << endl;
-	        *out_file <<  "\tData Bitlines (nJ): " <<
-	          	   fr->data_array2->power_bitlines.searchOp.dynamic * 1e9 +
-	          	   fr->data_array2->power_prechg_eq_drivers.searchOp.dynamic * 1e9 << endl;
-	        *out_file <<  "\tSense amplifier energy (nJ): " <<
-	          	   fr->data_array2->power_sense_amps.searchOp.dynamic * 1e9 << endl;
-	        *out_file <<  "\tSub-array output driver (nJ): " <<
-	          	   fr->data_array2->power_output_drivers_at_subarray.searchOp.dynamic * 1e9 << endl;
+        	*out_file<<" (@DVS_Level0); ";
+        	for (i = 0; i<dvs_levels; i++)
+        		*out_file<<fr->uca_q[i]->data_array2->power_htree_in_search.searchOp.dynamic * 1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+        }
+        *out_file<< endl;
+
+    	*out_file << "\tResult output Htrees inside bank Energy (nJ): " <<
+    			(fr->data_array2->power_htree_out_search.searchOp.dynamic) * 1e9 ;
+        if (dvs)
+        {
+        	*out_file<<" (@DVS_Level0); ";
+        	for (i = 0; i<dvs_levels; i++)
+        		*out_file<<fr->uca_q[i]->data_array2->power_htree_out_search.searchOp.dynamic * 1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+        }
+        *out_file<< endl;
+
+    	*out_file <<  "\tSearchlines (nJ): " <<
+    			fr->data_array2->power_searchline.searchOp.dynamic * 1e9 +
+    			fr->data_array2->power_searchline_precharge.searchOp.dynamic * 1e9 ;
+        if (dvs)
+        {
+        	*out_file<<" (@DVS_Level0); ";
+        	for (i = 0; i<dvs_levels; i++)
+        		*out_file<<fr->uca_q[i]->data_array2->power_searchline.searchOp.dynamic * 1e9 +
+    				  fr->uca_q[i]->data_array2->power_searchline_precharge.searchOp.dynamic * 1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+        }
+        *out_file<< endl;
+
+    	*out_file <<  "\tMatchlines  (nJ): " <<
+    			fr->data_array2->power_matchlines.searchOp.dynamic * 1e9 +
+    			fr->data_array2->power_matchline_precharge.searchOp.dynamic * 1e9;
+        if (dvs)
+        {
+        	*out_file<<" (@DVS_Level0); ";
+        	for (i = 0; i<dvs_levels; i++)
+        		*out_file<<fr->uca_q[i]->data_array2->power_matchlines.searchOp.dynamic * 1e9 +
+    				  fr->uca_q[i]->data_array2->power_matchline_precharge.searchOp.dynamic * 1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+        }
+        *out_file<< endl;
+
+    	if (g_ip->fully_assoc)
+    	{
+    		*out_file <<  "\tData portion wordline (nJ): " <<
+    				fr->data_array2->power_matchline_to_wordline_drv.searchOp.dynamic * 1e9 ;
+            if (dvs)
+            {
+            	*out_file<<" (@DVS_Level0); ";
+            	for (i = 0; i<dvs_levels; i++)
+            		*out_file<<fr->uca_q[i]->data_array2->power_matchline_to_wordline_drv.searchOp.dynamic * 1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+            }
+            *out_file<< endl;
+
+    		*out_file <<  "\tData Bitlines (nJ): " <<
+    				fr->data_array2->power_bitlines.searchOp.dynamic * 1e9 +
+    				fr->data_array2->power_prechg_eq_drivers.searchOp.dynamic * 1e9;
+            if (dvs)
+            {
+            	*out_file<<" (@DVS_Level0); ";
+            	for (i = 0; i<dvs_levels; i++)
+            		*out_file<<(fr->uca_q[i]->data_array2->power_bitlines.searchOp.dynamic * 1e9 +
+            			   fr->uca_q[i]->data_array2->power_prechg_eq_drivers.searchOp.dynamic * 1e9) <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+            }
+            *out_file<< endl;
+
+    		*out_file <<  "\tSense amplifier energy (nJ): " <<
+    				fr->data_array2->power_sense_amps.searchOp.dynamic * 1e9 ;
+            if (dvs)
+            {
+            	*out_file<<" (@DVS_Level0); ";
+            	for (i = 0; i<dvs_levels; i++)
+            		*out_file<<fr->uca_q[i]->data_array2->power_sense_amps.searchOp.dynamic * 1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+            }
+            *out_file<< endl;
+    	}
+
+    	*out_file <<  "\tSub-array output driver (nJ): " <<
+    			fr->data_array2->power_output_drivers_at_subarray.searchOp.dynamic * 1e9 ;
+        if (dvs)
+        {
+        	*out_file<<" (@DVS_Level0); ";
+        	for (i = 0; i<dvs_levels; i++)
+        		*out_file<<fr->uca_q[i]->data_array2->power_output_drivers_at_subarray.searchOp.dynamic * 1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+        }
+        *out_file<< endl;
+
+    	*out_file <<endl<< "  Total dynamic read energy/access  (nJ): " <<
+    			fr->data_array2->power.readOp.dynamic * 1e9;
+        if (dvs)
+        {
+        	*out_file<<" (@DVS_Level0); ";
+        	for (i = 0; i<dvs_levels; i++)
+        		*out_file<<fr->uca_q[i]->data_array2->power.readOp.dynamic * 1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+        }
+        *out_file<< endl;
 
 
-        	*out_file <<endl<< "  Total dynamic read energy/access  (nJ): " <<
-        	      fr->data_array2->power.readOp.dynamic * 1e9 << endl;
-	        *out_file << "\tTotal energy in H-tree (that includes both "
-	            	      "address and data transfer) (nJ): " <<
-	              (fr->data_array2->power_addr_input_htree.readOp.dynamic +
-	               fr->data_array2->power_data_output_htree.readOp.dynamic +
-	               fr->data_array2->power_routing_to_bank.readOp.dynamic) * 1e9 << endl;
-	        *out_file << "\tOutput Htree inside bank Energy (nJ): " <<
-	          	   fr->data_array2->power_data_output_htree.readOp.dynamic * 1e9 << endl;
-	        *out_file <<  "\tDecoder (nJ): " <<
-	          	   fr->data_array2->power_row_predecoder_drivers.readOp.dynamic * 1e9 +
-	          	   fr->data_array2->power_row_predecoder_blocks.readOp.dynamic * 1e9 << endl;
-	        *out_file <<  "\tWordline (nJ): " <<
-	          	   fr->data_array2->power_row_decoders.readOp.dynamic * 1e9 << endl;
-	        *out_file <<  "\tBitline mux & associated drivers (nJ): " <<
-	          	   fr->data_array2->power_bit_mux_predecoder_drivers.readOp.dynamic * 1e9 +
-	          	   fr->data_array2->power_bit_mux_predecoder_blocks.readOp.dynamic * 1e9 +
-	           	   fr->data_array2->power_bit_mux_decoders.readOp.dynamic * 1e9 << endl;
-	        *out_file <<  "\tSense amp mux & associated drivers (nJ): " <<
-	         	   fr->data_array2->power_senseamp_mux_lev_1_predecoder_drivers.readOp.dynamic * 1e9 +
-	          	   fr->data_array2->power_senseamp_mux_lev_1_predecoder_blocks.readOp.dynamic * 1e9 +
-	          	   fr->data_array2->power_senseamp_mux_lev_1_decoders.readOp.dynamic * 1e9  +
-	           	   fr->data_array2->power_senseamp_mux_lev_2_predecoder_drivers.readOp.dynamic * 1e9 +
-	           	   fr->data_array2->power_senseamp_mux_lev_2_predecoder_blocks.readOp.dynamic * 1e9 +
-	          	   fr->data_array2->power_senseamp_mux_lev_2_decoders.readOp.dynamic * 1e9 << endl;
-	        *out_file <<  "\tBitlines (nJ): " <<
-	          	   fr->data_array2->power_bitlines.readOp.dynamic * 1e9 +
-	          	   fr->data_array2->power_prechg_eq_drivers.readOp.dynamic * 1e9<< endl;
-	        *out_file <<  "\tSense amplifier energy (nJ): " <<
-	          	   fr->data_array2->power_sense_amps.readOp.dynamic * 1e9 << endl;
-	        *out_file <<  "\tSub-array output driver (nJ): " <<
-	          	   fr->data_array2->power_output_drivers_at_subarray.readOp.dynamic * 1e9 << endl;
+    	*out_file << "\tTotal energy in H-tree outside banks(that includes both "
+    			"address and data transfer) (nJ): " <<
+    			(fr->data_array2->power_routing_to_bank.readOp.dynamic) * 1e9;
+        if (dvs)
+        {
+        	*out_file<<" (@DVS_Level0); ";
+        	for (i = 0; i<dvs_levels; i++)
+        		*out_file<<fr->uca_q[i]->data_array2->power_routing_to_bank.readOp.dynamic * 1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+        }
+        *out_file<< endl;
 
-        	*out_file << endl <<"  Total leakage read/write power of a bank (mW): " <<
-                  fr->data_array2->power.readOp.leakage * 1e3 << endl;
-      }
+    	*out_file << "\tInput Htree inside bank Energy (nJ): " <<
+    	    			(fr->data_array2->power_addr_input_htree.readOp.dynamic ) * 1e9 ;
+        if (dvs)
+        {
+        	*out_file<<" (@DVS_Level0); ";
+        	for (i = 0; i<dvs_levels; i++)
+        		*out_file<<fr->uca_q[i]->data_array2->power_addr_input_htree.readOp.dynamic * 1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+        }
+        *out_file<< endl;
+
+    	*out_file << "\tOutput Htree inside bank Energy (nJ): " <<
+    			fr->data_array2->power_data_output_htree.readOp.dynamic * 1e9 ;
+        if (dvs)
+        {
+        	*out_file<<" (@DVS_Level0); ";
+        	for (i = 0; i<dvs_levels; i++)
+        		*out_file<<fr->uca_q[i]->data_array2->power_data_output_htree.readOp.dynamic * 1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+        }
+        *out_file<< endl;
+
+    	*out_file <<  "\tDecoder (nJ): " <<
+    			fr->data_array2->power_row_predecoder_drivers.readOp.dynamic * 1e9 +
+    			fr->data_array2->power_row_predecoder_blocks.readOp.dynamic * 1e9;
+        if (dvs)
+        {
+        	*out_file<<" (@DVS_Level0); ";
+        	for (i = 0; i<dvs_levels; i++)
+        		*out_file<<(fr->uca_q[i]->data_array2->power_row_predecoder_drivers.readOp.dynamic * 1e9 +
+    			       fr->uca_q[i]->data_array2->power_row_predecoder_blocks.readOp.dynamic * 1e9) <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+        }
+        *out_file<< endl;
+
+    	*out_file <<  "\tWordline (nJ): " <<
+    			fr->data_array2->power_row_decoders.readOp.dynamic * 1e9 ;
+        if (dvs)
+        {
+        	*out_file<<" (@DVS_Level0); ";
+        	for (i = 0; i<dvs_levels; i++)
+        		*out_file<<fr->uca_q[i]->data_array2->power_row_decoders.readOp.dynamic * 1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+        }
+        *out_file<< endl;
+
+    	*out_file <<  "\tBitline mux & associated drivers (nJ): " <<
+    			fr->data_array2->power_bit_mux_predecoder_drivers.readOp.dynamic * 1e9 +
+    			fr->data_array2->power_bit_mux_predecoder_blocks.readOp.dynamic * 1e9 +
+    			fr->data_array2->power_bit_mux_decoders.readOp.dynamic * 1e9;
+        if (dvs)
+        {
+        	*out_file<<" (@DVS_Level0); ";
+        	for (i = 0; i<dvs_levels; i++)
+        		*out_file<<(fr->uca_q[i]->data_array2->power_bit_mux_predecoder_drivers.readOp.dynamic * 1e9 +
+            			fr->uca_q[i]->data_array2->power_bit_mux_predecoder_blocks.readOp.dynamic * 1e9 +
+            			fr->uca_q[i]->data_array2->power_bit_mux_decoders.readOp.dynamic * 1e9)
+            			<<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+        }
+        *out_file<< endl;
+
+    	*out_file <<  "\tSense amp mux & associated drivers (nJ): " <<
+    			fr->data_array2->power_senseamp_mux_lev_1_predecoder_drivers.readOp.dynamic * 1e9 +
+    			fr->data_array2->power_senseamp_mux_lev_1_predecoder_blocks.readOp.dynamic * 1e9 +
+    			fr->data_array2->power_senseamp_mux_lev_1_decoders.readOp.dynamic * 1e9  +
+    			fr->data_array2->power_senseamp_mux_lev_2_predecoder_drivers.readOp.dynamic * 1e9 +
+    			fr->data_array2->power_senseamp_mux_lev_2_predecoder_blocks.readOp.dynamic * 1e9 +
+    			fr->data_array2->power_senseamp_mux_lev_2_decoders.readOp.dynamic * 1e9;
+        if (dvs)
+        {
+        	*out_file<<" (@DVS_Level0); ";
+        	for (i = 0; i<dvs_levels; i++)
+        		*out_file<<( fr->uca_q[i]->data_array2->power_senseamp_mux_lev_1_predecoder_drivers.readOp.dynamic * 1e9 +
+            			fr->uca_q[i]->data_array2->power_senseamp_mux_lev_1_predecoder_blocks.readOp.dynamic * 1e9 +
+            			fr->uca_q[i]->data_array2->power_senseamp_mux_lev_1_decoders.readOp.dynamic * 1e9  +
+            			fr->uca_q[i]->data_array2->power_senseamp_mux_lev_2_predecoder_drivers.readOp.dynamic * 1e9 +
+            			fr->uca_q[i]->data_array2->power_senseamp_mux_lev_2_predecoder_blocks.readOp.dynamic * 1e9 +
+            			fr->uca_q[i]->data_array2->power_senseamp_mux_lev_2_decoders.readOp.dynamic * 1e9)
+            			<<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+        }
+        *out_file<< endl;
+
+
+    	*out_file <<  "\tBitlines (nJ): " <<
+    			fr->data_array2->power_bitlines.readOp.dynamic * 1e9 +
+    			fr->data_array2->power_prechg_eq_drivers.readOp.dynamic * 1e9;
+        if (dvs)
+        {
+        	*out_file<<" (@DVS_Level0); ";
+        	for (i = 0; i<dvs_levels; i++)
+        		*out_file<<(fr->uca_q[i]->data_array2->power_bitlines.readOp.dynamic * 1e9 +
+    			       fr->uca_q[i]->data_array2->power_prechg_eq_drivers.readOp.dynamic* 1e9) <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+        }
+        *out_file<< endl;
+
+    	*out_file <<  "\tSense amplifier energy (nJ): " <<
+    			fr->data_array2->power_sense_amps.readOp.dynamic * 1e9 ;
+        if (dvs)
+        {
+        	*out_file<<" (@DVS_Level0); ";
+        	for (i = 0; i<dvs_levels; i++)
+        		*out_file<<fr->uca_q[i]->data_array2->power_sense_amps.readOp.dynamic * 1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+        }
+        *out_file<< endl;
+
+    	*out_file <<  "\tSub-array output driver (nJ): " <<
+    			fr->data_array2->power_output_drivers_at_subarray.readOp.dynamic * 1e9 ;
+        if (dvs)
+        {
+        	*out_file<<" (@DVS_Level0); ";
+        	for (i = 0; i<dvs_levels; i++)
+        		*out_file<<fr->uca_q[i]->data_array2->power_output_drivers_at_subarray.readOp.dynamic * 1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+        }
+        *out_file<< endl;
+
+
+    	*out_file << endl <<"  Total leakage power of a bank, including its network outside (mW): " <<
+    			(g_ip->long_channel_device ? fr->data_array2->power.readOp.leakage*long_channel_leakage_reduction : fr->data_array2->power.readOp.leakage)*1e3; //CAM/FA does not support PG yet
+        if (dvs)
+        {
+        	*out_file<<" (@DVS_Level0); ";
+        	for (i = 0; i<dvs_levels; i++)
+        		*out_file<<(g_ip->long_channel_device ?fr->uca_q[i]->data_array2->power.readOp.leakage*long_channel_leakage_reduction : fr->uca_q[i]->data_array2->power.readOp.leakage) * 1e3 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+        }
+        *out_file<< endl;
+
+
+    }
 
 
     if ((!(g_ip->pure_ram|| g_ip->pure_cam || g_ip->fully_assoc)) && !g_ip->is_main_mem)
     {
       *out_file << endl << "  Tag array:  Total dynamic read energy/access (nJ): " <<
-        fr->tag_array2->power.readOp.dynamic * 1e9 << endl;
-      *out_file << "\tTotal leakage read/write power of a bank (mW): " <<
-          fr->tag_array2->power.readOp.leakage * 1e3 << endl;
-      *out_file << "\tTotal energy in H-tree (that includes both "
+        fr->tag_array2->power.readOp.dynamic * 1e9;
+      if (dvs)
+      {
+      	*out_file<<" (@DVS_Level0); ";
+      	for (i = 0; i<dvs_levels; i++)
+      		*out_file<<fr->uca_q[i]->tag_array2->power.readOp.dynamic * 1e9  <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+      }
+      *out_file<< endl;
+
+      if (g_ip->power_gating)
+            {
+          	  *out_file << "\tTotal leakage power of a bank, power gated ";
+                  	if (!g_ip->user_defined_vcc_underflow)
+                  	{
+                  		*out_file << "with ";
+                  	}
+                  	else
+                  	{
+                  		*out_file << "without ";
+                  	}
+                  	*out_file<<"retaining memory content, including its network outside (mW): " <<
+          			  (g_ip->long_channel_device ? fr->tag_array2->power.readOp.power_gated_leakage*long_channel_leakage_reduction :  fr->tag_array2->power.readOp.power_gated_leakage)* 1e3 << endl;
+          	 }
+//            else
+//            {
+          	  *out_file << "\tTotal leakage power of a bank without power gating, including its network outside (mW): " <<
+          			(g_ip->long_channel_device ? fr->tag_array2->power.readOp.leakage * long_channel_leakage_reduction: fr->tag_array2->power.readOp.leakage)* 1e3;
+              if (dvs)
+              {
+              	*out_file<<" (@DVS_Level0); ";
+              	for (i = 0; i<dvs_levels; i++)
+              		*out_file<<(g_ip->long_channel_device ? fr->uca_q[i]->tag_array2->power.readOp.leakage *long_channel_leakage_reduction: fr->uca_q[i]->tag_array2->power.readOp.leakage) * 1e3 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+              }
+              *out_file<< endl;
+
+//            }
+//      *out_file << "\tTotal leakage read/write power of a bank (mW): " <<
+//          fr->tag_array2->power.readOp.leakage * 1e3 << endl;
+      *out_file << "\tTotal energy in H-tree outside banks (that includes both "
         "address and data transfer) (nJ): " <<
-          (fr->tag_array2->power_addr_input_htree.readOp.dynamic +
-           fr->tag_array2->power_data_output_htree.readOp.dynamic +
-           fr->tag_array2->power_routing_to_bank.readOp.dynamic) * 1e9 << endl;
+          (fr->tag_array2->power_routing_to_bank.readOp.dynamic) * 1e9;
+      if (dvs)
+      {
+      	*out_file<<" (@DVS_Level0); ";
+      	for (i = 0; i<dvs_levels; i++)
+      		*out_file<<fr->uca_q[i]->tag_array2->power_routing_to_bank.readOp.dynamic * 1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+      }
+      *out_file<< endl;
+
+
+      *out_file << "\tInput H-tree inside banks Energy (nJ): " <<
+          (fr->tag_array2->power_addr_input_htree.readOp.dynamic) * 1e9;
+      if (dvs)
+      {
+      	*out_file<<" (@DVS_Level0); ";
+      	for (i = 0; i<dvs_levels; i++)
+      		*out_file<<fr->uca_q[i]->tag_array2->power_addr_input_htree.readOp.dynamic * 1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+      }
+      *out_file<< endl;
 
       *out_file << "\tOutput Htree inside a bank Energy (nJ): " <<
-        fr->tag_array2->power_data_output_htree.readOp.dynamic * 1e9 << endl;
+        fr->tag_array2->power_data_output_htree.readOp.dynamic * 1e9;
+      if (dvs)
+      {
+      	*out_file<<" (@DVS_Level0); ";
+      	for (i = 0; i<dvs_levels; i++)
+      		*out_file<<fr->uca_q[i]->tag_array2->power_data_output_htree.readOp.dynamic * 1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+      }
+      *out_file<< endl;
+
       *out_file <<  "\tDecoder (nJ): " <<
         fr->tag_array2->power_row_predecoder_drivers.readOp.dynamic * 1e9 +
-        fr->tag_array2->power_row_predecoder_blocks.readOp.dynamic * 1e9 << endl;
+        fr->tag_array2->power_row_predecoder_blocks.readOp.dynamic * 1e9;
+      if (dvs)
+      {
+      	*out_file<<" (@DVS_Level0); ";
+      	for (i = 0; i<dvs_levels; i++)
+      		*out_file<<(fr->uca_q[i]->tag_array2->power_row_predecoder_drivers.readOp.dynamic * 1e9 +
+  			       fr->uca_q[i]->tag_array2->power_row_predecoder_blocks.readOp.dynamic * 1e9) <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+      }
+      *out_file<< endl;
+
       *out_file <<  "\tWordline (nJ): " <<
-        fr->tag_array2->power_row_decoders.readOp.dynamic * 1e9 << endl;
+        fr->tag_array2->power_row_decoders.readOp.dynamic * 1e9;
+      if (dvs)
+      {
+      	*out_file<<" (@DVS_Level0); ";
+      	for (i = 0; i<dvs_levels; i++)
+      		*out_file<<fr->uca_q[i]->tag_array2->power_row_decoders.readOp.dynamic * 1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+      }
+      *out_file<< endl;
+
       *out_file <<  "\tBitline mux & associated drivers (nJ): " <<
         fr->tag_array2->power_bit_mux_predecoder_drivers.readOp.dynamic * 1e9 +
         fr->tag_array2->power_bit_mux_predecoder_blocks.readOp.dynamic * 1e9 +
-        fr->tag_array2->power_bit_mux_decoders.readOp.dynamic * 1e9 << endl;
+        fr->tag_array2->power_bit_mux_decoders.readOp.dynamic * 1e9 ;
+      if (dvs)
+      {
+      	*out_file<<" (@DVS_Level0); ";
+      	for (i = 0; i<dvs_levels; i++)
+      		*out_file<<(fr->uca_q[i]->tag_array2->power_bit_mux_predecoder_drivers.readOp.dynamic * 1e9 +
+          			fr->uca_q[i]->tag_array2->power_bit_mux_predecoder_blocks.readOp.dynamic * 1e9 +
+          			fr->uca_q[i]->tag_array2->power_bit_mux_decoders.readOp.dynamic * 1e9)
+          			<<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+      }
+      *out_file<< endl;
+
       *out_file <<  "\tSense amp mux & associated drivers (nJ): " <<
         fr->tag_array2->power_senseamp_mux_lev_1_predecoder_drivers.readOp.dynamic * 1e9 +
         fr->tag_array2->power_senseamp_mux_lev_1_predecoder_blocks.readOp.dynamic * 1e9 +
         fr->tag_array2->power_senseamp_mux_lev_1_decoders.readOp.dynamic * 1e9  +
         fr->tag_array2->power_senseamp_mux_lev_2_predecoder_drivers.readOp.dynamic * 1e9 +
         fr->tag_array2->power_senseamp_mux_lev_2_predecoder_blocks.readOp.dynamic * 1e9 +
-        fr->tag_array2->power_senseamp_mux_lev_2_decoders.readOp.dynamic * 1e9 << endl;
+        fr->tag_array2->power_senseamp_mux_lev_2_decoders.readOp.dynamic * 1e9;
+      if (dvs)
+      {
+      	*out_file<<" (@DVS_Level0); ";
+      	for (i = 0; i<dvs_levels; i++)
+      		*out_file<<( fr->uca_q[i]->tag_array2->power_senseamp_mux_lev_1_predecoder_drivers.readOp.dynamic * 1e9 +
+          			fr->uca_q[i]->tag_array2->power_senseamp_mux_lev_1_predecoder_blocks.readOp.dynamic * 1e9 +
+          			fr->uca_q[i]->tag_array2->power_senseamp_mux_lev_1_decoders.readOp.dynamic * 1e9  +
+          			fr->uca_q[i]->tag_array2->power_senseamp_mux_lev_2_predecoder_drivers.readOp.dynamic * 1e9 +
+          			fr->uca_q[i]->tag_array2->power_senseamp_mux_lev_2_predecoder_blocks.readOp.dynamic * 1e9 +
+          			fr->uca_q[i]->tag_array2->power_senseamp_mux_lev_2_decoders.readOp.dynamic * 1e9)
+          			<<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+      }
+      *out_file<< endl;
+
       *out_file <<  "\tBitlines precharge and equalization circuit (nJ): " <<
-        fr->tag_array2->power_prechg_eq_drivers.readOp.dynamic * 1e9 << endl;
+    		  fr->tag_array2->power_prechg_eq_drivers.readOp.dynamic * 1e9;
+      if (dvs)
+      {
+      	*out_file<<" (@DVS_Level0); ";
+      	for (i = 0; i<dvs_levels; i++)
+      		*out_file<<fr->uca_q[i]->tag_array2->power_prechg_eq_drivers.readOp.dynamic * 1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+      }
+      *out_file<< endl;
       *out_file <<  "\tBitlines (nJ): " <<
-        fr->tag_array2->power_bitlines.readOp.dynamic * 1e9 << endl;
+    		  fr->tag_array2->power_bitlines.readOp.dynamic * 1e9;
+      if (dvs)
+      {
+      	*out_file<<" (@DVS_Level0); ";
+      	for (i = 0; i<dvs_levels; i++)
+      		*out_file<<fr->uca_q[i]->tag_array2->power_bitlines.readOp.dynamic * 1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+      }
+      *out_file<< endl;
+
       *out_file <<  "\tSense amplifier energy (nJ): " <<
-        fr->tag_array2->power_sense_amps.readOp.dynamic * 1e9 << endl;
+    		  fr->tag_array2->power_sense_amps.readOp.dynamic * 1e9;
+      if (dvs)
+      {
+      	*out_file<<" (@DVS_Level0); ";
+      	for (i = 0; i<dvs_levels; i++)
+      		*out_file<<fr->uca_q[i]->tag_array2->power_sense_amps.readOp.dynamic * 1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+      }
+      *out_file<< endl;
+
       *out_file <<  "\tSub-array output driver (nJ): " <<
-        fr->tag_array2->power_output_drivers_at_subarray.readOp.dynamic * 1e9 << endl;
+    		  fr->tag_array2->power_output_drivers_at_subarray.readOp.dynamic * 1e9 ;
+      if (dvs)
+      {
+      	*out_file<<" (@DVS_Level0); ";
+      	for (i = 0; i<dvs_levels; i++)
+      		*out_file<<fr->uca_q[i]->tag_array2->power_output_drivers_at_subarray.readOp.dynamic * 1e9 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+      }
+      *out_file<< endl;
+
+      if (g_ip->power_gating)
+      {
+    	  *out_file << "\tTotal leakage power in H-tree outside a bank when power gated (that includes both "
+    			  "address and data network) ((mW)): " <<
+    			  (g_ip->long_channel_device ? fr->tag_array2->power_routing_to_bank.readOp.power_gated_leakage*long_channel_leakage_reduction : fr->tag_array2->power_routing_to_bank.readOp.power_gated_leakage) * 1e3 << endl;
+      }
+//      else
+//      {
+    	  *out_file << "\tTotal leakage power in H-tree outside a bank (that includes both "
+    			  "address and data network) without power gating((mW)): " <<
+    			  (g_ip->long_channel_device ? fr->tag_array2->power_routing_to_bank.readOp.leakage*long_channel_leakage_reduction : fr->tag_array2->power_routing_to_bank.readOp.leakage) * 1e3;
+          if (dvs)
+          {
+          	*out_file<<" (@DVS_Level0); ";
+          	for (i = 0; i<dvs_levels; i++)
+          		*out_file<<(g_ip->long_channel_device ? fr->uca_q[i]->tag_array2->power_routing_to_bank.readOp.leakage *long_channel_leakage_reduction : fr->uca_q[i]->tag_array2->power_routing_to_bank.readOp.leakage) * 1e3 <<" (@DVS_Level"<< i+1<<"_Vdd=" << g_ip->dvs_voltage[i]<<"); ";
+          }
+          *out_file<< endl;
+//      }
+
+//    	*out_file << "\tTotal leakage power of a bank (mW): " <<
+//    	        fr->tag_array2->power.readOp.leakage * 1e3 << endl;
+//    	*out_file << "\tTotal leakage power in H-tree (that includes both "
+//    	      "address and data network) ((mW)): " <<
+//    	        (fr->tag_array2->power_addr_input_htree.readOp.leakage +
+//    	         fr->tag_array2->power_data_output_htree.readOp.leakage +
+//    	         fr->tag_array2->power_routing_to_bank.readOp.leakage) * 1e3 << endl;
+//
+//    	*out_file << "\tTotal leakage power in cells (mW): " <<
+//    	        (fr->tag_array2->array_leakage) * 1e3 << endl;
+//    	*out_file << "\tTotal leakage power in row logic(mW): " <<
+//    	        (fr->tag_array2->wl_leakage) * 1e3 << endl;
+//    	*out_file << "\tTotal leakage power in column logic(mW): " <<
+//    	        (fr->tag_array2->cl_leakage) * 1e3 << endl;
+//    	*out_file << "\tTotal gate leakage power in H-tree (that includes both "
+//    	      "address and data network) ((mW)): " <<
+//    	        (fr->tag_array2->power_addr_input_htree.readOp.gate_leakage +
+//    	         fr->tag_array2->power_data_output_htree.readOp.gate_leakage +
+//    	         fr->tag_array2->power_routing_to_bank.readOp.gate_leakage) * 1e3 << endl;
     }
 
     *out_file << endl << endl <<  "Area Components:" << endl << endl;
@@ -1994,6 +3213,7 @@ void output_UCA(uca_org_t *fr)
     	*out_file <<  "  CAM array: Area (mm2): " << fr->data_array2->area * 1e-6 << endl;
     else
     	*out_file <<  "  Fully associative cache array: Area (mm2): " << fr->data_array2->area * 1e-6 << endl;
+
     *out_file <<  "\tHeight (mm): " <<
       fr->data_array2->all_banks_height*1e-3 << endl;
     *out_file <<  "\tWidth (mm): " <<
@@ -2008,7 +3228,12 @@ void output_UCA(uca_org_t *fr)
       *out_file << "\t\tSubarray Height (mm): " <<
         fr->data_array2->subarray_height*1e-3 << endl;
       *out_file << "\t\tSubarray Length (mm): " <<
-        fr->data_array2->subarray_length*1e-3 << endl;
+    		  fr->data_array2->subarray_length*1e-3 << endl;
+      if (g_ip->power_gating)
+      {
+    	  overhead_data = (fr->data_array2->area/fr->uca_pg_reference->data_array2->area-1)*100;//%;
+    	  *out_file <<  "  Power gating circuits (sleep transistors) induced area overhead: " << overhead_data <<"%" <<endl;
+      }
     }
 
     /* Tag array area stats */
@@ -2019,6 +3244,7 @@ void output_UCA(uca_org_t *fr)
         fr->tag_array2->all_banks_height*1e-3 << endl;
       *out_file <<  "\tWidth (mm): " <<
         fr->tag_array2->all_banks_width*1e-3 << endl;
+
       if (g_ip->print_detail)
       {
         *out_file <<  "\tArea efficiency (Memory cell area/Total area) - " <<
@@ -2030,11 +3256,22 @@ void output_UCA(uca_org_t *fr)
       *out_file << "\t\tSubarray Height (mm): " <<
         fr->tag_array2->subarray_height*1e-3 << endl;
       *out_file << "\t\tSubarray Length (mm): " <<
-        fr->tag_array2->subarray_length*1e-3 << endl;
+    		  fr->tag_array2->subarray_length*1e-3 << endl;
+      }
+
+      if (g_ip->power_gating)
+      {
+    	  overhead_tag = (fr->tag_array2->area/fr->uca_pg_reference->tag_array2->area-1)*100;//%;
+    	  *out_file <<  "  Power gating circuits (sleep transistors) induced area overhead: " << overhead_tag <<"%" <<endl<<endl;
       }
     }
-    Wire wpr;
-    wpr.print_wire();
+
+
+
+
+
+    //Wire wpr; //TODO: this must change, since this changes the wire value during dvs loop.
+    //Wire::print_wire();//move outside output UCA
 
     //*out_file << "FO4 = " << g_tp.FO4 << endl;
   }
@@ -2160,7 +3397,7 @@ uca_org_t cacti_interface(InputParameter  * const local_interface)
 //  }
 
 
-  g_ip->error_checking();
+  if (!g_ip->error_checking()) exit(0);
 
 
   init_tech_params(g_ip->F_sz_um, false);
@@ -2168,10 +3405,20 @@ uca_org_t cacti_interface(InputParameter  * const local_interface)
 
   solve(&fin_res);
 
+  if (!g_ip->dvs_voltage.empty())
+  {
+	  update_dvs(&fin_res);
+  }
+  if (g_ip->power_gating)
+  {
+	  update_pg(&fin_res);//this is needed for compute area overhead of power-gating, even the gated power is calculated together un-gated leakage
+  }
+
 //  g_ip->display_ip();
 //  output_UCA(&fin_res);
 //  output_data_csv(fin_res);
-
+//  Wire wprint;//reset wires to original configuration as in *.cfg file (dvs level 0)
+//  Wire::print_wire();
  // delete (g_ip);
 
   return fin_res;
@@ -2186,7 +3433,7 @@ uca_org_t init_interface(InputParameter* const local_interface)
   uca_org_t fin_res;
   fin_res.valid = false;
 
-   g_ip = local_interface;
+  g_ip = local_interface;
 
 
 //  g_ip->data_arr_ram_cell_tech_type    = data_arr_ram_cell_tech_flavor_in;
@@ -2309,4 +3556,19 @@ uca_org_t init_interface(InputParameter* const local_interface)
  // delete (g_ip);
 
   return fin_res;
+}
+
+void reconfigure(InputParameter *local_interface, uca_org_t *fin_res)
+{
+  // Copy the InputParameter to global interface (g_ip) and do error checking.
+  g_ip = local_interface;
+  g_ip->error_checking();
+
+  // Initialize technology parameters
+  init_tech_params(g_ip->F_sz_um,false);
+
+  Wire winit; // Do not delete this line. It initializes wires.
+
+  // This corresponds to solve() in the initialization process.
+  update_dvs(fin_res);
 }
