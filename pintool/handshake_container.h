@@ -4,8 +4,8 @@
 #include <iostream>
 #include <map>
 
-#include "machine.h"
-#include "pin.h"
+#include "../machine.h"
+#include "../pin.h"
 
 struct handshake_flags_t
 {

@@ -43,31 +43,30 @@ OEXT = o
 #
 MCPAT_INC = -Imcpat
 REPEATER_INC = -Imem-repeater
+PINTOOL_INC = -Ipintool
 ifneq ($(CONFUSE_HOME),)
   CONFUSE_INC = -I$(CONFUSE_HOME)/include
 else
   CONFUSE_INC =
 endif
 
-CFLAGS = $(FFLAGS) $(OFLAGS) $(BINUTILS_INC) $(BINUTILS_LIB) $(ZTRACE) $(MCPAT_INC) $(CONFUSE_INC) $(REPEATER_INC) -DZESTO_PIN
+CFLAGS = $(FFLAGS) $(OFLAGS) $(BINUTILS_INC) $(BINUTILS_LIB) $(ZTRACE) $(MCPAT_INC) $(CONFUSE_INC) $(REPEATER_INC) $(PINTOOL_INC) -DZESTO_PIN
 
 #
 # all the sources
 #
 SRCS =  \
 eval.c          machine.c       memory.cpp         misc.c         options.c   \
-stats.c         slave.cpp         sim-main.c       callbacks.c    slices.cpp  \
-buffer.cpp
+stats.c         slave.cpp         sim-main.c       callbacks.c    slices.cpp
 
 HDRS = \
 thread.h                  host.h          machine.h       memory.h           \
 misc.h          options.h       regs.h          sim.h           stats.h         version.h          \
-machine.def     x86flow.def     interface.h     callbacks.h     buffer.h
+machine.def     x86flow.def     interface.h     callbacks.h     pintool/buffer.h
 
 OBJS =	\
 eval.$(OEXT)         machine.$(OEXT)      memory.$(OEXT)       misc.$(OEXT)          options.$(OEXT)    \
-stats.$(OEXT)        sim-main.$(OEXT)     slices.$(OEXT)       callbacks.$(OEXT)     slave.$(OEXT)      \
-buffer.$(OEXT)
+stats.$(OEXT)        sim-main.$(OEXT)     slices.$(OEXT)       callbacks.$(OEXT)     slave.$(OEXT)
 
 # Zesto specific files
 ZSRCS = \

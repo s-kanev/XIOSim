@@ -11,7 +11,7 @@
 #include "feeder.h"
 #include "multiprocess_shared.h"
 #include "ipc_queues.h"
-#include "../buffer.h"
+#include "buffer.h"
 #include "BufferManagerProducer.h"
 
 #include "syscall_handling.h"

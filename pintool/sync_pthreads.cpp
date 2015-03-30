@@ -9,7 +9,7 @@
 
 #include "feeder.h"
 #include "multiprocess_shared.h"
-#include "../buffer.h"
+#include "buffer.h"
 #include "BufferManagerProducer.h"
 
 #include "scheduler.h"

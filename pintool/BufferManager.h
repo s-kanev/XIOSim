@@ -1,7 +1,7 @@
 #ifndef HANDSHAKE_BUFFER_MANAGER
 #define HANDSHAKE_BUFFER_MANAGER
 
-#include "../buffer.h"
+#include "buffer.h"
 
 class handshake_container_t;
 
