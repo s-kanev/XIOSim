@@ -100,7 +100,6 @@ class core_decode_t {
   struct core_t * core;
 };
 
-void decode_reg_options(struct opt_odb_t * odb, struct core_knobs_t * knobs);
 class core_decode_t * decode_create(const char * decode_opt_string, struct core_t * core);
 
 #endif /* ZESTO_DECODE_INCLUDED */

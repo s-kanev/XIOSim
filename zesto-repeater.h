@@ -47,6 +47,5 @@ class repeater_t * repeater_create(
 
 void repeater_init(const char * const opt_string);
 void repeater_shutdown(const char * const opt_string);
-void repeater_reg_options(struct opt_odb_t * const odb);
 
 #endif /*__ZESTO_REPEATER_H */

@@ -77,7 +77,6 @@
 
 #include "machine.h"
 #include "regs.h"
-#include "options.h"
 
 #define MAX_IDEPS 3
 #define MD_STA_OP_INDEX 0

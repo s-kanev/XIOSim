@@ -75,7 +75,6 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
-#include "options.h"
 #include "stats.h"
 
 #if defined(ZTRACE) && !defined(ZESTO_PIN_DBG)
@@ -90,9 +89,6 @@ extern int heartbeat_frequency;
 extern counter_t total_commit_insn;
 extern counter_t total_commit_uops;
 extern counter_t total_commit_eff_uops;
-
-/* register simulator-specific options */
-void sim_reg_options(struct opt_odb_t *odb);
 
 /* check simulator-specific option values */
 void sim_check_options(int argc, char **argv);

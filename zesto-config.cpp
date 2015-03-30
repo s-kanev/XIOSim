@@ -278,7 +278,6 @@ void store_system_options(cfg_t *system_opt, core_knobs_t *knobs) {
   debugging = cfg_getbool(system_opt, "debug");
 #endif
   assert_spin = cfg_getbool(system_opt, "assert_spin");
-  help_me = cfg_getbool(system_opt, "help");
   rand_seed = cfg_getint(system_opt, "seed");
   num_cores = cfg_getint(system_opt, "num_cores");
   heartbeat_frequency = cfg_getint(system_opt, "heartbeat_interval");

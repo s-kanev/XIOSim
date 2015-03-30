@@ -88,7 +88,6 @@
 #include "machine.h"
 #include "endian.h"
 #include "version.h"
-#include "options.h"
 #include "stats.h"
 #include "sim.h"
 
@@ -105,9 +104,6 @@ struct stat_sdb_t *rtp_sdb;
 
 /* redirected program/simulator output file names */
 const char *sim_simout = NULL;
-
-/* dump help information */
-bool help_me;
 
 /* random number generator seed */
 int rand_seed;
@@ -133,13 +129,6 @@ banner(FILE *fd, int argc, char **argv)
 	  "\n",
 	  (argv[0]),
 	  VER_TARGET, VER_MAJOR, VER_MINOR, VER_UPDATE);
-}
-
-void
-usage(FILE *fd, int argc, char **argv)
-{
-  fprintf(fd, "Usage: %s {-options} executable {arguments}\n", argv[0]);
-  opt_print_help(sim_odb, fd);
 }
 
 /* print all simulator stats */

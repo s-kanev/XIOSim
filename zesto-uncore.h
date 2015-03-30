@@ -116,7 +116,6 @@ class uncore_t
 
 };
 
-void uncore_reg_options(struct opt_odb_t * const odb);
 void uncore_reg_stats(struct stat_sdb_t * const sdb);
 void uncore_create(void); /* creates MC and memory controller objects */
 

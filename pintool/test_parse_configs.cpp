@@ -43,7 +43,6 @@ TEST_CASE("Test configuration parsing", "config") {
 
     // Only test a subset of the configuration parameters.
     SECTION("Checking system configuration") {
-        CHECK(help_me == false);
         CHECK(strcmp(knobs.model, "DPM") == 0);
     }
 

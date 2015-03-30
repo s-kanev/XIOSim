@@ -90,7 +90,6 @@
 #include "misc.h"
 #include "endian.h"
 #include "version.h"
-#include "options.h"
 #include "stats.h"
 #include "sim.h"
 #include "regs.h"

@@ -75,7 +75,6 @@
 #include <limits.h>
 #include "thread.h"
 #include "stats.h"
-#include "options.h"
 #include "zesto-opts.h"
 #include "zesto-cache.h"
 #include "zesto-dram.h"
@@ -93,14 +92,6 @@ class dram_t * dram = NULL;
 // configuration code into the appropriate zesto file and restore these back to
 // static.
 const char * dram_opt_string = NULL;
-
-void  
-dram_reg_options(struct opt_odb_t * const odb)
-{
-  opt_reg_string(odb, "-dram", "dram configuration string",
-      &dram_opt_string,/*default */"simplescalar:80",/*print*/true,/*format*/NULL);
-}
-
 
 void dram_t::init(void)
 {

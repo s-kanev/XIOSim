@@ -22,7 +22,6 @@ extern const char* ztrace_filename;
 extern bool simulate_power;
 
 extern int rand_seed;
-extern bool help_me;
 #ifdef DEBUG
 extern bool debugging;
 #endif

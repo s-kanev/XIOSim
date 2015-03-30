@@ -26,7 +26,6 @@
 #include "machine.h"
 #include "endian.h"
 #include "version.h"
-#include "options.h"
 #include "stats.h"
 #include "sim.h"
 #include "synchronization.h"
@@ -66,15 +65,11 @@ extern struct stat_sdb_t *rtp_sdb;
 /* redirected program/simulator output file names */
 extern const char *sim_simout;
 
-/* dump help information */
-extern bool help_me;
-
 /* random number generator seed */
 extern int rand_seed;
 
 extern int orphan_fn(int i, int argc, char **argv);
 extern void banner(FILE *fd, int argc, char **argv);
-extern  void usage(FILE *fd, int argc, char **argv);
 
 extern bool sim_slave_running;
 
@@ -112,19 +107,11 @@ Zesto_SlaveInit(int argc, char **argv)
   if (argc < 2)
     {
       banner(stderr, argc, argv);
-      usage(stderr, argc, argv);
       exit(1);
     }
 
   /* opening banner */
   banner(stderr, argc, argv);
-
-  if (help_me)
-    {
-      /* print help message and exit */
-      usage(stderr, argc, argv);
-      exit(1);
-    }
 
   /* seed the random number generator */
   if (rand_seed == 0)

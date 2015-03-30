@@ -32,12 +32,6 @@ class repeater_t * repeater_create(
 
 #undef REPEATER_PARSE_ARGS
 
-void repeater_reg_options(struct opt_odb_t * const odb)
-{
-  opt_reg_string(odb, "-repeater", "memory repeater configuration string (aka L0/ring cache)",
-     &knobs.exec.repeater_opt_str, /* default */"none", /* print */true, /* format */NULL);
-}
-
 #define REPEATER_INIT
 void repeater_init(const char * const opt_string)
 {

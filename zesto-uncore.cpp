@@ -77,7 +77,6 @@
 
 #include "thread.h"
 #include "stats.h"
-#include "options.h"
 #include "sim.h"
 #include "zesto-core.h"
 #include "zesto-opts.h"
@@ -223,67 +222,6 @@ uncore_t::~uncore_t()
 {
   delete(MC);
   MC = NULL;
-}
-
-void
-uncore_reg_options(struct opt_odb_t * const odb)
-{
-  opt_reg_string(odb, "-LLC","last-level cache configuration string [DS]",
-      &LLC_opt_str, /*default*/ "LLC:2048:16:64:16:64:12:L:W:B:8:1:8:C", /*print*/true,/*format*/NULL);
-  opt_reg_string(odb, "-LLC:mshr_cmd","last-level cache MSHR scheduling policy [DS]",
-      &LLC_MSHR_cmd, /*default*/ LLC_MSHR_cmd, /*print*/true,/*format*/NULL);
-  opt_reg_double(odb, "-LLC:speed","LLC clock frequency in MHz",
-      &LLC_speed, /*default*/ 800.0, /*print*/true,/*format*/NULL);
-
-  /* LLC prefetch control options */
-  opt_reg_string_list(odb, "-LLC:pf", "last-level cache prefetcher configuration string(s) [DS]",
-      LLC_PF_opt_str, MAX_PREFETCHERS, &LLC_num_PF, LLC_PF_opt_str, /* print */true, /* format */NULL, /* !accrue */false);
-  opt_reg_int(odb, "-LLC:pf:fifosize","LLC prefetch FIFO size [DS]",
-      &LLC_PFFsize, /*default*/ 16, /*print*/true,/*format*/NULL);
-  opt_reg_int(odb, "-LLC:pf:buffer","LLC prefetch buffer size [DS]",
-      &LLC_PF_buffer_size, /*default*/ 0, /*print*/true,/*format*/NULL);
-  opt_reg_int(odb, "-LLC:pf:filter","LLC prefetch filter size [DS]",
-      &LLC_PF_filter_size, /*default*/ 0, /*print*/true,/*format*/NULL);
-  opt_reg_int(odb, "-LLC:pf:filterreset","LLC prefetch filter reset interval (cycles) [DS]",
-      &LLC_PF_filter_reset, /*default*/ 65536, /*print*/true,/*format*/NULL);
-  opt_reg_int(odb, "-LLC:pf:thresh","LLC prefetch threshold (only prefetch if MSHR occupancy < thresh) [DS]",
-      &LLC_PFthresh, /*default*/ 4, /*print*/true,/*format*/NULL);
-  opt_reg_int(odb, "-LLC:pf:max","maximum LLC prefetch requests in MSHRs at a time [DS]",
-      &LLC_PFmax, /*default*/ 2, /*print*/true,/*format*/NULL);
-  opt_reg_double(odb, "-LLC:pf:lowWM","LLC low watermark for prefetch control [DS]",
-      &LLC_low_watermark, /*default*/ 0.1, /*print*/true,/*format*/NULL);
-  opt_reg_double(odb, "-LLC:pf:highWM","LLC high watermark for prefetch control [DS]",
-      &LLC_high_watermark, /*default*/ 0.5, /*print*/true,/*format*/NULL);
-  opt_reg_int(odb, "-LLC:pf:WMinterval","LLC sampling interval (in cycles) for prefetch control (0 = no PF controller) [DS]",
-      &LLC_WMinterval, /*default*/ 100, /*print*/true,/*format*/NULL);
-  opt_reg_flag(odb, "-LLC:pf:miss","generate LLC prefetches only from miss traffic [DS]",
-      &LLC_PF_on_miss, /*default*/ false, /*print*/true,/*format*/NULL);
-
-  opt_reg_string(odb, "-LLC:controller","last-level cache controller string [DS]",
-      &LLC_controller_str, /*default*/ "none", /*print*/true,/*format*/NULL);
-  opt_reg_float(odb, "-LLC:magic_hit_rate", "magic LLC hit rate (-1 = no magic)",
-      &LLC_magic_hit_rate, /*default*/ -1.0, /*print*/true, /*format*/NULL);
-
-  opt_reg_int(odb, "-fsb:width", "front-side bus width (bytes) [DS]",
-      &fsb_width, /* default */4, /* print */true, /* format */NULL);
-  opt_reg_flag(odb, "-fsb:ddr", "front-side bus double-pumped data (DDR) [DS]",
-      &fsb_DDR, /* default */false, /* print */true, /* format */NULL);
-  opt_reg_double(odb, "-fsb:speed", "front-side bus speed in MHz [DS]",
-      &fsb_speed, /*default*/100.0,/*print*/true,/*format*/NULL);
-  opt_reg_flag(odb, "-fsb:magic", "Unlimited bandwidth FSB",
-      &fsb_magic, /*default*/false, /*print*/true,/*format*/NULL);
-  opt_reg_double(odb, "-cpu:speed", "CPU speed in MHz [DS]",
-      &knobs.default_cpu_speed, /*default*/4000.0,/*print*/true,/*format*/NULL);
-  opt_reg_string(odb, "-MC", "memory controller configuration string [DS]",
-      &MC_opt_string,/*default */"simple:4:1",/*print*/true,/*format*/NULL);
-  opt_reg_int(odb, "-scheduler:tick", "scheduler reshuffle interval in CPU cycles",
-      &knobs.scheduler_tick, /* default */0, /* print */true, /* format */NULL);
-  opt_reg_string(odb, "-allocator", "core allocation algorithm [gang, local, penalty]",
-      &knobs.allocator, /* default */"gang", /* print */true, /* format */NULL);
-  opt_reg_string(odb, "-allocator_opt_target", "allocation optimization target [energy, throughput]",
-      &knobs.allocator_opt_target, /* default */"throughput", /* print */true, /* format */NULL);
-  opt_reg_string(odb, "-speedup_model", "multicore speedup model [linear, log]",
-      &knobs.speedup_model, /* default */"linear", /* print */true, /* format */NULL);
 }
 
 /* register all of the stats */

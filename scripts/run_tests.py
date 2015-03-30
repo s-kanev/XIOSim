@@ -67,7 +67,7 @@ class Fib1Test(XIOSimTest):
         self.xio.AddPinOptions()
         self.xio.AddPintoolOptions(num_cores=1)
         self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
-                                              "config", "Nconfuse.cfg"))
+                                              "config", "N.cfg"))
 
     def setUp(self):
         super(Fib1Test, self).setUp()
@@ -87,7 +87,7 @@ class Fib1LengthTest(XIOSimTest):
         self.xio.AddPintoolOptions(num_cores=1)
         self.xio.AddInstLength(10000)
         self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
-                                              "config", "Nconfuse.cfg"))
+                                              "config", "N.cfg"))
 
     def setUp(self):
         super(Fib1LengthTest, self).setUp()
@@ -107,7 +107,7 @@ class Fib1SkipTest(XIOSimTest):
         self.xio.AddPintoolOptions(num_cores=1)
         self.xio.AddSkipInst(50000)
         self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
-                                              "config", "Nconfuse.cfg"))
+                                              "config", "N.cfg"))
 
     def setUp(self):
         super(Fib1SkipTest, self).setUp()
@@ -129,7 +129,7 @@ class Fib1PinPointTest(XIOSimTest):
                               "fib..pintool.1.pp")
         self.xio.AddPinPointFile(ppfile)
         self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
-                                              "config", "Nconfuse.cfg"))
+                                              "config", "N.cfg"))
 
     def setUp(self):
         super(Fib1PinPointTest, self).setUp()
@@ -151,7 +151,7 @@ class Fib1PinPointsTest(XIOSimTest):
                               "fib..pintool.2.pp")
         self.xio.AddPinPointFile(ppfile)
         self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
-                                              "config", "Nconfuse.cfg"))
+                                              "config", "N.cfg"))
 
     def setUp(self):
         super(Fib1PinPointsTest, self).setUp()

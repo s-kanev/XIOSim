@@ -103,58 +103,6 @@ counter_t total_commit_insn = 0;
 counter_t total_commit_uops = 0;
 counter_t total_commit_eff_uops = 0;
 
-/* register simulator-specific options */
-void
-sim_reg_options(struct opt_odb_t *odb)
-{
-  opt_reg_header(odb, 
-      "sim-zesto: This simulator implements an execute-at-fetch timing\n"
-      "simulator for x86 only.  Exec-at-exec is planned for the future.\n"
-      );
-
-  /* ignored flag used to terminate list options */
-  opt_reg_flag(odb, "-","ignored flag",
-      &ignored_flag, /*default*/ false, /*print*/false,/*format*/NULL);
-
-  opt_reg_int(odb, "-cores", "number of cores",
-      &num_cores, /* default */1, /* print */true, /* format */NULL);
-
-  opt_reg_int(odb, "-heartbeat", "frequency for which to print out simulator heartbeat",
-      &heartbeat_frequency, /* default */0,
-      /* print */true, /* format */NULL);
-
-  opt_reg_string(odb, "-model","pipeline model type",
-      &knobs.model, /*default*/ "DPM", /*print*/true,/*format*/NULL);
-
-  opt_reg_string(odb, "-ztrace:file_prefix","zesto-trace filename",
-      &ztrace_filename, /*default*/ "ztrace", /*print*/true,/*format*/NULL);
-
-  opt_reg_flag(odb, "-power", "simulate power",
-      &knobs.power.compute, /*default*/ false, /*print*/true,/*format*/NULL);
-
-  opt_reg_int(odb, "-power:rtp_interval", "number of uncore cycles between power computation",
-      &knobs.power.rtp_interval, /* default */0, /* print */true, /* format */NULL);
-
-  opt_reg_string(odb, "-power:rtp_file", "file to store runtime power trace",
-      &knobs.power.rtp_filename, /* default */NULL, /* print */true, /* format */NULL);
-
-  fetch_reg_options(odb,&knobs);
-  decode_reg_options(odb,&knobs);
-  alloc_reg_options(odb,&knobs);
-  exec_reg_options(odb,&knobs);
-  commit_reg_options(odb,&knobs);
-
-  uncore_reg_options(odb);
-  dram_reg_options(odb);
-  repeater_reg_options(odb);
-
-  opt_reg_string(odb, "-dvfs", "dvfs controller configuration string",
-      &knobs.dvfs_opt_str, /* default */"none", /* print */true, /* format */NULL);
-
-  opt_reg_int(odb, "-dvfs:interval", "Re-evaluate voltage/frequency choice every X cpu cycles",
-      &knobs.dvfs_interval, /* default */0, /* print */true, /* format */NULL);
-}
-
 /* check simulator-specific option values */
 void
 sim_check_options(int argc, char **argv)

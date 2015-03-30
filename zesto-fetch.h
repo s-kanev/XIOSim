@@ -132,7 +132,6 @@ class core_fetch_t {
 };
 
 
-void fetch_reg_options(struct opt_odb_t * odb, struct core_knobs_t * knobs);
 class core_fetch_t * fetch_create(const char * fetch_opt_string, struct core_t * core);
 
 #endif /* ZESTO_FETCH_INCLUDED */

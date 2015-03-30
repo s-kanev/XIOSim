@@ -24,7 +24,6 @@ class core_power_t {
   struct  core_t *core;
 };
 
-void power_reg_options(struct opt_odb_t *odb, struct core_knobs_t * knobs);
 class core_power_t * power_create(const char * power_opt_string, struct core_t * core);
 
 #endif /*ZESTO_POWER*/

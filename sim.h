@@ -55,7 +55,6 @@
 #include <setjmp.h>
 #include <time.h>
 
-#include "options.h"
 #include "stats.h"
 #include "regs.h"
 #include "memory.h"
@@ -78,9 +77,6 @@ extern bool assert_spin;
 /*
  * main simulator interfaces, called in the following order
  */
-
-/* register simulator-specific options */
-void sim_reg_options(struct opt_odb_t *odb);
 
 /* main() parses options next... */
 

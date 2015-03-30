@@ -126,7 +126,6 @@ class core_commit_t
   struct core_t * core;
 };
 
-void commit_reg_options(struct opt_odb_t * odb, struct core_knobs_t * knobs);
 class core_commit_t * commit_create(const char * commit_opt_string, struct core_t * core);
 
 #endif /* ZESTO_COMMIT_INCLUDED */

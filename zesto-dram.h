@@ -79,7 +79,6 @@
 
 extern class dram_t * dram;
 
-void dram_reg_options(struct opt_odb_t * const odb);
 void dram_create(void);
 
 class dram_t

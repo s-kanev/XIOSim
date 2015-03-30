@@ -167,7 +167,6 @@ class core_exec_t
   enum cache_command get_STQ_request_type(const struct uop_t * uop);
 };
 
-void exec_reg_options(struct opt_odb_t * odb, struct core_knobs_t * knobs);
 class core_exec_t * exec_create(const char * exec_opt_string, struct core_t * core);
 
 #endif /* ZESTO_EXEC_INCLUDED */

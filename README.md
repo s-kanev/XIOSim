@@ -40,7 +40,7 @@ make
 
 ### Configuration and flags ###
 Most simulated parameters are contained in a configuration file.
-Feel free to browse [a Nehalem-based machine](config/Nconfuse.cfg) to get a feel for them.
+Feel free to browse [a Nehalem-based machine](config/N.cfg) to get a feel for them.
 
 Simulated applications are specified in their own configuration file.
 Check out [how that looks](pintool/benchmarks.cfg).

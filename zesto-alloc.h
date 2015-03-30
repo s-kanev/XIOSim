@@ -103,7 +103,6 @@ class core_alloc_t {
 };
 
 
-void alloc_reg_options(struct opt_odb_t * odb, struct core_knobs_t * knobs);
 class core_alloc_t * alloc_create(const char * alloc_opt_string, struct core_t * core);
 
 #endif /* ZESTO_ALLOC_INCLUDED */
