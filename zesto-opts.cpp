@@ -96,7 +96,6 @@ extern FILE* ztrace_fp[MAX_CORES+1];
 
 int heartbeat_frequency = 0;
 
-static bool ignored_flag = 0;
 extern struct core_knobs_t knobs;
 
 counter_t total_commit_insn = 0;

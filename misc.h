@@ -258,7 +258,6 @@ inline int mod2m(int x, int m)
 
 /* fast memset macros - uses GCC's inline assembly */
 void memzero(void * base, int bytes);
-void clear_page(void * base);
 void memswap(void * p1, void * p2, size_t num_bytes);
 
 /* same semantics as fopen() except that filenames ending with a ".gz" or ".Z"

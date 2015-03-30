@@ -331,33 +331,6 @@ void memzero(void * base, int bytes)
 #endif
 }
 
-/* assumes aligned accesses */
-void clear_page(void * base)
-{
-#ifdef USE_SSE_MOVE
-  char * addr = (char*) base;
-
-  asm ("xorps %%xmm0, %%xmm0"
-       : : : "%xmm0");
-  for(int i=0;i<PAGE_SIZE/16/8;i++)
-  {
-    asm ("movntps %%xmm0,    (%0)\n\t"
-         "movntps %%xmm0,  16(%0)\n\t"
-         "movntps %%xmm0,  32(%0)\n\t"
-         "movntps %%xmm0,  48(%0)\n\t"
-         "movntps %%xmm0,  64(%0)\n\t"
-         "movntps %%xmm0,  80(%0)\n\t"
-         "movntps %%xmm0,  96(%0)\n\t"
-         "movntps %%xmm0, 112(%0)\n\t"
-         : : "r"(addr) : "memory");
-    addr += 16*8;
-  }
-#else
-  memset(base,0,PAGE_SIZE);
-#endif
-}
-
-
 /* swap contents of two memory buffers:
    SSE mode should be faster than equivalent memcpy
    version which would need to copy to a temporary
