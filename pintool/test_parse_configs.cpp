@@ -45,8 +45,6 @@ TEST_CASE("Test configuration parsing", "config") {
     SECTION("Checking system configuration") {
         CHECK(help_me == false);
         CHECK(strcmp(knobs.model, "DPM") == 0);
-        CHECK(max_cycles == 0);
-        CHECK(max_uops == 0);
     }
 
     SECTION("Checking general core configuration") {

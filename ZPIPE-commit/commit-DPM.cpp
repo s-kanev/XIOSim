@@ -621,37 +621,6 @@ void core_commit_DPM_t::step(void)
         stall_reason = CSTALL_PARTIAL;
       break; /* oldest Mop not done yet */
     }
-
-    /*****************/
-    /* finish early? */
-    /*****************/
-    if(core->current_thread->active)
-    {
-      if ( ( max_cycles && core->sim_cycle >= max_cycles ) ||
-           (max_insts && core->stat.commit_insn >= max_insts) ||
-           (max_uops && core->stat.commit_uops >= max_uops)  )
-      {
-        core->stat.final_sim_cycle = core->sim_cycle; /* make note of when this core stopped simulating */
-        if(max_cycles && core->sim_cycle >= max_cycles)
-          fprintf(stderr,"# Simulation cycle ");
-        else if(max_insts && max_uops)
-          fprintf(stderr,"# Committed instruction/uop ");
-        else if(max_insts)
-          fprintf(stderr,"# Committed instruction ");
-        else
-          fprintf(stderr,"# Committed uop ");
-        fprintf(stderr,"limit reached for core %d.\n",core->current_thread->id);
-
-        core->current_thread->active = false;
-        core->fetch->bpred->freeze_stats();
-        core->exec->freeze_stats();
-        cache_freeze_stats(core);
-        /* start this core over */
-
-        fatal("Per-thread limits not supported now");
-      }
-    }
-
   }
 
   ZESTO_STAT(stat_add_sample(core->stat.commit_stall, (int)stall_reason);)

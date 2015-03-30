@@ -281,9 +281,6 @@ void store_system_options(cfg_t *system_opt, core_knobs_t *knobs) {
   help_me = cfg_getbool(system_opt, "help");
   rand_seed = cfg_getint(system_opt, "seed");
   num_cores = cfg_getint(system_opt, "num_cores");
-  max_insts = cfg_getint(system_opt, "max_insts");
-  max_uops = cfg_getint(system_opt, "max_uops");
-  max_cycles = cfg_getint(system_opt, "max_cycles");
   heartbeat_frequency = cfg_getint(system_opt, "heartbeat_interval");
   knobs->model = cfg_getstr(system_opt, "pipeline_model");
   ztrace_filename = cfg_getstr(system_opt, "ztrace_file_prefix");

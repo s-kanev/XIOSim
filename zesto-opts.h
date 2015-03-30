@@ -85,10 +85,6 @@ extern FILE * ztrace_fp;
 
 #define ZESTO_STAT(x) {if(core->current_thread->active) {x}}
 
-/* maximum number of inst's to execute */
-extern long long max_insts;
-extern long long max_uops;
-extern long long max_cycles;
 extern int heartbeat_frequency;
 
 extern counter_t total_commit_insn;

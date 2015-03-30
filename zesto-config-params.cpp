@@ -18,9 +18,6 @@ cfg_opt_t system_cfg[] {
   CFG_BOOL("assert_spin", cfg_false, CFGF_NONE),
   CFG_INT("seed", 1, CFGF_NONE),
   CFG_INT("num_cores", 1, CFGF_NONE),
-  CFG_INT("max_insts", 0, CFGF_NONE),
-  CFG_INT("max_uops", 0, CFGF_NONE),
-  CFG_INT("max_cycles", 0, CFGF_NONE),
   CFG_INT("heartbeat_interval", 0, CFGF_NONE),
   CFG_STR("pipeline_model", "DPM", CFGF_NONE),  // Add callback
   CFG_STR("ztrace_file_prefix", "ztrace", CFGF_NONE),

@@ -17,13 +17,10 @@
 // Global configuration variables. This might become unnecessary if I move all
 // the functions into their original files.
 extern int num_cores;
-extern long long max_insts;
 extern int heartbeat_frequency;
 extern const char* ztrace_filename;
 extern bool simulate_power;
 
-extern long long int max_uops;
-extern long long int max_cycles;
 extern int rand_seed;
 extern bool help_me;
 #ifdef DEBUG

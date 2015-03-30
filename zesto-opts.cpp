@@ -94,10 +94,6 @@ const char * ztrace_filename = NULL;
 extern FILE* ztrace_fp[MAX_CORES+1];
 #endif
 
-/* maximum number of inst's/uop's to execute */
-long long max_insts = 0;
-long long max_uops = 0;
-long long max_cycles = 0;
 int heartbeat_frequency = 0;
 
 static bool ignored_flag = 0;
@@ -123,17 +119,6 @@ sim_reg_options(struct opt_odb_t *odb)
   opt_reg_int(odb, "-cores", "number of cores",
       &num_cores, /* default */1, /* print */true, /* format */NULL);
 
-  /* instruction limit */
-  opt_reg_long_long(odb, "-max:inst", "maximum number of inst's to execute",
-      &max_insts, /* default */0,
-      /* print */true, /* format */NULL);
-  opt_reg_long_long(odb, "-max:uops", "maximum number of uop's to execute",
-      &max_uops, /* default */0,
-      /* print */true, /* format */NULL);
-  opt_reg_long_long(odb, "-max:cycles", "maximum number of cycles to execute",
-      &max_cycles, /* default */0,
-
-      /* print */true, /* format */NULL);
   opt_reg_int(odb, "-heartbeat", "frequency for which to print out simulator heartbeat",
       &heartbeat_frequency, /* default */0,
       /* print */true, /* format */NULL);
@@ -174,12 +159,6 @@ sim_reg_options(struct opt_odb_t *odb)
 void
 sim_check_options(int argc, char **argv)
 {
-  if(max_uops && max_uops < max_insts)
-    warn("-max:uops is less than -max:inst, so -max:inst is useless");
-
-  if((max_uops || max_insts) && max_cycles)
-    warn("instruction/uop limit and cycle limit defined; will exit on whichever occurs first");
-
   if((num_cores < 1) || (num_cores > MAX_CORES))
     fatal("-cores must be between 1 and %d (inclusive)",MAX_CORES);
 
