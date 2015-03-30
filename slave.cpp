@@ -31,7 +31,6 @@
 #include "synchronization.h"
 
 #include "zesto-config.h"
-#include "zesto-opts.h"
 #include "zesto-core.h"
 #include "zesto-fetch.h"
 #include "zesto-oracle.h"
@@ -125,9 +124,6 @@ Zesto_SlaveInit(int argc, char **argv)
       srand(rand_seed);
     }
 
-  /* check simulator-specific options */
-  sim_check_options(argc, argv);
-
   /* initialize the instruction decoder */
   md_init_decoder();
 
@@ -136,11 +132,11 @@ Zesto_SlaveInit(int argc, char **argv)
 
   /* register all simulator stats */
   sim_sdb = stat_new();
-  sim_reg_stats(threads,sim_sdb);
+  sim_reg_stats(sim_sdb);
 
   /* stat database for power computation */
   rtp_sdb = stat_new();
-  sim_reg_stats(threads,rtp_sdb);
+  sim_reg_stats(rtp_sdb);
   stat_save_stats(rtp_sdb);
 
   /* record start of execution time, used in rate stats */

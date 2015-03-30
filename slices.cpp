@@ -16,7 +16,7 @@
 // FORTUNATELY WE ONLY SIMULATE SINGLE MULTICORE SLICES SO FAR.
 
 extern struct stat_sdb_t *sim_sdb;
-extern void sim_reg_stats(struct thread_t ** threads, struct stat_sdb_t *sdb);
+extern void sim_reg_stats(struct stat_sdb_t *sdb);
 extern void sim_print_stats(FILE *fd);
 
 extern const char *sim_simout;
@@ -42,7 +42,7 @@ void start_slice(unsigned int slice_num)
    struct stat_sdb_t* new_stat_db = stat_new();
 
    /* register new database with stat counters */
-   sim_reg_stats(threads, new_stat_db);
+   sim_reg_stats(new_stat_db);
 
    all_stats.push_back(new_stat_db);
 
@@ -135,7 +135,7 @@ void scale_all_slices(void)
    struct stat_sdb_t* avg_stat_db = stat_new();
 
    /* register new database with stat counters */
-   sim_reg_stats(threads, avg_stat_db);
+   sim_reg_stats(avg_stat_db);
 
    /* ... and set it as the default that gets output */
    sim_sdb = avg_stat_db;

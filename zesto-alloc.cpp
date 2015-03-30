@@ -78,7 +78,6 @@
 #include "thread.h"
 
 #include "zesto-core.h"
-#include "zesto-opts.h"
 #include "zesto-oracle.h"
 #include "zesto-decode.h"
 #include "zesto-alloc.h"

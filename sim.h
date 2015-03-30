@@ -63,9 +63,6 @@
 /* execution start/end times */
 extern int sim_elapsed_time;
 
-/* options database */
-extern struct opt_odb_t *sim_odb;
-
 /* stats database */
 extern struct stat_sdb_t *sim_sdb;
 
@@ -80,8 +77,8 @@ extern bool assert_spin;
 
 /* main() parses options next... */
 
-/* register simulator-specific statistics */
-void sim_reg_stats(struct thread_t ** cores, struct stat_sdb_t *sdb);
+/* register simulation statistics */
+void sim_reg_stats(struct stat_sdb_t *sdb);
 
 /* initialize the simulator: pre_init gets called before command-line
    argument parsing, post_init gets called after. */

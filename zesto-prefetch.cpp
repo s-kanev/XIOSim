@@ -77,7 +77,6 @@
 #include "sim.h"
 #include "stats.h"
 #include "valcheck.h"
-#include "zesto-opts.h"
 #include "zesto-core.h"
 #include "zesto-bpred.h"
 #include "zesto-cache.h"

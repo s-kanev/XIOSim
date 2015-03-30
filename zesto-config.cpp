@@ -280,6 +280,8 @@ void store_system_options(cfg_t *system_opt, core_knobs_t *knobs) {
   assert_spin = cfg_getbool(system_opt, "assert_spin");
   rand_seed = cfg_getint(system_opt, "seed");
   num_cores = cfg_getint(system_opt, "num_cores");
+  if((num_cores < 1) || (num_cores > MAX_CORES))
+    fatal("-cores must be between 1 and %d (inclusive)", MAX_CORES);
   heartbeat_frequency = cfg_getint(system_opt, "heartbeat_interval");
   knobs->model = cfg_getstr(system_opt, "pipeline_model");
   ztrace_filename = cfg_getstr(system_opt, "ztrace_file_prefix");

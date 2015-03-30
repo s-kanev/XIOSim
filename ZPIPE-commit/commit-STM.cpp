@@ -280,11 +280,9 @@ void core_commit_STM_t::step(void)
         /* Update stats */
         if(Mop->uop[Mop->decode.last_uop_index].decode.EOM)
         {
-          total_commit_insn ++;
           ZESTO_STAT(core->stat.commit_insn++;)
         }
 
-        total_commit_uops += Mop->stat.num_uops;
         ZESTO_STAT(core->stat.commit_uops += Mop->stat.num_uops;)
         ZESTO_STAT(core->stat.commit_refs += Mop->stat.num_refs;)
         ZESTO_STAT(core->stat.commit_loads += Mop->stat.num_loads;)

@@ -81,7 +81,6 @@
 #include "zesto-noc.h"
 #include "zesto-repeater.h"
 #include "zesto-core.h"
-#include "zesto-opts.h"
 #include "zesto-oracle.h"
 #include "zesto-alloc.h"
 #include "zesto-fetch.h"

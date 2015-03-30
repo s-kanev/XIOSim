@@ -80,7 +80,6 @@
 #include "synchronization.h"
 
 #include "zesto-core.h"
-#include "zesto-opts.h"
 #include "zesto-oracle.h"
 #include "zesto-fetch.h"
 #include "zesto-decode.h"

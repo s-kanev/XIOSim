@@ -138,6 +138,9 @@
 
 #include "zesto-structs.h"
 
+#include "stats.h"
+#define ZESTO_STAT(x) {if(core->current_thread->active) {x}}
+
 /* state for the processor microarchitecture (per core) */
 class core_t {
 
@@ -368,6 +371,8 @@ class core_t {
 
   static void zero_uop(struct uop_t * const uop);
   static void zero_Mop(struct Mop_t * const Mop);
+
+  void reg_stats(struct stat_sdb_t *sdb);
 
   protected:
 

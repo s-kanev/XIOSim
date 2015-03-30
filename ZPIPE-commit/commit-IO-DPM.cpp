@@ -559,7 +559,6 @@ void core_commit_IO_DPM_t::IO_step(void)
         /* Update stats */
         if(Mop->uop[Mop->decode.last_uop_index].decode.EOM)
         {
-          total_commit_insn ++;
           ZESTO_STAT(core->stat.commit_insn++;)
           ZESTO_STAT(core->stat.commit_bytes += Mop->fetch.inst.len;)
         }
@@ -567,8 +566,6 @@ void core_commit_IO_DPM_t::IO_step(void)
         if(Mop->decode.is_ctrl)
           branches_committed++;
 
-        total_commit_uops += Mop->stat.num_uops;
-        total_commit_eff_uops += Mop->stat.num_eff_uops;
         ZESTO_STAT(core->stat.commit_uops += Mop->stat.num_uops;)
         ZESTO_STAT(core->stat.commit_eff_uops += Mop->stat.num_eff_uops;)
         ZESTO_STAT(core->stat.commit_branches += Mop->stat.num_branches;)

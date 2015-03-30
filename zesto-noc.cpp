@@ -1,6 +1,5 @@
 #include "thread.h"
 
-#include "zesto-opts.h"
 #include "zesto-core.h"
 #include "zesto-noc.h"
 

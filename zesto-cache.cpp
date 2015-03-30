@@ -78,7 +78,6 @@
 #include "thread.h"
 #include "stats.h"
 #include "zesto-core.h"
-#include "zesto-opts.h"
 #include "zesto-cache.h"
 #include "zesto-prefetch.h"
 #include "zesto-dram.h"

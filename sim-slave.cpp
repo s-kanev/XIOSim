@@ -96,7 +96,6 @@
 
 #include "zesto-cache.h"
 #include "zesto-repeater.h"
-#include "zesto-opts.h"
 #include "zesto-core.h"
 #include "zesto-fetch.h"
 #include "zesto-oracle.h"
@@ -142,6 +141,8 @@ int min_coreID;
 
 /* Time between synchronizing a core and global state */
 double sync_interval;
+
+int heartbeat_frequency = 0;
 
 int heartbeat_count = 0;
 int deadlock_count = 0;
@@ -343,6 +344,126 @@ sim_post_init(void)
   sync_interval = MIN(1e-3 / LLC_speed, 1e-3 / cores[0]->memory.mem_repeater->speed);
 
   min_coreID = 0;
+}
+
+/* register simulation statistics */
+void sim_reg_stats(struct stat_sdb_t *sdb)
+{
+  int i;
+  char buf[1024];
+  char buf2[1024];
+  bool is_DPM = strcasecmp(knobs.model,"STM") != 0;
+
+  /* per core stats */
+  for(i=0;i<num_cores;i++)
+    cores[i]->reg_stats(sdb);
+
+  uncore_reg_stats(sdb);
+  mem_reg_stats(sdb);
+
+  stat_reg_note(sdb,"\n#### SIMULATOR PERFORMANCE STATS ####");
+  stat_reg_qword(sdb, true, "sim_cycle", "total simulation cycles (CPU cycles assuming default freq)", (qword_t*)&uncore->default_cpu_cycles, 0, TRUE, NULL);
+  stat_reg_double(sdb, true, "sim_time", "total simulated time (us)", &uncore->sim_time, 0.0, TRUE, NULL);
+  stat_reg_int(sdb, true, "sim_elapsed_time", "total simulation time in seconds", &sim_elapsed_time, 0, TRUE, NULL);
+  stat_reg_formula(sdb, true, "sim_cycle_rate", "simulation speed (in Mcycles/sec)", "sim_cycle / (sim_elapsed_time * 1000000.0)", NULL);
+  /* Make formula to add num_insn from all archs */
+  strcpy(buf2,"");
+  for(i=0;i<num_cores;i++)
+  {
+    if(i==0)
+      sprintf(buf,"c%d.commit_insn",i);
+    else
+      sprintf(buf," + c%d.commit_insn",i);
+
+    strcat(buf2,buf);
+  }
+  stat_reg_formula(sdb, true, "all_insn", "total insts simulated for all cores", buf2, "%12.0f");
+  stat_reg_formula(sdb, true, "sim_inst_rate", "simulation speed (in MIPS)", "all_insn / (sim_elapsed_time * 1000000.0)", NULL);
+
+  /* Make formula to add num_uops from all archs */
+  strcpy(buf2,"");
+  for(i=0;i<num_cores;i++)
+  {
+    if(i==0)
+      sprintf(buf,"c%d.commit_uops",i);
+    else
+      sprintf(buf," + c%d.commit_uops",i);
+
+    strcat(buf2,buf);
+  }
+  stat_reg_formula(sdb, true, "all_uops", "total uops simulated for all cores", buf2, "%12.0f");
+  stat_reg_formula(sdb, true, "sim_uop_rate", "simulation speed (in MuPS)", "all_uops / (sim_elapsed_time * 1000000.0)", NULL);
+
+  /* Make formula to add num_eff_uops from all archs */
+  if(is_DPM)
+  {
+    strcpy(buf2,"");
+    for(i=0;i<num_cores;i++)
+    {
+      if(i==0)
+        sprintf(buf,"c%d.commit_eff_uops",i);
+      else
+        sprintf(buf," + c%d.commit_eff_uops",i);
+
+      strcat(buf2,buf);
+    }
+    stat_reg_formula(sdb, true, "all_eff_uops", "total effective uops simulated for all cores", buf2, "%12.0f");
+    stat_reg_formula(sdb, true, "sim_eff_uop_rate", "simulation speed (in MeuPS)", "all_eff_uops / (sim_elapsed_time * 1000000.0)", NULL);
+  }
+
+  if(num_cores == 1) /* single-thread */
+  {
+    sprintf(buf,"c0.commit_IPC");
+    stat_reg_formula(sdb, true, "total_IPC", "final commit IPC", buf, NULL);
+  }
+  else
+  {
+    /* Geometric Means */
+    strcpy(buf2,"^((");
+    for(i=0;i<num_cores;i++)
+    {
+      if(i==0)
+        sprintf(buf,"(!c%d.commit_IPC)",i);
+      else
+        sprintf(buf," + (!c%d.commit_IPC)",i);
+
+      strcat(buf2,buf);
+    }
+    sprintf(buf," )/%d.0)",num_cores);
+    strcat(buf2,buf);
+    stat_reg_formula(sdb, true, "GM_IPC", "geometric mean IPC across all cores", buf2, NULL);
+
+    strcpy(buf2,"^((");
+    for(i=0;i<num_cores;i++)
+    {
+      if(i==0)
+        sprintf(buf,"(!c%d.commit_uPC)",i);
+      else
+        sprintf(buf," + (!c%d.commit_uPC)",i);
+
+      strcat(buf2,buf);
+    }
+    sprintf(buf," )/%d.0)",num_cores);
+    strcat(buf2,buf);
+    stat_reg_formula(sdb, true, "GM_uPC", "geometric mean uPC across all cores", buf2, NULL);
+
+    if(is_DPM)
+    {
+      strcpy(buf2,"^((");
+      for(i=0;i<num_cores;i++)
+      {
+        if(i==0)
+          sprintf(buf,"(!c%d.commit_euPC)",i);
+        else
+          sprintf(buf," + (!c%d.commit_euPC)",i);
+
+        strcat(buf2,buf);
+      }
+      sprintf(buf," )/%d.0)",num_cores);
+      strcat(buf2,buf);
+      stat_reg_formula(sdb, true, "GM_euPC", "geometric mean euPC across all cores", buf2, NULL);
+    }
+  }
 }
 
 //Returns true if another instruction can be fetched in the same cycle

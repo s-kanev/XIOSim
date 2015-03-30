@@ -95,9 +95,6 @@
 /* execution start/end times */
 int sim_elapsed_time;
 
-/* options database */
-struct opt_odb_t *sim_odb;
-
 /* stats database */
 struct stat_sdb_t *sim_sdb;
 struct stat_sdb_t *rtp_sdb;

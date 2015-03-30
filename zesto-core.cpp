@@ -77,6 +77,13 @@
 #include "zesto-core.h"
 #include "synchronization.h"
 
+#include "zesto-oracle.h"
+#include "zesto-fetch.h"
+#include "zesto-decode.h"
+#include "zesto-alloc.h"
+#include "zesto-exec.h"
+#include "zesto-commit.h"
+
 seq_t core_t::global_seq = 0;
 
 
@@ -299,3 +306,12 @@ void core_t::uop_init(struct uop_t * const uop)
   uop->exec.when_addr_translated = TICK_T_MAX;
 }
 
+void core_t::reg_stats(struct stat_sdb_t *sdb)
+{
+  oracle->reg_stats(sdb);
+  fetch->reg_stats(sdb);
+  decode->reg_stats(sdb);
+  alloc->reg_stats(sdb);
+  exec->reg_stats(sdb);
+  commit->reg_stats(sdb);
+}
