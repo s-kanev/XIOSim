@@ -129,8 +129,8 @@ void store_exec_stage_options(cfg_t *exec_opt, core_knobs_t *knobs) {
   cfg_t *dcache_opt = cfg_getsec(exec_opt, "dcache_cfg");
   cfg_t *l2_opt = cfg_getsec(exec_opt, "l2cache_cfg");
   cfg_t *dtlb_opt = cfg_getsec(dcache_opt, "dtlb_cfg");
+  cfg_t *d2tlb_opt = cfg_getsec(dcache_opt, "d2tlb_cfg");
   cfg_t *dpf_opt = cfg_getsec(dcache_opt, "dprefetch_cfg");
-  cfg_t *l2tlb_opt = cfg_getsec(l2_opt, "l2tlb_cfg");
   cfg_t *l2pf_opt = cfg_getsec(l2_opt, "l2prefetch_cfg");
   cfg_t *repeater_opt = cfg_getsec(exec_opt, "repeater_cfg");
 
@@ -187,9 +187,9 @@ void store_exec_stage_options(cfg_t *exec_opt, core_knobs_t *knobs) {
   knobs->memory.DTLB_opt_str = cfg_getstr(dtlb_opt, "config");
   knobs->memory.DTLB_controller_opt_str =
       cfg_getstr(dtlb_opt, "coherency_controller");
-  knobs->memory.DTLB2_opt_str = cfg_getstr(l2tlb_opt, "config");
+  knobs->memory.DTLB2_opt_str = cfg_getstr(d2tlb_opt, "config");
   knobs->memory.DTLB2_controller_opt_str =
-      cfg_getstr(l2tlb_opt, "coherency_controller");
+      cfg_getstr(d2tlb_opt, "coherency_controller");
 
   knobs->exec.repeater_opt_str = cfg_getstr(repeater_opt, "config");
   knobs->memory.DL1_rep_req = cfg_getbool(repeater_opt, "request_dl1");

@@ -85,6 +85,11 @@ cfg_opt_t dtlb_cfg[] {
   CFG_STR("coherency_controller", "none", CFGF_NONE)
 };
 
+cfg_opt_t d2tlb_cfg[] {
+  CFG_STR("config", "none", CFGF_NONE),
+  CFG_STR("coherency_controller", "none", CFGF_NONE)
+};
+
 cfg_opt_t dcache_cfg[] {
   CFG_STR("config", "DL1:64:8:64:8:64:2:L:W:T:8:C", CFGF_NONE),
   CFG_STR("coherency_controller", "none", CFGF_NONE),  // CB
@@ -93,6 +98,7 @@ cfg_opt_t dcache_cfg[] {
   CFG_FLOAT("clock", 0, CFGF_NONE),
   CFG_SEC("dprefetch_cfg", dprefetch_cfg, CFGF_TITLE),
   CFG_SEC("dtlb_cfg", dtlb_cfg, CFGF_TITLE),
+  CFG_SEC("d2tlb_cfg", d2tlb_cfg, CFGF_TITLE),
   CFG_END()
 };
 
@@ -114,11 +120,6 @@ cfg_opt_t l2prefetch_cfg[] {
   CFG_END()
 };
 
-cfg_opt_t l2tlb_cfg[] {
-  CFG_STR("config", "none", CFGF_NONE),
-  CFG_STR("coherency_controller", "none", CFGF_NONE)
-};
-
 cfg_opt_t l2cache_cfg[] {
   CFG_STR("config", "DL2:512:8:64:8:64:9:L:W:T:8:C", CFGF_NONE),
   CFG_STR("coherency_controller", "none", CFGF_NONE),  // CB
@@ -126,7 +127,6 @@ cfg_opt_t l2cache_cfg[] {
   CFG_STR("mshr_cmd", "RPWB", CFGF_NONE),
   CFG_FLOAT("clock", 0, CFGF_NONE),
   CFG_SEC("l2prefetch_cfg", l2prefetch_cfg, CFGF_TITLE),
-  CFG_SEC("l2tlb_cfg", l2tlb_cfg, CFGF_TITLE),
   CFG_END()
 };
 
@@ -148,11 +148,6 @@ cfg_opt_t llcprefetch_cfg[] {
   CFG_END()
 };
 
-cfg_opt_t llctlb_cfg[] {
-  CFG_STR("config", "none", CFGF_NONE),
-  CFG_STR("coherency_controller", "none", CFGF_NONE)
-};
-
 cfg_opt_t llccache_cfg[] {
   CFG_STR("config", "LLC:2048:16:64:16:64:12:L:W:B:8:1:8:C", CFGF_NONE),
   CFG_STR("coherency_controller", "none", CFGF_NONE),  // CB
@@ -160,7 +155,6 @@ cfg_opt_t llccache_cfg[] {
   CFG_FLOAT("magic_hit_rate", -1.0, CFGF_NONE),
   CFG_FLOAT("clock", 800.0, CFGF_NONE),
   CFG_SEC("llcprefetch_cfg", llcprefetch_cfg, CFGF_TITLE),
-  CFG_SEC("llctlb_cfg", llctlb_cfg, CFGF_TITLE),
   CFG_END()
 };
 
