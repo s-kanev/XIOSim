@@ -763,7 +763,7 @@ bool core_fetch_DPM_t::do_fetch(void)
   /* advance the fetch PC to the next instruction */
   PC = Mop->fetch.pred_NPC;
 
-  ZPIN_TRACE(core->id, "After bpred. PC: %x, oracle.NPC: %x, spec: %d, nuked_Mops: %d\n", PC, Mop->oracle.NextPC, core->oracle->spec_mode, core->oracle->num_Mops_before_feeder());
+  ZTRACE_PRINT(core->id, "After bpred. PC: %x, oracle.NPC: %x, spec: %d, nuked_Mops: %d\n", PC, Mop->oracle.NextPC, core->oracle->spec_mode, core->oracle->num_Mops_before_feeder());
 
   if(Mop->oracle.taken_branch)
   {

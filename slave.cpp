@@ -254,7 +254,7 @@ void Zesto_Destroy()
   /* If captured, print out ztrace */
   for (int i=0; i<num_cores; i++)
     cores[i]->oracle->trace_in_flight_ops();
-  flush_trace();
+  ztrace_flush();
 
   for(int i=0; i<num_cores; i++)
     if(cores[i]->stat.oracle_unknown_insn / (double) cores[i]->stat.oracle_total_insn > 0.02)
@@ -269,7 +269,7 @@ void Zesto_Destroy()
 void deactivate_core(int coreID)
 {
   assert(coreID >= 0 && coreID < num_cores);
-  ZPIN_TRACE(coreID, "deactivate %d\n", coreID);
+  ZTRACE_PRINT(coreID, "deactivate %d\n", coreID);
   lk_lock(&cycle_lock, coreID+1);
   cores[coreID]->current_thread->active = false;
   cores[coreID]->current_thread->last_active_cycle = cores[coreID]->sim_cycle;
@@ -287,7 +287,7 @@ void deactivate_core(int coreID)
 void activate_core(int coreID)
 {
   assert(coreID >= 0 && coreID < num_cores);
-  ZPIN_TRACE(coreID, "activate %d\n", coreID);
+  ZTRACE_PRINT(coreID, "activate %d\n", coreID);
   lk_lock(&cycle_lock, coreID+1);
   cores[coreID]->current_thread->finished_cycle = false; // Make sure master core will wait
   cores[coreID]->exec->update_last_completed(cores[coreID]->sim_cycle);
@@ -387,7 +387,7 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake)
 
    thread->fetches_since_feeder = 0;
    md_addr_t NPC = handshake->flags.brtaken ? handshake->handshake.tpc : handshake->handshake.npc;
-   ZPIN_TRACE(coreID, "PIN -> PC: %x, NPC: %x \n", handshake->handshake.pc, NPC);
+   ZTRACE_PRINT(coreID, "PIN -> PC: %x, NPC: %x \n", handshake->handshake.pc, NPC);
 
    // The handshake can be recycled now
    ReleaseHandshake(coreID);
@@ -439,7 +439,7 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake)
          //Nuke recovery instruction is a mispredicted branch
          if(core->fetch->PC != NPC || thread->regs.regs_NPC != NPC)
          {
-            ZPIN_TRACE(coreID, "Going from nuke loop to spec loop. PC: %x\n",core->fetch->PC);
+            ZTRACE_PRINT(coreID, "Going from nuke loop to spec loop. PC: %x\n",core->fetch->PC);
             thread->consumed = false;
             continue;
          }
@@ -498,7 +498,7 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake)
          /* After recovering from spec, nuke -> go to nuke recovery loop */
          if(!spec && core->oracle->num_Mops_before_feeder() > 0)
          {
-            ZPIN_TRACE(coreID, "Going from spec loop to nuke loop. PC: %x\n",core->fetch->PC);
+            ZTRACE_PRINT(coreID, "Going from spec loop to nuke loop. PC: %x\n",core->fetch->PC);
             break;
          }
 

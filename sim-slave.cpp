@@ -287,6 +287,9 @@ sim_post_init(void)
   if(!threads)
     fatal("failed to calloc threads");
 
+  /* Initialize tracing */
+  ztrace_init();
+
   /* Initialize virtual memory */
   mem_init(*num_processes);
 
@@ -398,7 +401,7 @@ static void global_step(void)
         deadlock_count = 0;
       }
 
-      ZPIN_TRACE(INVALID_CORE, "###Uncore cycle%s\n"," ");
+      ZTRACE_PRINT(INVALID_CORE, "###Uncore cycle%s\n"," ");
 
       if(uncore->sim_cycle == 0)
         fprintf(stderr, "### starting timing simulation \n");
@@ -535,7 +538,7 @@ master_core:
         /* All cores got deactivated, just return and make sure we 
          * go back to PIN */
         if (min_coreID == MAX_CORES) {
-          ZPIN_TRACE(min_coreID, "Returning from step loop looking suspicious %d", coreID);
+          ZTRACE_PRINT(min_coreID, "Returning from step loop looking suspicious %d", coreID);
           cores[coreID]->current_thread->consumed = true;
           lk_unlock(&cycle_lock);
           return;

@@ -14,6 +14,7 @@
 #include "stats.h"
 #include "memory.h"
 #include "synchronization.h"
+#include "ztrace.h"
 
 /* VPN to PPN hash map. Note: these are page numbers, not addresses. */
 typedef std::unordered_map<md_addr_t, md_paddr_t> page_table_t;
@@ -43,7 +44,7 @@ void mem_init(int num_processes)
 static md_paddr_t next_ppn_to_allocate = 0x00000100; /* arbitrary starting point; */ 
 void mem_newmap(int asid, md_addr_t addr, size_t length)
 {
-    ZPIN_TRACE(INVALID_CORE, "mem_newmap: %d, %x, length: %x\n", asid, addr, length);
+    ZTRACE_PRINT(INVALID_CORE, "mem_newmap: %d, %x, length: %x\n", asid, addr, length);
 
     assert(asid >= 0 && asid < num_address_spaces);
     assert(addr != 0); // Mapping 0-th page might cause hell to break loose, don't do it.
@@ -72,7 +73,7 @@ void mem_newmap(int asid, md_addr_t addr, size_t length)
 
 void mem_delmap(int asid, md_addr_t addr, size_t length)
 {
-    ZPIN_TRACE(INVALID_CORE, "mem_delmap: %d, %x, length: %x\n", asid, addr, length);
+    ZTRACE_PRINT(INVALID_CORE, "mem_delmap: %d, %x, length: %x\n", asid, addr, length);
 
     assert(asid >= 0 && asid < num_address_spaces);
 

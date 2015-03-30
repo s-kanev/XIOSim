@@ -75,6 +75,8 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
+#include "ztrace.h"
+
 /* used when passing an MSHR index into the cache functions, but for
    whatever reason there's no corresponding MSHR entry */
 #define NO_MSHR (-1)

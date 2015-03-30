@@ -138,15 +138,6 @@
 bool debugging = false;
 #endif /* DEBUG */
 
-#ifdef ZESTO_PIN_DBG
-#define MAX_TRACEBUFF_ITEMS 300000
-static char tracebuff[MAX_CORES+1][MAX_TRACEBUFF_ITEMS][255];
-static int tracebuff_head[MAX_CORES+1];
-static int tracebuff_tail[MAX_CORES+1];
-static int tracebuff_occupancy[MAX_CORES+1];
-
-FILE* ztrace_fp[MAX_CORES+1];
-#endif
 
 /* fatal function hook, this function is called just before an exit
    caused by a fatal error, used to spew stats, etc. */
@@ -221,60 +212,6 @@ _debug(const char *file, const char *func, const int line, const char *fmt, ...)
     fflush(stderr);
 }
 #endif /* DEBUG */
-
-#ifdef ZESTO_PIN_DBG
-void trace(const int coreID, const char *fmt, ...)
-{
-  va_list v;
-  va_start(v, fmt);
-
-  vtrace(coreID, fmt, v);
-}
-
-void vtrace(const int coreID, const char *fmt, va_list v)
-{
-  int trace_id = (coreID == INVALID_CORE) ? num_cores : coreID;
-
-  vsprintf(tracebuff[trace_id][tracebuff_tail[trace_id]], fmt, v);
-
-  tracebuff_tail[trace_id] = modinc(tracebuff_tail[trace_id], MAX_TRACEBUFF_ITEMS);
-  if(tracebuff_occupancy[trace_id] == MAX_TRACEBUFF_ITEMS)
-    tracebuff_head[trace_id] = modinc(tracebuff_head[trace_id], MAX_TRACEBUFF_ITEMS);
-  else
-    tracebuff_occupancy[trace_id]++;
-}
-
-void flush_trace()
-{
-  for (int i=0; i < num_cores+1; i++) {
-    if(tracebuff_occupancy[i] == 0)
-      continue;
-
-    FILE* fp = ztrace_fp[i];
-    if(fp == NULL)
-      continue;
-
-    fprintf(fp, "==============================\n");
-    fprintf(fp, "BEGIN TRACE (%d items)\n", tracebuff_occupancy[i]);
-
-    int j = tracebuff_head[i];
-    do
-    {
-      fprintf(fp, "%s", tracebuff[i][j]);
-      j = modinc(j, MAX_TRACEBUFF_ITEMS);
-    } while(j != tracebuff_tail[i]);
-
-    fprintf(fp, "END TRACE\n");
-    fprintf(fp, "==============================\n");
-    fflush(fp);
-    tracebuff_occupancy[i] = 0;
-    tracebuff_head[i] = tracebuff_tail[i];
-  }
-}
-#else
-// Assert macros rely that this is defined.
-void flush_trace() {}
-#endif
 
 /* return log of a number to the base 2 */
 int

@@ -157,19 +157,6 @@ extern "C" {
 extern bool debugging;
 #endif /* DEBUG */
 
-//Keeps a circular trace buffer of last few thousand trace lines
-//Useful when debugging long traces that don't fit hard drive
-extern void flush_trace();
-#ifdef ZESTO_PIN_DBG
-extern void vtrace(const int coreID, const char *fmt, va_list v);
-extern void trace(const int coreID, const char *fmt, ...)
-    __attribute__ ((format (printf, 2, 3)));
-#define ZPIN_TRACE(coreID, fmt, ...) \
-  trace(coreID, fmt, ## __VA_ARGS__)
-#else
-#define ZPIN_TRACE(coreID, fmt, ...)
-#endif
-
 /* register a function to be called when an error is detected */
 void
 fatal_hook(void (*hook_fn)(FILE *stream));	/* fatal hook function */

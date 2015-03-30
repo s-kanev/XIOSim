@@ -368,7 +368,7 @@ struct spec_byte_t * core_oracle_t::spec_write_byte(
     spec_mem_map.hash[index].head = p;
 
 
-  ZPIN_TRACE(core->id, "Write to specQ at 0x%x, val: %x, spec_mode: %d\n", addr, val, uop->Mop->oracle.spec_mode);
+  ZTRACE_PRINT(core->id, "Write to specQ at 0x%x, val: %x, spec_mode: %d\n", addr, val, uop->Mop->oracle.spec_mode);
 
   p->val = val;
   p->addr = addr;
@@ -417,7 +417,7 @@ bool core_oracle_t::spec_read_byte(
  */
 uint8_t core_oracle_t::spec_do_read_byte(const md_addr_t addr, const struct Mop_t* Mop)
 {
-  ZPIN_TRACE(core->id, "Read at addr 0x%x", addr);
+  ZTRACE_PRINT(core->id, "Read at addr 0x%x", addr);
 
   uint8_t res = 0;
 
@@ -455,7 +455,7 @@ uint8_t core_oracle_t::spec_do_read_byte(const md_addr_t addr, const struct Mop_
   res = 0;
 
 done:
-  ZPIN_TRACE(core->id, " returns 0x%x\n", res);
+  ZTRACE_PRINT(core->id, " returns 0x%x\n", res);
   return res;
 }
 
@@ -1278,7 +1278,7 @@ core_oracle_t::exec(const md_addr_t requested_PC)
     /* If we can't handle isntruction, at least set NPC correctly, so that we don't corrupt fetch sequence */
     if(Mop->decode.op == NOP && !Mop->oracle.spec_mode)
     {  
-       ZPIN_TRACE(core->id, "XXX: Ignoring unknown instruction at pc: %x\n", thread->regs.regs_PC);
+       ZTRACE_PRINT(core->id, "XXX: Ignoring unknown instruction at pc: %x\n", thread->regs.regs_PC);
        ZESTO_STAT(core->stat.oracle_unknown_insn++;)
        Mop->uop[Mop->decode.last_uop_index].decode.EOM = true;
        thread->rep_sequence = 0;
@@ -1491,7 +1491,7 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
   std::stack<struct uop_t *> to_delete;
   int idx = moddec(MopQ_tail,MopQ_size); //(MopQ_tail-1+MopQ_size) % MopQ_size;
 
-  ZPIN_TRACE(core->id, "Recovery at MopQ_num: %d; shadow_MopQ_num: %d\n", MopQ_num, shadow_MopQ->size());
+  ZTRACE_PRINT(core->id, "Recovery at MopQ_num: %d; shadow_MopQ_num: %d\n", MopQ_num, shadow_MopQ->size());
 
   while(Mop != &MopQ[idx])
   {
@@ -1501,7 +1501,7 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
     /* Flush not caused by branch misprediction - nuke */
     bool nuke = /*!spec_mode &&*/ !MopQ[idx].oracle.spec_mode;
 
-    ZPIN_TRACE(core->id, "Undoing Mop @ PC: %x, nuke: %d, num_Mops_nuked: %d\n", MopQ[idx].fetch.PC, nuke, num_Mops_before_feeder());
+    ZTRACE_PRINT(core->id, "Undoing Mop @ PC: %x, nuke: %d, num_Mops_nuked: %d\n", MopQ[idx].fetch.PC, nuke, num_Mops_before_feeder());
 
     undo(&MopQ[idx], nuke);
     MopQ[idx].valid = false;
@@ -1531,7 +1531,7 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
   core->current_thread->regs.regs_PC = Mop->fetch.PC;
   core->current_thread->regs.regs_NPC = Mop->oracle.NextPC;
 
-  ZPIN_TRACE(core->id, "Recovering to fetchPC: %x; nuked_Mops: %d, rep_seq: %d \n", Mop->fetch.PC, num_Mops_before_feeder(), core->current_thread->rep_sequence);
+  ZTRACE_PRINT(core->id, "Recovering to fetchPC: %x; nuked_Mops: %d, rep_seq: %d \n", Mop->fetch.PC, num_Mops_before_feeder(), core->current_thread->rep_sequence);
 
   spec_mode = Mop->oracle.spec_mode;
 
@@ -1732,7 +1732,7 @@ void core_oracle_t::grab_feeder_state(handshake_container_t * handshake, bool al
   if(check_pc_mismatch && core->fetch->PC != handshake->handshake.pc)
   {
     if (handshake->flags.real && !core->fetch->prev_insn_fake) {
-      ZPIN_TRACE(core->id, "PIN->PC (0x%x) different from fetch->PC (0x%x). Overwriting with Pin value!\n", handshake->handshake.pc, core->fetch->PC);
+      ZTRACE_PRINT(core->id, "PIN->PC (0x%x) different from fetch->PC (0x%x). Overwriting with Pin value!\n", handshake->handshake.pc, core->fetch->PC);
       //       info("PIN->PC (0x%x) different from fetch->PC (0x%x). Overwriting with Pin value!\n", handshake->pc, core->fetch->PC);
     }
     core->fetch->PC = handshake->handshake.pc;
@@ -2170,7 +2170,7 @@ void core_oracle_t::squash_write_byte(struct spec_byte_t * const p)
   const int index = p->addr & MEM_HASH_MASK;
   assert(spec_mem_map.hash[index].tail == p);
 
-  ZPIN_TRACE(core->id, "Squashing spec mem write at addr: %x, val: %x\n", p->addr, p->val);
+  ZTRACE_PRINT(core->id, "Squashing spec mem write at addr: %x, val: %x\n", p->addr, p->val);
 
   if(p->prev)
     p->prev->next = NULL;

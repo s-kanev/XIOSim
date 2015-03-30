@@ -137,6 +137,7 @@
 
 #include "buffer.h"
 #include "zesto-cache.h"
+#include "ztrace.h"
 
 /* The following macros are used to pretty similarly to regular fatal and assert
    calls, with the exception that when *not* in DEBUG mode, the failure does not
@@ -172,7 +173,7 @@ extern bool assert_spin;
     fflush(stderr); \
     for (int __i=0; __i < num_cores; __i++) \
       cores[__i]->oracle->trace_in_flight_ops(); \
-    flush_trace(); \
+    ztrace_flush(); \
     if (assert_spin) \
       while(1); \
     exit(6); \

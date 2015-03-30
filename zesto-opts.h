@@ -77,11 +77,6 @@
 
 #include "stats.h"
 
-#if defined(ZTRACE) && !defined(ZESTO_PIN_DBG)
-#include <stdio.h>
-extern FILE * ztrace_fp;
-#endif
-
 #define ZESTO_STAT(x) {if(core->current_thread->active) {x}}
 
 extern int heartbeat_frequency;
@@ -94,22 +89,5 @@ extern counter_t total_commit_eff_uops;
 void sim_check_options(int argc, char **argv);
 
 extern int sim_elapsed_time;
-
-#ifdef ZTRACE
-void ztrace_print(const struct Mop_t * Mop);
-void ztrace_Mop_timing(const struct Mop_t * Mop);
-void ztrace_print(const struct Mop_t * Mop, const char * fmt, ... );
-void ztrace_print(const struct uop_t * uop, const char * fmt, ... );
-void ztrace_print(const int coreID, const char * fmt, ... );
-
-// used to print out one line in the log, but broken up over multiple commands
-void ztrace_print_start(const struct uop_t * uop, const char * fmt, ... );
-void ztrace_print_cont(const int coreID, const char * fmt, ... );
-void ztrace_print_finish(const int coreID, const char * fmt, ... );
-
-void ztrace_uop_ID(const struct uop_t * uop);
-void ztrace_uop_alloc(const struct uop_t * uop);
-void ztrace_uop_timing(const struct uop_t * uop);
-#endif
 
 #endif /* ZESTO_OPTS_INCLUDED */
