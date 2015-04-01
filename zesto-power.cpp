@@ -391,7 +391,10 @@ void core_power_t::translate_stats(struct stat_sdb_t* sdb, system_core *core_sta
 
   struct core_knobs_t* knobs = core->knobs;
   (void) L2_stats;
-  core_stats->vdd = 1.0;
+  //XXX: Ignore McPAT's DVFS calculation for now. We do our own scaling in
+  // compute_power(). That is, until we can validate that McPAT is doing
+  // more or less the right thing.
+  core_stats->vdd = core_power_t::default_vdd;
 
   stat = stat_find_core_stat(sdb, coreID, "oracle_total_uops");
   core_stats->total_instructions = stat->variant.for_sqword.end_val;
@@ -413,7 +416,7 @@ void core_power_t::translate_stats(struct stat_sdb_t* sdb, system_core *core_sta
 
   // get average frequency for this period
   stat = stat_find_stat(sdb, "sim_cycle");
-  core_stats->clock_rate = (int) ceil(stat->variant.for_sqword.end_val * knobs->default_cpu_speed / (double) core_stats->total_cycles);
+  core_stats->clock_rate = (int) ceil(core_stats->total_cycles * knobs->default_cpu_speed / (double) stat->variant.for_sqword.end_val);
 
   core_stats->idle_cycles = 0;
   core_stats->busy_cycles = core_stats->total_cycles - core_stats->idle_cycles;

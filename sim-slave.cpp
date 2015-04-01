@@ -340,6 +340,10 @@ sim_post_init(void)
     cores[i]->vf_controller = vf_controller_create(knobs.dvfs_opt_str,cores[i]);
   }
 
+  if (strcasecmp(knobs.dvfs_opt_str, "none") &&
+      strcasecmp(knobs.exec.repeater_opt_str,"none"))
+    fatal("DVFS is not compatible with the memory repeater.");
+
   // Time between updating global state (uncore, different nocs)
   sync_interval = MIN(1e-3 / LLC_speed, 1e-3 / cores[0]->memory.mem_repeater->speed);
 
