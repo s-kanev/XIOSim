@@ -1,5 +1,6 @@
 #include "zesto-core.h"
 #include "zesto-power.h"
+#include "ztrace.h"
 #include "zesto-dvfs.h"
 
 using namespace std;
