@@ -50,12 +50,23 @@ class XIOSimTest(unittest.TestCase):
 
     def writeTestBmkConfig(self, bmk):
         ''' Create a temp benchmark config file in the test run directory.'''
-        cfg_file = self.xio.GenerateTestConfig(bmk)
+        cfg_file = self.xio.GenerateTestBmkConfig(bmk)
         bmk_cfg = os.path.join(self.run_dir, "%s.cfg" % bmk)
         with open(bmk_cfg, "w") as f:
             for l in cfg_file:
                 f.write(l)
         return bmk_cfg
+
+    def writeTestConfig(self, start_config, changes):
+        ''' Create a temp config file in the test run directory,
+        starting with @start_config and applying a dictionary or
+        paramter changes. '''
+        cfg_file = os.path.join(self.run_dir, os.path.basename(start_config))
+        cfg_contents = self.xio.GenerateConfigFile(start_config, changes)
+        with open(cfg_file, "w") as f:
+            for l in cfg_contents:
+                f.write(l)
+        return cfg_file
 
 
 class Fib1Test(XIOSimTest):
@@ -71,7 +82,7 @@ class Fib1Test(XIOSimTest):
 
     def setUp(self):
         super(Fib1Test, self).setUp()
-        self.expected_vals.append(("^all_insn", 118369.0))
+        self.expected_vals.append((xs.PerfStatRE("all_insn"), 118369.0))
 
     def runTest(self):
         self.runAndValidate()
@@ -91,7 +102,7 @@ class Fib1LengthTest(XIOSimTest):
 
     def setUp(self):
         super(Fib1LengthTest, self).setUp()
-        self.expected_vals.append(("^all_insn", 9900.0))
+        self.expected_vals.append((xs.PerfStatRE("all_insn"), 9900.0))
 
     def runTest(self):
         self.runAndValidate()
@@ -111,7 +122,7 @@ class Fib1SkipTest(XIOSimTest):
 
     def setUp(self):
         super(Fib1SkipTest, self).setUp()
-        self.expected_vals.append(("^all_insn", 68369.0))
+        self.expected_vals.append((xs.PerfStatRE("all_insn"), 68369.0))
 
     def runTest(self):
         self.runAndValidate()
@@ -133,7 +144,7 @@ class Fib1PinPointTest(XIOSimTest):
 
     def setUp(self):
         super(Fib1PinPointTest, self).setUp()
-        self.expected_vals.append(("^all_insn", 30000.0))
+        self.expected_vals.append((xs.PerfStatRE("all_insn"), 30000.0))
 
     def runTest(self):
         self.runAndValidate()
@@ -155,11 +166,69 @@ class Fib1PinPointsTest(XIOSimTest):
 
     def setUp(self):
         super(Fib1PinPointsTest, self).setUp()
-        self.expected_vals.append(("^all_insn", 10100.0))
+        self.expected_vals.append((xs.PerfStatRE("all_insn"), 10100.0))
 
     def runTest(self):
         self.runAndValidate()
 
+class PowerTest(XIOSimTest):
+    ''' End-to-end test that calculates power.'''
+    def setDriverParams(self):
+        bmk_cfg = self.writeTestBmkConfig("fib")
+        self.xio.AddBmks(bmk_cfg)
+
+        self.xio.AddPinOptions()
+        self.xio.AddPintoolOptions(num_cores=1)
+
+        repl = {
+            "system_cfg.simulate_power" : "true"
+        }
+        test_cfg = self.writeTestConfig(os.path.join(self.xio.GetTreeDir(),
+                                                     "config", "A.cfg"),
+                                        repl)
+        self.xio.AddZestoOptions(test_cfg)
+
+    def setUp(self):
+        super(PowerTest, self).setUp()
+        self.expected_vals.append((xs.PowerStatRE("  Runtime Dynamic"), 0.69))
+        self.expected_vals.append((xs.PowerStatRE("  Total Leakage"), 0.48))
+
+    def runTest(self):
+        self.runAndValidate()
+
+#TODO(skanev): Add a power trace test
+
+class DFSTest(XIOSimTest):
+    ''' End-to-end test that checks that "sample" DFS modifies frequencies.'''
+    def setDriverParams(self):
+        bmk_cfg = self.writeTestBmkConfig("step")
+        self.xio.AddBmks(bmk_cfg)
+
+        self.xio.AddPinOptions()
+        self.xio.AddPintoolOptions(num_cores=1)
+
+        repl = {
+            "system_cfg.simulate_power" : "true",
+            "uncore_cfg.dvfs_cfg.config" : "\"sample\"",
+            "uncore_cfg.dvfs_cfg.interval" : "20000",
+        }
+        test_cfg = self.writeTestConfig(os.path.join(self.xio.GetTreeDir(),
+                                                     "config", "A.cfg"),
+                                        repl)
+        self.xio.AddZestoOptions(test_cfg)
+
+    def setUp(self):
+        super(DFSTest, self).setUp()
+        # Average freq ~901 MHz = 1600 * 2668273.0 / 4736546.0
+        self.expected_vals.append((xs.PerfStatRE("c0.sim_cycle"), 2668273.0))
+        self.expected_vals.append((xs.PerfStatRE("sim_cycle"), 4736546.0))
+        # XXX: The dynamic number appears a little low, but that's more of a
+        # validation issue, not a "hey, DFS is working" issue
+        self.expected_vals.append((xs.PowerStatRE("  Runtime Dynamic"), 0.275))
+        self.expected_vals.append((xs.PowerStatRE("  Total Leakage"), 0.48))
+
+    def runTest(self):
+        self.runAndValidate()
 
 if __name__ == "__main__":
     unittest.main()

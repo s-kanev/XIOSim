@@ -112,7 +112,7 @@ class XIOSimDriver(object):
     def GetTreeDir(self):
         return self.TREE_DIR
 
-    def GenerateTestConfig(self, test):
+    def GenerateTestBmkConfig(self, test):
         res = []
         res.append("program {\n")
         res.append("  exe = \"%s\"\n" % os.path.join(self.TREE_DIR, "tests", test))
@@ -120,3 +120,32 @@ class XIOSimDriver(object):
         res.append("  instances = 1\n")
         res.append("}\n")
         return res
+
+    def GenerateConfigFile(self, config, changes):
+        ''' Generate a config file from an existing one, by replacing some stats.
+            config: path to the original config file.
+            changes: A dictionary with values in config to replace.
+                Ex. "core_cfg.fetch_cfg.instruction_queue_size" -> "18"
+        '''
+        with open(config) as lines:
+            curr_path = []
+            result = []
+            for line in lines:
+                if "=" in line:
+                    name = line.split("=")[0].strip()
+                    val = line.split("=")[1].strip()
+
+                    # turn path in a "."-separated list
+                    item = ".".join(curr_path+[name])
+                    # and check if are trying to replace it
+                    if changes and item in changes:
+                        line = line.replace(val, changes[item])
+                elif "{" in line:
+                    pre_brace = line.split("{")[0].strip()
+                    # ignore optional name
+                    cat = pre_brace.split(" ")[0]
+                    curr_path.append(cat)
+                elif "}" in line:
+                    curr_path.pop()
+                result.append(line)
+            return result
