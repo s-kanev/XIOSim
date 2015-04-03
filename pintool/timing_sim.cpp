@@ -37,7 +37,9 @@ BaseAllocator *core_allocator = NULL;
 void ReleaseHandshake(int coreID)
 {
     pid_t instrument_tid = GetCoreThread(coreID);
+#ifdef ZESTO_PIN_DBG
     assert(!xiosim::buffer_management::empty(instrument_tid));
+#endif
 
     // pop() invalidates the buffer
     xiosim::buffer_management::pop(instrument_tid);
