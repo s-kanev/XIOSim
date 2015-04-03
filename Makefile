@@ -15,13 +15,13 @@ CXX?= g++
 # Uncomment only one of the following OFLAGS, or make your own
 
 # For debug:
-OFLAGS = -O3 -g -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -DDEBUG -msse4a -mfpmath=sse -std=c++11 -Wall -Wno-unused-function -Wno-strict-aliasing
+OFLAGS = -O3 -g -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -DDEBUG -msse4a -mfpmath=sse -std=c++11 -Werror -Wall -Wno-unused-function -Wno-strict-aliasing
 
 # Fully-optimized, but with profiling for gprof:
-#OFLAGS = -O3 -g -pg -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -static -fexpensive-optimizations -mtune=core2 -march=core2 -msse4a -mfpmath=sse -funroll-loops -Wall -Wno-unused-function -Wno-strict-aliasing
+#OFLAGS = -O3 -g -pg -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -static -fexpensive-optimizations -mtune=core2 -march=core2 -msse4a -mfpmath=sse -funroll-loops -Werror -Wall -Wno-unused-function -Wno-strict-aliasing
 
 # Fully-optimized:
-#OFLAGS = -O3 -m32 -g -DNDEBUG -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -static  -msse4a -mfpmath=sse -Wall -Wno-unused-function -Wno-strict-aliasing
+#OFLAGS = -O3 -m32 -g -DNDEBUG -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -static  -msse4a -mfpmath=sse -Werror -Wall -Wno-unused-function -Wno-strict-aliasing
 
 ##################################################################
 # Uncomment to turn on pipeline event logging

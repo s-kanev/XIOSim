@@ -195,8 +195,8 @@ core_oracle_t::core_oracle_t(struct core_t * const arg_core):
   MopQ_size = 1 << ((int)ceil(log(temp_MopQ_size)/log(2.0)));
 
   //MopQ = (struct Mop_t *)calloc(MopQ_size,sizeof(*MopQ));
-  posix_memalign((void**)&MopQ,16,MopQ_size*sizeof(*MopQ));
-  if(!MopQ)
+  int res = posix_memalign((void**)&MopQ,16,MopQ_size*sizeof(*MopQ));
+  if(!MopQ || res != 0)
     fatal("failed to calloc MopQ");
   memset(MopQ,0,MopQ_size*sizeof(*MopQ));
   assert(sizeof(*MopQ) % 16 == 0); // size of Mop is mult of 16

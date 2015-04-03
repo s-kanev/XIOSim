@@ -137,8 +137,8 @@ struct uop_t * core_t::get_uop_array(const int size)
   else
   {
     //p = (struct uop_array_t*) calloc(1,sizeof(*p)+size*sizeof(struct uop_t));
-    posix_memalign((void**)&p,16,sizeof(*p)+size*sizeof(struct uop_t)); // force all uops to be 16-byte aligned
-    if(!p)
+    int res = posix_memalign((void**)&p,16,sizeof(*p)+size*sizeof(struct uop_t)); // force all uops to be 16-byte aligned
+    if(!p || res != 0)
       fatal("couldn't calloc new uop array");
     p->size = size;
     p->next = NULL;
