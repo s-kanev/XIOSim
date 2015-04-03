@@ -390,14 +390,14 @@ CONNECT(TOPLEV)
 
 #define POP_NONSENSE_IMPL            \
 {                  \
-  dword_t _src, _sp;              \
+  dword_t _sp;              \
   md_addr_t _addr;              \
   enum md_fault_type _fault;            \
   \
   _sp = GPR_S(MD_REG_eSP);            \
   \
   _addr = AGEN_S(SEG_INDEX(SEG_SS), _sp, 0, 0, 0);        \
-  _src = READ_V(_addr, _fault);          \
+  READ_V(_addr, _fault);          \
   if (_fault != md_fault_none)          \
   DECLARE_FAULT(_fault);            \
   _sp = _sp + SIZE_V;              \
@@ -18005,14 +18005,13 @@ CONNECT(FISTP_Mq_LINK)
 {                  \
   word_t _src1, _src2, _res;            \
   dword_t _aflags;              \
-  byte_t _flag;              \
   dword_t _orig = GPR_DB(URD);             \
   \
   _src1 = GPR_W(URS);              \
   _src2 = GPR_W(URT);              \
   _res = _src1 - _src2;            \
   _aflags = AFLAGS_SUBW(_res, _src1, _src2);        \
-  _flag = !!CC_EVAL(ULIT, _aflags);          \
+  CC_EVAL(ULIT, _aflags);          \
   SET_GPR_DB(URD, _orig);            \
   SET_GPR_B(URD, _res);            \
 }
@@ -18026,14 +18025,13 @@ CONNECT(FISTP_Mq_LINK)
 #define CMPCCD_IMPL              \
 {                  \
   dword_t _src1, _src2, _res, _aflags;          \
-  byte_t _flag;              \
   dword_t _orig = GPR_DB(URD);             \
   \
   _src1 = GPR_D(URS);              \
   _src2 = GPR_D(URT);              \
   _res = _src1 - _src2;            \
   _aflags = AFLAGS_SUBD(_res, _src1, _src2);        \
-  _flag = !!CC_EVAL(ULIT, _aflags);          \
+  CC_EVAL(ULIT, _aflags);          \
   SET_GPR_DB(URD, _orig);            \
   SET_GPR_B(URD, _res);            \
 }

@@ -701,7 +701,6 @@ bool core_exec_IO_DPM_t::check_load_issue_conditions(const struct uop_t * const 
   struct core_knobs_t * knobs = core->knobs;
   /* are all previous STA's known? If there's a match, is the STD ready? */
   bool sta_unknown = false;
-  bool regular_match = false;
   bool partial_match = false;
   bool oracle_regular_match = false;
   bool oracle_partial_match = false;
@@ -756,7 +755,6 @@ bool core_exec_IO_DPM_t::check_load_issue_conditions(const struct uop_t * const 
       if((match_index == -1) && (STQ[i].addr_valid))
       {
         match_index = i;
-        regular_match = true;
       }
 
       if(oracle_index == -1)
@@ -2618,7 +2616,9 @@ void core_exec_IO_DPM_t::step()
          continue;
 
       int squashed = (FU->pipe[stage].action_id != uop->exec.action_id);
+#ifdef ZTRACE
       int bypass_available = (port[i].when_bypass_used != core->sim_cycle);
+#endif
       /* SK - TODO: may need to rethink for atomic uops */
       int needs_bypass = !(uop->decode.is_sta||uop->decode.is_std||uop->decode.is_load||uop->decode.is_ctrl);
 

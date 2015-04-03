@@ -754,7 +754,6 @@ bool core_exec_STM_t::check_load_issue_conditions(const struct uop_t * const uop
 {
   struct core_knobs_t * knobs = core->knobs;
   /* are all previous STA's known? If there's a match, is the STD ready? */
-  bool regular_match = false;
   int i;
   int match_index = -1;
   int num_stores = 0; /* need this extra condition because STQ could be full with all stores older than the load we're considering */
@@ -791,7 +790,6 @@ bool core_exec_STM_t::check_load_issue_conditions(const struct uop_t * const uop
       if((match_index == -1) && (STQ[i].addr_valid))
       {
         match_index = i;
-        regular_match = true;
         if(!STQ[i].value_valid)
           return false; /* store-data unknown */
       }

@@ -738,13 +738,12 @@ compare_fn(void *p1, void *p2)
 print_dist(struct stat_stat_t *stat,	/* stat variable */
     FILE *fd)			/* output stream */
 {
-  unsigned int i, bcount, imax, imin;
+  unsigned int i, bcount;
   double btotal, bsum, bvar, bavg, bsqsum;
   int pf = stat->variant.for_dist.pf;
 
   /* count and sum entries */
   bcount = 0; btotal = 0.0; bvar = 0.0; bsqsum = 0.0;
-  imax = 0; imin = UINT_MAX;
   for (i=0; i<stat->variant.for_dist.arr_sz; i++)
   {
     bcount++;

@@ -1978,7 +1978,6 @@ static void cache_process_pipe(struct cache_t * const cp, int start_point)
            leaves the cache-lookup pipeline (request dequeued) to prevent
            double-prefetching */
         bool do_prefetch = !cp->prefetch_on_miss;
-        bool request_dequeued = false;
 
         pipe_work_found = true;
         if(ca->cb)
@@ -2199,7 +2198,6 @@ static void cache_process_pipe(struct cache_t * const cp, int start_point)
             cache_heap_remove(cp->pipe[bank],cp->pipe_num[bank]);
             cp->pipe_num[bank]--;
             cache_assert(cp->pipe_num[bank] >= 0,(void)0);
-            request_dequeued = true;
           }
         }
         else /* !ca->cb */
