@@ -50,26 +50,9 @@ class XIOSimDriver(object):
     def AddTraceFile(self, file):
         self.cmd += "-trace %s " % file
 
-    def AddZestoOptions(self, cfg, mem_cfg=None):
+    def AddZestoOptions(self, cfg):
         self.cmd += "-s "
         self.cmd += "-config " + cfg + " "
-        if mem_cfg:
-            self.cmd += "-config " + mem_cfg + " "
-
-    def AddZestoOut(self, ofile):
-        self.cmd += "-redir:sim " + ofile + " "
-
-    def AddZestoHeartbeat(self, ncycles):
-        self.cmd += "-heartbeat " + str(ncycles) + " "
-
-    def AddZestoCores(self, ncores):
-        self.cmd += "-cores " + str(ncores) + " "
-
-    def AddZestoPowerFile(self, fname):
-        self.cmd += "-power:rtp_file " + fname + " "
-
-    def AddILDJITOptions(self):
-        self.cmd += "-- iljit --static -O3 -M -N -R -T "
 
     def Exec(self, stdin_file=None, stdout_file=None, stderr_file=None, cwd=None):
         print self.cmd
