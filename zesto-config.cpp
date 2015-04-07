@@ -116,6 +116,10 @@ void store_execution_unit_options(cfg_t *exec_opt,
                                   md_fu_class fu_type,
                                   core_knobs_t *knobs) {
   cfg_t *exeu_opt = cfg_gettsec(exec_opt, "exeu", exeu_name);
+  // If this execution unit has not been declared, it doesn't exist in the
+  // target system, so we should not set any defaults.
+  if (!exeu_opt)
+    return;
   store_int_list(exeu_opt,
                  "port_binding",
                  knobs->exec.fu_bindings[fu_type],

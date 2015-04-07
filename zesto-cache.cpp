@@ -2529,14 +2529,14 @@ void step_core_PF_controllers(struct core_t * const core)
   /* update prefetch controllers */
   if(core->memory.DL2) prefetch_controller_update(core->memory.DL1);
   prefetch_controller_update(core->memory.DL1);
-  prefetch_controller_update(core->memory.IL1);
+  if(core->memory.IL1) prefetch_controller_update(core->memory.IL1);
 }
 
 void prefetch_core_caches(struct core_t * const core)
 {
   if(core->memory.DL2) cache_prefetch(core->memory.DL1);
   cache_prefetch(core->memory.DL1);
-  cache_prefetch(core->memory.IL1);
+  if(core->memory.IL1) cache_prefetch(core->memory.IL1);
 }
 
 void cache_freeze_stats(struct core_t * const core)
