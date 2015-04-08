@@ -35,7 +35,7 @@
 struct locally_optimal_args {
     int asid;
     int loop_num;
-    xiosim::BaseAllocator *allocator;
+    xiosim::BaseAllocator* allocator;
     int num_cores_alloc;
     bool last_to_check_in;
 };
@@ -52,26 +52,23 @@ const size_t NUM_DATA_POINTS = 4;
  * check in before making a decision.
  */
 void* TestLocallyOptimalPolicyThread(void* arg) {
-    locally_optimal_args *args = (locally_optimal_args*) arg;
-    xiosim::BaseAllocator *allocator = args->allocator;
+    locally_optimal_args* args = (locally_optimal_args*)arg;
+    xiosim::BaseAllocator* allocator = args->allocator;
     int asid = args->asid;
     std::stringstream loop_name;
     loop_name << "art_loop_" << args->loop_num;
     std::vector<double> loop_scaling = GetHelixLoopScaling(loop_name.str());
-    double serial_runtime =
-        GetHelixFullLoopData(loop_name.str())->serial_runtime;
+    double serial_runtime = GetHelixFullLoopData(loop_name.str())->serial_runtime;
     // Push a blocking ack message on to the queue.
     pthread_mutex_lock(&ackTestMessages_lock);
     ackTestMessages[asid] = false;
     pthread_mutex_unlock(&ackTestMessages_lock);
     // Initiate the core allocation request.
-    args->num_cores_alloc = allocator->AllocateCoresForProcess(
-            asid, loop_scaling, serial_runtime);
+    args->num_cores_alloc = allocator->AllocateCoresForProcess(asid, loop_scaling, serial_runtime);
     pthread_mutex_lock(&ackTestMessages_lock);
     // If you are the last thread to check in, unblock all others.
     if (args->num_cores_alloc != -1) {
-        for (auto it = ackTestMessages.begin();
-             it != ackTestMessages.end(); ++it) {
+        for (auto it = ackTestMessages.begin(); it != ackTestMessages.end(); ++it) {
             if (it->second == false)
                 ackTestMessages[it->first] = true;
         }
@@ -84,15 +81,15 @@ void* TestLocallyOptimalPolicyThread(void* arg) {
             pthread_mutex_lock(&ackTestMessages_lock);
         }
         // Now get the actual allocation.
-        args->num_cores_alloc= allocator->AllocateCoresForProcess(
-                asid, loop_scaling, serial_runtime);
+        args->num_cores_alloc =
+            allocator->AllocateCoresForProcess(asid, loop_scaling, serial_runtime);
         args->last_to_check_in = false;
     }
     pthread_mutex_unlock(&ackTestMessages_lock);
 #ifdef DEBUG
     pthread_mutex_lock(&cout_lock);
-    std::cout << "Process " << asid << " was allocated " <<
-            args->num_cores_alloc << " cores." << std::endl;
+    std::cout << "Process " << asid << " was allocated " << args->num_cores_alloc << " cores."
+              << std::endl;
     pthread_mutex_unlock(&cout_lock);
 #endif
     return NULL;
@@ -105,11 +102,8 @@ TEST_CASE("Penalty allocator", "penalty") {
     char* filepath = "loop_speedup_data.csv";
     // We need a smaller allocation to actuall trigger the penalty policies.
     const int PENALTY_NUM_CORES = 8;
-    PenaltyAllocator& core_allocator =
-            reinterpret_cast<PenaltyAllocator&>(
-                    AllocatorParser::Get(
-                        "penalty", "energy", "logarithmic",
-                        1, 8, PENALTY_NUM_CORES));
+    PenaltyAllocator& core_allocator = reinterpret_cast<PenaltyAllocator&>(
+        AllocatorParser::Get("penalty", "energy", "logarithmic", 1, 8, PENALTY_NUM_CORES));
     core_allocator.ResetState();
     LoadHelixSpeedupModelData(filepath);
 
@@ -127,40 +121,32 @@ TEST_CASE("Penalty allocator", "penalty") {
     double serial_runtime_3 = GetHelixFullLoopData(loop_3)->serial_runtime;
 
     REQUIRE(core_allocator.get_penalty_for_asid(process_1) == Approx(0));
-    core_allocator.AllocateCoresForProcess(
-            process_1, scaling_1, serial_runtime_1);
+    core_allocator.AllocateCoresForProcess(process_1, scaling_1, serial_runtime_1);
     REQUIRE(core_allocator.get_cores_for_asid(process_1) == 2);
     REQUIRE(core_allocator.get_processes_to_unblock(process_1).size() == 1);
-    REQUIRE(core_allocator.get_processes_to_unblock(process_1)[0] ==
-            process_1);
+    REQUIRE(core_allocator.get_processes_to_unblock(process_1)[0] == process_1);
 
     REQUIRE(core_allocator.get_penalty_for_asid(process_2) == Approx(0));
-    core_allocator.AllocateCoresForProcess(
-            process_2, scaling_2, serial_runtime_2);
+    core_allocator.AllocateCoresForProcess(process_2, scaling_2, serial_runtime_2);
     REQUIRE(core_allocator.get_cores_for_asid(process_2) == 4);
     REQUIRE(core_allocator.get_processes_to_unblock(process_2).size() == 1);
-    REQUIRE(core_allocator.get_processes_to_unblock(process_2)[0] ==
-            process_2);
+    REQUIRE(core_allocator.get_processes_to_unblock(process_2)[0] == process_2);
 
     REQUIRE(core_allocator.get_penalty_for_asid(process_3) == Approx(0));
-    core_allocator.AllocateCoresForProcess(
-            process_3, scaling_3, serial_runtime_3);
+    core_allocator.AllocateCoresForProcess(process_3, scaling_3, serial_runtime_3);
     REQUIRE(core_allocator.get_cores_for_asid(process_3) == 2);
     REQUIRE(core_allocator.get_processes_to_unblock(process_3).size() == 1);
-    REQUIRE(core_allocator.get_processes_to_unblock(process_3)[0] ==
-            process_3);
+    REQUIRE(core_allocator.get_processes_to_unblock(process_3)[0] == process_3);
 
     core_allocator.DeallocateCoresForProcess(process_1);
     REQUIRE(core_allocator.get_cores_for_asid(process_1) == 1);
 
     REQUIRE(core_allocator.get_penalty_for_asid(process_1) == Approx(1.666822));
-    core_allocator.AllocateCoresForProcess(
-            process_1, scaling_1, serial_runtime_1);
+    core_allocator.AllocateCoresForProcess(process_1, scaling_1, serial_runtime_1);
     REQUIRE(core_allocator.get_cores_for_asid(process_1) == 1);
     REQUIRE(core_allocator.get_penalty_for_asid(process_1) == Approx(-3.88100));
     REQUIRE(core_allocator.get_processes_to_unblock(process_1).size() == 1);
-    REQUIRE(core_allocator.get_processes_to_unblock(process_1)[0] ==
-            process_1);
+    REQUIRE(core_allocator.get_processes_to_unblock(process_1)[0] == process_1);
 }
 
 TEST_CASE("Locally optimal allocator, 1 process", "local_1") {
@@ -175,13 +161,12 @@ TEST_CASE("Locally optimal allocator, 1 process", "local_1") {
 #endif
     const int NUM_TESTS = 2;
     BaseAllocator& core_allocator =
-        AllocatorParser::Get("local", "throughput", "linear",
-                             1, 8, NUM_CORES_TEST);
+        AllocatorParser::Get("local", "throughput", "linear", 1, 8, NUM_CORES_TEST);
     core_allocator.ResetState();
 
     // Initialize test data and correct output.
-    int test_loops[NUM_TESTS] = {1, 2};
-    int correct_output[NUM_TESTS] = {NUM_CORES_TEST, NUM_CORES_TEST};
+    int test_loops[NUM_TESTS] = { 1, 2 };
+    int correct_output[NUM_TESTS] = { NUM_CORES_TEST, NUM_CORES_TEST };
 
     for (int i = 0; i < NUM_TESTS; i++) {
         locally_optimal_args arg;
@@ -205,8 +190,7 @@ TEST_CASE("Locally optimal allocator, 2 processes", "local_2") {
 #endif
     const int NUM_TESTS = 4;
     BaseAllocator& core_allocator =
-        AllocatorParser::Get("local", "throughput", "linear",
-                             1, 8, NUM_CORES_TEST);
+        AllocatorParser::Get("local", "throughput", "linear", 1, 8, NUM_CORES_TEST);
     core_allocator.ResetState();
     LoadHelixSpeedupModelData(filepath);
 
@@ -215,20 +199,14 @@ TEST_CASE("Locally optimal allocator, 2 processes", "local_2") {
      * Example: 2nd column = {1,2} means process 0 runs loop_1 and process 1
      * runs loop_2.
      */
-    int test_loops[NUM_TEST_PROCESSES][NUM_TESTS] = {
-        {1, 1, 2, 2},
-        {1, 2, 1, 2}
-    };
+    int test_loops[NUM_TEST_PROCESSES][NUM_TESTS] = { { 1, 1, 2, 2 }, { 1, 2, 1, 2 } };
     /* correct_output: Each column is the correct number of cores to be
      * allocated to the process for that row.
      * Example: 2nd column
      */
-    int correct_output[NUM_TEST_PROCESSES][NUM_TESTS] = {
-        {8, 1, 15, 8},
-        {8, 15, 1, 8}
-    };
+    int correct_output[NUM_TEST_PROCESSES][NUM_TESTS] = { { 8, 1, 15, 8 }, { 8, 15, 1, 8 } };
     /* The correct contents of the unblock list. */
-    int unblock_list[NUM_TEST_PROCESSES] = {0, 1};
+    int unblock_list[NUM_TEST_PROCESSES] = { 0, 1 };
 
     // Initialize thread variables.
     pthread_mutex_init(&cout_lock, NULL);
@@ -241,10 +219,7 @@ TEST_CASE("Locally optimal allocator, 2 processes", "local_2") {
             args[j].loop_num = test_loops[j][i];
             args[j].num_cores_alloc = 0;
             args[j].asid = j;
-            pthread_create(&threads[j],
-                           NULL,
-                           TestLocallyOptimalPolicyThread,
-                           (void*)&args[j]);
+            pthread_create(&threads[j], NULL, TestLocallyOptimalPolicyThread, (void*)&args[j]);
         }
         void* status;
         for (int j = 0; j < NUM_TEST_PROCESSES; j++) {
@@ -256,14 +231,12 @@ TEST_CASE("Locally optimal allocator, 2 processes", "local_2") {
         // Check the unblock list.
         for (int j = 0; j < NUM_TEST_PROCESSES; j++) {
             REQUIRE(args[j].num_cores_alloc == correct_output[j][i]);
-            std::vector<int> returned_unblock_list =
-                core_allocator.get_processes_to_unblock(j);
+            std::vector<int> returned_unblock_list = core_allocator.get_processes_to_unblock(j);
             if (args[j].last_to_check_in) {
                 for (int k = 0; k < NUM_TEST_PROCESSES; k++) {
                     REQUIRE(std::find(returned_unblock_list.begin(),
                                       returned_unblock_list.end(),
-                                      unblock_list[k]) !=
-                            returned_unblock_list.end());
+                                      unblock_list[k]) != returned_unblock_list.end());
                 }
             } else {
                 REQUIRE(returned_unblock_list.empty());
@@ -282,27 +255,20 @@ void SetupSharedState() {
     std::stringstream pidstream;
     pid_t test_pid = getpid();
     pidstream << test_pid;
-    std::string shared_memory_key =
-            pidstream.str() + std::string(XIOSIM_SHARED_MEMORY_KEY);
-    std::string init_lock_key =
-            pidstream.str() + std::string(XIOSIM_INIT_SHARED_LOCK);
-    std::string counter_lock_key =
-            pidstream.str() + std::string(XIOSIM_INIT_COUNTER_KEY);
+    std::string shared_memory_key = pidstream.str() + std::string(XIOSIM_SHARED_MEMORY_KEY);
+    std::string init_lock_key = pidstream.str() + std::string(XIOSIM_INIT_SHARED_LOCK);
+    std::string counter_lock_key = pidstream.str() + std::string(XIOSIM_INIT_COUNTER_KEY);
 
     // To be safe, we use xiosim::shared::DEFAULT_SHARED_MEMORY_SIZE, or we
     // might run out of shared memory space in InitSharedState().
     global_shm = new managed_shared_memory(
-            open_or_create,
-            shared_memory_key.c_str(),
-            DEFAULT_SHARED_MEMORY_SIZE);
+        open_or_create, shared_memory_key.c_str(), DEFAULT_SHARED_MEMORY_SIZE);
     // InitSharedState() will expect this lock and counter to exist.
     named_mutex init_lock(open_or_create, init_lock_key.c_str());
-    int *process_counter =
-            global_shm->find_or_construct<int>(counter_lock_key.c_str())();
+    int* process_counter = global_shm->find_or_construct<int>(counter_lock_key.c_str())();
     *process_counter = 1;
-    std::cout << "===========================" << std::endl
-              << " Initializing shared state " << std::endl
-              << "===========================" << std::endl;
+    std::cout << "===========================" << std::endl << " Initializing shared state "
+              << std::endl << "===========================" << std::endl;
     InitSharedState(false, test_pid, NUM_CORES_TEST);
 }
 
@@ -311,18 +277,13 @@ int main(int argc, char* const argv[]) {
     using namespace xiosim::shared;
     using namespace boost::interprocess;
     struct shm_remove {
-        shm_remove() {
-            shared_memory_object::remove(XIOSIM_SHARED_MEMORY_KEY);
-        }
-        ~shm_remove() {
-            shared_memory_object::remove(XIOSIM_SHARED_MEMORY_KEY);
-        }
+        shm_remove() { shared_memory_object::remove(XIOSIM_SHARED_MEMORY_KEY); }
+        ~shm_remove() { shared_memory_object::remove(XIOSIM_SHARED_MEMORY_KEY); }
     } remover;
     SetupSharedState();
 
-    std::cout << "===========================" << std::endl
-              << "    Beginning unit tests   " << std::endl
-              << "===========================" << std::endl;
+    std::cout << "===========================" << std::endl << "    Beginning unit tests   "
+              << std::endl << "===========================" << std::endl;
     int result = Catch::Session().run(argc, argv);
     std::cout << std::endl << "REMEMBER TO CLEAN UP /dev/shm!!" << std::endl;
     delete global_shm;

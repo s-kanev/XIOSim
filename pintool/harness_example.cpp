@@ -21,21 +21,19 @@ int main() {
     using namespace boost::interprocess;
     using namespace xiosim::shared;
 
-    managed_shared_memory shm(
-            open_or_create,
-            XIOSIM_SHARED_MEMORY_KEY,
-            DEFAULT_SHARED_MEMORY_SIZE);
+    managed_shared_memory shm(open_or_create, XIOSIM_SHARED_MEMORY_KEY, DEFAULT_SHARED_MEMORY_SIZE);
     std::cout << "Opened shared memory" << std::endl;
     named_mutex init_lock(open_only, XIOSIM_INIT_SHARED_LOCK);
     std::cout << "Opened lock" << std::endl;
     init_lock.lock();
     std::cout << "Lock acquired" << std::endl;
 
-    int *counter = shm.find_or_construct<int>(XIOSIM_INIT_COUNTER_KEY)(0);
+    int* counter = shm.find_or_construct<int>(XIOSIM_INIT_COUNTER_KEY)(0);
     std::cout << "Counter value is: " << *counter << std::endl;
     (*counter)--;
     init_lock.unlock();
-    while (*counter > 0);
+    while (*counter > 0)
+        ;
     std::cout << "COntinuing execution." << std::endl;
 
     return 0;

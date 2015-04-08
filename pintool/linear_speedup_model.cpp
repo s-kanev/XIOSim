@@ -16,16 +16,14 @@
  * where N is the total number of cores and C_i is the linear scaling factor for
  * the ith process.
  */
-void LinearSpeedupModel::OptimizeEnergy(
-        std::map<int, int> &core_allocs,
-        std::vector<double> &process_scaling,
-        std::vector<double> &process_serial_runtime) {
+void LinearSpeedupModel::OptimizeEnergy(std::map<int, int>& core_allocs,
+                                        std::vector<double>& process_scaling,
+                                        std::vector<double>& process_serial_runtime) {
     std::vector<double> gammas;
     double gamma_sum = 0;
     for (auto it = core_allocs.begin(); it != core_allocs.end(); ++it) {
         int asid = it->first;
-        gammas.push_back(
-                process_serial_runtime[asid] / process_scaling[asid]);
+        gammas.push_back(process_serial_runtime[asid] / process_scaling[asid]);
         gamma_sum += gammas[asid];
     }
     // Compute continous core allocations.
@@ -42,7 +40,7 @@ void LinearSpeedupModel::OptimizeEnergy(
         double max_runtime = 0;
         for (auto it = core_allocs.begin(); it != core_allocs.end(); ++it) {
             if (it->second != 0) {
-                double runtime = gammas[it->first]/it->second;
+                double runtime = gammas[it->first] / it->second;
                 if (runtime > max_runtime) {
                     max_runtime_asid = it->first;
                     max_runtime = runtime;
@@ -59,10 +57,7 @@ void LinearSpeedupModel::OptimizeEnergy(
     }
     // Now find the actual global runtime minimum around this starting point.
     MinimizeCoreAllocations(
-            core_allocs,
-            process_scaling,
-            process_serial_runtime,
-            OptimizationTarget::ENERGY);
+        core_allocs, process_scaling, process_serial_runtime, OptimizationTarget::ENERGY);
 }
 
 /* Returns a core allocation that maximizes sum of speedups across all
@@ -74,12 +69,10 @@ void LinearSpeedupModel::OptimizeEnergy(
  * When several processes scale equally, cores can be distributed in any manner
  * between them. For simplicity, we distribute them as evenly as possible.
  */
-void LinearSpeedupModel::OptimizeThroughput(
-        std::map<int, int> &core_allocs,
-        std::vector<double> &process_scaling,
-        std::vector<double> &process_serial_runtime) {
-    if (process_scaling.empty() ||
-        process_serial_runtime.empty())
+void LinearSpeedupModel::OptimizeThroughput(std::map<int, int>& core_allocs,
+                                            std::vector<double>& process_scaling,
+                                            std::vector<double>& process_serial_runtime) {
+    if (process_scaling.empty() || process_serial_runtime.empty())
         return;
 
     double max_scaling = process_scaling.at(0);
@@ -90,8 +83,7 @@ void LinearSpeedupModel::OptimizeThroughput(
             max_scaling = process_scaling.at(i);
             best_procs.clear();
             best_procs.push_back(i);
-        } else if (std::abs(process_scaling.at(i) - max_scaling) <=
-                   SCALING_EPSILON) {
+        } else if (std::abs(process_scaling.at(i) - max_scaling) <= SCALING_EPSILON) {
             // We've found a process with scaling equal to the current best.
             best_procs.push_back(i);
         }
@@ -102,8 +94,7 @@ void LinearSpeedupModel::OptimizeThroughput(
         core_allocs[i] = 1;
     int remaining_cores = num_cores - core_allocs.size() + best_procs.size();
     for (size_t i = 0; i < best_procs.size(); i++) {
-        int cores_per_proc = int(
-                (double)remaining_cores/(best_procs.size() - i));
+        int cores_per_proc = int((double)remaining_cores / (best_procs.size() - i));
         core_allocs[best_procs.at(i)] = cores_per_proc;
         remaining_cores -= cores_per_proc;
     }
@@ -111,28 +102,25 @@ void LinearSpeedupModel::OptimizeThroughput(
 
 /* Computes runtime under the linear model. */
 double LinearSpeedupModel::ComputeRuntime(int num_cores_alloc,
-                      double process_scaling,
-                      double process_serial_runtime) {
+                                          double process_scaling,
+                                          double process_serial_runtime) {
     return (process_serial_runtime / (process_scaling * num_cores_alloc));
 }
 
 /* Runs linear regression on the speedup data for the linear speedup model. */
-double LinearSpeedupModel::ComputeScalingFactor(
-        std::vector<double> &core_scaling) {
+double LinearSpeedupModel::ComputeScalingFactor(std::vector<double>& core_scaling) {
     LinearRegressionIntercept lr;
     for (size_t i = 0; i < core_scaling.size(); i++) {
         // Subtract 1 because the regression equation is y = 1 + bx, and we want
         // y = bx, which we can get with a simple change of variable y' = y-1.
-        Point2D p(i, core_scaling[i]-1);
+        Point2D p(i, core_scaling[i] - 1);
         lr.addPoint(p);
     }
     return lr.getB();
 }
 
 /* Under linear scaling, the ideal scaling factor is just 1. */
-double LinearSpeedupModel::ComputeIdealScalingFactor() {
-    return 1.0;
-}
+double LinearSpeedupModel::ComputeIdealScalingFactor() { return 1.0; }
 
 double LinearSpeedupModel::ComputeSpeedup(int ncores, double scaling_factor) {
     return ncores * scaling_factor;

@@ -3,10 +3,8 @@
 
 #include "BufferManager.h"
 
-namespace xiosim
-{
-namespace buffer_management
-{
+namespace xiosim {
+namespace buffer_management {
 
 void InitBufferManagerProducer(pid_t harness_pid, int num_cores);
 void DeinitBufferManagerProducer(void);
@@ -19,7 +17,7 @@ handshake_container_t* get_buffer(pid_t tid);
 // By assumption, we call producer_done() once we have a completely
 // instrumented, valid handshake, so that we don't need to handle
 // intermediate cases
-void producer_done(pid_t tid, bool keepLock=false);
+void producer_done(pid_t tid, bool keepLock = false);
 
 void flushBuffers(pid_t tid);
 

@@ -3,7 +3,7 @@
 
 /* ========================================================================== */
 class sim_thread_state_t {
-public:
+  public:
     sim_thread_state_t() {
 
         is_running = true;

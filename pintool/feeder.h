@@ -31,7 +31,6 @@ extern XIOSIM_LOCK thread_list_lock;
  * Only used by HELIX for now, but we can easily hijack pthread_setaffinity. */
 extern std::map<THREADID, int> virtual_affinity;
 
-
 /* Mapping from system-wide thread pid to the Pin-local, zero-based thread id. */
 extern std::map<pid_t, THREADID> global_to_local_tid;
 extern XIOSIM_LOCK lk_tid_map;
@@ -39,25 +38,25 @@ extern XIOSIM_LOCK lk_tid_map;
 /* Unique address space id -- the # of this feeder among all */
 extern int asid;
 
-#define ATOMIC_ITERATE(_list, _it, _lock) \
-    for (lk_lock(&(_lock), 1), (_it) = (_list).begin(), lk_unlock(&(_lock)); \
-         [&]{lk_lock(&(_lock), 1); bool res = (_it) != (_list).end(); lk_unlock(&(_lock)); return res;}();  \
+#define ATOMIC_ITERATE(_list, _it, _lock)                                                          \
+    for (lk_lock(&(_lock), 1), (_it) = (_list).begin(), lk_unlock(&(_lock)); [&] {                 \
+        lk_lock(&(_lock), 1);                                                                      \
+        bool res = (_it) != (_list).end();                                                         \
+        lk_unlock(&(_lock));                                                                       \
+        return res;                                                                                \
+         }();                                                                                      \
          lk_lock(&(_lock), 1), (_it)++, lk_unlock(&(_lock)))
-
 
 /* ========================================================================== */
 /* Thread-local state for instrument threads that we need to preserve between
  * different instrumentation calls */
-class thread_state_t
-{
-  class per_loop_state_t {
-    public:
-      per_loop_state_t() {
-          unmatchedWaits = 0;
-      }
+class thread_state_t {
+    class per_loop_state_t {
+      public:
+        per_loop_state_t() { unmatchedWaits = 0; }
 
-      INT32 unmatchedWaits;
-  };
+        INT32 unmatchedWaits;
+    };
 
   public:
     thread_state_t(THREADID instrument_tid) {
@@ -76,16 +75,14 @@ class thread_state_t
         lk_init(&lock);
     }
 
-    VOID push_loop_state()
-    {
+    VOID push_loop_state() {
         per_loop_stack.push(per_loop_state_t());
         loop_state = &(per_loop_stack.top());
     }
 
-    VOID pop_loop_state()
-    {
+    VOID pop_loop_state() {
         per_loop_stack.pop();
-        if(per_loop_stack.size()) {
+        if (per_loop_stack.size()) {
             loop_state = &(per_loop_stack.top());
         }
     }
@@ -129,7 +126,7 @@ class thread_state_t
     BOOL firstInstruction;
     // XXX: END SHARED
 
-private:
+  private:
     std::stack<per_loop_state_t> per_loop_stack;
 };
 thread_state_t* get_tls(THREADID tid);
@@ -138,12 +135,7 @@ thread_state_t* get_tls(THREADID tid);
 /* Execution mode allows easy querying of exactly what the pin tool is doing at
  * a given time, and also helps ensuring that certain parts of the code are run
  * in only certain modes. */
-enum EXECUTION_MODE
-{
-    EXECUTION_MODE_FASTFORWARD,
-    EXECUTION_MODE_SIMULATE,
-    EXECUTION_MODE_INVALID
-};
+enum EXECUTION_MODE { EXECUTION_MODE_FASTFORWARD, EXECUTION_MODE_SIMULATE, EXECUTION_MODE_INVALID };
 extern EXECUTION_MODE ExecMode;
 
 /* Pause/Resume API. The underlying abstraction is a *simulation slice*.
@@ -152,7 +144,8 @@ extern EXECUTION_MODE ExecMode;
  * for HELIX to ignore things between parallel loops.
  * The typical sequence of calls is:
  * StartSimSlice(), ResumeSimulation(), SIMULATION_HAPPENS_HERE, PauseSimulation(), EndSimSlice().
- * For HELIX, we do ResumeSimulation(), -----------------------, PauseSimulation() for every parallel loop.
+ * For HELIX, we do ResumeSimulation(), -----------------------, PauseSimulation() for every
+ * parallel loop.
 */
 
 /* Make sure that all sim threads drain any handshake buffers that could be in

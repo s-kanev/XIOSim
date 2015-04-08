@@ -17,14 +17,13 @@ VOID printMemoryUsage(THREADID tid);
 /* Insert additional fake instructions to end the loop properly (flush RC, etc.). */
 VOID InsertHELIXPauseCode(THREADID tid, bool first_thread);
 
-class loop_state_t
-{
- public:
-  int simmed_iteration_count;
-  bool use_ring_cache;
-  ADDRINT current_loop;
-  UINT32 invocationCount;
-  UINT32 iterationCount;
+class loop_state_t {
+  public:
+    int simmed_iteration_count;
+    bool use_ring_cache;
+    ADDRINT current_loop;
+    UINT32 invocationCount;
+    UINT32 iterationCount;
 };
 
 #endif /* __MOLECOOL_PIN__ */

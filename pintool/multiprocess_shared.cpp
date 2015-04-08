@@ -7,10 +7,9 @@
 #include "ipc_queues.h"
 #include "scheduler.h"
 
-
 using namespace xiosim::shared;
 
-boost::interprocess::managed_shared_memory *global_shm;
+boost::interprocess::managed_shared_memory* global_shm;
 
 SHARED_VAR_DEFINE(XIOSIM_LOCK, printing_lock)
 SHARED_VAR_DEFINE(int, num_processes)
@@ -50,28 +49,24 @@ SHARED_VAR_DEFINE(int, ss_prev);
 
 static int num_cores;
 
-
-int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores_)
-{
+int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores_) {
     using namespace boost::interprocess;
-    int *process_counter = NULL;
+    int* process_counter = NULL;
     int asid = -1;
 
     std::stringstream harness_pid_stream;
     harness_pid_stream << harness_pid;
     std::string shared_memory_key =
         harness_pid_stream.str() + std::string(XIOSIM_SHARED_MEMORY_KEY);
-    std::string init_lock_key =
-        harness_pid_stream.str() + std::string(XIOSIM_INIT_SHARED_LOCK);
-    std::string counter_lock_key =
-        harness_pid_stream.str() + std::string(XIOSIM_INIT_COUNTER_KEY);
+    std::string init_lock_key = harness_pid_stream.str() + std::string(XIOSIM_INIT_SHARED_LOCK);
+    std::string counter_lock_key = harness_pid_stream.str() + std::string(XIOSIM_INIT_COUNTER_KEY);
 
     std::cout << getpid() << ": About to init pid " << std::endl;
     std::cout << "lock key is " << init_lock_key << std::endl;
 
     named_mutex init_lock(open_only, init_lock_key.c_str());
-    global_shm = new managed_shared_memory(open_or_create,
-        shared_memory_key.c_str(), DEFAULT_SHARED_MEMORY_SIZE);
+    global_shm = new managed_shared_memory(
+        open_or_create, shared_memory_key.c_str(), DEFAULT_SHARED_MEMORY_SIZE);
     init_lock.lock();
 
     process_counter = global_shm->find_or_construct<int>(counter_lock_key.c_str())();
@@ -125,8 +120,13 @@ int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores_)
     lk_init(lk_num_done_slice);
 
     int_allocator* int_alloc_inst = new int_allocator(global_shm->get_segment_manager());
-    shared_core_set_allocator* core_set_alloc_inst = new shared_core_set_allocator(global_shm->get_segment_manager());
-    SHARED_VAR_INIT(SharedCoreSetArray, processCoreSet, *num_processes, SharedCoreSet(std::less<int>(), *int_alloc_inst), *core_set_alloc_inst);
+    shared_core_set_allocator* core_set_alloc_inst =
+        new shared_core_set_allocator(global_shm->get_segment_manager());
+    SHARED_VAR_INIT(SharedCoreSetArray,
+                    processCoreSet,
+                    *num_processes,
+                    SharedCoreSet(std::less<int>(), *int_alloc_inst),
+                    *core_set_alloc_inst);
     SHARED_VAR_INIT(XIOSIM_LOCK, lk_processCoreSet);
     lk_init(lk_processCoreSet);
 
@@ -150,8 +150,7 @@ int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores_)
     return asid;
 }
 
-pid_t GetSHMCoreThread(int coreID)
-{
+pid_t GetSHMCoreThread(int coreID) {
     pid_t res;
     lk_lock(lk_coreThreads, 1);
     res = coreThreads[coreID];
@@ -159,18 +158,16 @@ pid_t GetSHMCoreThread(int coreID)
     return res;
 }
 
-int GetSHMThreadCore(pid_t tid)
-{
+int GetSHMThreadCore(pid_t tid) {
     int res = INVALID_CORE;
     lk_lock(lk_coreThreads, 1);
     if (threadCores->find(tid) != threadCores->end())
-       res = threadCores->operator[](tid);
+        res = threadCores->operator[](tid);
     lk_unlock(lk_coreThreads);
     return res;
 }
 
-bool IsSHMThreadSimulatingMaybe(pid_t tid)
-{
+bool IsSHMThreadSimulatingMaybe(pid_t tid) {
     bool res = false;
     lk_lock(lk_coreThreads, 1);
     if (threadCores->find(tid) != threadCores->end())
@@ -179,10 +176,9 @@ bool IsSHMThreadSimulatingMaybe(pid_t tid)
     return res;
 }
 
-CoreSet GetProcessCores(int asid)
-{
+CoreSet GetProcessCores(int asid) {
     CoreSet res;
-    for (int coreID=0; coreID < num_cores; coreID++) {
+    for (int coreID = 0; coreID < num_cores; coreID++) {
         pid_t tid = GetSHMCoreThread(coreID);
         if (tid == xiosim::INVALID_THREADID)
             continue;
@@ -196,8 +192,7 @@ CoreSet GetProcessCores(int asid)
     return res;
 }
 
-void UpdateProcessCoreSet(int asid, CoreSet val)
-{
+void UpdateProcessCoreSet(int asid, CoreSet val) {
     lk_lock(lk_processCoreSet, 1);
     processCoreSet->at(asid).clear();
     for (int i : val)
@@ -205,8 +200,7 @@ void UpdateProcessCoreSet(int asid, CoreSet val)
     lk_unlock(lk_processCoreSet);
 }
 
-CoreSet GetProcessCoreSet(int asid)
-{
+CoreSet GetProcessCoreSet(int asid) {
     CoreSet res;
     lk_lock(lk_processCoreSet, 1);
     for (int i : processCoreSet->at(asid))
@@ -215,15 +209,13 @@ CoreSet GetProcessCoreSet(int asid)
     return res;
 }
 
-void UpdateProcessCoreAllocation(int asid, int allocated_cores)
-{
+void UpdateProcessCoreAllocation(int asid, int allocated_cores) {
     lk_lock(lk_coreAllocation, 1);
     coreAllocation->operator[](asid) = allocated_cores;
     lk_unlock(lk_coreAllocation);
 }
 
-int GetProcessCoreAllocation(int asid)
-{
+int GetProcessCoreAllocation(int asid) {
     int res = 0;
     lk_lock(lk_coreAllocation, 1);
     if (coreAllocation->find(asid) != coreAllocation->end())
@@ -232,8 +224,7 @@ int GetProcessCoreAllocation(int asid)
     return res;
 }
 
-void disable_consumers()
-{
+void disable_consumers() {
     return;
     if (*sleeping_enabled) {
         pthread_mutex_lock(cv_consumers_lock);
@@ -242,8 +233,7 @@ void disable_consumers()
     }
 }
 
-void enable_consumers()
-{
+void enable_consumers() {
     return;
     pthread_mutex_lock(cv_consumers_lock);
     *consumers_sleep = false;
@@ -251,8 +241,7 @@ void enable_consumers()
     pthread_mutex_unlock(cv_consumers_lock);
 }
 
-void wait_consumers()
-{
+void wait_consumers() {
     return;
     if (!*sleeping_enabled)
         return;

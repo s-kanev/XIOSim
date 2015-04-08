@@ -11,30 +11,26 @@
  * function is dynamically set at runtime, or it would be required to modify the
  * code and recompile.
  */
-void BaseSpeedupModel::OptimizeForTarget(
-        std::map<int, int> &core_allocs,
-        std::vector<double> &process_scaling,
-        std::vector<double> &process_serial_runtime) {
+void BaseSpeedupModel::OptimizeForTarget(std::map<int, int>& core_allocs,
+                                         std::vector<double>& process_scaling,
+                                         std::vector<double>& process_serial_runtime) {
     switch (opt_target) {
-        case OptimizationTarget::ENERGY:
-            OptimizeEnergy(
-                    core_allocs, process_scaling, process_serial_runtime);
-            break;
-        case OptimizationTarget::THROUGHPUT:
-            OptimizeThroughput(
-                    core_allocs, process_scaling, process_serial_runtime);
-            break;
+    case OptimizationTarget::ENERGY:
+        OptimizeEnergy(core_allocs, process_scaling, process_serial_runtime);
+        break;
+    case OptimizationTarget::THROUGHPUT:
+        OptimizeThroughput(core_allocs, process_scaling, process_serial_runtime);
+        break;
     }
 }
 
 /* This is a helper convenience method that does some setup before calling the
  * function that does all the actual minimization work.
  */
-double BaseSpeedupModel::MinimizeCoreAllocations(
-        std::map<int, int> &core_alloc,
-        std::vector<double> &process_scaling,
-        std::vector<double> &process_serial_runtime,
-        OptimizationTarget opt_target) {
+double BaseSpeedupModel::MinimizeCoreAllocations(std::map<int, int>& core_alloc,
+                                                 std::vector<double>& process_scaling,
+                                                 std::vector<double>& process_serial_runtime,
+                                                 OptimizationTarget opt_target) {
 
     std::vector<int> process_list;
     for (auto it = core_alloc.begin(); it != core_alloc.end(); ++it)
@@ -42,12 +38,12 @@ double BaseSpeedupModel::MinimizeCoreAllocations(
 
     metric_function_t MetricFunction;
     switch (opt_target) {
-        case OptimizationTarget::ENERGY:
-            MetricFunction = &BaseSpeedupModel::ComputeEnergy;
-            break;
-        case OptimizationTarget::THROUGHPUT:
-            MetricFunction = &BaseSpeedupModel::ComputeThroughputMetric;
-            break;
+    case OptimizationTarget::ENERGY:
+        MetricFunction = &BaseSpeedupModel::ComputeEnergy;
+        break;
+    case OptimizationTarget::THROUGHPUT:
+        MetricFunction = &BaseSpeedupModel::ComputeThroughputMetric;
+        break;
     }
 
     // If the initial core allocation exceeds the number of cores in the system,
@@ -74,12 +70,7 @@ double BaseSpeedupModel::MinimizeCoreAllocations(
     }
 
     return MinimizeCoreAllocations(
-            core_alloc,
-            process_scaling,
-            process_serial_runtime,
-            MetricFunction,
-            process_list,
-            -1);
+        core_alloc, process_scaling, process_serial_runtime, MetricFunction, process_list, -1);
 }
 
 /* Performs gradient descent to find the nearest minimum runtime point to a
@@ -87,15 +78,14 @@ double BaseSpeedupModel::MinimizeCoreAllocations(
  * method should bring us very close to the true solution, it is a safe
  * assumption that any minima near this point is a global minima.
  */
-double BaseSpeedupModel::MinimizeCoreAllocations(
-        std::map<int, int> &core_alloc,
-        std::vector<double> &process_scaling,
-        std::vector<double> &process_serial_runtime,
-        metric_function_t MetricFunction,
-        std::vector<int> &process_list,
-        double previous_max) {
-    double current_min_metric = (this->*MetricFunction)(
-            core_alloc, process_scaling, process_serial_runtime);
+double BaseSpeedupModel::MinimizeCoreAllocations(std::map<int, int>& core_alloc,
+                                                 std::vector<double>& process_scaling,
+                                                 std::vector<double>& process_serial_runtime,
+                                                 metric_function_t MetricFunction,
+                                                 std::vector<int>& process_list,
+                                                 double previous_max) {
+    double current_min_metric =
+        (this->*MetricFunction)(core_alloc, process_scaling, process_serial_runtime);
     if (process_list.empty())
         return current_min_metric;
 
@@ -118,19 +108,17 @@ double BaseSpeedupModel::MinimizeCoreAllocations(
                 int current_cores_alloc = ComputeCurrentCoresAllocated(best_alloc);
                 std::map<int, int> temp_alloc(best_alloc);
                 int current_proc = process_list[i];
-                if (current_cores_alloc + *j <= num_cores &&
-                    temp_alloc[current_proc] + *j > 0 &&
+                if (current_cores_alloc + *j <= num_cores && temp_alloc[current_proc] + *j > 0 &&
                     temp_alloc[current_proc] + *j <= num_cores - num_processes + 1) {
                     temp_alloc[current_proc] += *j;
                     std::vector<int> next_process_list(process_list);
                     next_process_list.erase(next_process_list.begin() + i);
-                    double temp_energy = MinimizeCoreAllocations(
-                        temp_alloc,
-                        process_scaling,
-                        process_serial_runtime,
-                        MetricFunction,
-                        next_process_list,
-                        current_min_metric);
+                    double temp_energy = MinimizeCoreAllocations(temp_alloc,
+                                                                 process_scaling,
+                                                                 process_serial_runtime,
+                                                                 MetricFunction,
+                                                                 next_process_list,
+                                                                 current_min_metric);
                     if (temp_energy < current_min_metric) {
                         current_min_metric = temp_energy;
                         best_alloc = temp_alloc;
@@ -148,17 +136,14 @@ double BaseSpeedupModel::MinimizeCoreAllocations(
 /* Calls the implemented ComputeRuntime() function in child classes to compute
  * energy.
  */
-double BaseSpeedupModel::ComputeEnergy(
-        std::map<int, int> &core_alloc,
-        std::vector<double> &process_scaling,
-        std::vector<double> &process_serial_runtime) {
+double BaseSpeedupModel::ComputeEnergy(std::map<int, int>& core_alloc,
+                                       std::vector<double>& process_scaling,
+                                       std::vector<double>& process_serial_runtime) {
     double current_energy = 0;
     double current_max_rt = 0;
     for (auto it = core_alloc.begin(); it != core_alloc.end(); ++it) {
         double runtime = ComputeRuntime(
-                it->second,
-                process_scaling[it->first],
-                process_serial_runtime[it->first]);
+            it->second, process_scaling[it->first], process_serial_runtime[it->first]);
         current_energy += core_power * runtime * it->second;
         if (runtime > current_max_rt)
             current_max_rt = runtime;
@@ -170,33 +155,30 @@ double BaseSpeedupModel::ComputeEnergy(
 /* Computes the reciprocal of the sum of speedups based on the ComputeRuntime()
  * function that is implemented in child classes.
  */
-double BaseSpeedupModel::ComputeThroughputMetric(
-        std::map<int, int> &core_alloc,
-        std::vector<double> &process_scaling,
-        std::vector<double> &process_serial_runtime) {
+double BaseSpeedupModel::ComputeThroughputMetric(std::map<int, int>& core_alloc,
+                                                 std::vector<double>& process_scaling,
+                                                 std::vector<double>& process_serial_runtime) {
     double throughput = 0;
     for (auto it = core_alloc.begin(); it != core_alloc.end(); ++it) {
         double speedup = ComputeSpeedup(
-                it->second,
-                process_scaling[it->first],
-                process_serial_runtime[it->first]);
+            it->second, process_scaling[it->first], process_serial_runtime[it->first]);
         throughput += speedup;
     }
-    return 1.0/throughput;
+    return 1.0 / throughput;
 }
 
 /* Computes speedup for a single process based on the implemented
  * ComputeRuntime() function in child classes.
  */
-double BaseSpeedupModel::ComputeSpeedup(
-        int core_alloc, double process_scaling, double process_serial_runtime) {
+double BaseSpeedupModel::ComputeSpeedup(int core_alloc,
+                                        double process_scaling,
+                                        double process_serial_runtime) {
     return process_serial_runtime /
            ComputeRuntime(core_alloc, process_scaling, process_serial_runtime);
 }
 
 /* Computes the total number of cores allocated in @core_alloc. */
-int BaseSpeedupModel::ComputeCurrentCoresAllocated(
-        std::map<int, int> &core_alloc) {
+int BaseSpeedupModel::ComputeCurrentCoresAllocated(std::map<int, int>& core_alloc) {
     int sum = 0;
     for (auto it = core_alloc.begin(); it != core_alloc.end(); ++it) {
         sum += it->second;

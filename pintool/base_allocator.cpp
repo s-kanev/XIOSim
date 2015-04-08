@@ -16,32 +16,25 @@
 
 namespace xiosim {
 
-BaseAllocator::BaseAllocator(
-        OptimizationTarget target,
-        SpeedupModelType speedup_model_type,
-        double core_power,
-        double uncore_power,
-        int ncores) {
+BaseAllocator::BaseAllocator(OptimizationTarget target,
+                             SpeedupModelType speedup_model_type,
+                             double core_power,
+                             double uncore_power,
+                             int ncores) {
     num_cores = ncores;
     switch (speedup_model_type) {
-        case SpeedupModelType::LINEAR:
-            speedup_model = new LinearSpeedupModel(
-                    core_power, uncore_power, num_cores, target);
-            break;
-        case SpeedupModelType::LOGARITHMIC:
-            speedup_model = new LogSpeedupModel(
-                    core_power, uncore_power, num_cores, target);
-            break;
+    case SpeedupModelType::LINEAR:
+        speedup_model = new LinearSpeedupModel(core_power, uncore_power, num_cores, target);
+        break;
+    case SpeedupModelType::LOGARITHMIC:
+        speedup_model = new LogSpeedupModel(core_power, uncore_power, num_cores, target);
+        break;
     }
 }
 
-void BaseAllocator::ResetState() {
-    core_allocs.clear();
-}
+void BaseAllocator::ResetState() { core_allocs.clear(); }
 
-BaseAllocator::~BaseAllocator() {
-    delete speedup_model;
-}
+BaseAllocator::~BaseAllocator() { delete speedup_model; }
 
 void BaseAllocator::DeallocateCoresForProcess(int asid) {
     lk_lock(&allocator_lock, 1);
@@ -74,4 +67,4 @@ std::vector<int> BaseAllocator::get_processes_to_unblock(int asid) {
     return std::vector<int>();
 }
 
-}    // namespace xiosim
+}  // namespace xiosim

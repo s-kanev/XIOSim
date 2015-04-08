@@ -52,6 +52,6 @@ bool IsCoreBusy(int coreID);
  */
 bool NeedsReschedule(int coreID);
 
-} // namespace xiosim
+}  // namespace xiosim
 
 #endif /* __SCHEDULER_H__ */

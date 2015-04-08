@@ -27,66 +27,67 @@
 namespace xiosim {
 namespace shared {
 
-template<typename K, typename V, typename enable = void>
+template <typename K, typename V, typename enable = void>
 class SharedUnorderedMap : public SharedUnorderedMapCommon<K, V> {
     typedef SharedUnorderedMapCommon<K, V> ShmCommon;
     using ShmCommon::shm;
     using ShmCommon::internal_map;
 
-    public:
-        // Initializes the size of the shared memory segment holding this shared
-        // map.
-        SharedUnorderedMap(
-                managed_shared_memory* shm, const char* internal_data_name,
-                std::size_t buckets = ShmCommon::DEFAULT_NUM_BUCKETS)
-                : ShmCommon(shm, internal_data_name, buckets) {}
+  public:
+    // Initializes the size of the shared memory segment holding this shared
+    // map.
+    SharedUnorderedMap(managed_shared_memory* shm,
+                       const char* internal_data_name,
+                       std::size_t buckets = ShmCommon::DEFAULT_NUM_BUCKETS)
+        : ShmCommon(shm, internal_data_name, buckets) {}
 
-                SharedUnorderedMap() : ShmCommon() {}
+    SharedUnorderedMap()
+        : ShmCommon() {}
 
-    private:
-        typedef boost::interprocess::allocator<
-                void, managed_shared_memory::segment_manager> void_allocator;
+  private:
+    typedef boost::interprocess::allocator<void, managed_shared_memory::segment_manager>
+        void_allocator;
 
-        V& access_operator(const K& key) {
-            if (internal_map->find(key) == internal_map->end()) {
-                void_allocator alloc_inst(shm->get_segment_manager());
-                V value(alloc_inst);
-                this->insert(key, value);
-            }
-            return internal_map->at(key);
+    V& access_operator(const K& key) {
+        if (internal_map->find(key) == internal_map->end()) {
+            void_allocator alloc_inst(shm->get_segment_manager());
+            V value(alloc_inst);
+            this->insert(key, value);
         }
+        return internal_map->at(key);
+    }
 };
 
-//Default constructing value generates a warning on some GCC
+// Default constructing value generates a warning on some GCC
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wuninitialized"
 #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 
 // Specialization for plain-old-data (POD) types of values.
-template<typename K, typename V>
-class SharedUnorderedMap<
-        K, V, typename boost::enable_if<boost::is_pod<V> >::type> :
-        public SharedUnorderedMapCommon<K, V> {
+template <typename K, typename V>
+class SharedUnorderedMap<K, V, typename boost::enable_if<boost::is_pod<V>>::type>
+    : public SharedUnorderedMapCommon<K, V> {
     typedef SharedUnorderedMapCommon<K, V> ShmCommon;
     using ShmCommon::shm;
     using ShmCommon::internal_map;
 
-    public:
-        SharedUnorderedMap() : ShmCommon() {}
+  public:
+    SharedUnorderedMap()
+        : ShmCommon() {}
 
-        SharedUnorderedMap(
-                managed_shared_memory* shm, const char* internal_data_name,
-                std::size_t buckets = ShmCommon::DEFAULT_NUM_BUCKETS)
-                : ShmCommon(shm, internal_data_name, buckets) {}
+    SharedUnorderedMap(managed_shared_memory* shm,
+                       const char* internal_data_name,
+                       std::size_t buckets = ShmCommon::DEFAULT_NUM_BUCKETS)
+        : ShmCommon(shm, internal_data_name, buckets) {}
 
-    private:
-        V& access_operator(const K& key) {
-            if (internal_map->find(key) == internal_map->end()) {
-                V value;
-                this->insert(key, value);
-            }
-            return internal_map->at(key);
+  private:
+    V& access_operator(const K& key) {
+        if (internal_map->find(key) == internal_map->end()) {
+            V value;
+            this->insert(key, value);
         }
+        return internal_map->at(key);
+    }
 };
 
 #pragma GCC diagnostic pop

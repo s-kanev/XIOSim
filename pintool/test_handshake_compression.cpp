@@ -30,20 +30,17 @@ struct test_context {
     }
 };
 
-
 TEST_CASE("Compression-decompression test", "compression") {
     test_context ctxt;
     memset(&ctxt.producer_shadow, 0, sizeof(regs_t));
     memset(&ctxt.consumer_shadow, 0, sizeof(regs_t));
 
-    SECTION("Empty") {
-        ctxt.perform_serialization();
-    }
+    SECTION("Empty") { ctxt.perform_serialization(); }
 
     SECTION("INT state") {
         ctxt.producer_handshake.handshake.ctxt.regs_R.dw[MD_REG_EAX] = 0xdeadbeef;
         ctxt.producer_handshake.handshake.ctxt.regs_R.dw[MD_REG_ECX] = 0xdeadbeef;
-        ctxt.producer_handshake.handshake.ctxt.regs_R.dw[MD_NUM_IREGS-1] = 0xdeadbeef;
+        ctxt.producer_handshake.handshake.ctxt.regs_R.dw[MD_NUM_IREGS - 1] = 0xdeadbeef;
 
         ctxt.perform_serialization();
     }
@@ -58,13 +55,13 @@ TEST_CASE("Compression-decompression test", "compression") {
     SECTION("More INT state") {
         ctxt.producer_handshake.handshake.ctxt.regs_R.dw[MD_REG_EAX] = 0xdeadbeef;
         ctxt.producer_handshake.handshake.ctxt.regs_R.dw[MD_REG_ECX] = 0xdeadbeef;
-        ctxt.producer_handshake.handshake.ctxt.regs_R.dw[MD_NUM_IREGS-1] = 0xdeadbeef;
+        ctxt.producer_handshake.handshake.ctxt.regs_R.dw[MD_NUM_IREGS - 1] = 0xdeadbeef;
 
         ctxt.perform_serialization();
 
         ctxt.producer_handshake.handshake.ctxt.regs_R.dw[MD_REG_EAX] = 0xfeedface;
         ctxt.producer_handshake.handshake.ctxt.regs_R.dw[MD_REG_ECX] = 0xfeedface;
-        ctxt.producer_handshake.handshake.ctxt.regs_R.dw[MD_NUM_IREGS-1] = 0xfeedface;
+        ctxt.producer_handshake.handshake.ctxt.regs_R.dw[MD_NUM_IREGS - 1] = 0xfeedface;
 
         ctxt.perform_serialization();
     }
@@ -72,7 +69,7 @@ TEST_CASE("Compression-decompression test", "compression") {
     SECTION("FP state") {
         ctxt.producer_handshake.handshake.ctxt.regs_F.e[0] = M_PI;
         ctxt.producer_handshake.handshake.ctxt.regs_F.e[3] = M_PI;
-        ctxt.producer_handshake.handshake.ctxt.regs_F.e[MD_NUM_FREGS-1] = M_PI;
+        ctxt.producer_handshake.handshake.ctxt.regs_F.e[MD_NUM_FREGS - 1] = M_PI;
 
         ctxt.perform_serialization();
     }
@@ -82,8 +79,8 @@ TEST_CASE("Compression-decompression test", "compression") {
         ctxt.producer_handshake.handshake.ctxt.regs_XMM.qw[0].hi = 0xfeedface;
         ctxt.producer_handshake.handshake.ctxt.regs_XMM.qw[3].lo = 0xfeedface;
         ctxt.producer_handshake.handshake.ctxt.regs_XMM.qw[3].hi = 0xfeedface;
-        ctxt.producer_handshake.handshake.ctxt.regs_XMM.qw[MD_NUM_XMMREGS-1].lo = 0xfeedface;
-        ctxt.producer_handshake.handshake.ctxt.regs_XMM.qw[MD_NUM_XMMREGS-1].hi = 0xfeedface;
+        ctxt.producer_handshake.handshake.ctxt.regs_XMM.qw[MD_NUM_XMMREGS - 1].lo = 0xfeedface;
+        ctxt.producer_handshake.handshake.ctxt.regs_XMM.qw[MD_NUM_XMMREGS - 1].hi = 0xfeedface;
 
         ctxt.perform_serialization();
     }
@@ -98,7 +95,7 @@ TEST_CASE("Compression-decompression test", "compression") {
 
     SECTION("Segment base state") {
         ctxt.producer_handshake.handshake.ctxt.regs_SD.dw[0] = 0xfeedface;
-        ctxt.producer_handshake.handshake.ctxt.regs_SD.dw[MD_NUM_SREGS-1] = 0xfeedface;
+        ctxt.producer_handshake.handshake.ctxt.regs_SD.dw[MD_NUM_SREGS - 1] = 0xfeedface;
 
         ctxt.perform_serialization();
     }
@@ -106,8 +103,8 @@ TEST_CASE("Compression-decompression test", "compression") {
     SECTION("Segment selector state") {
         ctxt.producer_handshake.handshake.ctxt.regs_S.w[0] = 0xfeed;
         ctxt.producer_handshake.handshake.ctxt.regs_S.w[1] = 0xface;
-        ctxt.producer_handshake.handshake.ctxt.regs_S.w[MD_NUM_SREGS-2] = 0xfeed;
-        ctxt.producer_handshake.handshake.ctxt.regs_S.w[MD_NUM_SREGS-1] = 0xface;
+        ctxt.producer_handshake.handshake.ctxt.regs_S.w[MD_NUM_SREGS - 2] = 0xfeed;
+        ctxt.producer_handshake.handshake.ctxt.regs_S.w[MD_NUM_SREGS - 1] = 0xface;
 
         ctxt.perform_serialization();
     }

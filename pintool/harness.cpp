@@ -28,13 +28,12 @@
 #include "multiprocess_shared.h"
 #include "ipc_queues.h"
 
-boost::interprocess::managed_shared_memory *global_shm;
+boost::interprocess::managed_shared_memory* global_shm;
 SHARED_VAR_DEFINE(XIOSIM_LOCK, printing_lock)
 SHARED_VAR_DEFINE(int, num_processes)
 SHARED_VAR_DEFINE(int, next_asid)
 
 #include "confuse.h"  // For parsing config files.
-
 
 // Until libconfuse switches to const char*
 #pragma GCC diagnostic push
@@ -45,10 +44,10 @@ namespace shared {
 
 const std::string CFG_FILE_FLAG = "-benchmark_cfg";
 const std::string HARNESS_PID_FLAG = "-harness_pid";
-const char * LAST_PINTOOL_ARG = "-s";
-const char * FIRST_PIN_ARG = "-pin";
+const char* LAST_PINTOOL_ARG = "-s";
+const char* FIRST_PIN_ARG = "-pin";
 
-pid_t *harness_pids;
+pid_t* harness_pids;
 int harness_num_processes = 0;
 
 }  // namespace shared
@@ -63,22 +62,22 @@ void remove_shared_memory() {
     std::string shared_memory_key =
         harness_pid_stream.str() + std::string(XIOSIM_SHARED_MEMORY_KEY);
     // Shared locks are actually named with the prefix "sem.".
-    std::string init_counter_key = std::string("sem.") +
-        harness_pid_stream.str() + std::string(XIOSIM_INIT_COUNTER_KEY);
-    std::string shared_lock_key = std::string("sem.") +
-        harness_pid_stream.str() + std::string(XIOSIM_INIT_SHARED_LOCK);
+    std::string init_counter_key =
+        std::string("sem.") + harness_pid_stream.str() + std::string(XIOSIM_INIT_COUNTER_KEY);
+    std::string shared_lock_key =
+        std::string("sem.") + harness_pid_stream.str() + std::string(XIOSIM_INIT_SHARED_LOCK);
 
     if (!shared_memory_object::remove(shared_memory_key.c_str())) {
-        std::cerr << "Warning: Could not remove shared memory object "
-                  << shared_memory_key << std::endl;
+        std::cerr << "Warning: Could not remove shared memory object " << shared_memory_key
+                  << std::endl;
     }
     if (!shared_memory_object::remove(init_counter_key.c_str())) {
-        std::cerr << "Warning: Could not remove shared memory object "
-                  << init_counter_key << std::endl;
+        std::cerr << "Warning: Could not remove shared memory object " << init_counter_key
+                  << std::endl;
     }
     if (!shared_memory_object::remove(shared_lock_key.c_str())) {
-        std::cerr << "Warning: Could not remove shared memory object "
-                  << shared_lock_key << std::endl;
+        std::cerr << "Warning: Could not remove shared memory object " << shared_lock_key
+                  << std::endl;
     }
 }
 
@@ -112,12 +111,12 @@ void kill_children(int sig) {
 
 // Modify the generic pintool command for the timing simulator.
 std::string get_timing_sim_args(std::string harness_args) {
-    size_t feeder_opt_end_pos = harness_args.find("-t ") +
-                            strlen("-t ");
+    size_t feeder_opt_end_pos = harness_args.find("-t ") + strlen("-t ");
     size_t feeder_so_pos = harness_args.find("feeder_zesto.so");
     size_t feeder_so_end_pos = feeder_so_pos + strlen("feeder_zesto.so");
 
-    std::string feeder_path = harness_args.substr(feeder_opt_end_pos, feeder_so_pos - feeder_opt_end_pos);
+    std::string feeder_path =
+        harness_args.substr(feeder_opt_end_pos, feeder_so_pos - feeder_opt_end_pos);
     std::string timing_fname = feeder_path + "timing_sim";
 
     // Remove everything before and including the "-t" feeder option
@@ -141,19 +140,19 @@ pid_t fork_timing_simulator(std::string run_str, bool debug_timing) {
     if (!debug_timing) {
         timing_sim_pid = fork();
         switch (timing_sim_pid) {
-          case 0: {   // child
+        case 0: {  // child
             setpgid(0, 0);
             int ret = system(timing_cmd.c_str());
             if (WIFSIGNALED(ret))
                 abort();
             exit(WEXITSTATUS(ret));
-          }
-          case 1: {
+        }
+        case 1: {
             perror("Fork failed.");
-          }
-          default: {  // parent
+        }
+        default: {  // parent
             std::cout << "Timing simulator: " << timing_sim_pid << std::endl;
-          }
+        }
         }
     } else {
         std::cout << "Enter timing_sim PID:";
@@ -163,8 +162,7 @@ pid_t fork_timing_simulator(std::string run_str, bool debug_timing) {
     return timing_sim_pid;
 }
 
-
-int main(int argc, const char *argv[]) {
+int main(int argc, const char* argv[]) {
     using namespace boost::interprocess;
     using namespace xiosim::shared;
 
@@ -180,25 +178,20 @@ int main(int argc, const char *argv[]) {
     bool debug_timing = cmd_opts.get("-debug_timing")->isSet;
 
     // Parse the benchmark configuration file.
-    cfg_opt_t program_opts[] {
-        CFG_STR("run_path", ".", CFGF_NONE),
-        CFG_STR("exe", "", CFGF_NONE),
-        CFG_STR("args", "", CFGF_NONE),
-        CFG_INT("instances", 1, CFGF_NONE),
-        CFG_END()
-    };
-    cfg_opt_t opts[] {
-        CFG_SEC("program", program_opts, CFGF_MULTI),
-        CFG_END()
-    };
-    cfg_t *cfg = cfg_init(opts, 0);
+    cfg_opt_t program_opts[]{ CFG_STR("run_path", ".", CFGF_NONE),
+                              CFG_STR("exe", "", CFGF_NONE),
+                              CFG_STR("args", "", CFGF_NONE),
+                              CFG_INT("instances", 1, CFGF_NONE),
+                              CFG_END() };
+    cfg_opt_t opts[]{ CFG_SEC("program", program_opts, CFGF_MULTI), CFG_END() };
+    cfg_t* cfg = cfg_init(opts, 0);
     cfg_parse(cfg, cfg_filename.c_str());
 
     // Compute the total number of benchmark processes that will be forked.
     int num_programs = cfg_size(cfg, "program");
     assert(num_programs > 0);
     for (int i = 0; i < num_programs; i++) {
-        cfg_t *program_cfg = cfg_getnsec(cfg, "program", i);
+        cfg_t* program_cfg = cfg_getnsec(cfg, "program", i);
         int instances = cfg_getint(program_cfg, "instances");
         harness_num_processes += instances;
     }
@@ -240,7 +233,7 @@ int main(int argc, const char *argv[]) {
         command_stream << argv[i] << " ";
     }
     if (!found_pin || !inserted_harness) {
-        std:: cerr << "Failed to find -pin or -s args!" << std::endl;
+        std::cerr << "Failed to find -pin or -s args!" << std::endl;
         abort();
     }
     command_stream << "-- ";  // For appending the benchmark program arguments.
@@ -252,14 +245,12 @@ int main(int argc, const char *argv[]) {
     harness_pid_stream << harness_pid;
     std::string shared_memory_key =
         harness_pid_stream.str() + std::string(XIOSIM_SHARED_MEMORY_KEY);
-    std::string init_counter_key =
-        harness_pid_stream.str() + std::string(XIOSIM_INIT_COUNTER_KEY);
-    std::string shared_lock_key =
-        harness_pid_stream.str() + std::string(XIOSIM_INIT_SHARED_LOCK);
+    std::string init_counter_key = harness_pid_stream.str() + std::string(XIOSIM_INIT_COUNTER_KEY);
+    std::string shared_lock_key = harness_pid_stream.str() + std::string(XIOSIM_INIT_SHARED_LOCK);
 
     // Creates a new shared segment.
-    global_shm = new managed_shared_memory(open_or_create, shared_memory_key.c_str(),
-        DEFAULT_SHARED_MEMORY_SIZE);
+    global_shm = new managed_shared_memory(
+        open_or_create, shared_memory_key.c_str(), DEFAULT_SHARED_MEMORY_SIZE);
 
     // Sets up a counter for multiprogramming. It is initialized to the number of
     // processes that are to be forked. When each forked process is about to start
@@ -269,9 +260,9 @@ int main(int argc, const char *argv[]) {
     // synchronizing access to this counter.
     permissions perm;
     perm.set_unrestricted();
-    int *counter =
+    int* counter =
         global_shm->find_or_construct<int>(init_counter_key.c_str())(harness_num_processes);
-    (void) counter;
+    (void)counter;
     named_mutex init_lock(open_or_create, shared_lock_key.c_str(), perm);
 
     SHARED_VAR_INIT(XIOSIM_LOCK, printing_lock);
@@ -284,14 +275,14 @@ int main(int argc, const char *argv[]) {
     harness_pids = new pid_t[harness_num_processes];
 
     // Create a process for timing simulator and store its pid.
-    harness_pids[harness_num_processes - 1] = fork_timing_simulator(
-        command_stream.str(), debug_timing);
+    harness_pids[harness_num_processes - 1] =
+        fork_timing_simulator(command_stream.str(), debug_timing);
 
     // Fork all the benchmark child processes.
     int status;
     int nthprocess = 0;
     for (int program = 0; program < num_programs; program++) {
-        cfg_t *program_cfg = cfg_getnsec(cfg, "program", program);
+        cfg_t* program_cfg = cfg_getnsec(cfg, "program", program);
         int instances = cfg_getint(program_cfg, "instances");
 
         for (int process = 0; process < instances; process++) {
@@ -300,12 +291,11 @@ int main(int argc, const char *argv[]) {
 
             // Append program command line arguments.
             std::stringstream ss;
-            ss << cfg_getstr(program_cfg, "exe") << " " <<
-                cfg_getstr(program_cfg, "args");
+            ss << cfg_getstr(program_cfg, "exe") << " " << cfg_getstr(program_cfg, "args");
             run_str += ss.str();
 
             switch (harness_pids[nthprocess]) {
-              case 0:  {  // child
+            case 0: {  // child
                 setpgid(0, 0);
                 int chret = chdir(cfg_getstr(program_cfg, "run_path"));
                 if (chret != 0) {
@@ -317,16 +307,16 @@ int main(int argc, const char *argv[]) {
                     abort();
                 exit(WEXITSTATUS(ret));
                 break;
-              }
-              case -1:  {
+            }
+            case -1: {
                 perror("Fork failed.");
                 break;
-              }
-              default:  {  // parent
+            }
+            default: {  // parent
                 std::cout << "New producer: " << harness_pids[nthprocess] << std::endl;
                 nthprocess++;
                 break;
-              }
+            }
             }
         }
     }
@@ -337,7 +327,7 @@ int main(int argc, const char *argv[]) {
     // finish normally. The timing simulator is instructed to terminate
     // separately later.
     std::cout << "[HARNESS] Waiting for feeder children to finish." << std::endl;
-    for (int i = 0; i < harness_num_processes-1; i++) {
+    for (int i = 0; i < harness_num_processes - 1; i++) {
         // Wait for any child process to finish.
         pid_t terminated_process = wait(&status);
         if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
@@ -352,12 +342,13 @@ int main(int argc, const char *argv[]) {
     msg.StopSimulation(true);
     SendIPCMessage(msg);
 
-    pid_t timing_pid = harness_pids[harness_num_processes-1];
+    pid_t timing_pid = harness_pids[harness_num_processes - 1];
     pid_t wait_res;
     do {
         wait_res = waitpid(timing_pid, &status, 0);
         if (wait_res == -1) {
-            std::cerr << "[HARNESS] waitpid(" << timing_pid << ") failed with: " << strerror(errno) << std::endl;
+            std::cerr << "[HARNESS] waitpid(" << timing_pid << ") failed with: " << strerror(errno)
+                      << std::endl;
             break;
         }
     } while (wait_res != timing_pid);

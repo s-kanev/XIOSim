@@ -43,7 +43,6 @@
 
 #include "../zesto-core.h"
 
-
 using namespace std;
 
 /* ========================================================================== */
@@ -52,18 +51,21 @@ using namespace std;
 /* ========================================================================== */
 /* ========================================================================== */
 
-KNOB<string> KnobInsTraceFile(KNOB_MODE_WRITEONCE,   "pintool",
-        "trace", "", "File where instruction trace is written");
-KNOB<BOOL> KnobILDJIT(KNOB_MODE_WRITEONCE,      "pintool",
-        "ildjit", "false", "Application run is ildjit");
-KNOB<BOOL> KnobAMDHack(KNOB_MODE_WRITEONCE,      "pintool",
-        "amd_hack", "false", "Using AMD syscall hack for use with hpc cluster");
-KNOB<BOOL> KnobWarmLLC(KNOB_MODE_WRITEONCE,      "pintool",
-        "warm_llc", "false", "Warm LLC while fast-forwarding");
-KNOB<int> KnobNumCores(KNOB_MODE_WRITEONCE,      "pintool",
-        "num_cores", "1", "Number of cores simulated");
-KNOB<pid_t> KnobHarnessPid(KNOB_MODE_WRITEONCE, "pintool",
-        "harness_pid", "-1", "Process id of the harness process.");
+KNOB<string> KnobInsTraceFile(
+    KNOB_MODE_WRITEONCE, "pintool", "trace", "", "File where instruction trace is written");
+KNOB<BOOL>
+    KnobILDJIT(KNOB_MODE_WRITEONCE, "pintool", "ildjit", "false", "Application run is ildjit");
+KNOB<BOOL> KnobAMDHack(KNOB_MODE_WRITEONCE,
+                       "pintool",
+                       "amd_hack",
+                       "false",
+                       "Using AMD syscall hack for use with hpc cluster");
+KNOB<BOOL> KnobWarmLLC(
+    KNOB_MODE_WRITEONCE, "pintool", "warm_llc", "false", "Warm LLC while fast-forwarding");
+KNOB<int>
+    KnobNumCores(KNOB_MODE_WRITEONCE, "pintool", "num_cores", "1", "Number of cores simulated");
+KNOB<pid_t> KnobHarnessPid(
+    KNOB_MODE_WRITEONCE, "pintool", "harness_pid", "-1", "Process id of the harness process.");
 
 map<ADDRINT, string> pc_diss;
 
@@ -77,9 +79,7 @@ XIOSIM_LOCK thread_list_lock;
 list<THREADID> thread_list;
 map<THREADID, int> virtual_affinity;
 
-static inline pid_t gettid() {
-    return syscall(SYS_gettid);
-}
+static inline pid_t gettid() { return syscall(SYS_gettid); }
 map<pid_t, THREADID> global_to_local_tid;
 XIOSIM_LOCK lk_tid_map;
 
@@ -103,7 +103,8 @@ static bool producers_sleep;
 static PIN_SEMAPHORE producers_sem;
 static void wait_producers();
 
-/* Wait for all processes to finish fast-forwarding, before starting a simulation
+/* Wait for all processes to finish fast-forwarding, before starting a
+ * simulation
  * slice. Then notify timing_sim to start the slice -- prepare stats, etc. */
 static void FastForwardBarrier(int slice_num);
 /* Wait for all processes to finish with a simulation slice, and tell timing_sim
@@ -114,36 +115,31 @@ static VOID amd_hack();
 
 // Functions to access thread-specific data
 /* ========================================================================== */
-thread_state_t* get_tls(THREADID threadid)
-{
-    thread_state_t* tstate =
-          static_cast<thread_state_t*>(PIN_GetThreadData(tls_key, threadid));
+thread_state_t* get_tls(THREADID threadid) {
+    thread_state_t* tstate = static_cast<thread_state_t*>(PIN_GetThreadData(tls_key, threadid));
     return tstate;
 }
 
 /* Return the threads for this feeder, ordered by virtual affinity */
 /* ========================================================================== */
-list<THREADID> GetAffineThreads()
-{
+list<THREADID> GetAffineThreads() {
     /* Order threads by affinity. */
     lk_lock(&thread_list_lock, 1);
     list<THREADID> affine_threads = thread_list;
-    affine_threads.sort([](THREADID a, THREADID b)
-                          { return virtual_affinity[a] < virtual_affinity[b];});
+    affine_threads.sort(
+        [](THREADID a, THREADID b) { return virtual_affinity[a] < virtual_affinity[b]; });
     lk_unlock(&thread_list_lock);
     return affine_threads;
 }
 
-
 /* ========================================================================== */
-VOID ImageUnload(IMG img, VOID *v)
-{
+VOID ImageUnload(IMG img, VOID* v) {
     ADDRINT start = IMG_LowAddress(img);
     ADDRINT length = IMG_HighAddress(img) - start;
 
 #ifdef ZESTO_PIN_DBG
-    cerr << "Image unload, addr: " << hex << start
-         << " len: " << length << " end_addr: " << start + length << endl;
+    cerr << "Image unload, addr: " << hex << start << " len: " << length
+         << " end_addr: " << start + length << endl;
 #endif
     ipc_message_t msg;
     msg.Munmap(asid, start, length, true);
@@ -151,8 +147,7 @@ VOID ImageUnload(IMG img, VOID *v)
 }
 
 /* ========================================================================== */
-VOID StartSimSlice(int slice_num)
-{
+VOID StartSimSlice(int slice_num) {
     /* Gather all processes -- they are all done with the FF -- and tell
      * timing_sim to start the slice */
     FastForwardBarrier(slice_num);
@@ -163,8 +158,7 @@ VOID StartSimSlice(int slice_num)
 }
 
 /* ========================================================================== */
-VOID EndSimSlice(int slice_num, int slice_length, int slice_weight_times_1000)
-{
+VOID EndSimSlice(int slice_num, int slice_length, int slice_weight_times_1000) {
     /* Returning from PauseSimulation() guarantees that all sim threads
      * are spinning in SimulatorLoop. So we can safely call Slice_End
      * without racing any of them. */
@@ -179,77 +173,70 @@ VOID EndSimSlice(int slice_num, int slice_length, int slice_weight_times_1000)
 }
 
 /* ========================================================================== */
-VOID PPointHandler(CONTROL_EVENT ev, VOID * v, CONTEXT * ctxt, VOID * ip, THREADID tid)
-{
+VOID PPointHandler(CONTROL_EVENT ev, VOID* v, CONTEXT* ctxt, VOID* ip, THREADID tid) {
     cerr << "tid: " << dec << tid << " ip: " << hex << ip << " ";
     if (tid < ISIMPOINT_MAX_THREADS)
-        cerr <<  dec << " Inst. Count " << icount.Count(tid) << " ";
+        cerr << dec << " Inst. Count " << icount.Count(tid) << " ";
 
-    switch(ev)
-    {
-      case CONTROL_START:
-        {
-            cerr << "Start" << endl;
-            UINT32 slice_num = 1;
-            if(control.PinPointsActive())
-                slice_num = control.CurrentPp(tid);
+    switch (ev) {
+    case CONTROL_START: {
+        cerr << "Start" << endl;
+        UINT32 slice_num = 1;
+        if (control.PinPointsActive())
+            slice_num = control.CurrentPp(tid);
 
-            StartSimSlice(slice_num);
-            ResumeSimulation(true);
+        StartSimSlice(slice_num);
+        ResumeSimulation(true);
 
-            if(control.PinPointsActive())
-                cerr << "PinPoint: " << control.CurrentPp(tid) << " PhaseNo: " << control.CurrentPhase(tid) << endl;
-        }
-        break;
+        if (control.PinPointsActive())
+            cerr << "PinPoint: " << control.CurrentPp(tid)
+                 << " PhaseNo: " << control.CurrentPhase(tid) << endl;
+    } break;
 
-      case CONTROL_STOP:
-        {
+    case CONTROL_STOP: {
+        lk_lock(printing_lock, 1);
+        cerr << "Stop" << endl;
+        lk_unlock(printing_lock);
+
+        INT32 slice_num = 1;
+        INT32 slice_length = 0;
+        INT32 slice_weight_times_1000 = 100 * 1000;
+
+        if (control.PinPointsActive()) {
+            slice_num = control.CurrentPp(tid);
+            slice_length = control.CurrentPpLength(tid);
+            slice_weight_times_1000 = control.CurrentPpWeightTimesThousand(tid);
             lk_lock(printing_lock, 1);
-            cerr << "Stop" << endl;
+            cerr << "PinPoint: " << slice_num << endl;
             lk_unlock(printing_lock);
-
-            INT32 slice_num = 1;
-            INT32 slice_length = 0;
-            INT32 slice_weight_times_1000 = 100 * 1000;
-
-            if(control.PinPointsActive())
-            {
-                slice_num = control.CurrentPp(tid);
-                slice_length = control.CurrentPpLength(tid);
-                slice_weight_times_1000 = control.CurrentPpWeightTimesThousand(tid);
-                lk_lock(printing_lock, 1);
-                cerr << "PinPoint: " << slice_num << endl;
-                lk_unlock(printing_lock);
-            }
-
-            PauseSimulation();
-            EndSimSlice(slice_num, slice_length, slice_weight_times_1000);
-
-            /* Stop simulation if we've reached the last slice, so we
-             * don't wait for fast-forwarding a potentially very long time until the app
-             * exits cleanly. */
-            if ((control.PinPointsActive() && control.CurrentPp(tid) == control.NumPp(tid)) ||
-                control.LengthActive()) {
-                PIN_ExitProcess(EXIT_SUCCESS);
-            }
         }
-        break;
 
-      default:
+        PauseSimulation();
+        EndSimSlice(slice_num, slice_length, slice_weight_times_1000);
+
+        /* Stop simulation if we've reached the last slice, so we
+         * don't wait for fast-forwarding a potentially very long time until the app
+         * exits cleanly. */
+        if ((control.PinPointsActive() && control.CurrentPp(tid) == control.NumPp(tid)) ||
+            control.LengthActive()) {
+            PIN_ExitProcess(EXIT_SUCCESS);
+        }
+    } break;
+
+    default:
         ASSERTX(false);
         break;
     }
 }
 
 /* ========================================================================== */
-VOID ImageLoad(IMG img, VOID *v)
-{
+VOID ImageLoad(IMG img, VOID* v) {
     ADDRINT start = IMG_LowAddress(img);
     ADDRINT length = IMG_HighAddress(img) - start;
 
 #ifdef ZESTO_PIN_DBG
-    cerr << "Image load, addr: " << hex << start
-         << " len: " << length << " end_addr: " << start + length << endl;
+    cerr << "Image load, addr: " << hex << start << " len: " << length
+         << " end_addr: " << start + length << endl;
 #endif
 
     // Register callback interface to get notified on ILDJIT events
@@ -271,9 +258,10 @@ VOID ImageLoad(IMG img, VOID *v)
 }
 
 /* ========================================================================== */
-/* The last parameter is a  pointer to static data that is overwritten with each call */
-VOID MakeSSContext(const CONTEXT *ictxt, FPSTATE* fpstate, ADDRINT pc, ADDRINT npc, regs_t *ssregs)
-{
+/* The last parameter is a  pointer to static data that is overwritten with each
+ * call */
+VOID
+MakeSSContext(const CONTEXT* ictxt, FPSTATE* fpstate, ADDRINT pc, ADDRINT npc, regs_t* ssregs) {
     CONTEXT ssctxt;
     memset(&ssctxt, 0x0, sizeof(ssctxt));
     PIN_SaveContext(ictxt, &ssctxt);
@@ -295,7 +283,6 @@ VOID MakeSSContext(const CONTEXT *ictxt, FPSTATE* fpstate, ADDRINT pc, ADDRINT n
     ssregs->regs_R.dw[MD_REG_EDI] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_EDI);
     ssregs->regs_R.dw[MD_REG_ESI] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_ESI);
 
-
     // Copy segment selector registers (IA32-specific)
     ssregs->regs_S.w[MD_REG_CS] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_SEG_CS);
     ssregs->regs_S.w[MD_REG_SS] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_SEG_SS);
@@ -307,7 +294,8 @@ VOID MakeSSContext(const CONTEXT *ictxt, FPSTATE* fpstate, ADDRINT pc, ADDRINT n
     // Copy segment base registers (simulator needs them for address calculations)
     // XXX: For security reasons, we (as user code) aren't allowed to touch those.
     // So, we access whatever we can (FS and GS because of 64-bit addressing).
-    // For the rest, Linux sets the base of user-leve CS and DS to 0, so life is good.
+    // For the rest, Linux sets the base of user-leve CS and DS to 0, so life is
+    // good.
     // FIXME: Check what Linux does with user-level SS and ES!
 
     ssregs->regs_SD.dw[MD_REG_FS] = PIN_GetContextReg(&ssctxt, REG_SEG_FS_BASE);
@@ -332,49 +320,75 @@ VOID MakeSSContext(const CONTEXT *ictxt, FPSTATE* fpstate, ADDRINT pc, ADDRINT n
     // Copy floating point tag word specifying which regsiters hold valid values
     memcpy(&ssregs->regs_C.ftw, &fpstate->fxsave_legacy._ftw, 1);
 
-    // For Zesto, regs_F is indexed by physical register, not stack-based
-    #define ST2P(num) ((FSW_TOP(ssregs->regs_C.fsw) + (num)) & 0x7)
+// For Zesto, regs_F is indexed by physical register, not stack-based
+#define ST2P(num) ((FSW_TOP(ssregs->regs_C.fsw) + (num)) & 0x7)
 
     // Copy actual extended fp registers
-    memcpy(&ssregs->regs_F.e[ST2P(MD_REG_ST0)], &fpstate->fxsave_legacy._sts[MD_REG_ST0], MD_FPR_SIZE);
-    memcpy(&ssregs->regs_F.e[ST2P(MD_REG_ST1)], &fpstate->fxsave_legacy._sts[MD_REG_ST1], MD_FPR_SIZE);
-    memcpy(&ssregs->regs_F.e[ST2P(MD_REG_ST2)], &fpstate->fxsave_legacy._sts[MD_REG_ST2], MD_FPR_SIZE);
-    memcpy(&ssregs->regs_F.e[ST2P(MD_REG_ST3)], &fpstate->fxsave_legacy._sts[MD_REG_ST3], MD_FPR_SIZE);
-    memcpy(&ssregs->regs_F.e[ST2P(MD_REG_ST4)], &fpstate->fxsave_legacy._sts[MD_REG_ST4], MD_FPR_SIZE);
-    memcpy(&ssregs->regs_F.e[ST2P(MD_REG_ST5)], &fpstate->fxsave_legacy._sts[MD_REG_ST5], MD_FPR_SIZE);
-    memcpy(&ssregs->regs_F.e[ST2P(MD_REG_ST6)], &fpstate->fxsave_legacy._sts[MD_REG_ST6], MD_FPR_SIZE);
-    memcpy(&ssregs->regs_F.e[ST2P(MD_REG_ST7)], &fpstate->fxsave_legacy._sts[MD_REG_ST7], MD_FPR_SIZE);
+    memcpy(
+        &ssregs->regs_F.e[ST2P(MD_REG_ST0)], &fpstate->fxsave_legacy._sts[MD_REG_ST0], MD_FPR_SIZE);
+    memcpy(
+        &ssregs->regs_F.e[ST2P(MD_REG_ST1)], &fpstate->fxsave_legacy._sts[MD_REG_ST1], MD_FPR_SIZE);
+    memcpy(
+        &ssregs->regs_F.e[ST2P(MD_REG_ST2)], &fpstate->fxsave_legacy._sts[MD_REG_ST2], MD_FPR_SIZE);
+    memcpy(
+        &ssregs->regs_F.e[ST2P(MD_REG_ST3)], &fpstate->fxsave_legacy._sts[MD_REG_ST3], MD_FPR_SIZE);
+    memcpy(
+        &ssregs->regs_F.e[ST2P(MD_REG_ST4)], &fpstate->fxsave_legacy._sts[MD_REG_ST4], MD_FPR_SIZE);
+    memcpy(
+        &ssregs->regs_F.e[ST2P(MD_REG_ST5)], &fpstate->fxsave_legacy._sts[MD_REG_ST5], MD_FPR_SIZE);
+    memcpy(
+        &ssregs->regs_F.e[ST2P(MD_REG_ST6)], &fpstate->fxsave_legacy._sts[MD_REG_ST6], MD_FPR_SIZE);
+    memcpy(
+        &ssregs->regs_F.e[ST2P(MD_REG_ST7)], &fpstate->fxsave_legacy._sts[MD_REG_ST7], MD_FPR_SIZE);
 
     ASSERTX(PIN_ContextContainsState(&ssctxt, PROCESSOR_STATE_XMM));
 
-    memcpy(&ssregs->regs_XMM.qw[MD_REG_XMM0].lo, &fpstate->fxsave_legacy._xmms[MD_REG_XMM0], MD_XMM_SIZE);
-    memcpy(&ssregs->regs_XMM.qw[MD_REG_XMM1].lo, &fpstate->fxsave_legacy._xmms[MD_REG_XMM1], MD_XMM_SIZE);
-    memcpy(&ssregs->regs_XMM.qw[MD_REG_XMM2].lo, &fpstate->fxsave_legacy._xmms[MD_REG_XMM2], MD_XMM_SIZE);
-    memcpy(&ssregs->regs_XMM.qw[MD_REG_XMM3].lo, &fpstate->fxsave_legacy._xmms[MD_REG_XMM3], MD_XMM_SIZE);
-    memcpy(&ssregs->regs_XMM.qw[MD_REG_XMM4].lo, &fpstate->fxsave_legacy._xmms[MD_REG_XMM4], MD_XMM_SIZE);
-    memcpy(&ssregs->regs_XMM.qw[MD_REG_XMM5].lo, &fpstate->fxsave_legacy._xmms[MD_REG_XMM5], MD_XMM_SIZE);
-    memcpy(&ssregs->regs_XMM.qw[MD_REG_XMM6].lo, &fpstate->fxsave_legacy._xmms[MD_REG_XMM6], MD_XMM_SIZE);
-    memcpy(&ssregs->regs_XMM.qw[MD_REG_XMM7].lo, &fpstate->fxsave_legacy._xmms[MD_REG_XMM7], MD_XMM_SIZE);
+    memcpy(&ssregs->regs_XMM.qw[MD_REG_XMM0].lo,
+           &fpstate->fxsave_legacy._xmms[MD_REG_XMM0],
+           MD_XMM_SIZE);
+    memcpy(&ssregs->regs_XMM.qw[MD_REG_XMM1].lo,
+           &fpstate->fxsave_legacy._xmms[MD_REG_XMM1],
+           MD_XMM_SIZE);
+    memcpy(&ssregs->regs_XMM.qw[MD_REG_XMM2].lo,
+           &fpstate->fxsave_legacy._xmms[MD_REG_XMM2],
+           MD_XMM_SIZE);
+    memcpy(&ssregs->regs_XMM.qw[MD_REG_XMM3].lo,
+           &fpstate->fxsave_legacy._xmms[MD_REG_XMM3],
+           MD_XMM_SIZE);
+    memcpy(&ssregs->regs_XMM.qw[MD_REG_XMM4].lo,
+           &fpstate->fxsave_legacy._xmms[MD_REG_XMM4],
+           MD_XMM_SIZE);
+    memcpy(&ssregs->regs_XMM.qw[MD_REG_XMM5].lo,
+           &fpstate->fxsave_legacy._xmms[MD_REG_XMM5],
+           MD_XMM_SIZE);
+    memcpy(&ssregs->regs_XMM.qw[MD_REG_XMM6].lo,
+           &fpstate->fxsave_legacy._xmms[MD_REG_XMM6],
+           MD_XMM_SIZE);
+    memcpy(&ssregs->regs_XMM.qw[MD_REG_XMM7].lo,
+           &fpstate->fxsave_legacy._xmms[MD_REG_XMM7],
+           MD_XMM_SIZE);
 }
 
 /* ========================================================================== */
 // Register that we are about to service Fini callbacks, which cannot
 // access some state (e.g. TLS)
-VOID BeforeFini(INT32 exitCode, VOID *v)
-{
-    in_fini = true;
-}
+VOID BeforeFini(INT32 exitCode, VOID* v) { in_fini = true; }
 
 /* ========================================================================== */
-VOID Fini(INT32 exitCode, VOID *v)
-{
+VOID Fini(INT32 exitCode, VOID* v) {
     if (exitCode != EXIT_SUCCESS)
-        cerr << "[" << getpid() << "]" << "ERROR! Exit code = " << dec << exitCode << endl;
+        cerr << "[" << getpid() << "]"
+             << "ERROR! Exit code = " << dec << exitCode << endl;
 }
 
 /* ========================================================================== */
-VOID MakeSSRequest(THREADID tid, ADDRINT pc, ADDRINT npc, ADDRINT tpc, BOOL brtaken, const CONTEXT *ictxt, handshake_container_t* hshake)
-{
+VOID MakeSSRequest(THREADID tid,
+                   ADDRINT pc,
+                   ADDRINT npc,
+                   ADDRINT tpc,
+                   BOOL brtaken,
+                   const CONTEXT* ictxt,
+                   handshake_container_t* hshake) {
     thread_state_t* tstate = get_tls(tid);
     MakeSSContext(ictxt, &tstate->fpstate_buf, pc, npc, &hshake->handshake.ctxt);
 
@@ -386,19 +400,18 @@ VOID MakeSSRequest(THREADID tid, ADDRINT pc, ADDRINT npc, ADDRINT tpc, BOOL brta
     hshake->flags.sleep_thread = FALSE;
     hshake->flags.resume_thread = FALSE;
     hshake->flags.real = TRUE;
-    PIN_SafeCopy(hshake->handshake.ins, (VOID*) pc, MD_MAX_ILEN);
+    PIN_SafeCopy(hshake->handshake.ins, (VOID*)pc, MD_MAX_ILEN);
 }
 
 /* Helper to check if producer thread @tid will grab instruction at @pc.
  * If return value is false, we can skip instrumentaion. Can hog execution
  * if producers are disabled by producer_sleep. */
-static BOOL CheckIgnoreConditions(THREADID tid, ADDRINT pc)
-{
+static BOOL CheckIgnoreConditions(THREADID tid, ADDRINT pc) {
     wait_producers();
 
     /* Check thread ignore and ignore_all flags */
     thread_state_t* tstate = get_tls(tid);
-    lk_lock(&tstate->lock, tid+1);
+    lk_lock(&tstate->lock, tid + 1);
     if (tstate->ignore || tstate->ignore_all) {
         lk_unlock(&tstate->lock);
         return false;
@@ -415,13 +428,11 @@ static BOOL CheckIgnoreConditions(THREADID tid, ADDRINT pc)
 /* Helper to grab the correct buffer that we put instrumentation information
  * for thread @tid. Either a new one (@first_instrumentation == true), or the
  * last one being filled in. */
-static handshake_container_t* GetProperBuffer(pid_t tid, BOOL first_instrumentation)
-{
+static handshake_container_t* GetProperBuffer(pid_t tid, BOOL first_instrumentation) {
     handshake_container_t* res;
     if (first_instrumentation) {
         res = xiosim::buffer_management::get_buffer(tid);
-    }
-    else {
+    } else {
         res = xiosim::buffer_management::back(tid);
     }
     ASSERTX(res != NULL);
@@ -431,8 +442,7 @@ static handshake_container_t* GetProperBuffer(pid_t tid, BOOL first_instrumentat
 
 /* Helper to mark the buffer of a fully instrumented instruction as valid,
  * and let it get eventually consumed. */
-static VOID FinalizeBuffer(thread_state_t* tstate, handshake_container_t* handshake)
-{
+static VOID FinalizeBuffer(thread_state_t* tstate, handshake_container_t* handshake) {
     // Let simulator consume instruction from SimulatorLoop
     handshake->flags.valid = true;
     xiosim::buffer_management::producer_done(tstate->tid);
@@ -446,8 +456,7 @@ static VOID FinalizeBuffer(thread_state_t* tstate, handshake_container_t* handsh
  * instructions. For reads, this is what the read will return. For writes, this
  * is the value that will get overwritten (which we need later in the simulator
  * to clean up corner cases of speculation */
-VOID GrabInstructionMemory(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_mem_op, ADDRINT pc)
-{
+VOID GrabInstructionMemory(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_mem_op, ADDRINT pc) {
     if (!CheckIgnoreConditions(tid, pc))
         return;
 
@@ -455,15 +464,21 @@ VOID GrabInstructionMemory(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_m
     handshake_container_t* handshake = GetProperBuffer(tstate->tid, first_mem_op);
 
     UINT8 val;
-    for (UINT32 i=0; i < size; i++) {
-        PIN_SafeCopy(&val, (VOID*) (addr + i), 1);
+    for (UINT32 i = 0; i < size; i++) {
+        PIN_SafeCopy(&val, (VOID*)(addr + i), 1);
         handshake->mem_buffer.insert(pair<UINT32, UINT8>(addr + i, val));
     }
 }
 
 /* ========================================================================== */
-VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, ADDRINT tpc, const CONTEXT *ictxt, BOOL has_memory, BOOL done_instrumenting)
-{
+VOID GrabInstructionContext(THREADID tid,
+                            ADDRINT pc,
+                            BOOL taken,
+                            ADDRINT npc,
+                            ADDRINT tpc,
+                            const CONTEXT* ictxt,
+                            BOOL has_memory,
+                            BOOL done_instrumenting) {
     if (!CheckIgnoreConditions(tid, pc)) {
 #ifdef PRINT_DYN_TRACE
         printTrace("jit", pc, tid);
@@ -480,12 +495,12 @@ VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, A
 
     tstate->num_inst++;
 
-    lk_lock(&tstate->lock, tid+1);
+    lk_lock(&tstate->lock, tid + 1);
     BOOL first_insn = tstate->firstInstruction;
     lk_unlock(&tstate->lock);
     if (first_insn) {
         handshake->flags.isFirstInsn = true;
-        lk_lock(&tstate->lock, tid+1);
+        lk_lock(&tstate->lock, tid + 1);
         tstate->firstInstruction = false;
         lk_unlock(&tstate->lock);
     }
@@ -500,12 +515,17 @@ VOID GrabInstructionContext(THREADID tid, ADDRINT pc, BOOL taken, ADDRINT npc, A
 
 /* ========================================================================== */
 /* If we treat REP instructions as loops and pass them along to the simulator,
- * we need a good ground truth for the NPC that the simulator can rely on, because
+ * we need a good ground truth for the NPC that the simulator can rely on,
+ * because
  * Pin doesn't do that for us the way does branch NPCs.
  * So, we add extra instrumentation for REP instructions to determine if this is
  * the last iteration. */
-VOID FixRepInstructionNPC(THREADID tid, ADDRINT pc, BOOL rep_prefix, BOOL repne_prefix, ADDRINT counter_value, UINT32 opcode)
-{
+VOID FixRepInstructionNPC(THREADID tid,
+                          ADDRINT pc,
+                          BOOL rep_prefix,
+                          BOOL repne_prefix,
+                          ADDRINT counter_value,
+                          UINT32 opcode) {
     if (!CheckIgnoreConditions(tid, pc))
         return;
 
@@ -519,69 +539,67 @@ VOID FixRepInstructionNPC(THREADID tid, ADDRINT pc, BOOL rep_prefix, BOOL repne_
     // REPE and REPNE only matter for CMPS and SCAS,
     // so we special-case them
     switch (opcode) {
-        case XED_ICLASS_CMPSB:
-        case XED_ICLASS_CMPSW:
-        case XED_ICLASS_CMPSD:
-        case XED_ICLASS_CMPSQ:
-            // CMPS does two mem reads of the same size
-            {
-                size_t bytes_read = handshake->mem_buffer.size();
-                ASSERTX(bytes_read <= 8);
-                size_t i = 0;
+    case XED_ICLASS_CMPSB:
+    case XED_ICLASS_CMPSW:
+    case XED_ICLASS_CMPSD:
+    case XED_ICLASS_CMPSQ:
+        // CMPS does two mem reads of the same size
+        {
+            size_t bytes_read = handshake->mem_buffer.size();
+            ASSERTX(bytes_read <= 8);
+            size_t i = 0;
 
-                for (auto &mem_read : handshake->mem_buffer) {
-                    size_t byte_ind = i % (bytes_read / 2);
-                    if (i < bytes_read / 2)
-                        op1 |= ((ADDRINT)mem_read.second << (8*byte_ind));
-                    else
-                        op2 |= ((ADDRINT)mem_read.second << (8*byte_ind));
+            for (auto& mem_read : handshake->mem_buffer) {
+                size_t byte_ind = i % (bytes_read / 2);
+                if (i < bytes_read / 2)
+                    op1 |= ((ADDRINT)mem_read.second << (8 * byte_ind));
+                else
+                    op2 |= ((ADDRINT)mem_read.second << (8 * byte_ind));
 
-                    i++;
-                }
-
+                i++;
             }
-            scan = true;
-            zf = (op1 == op2);
-            break;
-        case XED_ICLASS_SCASB:
-        case XED_ICLASS_SCASW:
-        case XED_ICLASS_SCASD:
-        case XED_ICLASS_SCASQ:
-            {
-                // SCAS only does one read, gets second operand from rAX
-                size_t bytes_read = handshake->mem_buffer.size();
-                ASSERTX(bytes_read <= 4);
-                size_t i = 0;
-                for (auto &mem_read : handshake->mem_buffer)
-                    op1 |= ((ADDRINT)mem_read.second << (8*i));
-                op2 = handshake->handshake.ctxt.regs_R.dw[MD_REG_EAX]; // 0-extended anyways
-            }
-            scan = true;
-            zf = (op1 == op2);
-            break;
-        case XED_ICLASS_INSB:
-        case XED_ICLASS_INSW:
-        case XED_ICLASS_INSD:
-        case XED_ICLASS_OUTSB:
-        case XED_ICLASS_OUTSW:
-        case XED_ICLASS_OUTSD:
-        case XED_ICLASS_LODSB:
-        case XED_ICLASS_LODSW:
-        case XED_ICLASS_LODSD:
-        case XED_ICLASS_LODSQ:
-        case XED_ICLASS_STOSB:
-        case XED_ICLASS_STOSW:
-        case XED_ICLASS_STOSD:
-        case XED_ICLASS_STOSQ:
-        case XED_ICLASS_MOVSB:
-        case XED_ICLASS_MOVSW:
-        case XED_ICLASS_MOVSD:
-        case XED_ICLASS_MOVSQ:
-            scan = false;
-            break;
-        default:
-            ASSERTX(false);
-            break;
+        }
+        scan = true;
+        zf = (op1 == op2);
+        break;
+    case XED_ICLASS_SCASB:
+    case XED_ICLASS_SCASW:
+    case XED_ICLASS_SCASD:
+    case XED_ICLASS_SCASQ: {
+        // SCAS only does one read, gets second operand from rAX
+        size_t bytes_read = handshake->mem_buffer.size();
+        ASSERTX(bytes_read <= 4);
+        size_t i = 0;
+        for (auto& mem_read : handshake->mem_buffer)
+            op1 |= ((ADDRINT)mem_read.second << (8 * i));
+        op2 = handshake->handshake.ctxt.regs_R.dw[MD_REG_EAX];  // 0-extended anyways
+    }
+        scan = true;
+        zf = (op1 == op2);
+        break;
+    case XED_ICLASS_INSB:
+    case XED_ICLASS_INSW:
+    case XED_ICLASS_INSD:
+    case XED_ICLASS_OUTSB:
+    case XED_ICLASS_OUTSW:
+    case XED_ICLASS_OUTSD:
+    case XED_ICLASS_LODSB:
+    case XED_ICLASS_LODSW:
+    case XED_ICLASS_LODSD:
+    case XED_ICLASS_LODSQ:
+    case XED_ICLASS_STOSB:
+    case XED_ICLASS_STOSW:
+    case XED_ICLASS_STOSD:
+    case XED_ICLASS_STOSQ:
+    case XED_ICLASS_MOVSB:
+    case XED_ICLASS_MOVSW:
+    case XED_ICLASS_MOVSD:
+    case XED_ICLASS_MOVSQ:
+        scan = false;
+        break;
+    default:
+        ASSERTX(false);
+        break;
     }
 
     ADDRINT NPC;
@@ -604,29 +622,23 @@ VOID FixRepInstructionNPC(THREADID tid, ADDRINT pc, BOOL rep_prefix, BOOL repne_
 }
 
 /* ========================================================================== */
-//Trivial call to let us do conditional instrumentation based on an argument
-ADDRINT returnArg(BOOL arg)
-{
-   return arg;
-}
+// Trivial call to let us do conditional instrumentation based on an argument
+ADDRINT returnArg(BOOL arg) { return arg; }
 
-VOID WarmCacheRead(VOID * addr)
-{
+VOID WarmCacheRead(VOID* addr) {
 #if 0
     Zesto_WarmLLC((ADDRINT)addr, false);
 #endif
 }
 
-VOID WarmCacheWrite(VOID * addr)
-{
+VOID WarmCacheWrite(VOID* addr) {
 #if 0
     Zesto_WarmLLC((ADDRINT)addr, true);
 #endif
 }
 
 /* ========================================================================== */
-VOID Instrument(INS ins, VOID *v)
-{
+VOID Instrument(INS ins, VOID* v) {
     // ILDJIT is doing its initialization/compilation/...
     if (KnobILDJIT.Value() && !ILDJIT_IsExecuting())
         return;
@@ -638,35 +650,33 @@ VOID Instrument(INS ins, VOID *v)
 
         trace_file << pc << " " << INS_Disassemble(ins);
         pc_diss[pc] = string(INS_Disassemble(ins));
-        for (INT32 curr = size-1; curr >= 0; curr--)
+        for (INT32 curr = size - 1; curr >= 0; curr--)
             trace_file << " " << int(*(UINT8*)(curr + pc));
         trace_file << endl;
     }
 
-
     // Not executing yet, only warm caches, if needed
-    if (ExecMode != EXECUTION_MODE_SIMULATE)
-    {
-        if (KnobWarmLLC.Value())
-        {
+    if (ExecMode != EXECUTION_MODE_SIMULATE) {
+        if (KnobWarmLLC.Value()) {
             UINT32 memOperands = INS_MemoryOperandCount(ins);
 
             // Iterate over each memory operand of the instruction.
-            for (UINT32 memOp = 0; memOp < memOperands; memOp++)
-            {
-                if (INS_MemoryOperandIsRead(ins, memOp))
-                {
-                    INS_InsertPredicatedCall(
-                        ins, IPOINT_BEFORE, (AFUNPTR)WarmCacheRead,
-                        IARG_MEMORYOP_EA, memOp,
-                        IARG_END);
+            for (UINT32 memOp = 0; memOp < memOperands; memOp++) {
+                if (INS_MemoryOperandIsRead(ins, memOp)) {
+                    INS_InsertPredicatedCall(ins,
+                                             IPOINT_BEFORE,
+                                             (AFUNPTR)WarmCacheRead,
+                                             IARG_MEMORYOP_EA,
+                                             memOp,
+                                             IARG_END);
                 }
-                if (INS_MemoryOperandIsWritten(ins, memOp))
-                {
-                    INS_InsertPredicatedCall(
-                        ins, IPOINT_BEFORE, (AFUNPTR)WarmCacheWrite,
-                        IARG_MEMORYOP_EA, memOp,
-                        IARG_END);
+                if (INS_MemoryOperandIsWritten(ins, memOp)) {
+                    INS_InsertPredicatedCall(ins,
+                                             IPOINT_BEFORE,
+                                             (AFUNPTR)WarmCacheWrite,
+                                             IARG_MEMORYOP_EA,
+                                             memOp,
+                                             IARG_END);
                 }
             }
         }
@@ -675,65 +685,81 @@ VOID Instrument(INS ins, VOID *v)
 
     /* Add instrumentation that captures each memory operand */
     UINT32 memOperands = INS_MemoryOperandCount(ins);
-    for (UINT32 memOp = 0; memOp < memOperands; memOp++)
-    {
+    for (UINT32 memOp = 0; memOp < memOperands; memOp++) {
         UINT32 memSize = INS_MemoryOperandSize(ins, memOp);
-        INS_InsertCall(
-            ins, IPOINT_BEFORE, (AFUNPTR)GrabInstructionMemory,
-            IARG_THREAD_ID,
-            IARG_MEMORYOP_EA, memOp,
-            IARG_UINT32, memSize,
-            IARG_BOOL, (memOp == 0),
-            IARG_INST_PTR,
-            IARG_END);
-    }
-
-    if (! INS_IsBranchOrCall(ins))
-    {
-        BOOL extraRepInstrumentation = INS_HasRealRep(ins);
-        INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) GrabInstructionContext,
-                   IARG_THREAD_ID,
-                   IARG_INST_PTR,
-                   IARG_BOOL, 0,
-                   IARG_ADDRINT, INS_NextAddress(ins),
-                   IARG_FALLTHROUGH_ADDR,
-                   IARG_CONST_CONTEXT,
-                   IARG_BOOL, (memOperands > 0),
-                   IARG_BOOL, !extraRepInstrumentation,
-                   IARG_END);
-
-        if(extraRepInstrumentation)
-           INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) FixRepInstructionNPC,
+        INS_InsertCall(ins,
+                       IPOINT_BEFORE,
+                       (AFUNPTR)GrabInstructionMemory,
                        IARG_THREAD_ID,
+                       IARG_MEMORYOP_EA,
+                       memOp,
+                       IARG_UINT32,
+                       memSize,
+                       IARG_BOOL,
+                       (memOp == 0),
                        IARG_INST_PTR,
-                       IARG_BOOL, INS_RepPrefix(ins),
-                       IARG_BOOL, INS_RepnePrefix(ins),
-                       IARG_REG_VALUE, INS_RepCountRegister(ins),
-                       IARG_ADDRINT, INS_Opcode(ins),
                        IARG_END);
     }
-    else
-    {
+
+    if (!INS_IsBranchOrCall(ins)) {
+        BOOL extraRepInstrumentation = INS_HasRealRep(ins);
+        INS_InsertCall(ins,
+                       IPOINT_BEFORE,
+                       (AFUNPTR)GrabInstructionContext,
+                       IARG_THREAD_ID,
+                       IARG_INST_PTR,
+                       IARG_BOOL,
+                       0,
+                       IARG_ADDRINT,
+                       INS_NextAddress(ins),
+                       IARG_FALLTHROUGH_ADDR,
+                       IARG_CONST_CONTEXT,
+                       IARG_BOOL,
+                       (memOperands > 0),
+                       IARG_BOOL,
+                       !extraRepInstrumentation,
+                       IARG_END);
+
+        if (extraRepInstrumentation)
+            INS_InsertCall(ins,
+                           IPOINT_BEFORE,
+                           (AFUNPTR)FixRepInstructionNPC,
+                           IARG_THREAD_ID,
+                           IARG_INST_PTR,
+                           IARG_BOOL,
+                           INS_RepPrefix(ins),
+                           IARG_BOOL,
+                           INS_RepnePrefix(ins),
+                           IARG_REG_VALUE,
+                           INS_RepCountRegister(ins),
+                           IARG_ADDRINT,
+                           INS_Opcode(ins),
+                           IARG_END);
+    } else {
         // Branch, give instrumentation appropriate address
-        INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) GrabInstructionContext,
-                   IARG_THREAD_ID,
-                   IARG_INST_PTR,
-                   IARG_BRANCH_TAKEN,
-                   IARG_ADDRINT, INS_NextAddress(ins),
-                   IARG_BRANCH_TARGET_ADDR,
-                   IARG_CONST_CONTEXT,
-                   IARG_BOOL, (memOperands > 0),
-                   IARG_BOOL, true,
-                   IARG_END);
+        INS_InsertCall(ins,
+                       IPOINT_BEFORE,
+                       (AFUNPTR)GrabInstructionContext,
+                       IARG_THREAD_ID,
+                       IARG_INST_PTR,
+                       IARG_BRANCH_TAKEN,
+                       IARG_ADDRINT,
+                       INS_NextAddress(ins),
+                       IARG_BRANCH_TARGET_ADDR,
+                       IARG_CONST_CONTEXT,
+                       IARG_BOOL,
+                       (memOperands > 0),
+                       IARG_BOOL,
+                       true,
+                       IARG_END);
     }
 }
 
 /* ========================================================================== */
-VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
-{
+VOID ThreadStart(THREADID threadIndex, CONTEXT* ictxt, INT32 flags, VOID* v) {
     // ILDJIT is forking a compiler thread, ignore
-//    if (KnobILDJIT.Value() && !ILDJIT_IsCreatingExecutor())
-//        return;
+    //    if (KnobILDJIT.Value() && !ILDJIT_IsCreatingExecutor())
+    //        return;
 
     lk_lock(&syscall_lock, 1);
 
@@ -744,36 +770,37 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
 
     tos = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_ESP);
     CHAR** sp = (CHAR**)tos;
-//    cerr << hex << "SP: " << (VOID*) sp << dec << endl;
+    //    cerr << hex << "SP: " << (VOID*) sp << dec << endl;
 
     // We care about the address space only on main thread creation
     if (threadIndex == 0) {
-        UINT32 argc = *(UINT32*) sp;
-//        cerr << hex << "argc: " << argc << dec << endl;
+        UINT32 argc = *(UINT32*)sp;
+        //        cerr << hex << "argc: " << argc << dec << endl;
 
-        for(UINT32 i=0; i<argc; i++) {
+        for (UINT32 i = 0; i < argc; i++) {
             sp++;
-//            cerr << hex << (ADDRINT)(*sp) << dec << endl;
+            //            cerr << hex << (ADDRINT)(*sp) << dec << endl;
         }
         CHAR* last_argv = *sp;
-        sp++;   // End of argv (=NULL);
+        sp++;  // End of argv (=NULL);
 
-        sp++;   // Start of envp
+        sp++;  // Start of envp
 
         CHAR** envp = sp;
-//        cerr << "envp: " << hex << (ADDRINT)envp << endl;
-        while(*envp != NULL) {
-//            cerr << hex << (ADDRINT)(*envp) << dec << endl;
+        //        cerr << "envp: " << hex << (ADDRINT)envp << endl;
+        while (*envp != NULL) {
+            //            cerr << hex << (ADDRINT)(*envp) << dec << endl;
             envp++;
-        } // End of envp
+        }  // End of envp
 
-        CHAR* last_env = *(envp-1);
-        envp++; // Skip end of envp (=NULL)
+        CHAR* last_env = *(envp - 1);
+        envp++;  // Skip end of envp (=NULL)
 
         Elf32_auxv_t* auxv = (Elf32_auxv_t*)envp;
-//        cerr << "auxv: " << hex << auxv << endl;
-        for (; auxv->a_type != AT_NULL; auxv++) { //go to end of aux_vector
-            // This containts the address of the kernel-mapped page used for a fast syscall routine
+        //        cerr << "auxv: " << hex << auxv << endl;
+        for (; auxv->a_type != AT_NULL; auxv++) {  // go to end of aux_vector
+            // This containts the address of the kernel-mapped page used for a fast
+            // syscall routine
             if (auxv->a_type == AT_SYSINFO) {
 #ifdef ZESTO_PIN_DBG
                 cerr << "AT_SYSINFO: " << hex << auxv->a_un.a_val << endl;
@@ -786,28 +813,25 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
         }
 
         if (last_env != NULL)
-            bos = (ADDRINT) last_env + strlen(last_env)+1;
+            bos = (ADDRINT)last_env + strlen(last_env) + 1;
         else
-            bos = (ADDRINT) last_argv + strlen(last_argv)+1; //last_argv != NULLalways
-//        cerr << "bos: " << hex << bos << dec << endl;
+            bos = (ADDRINT)last_argv + strlen(last_argv) + 1;  // last_argv != NULLalways
+        //        cerr << "bos: " << hex << bos << dec << endl;
 
         // Reserve space for environment and arguments in case
         // execution starts on another thread.
         ADDRINT tos_start = ROUND_DOWN(tos, PAGE_SIZE);
         ADDRINT bos_end = ROUND_UP(bos, PAGE_SIZE);
         ipc_message_t msg;
-        msg.Mmap(asid, tos_start, bos_end-tos_start, false);
+        msg.Mmap(asid, tos_start, bos_end - tos_start, false);
         SendIPCMessage(msg);
 
-    }
-    else {
+    } else {
         bos = tos;
     }
 
     // Application threads only -- create buffers for them
-    if (!KnobILDJIT.Value() ||
-        (KnobILDJIT.Value() && ILDJIT_IsCreatingExecutor()))
-    {
+    if (!KnobILDJIT.Value() || (KnobILDJIT.Value() && ILDJIT_IsCreatingExecutor())) {
         /* Store globally unique thread id */
         tstate->tid = gettid();
 
@@ -828,16 +852,14 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
         thread_bos->operator[](tstate->tid) = bos;
         lk_unlock(lk_thread_bos);
 
-        if (ExecMode == EXECUTION_MODE_SIMULATE)
-        {
+        if (ExecMode == EXECUTION_MODE_SIMULATE) {
             ipc_message_t msg;
             msg.ScheduleNewThread(tstate->tid);
             SendIPCMessage(msg);
         }
 
-        if (!KnobILDJIT.Value())
-        {
-            lk_lock(&tstate->lock, threadIndex+1);
+        if (!KnobILDJIT.Value()) {
+            lk_lock(&tstate->lock, threadIndex + 1);
             tstate->ignore = false;
             tstate->ignore_all = false;
             lk_unlock(&tstate->lock);
@@ -846,7 +868,7 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
         /* Add to thread_list in the end, so other threads that iterate
          * it don't race on a not yet fully initialized structure.
          */
-        lk_lock(&thread_list_lock, threadIndex+1);
+        lk_lock(&thread_list_lock, threadIndex + 1);
         virtual_affinity[threadIndex] = INVALID_CORE;
         thread_list.push_back(threadIndex);
         lk_unlock(&thread_list_lock);
@@ -856,12 +878,11 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT * ictxt, INT32 flags, VOID *v)
 }
 
 /* ========================================================================== */
-int AllocateCores(vector<double> scaling, double serial_runtime)
-{
+int AllocateCores(vector<double> scaling, double serial_runtime) {
     /* Ask timing_sim for an allocation, and block until it comes back. */
     ipc_message_t msg;
     msg.AllocateCores(asid, scaling, serial_runtime);
-    SendIPCMessage(msg, /*blocking*/true);
+    SendIPCMessage(msg, /*blocking*/ true);
 
     /* Here we've finished with the allocation decision. */
     int allocation = GetProcessCoreAllocation(asid);
@@ -873,19 +894,17 @@ int AllocateCores(vector<double> scaling, double serial_runtime)
 }
 
 /* ========================================================================== */
-VOID DeallocateCores()
-{
+VOID DeallocateCores() {
     CoreSet empty_set;
     UpdateProcessCoreSet(asid, empty_set);
 
     ipc_message_t msg;
     msg.DeallocateCores(asid);
-    SendIPCMessage(msg, /*blocking*/true);
+    SendIPCMessage(msg, /*blocking*/ true);
 }
 
 /* ========================================================================== */
-VOID PauseSimulation()
-{
+VOID PauseSimulation() {
     /* Here we have produced everything, we can only consume */
     disable_producers();
     enable_consumers();
@@ -919,7 +938,7 @@ VOID PauseSimulation()
             /* When the handshake is consumed, this will let the scheduler
              * de-schedule the thread */
             pid_t curr_tid = tstate->tid;
-            handshake_container_t *handshake = xiosim::buffer_management::get_buffer(curr_tid);
+            handshake_container_t* handshake = xiosim::buffer_management::get_buffer(curr_tid);
             handshake->flags.giveCoreUp = true;
             handshake->flags.giveUpReschedule = false;
             handshake->flags.valid = true;
@@ -948,7 +967,8 @@ VOID PauseSimulation()
             PIN_Sleep(10);
     } while (!threads_done);
 
-    /* Re-enable producers once we are past the barrier. This way, they can continue
+    /* Re-enable producers once we are past the barrier. This way, they can
+     * continue
      * ignoring instructions until the next slice. */
     enable_producers();
 
@@ -958,8 +978,7 @@ VOID PauseSimulation()
 }
 
 /* ========================================================================== */
-VOID ResumeSimulation(bool allocate_cores)
-{
+VOID ResumeSimulation(bool allocate_cores) {
     /* Get cores for the allocator */
     if (allocate_cores)
         AllocateCores(vector<double>(), 0);
@@ -1016,9 +1035,8 @@ VOID ResumeSimulation(bool allocate_cores)
 }
 
 /* ========================================================================== */
-VOID ThreadFini(THREADID tid, const CONTEXT *ctxt, INT32 code, VOID *v)
-{
-    lk_lock(printing_lock, tid+1);
+VOID ThreadFini(THREADID tid, const CONTEXT* ctxt, INT32 code, VOID* v) {
+    lk_lock(printing_lock, tid + 1);
     cerr << "Thread exit. ID: " << tid << endl;
     lk_unlock(printing_lock);
 
@@ -1038,7 +1056,7 @@ VOID ThreadFini(THREADID tid, const CONTEXT *ctxt, INT32 code, VOID *v)
      * Mark it as finishing and let the handshake buffer drain.
      * Once this last handshake gets executed by a core, it will make
        sure to clean up all thread resources. */
-    handshake_container_t *handshake = xiosim::buffer_management::get_buffer(tstate->tid);
+    handshake_container_t* handshake = xiosim::buffer_management::get_buffer(tstate->tid);
     handshake->flags.killThread = true;
     handshake->flags.valid = true;
     handshake->flags.real = false;
@@ -1050,18 +1068,18 @@ VOID ThreadFini(THREADID tid, const CONTEXT *ctxt, INT32 code, VOID *v)
      * destroying its tstate.
      * XXX: This might be bit paranoid depending on when Pin inserts the
      * ThreadFini callback. */
-    lk_lock(&tstate->lock, tid+1);
+    lk_lock(&tstate->lock, tid + 1);
     tstate->ignore = true;
     lk_unlock(&tstate->lock);
 }
 
 /* ========================================================================== */
-INT32 main(INT32 argc, CHAR **argv)
-{
+INT32 main(INT32 argc, CHAR** argv) {
 #ifdef ZESTO_PIN_DBG
-    cerr << "[" << getpid() << "]" << " feeder_zesto args: ";
-    for(int i=0; i<argc; i++)
-       cerr << argv[i] << " ";
+    cerr << "[" << getpid() << "]"
+         << " feeder_zesto args: ";
+    for (int i = 0; i < argc; i++)
+        cerr << argv[i] << " ";
     cerr << endl;
 #endif
 
@@ -1077,9 +1095,10 @@ INT32 main(INT32 argc, CHAR **argv)
     // Synchronize all processes here to ensure that in multiprogramming mode,
     // no process will start too far before the others.
     asid = InitSharedState(true, KnobHarnessPid.Value(), KnobNumCores.Value());
-    xiosim::buffer_management::InitBufferManagerProducer(KnobHarnessPid.Value(), KnobNumCores.Value());
+    xiosim::buffer_management::InitBufferManagerProducer(KnobHarnessPid.Value(),
+                                                         KnobNumCores.Value());
 
-    if(KnobAMDHack.Value()) {
+    if (KnobAMDHack.Value()) {
         amd_hack();
     }
 
@@ -1089,7 +1108,7 @@ INT32 main(INT32 argc, CHAR **argv)
 
     if (!KnobILDJIT.Value() && !KnobParsec.Value() && !KnobMachsuite.Value()) {
         // Try activate pinpoints alarm, must be done before PIN_StartProgram
-        if(control.CheckKnobs(PPointHandler, 0) != 1) {
+        if (control.CheckKnobs(PPointHandler, 0) != 1) {
             cerr << "Error reading control parametrs, exiting." << endl;
             return 1;
         }
@@ -1097,8 +1116,7 @@ INT32 main(INT32 argc, CHAR **argv)
 
     icount.Activate();
 
-    if(!KnobInsTraceFile.Value().empty())
-    {
+    if (!KnobInsTraceFile.Value().empty()) {
         trace_file.open(KnobInsTraceFile.Value().c_str());
         trace_file << hex;
         pc_file.open("pcs.trace");
@@ -1108,14 +1126,14 @@ INT32 main(INT32 argc, CHAR **argv)
     // Delay this instrumentation until startSimulation call in ILDJIT.
     // This cuts down HELIX compilation noticably for integer benchmarks.
 
-    if(!KnobILDJIT.Value()) {
+    if (!KnobILDJIT.Value()) {
         TRACE_AddInstrumentFunction(InstrumentInsIgnoring, 0);
         INS_AddInstrumentFunction(Instrument, 0);
     }
 
     PIN_AddThreadStartFunction(ThreadStart, NULL);
     PIN_AddThreadFiniFunction(ThreadFini, NULL);
-//    IMG_AddUnloadFunction(ImageUnload, 0);
+    //    IMG_AddUnloadFunction(ImageUnload, 0);
     IMG_AddInstrumentFunction(ImageLoad, 0);
     PIN_AddFiniUnlockedFunction(BeforeFini, 0);
     PIN_AddFiniFunction(Fini, 0);
@@ -1129,8 +1147,7 @@ INT32 main(INT32 argc, CHAR **argv)
     return 0;
 }
 
-static VOID amd_hack()
-{
+static VOID amd_hack() {
     // use kernel version to distinguish between RHEL5 and RHEL6
     bool rhel6 = false;
 
@@ -1138,105 +1155,105 @@ static VOID amd_hack()
     string version((istreambuf_iterator<char>(procversion)), istreambuf_iterator<char>());
 
     if (version.find(".el6.") != string::npos) {
-      rhel6 = true;
-    }
-    else if (version.find(".el5 ") == string::npos) {
-      if (version.find(".el5.") == string::npos) {
-        if(version.find(".el5_") == string::npos) {
-          cerr << "ERROR! Neither .el5 nor .el6 occurs in /proc/version" << endl;
-          abort();
+        rhel6 = true;
+    } else if (version.find(".el5 ") == string::npos) {
+        if (version.find(".el5.") == string::npos) {
+            if (version.find(".el5_") == string::npos) {
+                cerr << "ERROR! Neither .el5 nor .el6 occurs in /proc/version" << endl;
+                abort();
+            }
         }
-      }
     }
 
     // under RHEL6, the VDSO page location can vary from build to build
     unsigned long vdso_begin, vdso_end = 0;
 
     if (rhel6) {
-      ifstream maps("/proc/self/maps");
-      string line;
+        ifstream maps("/proc/self/maps");
+        string line;
 
-      while (getline(maps, line))
-        if (line.find("[vdso]") != string::npos) {
-          istringstream linestream(line);
-          linestream >> hex;
+        while (getline(maps, line))
+            if (line.find("[vdso]") != string::npos) {
+                istringstream linestream(line);
+                linestream >> hex;
 
-          if (linestream >> vdso_begin &&
-              linestream.get() == '-'  &&
-              linestream >> vdso_end)
-            break;
-          cerr << "ERROR! Badly formatted [vdso] map line: " << line << endl;
-          abort();
+                if (linestream >> vdso_begin && linestream.get() == '-' && linestream >> vdso_end)
+                    break;
+                cerr << "ERROR! Badly formatted [vdso] map line: " << line << endl;
+                abort();
+            }
+
+        if (vdso_end == 0) {
+            cerr << "ERROR! No VDSO page map in /proc/self/maps" << endl;
+            abort();
+        } else if (vdso_end - vdso_begin != 0x1000) {
+            cerr << "ERROR! VDSO page size isn't 0x1000 in /proc/self/maps" << endl;
+            abort();
         }
-
-      if (vdso_end == 0) {
-        cerr << "ERROR! No VDSO page map in /proc/self/maps" << endl;
-        abort();
-      } else if (vdso_end - vdso_begin != 0x1000) {
-        cerr << "ERROR! VDSO page size isn't 0x1000 in /proc/self/maps" << endl;
-        abort();
-      }
     } else {
-      vdso_begin = 0xffffe000;
+        vdso_begin = 0xffffe000;
     }
 
-    int returnval = mprotect((void *)vdso_begin, 0x1000, PROT_EXEC | PROT_READ | PROT_WRITE);
+    int returnval = mprotect((void*)vdso_begin, 0x1000, PROT_EXEC | PROT_READ | PROT_WRITE);
     if (returnval != 0) {
-      perror("mprotect");
-      cerr << hex << "VDSO page is at " << vdso_begin << endl;
-      abort();
+        perror("mprotect");
+        cerr << hex << "VDSO page is at " << vdso_begin << endl;
+        abort();
     }
 
-    // offset of __kernel_vsyscall() is slightly later under RHEL6 than under RHEL5
+    // offset of __kernel_vsyscall() is slightly later under RHEL6 than under
+    // RHEL5
     unsigned vsyscall_offset = rhel6 ? 0x420 : 0x400;
 
     // write int80 at the begining of __kernel_vsyscall()
-    *(char *)(vdso_begin + vsyscall_offset + 0) = 0xcd;
-    *(char *)(vdso_begin + vsyscall_offset + 1) = 0x80;
+    *(char*)(vdso_begin + vsyscall_offset + 0) = 0xcd;
+    *(char*)(vdso_begin + vsyscall_offset + 1) = 0x80;
 
     // ... and follow it by a ret
-    *(char *)(vdso_begin + vsyscall_offset + 2) = 0xc3;
+    *(char*)(vdso_begin + vsyscall_offset + 2) = 0xc3;
 }
 
-VOID doLateILDJITInstrumentation()
-{
-  static bool calledAlready = false;
+VOID doLateILDJITInstrumentation() {
+    static bool calledAlready = false;
 
-  ASSERTX(!calledAlready);
+    ASSERTX(!calledAlready);
 
-  GetVmLock();
-  TRACE_AddInstrumentFunction(InstrumentInsIgnoring, 0);
-  INS_AddInstrumentFunction(Instrument, 0);
-  CODECACHE_FlushCache();
-  ReleaseVmLock();
+    GetVmLock();
+    TRACE_AddInstrumentFunction(InstrumentInsIgnoring, 0);
+    INS_AddInstrumentFunction(Instrument, 0);
+    CODECACHE_FlushCache();
+    ReleaseVmLock();
 
-  calledAlready = true;
+    calledAlready = true;
 }
 
-VOID printTrace(string stype, ADDRINT pc, pid_t tid)
-{
-  if(ExecMode != EXECUTION_MODE_SIMULATE) {
-    return;
-  }
+VOID printTrace(string stype, ADDRINT pc, pid_t tid) {
+    if (ExecMode != EXECUTION_MODE_SIMULATE) {
+        return;
+    }
 
-  lk_lock(printing_lock, tid+1);
-  pc_file << tid << " " << stype << " " << pc << " " << pc_diss[pc] << endl;
-  pc_file.flush();
-  lk_unlock(printing_lock);
+    lk_lock(printing_lock, tid + 1);
+    pc_file << tid << " " << stype << " " << pc << " " << pc_diss[pc] << endl;
+    pc_file.flush();
+    lk_unlock(printing_lock);
 }
 
 /* Explicitly print signal info. Under some conditions, it does miss.
  * This makes debugging segfaults easier. */
-static BOOL SignalInfo(THREADID tid, INT32 sig, CONTEXT *ctxt, BOOL hasHandler, const EXCEPTION_INFO *pExceptInfo, VOID *v)
-{
-    cerr << "Caught signal " <<  sig << " at " << hex << PIN_GetExceptionAddress(pExceptInfo) << dec << endl;
+static BOOL SignalInfo(THREADID tid,
+                       INT32 sig,
+                       CONTEXT* ctxt,
+                       BOOL hasHandler,
+                       const EXCEPTION_INFO* pExceptInfo,
+                       VOID* v) {
+    cerr << "Caught signal " << sig << " at " << hex << PIN_GetExceptionAddress(pExceptInfo) << dec
+         << endl;
     cerr << PIN_ExceptionToString(pExceptInfo) << endl;
 
     return true;
 }
 
-static VOID RegisterSignalIntercept()
-{
+static VOID RegisterSignalIntercept() {
     PIN_InterceptSignal(SIGINT, SignalInfo, NULL);
     PIN_InterceptSignal(SIGABRT, SignalInfo, NULL);
     PIN_InterceptSignal(SIGFPE, SignalInfo, NULL);
@@ -1246,8 +1263,7 @@ static VOID RegisterSignalIntercept()
     PIN_InterceptSignal(SIGKILL, SignalInfo, NULL);
 }
 
-void disable_producers()
-{
+void disable_producers() {
     if (*sleeping_enabled) {
         if (!producers_sleep)
             PIN_SemaphoreClear(&producers_sem);
@@ -1255,15 +1271,13 @@ void disable_producers()
     }
 }
 
-void enable_producers()
-{
+void enable_producers() {
     if (producers_sleep)
         PIN_SemaphoreSet(&producers_sem);
     producers_sleep = false;
 }
 
-static void wait_producers()
-{
+static void wait_producers() {
     if (!*sleeping_enabled)
         return;
 
@@ -1272,8 +1286,7 @@ static void wait_producers()
 }
 
 /* ========================================================================== */
-static void FastForwardBarrier(int slice_num)
-{
+static void FastForwardBarrier(int slice_num) {
     lk_lock(lk_num_done_fastforward, 1);
     (*num_done_fastforward)++;
     int processes_at_barrier = *num_done_fastforward;
@@ -1303,8 +1316,7 @@ static void FastForwardBarrier(int slice_num)
 }
 
 /* ========================================================================== */
-static void SliceEndBarrier(int slice_num, int slice_length, int slice_weight_times_1000)
-{
+static void SliceEndBarrier(int slice_num, int slice_length, int slice_weight_times_1000) {
     lk_lock(lk_num_done_slice, 1);
     (*num_done_slice)++;
     int processes_at_barrier = *num_done_slice;

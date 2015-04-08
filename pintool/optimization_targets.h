@@ -16,14 +16,13 @@ namespace xiosim {
  *   num_cores: total number of cores in the system.
  *   TODO: Why do we need num_cores? We should just use scaling.length.
  */
-void OptimizeThroughput(std::map<int, int> &core_allocs,
+void OptimizeThroughput(std::map<int, int>& core_allocs,
                         std::vector<std::vector<double>*> process_scaling,
                         int num_cores);
 
-void OptimizeEnergyForLinearScaling(
-    std::map<int, int> &core_allocs,
-    std::vector<double> &process_linear_scaling,
-    std::vector<double> &process_serial_runtime,
-    int num_cores);
+void OptimizeEnergyForLinearScaling(std::map<int, int>& core_allocs,
+                                    std::vector<double>& process_linear_scaling,
+                                    std::vector<double>& process_serial_runtime,
+                                    int num_cores);
 
 }  // namespace xiosim

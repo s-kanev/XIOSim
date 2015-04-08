@@ -22,10 +22,9 @@ namespace xiosim {
  * processes. This assumes that speedup is monotically increasing. This is
  * generally a safe assumption as we do not use SMT.
  */
-void OptimizeThroughput(
-        std::map<int, int> &core_allocs,
-        std::vector<std::vector<double>*> process_scaling,
-        int num_cores) {
+void OptimizeThroughput(std::map<int, int>& core_allocs,
+                        std::vector<std::vector<double>*> process_scaling,
+                        int num_cores) {
     int total_cores_alloc = *num_processes;
     int optimum_found = false;
     while (!optimum_found) {
@@ -34,8 +33,7 @@ void OptimizeThroughput(
         for (auto alloc_pair : core_allocs) {
             int curr_asid = alloc_pair.first;
             int curr_core_alloc = alloc_pair.second;
-            double curr_speedup =
-                process_scaling[curr_asid]->at(curr_core_alloc);
+            double curr_speedup = process_scaling[curr_asid]->at(curr_core_alloc);
             if (curr_speedup > max_speedup && total_cores_alloc < num_cores) {
                 max_speedup = curr_speedup;
                 asid_with_max_speedup = curr_asid;
@@ -45,7 +43,7 @@ void OptimizeThroughput(
             core_allocs[asid_with_max_speedup]++;
             total_cores_alloc++;
         }
-        if (max_speedup < 0 || total_cores_alloc == num_cores ) {
+        if (max_speedup < 0 || total_cores_alloc == num_cores) {
             // We have not decided how to deal with non-monotonic speedup
             // curves, so for now we stop if all processes start exhibiting
             // negative speedup.
@@ -79,14 +77,13 @@ void OptimizeThroughput(
  *   in @core_alloc) if the current maximum runtime is less than the previous
  *   maximum, or -1 otherwise.
  */
-double MinimizeCoreAllocations(
-        std::map<int, int> &core_alloc,
-        std::vector<double> &gammas,
-        double prev_max) {
+double MinimizeCoreAllocations(std::map<int, int>& core_alloc,
+                               std::vector<double>& gammas,
+                               double prev_max) {
     double current_max = 0;
     // Compute the current worst case runtime.
     for (auto it = core_alloc.begin(); it != core_alloc.end(); ++it) {
-        double runtime = gammas[it->first]/it->second;
+        double runtime = gammas[it->first] / it->second;
         if (runtime > current_max)
             current_max = runtime;
     }
@@ -98,21 +95,20 @@ double MinimizeCoreAllocations(
     // This allocation is more optimal than the previous one. Continue.
     std::map<int, int> best_alloc(core_alloc);
     for (auto i = core_alloc.begin(); i != core_alloc.end(); ++i) {
-        core_alloc[i->first] ++;
+        core_alloc[i->first]++;
         for (auto j = core_alloc.begin(); j != core_alloc.end(); ++j) {
             if (i->first != j->first && j->second > 1) {
-                core_alloc[j->first] --;
-                double next_max = MinimizeCoreAllocations(
-                        core_alloc, gammas, current_max);
+                core_alloc[j->first]--;
+                double next_max = MinimizeCoreAllocations(core_alloc, gammas, current_max);
                 if (next_max != -1 && next_max < current_max) {
                     best_alloc = core_alloc;
                     current_max = next_max;
                 } else {
-                    core_alloc[j->first] ++;
+                    core_alloc[j->first]++;
                 }
             }
         }
-        core_alloc[i->first] --;
+        core_alloc[i->first]--;
     }
     core_alloc = best_alloc;
     return current_max;
@@ -122,17 +118,15 @@ double MinimizeCoreAllocations(
  * linear scaling and constant core and uncore power.
  * TODO: Consider making core_allocs also a vector.
  */
-void OptimizeEnergyForLinearScaling(
-        std::map<int, int> &core_allocs,
-        std::vector<double> &process_linear_scaling,
-        std::vector<double> &process_serial_runtime,
-        int num_cores) {
+void OptimizeEnergyForLinearScaling(std::map<int, int>& core_allocs,
+                                    std::vector<double>& process_linear_scaling,
+                                    std::vector<double>& process_serial_runtime,
+                                    int num_cores) {
     std::vector<double> gammas;
     double gamma_sum = 0;
     for (auto it = core_allocs.begin(); it != core_allocs.end(); ++it) {
         int asid = it->first;
-        gammas.push_back(
-                process_serial_runtime[asid] / process_linear_scaling[asid]);
+        gammas.push_back(process_serial_runtime[asid] / process_linear_scaling[asid]);
         gamma_sum += gammas[asid];
     }
     // Compute continous core allocations.
@@ -149,7 +143,7 @@ void OptimizeEnergyForLinearScaling(
         double max_runtime = 0;
         for (auto it = core_allocs.begin(); it != core_allocs.end(); ++it) {
             if (it->second != 0) {
-                double runtime = gammas[it->first]/it->second;
+                double runtime = gammas[it->first] / it->second;
                 if (runtime > max_runtime) {
                     max_runtime_asid = it->first;
                     max_runtime = runtime;

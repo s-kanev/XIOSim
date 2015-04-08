@@ -22,19 +22,18 @@
 
 namespace xiosim {
 
-LocallyOptimalAllocator::LocallyOptimalAllocator(
-        OptimizationTarget opt_target,
-        SpeedupModelType speedup_model,
-        double core_power,
-        double uncore_power,
-        int num_cores) : BaseAllocator(
-                opt_target, speedup_model, core_power, uncore_power, num_cores),
-        process_scaling(), process_serial_runtime() {
+LocallyOptimalAllocator::LocallyOptimalAllocator(OptimizationTarget opt_target,
+                                                 SpeedupModelType speedup_model,
+                                                 double core_power,
+                                                 double uncore_power,
+                                                 int num_cores)
+    : BaseAllocator(opt_target, speedup_model, core_power, uncore_power, num_cores)
+    , process_scaling()
+    , process_serial_runtime() {
     ResetState();
 }
 
-LocallyOptimalAllocator::~LocallyOptimalAllocator() {
-}
+LocallyOptimalAllocator::~LocallyOptimalAllocator() {}
 
 /* Resets the checked-in process tracker and scaling data.
  * Note: do not clear processes_to_unblock, because this structure can be called
@@ -52,8 +51,9 @@ void LocallyOptimalAllocator::ResetState() {
     process_serial_runtime.resize(*num_processes);
 }
 
-int LocallyOptimalAllocator::AllocateCoresForProcess(
-        int asid, std::vector<double> scaling, double serial_runtime) {
+int LocallyOptimalAllocator::AllocateCoresForProcess(int asid,
+                                                     std::vector<double> scaling,
+                                                     double serial_runtime) {
     lk_lock(&allocator_lock, 1);
 
     // On the first call for this process, initialize some parameters.
@@ -77,8 +77,7 @@ int LocallyOptimalAllocator::AllocateCoresForProcess(
     // allocation optimization function. All other threads can wait for this to
     // complete and then simply use the output.
     if (!process_sync.allocation_complete) {
-        speedup_model->OptimizeForTarget(
-                core_allocs, process_scaling, process_serial_runtime);
+        speedup_model->OptimizeForTarget(core_allocs, process_scaling, process_serial_runtime);
         process_sync.allocation_complete = true;
         // Add all asids in core_allocs into the unblocking list.
         // std::vector<int> unblock_asids;
@@ -99,4 +98,4 @@ int LocallyOptimalAllocator::AllocateCoresForProcess(
     return allocated_cores;
 }
 
-}    // namespace xiosim
+}  // namespace xiosim

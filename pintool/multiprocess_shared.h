@@ -7,28 +7,27 @@
 #include "../machine.h"
 #include "mpkeys.h"
 
-extern boost::interprocess::managed_shared_memory *global_shm;
+extern boost::interprocess::managed_shared_memory* global_shm;
 
 /* Returns "X" */
 #define Q(X) #X
 #define SINGLE_ARG(...) __VA_ARGS__
 
-#define SHARED_VAR_DECLARE(TYPE, VAR) \
-    extern TYPE * VAR;   \
+#define SHARED_VAR_DECLARE(TYPE, VAR)                                                              \
+    extern TYPE* VAR;                                                                              \
     extern const char* VAR##_KEY;
 
-#define SHARED_VAR_DEFINE(TYPE, VAR) \
-    TYPE * VAR;   \
+#define SHARED_VAR_DEFINE(TYPE, VAR)                                                               \
+    TYPE* VAR;                                                                                     \
     const char* VAR##_KEY = Q(VAR);
 
-#define SHARED_VAR_INIT(TYPE, VAR, ...) \
-    VAR = global_shm->find_or_construct<TYPE>(VAR##_KEY)( __VA_ARGS__);
+#define SHARED_VAR_INIT(TYPE, VAR, ...)                                                            \
+    VAR = global_shm->find_or_construct<TYPE>(VAR##_KEY)(__VA_ARGS__);
 
-#define SHARED_VAR_ARRAY_INIT(TYPE, VAR, SIZE, ...) \
-    VAR = global_shm->find_or_construct<TYPE>(VAR##_KEY)[SIZE]( __VA_ARGS__);
+#define SHARED_VAR_ARRAY_INIT(TYPE, VAR, SIZE, ...)                                                \
+    VAR = global_shm->find_or_construct<TYPE>(VAR##_KEY)[SIZE](__VA_ARGS__);
 
-#define SHARED_VAR_CONSTRUCT(TYPE, VAR, ...) \
-    VAR = new TYPE(global_shm, VAR##_KEY, ## __VA_ARGS__);
+#define SHARED_VAR_CONSTRUCT(TYPE, VAR, ...) VAR = new TYPE(global_shm, VAR##_KEY, ##__VA_ARGS__);
 
 SHARED_VAR_DECLARE(XIOSIM_LOCK, printing_lock)
 SHARED_VAR_DECLARE(int, num_processes)
@@ -60,9 +59,13 @@ bool IsSHMThreadSimulatingMaybe(pid_t tid);
  * between the two. */
 int GetSHMThreadCore(pid_t tid);
 
-typedef boost::interprocess::allocator<int, boost::interprocess::managed_shared_memory::segment_manager> int_allocator; 
+typedef boost::interprocess::allocator<int,
+                                       boost::interprocess::managed_shared_memory::segment_manager>
+    int_allocator;
 typedef boost::interprocess::set<int, std::less<int>, int_allocator> SharedCoreSet;
-typedef boost::interprocess::allocator<SharedCoreSet, boost::interprocess::managed_shared_memory::segment_manager> shared_core_set_allocator;
+typedef boost::interprocess::allocator<SharedCoreSet,
+                                       boost::interprocess::managed_shared_memory::segment_manager>
+    shared_core_set_allocator;
 typedef boost::interprocess::vector<SharedCoreSet, shared_core_set_allocator> SharedCoreSetArray;
 SHARED_VAR_DECLARE(SharedCoreSetArray, processCoreSet)
 SHARED_VAR_DECLARE(XIOSIM_LOCK, lk_processCoreSet)

@@ -17,7 +17,7 @@ TEST_CASE("Complete front-to-end test of the speedup data parser", "parser") {
     SECTION("test data for loop_1") {
         string loop_name = "loop_1";
         vector<double> loop_scaling = GetHelixLoopScaling(loop_name);
-        REQUIRE(loop_scaling.size() == NUM_POINTS+1);
+        REQUIRE(loop_scaling.size() == NUM_POINTS + 1);
         REQUIRE(loop_scaling.at(0) == Approx(1.0));
         REQUIRE(loop_scaling.at(1) == Approx(0.9));
         REQUIRE(loop_scaling.at(2) == Approx(1.6));
@@ -30,7 +30,7 @@ TEST_CASE("Complete front-to-end test of the speedup data parser", "parser") {
         vector<double> loop_scaling = GetHelixLoopScaling(loop_name);
         // The first three elements will be 0, 0.5, and 0.25 due to linear
         // interpolation but all the others should be 0.5.
-        REQUIRE(loop_scaling.size() == NUM_POINTS+1);
+        REQUIRE(loop_scaling.size() == NUM_POINTS + 1);
         REQUIRE(loop_scaling.at(0) == Approx(1));
         REQUIRE(loop_scaling.at(1) == Approx(1.5));
         REQUIRE(loop_scaling.at(2) == Approx(1.5));
@@ -39,14 +39,14 @@ TEST_CASE("Complete front-to-end test of the speedup data parser", "parser") {
     }
 
     SECTION("Test parsing of serial runtime and variance.") {
-      string loop_name = "loop_1";
-      loop_data* data = GetHelixFullLoopData(loop_name);
-      REQUIRE(data->serial_runtime == 1111);
-      REQUIRE(data->serial_runtime_variance == Approx(0.111));
+        string loop_name = "loop_1";
+        loop_data* data = GetHelixFullLoopData(loop_name);
+        REQUIRE(data->serial_runtime == 1111);
+        REQUIRE(data->serial_runtime_variance == Approx(0.111));
 
-      loop_name = "loop_2";
-      data = GetHelixFullLoopData(loop_name);
-      REQUIRE(data->serial_runtime == 22222);
-      REQUIRE(data->serial_runtime_variance == Approx(0.5));
+        loop_name = "loop_2";
+        data = GetHelixFullLoopData(loop_name);
+        REQUIRE(data->serial_runtime == 22222);
+        REQUIRE(data->serial_runtime_variance == Approx(0.5));
     }
 }

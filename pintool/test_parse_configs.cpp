@@ -28,7 +28,8 @@
 
 // TODO: SUPER DUPER HACKEDY HACK.
 // Because of really mangled dependencies in XIOSim (that I don't have time to
-// address right now), this unit test depends on this method, which is defined in
+// address right now), this unit test depends on this method, which is defined
+// in
 // timing_sim. However, linking with timing_sim will produce a multiple main()
 // function declaration error with this unit test. We need to do refactoring to
 // fix this problem (along with many others), but as the unit test never
@@ -38,13 +39,11 @@ void CheckIPCMessageQueue(bool isEarly, int caller_coreID) {}
 
 TEST_CASE("Test configuration parsing", "config") {
     const char* config_file = "../config/default.cfg";
-    const char* argv[2] = {"-config", config_file};
+    const char* argv[2] = { "-config", config_file };
     read_config_file(2, argv, &knobs);
 
     // Only test a subset of the configuration parameters.
-    SECTION("Checking system configuration") {
-        CHECK(strcmp(knobs.model, "DPM") == 0);
-    }
+    SECTION("Checking system configuration") { CHECK(strcmp(knobs.model, "DPM") == 0); }
 
     SECTION("Checking general core configuration") {
         REQUIRE(knobs.default_cpu_speed == Approx(4000.0));
@@ -56,15 +55,13 @@ TEST_CASE("Test configuration parsing", "config") {
 
         SECTION("Checking branch prediction options") {
             REQUIRE(knobs.fetch.num_bpred_components == 1);
-            REQUIRE(strcmp(knobs.fetch.bpred_opt_str[0],
-                           "2lev:gshare:1:1024:6:1") == 0);
+            REQUIRE(strcmp(knobs.fetch.bpred_opt_str[0], "2lev:gshare:1:1024:6:1") == 0);
         }
 
         SECTION("Checking L1 icache prefetcher options") {
             REQUIRE(knobs.memory.IL1_num_PF == 1);
             REQUIRE(strcmp(knobs.memory.IL1PF_opt_str[0], "nextline") == 0);
         }
-
     }
 
     SECTION("Checking decode stage configuration") {
@@ -111,8 +108,7 @@ TEST_CASE("Test configuration parsing", "config") {
     }
 
     SECTION("Checking uncore configuration") {
-        REQUIRE(strcmp(LLC_opt_str,
-                       "LLC:2048:16:64:16:64:12:L:W:B:8:1:8:C") == 0);
+        REQUIRE(strcmp(LLC_opt_str, "LLC:2048:16:64:16:64:12:L:W:B:8:1:8:C") == 0);
         SECTION("Checking LLC prefecher options") {
             REQUIRE(LLC_num_PF == 1);
             REQUIRE(strcmp(LLC_PF_opt_str[0], "none") == 0);

@@ -5,8 +5,7 @@
 
 time_t last_time;
 
-VOID printElapsedTime()
-{
+VOID printElapsedTime() {
     time_t elapsed_time = time(NULL) - last_time;
     time_t hours = elapsed_time / 3600;
     time_t minutes = (elapsed_time % 3600) / 60;
@@ -15,9 +14,8 @@ VOID printElapsedTime()
     last_time = time(NULL);
 }
 
-VOID printMemoryUsage(THREADID tid)
-{
-    lk_lock(printing_lock, tid+1);
+VOID printMemoryUsage(THREADID tid) {
+    lk_lock(printing_lock, tid + 1);
     int myPid = getpid();
     char str[50];
     sprintf(str, "%d", myPid);
@@ -25,8 +23,8 @@ VOID printMemoryUsage(THREADID tid)
     ifstream fin;
     fin.open(("/proc/" + string(str) + "/status").c_str());
     string line;
-    while(getline(fin, line)) {
-        if(line.find("VmSize") != string::npos) {
+    while (getline(fin, line)) {
+        if (line.find("VmSize") != string::npos) {
             cerr << tid << ":" << line << endl;
             break;
         }

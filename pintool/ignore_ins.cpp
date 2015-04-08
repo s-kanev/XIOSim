@@ -7,25 +7,25 @@ struct replacement_info_t {
     UINT32 ins_to_ignore;
     ADDRINT call_alternative_pc;
 
-    replacement_info_t(UINT32 _ins_to_ignore, ADDRINT _call_alternative_pc) :
-        ins_to_ignore(_ins_to_ignore),
-        call_alternative_pc(_call_alternative_pc) {}
-    replacement_info_t() :
-        ins_to_ignore(0),
-        call_alternative_pc(-1) {}
-
+    replacement_info_t(UINT32 _ins_to_ignore, ADDRINT _call_alternative_pc)
+        : ins_to_ignore(_ins_to_ignore)
+        , call_alternative_pc(_call_alternative_pc) {}
+    replacement_info_t()
+        : ins_to_ignore(0)
+        , call_alternative_pc(-1) {}
 };
 
 static map<ADDRINT, ADDRINT> ignored_tpc;
 static XIOSIM_LOCK lk_ignored_tpc;
 static map<ADDRINT, replacement_info_t> ignore_ips;
 
-KNOB<BOOL> KnobIgnoringInstructions(KNOB_MODE_WRITEONCE, "pintool",
-    "ignore_api", "false",
-    "Use ignoring API (usually to replace in-simulator callbacks)");
+KNOB<BOOL> KnobIgnoringInstructions(KNOB_MODE_WRITEONCE,
+                                    "pintool",
+                                    "ignore_api",
+                                    "false",
+                                    "Use ignoring API (usually to replace in-simulator callbacks)");
 
-ADDRINT NextUnignoredPC(ADDRINT pc)
-{
+ADDRINT NextUnignoredPC(ADDRINT pc) {
     ADDRINT curr = pc;
     lk_lock(&lk_ignored_tpc, 1);
     while (ignored_tpc.count(curr)) {
@@ -35,14 +35,11 @@ ADDRINT NextUnignoredPC(ADDRINT pc)
     return curr;
 }
 
-
-VOID IgnoreCallsTo(ADDRINT addr, UINT32 num_insn, ADDRINT replacement_pc)
-{
+VOID IgnoreCallsTo(ADDRINT addr, UINT32 num_insn, ADDRINT replacement_pc) {
     ignore_ips[addr] = replacement_info_t(num_insn, replacement_pc);
 }
 
-static replacement_info_t CheckInstructionReplacement(INS ins)
-{
+static replacement_info_t CheckInstructionReplacement(INS ins) {
     ADDRINT target_pc;
     if (INS_IsDirectCall(ins)) {
         target_pc = INS_DirectBranchOrCallTargetAddress(ins);
@@ -58,8 +55,7 @@ static replacement_info_t CheckInstructionReplacement(INS ins)
  * function body, and the function is proper and returns to the
  * falltrough address.
  */
-static VOID IgnoreIns(INS ins, ADDRINT alternative_pc = (ADDRINT)-1)
-{
+static VOID IgnoreIns(INS ins, ADDRINT alternative_pc = (ADDRINT)-1) {
     ADDRINT pc = INS_Address(ins);
     ADDRINT fallthrough = INS_NextAddress(ins);
     if (alternative_pc != (ADDRINT)-1)
@@ -75,8 +71,7 @@ static VOID IgnoreIns(INS ins, ADDRINT alternative_pc = (ADDRINT)-1)
     lk_unlock(&lk_ignored_tpc);
 }
 
-bool IsInstructionIgnored(ADDRINT pc)
-{
+bool IsInstructionIgnored(ADDRINT pc) {
     if (!KnobIgnoringInstructions.Value())
         return false;
 
@@ -87,8 +82,7 @@ bool IsInstructionIgnored(ADDRINT pc)
     return result;
 }
 
-VOID InstrumentInsIgnoring(TRACE trace, VOID* v)
-{
+VOID InstrumentInsIgnoring(TRACE trace, VOID* v) {
     if (!KnobIgnoringInstructions.Value())
         return;
 
@@ -98,12 +92,13 @@ VOID InstrumentInsIgnoring(TRACE trace, VOID* v)
             if (repl.ins_to_ignore == 0)
                 continue;
 
-            /* Ignoring the caller to a function. */ 
+            /* Ignoring the caller to a function. */
             IgnoreIns(ins, repl.call_alternative_pc);
             repl.ins_to_ignore--;
 
             /* Now we go back and ignore X instructions that set up parameters.
-             * We assume those are the most recent X stack writes from the same BBL. */
+             * We assume those are the most recent X stack writes from the same BBL.
+             */
             INS curr_ins = ins;
             while (repl.ins_to_ignore > 0) {
                 curr_ins = INS_Prev(curr_ins);
@@ -117,10 +112,11 @@ VOID InstrumentInsIgnoring(TRACE trace, VOID* v)
             }
             if (repl.ins_to_ignore > 0) {
                 lk_lock(printing_lock, 1);
-                cerr << "WARNING: Didn't find enough stack writes to ignore before: " << hex << INS_Address(ins) << dec << endl;
+                cerr << "WARNING: Didn't find enough stack writes to ignore before: " << hex
+                     << INS_Address(ins) << dec << endl;
                 lk_unlock(printing_lock);
             }
-            //assert(repl.ins_to_ignore == 0);
+            // assert(repl.ins_to_ignore == 0);
         }
     }
 }

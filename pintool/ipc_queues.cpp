@@ -12,7 +12,8 @@ SHARED_VAR_DEFINE(AckMessageMap, ackMessages)
 SHARED_VAR_DEFINE(XIOSIM_LOCK, lk_ipcMessageQueue)
 
 void InitIPCQueues(void) {
-    ipc_message_allocator_t *ipc_queue_allocator = new ipc_message_allocator_t(global_shm->get_segment_manager());
+    ipc_message_allocator_t* ipc_queue_allocator =
+        new ipc_message_allocator_t(global_shm->get_segment_manager());
 
     SHARED_VAR_INIT(MessageQueue, ipcMessageQueue, *ipc_queue_allocator);
     SHARED_VAR_INIT(MessageQueue, ipcEarlyMessageQueue, *ipc_queue_allocator);
@@ -21,9 +22,8 @@ void InitIPCQueues(void) {
     SHARED_VAR_CONSTRUCT(AckMessageMap, ackMessages);
 }
 
-void SendIPCMessage(ipc_message_t msg, bool blocking)
-{
-    MessageQueue *q = msg.ConsumableEarly() ? ipcEarlyMessageQueue : ipcMessageQueue;
+void SendIPCMessage(ipc_message_t msg, bool blocking) {
+    MessageQueue* q = msg.ConsumableEarly() ? ipcEarlyMessageQueue : ipcMessageQueue;
     msg.blocking = blocking;
 
 #ifdef IPC_DEBUG

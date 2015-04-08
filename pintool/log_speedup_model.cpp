@@ -24,23 +24,22 @@
  *
  * See header file for function signature details.
  */
-void LogSpeedupModel::OptimizeEnergy(
-        std::map<int, int> &core_allocs,
-        std::vector<double> &process_scaling,
-        std::vector<double> &process_serial_runtime) {
+void LogSpeedupModel::OptimizeEnergy(std::map<int, int>& core_allocs,
+                                     std::vector<double>& process_scaling,
+                                     std::vector<double>& process_serial_runtime) {
     int n = core_allocs.size();
-    double** candidate_solns = new double*[n];
+    double** candidate_solns = new double* [n];
     for (int i = 0; i < n; i++) {
         candidate_solns[i] = new double[n];
     }
-    double power_ratio = uncore_power/core_power;
+    double power_ratio = uncore_power / core_power;
     // Compute all candidate solutions.
     for (int i = 0; i < n; i++) {
         for (int j = 0; j < n; j++) {
-            double A = exp(-(1.0/process_scaling.at(j) - 1));
+            double A = exp(-(1.0 / process_scaling.at(j) - 1));
             if (i == j) {
-                double w_val = LambertW(power_ratio/A);
-                candidate_solns[i][j] = power_ratio/w_val;
+                double w_val = LambertW(power_ratio / A);
+                candidate_solns[i][j] = power_ratio / w_val;
             } else {
                 candidate_solns[i][j] = A;
             }
@@ -55,9 +54,7 @@ void LogSpeedupModel::OptimizeEnergy(
         double current_energy = 0.0;
         for (int j = 0; j < n; j++) {
             double current_rt = ComputeRuntime(
-                    candidate_solns[i][j],
-                    process_scaling.at(j),
-                    process_serial_runtime.at(j));
+                candidate_solns[i][j], process_scaling.at(j), process_serial_runtime.at(j));
             if (current_rt > max_runtime)
                 max_runtime = current_rt;
             current_energy += core_power * current_rt;
@@ -76,10 +73,8 @@ void LogSpeedupModel::OptimizeEnergy(
         double cores = candidate_solns[min_alloc][i];
         core_allocs[i] = int(ceil(cores));
     }
-    MinimizeCoreAllocations(core_allocs,
-                            process_scaling,
-                            process_serial_runtime,
-                            OptimizationTarget::ENERGY);
+    MinimizeCoreAllocations(
+        core_allocs, process_scaling, process_serial_runtime, OptimizationTarget::ENERGY);
 
     for (int i = 0; i < n; i++)
         delete[] candidate_solns[i];
@@ -91,10 +86,9 @@ void LogSpeedupModel::OptimizeEnergy(
  * solution is: n_i = N * C_i / sum(Cj for all j), where C is the fitted scaling
  * parameter to the speedup equation S(n) = 1 + C*ln(n).
  */
-void LogSpeedupModel::OptimizeThroughput(
-        std::map<int, int> &core_allocs,
-        std::vector<double> &process_scaling,
-        std::vector<double> &process_serial_runtime) {
+void LogSpeedupModel::OptimizeThroughput(std::map<int, int>& core_allocs,
+                                         std::vector<double>& process_scaling,
+                                         std::vector<double>& process_serial_runtime) {
     double sum_scaling = 0;
     for (auto it = process_scaling.begin(); it != process_scaling.end(); ++it)
         sum_scaling += *it;
@@ -106,83 +100,72 @@ void LogSpeedupModel::OptimizeThroughput(
         core_allocs[i] = cores < 1 ? 1 : int(cores);
     }
     MinimizeCoreAllocations(
-            core_allocs,
-            process_scaling,
-            process_serial_runtime,
-            OptimizationTarget::THROUGHPUT);
+        core_allocs, process_scaling, process_serial_runtime, OptimizationTarget::THROUGHPUT);
 }
 
 /* Computes runtime for log scaling. */
-double LogSpeedupModel::ComputeRuntime(
-        int num_cores_alloc,
-        double process_scaling,
-        double process_serial_runtime) {
-    return process_serial_runtime /
-        (1 + process_scaling * log(num_cores_alloc));
+double LogSpeedupModel::ComputeRuntime(int num_cores_alloc,
+                                       double process_scaling,
+                                       double process_serial_runtime) {
+    return process_serial_runtime / (1 + process_scaling * log(num_cores_alloc));
 }
 
 /* Approximation of the LambertW function. */
 double LogSpeedupModel::LambertW(const double z) {
     int i;
-    const double eps=4.0e-16, em1=0.3678794411714423215955237701614608;
-    double p,e,t,w;
+    const double eps = 4.0e-16, em1 = 0.3678794411714423215955237701614608;
+    double p, e, t, w;
     // if (dbgW) fprintf(stderr,"LambertW: z=%g\n",z);
-    if (z<-em1 || isinf(z) || isnan(z)) {
-        fprintf(stderr,"LambertW: bad argument %g, exiting.\n",z);
+    if (z < -em1 || isinf(z) || isnan(z)) {
+        fprintf(stderr, "LambertW: bad argument %g, exiting.\n", z);
         exit(1);
     }
-    if (0.0==z) return 0.0;
-    if (z<-em1+1e-4) { // series near -em1 in sqrt(q)
-        double q=z+em1,r=sqrt(q),q2=q*q,q3=q2*q;
-        return
-            -1.0
-            +2.331643981597124203363536062168*r
-            -1.812187885639363490240191647568*q
-            +1.936631114492359755363277457668*r*q
-            -2.353551201881614516821543561516*q2
-            +3.066858901050631912893148922704*r*q2
-            -4.175335600258177138854984177460*q3
-            +5.858023729874774148815053846119*r*q3
-            -8.401032217523977370984161688514*q3*q; // error approx 1e-16
+    if (0.0 == z)
+        return 0.0;
+    if (z < -em1 + 1e-4) {  // series near -em1 in sqrt(q)
+        double q = z + em1, r = sqrt(q), q2 = q * q, q3 = q2 * q;
+        return -1.0 + 2.331643981597124203363536062168 * r - 1.812187885639363490240191647568 * q +
+               1.936631114492359755363277457668 * r * q - 2.353551201881614516821543561516 * q2 +
+               3.066858901050631912893148922704 * r * q2 - 4.175335600258177138854984177460 * q3 +
+               5.858023729874774148815053846119 * r * q3 -
+               8.401032217523977370984161688514 * q3 * q;  // error approx 1e-16
     }
     /* initial approx for iteration... */
-    if (z<1.0) { /* series near 0 */
-        p=sqrt(2.0*(2.7182818284590452353602874713526625*z+1.0));
-        w=-1.0+p*(1.0+p*(-0.333333333333333333333+p*0.152777777777777777777777));
-    } else  {
-        w=log(z); /* asymptotic */
+    if (z < 1.0) { /* series near 0 */
+        p = sqrt(2.0 * (2.7182818284590452353602874713526625 * z + 1.0));
+        w = -1.0 + p * (1.0 + p * (-0.333333333333333333333 + p * 0.152777777777777777777777));
+    } else {
+        w = log(z); /* asymptotic */
     }
-    if (z>3.0) w-=log(w); /* useful? */
-    for (i=0; i<10; i++) { /* Halley iteration */
-        e=exp(w);
-        t=w*e-z;
-        p=w+1.0;
-        t/=e*p-0.5*(p+1.0)*t/p;
-        w-=t;
-        if (fabs(t)<eps*(1.0+fabs(w)))
+    if (z > 3.0)
+        w -= log(w);           /* useful? */
+    for (i = 0; i < 10; i++) { /* Halley iteration */
+        e = exp(w);
+        t = w * e - z;
+        p = w + 1.0;
+        t /= e * p - 0.5 * (p + 1.0) * t / p;
+        w -= t;
+        if (fabs(t) < eps * (1.0 + fabs(w)))
             return w; /* rel-abs error */
     }
     /* should never get here */
-    fprintf(stderr,"LambertW: No convergence at z=%g, exiting.\n",z);
+    fprintf(stderr, "LambertW: No convergence at z=%g, exiting.\n", z);
     exit(1);
 }
 
 /* The scaling data is fitted to the equation y=1+b*ln(x) with the substitution
  * x' = ln(x), so this becomes a straightforward linear regression.
  */
-double LogSpeedupModel::ComputeScalingFactor(
-        std::vector<double> &core_scaling) {
+double LogSpeedupModel::ComputeScalingFactor(std::vector<double>& core_scaling) {
     LinearRegressionIntercept lr;
     for (size_t i = 0; i < core_scaling.size(); i++) {
-        Point2D p(log(i+1.0), core_scaling[i]);
+        Point2D p(log(i + 1.0), core_scaling[i]);
         lr.addPoint(p);
     }
     return lr.getB();
 }
 
-double LogSpeedupModel::ComputeIdealScalingFactor() {
-    return (num_cores - 1.0) / (log(num_cores));
-}
+double LogSpeedupModel::ComputeIdealScalingFactor() { return (num_cores - 1.0) / (log(num_cores)); }
 
 double LogSpeedupModel::ComputeSpeedup(int ncores, double scaling_factor) {
     return 1.0 + scaling_factor * log(ncores);

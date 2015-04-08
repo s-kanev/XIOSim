@@ -9,7 +9,7 @@
 
 #include "feeder.h"
 
-//XXX: This is single-threaded for now. Move to TLS for multithreading.
+// XXX: This is single-threaded for now. Move to TLS for multithreading.
 
 static std::vector<ADDRINT> start_counts;
 static std::vector<ADDRINT> stop_counts;
@@ -24,8 +24,7 @@ extern INT32 slice_length;
 extern INT32 slice_weight_times_1000;
 
 /* ========================================================================== */
-VOID FLUFFY_Init()
-{
+VOID FLUFFY_Init() {
     if (KnobFluffy.Value().empty())
         return;
 
@@ -35,38 +34,37 @@ VOID FLUFFY_Init()
     double weight;
     std::string command;
     char ch;
-    while (true)
-    {
+    while (true) {
         annotation_file >> id >> command;
         if (annotation_file.eof())
             break;
-        if (command == "Start")
-        {
-            do { annotation_file >> ch; } while (ch != ':');
+        if (command == "Start") {
+            do {
+                annotation_file >> ch;
+            } while (ch != ':');
             annotation_file >> start;
             start_counts.push_back(start);
-        }
-        else if (command == "End")
-        {
-            do { annotation_file >> ch; } while (ch != ':');
+        } else if (command == "End") {
+            do {
+                annotation_file >> ch;
+            } while (ch != ':');
             annotation_file >> end;
             stop_counts.push_back(end);
-        }
-        else if (command == "Weight")
-        {
-            do { annotation_file >> ch; } while (ch != ':');
+        } else if (command == "Weight") {
+            do {
+                annotation_file >> ch;
+            } while (ch != ':');
             annotation_file >> weight;
-            slice_weights_times_1000.push_back((ADDRINT)(weight*1000*100));
-        }
-        else
+            slice_weights_times_1000.push_back((ADDRINT)(weight * 1000 * 100));
+        } else
             ASSERTX(false);
     }
     ASSERTX(start_counts.size() == stop_counts.size());
     ADDRINT npoints = start_counts.size();
 
-    for(ADDRINT i=0; i<npoints; i++) {
+    for (ADDRINT i = 0; i < npoints; i++) {
 #ifdef ZESTO_PIN_DBG
-        cerr << start_counts [i] << " " << stop_counts[i] << endl;
+        cerr << start_counts[i] << " " << stop_counts[i] << endl;
 #endif
         curr_start_counts.push_back(0);
         curr_stop_counts.push_back(0);
@@ -74,16 +72,14 @@ VOID FLUFFY_Init()
 }
 
 /* ========================================================================== */
-VOID FLUFFY_StartInsn(THREADID tid, ADDRINT pc, ADDRINT phase)
-{
+VOID FLUFFY_StartInsn(THREADID tid, ADDRINT pc, ADDRINT phase) {
     if ((curr_start_counts[phase]++) == start_counts[phase]) {
         PPointHandler(CONTROL_START, NULL, NULL, (VOID*)pc, tid);
     }
 }
 
 /* ========================================================================== */
-VOID FLUFFY_StopInsn(THREADID tid, ADDRINT pc, ADDRINT phase)
-{
+VOID FLUFFY_StopInsn(THREADID tid, ADDRINT pc, ADDRINT phase) {
     if ((curr_stop_counts[phase]++) == stop_counts[phase]) {
         slice_num++;
         slice_length = 0; /*FIXME*/
@@ -91,4 +87,3 @@ VOID FLUFFY_StopInsn(THREADID tid, ADDRINT pc, ADDRINT phase)
         PPointHandler(CONTROL_STOP, NULL, NULL, (VOID*)pc, tid);
     }
 }
-

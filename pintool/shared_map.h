@@ -41,9 +41,9 @@
 
 #include <boost/type_traits/is_pod.hpp>
 #include <boost/utility/enable_if.hpp>
-#include <cstdlib>  // for size_t
+#include <cstdlib>     // for size_t
 #include <functional>  // for std::less
-#include <utility>  // for std::pair
+#include <utility>     // for std::pair
 #include <iostream>
 
 #include "shared_common.h"
@@ -53,70 +53,69 @@ namespace shared {
 
 using namespace boost::interprocess;
 
-template<typename K, typename V, typename enable = void>
+template <typename K, typename V, typename enable = void>
 class SharedMemoryMap : public SharedMemoryMapCommon<K, V> {
     using SharedMemoryMapCommon<K, V>::shm;
     using SharedMemoryMapCommon<K, V>::internal_map;
 
-    public:
-        SharedMemoryMap() : SharedMemoryMapCommon<K, V>() {}
+  public:
+    SharedMemoryMap()
+        : SharedMemoryMapCommon<K, V>() {}
 
-        // Initializes the size of the shared memory segment holding this shared
-        // map.
-        SharedMemoryMap(
-                managed_shared_memory* shm, const char* internal_data_name)
-                : SharedMemoryMapCommon<K, V>(shm, internal_data_name) {}
+    // Initializes the size of the shared memory segment holding this shared
+    // map.
+    SharedMemoryMap(managed_shared_memory* shm, const char* internal_data_name)
+        : SharedMemoryMapCommon<K, V>(shm, internal_data_name) {}
 
-        // Destroys the pointer to the shared map.
-        // TODO: Only delete if no processes have mapped this structure.
-        ~SharedMemoryMap() {}
+    // Destroys the pointer to the shared map.
+    // TODO: Only delete if no processes have mapped this structure.
+    ~SharedMemoryMap() {}
 
-    private:
-        typedef boost::interprocess::allocator<void,
-                managed_shared_memory::segment_manager> void_allocator;
+  private:
+    typedef boost::interprocess::allocator<void, managed_shared_memory::segment_manager>
+        void_allocator;
 
-        V& access_operator(const K& key) {
-            if (internal_map->find(key) == internal_map->end()) {
-                void_allocator alloc_inst(shm->get_segment_manager());
-                V value(alloc_inst);
-                this->insert(key, value);
-            }
-            return internal_map->at(key);
+    V& access_operator(const K& key) {
+        if (internal_map->find(key) == internal_map->end()) {
+            void_allocator alloc_inst(shm->get_segment_manager());
+            V value(alloc_inst);
+            this->insert(key, value);
         }
-
+        return internal_map->at(key);
+    }
 };
 
-//Default constructing value generates a warning on some GCC
+// Default constructing value generates a warning on some GCC
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wuninitialized"
 #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 
 // A specialization for plain-old-data (POD) types of values.
-template<typename K, typename V>
-class SharedMemoryMap<K, V, typename boost::enable_if<boost::is_pod<V> >::type>:
-        public SharedMemoryMapCommon<K, V> {
+template <typename K, typename V>
+class SharedMemoryMap<K, V, typename boost::enable_if<boost::is_pod<V>>::type>
+    : public SharedMemoryMapCommon<K, V> {
     using SharedMemoryMapCommon<K, V>::shm;
     using SharedMemoryMapCommon<K, V>::internal_map;
 
-    public:
-        SharedMemoryMap() : SharedMemoryMapCommon<K, V>() {}
+  public:
+    SharedMemoryMap()
+        : SharedMemoryMapCommon<K, V>() {}
 
-        SharedMemoryMap(
-                managed_shared_memory* shm, const char* internal_data_name)
-                : SharedMemoryMapCommon<K, V>(shm, internal_data_name) {}
+    SharedMemoryMap(managed_shared_memory* shm, const char* internal_data_name)
+        : SharedMemoryMapCommon<K, V>(shm, internal_data_name) {}
 
-        // Destroys the pointer to the shared map.
-        // TODO: Only delete if no processes have mapped this structure.
-        ~SharedMemoryMap() {}
+    // Destroys the pointer to the shared map.
+    // TODO: Only delete if no processes have mapped this structure.
+    ~SharedMemoryMap() {}
 
-    private:
-        V& access_operator(const K& key) {
-            if (internal_map->find(key) == internal_map->end()) {
-                V value;
-                this->insert(key, value);
-            }
-            return internal_map->at(key);
+  private:
+    V& access_operator(const K& key) {
+        if (internal_map->find(key) == internal_map->end()) {
+            V value;
+            this->insert(key, value);
         }
+        return internal_map->at(key);
+    }
 };
 
 #pragma GCC diagnostic pop

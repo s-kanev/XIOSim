@@ -14,14 +14,14 @@
 
 namespace xiosim {
 
-PenaltyAllocator::PenaltyAllocator(
-        OptimizationTarget opt_target,
-        SpeedupModelType speedup_model,
-        double core_power,
-        double uncore_power,
-        int num_cores) : BaseAllocator(
-                opt_target, speedup_model, core_power, uncore_power, num_cores),
-        process_scaling(), process_serial_runtime() {
+PenaltyAllocator::PenaltyAllocator(OptimizationTarget opt_target,
+                                   SpeedupModelType speedup_model,
+                                   double core_power,
+                                   double uncore_power,
+                                   int num_cores)
+    : BaseAllocator(opt_target, speedup_model, core_power, uncore_power, num_cores)
+    , process_scaling()
+    , process_serial_runtime() {
     process_penalties = new std::map<int, double>();
     process_scaling.resize(*num_processes);
     process_serial_runtime.resize(*num_processes);
@@ -46,8 +46,8 @@ void PenaltyAllocator::ResetState() {
  * is unknown. We assume that all other programs scale equally with the current
  * program and initialize the allocator's state as such.
  */
-void PenaltyAllocator::FirstAllocationInit(
-        double current_scaling_factor, double current_serial_runtime) {
+void PenaltyAllocator::FirstAllocationInit(double current_scaling_factor,
+                                           double current_serial_runtime) {
     // If any seg fault happens in these loops, then there's obviously something
     // wrong, since all the sizes of the containers must be equal.
     for (size_t i = 0; i < process_scaling.size(); i++) {
@@ -66,11 +66,12 @@ double PenaltyAllocator::get_penalty_for_asid(int asid) {
     return 0;
 }
 
-int PenaltyAllocator::AllocateCoresForProcess(
-        int asid, std::vector<double> scaling, double serial_runtime) {
+int PenaltyAllocator::AllocateCoresForProcess(int asid,
+                                              std::vector<double> scaling,
+                                              double serial_runtime) {
     lk_lock(&allocator_lock, 1);
-    // The nth element of @scaling is the incremental amount of speedup attained
-    // if running under that many cores.
+// The nth element of @scaling is the incremental amount of speedup attained
+// if running under that many cores.
 #ifdef DEBUG
     std::cout << "Allocating cores to process " << asid << "." << std::endl;
 #endif
@@ -86,8 +87,7 @@ int PenaltyAllocator::AllocateCoresForProcess(
     }
 
     std::map<int, int> temp_core_allocs(core_allocs);
-    speedup_model->OptimizeForTarget(
-            temp_core_allocs, process_scaling, process_serial_runtime);
+    speedup_model->OptimizeForTarget(temp_core_allocs, process_scaling, process_serial_runtime);
     // Copy the allocation results from temp_core_allocs.
     core_allocs[asid] = temp_core_allocs[asid];
     for (auto it = temp_core_allocs.begin(); it != temp_core_allocs.end(); ++it)
@@ -106,18 +106,15 @@ int PenaltyAllocator::AllocateCoresForProcess(
     if (optimal_cores <= available_cores) {
         int reduced_alloc_cores = optimal_cores;
         // Pay any penalty this process currently holds.
-        double* current_penalty =
-                &(process_penalties->operator[](asid));
+        double* current_penalty = &(process_penalties->operator[](asid));
 #ifdef DEBUG
-        std::cout << "Process " << asid << " currently has penalty of "
-                  << *current_penalty << "." << std::endl;
+        std::cout << "Process " << asid << " currently has penalty of " << *current_penalty << "."
+                  << std::endl;
 #endif
         if (*current_penalty > 0) {
             double speedup_lost = 1;
-            while ((optimal_cores - reduced_alloc_cores) * (speedup_lost - 1) <=
-                         *current_penalty) {
-                speedup_lost *= speedup_model->ComputeSpeedup(
-                        reduced_alloc_cores, scaling_factor);
+            while ((optimal_cores - reduced_alloc_cores) * (speedup_lost - 1) <= *current_penalty) {
+                speedup_lost *= speedup_model->ComputeSpeedup(reduced_alloc_cores, scaling_factor);
                 reduced_alloc_cores--;
                 if (reduced_alloc_cores == 0) {
                     reduced_alloc_cores = 1;
@@ -126,12 +123,10 @@ int PenaltyAllocator::AllocateCoresForProcess(
             }
             // Speedup is a multiplicative factor, so subtract 100%.
             speedup_lost -= 1;
-            double penalty_paid = (
-                optimal_cores - reduced_alloc_cores) * speedup_lost;
+            double penalty_paid = (optimal_cores - reduced_alloc_cores) * speedup_lost;
             *current_penalty -= penalty_paid;
 #ifdef DEBUG
-            std::cout << "Process " << asid << " paid penalty of "
-                      << penalty_paid << std::endl;
+            std::cout << "Process " << asid << " paid penalty of " << penalty_paid << std::endl;
 #endif
         }
         allocated_cores = reduced_alloc_cores;
@@ -144,16 +139,14 @@ int PenaltyAllocator::AllocateCoresForProcess(
         // Divide the penalty by the number of processes in the system - 1. This
         // is a simple generalization of this policy for more than two
         // processes.
-        double penalty_per_pid = (
-            speedup_lost * (optimal_cores - available_cores)) /
-            (core_allocs.size() - 1);
-        for (auto it = process_penalties->begin();
-                 it != process_penalties->end(); ++it) {
+        double penalty_per_pid =
+            (speedup_lost * (optimal_cores - available_cores)) / (core_allocs.size() - 1);
+        for (auto it = process_penalties->begin(); it != process_penalties->end(); ++it) {
             if (it->first != asid) {
-             (it->second) += penalty_per_pid;
+                (it->second) += penalty_per_pid;
 #ifdef DEBUG
-                std::cout << "Assessed penalty " << penalty_per_pid
-                          << " to process " << it->first << std::endl;
+                std::cout << "Assessed penalty " << penalty_per_pid << " to process " << it->first
+                          << std::endl;
 #endif
             }
         }
@@ -162,9 +155,8 @@ int PenaltyAllocator::AllocateCoresForProcess(
 
     core_allocs[asid] = allocated_cores;
 #ifdef DEBUG
-    std::cout << "Process " << asid << " requested " << optimal_cores <<
-            " cores, was allocated " << allocated_cores << " cores." <<
-            std::endl << std::endl;
+    std::cout << "Process " << asid << " requested " << optimal_cores << " cores, was allocated "
+              << allocated_cores << " cores." << std::endl << std::endl;
 #endif
     std::vector<int> unblock_list;
     unblock_list.push_back(asid);
@@ -174,4 +166,4 @@ int PenaltyAllocator::AllocateCoresForProcess(
     return allocated_cores;
 }
 
-}    // namespace xiosim
+}  // namespace xiosim

@@ -23,7 +23,24 @@ void CheckIPCMessageQueue(bool isEarly, int caller_coreID);
  * by any process that want to send/receive IPC messages. */
 void InitIPCQueues(void);
 
-enum ipc_message_id_t { SLICE_START, SLICE_END, MMAP, MUNMAP, UPDATE_BRK, WARM_LLC, STOP_SIMULATION, ACTIVATE_CORE, DEACTIVATE_CORE, SCHEDULE_NEW_THREAD, SCHEDULE_PROCESS_THREADS, ALLOCATE_THREAD, THREAD_AFFINITY, ALLOCATE_CORES, DEALLOCATE_CORES, INVALID_MSG };
+enum ipc_message_id_t {
+    SLICE_START,
+    SLICE_END,
+    MMAP,
+    MUNMAP,
+    UPDATE_BRK,
+    WARM_LLC,
+    STOP_SIMULATION,
+    ACTIVATE_CORE,
+    DEACTIVATE_CORE,
+    SCHEDULE_NEW_THREAD,
+    SCHEDULE_PROCESS_THREADS,
+    ALLOCATE_THREAD,
+    THREAD_AFFINITY,
+    ALLOCATE_CORES,
+    DEALLOCATE_CORES,
+    INVALID_MSG
+};
 
 struct ipc_message_t {
     static const unsigned int MAX_ARR_SIZE = 16;
@@ -38,47 +55,49 @@ struct ipc_message_t {
      * not only consumed. */
     bool blocking;
 
-    ipc_message_t() :
-        id(INVALID_MSG),
-        arg0(0), arg1(0), arg2(0), arg3(0),
-        blocking(false) {}
+    ipc_message_t()
+        : id(INVALID_MSG)
+        , arg0(0)
+        , arg1(0)
+        , arg2(0)
+        , arg3(0)
+        , blocking(false) {}
 
     /* Some messages need to be conusmed early in timing_sim.
      * Mostly related to setup. */
     bool ConsumableEarly() const {
         switch (this->id) {
-          case SLICE_START:
-          case SLICE_END:
-          case ACTIVATE_CORE:
-          case ALLOCATE_THREAD:
-          case SCHEDULE_NEW_THREAD:
-          case SCHEDULE_PROCESS_THREADS:
-          case STOP_SIMULATION:
-          case THREAD_AFFINITY:
-          case ALLOCATE_CORES:
-          case DEALLOCATE_CORES:
+        case SLICE_START:
+        case SLICE_END:
+        case ACTIVATE_CORE:
+        case ALLOCATE_THREAD:
+        case SCHEDULE_NEW_THREAD:
+        case SCHEDULE_PROCESS_THREADS:
+        case STOP_SIMULATION:
+        case THREAD_AFFINITY:
+        case ALLOCATE_CORES:
+        case DEALLOCATE_CORES:
             return true;
-          default:
+        default:
             return false;
         }
     }
 
-    void SliceStart(unsigned int slice_num)
-    {
+    void SliceStart(unsigned int slice_num) {
         this->id = SLICE_START;
         this->arg0 = slice_num;
     }
 
-    void SliceEnd(unsigned int slice_num, unsigned long long feeder_slice_length, unsigned long long slice_weight_times_1000)
-    {
+    void SliceEnd(unsigned int slice_num,
+                  unsigned long long feeder_slice_length,
+                  unsigned long long slice_weight_times_1000) {
         this->id = SLICE_END;
         this->arg0 = slice_num;
         this->arg1 = feeder_slice_length;
         this->arg2 = slice_weight_times_1000;
     }
 
-    void Mmap(int asid, unsigned int addr, unsigned int length, bool mod_brk)
-    {
+    void Mmap(int asid, unsigned int addr, unsigned int length, bool mod_brk) {
         this->id = MMAP;
         this->arg0 = asid;
         this->arg1 = addr;
@@ -86,8 +105,7 @@ struct ipc_message_t {
         this->arg3 = mod_brk;
     }
 
-    void Munmap(int asid, unsigned int addr, unsigned int length, bool mod_brk)
-    {
+    void Munmap(int asid, unsigned int addr, unsigned int length, bool mod_brk) {
         this->id = MUNMAP;
         this->arg0 = asid;
         this->arg1 = addr;
@@ -95,77 +113,68 @@ struct ipc_message_t {
         this->arg3 = mod_brk;
     }
 
-    void UpdateBrk(int asid, unsigned int brk_end, bool do_mmap)
-    {
+    void UpdateBrk(int asid, unsigned int brk_end, bool do_mmap) {
         this->id = UPDATE_BRK;
         this->arg0 = asid;
         this->arg1 = brk_end;
         this->arg2 = do_mmap;
     }
 
-    void StopSimulation(bool kill_sim_threads)
-    {
+    void StopSimulation(bool kill_sim_threads) {
         this->id = STOP_SIMULATION;
         this->arg0 = kill_sim_threads;
     }
 
-    void ActivateCore(int coreID)
-    {
+    void ActivateCore(int coreID) {
         this->id = ACTIVATE_CORE;
         this->arg0 = coreID;
     }
 
-    void DeactivateCore(int coreID)
-    {
+    void DeactivateCore(int coreID) {
         this->id = DEACTIVATE_CORE;
         this->arg0 = coreID;
     }
 
-    void ScheduleNewThread(int tid)
-    {
+    void ScheduleNewThread(int tid) {
         this->id = SCHEDULE_NEW_THREAD;
         this->arg0 = tid;
     }
 
-    void ScheduleProcessThreads(int asid, std::list<pid_t> thread)
-    {
+    void ScheduleProcessThreads(int asid, std::list<pid_t> thread) {
         this->id = SCHEDULE_PROCESS_THREADS;
         this->arg0 = asid;
 
         /* Ugly list serialize to POD */
         assert(thread.size() <= MAX_ARR_SIZE);
-        unsigned int i=0;
+        unsigned int i = 0;
         for (pid_t tid : thread) {
-            arg_array[i] = (double) tid;
+            arg_array[i] = (double)tid;
             i++;
         }
         for (/*nada*/; i < MAX_ARR_SIZE; i++)
             arg_array[i] = -1;
     }
 
-    void BufferManagerAllocateThread(int tid, int buffer_capacity)
-    {
+    void BufferManagerAllocateThread(int tid, int buffer_capacity) {
         this->id = ALLOCATE_THREAD;
         this->arg0 = tid;
         this->arg1 = buffer_capacity;
     }
 
-    void SetThreadAffinity(int tid, int coreID)
-    {
+    void SetThreadAffinity(int tid, int coreID) {
         this->id = THREAD_AFFINITY;
         this->arg0 = tid;
         this->arg1 = coreID;
     }
 
-    void AllocateCores(int asid, std::vector<double> scaling, double serial_runtime)
-    {
+    void AllocateCores(int asid, std::vector<double> scaling, double serial_runtime) {
         this->id = ALLOCATE_CORES;
         this->arg0 = asid;
         this->arg1 = serial_runtime;
 
         /* Ugly list serialize to POD */
         assert(scaling.size() <= MAX_ARR_SIZE);
-        unsigned int i=0;
+        unsigned int i = 0;
         for (double speedup : scaling) {
             arg_array[i] = speedup;
             i++;
@@ -174,27 +183,25 @@ struct ipc_message_t {
             arg_array[i] = -1;
     }
 
-    void DeallocateCores(int asid)
-    {
+    void DeallocateCores(int asid) {
         this->id = DEALLOCATE_CORES;
         this->arg0 = asid;
     }
 
-    bool operator==(const ipc_message_t &rhs) const {
-        return (this->id == rhs.id) &&
-                (this->arg0 == rhs.arg0) &&
-                (this->arg1 == rhs.arg1) &&
-                (this->arg2 == rhs.arg2);
+    bool operator==(const ipc_message_t& rhs) const {
+        return (this->id == rhs.id) && (this->arg0 == rhs.arg0) && (this->arg1 == rhs.arg1) &&
+               (this->arg2 == rhs.arg2);
     }
 };
-static size_t hash_value(ipc_message_t const& obj)
-{
+static size_t hash_value(ipc_message_t const& obj) {
     boost::hash<int> hasher;
     return hasher(obj.id) ^ hasher(obj.arg0);
 }
 
 /* Message queue form calling functions in timing_sim from feeder */
-typedef boost::interprocess::allocator<ipc_message_t, boost::interprocess::managed_shared_memory::segment_manager> ipc_message_allocator_t;
+typedef boost::interprocess::allocator<ipc_message_t,
+                                       boost::interprocess::managed_shared_memory::segment_manager>
+    ipc_message_allocator_t;
 
 typedef boost::interprocess::deque<ipc_message_t, ipc_message_allocator_t> MessageQueue;
 SHARED_VAR_DECLARE(MessageQueue, ipcMessageQueue);
@@ -204,6 +211,6 @@ typedef xiosim::shared::SharedUnorderedMap<ipc_message_t, bool> AckMessageMap;
 SHARED_VAR_DECLARE(AckMessageMap, ackMessages)
 SHARED_VAR_DECLARE(XIOSIM_LOCK, lk_ipcMessageQueue);
 
-extern XIOSIM_LOCK *printing_lock;
+extern XIOSIM_LOCK* printing_lock;
 
 #endif /* __IPC_QUEUES__ */
