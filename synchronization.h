@@ -81,7 +81,7 @@ inline void lk_init(XIOSIM_LOCK* lk)
 /* Lock acquire order (outmost to inmost):
  - cache_lock
  - memory_lock
- - pool_lock (in oracle and core)
+ - oracle_pools_lock
  */
 
 extern XIOSIM_LOCK repeater_lock;
@@ -97,9 +97,6 @@ extern XIOSIM_LOCK cache_lock;
 /* Cycle lock is used to synchronize global state (cycle counter)
  * and not let a core advance in time without increasing cycle. */
 extern XIOSIM_LOCK cycle_lock;
-
-/* Protects static pools in core_t class. */
-extern XIOSIM_LOCK core_pools_lock;
 
 /* Protects static pools in core_oracle_t class. */
 extern XIOSIM_LOCK oracle_pools_lock;

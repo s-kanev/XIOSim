@@ -126,7 +126,6 @@ struct uop_t * core_t::get_uop_array(const int size)
 {
   struct uop_array_t * p;
 
-  lk_lock(&core_pools_lock, id+1);
   if(uop_array_pool[size])
   {
     p = uop_array_pool[size];
@@ -143,7 +142,6 @@ struct uop_t * core_t::get_uop_array(const int size)
     p->size = size;
     p->next = NULL;
   }
-  lk_unlock(&core_pools_lock);
   /* initialize the uop array */
   for(int i=0;i<size;i++)
     uop_init(&p->uop[i]);
@@ -162,17 +160,14 @@ void core_t::return_uop_array(struct uop_t * const p)
   //  fprintf("uop:return: %x\n", p);
 
   assert(ap->next == NULL);
-  lk_lock(&core_pools_lock, id+1);
   ap->next = uop_array_pool[ap->size];
   uop_array_pool[ap->size] = ap;
-  lk_unlock(&core_pools_lock);
 }
 
 /* Alloc/dealloc of the linked-list container nodes */
 struct odep_t * core_t::get_odep_link(void)
 {
   struct odep_t * p = NULL;
-  lk_lock(&core_pools_lock, id+1);
   if(odep_free_pool)
   {
     p = odep_free_pool;
@@ -187,18 +182,15 @@ struct odep_t * core_t::get_odep_link(void)
   assert(p);
   p->next = NULL;
   odep_free_pool_debt++;
-  lk_unlock(&core_pools_lock);
   return p;
 }
 
 void core_t::return_odep_link(struct odep_t * const p)
 {
-  lk_lock(&core_pools_lock, id+1);
   p->next = odep_free_pool;
   odep_free_pool = p;
   p->uop = NULL;
   odep_free_pool_debt--;
-  lk_unlock(&core_pools_lock);
   /* p->next used for free list, will be cleared on "get" */
 }
 
