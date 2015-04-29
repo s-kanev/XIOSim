@@ -10,8 +10,6 @@
 #include <stdint.h>
 #include <unistd.h>
 
-extern void wait_consumers();
-
 inline void xio_sleep(int msecs)
 {
   usleep(msecs * 1000);
@@ -21,11 +19,6 @@ inline void yield()
 {
   pthread_yield();
 }
-
-inline void lk_wait_consumers()
-{
-  wait_consumers();
-};
 
 /* Custom lock implementaion -- faster than the futeces that pin uses
  * because it stays in userspace only */
