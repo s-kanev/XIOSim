@@ -1683,21 +1683,6 @@ int md_fcc_eval(int cond, dword_t aflags, bool * bogus);
  * various other helper macros/functions
  */
 
-/* non-zero if system call is an exit() */
-#define OSF_SYS_exit            1
-#define MD_EXIT_SYSCALL(INST,REGS)                        \
-  ((REGS)->regs_R.dw[MD_REG_EAX] == OSF_SYS_exit)
-
-/* non-zero if system call is a write to stdout/stderr */
-#define OSF_SYS_write            4
-#define MD_OUTPUT_SYSCALL(INST,REGS)                        \
-  ((REGS)->regs_R.dw[MD_REG_EAX] == OSF_SYS_write            \
-   && ((REGS)->regs_R.dw[MD_REG_EBX] == /* stdout */1            \
-     || (REGS)->regs_R.dw[MD_REG_EBX] == /* stderr */2))
-
-/* returns stream of an output system call, translated to host */
-#define MD_STREAM_FILENO(REGS)        ((REGS)->regs_R.dw[MD_REG_EBX])
-
 /* XXX returns non-zero if instruction is a function call */
 #define MD_IS_CALL(OPFLAGS)          ((OPFLAGS)&F_CALL)
 
