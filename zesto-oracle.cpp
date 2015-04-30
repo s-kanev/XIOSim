@@ -167,7 +167,7 @@ int core_oracle_t::spec_mem_pool_debt = 0;
 /* CONSTRUCTOR */
 core_oracle_t::core_oracle_t(struct core_t * const arg_core):
   spec_mode(false), hosed(false), MopQ(NULL), MopQ_head(0), MopQ_tail(0),
-  MopQ_num(0), current_Mop(NULL)
+  MopQ_num(0), current_Mop(NULL), MopQ_spec_num(0)
 {
   /* MopQ should be large enough to support all in-flight
      instructions.  We assume one entry per "slot" in the machine
@@ -1325,6 +1325,8 @@ core_oracle_t::exec(const md_addr_t requested_PC)
   /* commit this inst to the MopQ */
   MopQ_tail = modinc(MopQ_tail,MopQ_size); //(MopQ_tail + 1) % MopQ_size;
   MopQ_num ++;
+  if (Mop->oracle.spec_mode)
+    MopQ_spec_num++;
 
   current_Mop = Mop;
 
@@ -1516,6 +1518,8 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
     }
 
     MopQ_num --;
+    if (MopQ[idx].oracle.spec_mode)
+      MopQ_spec_num--;
     MopQ_tail = idx;
     idx = moddec(idx,MopQ_size); //(idx-1+MopQ_size) % MopQ_size;
   }
@@ -1602,6 +1606,8 @@ core_oracle_t::complete_flush(void)
     }
 
     MopQ_num --;
+    if(MopQ[idx].oracle.spec_mode)
+      MopQ_spec_num--;
     MopQ_tail = idx;
     idx = moddec(idx,MopQ_size); //(idx-1+MopQ_size) % MopQ_size;
   }
@@ -1823,33 +1829,16 @@ void core_oracle_t::trace_in_flight_ops(void)
 #endif
 }
 
-int core_oracle_t::num_non_spec_Mops(void) const
+unsigned int core_oracle_t::num_non_spec_Mops(void) const
 {
-  int idx = MopQ_tail;
-  struct Mop_t *Mop;
-  int result = 0;
-
-  if (MopQ_num == 0)
-    return 0;
-
-  /* Walk MopQ from most recent Mop */
-  do {
-    idx = moddec(idx, MopQ_size);
-    Mop = &MopQ[idx];
-
-    if (!Mop->oracle.spec_mode)
-      result++;
-
-  } while (idx != MopQ_head);
-  zesto_assert(result <= MopQ_num, 0);
+  int result = MopQ_num - MopQ_spec_num;
+  zesto_assert(result >= 0, 0);
   return result;
 }
 
-int core_oracle_t::num_Mops_before_feeder(void) const
+unsigned int core_oracle_t::num_Mops_before_feeder(void) const
 {
-  int result = shadow_MopQ->size() - this->num_non_spec_Mops();
-  zesto_assert(result >= 0, 0);
-  return result;
+  return shadow_MopQ->size() - num_non_spec_Mops();
 }
 
 /**************************************/

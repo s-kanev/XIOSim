@@ -240,8 +240,8 @@ class core_oracle_t {
 
   void trace_in_flight_ops(void);
 
-  int num_non_spec_Mops(void) const;
-  int num_Mops_before_feeder(void) const;
+  unsigned int num_non_spec_Mops(void) const;
+  unsigned int num_Mops_before_feeder(void) const;
 
   protected:
 
@@ -255,6 +255,7 @@ class core_oracle_t {
   int MopQ_num;
   int MopQ_size;
   struct Mop_t * current_Mop; /* pointer to track a Mop that has been executed but not consumed (i.e. due to fetch stall) */
+  int MopQ_spec_num;
 
   Buffer * shadow_MopQ;
 
