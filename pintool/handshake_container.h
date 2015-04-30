@@ -49,12 +49,16 @@ class handshake_container_t {
 
     size_t Serialize(void* const buffer, size_t buffer_size, regs_t const* const shadow_regs) {
         int mapSize = this->mem_buffer.size();
+#ifndef NDEBUG
         const size_t handshakeBytes = sizeof(P2Z_HANDSHAKE);
+#endif
         const size_t flagBytes = sizeof(handshake_flags_t);
         const size_t mapEntryBytes = sizeof(uint32_t) + sizeof(uint8_t);
         size_t mapBytes = mapSize * mapEntryBytes;
 
+#ifndef NDEBUG
         size_t maxBytes = sizeof(int) + handshakeBytes + flagBytes + mapBytes;
+#endif
         assert(maxBytes <= buffer_size);
 
         /* First, reserve some space for the size of the whole structure. */
@@ -182,7 +186,9 @@ class handshake_container_t {
         /* Write FREGS */
         const size_t fregOffset = offsetof(regs_t, regs_F);
         for (int i = 0; i < MD_NUM_FREGS; i++) {
-            if (this->handshake.ctxt.regs_F.e[i] != shadow_regs->regs_F.e[i]) {
+            if (memcmp(&this->handshake.ctxt.regs_F.e[i],
+                       &shadow_regs->regs_F.e[i],
+                       sizeof(shadow_regs->regs_F.e[0]))) {
                 for (size_t float_ind = 0; float_ind < MD_FPR_HOST_SIZE / sizeof(sfloat_t);
                      float_ind++) {
                     size_t offset = regsOffset + fregOffset + i * MD_FPR_HOST_SIZE +
@@ -241,8 +247,9 @@ class handshake_container_t {
         /* Write XMMS */
         const size_t xregOffset = offsetof(regs_t, regs_XMM);
         for (int i = 0; i < MD_NUM_XMMREGS; i++) {
-            if (this->handshake.ctxt.regs_XMM.d[i].hi != shadow_regs->regs_XMM.d[i].hi ||
-                this->handshake.ctxt.regs_XMM.d[i].lo != shadow_regs->regs_XMM.d[i].lo) {
+            if (memcmp(&this->handshake.ctxt.regs_XMM.qw[i],
+                       &shadow_regs->regs_XMM.qw[i],
+                       sizeof(shadow_regs->regs_XMM.qw[0]))) {
                 for (size_t float_ind = 0; float_ind < MD_XMM_SIZE / sizeof(sfloat_t);
                      float_ind++) {
                     /* Write the offset -- relative to the P2Z_HANDSHAKE struct */
