@@ -258,38 +258,29 @@ VOID ImageLoad(IMG img, VOID* v) {
 }
 
 /* ========================================================================== */
-/* The last parameter is a  pointer to static data that is overwritten with each
- * call */
 VOID
 MakeSSContext(const CONTEXT* ictxt, FPSTATE* fpstate, ADDRINT pc, ADDRINT npc, regs_t* ssregs) {
-    CONTEXT ssctxt;
-    memset(&ssctxt, 0x0, sizeof(ssctxt));
-    PIN_SaveContext(ictxt, &ssctxt);
-
-    // Must invalidate prior to use because previous invocation data still
-    // resides in this statically allocated buffer
-    memset(ssregs, 0x0, sizeof(regs_t));
     ssregs->regs_PC = pc;
     ssregs->regs_NPC = npc;
 
     // Copy general purpose registers, which Pin provides individual access to
-    ssregs->regs_C.aflags = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_EFLAGS);
-    ssregs->regs_R.dw[MD_REG_EAX] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_EAX);
-    ssregs->regs_R.dw[MD_REG_ECX] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_ECX);
-    ssregs->regs_R.dw[MD_REG_EDX] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_EDX);
-    ssregs->regs_R.dw[MD_REG_EBX] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_EBX);
-    ssregs->regs_R.dw[MD_REG_ESP] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_ESP);
-    ssregs->regs_R.dw[MD_REG_EBP] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_EBP);
-    ssregs->regs_R.dw[MD_REG_EDI] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_EDI);
-    ssregs->regs_R.dw[MD_REG_ESI] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_ESI);
+    ssregs->regs_C.aflags = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_EFLAGS);
+    ssregs->regs_R.dw[MD_REG_EAX] = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_EAX);
+    ssregs->regs_R.dw[MD_REG_ECX] = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_ECX);
+    ssregs->regs_R.dw[MD_REG_EDX] = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_EDX);
+    ssregs->regs_R.dw[MD_REG_EBX] = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_EBX);
+    ssregs->regs_R.dw[MD_REG_ESP] = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_ESP);
+    ssregs->regs_R.dw[MD_REG_EBP] = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_EBP);
+    ssregs->regs_R.dw[MD_REG_EDI] = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_EDI);
+    ssregs->regs_R.dw[MD_REG_ESI] = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_ESI);
 
     // Copy segment selector registers (IA32-specific)
-    ssregs->regs_S.w[MD_REG_CS] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_SEG_CS);
-    ssregs->regs_S.w[MD_REG_SS] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_SEG_SS);
-    ssregs->regs_S.w[MD_REG_DS] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_SEG_DS);
-    ssregs->regs_S.w[MD_REG_ES] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_SEG_ES);
-    ssregs->regs_S.w[MD_REG_FS] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_SEG_FS);
-    ssregs->regs_S.w[MD_REG_GS] = PIN_GetContextReg(&ssctxt, LEVEL_BASE::REG_SEG_GS);
+    ssregs->regs_S.w[MD_REG_CS] = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_SEG_CS);
+    ssregs->regs_S.w[MD_REG_SS] = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_SEG_SS);
+    ssregs->regs_S.w[MD_REG_DS] = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_SEG_DS);
+    ssregs->regs_S.w[MD_REG_ES] = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_SEG_ES);
+    ssregs->regs_S.w[MD_REG_FS] = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_SEG_FS);
+    ssregs->regs_S.w[MD_REG_GS] = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_SEG_GS);
 
     // Copy segment base registers (simulator needs them for address calculations)
     // XXX: For security reasons, we (as user code) aren't allowed to touch those.
@@ -298,8 +289,8 @@ MakeSSContext(const CONTEXT* ictxt, FPSTATE* fpstate, ADDRINT pc, ADDRINT npc, r
     // good.
     // FIXME: Check what Linux does with user-level SS and ES!
 
-    ssregs->regs_SD.dw[MD_REG_FS] = PIN_GetContextReg(&ssctxt, REG_SEG_FS_BASE);
-    ssregs->regs_SD.dw[MD_REG_GS] = PIN_GetContextReg(&ssctxt, REG_SEG_GS_BASE);
+    ssregs->regs_SD.dw[MD_REG_FS] = PIN_GetContextReg(ictxt, REG_SEG_FS_BASE);
+    ssregs->regs_SD.dw[MD_REG_GS] = PIN_GetContextReg(ictxt, REG_SEG_GS_BASE);
 
     // Copy floating purpose registers: Floating point state is generated via
     // the fxsave instruction, which is a 512-byte memory region. Look at the
@@ -308,7 +299,7 @@ MakeSSContext(const CONTEXT* ictxt, FPSTATE* fpstate, ADDRINT pc, ADDRINT npc, r
     // and the (3) eight 10byte floating point registers. Thus, we only copy
     // the required information into the SS-specific (and Zesto-inherited)
     // data structure
-    ASSERTX(PIN_ContextContainsState(&ssctxt, PROCESSOR_STATE_X87));
+    ASSERTX(PIN_ContextContainsState(const_cast<CONTEXT*>(ictxt), PROCESSOR_STATE_X87));
     PIN_GetContextFPState(ictxt, fpstate);
 
     // Copy the floating point control word
@@ -341,7 +332,7 @@ MakeSSContext(const CONTEXT* ictxt, FPSTATE* fpstate, ADDRINT pc, ADDRINT npc, r
     memcpy(
         &ssregs->regs_F.e[ST2P(MD_REG_ST7)], &fpstate->fxsave_legacy._sts[MD_REG_ST7], MD_FPR_SIZE);
 
-    ASSERTX(PIN_ContextContainsState(&ssctxt, PROCESSOR_STATE_XMM));
+    ASSERTX(PIN_ContextContainsState(const_cast<CONTEXT*>(ictxt), PROCESSOR_STATE_XMM));
 
     memcpy(&ssregs->regs_XMM.qw[MD_REG_XMM0].lo,
            &fpstate->fxsave_legacy._xmms[MD_REG_XMM0],
