@@ -22,6 +22,8 @@
 #ifndef SHARED_UNORDERED_MAP_H
 #define SHARED_UNORDERED_MAP_H
 
+#include <type_traits>
+#include "../synchronization.h"
 #include "shared_unordered_common.h"
 
 namespace xiosim {
@@ -51,8 +53,7 @@ class SharedUnorderedMap : public SharedUnorderedMapCommon<K, V> {
     V& access_operator(const K& key) {
         if (internal_map->find(key) == internal_map->end()) {
             void_allocator alloc_inst(shm->get_segment_manager());
-            V value(alloc_inst);
-            this->insert(key, value);
+            this->emplace(key, V(alloc_inst));
         }
         return internal_map->at(key);
     }
@@ -65,7 +66,7 @@ class SharedUnorderedMap : public SharedUnorderedMapCommon<K, V> {
 
 // Specialization for plain-old-data (POD) types of values.
 template <typename K, typename V>
-class SharedUnorderedMap<K, V, typename boost::enable_if<boost::is_pod<V>>::type>
+class SharedUnorderedMap<K, V, typename std::enable_if<std::is_pod<V>::value>::type>
     : public SharedUnorderedMapCommon<K, V> {
     typedef SharedUnorderedMapCommon<K, V> ShmCommon;
     using ShmCommon::shm;
@@ -89,7 +90,6 @@ class SharedUnorderedMap<K, V, typename boost::enable_if<boost::is_pod<V>>::type
         return internal_map->at(key);
     }
 };
-
 #pragma GCC diagnostic pop
 
 }  // namespace shared

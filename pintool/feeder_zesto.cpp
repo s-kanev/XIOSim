@@ -388,8 +388,6 @@ VOID MakeSSRequest(THREADID tid,
     hshake->handshake.npc = npc;
     hshake->handshake.tpc = tpc;
     hshake->flags.brtaken = brtaken;
-    hshake->flags.sleep_thread = FALSE;
-    hshake->flags.resume_thread = FALSE;
     hshake->flags.real = TRUE;
     PIN_SafeCopy(hshake->handshake.ins, (VOID*)pc, MD_MAX_ILEN);
 }
@@ -422,9 +420,9 @@ static BOOL CheckIgnoreConditions(THREADID tid, ADDRINT pc) {
 static handshake_container_t* GetProperBuffer(pid_t tid, BOOL first_instrumentation) {
     handshake_container_t* res;
     if (first_instrumentation) {
-        res = xiosim::buffer_management::get_buffer(tid);
+        res = xiosim::buffer_management::GetBuffer(tid);
     } else {
-        res = xiosim::buffer_management::back(tid);
+        res = xiosim::buffer_management::Back(tid);
     }
     ASSERTX(res != NULL);
     ASSERTX(!res->flags.valid);
@@ -436,10 +434,7 @@ static handshake_container_t* GetProperBuffer(pid_t tid, BOOL first_instrumentat
 static VOID FinalizeBuffer(thread_state_t* tstate, handshake_container_t* handshake) {
     // Let simulator consume instruction from SimulatorLoop
     handshake->flags.valid = true;
-    xiosim::buffer_management::producer_done(tstate->tid);
-
-    if (tstate->num_inst && (tstate->num_inst % 1000000 == 0))
-        xiosim::buffer_management::flushBuffers(tstate->tid);
+    xiosim::buffer_management::ProducerDone(tstate->tid);
 }
 
 /* ========================================================================== */
@@ -898,7 +893,6 @@ VOID DeallocateCores() {
 VOID PauseSimulation() {
     /* Here we have produced everything, we can only consume */
     disable_producers();
-    enable_consumers();
 
     /* Flush all buffers and cleanly let the scheduler know to deschedule
      * once all instructions are conusmed.
@@ -929,16 +923,14 @@ VOID PauseSimulation() {
             /* When the handshake is consumed, this will let the scheduler
              * de-schedule the thread */
             pid_t curr_tid = tstate->tid;
-            handshake_container_t* handshake = xiosim::buffer_management::get_buffer(curr_tid);
+            handshake_container_t* handshake = xiosim::buffer_management::GetBuffer(curr_tid);
             handshake->flags.giveCoreUp = true;
             handshake->flags.giveUpReschedule = false;
             handshake->flags.valid = true;
             handshake->flags.real = false;
-            xiosim::buffer_management::producer_done(curr_tid, true);
+            xiosim::buffer_management::ProducerDone(curr_tid, true);
 
-            xiosim::buffer_management::flushBuffers(curr_tid);
-            if (KnobILDJIT.Value())
-                xiosim::buffer_management::resetPool(curr_tid);
+            xiosim::buffer_management::FlushBuffers(curr_tid);
         }
     }
 
@@ -999,8 +991,6 @@ VOID ResumeSimulation(bool allocate_cores) {
      * schedule all threads and let them round-robin on the scheduler queues. */
     for (THREADID curr_tid : affine_threads) {
         thread_state_t* tstate = get_tls(curr_tid);
-        ASSERTX(xiosim::buffer_management::empty(tstate->tid));
-
         scheduled_threads.push_back(tstate->tid);
 
         if (no_oversubscribe && (scheduled_threads.size() == allocation))
@@ -1047,13 +1037,13 @@ VOID ThreadFini(THREADID tid, const CONTEXT* ctxt, INT32 code, VOID* v) {
      * Mark it as finishing and let the handshake buffer drain.
      * Once this last handshake gets executed by a core, it will make
        sure to clean up all thread resources. */
-    handshake_container_t* handshake = xiosim::buffer_management::get_buffer(tstate->tid);
+    handshake_container_t* handshake = xiosim::buffer_management::GetBuffer(tstate->tid);
     handshake->flags.killThread = true;
     handshake->flags.valid = true;
     handshake->flags.real = false;
-    xiosim::buffer_management::producer_done(tstate->tid);
+    xiosim::buffer_management::ProducerDone(tstate->tid);
 
-    xiosim::buffer_management::flushBuffers(tstate->tid);
+    xiosim::buffer_management::FlushBuffers(tstate->tid);
 
     /* Ignore subsequent instructions that we may see on this thread before
      * destroying its tstate.

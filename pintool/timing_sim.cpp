@@ -28,19 +28,6 @@ using namespace xiosim;  // Until we namespace everything
 
 BaseAllocator* core_allocator = NULL;
 
-/* ==========================================================================
- * Called from simulator once handshake is free to be reused.
- * This allows to pipeline instrumentation and simulation. */
-void ReleaseHandshake(int coreID) {
-    pid_t instrument_tid = GetCoreThread(coreID);
-#ifdef ZESTO_PIN_DBG
-    assert(!xiosim::buffer_management::empty(instrument_tid));
-#endif
-
-    // pop() invalidates the buffer
-    xiosim::buffer_management::pop(instrument_tid);
-}
-
 /* ========================================================================== */
 /* The loop running each simulated core. */
 void* SimulatorLoop(void* arg) {
@@ -70,51 +57,35 @@ void* SimulatorLoop(void* arg) {
             continue;
         }
 
-        while (xiosim::buffer_management::empty(instrument_tid)) {
-            yield();
-            wait_consumers();
-        }
-
-        int consumerHandshakes = xiosim::buffer_management::getConsumerSize(instrument_tid);
+        /* Process all handshakes in the in-memory consumeBuffer_ at once.
+         * If there are none, the first call to fron will populate the buffer.
+         * Doing this helps reduce contention on the IPCMessageQueue lock, which we
+         * don't need to bang on too frequently. */
+        int consumerHandshakes = xiosim::buffer_management::GetConsumerSize(instrument_tid);
         if (consumerHandshakes == 0) {
-            xiosim::buffer_management::front(instrument_tid, false);
-            consumerHandshakes = xiosim::buffer_management::getConsumerSize(instrument_tid);
+            xiosim::buffer_management::Front(instrument_tid);
+            consumerHandshakes = xiosim::buffer_management::GetConsumerSize(instrument_tid);
         }
         assert(consumerHandshakes > 0);
 
-        int numConsumed = 0;
         for (int i = 0; i < consumerHandshakes; i++) {
-            wait_consumers();
-
-            handshake_container_t* handshake =
-                xiosim::buffer_management::front(instrument_tid, true);
+            handshake_container_t* handshake = xiosim::buffer_management::Front(instrument_tid);
             assert(handshake != NULL);
             assert(handshake->flags.valid);
 
             // Check thread exit flag
             if (handshake->flags.killThread) {
-                ReleaseHandshake(coreID);
-                // Apply buffer changes before notifying the scheduler,
-                // doing otherwise would result in a race
-                numConsumed++;
-                xiosim::buffer_management::applyConsumerChanges(instrument_tid, numConsumed);
-                numConsumed = 0;
+                // invalidate the handshake
+                xiosim::buffer_management::Pop(instrument_tid);
 
                 // Let the scheduler send something else to this core
                 DescheduleActiveThread(coreID);
-
-                assert(i == consumerHandshakes - 1);  // Check that there are no more handshakes
                 break;
             }
 
             if (handshake->flags.giveCoreUp) {
-                ReleaseHandshake(coreID);
-
-                // Apply buffer changes before notifying the scheduler,
-                // doing otherwise would result in a race
-                numConsumed++;
-                xiosim::buffer_management::applyConsumerChanges(instrument_tid, numConsumed);
-                numConsumed = 0;
+                // invalidate the handshake
+                xiosim::buffer_management::Pop(instrument_tid);
 
                 // Let the scheduler send something else to this core
                 GiveUpCore(coreID, handshake->flags.giveUpReschedule);
@@ -138,19 +109,15 @@ void* SimulatorLoop(void* arg) {
             // Actual simulation happens here
             Zesto_Resume(coreID, handshake);
 
-            numConsumed++;
+            // invalidate the handshake
+            xiosim::buffer_management::Pop(instrument_tid);
 
+            // The scheduler has decided it's our time to let go of this core.
             if (NeedsReschedule(coreID)) {
-                // Apply buffer changes before notifying the scheduler,
-                // doing otherwise would result in a race
-                xiosim::buffer_management::applyConsumerChanges(instrument_tid, numConsumed);
-                numConsumed = 0;
-
                 GiveUpCore(coreID, true);
                 break;
             }
         }
-        xiosim::buffer_management::applyConsumerChanges(instrument_tid, numConsumed);
     }
     return NULL;
 }

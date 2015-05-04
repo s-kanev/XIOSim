@@ -12,16 +12,8 @@
 CXX?= g++
 
 ##################################################################
-# Uncomment only one of the following OFLAGS, or make your own
 
-# For debug:
-OFLAGS = -O3 -g -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -DDEBUG -msse4a -mfpmath=sse -std=c++11 -Werror -Wall -Wno-unused-function -Wno-strict-aliasing
-
-# Fully-optimized, but with profiling for gprof:
-#OFLAGS = -O3 -g -pg -m32 -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -static -fexpensive-optimizations -mtune=core2 -march=core2 -msse4a -mfpmath=sse -funroll-loops -Werror -Wall -Wno-unused-function -Wno-strict-aliasing
-
-# Fully-optimized:
-#OFLAGS = -O3 -m32 -g -DNDEBUG -DMIN_SYSCALL_MODE -DUSE_SSE_MOVE -static  -msse4a -mfpmath=sse -Werror -Wall -Wno-unused-function -Wno-strict-aliasing
+OFLAGS = -O3 -g -m32 -DUSE_SSE_MOVE -DDEBUG -msse4a -mfpmath=sse -std=c++11 -Werror -Wall -Wno-unused-function -Wno-strict-aliasing
 
 ##################################################################
 # Uncomment to turn on pipeline event logging
@@ -57,16 +49,16 @@ CFLAGS = $(FFLAGS) $(OFLAGS) $(BINUTILS_INC) $(BINUTILS_LIB) $(ZTRACE) $(MCPAT_I
 #
 SRCS =  \
 eval.c          machine.c       memory.cpp         misc.c         \
-stats.c         slave.cpp         sim-main.c       callbacks.c    slices.cpp
+stats.c         slave.cpp         sim-main.c       slices.cpp
 
 HDRS = \
 thread.h                  host.h          machine.h       memory.h           \
 misc.h          regs.h          sim.h           stats.h         version.h          \
-machine.def     x86flow.def     interface.h     callbacks.h     pintool/buffer.h
+machine.def     x86flow.def     interface.h     pintool/buffer.h
 
 OBJS =	\
 eval.$(OEXT)         machine.$(OEXT)      memory.$(OEXT)       misc.$(OEXT)          \
-stats.$(OEXT)        sim-main.$(OEXT)     slices.$(OEXT)       callbacks.$(OEXT)     slave.$(OEXT)
+stats.$(OEXT)        sim-main.$(OEXT)     slices.$(OEXT)       slave.$(OEXT)
 
 # Zesto specific files
 ZSRCS = \
@@ -176,8 +168,7 @@ machine.o:   memory.h stats.h sim.h thread.h
 machine.o: x86flow.def
 slave.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h
 slave.o:  thread.h memory.h stats.h  version.h sim.h
-slave.o: interface.h callbacks.h
-callbacks.o: callbacks.h interface.h
+slave.o: interface.h
 slices.o: stats.h host.h  thread.h machine.h memory.h regs.h
 slices.o: zesto-core.h zesto-structs.h
 sim-main.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h
@@ -191,10 +182,10 @@ sim-slave.o:  memory.h stats.h thread.h
 sim-slave.o: sim.h zesto-core.h zesto-oracle.h zesto-fetch.h
 sim-slave.o: zesto-decode.h zesto-bpred.h zesto-alloc.h zesto-exec.h
 sim-slave.o: zesto-commit.h zesto-dram.h zesto-cache.h zesto-uncore.h
-sim-slave.o: zesto-MC.h interface.h callbacks.h synchronization.h
+sim-slave.o: zesto-MC.h interface.h synchronization.h
 sim-slave.o: zesto-repeater.h
 memory.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h
-memory.o:  stats.h  memory.h interface.h callbacks.h
+memory.o:  stats.h  memory.h interface.h
 misc.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h
 misc.o: synchronization.h
 stats.o: host.h misc.h machine.h machine.def zesto-structs.h regs.h
@@ -204,7 +195,7 @@ libsim.a:  memory.h stats.h thread.h
 libsim.a: sim.h zesto-core.h zesto-oracle.h zesto-fetch.h
 libsim.a: zesto-decode.h zesto-bpred.h zesto-alloc.h zesto-exec.h
 libsim.a: zesto-commit.h zesto-dram.h zesto-cache.h zesto-uncore.h
-libsim.a: zesto-MC.h interface.h callbacks.h synchronization.h
+libsim.a: zesto-MC.h interface.h synchronization.h
 libsim.a: zesto-repeater.h
 zesto-core.o: zesto-core.h zesto-structs.h machine.h host.h misc.h
 zesto-core.o: machine.def regs.h
@@ -212,7 +203,7 @@ zesto-oracle.o: misc.h thread.h machine.h host.h machine.def zesto-structs.h
 zesto-oracle.o: regs.h  memory.h stats.h
 zesto-oracle.o: zesto-core.h zesto-oracle.h zesto-fetch.h
 zesto-oracle.o: zesto-bpred.h zesto-decode.h zesto-alloc.h zesto-exec.h
-zesto-oracle.o: zesto-commit.h zesto-cache.h callbacks.h
+zesto-oracle.o: zesto-commit.h zesto-cache.h
 zesto-fetch.o: thread.h machine.h host.h misc.h machine.def zesto-structs.h
 zesto-fetch.o: regs.h  memory.h stats.h  zesto-core.h
 zesto-fetch.o: zesto-oracle.h zesto-fetch.h zesto-alloc.h

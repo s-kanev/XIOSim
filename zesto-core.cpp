@@ -146,7 +146,6 @@ struct uop_t * core_t::get_uop_array(const int size)
   for(int i=0;i<size;i++)
     uop_init(&p->uop[i]);
 
-  //  fprintf("uop:get: %x\n", p);
   return p->uop;
 }
 
@@ -156,8 +155,6 @@ void core_t::return_uop_array(struct uop_t * const p)
   byte_t * bp = (byte_t*)p;
   bp -= offsetof(struct uop_array_t,uop);
   ap = (struct uop_array_t *) bp;
-
-  //  fprintf("uop:return: %x\n", p);
 
   assert(ap->next == NULL);
   ap->next = uop_array_pool[ap->size];

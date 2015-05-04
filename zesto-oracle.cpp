@@ -138,7 +138,6 @@
 #include "host.h"
 #include "misc.h"
 #include "thread.h"
-#include "callbacks.h"
 #include "memory.h"
 #include "synchronization.h"
 

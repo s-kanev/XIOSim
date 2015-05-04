@@ -9,15 +9,16 @@
 #include <pthread.h>
 #include <stdint.h>
 #include <unistd.h>
+#include <utility>
 
 inline void xio_sleep(int msecs)
 {
-  usleep(msecs * 1000);
+    usleep(msecs * 1000);
 }
 
 inline void yield()
 {
-  pthread_yield();
+    pthread_yield();
 }
 
 /* Custom lock implementaion -- faster than the futeces that pin uses
@@ -32,43 +33,70 @@ inline void yield()
  * Credit for this goes to  Nick Piggin (https://lwn.net/Articles/267968/)
  */
 
-struct XIOSIM_LOCK {
-  int32_t v;
+class XIOSIM_LOCK {
+  public:
+    XIOSIM_LOCK()
+    {
+        __asm__ __volatile__ ("":::"memory");
+        this->v = 0;
+    }
+
+    /* Enable move constructors */
+    XIOSIM_LOCK(XIOSIM_LOCK &&arg) : v(std::move(arg.v)) {}
+    XIOSIM_LOCK & operator= (XIOSIM_LOCK &&arg) { this->v = std::move(arg.v); return *this; }
+
+    /* Disable copy constructors */
+    XIOSIM_LOCK(const XIOSIM_LOCK &) = delete;
+    XIOSIM_LOCK & operator= (const XIOSIM_LOCK &arg) = delete;
+
+    inline void lock()
+    {
+        int32_t inc = 0x00010000;
+        int32_t tmp = 0;
+        __asm__ __volatile__ (  "lock xaddl %0, %1\n"
+                                "movzwl %w0, %2\n"
+                                "shrl $16, %0\n"
+                                "1:\n"
+                                "cmpl %0, %2\n"
+                                "je 2f\n"
+                                "movzwl %1, %2\n"
+                                "jmp 1b\n"
+                                "2:\n"
+                                :"+Q" (inc), "+m" (this->v), "+r" (tmp)
+                                :
+                                :"memory", "cc");
+    }
+
+    inline void unlock()
+    {
+        __asm__ __volatile ("incw %0"
+                            :"+m" (this->v)
+                            :
+                            :"memory", "cc");
+    }
+
+  private:
+    int32_t v;
+
 } __attribute__ ((aligned (64)));
 
+/* These are just for compatibility and should be refactored away. */
 inline void lk_lock(XIOSIM_LOCK* lk, int32_t cid)
 {
     (void) cid;
-    int32_t inc = 0x00010000;
-    int32_t tmp = 0;
-    __asm__ __volatile__ (  "lock xaddl %0, %1\n"
-                            "movzwl %w0, %2\n"
-                            "shrl $16, %0\n"
-                            "1:\n"
-                            "cmpl %0, %2\n"
-                            "je 2f\n"
-                            "movzwl %1, %2\n"
-                            "jmp 1b\n"
-                            "2:\n"
-                            :"+Q" (inc), "+m" (lk->v), "+r" (tmp)
-                            :
-                            :"memory", "cc");
+    lk->lock();
 }
 
 inline int32_t lk_unlock(XIOSIM_LOCK* lk)
 {
-    __asm__ __volatile ("incw %0"
-                        :"+m" (lk->v)
-                        :
-                        :"memory", "cc");
+    lk->unlock();
     return 0;
 }
 
 inline void lk_init(XIOSIM_LOCK* lk)
 {
-    __asm__ __volatile__ ("":::"memory");
-    lk->v = 0;
 }
+
 
 /* Protecting shared state among cores */
 /* Lock acquire order (outmost to inmost):

@@ -59,16 +59,19 @@ template <typename K, typename V> class SharedUnorderedMapCommon {
     // operator[]() on the underlying map.
     // Returns a reference to the value stored at key. If the key-value pair
     // does not exist, an out-of-range exception is thrown.
-    V& operator[](K key) { return access_operator(key); }
+    V& operator[](const K key) { return access_operator(key); }
 
-    void insert(K key, V value) {
+    void insert(const K key, V value) {
         MapValueType new_pair(key, value);
         try {
-            MapValueAllocator alloc_inst(shm->get_segment_manager());
             internal_map->insert(new_pair);
         } catch (const boost::interprocess::bad_alloc&) {
             assert(false);
         }
+    }
+
+    void emplace(const K key, V&& value) {
+        internal_map->insert(std::make_pair(key, std::forward<V>(value)));
     }
 
     V& at(const K key) { return internal_map->at(key); }

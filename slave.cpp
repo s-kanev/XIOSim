@@ -20,7 +20,6 @@
 
 #include "confuse.h"
 #include "interface.h"
-#include "callbacks.h"
 #include "host.h"
 #include "misc.h"
 #include "machine.h"
@@ -341,33 +340,16 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake)
    bool slice_start = handshake->flags.isFirstInsn;
 
 
-   if (!thread->active && !(slice_start || handshake->flags.resume_thread ||
-                            handshake->flags.sleep_thread || handshake->flags.flush_pipe)) {
+   if (!thread->active && !(slice_start || handshake->flags.flush_pipe)) {
      fprintf(stderr, "DEBUG DEBUG: Start/stop out of sync? %d PC: %x\n", coreID, handshake->handshake.pc);
-     ReleaseHandshake(coreID);
      return;
    }
 
    zesto_assert(core->oracle->num_Mops_before_feeder() == 0, (void)0);
    zesto_assert(!core->oracle->spec_mode, (void)0);
 
-   if (handshake->flags.sleep_thread)
-   {
-      deactivate_core(coreID);
-      ReleaseHandshake(coreID);
-      return;
-   }
-
-   if (handshake->flags.resume_thread)
-   {
-      activate_core(coreID);
-      ReleaseHandshake(coreID);
-      return;
-   }
-
    if(handshake->flags.flush_pipe) {
       sim_drain_pipe(coreID);
-      ReleaseHandshake(coreID);
       return;
    }
 
@@ -384,9 +366,6 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake)
    thread->fetches_since_feeder = 0;
    md_addr_t NPC = handshake->flags.brtaken ? handshake->handshake.tpc : handshake->handshake.npc;
    ZTRACE_PRINT(coreID, "PIN -> PC: %x, NPC: %x \n", handshake->handshake.pc, NPC);
-
-   // The handshake can be recycled now
-   ReleaseHandshake(coreID);
 
    bool fetch_more = true;
    thread->consumed = false;
@@ -485,8 +464,6 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake)
          /* After recovering from spec, we find no nukes -> great, get control back to PIN */
          if(!spec && core->oracle->num_Mops_before_feeder() == 0)
          {
-            //fprintf(stderr, "AAA\n");
-            //while(1);
             zesto_assert(core->fetch->PC == NPC, (void)0);
             return;
          }

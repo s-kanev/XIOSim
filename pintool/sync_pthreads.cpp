@@ -27,14 +27,14 @@ VOID PTHREAD_beforeJoin(THREADID tid) {
     tstate->ignore = true;
     lk_unlock(&tstate->lock);
 
-    handshake_container_t* handshake = xiosim::buffer_management::get_buffer(tstate->tid);
+    handshake_container_t* handshake = xiosim::buffer_management::GetBuffer(tstate->tid);
     handshake->flags.valid = true;
     handshake->flags.real = false;
     handshake->flags.giveCoreUp = true;
     handshake->flags.giveUpReschedule = true;
-    xiosim::buffer_management::producer_done(tstate->tid);
+    xiosim::buffer_management::ProducerDone(tstate->tid);
 
-    xiosim::buffer_management::flushBuffers(tstate->tid);
+    xiosim::buffer_management::FlushBuffers(tstate->tid);
 }
 
 VOID PTHREAD_beforeMutexLock(THREADID tid) {
@@ -46,14 +46,14 @@ VOID PTHREAD_beforeMutexLock(THREADID tid) {
     tstate->ignore = true;
     lk_unlock(&tstate->lock);
 
-    handshake_container_t* handshake = xiosim::buffer_management::get_buffer(tstate->tid);
+    handshake_container_t* handshake = xiosim::buffer_management::GetBuffer(tstate->tid);
     handshake->flags.valid = true;
     handshake->flags.real = false;
     handshake->flags.giveCoreUp = true;
     handshake->flags.giveUpReschedule = true;
-    xiosim::buffer_management::producer_done(tstate->tid);
+    xiosim::buffer_management::ProducerDone(tstate->tid);
 
-    xiosim::buffer_management::flushBuffers(tstate->tid);
+    xiosim::buffer_management::FlushBuffers(tstate->tid);
 }
 
 VOID PTHREAD_beforeCondWait(THREADID tid) {
@@ -65,14 +65,14 @@ VOID PTHREAD_beforeCondWait(THREADID tid) {
     tstate->ignore = true;
     lk_unlock(&tstate->lock);
 
-    handshake_container_t* handshake = xiosim::buffer_management::get_buffer(tstate->tid);
+    handshake_container_t* handshake = xiosim::buffer_management::GetBuffer(tstate->tid);
     handshake->flags.valid = true;
     handshake->flags.real = false;
     handshake->flags.giveCoreUp = true;
     handshake->flags.giveUpReschedule = true;
-    xiosim::buffer_management::producer_done(tstate->tid);
+    xiosim::buffer_management::ProducerDone(tstate->tid);
 
-    xiosim::buffer_management::flushBuffers(tstate->tid);
+    xiosim::buffer_management::FlushBuffers(tstate->tid);
 }
 
 VOID PTHREAD_stopIgnore(THREADID tid) {

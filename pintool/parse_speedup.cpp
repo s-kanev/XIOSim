@@ -1,4 +1,5 @@
 #include <cmath>
+#include <iostream>
 #include <fstream>
 #include <assert.h>
 #include <string>
@@ -66,8 +67,8 @@ void LoadHelixSpeedupModelData(const char* filepath) {
         std::cout << "Cores:\t\t";
         for (size_t j = 1; j <= NUM_SPEEDUP_POINTS; j++)
             std::cout << j << "\t";
-#endif
         std::cout << std::endl;
+#endif
         while (getline(speedup_loop_file, line)) {
             // Ignore comments (lines starting with //).
             if (!boost::starts_with(line.c_str(), "//")) {

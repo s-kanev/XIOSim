@@ -113,7 +113,6 @@
 #include "interface.h"
 #include "synchronization.h"
 
-extern bool *consumers_sleep;
 extern int *num_processes;
 extern void CheckIPCMessageQueue(bool isEarly, int caller_coreID);
 extern int heartbeat_count;

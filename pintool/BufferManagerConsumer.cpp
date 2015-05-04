@@ -4,6 +4,8 @@
 
 #include "../interface.h"
 #include "multiprocess_shared.h"
+#include "buffer.h"
+#include "BufferManager.h"
 #include "BufferManagerConsumer.h"
 
 using namespace std;
@@ -11,9 +13,7 @@ using namespace std;
 namespace xiosim {
 namespace buffer_management {
 
-static void copyFileToConsumer(pid_t tid);
-static void copyFileToConsumerReal(pid_t tid);
-static void copyFileToConsumerFake(pid_t tid);
+static void copyFileToConsumer(pid_t tid, std::string fname, size_t to_read);
 static bool readHandshake(pid_t tid, int fd, handshake_container_t* handshake);
 
 static std::unordered_map<pid_t, Buffer*> consumeBuffer_;
@@ -37,60 +37,26 @@ void AllocateThreadConsumer(pid_t tid, int buffer_capacity) {
     consumeBuffer_[tid] = new Buffer(buffer_capacity);
 }
 
-handshake_container_t* front(pid_t tid, bool isLocal) {
-
+handshake_container_t* Front(pid_t tid) {
+    /* Fast path, we have a handshake in our local buffer.
+     * Just return it without touching any locks. */
     assert(consumeBuffer_[tid] != NULL);
     if (consumeBuffer_[tid]->size() > 0) {
         handshake_container_t* returnVal = consumeBuffer_[tid]->front();
         return returnVal;
     }
 
-    lk_lock(&locks_[tid], tid + 1);
+    /* consumeBuffer_ is empty. We need to read from a file.
+     * First, wait until one exists, and is flushed by producers. */
+    auto new_file = WaitForFile(tid);
 
-    assert(queueSizes_[tid] > 0);
-
-    while (fileEntryCount_[tid] == 0) {
-        lk_unlock(&locks_[tid]);
-        yield();
-        wait_consumers();
-        lk_lock(&locks_[tid], tid + 1);
-    }
-
-    if (fileEntryCount_[tid] > 0) {
-        copyFileToConsumer(tid);
-        assert(!consumeBuffer_[tid]->empty());
-        handshake_container_t* returnVal = consumeBuffer_[tid]->front();
-        lk_unlock(&locks_[tid]);
-        return returnVal;
-    }
-    assert(fileEntryCount_[tid] == 0);
-    assert(consumeBuffer_[tid]->empty());
-
-    int spins = 0;
-    while (consumeBuffer_[tid]->empty()) {
-        lk_unlock(&locks_[tid]);
-        yield();
-        wait_consumers();
-        lk_lock(&locks_[tid], tid + 1);
-        spins++;
-        if (spins >= 2) {
-            spins = 0;
-            if (fileEntryCount_[tid] == 0) {
-                continue;
-            }
-            copyFileToConsumer(tid);
-        }
-    }
-
-    assert(consumeBuffer_[tid]->size() > 0);
-    assert(consumeBuffer_[tid]->front()->flags.valid);
-    assert(queueSizes_[tid] > 0);
-    handshake_container_t* resultVal = consumeBuffer_[tid]->front();
-    lk_unlock(&locks_[tid]);
-    return resultVal;
+    /* Now that we have a file, copy it to consumeBuffer_. */
+    copyFileToConsumer(tid, new_file.first, new_file.second);
+    assert(!consumeBuffer_[tid]->empty());
+    return consumeBuffer_[tid]->front();
 }
 
-int getConsumerSize(pid_t tid) {
+int GetConsumerSize(pid_t tid) {
     // Another thread might be doing the allocation
     while (consumeBuffer_[tid] == NULL)
         ;
@@ -99,72 +65,33 @@ int getConsumerSize(pid_t tid) {
     return consumeBuffer_[tid]->size();
 }
 
-/* On the consumer side, signal that we have consumed
- * numChanged buffers that can go back to the core's pool.
- */
-void applyConsumerChanges(pid_t tid, int numChanged) {
-    if (numChanged == 0)
-        return;
+void Pop(pid_t tid) { consumeBuffer_[tid]->pop(); }
 
-    lk_lock(&locks_[tid], tid + 1);
-
-    pool_[tid] += numChanged;
-
-    assert(queueSizes_[tid] >= numChanged);
-    queueSizes_[tid] -= numChanged;
-
-    lk_unlock(&locks_[tid]);
-}
-
-void pop(pid_t tid) {
-    consumeBuffer_[tid]->pop();
-    *popped_ = true;
-}
-
-static void copyFileToConsumer(pid_t tid) {
-    if (useRealFile_) {
-        copyFileToConsumerReal(tid);
-    } else {
-        copyFileToConsumerFake(tid);
-    }
-}
-
-static void copyFileToConsumerFake(pid_t tid) {
-    while (fakeFile_[tid]->size() > 0) {
-        if (consumeBuffer_[tid]->full()) {
-            break;
-        }
-
-        handshake_container_t* handshake = consumeBuffer_[tid]->get_buffer();
-        fakeFile_[tid]->front()->CopyTo(handshake);
-        consumeBuffer_[tid]->push_done();
-        fakeFile_[tid]->pop();
-        fileEntryCount_[tid]--;
-    }
-}
-
-static void copyFileToConsumerReal(pid_t tid) {
+/* Read @to_read handshake buffers from file @fname for thread @tid. */
+static void copyFileToConsumer(pid_t tid, std::string fname, size_t to_read) {
     int result;
 
-    int fd = open(fileNames_[tid].front().c_str(), O_RDWR);
+    int fd = open(fname.c_str(), O_RDWR);
     if (fd == -1) {
-        cerr << "Opened to read: " << fileNames_[tid].front();
+        cerr << "Opened to read: " << fname;
         cerr << "Pipe open error: " << fd << " Errcode:" << strerror(errno) << endl;
         abort();
     }
 
-    int count = 0;
+    size_t num_read = 0;
     bool validRead = true;
-    while (fileCounts_[tid].front() > 0) {
+    while (to_read > 0) {
         assert(!consumeBuffer_[tid]->full());
 
         handshake_container_t* handshake = consumeBuffer_[tid]->get_buffer();
         validRead = readHandshake(tid, fd, handshake);
+#ifdef NDEBUG
+        (void)validRead;
+#endif
         assert(validRead);
         consumeBuffer_[tid]->push_done();
-        count++;
-        fileEntryCount_[tid]--;
-        fileCounts_[tid].front() -= 1;
+        num_read++;
+        to_read--;
     }
 
     result = close(fd);
@@ -174,18 +101,15 @@ static void copyFileToConsumerReal(pid_t tid) {
         abort();
     }
 
-    assert(fileCounts_[tid].front() == 0);
-    result = remove(fileNames_[tid].front().c_str());
+    result = remove(fname.c_str());
     if (result != 0) {
         cerr << "Remove error: "
              << " Errcode:" << strerror(errno) << endl;
         abort();
     }
 
-    fileNames_[tid].pop_front();
-    fileCounts_[tid].pop_front();
-
-    assert(fileEntryCount_[tid] >= 0);
+    /* Let the BufferManager know we are done consuming this file. */
+    NotifyConsumed(tid, num_read);
 }
 
 static ssize_t do_read(const int fd, void* buff, const size_t size) {

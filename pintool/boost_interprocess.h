@@ -23,6 +23,8 @@
 #include <boost/interprocess/allocators/allocator.hpp>
 #include <boost/interprocess/interprocess_fwd.hpp>
 #include <boost/interprocess/sync/named_mutex.hpp>
+#include <boost/interprocess/sync/interprocess_condition_any.hpp>
+#include <boost/interprocess/sync/scoped_lock.hpp>
 
 #pragma GCC diagnostic pop
 

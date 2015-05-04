@@ -39,10 +39,6 @@ SHARED_VAR_DEFINE(XIOSIM_LOCK, lk_thread_bos)
 
 SHARED_VAR_DEFINE(bool, sleeping_enabled)
 
-SHARED_VAR_DEFINE(bool, consumers_sleep)
-SHARED_VAR_DEFINE(pthread_cond_t, cv_consumers)
-SHARED_VAR_DEFINE(pthread_mutex_t, cv_consumers_lock)
-
 SHARED_VAR_DEFINE(bool, waits_as_loads);
 SHARED_VAR_DEFINE(int, ss_curr);
 SHARED_VAR_DEFINE(int, ss_prev);
@@ -61,8 +57,10 @@ int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores_) {
     std::string init_lock_key = harness_pid_stream.str() + std::string(XIOSIM_INIT_SHARED_LOCK);
     std::string counter_lock_key = harness_pid_stream.str() + std::string(XIOSIM_INIT_COUNTER_KEY);
 
+#ifdef MP_DEBUG
     std::cout << getpid() << ": About to init pid " << std::endl;
     std::cout << "lock key is " << init_lock_key << std::endl;
+#endif
 
     named_mutex init_lock(open_only, init_lock_key.c_str());
     global_shm = new managed_shared_memory(
@@ -70,7 +68,9 @@ int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores_) {
     init_lock.lock();
 
     process_counter = global_shm->find_or_construct<int>(counter_lock_key.c_str())();
+#ifdef MP_DEBUG
     std::cout << getpid() << ": Counter value is: " << *process_counter << std::endl;
+#endif
     (*process_counter)--;
 
     if (producer_process) {
@@ -84,12 +84,6 @@ int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores_) {
     num_cores = num_cores_;
 
     SHARED_VAR_INIT(bool, sleeping_enabled, false)
-
-    SHARED_VAR_INIT(bool, consumers_sleep, false)
-    SHARED_VAR_INIT(pthread_cond_t, cv_consumers);
-    SHARED_VAR_INIT(pthread_mutex_t, cv_consumers_lock);
-    pthread_cond_init(cv_consumers, NULL);
-    pthread_mutex_init(cv_consumers_lock, NULL);
 
     SHARED_VAR_ARRAY_INIT(pid_t, coreThreads, num_cores, xiosim::INVALID_THREADID);
     SHARED_VAR_CONSTRUCT(ThreadCoreMap, threadCores);
@@ -146,7 +140,9 @@ int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores_) {
         }
         init_lock.unlock();
     }
+#ifdef MP_DEBUG
     std::cout << getpid() << ": Proceeeding to execute." << std::endl;
+#endif
     return asid;
 }
 
@@ -222,34 +218,4 @@ int GetProcessCoreAllocation(int asid) {
         res = coreAllocation->at(asid);
     lk_unlock(lk_coreAllocation);
     return res;
-}
-
-void disable_consumers() {
-    return;
-    if (*sleeping_enabled) {
-        pthread_mutex_lock(cv_consumers_lock);
-        *consumers_sleep = true;
-        pthread_mutex_unlock(cv_consumers_lock);
-    }
-}
-
-void enable_consumers() {
-    return;
-    pthread_mutex_lock(cv_consumers_lock);
-    *consumers_sleep = false;
-    pthread_cond_broadcast(cv_consumers);
-    pthread_mutex_unlock(cv_consumers_lock);
-}
-
-void wait_consumers() {
-    return;
-    if (!*sleeping_enabled)
-        return;
-
-    pthread_mutex_lock(cv_consumers_lock);
-
-    while (*consumers_sleep)
-        pthread_cond_wait(cv_consumers, cv_consumers_lock);
-
-    pthread_mutex_unlock(cv_consumers_lock);
 }

@@ -85,10 +85,6 @@ SHARED_VAR_DECLARE(XIOSIM_LOCK, lk_thread_bos)
 
 SHARED_VAR_DECLARE(bool, sleeping_enabled)
 
-SHARED_VAR_DECLARE(bool, consumers_sleep)
-SHARED_VAR_DECLARE(pthread_cond_t, cv_consumers)
-SHARED_VAR_DECLARE(pthread_mutex_t, cv_consumers_lock)
-
 /* librepeater */
 SHARED_VAR_DECLARE(bool, waits_as_loads);
 SHARED_VAR_DECLARE(int, ss_curr);
@@ -96,9 +92,5 @@ SHARED_VAR_DECLARE(int, ss_prev);
 
 /* Init state in shared memory. Returns unique address space id for producers */
 int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores);
-
-void disable_consumers();
-void enable_consumers();
-void wait_consumers();
 
 #endif /* __MP_SHARED__ */

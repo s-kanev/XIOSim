@@ -15,8 +15,6 @@ struct handshake_flags_t {
     bool giveUpReschedule : 1;    /* When ^ is true, should thread get re-scheduled */
     bool killThread : 1;          /* Thread is exiting, deschedule it and clean up once consumed */
     bool brtaken : 1;             /* Taken or Not-Taken for branch instructions */
-    bool sleep_thread : 1;        /* Deactivate core */
-    bool resume_thread : 1;       /* Re-activate core */
     bool flush_pipe : 1;          /* Flush core pipelie */
     bool real : 1;                /* Is this a real instruction */
     bool in_critical_section : 1; /* Thread executing a sequential cut? */
@@ -345,7 +343,7 @@ class handshake_container_t {
         out << std::hex << "ins: ";
         for (int i = 0; i < MD_MAX_ILEN; i++)
             out << (uint32_t)hand.handshake.ins[i] << " ";
-        out << "flags: " << hand.flags.sleep_thread << hand.flags.resume_thread;
+        out << "flags: ";
         out << std::dec << hand.flags.real;
         out << hand.flags.in_critical_section;
         out.flush();
