@@ -1,4 +1,5 @@
 #include <unordered_map>
+#include <mutex>
 
 #include "boost_interprocess.h"
 
@@ -20,6 +21,10 @@ static std::unordered_map<pid_t, Buffer*> consumeBuffer_;
 static std::unordered_map<pid_t, int> readBufferSize_;
 static std::unordered_map<pid_t, void*> readBuffer_;
 static std::unordered_map<pid_t, regs_t*> shadowRegs_;
+/* Lock that we capture when allocating a thread. This is the only
+ * time we write to any of the unordered maps above. After that,
+ * we can just access them lock-free. */
+static XIOSIM_LOCK init_lock_;
 
 void InitBufferManagerConsumer(pid_t harness_pid, int num_cores) {
     InitBufferManager(harness_pid, num_cores);
@@ -28,6 +33,7 @@ void InitBufferManagerConsumer(pid_t harness_pid, int num_cores) {
 void DeinitBufferManagerConsumer() { DeinitBufferManager(); }
 
 void AllocateThreadConsumer(pid_t tid, int buffer_capacity) {
+    std::lock_guard<XIOSIM_LOCK> l(init_lock_);
     // Start with one page read buffer
     readBufferSize_[tid] = 4096;
     readBuffer_[tid] = malloc(4096);

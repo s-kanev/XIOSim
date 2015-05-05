@@ -2,6 +2,7 @@
 
 #include <unordered_map>
 #include <sstream>
+#include <mutex>
 
 #include "pin.H"
 
@@ -27,6 +28,10 @@ static std::unordered_map<pid_t, void*> writeBuffer_;
 static std::unordered_map<pid_t, regs_t*> shadowRegs_;
 static std::vector<std::string> bridgeDirs_;
 static std::string gpid_;
+/* Lock that we capture when allocating a thread. This is the only
+ * time we write to any of the unordered maps above. After that,
+ * we can just access them lock-free. */
+static XIOSIM_LOCK init_lock_;
 
 void InitBufferManagerProducer(pid_t harness_pid, int num_cores) {
     InitBufferManager(harness_pid, num_cores);
@@ -50,6 +55,7 @@ void InitBufferManagerProducer(pid_t harness_pid, int num_cores) {
 void DeinitBufferManagerProducer() { DeinitBufferManager(); }
 
 void AllocateThreadProducer(pid_t tid) {
+    std::lock_guard<XIOSIM_LOCK> l(init_lock_);
     int bufferCapacity = AllocateThread(tid);
 
     produceBuffer_[tid] = new Buffer(bufferCapacity);
