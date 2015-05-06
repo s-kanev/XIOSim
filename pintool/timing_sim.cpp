@@ -3,6 +3,7 @@
 #include "ezOptionParser_clean.hpp"
 
 #include "../interface.h"
+#include "../memory.h"
 #include "multiprocess_shared.h"
 #include "ipc_queues.h"
 
@@ -99,7 +100,7 @@ void* SimulatorLoop(void* arg) {
                 lk_lock(lk_thread_bos, 1);
                 bos = thread_bos->at(instrument_tid);
                 lk_unlock(lk_thread_bos);
-                Zesto_Map_Stack(handshake->handshake.asid, esp, bos);
+                xiosim::memory::map_stack(handshake->handshake.asid, esp, bos);
 
                 lk_lock(&tstate->lock, 1);
                 tstate->sim_stopped = false;
@@ -317,13 +318,13 @@ void CheckIPCMessageQueue(bool isEarly, int caller_coreID) {
             break;
         /* Shadow page table related */
         case MMAP:
-            Zesto_Notify_Mmap(ipcMessage.arg0, ipcMessage.arg1, ipcMessage.arg2, ipcMessage.arg3);
+            xiosim::memory::notify_mmap(ipcMessage.arg0, ipcMessage.arg1, ipcMessage.arg2, ipcMessage.arg3);
             break;
         case MUNMAP:
-            Zesto_Notify_Munmap(ipcMessage.arg0, ipcMessage.arg1, ipcMessage.arg2, ipcMessage.arg3);
+            xiosim::memory::notify_munmap(ipcMessage.arg0, ipcMessage.arg1, ipcMessage.arg2, ipcMessage.arg3);
             break;
         case UPDATE_BRK:
-            Zesto_UpdateBrk(ipcMessage.arg0, ipcMessage.arg1, ipcMessage.arg2);
+            xiosim::memory::update_brk(ipcMessage.arg0, ipcMessage.arg1, ipcMessage.arg2);
             break;
         /* Warm caches */
         case WARM_LLC:

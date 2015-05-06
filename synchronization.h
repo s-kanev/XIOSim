@@ -101,15 +101,10 @@ inline void lk_init(XIOSIM_LOCK* lk)
 /* Protecting shared state among cores */
 /* Lock acquire order (outmost to inmost):
  - cache_lock
- - memory_lock
  - oracle_pools_lock
  */
 
 extern XIOSIM_LOCK repeater_lock;
-
-/* Memory lock should be acquired before functional accesses to
- * the simulated application memory. */
-extern XIOSIM_LOCK memory_lock;
 
 /* Cache lock should be acquired before any access to the shared
  * caches (including enqueuing requests from lower-level caches). */

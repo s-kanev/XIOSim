@@ -7,6 +7,7 @@
 
 #include <cstdlib>
 #include <unordered_map>
+#include <mutex>
 
 #include "host.h"
 #include "misc.h"
@@ -15,6 +16,9 @@
 #include "memory.h"
 #include "synchronization.h"
 #include "ztrace.h"
+
+namespace xiosim {
+namespace memory {
 
 /* VPN to PPN hash map. Note: these are page numbers, not addresses. */
 typedef std::unordered_map<md_addr_t, md_paddr_t> page_table_t;
@@ -26,7 +30,19 @@ static md_addr_t * brk_point;
 static counter_t * page_count;
 static counter_t phys_page_count;
 
-void mem_init(int num_processes)
+static XIOSIM_LOCK memory_lock;
+
+/* given a set of pages, this creates a set of new page mappings. */
+static void mem_newmap(int asid, md_addr_t addr, size_t length);
+/* given a set of pages, this removes them from our map. */
+static void mem_delmap(int asid, md_addr_t addr, size_t length);
+/* check if a virtual address has been added to the mapping */
+static bool mem_is_mapped(int asid, md_addr_t addr);
+/* Get top of data segment */
+static md_addr_t get_brk(int asid);
+static void set_brk(int asid, md_addr_t brk);
+
+void init(int num_processes)
 {
     num_address_spaces = num_processes;
 
@@ -41,8 +57,8 @@ void mem_init(int num_processes)
 /* We allocate physical pages to virtual pages on a
  * first-come-first-serve basis. Seems like linux frowns upon
  * page coloring, so should be reasonably accurate. */
-static md_paddr_t next_ppn_to_allocate = 0x00000100; /* arbitrary starting point; */ 
-void mem_newmap(int asid, md_addr_t addr, size_t length)
+static md_paddr_t next_ppn_to_allocate = 0x00000100; /* arbitrary starting point; */
+static void mem_newmap(int asid, md_addr_t addr, size_t length)
 {
     ZTRACE_PRINT(INVALID_CORE, "mem_newmap: %d, %x, length: %x\n", asid, addr, length);
 
@@ -71,7 +87,7 @@ void mem_newmap(int asid, md_addr_t addr, size_t length)
     }
 }
 
-void mem_delmap(int asid, md_addr_t addr, size_t length)
+static void mem_delmap(int asid, md_addr_t addr, size_t length)
 {
     ZTRACE_PRINT(INVALID_CORE, "mem_delmap: %d, %x, length: %x\n", asid, addr, length);
 
@@ -98,15 +114,30 @@ void mem_delmap(int asid, md_addr_t addr, size_t length)
 }
 
 /* Check if page has been touched in this address space */
-bool mem_is_mapped(int asid, md_addr_t addr)
+static bool mem_is_mapped(int asid, md_addr_t addr)
 {
     assert(asid >= 0 && asid < num_address_spaces);
     md_addr_t vpn = addr >> PAGE_SHIFT;
     return (page_tables[asid].count(vpn) > 0);
 }
 
+/* Get top of data segment */
+static md_addr_t get_brk(int asid)
+{
+    assert(asid >= 0 && asid < num_address_spaces);
+    return brk_point[asid];
+}
+
+/* Update top of data segment */
+static void set_brk(int asid, md_addr_t brk_)
+{
+    assert(asid >= 0 && asid < num_address_spaces);
+    brk_point[asid] = brk_;
+}
+
 md_paddr_t v2p_translate(int asid, md_addr_t addr)
 {
+    std::lock_guard<XIOSIM_LOCK> l(memory_lock);
     /* Some caches call this with an already translated address. Just ignore. */
     if (asid == DO_NOT_TRANSLATE)
         return addr;
@@ -123,36 +154,69 @@ md_paddr_t v2p_translate(int asid, md_addr_t addr)
     return 0 + MEM_OFFSET(addr);
 }
 
-/* Wrapper around v2p_translate, to be called without holding the memory_lock */
-md_paddr_t v2p_translate_safe(int asid, md_addr_t addr)
+void notify_write(int asid, md_addr_t addr)
 {
-    /* Some caches call this with an already translated address. Just ignore. */
-    if (asid == DO_NOT_TRANSLATE)
-        return addr;
-
-    md_paddr_t res;
-    lk_lock(&memory_lock, 1);
-    res = v2p_translate(asid, addr);
-    lk_unlock(&memory_lock);
-    return res;
+    std::lock_guard<XIOSIM_LOCK> l(memory_lock);
+    if (!mem_is_mapped(asid, addr))
+        mem_newmap(asid, ROUND_DOWN(addr, PAGE_SIZE), PAGE_SIZE);
 }
 
-/* Get top of data segment */
-md_addr_t mem_brk(int asid)
+void notify_mmap(int asid, md_addr_t addr, size_t length, bool mod_brk)
 {
-    assert(asid >= 0 && asid < num_address_spaces);
-    return brk_point[asid];
+    std::lock_guard<XIOSIM_LOCK> l(memory_lock);
+    md_addr_t page_addr = ROUND_DOWN(addr, PAGE_SIZE);
+    size_t page_length = ROUND_UP(length, PAGE_SIZE);
+
+    mem_newmap(asid, page_addr, page_length);
+
+    md_addr_t curr_brk = get_brk(asid);
+    if(mod_brk && page_addr > curr_brk)
+        set_brk(asid, page_addr + page_length);
 }
 
-/* Update top of data segment */
-void mem_update_brk(int asid, md_addr_t brk_)
+void notify_munmap(int asid, md_addr_t addr, size_t length, bool mod_brk)
 {
-    assert(asid >= 0 && asid < num_address_spaces);
-    brk_point[asid] = brk_;
+    std::lock_guard<XIOSIM_LOCK> l(memory_lock);
+    mem_delmap(asid, ROUND_UP(addr, PAGE_SIZE), length);
+}
+
+void update_brk(int asid, md_addr_t brk_end, bool do_mmap)
+{
+    assert(brk_end != 0);
+
+    if(do_mmap)
+    {
+        md_addr_t old_brk_end = get_brk(asid);
+
+        if(brk_end > old_brk_end)
+            notify_mmap(asid, ROUND_UP(old_brk_end, PAGE_SIZE),
+                        ROUND_UP(brk_end - old_brk_end, PAGE_SIZE), false);
+        else if(brk_end < old_brk_end)
+            notify_munmap(asid, ROUND_UP(brk_end, PAGE_SIZE),
+                          ROUND_UP(old_brk_end - brk_end, PAGE_SIZE), false);
+    }
+
+    {
+        std::lock_guard<XIOSIM_LOCK> l(memory_lock);
+        set_brk(asid, brk_end);
+    }
+}
+
+void map_stack(int asid, md_addr_t sp, md_addr_t bos)
+{
+    std::lock_guard<XIOSIM_LOCK> l(memory_lock);
+    assert(sp != 0);
+    assert(bos != 0);
+
+    /* Create local pages for stack */
+    md_addr_t page_start = ROUND_DOWN(sp, PAGE_SIZE);
+    md_addr_t page_end = ROUND_UP(bos, PAGE_SIZE);
+
+    mem_newmap(asid, page_start, page_end - page_start);
 }
 
 /* register memory system-specific statistics */
-void mem_reg_stats(struct stat_sdb_t *sdb)
+void reg_stats(struct stat_sdb_t *sdb)
 {
     char buf[512];
 
@@ -165,4 +229,6 @@ void mem_reg_stats(struct stat_sdb_t *sdb)
         stat_reg_counter(sdb, TRUE, buf, "total number of pages allocated",
             (page_count + i), 0, FALSE, NULL);
     }
+}
+}
 }

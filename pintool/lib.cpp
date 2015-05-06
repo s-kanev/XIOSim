@@ -10,7 +10,6 @@
 #include <stdint.h>
 #include "../synchronization.h"
 
-XIOSIM_LOCK memory_lock;
 XIOSIM_LOCK cache_lock;
 XIOSIM_LOCK cycle_lock;
 XIOSIM_LOCK oracle_pools_lock;

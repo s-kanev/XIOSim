@@ -151,6 +151,7 @@
 #include "zesto-commit.h"
 #include "zesto-cache.h"
 
+#include <mutex>
 #include <stack>
 
 using namespace std;
@@ -165,7 +166,8 @@ int core_oracle_t::spec_mem_pool_debt = 0;
 
 /* CONSTRUCTOR */
 core_oracle_t::core_oracle_t(struct core_t * const arg_core):
-  spec_mode(false), hosed(false), MopQ(NULL), MopQ_head(0), MopQ_tail(0),
+  spec_mode(false), hosed(false), Mop_seq(0),
+  MopQ(NULL), MopQ_head(0), MopQ_tail(0),
   MopQ_num(0), current_Mop(NULL), MopQ_spec_num(0)
 {
   /* MopQ should be large enough to support all in-flight
@@ -436,10 +438,15 @@ uint8_t core_oracle_t::spec_do_read_byte(const md_addr_t addr, const struct Mop_
 
   /* Finally, try and access host space.
      Check shadow page table to make sure memory is there. */
-  if (!mem_is_mapped(core->current_thread->asid, addr)) {
+/* XXX: With the below comment, it really doesn't matter. No need
+ * to bang on a contended lock just to throw the result away.
+  memory_lock.lock();
+  found = mem_is_mapped(core->current_thread->asid, addr);
+  memory_lock.unlock();
+  if (!found) {
     res = 0;
     goto done;
-  }
+  }*/
 
   //res = *(uint8_t*)addr;
 
@@ -767,7 +774,7 @@ core_oracle_t::exec(const md_addr_t requested_PC)
   Mop->fetch.pred_NPC = thread->regs.regs_NPC;
 
   /* set unique id */
-  Mop->oracle.seq = core->global_seq++;
+  Mop->oracle.seq = Mop_seq++;
 
   /*********************************************************/
   /* REP implementation:
@@ -1179,7 +1186,7 @@ core_oracle_t::exec(const md_addr_t requested_PC)
     if(uop->decode.is_load)
     {
       //zesto_assert(uop->oracle.virt_addr != 0 || uop->Mop->oracle.spec_mode,NULL);
-      uop->oracle.phys_addr = v2p_translate(thread->asid, uop->oracle.virt_addr);
+      uop->oracle.phys_addr = xiosim::memory::v2p_translate(thread->asid, uop->oracle.virt_addr);
     }
     else if(uop->decode.is_std)
     {
@@ -1192,7 +1199,7 @@ core_oracle_t::exec(const md_addr_t requested_PC)
         assert(prev_uop_index >= 0);
       }
       assert(Mop->uop[prev_uop_index].decode.is_sta);
-      uop->oracle.phys_addr = v2p_translate(thread->asid, uop->oracle.virt_addr);
+      uop->oracle.phys_addr = xiosim::memory::v2p_translate(thread->asid, uop->oracle.virt_addr);
       Mop->uop[prev_uop_index].oracle.virt_addr = uop->oracle.virt_addr;
       Mop->uop[prev_uop_index].oracle.phys_addr = uop->oracle.phys_addr;
       Mop->uop[prev_uop_index].decode.mem_size = uop->decode.mem_size;
@@ -1374,9 +1381,9 @@ void core_oracle_t::commit_uop(struct uop_t * const uop)
   {
     if(!uop->oracle.spec_mem[j])
       break;
-    MEM_WRITE_BYTE_NON_SPEC(core->current_thread->asid, uop->oracle.virt_addr+j, uop->oracle.spec_mem[j]->val);
     core->oracle->commit_write_byte(uop->oracle.spec_mem[j]);
     uop->oracle.spec_mem[j] = NULL;
+    xiosim::memory::notify_write(core->current_thread->asid, uop->oracle.virt_addr+j);
   }
 }
 
@@ -1925,7 +1932,7 @@ void core_oracle_t::undo_mapping(const struct uop_t * const uop)
       goto flags;
 
     /* if you're undoing this, it better be the youngest one */
-    assert(uop == p->uop);
+    zesto_assert(uop == p->uop, (void)0);
 
     /* remove from tail */
     dep_map.tail[uop->decode.odep_name] = p->prev;

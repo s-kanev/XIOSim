@@ -84,8 +84,6 @@
 #include "zesto-exec.h"
 #include "zesto-commit.h"
 
-seq_t core_t::global_seq = 0;
-
 
 /* CONSTRUCTOR */
 core_t::core_t(const int core_id):

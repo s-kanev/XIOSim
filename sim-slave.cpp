@@ -279,7 +279,6 @@ sim_post_init(void)
 
   /* Initialize synchronization primitives */
   lk_init(&cycle_lock);
-  lk_init(&memory_lock);
   lk_init(&cache_lock);
 
   /* initialize architected state(s) */
@@ -291,7 +290,7 @@ sim_post_init(void)
   ztrace_init();
 
   /* Initialize virtual memory */
-  mem_init(*num_processes);
+  xiosim::memory::init(*num_processes);
 
   for(i=0;i<num_cores;i++)
   {
@@ -362,7 +361,7 @@ void sim_reg_stats(struct stat_sdb_t *sdb)
     cores[i]->reg_stats(sdb);
 
   uncore_reg_stats(sdb);
-  mem_reg_stats(sdb);
+  xiosim::memory::reg_stats(sdb);
 
   stat_reg_note(sdb,"\n#### SIMULATOR PERFORMANCE STATS ####");
   stat_reg_qword(sdb, true, "sim_cycle", "total simulation cycles (CPU cycles assuming default freq)", (qword_t*)&uncore->default_cpu_cycles, 0, TRUE, NULL);

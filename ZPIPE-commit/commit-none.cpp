@@ -70,13 +70,11 @@ void core_commit_NONE_t::IO_step()
   }
 
   // Mop is complete, commit all uops.
-  lk_lock(&memory_lock, 1);
   for (int i = 0; i < Mop->decode.flow_length; i++) {
     if (!Mop->uop[i].decode.is_imm) {
       core->oracle->commit_uop(&Mop->uop[i]);
     }
   }
-  lk_unlock(&memory_lock);
   // ... and the Mop itself.
   core->oracle->commit(Mop);
   core->stat.commit_insn++;

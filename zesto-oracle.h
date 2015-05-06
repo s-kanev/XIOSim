@@ -136,6 +136,7 @@
  */
 
 #include "buffer.h"
+#include "synchronization.h"
 #include "zesto-cache.h"
 #include "ztrace.h"
 
@@ -248,6 +249,8 @@ class core_oracle_t {
   /* static members shared by all cores */
 
   static bool static_members_initialized;
+
+  seq_t Mop_seq; /* Mop sequence number */
 
   struct Mop_t * MopQ;
   int MopQ_head;

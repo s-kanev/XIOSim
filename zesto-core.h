@@ -378,7 +378,6 @@ class core_t {
 
   seq_t global_action_id; /* tag for squashable "actions" */
 
-  static seq_t global_seq; /* This is shared among all cores */
   /* to reduce overhead of constantly malloc/freeing arrays to
      store the uop flows of all of the Mops, we just maintain our
      own free pool.  pool entry i contains arrays with length i. */

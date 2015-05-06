@@ -1868,6 +1868,12 @@ md_uop_immv(const enum md_xfield_t xval, const struct Mop_t * Mop, bool * bogus)
 inline dword_t
 md_uop_lit(const enum md_xfield_t xval, const struct Mop_t * Mop, bool * bogus);
 
+#define MEM_READ_BYTE(ADDR, MOP)          \
+  core->oracle->spec_do_read_byte((ADDR), (MOP))
+
+#define MEM_WRITE_BYTE(ADDR, VAL)          \
+  core->oracle->spec_write_byte((ADDR),(VAL),uop)
+
 #define XMEM_READ_BYTE(A)                        \
   ({ const word_t _x = (word_t)MEM_READ_BYTE(A, Mop);   \
    _x; })

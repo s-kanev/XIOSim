@@ -169,65 +169,6 @@ Zesto_SlaveInit(int argc, char **argv)
   return 0;
 }
 
-void Zesto_Notify_Mmap(int asid, unsigned int addr, unsigned int length, bool mod_brk)
-{
-  md_addr_t page_addr = ROUND_DOWN((md_addr_t)addr, PAGE_SIZE);
-  unsigned int page_length = ROUND_UP(length, PAGE_SIZE);
-
-  lk_lock(&memory_lock, 1);
-  mem_newmap(asid, page_addr, page_length);
-
-  md_addr_t curr_brk = mem_brk(asid);
-  if(mod_brk && page_addr > curr_brk)
-    mem_update_brk(asid, page_addr + page_length);
-  lk_unlock(&memory_lock);
-}
-
-void Zesto_Notify_Munmap(int asid, unsigned int addr, unsigned int length, bool mod_brk)
-{
-  lk_lock(&memory_lock, 1);
-  mem_delmap(asid, ROUND_UP((md_addr_t)addr, PAGE_SIZE), length);
-  lk_unlock(&memory_lock);
-}
-
-void Zesto_UpdateBrk(int asid, unsigned int brk_end, bool do_mmap)
-{
-  struct core_t * core = cores[0];
-  zesto_assert(brk_end != 0, (void)0);
-
-  if(do_mmap)
-  {
-    unsigned int old_brk_end = mem_brk(asid);
-
-    if(brk_end > old_brk_end)
-      Zesto_Notify_Mmap(asid, ROUND_UP(old_brk_end, PAGE_SIZE),
-                        ROUND_UP(brk_end - old_brk_end, PAGE_SIZE), false);
-    else if(brk_end < old_brk_end)
-      Zesto_Notify_Munmap(asid, ROUND_UP(brk_end, PAGE_SIZE),
-                          ROUND_UP(old_brk_end - brk_end, PAGE_SIZE), false);
-  }
-
-  lk_lock(&memory_lock, 1);
-  mem_update_brk(asid, brk_end);
-  lk_unlock(&memory_lock);
-}
-
-void Zesto_Map_Stack(int asid, unsigned int sp, unsigned int bos)
-{
-  core_t* core = cores[0]; // for zesto_assert
-  zesto_assert(sp != 0, (void)0);
-  zesto_assert(bos != 0, (void)0);
-
-  /* Create local pages for stack */
-  md_addr_t page_start = ROUND_DOWN(sp, PAGE_SIZE);
-  md_addr_t page_end = ROUND_UP(bos, PAGE_SIZE);
-
-  lk_lock(&memory_lock, 1);
-  mem_newmap(asid, page_start, page_end-page_start);
-  lk_unlock(&memory_lock);
-  fprintf(stderr, "Stack pointer: %x; BOS: %x\n", sp, bos);
-}
-
 void Zesto_Destroy()
 {
   sim_slave_running = false;
@@ -502,11 +443,10 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake)
 
 void Zesto_WarmLLC(int asid, unsigned int addr, bool is_write)
 {
-  int threadID = asid;
-  struct core_t * core = cores[threadID];
+  struct core_t * core = cores[0];
 
   enum cache_command cmd = is_write ? CACHE_WRITE : CACHE_READ;
-  md_paddr_t paddr = v2p_translate_safe(threadID, addr);
+  md_paddr_t paddr = xiosim::memory::v2p_translate(asid, addr);
   if(!cache_is_hit(uncore->LLC, cmd, paddr, core))
   {
     struct cache_line_t * p = cache_get_evictee(uncore->LLC, paddr, core);

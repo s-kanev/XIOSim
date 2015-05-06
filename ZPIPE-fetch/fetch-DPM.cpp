@@ -639,9 +639,7 @@ bool core_fetch_DPM_t::do_fetch(void)
   md_addr_t current_line = PC & byteQ_linemask;
   struct Mop_t * Mop = NULL;
 
-  lk_lock(&memory_lock, core->id+1);
   Mop = core->oracle->exec(PC);
-  lk_unlock(&memory_lock);
 
   if(Mop && ((PC >> PAGE_SHIFT) == 0))
   {

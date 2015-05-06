@@ -1225,7 +1225,7 @@ int cache_enqueuable(
     const int asid,
     const md_paddr_t addr)
 {
-  md_paddr_t paddr = v2p_translate_safe(asid, addr);
+  md_paddr_t paddr = xiosim::memory::v2p_translate(asid, addr);
   const int bank = GET_BANK(paddr);
   if(cp->pipe_num[bank] < cp->latency)
     return true;
@@ -1253,7 +1253,7 @@ void cache_enqueue(
     seq_t (*const get_action_id)(void *),
     const bool prefetcher_hint)
 {
-  md_paddr_t paddr = v2p_translate_safe(asid, addr);
+  md_paddr_t paddr = xiosim::memory::v2p_translate(asid, addr);
   const int bank = GET_BANK(paddr);
 
   /* heap initial insertion position */
