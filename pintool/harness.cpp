@@ -62,17 +62,11 @@ void remove_shared_memory() {
     std::string shared_memory_key =
         harness_pid_stream.str() + std::string(XIOSIM_SHARED_MEMORY_KEY);
     // Shared locks are actually named with the prefix "sem.".
-    std::string init_counter_key =
-        std::string("sem.") + harness_pid_stream.str() + std::string(XIOSIM_INIT_COUNTER_KEY);
     std::string shared_lock_key =
         std::string("sem.") + harness_pid_stream.str() + std::string(XIOSIM_INIT_SHARED_LOCK);
 
     if (!shared_memory_object::remove(shared_memory_key.c_str())) {
         std::cerr << "Warning: Could not remove shared memory object " << shared_memory_key
-                  << std::endl;
-    }
-    if (!shared_memory_object::remove(init_counter_key.c_str())) {
-        std::cerr << "Warning: Could not remove shared memory object " << init_counter_key
                   << std::endl;
     }
     if (!shared_memory_object::remove(shared_lock_key.c_str())) {
