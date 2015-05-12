@@ -9,6 +9,7 @@
 #include <pthread.h>
 #include <stdint.h>
 #include <unistd.h>
+#include <mutex>
 #include <utility>
 
 inline void xio_sleep(int msecs)

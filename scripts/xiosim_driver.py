@@ -47,6 +47,9 @@ class XIOSimDriver(object):
     def AddMolecoolOptions(self):
         self.cmd += "-ildjit "
 
+    def AddROIOptions(self):
+        self.cmd += "-roi "
+
     def AddTraceFile(self, file):
         self.cmd += "-trace %s " % file
 

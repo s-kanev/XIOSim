@@ -38,8 +38,7 @@
 #include "sync_pthreads.h"
 #include "syscall_handling.h"
 #include "ildjit.h"
-#include "parsec.h"
-#include "machsuite.h"
+#include "roi.h"
 
 #include "../zesto-core.h"
 
@@ -246,11 +245,7 @@ VOID ImageLoad(IMG img, VOID* v) {
     if (KnobPthreads.Value())
         AddPthreadsCallbacks(img);
 
-    if (KnobParsec.Value())
-        AddParsecCallbacks(img);
-
-    if (KnobMachsuite.Value())
-        AddMachsuiteCallbacks(img);
+    AddROICallbacks(img);
 
     ipc_message_t msg;
     msg.Mmap(asid, start, length, false);
@@ -844,7 +839,7 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT* ictxt, INT32 flags, VOID* v) {
             SendIPCMessage(msg);
         }
 
-        if (!KnobILDJIT.Value()) {
+        if (!KnobILDJIT.Value() && ExecMode == EXECUTION_MODE_SIMULATE) {
             lk_lock(&tstate->lock, threadIndex + 1);
             tstate->ignore = false;
             tstate->ignore_all = false;
@@ -1087,7 +1082,7 @@ INT32 main(INT32 argc, CHAR** argv) {
         MOLECOOL_Init();
     }
 
-    if (!KnobILDJIT.Value() && !KnobParsec.Value() && !KnobMachsuite.Value()) {
+    if (!KnobILDJIT.Value() && !KnobROI.Value()) {
         // Try activate pinpoints alarm, must be done before PIN_StartProgram
         if (control.CheckKnobs(PPointHandler, 0) != 1) {
             cerr << "Error reading control parametrs, exiting." << endl;

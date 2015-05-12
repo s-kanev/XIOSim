@@ -171,6 +171,25 @@ class Fib1PinPointsTest(XIOSimTest):
     def runTest(self):
         self.runAndValidate()
 
+class ROITest(XIOSimTest):
+    ''' End-to-end test with a single binary with ROI hooks.'''
+    def setDriverParams(self):
+        bmk_cfg = self.writeTestBmkConfig("roi")
+        self.xio.AddBmks(bmk_cfg)
+
+        self.xio.AddPinOptions()
+        self.xio.AddPintoolOptions(num_cores=1)
+        self.xio.AddROIOptions()
+        self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
+                                              "config", "N.cfg"))
+
+    def setUp(self):
+        super(ROITest, self).setUp()
+        self.expected_vals.append((xs.PerfStatRE("all_insn"), 217000.0))
+
+    def runTest(self):
+        self.runAndValidate()
+
 class PowerTest(XIOSimTest):
     ''' End-to-end test that calculates power.'''
     def setDriverParams(self):
