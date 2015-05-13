@@ -2,7 +2,7 @@
 
 import re
 
-STAT_THRESHOLD = 0.01
+STAT_THRESHOLD = 0.02
 
 DECIMAL_RE = "-*\d+(\.\d*)?"
 
