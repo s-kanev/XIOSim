@@ -116,7 +116,7 @@ ALLOCATOR_OBJS = $(SPEEDUP_OBJS) $(OBJDIR)penalty_allocator.o $(OBJDIR)local_opt
 
 TIMING_OBJS = $(OBJDIR)timing_sim.o $(OBJDIR)lib.o $(OBJDIR)scheduler.o $(ALLOCATOR_OBJS) $(OBJDIR)multiprocess_shared.o  $(OBJDIR)ipc_queues.o $(OBJDIR)mpkeys_impl.o $(OBJDIR)BufferManagerConsumer.o $(OBJDIR)BufferManager.o $(OBJDIR)buffer.o
 
-FEEDER_OBJS = $(OBJDIR)feeder_zesto.o $(OBJDIR)ildjit.o $(OBJDIR)parse_speedup.o $(OBJDIR)linreg.o $(OBJDIR)utils.o $(OBJDIR)sync_pthreads.o $(OBJDIR)syscall_handling.o $(OBJDIR)ignore_ins.o $(OBJDIR)mpkeys_impl.o $(OBJDIR)ipc_queues.o $(OBJDIR)multiprocess_shared.o $(OBJDIR)BufferManagerProducer.o $(OBJDIR)BufferManager.o $(OBJDIR)buffer.o $(OBJDIR)roi.o
+FEEDER_OBJS = $(OBJDIR)feeder_zesto.o $(OBJDIR)ildjit.o $(OBJDIR)parse_speedup.o $(OBJDIR)linreg.o $(OBJDIR)utils.o $(OBJDIR)sync_pthreads.o $(OBJDIR)syscall_handling.o $(OBJDIR)ignore_ins.o $(OBJDIR)mpkeys_impl.o $(OBJDIR)ipc_queues.o $(OBJDIR)multiprocess_shared.o $(OBJDIR)BufferManagerProducer.o $(OBJDIR)BufferManager.o $(OBJDIR)buffer.o $(OBJDIR)roi.o $(OBJDIR)replace_function.o
 
 HARNESS_OBJS = $(OBJDIR)harness.o $(OBJDIR)ipc_queues.o $(OBJDIR)mpkeys_impl.o
 

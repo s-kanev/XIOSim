@@ -39,6 +39,7 @@
 #include "syscall_handling.h"
 #include "ildjit.h"
 #include "roi.h"
+#include "replace_function.h"
 
 #include "../zesto-core.h"
 
@@ -83,6 +84,9 @@ map<pid_t, THREADID> global_to_local_tid;
 XIOSIM_LOCK lk_tid_map;
 
 int asid;
+
+xed_state_t dstate;
+static void InitXed();
 
 /* ========================================================================== */
 /* Pinpoint related */
@@ -1114,6 +1118,7 @@ INT32 main(INT32 argc, CHAR** argv) {
     PIN_AddFiniUnlockedFunction(BeforeFini, 0);
     PIN_AddFiniFunction(Fini, 0);
     InitSyscallHandling();
+    InitXed();
 
     *sleeping_enabled = true;
     enable_producers();
@@ -1315,4 +1320,14 @@ static void SliceEndBarrier(int slice_num, int slice_length, int slice_weight_ti
     }
 
     lk_unlock(lk_num_done_slice);
+}
+
+/* ========================================================================== */
+static void InitXed() {
+    /* Hardcode to 32-bit mode. When we grow up and support 64 bits, we should
+     * figure this out from compilation targets. */
+    xed_tables_init();
+    xed_state_zero(&dstate);
+    dstate.mmode=XED_MACHINE_MODE_LEGACY_32;
+    dstate.stack_addr_width=XED_ADDRESS_WIDTH_32b;
 }
