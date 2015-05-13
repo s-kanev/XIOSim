@@ -131,9 +131,12 @@ class XIOSimDriver(object):
                         line = line.replace(val, changes[item])
                 elif "{" in line:
                     pre_brace = line.split("{")[0].strip()
-                    # ignore optional name
+                    # ignore optional name, unless it actually matters
                     cat = pre_brace.split(" ")[0]
-                    curr_path.append(cat)
+                    if cat == "exeu":
+                        curr_path.append(pre_brace)
+                    else:
+                        curr_path.append(cat)
                 elif "}" in line:
                     curr_path.pop()
                 result.append(line)

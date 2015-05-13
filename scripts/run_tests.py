@@ -199,12 +199,25 @@ class ReplaceTest(XIOSimTest):
         self.xio.AddPinOptions()
         self.xio.AddPintoolOptions(num_cores=1)
         self.xio.AddReplaceOptions("fib_repl")
-        self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
-                                              "config", "N.cfg"))
+        # 30K cycles for the magic instruction that replaces fib_repl()
+        # 30K is high enough that the test can catch if we didn't add it,
+        # yet low enough that it doesn't tickle the deadlock threshold (50K)
+        repl = {
+            "core_cfg.exec_cfg.exeu magic.latency" : "30000",
+            "core_cfg.exec_cfg.exeu magic.rate" : "30000",
+        }
+        test_cfg = self.writeTestConfig(os.path.join(self.xio.GetTreeDir(),
+                                                     "config", "N.cfg"),
+                                        repl)
+        self.xio.AddZestoOptions(test_cfg)
 
     def setUp(self):
         super(ReplaceTest, self).setUp()
+        # repl is ~1M instructions
+        # when we correctly ignore the middle call, we expect ~450K
         self.expected_vals.append((xs.PerfStatRE("all_insn"), 447000.0))
+        # repl when we just ignore the middle call takes ~397K cycles + 30K magic
+        self.expected_vals.append((xs.PerfStatRE("sim_cycle"), 426000.0))
 
     def runTest(self):
         self.runAndValidate()

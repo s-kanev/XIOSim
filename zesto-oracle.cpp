@@ -1323,6 +1323,14 @@ core_oracle_t::exec(const md_addr_t requested_PC)
     thread->stat.num_insn++;
   ZESTO_STAT(core->stat.oracle_total_insn++;)
 
+  /* Magic instructions: fake NOPs go to a special magic ALU with a
+   * configurable latency. Convenient to simulate various fixed-function HW. */
+  if (Mop->decode.op == NOP && core->fetch->fake_insn && !spec_mode) {
+    zesto_assert(Mop->decode.last_uop_index == 0, NULL);
+    Mop->uop[0].decode.is_nop = false;
+    Mop->uop[0].decode.FU_class = FU_MAGIC;
+  }
+
   /* maintain $r0 semantics */
   thread->regs.regs_R.dw[MD_REG_ZERO] = 0;
 

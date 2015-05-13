@@ -211,6 +211,7 @@ void store_exec_stage_options(cfg_t *exec_opt, core_knobs_t *knobs) {
   store_execution_unit_options(exec_opt, "st_agen", FU_STA, knobs);
   store_execution_unit_options(exec_opt, "st_data", FU_STD, knobs);
   store_execution_unit_options(exec_opt, "lea", FU_AGEN, knobs);
+  store_execution_unit_options(exec_opt, "magic", FU_MAGIC, knobs);
 }
 
 void store_commit_options(cfg_t *commit_opt, core_knobs_t* knobs) {

@@ -127,7 +127,8 @@ const char *md_fu2name[NUM_FU_CLASSES] = {
   "load-port",
   "sta-port",
   "std-port",
-  "agen-unit"
+  "agen-unit",
+  "magic-unit"
 };
 
 #define _OP		MODE_OPER32

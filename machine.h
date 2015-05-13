@@ -475,6 +475,7 @@ enum md_fu_class {
   FU_STA,           /* store-address port/AGU */
   FU_STD,           /* store-data port */
   FU_AGEN,          /* AGU used for LEA and int<>float forwarding */
+  FU_MAGIC,         /* Magic ALU used to model accelerators */
   NUM_FU_CLASSES    /* total functional unit classes */
 };
 
