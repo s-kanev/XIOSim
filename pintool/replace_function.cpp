@@ -6,7 +6,9 @@
 using namespace std;
 
 struct fake_inst_info_t {
-    fake_inst_info_t(ADDRINT _pc, size_t _len) : pc(_pc), len(_len) { }
+    fake_inst_info_t(ADDRINT _pc, size_t _len)
+        : pc(_pc)
+        , len(_len) {}
     bool operator==(const fake_inst_info_t& rhs) { return pc == rhs.pc && len == rhs.len; }
 
     ADDRINT pc;
@@ -15,6 +17,12 @@ struct fake_inst_info_t {
 
 /* Metadata for replaced instructions that we need to preserve until analysis time. */
 static map<ADDRINT, vector<fake_inst_info_t>> replacements;
+
+KNOB<string> KnobIgnoreFunctions(KNOB_MODE_WRITEONCE,
+                                 "pintool",
+                                 "ignore_functions",
+                                 "",
+                                 "Comma-separated list of functions to replace with a nop");
 
 /* Encode replacement instructions in the provided buffer. */
 static size_t Encode(xed_encoder_instruction_t inst, uint8_t* inst_bytes) {
@@ -139,16 +147,25 @@ static void AddReplacementCalls(IMG img, void* v) {
         RTN_Close(rtn);
 
         /* Fixup next PC in instrumentation. */
-        IgnoreCallsTo(rtn_pc, params->num_params + 1 /* the call + param pushes */, (ADDRINT)inst_buffer);
+        IgnoreCallsTo(
+            rtn_pc, params->num_params + 1 /* the call + param pushes */, (ADDRINT)inst_buffer);
 
         replacements[rtn_pc] = encoded_insts;
     }
 }
 
-void AddReplacement(string function_name, size_t num_params, list<xed_encoder_instruction_t> insts) {
+void
+AddReplacement(string function_name, size_t num_params, list<xed_encoder_instruction_t> insts) {
     replacement_params_t* params = new replacement_params_t();
     params->function_name = function_name;
     params->num_params = num_params;
     params->insts = insts;
     IMG_AddInstrumentFunction(AddReplacementCalls, (void*)params);
+}
+
+void IgnoreFunction(string function_name) {
+    xed_encoder_instruction_t nop;
+    xed_inst0(&nop, dstate, XED_ICLASS_NOP, 0);
+    list<xed_encoder_instruction_t> insts = { nop };
+    AddReplacement(function_name, 0, insts);
 }

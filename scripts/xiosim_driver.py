@@ -50,6 +50,9 @@ class XIOSimDriver(object):
     def AddROIOptions(self):
         self.cmd += "-roi "
 
+    def AddReplaceOptions(self, func):
+        self.cmd += "-ignore_functions %s " % func
+
     def AddTraceFile(self, file):
         self.cmd += "-trace %s " % file
 

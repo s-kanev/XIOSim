@@ -24,6 +24,13 @@
  * Port the helix case to actually use this API.
  */
 
-void AddReplacement(std::string function_name, size_t num_params, std::list<xed_encoder_instruction_t> replacement);
+void AddReplacement(std::string function_name,
+                    size_t num_params,
+                    std::list<xed_encoder_instruction_t> replacement);
+
+/* Default case for AddReplacement that simply replaces @function_name and
+ * 0 parameters with a single nop. Useful for testing. */
+void IgnoreFunction(std::string function_name);
+extern KNOB<std::string> KnobIgnoreFunctions;
 
 #endif /* __REPLACE_FUNCTION__ */

@@ -190,6 +190,25 @@ class ROITest(XIOSimTest):
     def runTest(self):
         self.runAndValidate()
 
+class ReplaceTest(XIOSimTest):
+    ''' End-to-end test where we replace a function call with a NOP.'''
+    def setDriverParams(self):
+        bmk_cfg = self.writeTestBmkConfig("repl")
+        self.xio.AddBmks(bmk_cfg)
+
+        self.xio.AddPinOptions()
+        self.xio.AddPintoolOptions(num_cores=1)
+        self.xio.AddReplaceOptions("fib_repl")
+        self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
+                                              "config", "N.cfg"))
+
+    def setUp(self):
+        super(ReplaceTest, self).setUp()
+        self.expected_vals.append((xs.PerfStatRE("all_insn"), 447000.0))
+
+    def runTest(self):
+        self.runAndValidate()
+
 class PowerTest(XIOSimTest):
     ''' End-to-end test that calculates power.'''
     def setDriverParams(self):

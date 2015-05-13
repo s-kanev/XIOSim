@@ -1120,6 +1120,14 @@ INT32 main(INT32 argc, CHAR** argv) {
     InitSyscallHandling();
     InitXed();
 
+    if (!KnobIgnoreFunctions.Value().empty()) {
+        stringstream ss(KnobIgnoreFunctions.Value());
+        string func;
+        while (getline(ss, func, ',')) {
+            IgnoreFunction(func);
+        }
+    }
+
     *sleeping_enabled = true;
     enable_producers();
 
@@ -1328,6 +1336,6 @@ static void InitXed() {
      * figure this out from compilation targets. */
     xed_tables_init();
     xed_state_zero(&dstate);
-    dstate.mmode=XED_MACHINE_MODE_LEGACY_32;
-    dstate.stack_addr_width=XED_ADDRESS_WIDTH_32b;
+    dstate.mmode = XED_MACHINE_MODE_LEGACY_32;
+    dstate.stack_addr_width = XED_ADDRESS_WIDTH_32b;
 }
