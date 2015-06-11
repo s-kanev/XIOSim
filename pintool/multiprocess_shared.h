@@ -34,9 +34,11 @@ SHARED_VAR_DECLARE(int, num_processes)
 SHARED_VAR_DECLARE(int, next_asid)
 
 SHARED_VAR_DECLARE(int, num_done_fastforward)
+SHARED_VAR_DECLARE(int, fastforward_epoch)
 SHARED_VAR_DECLARE(XIOSIM_LOCK, lk_num_done_fastforward)
 
 SHARED_VAR_DECLARE(int, num_done_slice)
+SHARED_VAR_DECLARE(int, slice_epoch)
 SHARED_VAR_DECLARE(XIOSIM_LOCK, lk_num_done_slice)
 
 typedef xiosim::shared::SharedMemoryMap<pid_t, int> ThreadProcessMap;

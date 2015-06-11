@@ -48,9 +48,9 @@ class XIOSimTest(unittest.TestCase):
             self.assertEqual(res, True, "%s: expected %.2f, got %.2f" %
                                         (re, golden_val, val))
 
-    def writeTestBmkConfig(self, bmk):
+    def writeTestBmkConfig(self, bmk, num_copies=1):
         ''' Create a temp benchmark config file in the test run directory.'''
-        cfg_file = self.xio.GenerateTestBmkConfig(bmk)
+        cfg_file = self.xio.GenerateTestBmkConfig(bmk, num_copies)
         bmk_cfg = os.path.join(self.run_dir, "%s.cfg" % bmk)
         with open(bmk_cfg, "w") as f:
             for l in cfg_file:
@@ -280,6 +280,26 @@ class DFSTest(XIOSimTest):
 
     def runTest(self):
         self.runAndValidate()
+
+class Fib2Test(XIOSimTest):
+    ''' End-to-end test with multiple programs running from start to end.'''
+    def setDriverParams(self):
+        bmk_cfg = self.writeTestBmkConfig("fib", num_copies=2)
+        self.xio.AddBmks(bmk_cfg)
+
+        self.xio.AddPinOptions()
+        self.xio.AddPintoolOptions(num_cores=1)
+        self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
+                                              "config", "N.cfg"))
+
+    def setUp(self):
+        super(Fib2Test, self).setUp()
+        self.expected_vals.append((xs.PerfStatRE("all_insn"), 236483.00))
+
+    def runTest(self):
+        self.runAndValidate()
+
+
 
 if __name__ == "__main__":
     unittest.main()

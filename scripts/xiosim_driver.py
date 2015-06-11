@@ -101,12 +101,16 @@ class XIOSimDriver(object):
     def GetTreeDir(self):
         return self.TREE_DIR
 
-    def GenerateTestBmkConfig(self, test):
+    def GenerateTestBmkConfig(self, test, num_copies=1):
         res = []
         res.append("program {\n")
         res.append("  exe = \"%s\"\n" % os.path.join(self.TREE_DIR, "tests", test))
-        res.append("  args = \"> %s.out 2> %s.err\"\n" % (test, test))
-        res.append("  instances = 1\n")
+        append_pid = ""
+        if num_copies > 1:
+            append_pid = ".$$"
+        res.append("  args = \"> %s%s.out 2> %s%s.err\"\n" % (test, append_pid,
+                                                              test, append_pid))
+        res.append("  instances = %d\n" % num_copies)
         res.append("}\n")
         return res
 

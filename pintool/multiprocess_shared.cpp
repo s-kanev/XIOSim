@@ -16,9 +16,11 @@ SHARED_VAR_DEFINE(int, num_processes)
 SHARED_VAR_DEFINE(int, next_asid)
 
 SHARED_VAR_DEFINE(int, num_done_fastforward)
+SHARED_VAR_DEFINE(int, fastforward_epoch)
 SHARED_VAR_DEFINE(XIOSIM_LOCK, lk_num_done_fastforward)
 
 SHARED_VAR_DEFINE(int, num_done_slice)
+SHARED_VAR_DEFINE(int, slice_epoch)
 SHARED_VAR_DEFINE(XIOSIM_LOCK, lk_num_done_slice)
 
 SHARED_VAR_DEFINE(ThreadProcessMap, threadProcess)
@@ -106,10 +108,12 @@ int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores_) {
     SHARED_VAR_INIT(int, num_processes);
 
     SHARED_VAR_INIT(int, num_done_fastforward, 0);
+    SHARED_VAR_INIT(int, fastforward_epoch, 0);
     SHARED_VAR_INIT(XIOSIM_LOCK, lk_num_done_fastforward);
     lk_init(lk_num_done_fastforward);
 
     SHARED_VAR_INIT(int, num_done_slice, 0);
+    SHARED_VAR_INIT(int, slice_epoch, 0);
     SHARED_VAR_INIT(XIOSIM_LOCK, lk_num_done_slice);
     lk_init(lk_num_done_slice);
 

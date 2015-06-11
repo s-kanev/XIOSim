@@ -1283,7 +1283,7 @@ static void FastForwardBarrier(int slice_num) {
     /* Wait until all processes have gathered at this barrier.
      * Disable own producers -- they are not doing anything useful.
      */
-    while (*num_done_fastforward < *num_processes) {
+    while (*fastforward_epoch < slice_num && *num_done_fastforward < *num_processes) {
         lk_unlock(lk_num_done_fastforward);
         disable_producers();
         xio_sleep(100);
@@ -1292,6 +1292,7 @@ static void FastForwardBarrier(int slice_num) {
 
     /* If this is the last process on the barrier, start a simulation slice. */
     if (processes_at_barrier == *num_processes) {
+        (*fastforward_epoch)++;
         *num_done_fastforward = 0;
 
         ipc_message_t msg;
@@ -1311,7 +1312,7 @@ static void SliceEndBarrier(int slice_num, int slice_length, int slice_weight_ti
     int processes_at_barrier = *num_done_slice;
 
     /* Wait until all processes have gathered at this barrier. */
-    while (*num_done_slice < *num_processes) {
+    while (*slice_epoch < slice_num && *num_done_slice < *num_processes) {
         lk_unlock(lk_num_done_slice);
         disable_producers();
         xio_sleep(100);
@@ -1320,6 +1321,7 @@ static void SliceEndBarrier(int slice_num, int slice_length, int slice_weight_ti
 
     /* If this is the last process on the barrier, end a simulation slice. */
     if (processes_at_barrier == *num_processes) {
+        (*slice_epoch)++;
         *num_done_slice = 0;
 
         ipc_message_t msg;
