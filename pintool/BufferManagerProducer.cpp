@@ -128,7 +128,7 @@ static void copyProducerToFile(pid_t tid, bool checkSpace) {
     if (checkSpace) {
         for (int i = 0; i < (int)bridgeDirs_.size(); i++) {
             int space = getKBFreeSpace(bridgeDirs_[i]);
-            if (space > 2500000) {  // 2.5 GB
+            if (space > 1000000) {  // 1.0 GB
                 bridge_dir_ind = i;
                 madeFile = true;
                 break;
