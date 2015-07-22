@@ -116,7 +116,7 @@ endif
 TIMING = $(OBJDIR)timing_sim
 FEEDER = $(OBJDIR)feeder_zesto.so
 HARNESS = $(OBJDIR)harness
-UNIT_TESTS = $(OBJDIR)test_allocation $(OBJDIR)test_parse_speedup $(OBJDIR)test_speedup_models $(OBJDIR)test_handshake_compression $(OBJDIR)test_parse_configs $(OBJDIR)test_uop_cracker $(OBJDIR)test_stat_database
+UNIT_TESTS = $(OBJDIR)test_allocation $(OBJDIR)test_parse_speedup $(OBJDIR)test_speedup_models $(OBJDIR)test_handshake_compression $(OBJDIR)test_parse_configs $(OBJDIR)test_uop_cracker $(OBJDIR)test_decoder $(OBJDIR)test_stat_database
 
 SPEEDUP_OBJS = $(OBJDIR)base_speedup_model.o $(OBJDIR)log_speedup_model.o $(OBJDIR)linear_speedup_model.o $(OBJDIR)linreg.o
 ALLOCATOR_OBJS = $(SPEEDUP_OBJS) $(OBJDIR)penalty_allocator.o $(OBJDIR)local_opt_allocator.o $(OBJDIR)gang_allocator.o $(OBJDIR)base_allocator.o $(OBJDIR)optimization_targets.o

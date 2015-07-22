@@ -237,7 +237,7 @@ core_decode_DPM_t::check_target(struct Mop_t * const Mop)
   else /* branch or REP */
   {
     if((Mop->fetch.pred_NPC != Mop->fetch.ftPC) /* branch is predicted taken */
-        || (Mop->decode.opflags | F_UNCOND))
+        || Mop->decode.opflags.UNCOND)
     {
       if(Mop->fetch.pred_NPC != Mop->decode.targetPC) /* wrong target */
       {
@@ -312,9 +312,6 @@ void core_decode_DPM_t::step(void)
           struct uop_t * uop = &Mop->uop[Mop->decode.last_stage_index]; /* first non-queued uop */
           Mop->decode.last_stage_index += uop->decode.has_imm ? 3 : 1;  /* increment the uop pointer to next uop */
           
-          zesto_assert((!(uop->decode.opflags & F_STORE)) || uop->decode.is_std,(void)0);
-          zesto_assert((!(uop->decode.opflags & F_LOAD)) || uop->decode.is_load,(void)0);
-
           if((!uop->decode.in_fusion) || uop->decode.is_fusion_head) /* don't enqueue fusion body */
           {
             uopQ[uopQ_tail] = uop;      /* queue the uop */

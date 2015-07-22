@@ -175,10 +175,6 @@ void core_alloc_STM_t::step(void)
       else if(uop->decode.is_std)
         core->exec->STQ_insert_std(uop);
 
-      /* all store uops had better be marked is_std */
-      zesto_assert((!(uop->decode.opflags & F_STORE)) || uop->decode.is_std,(void)0);
-      zesto_assert((!(uop->decode.opflags & F_LOAD)) || uop->decode.is_load,(void)0);
-
       /* port bindings */
       if(!uop->decode.is_nop && !uop->Mop->decode.is_trap)
       {

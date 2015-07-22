@@ -922,7 +922,7 @@ bpred_t::~bpred_t()
 md_addr_t
 bpred_t::lookup(
     class bpred_state_cache_t * const sc,
-    const unsigned int opflags,
+    const inst_flags_t opflags,
     const md_addr_t PC,
     const md_addr_t fallthruPC,
     const md_addr_t targetPC,
@@ -947,7 +947,7 @@ bpred_t::lookup(
   if(indirjmp_BTB)
     indirPredPC = indirjmp_BTB->lookup(sc->indirjmp,PC,targetPC,oraclePC,outcome,dir);
 
-  if(MD_IS_RETURN(opflags)) /* return from subroutine */
+  if(opflags.RETN) /* return from subroutine */
   {
     /* use RAS */
     predPC = ras->pop(PC,targetPC,oraclePC);
@@ -955,11 +955,11 @@ bpred_t::lookup(
   }
   else
   {
-    if(opflags&F_COND) /* conditional branches */
+    if(opflags.COND) /* conditional branches */
     {
       dir = cond_dir;
     }
-    else if(MD_IS_CALL(opflags)) /* subroutine call */
+    else if(opflags.CALL) /* subroutine call */
     {
       dir = 1;
       /* speculatively push return address on to stack */
@@ -973,7 +973,7 @@ bpred_t::lookup(
     sc->our_pred = dir;
 
     /* Get the predicted branch target */
-    if(dir && (opflags&F_INDIRJMP)) /* INDIRJMP (computed)*/
+    if(dir && opflags.INDIR) /* INDIR (computed)*/
       predPC = indirPredPC;
   }
   if(!dir || (predPC == 1) || (predPC == 0))
@@ -992,7 +992,7 @@ bpred_t::lookup(
 void
 bpred_t::update(
     class bpred_state_cache_t * const sc,
-    const unsigned int opflags,
+    const inst_flags_t opflags,
     const md_addr_t PC,
     const md_addr_t fallthruPC,
     const md_addr_t targetPC,
@@ -1006,10 +1006,10 @@ bpred_t::update(
   BPRED_STAT(num_addr_hits += (sc->our_target == oraclePC);)
   BPRED_STAT(num_hits += ((sc->our_pred == outcome) && (sc->our_target == oraclePC));)
 
-  if(!MD_IS_RETURN(opflags)) /* RETN's already speculatively handled */
+  if(!opflags.RETN) /* RETN's already speculatively handled */
   {
     /* else: no updates for uncond jmps/brs */
-    if(opflags&F_COND)
+    if(opflags.COND)
     {
       BPRED_STAT(num_cond++;)
       for(int i=0;i<(int)num_pred;i++)
@@ -1017,7 +1017,7 @@ bpred_t::update(
 
       fusion->update(sc->fcache,sc->preds,PC,targetPC,oraclePC,outcome,sc->our_pred);
     }
-    else if(MD_IS_CALL(opflags))
+    else if(opflags.CALL)
     {
       /* If ras supports a real stack, push there */
       ras->real_push(PC,fallthruPC,targetPC,oraclePC);
@@ -1030,7 +1030,7 @@ bpred_t::update(
     /* CALL's also speculatively modified the RAS */
 
     /* update BTBs */
-    if(indirjmp_BTB && (opflags&F_INDIRJMP)) /* INDIRJMP, and there's an iBTB */
+    if(indirjmp_BTB && opflags.INDIR) /* INDIR, and there's an iBTB */
     {
       indirjmp_BTB->update(sc->indirjmp,PC,targetPC,oraclePC,sc->our_target,outcome,sc->our_pred);
     }
@@ -1056,7 +1056,7 @@ bpred_t::update(
 void
 bpred_t::spec_update(
     class bpred_state_cache_t * const sc,
-    const unsigned int opflags,
+    const inst_flags_t opflags,
     const md_addr_t PC,
     const md_addr_t targetPC,
     const md_addr_t oraclePC,
@@ -1067,7 +1067,7 @@ bpred_t::spec_update(
   BPRED_STAT(num_spec_updates++;)
 
   /* only update conditional, all are updated with the "final" prediction, not their individual predictions */
-  if(opflags&F_COND)
+  if(opflags.COND)
   {
     for(int i=0;i<(int)num_pred;i++)
       bpreds[i]->spec_update(sc->pcache[i],PC,targetPC,oraclePC,outcome,sc->our_pred);

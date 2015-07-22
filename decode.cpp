@@ -94,9 +94,41 @@ bool is_fence(const struct Mop_t * Mop) {
     return false;
 }
 
+bool is_indirect(const struct Mop_t * Mop) {
+    auto iform = xed_decoded_inst_get_iform_enum(&Mop->decode.inst);
+    switch (iform) {
+      case XED_IFORM_CALL_FAR_MEMp2:
+      case XED_IFORM_CALL_FAR_PTRp_IMMw:
+      case XED_IFORM_CALL_NEAR_GPRv:
+      case XED_IFORM_CALL_NEAR_MEMv:
+      case XED_IFORM_JMP_GPRv:
+      case XED_IFORM_JMP_MEMv:
+      case XED_IFORM_JMP_FAR_MEMp2:
+      case XED_IFORM_JMP_FAR_PTRp_IMMw:
+        return true;
+      default:
+        return false;
+    }
+    return false;
+}
+
 void decode_flags(struct Mop_t * Mop) {
     Mop->decode.is_trap = is_trap(Mop);
     Mop->decode.is_ctrl = is_ctrl(Mop);
+
+    auto icat = xed_decoded_inst_get_category(&Mop->decode.inst);
+    inst_flags_t& flags = Mop->decode.opflags;
+    flags.CTRL = Mop->decode.is_ctrl;
+    flags.CALL = (icat == XED_CATEGORY_CALL);
+    flags.RETN = (icat == XED_CATEGORY_RET);
+    flags.COND = (icat == XED_CATEGORY_COND_BR);
+    flags.UNCOND = (icat == XED_CATEGORY_UNCOND_BR) ||
+                   flags.CALL || flags.RETN;
+    flags.LOAD = is_load(Mop);
+    flags.STORE = is_store(Mop);
+    flags.MEM = flags.LOAD || flags.STORE;
+    flags.TRAP = Mop->decode.is_trap;
+    flags.INDIR = is_indirect(Mop);
 }
 
 std::string print_Mop(const struct Mop_t * Mop) {

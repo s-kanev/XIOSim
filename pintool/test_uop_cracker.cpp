@@ -1,64 +1,11 @@
 #define CATCH_CONFIG_MAIN
-
 #include "catch.hpp"
 
-extern "C" {
-#include "xed-interface.h"
-}
-
-#include "../decode.h"
-#include "../uop_cracker.h"
-
 #define DECODE_DEBUG
-
-
-class xed_context {
-  public:
-    xed_encoder_instruction_t x; 
-    xed_encoder_request_t enc_req;
-    xed_state_t dstate;
-
-    struct Mop_t Mop;
-
-    xed_context() {
-        xed_tables_init();
-        xed_state_zero(&dstate);
-        dstate.mmode=XED_MACHINE_MODE_LEGACY_32;
-        dstate.stack_addr_width=XED_ADDRESS_WIDTH_32b;
-
-        init_decoder();
-    }
-
-    void encode(void) {
-        xed_encoder_request_zero_set_mode(&enc_req, &dstate);
-
-        bool convert_ok = xed_convert_to_encoder_request(&enc_req, &x);
-        if (!convert_ok) {
-            fatal("conversion to encode request failed\n");
-        }
-        unsigned int inst_len;
-        auto err = xed_encode(&enc_req, Mop.fetch.inst.code, MAX_ILEN, &inst_len);
-        if (err != XED_ERROR_NONE) {
-            fatal("xed_encode failed %s\n", xed_error_enum_t2str(err));
-        }
-    }
-
-    void decode_and_crack(void) {
-        decode(&Mop);
-        decode_flags(&Mop);
-
-#ifdef DECODE_DEBUG
-        std::cerr << print_Mop(&Mop) << std::endl;
-#endif
-
-        crack(&Mop);
-    }
-};
+#include "test_xed_context.h"
 
 
 TEST_CASE("nop", "[uop]") {
-    using namespace xiosim::x86;
-
     xed_context c;
     xed_inst0(&c.x, c.dstate, XED_ICLASS_NOP, 0);
     c.encode();
@@ -75,8 +22,6 @@ TEST_CASE("nop", "[uop]") {
 }
 
 TEST_CASE("RR logic", "[uop]") {
-    using namespace xiosim::x86;
-
     xed_context c;
     xed_inst2(&c.x, c.dstate, XED_ICLASS_ADD, 0,
               xed_reg(XED_REG_EAX),
@@ -102,8 +47,6 @@ TEST_CASE("RR logic", "[uop]") {
 }
 
 TEST_CASE("RR logic 16", "[uop]") {
-    using namespace xiosim::x86;
-
     xed_context c;
     xed_inst2(&c.x, c.dstate, XED_ICLASS_ADD, 16,
               xed_reg(XED_REG_AX),
@@ -124,8 +67,6 @@ TEST_CASE("RR logic 16", "[uop]") {
 }
 
 TEST_CASE("jmp ind", "[uop]") {
-    using namespace xiosim::x86;
-
     xed_context c;
     xed_inst1(&c.x, c.dstate, XED_ICLASS_JMP, 0,
               xed_reg(XED_REG_EAX));
@@ -146,8 +87,6 @@ TEST_CASE("jmp ind", "[uop]") {
 }
 
 TEST_CASE("load disp", "[uop]") {
-    using namespace xiosim::x86;
-
     xed_context c;
     xed_inst2(&c.x, c.dstate, XED_ICLASS_MOV, 0,
               xed_reg(XED_REG_EAX),
@@ -168,8 +107,6 @@ TEST_CASE("load disp", "[uop]") {
 }
 
 TEST_CASE("load base", "[uop]") {
-    using namespace xiosim::x86;
-
     xed_context c;
     xed_inst2(&c.x, c.dstate, XED_ICLASS_MOV, 0,
               xed_reg(XED_REG_EAX),
@@ -188,8 +125,6 @@ TEST_CASE("load base", "[uop]") {
 }
 
 TEST_CASE("store base", "[uop]") {
-    using namespace xiosim::x86;
-
     xed_context c;
     xed_inst2(&c.x, c.dstate, XED_ICLASS_MOV, 0,
               xed_mem_b(XED_REG_ESI, 32),
@@ -205,8 +140,6 @@ TEST_CASE("store base", "[uop]") {
 }
 
 TEST_CASE("load-op", "[uop]") {
-    using namespace xiosim::x86;
-
     xed_context c;
     xed_inst2(&c.x, c.dstate, XED_ICLASS_ADD, 0,
               xed_reg(XED_REG_EDX),
@@ -228,8 +161,6 @@ TEST_CASE("load-op", "[uop]") {
 }
 
 TEST_CASE("load-op-store", "[uop]") {
-    using namespace xiosim::x86;
-
     xed_context c;
     xed_inst2(&c.x, c.dstate, XED_ICLASS_ADD, 0,
               xed_mem_b(XED_REG_EDX, 32),
@@ -262,8 +193,6 @@ TEST_CASE("load-op-store", "[uop]") {
 }
 
 TEST_CASE("call", "[uop]") {
-    using namespace xiosim::x86;
-
     xed_context c;
     xed_inst1(&c.x, c.dstate, XED_ICLASS_CALL_NEAR, 0,
               xed_relbr(0xdeadbeef - 5, 32));
@@ -284,8 +213,6 @@ TEST_CASE("call", "[uop]") {
 // TODO: push and pop tests
 
 TEST_CASE("mul", "[uop]") {
-    using namespace xiosim::x86;
-
     xed_context c;
     xed_inst1(&c.x, c.dstate, XED_ICLASS_MUL, 0,
               xed_reg(XED_REG_ECX));

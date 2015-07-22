@@ -302,7 +302,7 @@ struct alignas(16) Mop_t
 
   struct {
     xed_decoded_inst_t inst;
-    unsigned int opflags;
+    inst_flags_t opflags;
     size_t flow_length;
     size_t last_uop_index; /* index of last uop (maybe != flow_length due to imm's) */
     md_addr_t targetPC; /* for branches, target PC */

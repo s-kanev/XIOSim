@@ -227,10 +227,6 @@ void core_alloc_IO_DPM_t::step(void)
         {
           if(uop->timing.when_allocated == TICK_T_MAX)
           {
-            /* all store uops had better be marked is_std */
-            zesto_assert((!(uop->decode.opflags & F_STORE)) || uop->decode.is_std,(void)0);
-            zesto_assert((!(uop->decode.opflags & F_LOAD)) || uop->decode.is_load,(void)0);
-
             /* port bindings */
 
             /* fused instructions go together as atomic ops */

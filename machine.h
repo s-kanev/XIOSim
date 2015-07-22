@@ -73,8 +73,8 @@ extern "C" {
  */
 
 /* build for x86 target */
-#define MAX_CORES 16
-#define INVALID_CORE -1
+const int MAX_CORES = 16;
+const int INVALID_CORE = -1;
 
 
 /*
@@ -87,50 +87,29 @@ typedef dword_t md_addr_t;
 /* physical address type definition (64-bit) */
 typedef qword_t md_paddr_t;
 
+struct inst_flags_t {
+    bool CTRL:1;     /* control inst */
+    bool UNCOND:1;   /*   unconditional change */
+    bool COND:1;     /*   conditional change */
+    bool MEM:1;      /* memory access inst */
+    bool LOAD:1;     /*   load inst */
+    bool STORE:1;    /*   store inst */
+    bool TRAP:1;     /* traping inst */
+    bool INDIR:1;    /* indirect control inst */
+    bool CALL:1;     /* function call */
+    bool RETN:1;     /* subroutine return */
+};
 
-/* instruction flags */
-#define F_ICOMP       0x00000001    /* integer computation */
-#define F_FCOMP       0x00000002    /* FP computation */
-#define F_CTRL        0x00000004    /* control inst */
-#define F_UNCOND      0x00000008    /*   unconditional change */
-#define F_COND        0x00000010    /*   conditional change */
-#define F_MEM         0x00000020    /* memory access inst */
-#define F_LOAD        0x00000040    /*   load inst */
-#define F_STORE       0x00000080    /*   store inst */
-#define F_TRAP        0x00000800    /* traping inst */
-#define F_DIRJMP      0x00002000    /* direct jump */
-#define F_INDIRJMP    0x00004000    /* indirect jump */
-#define F_CALL        0x00008000    /* function call */
-#define F_FPCOND      0x00010000    /* FP conditional branch */
-#define F_IMM         0x00020000    /* instruction has immediate operand */
-#define F_AGEN        0x00080000    /* AGEN micro-instruction */
-#define F_IMMB        0x00100000    /* inst has 1-byte immediate */
-#define F_IMMW        0x00200000    /* inst has 2-byte immediate */
-#define F_IMMD        0x00300000    /* inst has 4-byte immediate */
-#define F_IMMV        0x00400000    /* inst has 1-byte immediate */
-#define F_IMMA        0x00500000    /* inst has 1-byte immediate */
-#define F_UIMM        0x01000000    /* immediate operand is unsigned */
-#define F_RETN        0x40000000    /* subroutine return */
-
-
-#define FSW_TOP(X)        (((X) >> 11) & 0x07)
-#define SET_FSW_TOP(X,N)    ((X) = (((X) & ~(7<<11)) | (((N) & 7)<<11)))
-
+/* TODO(skanev): These seem to be the only uop flags the timing model
+ * currently uses. Figure out what to do about them. */
+#define F_FCOMP 0x1
+#define F_AGEN 0x2
 
 /* helper macros */
 
 /*
  * various other helper macros/functions
  */
-
-/* XXX returns non-zero if instruction is a function call */
-#define MD_IS_CALL(OPFLAGS)          ((OPFLAGS)&F_CALL)
-
-/* returns non-zero if instruction is a function return */
-#define MD_IS_RETURN(OPFLAGS)        ((OPFLAGS)&F_RETN)
-
-/* returns non-zero if instruction is an indirect jump */
-#define MD_IS_INDIR(OPFLAGS)         ((OPFLAGS)&F_INDIRJMP)
 
 /* globbing/fusion masks */
 #define FUSION_NONE 0x0000LL
@@ -204,30 +183,6 @@ enum md_xfield_t {
 #define URT        ((uop[0].decode.raw_op >> 4) & 0xf)
 #define URU        (uop[0].decode.raw_op & 0xf)
 #define ULIT        (uop[0].decode.raw_op & 0xf)
-#define UIMMB                                \
-  (UHASIMM                                \
-   ? ((sdword_t)(sbyte_t)(uop[1].decode.raw_op & 0xff))                \
-   : ((sdword_t)(sbyte_t)(uop[0].decode.raw_op & 0xff)))
-#define UIMMUB                                \
-  (UHASIMM                                \
-   ? ((dword_t)(byte_t)(uop[1].decode.raw_op & 0xff))                    \
-   : ((dword_t)(byte_t)(uop[0].decode.raw_op & 0xff)))
-#define UIMMW                                \
-  (UHASIMM                                \
-   ? ((sdword_t)(sword_t)(uop[1].decode.raw_op & 0xffff))                \
-   : ((sdword_t)(sword_t)(word_t)(uop[0].decode.raw_op & 0xff)))
-#define UIMMUW                                \
-  (UHASIMM                                \
-   ? ((dword_t)(word_t)(uop[1].decode.raw_op & 0xffff))                \
-   : ((dword_t)(word_t)(uop[0].decode.raw_op & 0xff)))
-#define UIMMD                                \
-  (UHASIMM                                \
-   ? ((sdword_t)uop[1].decode.raw_op)                            \
-   : ((sdword_t)(dword_t)(uop[0].decode.raw_op & 0xff)))
-#define UIMMUD                                \
-  (UHASIMM                                \
-   ? ((dword_t)uop[1].decode.raw_op)                            \
-   : ((dword_t)(uop[0].decode.raw_op & 0xff)))
 
 /* mode-specific constants */
 #define SIZE_W            2

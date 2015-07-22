@@ -148,7 +148,7 @@ core_decode_STM_t::check_target(struct Mop_t * const Mop)
   if(Mop->decode.is_ctrl)
   {
     if((Mop->fetch.pred_NPC != Mop->fetch.ftPC) /* branch is predicted taken */
-        || (Mop->decode.opflags | F_UNCOND))
+        || Mop->decode.opflags.UNCOND)
     {
       if(Mop->fetch.pred_NPC != Mop->decode.targetPC) /* wrong target */
       {
@@ -334,9 +334,6 @@ struct uop_t * core_decode_STM_t::uop_peek(void)
       struct Mop_t * Mop = pipe[stage][i];      /* Mop in current decoder */
       uop = &Mop->uop[Mop->decode.last_stage_index]; /* first non-queued uop */
       
-      zesto_assert((!(uop->decode.opflags & F_STORE)) || uop->decode.is_std,NULL);
-      zesto_assert((!(uop->decode.opflags & F_LOAD)) || uop->decode.is_load,NULL);
-
       uop->decode.Mop_seq = Mop->oracle.seq;
       uop->decode.uop_seq = (Mop->oracle.seq << UOP_SEQ_SHIFT) + uop->flow_index;
 
