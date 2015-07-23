@@ -78,7 +78,8 @@ class FileBuffer {
 typedef SharedUnorderedMap<pid_t, FileBuffer> FileBufferMap;
 SHARED_VAR_DEFINE(FileBufferMap, fileBuffer)
 
-static int num_cores;
+/* Chosen by manual tunning. */
+static const int bufferCapacity = 100000;
 
 /* Helper to check if per-thread entry has been created. */
 static bool hasThread(pid_t tid) { return (fileBuffer->count(tid) > 0); }
@@ -95,7 +96,7 @@ static void cleanBridge(void) {
     }
 }
 
-void InitBufferManager(pid_t harness_pid, int num_cores_) {
+void InitBufferManager(pid_t harness_pid) {
     std::stringstream harness_pid_stream;
     harness_pid_stream << harness_pid;
     std::string init_lock_key = harness_pid_stream.str() + std::string(XIOSIM_INIT_SHARED_LOCK);
@@ -105,8 +106,6 @@ void InitBufferManager(pid_t harness_pid, int num_cores_) {
     SHARED_VAR_CONSTRUCT(FileBufferMap, fileBuffer, MAX_CORES);
 
     init_lock.unlock();
-
-    num_cores = num_cores_;
 }
 
 void DeinitBufferManager() { cleanBridge(); }
@@ -117,8 +116,6 @@ int AllocateThread(pid_t tid) {
     /* Create a new entry in fileBuffer */
     fileBuffer->operator[](tid);
 
-    int bufferEntries = 640000 / 2;
-    int bufferCapacity = bufferEntries / 2 / num_cores;
     return bufferCapacity;
 }
 

@@ -36,7 +36,7 @@ extern std::pair<std::string, size_t> WaitForFile(pid_t tid);
 extern void NotifyConsumed(pid_t tid, size_t n_items);
 
 /* Init the shared memory structures. */
-extern void InitBufferManager(pid_t harness_pid, int num_cores);
+extern void InitBufferManager(pid_t harness_pid);
 /* Nada. */
 extern void DeinitBufferManager();
 /* Allocate fileBuffer for a new program thread. */
