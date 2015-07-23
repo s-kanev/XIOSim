@@ -170,10 +170,6 @@ sim_post_init(void)
     threads[i]->finished_cycle = false;
     threads[i]->consumed = false;
     threads[i]->fetches_since_feeder = 0;
-
-    threads[i]->rand_state = (struct random_data*)calloc(1, sizeof(struct random_data));
-    threads[i]->rand_statebuf = (char*)calloc(1, 32); // 32 bits for random generation
-    initstate_r(random(), threads[i]->rand_statebuf, 32, threads[i]->rand_state);
   }
 
   /* initialize microarchitecture state */

@@ -22,7 +22,7 @@ if(!strcasecmp(COMPONENT_NAME,type))
 #else
 
 #include <math.h>
-
+#include <random>
 
 class bpred_tage_t:public bpred_dir_t
 {
@@ -128,6 +128,11 @@ class bpred_tage_t:public bpred_dir_t
 
   bpred_tage_hist_t bhr;
 
+  /* For generating random numbers without touching any global state */
+  std::random_device random_device;
+  std::default_random_engine random_engine;
+  std::uniform_int_distribution<int> rand_int;
+
   public:
 
   /* CREATE */
@@ -140,6 +145,7 @@ class bpred_tage_t:public bpred_dir_t
                const int arg_first_length,
                const int arg_last_length
               ) : bpred_dir_t(core)
+                , random_engine(random_device())
   {
     init();
 
@@ -368,9 +374,8 @@ class bpred_tage_t:public bpred_dir_t
           {
             if(allocated2) /* more than one choice */
             {
-              int r;
-              random_r(core->current_thread->rand_state, &r);
-              if((r & 0xffff) > 21845) /* choose allocated over allocated2 with 2:1 probability */
+              int r = rand_int(random_engine);
+              if(r > rand_int.max() / 3) /* choose allocated over allocated2 with 2:1 probability */
                 allocated = allocated2;
             }
             struct bpred_tage_ent_t * ent = &T[allocated][sc->index[allocated]&table_mask];
