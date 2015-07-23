@@ -95,12 +95,12 @@ void* SimulatorLoop(void* arg) {
 
             // First instruction, map stack pages, and flag we're not safe to kill
             if (handshake->flags.isFirstInsn) {
-                md_addr_t esp = handshake->handshake.ctxt.regs_R.dw[x86::REG_ESP];
+                md_addr_t esp = handshake->rSP;
                 md_addr_t bos;
                 lk_lock(lk_thread_bos, 1);
                 bos = thread_bos->at(instrument_tid);
                 lk_unlock(lk_thread_bos);
-                xiosim::memory::map_stack(handshake->handshake.asid, esp, bos);
+                xiosim::memory::map_stack(handshake->asid, esp, bos);
 
                 lk_lock(&tstate->lock, 1);
                 tstate->sim_stopped = false;
@@ -261,7 +261,7 @@ int main(int argc, const char* argv[]) {
     opts.get("-num_cores")->getInt(num_cores);
 
     InitSharedState(false, harness_pid, num_cores);
-    xiosim::buffer_management::InitBufferManagerConsumer(harness_pid, num_cores);
+    xiosim::buffer_management::InitBufferManagerConsumer(harness_pid);
 
     // Prepare args for libsim
     SSARGS ssargs = MakeSimpleScalarArgcArgv(argc, argv);

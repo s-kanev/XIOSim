@@ -24,7 +24,7 @@ handshake_container_t* Back(pid_t tid);
 void FlushBuffers(pid_t tid);
 
 /* Init producerBuffer_ structures. */
-void InitBufferManagerProducer(pid_t harness_pid, int num_cores);
+void InitBufferManagerProducer(pid_t harness_pid);
 /* Cleanup. */
 void DeinitBufferManagerProducer(void);
 /* Allocate produceBuffer_ for a new program thread. */

@@ -7,36 +7,29 @@
 struct test_context {
     handshake_container_t producer_handshake;
     handshake_container_t consumer_handshake;
-    regs_t producer_shadow;
-    regs_t consumer_shadow;
     static const size_t buffer_size = 4096;
     char buffer[buffer_size];
 
     void perform_serialization() {
         memset(buffer, 0, buffer_size);
 
-        producer_handshake.Serialize(buffer, buffer_size, &producer_shadow);
+        producer_handshake.Serialize(buffer, buffer_size);
 
         size_t bytes_written = *(size_t*)buffer;
         bytes_written -= sizeof(size_t);
 
-        memcpy(&(consumer_handshake.handshake.ctxt), &consumer_shadow, sizeof(regs_t));
         consumer_handshake.Deserialize(buffer + 4, bytes_written);
 
         REQUIRE(producer_handshake == consumer_handshake);
-
-        memcpy(&producer_shadow, &(producer_handshake.handshake.ctxt), sizeof(regs_t));
-        memcpy(&consumer_shadow, &(consumer_handshake.handshake.ctxt), sizeof(regs_t));
     }
 };
 
 TEST_CASE("Compression-decompression test", "compression") {
     test_context ctxt;
-    memset(&ctxt.producer_shadow, 0, sizeof(regs_t));
-    memset(&ctxt.consumer_shadow, 0, sizeof(regs_t));
 
     SECTION("Empty") { ctxt.perform_serialization(); }
 
+#if 0
     SECTION("INT state") {
         ctxt.producer_handshake.handshake.ctxt.regs_R.dw[x86::REG_EAX] = 0xdeadbeef;
         ctxt.producer_handshake.handshake.ctxt.regs_R.dw[x86::REG_ESP] = 0xdeadbeef;
@@ -118,4 +111,5 @@ TEST_CASE("Compression-decompression test", "compression") {
 
         ctxt.perform_serialization();
     }
+#endif
 }

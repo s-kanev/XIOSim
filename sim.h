@@ -82,7 +82,6 @@ void sim_reg_stats(struct stat_sdb_t *sdb);
 
 /* initialize the simulator: pre_init gets called before command-line
    argument parsing, post_init gets called after. */
-void sim_pre_init(void);
 void sim_post_init(void);
 
 /* main() prints the option database values next... */

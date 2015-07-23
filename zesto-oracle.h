@@ -261,6 +261,8 @@ class core_oracle_t {
   void install_dependencies(struct uop_t * const uop);
   void commit_dependencies(struct uop_t * const uop);
   void undo_dependencies(struct uop_t * const uop);
+
+  void update_stats(struct Mop_t * const Mop);
 };
 
 #endif /* ZESTO_ORACLE_INCLUDED */

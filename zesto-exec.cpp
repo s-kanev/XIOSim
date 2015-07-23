@@ -76,6 +76,7 @@
 
 #include "thread.h"
 #include "synchronization.h"
+#include "decode.h"
 
 #include "zesto-structs.h"
 #include "zesto-cache.h"

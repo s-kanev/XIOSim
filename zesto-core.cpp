@@ -138,35 +138,6 @@ void core_t::return_odep_link(struct odep_t * const p)
 
 void core_t::zero_Mop(struct Mop_t * const Mop)
 {
-#if USE_SSE_MOVE
-  char * addr = (char*) Mop;
-  int bytes = sizeof(*Mop);
-  int remainder = bytes - (bytes>>6)*64;
-
-  /* zero xmm0 */
-  asm ("xorps %%xmm0, %%xmm0"
-       : : : "%xmm0");
-  /* clear the uop 64 bytes at a time */
-  for(int i=0;i<bytes>>6;i++)
-  {
-    asm ("movaps %%xmm0,   (%0)\n\t"
-         "movaps %%xmm0, 16(%0)\n\t"
-         "movaps %%xmm0, 32(%0)\n\t"
-         "movaps %%xmm0, 48(%0)\n\t"
-         : : "r"(addr) : "memory");
-    addr += 64;
-  }
-
-  /* handle any remaining bytes */
-  for(int i=0;i<remainder>>3;i++)
-  {
-    asm ("movlps %%xmm0,   (%0)\n\t"
-         : : "r"(addr) : "memory");
-    addr += 8;
-  }
-#else
-  memset(Mop,0,sizeof(*Mop));
-#endif
 }
 
 

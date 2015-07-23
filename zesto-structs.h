@@ -228,7 +228,7 @@ struct alignas(16) uop_t
     /* zero xmm0 */
     asm ("xorps %%xmm0, %%xmm0"
          : : : "%xmm0");
-    /* clear the uop 64 bytes at a time */
+    /* clear the uop 128 bytes at a time */
     for(int i=0;i<bytes>>7;i++)
     {
       asm ("movaps %%xmm0,    (%0)\n\t"
@@ -257,7 +257,6 @@ struct alignas(16) uop_t
   }
 
   uop_t() {
-      int i;
       zero();
       memset(&this->alloc,-1,sizeof(this->alloc));
       this->decode.Mop_seq = (seq_t)-1;
@@ -266,10 +265,9 @@ struct alignas(16) uop_t
 
       this->timing.when_decoded = TICK_T_MAX;
       this->timing.when_allocated = TICK_T_MAX;
-      for(i = 0;i < MAX_IDEPS; i++)
-      {
-        this->timing.when_itag_ready[i] = TICK_T_MAX;
-        this->timing.when_ival_ready[i] = TICK_T_MAX;
+      for(int i = 0; i < MAX_IDEPS; i++) {
+          this->timing.when_itag_ready[i] = TICK_T_MAX;
+          this->timing.when_ival_ready[i] = TICK_T_MAX;
       }
       this->timing.when_otag_ready = TICK_T_MAX;
       this->timing.when_ready = TICK_T_MAX;
@@ -353,6 +351,49 @@ struct alignas(16) Mop_t
     int num_loads;
     int num_branches;
   } stat;
+
+  void zero() {
+#if USE_SSE_MOVE
+      char * addr = (char*) this;
+      assert((long long) addr % 16 == 0);
+      int bytes = sizeof(*this);
+      int remainder = bytes - (bytes>>6)*64;
+
+      /* zero xmm0 */
+      asm ("xorps %%xmm0, %%xmm0"
+           : : : "%xmm0");
+      /* clear the uop 64 bytes at a time */
+      for(int i = 0; i < bytes >> 6; i++) {
+          asm ("movaps %%xmm0,   (%0)\n\t"
+               "movaps %%xmm0, 16(%0)\n\t"
+               "movaps %%xmm0, 32(%0)\n\t"
+               "movaps %%xmm0, 48(%0)\n\t"
+               : : "r"(addr) : "memory");
+          addr += 64;
+      }
+
+      /* handle any remaining bytes */
+      for (int i = 0; i < remainder >> 3; i++) {
+          asm ("movlps %%xmm0,   (%0)\n\t"
+               : : "r"(addr) : "memory");
+          addr += 8;
+      }
+#else
+      memset(this, 0, sizeof(*this));
+#endif
+  }
+
+  void clear() {
+      this->zero();
+      this->timing.when_fetch_started = TICK_T_MAX;
+      this->timing.when_fetched = TICK_T_MAX;
+      this->timing.when_MS_started = TICK_T_MAX;
+      this->timing.when_decode_started = TICK_T_MAX;
+      this->timing.when_decode_finished = TICK_T_MAX;
+      this->timing.when_commit_started = TICK_T_MAX;
+      this->timing.when_commit_finished = TICK_T_MAX;
+      this->valid = true;
+  }
 };
 
 

@@ -26,8 +26,6 @@ struct thread_t {
   long long fetches_since_feeder; /* Instructions since last pin call */
   bool in_critical_section; /* Are we executing a HELIX sequential cut? */
   tick_t last_active_cycle; /* Last time this core was active */
-
-  struct xiosim::x86::regs_t regs; // XXX: Should go away
 };
 
 /* architected state for each simulated thread/process */

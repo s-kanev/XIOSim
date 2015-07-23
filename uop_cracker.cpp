@@ -375,7 +375,7 @@ static bool check_tables(struct Mop_t * Mop) {
     return false;
 }
 
-#define DEBUG_CRACKER
+//#define DEBUG_CRACKER
 void crack(struct Mop_t * Mop) {
 #ifdef DEBUG_CRACKER
     auto iform = xed_decoded_inst_get_iform_enum(&Mop->decode.inst);

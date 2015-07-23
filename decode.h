@@ -12,12 +12,6 @@ extern "C" {
 namespace xiosim {
 namespace x86 {
 
-/*
-int32_t uop_get_idep(int i);
-int32_t uop_get_odep(int i);
-void decode_dependences(struct uop_t * uop);
-*/
-
 void init_decoder();
 void decode(struct Mop_t * Mop);
 void decode_flags(struct Mop_t * Mop);

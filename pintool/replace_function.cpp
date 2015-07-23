@@ -60,19 +60,19 @@ static void ReplacedFunctionBefore(THREADID tid, ADDRINT pc, ADDRINT retPC) {
         bool last_inst = (inst == repl_state.back());
         handshake_container_t* handshake = xiosim::buffer_management::GetBuffer(tstate->tid);
 
-        handshake->handshake.asid = asid;
+        handshake->asid = asid;
         handshake->flags.valid = true;
         handshake->flags.real = false;
         handshake->flags.isFirstInsn = false;
 
-        handshake->handshake.pc = inst.pc;
-        handshake->handshake.tpc = inst.pc + inst.len;
-        handshake->handshake.npc = last_inst ? NextUnignoredPC(retPC) : inst.pc + inst.len;
+        handshake->pc = inst.pc;
+        handshake->tpc = inst.pc + inst.len;
+        handshake->npc = last_inst ? NextUnignoredPC(retPC) : inst.pc + inst.len;
         handshake->flags.brtaken = false;
-        memcpy(handshake->handshake.ins, (void*)inst.pc, inst.len);
+        memcpy(handshake->ins, (void*)inst.pc, inst.len);
 
 #ifdef PRINT_DYN_TRACE
-        printTrace("sim", handshake->handshake.pc, tid);
+        printTrace("sim", handshake->pc, tid);
 #endif
 
         xiosim::buffer_management::ProducerDone(tstate->tid);

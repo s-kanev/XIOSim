@@ -163,14 +163,14 @@ core_oracle_t::core_oracle_t(struct core_t * const arg_core):
   MopQ(NULL), MopQ_head(0), MopQ_tail(0),
   MopQ_num(0), current_Mop(NULL), MopQ_spec_num(0)
 {
+  core = arg_core;
+  struct core_knobs_t * knobs = core->knobs;
+
   /* MopQ should be large enough to support all in-flight
      instructions.  We assume one entry per "slot" in the machine
      (even though in uop-based structures, multiple slots may
      correspond to a single Mop), and then add a few and round up
      just in case. */
-  core = arg_core;
-
-  struct core_knobs_t * knobs = core->knobs;
   int temp_MopQ_size = knobs->commit.ROB_size +
                   knobs->alloc.depth * knobs->alloc.width +
                   knobs->decode.uopQ_size + knobs->decode.depth * knobs->decode.width +
@@ -179,21 +179,17 @@ core_oracle_t::core_oracle_t(struct core_t * const arg_core):
 
   MopQ_size = 1 << ((int)ceil(log(temp_MopQ_size)/log(2.0)));
 
-  //MopQ = (struct Mop_t *)calloc(MopQ_size,sizeof(*MopQ));
-  int res = posix_memalign((void**)&MopQ,16,MopQ_size*sizeof(*MopQ));
+  int res = posix_memalign((void**)&MopQ, 16 , MopQ_size * sizeof(*MopQ));
   if(!MopQ || res != 0)
     fatal("failed to calloc MopQ");
-  memset(MopQ,0,MopQ_size*sizeof(*MopQ));
   assert(sizeof(*MopQ) % 16 == 0); // size of Mop is mult of 16
   assert(sizeof(struct uop_t) % 16 == 0); // size of uop is mult of 16
-  /* head, tail and num will have been calloc'd to zero */
 
-  /* This shouldn't be necessary, but I threw it in because valgrind
-     (--tool=memcheck) was reporting that Mop->uop was being used
-     uninitialized. */
-  int i;
-  for(i=0;i<MopQ_size;i++)
+  for (int i = 0; i < MopQ_size; i++) {
+    MopQ[i].core = core;
+    MopQ[i].clear();
     MopQ[i].uop = NULL;
+  }
 
   shadow_MopQ = new Buffer(MopQ_size);
 }
@@ -452,27 +448,20 @@ core_oracle_t::exec(const md_addr_t requested_PC)
   }
 
   /* reset Mop state */
-  core->zero_Mop(Mop);
-  Mop->timing.when_fetch_started = TICK_T_MAX;
-  Mop->timing.when_fetched = TICK_T_MAX;
-  Mop->timing.when_MS_started = TICK_T_MAX;
-  Mop->timing.when_decode_started = TICK_T_MAX;
-  Mop->timing.when_decode_finished = TICK_T_MAX;
-  Mop->timing.when_commit_started = TICK_T_MAX;
-  Mop->timing.when_commit_finished = TICK_T_MAX;
-  Mop->valid = true;
+  Mop->clear();
   Mop->core = core;
 
   /* go to next instruction */
-  if (requested_PC != thread->regs.regs_NPC)
+  if (requested_PC != core->fetch->feeder_NPC)
       spec_mode = true;
 
-  thread->regs.regs_PC = requested_PC;
+  //thread->regs.regs_PC = requested_PC;
 
   /* XXX: For now, don't go down a speculative path! */
   if (spec_mode) {
       spec_mode = false;
-      thread->regs.regs_PC = thread->regs.regs_NPC;
+      //requested_PC = core->fetch->feeder_NPC;
+      //thread->regs.regs_PC = core->fetch->feeder_NPC;
   }
 
   Mop->oracle.spec_mode = spec_mode;
@@ -484,7 +473,7 @@ core_oracle_t::exec(const md_addr_t requested_PC)
   }
   else {
       /* read encoding supplied by feeder */
-      memcpy(&Mop->fetch.inst.code, get_shadow_Mop(Mop)->handshake.ins, xiosim::x86::MAX_ILEN);
+      memcpy(&Mop->fetch.inst.code, get_shadow_Mop(Mop)->ins, xiosim::x86::MAX_ILEN);
 
       if (num_Mops_before_feeder() > 0)
           grab_feeder_state(get_shadow_Mop(Mop), false, true);
@@ -516,12 +505,7 @@ core_oracle_t::exec(const md_addr_t requested_PC)
       }
   }
 
-  /* set up initial default next PC */
-  thread->regs.regs_NPC = thread->regs.regs_PC + Mop->fetch.inst.len;
-
-  /* grab values for Mop */
-  Mop->fetch.PC = thread->regs.regs_PC;
-  Mop->fetch.pred_NPC = thread->regs.regs_NPC;
+  Mop->fetch.PC = core->fetch->feeder_NPC;//requested_PC;
 
   /* set unique id */
   Mop->oracle.seq = Mop_seq++;
@@ -650,71 +634,20 @@ core_oracle_t::exec(const md_addr_t requested_PC)
 
     /* XXX: execute the instruction */
 
-    /* XXX: for loads and stas, we need to grab virt_addr and mem_size from feeder. */
-    if (uop->decode.is_load || uop->decode.is_std) {
+    /* XXX: for loads, stas and stds, we need to grab virt_addr and mem_size from feeder. */
+    if (uop->decode.is_load || uop->decode.is_sta || uop->decode.is_std) {
         handshake_container_t *handshake = get_shadow_Mop(Mop);
         assert(!handshake->mem_buffer.empty());
         uop->oracle.virt_addr = handshake->mem_buffer.begin()->first;
         uop->decode.mem_size = 1;
-    }
 
-    if(uop->decode.is_load) {
         zesto_assert(uop->oracle.virt_addr != 0 || uop->Mop->oracle.spec_mode, NULL);
         uop->oracle.phys_addr = xiosim::memory::v2p_translate(thread->asid, uop->oracle.virt_addr);
     }
-    else if(uop->decode.is_std) {
-        /* virt_addr and mem_size set by execution of STD uop, copy back to STA */
-        int prev_uop_index = flow_index-1;
-        assert(prev_uop_index >= 0);
-#if 0
-        while(Mop->uop[prev_uop_index].decode.is_imm) {
-            prev_uop_index --;
-            assert(prev_uop_index >= 0);
-        }
-#endif
-        assert(Mop->uop[prev_uop_index].decode.is_sta);
-        uop->oracle.phys_addr = xiosim::memory::v2p_translate(thread->asid, uop->oracle.virt_addr);
-        Mop->uop[prev_uop_index].oracle.virt_addr = uop->oracle.virt_addr;
-        Mop->uop[prev_uop_index].oracle.phys_addr = uop->oracle.phys_addr;
-        Mop->uop[prev_uop_index].decode.mem_size = uop->decode.mem_size;
-        if(!spec_mode)
-            zesto_assert(uop->oracle.virt_addr && uop->decode.mem_size, NULL);
-    }
 
-    /* Update stats */
-    if((!uop->decode.in_fusion) || uop->decode.is_fusion_head)
-    {
-        Mop->stat.num_uops++;
-        ZESTO_STAT(core->stat.oracle_total_uops++;)
-    }
-    Mop->stat.num_eff_uops++;
-    ZESTO_STAT(core->stat.oracle_total_eff_uops++;)
-
-    if (uop->decode.is_ctrl) {
-        Mop->stat.num_branches++;
-        ZESTO_STAT(core->stat.oracle_total_branches++;)
-        if(!spec_mode)
-            ZESTO_STAT(core->stat.oracle_num_branches++;)
-    }
-
-    if (uop->decode.is_load || uop->decode.is_std) {
-        Mop->stat.num_refs++;
-        ZESTO_STAT(core->stat.oracle_total_refs++;)
-        if(!spec_mode)
-            ZESTO_STAT(core->stat.oracle_num_refs++;)
-        if (uop->decode.is_load) {
-            Mop->stat.num_loads++;
-            ZESTO_STAT(core->stat.oracle_total_loads++;)
-            if(!spec_mode)
-                ZESTO_STAT(core->stat.oracle_num_loads++;)
-        }
-    }
     flow_index += 1;//MD_INC_FLOW;
   }
 
-  if(xed_decoded_inst_get_category(&Mop->decode.inst) == XED_CATEGORY_CALL)
-      ZESTO_STAT(core->stat.oracle_total_calls++;)
-    
   /* update register mappings, inter-uop dependencies */
   /* NOTE: this occurs in its own loop because the above loop
      may terminate prematurely if a bogus fetch condition is
@@ -728,10 +661,6 @@ core_oracle_t::exec(const md_addr_t requested_PC)
       install_mapping(uop);
       flow_index += 1;//MD_INC_FLOW;
   }
-
-  /* Set NPC -- just use feeder value. */
-  if (!Mop->oracle.spec_mode)
-    thread->regs.regs_NPC = core->fetch->feeder_NPC;
 
 #if 0
   /* if PC == NPC, we're still REP'ing, or we've encountered an instruction
@@ -749,22 +678,20 @@ core_oracle_t::exec(const md_addr_t requested_PC)
   }
 #endif
 
+#if 0
   /* If we don't have branch information coming from feeder, just
    * check NPC against instruction length. */
   if (Mop->oracle.spec_mode) {
       core->fetch->feeder_ftPC = Mop->fetch.PC + Mop->fetch.inst.len;
       core->fetch->taken_branch = (thread->regs.regs_NPC != Mop->fetch.PC + Mop->fetch.inst.len);
   }
+#endif
 
   Mop->fetch.ftPC = core->fetch->feeder_ftPC;
   Mop->oracle.taken_branch = core->fetch->taken_branch;
 
   /* Mark EOM -- counting REP iterations as separate instructions */
   Mop->uop[Mop->decode.last_uop_index].decode.EOM = true; 
-
-  if(!Mop->oracle.spec_mode)
-      thread->stat.num_insn++;
-  ZESTO_STAT(core->stat.oracle_total_insn++;)
 
   /* Magic instructions: fake NOPs go to a special magic ALU with a
    * configurable latency. Convenient to simulate various fixed-function HW. */
@@ -774,7 +701,9 @@ core_oracle_t::exec(const md_addr_t requested_PC)
       Mop->uop[0].decode.FU_class = FU_MAGIC;
   }
 
-  Mop->oracle.NextPC = thread->regs.regs_NPC;
+  update_stats(Mop);
+
+  Mop->oracle.NextPC = core->fetch->feeder_NPC;
 
   /* commit this inst to the MopQ */
   MopQ_tail = modinc(MopQ_tail,MopQ_size); //(MopQ_tail + 1) % MopQ_size;
@@ -789,6 +718,49 @@ core_oracle_t::exec(const md_addr_t requested_PC)
 #endif
 
   return Mop;
+}
+
+void core_oracle_t::update_stats(struct Mop_t * const Mop)
+{
+    if(!Mop->oracle.spec_mode)
+        core->current_thread->stat.num_insn++;
+    ZESTO_STAT(core->stat.oracle_total_insn++;)
+
+    if(xed_decoded_inst_get_category(&Mop->decode.inst) == XED_CATEGORY_CALL)
+        ZESTO_STAT(core->stat.oracle_total_calls++;)
+
+    for (size_t i = 0; i < Mop->decode.flow_length; i++) {
+        struct uop_t * uop = Mop->uop + i;
+        if (uop->decode.is_imm)
+            continue;
+
+        if ((!uop->decode.in_fusion) || uop->decode.is_fusion_head) {
+            Mop->stat.num_uops++;
+            ZESTO_STAT(core->stat.oracle_total_uops++;)
+        }
+        Mop->stat.num_eff_uops++;
+        ZESTO_STAT(core->stat.oracle_total_eff_uops++;)
+
+        if (uop->decode.is_ctrl) {
+            Mop->stat.num_branches++;
+            ZESTO_STAT(core->stat.oracle_total_branches++;)
+            if(!spec_mode)
+                ZESTO_STAT(core->stat.oracle_num_branches++;)
+        }
+
+        if (uop->decode.is_load || uop->decode.is_std) {
+            Mop->stat.num_refs++;
+            ZESTO_STAT(core->stat.oracle_total_refs++;)
+            if (!spec_mode)
+                ZESTO_STAT(core->stat.oracle_num_refs++;)
+            if (uop->decode.is_load) {
+                Mop->stat.num_loads++;
+                ZESTO_STAT(core->stat.oracle_total_loads++;)
+                if (!spec_mode)
+                    ZESTO_STAT(core->stat.oracle_num_loads++;)
+            }
+        }
+    }
 }
 
 /* After calling oracle-exec, you need to first call this function
@@ -941,15 +913,11 @@ core_oracle_t::recover(const struct Mop_t * const Mop)
     x86::clear_uop_array(Mop_r);
   }
 
-  /* reset PC */
-  core->current_thread->regs.regs_PC = Mop->fetch.PC;
-  core->current_thread->regs.regs_NPC = Mop->oracle.NextPC;
-
   ZTRACE_PRINT(core->id, "Recovering to fetchPC: %x; nuked_Mops: %d \n", Mop->fetch.PC, num_Mops_before_feeder());
 
   spec_mode = Mop->oracle.spec_mode;
 
-  /* Force simulation to re-check feeder if needed */ 
+  /* Force simulation to re-check feeder if needed */
   core->current_thread->consumed = true;
 
   current_Mop = NULL;
@@ -998,10 +966,8 @@ core_oracle_t::complete_flush(void)
 {
   std::stack<struct Mop_t *> to_delete;
   int idx = moddec(MopQ_tail,MopQ_size); //(MopQ_tail-1+MopQ_size) % MopQ_size;
-  md_addr_t arch_PC = 0x00000000LL;
   while(MopQ_num)
   {
-    arch_PC = MopQ[idx].fetch.PC;
     assert(MopQ[idx].valid);
     undo(&MopQ[idx],false);
     MopQ[idx].valid = false;
@@ -1029,9 +995,6 @@ core_oracle_t::complete_flush(void)
     x86::clear_uop_array(Mop_r);
   }
 
-  /* reset PC */
-  core->current_thread->regs.regs_PC = arch_PC;
-  core->current_thread->regs.regs_NPC = arch_PC;
   assert(MopQ_head == MopQ_tail);
   assert(shadow_MopQ->empty());
 
@@ -1043,55 +1006,36 @@ core_oracle_t::complete_flush(void)
 
 void core_oracle_t::grab_feeder_state(handshake_container_t * handshake, bool allocate_shadow, bool check_pc_mismatch)
 {
-  regs_t * regs = &core->current_thread->regs;
-
   // This usually happens when we insert fake instructions from pin.
   // Just use the feeder PC since the instruction context is from there.
-  if(check_pc_mismatch && core->fetch->PC != handshake->handshake.pc)
-  {
+  if (check_pc_mismatch && core->fetch->PC != handshake->pc) {
     if (handshake->flags.real && !core->fetch->prev_insn_fake) {
-      ZTRACE_PRINT(core->id, "PIN->PC (0x%x) different from fetch->PC (0x%x). Overwriting with Pin value!\n", handshake->handshake.pc, core->fetch->PC);
+      ZTRACE_PRINT(core->id, "PIN->PC (0x%x) different from fetch->PC (0x%x). Overwriting with Pin value!\n", handshake->pc, core->fetch->PC);
       //       info("PIN->PC (0x%x) different from fetch->PC (0x%x). Overwriting with Pin value!\n", handshake->pc, core->fetch->PC);
     }
-    core->fetch->PC = handshake->handshake.pc;
-    regs->regs_PC = handshake->handshake.pc;
-    regs->regs_NPC = handshake->handshake.pc;
+    core->fetch->PC = handshake->pc;
   }
 
-  core->fetch->feeder_NPC = handshake->flags.brtaken ? handshake->handshake.tpc : handshake->handshake.npc;
-  core->fetch->feeder_PC = handshake->handshake.pc;
+  core->fetch->feeder_NPC = handshake->flags.brtaken ? handshake->tpc : handshake->npc;
+  core->fetch->feeder_PC = handshake->pc;
   core->fetch->prev_insn_fake = core->fetch->fake_insn;
   core->fetch->fake_insn = !handshake->flags.real;
   core->fetch->taken_branch = handshake->flags.brtaken;
-  core->fetch->feeder_ftPC = handshake->handshake.npc;
+  core->fetch->feeder_ftPC = handshake->npc;
 
-  core->current_thread->asid = handshake->handshake.asid;
+  core->current_thread->asid = handshake->asid;
 
-  if (handshake->flags.real) {
-    /* Copy architectural state from pin
-       XXX: This is arch state BEFORE executed the instruction we're about to simulate */
-    regs->regs_R = handshake->handshake.ctxt.regs_R;
-    regs->regs_C = handshake->handshake.ctxt.regs_C;
-    regs->regs_S = handshake->handshake.ctxt.regs_S;
-    regs->regs_SD = handshake->handshake.ctxt.regs_SD;
-    regs->regs_XMM = handshake->handshake.ctxt.regs_XMM;
-
-    /* Copy only valid FP registers (PIN uses invalid ones and they may differ) */
-    for(size_t j=0; j< xiosim::x86::NUM_ARCH_FREGS; j++)
-      if(FPR_VALID(handshake->handshake.ctxt.regs_C.ftw, j))
-        memcpy(&regs->regs_F.e[j], &handshake->handshake.ctxt.regs_F.e[j], sizeof(xiosim::x86::md_fpr_t));
-  }
-  else {
+  /* Potentially change HELIX critical section state if instruction is fake. */
+  if (!handshake->flags.real) {
     core->current_thread->in_critical_section = handshake->flags.in_critical_section;
   }
 
-
   /* Store a shadow handshake for recovery purposes */
   if (allocate_shadow) {
-
     zesto_assert(!shadow_MopQ->full(), (void)0);
     handshake_container_t* shadow_handshake = shadow_MopQ->get_buffer();
-    handshake->CopyTo(shadow_handshake);
+    /* Copy hadnshake to shadow. */
+    new (shadow_handshake) handshake_container_t (*handshake);
 
     shadow_MopQ->push_done();
   }

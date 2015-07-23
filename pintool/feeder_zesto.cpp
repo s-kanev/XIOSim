@@ -257,116 +257,6 @@ VOID ImageLoad(IMG img, VOID* v) {
 }
 
 /* ========================================================================== */
-VOID
-MakeSSContext(const CONTEXT *ictxt, FPSTATE* fpstate, ADDRINT pc, ADDRINT npc, regs_t *ssregs) {
-    ssregs->regs_PC = pc;
-    ssregs->regs_NPC = npc;
-
-// XXX: We won't/shouldn't need actual reg values in the brave new world. Then we can kill ssregs altogether.
-    // Ok, we might need the stack pointer for shadow page tables.
-    ssregs->regs_R.dw[x86::REG_ESP] = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_ESP);
-    // And EAX for some of the REP handling
-    ssregs->regs_R.dw[x86::REG_EAX] = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_EAX);
-#if 0
-    // Copy general purpose registers, which Pin provides individual access to
-    ssregs->regs_C.aflags = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_EFLAGS);
-    ssregs->regs_R.dw[MD_REG_EAX] = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_EAX);
-    ssregs->regs_R.dw[MD_REG_ECX] = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_ECX);
-    ssregs->regs_R.dw[MD_REG_EDX] = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_EDX);
-    ssregs->regs_R.dw[MD_REG_EBX] = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_EBX);
-    ssregs->regs_R.dw[MD_REG_ESP] = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_ESP);
-    ssregs->regs_R.dw[MD_REG_EBP] = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_EBP);
-    ssregs->regs_R.dw[MD_REG_EDI] = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_EDI);
-    ssregs->regs_R.dw[MD_REG_ESI] = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_ESI);
-
-    // Copy segment selector registers (IA32-specific)
-    ssregs->regs_S.w[MD_REG_CS] = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_SEG_CS);
-    ssregs->regs_S.w[MD_REG_SS] = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_SEG_SS);
-    ssregs->regs_S.w[MD_REG_DS] = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_SEG_DS);
-    ssregs->regs_S.w[MD_REG_ES] = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_SEG_ES);
-    ssregs->regs_S.w[MD_REG_FS] = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_SEG_FS);
-    ssregs->regs_S.w[MD_REG_GS] = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_SEG_GS);
-
-    // Copy segment base registers (simulator needs them for address calculations)
-    // XXX: For security reasons, we (as user code) aren't allowed to touch those.
-    // So, we access whatever we can (FS and GS because of 64-bit addressing).
-    // For the rest, Linux sets the base of user-leve CS and DS to 0, so life is
-    // good.
-    // FIXME: Check what Linux does with user-level SS and ES!
-
-    ssregs->regs_SD.dw[MD_REG_FS] = PIN_GetContextReg(ictxt, REG_SEG_FS_BASE);
-    ssregs->regs_SD.dw[MD_REG_GS] = PIN_GetContextReg(ictxt, REG_SEG_GS_BASE);
-
-    // Copy floating purpose registers: Floating point state is generated via
-    // the fxsave instruction, which is a 512-byte memory region. Look at the
-    // SDM for the complete layout of the fxsave region. Zesto only
-    // requires the (1) floating point status word, the (2) fp control word,
-    // and the (3) eight 10byte floating point registers. Thus, we only copy
-    // the required information into the SS-specific (and Zesto-inherited)
-    // data structure
-    ASSERTX(PIN_ContextContainsState(const_cast<CONTEXT*>(ictxt), PROCESSOR_STATE_X87));
-    PIN_GetContextFPState(ictxt, fpstate);
-
-    // Copy the floating point control word
-    memcpy(&ssregs->regs_C.cwd, &fpstate->fxsave_legacy._fcw, 2);
-
-    // Copy the floating point status word
-    memcpy(&ssregs->regs_C.fsw, &fpstate->fxsave_legacy._fsw, 2);
-
-    // Copy floating point tag word specifying which regsiters hold valid values
-    memcpy(&ssregs->regs_C.ftw, &fpstate->fxsave_legacy._ftw, 1);
-
-// For Zesto, regs_F is indexed by physical register, not stack-based
-#define ST2P(num) ((FSW_TOP(ssregs->regs_C.fsw) + (num)) & 0x7)
-
-    // Copy actual extended fp registers
-    memcpy(
-        &ssregs->regs_F.e[ST2P(MD_REG_ST0)], &fpstate->fxsave_legacy._sts[MD_REG_ST0], MD_FPR_SIZE);
-    memcpy(
-        &ssregs->regs_F.e[ST2P(MD_REG_ST1)], &fpstate->fxsave_legacy._sts[MD_REG_ST1], MD_FPR_SIZE);
-    memcpy(
-        &ssregs->regs_F.e[ST2P(MD_REG_ST2)], &fpstate->fxsave_legacy._sts[MD_REG_ST2], MD_FPR_SIZE);
-    memcpy(
-        &ssregs->regs_F.e[ST2P(MD_REG_ST3)], &fpstate->fxsave_legacy._sts[MD_REG_ST3], MD_FPR_SIZE);
-    memcpy(
-        &ssregs->regs_F.e[ST2P(MD_REG_ST4)], &fpstate->fxsave_legacy._sts[MD_REG_ST4], MD_FPR_SIZE);
-    memcpy(
-        &ssregs->regs_F.e[ST2P(MD_REG_ST5)], &fpstate->fxsave_legacy._sts[MD_REG_ST5], MD_FPR_SIZE);
-    memcpy(
-        &ssregs->regs_F.e[ST2P(MD_REG_ST6)], &fpstate->fxsave_legacy._sts[MD_REG_ST6], MD_FPR_SIZE);
-    memcpy(
-        &ssregs->regs_F.e[ST2P(MD_REG_ST7)], &fpstate->fxsave_legacy._sts[MD_REG_ST7], MD_FPR_SIZE);
-
-    ASSERTX(PIN_ContextContainsState(const_cast<CONTEXT*>(ictxt), PROCESSOR_STATE_XMM));
-
-    memcpy(&ssregs->regs_XMM.qw[MD_REG_XMM0].lo,
-           &fpstate->fxsave_legacy._xmms[MD_REG_XMM0],
-           MD_XMM_SIZE);
-    memcpy(&ssregs->regs_XMM.qw[MD_REG_XMM1].lo,
-           &fpstate->fxsave_legacy._xmms[MD_REG_XMM1],
-           MD_XMM_SIZE);
-    memcpy(&ssregs->regs_XMM.qw[MD_REG_XMM2].lo,
-           &fpstate->fxsave_legacy._xmms[MD_REG_XMM2],
-           MD_XMM_SIZE);
-    memcpy(&ssregs->regs_XMM.qw[MD_REG_XMM3].lo,
-           &fpstate->fxsave_legacy._xmms[MD_REG_XMM3],
-           MD_XMM_SIZE);
-    memcpy(&ssregs->regs_XMM.qw[MD_REG_XMM4].lo,
-           &fpstate->fxsave_legacy._xmms[MD_REG_XMM4],
-           MD_XMM_SIZE);
-    memcpy(&ssregs->regs_XMM.qw[MD_REG_XMM5].lo,
-           &fpstate->fxsave_legacy._xmms[MD_REG_XMM5],
-           MD_XMM_SIZE);
-    memcpy(&ssregs->regs_XMM.qw[MD_REG_XMM6].lo,
-           &fpstate->fxsave_legacy._xmms[MD_REG_XMM6],
-           MD_XMM_SIZE);
-    memcpy(&ssregs->regs_XMM.qw[MD_REG_XMM7].lo,
-           &fpstate->fxsave_legacy._xmms[MD_REG_XMM7],
-           MD_XMM_SIZE);
-#endif
-}
-
-/* ========================================================================== */
 // Register that we are about to service Fini callbacks, which cannot
 // access some state (e.g. TLS)
 VOID BeforeFini(INT32 exitCode, VOID* v) { in_fini = true; }
@@ -384,18 +274,18 @@ VOID MakeSSRequest(THREADID tid,
                    ADDRINT npc,
                    ADDRINT tpc,
                    BOOL brtaken,
-                   const CONTEXT* ictxt,
+                   ADDRINT esp_value,
                    handshake_container_t* hshake) {
-    thread_state_t* tstate = get_tls(tid);
-    MakeSSContext(ictxt, &tstate->fpstate_buf, pc, npc, &hshake->handshake.ctxt);
-
-    hshake->handshake.asid = asid;
-    hshake->handshake.pc = pc;
-    hshake->handshake.npc = npc;
-    hshake->handshake.tpc = tpc;
+    hshake->asid = asid;
+    hshake->pc = pc;
+    hshake->npc = npc;
+    hshake->tpc = tpc;
     hshake->flags.brtaken = brtaken;
     hshake->flags.real = TRUE;
-    PIN_SafeCopy(hshake->handshake.ins, (VOID*) pc, x86::MAX_ILEN);
+    PIN_SafeCopy(hshake->ins, (VOID*) pc, x86::MAX_ILEN);
+
+    // Ok, we might need the stack pointer for shadow page tables.
+    hshake->rSP = esp_value;
 }
 
 /* Helper to check if producer thread @tid will grab instruction at @pc.
@@ -468,7 +358,7 @@ VOID GrabInstructionContext(THREADID tid,
                             BOOL taken,
                             ADDRINT npc,
                             ADDRINT tpc,
-                            const CONTEXT* ictxt,
+                            ADDRINT esp_value,
                             BOOL has_memory,
                             BOOL done_instrumenting) {
     if (!CheckIgnoreConditions(tid, pc)) {
@@ -498,7 +388,7 @@ VOID GrabInstructionContext(THREADID tid,
     }
 
     // Populate handshake buffer
-    MakeSSRequest(tid, pc, NextUnignoredPC(npc), NextUnignoredPC(tpc), taken, ictxt, handshake);
+    MakeSSRequest(tid, pc, NextUnignoredPC(npc), NextUnignoredPC(tpc), taken, esp_value, handshake);
 
     // If no more steps, instruction is ready to be consumed
     if (done_instrumenting)
@@ -517,6 +407,7 @@ VOID FixRepInstructionNPC(THREADID tid,
                           BOOL rep_prefix,
                           BOOL repne_prefix,
                           ADDRINT counter_value,
+                          ADDRINT rax_value,
                           UINT32 opcode) {
     if (!CheckIgnoreConditions(tid, pc))
         return;
@@ -565,7 +456,7 @@ VOID FixRepInstructionNPC(THREADID tid,
             size_t i = 0;
             for (auto& mem_read : handshake->mem_buffer)
                 op1 |= ((ADDRINT)mem_read.second << (8 * i));
-            op2 = handshake->handshake.ctxt.regs_R.dw[x86::REG_EAX];  // 0-extended anyways
+            op2 = rax_value; // 0-extended anyways
         }
         scan = true;
         zf = (op1 == op2);
@@ -598,17 +489,16 @@ VOID FixRepInstructionNPC(THREADID tid,
     ADDRINT NPC;
     // Counter says we finish after this instruction (for all prefixes)
     if (counter_value == 1 || counter_value == 0)
-        NPC = handshake->handshake.tpc;
+        NPC = handshake->tpc;
     // Zero flag and REPE/REPNE prefixes say we finish after this instruction
     else if (scan && ((repne_prefix && zf) || (rep_prefix && !zf)))
-        NPC = handshake->handshake.tpc;
+        NPC = handshake->tpc;
     // Otherwise we just keep looping
     else
-        NPC = handshake->handshake.pc;
+        NPC = handshake->pc;
 
     // Update with hard-earned NPC
-    handshake->handshake.npc = NPC;
-    handshake->handshake.ctxt.regs_NPC = NPC;
+    handshake->npc = NPC;
 
     // Instruction is ready to be consumed
     FinalizeBuffer(tstate, handshake);
@@ -706,7 +596,8 @@ VOID Instrument(INS ins, VOID* v) {
                        IARG_ADDRINT,
                        INS_NextAddress(ins),
                        IARG_FALLTHROUGH_ADDR,
-                       IARG_CONST_CONTEXT,
+                       IARG_REG_VALUE,
+                       LEVEL_BASE::REG_ESP,
                        IARG_BOOL,
                        (memOperands > 0),
                        IARG_BOOL,
@@ -725,6 +616,8 @@ VOID Instrument(INS ins, VOID* v) {
                            INS_RepnePrefix(ins),
                            IARG_REG_VALUE,
                            INS_RepCountRegister(ins),
+                           IARG_REG_VALUE,
+                           LEVEL_BASE::REG_EAX,
                            IARG_ADDRINT,
                            INS_Opcode(ins),
                            IARG_END);
@@ -739,7 +632,8 @@ VOID Instrument(INS ins, VOID* v) {
                        IARG_ADDRINT,
                        INS_NextAddress(ins),
                        IARG_BRANCH_TARGET_ADDR,
-                       IARG_CONST_CONTEXT,
+                       IARG_REG_VALUE,
+                       LEVEL_BASE::REG_ESP,
                        IARG_BOOL,
                        (memOperands > 0),
                        IARG_BOOL,
@@ -1083,8 +977,7 @@ INT32 main(INT32 argc, CHAR** argv) {
     // Synchronize all processes here to ensure that in multiprogramming mode,
     // no process will start too far before the others.
     asid = InitSharedState(true, KnobHarnessPid.Value(), KnobNumCores.Value());
-    xiosim::buffer_management::InitBufferManagerProducer(KnobHarnessPid.Value(),
-                                                         KnobNumCores.Value());
+    xiosim::buffer_management::InitBufferManagerProducer(KnobHarnessPid.Value());
 
     if (KnobAMDHack.Value()) {
         amd_hack();
