@@ -19,6 +19,7 @@
 #include <elf.h>
 #include <sys/mman.h>
 #include <sys/sysinfo.h>
+#include <sys/wait.h>
 #include <syscall.h>
 #include <sched.h>
 #include <unistd.h>
@@ -42,6 +43,7 @@
 #include "replace_function.h"
 
 #include "../zesto-core.h"
+#include "../decode.h"
 
 using namespace std;
 
@@ -88,6 +90,8 @@ int asid;
 xed_state_t dstate;
 static void InitXed();
 
+bool speculation_mode = false;
+
 /* ========================================================================== */
 /* Pinpoint related */
 // Track the number of instructions executed
@@ -115,6 +119,8 @@ static void FastForwardBarrier(int slice_num);
 static void SliceEndBarrier(int slice_num, int slice_length, int slice_weight_times_1000);
 
 static VOID amd_hack();
+
+static void Speculation(thread_state_t* tstate, handshake_container_t* handshake);
 
 // Functions to access thread-specific data
 /* ========================================================================== */
@@ -178,6 +184,14 @@ VOID EndSimSlice(int slice_num, int slice_length, int slice_weight_times_1000) {
 /* ========================================================================== */
 VOID PPointHandler(CONTROL_EVENT ev, VOID* v, CONTEXT* ctxt, VOID* ip, THREADID tid) {
     cerr << "tid: " << dec << tid << " ip: " << hex << ip << " ";
+
+    /* If we are speculating, and we reach a start or stop point, we are done
+     * (before we mess up shared state). */
+    if (speculation_mode) {
+        PIN_ExitProcess(EXIT_SUCCESS);
+        return;
+    }
+
     if (tid < ISIMPOINT_MAX_THREADS)
         cerr << dec << " Inst. Count " << icount.Count(tid) << " ";
 
@@ -282,7 +296,7 @@ VOID MakeSSRequest(THREADID tid,
     hshake->tpc = tpc;
     hshake->flags.brtaken = brtaken;
     hshake->flags.real = TRUE;
-    PIN_SafeCopy(hshake->ins, (VOID*) pc, x86::MAX_ILEN);
+    PIN_SafeCopy(hshake->ins, (VOID*)pc, x86::MAX_ILEN);
 
     // Ok, we might need the stack pointer for shadow page tables.
     hshake->rSP = esp_value;
@@ -294,8 +308,18 @@ VOID MakeSSRequest(THREADID tid,
 static BOOL CheckIgnoreConditions(THREADID tid, ADDRINT pc) {
     wait_producers();
 
-    /* Check thread ignore and ignore_all flags */
     thread_state_t* tstate = get_tls(tid);
+
+    if (speculation_mode) {
+        /* Speculation, stop after 100 instructions. */
+        tstate->num_inst++;
+        if (tstate->num_inst >= 100)
+            PIN_ExitProcess(EXIT_SUCCESS);
+        /* For now, don't produce handshakes. Cross that bridge... */
+        return false;
+    }
+
+    /* Check thread ignore and ignore_all flags */
     lk_lock(&tstate->lock, tid + 1);
     if (tstate->ignore || tstate->ignore_all) {
         lk_unlock(&tstate->lock);
@@ -328,6 +352,8 @@ static handshake_container_t* GetProperBuffer(pid_t tid, BOOL first_instrumentat
 /* Helper to mark the buffer of a fully instrumented instruction as valid,
  * and let it get eventually consumed. */
 static VOID FinalizeBuffer(thread_state_t* tstate, handshake_container_t* handshake) {
+    Speculation(tstate, handshake);
+
     // Let simulator consume instruction from SimulatorLoop
     handshake->flags.valid = true;
     xiosim::buffer_management::ProducerDone(tstate->tid);
@@ -391,8 +417,9 @@ VOID GrabInstructionContext(THREADID tid,
     MakeSSRequest(tid, pc, NextUnignoredPC(npc), NextUnignoredPC(tpc), taken, esp_value, handshake);
 
     // If no more steps, instruction is ready to be consumed
-    if (done_instrumenting)
+    if (done_instrumenting) {
         FinalizeBuffer(tstate, handshake);
+    }
 }
 
 /* ========================================================================== */
@@ -456,7 +483,7 @@ VOID FixRepInstructionNPC(THREADID tid,
             size_t i = 0;
             for (auto& mem_read : handshake->mem_buffer)
                 op1 |= ((ADDRINT)mem_read.second << (8 * i));
-            op2 = rax_value; // 0-extended anyways
+            op2 = rax_value;  // 0-extended anyways
         }
         scan = true;
         zf = (op1 == op2);
@@ -502,6 +529,101 @@ VOID FixRepInstructionNPC(THREADID tid,
 
     // Instruction is ready to be consumed
     FinalizeBuffer(tstate, handshake);
+}
+
+static bool BranchPredict(thread_state_t* tstate, handshake_container_t* handshake) {
+    /* Proxy for Mop->decode.is_ctrl */
+    if (handshake->npc == handshake->tpc)
+        return true;
+
+    class bpred_t* bpred = tstate->bpred;
+
+    /* Decode a fake instruction so we can get flags that the branch predictor
+     * requires. This is costly (slow & we'll do it again in the oracle).
+     * Have to figure out something smarter. To begin with, the bpred really
+     * shouldn't use decode information. TODO. */
+    struct Mop_t jnk_Mop;
+    memcpy(jnk_Mop.fetch.inst.code, handshake->ins, xiosim::x86::MAX_ILEN);
+    xiosim::x86::decode(&jnk_Mop);
+    xiosim::x86::decode_flags(&jnk_Mop);
+
+    class bpred_state_cache_t* bpred_update = bpred->get_state_cache();
+    md_addr_t oracle_NPC = handshake->flags.brtaken ? handshake->tpc : handshake->npc;
+    /* Make a prediction. */
+    md_addr_t pred_NPC = bpred->lookup(bpred_update,
+                                       jnk_Mop.decode.opflags,
+                                       handshake->pc,
+                                       handshake->npc,
+                                       handshake->tpc,
+                                       oracle_NPC,
+                                       handshake->flags.brtaken);
+    /* Speculatively update predictor tables, mostly relevant for RAS. */
+    bpred->spec_update(bpred_update,
+                       jnk_Mop.decode.opflags,
+                       handshake->pc,
+                       handshake->tpc,
+                       oracle_NPC,
+                       bpred_update->our_pred);
+
+    bool correct = (pred_NPC != oracle_NPC);
+    /* Mispredicted, some tables (mostly RAS) will be recovered during the flush. */
+    if (!correct)
+        bpred->recover(bpred_update, handshake->flags.brtaken);
+
+    /* Update tables (mostly BTBs) when commiting the branch. */
+    bpred->update(bpred_update,
+                  jnk_Mop.decode.opflags,
+                  handshake->pc,
+                  handshake->npc,
+                  handshake->tpc,
+                  oracle_NPC,
+                  handshake->flags.brtaken);
+    bpred->return_state_cache(bpred_update);
+
+    return correct;
+}
+
+/* ========================================================================== */
+static void Speculation(thread_state_t* tstate, handshake_container_t* handshake) {
+    bool mispredict = !BranchPredict(tstate, handshake);
+
+    /* Fork a child feeder that will produce instructions on the speculative path.
+     * It's ok if that feeder does something bad (say segfaults) -- in that case,
+     * we'll just pick up from the non-speculative path.
+     * The parent feeder waits until the child is done -- this way we can still
+     * maintain a linear flow of instructions through the handshake buffers. */
+
+    /* TODO: Flush parent producer buffer before forking. */
+    if (mispredict && !speculation_mode) {
+        pid_t test = fork();
+        switch (test) {
+        case 0: {  // child
+            speculation_mode = true;
+            tstate->num_inst = 0; // XXX: For now. Limit child to X spec instructions.
+            break;
+        }
+        case 1: {
+            std::cerr << "Fork failed." << std::endl;
+            exit(EXIT_FAILURE);
+            break;
+        }
+        default: {  // parent
+            int status;
+            pid_t wait_res;
+            do {
+                wait_res = waitpid(test, &status, WNOHANG);
+                if (wait_res == -1) {
+                    std::cerr << "waitpid(" << test << ") failed." << std::endl;
+                    break;
+                }
+            } while (wait_res != test);
+            if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+                std::cerr << "Child died." << std::endl;
+            }
+            break;
+        }
+        }
+    }
 }
 
 /* ========================================================================== */
@@ -918,6 +1040,12 @@ VOID ResumeSimulation(bool allocate_cores) {
 
 /* ========================================================================== */
 VOID ThreadFini(THREADID tid, const CONTEXT* ctxt, INT32 code, VOID* v) {
+    /* Speculation, stop before we corrupt global state. */
+    if (speculation_mode) {
+        PIN_ExitProcess(EXIT_SUCCESS);
+        return;
+    }
+
     lk_lock(printing_lock, tid + 1);
     cerr << "Thread exit. ID: " << tid << endl;
     lk_unlock(printing_lock);

@@ -68,6 +68,7 @@ TEST_CASE("jmp indirect", "Flags tests") {
 
     REQUIRE(c.Mop.decode.is_ctrl == true);
     REQUIRE(c.Mop.decode.opflags.UNCOND == true);
+    REQUIRE(c.Mop.decode.opflags.COND == false);
     REQUIRE(c.Mop.decode.opflags.INDIR == true);
 }
 
@@ -95,6 +96,8 @@ TEST_CASE("call direct", "Flags tests") {
     REQUIRE(c.Mop.decode.is_ctrl == true);
     REQUIRE(c.Mop.decode.opflags.UNCOND == true);
     REQUIRE(c.Mop.decode.opflags.INDIR == false);
+    REQUIRE(c.Mop.decode.opflags.CALL == true);
+    REQUIRE(c.Mop.decode.opflags.COND == false);
 }
 
 TEST_CASE("call indirect", "Flags tests") {

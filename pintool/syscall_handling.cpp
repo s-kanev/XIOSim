@@ -64,6 +64,12 @@ VOID *v)
 
 /* ========================================================================== */
 VOID SyscallEntry(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VOID* v) {
+    /* Kill speculative feeder before reaching a syscall.
+     * This guarantees speculative processes don't have side effects. */
+    if (speculation_mode) {
+        PIN_ExitProcess(EXIT_SUCCESS);
+    }
+
     lk_lock(&syscall_lock, threadIndex + 1);
 
     ADDRINT syscall_num = PIN_GetSyscallNumber(ictxt, std);

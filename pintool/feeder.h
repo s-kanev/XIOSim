@@ -20,6 +20,7 @@ using namespace INSTLIB;
 #include "../interface.h"
 #include "../synchronization.h"
 #include "../memory.h"
+#include "../zesto-bpred.h"
 
 class handshake_container_t;
 
@@ -44,6 +45,9 @@ extern int asid;
 
 /* Xed machine mode state for when we need to encode/decode things. */
 extern xed_state_t dstate;
+
+/* Is this a throwaway process on a speculative execution path. */
+extern bool speculation_mode;
 
 #define ATOMIC_ITERATE(_list, _it, _lock)                                                          \
     for (lk_lock(&(_lock), 1), (_it) = (_list).begin(), lk_unlock(&(_lock)); [&] {                 \
@@ -80,6 +84,19 @@ class thread_state_t {
 
         num_inst = 0;
         lk_init(&lock);
+
+        // TODO(skanev): Unify configuration, so feeder can read the .cfg file.
+        const char *bpred_opt_strings[MAX_HYBRID_BPRED];
+        bpred_opt_strings[0] = "tage:TAGE5:5:2048:512:9:6:75";
+        bpred = new bpred_t(
+          nullptr,
+          1,
+          bpred_opt_strings,
+          "none",
+          "btac:BTB:512:4:8:l",
+          "2levbtac:iBTB:1:8:1:128:4:8:l",
+          "stack:RAS:16"
+        );
     }
 
     VOID push_loop_state() {
@@ -120,6 +137,8 @@ class thread_state_t {
 
     // Per Loop State
     per_loop_state_t* loop_state;
+
+    class bpred_t* bpred;
 
     XIOSIM_LOCK lock;
     // XXX: SHARED -- lock protects those
