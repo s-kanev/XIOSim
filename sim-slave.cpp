@@ -374,7 +374,7 @@ static void global_step(void)
         bool deadlocked = true;
         for(int i=0;i<num_cores;i++)
         {
-            if (!cores[i]->current_thread->active)
+            if (!cores[i]->active)
                 continue;
             deadlocked &= cores[i]->commit->deadlocked;
         }
@@ -443,7 +443,7 @@ void sim_main_slave_pre_pin(int coreID)
   volatile int cores_finished_cycle = 0;
   volatile int cores_active = 0;
 
-  if(cores[coreID]->current_thread->active) {
+  if(cores[coreID]->active) {
     cores[coreID]->stat.final_sim_cycle = cores[coreID]->sim_cycle;
     // Finally time to step local cycle counter
     cores[coreID]->sim_cycle++;
@@ -476,7 +476,7 @@ master_core:
         for(int i=0; i<num_cores; i++) {
           if(cores[i]->current_thread->finished_cycle)
             cores_finished_cycle++;
-          if(cores[i]->current_thread->active)
+          if(cores[i]->active)
             cores_active++;
         }
 
@@ -501,7 +501,7 @@ master_core:
        * be accesses scheduled there from the repeater network */
       /* XXX: This is round-robin for LLC based on core id, if that matters */
       for(int i=0; i<num_cores; i++) {
-        if(!cores[i]->current_thread->active) {
+        if(!cores[i]->active) {
           if(cores[i]->memory.DL2) cache_process(cores[i]->memory.DL2);
           cache_process(cores[i]->memory.DL1);
         }
@@ -595,7 +595,7 @@ void sim_main_slave_post_pin(int coreID)
   /* occupancy stats */
   /*******************/
   /* this avoids the need to guard each stat update below with "ZESTO_STAT()" */
-  if(cores[coreID]->current_thread->active)
+  if(cores[coreID]->active)
   {
     cores[coreID]->oracle->update_occupancy();
     cores[coreID]->fetch->update_occupancy();

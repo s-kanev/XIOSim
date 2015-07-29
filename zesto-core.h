@@ -139,7 +139,7 @@
 #include "zesto-structs.h"
 
 #include "stats.h"
-#define ZESTO_STAT(x) {if(core->current_thread->active) {x}}
+#define ZESTO_STAT(x) {if(core->active) {x}}
 
 /* state for the processor microarchitecture (per core) */
 class core_t {
@@ -157,6 +157,8 @@ class core_t {
   struct thread_t * current_thread;
   int id; /* core-id */
   tick_t sim_cycle; /* core-specific cycle counter */
+  bool active; /* FALSE if this core is not executing */
+  tick_t last_active_cycle; /* Last time this core was active */
   double cpu_speed; /* current core frequency in MHz */
   double ns_passed; /* used to sync with uncore */
 

@@ -17,12 +17,10 @@ struct thread_t {
     counter_t num_branches;
   } stat;
 
-  bool active; /* FALSE if this core is not executing */
   bool finished_cycle;      /* Ready to advance to next cycle? */
   bool consumed;            /* Did fetching get an instruction back? */
   long long fetches_since_feeder; /* Instructions since last pin call */
   bool in_critical_section; /* Are we executing a HELIX sequential cut? */
-  tick_t last_active_cycle; /* Last time this core was active */
 };
 
 /* architected state for each simulated thread/process */

@@ -188,11 +188,11 @@ void deactivate_core(int coreID) {
     assert(coreID >= 0 && coreID < num_cores);
     ZTRACE_PRINT(coreID, "deactivate %d\n", coreID);
     lk_lock(&cycle_lock, coreID + 1);
-    cores[coreID]->current_thread->active = false;
-    cores[coreID]->current_thread->last_active_cycle = cores[coreID]->sim_cycle;
+    cores[coreID]->active = false;
+    cores[coreID]->last_active_cycle = cores[coreID]->sim_cycle;
     int i;
     for (i = 0; i < num_cores; i++)
-        if (cores[i]->current_thread->active) {
+        if (cores[i]->active) {
             min_coreID = i;
             break;
         }
@@ -207,7 +207,7 @@ void activate_core(int coreID) {
     lk_lock(&cycle_lock, coreID + 1);
     cores[coreID]->current_thread->finished_cycle = false;  // Make sure master core will wait
     cores[coreID]->exec->update_last_completed(cores[coreID]->sim_cycle);
-    cores[coreID]->current_thread->active = true;
+    cores[coreID]->active = true;
     if (coreID < min_coreID)
         min_coreID = coreID;
     lk_unlock(&cycle_lock);
@@ -217,7 +217,7 @@ bool is_core_active(int coreID) {
     assert(coreID >= 0 && coreID < num_cores);
     bool result;
     lk_lock(&cycle_lock, coreID + 1);
-    result = cores[coreID]->current_thread->active;
+    result = cores[coreID]->active;
     lk_unlock(&cycle_lock);
     return result;
 }
@@ -252,7 +252,7 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake) {
     thread_t* thread = core->current_thread;
     bool slice_start = handshake->flags.isFirstInsn;
 
-    if (!thread->active && !(slice_start || handshake->flags.flush_pipe)) {
+    if (!core->active && !(slice_start || handshake->flags.flush_pipe)) {
         fprintf(stderr,
                 "DEBUG DEBUG: Start/stop out of sync? %d PC: %x\n",
                 coreID,

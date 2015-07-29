@@ -356,7 +356,7 @@ void core_commit_DPM_t::step(void)
      in the pipeline and no forward progress is being made, this
      code will eventually detect it. A global watchdog will check
      if any core is making progress and accordingly if not.*/
-  if(core->current_thread->active && ((core->sim_cycle - core->exec->last_completed) > deadlock_threshold))
+  if(core->active && ((core->sim_cycle - core->exec->last_completed) > deadlock_threshold))
   {
     deadlocked = true; 
     return;
