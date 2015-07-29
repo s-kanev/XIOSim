@@ -10,6 +10,7 @@ CMD_LINE="setarch i686 -BR ./obj-ia32/harness \
                 -pin $PIN  \
                 -pause_tool 1  \
                 -xyzzy  \
+                -catch_signals 0 \
                 -t  \
                 $PINTOOL  \
                 -num_cores 1  \

@@ -107,6 +107,8 @@ void ProducerDone(pid_t tid, bool keepLock) {
  */
 void FlushBuffers(pid_t tid) { copyProducerToFile(tid, false); }
 
+bool ProducerEmpty(pid_t tid) { return produceBuffer_[tid]->empty(); }
+
 static void copyProducerToFile(pid_t tid, bool checkSpace) {
     int result;
     bool madeFile = false;

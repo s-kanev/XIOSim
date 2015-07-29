@@ -46,9 +46,6 @@ extern int asid;
 /* Xed machine mode state for when we need to encode/decode things. */
 extern xed_state_t dstate;
 
-/* Is this a throwaway process on a speculative execution path. */
-extern bool speculation_mode;
-
 #define ATOMIC_ITERATE(_list, _it, _lock)                                                          \
     for (lk_lock(&(_lock), 1), (_it) = (_list).begin(), lk_unlock(&(_lock)); [&] {                 \
         lk_lock(&(_lock), 1);                                                                      \
@@ -97,6 +94,7 @@ class thread_state_t {
           "2levbtac:iBTB:1:8:1:128:4:8:l",
           "stack:RAS:16"
         );
+        lastBranchPrediction = 0;
     }
 
     VOID push_loop_state() {
@@ -139,6 +137,7 @@ class thread_state_t {
     per_loop_state_t* loop_state;
 
     class bpred_t* bpred;
+    ADDRINT lastBranchPrediction;
 
     XIOSIM_LOCK lock;
     // XXX: SHARED -- lock protects those

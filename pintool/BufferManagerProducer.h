@@ -23,6 +23,9 @@ handshake_container_t* Back(pid_t tid);
  * be consumed straight away. */
 void FlushBuffers(pid_t tid);
 
+/* Any elements in the current produceBuffer_? */
+bool ProducerEmpty(pid_t tid);
+
 /* Init producerBuffer_ structures. */
 void InitBufferManagerProducer(pid_t harness_pid);
 /* Cleanup. */

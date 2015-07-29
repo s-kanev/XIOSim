@@ -13,6 +13,7 @@
 #include "ipc_queues.h"
 #include "buffer.h"
 #include "BufferManagerProducer.h"
+#include "speculation.h"
 
 #include "syscall_handling.h"
 
@@ -67,7 +68,8 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VO
     /* Kill speculative feeder before reaching a syscall.
      * This guarantees speculative processes don't have side effects. */
     if (speculation_mode) {
-        PIN_ExitProcess(EXIT_SUCCESS);
+        FinishSpeculation(get_tls(threadIndex));
+        return;
     }
 
     lk_lock(&syscall_lock, threadIndex + 1);
