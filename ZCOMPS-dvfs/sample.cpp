@@ -42,7 +42,7 @@ void vf_controller_sample_t::change_vf()
     else
         core->cpu_speed = max_freq;
 
-    ZTRACE_PRINT(core->coreID, "cycles: %lld instrs: %lld IPC: %.3f cpu_speed: %.1f\n", delta_cycles, delta_insn, curr_ipc, core->cpu_speed);
+    ZTRACE_PRINT(core->id, "cycles: %lld instrs: %lld IPC: %.3f cpu_speed: %.1f\n", delta_cycles, delta_insn, curr_ipc, core->cpu_speed);
 
     last_cycle = core->sim_cycle;
     last_commit_insn = core->stat.commit_insn;
