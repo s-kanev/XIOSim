@@ -47,6 +47,17 @@ class Buffer {
         size_--;
     }
 
+    void pop_back() {
+        handshake_container_t* handshake = back();
+        handshake->Clear();
+
+        head_--;
+        if (head_ == -1) {
+            head_ = numPool_ - 1;
+        }
+        size_--;
+    }
+
     handshake_container_t* front() {
         assert(size_ > 0);
         return &(handshakePool_[tail_]);

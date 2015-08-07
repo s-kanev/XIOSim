@@ -23,7 +23,7 @@ class core_fetch_NONE_t:public core_fetch_t
         return false;
     core->oracle->consume(Mop);
     core->current_thread->consumed = true;
-    PC = feeder_NPC;
+    PC = Mop->oracle.NextPC;
     return false;
   }
   virtual void post_fetch(void) { }

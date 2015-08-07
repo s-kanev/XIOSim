@@ -253,15 +253,11 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake) {
     bool slice_start = handshake->flags.isFirstInsn;
 
     if (!core->active && !(slice_start || handshake->flags.flush_pipe)) {
-        fprintf(stderr,
-                "DEBUG DEBUG: Start/stop out of sync? %d PC: %x\n",
-                coreID,
-                handshake->pc);
+        fprintf(stderr, "DEBUG DEBUG: Start/stop out of sync? %d PC: %x\n", coreID, handshake->pc);
         return;
     }
 
     zesto_assert(core->oracle->num_Mops_before_feeder() == 0, (void)0);
-    zesto_assert(!core->oracle->spec_mode, (void)0);
 
     if (handshake->flags.flush_pipe) {
         sim_drain_pipe(coreID);
@@ -270,41 +266,51 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake) {
 
     if (slice_start) {
         core->fetch->PC = handshake->pc;
+        core->fetch->feeder_NPC = handshake->pc;
     }
 
-    // Let the oracle grab any arch state it needs
-    core->oracle->grab_feeder_state(handshake, true, !slice_start);
-
     thread->fetches_since_feeder = 0;
+#ifdef ZTRACE
     md_addr_t NPC = handshake->flags.brtaken ? handshake->tpc : handshake->npc;
-    ZTRACE_PRINT(coreID, "PIN -> PC: %x, NPC: %x \n", handshake->pc, NPC);
+#endif
+    ZTRACE_PRINT(coreID, "PIN -> PC: %x, NPC: %x spec: %d\n", handshake->pc, NPC, handshake->flags.speculative);
 
+    grab_result_t grab_result;
     do {
-        thread->consumed = false;
-        bool fetch_more = sim_main_slave_fetch_insn(coreID);
-        thread->fetches_since_feeder++;
-
-        /* We can fetch more Mops this cycle, and oracle has them. */
-        while (fetch_more && (core->oracle->num_Mops_before_feeder() > 0)) {
-            thread->consumed = false;
-            fetch_more = sim_main_slave_fetch_insn(coreID);
-            thread->fetches_since_feeder++;
+        /* Let the oracle grab any arch state it needs. */
+        grab_result = core->oracle->grab_feeder_state(handshake, true, !slice_start);
+        if (grab_result == HANDSHAKE_NOT_NEEDED) {
+            // XXX: Gather stats.
+            return;
         }
 
-        /* We can fetch more Mops this cycle, and oracle doesn't have them.
-         * We'll get a new one from the feeder, once we re-enter. */
-        if (fetch_more)
-            break;
+        do {
+            thread->consumed = false;
+            bool fetch_more = sim_main_slave_fetch_insn(coreID);
+            thread->fetches_since_feeder++;
 
-        /* Ok, we can't fetch more, wrap this cycle up. */
-        sim_main_slave_post_pin(coreID);
+            /* We can fetch more Mops this cycle, and oracle has them. */
+            while (fetch_more && (core->oracle->num_Mops_before_feeder() > 0)) {
+                thread->consumed = false;
+                fetch_more = sim_main_slave_fetch_insn(coreID);
+                thread->fetches_since_feeder++;
+            }
 
-        /* This is already next cycle, up to fetch. */
-        sim_main_slave_pre_pin(coreID);
-        /* Stay in the loop until the oracle is done with the requested Mop. */
-    } while (!thread->consumed);
+            /* We can fetch more Mops this cycle, and oracle doesn't have them.
+             * We'll get a new one from the feeder, once we re-enter. */
+            if (fetch_more) {
+                break;
+            }
 
-    zesto_assert(core->fetch->PC == NPC, (void)0);
+            /* Ok, we can't fetch more, wrap this cycle up. */
+            sim_main_slave_post_pin(coreID);
+
+            /* This is already next cycle, up to fetch. */
+            sim_main_slave_pre_pin(coreID);
+            /* Stay in the loop until the oracle is done with the requested Mop. */
+        } while (!thread->consumed);
+
+    } while (grab_result == HANDSHAKE_NOT_CONSUMED);
 }
 
 void Zesto_WarmLLC(int asid, unsigned int addr, bool is_write) {

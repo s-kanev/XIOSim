@@ -187,6 +187,8 @@ extern bool assert_spin;
 #include <map>
 #include <unordered_map>
 
+enum grab_result_t { ALL_GOOD, HANDSHAKE_NOT_NEEDED, HANDSHAKE_NOT_CONSUMED };
+
 class core_oracle_t {
 
   /* struct for tracking all in-flight writers of registers */
@@ -211,12 +213,8 @@ class core_oracle_t {
   int next_index(const int index);
   struct Mop_t * get_oldest_Mop();
 
-  void grab_feeder_state(handshake_container_t * handshake, bool allocate_shadow, bool check_pc_mismatch);
+  grab_result_t grab_feeder_state(handshake_container_t * handshake, bool allocate_shadow, bool check_pc_mismatch);
   handshake_container_t * get_shadow_Mop(const struct Mop_t* Mop);
-
-  bool non_spec_read_byte(const md_addr_t addr, const struct Mop_t* Mop, byte_t * res);
-  uint8_t spec_do_read_byte(const md_addr_t addr, const struct Mop_t* Mop);
-  void spec_write_byte(const md_addr_t addr, const byte_t val,  struct uop_t * uop);
 
   struct Mop_t * exec(const md_addr_t requested_PC);
   void consume(const struct Mop_t * const Mop);
