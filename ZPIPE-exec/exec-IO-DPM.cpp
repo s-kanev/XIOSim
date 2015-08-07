@@ -1128,7 +1128,6 @@ void core_exec_IO_DPM_t::load_miss_reschedule(void * const op, const int new_pre
   struct core_t * core = uop->core;
   struct core_exec_IO_DPM_t * E = (core_exec_IO_DPM_t*)core->exec;
   struct core_knobs_t * knobs = core->knobs;
-  zesto_assert(uop->decode.is_load,(void)0);
 
   /* Hit in repeater was already processed */
   if (uop->alloc.LDQ_index == -1 || !uop->decode.is_load    // uop was alredy recycled
@@ -2083,7 +2082,7 @@ bool core_exec_IO_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
 
     /* Send to DL1 */
     if(send_to_dl1) {
-      struct uop_t * dl1_uop = new uop_t();
+      struct uop_t * dl1_uop = x86::get_uop_array(1);
       dl1_uop->core = core;
       dl1_uop->alloc.STQ_index = uop->alloc.STQ_index;
       STQ[STQ_head].action_id = core->new_action_id();
@@ -2098,7 +2097,7 @@ bool core_exec_IO_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
 
     /* Send to DTLB(2), if not a helix signal */
     if(!uop->oracle.is_sync_op) {
-      struct uop_t * dtlb_uop = new uop_t();
+      struct uop_t * dtlb_uop = x86::get_uop_array(1);
       STQ[STQ_head].translation_complete = false;
       dtlb_uop->core = core;
       dtlb_uop->alloc.STQ_index = uop->alloc.STQ_index;
@@ -2114,7 +2113,7 @@ bool core_exec_IO_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
 
     /* Send to memory repeater */
     if(uop->oracle.is_repeated) {
-      struct uop_t * rep_uop = new uop_t();
+      struct uop_t * rep_uop = x86::get_uop_array(1);
       rep_uop->core = core;
       rep_uop->alloc.STQ_index = uop->alloc.STQ_index;
       rep_uop->exec.action_id = STQ[STQ_head].action_id;
@@ -2155,7 +2154,7 @@ bool core_exec_IO_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
       ZESTO_STAT(core->stat.DL1_store_split_accesses++;)
 
       /* Submit second access to DL1 */
-      struct uop_t * dl1_split_uop = new uop_t();
+      struct uop_t * dl1_split_uop = x86::get_uop_array(1);
       dl1_split_uop->core = core;
       dl1_split_uop->alloc.STQ_index = uop->alloc.STQ_index;
       dl1_split_uop->exec.action_id = STQ[STQ_head].action_id;
@@ -2169,7 +2168,7 @@ bool core_exec_IO_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
 
     /* Submit second access to repeater */
     if(uop->oracle.is_repeated) {
-      struct uop_t * rep_split_uop = new uop_t();
+      struct uop_t * rep_split_uop = x86::get_uop_array(1);
       rep_split_uop->core = core;
       rep_split_uop->alloc.STQ_index = uop->alloc.STQ_index;
       rep_split_uop->exec.action_id = STQ[STQ_head].action_id;
@@ -2499,7 +2498,7 @@ void core_exec_IO_DPM_t::step()
         uop = uop->decode.fusion_next;
 
       if((uop->decode.is_load && uop->exec.ovalue_valid) || uop->decode.is_nop ||
-           uop->Mop->decode.is_trap || ((uop->decode.opflags & F_AGEN) == F_AGEN) ||
+           uop->Mop->decode.is_trap || uop->decode.is_agen ||
            uop->decode.is_sta || uop->decode.is_std)
       {
          if(can_issue_IO(uop))
@@ -2537,7 +2536,7 @@ void core_exec_IO_DPM_t::step()
 
     //uop is leaving the end of the issue pipe
     if(uop->decode.is_load || uop->decode.is_nop ||
-         uop->Mop->decode.is_trap || ((uop->decode.opflags & F_AGEN) == F_AGEN) ||
+         uop->Mop->decode.is_trap || uop->decode.is_agen ||
          uop->decode.is_sta || uop->decode.is_std)
     {
        /* This may happen when we process a jump prior in program order on the same cycle
@@ -2839,7 +2838,7 @@ void core_exec_IO_DPM_t::step()
 
          if(uop->decode.is_load || uop->decode.is_sta
                || uop->decode.is_nop || uop->Mop->decode.is_trap
-               || (uop->decode.opflags & F_AGEN) == F_AGEN)
+               || uop->decode.is_agen)
           {
 //             if(!core->commit->pre_commit_available() || !can_issue_IO(uop))
 //             {
@@ -3112,7 +3111,7 @@ void core_exec_IO_DPM_t::step()
            }
 
            /* LEA workaround - execution of LEA instruction on the Atom happens in the AGU, not in the ALU (see Intel Optimization manual) */
-           if((curr_uop->decode.opflags & F_AGEN) == F_AGEN && !stall)
+           if(curr_uop->decode.is_agen && !stall)
            {
              for(int j=0;j<MAX_IDEPS;j++)
                 if (curr_uop->timing.when_ival_ready[j] <= core->sim_cycle)
@@ -3189,7 +3188,7 @@ bool core_exec_IO_DPM_t::can_issue_IO(struct uop_t * const uop)
   tick_t when_otag_ready;
   if(!uop->decode.is_load && !uop->decode.is_sta && !uop->decode.is_std
      && !uop->decode.is_nop && !uop->Mop->decode.is_trap
-     && (uop->decode.opflags & F_AGEN) != F_AGEN)
+     && !uop->decode.is_agen)
   {
      int fp_penalty = get_fp_penalty(uop);
      when_otag_ready = core->sim_cycle + port[uop->alloc.port_assignment].FU[uop->decode.FU_class]->latency + fp_penalty;
@@ -3255,7 +3254,7 @@ bool core_exec_IO_DPM_t::can_issue_IO(struct uop_t * const uop)
                 when_curr_ready = curr_uop->timing.when_completed;
              else if(curr_uop->decode.is_sta || curr_uop->decode.is_std
                      || curr_uop->decode.is_nop || curr_uop->Mop->decode.is_trap
-                     || (curr_uop->decode.opflags & F_AGEN) == F_AGEN)
+                     || curr_uop->decode.is_agen)
                 when_curr_ready = TICK_T_MAX;
              else
              {

@@ -2673,7 +2673,7 @@ bool core_exec_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
 
     /* Send to DL1 */
     if(send_to_dl1) {
-      struct uop_t * dl1_uop = new uop_t();
+      struct uop_t * dl1_uop = x86::get_uop_array(1);
       dl1_uop->core = core;
       dl1_uop->alloc.STQ_index = uop->alloc.STQ_index;
       dl1_uop->exec.action_id = STQ[STQ_head].action_id;
@@ -2687,7 +2687,7 @@ bool core_exec_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
 
     /* Send to DTLB(2), if not a helix signal */
     if(!uop->oracle.is_sync_op) {
-      struct uop_t * dtlb_uop = new uop_t();
+      struct uop_t * dtlb_uop = x86::get_uop_array(1);
       STQ[STQ_head].translation_complete = false;
       dtlb_uop->core = core;
       dtlb_uop->alloc.STQ_index = uop->alloc.STQ_index;
@@ -2703,7 +2703,7 @@ bool core_exec_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
 
     /* Send to memory repeater */
     if(uop->oracle.is_repeated) {
-      struct uop_t * rep_uop = new uop_t();
+      struct uop_t * rep_uop = x86::get_uop_array(1);
       rep_uop->core = core;
       rep_uop->alloc.STQ_index = uop->alloc.STQ_index;
       rep_uop->exec.action_id = STQ[STQ_head].action_id;
@@ -2744,7 +2744,7 @@ bool core_exec_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
       ZESTO_STAT(core->stat.DL1_store_split_accesses++;)
 
       /* Submit second access to DL1 */
-      struct uop_t * dl1_split_uop = new uop_t();
+      struct uop_t * dl1_split_uop = x86::get_uop_array(1);
       dl1_split_uop->core = core;
       dl1_split_uop->alloc.STQ_index = uop->alloc.STQ_index;
       dl1_split_uop->exec.action_id = STQ[STQ_head].action_id;
@@ -2758,7 +2758,7 @@ bool core_exec_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
 
     /* Submit second access to repeater */
     if(uop->oracle.is_repeated) {
-      struct uop_t * rep_split_uop = new uop_t();
+      struct uop_t * rep_split_uop = x86::get_uop_array(1);
       rep_split_uop->core = core;
       rep_split_uop->alloc.STQ_index = uop->alloc.STQ_index;
       rep_split_uop->exec.action_id = STQ[STQ_head].action_id;

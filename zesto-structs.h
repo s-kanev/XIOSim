@@ -121,8 +121,6 @@ struct alignas(16) uop_t
   struct Mop_t * Mop; /* back pointer to parent marco-inst */
 
   struct {
-    uop_inst_t raw_op; /* original undecoded uop format  (from md_get_flow::flowtab) */
-    //enum md_opcode op; /* specific opcode for this uop */
     unsigned int opflags; /* decoded flags */
 
     bool has_imm; /* TRUE if this uop has an immediate (which is stored in the next two consecutive uops */
@@ -143,6 +141,7 @@ struct alignas(16) uop_t
     bool is_nop;  /* Is NOP? */
     bool is_fence; /* Is fence? */
     bool is_light_fence; /* Light fence? (heavy vs light == wait for commit vs wait for WB) */
+    bool is_agen; /* Is AGEN uop (LEA instruction) */
 
     /* assume unique uop ID assigned when Mop cracked */
     seq_t Mop_seq;
@@ -189,7 +188,6 @@ struct alignas(16) uop_t
     /* memory information */
     md_addr_t virt_addr;
     md_paddr_t phys_addr;
-    union val_t mem_value;
     // XXX: Clean-up
     int is_repeated; /* uses cache hierarchy or mem-repater */
     int is_sync_op;  /* repeater-bound ops -- are they wait/signal */

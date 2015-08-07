@@ -1449,8 +1449,8 @@ bool core_exec_STM_t::STQ_deallocate_std(struct uop_t * const uop)
      entries until the store actually finishes accessing
      memory, but commit can proceed past this store once the
      request has entered into the cache hierarchy. */
-  struct uop_t * dl1_uop = new uop_t();
-  struct uop_t * dtlb_uop = new uop_t();
+  struct uop_t * dl1_uop = x86::get_uop_array(1);
+  struct uop_t * dtlb_uop = x86::get_uop_array(1);
   dl1_uop->core = core;
   dtlb_uop->core = core;
 
