@@ -334,9 +334,6 @@ struct uop_t * core_decode_STM_t::uop_peek(void)
       struct Mop_t * Mop = pipe[stage][i];      /* Mop in current decoder */
       uop = &Mop->uop[Mop->decode.last_stage_index]; /* first non-queued uop */
       
-      uop->decode.Mop_seq = Mop->oracle.seq;
-      uop->decode.uop_seq = (Mop->oracle.seq << UOP_SEQ_SHIFT) + uop->flow_index;
-
       zesto_assert(uop != NULL,NULL);
       return uop;
     }
