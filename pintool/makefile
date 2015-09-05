@@ -116,7 +116,10 @@ endif
 TIMING = $(OBJDIR)timing_sim
 FEEDER = $(OBJDIR)feeder_zesto.so
 HARNESS = $(OBJDIR)harness
-UNIT_TESTS = $(OBJDIR)test_allocation $(OBJDIR)test_parse_speedup $(OBJDIR)test_speedup_models $(OBJDIR)test_handshake_compression $(OBJDIR)test_parse_configs $(OBJDIR)test_uop_cracker $(OBJDIR)test_decoder $(OBJDIR)test_stat_database
+UNIT_TESTS = $(OBJDIR)test_allocation $(OBJDIR)test_parse_speedup $(OBJDIR)test_speedup_models $(OBJDIR)test_handshake_compression $(OBJDIR)test_uop_cracker $(OBJDIR)test_decoder $(OBJDIR)test_stat_database
+# XXX: 'unit tests' that actually require linking with all of libsim.
+# we need to untangle the mess that are config dependences.
+NOT_SO_UNIT_TESTS = $(OBJDIR)test_parse_configs
 
 SPEEDUP_OBJS = $(OBJDIR)base_speedup_model.o $(OBJDIR)log_speedup_model.o $(OBJDIR)linear_speedup_model.o $(OBJDIR)linreg.o
 ALLOCATOR_OBJS = $(SPEEDUP_OBJS) $(OBJDIR)penalty_allocator.o $(OBJDIR)local_opt_allocator.o $(OBJDIR)gang_allocator.o $(OBJDIR)base_allocator.o $(OBJDIR)optimization_targets.o
@@ -132,14 +135,16 @@ DECODING_OBJS = $(ZESTO_HOME)/decode.o $(ZESTO_HOME)/uop_cracker.o $(ZESTO_HOME)
 UNIT_TEST_DEPS = $(ALLOCATOR_OBJS) $(SPEEDUP_OBJS) $(OBJDIR)parse_speedup.o $(OBJDIR)linreg.o $(OBJDIR)multiprocess_shared.o $(OBJDIR)ipc_queues.o $(OBJDIR)mpkeys_impl.o $(ZESTO_HOME)/zesto-config-params.o $(OBJDIR)lib.o $(DECODING_OBJS)
 
 UNIT_TEST_OBJS = $(UNIT_TESTS:%=%.o)
+NOT_SO_UNIT_TEST_OBJS = $(NOT_SO_UNIT_TESTS:%=%.o)
 
 ##############################################################
 #
 # build targets
 #
 ##############################################################
-all: $(OBJDIR) $(TIMING) $(HARNESS) $(FEEDER) $(UNIT_TESTS)
-test: $(OBJDIR) $(UNIT_TESTS)
+all: $(OBJDIR) $(TIMING) $(HARNESS) $(FEEDER) $(UNIT_TESTS) $(NOT_SO_UNIT_TESTS)
+
+test: $(OBJDIR) $(UNIT_TESTS) $(NOT_SO_UNIT_TESTS)
 
 ##############################################################
 #
@@ -192,7 +197,10 @@ $(FEEDER): $(FEEDER_OBJS) $(SIM_LIB)
 $(HARNESS): $(HARNESS_OBJS)
 	${LINKER} -g ${LINK_EXE}$@ ${CONFUSE_LPATHS} $^ $(BOOST_LIBS) $(CONFUSE_LIB)
 
-$(UNIT_TESTS): % : %.o $(UNIT_TEST_DEPS) $(SIM_LIB) $(REPEATER_LIB) $(DRAMSIM_LIB) $(MCPAT_LIB)
+$(UNIT_TESTS): % : %.o $(UNIT_TEST_DEPS) $(REPEATER_LIB) $(DRAMSIM_LIB) $(MCPAT_LIB)
+	${LINKER} -g ${LINK_EXE}$@ ${XED_LPATHS} $^ ${CONFUSE_LPATHS} $(BOOST_LIBS) $(XED_LIBS) $(CONFUSE_LIB)
+
+$(NOT_SO_UNIT_TESTS): % : %.o $(UNIT_TEST_DEPS) $(SIM_LIB) $(REPEATER_LIB) $(DRAMSIM_LIB) $(MCPAT_LIB)
 	${LINKER} -g ${LINK_EXE}$@ ${XED_LPATHS} $^ ${CONFUSE_LPATHS} $(BOOST_LIBS) $(XED_LIBS) $(CONFUSE_LIB)
 
 ##############################################################
@@ -227,9 +235,11 @@ install:
 ##############################################################
 run_unit_tests: test
 	$(foreach t,$(UNIT_TESTS),$t;)
+	$(foreach t,$(NOT_SO_UNIT_TESTS),$t;)
 
 run_unit_tests_junit: test
 	$(foreach t,$(UNIT_TESTS),$t -r junit -o $(subst $(OBJDIR),$(ZESTO_HOME)/,$t.xml;))
+	$(foreach t,$(NOT_SO_UNIT_TESTS),$t -r junit -o $(subst $(OBJDIR),$(ZESTO_HOME)/,$t.xml;))
 
 run_integration_tests: all
 	cd $(ZESTO_HOME); py.test scripts/run_tests.py
