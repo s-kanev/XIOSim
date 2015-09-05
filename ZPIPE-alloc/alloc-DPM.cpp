@@ -331,7 +331,7 @@ void core_alloc_DPM_t::step(void)
               uop->timing.when_issued = core->sim_cycle;
               if (!uop->decode.is_fence)
                 uop->timing.when_completed = core->sim_cycle;
-              if (uop->decode.is_fence || is_uop_helix_signal(uop))
+              if (uop->decode.is_fence || is_uop_helix_signal(uop) || uop->decode.is_nop)
                 uop->timing.when_exec = core->sim_cycle;
 
               if (is_uop_helix_signal(uop) && uop->decode.is_sta)
