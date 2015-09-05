@@ -1,3 +1,4 @@
+#include "zesto-structs.h"
 #include "zesto-core.h"
 #include "zesto-power.h"
 #include "ztrace.h"

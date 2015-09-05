@@ -138,6 +138,7 @@
 #include "misc.h"
 #include "thread.h"
 #include "memory.h"
+#include "decode.h"
 #include "uop_cracker.h"
 
 #include "zesto-core.h"
@@ -858,8 +859,7 @@ void core_oracle_t::commit(const struct Mop_t* const commit_Mop) {
     MopQ_head = modinc(MopQ_head, MopQ_size);  //(MopQ_head + 1) % MopQ_size;
     MopQ_num--;
     assert(MopQ_num >= 0);
-    x86::clear_uop_array(Mop);
-    Mop->uop = NULL;
+    Mop->clear_uops();
 
     shadow_MopQ->pop();
     assert(shadow_MopQ->size() >= 0);
@@ -949,7 +949,7 @@ void core_oracle_t::recover(const struct Mop_t* const Mop) {
     while (!to_delete.empty()) {
         struct Mop_t* Mop_r = to_delete.top();
         to_delete.pop();
-        x86::clear_uop_array(Mop_r);
+        Mop_r->clear_uops();
     }
 
     ZTRACE_PRINT(core->id,
@@ -1031,7 +1031,7 @@ void core_oracle_t::complete_flush(void) {
     while (!to_delete.empty()) {
         struct Mop_t* Mop_r = to_delete.top();
         to_delete.pop();
-        x86::clear_uop_array(Mop_r);
+        Mop_r->clear_uops();
     }
 
     assert(MopQ_head == MopQ_tail);

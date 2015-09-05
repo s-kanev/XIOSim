@@ -80,6 +80,7 @@
 #include "zesto-MC.h"
 #include "zesto-dram.h"
 #include "zesto-noc.h"
+#include "zesto-structs.h"
 
 
 

@@ -76,6 +76,7 @@
 #include <stddef.h>
 #include "zesto-core.h"
 #include "synchronization.h"
+#include "zesto-structs.h"
 
 #include "zesto-oracle.h"
 #include "zesto-fetch.h"
@@ -93,7 +94,6 @@ core_t::core_t(const int core_id):
   oracle(NULL), fetch(NULL), decode(NULL), alloc(NULL),
   exec(NULL), commit(NULL), num_signals_in_pipe(0),
   global_action_id(0), odep_free_pool(NULL)
-  
 {
   memzero(&memory,sizeof(memory));
   memzero(&stat,sizeof(stat));
@@ -135,11 +135,6 @@ void core_t::return_odep_link(struct odep_t * const p)
   odep_free_pool_debt--;
   /* p->next used for free list, will be cleared on "get" */
 }
-
-void core_t::zero_Mop(struct Mop_t * const Mop)
-{
-}
-
 
 void core_t::reg_stats(struct stat_sdb_t *sdb)
 {

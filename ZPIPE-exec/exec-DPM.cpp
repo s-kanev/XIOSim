@@ -2892,7 +2892,7 @@ void core_exec_DPM_t::store_dl1_callback(void * const op)
       }
     }
   }
-  delete uop;
+  x86::return_uop_array(uop, 1);
 }
 
 /* only used for the 2nd part of a split write */
@@ -2919,7 +2919,7 @@ void core_exec_DPM_t::store_dl1_split_callback(void * const op)
       }
     }
   }
-  delete uop;
+  x86::return_uop_array(uop, 1);
 }
 
 void core_exec_DPM_t::store_dtlb_callback(void * const op)
@@ -2936,7 +2936,7 @@ void core_exec_DPM_t::store_dtlb_callback(void * const op)
   zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
   if(uop->exec.action_id == E->STQ[uop->alloc.STQ_index].action_id)
     E->STQ[uop->alloc.STQ_index].translation_complete = true;
-  delete uop;
+  x86::return_uop_array(uop, 1);
 }
 
 bool core_exec_DPM_t::store_translated_callback(void * const op, const seq_t action_id /* ignored */)
@@ -2979,7 +2979,7 @@ void core_exec_DPM_t::repeater_store_callback(void * const op, bool is_hit)
       E->update_last_completed(core->sim_cycle);
     }
   }
-  delete uop;
+  x86::return_uop_array(uop, 1);
 }
 
 /* only used for the 2nd part of a split write */
@@ -3007,7 +3007,7 @@ void core_exec_DPM_t::repeater_split_store_callback(void * const op, bool is_hit
       E->update_last_completed(core->sim_cycle);
     }
   }
-  delete uop;
+  x86::return_uop_array(uop, 1);
 }
 
 bool core_exec_DPM_t::is_senior_STQ_entry_valid(int STQ_ind)

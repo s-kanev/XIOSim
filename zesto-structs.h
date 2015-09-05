@@ -80,6 +80,8 @@ extern "C" {
 }
 #include "fu.h"
 #include "regs.h"
+#include "uop_cracker.h"
+#include "zesto-core.h"
 
 #define MAX_IDEPS 3
 #define MAX_ODEPS 2
@@ -107,10 +109,6 @@ struct odep_t {
   struct odep_t * next;
 };
 
-namespace xiosim {
-namespace x86 {
-}
-}
 using namespace xiosim;
 using namespace xiosim::x86;
 
@@ -391,6 +389,16 @@ struct alignas(16) Mop_t
       this->timing.when_commit_started = TICK_T_MAX;
       this->timing.when_commit_finished = TICK_T_MAX;
       this->valid = true;
+  }
+
+  void allocate_uops(void) {
+      uop = x86::get_uop_array(decode.flow_length);
+  }
+
+  void clear_uops(void) {
+      x86::return_uop_array(uop, decode.flow_length);
+
+      uop = nullptr;
   }
 };
 

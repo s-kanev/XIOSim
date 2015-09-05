@@ -136,10 +136,10 @@
  *
  */
 
-#include "zesto-structs.h"
-
 #include "stats.h"
 #define ZESTO_STAT(x) {if(core->active) {x}}
+
+struct uop_t;
 
 /* state for the processor microarchitecture (per core) */
 class core_t {
@@ -342,9 +342,6 @@ class core_t {
 
   struct odep_t * get_odep_link(void);
   void return_odep_link(struct odep_t * const p);
-
-  static void zero_uop(struct uop_t * const uop);
-  static void zero_Mop(struct Mop_t * const Mop);
 
   void reg_stats(struct stat_sdb_t *sdb);
 

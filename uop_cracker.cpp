@@ -2,6 +2,7 @@
 #include <iostream>
 #include <list>
 
+#include "decode.h"
 #include "uop_cracker.h"
 
 using namespace std;
@@ -9,24 +10,52 @@ using namespace std;
 namespace xiosim {
 namespace x86 {
 
+/*
+ * Dedicated pool for allocating uops.
+ * We do need to keep our own free lists, as opposed to using a general-purpose allocator.
+ * This is because we use action_id-s to figure out whether a uop is still valid.
+ * In structures like caches or ALUs we only keep a pointer to the uop, and check the
+ * action_id to see whether it has been cancelled. So, for speculative uops, we technically
+ * access their storage after free-ing them. It's not ok to reclaim that space for
+ * allocating anything that's not a uop. Note that it's ok to use it for uops because
+ * the action_id field will still be at the same offset, and every structure will
+ * drop the cancelled uop once it sees a mismatch.
+ */
+static thread_local std::list<uop_t*> uop_free_lists[MAX_NUM_UOPS + 1];
+
+struct uop_t* get_uop_array(const size_t num_uops) {
+    assert(num_uops > 0 && num_uops <= MAX_NUM_UOPS);
+    auto& free_list = uop_free_lists[num_uops];
+
+    void* space = nullptr;
+    if (free_list.empty()) {
+        /* Allocate aligned storage for the uop array. */
+        if (posix_memalign(&space, alignof(struct uop_t), num_uops * sizeof(struct uop_t)))
+            fatal("Memory allocation failed.");
+    } else {
+        /* We have an appropriate free list entry for reuse. */
+        space = free_list.front();
+        free_list.pop_front();
+    }
+    /* Regardless, construct our brand new uops. */
+    return new (space) uop_t[num_uops];
+}
+
+void return_uop_array(struct uop_t* p, const size_t num_uops) {
+    assert(num_uops > 0 && num_uops <= MAX_NUM_UOPS);
+    /* Make sure we destruct all uops. */
+    for (size_t i = 0; i < num_uops; i++)
+        p[i].~uop_t();
+
+    /* Add uop array to appropriate free list. */
+    auto& free_list = uop_free_lists[num_uops];
+    free_list.push_front(p);
+}
+
 static list<xed_reg_enum_t> get_registers_read(const struct Mop_t* Mop);
 static list<xed_reg_enum_t> get_registers_written(const struct Mop_t* Mop);
 static list<xed_reg_enum_t>
 get_memory_operand_registers_read(const struct Mop_t* Mop, size_t mem_op);
-
-struct uop_t* get_uop_array(const size_t size) {
-    void* space = nullptr;
-    /* Allocate aligned storage for the uop array. */
-    if (posix_memalign(&space, alignof(struct uop_t), size * sizeof(struct uop_t)))
-        fatal("Memory allocation failed.");
-
-    return new (space) uop_t[size];
-}
-
-void clear_uop_array(struct Mop_t* Mop) {
-    delete[] Mop -> uop;
-    Mop->uop = nullptr;
-}
 
 /* Helper to fill out flags and registers for a load uop. */
 static void
@@ -83,7 +112,7 @@ static void fallback(struct Mop_t* Mop) {
     }
 
     /* Allocate uop array that we can start filling out. */
-    Mop->uop = get_uop_array(Mop->decode.flow_length);
+    Mop->allocate_uops();
 
     /* Fill out flags for main uop. */
     struct uop_t& main_uop = Mop->uop[op_index];
@@ -361,7 +390,7 @@ static bool check_lea(const struct Mop_t* Mop) {
 static bool check_tables(struct Mop_t* Mop) {
     if (check_load(Mop)) {
         Mop->decode.flow_length = 1;
-        Mop->uop = get_uop_array(Mop->decode.flow_length);
+        Mop->allocate_uops();
 
         /* Set flags and implicit register dependences. */
         fill_out_load_uop(Mop, Mop->uop[0]);
@@ -375,7 +404,7 @@ static bool check_tables(struct Mop_t* Mop) {
 
     if (check_store(Mop)) {
         Mop->decode.flow_length = 2;
-        Mop->uop = get_uop_array(Mop->decode.flow_length);
+        Mop->allocate_uops();
 
         fill_out_sta_uop(Mop, Mop->uop[0]);
 
@@ -403,7 +432,7 @@ static bool check_tables(struct Mop_t* Mop) {
             jmp_ind = 4;
             store_memory_op_index = 1;
         }
-        Mop->uop = get_uop_array(Mop->decode.flow_length);
+        Mop->allocate_uops();
 
         /* uop01: sta std EIP -> [ESP] */
         fill_out_sta_uop(Mop, Mop->uop[0], store_memory_op_index);
@@ -436,7 +465,7 @@ static bool check_tables(struct Mop_t* Mop) {
 
     if (check_ret(Mop)) {
         Mop->decode.flow_length = 3;
-        Mop->uop = get_uop_array(Mop->decode.flow_length);
+        Mop->allocate_uops();
 
         /* uop0: Load jump destination */
         Mop->uop[0].decode.is_load = true;
@@ -465,7 +494,7 @@ static bool check_tables(struct Mop_t* Mop) {
             Mop->decode.flow_length++;
             store_memory_op_index = 1;
         }
-        Mop->uop = get_uop_array(Mop->decode.flow_length);
+        Mop->allocate_uops();
 
         if (has_load) {
             fill_out_load_uop(Mop, Mop->uop[0]);
@@ -502,7 +531,7 @@ static bool check_tables(struct Mop_t* Mop) {
             Mop->decode.flow_length += 2;
             read_mem_operand_ind = 1;
         }
-        Mop->uop = get_uop_array(Mop->decode.flow_length);
+        Mop->allocate_uops();
 
         fill_out_load_uop(Mop, Mop->uop[0], read_mem_operand_ind);
         if (has_store) {
@@ -526,7 +555,7 @@ static bool check_tables(struct Mop_t* Mop) {
     /* Some (I)MUL and (I)DIV variants write to two output registers. */
     if (check_mul(Mop) || check_div(Mop)) {
         Mop->decode.flow_length = 3;
-        Mop->uop = get_uop_array(Mop->decode.flow_length);
+        Mop->allocate_uops();
 
         if (is_load(Mop)) {
             fill_out_load_uop(Mop, Mop->uop[0]);
@@ -551,7 +580,7 @@ static bool check_tables(struct Mop_t* Mop) {
 
     if (check_lea(Mop)) {
         Mop->decode.flow_length = 1;
-        Mop->uop = get_uop_array(Mop->decode.flow_length);
+        Mop->allocate_uops();
 
         /* Treat as load to generate correct dependences, then overwrite flags and FUs. */
         fill_out_load_uop(Mop, Mop->uop[0]);
@@ -569,7 +598,7 @@ static bool check_tables(struct Mop_t* Mop) {
     /* CPUID writes to four output registers. */
     if (check_cpuid(Mop)) {
         Mop->decode.flow_length = 4;
-        Mop->uop = get_uop_array(Mop->decode.flow_length);
+        Mop->allocate_uops();
 
         Mop->uop[0].decode.odep_name[0] = XED_REG_EAX;
         Mop->uop[1].decode.odep_name[0] = XED_REG_EBX;

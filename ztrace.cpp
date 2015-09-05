@@ -40,6 +40,7 @@ void trace(const int coreID, const char* fmt, ...) {
 
 void vtrace(const int coreID, const char* fmt, va_list v) {
     int trace_id = (coreID == INVALID_CORE) ? num_cores : coreID;
+    assert(trace_id >= 0 && trace_id <= num_cores);
 
     vsprintf(tracebuff[trace_id][tracebuff_tail[trace_id]], fmt, v);
 

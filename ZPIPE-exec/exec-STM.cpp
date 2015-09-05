@@ -1523,7 +1523,7 @@ void core_exec_STM_t::store_dl1_callback(void * const op)
   struct core_knobs_t * knobs = core->knobs;
 
   zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
-  delete uop;
+  x86::return_uop_array(uop, 1);
 }
 
 void core_exec_STM_t::store_dtlb_callback(void * const op)
@@ -1533,7 +1533,7 @@ void core_exec_STM_t::store_dtlb_callback(void * const op)
   struct core_knobs_t * knobs = core->knobs;
 
   zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
-  delete uop;
+  x86::return_uop_array(uop, 1);
 }
 
 bool core_exec_STM_t::store_translated_callback(void * const op, const seq_t action_id /* ignored */)
