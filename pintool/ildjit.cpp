@@ -16,7 +16,6 @@
 #include "multiprocess_shared.h"
 #include "ipc_queues.h"
 
-#include "buffer.h"
 #include "BufferManagerProducer.h"
 #include "ignore_ins.h"
 

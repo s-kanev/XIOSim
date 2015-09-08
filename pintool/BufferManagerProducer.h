@@ -2,6 +2,7 @@
 #define __BUFFER_MANAGER_PRODUCER__
 
 #include "BufferManager.h"
+#include "handshake_container.h"
 
 namespace xiosim {
 namespace buffer_management {

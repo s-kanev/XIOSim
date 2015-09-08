@@ -2,16 +2,16 @@
 #define BUF_FER_H
 
 #include <cstddef>
-#include <map>
-#include <queue>
 #include <assert.h>
-#include "handshake_container.h"
 
+/* Buffer is a pre-allocated circular queue.
+ * T must be default-constructible, and have a void Invalidate(void) method. */
+template<typename T>
 class Buffer {
   public:
     Buffer(int size)
         : numPool_(size)
-        , handshakePool_(new handshake_container_t[numPool_])
+        , pool_(new T[numPool_])
         , head_(0)
         , tail_(0)
         , size_(0) {}
@@ -20,9 +20,9 @@ class Buffer {
     // which returns a pointer to an internal storage element and (ii)
     // push_done(), which markes the element as unavailable and occupying
     // space.
-    handshake_container_t* get_buffer() {
+    T* get_buffer() {
         assert(!full());
-        return &(handshakePool_[head_]);
+        return &(pool_[head_]);
     }
 
     void push_done() {
@@ -37,8 +37,8 @@ class Buffer {
     }
 
     void pop() {
-        handshake_container_t* handshake = front();
-        handshake->Clear();
+        T* head = front();
+        head->Invalidate();
 
         tail_++;
         if (tail_ == numPool_) {
@@ -48,8 +48,8 @@ class Buffer {
     }
 
     void pop_back() {
-        handshake_container_t* handshake = back();
-        handshake->Clear();
+        T* head = back();
+        head->Invalidate();
 
         head_--;
         if (head_ == -1) {
@@ -58,30 +58,30 @@ class Buffer {
         size_--;
     }
 
-    handshake_container_t* front() {
+    T* front() {
         assert(size_ > 0);
-        return &(handshakePool_[tail_]);
+        return &(pool_[tail_]);
     }
 
-    handshake_container_t* back() {
+    T* back() {
         assert(size_ > 0);
 
         int dex = (head_ - 1);
         if (dex == -1) {
             dex = numPool_ - 1;
         }
-        return &(handshakePool_[dex]);
+        return &(pool_[dex]);
     }
 
     // [0] corresponds to front(), [size_ - 1] to back()
     // does not bounds check
-    handshake_container_t* get_item(int index) {
+    T* get_item(int index) {
         int dex = (tail_ + index);
         if (dex >= numPool_)
             dex -= numPool_;
-        return &(handshakePool_[dex]);
+        return &(pool_[dex]);
     }
-    handshake_container_t* operator[](int index) { return get_item(index); }
+    T* operator[](int index) { return get_item(index); }
 
     bool empty() { return size_ == 0; }
     bool full() { return size_ == numPool_; }
@@ -91,7 +91,7 @@ class Buffer {
 
   private:
     int numPool_;
-    handshake_container_t* handshakePool_;
+    T* pool_;
     int head_;
     int tail_;
 

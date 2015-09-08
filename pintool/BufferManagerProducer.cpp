@@ -22,7 +22,7 @@ static void writeHandshake(pid_t tid, int fd, std::string fname, handshake_conta
 static int getKBFreeSpace(std::string path);
 static std::string genFileName(std::string path);
 
-static std::unordered_map<pid_t, Buffer*> produceBuffer_;
+static std::unordered_map<pid_t, Buffer<handshake_container_t>*> produceBuffer_;
 static std::unordered_map<pid_t, int> writeBufferSize_;
 static std::unordered_map<pid_t, void*> writeBuffer_;
 static std::vector<std::string> bridgeDirs_;
@@ -56,7 +56,7 @@ void AllocateThreadProducer(pid_t tid) {
     std::lock_guard<XIOSIM_LOCK> l(init_lock_);
     int bufferCapacity = AllocateThread(tid);
 
-    produceBuffer_[tid] = new Buffer(bufferCapacity);
+    produceBuffer_[tid] = new Buffer<handshake_container_t>(bufferCapacity);
     writeBufferSize_[tid] = 4096;
     writeBuffer_[tid] = malloc(4096);
     assert(writeBuffer_[tid]);

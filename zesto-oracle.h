@@ -136,6 +136,7 @@
  */
 
 #include "buffer.h"
+#include "handshake_container.h"
 #include "synchronization.h"
 #include "zesto-cache.h"
 #include "ztrace.h"
@@ -244,7 +245,7 @@ class core_oracle_t {
   struct Mop_t * current_Mop; /* pointer to track a Mop that has been executed but not consumed (i.e. due to fetch stall) */
   int MopQ_spec_num;
 
-  Buffer * shadow_MopQ;
+  Buffer<handshake_container_t> * shadow_MopQ;
 
   struct core_t * core;
   /* dependency tracking used by oracle */

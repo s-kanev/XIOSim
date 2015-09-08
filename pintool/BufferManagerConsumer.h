@@ -1,6 +1,8 @@
 #ifndef __BUFFER_MANAGER_CONSUMER__
 #define __BUFFER_MANAGER_CONSUMER__
 
+#include "handshake_container.h"
+
 namespace xiosim {
 namespace buffer_management {
 /* Pushing and popping consumeBuffer_: */

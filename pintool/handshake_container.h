@@ -22,9 +22,9 @@ struct handshake_flags_t {
 
 class alignas(16) handshake_container_t {
   public:
-    handshake_container_t() { Clear(); }
+    handshake_container_t() { Invalidate(); }
 
-    void Clear() {
+    void Invalidate() {
         memset(&flags, 0, sizeof(flags));
         flags.real = true;
         mem_buffer.clear();
@@ -157,8 +157,9 @@ class alignas(16) handshake_container_t {
         out << hand.flags.killThread;
         out << " ";
         out << "mem: " << hand.mem_buffer.size() << " ";
+        out << std::hex;
         for (auto it = hand.mem_buffer.begin(); it != hand.mem_buffer.end(); it++)
-            out << std::hex << it->first << ": " << (uint32_t)it->second << " ";
+            out << it->first << ": " << (uint32_t)it->second << " ";
         out << " ";
         out << "pc: " << hand.pc << " ";
         out << "npc: " << hand.npc << " ";
@@ -169,6 +170,7 @@ class alignas(16) handshake_container_t {
             out << (uint32_t)hand.ins[i] << " ";
         out << "flags: ";
         out << std::dec << hand.flags.real;
+        out << hand.flags.speculative;
         out << hand.flags.in_critical_section;
         out.flush();
         return out;

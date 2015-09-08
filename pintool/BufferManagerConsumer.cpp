@@ -17,7 +17,7 @@ namespace buffer_management {
 static void copyFileToConsumer(pid_t tid, std::string fname, size_t to_read);
 static bool readHandshake(pid_t tid, int fd, handshake_container_t* handshake);
 
-static std::unordered_map<pid_t, Buffer*> consumeBuffer_;
+static std::unordered_map<pid_t, Buffer<handshake_container_t>*> consumeBuffer_;
 static std::unordered_map<pid_t, int> readBufferSize_;
 static std::unordered_map<pid_t, void*> readBuffer_;
 /* Lock that we capture when allocating a thread. This is the only
@@ -38,7 +38,7 @@ void AllocateThreadConsumer(pid_t tid, int buffer_capacity) {
     readBuffer_[tid] = malloc(4096);
     assert(readBuffer_[tid]);
 
-    consumeBuffer_[tid] = new Buffer(buffer_capacity);
+    consumeBuffer_[tid] = new Buffer<handshake_container_t>(buffer_capacity);
 }
 
 handshake_container_t* Front(pid_t tid) {

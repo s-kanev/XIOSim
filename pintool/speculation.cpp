@@ -4,7 +4,6 @@
 #include <chrono>
 #endif
 
-#include "buffer.h"
 #include "BufferManagerProducer.h"
 #include "feeder.h"
 #include "speculation.h"

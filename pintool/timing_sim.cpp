@@ -9,7 +9,6 @@
 
 #include "scheduler.h"
 #include "../synchronization.h"
-#include "buffer.h"
 #include "BufferManagerConsumer.h"
 #include "../zesto-core.h"
 #include "allocators_impl.h"

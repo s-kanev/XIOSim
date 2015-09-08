@@ -192,7 +192,7 @@ core_oracle_t::core_oracle_t(struct core_t* const arg_core)
         MopQ[i].uop = NULL;
     }
 
-    shadow_MopQ = new Buffer(MopQ_size);
+    shadow_MopQ = new Buffer<handshake_container_t>(MopQ_size);
 }
 
 /* register oracle-related stats in the stat-database (sdb) */
