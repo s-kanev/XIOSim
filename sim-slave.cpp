@@ -168,8 +168,7 @@ sim_post_init(void)
     threads[i]->id = i;
 
     threads[i]->finished_cycle = false;
-    threads[i]->consumed = false;
-    threads[i]->fetches_since_feeder = 0;
+    threads[i]->consumed = true;
   }
 
   /* initialize microarchitecture state */
@@ -603,8 +602,4 @@ void sim_main_slave_post_pin(int coreID)
     cores[coreID]->exec->update_occupancy();
     cores[coreID]->commit->update_occupancy();
   }
-
-  /* check to see if all cores are "ok" */
-  if(cores[coreID]->oracle->hosed)
-    fatal("Core %d got hosed, quitting."); 
 }

@@ -402,9 +402,6 @@ inline bool cache_single_line_access(struct cache_t * const cp, const md_addr_t 
  * whether this is a shared/private cache */
 tick_t cache_get_cycle(const struct cache_t * const cp);
 
-/* since these cache functions cannot directly set the core->oracle.hosed
-   bit, they just return and depend on the rest of the core state getting
-   hosed to force a reset. */
 #ifndef cache_fatal
 #ifdef DEBUG
 #define cache_fatal(msg, retval) fatal(msg)

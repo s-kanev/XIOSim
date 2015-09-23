@@ -83,11 +83,11 @@ class Buffer {
     }
     T* operator[](int index) { return get_item(index); }
 
-    bool empty() { return size_ == 0; }
-    bool full() { return size_ == numPool_; }
+    bool empty() const { return size_ == 0; }
+    bool full() const { return size_ == numPool_; }
 
-    int size() { return size_; }
-    int capacity() { return numPool_; }
+    int size() const { return size_; }
+    int capacity() const { return numPool_; }
 
   private:
     int numPool_;

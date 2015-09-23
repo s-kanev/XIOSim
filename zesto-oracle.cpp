@@ -154,20 +154,7 @@
 
 using namespace std;
 
-/* CONSTRUCTOR */
-core_oracle_t::core_oracle_t(struct core_t* const arg_core)
-    : spec_mode(false)
-    , hosed(false)
-    , Mop_seq(0)
-    , MopQ(NULL)
-    , MopQ_head(0)
-    , MopQ_tail(0)
-    , MopQ_num(0)
-    , current_Mop(NULL)
-    , MopQ_spec_num(0) {
-    core = arg_core;
-    struct core_knobs_t* knobs = core->knobs;
-
+static size_t get_MopQ_size(const core_knobs_t* const knobs) {
     /* MopQ should be large enough to support all in-flight
        instructions.  We assume one entry per "slot" in the machine
        (even though in uop-based structures, multiple slots may
@@ -178,7 +165,23 @@ core_oracle_t::core_oracle_t(struct core_t* const arg_core)
                          knobs->fetch.IQ_size + knobs->fetch.depth * knobs->fetch.width +
                          knobs->fetch.byteQ_size + 64;
 
-    MopQ_size = 1 << ((int)ceil(log(temp_MopQ_size) / log(2.0)));
+    return 1 << ((int)ceil(log(temp_MopQ_size) / log(2.0)));
+}
+
+/* CONSTRUCTOR */
+core_oracle_t::core_oracle_t(struct core_t* const arg_core)
+    : spec_mode(false)
+    , Mop_seq(0)
+    , MopQ(NULL)
+    , MopQ_head(0)
+    , MopQ_tail(0)
+    , MopQ_non_spec_tail(0)
+    , MopQ_num(0)
+    , MopQ_size(get_MopQ_size(arg_core->knobs))
+    , current_Mop(NULL)
+    , MopQ_spec_num(0)
+    , shadow_MopQ(get_MopQ_size(arg_core->knobs)) {
+    core = arg_core;
 
     int res = posix_memalign((void**)&MopQ, 16, MopQ_size * sizeof(*MopQ));
     if (!MopQ || res != 0)
@@ -191,8 +194,6 @@ core_oracle_t::core_oracle_t(struct core_t* const arg_core)
         MopQ[i].clear();
         MopQ[i].uop = NULL;
     }
-
-    shadow_MopQ = new Buffer<handshake_container_t>(MopQ_size);
 }
 
 /* register oracle-related stats in the stat-database (sdb) */
@@ -510,40 +511,36 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
 
     Mop->oracle.spec_mode = spec_mode;
 
-    /* get the next instruction to execute */
-    handshake_container_t* handshake = get_shadow_Mop(Mop);
-    zesto_assert(spec_mode == handshake->flags.speculative, NULL);
+    /* get the next instruction to execute from the shadow_MopQ */
+    auto& handshake = shadow_MopQ.get_shadow_Mop(Mop);
+    zesto_assert(spec_mode == handshake.flags.speculative, NULL);
+
     /* read encoding supplied by feeder */
-    memcpy(&Mop->fetch.inst.code, handshake->ins, xiosim::x86::MAX_ILEN);
-
-//    XXX: We need something along these lines for nukes
-//    if (num_Mops_before_feeder() > 0)
-//        grab_feeder_state(handshake, false, true);
-
-    // zesto_assert(MopQ_num == shadow_MopQ->size(), NULL);
+    memcpy(&Mop->fetch.inst.code, handshake.ins, xiosim::x86::MAX_ILEN);
 
     /* then decode the instruction */
     x86::decode(Mop);
-
-#if 0
-  /* Skip invalid instruction */
-  if(Mop->decode.op == OP_NA) {
-      core->fetch->invalid = true;
-      Mop->decode.op = NOP;
-  }
-#endif
-
     x86::decode_flags(Mop);
 
-    core->fetch->feeder_NPC = handshake->flags.brtaken ? handshake->tpc : handshake->npc;
+    md_addr_t oracle_NPC = handshake.flags.brtaken ? handshake.tpc : handshake.npc;
+
+    core->fetch->feeder_PC = handshake.pc;
+    core->fetch->feeder_NPC = oracle_NPC;
+    core->fetch->prev_insn_fake = core->fetch->fake_insn;
+    core->fetch->fake_insn = !handshake.flags.real;
+    core->current_thread->asid = handshake.asid;
+    /* Potentially change HELIX critical section state if instruction is fake. */
+    if (!handshake.flags.real) {
+        core->current_thread->in_critical_section = handshake.flags.in_critical_section;
+    }
 
     Mop->fetch.PC = requested_PC;
-    Mop->fetch.ftPC = handshake->npc;
-    Mop->oracle.taken_branch = handshake->flags.brtaken;
-    Mop->oracle.NextPC = handshake->flags.brtaken ? handshake->tpc : handshake->npc;
+    Mop->fetch.ftPC = handshake.npc;
+    Mop->oracle.taken_branch = handshake.flags.brtaken;
+    Mop->oracle.NextPC = oracle_NPC;
 
     if (Mop->decode.is_ctrl)
-        Mop->decode.targetPC = handshake->tpc;
+        Mop->decode.targetPC = handshake.tpc;
 
     /* set unique id */
     Mop->oracle.seq = Mop_seq++;
@@ -693,8 +690,8 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
 
         /* For loads, stas and stds, we need to grab virt_addr and mem_size from feeder. */
         if (uop->decode.is_load || uop->decode.is_sta || uop->decode.is_std) {
-            zesto_assert(!handshake->mem_buffer.empty(), nullptr);
-            uop->oracle.virt_addr = handshake->mem_buffer.begin()->first;
+            zesto_assert(!handshake.mem_buffer.empty(), nullptr);
+            uop->oracle.virt_addr = handshake.mem_buffer.begin()->first;
             /* XXX: Pass mem_size instead of value in handshake. */
             uop->decode.mem_size = 1;
 
@@ -752,8 +749,11 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
     /* commit this inst to the MopQ */
     MopQ_tail = modinc(MopQ_tail, MopQ_size);  //(MopQ_tail + 1) % MopQ_size;
     MopQ_num++;
-    if (Mop->oracle.spec_mode)
+    if (Mop->oracle.spec_mode) {
         MopQ_spec_num++;
+    } else {
+        MopQ_non_spec_tail = MopQ_tail;
+    }
 
     current_Mop = Mop;
 
@@ -861,8 +861,7 @@ void core_oracle_t::commit(const struct Mop_t* const commit_Mop) {
     assert(MopQ_num >= 0);
     Mop->clear_uops();
 
-    shadow_MopQ->pop();
-    assert(shadow_MopQ->size() >= 0);
+    shadow_MopQ.pop();
 }
 
 /* Undo the effects of the single Mop.  This function only affects the ISA-level
@@ -909,17 +908,18 @@ void core_oracle_t::recover(const struct Mop_t* const Mop) {
     int idx = moddec(MopQ_tail, MopQ_size);  //(MopQ_tail-1+MopQ_size) % MopQ_size;
 
     ZTRACE_PRINT(
-        core->id, "Recovery at MopQ_num: %d; shadow_MopQ_num: %d\n", MopQ_num, shadow_MopQ->size());
+        core->id, "Recovery at MopQ_num: %d; shadow_MopQ_num: %d\n", MopQ_num, shadow_MopQ.size());
 
     while (Mop != &MopQ[idx]) {
         if (idx == MopQ_head)
             fatal("ran out of Mop's before finding requested MopQ recovery point");
 
         /* Flush not caused by branch misprediction - nuke */
-        bool nuke = /*!spec_mode &&*/ !MopQ[idx].oracle.spec_mode;
+        bool nuke = !MopQ[idx].oracle.spec_mode;
 
         ZTRACE_PRINT(core->id,
-                     "Undoing Mop @ PC: %x, nuke: %d, num_Mops_nuked: %d\n",
+                     "Undoing M:%lld @ PC: %x, nuke: %d, num_Mops_nuked: %d\n",
+                     MopQ[idx].oracle.seq,
                      MopQ[idx].fetch.PC,
                      nuke,
                      num_Mops_before_feeder());
@@ -933,16 +933,12 @@ void core_oracle_t::recover(const struct Mop_t* const Mop) {
             MopQ[idx].fetch.bpred_update = NULL;
         }
 
-        if (!nuke) {
-            zesto_assert(shadow_MopQ->back()->flags.speculative, (void)0);
-            shadow_MopQ->pop_back();
-            zesto_assert(shadow_MopQ->size() > 0, (void)0);
-        }
-
         MopQ_num--;
         if (MopQ[idx].oracle.spec_mode)
             MopQ_spec_num--;
         MopQ_tail = idx;
+        if (!MopQ[idx].oracle.spec_mode)
+            MopQ_non_spec_tail = MopQ_tail;
         idx = moddec(idx, MopQ_size);  //(idx-1+MopQ_size) % MopQ_size;
     }
 
@@ -1022,11 +1018,13 @@ void core_oracle_t::complete_flush(void) {
         if (MopQ[idx].oracle.spec_mode)
             MopQ_spec_num--;
         MopQ_tail = idx;
+        if (!MopQ[idx].oracle.spec_mode)
+            MopQ_non_spec_tail = MopQ_tail;
         idx = moddec(idx, MopQ_size);  //(idx-1+MopQ_size) % MopQ_size;
     }
 
-    while (!shadow_MopQ->empty())
-        shadow_MopQ->pop();
+    while (!shadow_MopQ.empty())
+        shadow_MopQ.pop();
 
     while (!to_delete.empty()) {
         struct Mop_t* Mop_r = to_delete.top();
@@ -1035,7 +1033,8 @@ void core_oracle_t::complete_flush(void) {
     }
 
     assert(MopQ_head == MopQ_tail);
-    assert(shadow_MopQ->empty());
+    assert(MopQ_head == MopQ_non_spec_tail);
+    assert(shadow_MopQ.empty());
 
     spec_mode = false;
     current_Mop = NULL;
@@ -1043,89 +1042,48 @@ void core_oracle_t::complete_flush(void) {
     core->current_thread->consumed = true;
 }
 
-grab_result_t core_oracle_t::grab_feeder_state(handshake_container_t* handshake,
-                                      bool allocate_shadow,
-                                      bool check_pc_mismatch) {
-    // This usually happens when we insert fake instructions from pin.
-    // Just use the feeder PC since the instruction context is from there.
-/*    if (check_pc_mismatch && core->fetch->PC != handshake->pc) {
-        if (handshake->flags.real && !core->fetch->prev_insn_fake) {
-            ZTRACE_PRINT(
-                core->id,
-                "PIN->PC (0x%x) different from fetch->PC (0x%x). Overwriting with Pin value!\n",
-                handshake->pc,
-                core->fetch->PC);
-        }
-        core->fetch->PC = handshake->pc;
-    }
-*/
-    ZTRACE_PRINT(core->id, "MopQ_num: %d, shadow_MopQ_num: %d\n",
-                 MopQ_num, shadow_MopQ->size());
-    handshake_container_t* new_handshake = nullptr;
-
+buffer_result_t core_oracle_t::buffer_handshake(handshake_container_t* handshake) {
     /* If we want a speculative handshake. */
     if (spec_mode || // We're already speculating
         core->fetch->PC != core->fetch->feeder_NPC) { // We're about to speculate
 
-        /* Feeder didn't give us a speculative handshake. */
+        /* But feeder isn't giving us one. */
         if (!handshake->flags.speculative) {
-            /* We'll manifacture ourselves a NOP. */
-            new_handshake = new handshake_container_t();
-            new_handshake->pc = core->fetch->PC;
-            new_handshake->npc = core->fetch->PC + 1;
-            new_handshake->tpc = core->fetch->PC + 1;
-            new_handshake->flags.brtaken = false;
-            new_handshake->flags.speculative = true;
-            new_handshake->flags.real = true;
-            new_handshake->flags.valid = true;
-            new_handshake->asid = core->current_thread->asid;
-            new_handshake->ins[0] = 0x90; // NOP
-            handshake = new_handshake;
-            ZTRACE_PRINT(core->id, "fake handshake -> PC: %x\n", core->fetch->PC);
+            /* We'll just manufacture ourselves a NOP. */
+            handshake_container_t tmp_handshake = get_fake_spec_handshake();
+            /* ... put it on the shadow_MopQ ... */
+            shadow_MopQ.push_handshake(&tmp_handshake);
+            /* ... and make sure we're not done with the current one. */
+            return HANDSHAKE_NOT_CONSUMED;
         }
-
-        /* We have a spec handshake, it's business as usual. */
     } else {
-    /* We don't want a spec handshake. */
-        /* Feeder gave us one anyway, we'll drop it. */
-        if (handshake->flags.speculative) {
+        /* We're not speculating, but feeder gave us a speculative one.
+         * For now, we'll just drop it. */
+        if (handshake->flags.speculative)
             return HANDSHAKE_NOT_NEEDED;
-        }
-    }
-
-    core->fetch->feeder_PC = handshake->pc;
-    core->fetch->prev_insn_fake = core->fetch->fake_insn;
-    core->fetch->fake_insn = !handshake->flags.real;
-    core->current_thread->asid = handshake->asid;
-    /* Potentially change HELIX critical section state if instruction is fake. */
-    if (!handshake->flags.real) {
-        core->current_thread->in_critical_section = handshake->flags.in_critical_section;
     }
 
     /* Store a shadow handshake for recovery purposes */
-    if (allocate_shadow) {
-        zesto_assert(!shadow_MopQ->full(), ALL_GOOD);
-        handshake_container_t* shadow_handshake = shadow_MopQ->get_buffer();
-        /* Copy hadnshake to shadow. */
-        new (shadow_handshake) handshake_container_t(*handshake);
-
-        shadow_MopQ->push_done();
-    }
-
-    if (new_handshake) {
-        delete new_handshake;
-        return HANDSHAKE_NOT_CONSUMED;
-    }
+    zesto_assert(!shadow_MopQ.full(), ALL_GOOD);
+    shadow_MopQ.push_handshake(handshake);
 
     return ALL_GOOD;
 }
 
-handshake_container_t* core_oracle_t::get_shadow_Mop(const struct Mop_t* Mop) {
-    int Mop_ind = get_index(Mop);
-    int from_head = (Mop_ind - MopQ_head) & (MopQ_size - 1);
-    handshake_container_t* res = shadow_MopQ->get_item(from_head);
-    zesto_assert(res->flags.valid, NULL);
-    return res;
+/* Manifacture a fake NOP. */
+handshake_container_t core_oracle_t::get_fake_spec_handshake() {
+    handshake_container_t new_handshake;
+    new_handshake.pc = core->fetch->PC;
+    new_handshake.npc = core->fetch->PC + 1;
+    new_handshake.tpc = core->fetch->PC + 1;
+    new_handshake.flags.brtaken = false;
+    new_handshake.flags.speculative = true;
+    new_handshake.flags.real = true;
+    new_handshake.flags.valid = true;
+    new_handshake.asid = core->current_thread->asid;
+    new_handshake.ins[0] = 0x90; // NOP
+    ZTRACE_PRINT(core->id, "fake handshake -> PC: %x\n", core->fetch->PC);
+    return new_handshake;
 }
 
 /* Dump instructions starting from most recent */
@@ -1169,7 +1127,9 @@ unsigned int core_oracle_t::num_non_spec_Mops(void) const {
 }
 
 unsigned int core_oracle_t::num_Mops_before_feeder(void) const {
-    return shadow_MopQ->size() - MopQ_num;//num_non_spec_Mops();
+    int result = shadow_MopQ.non_spec_size() - num_non_spec_Mops();
+    zesto_assert(result >= 0, 0);
+    return result;
 }
 
 /**************************************/

@@ -257,7 +257,8 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake) {
         return;
     }
 
-    zesto_assert(core->oracle->num_Mops_before_feeder() == 0, (void)0);
+    /* Make sure we've cleared recoveries before coming back to feeder for a hshake. */
+    zesto_assert(!core->oracle->on_nuke_recovery_path(), (void)0);
 
     if (handshake->flags.flush_pipe) {
         sim_drain_pipe(coreID);
@@ -269,48 +270,70 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake) {
         core->fetch->feeder_NPC = handshake->pc;
     }
 
-    thread->fetches_since_feeder = 0;
 #ifdef ZTRACE
     md_addr_t NPC = handshake->flags.brtaken ? handshake->tpc : handshake->npc;
 #endif
     ZTRACE_PRINT(coreID, "PIN -> PC: %x, NPC: %x spec: %d\n", handshake->pc, NPC, handshake->flags.speculative);
 
-    grab_result_t grab_result;
+    buffer_result_t buffer_result = ALL_GOOD;
+    bool nuke_recovery = false;
+
+    /* Make sure we didn't get back to feeder before absorbing a hshake. */
+    zesto_assert(thread->consumed, (void)0);
+
     do {
-        /* Let the oracle grab any arch state it needs. */
-        grab_result = core->oracle->grab_feeder_state(handshake, true, !slice_start);
-        if (grab_result == HANDSHAKE_NOT_NEEDED) {
-            // XXX: Gather stats.
+        nuke_recovery = core->oracle->on_nuke_recovery_path();
+
+        /* We're coming here having finished absorbing a handshake.
+         * Buffer the new one in the oracle shadow_MopQ. */
+        if (thread->consumed && !nuke_recovery) {
+            buffer_result = core->oracle->buffer_handshake(handshake);
+            if (buffer_result == HANDSHAKE_NOT_NEEDED) {
+                // XXX: Gather stats.
+                return;
+            }
+            thread->consumed = false;
+        }
+
+        /* Execute the oracle. If all is well, the handshake is consumed, and, depending
+         * on fetch conditions (taken branches, fetch buffers), we either need a new one,
+         * or can carry on simulating the cycle. */
+        bool fetch_more = sim_main_slave_fetch_insn(coreID);
+
+        /* We can fetch more Mops this cycle. */
+        if (fetch_more) {
+            /* On a nuke recovery, oracle has all the needed Mops in the shadow_MopQ.
+             * So, just use them, don't go back to the feeder until we've recovered. */
+            if (nuke_recovery) {
+                // XXX: Gather stats.
+                continue;
+            }
+
+            /* We didn't process the handshake we're consuming now, stay in this loop
+             * until we do.
+             * This happens if the feeder didn't give us a speculative hshake, but we did
+             * speculate, so we had to come up with a fake NOP. */
+            if (buffer_result == HANDSHAKE_NOT_CONSUMED) {
+                // XXX: Gather stats.
+                continue;
+            }
+
+            /* Oracle doesn't have them.
+             * We'll get a new one from the feeder, once we re-enter. */
             return;
         }
 
-        do {
-            thread->consumed = false;
-            bool fetch_more = sim_main_slave_fetch_insn(coreID);
-            thread->fetches_since_feeder++;
+        /* Ok, we can't fetch more, wrap this cycle up. */
+        sim_main_slave_post_pin(coreID);
 
-            /* We can fetch more Mops this cycle, and oracle has them. */
-            while (fetch_more && (core->oracle->num_Mops_before_feeder() > 0)) {
-                thread->consumed = false;
-                fetch_more = sim_main_slave_fetch_insn(coreID);
-                thread->fetches_since_feeder++;
-            }
+        /* This is already next cycle, up to fetch. */
+        sim_main_slave_pre_pin(coreID);
 
-            /* We can fetch more Mops this cycle, and oracle doesn't have them.
-             * We'll get a new one from the feeder, once we re-enter. */
-            if (fetch_more) {
-                break;
-            }
+        /* Re-check for nuke recoveries (they could happen here if jeclear_delay == 0). */
+        nuke_recovery |= core->oracle->on_nuke_recovery_path();
 
-            /* Ok, we can't fetch more, wrap this cycle up. */
-            sim_main_slave_post_pin(coreID);
-
-            /* This is already next cycle, up to fetch. */
-            sim_main_slave_pre_pin(coreID);
-            /* Stay in the loop until the oracle is done with the requested Mop. */
-        } while (!thread->consumed);
-
-    } while (grab_result == HANDSHAKE_NOT_CONSUMED);
+    /* Stay in the loop until oracle needs a new handshake. */
+    } while (buffer_result == HANDSHAKE_NOT_CONSUMED || !thread->consumed || nuke_recovery);
 }
 
 void Zesto_WarmLLC(int asid, unsigned int addr, bool is_write) {

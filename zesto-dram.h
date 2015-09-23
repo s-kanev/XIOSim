@@ -100,9 +100,6 @@ class dram_t
   virtual void reg_stats(struct stat_sdb_t * const sdb);
 };
 
-/* since these cannot directly set the core->oracle.hosed bit, they
-   just return and depend on the rest of the core state getting hosed
-   to force a reset. */
 #ifndef zesto_fatal
 #ifdef DEBUG
 #define dram_fatal(msg, retval) fatal(msg)

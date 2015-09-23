@@ -76,14 +76,14 @@ zesto-decode.cpp zesto-alloc.cpp zesto-exec.cpp zesto-commit.cpp zesto-cache.cpp
 zesto-dram.cpp zesto-bpred.cpp zesto-memdep.cpp zesto-prefetch.cpp                 \
 zesto-uncore.cpp zesto-MC.cpp zesto-power.cpp zesto-noc.cpp        \
 zesto-repeater.cpp zesto-coherence.cpp zesto-dvfs.cpp zesto-config.cpp \
-zesto-config-params.cpp ztrace.cpp
+zesto-config-params.cpp ztrace.cpp shadow_MopQ.cpp
 
 ZHDRS = \
 zesto-structs.h zesto-core.h zesto-oracle.h zesto-fetch.h             \
 zesto-decode.h zesto-alloc.h zesto-exec.h zesto-commit.h zesto-cache.h             \
 zesto-dram.h zesto-bpred.h zesto-memdep.h zesto-prefetch.h zesto-uncore.h          \
 zesto-MC.h zesto-power.h zesto-coherence.h zesto-noc.h               \
-zesto-repeater.h zesto-dvfs.h zesto-config.h ztrace.h
+zesto-repeater.h zesto-dvfs.h zesto-config.h ztrace.h shadow_MopQ.h
 
 ZOBJS=$(ZSRCS:.cpp=.o)
 

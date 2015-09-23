@@ -253,9 +253,8 @@ void core_exec_NONE_t::LDST_exec(void)
   if (!Mop)
     return;
 
-  handshake_container_t *handshake = core->oracle->get_shadow_Mop(Mop);
-  if (handshake->mem_buffer.empty()) {
-    // Mops that don't touch memory get to commit straight away.
+  // Mops that don't touch memory get to commit straight away.
+  if (!Mop->decode.opflags.MEM) {
     Mop->timing.when_commit_finished = core->sim_cycle;
     return;
   }

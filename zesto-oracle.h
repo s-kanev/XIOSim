@@ -135,11 +135,10 @@
  * Copyright © 1994-2003 by Todd M. Austin, Ph.D. and SimpleScalar, LLC.
  */
 
-#include "buffer.h"
-#include "handshake_container.h"
 #include "synchronization.h"
 #include "zesto-cache.h"
 #include "ztrace.h"
+#include "shadow_MopQ.h"
 
 /* The following macros are used to pretty similarly to regular fatal and assert
    calls, with the exception that when *not* in DEBUG mode, the failure does not
@@ -156,7 +155,6 @@
 #define zesto_fatal(msg, retval) fatal(msg)
 #else
 #define zesto_fatal(msg, retval) { \
-  core->oracle->hosed = TRUE; \
   fprintf(stderr,"fatal (%s,%d:thread %d): ",__FILE__,__LINE__,core->current_thread->id); \
   fprintf(stderr,"%s\n",msg); \
   return (retval); \
@@ -167,7 +165,6 @@ extern bool assert_spin;
 
 #define zesto_assert(cond, retval) {		\
   if(!(cond)) { \
-    core->oracle->hosed = TRUE; \
     fprintf(stderr,"assertion failed (%s,%d:core %d): ",__FILE__,__LINE__,core->id); \
     fprintf(stderr,"%s\n",#cond); \
     fprintf(stderr, "cycle: %lld, num_Mops: %lld\n", core->sim_cycle, core->stat.oracle_total_insn); \
@@ -179,7 +176,6 @@ extern bool assert_spin;
     if (assert_spin) \
       while(1); \
     exit(6); \
-    return (retval); \
   } \
 }
 
@@ -188,9 +184,12 @@ extern bool assert_spin;
 #include <map>
 #include <unordered_map>
 
-enum grab_result_t { ALL_GOOD, HANDSHAKE_NOT_NEEDED, HANDSHAKE_NOT_CONSUMED };
+class handshake_container_t;
+
+enum buffer_result_t { ALL_GOOD, HANDSHAKE_NOT_NEEDED, HANDSHAKE_NOT_CONSUMED };
 
 class core_oracle_t {
+  friend class shadow_MopQ_t;
 
   /* struct for tracking all in-flight writers of registers */
   struct map_node_t {
@@ -202,8 +201,6 @@ class core_oracle_t {
   public:
 
   bool spec_mode;  /* are we currently on a wrong-path? */
-  bool hosed; /* set to TRUE when something in the architected state (core->arch_state) has been seriously
-                corrupted. */
 
   core_oracle_t(struct core_t * const core);
   void reg_stats(struct stat_sdb_t * const sdb);
@@ -214,8 +211,7 @@ class core_oracle_t {
   int next_index(const int index);
   struct Mop_t * get_oldest_Mop();
 
-  grab_result_t grab_feeder_state(handshake_container_t * handshake, bool allocate_shadow, bool check_pc_mismatch);
-  handshake_container_t * get_shadow_Mop(const struct Mop_t* Mop);
+  buffer_result_t buffer_handshake(handshake_container_t * handshake);
 
   struct Mop_t * exec(const md_addr_t requested_PC);
   void consume(const struct Mop_t * const Mop);
@@ -230,8 +226,11 @@ class core_oracle_t {
 
   void trace_in_flight_ops(void);
 
-  unsigned int num_non_spec_Mops(void) const;
+  /* The difference between non-spec entries in the shadow_MopQ and MopQ -- these
+   * are the ones we need to re-execute before getting back to the feeder. */
   unsigned int num_Mops_before_feeder(void) const;
+  /* Is the oracle in the process of recovering from a nuke. */
+  bool on_nuke_recovery_path(void) const { return num_Mops_before_feeder() > 0; }
 
   protected:
 
@@ -240,12 +239,13 @@ class core_oracle_t {
   struct Mop_t * MopQ;
   int MopQ_head;
   int MopQ_tail;
+  int MopQ_non_spec_tail; /* pointer to the youngest non-speculative Mop */
   int MopQ_num;
   int MopQ_size;
   struct Mop_t * current_Mop; /* pointer to track a Mop that has been executed but not consumed (i.e. due to fetch stall) */
   int MopQ_spec_num;
 
-  Buffer<handshake_container_t> * shadow_MopQ;
+  shadow_MopQ_t shadow_MopQ;
 
   struct core_t * core;
   /* dependency tracking used by oracle */
@@ -262,6 +262,12 @@ class core_oracle_t {
   void undo_dependencies(struct uop_t * const uop);
 
   void update_stats(struct Mop_t * const Mop);
+
+  /* # non-speculative Mops in the MopQ. */
+  unsigned int num_non_spec_Mops(void) const;
+
+  /* Create a fake NOP handshake in case we don't have a real one from feeder. */
+  handshake_container_t get_fake_spec_handshake();
 };
 
 #endif /* ZESTO_ORACLE_INCLUDED */
