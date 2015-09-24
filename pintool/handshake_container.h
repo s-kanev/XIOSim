@@ -20,7 +20,7 @@ struct handshake_flags_t {
     bool speculative : 1;         /* Is instruction on a wrong path */
 };
 
-class alignas(16) handshake_container_t {
+class handshake_container_t {
   public:
     handshake_container_t() { Invalidate(); }
 
