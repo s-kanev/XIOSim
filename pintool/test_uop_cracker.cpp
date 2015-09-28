@@ -15,7 +15,23 @@ TEST_CASE("nop", "[uop]") {
     REQUIRE(c.Mop.decode.flow_length == 1);
     REQUIRE(c.Mop.decode.is_ctrl == false);
     REQUIRE(c.Mop.decode.is_trap == false);
+    REQUIRE(c.Mop.uop[0].decode.is_load == false);
     REQUIRE(c.Mop.uop[0].decode.is_sta == false);
+    REQUIRE(c.Mop.uop[0].decode.is_std == false);
+    REQUIRE(c.Mop.uop[0].decode.is_nop == true);
+}
+
+TEST_CASE("multi-byte nop", "[uop]") {
+    xed_context c;
+    xed_inst0(&c.x, c.dstate, XED_ICLASS_NOP3, 0);
+    c.encode();
+
+    c.decode_and_crack();
+
+    REQUIRE(c.Mop.decode.flow_length == 1);
+    REQUIRE(c.Mop.decode.is_ctrl == false);
+    REQUIRE(c.Mop.decode.is_trap == false);
+    REQUIRE(c.Mop.uop[0].decode.is_load == false);
     REQUIRE(c.Mop.uop[0].decode.is_sta == false);
     REQUIRE(c.Mop.uop[0].decode.is_std == false);
     REQUIRE(c.Mop.uop[0].decode.is_nop == true);

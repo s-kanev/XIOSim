@@ -420,6 +420,14 @@ static bool check_tables(struct Mop_t* Mop) {
         return true;
     }
 
+    if (is_nop(Mop)) {
+        Mop->decode.flow_length = 1;
+        Mop->allocate_uops();
+
+        Mop->uop[0].decode.is_nop = true;
+        return true;
+    }
+
     if (check_call(Mop)) {
         Mop->decode.flow_length = 4;
         size_t jmp_ind = 3;

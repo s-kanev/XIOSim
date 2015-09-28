@@ -763,6 +763,7 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
 
     /* For traps, make sure pipeline has drained, halting fetch until so. */
     if (Mop->decode.is_trap) {
+        ZTRACE_PRINT(core->id, "IT'S A TRAP!\n");
         core->current_thread->consumed = false;
         return nullptr;
     }
@@ -1043,6 +1044,7 @@ void core_oracle_t::complete_flush(void) {
 }
 
 buffer_result_t core_oracle_t::buffer_handshake(handshake_container_t* handshake) {
+    ZTRACE_PRINT(core->id, "Buffering %x\n", handshake->pc);
     /* If we want a speculative handshake. */
     if (spec_mode || // We're already speculating
         core->fetch->PC != core->fetch->feeder_NPC) { // We're about to speculate
@@ -1074,14 +1076,16 @@ buffer_result_t core_oracle_t::buffer_handshake(handshake_container_t* handshake
 handshake_container_t core_oracle_t::get_fake_spec_handshake() {
     handshake_container_t new_handshake;
     new_handshake.pc = core->fetch->PC;
-    new_handshake.npc = core->fetch->PC + 1;
-    new_handshake.tpc = core->fetch->PC + 1;
+    new_handshake.npc = core->fetch->PC + 3;
+    new_handshake.tpc = core->fetch->PC + 3;
     new_handshake.flags.brtaken = false;
     new_handshake.flags.speculative = true;
     new_handshake.flags.real = true;
     new_handshake.flags.valid = true;
     new_handshake.asid = core->current_thread->asid;
-    new_handshake.ins[0] = 0x90; // NOP
+    new_handshake.ins[0] = 0x0f; // 3-byte NOP
+    new_handshake.ins[1] = 0x1f; // 3-byte NOP
+    new_handshake.ins[2] = 0x00; // 3-byte NOP
     ZTRACE_PRINT(core->id, "fake handshake -> PC: %x\n", core->fetch->PC);
     return new_handshake;
 }
