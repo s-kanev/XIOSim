@@ -329,6 +329,11 @@ class core_t {
     counter_t MopQ_full_cycles;
 
     counter_t oracle_resets;
+
+    counter_t feeder_handshakes;
+    counter_t handshakes_dropped;
+    counter_t handshakes_buffered;
+    counter_t handshake_nops_produced;
   } stat;
 
 

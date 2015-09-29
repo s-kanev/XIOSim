@@ -71,10 +71,19 @@ void core_commit_NONE_t::IO_step()
 
   // Mop is complete, commit all uops.
   for (size_t i = 0; i < Mop->decode.flow_length; i++) {
-    if (!Mop->uop[i].decode.is_imm) {
+    struct uop_t* uop = &Mop->uop[i];
+    if (!uop->decode.is_imm) {
+
+#ifdef ZTRACE
+      ztrace_print(uop,"c|commit|uop committed");
+#endif
       core->oracle->commit_uop(&Mop->uop[i]);
     }
   }
+#ifdef ZTRACE
+  ztrace_print(Mop,"c|commit|all uops in Mop committed; Mop retired");
+#endif
+
   // ... and the Mop itself.
   core->oracle->commit(Mop);
   core->stat.commit_insn++;

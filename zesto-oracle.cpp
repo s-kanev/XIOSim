@@ -432,6 +432,42 @@ void core_oracle_t::reg_stats(struct stat_sdb_t* const sdb) {
                      0,
                      FALSE,
                      NULL);
+    sprintf(buf, "c%d.feeder_handshakes", arch->id);
+    stat_reg_counter(sdb,
+                     true,
+                     buf,
+                     "number of handshakes coming in from feeder",
+                     &core->stat.feeder_handshakes,
+                     0,
+                     FALSE,
+                     NULL);
+    sprintf(buf, "c%d.handshakes_dropped", arch->id);
+    stat_reg_counter(sdb,
+                     true,
+                     buf,
+                     "number of handshakes dropped that were needlessly speculative",
+                     &core->stat.handshakes_dropped,
+                     0,
+                     FALSE,
+                     NULL);
+    sprintf(buf, "c%d.oracle_handshakes_buffered", arch->id);
+    stat_reg_counter(sdb,
+                     true,
+                     buf,
+                     "number of handshakes buffered in the shadow MopQ",
+                     &core->stat.handshakes_buffered,
+                     0,
+                     FALSE,
+                     NULL);
+    sprintf(buf, "c%d.oracle_nop_handshakes", arch->id);
+    stat_reg_counter(sdb,
+                     true,
+                     buf,
+                     "number of fake NOP handshakes oracle produced",
+                     &core->stat.handshake_nops_produced,
+                     0,
+                     FALSE,
+                     NULL);
 }
 
 void core_oracle_t::update_occupancy(void) {
@@ -482,7 +518,8 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
         /* make sure pipeline has drained */
         if (current_Mop->decode.is_trap) {
             if (MopQ_num > 1) { /* 1 since the trap itself is in the MopQ */
-                core->current_thread->consumed = false;
+                /* Returning null makes sure fetch doesn't call consume(), so
+                 * we keep processing this Mop and don't take new ones. */
                 return nullptr;
             }
         }
@@ -495,8 +532,7 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
         Mop = &MopQ[MopQ_tail];
     }
 
-    if (MopQ_num >= MopQ_size - 1) {
-        core->current_thread->consumed = false;
+    if (MopQ_num >= MopQ_size) {
         return nullptr;
     }
 
@@ -764,7 +800,8 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
     /* For traps, make sure pipeline has drained, halting fetch until so. */
     if (Mop->decode.is_trap) {
         ZTRACE_PRINT(core->id, "IT'S A TRAP!\n");
-        core->current_thread->consumed = false;
+        /* Returning null makes sure fetch doesn't call consume(), so
+         * we keep processing this Mop and don't take new ones. */
         return nullptr;
     }
 
@@ -1061,10 +1098,15 @@ buffer_result_t core_oracle_t::buffer_handshake(handshake_container_t* handshake
     } else {
         /* We're not speculating, but feeder gave us a speculative one.
          * For now, we'll just drop it. */
-        if (handshake->flags.speculative)
+        if (handshake->flags.speculative) {
+            core->stat.handshakes_dropped++;
             return HANDSHAKE_NOT_NEEDED;
+        }
+
+        zesto_assert(handshake->pc == core->fetch->PC, nullptr);
     }
 
+    core->stat.handshakes_buffered++;
     /* Store a shadow handshake for recovery purposes */
     zesto_assert(!shadow_MopQ.full(), ALL_GOOD);
     shadow_MopQ.push_handshake(handshake);
@@ -1072,7 +1114,7 @@ buffer_result_t core_oracle_t::buffer_handshake(handshake_container_t* handshake
     return ALL_GOOD;
 }
 
-/* Manifacture a fake NOP. */
+/* Manufacture a fake NOP. */
 handshake_container_t core_oracle_t::get_fake_spec_handshake() {
     handshake_container_t new_handshake;
     new_handshake.pc = core->fetch->PC;
@@ -1087,6 +1129,7 @@ handshake_container_t core_oracle_t::get_fake_spec_handshake() {
     new_handshake.ins[1] = 0x1f; // 3-byte NOP
     new_handshake.ins[2] = 0x00; // 3-byte NOP
     ZTRACE_PRINT(core->id, "fake handshake -> PC: %x\n", core->fetch->PC);
+    core->stat.handshake_nops_produced++;
     return new_handshake;
 }
 

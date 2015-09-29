@@ -213,6 +213,11 @@ class core_oracle_t {
 
   buffer_result_t buffer_handshake(handshake_container_t * handshake);
 
+  /* Can we absorb a new Mop. */
+  bool can_exec() {
+      return (current_Mop == nullptr) && // not stalled, so will need a new Mop
+             (MopQ_num < MopQ_size); // ..and has space for it
+  }
   struct Mop_t * exec(const md_addr_t requested_PC);
   void consume(const struct Mop_t * const Mop);
   void commit_uop(struct uop_t * const uop);

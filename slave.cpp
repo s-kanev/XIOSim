@@ -252,6 +252,8 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake) {
     thread_t* thread = core->current_thread;
     bool slice_start = handshake->flags.isFirstInsn;
 
+    core->stat.feeder_handshakes++;
+
     if (!core->active && !(slice_start || handshake->flags.flush_pipe)) {
         fprintf(stderr, "DEBUG DEBUG: Start/stop out of sync? %d PC: %x\n", coreID, handshake->pc);
         return;
@@ -280,31 +282,40 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake) {
 
     /* Make sure we didn't get back to feeder before absorbing a hshake. */
     zesto_assert(thread->consumed, (void)0);
+    bool did_buffer = false;
+    bool did_consume = false;
 
     do {
         nuke_recovery = core->oracle->on_nuke_recovery_path();
 
-        /* We're coming here having finished absorbing a handshake.
-         * Buffer the new one in the oracle shadow_MopQ. */
-        if (thread->consumed && !nuke_recovery) {
+        bool fetch_more = false;
+        /* Buffer the new one in the oracle shadow_MopQ. */
+        /* We want to buffer if: */
+        if (!did_buffer && // we haven't buffered it already
+            !nuke_recovery && // we're not recovering from a nuke
+            core->oracle->can_exec()) { // oracle wants to and can absorb a new hshake
             buffer_result = core->oracle->buffer_handshake(handshake);
+            did_buffer = (buffer_result == ALL_GOOD);
             if (buffer_result == HANDSHAKE_NOT_NEEDED) {
-                // XXX: Gather stats.
+                thread->consumed = true;
                 return;
             }
-            thread->consumed = false;
         }
 
         /* Execute the oracle. If all is well, the handshake is consumed, and, depending
          * on fetch conditions (taken branches, fetch buffers), we either need a new one,
          * or can carry on simulating the cycle. */
-        bool fetch_more = sim_main_slave_fetch_insn(coreID);
+        thread->consumed = false;
+        fetch_more = sim_main_slave_fetch_insn(coreID);
+        did_consume = thread->consumed;
+        if (!did_consume)
+            zesto_assert(!fetch_more, (void)0);
 
         /* We can fetch more Mops this cycle. */
         if (fetch_more) {
             /* On a nuke recovery, oracle has all the needed Mops in the shadow_MopQ.
              * So, just use them, don't go back to the feeder until we've recovered. */
-            if (nuke_recovery) {
+            if (core->oracle->on_nuke_recovery_path()) {
                 // XXX: Gather stats.
                 continue;
             }
@@ -314,12 +325,12 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake) {
              * This happens if the feeder didn't give us a speculative hshake, but we did
              * speculate, so we had to come up with a fake NOP. */
             if (buffer_result == HANDSHAKE_NOT_CONSUMED) {
-                // XXX: Gather stats.
                 continue;
             }
 
-            /* Oracle doesn't have them.
+            /* Oracle doesn't have the right handshake.
              * We'll get a new one from the feeder, once we re-enter. */
+            zesto_assert(thread->consumed, (void)0);
             return;
         }
 
@@ -330,10 +341,14 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake) {
         sim_main_slave_pre_pin(coreID);
 
         /* Re-check for nuke recoveries (they could happen here if jeclear_delay == 0). */
-        nuke_recovery |= core->oracle->on_nuke_recovery_path();
+        nuke_recovery = core->oracle->on_nuke_recovery_path();
+        /* Re-check that we've consumed last op. If jeclear_delay == 0, we could have
+         * blown it away, which technically does consume it. */
+        did_consume |= thread->consumed;
+        ZTRACE_PRINT(core->id, "End of loop. Buffer result: %d, consumed: %d, before_feeder: %d\n", buffer_result, did_consume, core->oracle->num_Mops_before_feeder());
 
     /* Stay in the loop until oracle needs a new handshake. */
-    } while (buffer_result == HANDSHAKE_NOT_CONSUMED || !thread->consumed || nuke_recovery);
+    } while (buffer_result == HANDSHAKE_NOT_CONSUMED || !did_consume || nuke_recovery);
 }
 
 void Zesto_WarmLLC(int asid, unsigned int addr, bool is_write) {

@@ -88,6 +88,25 @@ class Fib1Test(XIOSimTest):
         self.runAndValidate()
 
 
+class NoneTest(XIOSimTest):
+    ''' End-to-end test with the 'none' core model.'''
+    def setDriverParams(self):
+        bmk_cfg = self.writeTestBmkConfig("fib")
+        self.xio.AddBmks(bmk_cfg)
+
+        self.xio.AddPinOptions()
+        self.xio.AddPintoolOptions(num_cores=1)
+        self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
+                                              "config", "none.cfg"))
+
+    def setUp(self):
+        super(NoneTest, self).setUp()
+        self.expected_vals.append((xs.PerfStatRE("all_insn"), 118369.0))
+
+    def runTest(self):
+        self.runAndValidate()
+
+
 class Fib1LengthTest(XIOSimTest):
     ''' End-to-end test with a single binary running for X instructions.'''
     def setDriverParams(self):

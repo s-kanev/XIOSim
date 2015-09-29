@@ -17,7 +17,7 @@ class core_fetch_NONE_t:public core_fetch_t
   virtual void pre_fetch(void) { }
   virtual bool do_fetch(void) {
     // Invoke oracle to crack the Mop.
-    struct Mop_t* Mop = core->oracle->exec(feeder_PC);
+    struct Mop_t* Mop = core->oracle->exec(PC);
     // Oracle stall (we're looking too far ahead).
     if (Mop == nullptr)
         return false;
