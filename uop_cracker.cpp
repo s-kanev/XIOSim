@@ -607,11 +607,12 @@ static bool check_tables(struct Mop_t* Mop) {
     if (check_cpuid(Mop)) {
         Mop->decode.flow_length = 4;
         Mop->allocate_uops();
-
-        Mop->uop[0].decode.odep_name[0] = XED_REG_EAX;
-        Mop->uop[1].decode.odep_name[0] = XED_REG_EBX;
-        Mop->uop[2].decode.odep_name[0] = XED_REG_ECX;
-        Mop->uop[3].decode.odep_name[0] = XED_REG_EDX;
+        /* XXX: It's also a trap (serializing instruction).
+           One of our invariants is that traps don't go to FUs.
+           But in that case, we won't handle register dependences properly.
+           So, just don't specify the output regs. The trap will drain the
+           pipeline anyway.
+         */
         return true;
     }
 

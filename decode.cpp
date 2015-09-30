@@ -31,6 +31,9 @@ bool is_trap(const struct Mop_t * Mop) {
       case XED_ICLASS_INT1:
       case XED_ICLASS_INT3:
       case XED_ICLASS_HLT:
+      case XED_ICLASS_SYSCALL:
+      case XED_ICLASS_SYSCALL_AMD:
+      case XED_ICLASS_SYSENTER:
       // Other serializing instructions: flag accessors?
         return true;
       default:

@@ -1103,7 +1103,15 @@ buffer_result_t core_oracle_t::buffer_handshake(handshake_container_t* handshake
             return HANDSHAKE_NOT_NEEDED;
         }
 
-        zesto_assert(handshake->pc == core->fetch->PC, nullptr);
+        /* This should happen very rarely, when handshake->npc was incorrect the previous
+         * time around. E.g. a sysenter instruction. */
+        if (handshake->pc != core->fetch->PC) {
+            ZTRACE_PRINT(core->id, "FetchPC %x different from handshakePC %x. Correcting.\n",
+                         core->fetch->PC,
+                         handshake->pc);
+            core->fetch->PC = handshake->pc;
+            core->fetch->feeder_NPC = handshake->pc;
+        }
     }
 
     core->stat.handshakes_buffered++;
