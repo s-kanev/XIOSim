@@ -318,6 +318,24 @@ class Fib2Test(XIOSimTest):
     def runTest(self):
         self.runAndValidate()
 
+class REPTest(XIOSimTest):
+    ''' End-to-end test for REP instructions.'''
+    def setDriverParams(self):
+        bmk_cfg = self.writeTestBmkConfig("rep")
+        self.xio.AddBmks(bmk_cfg)
+
+        self.xio.AddPinOptions()
+        self.xio.AddPintoolOptions(num_cores=1)
+        self.xio.AddROIOptions()
+        self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
+                                              "config", "none.cfg"))
+
+    def setUp(self):
+        super(REPTest, self).setUp()
+        self.expected_vals.append((xs.PerfStatRE("all_insn"), 262144.0))
+
+    def runTest(self):
+        self.runAndValidate()
 
 
 if __name__ == "__main__":

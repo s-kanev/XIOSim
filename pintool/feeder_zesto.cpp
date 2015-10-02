@@ -342,10 +342,7 @@ static VOID FinalizeBuffer(thread_state_t* tstate, handshake_container_t* handsh
 }
 
 /* ========================================================================== */
-/* We grab the memory location that an instruction touches BEFORE executing the
- * instructions. For reads, this is what the read will return. For writes, this
- * is the value that will get overwritten (which we need later in the simulator
- * to clean up corner cases of speculation */
+/* We grab the addresses and sizes of memory operands. */
 VOID GrabInstructionMemory(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_mem_op, ADDRINT pc) {
     if (!CheckIgnoreConditions(tid, pc))
         return;
@@ -353,11 +350,7 @@ VOID GrabInstructionMemory(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_m
     thread_state_t* tstate = get_tls(tid);
     handshake_container_t* handshake = GetProperBuffer(tstate->tid, first_mem_op);
 
-    UINT8 val;
-    for (UINT32 i = 0; i < size; i++) {
-        PIN_SafeCopy(&val, (VOID*)(addr + i), 1);
-        handshake->mem_buffer.insert(pair<UINT32, UINT8>(addr + i, val));
-    }
+    handshake->mem_buffer.push_back(std::make_pair(addr, size));
 }
 
 /* ========================================================================== */
@@ -407,8 +400,7 @@ VOID GrabInstructionContext(THREADID tid,
 /* ========================================================================== */
 /* If we treat REP instructions as loops and pass them along to the simulator,
  * we need a good ground truth for the NPC that the simulator can rely on,
- * because
- * Pin doesn't do that for us the way does branch NPCs.
+ * because Pin doesn't do that for us the way it does branch NPCs.
  * So, we add extra instrumentation for REP instructions to determine if this is
  * the last iteration. */
 VOID FixRepInstructionNPC(THREADID tid,
@@ -437,19 +429,13 @@ VOID FixRepInstructionNPC(THREADID tid,
     case XED_ICLASS_CMPSQ:
         // CMPS does two mem reads of the same size
         {
-            size_t bytes_read = handshake->mem_buffer.size();
-            ASSERTX(bytes_read <= 8);
-            size_t i = 0;
-
-            for (auto& mem_read : handshake->mem_buffer) {
-                size_t byte_ind = i % (bytes_read / 2);
-                if (i < bytes_read / 2)
-                    op1 |= ((ADDRINT)mem_read.second << (8 * byte_ind));
-                else
-                    op2 |= ((ADDRINT)mem_read.second << (8 * byte_ind));
-
-                i++;
-            }
+            auto& mem_buffer = handshake->mem_buffer;
+            ASSERTX(mem_buffer.size() == 2);
+            ADDRINT addr1 = mem_buffer[0].first;
+            ADDRINT addr2 = mem_buffer[1].first;
+            UINT8 mem_size = mem_buffer[0].second;
+            PIN_SafeCopy(&op1, (VOID*)addr1, mem_size);
+            PIN_SafeCopy(&op2, (VOID*)addr2, mem_size);
         }
         scan = true;
         zf = (op1 == op2);
@@ -460,11 +446,12 @@ VOID FixRepInstructionNPC(THREADID tid,
     case XED_ICLASS_SCASQ:
         // SCAS only does one read, gets second operand from rAX
         {
-            size_t bytes_read = handshake->mem_buffer.size();
-            ASSERTX(bytes_read <= 4);
-            size_t i = 0;
-            for (auto& mem_read : handshake->mem_buffer)
-                op1 |= ((ADDRINT)mem_read.second << (8 * i));
+            auto& mem_buffer = handshake->mem_buffer;
+            ASSERTX(mem_buffer.size() == 1);
+            ADDRINT addr = mem_buffer[0].first;
+            UINT8 mem_size = mem_buffer[0].second;
+            PIN_SafeCopy(&op1, (VOID*)addr, mem_size);
+
             op2 = rax_value;  // 0-extended anyways
         }
         scan = true;

@@ -103,7 +103,7 @@ CXXFLAGS += -msse4a -mfpmath=sse
 # additional debug flags
 ifeq ($(DEBUG),1)
     CXXFLAGS += -DZESTO_PIN_DBG -DIPC_DEBUG -DPRINT_WAITS -DSCHEDULER_DEBUG
-    CXXFLAGS += -DPARSE_DEBUG -DALLOCATOR_DEBUG -DCOMPRESSION_DEBUG -DMP_DEBUG
+    CXXFLAGS += -DPARSE_DEBUG -DALLOCATOR_DEBUG -DSERIALIZATION_DEBUG -DMP_DEBUG
     CXXFLAGS += -DROI_DEBUG -DSPECULATION_DEBUG
     CXXFLAGS += -O0
 endif
@@ -116,7 +116,7 @@ endif
 TIMING = $(OBJDIR)timing_sim
 FEEDER = $(OBJDIR)feeder_zesto.so
 HARNESS = $(OBJDIR)harness
-UNIT_TESTS = $(OBJDIR)test_allocation $(OBJDIR)test_parse_speedup $(OBJDIR)test_speedup_models $(OBJDIR)test_handshake_compression $(OBJDIR)test_uop_cracker $(OBJDIR)test_decoder $(OBJDIR)test_stat_database
+UNIT_TESTS = $(OBJDIR)test_allocation $(OBJDIR)test_parse_speedup $(OBJDIR)test_speedup_models $(OBJDIR)test_handshake_serialization $(OBJDIR)test_uop_cracker $(OBJDIR)test_decoder $(OBJDIR)test_stat_database
 # XXX: 'unit tests' that actually require linking with all of libsim.
 # we need to untangle the mess that are config dependences.
 NOT_SO_UNIT_TESTS = $(OBJDIR)test_parse_configs

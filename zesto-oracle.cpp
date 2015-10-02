@@ -727,9 +727,10 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
         /* For loads, stas and stds, we need to grab virt_addr and mem_size from feeder. */
         if (uop->decode.is_load || uop->decode.is_sta || uop->decode.is_std) {
             zesto_assert(!handshake.mem_buffer.empty(), nullptr);
-            uop->oracle.virt_addr = handshake.mem_buffer.begin()->first;
-            /* XXX: Pass mem_size instead of value in handshake. */
-            uop->decode.mem_size = 1;
+            /* XXX: Add memory operand indexing to decode. */
+            auto mem_access = handshake.mem_buffer[0];
+            uop->oracle.virt_addr = mem_access.first;
+            uop->decode.mem_size = mem_access.second;
 
             zesto_assert(uop->oracle.virt_addr != 0 || uop->Mop->oracle.spec_mode, NULL);
             uop->oracle.phys_addr =
@@ -1024,6 +1025,7 @@ void core_oracle_t::pipe_flush(struct Mop_t* const Mop) {
     const int prev_Mop_index =
         moddec(Mop - MopQ, MopQ_size);  //((Mop - MopQ) - 1 + MopQ_size) % MopQ_size;
     /* I don't think there are any uop flows that can cause intra-Mop violations */
+    /* XXX: There are. Things like indirect calls. We need a fix relaxing this assert */
     zesto_assert(MopQ_num > 1 && (Mop != &MopQ[MopQ_head]), (void)0);
     struct Mop_t* const prev_Mop = &MopQ[prev_Mop_index];
     /* CALLs/RETNs where the PC is loaded from memory, and that load is involved

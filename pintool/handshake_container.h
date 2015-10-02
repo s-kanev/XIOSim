@@ -2,7 +2,8 @@
 #define __HANDSHAKE_CONTAINER__
 
 #include <iostream>
-#include <map>
+#include <utility>
+#include <vector>
 
 #include "../machine.h"
 
@@ -56,16 +57,16 @@ class handshake_container_t {
         const size_t flagBytes = sizeof(handshake_flags_t);
         buffPosition = copyToBuff(buffPosition, &(flags), flagBytes);
 
-        /* Map size, followed by map elements */
-        int mapSize = mem_buffer.size();
-        const size_t mapEntryBytes = sizeof(uint32_t) + sizeof(uint8_t);
-        size_t mapBytes = mapSize * mapEntryBytes;
-        buffPosition = copyToBuff(buffPosition, &(mapBytes), sizeof(size_t));
+        /* Memory vector size, followed by elements */
+        int vectorSize = mem_buffer.size();
+        const size_t vectorEntryBytes = sizeof(uint32_t) + sizeof(uint8_t);
+        size_t vectorBytes = vectorSize * vectorEntryBytes;
+        buffPosition = copyToBuff(buffPosition, &(vectorBytes), sizeof(size_t));
 
         /* If available, memory accesses */
-        for (auto it = mem_buffer.begin(); it != mem_buffer.end(); it++) {
-            buffPosition = copyToBuff(buffPosition, &(it->first), sizeof(uint32_t));
-            buffPosition = copyToBuff(buffPosition, &(it->second), sizeof(uint8_t));
+        for (auto access : mem_buffer) {
+            buffPosition = copyToBuff(buffPosition, &(access.first), sizeof(uint32_t));
+            buffPosition = copyToBuff(buffPosition, &(access.second), sizeof(uint8_t));
         }
 
         /* Registers */
@@ -80,7 +81,7 @@ class handshake_container_t {
         /* Finally, write the total size */
         size_t totalBytes = buffPosition - (char* const)buffer;
         memcpy(buffer, &(totalBytes), sizeof(size_t));
-#ifdef COMPRESSION_DEBUG
+#ifdef SERIALIZATION_DEBUG
         std::cerr << "[WRITE]TotalBytes: " << totalBytes - sizeof(size_t) << std::endl;
 #endif
         return totalBytes;
@@ -88,8 +89,8 @@ class handshake_container_t {
 
     void Deserialize(void const* const buffer, size_t buffer_size) {
         const size_t flagBytes = sizeof(handshake_flags_t);
-        const size_t mapEntryBytes = sizeof(uint32_t) + sizeof(uint8_t);
-#ifdef COMPRESSION_DEBUG
+        const size_t vectorEntryBytes = sizeof(uint32_t) + sizeof(uint8_t);
+#ifdef SERIALIZATION_DEBUG
         std::cerr << "[READ]TotalBytes: " << buffer_size << std::endl;
 #endif
 
@@ -98,20 +99,20 @@ class handshake_container_t {
         /* Flags */
         buffPosition = copyFromBuff(&(this->flags), buffPosition, flagBytes);
 
-        /* Map size, followed by map elements */
-        size_t mapBytes;
-        buffPosition = copyFromBuff(&(mapBytes), buffPosition, sizeof(size_t));
-        assert(mapBytes % mapEntryBytes == 0);
-        const size_t mapNum = mapBytes / mapEntryBytes;
+        /* Memory vector size, followed by elements */
+        size_t vectorBytes;
+        buffPosition = copyFromBuff(&(vectorBytes), buffPosition, sizeof(size_t));
+        assert(vectorBytes % vectorEntryBytes == 0);
+        const size_t vectorNum = vectorBytes / vectorEntryBytes;
 
         this->mem_buffer.clear();
-        for (size_t i = 0; i < mapNum; i++) {
-            uint32_t first;
-            uint8_t second;
+        for (size_t i = 0; i < vectorNum; i++) {
+            uint32_t addr;
+            uint8_t size;
 
-            buffPosition = copyFromBuff(&first, buffPosition, sizeof(uint32_t));
-            buffPosition = copyFromBuff(&second, buffPosition, sizeof(uint8_t));
-            (this->mem_buffer)[first] = second;
+            buffPosition = copyFromBuff(&addr, buffPosition, sizeof(uint32_t));
+            buffPosition = copyFromBuff(&size, buffPosition, sizeof(uint8_t));
+            this->mem_buffer.push_back(std::make_pair(addr, size));
         }
 
         /* Regs */
@@ -140,13 +141,13 @@ class handshake_container_t {
 
     struct handshake_flags_t flags;
 
-    /* Memory reads and writes from the instruction */
-    std::map<uint32_t, uint8_t> mem_buffer;
+    /* Addresses and sizes of instruction memory accesses. */
+    std::vector<std::pair<md_addr_t, uint8_t> > mem_buffer;
 
     bool operator==(const handshake_container_t& rhs) {
         return memcmp(&flags, &rhs.flags, sizeof(flags)) == 0 && mem_buffer == rhs.mem_buffer &&
                pc == rhs.pc && npc == rhs.npc && tpc == rhs.tpc && rSP == rhs.rSP &&
-               memcmp(ins, rhs.ins, sizeof(ins)) && asid == rhs.asid;
+               memcmp(ins, rhs.ins, sizeof(ins)) == 0 && asid == rhs.asid;
     }
 
     friend std::ostream& operator<<(std::ostream& out, class handshake_container_t& hand) {
@@ -158,8 +159,8 @@ class handshake_container_t {
         out << " ";
         out << "mem: " << hand.mem_buffer.size() << " ";
         out << std::hex;
-        for (auto it = hand.mem_buffer.begin(); it != hand.mem_buffer.end(); it++)
-            out << it->first << ": " << (uint32_t)it->second << " ";
+        for (auto access : hand.mem_buffer)
+            out << access.first << ": " << (uint32_t)access.second << " ";
         out << " ";
         out << "pc: " << hand.pc << " ";
         out << "npc: " << hand.npc << " ";
