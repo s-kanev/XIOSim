@@ -209,6 +209,10 @@ static bool check_load(const struct Mop_t* Mop) {
     case XED_IFORM_PMOVZXDQ_XMMdq_MEMq:
     case XED_IFORM_PMOVZXWD_XMMdq_MEMq:
     case XED_IFORM_PMOVZXWQ_XMMdq_MEMd:
+    case XED_IFORM_LODSB:
+    case XED_IFORM_LODSW:
+    case XED_IFORM_LODSD:
+    case XED_IFORM_LODSQ:
         return true;
     default:
         return false;
@@ -251,6 +255,10 @@ static bool check_store(const struct Mop_t* Mop) {
     case XED_IFORM_MOVQ_MEMq_XMMq_0FD6:
     case XED_IFORM_MOVUPD_MEMpd_XMMpd:
     case XED_IFORM_MOVUPS_MEMps_XMMps:
+    case XED_IFORM_STOSB:
+    case XED_IFORM_STOSD:
+    case XED_IFORM_STOSQ:
+    case XED_IFORM_STOSW:
         return true;
     default:
         return false;
@@ -384,6 +392,39 @@ static bool check_lea(const struct Mop_t* Mop) {
     return false;
 }
 
+/* MOVS is a direct load-store transfer with two different mem operands. */
+static bool check_movs(const struct Mop_t* Mop) {
+    auto iform = xed_decoded_inst_get_iform_enum(&Mop->decode.inst);
+    switch (iform) {
+    case XED_IFORM_MOVSB:
+    case XED_IFORM_MOVSW:
+    case XED_IFORM_MOVSD:
+    case XED_IFORM_MOVSQ:
+        return true;
+    default:
+        return false;
+    }
+
+    return false;
+
+}
+
+static bool check_cmps(const struct Mop_t* Mop) {
+    auto iform = xed_decoded_inst_get_iform_enum(&Mop->decode.inst);
+    switch (iform) {
+    case XED_IFORM_CMPSB:
+    case XED_IFORM_CMPSW:
+    case XED_IFORM_CMPSD:
+    case XED_IFORM_CMPSQ:
+        return true;
+    default:
+        return false;
+    }
+
+    return false;
+
+}
+
 /* Check special-casing Mop->uop tables. Returns
  * true and modifies Mop if it has found a cracking.
  */
@@ -412,7 +453,8 @@ static bool check_tables(struct Mop_t* Mop) {
         xed_reg_enum_t std_reg = XED_REG_INVALID;
         auto regs_read = get_registers_read(Mop);
         if (regs_read.size() > 0) {
-            assert(regs_read.size() == 1);
+            //XXX: STOS is predicated on flags, ignore for now.
+            //assert(regs_read.size() == 1);
             std_reg = regs_read.front();
         }
         fill_out_std_uop(Mop, Mop->uop[1], std_reg);
@@ -600,6 +642,35 @@ static bool check_tables(struct Mop_t* Mop) {
         auto regs_written = get_registers_written(Mop);
         assert(regs_written.size() == 1);
         Mop->uop[0].decode.odep_name[0] = regs_written.front();
+        return true;
+    }
+
+    /* MOVS is a direct load-store transfer. Two different mem operands.
+     * XXX: Memory operands in XED appear flipped: load is 1, store is 0. */
+    if (check_movs(Mop)) {
+        Mop->decode.flow_length = 3;
+        Mop->allocate_uops();
+
+        fill_out_load_uop(Mop, Mop->uop[0], 1);
+        Mop->uop[0].decode.odep_name[0] = XED_REG_TMP0;
+        fill_out_sta_uop(Mop, Mop->uop[1], 0);
+        fill_out_std_uop(Mop, Mop->uop[2], XED_REG_TMP0);
+        return true;
+    }
+
+    /* CMPS is two loads with a compare. */
+    if (check_cmps(Mop)) {
+        Mop->decode.flow_length = 3;
+        Mop->allocate_uops();
+
+        fill_out_load_uop(Mop, Mop->uop[0], 0);
+        Mop->uop[0].decode.odep_name[0] = XED_REG_TMP0;
+        fill_out_load_uop(Mop, Mop->uop[1], 1);
+        Mop->uop[1].decode.odep_name[0] = XED_REG_TMP1;
+
+        Mop->uop[2].decode.idep_name[0] = XED_REG_TMP0;
+        Mop->uop[2].decode.idep_name[1] = XED_REG_TMP1;
+        Mop->uop[2].decode.odep_name[0] = XED_REG_EFLAGS;
         return true;
     }
 

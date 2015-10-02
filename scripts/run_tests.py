@@ -332,7 +332,8 @@ class REPTest(XIOSimTest):
 
     def setUp(self):
         super(REPTest, self).setUp()
-        self.expected_vals.append((xs.PerfStatRE("all_insn"), 262144.0))
+        # 917,504 = 3.5 * 256 * 1024 -- see rep.cpp
+        self.expected_vals.append((xs.PerfStatRE("all_insn"), 917504.0))
 
     def runTest(self):
         self.runAndValidate()
