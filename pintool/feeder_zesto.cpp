@@ -788,6 +788,9 @@ VOID DeallocateCores() {
 
 /* ========================================================================== */
 VOID PauseSimulation() {
+    /* An INT 80 instruction */
+    static const UINT8 syscall_template[] = { 0xcd, 0x80 };
+
     /* Here we have produced everything, we can only consume */
     disable_producers();
 
@@ -817,14 +820,37 @@ VOID PauseSimulation() {
             if (KnobILDJIT.Value())
                 InsertHELIXPauseCode(tid, first_thread);
 
+            /* Insert a trap. This will ensure that the pipe drains before
+             * consuming the next instruction.*/
+            pid_t curr_tid = tstate->tid;
+            auto trap_hshake = xiosim::buffer_management::GetBuffer(curr_tid);
+            trap_hshake->flags.real = false;
+            trap_hshake->asid = asid;
+            trap_hshake->flags.valid = true;
+
+            trap_hshake->pc = (ADDRINT)syscall_template;
+            trap_hshake->npc = (ADDRINT)syscall_template + sizeof(syscall_template);
+            trap_hshake->tpc = (ADDRINT)syscall_template + sizeof(syscall_template);
+            trap_hshake->flags.brtaken = false;
+            memcpy(trap_hshake->ins, syscall_template, sizeof(syscall_template));
+            xiosim::buffer_management::ProducerDone(curr_tid, true);
+
+            /* Flush the core's pipelie to get rid of anything left over
+             * (including the trap). */
+            auto flush_hshake = xiosim::buffer_management::GetBuffer(curr_tid);
+            flush_hshake->flags.flush_pipe = true;
+            flush_hshake->flags.real = false;
+            flush_hshake->asid = asid;
+            flush_hshake->flags.valid = true;
+            xiosim::buffer_management::ProducerDone(curr_tid, true);
+
             /* When the handshake is consumed, this will let the scheduler
              * de-schedule the thread */
-            pid_t curr_tid = tstate->tid;
-            handshake_container_t* handshake = xiosim::buffer_management::GetBuffer(curr_tid);
-            handshake->flags.giveCoreUp = true;
-            handshake->flags.giveUpReschedule = false;
-            handshake->flags.valid = true;
-            handshake->flags.real = false;
+            auto release_hshake = xiosim::buffer_management::GetBuffer(curr_tid);
+            release_hshake->flags.giveCoreUp = true;
+            release_hshake->flags.giveUpReschedule = false;
+            release_hshake->flags.valid = true;
+            release_hshake->flags.real = false;
             xiosim::buffer_management::ProducerDone(curr_tid, true);
 
             xiosim::buffer_management::FlushBuffers(curr_tid);

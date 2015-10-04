@@ -61,8 +61,6 @@ KNOB<BOOL> KnobWaitsAsLoads(
 const UINT8 signal_template[] = { 0xc7, 0x05, 0xad, 0xfb, 0xca, 0xde, 0x00, 0x00, 0x00, 0x00 };
 /* A MFENCE instrction */
 const UINT8 mfence_template[] = { 0x0f, 0xae, 0xf0 };
-/* An INT 80 instruction */
-const UINT8 syscall_template[] = { 0xcd, 0x80 };
 
 static map<string, UINT32> invocation_counts;
 
@@ -1270,35 +1268,10 @@ VOID InsertHELIXPauseCode(THREADID tid, bool first_thread) {
     handshake->flags.valid = true;
 
     handshake->pc = (ADDRINT)mfence_template;
-    handshake->npc = (ADDRINT)syscall_template;
+    handshake->npc = (ADDRINT)mfence_template;
     handshake->tpc = (ADDRINT)mfence_template + sizeof(mfence_template);
     handshake->flags.brtaken = false;
     memcpy(handshake->ins, mfence_template, sizeof(mfence_template));
-    xiosim::buffer_management::ProducerDone(curr_tstate->tid, true);
-
-    /* Insert a trap. This will ensure that the pipe drains before
-     * consuming the next instruction.*/
-    handshake_container_t* handshake_1 = xiosim::buffer_management::GetBuffer(curr_tstate->tid);
-    handshake_1->flags.real = false;
-    handshake_1->asid = asid;
-    handshake_1->flags.valid = true;
-
-    handshake_1->pc = (ADDRINT)syscall_template;
-    handshake_1->npc = (ADDRINT)syscall_template + sizeof(syscall_template);
-    handshake_1->tpc = (ADDRINT)syscall_template + sizeof(syscall_template);
-    handshake_1->flags.brtaken = false;
-    memcpy(handshake_1->ins, syscall_template, sizeof(syscall_template));
-    xiosim::buffer_management::ProducerDone(curr_tstate->tid, true);
-
-    /* And finally, flush the core's pipelie to get rid of anything
-     * left over (including the trap). */
-    handshake_container_t* handshake_2 = xiosim::buffer_management::GetBuffer(curr_tstate->tid);
-
-    handshake_2->flags.flush_pipe = true;
-    handshake_2->flags.real = false;
-    handshake_2->asid = asid;
-    handshake_2->pc = 0;
-    handshake_2->flags.valid = true;
     xiosim::buffer_management::ProducerDone(curr_tstate->tid, true);
 }
 
