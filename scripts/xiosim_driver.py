@@ -48,10 +48,14 @@ class XIOSimDriver(object):
     def AddMolecoolOptions(self):
         self.cmd += "-ildjit "
 
+    def AddIgnoreOptions(self):
+        self.cmd += "-ignore_api "
+
     def AddROIOptions(self):
         self.cmd += "-roi "
 
     def AddReplaceOptions(self, func):
+        self.AddIgnoreOptions()
         self.cmd += "-ignore_functions %s " % func
 
     def AddTraceFile(self, file):

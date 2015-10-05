@@ -2,6 +2,7 @@
 
 #include "BufferManagerProducer.h"
 #include "ignore_ins.h"
+#include "speculation.h"
 
 using namespace std;
 
@@ -23,6 +24,8 @@ KNOB<string> KnobIgnoreFunctions(KNOB_MODE_WRITEONCE,
                                  "ignore_functions",
                                  "",
                                  "Comma-separated list of functions to replace with a nop");
+
+extern KNOB<BOOL> KnobIgnoringInstructions;
 
 /* Encode replacement instructions in the provided buffer. */
 static size_t Encode(xed_encoder_instruction_t inst, uint8_t* inst_bytes) {
@@ -64,6 +67,7 @@ static void ReplacedFunctionBefore(THREADID tid, ADDRINT pc, ADDRINT retPC) {
         handshake->flags.valid = true;
         handshake->flags.real = false;
         handshake->flags.isFirstInsn = false;
+        handshake->flags.speculative = speculation_mode;
 
         handshake->pc = inst.pc;
         handshake->tpc = inst.pc + inst.len;
@@ -146,6 +150,8 @@ static void AddReplacementCalls(IMG img, void* v) {
                        IARG_END);
         RTN_Close(rtn);
 
+        /* Make sure ignoring API is enabled, otherwise below does nothing. */
+        ASSERTX(KnobIgnoringInstructions.Value());
         /* Fixup next PC in instrumentation. */
         IgnoreCallsTo(
             rtn_pc, params->num_params + 1 /* the call + param pushes */, (ADDRINT)inst_buffer);

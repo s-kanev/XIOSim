@@ -779,6 +779,9 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
         zesto_assert(Mop->decode.last_uop_index == 0, NULL);
         Mop->uop[0].decode.is_nop = false;
         Mop->uop[0].decode.FU_class = FU_MAGIC;
+#ifdef ZTRACE
+        ztrace_print(Mop, "Making Mop magic.");
+#endif
     }
 
     update_stats(Mop);
