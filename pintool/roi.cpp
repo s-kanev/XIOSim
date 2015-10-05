@@ -2,6 +2,7 @@
 #include <string>
 
 #include "feeder.h"
+#include "speculation.h"
 #include "roi.h"
 
 using namespace std;
@@ -18,9 +19,15 @@ KNOB<string> KnobROIEnd(KNOB_MODE_WRITEONCE,
                         "xiosim_roi_end",
                         "Function name that ends simulated ROI");
 
-/* Instrumentaion for beginROI: start a new simulation slice, and
+/* Instrumentation for beginROI: start a new simulation slice, and
  * start producing instructions from the feeder. */
 static void BeginROI(THREADID tid, ADDRINT pc) {
+    /* If we are speculating, we are done (before we mess up shared state). */
+    if (speculation_mode) {
+        FinishSpeculation(get_tls(tid));
+        return;
+    }
+
     {
         std::lock_guard<XIOSIM_LOCK> l(*printing_lock);
         cerr << "tid: " << dec << tid << " ip: " << hex << pc << " ";
@@ -31,9 +38,15 @@ static void BeginROI(THREADID tid, ADDRINT pc) {
     ResumeSimulation(true);
 }
 
-/* Instrumentaion for endROI: stop producing instructions, and
+/* Instrumentation for endROI: stop producing instructions, and
  * end simulation slice. */
 static void EndROI(THREADID tid, ADDRINT pc) {
+    /* If we are speculating, we are done (before we mess up shared state). */
+    if (speculation_mode) {
+        FinishSpeculation(get_tls(tid));
+        return;
+    }
+
     {
         std::lock_guard<XIOSIM_LOCK> l(*printing_lock);
         cerr << "tid: " << dec << tid << " ip: " << hex << pc << " ";
