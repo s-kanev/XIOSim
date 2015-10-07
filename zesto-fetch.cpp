@@ -96,7 +96,7 @@
 
 
 /* default constructor */
-core_fetch_t::core_fetch_t(void): bogus(false), invalid(false)
+core_fetch_t::core_fetch_t(void): invalid(false)
 {
 }
 

@@ -84,7 +84,6 @@ class core_fetch_t {
   md_addr_t feeder_PC;  // Same for current pc
   bool fake_insn;       // Instruction that we artificially injected
   bool prev_insn_fake;  // Same for previously fetched instruction
-  bool bogus; /* TRUE if oracle is on wrong path and encountered an invalid inst */
   bool invalid; /* TRUE if oracle encounters an instruction it doesn't know */
   class bpred_t * bpred;
 

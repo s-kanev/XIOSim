@@ -835,15 +835,6 @@ VOID PauseSimulation() {
             memcpy(trap_hshake->ins, syscall_template, sizeof(syscall_template));
             xiosim::buffer_management::ProducerDone(curr_tid, true);
 
-            /* Flush the core's pipelie to get rid of anything left over
-             * (including the trap). */
-            auto flush_hshake = xiosim::buffer_management::GetBuffer(curr_tid);
-            flush_hshake->flags.flush_pipe = true;
-            flush_hshake->flags.real = false;
-            flush_hshake->asid = asid;
-            flush_hshake->flags.valid = true;
-            xiosim::buffer_management::ProducerDone(curr_tid, true);
-
             /* When the handshake is consumed, this will let the scheduler
              * de-schedule the thread */
             auto release_hshake = xiosim::buffer_management::GetBuffer(curr_tid);

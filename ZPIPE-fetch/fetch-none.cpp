@@ -16,6 +16,8 @@ class core_fetch_NONE_t:public core_fetch_t
   /* simulate one cycle */
   virtual void pre_fetch(void) { }
   virtual bool do_fetch(void) {
+    if (core->oracle->is_draining())
+        return false;
     // Invoke oracle to crack the Mop.
     struct Mop_t* Mop = core->oracle->exec(PC);
     // Oracle stall (we're looking too far ahead).

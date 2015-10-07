@@ -13,9 +13,9 @@ class core_fetch_STM_t:public core_fetch_t
   enum fetch_stall_t {FSTALL_byteQ_FULL, /* byteQ is full */
                       FSTALL_TBR,      /* predicted taken */
                       FSTALL_EOL,      /* hit end of cache line */
-                      FSTALL_BOGUS,    /* encountered invalid inst on wrong-path */
                       FSTALL_SYSCALL,  /* syscall waiting for pipe to clear */
                       FSTALL_ZPAGE,    /* fetch request from zeroth page of memory */
+                      FSTALL_ORACLE,   /* oracle stall on MopQ capacity */
                       FSTALL_num
                      };
 
@@ -85,9 +85,9 @@ const char *core_fetch_STM_t::fetch_stall_str[FSTALL_num] = {
   "byteQ full             ",
   "taken branch           ",
   "end of cache line      ",
-  "wrong-path invalid inst",
   "trap waiting on drain  ",
-  "request for page zero  "
+  "request for page zero  ",
+  "oracle stall on MopQ   "
 };
 
 
@@ -371,7 +371,14 @@ bool core_fetch_STM_t::do_fetch(void)
   md_addr_t current_line = PC & byteQ_linemask;
   struct Mop_t * Mop = NULL;
   
+  /* Waiting for pipe to clear from system call/trap. */
+  if (core->oracle->is_draining()) {
+    stall_reason = FSTALL_SYSCALL;
+    return false;
+  }
+
   Mop = core->oracle->exec(PC);
+
   if(Mop && ((PC >> PAGE_SHIFT) == 0))
   {
     zesto_assert(core->oracle->spec_mode,false);
@@ -379,14 +386,11 @@ bool core_fetch_STM_t::do_fetch(void)
     return false;
   }
 
-  if(!Mop) /* awaiting pipe to clear for system call/trap, or encountered wrong-path bogus inst */
-  {
-    if(bogus)
-      stall_reason = FSTALL_BOGUS;
-    else
-       stall_reason = FSTALL_SYSCALL;
+  if(!Mop) {
+    stall_reason = FSTALL_ORACLE;
     return false;
   }
+
 
   /* We explicitly check for both the address of the first byte and the last
      byte, since x86 instructions have no alignment restrictions and therefore
@@ -464,6 +468,11 @@ bool core_fetch_STM_t::do_fetch(void)
     stall_reason = FSTALL_EOL;
     return false;
   }
+  else if(core->oracle->is_draining())
+  {
+    stall_reason = FSTALL_SYSCALL;
+    return false;
+  }
 
   /* still fetching from the same byteQ entry */
   return ((PC & byteQ_linemask) == current_line);
@@ -535,7 +544,6 @@ core_fetch_STM_t::recover(const md_addr_t new_PC)
   /* XXX: use non-oracle nextPC as there may be multiple re-fetches */
   int i;
   PC = new_PC;
-  bogus = false;
 
   /* clear out the byteQ */
   for(i=0;i<knobs->fetch.byteQ_size;i++)

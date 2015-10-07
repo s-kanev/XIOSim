@@ -216,7 +216,8 @@ class core_oracle_t {
   /* Can we absorb a new Mop. */
   bool can_exec() {
       return (current_Mop == nullptr) && // not stalled, so will need a new Mop
-             (MopQ_num < MopQ_size); // ..and has space for it
+             !drain_pipeline && // not draining from a trap
+             (MopQ_num < MopQ_size); // ...and has space for the new Mop
   }
   struct Mop_t * exec(const md_addr_t requested_PC);
   void consume(const struct Mop_t * const Mop);
@@ -226,6 +227,8 @@ class core_oracle_t {
   void recover(const struct Mop_t * const Mop); /* recovers oracle state */
   void pipe_recover(struct Mop_t * const Mop, const md_addr_t New_PC); /* unrolls pipeline state */
   void pipe_flush(struct Mop_t * const Mop);
+
+  bool is_draining(void) const { return drain_pipeline; }
 
   void complete_flush(void);
 
@@ -249,6 +252,7 @@ class core_oracle_t {
   int MopQ_size;
   struct Mop_t * current_Mop; /* pointer to track a Mop that has been executed but not consumed (i.e. due to fetch stall) */
   int MopQ_spec_num;
+  bool drain_pipeline; /* Are we draining from a trap */
 
   shadow_MopQ_t shadow_MopQ;
 

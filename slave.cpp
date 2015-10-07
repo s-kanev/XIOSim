@@ -348,7 +348,10 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake) {
         ZTRACE_PRINT(core->id, "End of loop. Buffer result: %d, consumed: %d, before_feeder: %d\n", buffer_result, did_consume, core->oracle->num_Mops_before_feeder());
 
     /* Stay in the loop until oracle needs a new handshake. */
-    } while (buffer_result == HANDSHAKE_NOT_CONSUMED || !did_consume || nuke_recovery);
+    } while (buffer_result == HANDSHAKE_NOT_CONSUMED ||
+             !did_consume ||
+             nuke_recovery ||
+             core->oracle->is_draining());
 }
 
 void Zesto_WarmLLC(int asid, unsigned int addr, bool is_write) {

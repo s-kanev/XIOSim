@@ -180,6 +180,7 @@ core_oracle_t::core_oracle_t(struct core_t* const arg_core)
     , MopQ_size(get_MopQ_size(arg_core->knobs))
     , current_Mop(NULL)
     , MopQ_spec_num(0)
+    , drain_pipeline(false)
     , shadow_MopQ(get_MopQ_size(arg_core->knobs)) {
     core = arg_core;
 
@@ -406,23 +407,6 @@ void core_oracle_t::reg_stats(struct stat_sdb_t* const sdb) {
     sprintf(buf, "c%d.MopQ_frac_full", arch->id);
     sprintf(buf2, "c%d.MopQ_full/c%d.sim_cycle", arch->id, arch->id);
     stat_reg_formula(sdb, true, buf, "fraction of cycles oracle MopQ was full", buf2, NULL);
-    sprintf(buf, "c%d.oracle_bogus_cycles", arch->id);
-    stat_reg_counter(sdb,
-                     true,
-                     buf,
-                     "total cycles oracle stalled on invalid wrong-path insts",
-                     &core->stat.oracle_bogus_cycles,
-                     0,
-                     TRUE,
-                     NULL);
-    sprintf(buf, "c%d.oracle_frac_bogus", arch->id);
-    sprintf(buf2, "c%d.oracle_bogus_cycles/c%d.sim_cycle", arch->id, arch->id);
-    stat_reg_formula(sdb,
-                     true,
-                     buf,
-                     "fraction of cycles oracle stalled on invalid wrong-path insts",
-                     buf2,
-                     NULL);
     sprintf(buf, "c%d.oracle_emergency_recoveries", arch->id);
     stat_reg_counter(sdb,
                      true,
@@ -494,35 +478,17 @@ int core_oracle_t::next_index(const int index) {
     return modinc(index, MopQ_size);  // return (index+1)%MopQ_size;
 }
 
-/* The following code is derived from the original execution
-   code in the SimpleScalar/x86 pre-release, but it has been
-   extensively modified for the way we're doing things in Zesto.
-   Major changes include the handling of REP instructions and
-   handling of execution down wrong control paths. */
 struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
     struct thread_t* thread = core->current_thread;
     struct core_knobs_t * knobs = core->knobs;
     size_t flow_index = 0;
     struct Mop_t* Mop = NULL;
-    bool* bogus = &core->fetch->bogus;
 
-    if (*bogus) /* are we on a wrong path and fetched bogus insts? */
-    {
-        assert(spec_mode);
-        ZESTO_STAT(core->stat.oracle_bogus_cycles++;)
-        return NULL;
-    }
+    /* We're about to execute a new Mop, we'd better not be draining. */
+    zesto_assert(!drain_pipeline, nullptr);
 
     if (current_Mop) /* we already have a Mop */
     {
-        /* make sure pipeline has drained */
-        if (current_Mop->decode.is_trap) {
-            if (MopQ_num > 1) { /* 1 since the trap itself is in the MopQ */
-                /* Returning null makes sure fetch doesn't call consume(), so
-                 * we keep processing this Mop and don't take new ones. */
-                return nullptr;
-            }
-        }
         assert(current_Mop->uop->timing.when_ready == TICK_T_MAX);
         assert(current_Mop->uop->timing.when_issued == TICK_T_MAX);
         assert(current_Mop->uop->timing.when_exec == TICK_T_MAX);
@@ -532,6 +498,7 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
         Mop = &MopQ[MopQ_tail];
     }
 
+    /* Stall fetch until we clear space in the MopQ. */
     if (MopQ_num >= MopQ_size) {
         return nullptr;
     }
@@ -640,19 +607,6 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
           imm_uops_left = 2;
       }
     }
-    else
-    {
-      /* If at any point we decode something strange, if we're on the wrong path, we'll just
-         abort the instruction.  This will basically bring fetch to a halt until the machine
-         gets back on the correct control-flow path. */
-      if(spec_mode)
-      {
-        *bogus = true;
-        return NULL;
-      }
-      else
-        fatal("could not locate UCODE flow");
-    }
 #endif
 
     for (size_t i = 0; i < Mop->decode.flow_length; i++) {
@@ -741,9 +695,6 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
     }
 
     /* update register mappings, inter-uop dependencies */
-    /* NOTE: this occurs in its own loop because the above loop
-       may terminate prematurely if a bogus fetch condition is
-       encountered. */
     flow_index = 0;
     while (flow_index < Mop->decode.flow_length) {
         struct uop_t* uop = &Mop->uop[flow_index];
@@ -801,12 +752,10 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
     ztrace_print(Mop);
 #endif
 
-    /* For traps, make sure pipeline has drained, halting fetch until so. */
+    /* For traps, start draining the pipeline, halting fetch from the next instruction on. */
     if (Mop->decode.is_trap) {
         ZTRACE_PRINT(core->id, "IT'S A TRAP!\n");
-        /* Returning null makes sure fetch doesn't call consume(), so
-         * we keep processing this Mop and don't take new ones. */
-        return nullptr;
+        drain_pipeline = true;
     }
 
     return Mop;
@@ -896,6 +845,13 @@ void core_oracle_t::commit(const struct Mop_t* const commit_Mop) {
 
     assert(Mop->oracle.spec_mode == 0); /* can't commit wrong path insts! */
 
+    if (Mop->decode.is_trap) {
+        zesto_assert(MopQ_num == 1, (void)0);
+        drain_pipeline = false;
+        /* Force simulation to re-check feeder */
+        core->current_thread->consumed = true;
+    }
+
     Mop->valid = false;
 
     MopQ_head = modinc(MopQ_head, MopQ_size);  //(MopQ_head + 1) % MopQ_size;
@@ -965,6 +921,11 @@ void core_oracle_t::recover(const struct Mop_t* const Mop) {
                      MopQ[idx].fetch.PC,
                      nuke,
                      num_Mops_before_feeder());
+
+        /* If we undo a trap, we're guaranteed there's no older trap, so we can
+         * safely stop draining. */
+        if (MopQ[idx].decode.is_trap)
+            drain_pipeline = false;
 
         undo(&MopQ[idx], nuke);
         MopQ[idx].valid = false;
@@ -1080,6 +1041,7 @@ void core_oracle_t::complete_flush(void) {
     assert(shadow_MopQ.empty());
 
     spec_mode = false;
+    drain_pipeline = false;
     current_Mop = NULL;
     /* Force simulation to re-check feeder if needed */
     core->current_thread->consumed = true;

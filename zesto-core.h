@@ -324,7 +324,6 @@ class core_t {
     counter_t oracle_num_refs;
     counter_t oracle_num_loads;
     counter_t oracle_num_branches;
-    counter_t oracle_bogus_cycles;
     counter_t MopQ_occupancy;
     counter_t MopQ_full_cycles;
 
