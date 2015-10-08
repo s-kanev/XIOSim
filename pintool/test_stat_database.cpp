@@ -12,6 +12,8 @@
 
 #include "stat_database.h"
 
+using namespace xiosim::stats;
+
 TEST_CASE("Single-value int statistics", "singlevalue_int") {
     int value = 0;
     SECTION("Using default values for unspecified constructor params") {
@@ -125,6 +127,132 @@ TEST_CASE("Distribution", "distribution") {
         dist.print_value(stdout);
         printf("VERIFY MANUALLY that the statistic is printed correctly.\n");
         printf("------------- Print description end ----------------------\n");
+    }
+}
+
+TEST_CASE("Formula statistics", "formulas") {
+    SECTION("Formulas that add constants.") {
+        Formula f("add_constants", "description");
+        f = Constant(3) + Constant(4);
+        f.print_value(stdout);
+        REQUIRE(f.evaluate() == 7);
+    }
+
+    SECTION("Formulas that add and subtract existing Statistics and constants") {
+        int int_value = 0;
+        Statistic<int> int_stat("integer_stat", "integer statistic", &int_value, 0);
+        Formula f("add_stats_constants", "description");
+        f = int_stat + Constant(5);
+
+        REQUIRE(f.evaluate() == 5);
+
+        int_value = 100;
+        REQUIRE(f.evaluate() == 105);
+
+        int_value++;
+        REQUIRE(f.evaluate() == 106);
+
+        int_value--;
+        REQUIRE(f.evaluate() == 105);
+    }
+
+    SECTION("Formulas that add and subtract statistics of the same type.") {
+        int int_statvalue_1 = 0;
+        int int_statvalue_2 = 0;
+        Statistic<int> int_stat1("integer_stat1", "integer statistic", &int_statvalue_1, 0);
+        Statistic<int> int_stat2("integer_stat2", "another integer statistic", &int_statvalue_2, 0);
+        Formula add("add_stats_stats", "Add statistics");
+        Formula sub("sub_stats_stats", "Subtract statistics");
+        add = int_stat1 + int_stat2;
+        sub = int_stat1 - int_stat2;
+
+        REQUIRE(add.evaluate() == 0);
+        REQUIRE(sub.evaluate() == 0);
+
+        int_statvalue_1 = 10;
+        int_statvalue_2 = -10;
+        REQUIRE(add.evaluate() == 0);
+        REQUIRE(sub.evaluate() == 20);
+
+        int_statvalue_1 = 1000;
+        int_statvalue_2 = -1;
+        REQUIRE(add.evaluate() == 999);
+        REQUIRE(sub.evaluate() == 1001);
+    }
+
+    SECTION("Formulas that add and subtract float and int statistics.") {
+        float flt_statvalue_1 = 0;
+        unsigned int int_statvalue_2 = 0;
+        Statistic<float> flt_stat1("float_stat1", "float statistic", &flt_statvalue_1, 0);
+        Statistic<unsigned int> int_stat2(
+            "integer_stat2", "unsigned integer statistic", &int_statvalue_2, 0);
+        Formula add("add_stats", "Add statistics");
+        Formula sub("sub_stats", "Subtract statistics");
+        add = flt_stat1 + int_stat2;
+        sub = flt_stat1 - int_stat2;
+
+        REQUIRE(add.evaluate() == 0);
+        REQUIRE(sub.evaluate() == 0);
+
+        flt_statvalue_1 = 0.5;
+        int_statvalue_2 = 1;
+        REQUIRE(add.evaluate() == 1.5);
+        REQUIRE(sub.evaluate() == -0.5);
+
+        flt_statvalue_1 = 101.2345;
+        int_statvalue_2 = 1000;
+        REQUIRE(add.evaluate() == Approx(1101.2345));
+        REQUIRE(sub.evaluate() == Approx(-898.7655));
+    }
+
+    SECTION("Formulas with 3 operands.") {
+        int stat_1_value = 0;
+        unsigned stat_2_value = 0;
+        long long stat_3_value = 0;
+
+        Statistic<int> stat_1("stat_1", "integer statistic", &stat_1_value, 0);
+        Statistic<unsigned> stat_2("stat_2", "unsigned statistic", &stat_2_value, 0);
+        Statistic<long long> stat_3("stat_3", "long long statistic", &stat_3_value, 0);
+        Formula sum("add_three_stats", "Add three statistics together");
+        Formula nested_sum("add_three_stats_nested", "Add explicitly nested statistics together.");
+        sum = stat_1 + stat_2 + stat_3;
+        nested_sum = stat_1 + (stat_2 + stat_3);
+
+        REQUIRE(sum.evaluate() == 0);
+
+        stat_1_value = 10;
+        REQUIRE(sum.evaluate() == 10);
+        REQUIRE(nested_sum.evaluate() == 10);
+
+        stat_2_value++;
+        REQUIRE(sum.evaluate() == 11);
+        REQUIRE(nested_sum.evaluate() == 11);
+
+        stat_3_value += 3;
+        REQUIRE(sum.evaluate() == 14);
+        REQUIRE(nested_sum.evaluate() == 14);
+
+        Formula madd("multiply-add", "Performs a*b + c");
+        Formula nested_madd("nested-multiply-add", "Performs a*(b+c)");
+        madd = stat_1 * stat_2 + stat_3;
+        nested_madd = stat_1 * (stat_2 + stat_3);
+        stat_1_value = -1;
+        stat_2_value = 2;
+        stat_3_value = 3;
+        REQUIRE(madd.evaluate() == 1);
+        REQUIRE(nested_madd.evaluate() == -5);
+
+        stat_1_value = -1;
+        stat_2_value = 1;
+        stat_3_value = 5;
+        REQUIRE(madd.evaluate() == 4);
+        REQUIRE(nested_madd.evaluate() == -6);
+
+        stat_1_value = 2;
+        stat_2_value = 5;
+        stat_3_value = 5;
+        REQUIRE(madd.evaluate() == 15);
+        REQUIRE(nested_madd.evaluate() == 20);
     }
 }
 
