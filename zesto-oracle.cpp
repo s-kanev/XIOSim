@@ -681,8 +681,9 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
         /* For loads, stas and stds, we need to grab virt_addr and mem_size from feeder. */
         if (uop->decode.is_load || uop->decode.is_sta || uop->decode.is_std) {
             zesto_assert(!handshake.mem_buffer.empty(), nullptr);
-            /* XXX: Add memory operand indexing to decode. */
-            auto mem_access = handshake.mem_buffer[0];
+            int mem_op_index = uop->oracle.mem_op_index;
+            zesto_assert(mem_op_index >= 0 && mem_op_index < (int)handshake.mem_buffer.size(), NULL);
+            auto mem_access = handshake.mem_buffer[mem_op_index];
             uop->oracle.virt_addr = mem_access.first;
             uop->decode.mem_size = mem_access.second;
 

@@ -62,6 +62,7 @@ static void
 fill_out_load_uop(const struct Mop_t* Mop, struct uop_t& load_uop, size_t mem_op_index = 0) {
     load_uop.decode.is_load = true;
     load_uop.decode.FU_class = FU_LD;
+    load_uop.oracle.mem_op_index = mem_op_index;
 
     auto mem_regs = get_memory_operand_registers_read(Mop, mem_op_index);
     size_t reg_ind = 0;
@@ -74,6 +75,7 @@ static void
 fill_out_sta_uop(const struct Mop_t* Mop, struct uop_t& sta_uop, size_t mem_op_index = 0) {
     sta_uop.decode.is_sta = true;
     sta_uop.decode.FU_class = FU_STA;
+    sta_uop.oracle.mem_op_index = mem_op_index;
 
     auto mem_regs = get_memory_operand_registers_read(Mop, mem_op_index);
     size_t reg_ind = 0;
@@ -83,9 +85,10 @@ fill_out_sta_uop(const struct Mop_t* Mop, struct uop_t& sta_uop, size_t mem_op_i
 
 /* Helper to fill out flags and registers for a std uop. */
 static void
-fill_out_std_uop(const struct Mop_t* Mop, struct uop_t& std_uop, const xed_reg_enum_t data_reg) {
+fill_out_std_uop(const struct Mop_t* Mop, struct uop_t& std_uop, const xed_reg_enum_t data_reg, size_t mem_op_index = 0) {
     std_uop.decode.is_std = true;
     std_uop.decode.FU_class = FU_STD;
+    std_uop.oracle.mem_op_index = mem_op_index;
 
     std_uop.decode.idep_name[0] = data_reg;
 }
@@ -486,7 +489,7 @@ static bool check_tables(struct Mop_t* Mop) {
 
         /* uop01: sta std EIP -> [ESP] */
         fill_out_sta_uop(Mop, Mop->uop[0], store_memory_op_index);
-        fill_out_std_uop(Mop, Mop->uop[1], XED_REG_INVALID);
+        fill_out_std_uop(Mop, Mop->uop[1], XED_REG_INVALID, store_memory_op_index);
         /* std is technically dependant on EIP. But in our model each instruction
          * carries its own IP. */
 
@@ -518,9 +521,7 @@ static bool check_tables(struct Mop_t* Mop) {
         Mop->allocate_uops();
 
         /* uop0: Load jump destination */
-        Mop->uop[0].decode.is_load = true;
-        Mop->uop[0].decode.FU_class = FU_LD;
-        Mop->uop[0].decode.idep_name[0] = XED_REG_ESP;
+        fill_out_load_uop(Mop, Mop->uop[0]);
         Mop->uop[0].decode.odep_name[0] = XED_REG_TMP0;
 
         /* uop1: Add to ESP */
@@ -564,7 +565,7 @@ static bool check_tables(struct Mop_t* Mop) {
                 data_reg = regs_read.front();
             /* else, this is the immediate case */
         }
-        fill_out_std_uop(Mop, Mop->uop[flow_start + 1], data_reg);
+        fill_out_std_uop(Mop, Mop->uop[flow_start + 1], data_reg, store_memory_op_index);
 
         /* uop2: Subtract from ESP */
         Mop->uop[flow_start + 2].decode.FU_class = FU_IEU;
@@ -597,7 +598,7 @@ static bool check_tables(struct Mop_t* Mop) {
 
         if (has_store) {
             fill_out_sta_uop(Mop, Mop->uop[2], 0);
-            fill_out_std_uop(Mop, Mop->uop[3], XED_REG_TMP0);
+            fill_out_std_uop(Mop, Mop->uop[3], XED_REG_TMP0, 0);
         }
         return true;
     }
@@ -654,7 +655,7 @@ static bool check_tables(struct Mop_t* Mop) {
         fill_out_load_uop(Mop, Mop->uop[0], 1);
         Mop->uop[0].decode.odep_name[0] = XED_REG_TMP0;
         fill_out_sta_uop(Mop, Mop->uop[1], 0);
-        fill_out_std_uop(Mop, Mop->uop[2], XED_REG_TMP0);
+        fill_out_std_uop(Mop, Mop->uop[2], XED_REG_TMP0, 0);
         return true;
     }
 

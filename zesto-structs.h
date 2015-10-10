@@ -184,16 +184,17 @@ struct alignas(16) uop_t
 
   struct {
     /* memory information */
+    int mem_op_index; /* which memory operand of the Mop is this */
     md_addr_t virt_addr;
     md_paddr_t phys_addr;
-    // XXX: Clean-up
-    int is_repeated; /* uses cache hierarchy or mem-repater */
-    int is_sync_op;  /* repeater-bound ops -- are they wait/signal */
 
     /* register dependence pointers */
     struct uop_t * idep_uop[MAX_IDEPS];
     struct odep_t * odep_uop;
 
+    // XXX: Clean-up
+    bool is_repeated; /* uses cache hierarchy or mem-repater */
+    bool is_sync_op;  /* repeater-bound ops -- are they wait/signal */
     bool recover_inst; /* TRUE if next inst is at wrong PC */
   } oracle;
 
@@ -255,6 +256,7 @@ struct alignas(16) uop_t
   uop_t() {
       zero();
       memset(&this->alloc,-1,sizeof(this->alloc));
+      this->oracle.mem_op_index = -1;
       this->decode.Mop_seq = (seq_t)-1;
       this->decode.uop_seq = (seq_t)-1;
       this->alloc.port_assignment = -1;
