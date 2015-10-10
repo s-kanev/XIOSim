@@ -338,6 +338,22 @@ class REPTest(XIOSimTest):
     def runTest(self):
         self.runAndValidate()
 
+class SegfTest(XIOSimTest):
+    ''' End-to-end test for faults on speculative path.'''
+    def setDriverParams(self):
+        bmk_cfg = self.writeTestBmkConfig("segf")
+        self.xio.AddBmks(bmk_cfg)
+
+        self.xio.AddPinOptions()
+        self.xio.AddPintoolOptions(num_cores=1)
+        self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
+                                              "config", "N.cfg"))
+
+    def setUp(self):
+        super(SegfTest, self).setUp()
+
+    def runTest(self):
+        self.runAndValidate()
 
 if __name__ == "__main__":
     unittest.main()
