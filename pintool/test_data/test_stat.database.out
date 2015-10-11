@@ -1,0 +1,28 @@
+dist                         # dist description
+dist.array_sz = 10
+dist.bucket_sz = 5
+dist.count = 10
+dist.total = 50
+dist.imin = 0
+dist.imax = 50
+dist.average =   5.0000
+dist.std_dev =  15.8114
+dist.overflows = 1
+# pdf = prob. dist. fn. cdf = cumulative dist. fn.
+#          index      count    pdf    cdf 
+dist.start_dist
+               0         50 100.00 100.00 
+               5          0   0.00 100.00 
+              10          0   0.00 100.00 
+              15          0   0.00 100.00 
+              20          0   0.00 100.00 
+              25          0   0.00 100.00 
+              30          0   0.00 100.00 
+              35          0   0.00 100.00 
+              40          0   0.00 100.00 
+              45          0   0.00 100.00 
+dist.end_dist
+double_stat                      50.1230 # double description
+integer_stat                         100 # integer description
+long_long_stat                   1233445 # long long description
+string_stat                       string # string description

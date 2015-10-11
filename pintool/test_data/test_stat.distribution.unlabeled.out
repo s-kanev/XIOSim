@@ -1,0 +1,24 @@
+dist                         # Distribution description.
+dist.array_sz = 10
+dist.bucket_sz = 5
+dist.count = 10
+dist.total = 100
+dist.imin = 10
+dist.imax = 10
+dist.average =  10.0000
+dist.std_dev =  10.0000
+dist.overflows = 10
+# pdf = prob. dist. fn. cdf = cumulative dist. fn.
+#          index      count    pdf    cdf 
+dist.start_dist
+               0         10  10.00  10.00 
+               5         10  10.00  20.00 
+              10         10  10.00  30.00 
+              15         10  10.00  40.00 
+              20         10  10.00  50.00 
+              25         10  10.00  60.00 
+              30         10  10.00  70.00 
+              35         10  10.00  80.00 
+              40         10  10.00  90.00 
+              45         10  10.00 100.00 
+dist.end_dist

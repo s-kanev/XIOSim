@@ -174,19 +174,15 @@ $(OBJDIR)%.o : %.cpp
 #
 ##############################################################
 $(TIMING): $(TIMING_OBJS) $(SIM_LIB) $(MCPAT_LIB) $(DRAMSIM_LIB) $(REPEATER_LIB)
-	@echo "Linking timing simulator."
 	${LINKER} -g ${LINK_EXE}$@ $^ $(BOOST_LIBS) $(CONFUSE_LIB)
 
 $(FEEDER): $(FEEDER_OBJS)
-	@echo "Linking feeder."
 	${LINKER} -g $(TOOL_LDFLAGS) ${LINK_EXE}$@ ${TOOL_LPATHS} $^ $(TOOL_OBJS) $(BOOST_LIBS) $(TOOL_LIBS)
 
 $(HARNESS): $(HARNESS_OBJS)
-	@echo "Linking harness."
 	${LINKER} -g ${LINK_EXE}$@ ${CONFUSE_LPATHS} $^ $(BOOST_LIBS) $(CONFUSE_LIB)
 
 $(UNIT_TESTS): % : %.o $(UNIT_TEST_DEPS) $(SIM_LIB) $(REPEATER_LIB) $(DRAMSIM_LIB) $(MCPAT_LIB)
-	@echo "Linking unit test."
 	${LINKER} -g ${LINK_EXE}$@ $^ ${CONFUSE_LPATHS} $(BOOST_LIBS) $(CONFUSE_LIB)
 
 ##############################################################

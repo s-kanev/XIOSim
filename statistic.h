@@ -270,7 +270,6 @@ class Distribution : public BaseStatistic {
         dist_stats_t stats;
         compute_dist_stats(&stats);
 
-        fprintf(fd, "\n");
         fprintf(fd, "%-28s # %s\n", name.c_str(), desc.c_str());
         fprintf(fd, "%s.array_sz = %u\n", name.c_str(), array_sz);
         fprintf(fd, "%s.bucket_sz = %u\n", name.c_str(), bucket_sz);
@@ -286,8 +285,8 @@ class Distribution : public BaseStatistic {
         fprintf(fd, "%s.start_dist\n", name.c_str());
 
         bool has_custom_fmt = !output_fmt.empty();
-        const char* index_fmt = has_custom_fmt ? output_fmt.c_str() : "%16u ";
-        const char* count_fmt = has_custom_fmt ? output_fmt.c_str() : "%10u ";
+        const char* index_fmt = "%16u ";
+        const char* count_fmt = "%10u ";
         const char* pdf_fmt = has_custom_fmt ? output_fmt.c_str() : "%6.2f ";
         const char* cdf_fmt = has_custom_fmt ? output_fmt.c_str() : "%6.2f ";
         double cdf = 0.0;

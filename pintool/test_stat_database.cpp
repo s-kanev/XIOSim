@@ -9,19 +9,87 @@
 
 #include <cstdio>
 #include <cstring>
+#include <iostream>
+#include <string>
 
 #include "stat_database.h"
 
 using namespace xiosim::stats;
 
+/* Opens a new randomly named temporary file for testing printfs.
+ *
+ * The name of the new randomly generated file is placed into temp_file_name.
+ */
+FILE* open_temp_file(char* temp_file_name) {
+    char buf[21] = "/tmp/tmp_stat_XXXXXX";  // We know exactly how long the name will be.
+    int fd = mkstemp(buf);
+    REQUIRE(fd != -1);
+    FILE* stream = fdopen(fd, "w+");
+    REQUIRE(stream != NULL);
+    strncpy(temp_file_name, buf, 21);  // Copy back into local buffer.
+    return stream;
+}
+
+/* Closes the temp file descriptor and deletes the file. */
+void cleanup_temp_file(FILE* temp_file, char* temp_file_name) {
+    fclose(temp_file);
+    std::remove(temp_file_name);
+}
+
+bool check_printfs(FILE* test_file, const char* golden_file_name) {
+    // Rewind the test file stream to the beginning so we can start reading.
+    rewind(test_file);
+
+    FILE* golden_file = fopen(golden_file_name, "r");
+    REQUIRE(golden_file != NULL);
+
+    const int MAX_LINE_LENGTH = 200;
+    char* golden_buf = new char[MAX_LINE_LENGTH];
+    char* test_buf = new char[MAX_LINE_LENGTH];
+    size_t golden_len = MAX_LINE_LENGTH;
+    size_t test_len = MAX_LINE_LENGTH;
+    ssize_t golden_read = 0;
+    ssize_t test_read = 0;
+
+    int line_num = 0;
+
+    // Read first line. We have to make sure that both streams read the same
+    // number of lines, or the EOF check at the end won't work.
+    golden_read = getline(&golden_buf, &golden_len, golden_file);
+    test_read = getline(&test_buf, &test_len, test_file);
+    while (golden_read != -1 && test_read != -1) {
+        bool lines_equal = (strncmp(golden_buf, test_buf, golden_len) == 0);
+        if (!lines_equal) {
+            // Print lines to the console for debugging BEFORE the REQUIRE macro.
+            printf("DIFFERENCE ON LINE %d.\n", line_num);
+            printf("Test output    : %s\n", test_buf);
+            printf("Correct output : %s\n", golden_buf);
+            REQUIRE(lines_equal);
+        }
+        line_num++;
+        golden_read = getline(&golden_buf, &golden_len, golden_file);
+        test_read = getline(&test_buf, &test_len, test_file);
+    }
+
+    // If the test really passed, then both files should be at the end;
+    // otherwise, one file has extra line(s) that shouldn't be there.
+    REQUIRE((feof(golden_file) && feof(test_file)));
+    fclose(golden_file);
+
+    delete[] golden_buf;
+    delete[] test_buf;
+    return true;
+}
+
 TEST_CASE("Single-value int statistics", "singlevalue_int") {
+
     int value = 0;
     SECTION("Using default values for unspecified constructor params") {
         Statistic<int> mystat("test_stat", "Description of a test statistic.", &value, 1);
-        REQUIRE(mystat.get_name().compare("test_stat") == 0);
-        REQUIRE(mystat.get_value() == value);
-        REQUIRE(mystat.get_init_val() == 1);
-        REQUIRE(mystat.get_output_fmt().compare("%12d") == 0);
+        CHECK(mystat.get_name().compare("test_stat") == 0);
+        CHECK(mystat.get_value() == value);
+        CHECK(mystat.get_init_val() == 1);
+        CHECK(mystat.get_output_fmt().compare("%12d") == 0);
         REQUIRE(value == 1);
         mystat.scale_value(2);
         REQUIRE(mystat.get_value() == 2);
@@ -30,28 +98,32 @@ TEST_CASE("Single-value int statistics", "singlevalue_int") {
     SECTION("Specifying values for all constructor params.") {
         Statistic<int> mystat(
             "test_stat", "Description of a test statistic.", &value, 0, "%2d", false, false);
-        REQUIRE(mystat.is_printed() == false);
-        REQUIRE(mystat.is_scaled() == false);
-        REQUIRE(mystat.get_output_fmt().compare("%2d") == 0);
+        CHECK(mystat.is_printed() == false);
+        CHECK(mystat.is_scaled() == false);
+        CHECK(mystat.get_output_fmt().compare("%2d") == 0);
     }
 
     SECTION("Printing single value") {
+        char temp_file_name[21];
+        FILE* temp_file = open_temp_file(temp_file_name);
+
         Statistic<int> mystat("test_stat", "Description of a test statistic.", &value, 0, "%6d");
         value = 1000;
-        printf("------------- Print description test ---------------------\n");
-        mystat.print_value(stdout);
-        printf("VERIFY MANUALLY that the statistic is printed correctly.\n");
-        printf("------------- Print description end ----------------------\n");
+        mystat.print_value(temp_file);
+
+        check_printfs(temp_file, "test_data/test_stat.singlevalue_int.out");
+        cleanup_temp_file(temp_file, temp_file_name);
     }
+
 }
 
 TEST_CASE("String type single-value statistics", "singlevalue_str") {
     const char* value = "something";
     Statistic<const char*> mystat("string_stat", "Description of a string statistic.", &value);
-    REQUIRE(mystat.get_name().compare("string_stat") == 0);
-    REQUIRE(strcmp(mystat.get_value(), "something") == 0);
+    CHECK(mystat.get_name().compare("string_stat") == 0);
+    CHECK(strcmp(mystat.get_value(), "something") == 0);
     mystat.scale_value(2.0);
-    REQUIRE(strcmp(mystat.get_value(), "something") == 0);
+    CHECK(strcmp(mystat.get_value(), "something") == 0);
 }
 
 TEST_CASE("Single-value double statistics", "singlevalue_double") {
@@ -59,13 +131,13 @@ TEST_CASE("Single-value double statistics", "singlevalue_double") {
     SECTION("Default output format") {
         Statistic<double> mystat("value_stat", "Description", &value, 0);
         value = 0.12349;
-        REQUIRE(mystat.get_output_fmt().compare("%12.4f") == 0);
-        REQUIRE(mystat.get_value() == value);
+        CHECK(mystat.get_output_fmt().compare("%12.4f") == 0);
+        CHECK(mystat.get_value() == value);
     }
 
     SECTION("Specifying custom output format") {
         Statistic<double> mystat("double_stat", "Description", &value, 0, "%14.4f");
-        REQUIRE(mystat.get_output_fmt().compare("%14.4f") == 0);
+        CHECK(mystat.get_output_fmt().compare("%14.4f") == 0);
     }
 }
 
@@ -74,6 +146,9 @@ TEST_CASE("Distribution", "distribution") {
     const int bucket_sz = 5;
     int init_val = 0;
     SECTION("Unlabeled distribution") {
+        char temp_file_name[21];
+        FILE* temp_file = open_temp_file(temp_file_name);
+
         Distribution dist("dist", "Distribution description.", init_val, array_sz, bucket_sz);
         dist.add_samples(0, 10);
         dist.add_samples(5, 10);
@@ -98,13 +173,16 @@ TEST_CASE("Distribution", "distribution") {
         REQUIRE(stats.stddev == 10);
         REQUIRE(dist.get_overflows() == 10);
 
-        printf("\n------------- Print description test ---------------------\n");
-        dist.print_value(stdout);
-        printf("VERIFY MANUALLY that the statistic is printed correctly.\n");
-        printf("------------- Print description end ----------------------\n");
+        dist.print_value(temp_file);
+
+        check_printfs(temp_file, "test_data/test_stat.distribution.unlabeled.out");
+        cleanup_temp_file(temp_file, temp_file_name);
     }
 
     SECTION("Printing distribution with format and labels") {
+        char temp_file_name[21];
+        FILE* temp_file = open_temp_file(temp_file_name);
+
         const char* stat_labels[array_sz] = {
             "label_1", "label_2", "label_3", "label_4", "label_5",
             "label_6", "label_7", "label_8", "label_9", "label_10"
@@ -123,10 +201,10 @@ TEST_CASE("Distribution", "distribution") {
         dist.add_samples(27, 1);
         dist.add_samples(30, 20);
 
-        printf("\n------------- Print description test ---------------------\n");
-        dist.print_value(stdout);
-        printf("VERIFY MANUALLY that the statistic is printed correctly.\n");
-        printf("------------- Print description end ----------------------\n");
+        dist.print_value(temp_file);
+
+        check_printfs(temp_file, "test_data/test_stat.distribution.labeled.out");
+        cleanup_temp_file(temp_file, temp_file_name);
     }
 }
 
@@ -134,8 +212,7 @@ TEST_CASE("Formula statistics", "formulas") {
     SECTION("Formulas that add constants.") {
         Formula f("add_constants", "description");
         f = Constant(3) + Constant(4);
-        f.print_value(stdout);
-        REQUIRE(f.evaluate() == 7);
+        CHECK(f.evaluate() == 7);
     }
 
     SECTION("Formulas that add and subtract existing Statistics and constants") {
@@ -166,18 +243,18 @@ TEST_CASE("Formula statistics", "formulas") {
         add = int_stat1 + int_stat2;
         sub = int_stat1 - int_stat2;
 
-        REQUIRE(add.evaluate() == 0);
-        REQUIRE(sub.evaluate() == 0);
+        CHECK(add.evaluate() == 0);
+        CHECK(sub.evaluate() == 0);
 
         int_statvalue_1 = 10;
         int_statvalue_2 = -10;
-        REQUIRE(add.evaluate() == 0);
-        REQUIRE(sub.evaluate() == 20);
+        CHECK(add.evaluate() == 0);
+        CHECK(sub.evaluate() == 20);
 
         int_statvalue_1 = 1000;
         int_statvalue_2 = -1;
-        REQUIRE(add.evaluate() == 999);
-        REQUIRE(sub.evaluate() == 1001);
+        CHECK(add.evaluate() == 999);
+        CHECK(sub.evaluate() == 1001);
     }
 
     SECTION("Formulas that add and subtract float and int statistics.") {
@@ -191,18 +268,18 @@ TEST_CASE("Formula statistics", "formulas") {
         add = flt_stat1 + int_stat2;
         sub = flt_stat1 - int_stat2;
 
-        REQUIRE(add.evaluate() == 0);
-        REQUIRE(sub.evaluate() == 0);
+        CHECK(add.evaluate() == 0);
+        CHECK(sub.evaluate() == 0);
 
         flt_statvalue_1 = 0.5;
         int_statvalue_2 = 1;
-        REQUIRE(add.evaluate() == 1.5);
-        REQUIRE(sub.evaluate() == -0.5);
+        CHECK(add.evaluate() == 1.5);
+        CHECK(sub.evaluate() == -0.5);
 
         flt_statvalue_1 = 101.2345;
         int_statvalue_2 = 1000;
-        REQUIRE(add.evaluate() == Approx(1101.2345));
-        REQUIRE(sub.evaluate() == Approx(-898.7655));
+        CHECK(add.evaluate() == Approx(1101.2345));
+        CHECK(sub.evaluate() == Approx(-898.7655));
     }
 
     SECTION("Formulas with 3 operands.") {
@@ -239,24 +316,27 @@ TEST_CASE("Formula statistics", "formulas") {
         stat_1_value = -1;
         stat_2_value = 2;
         stat_3_value = 3;
-        REQUIRE(madd.evaluate() == 1);
-        REQUIRE(nested_madd.evaluate() == -5);
+        CHECK(madd.evaluate() == 1);
+        CHECK(nested_madd.evaluate() == -5);
 
         stat_1_value = -1;
         stat_2_value = 1;
         stat_3_value = 5;
-        REQUIRE(madd.evaluate() == 4);
-        REQUIRE(nested_madd.evaluate() == -6);
+        CHECK(madd.evaluate() == 4);
+        CHECK(nested_madd.evaluate() == -6);
 
         stat_1_value = 2;
         stat_2_value = 5;
         stat_3_value = 5;
-        REQUIRE(madd.evaluate() == 15);
-        REQUIRE(nested_madd.evaluate() == 20);
+        CHECK(madd.evaluate() == 15);
+        CHECK(nested_madd.evaluate() == 20);
     }
 }
 
 TEST_CASE("Full statistics database", "database") {
+    char temp_file_name[21];
+    FILE* temp_file = open_temp_file(temp_file_name);
+
     int int_value = 0;
     double double_value = 0.0;
     long long ll_value = 0;
@@ -281,12 +361,12 @@ TEST_CASE("Full statistics database", "database") {
     double_value = 50.123;
     ll_value = 1233445;
 
-    REQUIRE(int_stat->get_value() == int_value);
-    REQUIRE(double_stat->get_value() == double_value);
-    REQUIRE(ll_stat->get_value() == ll_value);
+    CHECK(int_stat->get_value() == int_value);
+    CHECK(double_stat->get_value() == double_value);
+    CHECK(ll_stat->get_value() == ll_value);
 
-    printf("\n------------- Print description test ---------------------\n");
-    sdb.print_all_stats(stdout);
-    printf("VERIFY MANUALLY that the database is printed correctly.\n");
-    printf("------------- Print description end ----------------------\n");
+    sdb.print_all_stats(temp_file);
+
+    check_printfs(temp_file, "test_data/test_stat.database.out");
+    cleanup_temp_file(temp_file, temp_file_name);
 }
