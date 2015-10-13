@@ -90,6 +90,7 @@ TEST_CASE("Single-value int statistics", "singlevalue_int") {
         CHECK(mystat.get_value() == value);
         CHECK(mystat.get_init_val() == 1);
         CHECK(mystat.get_output_fmt().compare("%12d") == 0);
+        // Using an initial value of 1 should set the actual stat value to 1.
         REQUIRE(value == 1);
         mystat.scale_value(2);
         REQUIRE(mystat.get_value() == 2);
@@ -119,7 +120,7 @@ TEST_CASE("Single-value int statistics", "singlevalue_int") {
 
 TEST_CASE("String type single-value statistics", "singlevalue_str") {
     const char* value = "something";
-    Statistic<const char*> mystat("string_stat", "Description of a string statistic.", &value);
+    Statistic<const char*> mystat("string_stat", "Description of a string statistic.", value);
     CHECK(mystat.get_name().compare("string_stat") == 0);
     CHECK(strcmp(mystat.get_value(), "something") == 0);
     mystat.scale_value(2.0);
@@ -349,7 +350,7 @@ TEST_CASE("Full statistics database", "database") {
         sdb.add_statistic("double_stat", "double description", &double_value, 0);
     Statistic<long long>* ll_stat =
         sdb.add_statistic("long_long_stat", "long long description", &ll_value, 0);
-    sdb.add_statistic("string_stat", "string description", &str_value);
+    sdb.add_statistic("string_stat", "string description", str_value);
     Distribution* dist = sdb.add_distribution("dist", "dist description", 0, 10, 5);
 
     // Don't need to add too many; distributions have their own unit tests.

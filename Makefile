@@ -48,17 +48,19 @@ CFLAGS = $(FFLAGS) $(OFLAGS) $(BINUTILS_INC) $(BINUTILS_LIB) $(ZTRACE) $(MCPAT_I
 # all the sources
 #
 SRCS =  \
-eval.c          machine.c       memory.cpp         misc.c         \
-stats.c         slave.cpp         sim-main.c       slices.cpp
+eval.c          machine.c       memory.cpp         misc.c        \
+stats.c         slave.cpp         sim-main.c       slices.cpp    \
+expression.cpp
 
 HDRS = \
 thread.h                  host.h          machine.h       memory.h           \
-misc.h          regs.h          sim.h           stats.h         version.h          \
+misc.h          regs.h          sim.h           stats.h         version.h    \
 machine.def     x86flow.def     interface.h     pintool/buffer.h
 
 OBJS =	\
-eval.$(OEXT)         machine.$(OEXT)      memory.$(OEXT)       misc.$(OEXT)          \
-stats.$(OEXT)        sim-main.$(OEXT)     slices.$(OEXT)       slave.$(OEXT)
+eval.$(OEXT)         machine.$(OEXT)      memory.$(OEXT)       misc.$(OEXT)  \
+stats.$(OEXT)        sim-main.$(OEXT)     slices.$(OEXT)       slave.$(OEXT) \
+expression.$(OEXT)
 
 # Zesto specific files
 ZSRCS = \

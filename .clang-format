@@ -7,7 +7,7 @@ AlignTrailingComments: true
 AllowAllParametersOfDeclarationOnNextLine: true
 AllowShortIfStatementsOnASingleLine: false
 AllowShortLoopsOnASingleLine: false
-AlwaysBreakTemplateDeclarations: false
+AlwaysBreakTemplateDeclarations: true
 AlwaysBreakBeforeMultilineStrings: false
 BreakBeforeBinaryOperators: false
 BreakBeforeTernaryOperators: true
@@ -24,7 +24,7 @@ PenaltyBreakComment: 1000
 PenaltyBreakString: 1000
 PenaltyBreakFirstLessLess: 120
 PenaltyExcessCharacter: 10000
-PenaltyReturnTypeOnItsOwnLine: 0
+PenaltyReturnTypeOnItsOwnLine: 10000
 PointerBindsToType: true
 SpacesBeforeTrailingComments: 2
 Cpp11BracedListStyle: false
@@ -40,7 +40,7 @@ SpaceInEmptyParentheses: false
 SpacesInCStyleCastParentheses: false
 SpaceAfterControlStatementKeyword: true
 SpaceBeforeAssignmentOperators: true
-ContinuationIndentWidth: 4
+ContinuationIndentWidth: 8
 ColumnLimit: 100
 ...
 

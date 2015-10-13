@@ -10,6 +10,16 @@
 #ifndef __STATISTIC_H__
 #define __STATISTIC_H__
 
+#include <string>
+
+#include "boost_statistics.h"
+
+// NOTE: Temporary.
+const int PF_COUNT = 0x0001;
+const int PF_PDF = 0x0002;
+const int PF_CDF = 0x0004;
+const int PF_ALL = (PF_COUNT | PF_PDF | PF_CDF);
+
 namespace xiosim {
 namespace stats {
 
@@ -35,9 +45,12 @@ class BaseStatistic {
                   bool scale = true) {
         this->name = name;
         this->desc = desc;
-        this->output_fmt = output_fmt;
         this->print = print;
         this->scale = scale;
+        if (output_fmt)
+            this->output_fmt = output_fmt;
+        else
+            this->output_fmt = "";
     }
 
     BaseStatistic(const BaseStatistic& stat)
@@ -54,6 +67,9 @@ class BaseStatistic {
     std::string get_output_fmt() { return output_fmt; }
     bool is_printed() { return print; }
     bool is_scaled() { return scale; }
+    void set_printed(bool print) { this->print = print; }
+    void set_scaled(bool scale) { this->scale = scale; }
+    void set_output_fmt(std::string output_fmt) { this->output_fmt = output_fmt; }
 
     /* Print the statistic to the file descriptor fd according to the output_fmt
     * string if @print is true. */
@@ -61,6 +77,15 @@ class BaseStatistic {
 
     /* Scale the statistic value by @weight if @scale is true. */
     virtual void scale_value(double weight) = 0;
+
+    /* Accumulate the value(s) of another stat into the current one. */
+    virtual void accum_stat(BaseStatistic* other_stat) = 0;
+
+    /* Saves the current value as the final value. */
+    virtual void save_value() = 0;
+
+    /* Saves the difference of the current and initial value as the final value. */
+    virtual void save_delta() = 0;
 
   protected:
     std::string name;        // Statistic name.
@@ -70,68 +95,90 @@ class BaseStatistic {
     bool scale;              // If true, scales the value upon calling scale_value().
 };
 
-/* Base single-value statistic class. These are specialized via SFINAE for
+/* Base single-value statistic object interface. This is specialized for
  * arithmetic types and non-arithmetic types. */
 template <typename V>
 class StatisticCommon : public BaseStatistic {
   public:
     StatisticCommon(const char* name,
                     const char* desc,
-                    V* value,
                     const char* output_fmt = "",
                     bool print = true,
                     bool scale = true)
-        : BaseStatistic(name, desc, output_fmt, print, scale) {
-        this->value = value;
-        this->output_fmt = output_fmt;
-    }
+        : BaseStatistic(name, desc, output_fmt, print, scale) {}
 
-    StatisticCommon(const StatisticCommon& stat)
-        : BaseStatistic(stat)
-        , value(stat.value) {}
-
-    /* Returns the value stored at the stored address. */
-    V get_value() const { return *value; }
-    /* Returns the initial value. */
-    V get_init_val() const { return init_val; }
+    StatisticCommon(const StatisticCommon<V>& stat) : BaseStatistic(stat) {}
 
     /* File descriptors are used instead of fstream objects because all format
      * strings were originally written for fprintf, and it's not worth changing
      * all of them to C++ stream manipulation semantics.
      */
-    void print_value(FILE* fd) {
-        if (!this->print)
-            return;
-        fprintf(fd, "%-28s", this->name.c_str());
-        fprintf(fd, this->output_fmt.c_str(), *(this->value));
-        fprintf(fd, " # %s\n", this->desc.c_str());
-    }
+    virtual void print_value(FILE* fd) = 0;
 
-    // Some statistic types cannot be scaled (e.g. strings).
+    /* Accessors. */
+    virtual V get_value() const = 0;
+    virtual V get_init_val() const = 0;
+    virtual V get_final_val() const = 0;
+
+    /* Some statistic types cannot be scaled, accumulated, or delta-saved (e.g.
+     * strings), and we need to specialize for those cases.
+     */
     virtual void scale_value(double weight) = 0;
-
-  protected:
-    V* value;    // Pointer to allocated memory storing the value.
-    V init_val;  // Initial value to assign the statistic.
+    virtual void accum_stat(BaseStatistic* other) = 0;
+    virtual void save_value() = 0;
+    virtual void save_delta() = 0;
 };
 
 /* Specialization for nonarithmetic types. Primary differences: they are not
- * initialized to an initial value and they cannot be scaled.
+ * initialized to an initial value and they cannot be scaled, accumulated, or
+ * delta-saved.
  */
 template <typename V, typename enable = void>
 class Statistic : public StatisticCommon<V> {
   public:
     Statistic(const char* name,
               const char* desc,
-              V* value,
+              V value,
               const char* output_fmt = "%12s",
               bool print = true,
               bool scale = true)
-        : StatisticCommon<V>(name, desc, value, output_fmt, print, scale) {}
+        : StatisticCommon<V>(name, desc, output_fmt, print, scale)
+        , value(value) {
+        if (this->output_fmt.empty())
+            set_output_format_default();
+    }
 
-    Statistic(const Statistic& stat) : StatisticCommon<V>(stat) {}
+    Statistic(const Statistic<V>& stat)
+        : StatisticCommon<V>(stat)
+        , value(value) {
+        if (this->output_fmt.empty())
+            set_output_format_default();
+    }
 
-    void scale_value(double weight) {}
+    virtual V get_value() const { return value; }
+    virtual V get_init_val() const { return value; }
+    virtual V get_final_val() const { return value; }
+
+    virtual void print_value(FILE* fd) {
+        if (!this->print)
+            return;
+        fprintf(fd, "%-28s", this->name.c_str());
+        fprintf(fd, this->output_fmt.c_str(), value);
+        fprintf(fd, " # %s\n", this->desc.c_str());
+    }
+
+    /* Set the default output format if the provided output_fmt is empty or
+     * NULL. */
+    virtual void set_output_format_default() { this->output_fmt = "%12s"; }
+
+    // For nonarithmetic types, scaling, accumulating, and saves don't apply.
+    virtual void scale_value(double weight) {}
+    virtual void accum_stat(BaseStatistic* other) {}
+    virtual void save_value() {}
+    virtual void save_delta() {}
+
+  protected:
+    const V value;     // Immutable copy of the value;
 };
 
 /* Specialization for arithmetic types. Distinguishing factors: arithmetic types
@@ -139,8 +186,8 @@ class Statistic : public StatisticCommon<V> {
  */
 template <typename V>
 class Statistic<
-    V,
-    typename boost::enable_if<boost::is_arithmetic<V>>::type> : public StatisticCommon<V> {
+        V,
+        typename boost::enable_if<boost::is_arithmetic<V>>::type> : public StatisticCommon<V> {
 
   public:
     Statistic(const char* name,
@@ -150,16 +197,45 @@ class Statistic<
               const char* output_fmt = "",
               bool print = true,
               bool scale = true)
-        : StatisticCommon<V>(name, desc, value, output_fmt, print, scale) {
-        this->init_val = init_val;
+        : StatisticCommon<V>(name, desc, output_fmt, print, scale)
+        , value(value)
+        , init_val(init_val)
+        , final_val(init_val) {
         *(this->value) = init_val;
         if (this->output_fmt.empty())
             set_output_format_default();
     }
 
-    Statistic(const Statistic& stat) : StatisticCommon<V>(stat) {}
+    Statistic(const Statistic<V>& stat)
+        : StatisticCommon<V>(stat)
+        , value(value) {
+        if (this->output_fmt.empty())
+            set_output_format_default();
+    }
 
-    void scale_value(double weight) { *(this->value) *= (V)weight; }
+    virtual V get_value() const { return *value; }
+    virtual V get_init_val() const { return init_val; }
+    virtual V get_final_val() const  { return final_val; }
+
+    virtual void scale_value(double weight) { *value *= (V)weight; }
+
+    virtual void accum_stat(BaseStatistic* other) {
+        Statistic<V>* stat = static_cast<Statistic<V>*>(other);
+        *value += *(stat->value);
+    }
+
+    /* Saves the current value as the final value. */
+    void save_value() { final_val = *value; }
+
+    virtual void save_delta() { final_val = *value - init_val; }
+
+    virtual void print_value(FILE* fd) {
+        if (!this->print)
+            return;
+        fprintf(fd, "%-28s", this->name.c_str());
+        fprintf(fd, this->output_fmt.c_str(), *(this->value));
+        fprintf(fd, " # %s\n", this->desc.c_str());
+    }
 
     /* Different types of data have different output format defaults. SFINAE
      * is used heavily here to assign different format strings for different
@@ -184,7 +260,8 @@ class Statistic<
     }
 
     template <typename U = V>
-    void set_output_format_default(typename boost::enable_if<boost::is_same<U, float>>::type* = 0) {
+    void set_output_format_default(
+            typename boost::enable_if<boost::is_same<U, float>>::type* = 0) {
         this->output_fmt = "%12.4f";
     }
 
@@ -201,6 +278,11 @@ class Statistic<
             typename boost::enable_if<boost::is_same<U, unsigned long long>>::type* = 0) {
         this->output_fmt = "%12lu";
     }
+
+  protected:
+    V* value;     // Pointer to allocated memory storing the value.
+    V init_val;   // Initial value to assign the statistic.
+    V final_val;  // Final value of the statistic. Used to compare deltas.
 };
 
 /* Distribution statistic.
@@ -224,11 +306,17 @@ class Distribution : public BaseStatistic {
         this->bucket_sz = bucket_sz;
         this->overflows = 0;
         this->array = new unsigned int[array_sz];
-        for (unsigned int i = 0; i < array_sz; i++)
+        this->final_array = new unsigned int[array_sz];
+        for (unsigned int i = 0; i < array_sz; i++) {
             this->array[i] = init_val;
+            this->final_array[i] = init_val;
+        }
     }
 
-    ~Distribution() { delete[] array; }
+    ~Distribution() {
+        delete[] array;
+        delete[] final_array;
+    }
 
     unsigned int get_overflows() { return overflows; }
 
@@ -250,20 +338,39 @@ class Distribution : public BaseStatistic {
                         features<tag::mean, tag::moment<2>, tag::min, tag::max, tag::count>> acc;
         for (unsigned int i = 0; i < array_sz; i++)
             acc(array[i]);
-        stats->count = count(acc);
-        stats->sum = sum(acc);
-        stats->min = min(acc);
-        stats->max = max(acc);
-        stats->mean = mean(acc);
-        stats->variance = moment<2>(acc);
+
+        // Despite the using declaration, there are some naming conflicts from
+        // STL that require us to fully qualify some of these functions.
+        stats->count = boost::accumulators::count(acc);
+        stats->sum = boost::accumulators::sum(acc);
+        stats->min = boost::accumulators::min(acc);
+        stats->max = boost::accumulators::max(acc);
+        stats->mean = boost::accumulators::mean(acc);
+        stats->variance = boost::accumulators::moment<2>(acc);
         stats->stddev = sqrt(stats->variance);
     }
 
     // Scales each element in the distribution.
-    void scale_value(double weight) {
+    virtual void scale_value(double weight) {
         for (unsigned int i = 0; i < array_sz; i++) {
             array[i] = array[i] * weight;
         }
+    }
+
+    virtual void accum_stat(BaseStatistic* other) {
+        Distribution* dist = static_cast<Distribution*>(other);
+        for (unsigned int i = 0; i < array_sz; i++)
+            array[i] += dist->array[i];
+    }
+
+    virtual void save_value() {
+        for (unsigned int i = 0; i < array_sz; i++)
+            final_array[i] = array[i];
+    }
+
+    virtual void save_delta() {
+        for (unsigned int i = 0; i < array_sz; i++)
+            final_array[i] = array[i] - init_val;
     }
 
     void print_value(FILE* fd) {
@@ -305,11 +412,12 @@ class Distribution : public BaseStatistic {
     }
 
   private:
-    unsigned int* array;     // Distribution array.
-    unsigned int array_sz;   // Array size.
-    unsigned int overflows;  // Store values beyond the size of the array.
-    unsigned int bucket_sz;  // Array bucket size.
-    unsigned int init_val;   // Initial value for all elements in the distribution.
+    unsigned int* array;        // Distribution array.
+    unsigned int* final_array;  // Final distribution values.
+    unsigned int array_sz;      // Array size.
+    unsigned int overflows;     // Store values beyond the size of the array.
+    unsigned int bucket_sz;     // Array bucket size.
+    unsigned int init_val;      // Initial value for all elements in the distribution.
     // Labels for each element in the distribution. Corresponds to array index
     // for index.
     const char** stat_labels;

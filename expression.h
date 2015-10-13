@@ -121,7 +121,10 @@ class CompoundExpression : public Expression {
  *
  * ExpressionWrapper explicitly lists all the type-specific Statistics
  * supported in this library to avoid being templated itself.
+ *
+ * Author: Sam Xi
  */
+
 class ExpressionWrapper {
   public:
     ExpressionWrapper() {}
@@ -150,32 +153,6 @@ class ExpressionWrapper {
     std::unique_ptr<Expression> expr;
 };
 
-/* Operators for common arithmetic functions. */
-ExpressionWrapper operator+(ExpressionWrapper lhs, ExpressionWrapper rhs) {
-    return ExpressionWrapper(
-        std::unique_ptr<Expression>(new CompoundExpression<std::plus<Result>>(lhs, rhs)));
-}
-
-ExpressionWrapper operator-(ExpressionWrapper lhs, ExpressionWrapper rhs) {
-    return ExpressionWrapper(
-        std::unique_ptr<Expression>(new CompoundExpression<std::minus<Result>>(lhs, rhs)));
-}
-
-ExpressionWrapper operator*(ExpressionWrapper lhs, ExpressionWrapper rhs) {
-    return ExpressionWrapper(
-        std::unique_ptr<Expression>(new CompoundExpression<std::multiplies<Result>>(lhs, rhs)));
-}
-
-ExpressionWrapper operator/(ExpressionWrapper lhs, ExpressionWrapper rhs) {
-    return ExpressionWrapper(
-        std::unique_ptr<Expression>(new CompoundExpression<std::divides<Result>>(lhs, rhs)));
-}
-
-ExpressionWrapper operator-(ExpressionWrapper lhs) {
-    return ExpressionWrapper(
-        std::unique_ptr<Expression>(new SingleExpression<std::negate<Result>>(lhs)));
-}
-
 /* Formula statistic. */
 class Formula : public BaseStatistic {
   public:
@@ -188,6 +165,10 @@ class Formula : public BaseStatistic {
 
     void operator=(ExpressionWrapper expr) { this->expr = std::unique_ptr<Expression>(expr); }
 
+    /* Needed if the Formula is assigned an Expression not directly, but
+     * through another function's parameters. */
+    void operator=(std::unique_ptr<Expression>& expression) { expr = std::move(expression); }
+
     Result evaluate() { return expr->evaluate(); }
 
     void print_value(FILE* fd) {
@@ -196,12 +177,23 @@ class Formula : public BaseStatistic {
         fprintf(fd, " # %s\n", desc.c_str());
     }
 
-    // Formula statistics are not scaled.
-    void scale_value(double weight) { return; }
+    // Formula statistics are not scaled, accumulated, or saved; if the
+    // terms are, then the formula will be recomputed anyways.
+    virtual void scale_value(double weight) {}
+    virtual void accum_stat(BaseStatistic* other) {}
+    virtual void save_value() {}
+    virtual void save_delta() {}
 
   private:
     std::unique_ptr<Expression> expr;
 };
+
+/* Common arithmetic operators. */
+ExpressionWrapper operator+(ExpressionWrapper lhs, ExpressionWrapper rhs);
+ExpressionWrapper operator-(ExpressionWrapper lhs, ExpressionWrapper rhs);
+ExpressionWrapper operator*(ExpressionWrapper lhs, ExpressionWrapper rhs);
+ExpressionWrapper operator/(ExpressionWrapper lhs, ExpressionWrapper rhs);
+ExpressionWrapper operator-(ExpressionWrapper lhs);
 
 }  // namespace stats
 }  // namespace xiosim
