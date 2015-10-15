@@ -332,6 +332,28 @@ TEST_CASE("Formula statistics", "formulas") {
         CHECK(madd.evaluate() == 15);
         CHECK(nested_madd.evaluate() == 20);
     }
+
+    SECTION("Testing assignment operators", "assignment") {
+        int stat_1_value = 0;
+        unsigned stat_2_value = 0;
+        Statistic<int> stat_1("stat_1", "integer statistic", &stat_1_value, 0);
+        Statistic<unsigned> stat_2("stat_2", "unsigned statistic", &stat_2_value, 0);
+        Formula assign("test_assignment", "Use the += operator.");
+
+        // Start by assigning the Formula any random expression.
+        assign = stat_1;
+        REQUIRE(assign.evaluate() == 0);
+
+        // Now, do an addition-assignment.
+        assign += stat_2;
+        REQUIRE(assign.evaluate() == 0);
+
+        // Change some values!
+        stat_2_value += 5;
+        REQUIRE(assign.evaluate() == 5);
+        stat_1_value += 5;
+        REQUIRE(assign.evaluate() == 10);
+    }
 }
 
 TEST_CASE("Full statistics database", "database") {
