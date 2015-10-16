@@ -243,6 +243,10 @@ Formula* stat_reg_formula(StatsDatabase* sdb,
     return formula;
 }
 
+Formula* stat_reg_formula(StatsDatabase* sdb, Formula& formula) {
+    return sdb->add_formula(formula);
+}
+
 Formula* stat_reg_core_formula(StatsDatabase* sdb,
                                int print_me,
                                int core_id,

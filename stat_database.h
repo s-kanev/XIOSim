@@ -162,6 +162,16 @@ class StatsDatabase {
         return formula;
     }
 
+    /* Add an existing formula object.
+     *
+     * The new formula will be move constructed from the given formula.
+     */
+    Formula* add_formula(Formula& formula) {
+        Formula* f = new Formula(std::move(formula));
+        database[f->get_name()] = f;
+        return f;
+    }
+
     BaseStatistic* get_statistic(std::string stat_name) {
         if (database.find(stat_name) != database.end())
             return database[stat_name];

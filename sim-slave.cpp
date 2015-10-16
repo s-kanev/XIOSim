@@ -353,119 +353,109 @@ void sim_reg_stats(xiosim::stats::StatsDatabase* sdb)
 {
   using namespace xiosim::stats;
   int i;
-  char buf[1024];
-  char buf2[1024];
   bool is_DPM = strcasecmp(knobs.model,"STM") != 0;
 
   /* per core stats */
   for(i=0;i<num_cores;i++)
     cores[i]->reg_stats(sdb);
 
+  sdb->print_all_stats(stdout);
+
   uncore_reg_stats(sdb);
   xiosim::memory::reg_stats(sdb);
 
-  stat_reg_note(sdb,"\n#### SIMULATOR PERFORMANCE STATS ####");
-  stat_reg_qword(sdb, true, "sim_cycle", "total simulation cycles (CPU cycles assuming default freq)", (qword_t*)&uncore->default_cpu_cycles, 0, TRUE, NULL);
-  stat_reg_double(sdb, true, "sim_time", "total simulated time (us)", &uncore->sim_time, 0.0, TRUE, NULL);
-  stat_reg_int(sdb, true, "sim_elapsed_time", "total simulation time in seconds", &sim_elapsed_time, 0, TRUE, NULL);
-  stat_reg_formula(sdb, true, "sim_cycle_rate", "simulation speed (in Mcycles/sec)", "sim_cycle / (sim_elapsed_time * 1000000.0)", NULL);
-  /* Make formula to add num_insn from all archs */
-  strcpy(buf2,"");
-  for(i=0;i<num_cores;i++)
-  {
-    if(i==0)
-      sprintf(buf,"c%d.commit_insn",i);
-    else
-      sprintf(buf," + c%d.commit_insn",i);
+  stat_reg_note(sdb, "\n#### SIMULATOR PERFORMANCE STATS ####");
+  auto& sim_cycle_st = stat_reg_qword(sdb, true, "sim_cycle",
+                                     "total simulation cycles (CPU cycles assuming default freq)",
+                                     (qword_t*)&uncore->default_cpu_cycles, 0, TRUE, NULL);
+  stat_reg_double(sdb, true, "sim_time", "total simulated time (us)", &uncore->sim_time, 0.0, TRUE,
+                  NULL);
+  auto& sim_elapsed_time_st = stat_reg_int(sdb,
+                                          true,
+                                          "sim_elapsed_time",
+                                          "total simulation time in seconds",
+                                          &sim_elapsed_time,
+                                          0,
+                                          TRUE,
+                                          NULL);
+  stat_reg_formula(sdb,
+                   true,
+                   "sim_cycle_rate",
+                   "simulation speed (in Mcycles/sec)",
+                   sim_cycle_st / (sim_elapsed_time_st * Constant(1000000.0)),
+                   NULL);
 
-    strcat(buf2,buf);
+  Formula all_insn("all_insn", "total insts simulated for all cores", "%12.0f");
+  Formula sim_inst_rate("sim_inst_rate", "simulation speed (in MIPS)", "%12.0f");
+  Formula all_uops("all_uops", "total uops simulated for all cores", "%12.0f");
+  Formula sim_uop_rate("sim_uop_rate", "simulation speed (in MuPS)", "%12.0f");
+
+  /* Incrementally build each formula.  We can't yet define a formula in terms
+   * of another, so each one needs to be constructed separately.
+   */
+  for (i = 0; i < num_cores; i++) {
+      auto commit_insn_st = stat_find_core_stat<sqword_t>(sdb, i, "commit_insn");
+      assert(commit_insn_st);
+      all_insn += *commit_insn_st;
+      sim_inst_rate += *commit_insn_st;
+
+      auto commit_uops_st = stat_find_core_stat<sqword_t>(sdb, i, "commit_uops");
+      assert(commit_uops_st);
+      all_uops += *commit_uops_st;
+      sim_uop_rate += *commit_uops_st;
   }
-  stat_reg_formula(sdb, true, "all_insn", "total insts simulated for all cores", buf2, "%12.0f");
-  stat_reg_formula(sdb, true, "sim_inst_rate", "simulation speed (in MIPS)", "all_insn / (sim_elapsed_time * 1000000.0)", NULL);
+  sim_inst_rate /= (sim_elapsed_time_st * Constant(1000000.0));
+  sim_uop_rate /= (sim_elapsed_time_st * Constant(1000000.0));
+  stat_reg_formula(sdb, all_insn);
+  stat_reg_formula(sdb, sim_inst_rate);
+  stat_reg_formula(sdb, sim_uop_rate);
 
-  /* Make formula to add num_uops from all archs */
-  strcpy(buf2,"");
-  for(i=0;i<num_cores;i++)
-  {
-    if(i==0)
-      sprintf(buf,"c%d.commit_uops",i);
-    else
-      sprintf(buf," + c%d.commit_uops",i);
-
-    strcat(buf2,buf);
-  }
-  stat_reg_formula(sdb, true, "all_uops", "total uops simulated for all cores", buf2, "%12.0f");
-  stat_reg_formula(sdb, true, "sim_uop_rate", "simulation speed (in MuPS)", "all_uops / (sim_elapsed_time * 1000000.0)", NULL);
-
-  /* Make formula to add num_eff_uops from all archs */
-  if(is_DPM)
-  {
-    strcpy(buf2,"");
-    for(i=0;i<num_cores;i++)
-    {
-      if(i==0)
-        sprintf(buf,"c%d.commit_eff_uops",i);
-      else
-        sprintf(buf," + c%d.commit_eff_uops",i);
-
-      strcat(buf2,buf);
-    }
-    stat_reg_formula(sdb, true, "all_eff_uops", "total effective uops simulated for all cores", buf2, "%12.0f");
-    stat_reg_formula(sdb, true, "sim_eff_uop_rate", "simulation speed (in MeuPS)", "all_eff_uops / (sim_elapsed_time * 1000000.0)", NULL);
-  }
-
-  if(num_cores == 1) /* single-thread */
-  {
-    sprintf(buf,"c0.commit_IPC");
-    stat_reg_formula(sdb, true, "total_IPC", "final commit IPC", buf, NULL);
-  }
-  else
-  {
-    /* Geometric Means */
-    strcpy(buf2,"^((");
-    for(i=0;i<num_cores;i++)
-    {
-      if(i==0)
-        sprintf(buf,"(!c%d.commit_IPC)",i);
-      else
-        sprintf(buf," + (!c%d.commit_IPC)",i);
-
-      strcat(buf2,buf);
-    }
-    sprintf(buf," )/%d.0)",num_cores);
-    strcat(buf2,buf);
-    stat_reg_formula(sdb, true, "GM_IPC", "geometric mean IPC across all cores", buf2, NULL);
-
-    strcpy(buf2,"^((");
-    for(i=0;i<num_cores;i++)
-    {
-      if(i==0)
-        sprintf(buf,"(!c%d.commit_uPC)",i);
-      else
-        sprintf(buf," + (!c%d.commit_uPC)",i);
-
-      strcat(buf2,buf);
-    }
-    sprintf(buf," )/%d.0)",num_cores);
-    strcat(buf2,buf);
-    stat_reg_formula(sdb, true, "GM_uPC", "geometric mean uPC across all cores", buf2, NULL);
-
-    if(is_DPM)
-    {
-      strcpy(buf2,"^((");
-      for(i=0;i<num_cores;i++)
-      {
-        if(i==0)
-          sprintf(buf,"(!c%d.commit_euPC)",i);
-        else
-          sprintf(buf," + (!c%d.commit_euPC)",i);
-
-        strcat(buf2,buf);
+  if (is_DPM) {
+      Formula all_eff_uops("all_eff_uops", "total effective uops simulated for all cores",
+                           "%12.0f");
+      Formula sim_eff_uop_rate("sim_eff_uop_rate", "simulation speed (in MeuPS)", "%12.0f");
+      for (i = 0; i < num_cores; i++) {
+          auto commit_eff_uops_st = stat_find_core_stat<sqword_t>(sdb, i, "commit_eff_uops");
+          assert(commit_eff_uops_st);
+          all_eff_uops += *commit_eff_uops_st;
+          sim_eff_uop_rate += *commit_eff_uops_st;
       }
-      sprintf(buf," )/%d.0)",num_cores);
-      strcat(buf2,buf);
-      stat_reg_formula(sdb, true, "GM_euPC", "geometric mean euPC across all cores", buf2, NULL);
-    }
+      sim_eff_uop_rate /= (sim_elapsed_time_st * Constant(1000000.0));
+      stat_reg_formula(sdb, sim_eff_uop_rate);
+  }
+
+  // Total IPC formulas.
+  if (num_cores == 1) {
+      auto c0_commit_insn_st = stat_find_stat<int>(sdb, "c0.commit_insn");
+      auto c0_sim_cycle_st = stat_find_stat<qword_t>(sdb, "c0.sim_cycle");
+      stat_reg_formula(sdb, true, "total_IPC", "final commit IPC",
+                       *c0_commit_insn_st / *c0_sim_cycle_st, NULL);
+  } else {
+      // Compute geometric means of IPC.
+      Formula gm_ipc("GM_IPC", "geometric mean IPC across all cores");
+      Formula gm_upc("GM_uPC", "geometric mean uPC across all cores");
+      for (i = 0; i < num_cores; i++) {
+          auto core_commit_ipc_st = stat_find_core_stat<sqword_t>(sdb, i, "commit_IPC");
+          auto core_commit_upc_st = stat_find_core_stat<sqword_t>(sdb, i, "commit_uPC");
+          assert(core_commit_ipc_st && core_commit_upc_st);
+          gm_ipc += *core_commit_ipc_st;
+          gm_upc += *core_commit_upc_st;
+      }
+      gm_ipc ^= Constant(1.0/num_cores);
+      gm_upc ^= Constant(1.0/num_cores);
+      stat_reg_formula(sdb, gm_ipc);
+      stat_reg_formula(sdb, gm_upc);
+
+      if (is_DPM) {
+          Formula gm_eff_upc("GM_euPC", "geometric mean euPC across all cores");
+          for (i = 0; i < num_cores; i++) {
+              auto core_commit_eupc_st = stat_find_core_stat<sqword_t>(sdb, i, "commit_euPC");
+              assert(core_commit_eupc_st);
+              gm_upc += *core_commit_eupc_st;
+          }
+          gm_eff_upc ^= Constant(1.0 / num_cores);
+          stat_reg_formula(sdb, gm_eff_upc);
+      }
   }
 }
 
