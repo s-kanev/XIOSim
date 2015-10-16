@@ -8,6 +8,7 @@
 #include <list>
 
 #include "boost_interprocess.h"
+#include "boost_statistics.h"
 
 #include "../interface.h"
 #include "multiprocess_shared.h"

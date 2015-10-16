@@ -1,5 +1,6 @@
 #include <map>
 
+#include "stats.h"
 #include "thread.h"
 #include "synchronization.h"
 

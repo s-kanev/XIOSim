@@ -51,13 +51,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "sim.h"
 #include "host.h"
 #include "misc.h"
 #include "machine.h"
-#include "eval.h"
 #include "regs.h"
 #include "memory.h"
-#include "sim.h"
 #include "x86flow.def"
 #include "zesto-structs.h"
 

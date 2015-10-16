@@ -12,7 +12,9 @@ class core_power_DPM_t : public core_power_t {
   core_power_DPM_t(struct core_t *_core);
 
   void translate_params(system_core *core_params, system_L2 *L2_params);
-  void translate_stats(struct stat_sdb_t* sdb, system_core* core_stats, system_L2 *L2_stats);
+  void translate_stats(xiosim::stats::StatsDatabase* sdb,
+                       system_core* core_stats,
+                       system_L2* L2_stats);
 };
 
 core_power_DPM_t::core_power_DPM_t(struct core_t *_core):
@@ -78,58 +80,59 @@ void core_power_DPM_t::translate_params(system_core *core_params, system_L2 *L2_
   }
 }
 
-void core_power_DPM_t::translate_stats(struct stat_sdb_t* sdb, system_core *core_stats, system_L2 *L2_stats)
-{
+void core_power_DPM_t::translate_stats(xiosim::stats::StatsDatabase* sdb,
+                                       system_core* core_stats,
+                                       system_L2* L2_stats) {
   core_power_t::translate_stats(sdb, core_stats, L2_stats);
 
-  struct stat_stat_t *stat;
+  xiosim::stats::Statistic<long long>* stat = nullptr;
   int coreID = core->id;
 
-  stat = stat_find_core_stat(sdb, coreID, "fetch_uops");
-  core_stats->int_instructions = stat->variant.for_sqword.end_val; 
+  stat = stat_find_core_stat<long long>(sdb, coreID, "fetch_uops");
+  core_stats->int_instructions = stat->get_final_val();
   core_stats->fp_instructions = 0;
 
-  stat = stat_find_core_stat(sdb, coreID, "commit_uops");
-  core_stats->committed_int_instructions = stat->variant.for_sqword.end_val;
+  stat = stat_find_core_stat<long long>(sdb, coreID, "commit_uops");
+  core_stats->committed_int_instructions = stat->get_final_val();
   core_stats->committed_fp_instructions = 0;
 
-  stat = stat_find_core_stat(sdb, coreID, "commit_uops");
-  core_stats->ROB_reads = stat->variant.for_sqword.end_val;
-  stat = stat_find_core_stat(sdb, coreID, "ROB_writes");
-  core_stats->ROB_writes = stat->variant.for_sqword.end_val;
-  stat = stat_find_core_stat(sdb, coreID, "regfile_reads");
-  core_stats->rename_reads = stat->variant.for_sqword.end_val;
-  stat = stat_find_core_stat(sdb, coreID, "regfile_writes");
-  core_stats->rename_writes = stat->variant.for_sqword.end_val;
-  stat = stat_find_core_stat(sdb, coreID, "fp_regfile_reads");
-  core_stats->fp_rename_reads = stat->variant.for_sqword.end_val;
-  stat = stat_find_core_stat(sdb, coreID, "fp_regfile_writes");
-  core_stats->fp_rename_writes = stat->variant.for_sqword.end_val;
+  stat = stat_find_core_stat<long long>(sdb, coreID, "commit_uops");
+  core_stats->ROB_reads = stat->get_final_val();
+  stat = stat_find_core_stat<long long>(sdb, coreID, "ROB_writes");
+  core_stats->ROB_writes = stat->get_final_val();
+  stat = stat_find_core_stat<long long>(sdb, coreID, "regfile_reads");
+  core_stats->rename_reads = stat->get_final_val();
+  stat = stat_find_core_stat<long long>(sdb, coreID, "regfile_writes");
+  core_stats->rename_writes = stat->get_final_val();
+  stat = stat_find_core_stat<long long>(sdb, coreID, "fp_regfile_reads");
+  core_stats->fp_rename_reads = stat->get_final_val();
+  stat = stat_find_core_stat<long long>(sdb, coreID, "fp_regfile_writes");
+  core_stats->fp_rename_writes = stat->get_final_val();
 
-  stat = stat_find_core_stat(sdb, coreID, "alloc_uops");
-  core_stats->inst_window_reads = stat->variant.for_sqword.end_val;
-  stat = stat_find_core_stat(sdb, coreID, "alloc_uops");
-  core_stats->inst_window_writes = stat->variant.for_sqword.end_val;
+  stat = stat_find_core_stat<long long>(sdb, coreID, "alloc_uops");
+  core_stats->inst_window_reads = stat->get_final_val();
+  stat = stat_find_core_stat<long long>(sdb, coreID, "alloc_uops");
+  core_stats->inst_window_writes = stat->get_final_val();
   core_stats->inst_window_wakeup_accesses = 0;
   core_stats->fp_inst_window_reads = 0;
   core_stats->fp_inst_window_writes = 0;
   core_stats->fp_inst_window_wakeup_accesses = 0;
 
-  stat = stat_find_core_stat(sdb, coreID, "oracle_total_calls");
-  core_stats->context_switches = stat->variant.for_sqword.end_val;
+  stat = stat_find_core_stat<long long>(sdb, coreID, "oracle_total_calls");
+  core_stats->context_switches = stat->get_final_val();
 
   if (core->memory.DL2)
   {
     zesto_assert(L2_stats != NULL, (void)0);
 
-    stat = stat_find_core_stat(sdb, coreID, "DL2.load_lookups");
-    L2_stats->read_accesses = stat->variant.for_sqword.end_val;
-    stat = stat_find_core_stat(sdb, coreID, "DL2.load_misses");
-    L2_stats->read_misses = stat->variant.for_sqword.end_val;
-    stat = stat_find_core_stat(sdb, coreID, "DL2.store_lookups");
-    L2_stats->write_accesses = stat->variant.for_sqword.end_val;
-    stat = stat_find_core_stat(sdb, coreID, "DL2.store_misses");
-    L2_stats->write_misses = stat->variant.for_sqword.end_val;
+    stat = stat_find_core_stat<long long>(sdb, coreID, "DL2.load_lookups");
+    L2_stats->read_accesses = stat->get_final_val();
+    stat = stat_find_core_stat<long long>(sdb, coreID, "DL2.load_misses");
+    L2_stats->read_misses = stat->get_final_val();
+    stat = stat_find_core_stat<long long>(sdb, coreID, "DL2.store_lookups");
+    L2_stats->write_accesses = stat->get_final_val();
+    stat = stat_find_core_stat<long long>(sdb, coreID, "DL2.store_misses");
+    L2_stats->write_misses = stat->get_final_val();
   }
 }
 #endif

@@ -13,6 +13,7 @@
 #include <string>
 
 #include "stat_database.h"
+#include "stats.h"
 
 using namespace xiosim::stats;
 
@@ -94,6 +95,8 @@ TEST_CASE("Single-value int statistics", "singlevalue_int") {
         REQUIRE(value == 1);
         mystat.scale_value(2);
         REQUIRE(mystat.get_value() == 2);
+        value = 20;
+        REQUIRE(mystat.get_value() == value);
     }
 
     SECTION("Specifying values for all constructor params.") {

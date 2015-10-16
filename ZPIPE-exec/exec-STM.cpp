@@ -41,7 +41,7 @@ class core_exec_STM_t:public core_exec_t
   public:
 
   core_exec_STM_t(struct core_t * const core);
-  virtual void reg_stats(struct stat_sdb_t * const sdb);
+  virtual void reg_stats(xiosim::stats::StatsDatabase* sdb);
   virtual void freeze_stats(void);
   virtual void update_occupancy(void);
   virtual void reset_execution(void);
@@ -457,7 +457,7 @@ core_exec_STM_t::core_exec_STM_t(struct core_t * arg_core):
 }
 
 void
-core_exec_STM_t::reg_stats(struct stat_sdb_t *sdb)
+core_exec_STM_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
 {
   char buf[1024];
   char buf2[1024];

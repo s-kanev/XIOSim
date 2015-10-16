@@ -73,8 +73,9 @@
  */
 
 #include <limits.h>
-#include "thread.h"
+
 #include "stats.h"
+#include "thread.h"
 #include "zesto-cache.h"
 #include "zesto-uncore.h"
 #include "zesto-MC.h"
@@ -84,14 +85,31 @@
 
 
 /* register default memory-controller stats */
-void MC_t::reg_stats(struct stat_sdb_t * sdb)
+void MC_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
 {
-  stat_reg_counter(sdb, true, "MC.total_accesses", "total accesses to memory controller",
-      &total_accesses, /* initial value */0, TRUE, /* format */NULL);
-  stat_reg_counter(sdb, false, "MC.total_service_cycles", "cumulative request service cycles",
-      &total_service_cycles, /* initial value */0, TRUE, /* format */NULL);
-  stat_reg_formula(sdb, true, "MC.service_average","average cycles per MC request",
-      "MC.total_service_cycles / MC.total_accesses",/* format */NULL);
+    using namespace xiosim::stats;
+    auto& total_accesses_st = stat_reg_counter(sdb,
+                                               true,
+                                               "MC.total_accesses",
+                                               "total accesses to memory controller",
+                                               &total_accesses,
+                                               0,
+                                               TRUE,
+                                               NULL);
+    auto& total_service_cycles_st = stat_reg_counter(sdb,
+                                                     false,
+                                                     "MC.total_service_cycles",
+                                                     "cumulative request service cycles",
+                                                     &total_service_cycles,
+                                                     0,
+                                                     TRUE,
+                                                     NULL);
+    stat_reg_formula(sdb,
+                     true,
+                     "MC.service_average",
+                     "average cycles per MC request",
+                     total_service_cycles_st / total_accesses_st,
+                     NULL);
 }
 
 void MC_t::init(void)
@@ -124,7 +142,7 @@ void MC_t::reset_stats(void)
 #define MC_STEP_HEADER \
   void step(void)
 #define MC_REG_STATS_HEADER \
-  void reg_stats(struct stat_sdb_t * const sdb)
+  void reg_stats(xiosim::stats::StatsDatabase* sdb)
 #define MC_RESET_STATS_HEADER \
   void reset_stats(void)
 #define MC_PRINT_HEADER \

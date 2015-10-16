@@ -97,7 +97,7 @@ class dram_t
   virtual ~dram_t(void);
   virtual unsigned int access(const enum cache_command cmd, const md_paddr_t baddr, const int bsize) = 0;
   virtual void refresh(void);
-  virtual void reg_stats(struct stat_sdb_t * const sdb);
+  virtual void reg_stats(xiosim::stats::StatsDatabase* sdb);
 };
 
 /* since these cannot directly set the core->oracle.hosed bit, they

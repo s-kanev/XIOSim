@@ -8,7 +8,7 @@ class core_commit_NONE_t:public core_commit_t
   public:
 
   core_commit_NONE_t(struct core_t * const core) { this->core = core; }
-  virtual void reg_stats(struct stat_sdb_t * const sdb);
+  virtual void reg_stats(xiosim::stats::StatsDatabase* sdb);
   virtual void update_occupancy(void) { }
 
   virtual void step(void) {}
@@ -30,7 +30,7 @@ class core_commit_NONE_t:public core_commit_t
   virtual int squash_uop(struct uop_t * const uop) { return 0; }
 };
 
-void core_commit_NONE_t::reg_stats(struct stat_sdb_t * const sdb)
+void core_commit_NONE_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
 {
   char buf[1024];
   char buf2[1024];

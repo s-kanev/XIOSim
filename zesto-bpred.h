@@ -153,7 +153,7 @@ class bpred_t
   void flush(class bpred_state_cache_t * const scvp);
 
   void reg_stats(
-      struct stat_sdb_t * const sdb,
+      xiosim::stats::StatsDatabase* sdb,
       struct core_t * const core);
 
   void reset_stats();
@@ -242,7 +242,7 @@ class bpred_dir_t
   virtual void flush(class bpred_sc_t * const scvp);
 
   virtual void reg_stats(
-      struct stat_sdb_t * const sdb,
+      xiosim::stats::StatsDatabase* sdb,
       struct core_t * const core);
 
   virtual void reset_stats(void);
@@ -319,7 +319,7 @@ class fusion_t
   virtual void flush(class fusion_sc_t * const scvp);
 
   virtual void reg_stats(
-      struct stat_sdb_t * const sdb,
+      xiosim::stats::StatsDatabase* sdb,
       struct core_t * const core);
 
   virtual void reset_stats(void);
@@ -389,7 +389,7 @@ class BTB_t
   virtual void flush(class BTB_sc_t * const scvp);
 
   virtual void reg_stats(
-      struct stat_sdb_t * const sdb,
+      xiosim::stats::StatsDatabase* sdb,
       struct core_t * const core);
 
   virtual void reset_stats();
@@ -447,7 +447,7 @@ class RAS_t
   virtual void recover_state(class RAS_chkpt_t * const cpvp);
 
   virtual void reg_stats(
-      struct stat_sdb_t * const sdb,
+      xiosim::stats::StatsDatabase* sdb,
       struct core_t * const core);
 
   virtual void reset_stats();

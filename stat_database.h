@@ -153,7 +153,7 @@ class StatsDatabase {
     Formula* add_formula(const char* name,
                          const char* desc,
                          std::unique_ptr<Expression> expression,
-                         const char* output_fmt = "",
+                         const char* output_fmt = "%12.4f",
                          bool print = true,
                          bool scale = true) {
         Formula* formula = new Formula(name, desc, output_fmt, print, scale);

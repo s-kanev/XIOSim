@@ -135,6 +135,7 @@
 
 #include <stddef.h>
 #include <sys/io.h>
+#include "stats.h"
 #include "host.h"
 #include "misc.h"
 #include "thread.h"
@@ -216,7 +217,7 @@ core_oracle_t::core_oracle_t(struct core_t * const arg_core):
 
 /* register oracle-related stats in the stat-database (sdb) */
 void
-core_oracle_t::reg_stats(struct stat_sdb_t * const sdb)
+core_oracle_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
 {
   char buf[1024];
   char buf2[1024];

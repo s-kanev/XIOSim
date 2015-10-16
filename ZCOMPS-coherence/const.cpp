@@ -18,7 +18,7 @@ class cache_controller_const_t : public cache_controller_t {
   virtual bool send_request_upstream(int bank, int MSHR_index, struct cache_action_t * MSHR);
   virtual void send_response_downstream(struct cache_action_t * const MSHR);
 
-  virtual void reg_stats(struct stat_sdb_t * const sdb);
+  virtual void reg_stats(xiosim::stats::StatsDatabase* sdb);
 
   protected:
   unsigned int sharing_penalty;
@@ -51,7 +51,7 @@ cache_controller_const_t::cache_controller_const_t(struct core_t * const core, s
   lk_init(&lk_controller);
 }
 
-void cache_controller_const_t::reg_stats(struct stat_sdb_t * const sdb)
+void cache_controller_const_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
 {
   char buf[1024];
   if (!core) {

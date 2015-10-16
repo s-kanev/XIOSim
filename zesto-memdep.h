@@ -103,7 +103,7 @@ class memdep_t
        partial_match = true if there is a partially-matching earlier store */
     virtual int  lookup(const md_addr_t PC, const bool sta_unknown, const bool conflict_exists, const bool partial_match) = 0;
     virtual void update(const md_addr_t PC);
-    virtual void reg_stats(struct stat_sdb_t * const sdb, struct core_t * const core);
+    virtual void reg_stats(xiosim::stats::StatsDatabase* sdb, struct core_t * const core);
             void freeze_stats(void);
 };
 

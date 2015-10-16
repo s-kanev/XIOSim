@@ -83,12 +83,12 @@
 #include <sys/time.h>
 #include <sys/io.h>
 
+#include "stats.h"
 #include "host.h"
 #include "misc.h"
 #include "machine.h"
 #include "endian.h"
 #include "version.h"
-#include "stats.h"
 #include "sim.h"
 
 
@@ -96,8 +96,8 @@
 int sim_elapsed_time;
 
 /* stats database */
-struct stat_sdb_t *sim_sdb;
-struct stat_sdb_t *rtp_sdb;
+xiosim::stats::StatsDatabase* sim_sdb;
+xiosim::stats::StatsDatabase* rtp_sdb;
 
 /* redirected program/simulator output file names */
 const char *sim_simout = NULL;

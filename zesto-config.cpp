@@ -10,6 +10,7 @@
 
 #include "pintool/ezOptionParser_clean.hpp"
 
+#include "boost_statistics.h"
 #include "machine.h"  // Make sure this won't interfere with Boost.
 #include "sim.h"
 #include "confuse.h"

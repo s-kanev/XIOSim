@@ -75,8 +75,8 @@
 #include <limits.h>
 #include <ctype.h>
 
-#include "thread.h"
 #include "stats.h"
+#include "thread.h"
 #include "sim.h"
 #include "zesto-core.h"
 #include "zesto-cache.h"
@@ -224,7 +224,7 @@ uncore_t::~uncore_t()
 }
 
 /* register all of the stats */
-void uncore_reg_stats(struct stat_sdb_t * const sdb)
+void uncore_reg_stats(xiosim::stats::StatsDatabase* sdb)
 {
   stat_reg_note(sdb,"\n#### LAST-LEVEL CACHE STATS ####");
   stat_reg_counter(sdb, true, "uncore.sim_cycle", "number of uncore cycles simulated", &uncore->sim_cycle, 0, TRUE, NULL);

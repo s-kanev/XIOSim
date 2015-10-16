@@ -12,7 +12,7 @@
 
 #include <list>
 using namespace std;
-    
+
 class core_alloc_IO_DPM_t:public core_alloc_t
 {
   enum alloc_stall_t {ASTALL_NONE,   /* no stall */
@@ -29,7 +29,7 @@ class core_alloc_IO_DPM_t:public core_alloc_t
   public:
 
   core_alloc_IO_DPM_t(struct core_t * const core);
-  virtual void reg_stats(struct stat_sdb_t * const sdb);
+  virtual void reg_stats(xiosim::stats::StatsDatabase* sdb);
 
   virtual void step(void);
   virtual void recover(void);
@@ -101,7 +101,7 @@ core_alloc_IO_DPM_t::core_alloc_IO_DPM_t(struct core_t * const arg_core)
 }
 
 void
-core_alloc_IO_DPM_t::reg_stats(struct stat_sdb_t * const sdb)
+core_alloc_IO_DPM_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
 {
   char buf[1024];
   char buf2[1024];
@@ -151,7 +151,7 @@ bool core_alloc_IO_DPM_t::oldest_in_alloc(struct uop_t * uop)
 
   for(int stage=knobs->alloc.depth-1; stage>=0; stage--)
    for(int i=0; i<knobs->alloc.width; i++)
-     if(pipe[stage][i] && pipe[stage][i]->decode.uop_seq < 
+     if(pipe[stage][i] && pipe[stage][i]->decode.uop_seq <
          uop->decode.uop_seq)
          return false;
 
@@ -252,7 +252,7 @@ void core_alloc_IO_DPM_t::step(void)
                 /* nops and traps can issue everywhere (we alloc them to keep program order */
                 if(exec_uop->decode.is_nop || exec_uop->Mop->decode.is_trap)
                 {
-                  zesto_assert(exec_uop->decode.FU_class == FU_NA, (void)0); 
+                  zesto_assert(exec_uop->decode.FU_class == FU_NA, (void)0);
                 }
                 else
                 {
@@ -276,7 +276,7 @@ void core_alloc_IO_DPM_t::step(void)
                 if(exec_uop->decode.in_fusion)
                   exec_uop = exec_uop->decode.fusion_next;
                 else
-                  exec_uop = NULL;                  
+                  exec_uop = NULL;
               }
 
               for(j=0;j<knobs->exec.num_exec_ports;j++)
@@ -293,7 +293,7 @@ void core_alloc_IO_DPM_t::step(void)
               {
                  stall_reason = ASTALL_WAIT_EXEC;
                  abort_alloc = true;
-                 break;		                       
+                 break;
               }
               uop->alloc.port_assignment = index;
             }

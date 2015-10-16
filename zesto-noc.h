@@ -22,7 +22,7 @@ struct bus_t * bus_create(
     const int ratio);
 
 void bus_reg_stats(
-    struct stat_sdb_t * const sdb,
+    xiosim::stats::StatsDatabase* sdb,
     struct core_t * const core,
     struct bus_t * const bus);
 

@@ -26,6 +26,7 @@
 #include <signal.h>
 
 #include "boost_interprocess.h"
+#include "boost_statistics.h"
 
 #include "feeder.h"
 #include "multiprocess_shared.h"

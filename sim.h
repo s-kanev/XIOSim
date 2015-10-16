@@ -64,7 +64,7 @@
 extern int sim_elapsed_time;
 
 /* stats database */
-extern struct stat_sdb_t *sim_sdb;
+extern xiosim::stats::StatsDatabase* sim_sdb;
 
 extern struct core_knobs_t knobs;
 
@@ -78,7 +78,7 @@ extern bool assert_spin;
 /* main() parses options next... */
 
 /* register simulation statistics */
-void sim_reg_stats(struct stat_sdb_t *sdb);
+void sim_reg_stats(xiosim::stats::StatsDatabase* sdb);
 
 /* initialize the simulator: pre_init gets called before command-line
    argument parsing, post_init gets called after. */

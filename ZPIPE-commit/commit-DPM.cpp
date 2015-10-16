@@ -23,7 +23,7 @@ class core_commit_DPM_t:public core_commit_t
   public:
 
   core_commit_DPM_t(struct core_t * const core);
-  virtual void reg_stats(struct stat_sdb_t * const sdb);
+  virtual void reg_stats(xiosim::stats::StatsDatabase* sdb);
   virtual void update_occupancy(void);
 
   virtual void step(void);
@@ -44,7 +44,7 @@ class core_commit_DPM_t:public core_commit_t
   virtual void pre_commit_recover(struct Mop_t * const Mop);
   virtual int squash_uop(struct uop_t * const uop);
 
-  
+
   protected:
 
   struct uop_t ** ROB;
@@ -93,8 +93,7 @@ core_commit_DPM_t::core_commit_DPM_t(struct core_t * const arg_core):
     fatal("couldn't calloc ROB");
 }
 
-void
-core_commit_DPM_t::reg_stats(struct stat_sdb_t * const sdb)
+void core_commit_DPM_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
 {
   char buf[1024];
   char buf2[1024];
@@ -358,7 +357,7 @@ void core_commit_DPM_t::step(void)
      if any core is making progress and accordingly if not.*/
   if(core->current_thread->active && ((core->sim_cycle - core->exec->last_completed) > deadlock_threshold))
   {
-    deadlocked = true; 
+    deadlocked = true;
     return;
   }
 
@@ -602,7 +601,7 @@ void core_commit_DPM_t::step(void)
         ztrace_print(Mop,"c|commit:EOM=%d:trap=%d|all uops in Mop committed; Mop retired",
           Mop->uop[Mop->decode.last_uop_index].decode.EOM,Mop->decode.is_trap);
 #endif
-        
+
         /* Let the oracle know that we are done with this Mop. */
         core->oracle->commit(Mop);
       }

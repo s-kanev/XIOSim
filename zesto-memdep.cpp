@@ -72,8 +72,8 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
-#include "sim.h"
 #include "stats.h"
+#include "sim.h"
 #include "valcheck.h"
 #include "zesto-core.h"
 #include "zesto-memdep.h"
@@ -110,7 +110,7 @@ void memdep_t::update(md_addr_t PC)
   MEMDEP_STAT(updates++;)
 }
 
-void memdep_t::reg_stats(struct stat_sdb_t * sdb, struct core_t * core)
+void memdep_t::reg_stats(xiosim::stats::StatsDatabase* sdb, struct core_t * core)
 {
   struct thread_t * arch = core->current_thread;
   char buf[256];
@@ -157,7 +157,7 @@ conflict_exists - oracle answer for whether it's safe for the load to exec
 #define MEMDEP_UPDATE_HEADER \
   void update(const md_addr_t PC)
 #define MEMDEP_REG_STATS_HEADER \
-  void reg_stats(struct stat_sdb_t * const sdb, struct core_t * const core)
+  void reg_stats(xiosim::stats::StatsDatabase* sdb, struct core_t * const core)
 
 
 

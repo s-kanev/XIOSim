@@ -1,4 +1,5 @@
 #include "boost_interprocess.h"
+#include "boost_statistics.h"
 
 #include "ezOptionParser_clean.hpp"
 

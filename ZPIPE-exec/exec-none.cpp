@@ -8,7 +8,7 @@ class core_exec_NONE_t:public core_exec_t
   public:
 
   core_exec_NONE_t(struct core_t * const core);
-  virtual void reg_stats(struct stat_sdb_t * const sdb);
+  virtual void reg_stats(xiosim::stats::StatsDatabase* sdb);
   virtual void LDST_exec(void);
   virtual void ALU_exec(void) {};
 
@@ -219,7 +219,7 @@ core_exec_NONE_t::core_exec_NONE_t(class core_t * const arg_core)
   core->memory.mem_repeater = repeater_create(core->knobs->exec.repeater_opt_str, core, "MR1", core->memory.DL1);
 }
 
-void core_exec_NONE_t::reg_stats(struct stat_sdb_t * const sdb)
+void core_exec_NONE_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
 {
   stat_reg_note(sdb,"\n#### DATA CACHE STATS ####");
   cache_reg_stats(sdb, core, core->memory.DL1);

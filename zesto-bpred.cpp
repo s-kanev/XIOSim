@@ -91,8 +91,8 @@
 #include <math.h>
 #include <ctype.h>
 
-#include "sim.h"
 #include "stats.h"
+#include "sim.h"
 #include "valcheck.h"
 #include "zesto-core.h"
 #include "zesto-bpred.h"
@@ -127,7 +127,7 @@ our_pred - what the branch predictor had predicted (some predictors
 #define BPRED_FLUSH_HEADER \
   void flush(class bpred_sc_t * const scvp)
 #define BPRED_REG_STATS_HEADER \
-  void reg_stats(struct stat_sdb_t * const sdb, struct core_t * const core)
+  void reg_stats(xiosim::stats::StatsDatabase* sdb, struct core_t * const core)
 #define BPRED_RESET_STATS_HEADER \
   void reset_stats(void)
 #define BPRED_GET_CACHE_HEADER \
@@ -221,7 +221,7 @@ void bpred_dir_t::flush(class bpred_sc_t * const sc)
 }
 
 void bpred_dir_t::reg_stats(
-    struct stat_sdb_t * const sdb,
+    xiosim::stats::StatsDatabase* sdb,
     struct core_t * const core)
 {
   int id = 0;
@@ -306,7 +306,7 @@ our_pred - what the meta-predictor had predicted
 #define FUSION_FLUSH_HEADER \
   void flush(class fusion_sc_t * const scvp)
 #define FUSION_REG_STATS_HEADER \
-  void reg_stats(struct stat_sdb_t * const sdb, struct core_t * const core)
+  void reg_stats(xiosim::stats::StatsDatabase* sdb, struct core_t * const core)
 #define FUSION_RESET_STATS_HEADER \
   void reset_stats(void)
 #define FUSION_GET_CACHE_HEADER \
@@ -407,7 +407,7 @@ void fusion_t::flush(class fusion_sc_t * const sc)
 }
 
 void fusion_t::reg_stats(
-    struct stat_sdb_t * const sdb,
+    xiosim::stats::StatsDatabase* sdb,
     struct core_t * const core)
 {
   int id = 0;
@@ -492,7 +492,7 @@ our_pred   - what the branch-predictor had predicted
 #define BTB_FLUSH_HEADER \
   void flush(class BTB_sc_t * const scvp)
 #define BTB_REG_STATS_HEADER \
-  void reg_stats(struct stat_sdb_t * const sdb, struct core_t * const core)
+  void reg_stats(xiosim::stats::StatsDatabase* sdb, struct core_t * const core)
 #define BTB_RESET_STATS_HEADER \
   void reset_stats(void)
 #define BTB_GET_CACHE_HEADER \
@@ -579,7 +579,7 @@ void BTB_t::flush(class BTB_sc_t * const sc)
 
 void
 BTB_t::reg_stats(
-    struct stat_sdb_t * const sdb,
+    xiosim::stats::StatsDatabase* sdb,
     struct core_t * const core)
 {
   int id = 0;
@@ -676,7 +676,7 @@ oPC        - oracle PC or actual return address
 #define RAS_RECOVER_STATE_HEADER \
   void recover_state(class RAS_chkpt_t * const cpvp)
 #define RAS_REG_STATS_HEADER \
-  void reg_stats(struct stat_sdb_t * const sdb, struct core_t * const core)
+  void reg_stats(xiosim::stats::StatsDatabase* sdb, struct core_t * const core)
 #define RAS_RESET_STATS_HEADER \
   void reset_stats(void)
 #define RAS_REAL_PUSH \
@@ -774,7 +774,7 @@ void RAS_t::recover_state(RAS_chkpt_t * const cp)
 
 void
 RAS_t::reg_stats(
-    struct stat_sdb_t * const sdb,
+    xiosim::stats::StatsDatabase* sdb,
     struct core_t * const core)
 {
   int id = 0;
@@ -1128,7 +1128,7 @@ bpred_t::flush(class bpred_state_cache_t * const sc)
 
 void
 bpred_t::reg_stats(
-    struct stat_sdb_t * const sdb,
+    xiosim::stats::StatsDatabase* sdb,
     struct core_t * const core)
 {
   int id = 0;

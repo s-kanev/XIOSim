@@ -136,9 +136,9 @@
  *
  */
 
+#include "stats.h"
 #include "zesto-structs.h"
 
-#include "stats.h"
 #define ZESTO_STAT(x) {if(core->current_thread->active) {x}}
 
 /* state for the processor microarchitecture (per core) */
@@ -237,7 +237,7 @@ class core_t {
     counter_t IQ_eff_uop_occupancy;
     counter_t IQ_full_cycles;
     counter_t IQ_empty_cycles;
-    struct stat_stat_t *fetch_stall;
+    xiosim::stats::Distribution* fetch_stall;
 
     /* decode stage */
     counter_t target_resteers;
@@ -250,7 +250,7 @@ class core_t {
     counter_t uopQ_eff_occupancy;
     counter_t uopQ_full_cycles;
     counter_t uopQ_empty_cycles;
-    struct stat_stat_t *decode_stall;
+    xiosim::stats::Distribution* decode_stall;
 
     /* alloc stage */
     counter_t alloc_insn;
@@ -259,7 +259,7 @@ class core_t {
     counter_t regfile_reads;
     counter_t fp_regfile_reads;
     counter_t ROB_writes;
-    struct stat_stat_t *alloc_stall;
+    xiosim::stats::Distribution* alloc_stall;
 
     /* exec stage */
     counter_t exec_uops_issued;
@@ -312,12 +312,12 @@ class core_t {
     counter_t STQ_full_cycles;
     counter_t STQ_empty_cycles;
 
-    struct stat_stat_t *commit_stall;
+    xiosim::stats::Distribution* commit_stall;
 
     int flow_count;
     int eff_flow_count;
-    struct stat_stat_t *flow_histo;
-    struct stat_stat_t *eff_flow_histo;
+    xiosim::stats::Distribution* flow_histo;
+    xiosim::stats::Distribution* eff_flow_histo;
 
     tick_t Mop_fetch_slip;
     tick_t Mop_fetch2decode_slip;
@@ -372,7 +372,7 @@ class core_t {
   static void zero_uop(struct uop_t * const uop);
   static void zero_Mop(struct Mop_t * const Mop);
 
-  void reg_stats(struct stat_sdb_t *sdb);
+  void reg_stats(xiosim::stats::StatsDatabase* sdb);
 
   protected:
 

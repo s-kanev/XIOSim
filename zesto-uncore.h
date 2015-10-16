@@ -116,7 +116,7 @@ class uncore_t
 
 };
 
-void uncore_reg_stats(struct stat_sdb_t * const sdb);
+void uncore_reg_stats(xiosim::stats::StatsDatabase* sdb);
 void uncore_create(void); /* creates MC and memory controller objects */
 
 #endif /* ZESTO_UNCORE_INCLUDED */

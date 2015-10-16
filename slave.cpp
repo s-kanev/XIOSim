@@ -19,13 +19,13 @@
 #include <cstddef>
 
 #include "confuse.h"
+#include "stats.h"
 #include "interface.h"
 #include "host.h"
 #include "misc.h"
 #include "machine.h"
 #include "endian.h"
 #include "version.h"
-#include "stats.h"
 #include "sim.h"
 #include "synchronization.h"
 
@@ -55,10 +55,10 @@ extern bool sim_main_slave_fetch_insn(int coreID);
 extern cfg_t* all_opts;
 
 /* stats database */
-extern struct stat_sdb_t *sim_sdb;
+extern xiosim::stats::StatsDatabase* sim_sdb;
 
 /* power stats database */
-extern struct stat_sdb_t *rtp_sdb;
+extern xiosim::stats::StatsDatabase* rtp_sdb;
 
 /* redirected program/simulator output file names */
 extern const char *sim_simout;

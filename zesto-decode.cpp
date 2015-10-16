@@ -74,6 +74,7 @@
 
 #include <cstddef>
 
+#include "stats.h"
 #include "thread.h"
 
 #include "zesto-core.h"

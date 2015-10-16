@@ -9,7 +9,7 @@ class core_decode_NONE_t:public core_decode_t
 
   /* constructor, stats registration */
   core_decode_NONE_t(struct core_t * const core) { }
-  virtual void reg_stats(struct stat_sdb_t * const sdb) { }
+  virtual void reg_stats(xiosim::stats::StatsDatabase* sdb) { }
   virtual void update_occupancy(void) { }
 
   virtual void step(void) { }

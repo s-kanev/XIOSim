@@ -9,6 +9,7 @@
 #include <stack>
 
 #include "boost_interprocess.h"
+#include "boost_statistics.h"
 
 #include "feeder.h"
 

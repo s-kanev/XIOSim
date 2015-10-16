@@ -15,8 +15,8 @@
 // XXX: THIS STILL DOESN'T HANDLE MULTICORE SLICES PROPERLY.
 // FORTUNATELY WE ONLY SIMULATE SINGLE MULTICORE SLICES SO FAR.
 
-extern struct stat_sdb_t *sim_sdb;
-extern void sim_reg_stats(struct stat_sdb_t *sdb);
+extern xiosim::stats::StatsDatabase* sim_sdb;
+extern void sim_reg_stats(xiosim::stats::StatsDatabase* sdb);
 extern void sim_print_stats(FILE *fd);
 
 extern const char *sim_simout;
@@ -30,7 +30,7 @@ static unsigned long long slice_start_icount = 0;
 
 static time_t slice_start_time;
 
-static std::vector<struct stat_sdb_t*> all_stats;
+static std::vector<xiosim::stats::StatsDatabase*> all_stats;
 
 void start_slice(unsigned int slice_num)
 {
@@ -39,7 +39,7 @@ void start_slice(unsigned int slice_num)
    struct thread_t *thread = core->current_thread;
 
    /* create stats database for this slice */
-   struct stat_sdb_t* new_stat_db = stat_new();
+   xiosim::stats::StatsDatabase* new_stat_db = stat_new();
 
    /* register new database with stat counters */
    sim_reg_stats(new_stat_db);
@@ -59,7 +59,7 @@ void end_slice(unsigned int slice_num, unsigned long long feeder_slice_length, u
 {
    int i = 0;
    core_knobs_t *knobs = cores[i]->knobs;
-   struct stat_sdb_t* curr_sdb = all_stats.back();
+   xiosim::stats::StatsDatabase* curr_sdb = all_stats.back();
    slice_uncore_end_cycle = uncore->sim_cycle;
    slice_core_end_cycle = cores[i]->sim_cycle;
    time_t slice_end_time = time((time_t*)NULL);
@@ -127,12 +127,8 @@ void scale_all_slices(void)
    if (n_slices == 0)
      return;
 
-   int i;
-   /* create pointers to track stat in every db */
-   struct stat_stat_t **curr_stats = (struct stat_stat_t**) malloc(n_slices * sizeof(struct stat_stat_t*));
-
    /* create stats database for averages */
-   struct stat_sdb_t* avg_stat_db = stat_new();
+   xiosim::stats::StatsDatabase* avg_stat_db = stat_new();
 
    /* register new database with stat counters */
    sim_reg_stats(avg_stat_db);
@@ -140,26 +136,13 @@ void scale_all_slices(void)
    /* ... and set it as the default that gets output */
    sim_sdb = avg_stat_db;
 
-   /* Init pointers to all stat dbs */
-   struct stat_stat_t *avg_curr_stat = avg_stat_db->stats;
-   for (i=0; i < n_slices; i++)
-     curr_stats[i] = all_stats[i]->stats;
-
-   while (avg_curr_stat) 
-   {
-     for (i=0; i < n_slices; i++)
-     {
-       /* Scale current stat by slice weight (note this is destructive) */
-       stat_scale_stat(curr_stats[i], all_stats[i]->slice_weight);
-
-       /* And store accumulated value in average */
-       stat_accum_stat(avg_curr_stat, curr_stats[i]);
-
-       curr_stats[i] = curr_stats[i]->next;
-     }
-
-     avg_curr_stat = avg_curr_stat->next;
+   /* Now, scale all stats by the slice weight and accumulate statistics across
+    * all slices. Note that this is a destructive operation on the existing
+    * StatsDatabases.
+    */
+   for (auto it = all_stats.begin(); it != all_stats.end(); ++it) {
+      xiosim::stats::StatsDatabase* curr_sdb = *it;
+      curr_sdb->scale_all_stats();
+      sim_sdb->accum_all_stats(curr_sdb);
    }
-
-   free(curr_stats);
 }

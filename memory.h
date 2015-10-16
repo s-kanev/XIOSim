@@ -23,13 +23,20 @@
 #define DO_NOT_TRANSLATE (-1)
 
 namespace xiosim {
+
+// Forward declaration to avoid including stat_database.h here (which pulls in
+// Boost stuff that seems to be messing up compiles with machine.h).
+namespace stats {
+class StatsDatabase;
+}
+
 namespace memory {
 
 /* initialize memory system  */
 void init(int num_processes);
 
 /* register memory system-specific statistics */
-void reg_stats(struct stat_sdb_t *sdb);
+void reg_stats(xiosim::stats::StatsDatabase* sdb);
 
 /* map each (address-space-id,virtual-address) pair to a simulated physical address */
 md_paddr_t v2p_translate(int asid, md_addr_t addr);

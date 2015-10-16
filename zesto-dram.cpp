@@ -73,8 +73,9 @@
  */
 
 #include <limits.h>
-#include "thread.h"
+
 #include "stats.h"
+#include "thread.h"
 #include "zesto-cache.h"
 #include "zesto-dram.h"
 #include "zesto-uncore.h"
@@ -114,7 +115,7 @@ void dram_t::refresh(void)
 {
 }
 
-void dram_t::reg_stats(struct stat_sdb_t * const sdb)
+void dram_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
 {
   stat_reg_counter(sdb, true, "dram.total_access", "total number of memory accesses", &total_accesses, /* initial value */0, TRUE, /* format */NULL);
   stat_reg_counter(sdb, false, "dram.total_latency", "total memory latency cycles", &total_latency, /* initial value */0, TRUE, /* format */NULL);
@@ -132,7 +133,7 @@ void dram_t::reg_stats(struct stat_sdb_t * const sdb)
 #define DRAM_REFRESH_HEADER \
   void refresh(void)
 #define DRAM_REG_STATS_HEADER \
-  void reg_stats(struct stat_sdb_t * const sdb)
+  void reg_stats(xiosim::stats::StatsDatabase* sdb)
 
 
 /* include all of the DRAM definitions */

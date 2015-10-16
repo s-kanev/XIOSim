@@ -13,6 +13,7 @@
 #include <iostream>
 
 #include "catch.hpp"
+#include "../boost_statistics.h"
 #include "zesto-structs.h"
 #include "zesto-config.h"
 

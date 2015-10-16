@@ -75,8 +75,8 @@
 #include <limits.h>
 #include <ctype.h>
 
-#include "thread.h"
 #include "stats.h"
+#include "thread.h"
 #include "zesto-core.h"
 #include "zesto-cache.h"
 #include "zesto-prefetch.h"
@@ -274,7 +274,7 @@ struct cache_t * cache_create(
 }
 
 void cache_reg_stats(
-    struct stat_sdb_t * const sdb,
+    xiosim::stats::StatsDatabase* sdb,
     const struct core_t * const core,
     struct cache_t * const cp)
 {
@@ -471,7 +471,7 @@ void cache_reg_stats(
 }
 
 void LLC_reg_stats(
-    struct stat_sdb_t * const sdb,
+    xiosim::stats::StatsDatabase* sdb,
     struct cache_t * const cp)
 {
   char buf[256];

@@ -90,7 +90,7 @@ class core_commit_t
 
   core_commit_t(void);
   virtual ~core_commit_t();
-  virtual void reg_stats(struct stat_sdb_t * const sdb) = 0;
+  virtual void reg_stats(xiosim::stats::StatsDatabase* sdb) = 0;
   virtual void update_occupancy(void) = 0;
 
   virtual void step(void) = 0;

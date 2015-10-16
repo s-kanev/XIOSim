@@ -75,6 +75,7 @@
 #include <cstddef>
 
 #include "misc.h"
+#include "stats.h"
 #include "sim.h"
 #include "thread.h"
 #include "synchronization.h"

@@ -2,10 +2,7 @@
  * prevent name conflicts with macros. */
 
 #pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wnarrowing"
 #pragma GCC diagnostic ignored "-Wunused-local-typedefs"
-#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
 #include <boost/accumulators/accumulators.hpp>
 #include <boost/accumulators/statistics/count.hpp>

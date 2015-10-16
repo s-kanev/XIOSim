@@ -85,12 +85,12 @@
 #include <stdint.h>
 #include <cstddef>
 
+#include "stats.h"
 #include "host.h"
 #include "machine.h"
 #include "misc.h"
 #include "endian.h"
 #include "version.h"
-#include "stats.h"
 #include "sim.h"
 #include "regs.h"
 
@@ -117,7 +117,7 @@ extern int *num_processes;
 extern void CheckIPCMessageQueue(bool isEarly, int caller_coreID);
 extern int heartbeat_count;
 /* power stats database */
-extern struct stat_sdb_t *rtp_sdb;
+extern xiosim::stats::StatsDatabase *rtp_sdb;
 
 extern double LLC_speed;
 
@@ -349,8 +349,9 @@ sim_post_init(void)
 }
 
 /* register simulation statistics */
-void sim_reg_stats(struct stat_sdb_t *sdb)
+void sim_reg_stats(xiosim::stats::StatsDatabase* sdb)
 {
+  using namespace xiosim::stats;
   int i;
   char buf[1024];
   char buf2[1024];
@@ -534,13 +535,12 @@ static void global_step(void)
       uncore->default_cpu_cycles = (tick_t)ceil((double)uncore->sim_cycle * knobs.default_cpu_speed / LLC_speed);
 
       /* power computation */
-      if(knobs.power.compute && (knobs.power.rtp_interval > 0) && 
-         (uncore->sim_cycle % knobs.power.rtp_interval == 0))
-      {
+      if (knobs.power.compute && (knobs.power.rtp_interval > 0) &&
+          (uncore->sim_cycle % knobs.power.rtp_interval == 0)) {
         stat_save_stats_delta(rtp_sdb);   // Store delta values for translation
         compute_power(rtp_sdb, false);
         stat_save_stats(rtp_sdb);         // Create new checkpoint for next delta
-      } 
+      }
 
       if(knobs.dvfs_interval > 0)
         for(int i=0; i<num_cores; i++)

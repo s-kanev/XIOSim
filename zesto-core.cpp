@@ -74,6 +74,8 @@
  */
 
 #include <stddef.h>
+
+#include "stats.h"
 #include "zesto-core.h"
 #include "synchronization.h"
 
@@ -293,7 +295,7 @@ void core_t::uop_init(struct uop_t * const uop)
   uop->exec.when_addr_translated = TICK_T_MAX;
 }
 
-void core_t::reg_stats(struct stat_sdb_t *sdb)
+void core_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
 {
   oracle->reg_stats(sdb);
   fetch->reg_stats(sdb);

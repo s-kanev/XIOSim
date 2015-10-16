@@ -93,7 +93,7 @@ class core_fetch_t {
   /* constructor, stats registration */
   core_fetch_t(void);
   virtual ~core_fetch_t();
-  virtual void reg_stats(struct stat_sdb_t * const sdb) = 0;
+  virtual void reg_stats(xiosim::stats::StatsDatabase* sdb) = 0;
   virtual void update_occupancy(void) = 0;
 
   //Handles events before the actual fetch (cache requests, jeclears, etc.)

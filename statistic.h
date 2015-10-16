@@ -138,19 +138,19 @@ class Statistic : public StatisticCommon<V> {
   public:
     Statistic(const char* name,
               const char* desc,
-              V value,
+              V val,
               const char* output_fmt = "%12s",
               bool print = true,
               bool scale = true)
         : StatisticCommon<V>(name, desc, output_fmt, print, scale)
-        , value(value) {
+        , value(val) {
         if (this->output_fmt.empty())
             set_output_format_default();
     }
 
     Statistic(const Statistic<V>& stat)
         : StatisticCommon<V>(stat)
-        , value(value) {
+        , value(stat.value) {
         if (this->output_fmt.empty())
             set_output_format_default();
     }
@@ -192,13 +192,13 @@ class Statistic<
   public:
     Statistic(const char* name,
               const char* desc,
-              V* value,
+              V* val,
               V init_val,
               const char* output_fmt = "",
               bool print = true,
               bool scale = true)
         : StatisticCommon<V>(name, desc, output_fmt, print, scale)
-        , value(value)
+        , value(val)
         , init_val(init_val)
         , final_val(init_val) {
         *(this->value) = init_val;
@@ -208,7 +208,7 @@ class Statistic<
 
     Statistic(const Statistic<V>& stat)
         : StatisticCommon<V>(stat)
-        , value(value) {
+        , value(stat.value) {
         if (this->output_fmt.empty())
             set_output_format_default();
     }
@@ -217,7 +217,7 @@ class Statistic<
     virtual V get_init_val() const { return init_val; }
     virtual V get_final_val() const  { return final_val; }
 
-    virtual void scale_value(double weight) { *value *= (V)weight; }
+    virtual void scale_value(double weight) { *value = (V)(*value) * weight; }
 
     virtual void accum_stat(BaseStatistic* other) {
         Statistic<V>* stat = static_cast<Statistic<V>*>(other);

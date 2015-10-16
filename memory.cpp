@@ -9,10 +9,10 @@
 #include <unordered_map>
 #include <mutex>
 
+#include "stats.h"
 #include "host.h"
 #include "misc.h"
 #include "machine.h"
-#include "stats.h"
 #include "memory.h"
 #include "synchronization.h"
 #include "ztrace.h"
@@ -216,7 +216,7 @@ void map_stack(int asid, md_addr_t sp, md_addr_t bos)
 }
 
 /* register memory system-specific statistics */
-void reg_stats(struct stat_sdb_t *sdb)
+void reg_stats(xiosim::stats::StatsDatabase* sdb)
 {
     char buf[512];
 

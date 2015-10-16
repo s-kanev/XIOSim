@@ -74,8 +74,8 @@
 
 #include <iostream>
 
-#include "sim.h"
 #include "stats.h"
+#include "sim.h"
 #include "valcheck.h"
 #include "zesto-core.h"
 #include "zesto-bpred.h"
@@ -107,12 +107,12 @@ prefetch_t::~prefetch_t()
 /* The default prefetcher stats printing function. */
 void
 prefetch_t::reg_stats(
-    struct stat_sdb_t * const sdb,
+    xiosim::stats::StatsDatabase* sdb,
     const struct core_t * const core)
 {
+  using namespace xiosim::stats;
   char buf[256];
   char buf2[256];
-  char buf3[256];
   char core_str[256];
 
   if(core == NULL)
@@ -122,11 +122,10 @@ prefetch_t::reg_stats(
 
   sprintf(buf,"%s%s.%s.bits",core_str,cp->name,type);
   sprintf(buf2,"total size of %s in bits",type);
-  stat_reg_int(sdb, true, buf, buf2, &bits, bits, FALSE, NULL);
+  auto& total_bits_st = stat_reg_int(sdb, true, buf, buf2, &bits, bits, FALSE, NULL);
   sprintf(buf,"%s%s.%s.size",core_str,cp->name,type);
   sprintf(buf2,"total size of %s in KB",type);
-  sprintf(buf3,"%s%s.%s.bits / 8192.0",core_str,cp->name,type);
-  stat_reg_formula(sdb, true, buf, buf2, buf3, NULL);
+  stat_reg_formula(sdb, true, buf, buf2, total_bits_st / Constant(8192), NULL);
   sprintf(buf,"%s%s.%s.lookups",core_str,cp->name,type);
   sprintf(buf2,"number of prediction lookups in %s",type);
   stat_reg_counter(sdb, true, buf, buf2, &lookups, lookups, FALSE, NULL);
@@ -145,7 +144,7 @@ paddr           - physical address load is reading from
 #define PREFETCH_LOOKUP_HEADER \
   md_paddr_t lookup(const md_addr_t PC, const md_paddr_t paddr)
 #define PREFETCH_REG_STATS_HEADER \
-  void reg_stats(struct stat_sdb_t * const sdb, const struct core_t * const core)
+  void reg_stats(xiosim::stats::StatsDatabase* sdb, const struct core_t * const core)
 
 
 

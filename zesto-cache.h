@@ -319,12 +319,12 @@ struct cache_t * cache_create(
     const float magic_hit_rate);
 
 void cache_reg_stats(
-    struct stat_sdb_t * const sdb,
+    xiosim::stats::StatsDatabase* sdb,
     const struct core_t * const core,
     struct cache_t * const cp);
 
 void LLC_reg_stats(
-    struct stat_sdb_t * const sdb,
+    xiosim::stats::StatsDatabase* sdb,
     struct cache_t * const cp);
 
 void cache_reset_stats(struct cache_t * const cp);

@@ -75,6 +75,8 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
+#include "statistic.h"
+#include "stat_database.h"
 #include "zesto-cache.h"
 
 /* memory controller */
@@ -123,7 +125,7 @@ class MC_t
                        void (*const cb)(void *),
                        seq_t (*const get_action_id)(void *) ) = 0;
   virtual void step(void) = 0;
-  virtual void reg_stats(struct stat_sdb_t * const sdb);
+  virtual void reg_stats(xiosim::stats::StatsDatabase* sdb);
   virtual void reset_stats(void);
   virtual void print(FILE * const fp) = 0;
 };

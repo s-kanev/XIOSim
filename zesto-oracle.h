@@ -136,6 +136,7 @@
  */
 
 #include "buffer.h"
+#include "stats.h"
 #include "synchronization.h"
 #include "zesto-cache.h"
 #include "ztrace.h"
@@ -212,7 +213,7 @@ class core_oracle_t {
                 corrupted. */
 
   core_oracle_t(struct core_t * const core);
-  void reg_stats(struct stat_sdb_t * const sdb);
+  void reg_stats(xiosim::stats::StatsDatabase* sdb);
   void update_occupancy(void);
 
   struct Mop_t * get_Mop(const int index);

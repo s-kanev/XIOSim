@@ -9,7 +9,7 @@ class core_alloc_NONE_t:public core_alloc_t
   public:
 
   core_alloc_NONE_t(struct core_t * const core) { }
-  virtual void reg_stats(struct stat_sdb_t * const sdb) { }
+  virtual void reg_stats(xiosim::stats::StatsDatabase* sdb) { }
 
   virtual void step(void) { }
   virtual void recover(void) { }
