@@ -359,6 +359,43 @@ TEST_CASE("Formula statistics", "formulas") {
     }
 }
 
+
+TEST_CASE("Registering formula statistics through the API layer.", "stat_reg_formula") {
+    char temp_file_name[21];
+    FILE* temp_file = open_temp_file(temp_file_name);
+
+    StatsDatabase sdb;
+    int int_value = 0;
+    double double_value = 0.0;
+    auto int_stat = stat_reg_int(
+            &sdb, true, "integer_stat", "integer description", &int_value, 0, false, NULL);
+    auto double_stat = stat_reg_double(
+            &sdb, true, "double_stat", "double description", &double_value, 0, false, NULL);
+    Formula* formula =
+            stat_reg_formula(&sdb, true, "formula", "A formula", int_stat + double_stat, NULL);
+    Formula* ratio = stat_reg_formula(
+            &sdb, true, "ratio", "A ratio", int_stat / (double_stat * Constant(1000.0)), NULL);
+    REQUIRE(formula->evaluate() == 0);
+
+    int_value = 5;
+    double_value = 0.5;
+    REQUIRE(formula->evaluate() == 5.5);
+    REQUIRE(ratio->evaluate() == Approx(0.01));
+
+    int_value = 1;
+    REQUIRE(formula->evaluate() == 1.5);
+    REQUIRE(ratio->evaluate() == Approx(0.002));
+
+    double_value = 7.25;
+    REQUIRE(formula->evaluate() == 8.25);
+    REQUIRE(ratio->evaluate() == Approx(0.00013793));
+
+    sdb.print_all_stats(temp_file);
+    check_printfs(temp_file, "test_data/test_stat.reg_api.out");
+    cleanup_temp_file(temp_file, temp_file_name);
+}
+
+
 TEST_CASE("Full statistics database", "database") {
     char temp_file_name[21];
     FILE* temp_file = open_temp_file(temp_file_name);
