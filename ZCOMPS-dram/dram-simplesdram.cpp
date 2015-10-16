@@ -292,9 +292,14 @@ class dram_simplesdram_t:public dram_t
   {
     dram_t::reg_stats(sdb);
 
-    stat_reg_counter(sdb, true, "dram.row_buffer_hits", "total number of accesses that hit in row buffer", &row_buffer_hits, /* initial value */0, TRUE, /* format */NULL);
-    stat_reg_formula(sdb, true, "dram.row_buffer_hit_rate","fraction of accesses that hit in row buffer",
-        "dram.row_buffer_hits / dram.total_access",/* format */NULL);
+    auto& row_buffer_hits_st = stat_reg_counter(sdb, true, "dram.row_buffer_hits",
+                                                "total number of accesses that hit in row buffer",
+                                                &row_buffer_hits, 0, TRUE, NULL);
+    auto total_access_st = stat_find_stat<int>(sdb, "dram.total_access");
+    assert(total_access_st != nullptr);
+    stat_reg_formula(sdb, true, "dram.row_buffer_hit_rate",
+                     "fraction of accesses that hit in row buffer",
+                     row_buffer_hits_st / *total_access_st, NULL);
   }
 
 };
