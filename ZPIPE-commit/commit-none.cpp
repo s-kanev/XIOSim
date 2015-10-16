@@ -30,21 +30,19 @@ class core_commit_NONE_t:public core_commit_t
   virtual int squash_uop(struct uop_t * const uop) { return 0; }
 };
 
-void core_commit_NONE_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
-{
-  char buf[1024];
-  char buf2[1024];
-  struct thread_t * arch = core->current_thread;
+void core_commit_NONE_t::reg_stats(xiosim::stats::StatsDatabase* sdb) {
+    struct thread_t* arch = core->current_thread;
 
-  stat_reg_note(sdb,"\n#### COMMIT STATS ####");
+    stat_reg_note(sdb, "\n#### COMMIT STATS ####");
 
-  sprintf(buf,"c%d.sim_cycle",arch->id);
-  stat_reg_qword(sdb, true, buf, "total number of cycles when last instruction (or uop) committed", (qword_t*) &core->sim_cycle, 0, TRUE, NULL);
-  sprintf(buf,"c%d.commit_insn",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of instructions committed", &core->stat.commit_insn, 0, TRUE, NULL);
-  sprintf(buf,"c%d.commit_IPC",arch->id);
-  sprintf(buf2,"c%d.commit_insn/c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "IPC at commit", buf2, NULL);
+    auto& sim_cycle_st = stat_reg_core_qword(sdb, true, arch->id, "sim_cycle",
+                        "total number of cycles when last instruction (or uop) committed",
+                        (qword_t*)&core->stat.final_sim_cycle, 0, TRUE, NULL);
+    auto& commit_insn_st = stat_reg_core_counter(sdb, true, arch->id, "commit_insn",
+                                                 "total number of instructions committed",
+                                                 &core->stat.commit_insn, 0, TRUE, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "commit_IPC", "IPC at commit",
+                          commit_insn_st / sim_cycle_st, NULL);
 }
 
 void core_commit_NONE_t::IO_step()

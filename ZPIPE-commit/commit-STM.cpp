@@ -88,71 +88,64 @@ core_commit_STM_t::core_commit_STM_t(struct core_t * const arg_core):
 void
 core_commit_STM_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
 {
-  char buf[1024];
-  char buf2[1024];
-  struct thread_t * arch = core->current_thread;
+    struct thread_t* arch = core->current_thread;
 
-  stat_reg_note(sdb,"\n#### COMMIT STATS ####");
+    stat_reg_note(sdb, "\n#### COMMIT STATS ####");
 
-  sprintf(buf,"c%d.commit_insn",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of instructions committed", &core->stat.commit_insn, 0, TRUE, NULL);
-  sprintf(buf,"c%d.commit_uops",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of uops committed", &core->stat.commit_uops, 0, TRUE, NULL);
-  sprintf(buf,"c%d.commit_IPC",arch->id);
-  sprintf(buf2,"c%d.commit_insn/c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "IPC at commit", buf2, NULL);
-  sprintf(buf,"c%d.commit_uPC",arch->id);
-  sprintf(buf2,"c%d.commit_uops/c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "uPC at commit", buf2, NULL);
-  sprintf(buf,"c%d.avg_commit_flowlen",arch->id);
-  sprintf(buf2,"c%d.commit_uops/c%d.commit_insn",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "uops per instruction at commit", buf2, NULL);
+    auto sim_cycle_st = stat_find_core_stat<qword_t>(sdb, arch->id, "sim_cycle");
+    assert(sim_cycle_st);
+    auto& commit_insn_st = stat_reg_core_counter(sdb, true, arch->id, "commit_insn",
+                                                 "total number of instructions committed",
+                                                 &core->stat.commit_insn, 0, TRUE, NULL);
+    auto& commit_uops_st = stat_reg_core_counter(sdb, true, arch->id, "commit_uops",
+                                                 "total number of uops committed",
+                                                 &core->stat.commit_uops, 0, TRUE, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "commit_IPC", "IPC at commit",
+                          commit_insn_st / *sim_cycle_st, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "commit_uPC", "uPC at commit",
+                          commit_uops_st / *sim_cycle_st, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "avg_commit_flowlen",
+                          "uops per instruction at commit", commit_uops_st / commit_insn_st, NULL);
 
-  sprintf(buf,"c%d.commit_dead_lock_flushes",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of pipe-flushes due to dead-locked pipeline", &core->stat.commit_deadlock_flushes, 0, FALSE, NULL);
-  sprintf(buf,"c%d.ROB_occupancy",arch->id);
-  stat_reg_counter(sdb, false, buf, "total ROB occupancy", &core->stat.ROB_occupancy, 0, TRUE, NULL);
-  sprintf(buf,"c%d.ROB_empty",arch->id);
-  stat_reg_counter(sdb, false, buf, "total cycles ROB was empty", &core->stat.ROB_empty_cycles, 0, TRUE, NULL);
-  sprintf(buf,"c%d.ROB_full",arch->id);
-  stat_reg_counter(sdb, false, buf, "total cycles ROB was full", &core->stat.ROB_full_cycles, 0, TRUE, NULL);
-  sprintf(buf,"c%d.ROB_avg",arch->id);
-  sprintf(buf2,"c%d.ROB_occupancy/c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "average ROB occupancy", buf2, NULL);
-  sprintf(buf,"c%d.ROB_frac_empty",arch->id);
-  sprintf(buf2,"c%d.ROB_empty/c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "fraction of cycles ROB was empty", buf2, NULL);
-  sprintf(buf,"c%d.ROB_frac_full",arch->id);
-  sprintf(buf2,"c%d.ROB_full/c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "fraction of cycles ROB was full", buf2, NULL);
+    stat_reg_core_counter(sdb, true, arch->id, "commit_dead_lock_flushes",
+                          "total number of pipe-flushes due to dead-locked pipeline",
+                          &core->stat.commit_deadlock_flushes, 0, FALSE, NULL);
+    auto& ROB_occupancy_st =
+            stat_reg_core_counter(sdb, false, arch->id, "ROB_occupancy", "total ROB occupancy",
+                                  &core->stat.ROB_occupancy, 0, TRUE, NULL);
+    auto& ROB_empty_st =
+            stat_reg_core_counter(sdb, false, arch->id, "ROB_empty", "total cycles ROB was empty",
+                                  &core->stat.ROB_empty_cycles, 0, TRUE, NULL);
+    auto& ROB_full_st =
+            stat_reg_core_counter(sdb, false, arch->id, "ROB_full", "total cycles ROB was full",
+                                  &core->stat.ROB_full_cycles, 0, TRUE, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "ROB_avg", "average ROB occupancy",
+                          ROB_occupancy_st / *sim_cycle_st, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "ROB_frac_empty", "fraction of cycles ROB was empty",
+                          ROB_empty_st / *sim_cycle_st, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "ROB_frac_full", "fraction of cycles ROB was full",
+                          ROB_full_st / *sim_cycle_st, NULL);
 
-  sprintf(buf,"c%d.commit_stall",core->current_thread->id);
-  core->stat.commit_stall = stat_reg_dist(sdb, buf,
-                                           "breakdown of stalls at commit",
-                                           /* initial value */0,
-                                           /* array size */CSTALL_num,
-                                           /* bucket size */1,
-                                           /* print format */(PF_COUNT|PF_PDF),
-                                           /* format */NULL,
-                                           /* index map */commit_stall_str,
-                                           /* scale_me */TRUE,
-                                           /* print fn */NULL);
+    core->stat.commit_stall = stat_reg_core_dist(
+            sdb, arch->id, "commit_stall", "breakdown of stalls at commit", 0, CSTALL_num, 1,
+            (PF_COUNT | PF_PDF), NULL, commit_stall_str, TRUE, NULL);
 
-  stat_reg_note(sdb,"#### TIMING STATS ####");
-  sprintf(buf,"c%d.sim_cycle",arch->id);
-  stat_reg_qword(sdb, true, buf, "total number of cycles when last instruction (or uop) committed", (qword_t*) &core->stat.final_sim_cycle, 0, TRUE, NULL);
-  /* instruction distribution stats */
-  stat_reg_note(sdb,"\n#### INSTRUCTION STATS (no wrong-path) ####");
-  sprintf(buf,"c%d.num_insn",arch->id);
-  sprintf(buf2,"c%d.commit_insn",arch->id);
-  stat_reg_formula(sdb, true, buf, "total number of instructions committed", buf2, NULL);
-  sprintf(buf,"c%d.num_refs",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of loads and stores committed", &core->stat.commit_refs, 0, TRUE, NULL);
-  sprintf(buf,"c%d.num_loads",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of loads committed", &core->stat.commit_loads, 0, TRUE, NULL);
-  sprintf(buf2,"c%d.num_refs - c%d.num_loads",arch->id,arch->id);
-  sprintf(buf,"c%d.num_stores",arch->id);
-  stat_reg_formula(sdb, true, buf, "total number of stores committed", buf2, "%12.0f");
+    stat_reg_note(sdb, "#### TIMING STATS ####");
+    stat_reg_core_qword(sdb, true, arch->id, "sim_cycle",
+                        "total number of cycles when last instruction (or uop) committed",
+                        (qword_t*)&core->stat.final_sim_cycle, 0, TRUE, NULL);
+    /* instruction distribution stats */
+    stat_reg_note(sdb, "\n#### INSTRUCTION STATS (no wrong-path) ####");
+    stat_reg_core_counter(sdb, true, arch->id, "num_insn", "total number of instructions committed",
+                          &core->stat.commit_insn, 0, TRUE, NULL);
+    auto& num_refs_st = stat_reg_core_counter(sdb, true, arch->id, "num_refs",
+                                              "total number of loads and stores committed",
+                                              &core->stat.commit_refs, 0, TRUE, NULL);
+    auto& num_loads_st = stat_reg_core_counter(sdb, true, arch->id, "num_loads",
+                                               "total number of loads committed",
+                                               &core->stat.commit_loads, 0, TRUE, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "num_stores", "total number of stores committed",
+                          num_refs_st - num_loads_st, "%12.0f");
 }
 
 void core_commit_STM_t::update_occupancy(void)
