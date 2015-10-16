@@ -98,36 +98,28 @@ core_decode_STM_t::core_decode_STM_t(struct core_t * const arg_core)
 void
 core_decode_STM_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
 {
-  char buf[1024];
-  char buf2[1024];
-  struct thread_t * arch = core->current_thread;
+    struct thread_t* arch = core->current_thread;
 
-  stat_reg_note(sdb,"\n#### DECODE STATS ####");
-  sprintf(buf,"c%d.target_resteers",arch->id);
-  stat_reg_counter(sdb, true, buf, "decode-time target resteers", &core->stat.target_resteers, 0, TRUE, NULL);
-  sprintf(buf,"c%d.decode_insn",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of instructions decodeed", &core->stat.decode_insn, 0, TRUE, NULL);
-  sprintf(buf,"c%d.decode_uops",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of uops decodeed", &core->stat.decode_uops, 0, TRUE, NULL);
-  sprintf(buf,"c%d.decode_IPC",arch->id);
-  sprintf(buf2,"c%d.decode_insn/c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "IPC at decode", buf2, NULL);
-  sprintf(buf,"c%d.decode_uPC",arch->id);
-  sprintf(buf2,"c%d.decode_uops/c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "uPC at decode", buf2, NULL);
+    stat_reg_note(sdb, "\n#### DECODE STATS ####");
+    stat_reg_core_counter(sdb, true, arch->id, "target_resteers", "decode-time target resteers",
+                          &core->stat.target_resteers, 0, TRUE, NULL);
+    auto& decode_insn_st = stat_reg_core_counter(sdb, true, arch->id, "decode_insn",
+                                                 "total number of instructions decodeed",
+                                                 &core->stat.decode_insn, 0, TRUE, NULL);
+    auto& decode_uops_st = stat_reg_core_counter(sdb, true, arch->id, "decode_uops",
+                                                 "total number of uops decodeed",
+                                                 &core->stat.decode_uops, 0, TRUE, NULL);
+    auto core_sim_cycles_st = stat_find_core_stat<qword_t>(sdb, arch->id, "sim_cycle");
+    assert(core_sim_cycles_st);
 
-  sprintf(buf,"c%d.decode_stall",core->current_thread->id);
-  core->stat.decode_stall = stat_reg_dist(sdb, buf,
-                                           "breakdown of stalls at decode",
-                                           /* initial value */0,
-                                           /* array size */DSTALL_num,
-                                           /* bucket size */1,
-                                           /* print format */(PF_COUNT|PF_PDF),
-                                           /* format */NULL,
-                                           /* index map */decode_stall_str,
-                                           /* scale_me */TRUE,
-                                           /* print fn */NULL);
-  
+    stat_reg_core_formula(sdb, true, arch->id, "decode_uPC", "UPC at decode",
+                          decode_uops_st / *core_sim_cycles_st, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "decode_IPC", "IPC at decode",
+                          decode_insn_st / *core_sim_cycles_st, NULL);
+
+    core->stat.decode_stall = stat_reg_core_dist(
+            sdb, arch->id, "decode_stall", "breakdown of stalls at decode", 0, DSTALL_num, 1,
+            (PF_COUNT | PF_PDF), NULL, decode_stall_str, TRUE, NULL);
 }
 
 void core_decode_STM_t::update_occupancy(void)
