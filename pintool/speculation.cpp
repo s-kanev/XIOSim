@@ -14,7 +14,7 @@
 KNOB<BOOL> KnobSpeculation(KNOB_MODE_WRITEONCE,
                            "pintool",
                            "speculation",
-                           "true",
+                           "false",
                            "Fork feeder processes on speculative paths");
 
 bool speculation_mode = false;
