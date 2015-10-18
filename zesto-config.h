@@ -109,12 +109,12 @@ void store_uncore_options(cfg_t *uncore_opt, core_knobs_t *knobs);
  * Params:
  * @exec_cfg: Execution stage config.
  * @exeu_name: Execution unit name.
- * @fu_type: Functional unit type, enumerated in md_fu_class.
+ * @fu_type: Functional unit type, enumerated in fu_class.
  * @knobs: Configuration knobs.
  */
 void store_execution_unit_options(cfg_t *exec_cfg,
                                   const char* exeu_name,
-                                  md_fu_class fu_type,
+                                  fu_class fu_type,
                                   core_knobs_t *knobs);
 
 /* Stores an int list config value into a preallocated array.

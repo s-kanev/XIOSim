@@ -115,6 +115,23 @@ bool is_indirect(const struct Mop_t * Mop) {
     return false;
 }
 
+bool is_fp(const struct Mop_t * Mop) {
+    auto icat = xed_decoded_inst_get_category(&Mop->decode.inst);
+    switch (icat) {
+      case XED_CATEGORY_3DNOW:
+      case XED_CATEGORY_AVX:
+      case XED_CATEGORY_AVX2:
+      case XED_CATEGORY_AVX2GATHER:
+      case XED_CATEGORY_MMX:
+      case XED_CATEGORY_SSE:
+      case XED_CATEGORY_X87_ALU:
+        return true;
+      default:
+        return false;
+    }
+    return false;
+}
+
 void decode_flags(struct Mop_t * Mop) {
     Mop->decode.is_trap = is_trap(Mop);
     Mop->decode.is_ctrl = is_ctrl(Mop);

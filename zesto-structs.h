@@ -131,7 +131,7 @@ struct alignas(16) uop_t
     bool BOM; /* TRUE if first uop of macro (Beginning of Macro) */
     bool EOM; /* TRUE if last uop of macro (End of Macro) */
 
-    /* idep names, odep name(s?), predecode flags (is_load, etc.), target */
+    /* decode flags (is_load, etc.) */
     bool is_ctrl; /* Is branch/jump/call etc.? */
     bool is_load; /* Is load? */
     bool is_sta;  /* Is store-address uop? */
@@ -140,12 +140,13 @@ struct alignas(16) uop_t
     bool is_fence; /* Is fence? */
     bool is_light_fence; /* Light fence? (heavy vs light == wait for commit vs wait for WB) */
     bool is_agen; /* Is AGEN uop (LEA instruction) */
+    bool is_fpop; /* Is floating-point op? */
 
     /* assume unique uop ID assigned when Mop cracked */
     seq_t Mop_seq;
     seq_t uop_seq; /* we use a seq that's a combination of the Mop seq and the uop flow-index */
 
-    enum md_fu_class FU_class; /* What type of ALU does this uop use? */
+    enum fu_class FU_class; /* What type of ALU does this uop use? */
 
     /* uop-fusion */
     bool in_fusion;      /* this uop belongs to a fusion of two or more uops */
@@ -395,6 +396,10 @@ struct alignas(16) Mop_t
 
   void allocate_uops(void) {
       uop = x86::get_uop_array(decode.flow_length);
+      for (size_t i = 0; i < decode.flow_length; i++) {
+          uop[i].flow_index = i;
+          uop[i].Mop = this;
+      }
   }
 
   void clear_uops(void) {

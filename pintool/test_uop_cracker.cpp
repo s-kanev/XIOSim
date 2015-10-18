@@ -19,6 +19,7 @@ TEST_CASE("nop", "[uop]") {
     REQUIRE(c.Mop.uop[0].decode.is_sta == false);
     REQUIRE(c.Mop.uop[0].decode.is_std == false);
     REQUIRE(c.Mop.uop[0].decode.is_nop == true);
+    REQUIRE(c.Mop.uop[0].decode.FU_class == FU_NA);
 }
 
 TEST_CASE("multi-byte nop", "[uop]") {
@@ -60,6 +61,8 @@ TEST_CASE("RR logic", "[uop]") {
 
     REQUIRE(c.Mop.uop[0].decode.odep_name[0] == XED_REG_EAX);
     REQUIRE(c.Mop.uop[0].decode.odep_name[1] == XED_REG_EFLAGS);
+
+    REQUIRE(c.Mop.uop[0].decode.FU_class == FU_IEU);
 }
 
 TEST_CASE("RR logic 16", "[uop]") {
@@ -100,6 +103,7 @@ TEST_CASE("jmp ind", "[uop]") {
     REQUIRE(c.Mop.uop[0].decode.is_nop == false);
 
     REQUIRE(c.Mop.uop[0].decode.idep_name[0] == XED_REG_EAX);
+    REQUIRE(c.Mop.uop[0].decode.FU_class == FU_JEU);
 }
 
 TEST_CASE("load disp", "[uop]") {
@@ -120,6 +124,7 @@ TEST_CASE("load disp", "[uop]") {
     REQUIRE(c.Mop.uop[0].decode.is_sta == false);
     REQUIRE(c.Mop.uop[0].decode.is_std == false);
     REQUIRE(c.Mop.uop[0].decode.is_nop == false);
+    REQUIRE(c.Mop.uop[0].decode.FU_class == FU_LD);
 }
 
 TEST_CASE("load base", "[uop]") {
@@ -158,8 +163,10 @@ TEST_CASE("store base", "[uop]") {
 
     REQUIRE(c.Mop.uop[0].decode.idep_name[0] == XED_REG_ESI);
     REQUIRE(c.Mop.uop[0].decode.idep_name[1] == XED_REG_INVALID);
+    REQUIRE(c.Mop.uop[0].decode.FU_class == FU_STA);
     REQUIRE(c.Mop.uop[1].decode.idep_name[0] == XED_REG_EAX);
     REQUIRE(c.Mop.uop[1].decode.odep_name[0] == XED_REG_INVALID);
+    REQUIRE(c.Mop.uop[1].decode.FU_class == FU_STD);
 }
 
 TEST_CASE("store base imm", "[uop]") {
@@ -201,6 +208,9 @@ TEST_CASE("load-op", "[uop]") {
 
     REQUIRE(c.Mop.uop[1].decode.odep_name[0] == XED_REG_EDX);
     REQUIRE(c.Mop.uop[1].decode.odep_name[1] == XED_REG_EFLAGS);
+
+    REQUIRE(c.Mop.uop[0].decode.FU_class == FU_LD);
+    REQUIRE(c.Mop.uop[1].decode.FU_class == FU_IEU);
 }
 
 TEST_CASE("load-op-store", "[uop]") {
@@ -234,6 +244,11 @@ TEST_CASE("load-op-store", "[uop]") {
     REQUIRE(c.Mop.uop[3].decode.idep_name[0] == XED_REG_TMP1);
     REQUIRE(c.Mop.uop[3].decode.idep_name[1] == XED_REG_INVALID);
     REQUIRE(c.Mop.uop[3].decode.odep_name[0] == XED_REG_INVALID);
+
+    REQUIRE(c.Mop.uop[0].decode.FU_class == FU_LD);
+    REQUIRE(c.Mop.uop[1].decode.FU_class == FU_IEU);
+    REQUIRE(c.Mop.uop[2].decode.FU_class == FU_STA);
+    REQUIRE(c.Mop.uop[3].decode.FU_class == FU_STD);
 }
 
 TEST_CASE("call", "[uop]") {
@@ -260,6 +275,12 @@ TEST_CASE("call", "[uop]") {
     REQUIRE(c.Mop.uop[2].decode.odep_name[0] == XED_REG_ESP);
 
     REQUIRE(c.Mop.uop[3].decode.idep_name[0] == XED_REG_INVALID);
+
+
+    REQUIRE(c.Mop.uop[0].decode.FU_class == FU_STA);
+    REQUIRE(c.Mop.uop[1].decode.FU_class == FU_STD);
+    REQUIRE(c.Mop.uop[2].decode.FU_class == FU_IEU);
+    REQUIRE(c.Mop.uop[3].decode.FU_class == FU_JEU);
 }
 
 TEST_CASE("call ind reg", "[uop]") {
@@ -317,8 +338,10 @@ TEST_CASE("ret", "[uop]") {
 
     REQUIRE(c.Mop.uop[1].decode.idep_name[0] == XED_REG_ESP);
     REQUIRE(c.Mop.uop[1].decode.odep_name[0] == XED_REG_ESP);
+    REQUIRE(c.Mop.uop[1].decode.FU_class == FU_IEU);
 
     REQUIRE(c.Mop.uop[2].decode.idep_name[0] == XED_REG_TMP0);
+    REQUIRE(c.Mop.uop[2].decode.FU_class == FU_JEU);
 }
 
 TEST_CASE("push reg", "[uop]") {
@@ -339,6 +362,7 @@ TEST_CASE("push reg", "[uop]") {
 
     REQUIRE(c.Mop.uop[2].decode.idep_name[0] == XED_REG_ESP);
     REQUIRE(c.Mop.uop[2].decode.odep_name[0] == XED_REG_ESP);
+    REQUIRE(c.Mop.uop[2].decode.FU_class == FU_IEU);
 }
 
 TEST_CASE("push imm", "[uop]") {
@@ -421,6 +445,7 @@ TEST_CASE("pop reg", "[uop]") {
 
     REQUIRE(c.Mop.uop[1].decode.idep_name[0] == XED_REG_ESP);
     REQUIRE(c.Mop.uop[1].decode.odep_name[0] == XED_REG_ESP);
+    REQUIRE(c.Mop.uop[1].decode.FU_class == FU_IEU);
 }
 
 TEST_CASE("pop mem", "[uop]") {
@@ -463,10 +488,12 @@ TEST_CASE("mul", "[uop]") {
     REQUIRE(c.Mop.uop[1].decode.idep_name[0] == XED_REG_EAX);
     REQUIRE(c.Mop.uop[1].decode.idep_name[1] == XED_REG_TMP0);
     REQUIRE(c.Mop.uop[1].decode.odep_name[0] == XED_REG_EAX);
+    REQUIRE(c.Mop.uop[1].decode.FU_class == FU_IMUL);
 
     REQUIRE(c.Mop.uop[2].decode.idep_name[0] == XED_REG_EAX);
     REQUIRE(c.Mop.uop[2].decode.idep_name[1] == XED_REG_TMP0);
     REQUIRE(c.Mop.uop[2].decode.odep_name[0] == XED_REG_EDX);
+    REQUIRE(c.Mop.uop[2].decode.FU_class == FU_IMUL);
 }
 
 TEST_CASE("imul mem", "[uop]") {
@@ -528,10 +555,12 @@ TEST_CASE("div", "[uop]") {
     REQUIRE(c.Mop.uop[1].decode.idep_name[0] == XED_REG_EAX);
     REQUIRE(c.Mop.uop[1].decode.idep_name[1] == XED_REG_TMP0);
     REQUIRE(c.Mop.uop[1].decode.odep_name[0] == XED_REG_EAX);
+    REQUIRE(c.Mop.uop[1].decode.FU_class == FU_IDIV);
 
     REQUIRE(c.Mop.uop[2].decode.idep_name[0] == XED_REG_EAX);
     REQUIRE(c.Mop.uop[2].decode.idep_name[1] == XED_REG_TMP0);
     REQUIRE(c.Mop.uop[2].decode.odep_name[0] == XED_REG_EDX);
+    REQUIRE(c.Mop.uop[1].decode.FU_class == FU_IDIV);
 }
 
 
@@ -547,6 +576,7 @@ TEST_CASE("je", "[uop]") {
     REQUIRE(c.Mop.uop[0].decode.idep_name[0] == XED_REG_EFLAGS);
     REQUIRE(c.Mop.uop[0].decode.idep_name[1] == XED_REG_INVALID);
     REQUIRE(c.Mop.uop[0].decode.idep_name[2] == XED_REG_INVALID);
+    REQUIRE(c.Mop.uop[0].decode.FU_class == FU_JEU);
 }
 
 TEST_CASE("lea", "[uop]") {
@@ -570,6 +600,8 @@ TEST_CASE("lea", "[uop]") {
     REQUIRE(c.Mop.uop[0].decode.is_sta == false);
     REQUIRE(c.Mop.uop[0].decode.is_std == false);
     REQUIRE(c.Mop.uop[0].decode.is_load == false);
+    REQUIRE(c.Mop.uop[0].decode.is_agen == true);
+    REQUIRE(c.Mop.uop[0].decode.FU_class == FU_AGEN);
 }
 
 TEST_CASE("inc load-op-store", "[uop]") {
@@ -695,4 +727,117 @@ TEST_CASE("cmps", "[uop]") {
     REQUIRE(c.Mop.uop[2].decode.idep_name[0] == XED_REG_TMP0);
     REQUIRE(c.Mop.uop[2].decode.idep_name[1] == XED_REG_TMP1);
     REQUIRE(c.Mop.uop[2].decode.odep_name[0] == XED_REG_EFLAGS);
+}
+
+TEST_CASE("RR shift", "[uop]") {
+    xed_context c;
+    xed_inst2(&c.x, c.dstate, XED_ICLASS_SAR, 0,
+              xed_reg(XED_REG_EAX),
+              xed_reg(XED_REG_CL));
+    c.encode();
+
+    c.decode_and_crack();
+
+    REQUIRE(c.Mop.decode.flow_length == 1);
+
+    REQUIRE(c.Mop.uop[0].decode.idep_name[0] == XED_REG_EAX);
+    REQUIRE(c.Mop.uop[0].decode.idep_name[1] == XED_REG_ECX);
+
+    REQUIRE(c.Mop.uop[0].decode.odep_name[0] == XED_REG_EAX);
+    REQUIRE(c.Mop.uop[0].decode.odep_name[1] == XED_REG_EFLAGS);
+
+    REQUIRE(c.Mop.uop[0].decode.FU_class == FU_SHIFT);
+}
+
+TEST_CASE("RR shiftx", "[uop]") {
+    xed_context c;
+    xed_inst3(&c.x, c.dstate, XED_ICLASS_SARX, 0,
+              xed_reg(XED_REG_EAX),
+              xed_reg(XED_REG_EDX),
+              xed_reg(XED_REG_ECX));
+    c.encode();
+
+    c.decode_and_crack();
+
+    REQUIRE(c.Mop.decode.flow_length == 1);
+
+    REQUIRE(c.Mop.uop[0].decode.idep_name[0] == XED_REG_EDX);
+    REQUIRE(c.Mop.uop[0].decode.idep_name[1] == XED_REG_ECX);
+
+    REQUIRE(c.Mop.uop[0].decode.odep_name[0] == XED_REG_EAX);
+    REQUIRE(c.Mop.uop[0].decode.odep_name[1] == XED_REG_INVALID);
+
+    REQUIRE(c.Mop.uop[0].decode.FU_class == FU_SHIFT);
+}
+
+TEST_CASE("RR FP add", "[uop]") {
+    xed_context c;
+    xed_inst2(&c.x, c.dstate, XED_ICLASS_ADDPD, 0,
+              xed_reg(XED_REG_XMM1),
+              xed_reg(XED_REG_XMM2));
+    c.encode();
+
+    c.decode_and_crack();
+
+    REQUIRE(c.Mop.decode.flow_length == 1);
+    REQUIRE(c.Mop.uop[0].decode.is_fpop == true);
+
+    REQUIRE(c.Mop.uop[0].decode.idep_name[0] == XED_REG_YMM1);
+    REQUIRE(c.Mop.uop[0].decode.idep_name[1] == XED_REG_YMM2);
+    REQUIRE(c.Mop.uop[0].decode.idep_name[2] == XED_REG_INVALID);
+
+    REQUIRE(c.Mop.uop[0].decode.odep_name[0] == XED_REG_YMM1);
+    REQUIRE(c.Mop.uop[0].decode.odep_name[1] == XED_REG_INVALID);
+
+    REQUIRE(c.Mop.uop[0].decode.FU_class == FU_FADD);
+}
+
+TEST_CASE("Mem FP add", "[uop]") {
+    xed_context c;
+    xed_inst2(&c.x, c.dstate, XED_ICLASS_ADDPD, 0,
+              xed_reg(XED_REG_XMM1),
+              xed_mem_bd(XED_REG_EDX,
+                         xed_disp(0xbeef, 32),
+                         128));
+    c.encode();
+
+    c.decode_and_crack();
+
+    REQUIRE(c.Mop.decode.flow_length == 2);
+    REQUIRE(c.Mop.uop[0].decode.is_load == true);
+    REQUIRE(c.Mop.uop[1].decode.is_fpop == true);
+
+    REQUIRE(c.Mop.uop[0].decode.idep_name[0] == XED_REG_EDX);
+    REQUIRE(c.Mop.uop[0].decode.odep_name[0] == XED_REG_TMP0);
+
+    REQUIRE(c.Mop.uop[1].decode.idep_name[0] == XED_REG_TMP0);
+    REQUIRE(c.Mop.uop[1].decode.idep_name[1] == XED_REG_YMM1);
+    REQUIRE(c.Mop.uop[1].decode.idep_name[2] == XED_REG_INVALID);
+
+    REQUIRE(c.Mop.uop[1].decode.odep_name[0] == XED_REG_YMM1);
+    REQUIRE(c.Mop.uop[1].decode.odep_name[1] == XED_REG_INVALID);
+
+    REQUIRE(c.Mop.uop[0].decode.FU_class == FU_LD);
+    REQUIRE(c.Mop.uop[1].decode.FU_class == FU_FADD);
+}
+
+TEST_CASE("RR FP padd", "[uop]") {
+    xed_context c;
+    xed_inst2(&c.x, c.dstate, XED_ICLASS_PADDD, 0,
+              xed_reg(XED_REG_XMM1),
+              xed_reg(XED_REG_XMM2));
+    c.encode();
+
+    c.decode_and_crack();
+
+    REQUIRE(c.Mop.decode.flow_length == 1);
+    REQUIRE(c.Mop.uop[0].decode.is_fpop == true);
+
+    REQUIRE(c.Mop.uop[0].decode.idep_name[0] == XED_REG_YMM1);
+    REQUIRE(c.Mop.uop[0].decode.idep_name[1] == XED_REG_YMM2);
+
+    REQUIRE(c.Mop.uop[0].decode.odep_name[0] == XED_REG_YMM1);
+
+    /* Parallel int ops for now go to the integer unit */
+    REQUIRE(c.Mop.uop[0].decode.FU_class == FU_IEU);
 }

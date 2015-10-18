@@ -99,10 +99,6 @@ struct inst_flags_t {
     bool RETN:1;     /* subroutine return */
 };
 
-/* TODO(skanev): These seem to be the only uop flags the timing model
- * currently uses. Figure out what to do about them. */
-#define F_FCOMP 0x1
-
 /* helper macros */
 
 /*

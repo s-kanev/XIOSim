@@ -611,8 +611,6 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
 
     for (size_t i = 0; i < Mop->decode.flow_length; i++) {
         Mop->uop[i].core = core;
-        Mop->uop[i].flow_index = i;
-        Mop->uop[i].Mop = Mop;
         Mop->uop[i].decode.Mop_seq = Mop->oracle.seq;
         Mop->uop[i].decode.uop_seq = (Mop->oracle.seq << x86::UOP_SEQ_SHIFT) + i;
     }
@@ -767,7 +765,7 @@ void core_oracle_t::update_stats(struct Mop_t* const Mop) {
         core->current_thread->stat.num_insn++;
     ZESTO_STAT(core->stat.oracle_total_insn++;)
 
-    if (xed_decoded_inst_get_category(&Mop->decode.inst) == XED_CATEGORY_CALL)
+    if (Mop->decode.opflags.CALL)
         ZESTO_STAT(core->stat.oracle_total_calls++;)
 
     for (size_t i = 0; i < Mop->decode.flow_length; i++) {

@@ -113,7 +113,7 @@ void store_str_list(cfg_t* cfg,
 
 void store_execution_unit_options(cfg_t *exec_opt,
                                   const char* exeu_name,
-                                  md_fu_class fu_type,
+                                  fu_class fu_type,
                                   core_knobs_t *knobs) {
   cfg_t *exeu_opt = cfg_gettsec(exec_opt, "exeu", exeu_name);
   // If this execution unit has not been declared, it doesn't exist in the

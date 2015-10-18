@@ -124,8 +124,7 @@ enum cache_command core_exec_t::get_STQ_request_type(const struct uop_t * const 
 int core_exec_t::get_fp_penalty(const struct uop_t * const uop)
 {
   bool freg_output = x86::is_freg(uop->decode.odep_name[0]);
-  bool fp_op = (uop->decode.opflags & F_FCOMP);
-  return (freg_output ^ fp_op) ? core->knobs->exec.fp_penalty : 0;
+  return (freg_output ^ uop->decode.is_fpop) ? core->knobs->exec.fp_penalty : 0;
 }
 
 extern int min_coreID;

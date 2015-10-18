@@ -163,7 +163,7 @@ class core_exec_IO_DPM_t:public core_exec_t
     tick_t when_bypass_used; /* to make sure only one inst writes back per cycle, which
                                 could happen due to insts with different latencies */
     int num_FU_types; /* the number of FU's bound to this port */
-    enum md_fu_class * FU_types; /* the corresponding types of those FUs */
+    enum fu_class * FU_types; /* the corresponding types of those FUs */
     tick_t when_stalled; /* to make sure stalled uops don't execute more than once */
 
     counter_t issue_occupancy;
@@ -448,12 +448,12 @@ core_exec_IO_DPM_t::core_exec_IO_DPM_t(struct core_t * const arg_core):
   {
     int j;
     knobs->exec.port_binding[i].ports = (int*) calloc(knobs->exec.port_binding[i].num_FUs,sizeof(int));
-    if(!knobs->exec.port_binding[i].ports) fatal("couldn't calloc %s ports", fu_name(static_cast<md_fu_class>(i)));
+    if(!knobs->exec.port_binding[i].ports) fatal("couldn't calloc %s ports", fu_name(static_cast<fu_class>(i)).c_str());
     for(j=0;j<knobs->exec.port_binding[i].num_FUs;j++)
     {
       if((knobs->exec.fu_bindings[i][j] < 0) || (knobs->exec.fu_bindings[i][j] >= knobs->exec.num_exec_ports))
         fatal("port binding for %s is negative or exceeds the execution width (should be > 0 and < %d)",
-               static_cast<md_fu_class>(i),
+               static_cast<fu_class>(i),
                knobs->exec.num_exec_ports);
       knobs->exec.port_binding[i].ports[j] = knobs->exec.fu_bindings[i][j];
     }
@@ -477,7 +477,7 @@ core_exec_IO_DPM_t::core_exec_IO_DPM_t(struct core_t * const arg_core):
       port[port_num].FU[i]->issue_rate = issue_rate;
       port[port_num].FU[i]->pipe = (struct uop_action_t*) calloc(latency,sizeof(struct uop_action_t));
       if(!port[port_num].FU[i]->pipe)
-        fatal("couldn't calloc %s function unit execution pipeline", static_cast<md_fu_class>(i));
+        fatal("couldn't calloc %s function unit execution pipeline", static_cast<fu_class>(i));
 
       if(i==FU_LD) /* load has AGEN and STQ access pipelines */
       {
@@ -500,7 +500,7 @@ core_exec_IO_DPM_t::core_exec_IO_DPM_t(struct core_t * const arg_core):
     for(j=0;j<NUM_FU_CLASSES;j++)
       if(port[i].FU[j])
         port[i].num_FU_types++;
-    port[i].FU_types = (enum md_fu_class *)calloc(port[i].num_FU_types,sizeof(enum md_fu_class));
+    port[i].FU_types = (enum fu_class *)calloc(port[i].num_FU_types,sizeof(enum fu_class));
     if(!port[i].FU_types)
       fatal("couldn't calloc FU_types array on port %d",i);
     int k=0;
@@ -508,7 +508,7 @@ core_exec_IO_DPM_t::core_exec_IO_DPM_t(struct core_t * const arg_core):
     {
       if(port[i].FU[j])
       {
-        port[i].FU_types[k] = (enum md_fu_class)j;
+        port[i].FU_types[k] = (enum fu_class)j;
         k++;
       }
     }
@@ -1695,7 +1695,7 @@ void core_exec_IO_DPM_t::recover(const struct Mop_t * const Mop)
   {
     for(int j=0;j<port[i].num_FU_types;j++)
     {
-      enum md_fu_class FU_type = port[i].FU_types[j];
+      enum fu_class FU_type = port[i].FU_types[j];
       struct ALU_t * FU = port[i].FU[FU_type];
       if(FU && (FU->occupancy > 0))
       {
@@ -1790,7 +1790,7 @@ void core_exec_IO_DPM_t::recover(void)
   {
     for(int j=0;j<port[i].num_FU_types;j++)
     {
-      enum md_fu_class FU_type = port[i].FU_types[j];
+      enum fu_class FU_type = port[i].FU_types[j];
       struct ALU_t * FU = port[i].FU[FU_type];
       if(FU && (FU->occupancy > 0))
       {
@@ -1891,7 +1891,7 @@ bool core_exec_IO_DPM_t::exec_empty(void)
 
     for(int j=0;j<port[i].num_FU_types;j++)
     {
-      enum md_fu_class FU_type = port[i].FU_types[j];
+      enum fu_class FU_type = port[i].FU_types[j];
       struct ALU_t * FU = port[i].FU[FU_type];
       if(FU && (FU->occupancy > 0))
         return false;
@@ -2471,7 +2471,7 @@ void core_exec_IO_DPM_t::step()
     struct uop_t * uop;
     for(int j=0;j<port[i].num_FU_types;j++)
     {
-       enum md_fu_class FU_type = port[i].FU_types[j];
+       enum fu_class FU_type = port[i].FU_types[j];
        struct ALU_t * FU = port[i].FU[FU_type];
        if(FU && (FU->occupancy > 0))
        {
@@ -2725,7 +2725,7 @@ void core_exec_IO_DPM_t::step()
   {
     for(int j=0;j<port[i].num_FU_types;j++)
     {
-       enum md_fu_class FU_type = port[i].FU_types[j];
+       enum fu_class FU_type = port[i].FU_types[j];
        struct ALU_t * FU = port[i].FU[FU_type];
         if(FU->occupancy > 0)
         {
@@ -2828,7 +2828,7 @@ void core_exec_IO_DPM_t::step()
              zesto_assert(!uop->decode.is_std, (void)0);
           }
 
-          enum md_fu_class FU_class = uop->decode.FU_class;
+          enum fu_class FU_class = uop->decode.FU_class;
 
 
           /* at this point a LOAD means non-fused LOAD, already executed -> go to commit
@@ -3201,7 +3201,7 @@ bool core_exec_IO_DPM_t::can_issue_IO(struct uop_t * const uop)
   {
      for(int j=0;j<port[i].num_FU_types;j++)
      {
-       enum md_fu_class FU_type = port[i].FU_types[j];
+       enum fu_class FU_type = port[i].FU_types[j];
        struct ALU_t * FU = port[i].FU[FU_type];
        if(FU && (FU->occupancy > 0))
        {
@@ -3248,7 +3248,7 @@ bool core_exec_IO_DPM_t::can_issue_IO(struct uop_t * const uop)
 
              tick_t when_curr_ready;
              int curr_port = curr_uop->alloc.port_assignment;
-             enum md_fu_class curr_FU_class = curr_uop->decode.FU_class;
+             enum fu_class curr_FU_class = curr_uop->decode.FU_class;
 
              if(curr_uop->decode.is_load)
                 when_curr_ready = curr_uop->timing.when_completed;

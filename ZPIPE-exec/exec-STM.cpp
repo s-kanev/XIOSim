@@ -139,7 +139,7 @@ class core_exec_STM_t:public core_exec_t
     struct readyQ_node_t * readyQ;
     struct ALU_t * STQ; /* store-queue lookup/search pipeline for load execution */
     int num_FU_types; /* the number of FU's bound to this port */
-    enum md_fu_class * FU_types; /* the corresponding types of those FUs */
+    enum fu_class * FU_types; /* the corresponding types of those FUs */
   } * port;
   bool check_for_work; /* used to skip ALU exec when there's no uops */
 
@@ -385,12 +385,12 @@ core_exec_STM_t::core_exec_STM_t(struct core_t * arg_core):
   {
     int j;
     knobs->exec.port_binding[i].ports = (int*) calloc(knobs->exec.port_binding[i].num_FUs,sizeof(int));
-    if(!knobs->exec.port_binding[i].ports) fatal("couldn't calloc %s ports", fu_name(static_cast<md_fu_class>(i)));
+    if(!knobs->exec.port_binding[i].ports) fatal("couldn't calloc %s ports", fu_name(static_cast<fu_class>(i)).c_str());
     for(j=0;j<knobs->exec.port_binding[i].num_FUs;j++)
     {
       if((knobs->exec.fu_bindings[i][j] < 0) || (knobs->exec.fu_bindings[i][j] >= knobs->exec.num_exec_ports))
         fatal("port binding for %s is negative or exceeds the execution width (should be > 0 and < %d)",
-               static_cast<md_fu_class>(i),
+               static_cast<fu_class>(i),
                knobs->exec.num_exec_ports);
       knobs->exec.port_binding[i].ports[j] = knobs->exec.fu_bindings[i][j];
     }
@@ -415,7 +415,7 @@ core_exec_STM_t::core_exec_STM_t(struct core_t * arg_core):
       port[port_num].FU[i]->issue_rate = issue_rate;
       port[port_num].FU[i]->pipe = (struct uop_action_t*) calloc(heap_size,sizeof(struct uop_action_t));
       if(!port[port_num].FU[i]->pipe)
-        fatal("couldn't calloc %s function unit execution pipeline", static_cast<md_fu_class>(i));
+        fatal("couldn't calloc %s function unit execution pipeline", static_cast<fu_class>(i));
 
       if(i==FU_LD) /* load has AGEN and STQ access pipelines */
       {
@@ -439,7 +439,7 @@ core_exec_STM_t::core_exec_STM_t(struct core_t * arg_core):
     for(j=0;j<NUM_FU_CLASSES;j++)
       if(port[i].FU[j])
         port[i].num_FU_types++;
-    port[i].FU_types = (enum md_fu_class *)calloc(port[i].num_FU_types,sizeof(enum md_fu_class));
+    port[i].FU_types = (enum fu_class *)calloc(port[i].num_FU_types,sizeof(enum fu_class));
     if(!port[i].FU_types)
       fatal("couldn't calloc FU_types array on port %d",i);
     int k=0;
@@ -447,7 +447,7 @@ core_exec_STM_t::core_exec_STM_t(struct core_t * arg_core):
     {
       if(port[i].FU[j])
       {
-        port[i].FU_types[k] = (enum md_fu_class)j;
+        port[i].FU_types[k] = (enum fu_class)j;
         k++;
       }
     }
@@ -695,7 +695,7 @@ void core_exec_STM_t::RS_schedule(void) /* for uops in the RS */
     while(rq) /* if anyone's waiting to issue to this port */
     {
       struct uop_t * uop = rq->uop;
-      enum md_fu_class FU_class = uop->decode.FU_class;
+      enum fu_class FU_class = uop->decode.FU_class;
 
       if(uop->exec.action_id != rq->action_id) /* RQ entry has been squashed */
       {
@@ -1121,7 +1121,7 @@ void core_exec_STM_t::ALU_exec(void)
     int j;
     for(j=0;j<port[i].num_FU_types;j++)
     {
-      enum md_fu_class FU_type = port[i].FU_types[j];
+      enum fu_class FU_type = port[i].FU_types[j];
       struct ALU_t * FU = port[i].FU[FU_type];
       if(FU && (FU->occupancy > 0))
       {

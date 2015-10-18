@@ -122,10 +122,10 @@ static void fallback(struct Mop_t* Mop) {
     main_uop.decode.is_ctrl = Mop->decode.is_ctrl;
     main_uop.decode.is_nop = is_nop(Mop);
     main_uop.decode.is_fence = is_fence(Mop);
+    main_uop.decode.is_fpop = is_fp(Mop);
 
-    // XXX: For testing. We need a real table ICLASS -> FU.
-    if (!main_uop.decode.is_nop && !Mop->decode.is_trap)
-        main_uop.decode.FU_class = Mop->decode.is_ctrl ? FU_JEU : FU_IEU;
+    /* Check functional unit tables for main uop. */
+    main_uop.decode.FU_class = get_uop_fu(main_uop);
 
     /* Fill out register read dependences from XED.
      * All of them go to the main uop. */
@@ -617,12 +617,12 @@ static bool check_tables(struct Mop_t* Mop) {
         }
         Mop->uop[0].decode.odep_name[0] = XED_REG_TMP0;
 
-        Mop->uop[1].decode.FU_class = FU_IMUL;
+        Mop->uop[1].decode.FU_class = get_uop_fu(Mop->uop[1]);
         Mop->uop[1].decode.idep_name[0] = XED_REG_EAX;
         Mop->uop[1].decode.idep_name[1] = XED_REG_TMP0;
         Mop->uop[1].decode.odep_name[0] = XED_REG_EAX;
 
-        Mop->uop[2].decode.FU_class = FU_IMUL;
+        Mop->uop[2].decode.FU_class = get_uop_fu(Mop->uop[2]);
         Mop->uop[2].decode.idep_name[0] = XED_REG_EAX;
         Mop->uop[2].decode.idep_name[1] = XED_REG_TMP0;
         Mop->uop[2].decode.odep_name[0] = XED_REG_EDX;
@@ -669,6 +669,7 @@ static bool check_tables(struct Mop_t* Mop) {
         fill_out_load_uop(Mop, Mop->uop[1], 1);
         Mop->uop[1].decode.odep_name[0] = XED_REG_TMP1;
 
+        Mop->uop[2].decode.FU_class = FU_IEU;
         Mop->uop[2].decode.idep_name[0] = XED_REG_TMP0;
         Mop->uop[2].decode.idep_name[1] = XED_REG_TMP1;
         Mop->uop[2].decode.odep_name[0] = XED_REG_EFLAGS;
