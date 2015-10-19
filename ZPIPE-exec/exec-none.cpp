@@ -223,8 +223,7 @@ void core_exec_NONE_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
 {
   stat_reg_note(sdb,"\n#### DATA CACHE STATS ####");
   cache_reg_stats(sdb, core, core->memory.DL1);
-  if(core->memory.DL2)
-    cache_reg_stats(sdb, core, core->memory.DL2);
+  cache_reg_stats(sdb, core, core->memory.DL2);
 }
 
 

@@ -150,6 +150,20 @@ Distribution* stat_reg_sdist(StatsDatabase* sdb,
                              int scale_me,
                              void* print_fn);
 
+/* Registers some named queue's occupancy statistics.
+ *
+ * The name of the stats will be <queue_name>_occupancy, <queue_name>_empty,
+ * and  <queue_name>_full, for occupancy, cycles_empty, and cycles_full,
+ * respectively. In addition, each stat will register an associated Formula
+ * that divides the stat by the total simulated cycles.
+ */
+void reg_core_queue_occupancy_stats(xiosim::stats::StatsDatabase* sdb,
+                                    int core_id,
+                                    std::string queue_name,
+                                    counter_t* occupancy,
+                                    counter_t* cycles_empty,
+                                    counter_t* cycles_full);
+
 /* Add nsamples to array or sparse array distribution stat.
  *
  * dword_t = md_addr_t, but we haven't included machine.h at this point yet, so

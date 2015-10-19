@@ -283,8 +283,10 @@ void cache_reg_stats(
   char buf3[256];
   char core_str[256];
 
-  if(!core)
-    fatal("must provide a core for cache_reg_stats; for LLC, use LLC_reg_stats");
+  if (!core)
+      fatal("must provide a core for cache_reg_stats; for LLC, use LLC_reg_stats");
+  if (!cp)
+      return;
 
   int id = core->current_thread->id;
   sprintf(core_str,"c%d.",id);

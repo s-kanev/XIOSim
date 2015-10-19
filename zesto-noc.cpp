@@ -33,6 +33,8 @@ void bus_reg_stats(
     sprintf(core_str,"c%d.",core->current_thread->id);
   else
     core_str[0] = '\0'; /* empty string */
+  if (!bus)
+    return;
 
   char buf[256];
   char buf2[256];

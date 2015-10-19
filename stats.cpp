@@ -201,6 +201,49 @@ Distribution* stat_reg_sdist(StatsDatabase* sdb,
     return nullptr;
 }
 
+void reg_core_queue_occupancy_stats(xiosim::stats::StatsDatabase* sdb,
+                                    int core_id,
+                                    std::string queue_name,
+                                    counter_t* occupancy,
+                                    counter_t* cycles_empty,
+                                    counter_t* cycles_full) {
+    auto sim_cycle_st = stat_find_core_stat<qword_t>(sdb, core_id, "sim_cycle");
+    assert(sim_cycle_st);
+
+    std::string occupancy_st_name = queue_name + "_occupancy";
+    std::string empty_st_name = queue_name + "_empty";
+    std::string full_st_name = queue_name + "_full";
+    std::string avg_st_name = queue_name + "_avg";
+    std::string frac_empty_st_name = queue_name + "_frac_empty";
+    std::string frac_full_st_name = queue_name + "_frac_full";
+
+    std::string occupancy_st_desc = "total " + queue_name + "_occupancy";
+    std::string empty_st_desc = "total cycles " + queue_name + " was empty";
+    std::string full_st_desc = "total cycles " + queue_name + " was full";
+    std::string avg_st_desc = "average " + queue_name + " occupancy";
+    std::string frac_empty_st_desc = "fraction of cycles " + queue_name + " was empty";
+    std::string frac_full_st_desc = "fraction of cycles " + queue_name + " was full";
+
+    auto& occupancy_st = stat_reg_core_counter(
+            sdb, true, core_id, occupancy_st_name.c_str(),
+            occupancy_st_desc.c_str(), occupancy, 0, true, NULL);
+    auto& empty_st = stat_reg_core_counter(
+            sdb, true, core_id, empty_st_name.c_str(),
+            empty_st_desc.c_str(), cycles_empty, 0, true, NULL);
+    auto& full_st = stat_reg_core_counter(
+            sdb, true, core_id, full_st_name.c_str(),
+            full_st_desc.c_str(), cycles_full, 0, true, NULL);
+    stat_reg_core_formula(
+            sdb, true, core_id, avg_st_name.c_str(),
+            avg_st_desc.c_str(), occupancy_st / *sim_cycle_st, NULL);
+    stat_reg_core_formula(
+            sdb, true, core_id, frac_empty_st_name.c_str(),
+            frac_empty_st_desc.c_str(), empty_st / *sim_cycle_st, NULL);
+    stat_reg_core_formula(
+            sdb, true, core_id, frac_full_st_name.c_str(),
+            frac_full_st_desc.c_str(), full_st / *sim_cycle_st, NULL);
+}
+
 /* Add nsamples to array or sparse array distribution stat.
  *
  * Never used in the simulator.
