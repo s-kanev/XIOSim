@@ -496,10 +496,12 @@ void core_commit_DPM_t::step(void)
         zesto_assert(uop->timing.when_exec != TICK_T_MAX,(void)0);
       }
 
-      if(x86::is_ireg(uop->decode.odep_name[0]))
-        core->stat.regfile_writes++;
-      else if(x86::is_ireg(uop->decode.odep_name[0]))
-        core->stat.fp_regfile_writes++;
+      for (int oreg = 0; oreg < MAX_ODEPS; oreg++) {
+        if(x86::is_ireg(uop->decode.odep_name[oreg]))
+          core->stat.regfile_writes++;
+        else if(x86::is_freg(uop->decode.odep_name[oreg]))
+          core->stat.fp_regfile_writes++;
+      }
 
       /* this cleans up idep/odep ptrs, register mappings, and
          commit stores to the real (non-spec) memory system */
