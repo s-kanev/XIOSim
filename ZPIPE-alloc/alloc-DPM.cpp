@@ -91,45 +91,38 @@ core_alloc_DPM_t::core_alloc_DPM_t(struct core_t * const arg_core)
 void
 core_alloc_DPM_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
 {
-  char buf[1024];
-  char buf2[1024];
-  struct thread_t * arch = core->current_thread;
+    struct thread_t* arch = core->current_thread;
 
-  stat_reg_note(sdb,"#### ALLOC STATS ####");
-  sprintf(buf,"c%d.alloc_insn",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of instructions alloced", &core->stat.alloc_insn, 0, TRUE, NULL);
-  sprintf(buf,"c%d.alloc_uops",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of uops alloced", &core->stat.alloc_uops, 0, TRUE, NULL);
-  sprintf(buf,"c%d.alloc_eff_uops",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of effective uops alloced", &core->stat.alloc_eff_uops, 0, TRUE, NULL);
-  sprintf(buf,"c%d.alloc_IPC",arch->id);
-  sprintf(buf2,"c%d.alloc_insn/c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "IPC at alloc", buf2, NULL);
-  sprintf(buf,"c%d.alloc_uPC",arch->id);
-  sprintf(buf2,"c%d.alloc_uops/c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "uPC at alloc", buf2, NULL);
-  sprintf(buf,"c%d.alloc_euPC",arch->id);
-  sprintf(buf2,"c%d.alloc_eff_uops/c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "effective uPC at alloc", buf2, NULL);
+    auto sim_cycle_st = stat_find_core_stat<qword_t>(sdb, arch->id, "sim_cycle");
+    assert(sim_cycle_st);
 
-  sprintf(buf,"c%d.regfile_reads",arch->id);
-  stat_reg_counter(sdb, true, buf, "number of register file reads", &core->stat.regfile_reads, 0, TRUE, NULL);
-  sprintf(buf,"c%d.fp_regfile_reads",arch->id);
-  stat_reg_counter(sdb, true, buf, "number of fp refister file reads", &core->stat.fp_regfile_reads, 0, TRUE, NULL);
+    stat_reg_note(sdb, "#### ALLOC STATS ####");
+    auto& alloc_insn_st = stat_reg_core_counter(sdb, true, arch->id, "alloc_insn",
+                                                "total number of instructions alloced",
+                                                &core->stat.alloc_insn, 0, TRUE, NULL);
+    auto& alloc_uops_st =
+            stat_reg_core_counter(sdb, true, arch->id, "alloc_uops", "total number of uops alloced",
+                                  &core->stat.alloc_uops, 0, TRUE, NULL);
+    auto& alloc_eff_uops_st = stat_reg_core_counter(sdb, true, arch->id, "alloc_eff_uops",
+                                                    "total number of effective uops alloced",
+                                                    &core->stat.alloc_eff_uops, 0, TRUE, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "alloc_IPC", "IPC at alloc",
+                          alloc_insn_st / *sim_cycle_st, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "alloc_uPC", "uPC at alloc",
+                          alloc_uops_st / *sim_cycle_st, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "alloc_euPC", "euPC at alloc",
+                          alloc_eff_uops_st / *sim_cycle_st, NULL);
 
-  sprintf(buf,"c%d.ROB_writes",arch->id);
-  stat_reg_counter(sdb, true, buf, "number of write accesses to ROB", &core->stat.ROB_writes, 0, TRUE, NULL);
-  sprintf(buf,"c%d.alloc_stall",core->current_thread->id);
-  core->stat.alloc_stall = stat_reg_dist(sdb, buf,
-                                          "breakdown of stalls at alloc",
-                                          /* initial value */0,
-                                          /* array size */ASTALL_num,
-                                          /* bucket size */1,
-                                          /* print format */(PF_COUNT|PF_PDF),
-                                          /* format */NULL,
-                                          /* index map */alloc_stall_str,
-                                          /* scale_me */TRUE,
-                                          /* print fn */NULL);
+    stat_reg_core_counter(sdb, true, arch->id, "regfile_reads", "number of register file reads",
+                          &core->stat.regfile_reads, 0, TRUE, NULL);
+    stat_reg_core_counter(sdb, true, arch->id, "fp_regfile_reads",
+                          "number of fp refister file reads", &core->stat.fp_regfile_reads, 0, TRUE,
+                          NULL);
+    stat_reg_core_counter(sdb, true, arch->id, "ROB_writes", "number of write accesses to ROB",
+                          &core->stat.ROB_writes, 0, TRUE, NULL);
+    core->stat.alloc_stall = stat_reg_core_dist(
+            sdb, arch->id, "alloc_stall", "breakdown of stalls at alloc", 0, ASTALL_num, 1,
+            (PF_COUNT | PF_PDF), NULL, alloc_stall_str, TRUE, NULL);
 }
 
 /************************/
@@ -185,7 +178,7 @@ void core_alloc_DPM_t::step(void)
               abort_alloc = true;
               break;
             }
-            /* for stores, allocate STQ entry on STA.  NOTE: This is different from 
+            /* for stores, allocate STQ entry on STA.  NOTE: This is different from
                Bob Colwell's description in Shen&Lipasti Chap 7 where he describes
                allocation on STD.  We emit STA uops first since the oracle needs to
                use the STA result to feed the following STD uop. */
@@ -197,7 +190,7 @@ void core_alloc_DPM_t::step(void)
             }
 
             /* is the RS full? -- don't need to alloc for NOPs,fences, signals */
-            if(!core->exec->RS_available() && !uop->decode.is_nop && 
+            if(!core->exec->RS_available() && !uop->decode.is_nop &&
                 !uop->decode.is_fence && !is_uop_helix_signal(uop))
             {
               stall_reason = ASTALL_RS;
