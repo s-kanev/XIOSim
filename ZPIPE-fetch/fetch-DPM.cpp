@@ -227,111 +227,109 @@ core_fetch_DPM_t::core_fetch_DPM_t(struct core_t * const arg_core):
 void
 core_fetch_DPM_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
 {
-  char buf[1024];
-  char buf2[1024];
-  struct thread_t * arch = core->current_thread;
+    struct thread_t* arch = core->current_thread;
 
-  stat_reg_note(sdb,"\n#### BPRED STATS ####");
-  bpred->reg_stats(sdb,core);
+    stat_reg_note(sdb, "\n#### BPRED STATS ####");
+    bpred->reg_stats(sdb, core);
 
-  stat_reg_note(sdb,"\n#### INST CACHE STATS ####");
-  cache_reg_stats(sdb, core, core->memory.IL1);
-  cache_reg_stats(sdb, core, core->memory.ITLB);
+    stat_reg_note(sdb, "\n#### INST CACHE STATS ####");
+    cache_reg_stats(sdb, core, core->memory.IL1);
+    cache_reg_stats(sdb, core, core->memory.ITLB);
 
-  stat_reg_note(sdb,"\n#### FETCH STATS ####");
-  sprintf(buf,"c%d.fetch_bytes",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of bytes fetched", &core->stat.fetch_bytes, 0, TRUE, NULL);
-  sprintf(buf,"c%d.fetch_insn",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of instructions fetched", &core->stat.fetch_insn, 0, TRUE, NULL);
-  sprintf(buf,"c%d.fetch_uops",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of uops fetched", &core->stat.fetch_uops, 0, TRUE, NULL);
-  sprintf(buf,"c%d.fetch_eff_uops",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of effective uops fetched", &core->stat.fetch_eff_uops, 0, TRUE, NULL);
-  sprintf(buf,"c%d.fetch_BPC",arch->id);
-  sprintf(buf2,"c%d.fetch_bytes/c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "BPC (bytes per cycle) at fetch", buf2, NULL);
-  sprintf(buf,"c%d.fetch_IPC",arch->id);
-  sprintf(buf2,"c%d.fetch_insn/c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "IPC at fetch", buf2, NULL);
-  sprintf(buf,"c%d.fetch_uPC",arch->id);
-  sprintf(buf2,"c%d.fetch_uops/c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "uPC at fetch", buf2, NULL);
-  sprintf(buf,"c%d.fetch_euPC",arch->id);
-  sprintf(buf2,"c%d.fetch_eff_uops/c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "euPC at fetch", buf2, NULL);
-  sprintf(buf,"c%d.fetch_byte_per_inst",arch->id);
-  sprintf(buf2,"c%d.fetch_bytes/c%d.fetch_insn",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "average bytes per instruction", buf2, NULL);
-  sprintf(buf,"c%d.fetch_byte_per_uop",arch->id);
-  sprintf(buf2,"c%d.fetch_bytes/c%d.fetch_uops",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "average bytes per uop", buf2, NULL);
-  sprintf(buf,"c%d.fetch_byte_per_eff_uop",arch->id);
-  sprintf(buf2,"c%d.fetch_bytes/c%d.fetch_eff_uops",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "average bytes per effective uop", buf2, NULL);
+    stat_reg_note(sdb, "\n#### FETCH STATS ####");
+    auto sim_cycle_st = stat_find_core_stat<qword_t>(sdb, arch->id, "sim_cycle");
+    assert(sim_cycle_st);
 
-  sprintf(buf,"c%d.fetch_stall",core->current_thread->id);
-  core->stat.fetch_stall = stat_reg_dist(sdb, buf,
-                                          "breakdown of stalls in fetch",
-                                          /* initial value */0,
-                                          /* array size */FSTALL_num,
-                                          /* bucket size */1,
-                                          /* print format */(PF_COUNT|PF_PDF),
-                                          /* format */NULL,
-                                          /* index map */fetch_stall_str,
-                                          /* scale_me */TRUE,
-                                          /* print fn */NULL);
+    auto& fetch_bytes_st = stat_reg_core_counter(sdb, true, arch->id, "fetch_bytes",
+                                                 "total number of bytes fetched",
+                                                 &core->stat.fetch_bytes, 0, TRUE, NULL);
+    auto& fetch_insn_st = stat_reg_core_counter(sdb, true, arch->id, "fetch_insn",
+                                                "total number of instructions fetched",
+                                                &core->stat.fetch_insn, 0, TRUE, NULL);
+    auto& fetch_uops_st =
+            stat_reg_core_counter(sdb, true, arch->id, "fetch_uops", "total number of uops fetched",
+                                  &core->stat.fetch_uops, 0, TRUE, NULL);
+    auto& fetch_eff_uops_st = stat_reg_core_counter(sdb, true, arch->id, "fetch_eff_uops",
+                                                    "total number of effective uops fetched",
+                                                    &core->stat.fetch_eff_uops, 0, TRUE, NULL);
 
-  sprintf(buf,"c%d.byteQ_occupancy",arch->id);
-  stat_reg_counter(sdb, false, buf, "total byteQ occupancy (in lines/entries)", &core->stat.byteQ_occupancy, 0, TRUE, NULL);
-  sprintf(buf,"c%d.byteQ_avg",arch->id);
-  sprintf(buf2,"c%d.byteQ_occupancy/c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "average byteQ occupancy (in insts)", buf2, NULL);
-  sprintf(buf,"c%d.predecode_bytes",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of bytes predecoded", &core->stat.predecode_bytes, 0, TRUE, NULL);
-  sprintf(buf,"c%d.predecode_insn",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of instructions predecoded", &core->stat.predecode_insn, 0, TRUE, NULL);
-  sprintf(buf,"c%d.predecode_uops",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of uops predecoded", &core->stat.predecode_uops, 0, TRUE, NULL);
-  sprintf(buf,"c%d.predecode_eff_uops",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of effective uops predecoded", &core->stat.predecode_eff_uops, 0, TRUE, NULL);
-  sprintf(buf,"c%d.predecode_BPC",arch->id);
-  sprintf(buf2,"c%d.predecode_bytes/c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "BPC (bytes per cycle) at predecode", buf2, NULL);
-  sprintf(buf,"c%d.predecode_IPC",arch->id);
-  sprintf(buf2,"c%d.predecode_insn/c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "IPC at predecode", buf2, NULL);
-  sprintf(buf,"c%d.predecode_uPC",arch->id);
-  sprintf(buf2,"c%d.predecode_uops/c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "uPC at predecode", buf2, NULL);
-  sprintf(buf,"c%d.predecode_euPC",arch->id);
-  sprintf(buf2,"c%d.predecode_eff_uops/c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "euPC at predecode", buf2, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "fetch_BPC", "BPC (bytes per cycle) at fetch",
+                          fetch_bytes_st / *sim_cycle_st, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "fetch_IPC", "IPC at fetch",
+                          fetch_insn_st / *sim_cycle_st, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "fetch_uPC", "uPC at fetch",
+                          fetch_uops_st / *sim_cycle_st, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "fetch_euPC", "euPC at fetch",
+                          fetch_eff_uops_st / *sim_cycle_st, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "fetch_byte_per_inst",
+                          "average bytes per instruction", fetch_bytes_st / fetch_insn_st, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "fetch_byte_per_uop", "average bytes per uop",
+                          fetch_bytes_st / fetch_uops_st, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "fetch_byte_per_eff_uop",
+                          "average bytes per effective uop", fetch_bytes_st / fetch_eff_uops_st,
+                          NULL);
 
-  sprintf(buf,"c%d.IQ_occupancy",arch->id);
-  stat_reg_counter(sdb, false, buf, "total IQ occupancy (in insts)", &core->stat.IQ_occupancy, 0, TRUE, NULL);
-  sprintf(buf,"c%d.IQ_uop_occupancy",arch->id);
-  stat_reg_counter(sdb, false, buf, "total IQ occupancy (in uops)", &core->stat.IQ_uop_occupancy, 0, TRUE, NULL);
-  sprintf(buf,"c%d.IQ_eff_uop_occupancy",arch->id);
-  stat_reg_counter(sdb, false, buf, "total IQ occupancy (in effective uops)", &core->stat.IQ_eff_uop_occupancy, 0, TRUE, NULL);
-  sprintf(buf,"c%d.IQ_empty",arch->id);
-  stat_reg_counter(sdb, false, buf, "total cycles IQ was empty", &core->stat.IQ_empty_cycles, 0, TRUE, NULL);
-  sprintf(buf,"c%d.IQ_full",arch->id);
-  stat_reg_counter(sdb, false, buf, "total cycles IQ was full", &core->stat.IQ_full_cycles, 0, TRUE, NULL);
-  sprintf(buf,"c%d.IQ_avg",arch->id);
-  sprintf(buf2,"c%d.IQ_occupancy/c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "average IQ occupancy (in insts)", buf2, NULL);
-  sprintf(buf,"c%d.IQ_uop_avg",arch->id);
-  sprintf(buf2,"c%d.IQ_uop_occupancy/c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "average IQ occupancy (in uops)", buf2, NULL);
-  sprintf(buf,"c%d.IQ_eff_uop_avg",arch->id);
-  sprintf(buf2,"c%d.IQ_eff_uop_occupancy/c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "average IQ occupancy (in effective uops)", buf2, NULL);
-  sprintf(buf,"c%d.IQ_frac_empty",arch->id);
-  sprintf(buf2,"c%d.IQ_empty/c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "fraction of cycles IQ was empty", buf2, NULL);
-  sprintf(buf,"c%d.IQ_frac_full",arch->id);
-  sprintf(buf2,"c%d.IQ_full/c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "fraction of cycles IQ was full", buf2, NULL);
+    core->stat.fetch_stall = stat_reg_core_dist(
+            sdb, arch->id, "fetch_stall", "breakdown of stalls in fetch", 0, FSTALL_num, 1,
+            (PF_COUNT | PF_PDF), NULL, fetch_stall_str, TRUE, NULL);
+
+    auto& byteQ_occupancy_st = stat_reg_core_counter(sdb, false, arch->id, "byteQ_occupancy",
+                                                     "total byteQ occupancy (in lines/entries)",
+                                                     &core->stat.byteQ_occupancy, 0, TRUE, NULL);
+
+    stat_reg_core_formula(sdb, true, arch->id, "byteQ_avg", "average byteQ occupancy (in insts)",
+                          byteQ_occupancy_st / *sim_cycle_st, NULL);
+
+    auto& predecode_bytes_st = stat_reg_core_counter(sdb, true, arch->id, "predecode_bytes",
+                                                     "total number of bytes predecoded",
+                                                     &core->stat.predecode_bytes, 0, TRUE, NULL);
+    auto& predecode_insn_st = stat_reg_core_counter(sdb, true, arch->id, "predecode_insn",
+                                                    "total number of instructions predecoded",
+                                                    &core->stat.predecode_insn, 0, TRUE, NULL);
+    auto& predecode_uops_st = stat_reg_core_counter(sdb, true, arch->id, "predecode_uops",
+                                                    "total number of uops predecoded",
+                                                    &core->stat.predecode_uops, 0, TRUE, NULL);
+    auto& predecode_eff_uops_st = stat_reg_core_counter(
+            sdb, true, arch->id, "predecode_eff_uops", "total number of effective uops predecoded",
+            &core->stat.predecode_eff_uops, 0, TRUE, NULL);
+
+    stat_reg_core_formula(sdb, true, arch->id, "predecode_BPC",
+                          "BPC (bytes per cycle) at predecode", predecode_bytes_st / *sim_cycle_st,
+                          NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "predecode_IPC", "IPC at predecode",
+                          predecode_insn_st / *sim_cycle_st, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "predecode_uPC", "uPC at predecode",
+                          predecode_uops_st / *sim_cycle_st, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "predecode_euPC", "euPC at predecode",
+                          predecode_eff_uops_st / *sim_cycle_st, NULL);
+
+    auto& IQ_occupancy_st = stat_reg_core_counter(sdb, false, arch->id, "IQ_occupancy",
+                                                  "total IQ occupancy (in insts)",
+                                                  &core->stat.IQ_occupancy, 0, TRUE, NULL);
+    auto& IQ_uop_occupancy_st = stat_reg_core_counter(sdb, false, arch->id, "IQ_uop_occupancy",
+                                                      "total IQ occupancy (in uops)",
+                                                      &core->stat.IQ_uop_occupancy, 0, TRUE, NULL);
+    auto& IQ_eff_uop_occupancy_st = stat_reg_core_counter(
+            sdb, false, arch->id, "IQ_eff_uop_occupancy", "total IQ occupancy (in effective uops)",
+            &core->stat.IQ_eff_uop_occupancy, 0, TRUE, NULL);
+    auto& IQ_empty_st =
+            stat_reg_core_counter(sdb, false, arch->id, "IQ_empty", "total cycles IQ was empty",
+                                  &core->stat.IQ_empty_cycles, 0, TRUE, NULL);
+    auto& IQ_full_st =
+            stat_reg_core_counter(sdb, false, arch->id, "IQ_full", "total cycles IQ was full",
+                                  &core->stat.IQ_full_cycles, 0, TRUE, NULL);
+
+    stat_reg_core_formula(sdb, true, arch->id, "IQ_avg", "average IQ occupancy (in insts)",
+                          IQ_occupancy_st / *sim_cycle_st, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "IQ_uop_avg", "average IQ occupancy (in uops)",
+                          IQ_uop_occupancy_st / *sim_cycle_st, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "IQ_eff_uop_avg",
+                          "average IQ occupancy (in effective uops)",
+                          IQ_eff_uop_occupancy_st / *sim_cycle_st, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "IQ_frac_empty", "fraction of cycles IQ was empty",
+                          IQ_empty_st / *sim_cycle_st, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "IQ_frac_full", "fraction of cycles IQ was full",
+                          IQ_full_st / *sim_cycle_st, NULL);
 }
 
 void core_fetch_DPM_t::update_occupancy(void)

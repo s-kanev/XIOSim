@@ -174,46 +174,39 @@ core_fetch_STM_t::core_fetch_STM_t(struct core_t * const arg_core):
 void
 core_fetch_STM_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
 {
-  char buf[1024];
-  char buf2[1024];
-  struct thread_t * arch = core->current_thread;
+    struct thread_t* arch = core->current_thread;
 
-  stat_reg_note(sdb,"\n#### BPRED STATS ####");
-  bpred->reg_stats(sdb,core);
+    stat_reg_note(sdb, "\n#### BPRED STATS ####");
+    bpred->reg_stats(sdb, core);
 
-  stat_reg_note(sdb,"\n#### INST CACHE STATS ####");
-  cache_reg_stats(sdb, core, core->memory.IL1);
-  cache_reg_stats(sdb, core, core->memory.ITLB);
+    stat_reg_note(sdb, "\n#### INST CACHE STATS ####");
+    cache_reg_stats(sdb, core, core->memory.IL1);
+    cache_reg_stats(sdb, core, core->memory.ITLB);
 
-  stat_reg_note(sdb,"\n#### FETCH STATS ####");
-  sprintf(buf,"c%d.fetch_insn",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of instructions fetched", &core->stat.fetch_insn, 0, TRUE, NULL);
-  sprintf(buf,"c%d.fetch_uops",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of uops fetched", &core->stat.fetch_uops, 0, TRUE, NULL);
-  sprintf(buf,"c%d.fetch_IPC",arch->id);
-  sprintf(buf2,"c%d.fetch_insn/c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "IPC at fetch", buf2, NULL);
-  sprintf(buf,"c%d.fetch_uPC",arch->id);
-  sprintf(buf2,"c%d.fetch_uops/c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "uPC at fetch", buf2, NULL);
+    stat_reg_note(sdb, "\n#### FETCH STATS ####");
+    auto sim_cycle_st = stat_find_core_stat<qword_t>(sdb, arch->id, "sim_cycle");
+    assert(sim_cycle_st);
+    auto& fetch_insn_st = stat_reg_core_counter(sdb, true, arch->id, "fetch_insn",
+                                                "total number of instructions fetched",
+                                                &core->stat.fetch_insn, 0, TRUE, NULL);
+    auto& fetch_uops_st =
+            stat_reg_core_counter(sdb, true, arch->id, "fetch_uops", "total number of uops fetched",
+                                  &core->stat.fetch_uops, 0, TRUE, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "fetch_IPC", "IPC at fetch",
+                          fetch_insn_st / *sim_cycle_st, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "fetch_uPC", "uPC at fetch",
+                          fetch_uops_st / *sim_cycle_st, NULL);
 
-  sprintf(buf,"c%d.fetch_stall",core->current_thread->id);
-  core->stat.fetch_stall = stat_reg_dist(sdb, buf,
-                                          "breakdown of stalls in fetch",
-                                          /* initial value */0,
-                                          /* array size */FSTALL_num,
-                                          /* bucket size */1,
-                                          /* print format */(PF_COUNT|PF_PDF),
-                                          /* format */NULL,
-                                          /* index map */fetch_stall_str,
-                                          /* scale_me */ TRUE,
-                                          /* print fn */NULL);
+    core->stat.fetch_stall = stat_reg_core_dist(
+            sdb, arch->id, "fetch_stall", "breakdown of stalls in fetch", 0, FSTALL_num, 1,
+            (PF_COUNT | PF_PDF), NULL, fetch_stall_str, TRUE, NULL);
 
-  sprintf(buf,"c%d.byteQ_occupancy",arch->id);
-  stat_reg_counter(sdb, false, buf, "total byteQ occupancy (in lines/entries)", &core->stat.byteQ_occupancy, 0, TRUE, NULL);
-  sprintf(buf,"c%d.byteQ_avg",arch->id);
-  sprintf(buf2,"c%d.byteQ_occupancy/c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "average byteQ occupancy (in insts)", buf2, NULL);
+    auto& byteQ_occupancy_st = stat_reg_core_counter(sdb, false, arch->id, "byteQ_occupancy",
+                                                     "total byteQ occupancy (in lines/entries)",
+                                                     &core->stat.byteQ_occupancy, 0, TRUE, NULL);
+
+    stat_reg_core_formula(sdb, true, arch->id, "byteQ_avg", "average byteQ occupancy (in insts)",
+                          byteQ_occupancy_st / *sim_cycle_st, NULL);
 }
 
 void core_fetch_STM_t::update_occupancy(void)
