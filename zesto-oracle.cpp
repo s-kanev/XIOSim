@@ -219,104 +219,136 @@ core_oracle_t::core_oracle_t(struct core_t * const arg_core):
 void
 core_oracle_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
 {
-  char buf[1024];
-  char buf2[1024];
-  struct thread_t * arch = core->current_thread;
+    struct thread_t* arch = core->current_thread;
 
-  stat_reg_note(sdb,"\n#### ORACLE STATS ####");
-  sprintf(buf,"c%d.oracle_num_insn",arch->id);
-  sprintf(buf2,"c%d.oracle_total_insn - c%d.oracle_insn_undo",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "number of instructions executed by oracle", buf2, "%12.0f");
-  sprintf(buf,"c%d.oracle_total_insn",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of instructions executed by oracle, including misspec", &core->stat.oracle_total_insn, 0, TRUE, NULL);
-  sprintf(buf,"c%d.oracle_insn_undo",arch->id);
-  stat_reg_counter(sdb, false, buf, "total number of instructions undone by oracle (misspeculated insts)", &core->stat.oracle_inst_undo, 0, TRUE, NULL);
-  sprintf(buf,"c%d.oracle_unknown_insn",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of unsupported instructions turned into NOPs by oracle", &core->stat.oracle_unknown_insn, 0, TRUE, NULL);
-  sprintf(buf,"c%d.oracle_num_uops",arch->id);
-  sprintf(buf2,"c%d.oracle_total_uops - c%d.oracle_uop_undo",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "number of uops executed by oracle", buf2, "%12.0f");
-  sprintf(buf,"c%d.oracle_total_uops",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of uops executed by oracle, including misspec", &core->stat.oracle_total_uops, 0, TRUE, NULL);
-  sprintf(buf,"c%d.oracle_uop_undo",arch->id);
-  stat_reg_counter(sdb, false, buf, "total number of uops undone by oracle", &core->stat.oracle_uop_undo, 0, TRUE, NULL);
-  sprintf(buf,"c%d.oracle_num_eff_uops",arch->id);
-  sprintf(buf2,"c%d.oracle_total_eff_uops - c%d.oracle_eff_uop_undo",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "number of effective uops executed by oracle", buf2, "%12.0f");
-  sprintf(buf,"c%d.oracle_total_eff_uops",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of effective uops executed by oracle, including misspec", &core->stat.oracle_total_eff_uops, 0, TRUE, NULL);
-  sprintf(buf,"c%d.oracle_eff_uop_undo",arch->id);
-  stat_reg_counter(sdb, false, buf, "total number of effective uops undone by oracle", &core->stat.oracle_eff_uop_undo, 0, TRUE, NULL);
+    stat_reg_note(sdb, "\n#### ORACLE STATS ####");
+    auto sim_cycle_st = stat_find_core_stat<qword_t>(sdb, arch->id, "sim_cycle");
+    assert(sim_cycle_st);
 
-  sprintf(buf,"c%d.oracle_IPC",arch->id);
-  sprintf(buf2,"c%d.oracle_num_insn / c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "IPC at oracle", buf2, NULL);
-  sprintf(buf,"c%d.oracle_uPC",arch->id);
-  sprintf(buf2,"c%d.oracle_num_uops / c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "uPC at oracle", buf2, NULL);
-  sprintf(buf,"c%d.oracle_euPC",arch->id);
-  sprintf(buf2,"c%d.oracle_num_eff_uops / c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "euPC at oracle", buf2, NULL);
-  sprintf(buf,"c%d.oracle_total_IPC",arch->id);
-  sprintf(buf2,"c%d.oracle_total_insn / c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "IPC at oracle, including wrong-path", buf2, NULL);
-  sprintf(buf,"c%d.oracle_total_uPC",arch->id);
-  sprintf(buf2,"c%d.oracle_total_uops / c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "uPC at oracle, including wrong-path", buf2, NULL);
-  sprintf(buf,"c%d.oracle_total_euPC",arch->id);
-  sprintf(buf2,"c%d.oracle_total_eff_uops / c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "euPC at oracle, including wrong-path", buf2, NULL);
-  sprintf(buf,"c%d.avg_oracle_flowlen",arch->id);
-  sprintf(buf2,"c%d.oracle_num_uops / c%d.oracle_num_insn",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "uops per instruction at oracle", buf2, NULL);
-  sprintf(buf,"c%d.avg_oracle_eff_flowlen",arch->id);
-  sprintf(buf2,"c%d.oracle_num_eff_uops / c%d.oracle_num_insn",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "effective uops per instruction at oracle", buf2, NULL);
-  sprintf(buf,"c%d.avg_oracle_total_flowlen",arch->id);
-  sprintf(buf2,"c%d.oracle_total_uops / c%d.oracle_total_insn",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "uops per instruction at oracle, including wrong-path", buf2, NULL);
-  sprintf(buf,"c%d.avg_oracle_total_eff_flowlen",arch->id);
-  sprintf(buf2,"c%d.oracle_total_eff_uops / c%d.oracle_total_insn",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "effective uops per instruction at oracle, including wrong-path", buf2, NULL);
+    auto& oracle_total_insn_st = stat_reg_core_counter(
+            sdb, true, arch->id, "oracle_total_insn",
+            "total number of instructions executed by oracle, including misspec",
+            &core->stat.oracle_total_insn, 0, TRUE, NULL);
+    auto& oracle_insn_undo_st = stat_reg_core_counter(
+            sdb, false, arch->id, "oracle_insn_undo",
+            "total number of instructions undone by oracle (misspeculated insts)",
+            &core->stat.oracle_inst_undo, 0, TRUE, NULL);
+    stat_reg_core_counter(
+            sdb, true, arch->id, "oracle_unknown_insn",
+            "total number of unsupported instructions turned into NOPs by oracle",
+            &core->stat.oracle_unknown_insn, 0, TRUE, NULL);
+    stat_reg_core_formula(
+            sdb, true, arch->id, "oracle_num_insn", "number of instructions executed by oracle",
+            oracle_total_insn_st - oracle_insn_undo_st, "%12.0f");
+    auto& oracle_total_uops_st =
+            stat_reg_core_counter(sdb, true, arch->id, "oracle_total_uops",
+                                  "total number of uops executed by oracle, including misspec",
+                                  &core->stat.oracle_total_uops, 0, TRUE, NULL);
+    auto& oracle_uop_undo_st = stat_reg_core_counter(sdb, false, arch->id, "oracle_uop_undo",
+                                                     "total number of uops undone by oracle",
+                                                     &core->stat.oracle_uop_undo, 0, TRUE, NULL);
+    stat_reg_core_formula(
+            sdb, true, arch->id, "oracle_num_uops", "number of uops executed by oracle",
+            oracle_total_uops_st - oracle_uop_undo_st, "%12.0f");
+    auto& oracle_total_eff_uops_st = stat_reg_core_counter(
+            sdb, true, arch->id, "oracle_total_eff_uops",
+            "total number of effective uops executed by oracle, including misspec",
+            &core->stat.oracle_total_eff_uops, 0, TRUE, NULL);
+    auto& oracle_eff_uop_undo_st =
+            stat_reg_core_counter(sdb, false, arch->id, "oracle_eff_uop_undo",
+                                  "total number of effective uops undone by oracle",
+                                  &core->stat.oracle_eff_uop_undo, 0, TRUE, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "oracle_num_eff_uops",
+                          "number of effective uops executed by oracle",
+                          oracle_total_eff_uops_st - oracle_eff_uop_undo_st, "%12.0f");
 
-  sprintf(buf,"c%d.oracle_num_refs",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of loads and stores executed by oracle", &core->stat.oracle_num_refs, 0, TRUE, NULL);
-  sprintf(buf,"c%d.oracle_num_loads",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of loads executed by oracle", &core->stat.oracle_num_loads, 0, TRUE, NULL);
-  sprintf(buf2,"c%d.oracle_num_refs - c%d.oracle_num_loads",arch->id,arch->id);
-  sprintf(buf,"c%d.oracle_num_stores",arch->id);
-  stat_reg_formula(sdb, true, buf, "total number of stores executed by oracle", buf2, "%12.0f");
-  sprintf(buf,"c%d.oracle_num_branches",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of branches executed by oracle", &core->stat.oracle_num_branches, 0, TRUE, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "oracle_IPC", "IPC at oracle",
+                          (oracle_total_insn_st - oracle_insn_undo_st) / *sim_cycle_st, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "oracle_uPC", "IPC at oracle",
+                          (oracle_total_uops_st - oracle_uop_undo_st) / *sim_cycle_st, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "oracle_euPC", "IPC at oracle",
+                          (oracle_total_eff_uops_st - oracle_eff_uop_undo_st) / *sim_cycle_st,
+                          NULL);
 
-  sprintf(buf,"c%d.oracle_total_refs",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of loads and stores executed by oracle, including wrong-path", &core->stat.oracle_total_refs, 0, TRUE, NULL);
-  sprintf(buf,"c%d.oracle_total_loads",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of loads executed by oracle, including wrong-path", &core->stat.oracle_total_loads, 0, TRUE, NULL);
-  sprintf(buf2,"c%d.oracle_total_refs - c%d.oracle_total_loads",arch->id,arch->id);
-  sprintf(buf,"c%d.oracle_total_stores",arch->id);
-  stat_reg_formula(sdb, true, buf, "total number of stores executed by oracle, including wrong-path", buf2, "%12.0f");
-  sprintf(buf,"c%d.oracle_total_branches",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of branches executed by oracle, including wrong-path", &core->stat.oracle_total_branches, 0, TRUE, NULL);
-  sprintf(buf,"c%d.oracle_total_calls",arch->id);
-  stat_reg_counter(sdb, true, buf, "total number of function calls executed by oracle, including wrong-path", &core->stat.oracle_total_calls, 0, TRUE, NULL);
-  sprintf(buf,"c%d.MopQ_occupancy",arch->id);
-  stat_reg_counter(sdb, true, buf, "total oracle MopQ occupancy", &core->stat.MopQ_occupancy, 0, TRUE, NULL);
-  sprintf(buf,"c%d.MopQ_avg",arch->id);
-  sprintf(buf2,"c%d.MopQ_occupancy/c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "average oracle MopQ occupancy", buf2, NULL);
-  sprintf(buf,"c%d.MopQ_full",arch->id);
-  stat_reg_counter(sdb, true, buf, "total cycles oracle MopQ was full", &core->stat.MopQ_full_cycles, 0, TRUE, NULL);
-  sprintf(buf,"c%d.MopQ_frac_full",arch->id);
-  sprintf(buf2,"c%d.MopQ_full/c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "fraction of cycles oracle MopQ was full", buf2, NULL);
-  sprintf(buf,"c%d.oracle_bogus_cycles",arch->id);
-  stat_reg_counter(sdb, true, buf, "total cycles oracle stalled on invalid wrong-path insts", &core->stat.oracle_bogus_cycles, 0, TRUE, NULL);
-  sprintf(buf,"c%d.oracle_frac_bogus",arch->id);
-  sprintf(buf2,"c%d.oracle_bogus_cycles/c%d.sim_cycle",arch->id,arch->id);
-  stat_reg_formula(sdb, true, buf, "fraction of cycles oracle stalled on invalid wrong-path insts", buf2, NULL);
-  sprintf(buf,"c%d.oracle_emergency_recoveries",arch->id);
-  stat_reg_counter(sdb, true, buf, "number of times this thread underwent an emergency recovery", &core->num_emergency_recoveries, 0, FALSE, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "oracle_total_IPC",
+                          "IPC at oracle, including wrong-path",
+                          oracle_total_insn_st / *sim_cycle_st, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "oracle_total_uPC",
+                          "uPC at oracle, including wrong-path",
+                          oracle_total_uops_st / *sim_cycle_st, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "oracle_total_euPC",
+                          "euPC at oracle, including wrong-path",
+                          oracle_total_eff_uops_st / *sim_cycle_st, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "avg_oracle_flowlen",
+                          "uops per instruction at oracle",
+                          (oracle_total_uops_st - oracle_uop_undo_st) /
+                                  (oracle_total_insn_st - oracle_insn_undo_st),
+                          NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "avg_oracle_eff_flowlen",
+                          "uops per instruction at oracle",
+                          (oracle_total_eff_uops_st - oracle_eff_uop_undo_st) /
+                                  (oracle_total_insn_st - oracle_insn_undo_st),
+                          NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "avg_oracle_total_flowlen",
+                          "uops per instruction at oracle, including wrong-path",
+                          oracle_total_uops_st / oracle_total_insn_st, NULL);
+
+    stat_reg_core_formula(sdb, true, arch->id, "avg_oracle_total_eff_flowlen",
+                          "effective uops per instruction at oracle, including wrong-path",
+                          oracle_total_eff_uops_st / oracle_total_insn_st, NULL);
+
+    auto& oracle_num_refs_st =
+            stat_reg_core_counter(sdb, true, arch->id, "oracle_num_refs",
+                                  "total number of loads and stores executed by oracle",
+                                  &core->stat.oracle_num_refs, 0, TRUE, NULL);
+    auto& oracle_num_loads_st = stat_reg_core_counter(sdb, true, arch->id, "oracle_num_loads",
+                                                      "total number of loads executed by oracle",
+                                                      &core->stat.oracle_num_loads, 0, TRUE, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "oracle_num_stores",
+                          "total number of stores executed by oracle",
+                          oracle_num_refs_st - oracle_num_loads_st, "%12.0f");
+    stat_reg_core_counter(sdb, true, arch->id, "oracle_num_branches",
+                          "total number of branches executed by oracle",
+                          &core->stat.oracle_num_branches, 0, TRUE, NULL);
+
+    auto& oracle_total_refs_st = stat_reg_core_counter(
+            sdb, true, arch->id, "oracle_total_refs",
+            "total number of loads and stores executed by oracle, including wrong-path",
+            &core->stat.oracle_total_refs, 0, TRUE, NULL);
+    auto& oracle_total_loads_st =
+            stat_reg_core_counter(sdb, true, arch->id, "oracle_total_loads",
+                                  "total number of loads executed by oracle, including wrong-path",
+                                  &core->stat.oracle_total_loads, 0, TRUE, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "oracle_total_stores",
+                          "total number of stores executed by oracle, including wrong-path",
+                          oracle_total_refs_st - oracle_total_loads_st, "%12.0f");
+    stat_reg_core_counter(sdb, true, arch->id, "oracle_total_branches",
+                          "total number of branches executed by oracle, including wrong-path",
+                          &core->stat.oracle_total_branches, 0, TRUE, NULL);
+    stat_reg_core_counter(sdb, true, arch->id, "oracle_total_calls",
+                          "total number of function calls executed by oracle, including wrong-path",
+                          &core->stat.oracle_total_calls, 0, TRUE, NULL);
+    auto& MopQ_occupancy_st = stat_reg_core_counter(sdb, true, arch->id, "MopQ_occupancy",
+                                                    "total oracle MopQ occupancy",
+                                                    &core->stat.MopQ_occupancy, 0, TRUE, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "MopQ_avg", "average oracle MopQ occupancy",
+                          MopQ_occupancy_st / *sim_cycle_st, NULL);
+    auto& MopQ_full_st = stat_reg_core_counter(sdb, true, arch->id, "MopQ_full",
+                                               "total cycles oracle MopQ was full",
+                                               &core->stat.MopQ_full_cycles, 0, TRUE, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "MopQ_frac_full",
+                          "fraction of cycles oracle MopQ was full", MopQ_full_st / *sim_cycle_st,
+                          NULL);
+    auto& oracle_bogus_cycles_st =
+            stat_reg_core_counter(sdb, true, arch->id, "oracle_bogus_cycles",
+                                  "total cycles oracle stalled on invalid wrong-path insts",
+                                  &core->stat.oracle_bogus_cycles, 0, TRUE, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "oracle_frac_bogus",
+                          "fraction of cycles oracle stalled on invalid wrong-path insts",
+                          oracle_bogus_cycles_st / *sim_cycle_st, NULL);
+    stat_reg_core_counter(sdb, true, arch->id, "oracle_emergy_recoveries",
+                          "number of times this thread underwent an emergency recovery",
+                          &core->num_emergency_recoveries, 0, FALSE, NULL);
 }
 
 void core_oracle_t::update_occupancy(void)

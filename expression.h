@@ -130,8 +130,6 @@ class CompoundExpression : public Expression {
  *
  * ExpressionWrapper explicitly lists all the type-specific Statistics
  * supported in this library to avoid being templated itself.
- *
- * Author: Sam Xi
  */
 
 class ExpressionWrapper {
