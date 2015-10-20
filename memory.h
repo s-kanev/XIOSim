@@ -6,6 +6,8 @@
 #ifndef MEMORY_H
 #define MEMORY_H
 
+#include "host.h"
+
 /* assuming 4KB pages */
 #define PAGE_SIZE 4096
 #define PAGE_SHIFT 12
@@ -21,6 +23,8 @@
    we don't generate a really low (e.g., NULL) address. */
 #define PAGE_TABLE_ADDR(T,A) ((((((A)>>PAGE_SHIFT)<<4)+(T)) + 0x00080000) & 0x03ffffff)
 #define DO_NOT_TRANSLATE (-1)
+
+struct stat_sdb_t;
 
 namespace xiosim {
 namespace memory {

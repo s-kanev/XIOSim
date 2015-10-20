@@ -20,7 +20,7 @@
 #include "interface.h"
 #include "host.h"
 #include "misc.h"
-#include "machine.h"
+#include "memory.h"
 #include "endian.h"
 #include "stats.h"
 #include "sim.h"

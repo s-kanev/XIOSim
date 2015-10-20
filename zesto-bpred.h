@@ -75,7 +75,6 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
-#include "machine.h"
 #include "zesto-structs.h"
 
 /* Top-level "branch predictor" this handles direction, target, return address, etc. */

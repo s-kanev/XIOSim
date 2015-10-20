@@ -93,6 +93,7 @@
 
 #include "sim.h"
 #include "stats.h"
+#include "thread.h"
 #include "valcheck.h"
 #include "zesto-core.h"
 #include "zesto-bpred.h"

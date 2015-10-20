@@ -1,7 +1,4 @@
-/* Headers needed for multiprocess communication through boost interprocess.
- * This needs to be included BEFORE anything referencing machine.h,
- * or macro definitions from machine.h would mess template args.
- */
+/* Headers needed for multiprocess communication through boost interprocess. */
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wnarrowing"

@@ -129,7 +129,6 @@
 
 #include "host.h"
 #include "misc.h"
-#include "machine.h"
 #include "synchronization.h"
 #include "thread.h"
 

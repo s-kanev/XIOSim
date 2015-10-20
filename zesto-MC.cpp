@@ -73,6 +73,8 @@
  */
 
 #include <limits.h>
+
+#include "memory.h"
 #include "thread.h"
 #include "stats.h"
 #include "zesto-cache.h"

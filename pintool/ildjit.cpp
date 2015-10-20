@@ -12,7 +12,6 @@
 
 #include "feeder.h"
 
-#include "../interface.h"
 #include "multiprocess_shared.h"
 #include "ipc_queues.h"
 
@@ -24,7 +23,7 @@
 #include "utils.h"
 #include "parse_speedup.h"
 
-#include "../zesto-core.h"
+#include "../sim.h"
 
 // True if ILDJIT has finished compilation and is executing user code
 BOOL ILDJIT_executionStarted = false;

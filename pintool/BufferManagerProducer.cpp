@@ -14,6 +14,8 @@
 #include "buffer.h"
 #include "BufferManagerProducer.h"
 
+#include "../sim.h"
+
 namespace xiosim {
 namespace buffer_management {
 

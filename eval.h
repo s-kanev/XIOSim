@@ -58,7 +58,6 @@ extern "C" {
 #include <stdio.h>
 #include "host.h"
 #include "misc.h"
-#include "machine.h"
 
 /* forward declarations */
 struct eval_state_t;

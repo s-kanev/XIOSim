@@ -7,7 +7,6 @@
 #define __PIN_ZESTO_INTERFACE__
 
 #include "synchronization.h"
-#include "machine.h"
 #include "helix.h"
 
 class handshake_container_t;

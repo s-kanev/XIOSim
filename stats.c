@@ -55,7 +55,6 @@
 
 #include "host.h"
 #include "misc.h"
-#include "machine.h"
 #include "eval.h"
 #include "stats.h"
 

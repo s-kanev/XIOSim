@@ -75,7 +75,6 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
-#include "machine.h"
 #include "zesto-structs.h"
 #include "zesto-core.h"
 

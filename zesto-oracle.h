@@ -139,6 +139,7 @@
 #include "zesto-cache.h"
 #include "ztrace.h"
 #include "shadow_MopQ.h"
+#include "sim.h"
 
 /* The following macros are used to pretty similarly to regular fatal and assert
    calls, with the exception that when *not* in DEBUG mode, the failure does not

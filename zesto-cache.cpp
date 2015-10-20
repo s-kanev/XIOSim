@@ -76,8 +76,11 @@
 #include <limits.h>
 #include <cmath>
 
+#include "memory.h"
 #include "thread.h"
 #include "stats.h"
+#include "sim.h"
+
 #include "zesto-core.h"
 #include "zesto-cache.h"
 #include "zesto-prefetch.h"

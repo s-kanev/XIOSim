@@ -1,9 +1,7 @@
 #ifndef __THREAD_H__
 #define __THREAD_H__
 
-#include "machine.h"
-#include "memory.h"
-#include "regs.h"
+#include "host.h"
 
 struct thread_t {
 
@@ -21,9 +19,5 @@ struct thread_t {
   bool consumed;            /* Did fetching get an instruction back? */
   bool in_critical_section; /* Are we executing a HELIX sequential cut? */
 };
-
-/* architected state for each simulated thread/process */
-extern struct thread_t ** threads;
-extern int num_cores;
 
 #endif /* __THREAD_H__ */

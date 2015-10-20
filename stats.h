@@ -58,7 +58,6 @@ extern "C" {
 #include <stdio.h>
 
 #include "host.h"
-#include "machine.h"
 #include "eval.h"
 
 /*

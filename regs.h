@@ -1,4 +1,4 @@
-/* regs.h - architected register state interfaces */
+/* regs.h - register helper functions */
 
 #ifndef REGS_H
 #define REGS_H
@@ -6,10 +6,6 @@
 extern "C" {
 #include "xed-interface.h"
 }
-
-#include "host.h"
-#include "machine.h"
-#include "misc.h"
 
 namespace xiosim {
 namespace x86 {

@@ -77,9 +77,8 @@
 #include <cmath>
 
 #include "host.h"
-#include "machine.h"
 #include "misc.h"
-#include "endian.h"
+#include "memory.h"
 #include "stats.h"
 #include "sim.h"
 #include "regs.h"

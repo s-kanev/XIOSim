@@ -1,11 +1,12 @@
 #ifndef __HANDSHAKE_CONTAINER__
 #define __HANDSHAKE_CONTAINER__
 
+#include <cstring>
 #include <iostream>
 #include <utility>
 #include <vector>
 
-#include "../machine.h" //for now
+#include "../host.h"
 #include "../decode.h"
 
 struct handshake_flags_t {

@@ -10,14 +10,12 @@
 #include "scheduler.h"
 #include "../synchronization.h"
 #include "BufferManagerConsumer.h"
-#include "../zesto-core.h"
 #include "allocators_impl.h"
+#include "../sim.h"
 
 #include "timing_sim.h"
 
 const char sim_name[] = "XIOSim";
-
-extern int num_cores;
 
 static sim_thread_state_t thread_states[MAX_CORES];
 

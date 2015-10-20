@@ -9,7 +9,7 @@
 #include "feeder.h"
 #include "speculation.h"
 
-#include "../machine.h" //for now
+#include "../host.h"
 #include "../decode.h"
 
 /* Chicken bit to disable speculation. */

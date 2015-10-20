@@ -12,8 +12,8 @@
 
 #include "boost_interprocess.h"
 
-#include "../interface.h"
 #include "multiprocess_shared.h"
+#include "../sim.h"
 #include "BufferManager.h"
 
 namespace xiosim {

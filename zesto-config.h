@@ -10,7 +10,6 @@
 #ifndef __ZESTO_CONFIG_H__
 #define __ZESTO_CONFIG_H__
 
-#include "machine.h"  // Make sure this doesn't interfere with boost interprocess.
 #include "confuse.h"
 #include "zesto-structs.h"
 

@@ -14,10 +14,8 @@
 
 #include "scheduler.h"
 
+#include "../sim.h"
 #include "../zesto-core.h"
-#include "../zesto-structs.h"
-
-extern int num_cores;
 
 namespace xiosim {
 

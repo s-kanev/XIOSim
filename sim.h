@@ -51,14 +51,10 @@
 #ifndef SIM_H
 #define SIM_H
 
-#include <stdio.h>
-#include <setjmp.h>
-#include <time.h>
+#include <cstdio>
 
 #include "stats.h"
-#include "regs.h"
-#include "memory.h"
-#include "thread.h"
+#include "zesto-structs.h"
 
 /* execution start/end times */
 extern int sim_elapsed_time;
@@ -70,6 +66,16 @@ extern struct core_knobs_t knobs;
 
 /* spin on assertion failure so we can attach a debbuger */
 extern bool assert_spin;
+
+namespace xiosim {
+
+const int MAX_CORES = 16;
+const int INVALID_CORE = -1;
+
+}  // xiosim
+
+/* number of cores */
+extern int num_cores;
 
 /*
  * main simulator interfaces, called in the following order

@@ -41,7 +41,7 @@
 #include "replace_function.h"
 #include "speculation.h"
 
-#include "../zesto-core.h"
+#include "../sim.h"
 
 using namespace std;
 

@@ -51,9 +51,7 @@
 #ifndef HOST_H
 #define HOST_H
 
-#ifndef SYMCAT
-#define SYMCAT(X,Y)	X##Y
-#endif
+#include <cstddef>
 
 /* host-dependent canonical type definitions */
 typedef int bool_t;			/* generic boolean type */
@@ -78,5 +76,12 @@ typedef sqword_t tick_t;		/* NOTE: unsigned breaks caches */
 #define TICK_T_MAX  ((tick_t)(9223372036854775807ULL))
 
 typedef qword_t seq_t;
+
+/* address type definition (32-bit) */
+typedef dword_t md_addr_t;
+
+/* physical address type definition (64-bit) */
+typedef qword_t md_paddr_t;
+
 
 #endif /* HOST_H */
