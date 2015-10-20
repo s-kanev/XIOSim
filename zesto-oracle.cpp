@@ -551,8 +551,6 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
     /* Crack Mop into uops */
     x86::crack(Mop);
 
-/* XXX: Handle uop flags. */
-
 /* XXX: Handle uop fusion. */
 
 #if 0
@@ -972,7 +970,7 @@ void core_oracle_t::pipe_recover(struct Mop_t* const Mop, const md_addr_t New_PC
     else {
         if (Mop->fetch.bpred_update)
             core->fetch->bpred->recover(Mop->fetch.bpred_update,
-                                        (New_PC != (Mop->fetch.PC + Mop->fetch.inst.len)));
+                                        (New_PC != Mop->fetch.ftPC));
         this->recover(Mop);
         core->commit->recover(Mop);
         core->exec->recover(Mop);
@@ -1061,6 +1059,17 @@ buffer_result_t core_oracle_t::buffer_handshake(handshake_container_t* handshake
             /* ... and make sure we're not done with the current one. */
             return HANDSHAKE_NOT_CONSUMED;
         }
+
+        /* Feeder is speculating, but not from the PC we are.
+         * We'll grab a NOP again. */
+        if (handshake->pc != core->fetch->PC) {
+            ZTRACE_PRINT(core->id, "Spec FetchPC %x different from handshakePC %x.\n",
+                         core->fetch->PC,
+                         handshake->pc);
+            handshake_container_t tmp_handshake = get_fake_spec_handshake();
+            shadow_MopQ.push_handshake(&tmp_handshake);
+            return HANDSHAKE_NOT_CONSUMED;
+        }
     } else {
         /* We're not speculating, but feeder gave us a speculative one.
          * For now, we'll just drop it. */
@@ -1084,7 +1093,6 @@ buffer_result_t core_oracle_t::buffer_handshake(handshake_container_t* handshake
     /* Store a shadow handshake for recovery purposes */
     zesto_assert(!shadow_MopQ.full(), ALL_GOOD);
     shadow_MopQ.push_handshake(handshake);
-
     return ALL_GOOD;
 }
 

@@ -92,7 +92,7 @@ class thread_state_t {
           "none",
           "btac:BTB:512:4:8:l",
           "2levbtac:iBTB:1:8:1:128:4:8:l",
-          "stack:RAS:16"
+          "multistack:RAS:8:8"
         );
         lastBranchPrediction = 0;
     }
