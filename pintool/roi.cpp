@@ -91,7 +91,7 @@ void AddROICallbacks(IMG img) {
 
         RTN_Open(rtn);
         RTN_InsertCall(rtn,
-                       IPOINT_BEFORE,
+                       IPOINT_AFTER,
                        AFUNPTR(EndROI),
                        IARG_THREAD_ID,
                        IARG_INST_PTR,
