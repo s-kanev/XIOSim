@@ -848,12 +848,11 @@ void core_exec_IO_DPM_t::load_writeback(struct uop_t * const uop)
       /* check scheduling info (tags) */
       if(odep->uop->timing.when_itag_ready[odep->op_num] > (core->sim_cycle+fp_penalty))
       {
-        int j;
         tick_t when_ready = 0;
 
         odep->uop->timing.when_itag_ready[odep->op_num] = core->sim_cycle+fp_penalty;
 
-        for(j=0;j<MAX_IDEPS;j++)
+        for(size_t j=0;j<MAX_IDEPS;j++)
           if(when_ready < odep->uop->timing.when_itag_ready[j])
             when_ready = odep->uop->timing.when_itag_ready[j];
 
@@ -1163,10 +1162,9 @@ void core_exec_IO_DPM_t::load_miss_reschedule(void * const op, const int new_pre
       odep->uop->timing.when_itag_ready[odep->op_num] = uop->timing.when_otag_ready;
 
       /* Update operand readiness */
-      int j;
       tick_t when_ready = 0;
 
-      for(j=0;j<MAX_IDEPS;j++)
+      for(size_t j=0;j<MAX_IDEPS;j++)
         if(when_ready < odep->uop->timing.when_itag_ready[j])
           when_ready = odep->uop->timing.when_itag_ready[j];
 
@@ -1309,12 +1307,11 @@ void core_exec_IO_DPM_t::LDST_exec(void)
                   /* check scheduling info (tags) */
                   if(odep->uop->timing.when_itag_ready[odep->op_num] > core->sim_cycle)
                   {
-                    int j;
                     tick_t when_ready = 0;
 
                     odep->uop->timing.when_itag_ready[odep->op_num] = core->sim_cycle+fp_penalty;
 
-                    for(j=0;j<MAX_IDEPS;j++)
+                    for(size_t j=0;j<MAX_IDEPS;j++)
                       if(when_ready < odep->uop->timing.when_itag_ready[j])
                         when_ready = odep->uop->timing.when_itag_ready[j];
 
@@ -1571,10 +1568,9 @@ void core_exec_IO_DPM_t::LDQ_schedule(void)
                       odep->uop->timing.when_itag_ready[odep->op_num] = LDQ[index].uop->timing.when_otag_ready;
 
                       /* put back on to readyQ if appropriate */
-                      int j;
                       tick_t when_ready = 0;
 
-                      for(j=0;j<MAX_IDEPS;j++)
+                      for(size_t j=0;j<MAX_IDEPS;j++)
                         if(when_ready < odep->uop->timing.when_itag_ready[j])
                           when_ready = odep->uop->timing.when_itag_ready[j];
 
@@ -2740,11 +2736,10 @@ void core_exec_IO_DPM_t::step()
                  struct odep_t * odep = FU->pipe[stage].uop->exec.odep_uop;
                  while(odep)
                  {
-                    int j;
                     tick_t when_ready = 0;
                     odep->uop->timing.when_itag_ready[odep->op_num] = FU->pipe[stage].uop->timing.when_otag_ready;
 
-                    for(j=0;j<MAX_IDEPS;j++)
+                    for(size_t j=0;j<MAX_IDEPS;j++)
                     {
                        if(when_ready < odep->uop->timing.when_itag_ready[j])
                           when_ready = odep->uop->timing.when_itag_ready[j];
@@ -2796,8 +2791,6 @@ void core_exec_IO_DPM_t::step()
                 && !stall) /* uop is valid and hasn't been squashed */
 
         {
-           int j;
-
            //loads should have already finished by now, if not, stall
            if(uop->decode.is_load)
            {
@@ -2874,12 +2867,12 @@ void core_exec_IO_DPM_t::step()
           }
           else
           {
-             for(j=0;j<MAX_IDEPS;j++)
+             for(size_t j=0;j<MAX_IDEPS;j++)
                 if (uop->timing.when_ival_ready[j] <= core->sim_cycle)
                    uop->exec.ivalue_valid[j] = true;
 
              int all_ready = true;
-             for(j=0;j<MAX_IDEPS;j++)
+             for(size_t j=0;j<MAX_IDEPS;j++)
                 all_ready &= uop->exec.ivalue_valid[j];
 
              /* have all input values arrived and FU available */
@@ -2923,11 +2916,10 @@ void core_exec_IO_DPM_t::step()
                 struct odep_t * odep = uop->exec.odep_uop;
                 while(odep)
                 {
-                   int j;
                    tick_t when_ready = 0;
                    odep->uop->timing.when_itag_ready[odep->op_num] = uop->timing.when_otag_ready;
 
-                   for(j=0;j<MAX_IDEPS;j++)
+                   for(size_t j=0;j<MAX_IDEPS;j++)
                    {
                       if(when_ready < odep->uop->timing.when_itag_ready[j])
                          when_ready = odep->uop->timing.when_itag_ready[j];
@@ -3085,7 +3077,7 @@ void core_exec_IO_DPM_t::step()
              zesto_assert(curr_uop->alloc.LDQ_index != -1, (void)0);
 
 //             bool load_ready = true;
-//             for(int j=0;j<MAX_IDEPS;j++)
+//             for(size_t j=0;j<MAX_IDEPS;j++)
 //               load_ready &= curr_uop->exec.ivalue_valid[j];
 
 //             if(!load_ready)
@@ -3112,12 +3104,12 @@ void core_exec_IO_DPM_t::step()
            /* LEA workaround - execution of LEA instruction on the Atom happens in the AGU, not in the ALU (see Intel Optimization manual) */
            if(curr_uop->decode.is_agen && !stall)
            {
-             for(int j=0;j<MAX_IDEPS;j++)
+             for(size_t j=0;j<MAX_IDEPS;j++)
                 if (curr_uop->timing.when_ival_ready[j] <= core->sim_cycle)
                    curr_uop->exec.ivalue_valid[j] = true;
 
              bool agen_ready = true;
-             for(int j=0;j<MAX_IDEPS;j++)
+             for(size_t j=0;j<MAX_IDEPS;j++)
                 agen_ready &= curr_uop->exec.ivalue_valid[j];
 
 
@@ -3259,7 +3251,7 @@ bool core_exec_IO_DPM_t::can_issue_IO(struct uop_t * const uop)
              {
                  /* if curr_uop doesn't have all operands ready, it can't issue at this cycle */
                  bool operands_ready = true;
-                 for(int ind = 0; ind < MAX_IDEPS; ind++)
+                 for(size_t ind = 0; ind < MAX_IDEPS; ind++)
                     operands_ready &= curr_uop->exec.ivalue_valid[ind];
 
                  if(!operands_ready)

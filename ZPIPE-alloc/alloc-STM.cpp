@@ -204,7 +204,7 @@ void core_alloc_STM_t::step(void)
 
         /* Get input mappings - this is a proxy for explicit register numbers, which
            you can always get from idep_uop->alloc.ROB_index */
-        for(int j=0;j<MAX_IDEPS;j++)
+        for(size_t j=0;j<MAX_IDEPS;j++)
         {
           /* This use of oracle info is valid: at this point the processor would be
              looking up this information in the RAT, but this saves us having to
@@ -232,7 +232,7 @@ void core_alloc_STM_t::step(void)
            explicitly implementing a scoreboard); if value is ready, read
            it into data-capture window or payload RAM. */
         tick_t when_ready = 0;
-        for(int j=0;j<MAX_IDEPS;j++) /* for possible input argument */
+        for(size_t j=0;j<MAX_IDEPS;j++) /* for possible input argument */
         {
           if(uop->exec.idep_uop[j]) /* if the parent uop exists (i.e., still in the processor) */
           {

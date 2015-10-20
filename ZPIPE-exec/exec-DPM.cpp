@@ -867,10 +867,9 @@ void core_exec_DPM_t::RS_schedule(void) /* for uops in the RS */
           struct odep_t * odep = uop->exec.odep_uop;
           while(odep)
           {
-            int j;
             tick_t when_ready = 0;
             odep->uop->timing.when_itag_ready[odep->op_num] = uop->timing.when_otag_ready;
-            for(j=0;j<MAX_IDEPS;j++)
+            for(size_t j=0;j<MAX_IDEPS;j++)
             {
               if(when_ready < odep->uop->timing.when_itag_ready[j])
                 when_ready = odep->uop->timing.when_itag_ready[j];
@@ -1022,7 +1021,6 @@ bool core_exec_DPM_t::check_load_issue_conditions(const struct uop_t * const uop
 void core_exec_DPM_t::snatch_back(struct uop_t * const replayed_uop)
 {
   struct core_knobs_t * knobs = core->knobs;
-  int i;
   int index = 0;
   struct uop_t ** stack = (struct uop_t**) alloca(sizeof(*stack) * knobs->exec.RS_size);
   if(!stack)
@@ -1053,7 +1051,7 @@ void core_exec_DPM_t::snatch_back(struct uop_t * const replayed_uop)
 
     /* remove uop from payload RAM pipe */
     if(port[uop->alloc.port_assignment].occupancy > 0)
-      for(i=0;i<knobs->exec.payload_depth;i++)
+      for(int i=0;i<knobs->exec.payload_depth;i++)
         if(port[uop->alloc.port_assignment].payload_pipe[i].uop == uop)
         {
           port[uop->alloc.port_assignment].payload_pipe[i].uop = NULL;
@@ -1093,7 +1091,7 @@ void core_exec_DPM_t::snatch_back(struct uop_t * const replayed_uop)
   }
 
   tick_t when_ready = 0;
-  for(i=0;i<MAX_IDEPS;i++)
+  for(size_t i=0;i<MAX_IDEPS;i++)
     if(replayed_uop->timing.when_itag_ready[i] > when_ready)
       when_ready = replayed_uop->timing.when_itag_ready[i];
   /* we assume if a when_ready has been reset to TICK_T_MAX, then
@@ -1157,12 +1155,11 @@ void core_exec_DPM_t::load_writeback(struct uop_t * const uop)
       /* check scheduling info (tags) */
       if(odep->uop->timing.when_itag_ready[odep->op_num] > (core->sim_cycle+fp_penalty))
       {
-        int j;
         tick_t when_ready = 0;
 
         odep->uop->timing.when_itag_ready[odep->op_num] = core->sim_cycle+fp_penalty;
 
-        for(j=0;j<MAX_IDEPS;j++)
+        for(size_t j=0;j<MAX_IDEPS;j++)
           if(when_ready < odep->uop->timing.when_itag_ready[j])
             when_ready = odep->uop->timing.when_itag_ready[j];
 
@@ -1471,11 +1468,10 @@ void core_exec_DPM_t::load_miss_reschedule(void * const op, const int new_pred_l
       odep->uop->timing.when_itag_ready[odep->op_num] = uop->timing.when_otag_ready;
 
       /* put back on to readyQ if appropriate */
-      int j;
       tick_t when_ready = 0;
       zesto_assert(!odep->uop->exec.in_readyQ,(void)0);
 
-      for(j=0;j<MAX_IDEPS;j++)
+      for(size_t j=0;j<MAX_IDEPS;j++)
         if(when_ready < odep->uop->timing.when_itag_ready[j])
           when_ready = odep->uop->timing.when_itag_ready[j];
 
@@ -1622,12 +1618,11 @@ void core_exec_DPM_t::LDST_exec(void)
                   /* check scheduling info (tags) */
                   if(odep->uop->timing.when_itag_ready[odep->op_num] > core->sim_cycle)
                   {
-                    int j;
                     tick_t when_ready = 0;
 
                     odep->uop->timing.when_itag_ready[odep->op_num] = core->sim_cycle+fp_penalty;
 
-                    for(j=0;j<MAX_IDEPS;j++)
+                    for(size_t j=0;j<MAX_IDEPS;j++)
                       if(when_ready < odep->uop->timing.when_itag_ready[j])
                         when_ready = odep->uop->timing.when_itag_ready[j];
 
@@ -1913,10 +1908,9 @@ void core_exec_DPM_t::LDQ_schedule(void)
                       odep->uop->timing.when_itag_ready[odep->op_num] = LDQ[index].uop->timing.when_otag_ready;
 
                       /* put back on to readyQ if appropriate */
-                      int j;
                       tick_t when_ready = 0;
 
-                      for(j=0;j<MAX_IDEPS;j++)
+                      for(size_t j=0;j<MAX_IDEPS;j++)
                         if(when_ready < odep->uop->timing.when_itag_ready[j])
                           when_ready = odep->uop->timing.when_itag_ready[j];
 
@@ -2328,7 +2322,6 @@ void core_exec_DPM_t::ALU_exec(void)
       /* uops leaving payload section go to their respective FU's */
       if(uop && (port[i].payload_pipe[stage].action_id == uop->exec.action_id)) /* uop is valid, hasn't been squashed */
       {
-        int j;
         int all_ready = true;
         enum fu_class FU_class = uop->decode.FU_class;
 
@@ -2337,7 +2330,7 @@ void core_exec_DPM_t::ALU_exec(void)
         port[i].occupancy--;
         zesto_assert(port[i].occupancy >= 0,(void)0);
 
-        for(j=0;j<MAX_IDEPS;j++)
+        for(size_t j=0;j<MAX_IDEPS;j++)
           all_ready &= uop->exec.ivalue_valid[j];
 
         /* have all input values arrived and FU available? */
@@ -2347,7 +2340,7 @@ void core_exec_DPM_t::ALU_exec(void)
           ZESTO_STAT(core->stat.exec_uops_replayed++;)
           uop->exec.num_replays++;
 
-          for(j=0;j<MAX_IDEPS;j++)
+          for(size_t j=0;j<MAX_IDEPS;j++)
           {
             if((!uop->exec.ivalue_valid[j]) && uop->oracle.idep_uop[j] && (uop->oracle.idep_uop[j]->timing.when_otag_ready < core->sim_cycle))
             {

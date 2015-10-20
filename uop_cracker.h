@@ -16,8 +16,14 @@ struct uop_t* get_uop_array(const size_t num_uops);
 /* Deallocates the uops for a Mop */
 void return_uop_array(struct uop_t* p, const size_t num_uops);
 
+/* Max number of uops per Mop */
 const size_t MAX_NUM_UOPS = 64;
-const size_t UOP_SEQ_SHIFT = 6;
+const size_t UOP_SEQ_SHIFT = 6; // log2(MAX_NUM_UOPS)
+
+/* Max number of input registers per uop. */
+const size_t MAX_IDEPS = 3;
+/* Max numbder of output registers per uop (1+flags). */
+const size_t MAX_ODEPS = 2;
 
 }
 }

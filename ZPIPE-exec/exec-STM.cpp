@@ -841,7 +841,7 @@ void core_exec_STM_t::load_writeback(struct uop_t * const uop)
       zesto_assert(!odep->uop->exec.ivalue_valid[odep->op_num],(void)0);
       odep->uop->timing.when_ival_ready[odep->op_num] = core->sim_cycle;
 
-      for(int j=0;j<MAX_IDEPS;j++)
+      for(size_t j=0;j<MAX_IDEPS;j++)
         if(when_ready < odep->uop->timing.when_ival_ready[j])
           when_ready = odep->uop->timing.when_ival_ready[j];
 
@@ -989,7 +989,7 @@ void core_exec_STM_t::LDST_exec(void)
 
                   odep->uop->timing.when_ival_ready[odep->op_num] = core->sim_cycle;
 
-                  for(int j=0;j<MAX_IDEPS;j++)
+                  for(size_t j=0;j<MAX_IDEPS;j++)
                     if(when_ready < odep->uop->timing.when_ival_ready[j])
                       when_ready = odep->uop->timing.when_ival_ready[j];
 
@@ -1259,7 +1259,7 @@ void core_exec_STM_t::ALU_exec(void)
 
                 odep->uop->timing.when_ival_ready[odep->op_num] = core->sim_cycle;
 
-                for(int j=0;j<MAX_IDEPS;j++)
+                for(size_t j=0;j<MAX_IDEPS;j++)
                   if(when_ready < odep->uop->timing.when_ival_ready[j])
                     when_ready = odep->uop->timing.when_ival_ready[j];
 

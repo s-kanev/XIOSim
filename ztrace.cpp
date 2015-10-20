@@ -126,9 +126,9 @@ void ztrace_uop_timing(const struct uop_t* uop) {
     int coreID = uop->core->id;
     ZTRACE_PRINT(coreID, "wd: %lld|", uop->timing.when_decoded);
     ZTRACE_PRINT(coreID, "wa: %lld|", uop->timing.when_allocated);
-    for (int i = 0; i < MAX_IDEPS; i++)
+    for (size_t i = 0; i < MAX_IDEPS; i++)
         ZTRACE_PRINT(coreID, "wit%d: %lld|", i, uop->timing.when_itag_ready[i]);
-    for (int i = 0; i < MAX_IDEPS; i++)
+    for (size_t i = 0; i < MAX_IDEPS; i++)
         ZTRACE_PRINT(coreID, "wiv%d: %lld|", i, uop->timing.when_ival_ready[i]);
     ZTRACE_PRINT(coreID, "wot: %lld|", uop->timing.when_otag_ready);
     ZTRACE_PRINT(coreID, "wr: %lld|", uop->timing.when_ready);

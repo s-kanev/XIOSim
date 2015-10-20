@@ -538,7 +538,7 @@ void core_commit_IO_DPM_t::IO_step(void)
         zesto_assert(uop->timing.when_exec != TICK_T_MAX,(void)0);
       }
 
-      for (int oreg = 0; oreg < MAX_ODEPS; oreg++) {
+      for (size_t oreg = 0; oreg < MAX_ODEPS; oreg++) {
         if(x86::is_ireg(uop->decode.odep_name[oreg]))
           core->stat.regfile_writes++;
         else if(x86::is_freg(uop->decode.odep_name[oreg]))
@@ -732,7 +732,7 @@ int core_commit_IO_DPM_t::squash_uop(struct uop_t * const uop)
     /* dead_uop may have back-pointers (ideps) to non-squashed uops;
        we should remove these */
     struct uop_t * idep;
-    for(int i=0;i<MAX_IDEPS;i++)
+    for(size_t i=0;i<MAX_IDEPS;i++)
     {
       idep = dead_uop->exec.idep_uop[i];
 
@@ -764,7 +764,7 @@ int core_commit_IO_DPM_t::squash_uop(struct uop_t * const uop)
       dead_uop->exec.idep_uop[i] = NULL;
     }
 
-    for(int i=0;i<MAX_IDEPS;i++)
+    for(size_t i=0;i<MAX_IDEPS;i++)
       zesto_assert(dead_uop->exec.idep_uop[i] == NULL, 0);
 
 

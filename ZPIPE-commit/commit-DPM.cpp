@@ -496,7 +496,7 @@ void core_commit_DPM_t::step(void)
         zesto_assert(uop->timing.when_exec != TICK_T_MAX,(void)0);
       }
 
-      for (int oreg = 0; oreg < MAX_ODEPS; oreg++) {
+      for (size_t oreg = 0; oreg < MAX_ODEPS; oreg++) {
         if(x86::is_ireg(uop->decode.odep_name[oreg]))
           core->stat.regfile_writes++;
         else if(x86::is_freg(uop->decode.odep_name[oreg]))
@@ -649,7 +649,6 @@ core_commit_DPM_t::recover(const struct Mop_t * const Mop)
 
     while(ROB[index] && (ROB[index]->Mop != Mop))
     {
-      int i;
       struct uop_t * dead_uop = ROB[index];
 
       zesto_assert(ROB_num > 0,(void)0);
@@ -701,7 +700,7 @@ core_commit_DPM_t::recover(const struct Mop_t * const Mop)
            need to clean-up our parent's forward-pointers (odeps)
            and our own back-pointers (our fwd-ptrs would have
            already cleaned-up our own children). */
-        for(i=0;i<MAX_IDEPS;i++)
+        for(size_t i=0;i<MAX_IDEPS;i++)
         {
           struct uop_t * parent = dead_uop->exec.idep_uop[i];
           if(parent) /* I have an active parent */
@@ -711,7 +710,7 @@ core_commit_DPM_t::recover(const struct Mop_t * const Mop)
             current = parent->exec.odep_uop;
             while(current)
             {
-              if((current->uop == dead_uop) && (current->op_num == i))
+              if((current->uop == dead_uop) && (current->op_num == (int)i))
                 break;
               prev = current;
               current = current->next;
@@ -774,7 +773,6 @@ core_commit_DPM_t::recover(void)
 
     while(ROB[index])
     {
-      int i;
       struct uop_t * dead_uop = ROB[index];
 
       zesto_assert(ROB_num > 0,(void)0);
@@ -828,7 +826,7 @@ core_commit_DPM_t::recover(void)
            need to clean-up our parent's forward-pointers (odeps)
            and our own back-pointers (our fwd-ptrs would have
            already cleaned-up our own children). */
-        for(i=0;i<MAX_IDEPS;i++)
+        for(size_t i=0;i<MAX_IDEPS;i++)
         {
           struct uop_t * parent = dead_uop->exec.idep_uop[i];
           if(parent) /* I have an active parent */
@@ -838,7 +836,7 @@ core_commit_DPM_t::recover(void)
             current = parent->exec.odep_uop;
             while(current)
             {
-              if((current->uop == dead_uop) && (current->op_num == i))
+              if((current->uop == dead_uop) && (current->op_num == (int)i))
                 break;
               prev = current;
               current = current->next;

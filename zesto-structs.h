@@ -83,9 +83,6 @@ extern "C" {
 #include "uop_cracker.h"
 #include "zesto-core.h"
 
-#define MAX_IDEPS 3
-#define MAX_ODEPS 2
-
 #define MAX_HYBRID_BPRED 8 /* maximum number of sub-components in a hybrid branch predictor */
 #define MAX_DECODE_WIDTH 16
 #define MAX_EXEC_WIDTH 16
@@ -266,7 +263,7 @@ struct alignas(16) uop_t
 
       this->timing.when_decoded = TICK_T_MAX;
       this->timing.when_allocated = TICK_T_MAX;
-      for(int i = 0; i < MAX_IDEPS; i++) {
+      for(size_t i = 0; i < MAX_IDEPS; i++) {
           this->timing.when_itag_ready[i] = TICK_T_MAX;
           this->timing.when_ival_ready[i] = TICK_T_MAX;
       }
