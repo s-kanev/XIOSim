@@ -167,6 +167,7 @@ TEST_CASE("store base", "[uop]") {
     REQUIRE(c.Mop.uop[1].decode.idep_name[0] == XED_REG_EAX);
     REQUIRE(c.Mop.uop[1].decode.odep_name[0] == XED_REG_INVALID);
     REQUIRE(c.Mop.uop[1].decode.FU_class == FU_STD);
+    REQUIRE(c.Mop.uop[1].decode.fusable.STA_STD == true);
 }
 
 TEST_CASE("store base imm", "[uop]") {
@@ -211,6 +212,7 @@ TEST_CASE("load-op", "[uop]") {
 
     REQUIRE(c.Mop.uop[0].decode.FU_class == FU_LD);
     REQUIRE(c.Mop.uop[1].decode.FU_class == FU_IEU);
+    REQUIRE(c.Mop.uop[1].decode.fusable.LOAD_OP == true);
 }
 
 TEST_CASE("load-op-store", "[uop]") {
@@ -249,6 +251,12 @@ TEST_CASE("load-op-store", "[uop]") {
     REQUIRE(c.Mop.uop[1].decode.FU_class == FU_IEU);
     REQUIRE(c.Mop.uop[2].decode.FU_class == FU_STA);
     REQUIRE(c.Mop.uop[3].decode.FU_class == FU_STD);
+
+    REQUIRE(c.Mop.uop[1].decode.fusable.LOAD_OP == true);
+    REQUIRE(c.Mop.uop[1].decode.fusable.LOAD_OP_ST == true);
+    REQUIRE(c.Mop.uop[2].decode.fusable.LOAD_OP_ST == true);
+    REQUIRE(c.Mop.uop[3].decode.fusable.STA_STD == true);
+    REQUIRE(c.Mop.uop[3].decode.fusable.LOAD_OP_ST == true);
 }
 
 TEST_CASE("call", "[uop]") {
@@ -517,6 +525,9 @@ TEST_CASE("imul mem", "[uop]") {
     REQUIRE(c.Mop.uop[2].decode.idep_name[0] == XED_REG_EAX);
     REQUIRE(c.Mop.uop[2].decode.idep_name[1] == XED_REG_TMP0);
     REQUIRE(c.Mop.uop[2].decode.odep_name[0] == XED_REG_EDX);
+
+    REQUIRE(c.Mop.uop[1].decode.fusable.LOAD_OP == false);
+    REQUIRE(c.Mop.uop[2].decode.fusable.LOAD_OP == false);
 }
 
 TEST_CASE("imul 3op", "[uop]") {
@@ -537,6 +548,7 @@ TEST_CASE("imul 3op", "[uop]") {
 
     REQUIRE(c.Mop.uop[1].decode.idep_name[0] == XED_REG_TMP0);
     REQUIRE(c.Mop.uop[1].decode.odep_name[0] == XED_REG_EAX);
+    REQUIRE(c.Mop.uop[1].decode.fusable.LOAD_OP == true);
 }
 
 TEST_CASE("div", "[uop]") {
@@ -561,6 +573,9 @@ TEST_CASE("div", "[uop]") {
     REQUIRE(c.Mop.uop[2].decode.idep_name[1] == XED_REG_TMP0);
     REQUIRE(c.Mop.uop[2].decode.odep_name[0] == XED_REG_EDX);
     REQUIRE(c.Mop.uop[1].decode.FU_class == FU_IDIV);
+
+    REQUIRE(c.Mop.uop[1].decode.fusable.LOAD_OP == false);
+    REQUIRE(c.Mop.uop[2].decode.fusable.LOAD_OP == false);
 }
 
 
@@ -819,9 +834,11 @@ TEST_CASE("Mem FP add", "[uop]") {
 
     REQUIRE(c.Mop.uop[0].decode.FU_class == FU_LD);
     REQUIRE(c.Mop.uop[1].decode.FU_class == FU_FADD);
+
+    REQUIRE(c.Mop.uop[1].decode.fusable.FP_LOAD_OP == true);
 }
 
-TEST_CASE("RR FP padd", "[uop]") {
+TEST_CASE("RR padd", "[uop]") {
     xed_context c;
     xed_inst2(&c.x, c.dstate, XED_ICLASS_PADDD, 0,
               xed_reg(XED_REG_XMM1),

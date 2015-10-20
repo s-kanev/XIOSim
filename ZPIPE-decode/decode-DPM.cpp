@@ -114,25 +114,6 @@ core_decode_DPM_t::core_decode_DPM_t(struct core_t * const arg_core):
   uopQ = (struct uop_t**) calloc(knobs->decode.uopQ_size,sizeof(*uopQ));
   if(!uopQ)
     fatal("couldn't calloc uopQ");
-
-  if(knobs->decode.fusion_none)
-    knobs->decode.fusion_mode = 0x00000000;
-  else if(knobs->decode.fusion_all)
-    knobs->decode.fusion_mode = 0xffffffff;
-  else
-  {
-    knobs->decode.fusion_mode = FUSION_NONE;
-    if(knobs->decode.fusion_load_op)
-      knobs->decode.fusion_mode |= FUSION_LOAD_OP;
-    if(knobs->decode.fusion_fp_load_op)
-      knobs->decode.fusion_mode |= FUSION_FP_LOAD_OP;
-    if(knobs->decode.fusion_sta_std)
-      knobs->decode.fusion_mode |= FUSION_STA_STD;
-    if(knobs->decode.fusion_partial)
-      knobs->decode.fusion_mode |= FUSION_PARTIAL;
-    if(knobs->decode.fusion_load_op_st)
-      knobs->decode.fusion_mode |= FUSION_LD_OP_ST;
-  }
 }
 
 void

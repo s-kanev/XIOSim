@@ -102,6 +102,19 @@ struct odep_t {
 using namespace xiosim;
 using namespace xiosim::x86;
 
+/* Flags for allowing different types of uop fusion. */
+struct fusion_flags_t {
+    bool LOAD_OP:1;
+    bool STA_STD:1;
+    bool LOAD_OP_ST:1; /* for atomic Mop execution */
+    bool FP_LOAD_OP:1; /* same as load op, but for fp ops */
+
+    bool matches(fusion_flags_t& rhs) {
+        return (LOAD_OP && rhs.LOAD_OP) || (STA_STD && rhs.STA_STD) ||
+               (LOAD_OP_ST && rhs.LOAD_OP_ST) || (FP_LOAD_OP && rhs.FP_LOAD_OP);
+    }
+};
+
 /* uArch micro-op structure */
 struct alignas(16) uop_t
 {
@@ -109,8 +122,6 @@ struct alignas(16) uop_t
   struct Mop_t * Mop; /* back pointer to parent marco-inst */
 
   struct {
-    unsigned int opflags; /* decoded flags */
-
     bool has_imm; /* TRUE if this uop has an immediate (which is stored in the next two consecutive uops */
     bool is_imm; /* TRUE if this uop is not a real uop, but just part of an immediate */
     xed_reg_enum_t idep_name[MAX_IDEPS]; /* register input dependencies */
@@ -139,6 +150,7 @@ struct alignas(16) uop_t
     enum fu_class FU_class; /* What type of ALU does this uop use? */
 
     /* uop-fusion */
+    fusion_flags_t fusable; /* What types of fusion can this uop participate in. */
     bool in_fusion;      /* this uop belongs to a fusion of two or more uops */
     bool is_fusion_head; /* first uop of a fused set? */
     int fusion_size;    /* total number of uops in this fused set */
@@ -269,6 +281,20 @@ struct alignas(16) uop_t
       this->exec.when_addr_translated = TICK_T_MAX;
   }
 
+};
+
+/* Macro-op decoded flags. */
+struct inst_flags_t {
+    bool CTRL:1;     /* control inst */
+    bool UNCOND:1;   /*   unconditional change */
+    bool COND:1;     /*   conditional change */
+    bool MEM:1;      /* memory access inst */
+    bool LOAD:1;     /*   load inst */
+    bool STORE:1;    /*   store inst */
+    bool TRAP:1;     /* traping inst */
+    bool INDIR:1;    /* indirect control inst */
+    bool CALL:1;     /* function call */
+    bool RETN:1;     /* subroutine return */
 };
 
 /* x86 Macro-op structure */
@@ -432,17 +458,10 @@ struct core_knobs_t
     int *max_uops; /* maximum number of uops emittable per decoder */
     int MS_latency; /* number of cycles from decoder[0] to uROM/MS */
     int uopQ_size;
-    int fusion_mode; /* bitmask of which fusion types are allowed */
+    fusion_flags_t fusion_mode; /* which fusion types are allowed */
     int decoders[MAX_DECODE_WIDTH];
     int num_decoder_specs;
     int branch_decode_limit; /* maximum number of branches decoded per cycle */
-    bool fusion_none; /* this takes precedence over -fusion:all */
-    bool fusion_all;  /* and then this takes precedence over the subsequent flags */
-    bool fusion_load_op;
-    bool fusion_fp_load_op;
-    bool fusion_sta_std;
-    bool fusion_partial;
-    bool fusion_load_op_st;
   } decode;
 
   struct {

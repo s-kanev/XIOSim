@@ -84,10 +84,13 @@ fill_out_sta_uop(const struct Mop_t* Mop, struct uop_t& sta_uop, size_t mem_op_i
 }
 
 /* Helper to fill out flags and registers for a std uop. */
-static void
-fill_out_std_uop(const struct Mop_t* Mop, struct uop_t& std_uop, const xed_reg_enum_t data_reg, size_t mem_op_index = 0) {
+static void fill_out_std_uop(const struct Mop_t* Mop,
+                             struct uop_t& std_uop,
+                             const xed_reg_enum_t data_reg,
+                             size_t mem_op_index = 0) {
     std_uop.decode.is_std = true;
     std_uop.decode.FU_class = FU_STD;
+    std_uop.decode.fusable.STA_STD = true;
     std_uop.oracle.mem_op_index = mem_op_index;
 
     std_uop.decode.idep_name[0] = data_reg;
@@ -123,6 +126,17 @@ static void fallback(struct Mop_t* Mop) {
     main_uop.decode.is_nop = is_nop(Mop);
     main_uop.decode.is_fence = is_fence(Mop);
     main_uop.decode.is_fpop = is_fp(Mop);
+
+    /* Flag for load-op uop fusion. */
+    if (Mop_has_load && !main_uop.decode.is_ctrl) {
+        /* We don't fuse indirect jmps. Mostly for the Atom pipes which have
+         * the JEU and load unit on separate ports. */
+
+        if (main_uop.decode.is_fpop)
+            main_uop.decode.fusable.FP_LOAD_OP = true;
+        else
+            main_uop.decode.fusable.LOAD_OP = true;
+    }
 
     /* Check functional unit tables for main uop. */
     main_uop.decode.FU_class = get_uop_fu(main_uop);
@@ -163,6 +177,13 @@ static void fallback(struct Mop_t* Mop) {
 
         fill_out_sta_uop(Mop, Mop->uop[op_index + 1]);
         fill_out_std_uop(Mop, Mop->uop[op_index + 2], std_temp_reg);
+    }
+
+    /* Flag for Macro-op execution -- load-op-store fusion. */
+    if (Mop_has_load && Mop_has_store) {
+        main_uop.decode.fusable.LOAD_OP_ST = true;
+        Mop->uop[op_index + 1].decode.fusable.LOAD_OP_ST = true;
+        Mop->uop[op_index + 2].decode.fusable.LOAD_OP_ST = true;
     }
 }
 
@@ -409,7 +430,6 @@ static bool check_movs(const struct Mop_t* Mop) {
     }
 
     return false;
-
 }
 
 static bool check_cmps(const struct Mop_t* Mop) {
@@ -425,7 +445,6 @@ static bool check_cmps(const struct Mop_t* Mop) {
     }
 
     return false;
-
 }
 
 /* Check special-casing Mop->uop tables. Returns
@@ -456,8 +475,8 @@ static bool check_tables(struct Mop_t* Mop) {
         xed_reg_enum_t std_reg = XED_REG_INVALID;
         auto regs_read = get_registers_read(Mop);
         if (regs_read.size() > 0) {
-            //XXX: STOS is predicated on flags, ignore for now.
-            //assert(regs_read.size() == 1);
+            // XXX: STOS is predicated on flags, ignore for now.
+            // assert(regs_read.size() == 1);
             std_reg = regs_read.front();
         }
         fill_out_std_uop(Mop, Mop->uop[1], std_reg);
@@ -595,6 +614,7 @@ static bool check_tables(struct Mop_t* Mop) {
         Mop->uop[1].decode.FU_class = FU_IEU;
         Mop->uop[1].decode.idep_name[0] = XED_REG_ESP;
         Mop->uop[1].decode.odep_name[0] = XED_REG_ESP;
+        /* We don't fuse the add to the load -- they don't share an odep-idep operand.*/
 
         if (has_store) {
             fill_out_sta_uop(Mop, Mop->uop[2], 0);

@@ -80,19 +80,6 @@ core_decode_STM_t::core_decode_STM_t(struct core_t * const arg_core)
   occupancy = (int*) calloc(knobs->decode.depth,sizeof(*occupancy));
   if(!occupancy)
     fatal("couldn't calloc decode pipe occupancy array");
-
-  if(knobs->decode.fusion_none)
-    knobs->decode.fusion_mode = 0x00000000;
-  else if(knobs->decode.fusion_all)
-  {
-    if(knobs->decode.fusion_all || knobs->decode.fusion_load_op || knobs->decode.fusion_fp_load_op || knobs->decode.fusion_sta_std || knobs->decode.fusion_partial)
-      warnonce("uop fusion not supported in Simple Timing Model");
-    knobs->decode.fusion_all = false;
-    knobs->decode.fusion_load_op = false;
-    knobs->decode.fusion_fp_load_op = false;
-    knobs->decode.fusion_sta_std = false;
-    knobs->decode.fusion_partial = false;
-  }
 }
 
 void

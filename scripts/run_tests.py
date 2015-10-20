@@ -261,7 +261,7 @@ class PowerTest(XIOSimTest):
 
     def setUp(self):
         super(PowerTest, self).setUp()
-        self.expected_vals.append((xs.PowerStatRE("  Runtime Dynamic"), 0.58))
+        self.expected_vals.append((xs.PowerStatRE("  Runtime Dynamic"), 0.565))
         self.expected_vals.append((xs.PowerStatRE("  Total Leakage"), 0.48))
 
     def runTest(self):
@@ -295,7 +295,7 @@ class DFSTest(XIOSimTest):
         self.expected_vals.append((xs.PerfStatRE("sim_cycle"), 4895888.0))
         # XXX: The dynamic number appears a little low, but that's more of a
         # validation issue, not a "hey, DFS is working" issue
-        self.expected_vals.append((xs.PowerStatRE("  Runtime Dynamic"), 0.255))
+        self.expected_vals.append((xs.PowerStatRE("  Runtime Dynamic"), 0.263))
         self.expected_vals.append((xs.PowerStatRE("  Total Leakage"), 0.48))
 
     def runTest(self):

@@ -66,53 +66,14 @@ extern "C" {
 #include "misc.h"
 
 
-/*
- * This file contains various definitions needed to decode, disassemble, and
- * execute x86 instructions.
- */
-
-/* build for x86 target */
 const int MAX_CORES = 16;
 const int INVALID_CORE = -1;
-
-
-/*
- * target-dependent type definitions
- */
 
 /* address type definition (32-bit) */
 typedef dword_t md_addr_t;
 
 /* physical address type definition (64-bit) */
 typedef qword_t md_paddr_t;
-
-struct inst_flags_t {
-    bool CTRL:1;     /* control inst */
-    bool UNCOND:1;   /*   unconditional change */
-    bool COND:1;     /*   conditional change */
-    bool MEM:1;      /* memory access inst */
-    bool LOAD:1;     /*   load inst */
-    bool STORE:1;    /*   store inst */
-    bool TRAP:1;     /* traping inst */
-    bool INDIR:1;    /* indirect control inst */
-    bool CALL:1;     /* function call */
-    bool RETN:1;     /* subroutine return */
-};
-
-/* helper macros */
-
-/*
- * various other helper macros/functions
- */
-
-/* globbing/fusion masks */
-#define FUSION_NONE 0x0000LL
-#define FUSION_LOAD_OP 0x0001LL
-#define FUSION_STA_STD 0x0002LL
-#define FUSION_PARTIAL 0x0004LL  /* for partial-register-write merging uops */
-/* to add: OP_OP, OP_ST */
-#define FUSION_LD_OP_ST 0x0008LL /* for atomic Mop execution */
-#define FUSION_FP_LOAD_OP 0x0010LL /* same as load op, but for fp ops */
 
 namespace xiosim {
 namespace x86 {

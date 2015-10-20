@@ -73,14 +73,10 @@ void store_decode_options(cfg_t *decode_opt, core_knobs_t *knobs) {
                  MAX_DECODE_WIDTH);
   knobs->decode.MS_latency = cfg_getint(decode_opt, "ucode_sequencer_latency");
   knobs->decode.uopQ_size = cfg_getint(decode_opt, "uop_queue_size");
-  knobs->decode.fusion_none = cfg_getbool(uop_fusion_opt, "disable_all");
-  knobs->decode.fusion_all = cfg_getbool(uop_fusion_opt, "enable_all");
-  knobs->decode.fusion_load_op  = cfg_getbool(uop_fusion_opt, "load_comp_op");
-  knobs->decode.fusion_fp_load_op = cfg_getbool(uop_fusion_opt, "fpload_comp_op");
-  knobs->decode.fusion_sta_std = cfg_getbool(uop_fusion_opt, "sta_std");
-  knobs->decode.fusion_partial =
-      cfg_getbool(uop_fusion_opt, "partial_reg_write");
-  knobs->decode.fusion_load_op_st = cfg_getbool(uop_fusion_opt, "load_op_store");
+  knobs->decode.fusion_mode.LOAD_OP = cfg_getbool(uop_fusion_opt, "load_comp_op");
+  knobs->decode.fusion_mode.FP_LOAD_OP = cfg_getbool(uop_fusion_opt, "fpload_comp_op");
+  knobs->decode.fusion_mode.STA_STD = cfg_getbool(uop_fusion_opt, "sta_std");
+  knobs->decode.fusion_mode.LOAD_OP_ST = cfg_getbool(uop_fusion_opt, "load_op_store");
 }
 
 void store_alloc_options(cfg_t *alloc_opt, core_knobs_t *knobs) {

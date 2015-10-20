@@ -480,7 +480,7 @@ int core_oracle_t::next_index(const int index) {
 
 struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
     struct thread_t* thread = core->current_thread;
-    struct core_knobs_t * knobs = core->knobs;
+    struct core_knobs_t* knobs = core->knobs;
     size_t flow_index = 0;
     struct Mop_t* Mop = NULL;
 
@@ -551,88 +551,37 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
     /* Crack Mop into uops */
     x86::crack(Mop);
 
-/* XXX: Handle uop fusion. */
-
-#if 0
-    if(!*bogus)
-    {
-      int imm_uops_left = 0;
-      struct uop_t * fusion_head = NULL; /* if currently fused, points at head. */
-      struct uop_t * prev_uop = NULL;
-
-      for(int i=0;i<Mop->decode.flow_length;i++)
-      {
-        struct uop_t * uop = &Mop->uop[i];
-        uop->decode.raw_op = flowtab[i];
-        if(!imm_uops_left)
-        {
-          uop->decode.has_imm = UHASIMM;
-          MD_SET_UOPCODE(uop->decode.op,&uop->decode.raw_op);
-          uop->decode.opflags = MD_OP_FLAGS(uop->decode.op);
-
-          if(knobs->decode.fusion_mode & FUSION_TYPE(uop))
-          {
-            assert(prev_uop);
-            if(fusion_head == NULL)
-            {
-              assert(!prev_uop->decode.in_fusion);
-              fusion_head = prev_uop;
-              fusion_head->decode.in_fusion = true;
-              fusion_head->decode.is_fusion_head = true;
-              fusion_head->decode.fusion_size = 1;
-              fusion_head->decode.fusion_head = fusion_head; /* point at yourself as well */
-            }
-
-            uop->decode.in_fusion = true;
-            uop->decode.fusion_head = fusion_head;
-            fusion_head->decode.fusion_size++;
-
-            prev_uop->decode.fusion_next = uop;
-          }
-          else
-            fusion_head = NULL;
-
-          prev_uop = uop;
-        }
-        else
-        {
-          imm_uops_left--; /* don't try to decode the immediates! */
-          uop->decode.is_imm = true;
-        }
-
-        uop->Mop = Mop; /* back-pointer to parent macro-op */
-        if(uop->decode.has_imm)
-          imm_uops_left = 2;
-      }
-    }
-#endif
-
+    /* Makes sure uops are owned and sequenced */
     for (size_t i = 0; i < Mop->decode.flow_length; i++) {
         Mop->uop[i].core = core;
         Mop->uop[i].decode.Mop_seq = Mop->oracle.seq;
         Mop->uop[i].decode.uop_seq = (Mop->oracle.seq << x86::UOP_SEQ_SHIFT) + i;
     }
 
-    //XXX: We need proper handling of fusion. For now, keep a minimum STA-STD to make the Atom model happy.
+    /* Fuse uops if the core model supports it. */
     for (size_t i = 0; i < Mop->decode.flow_length; i++) {
         struct uop_t* uop = &Mop->uop[i];
-        if ((knobs->decode.fusion_mode & FUSION_STA_STD) &&
-            uop->decode.is_sta) {
-            zesto_assert(i < Mop->decode.flow_length - 1, nullptr);
-            struct uop_t* next_uop = &Mop->uop[i+1];
-            zesto_assert(next_uop->decode.is_std, nullptr);
 
+        if (knobs->decode.fusion_mode.matches(uop->decode.fusable)) {
+            zesto_assert(i > 0, nullptr);
+            struct uop_t* prev_uop = &Mop->uop[i - 1];
+
+            /* Previous uop is the first in the fusion. */
+            if (!prev_uop->decode.in_fusion) {
+                zesto_assert(prev_uop->decode.fusion_head == nullptr, nullptr);
+                prev_uop->decode.fusion_head = prev_uop;
+                prev_uop->decode.fusion_size = 1;
+                prev_uop->decode.in_fusion = true;
+                prev_uop->decode.is_fusion_head = true;
+            }
+
+            prev_uop->decode.fusion_next = uop;
             uop->decode.in_fusion = true;
-            uop->decode.is_fusion_head = true;
-            uop->decode.fusion_size = 2;
-            uop->decode.fusion_head = uop;
-            uop->decode.fusion_next = next_uop;
+            uop->decode.fusion_next = nullptr;
 
-            next_uop->decode.in_fusion = true;
-            next_uop->decode.is_fusion_head = false;
-            next_uop->decode.fusion_size = 2;
-            next_uop->decode.fusion_head = uop;
-            next_uop->decode.fusion_next = nullptr;
+            uop_t* fusion_head = prev_uop->decode.fusion_head;
+            fusion_head->decode.fusion_size++;
+            uop->decode.fusion_head = fusion_head;
         }
     }
 
@@ -640,19 +589,6 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
 
     // XXX: No immediates for now
     Mop->decode.last_uop_index = Mop->decode.flow_length - 1;
-
-#if 0
-  flow_index = 0;
-  while(flow_index < Mop->decode.flow_length)
-  {
-    struct uop_t * uop = &Mop->uop[flow_index];
-    // uop->decode.FU_class = MD_OP_FUCLASS(uop->decode.op);
-    /* Overwrite FU_class for OoO cores (done because only IO core has a dedicated AGU unit) */
-    if (strcasecmp(knobs->model, "IO-DPM") && (uop->decode.FU_class == FU_AGEN))
-      uop->decode.FU_class = FU_IEU;
-
-  }
-#endif
 
     flow_index = 0;
     while (flow_index < Mop->decode.flow_length) {
@@ -678,7 +614,8 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
         if (uop->decode.is_load || uop->decode.is_sta || uop->decode.is_std) {
             zesto_assert(!handshake.mem_buffer.empty(), nullptr);
             int mem_op_index = uop->oracle.mem_op_index;
-            zesto_assert(mem_op_index >= 0 && mem_op_index < (int)handshake.mem_buffer.size(), NULL);
+            zesto_assert(mem_op_index >= 0 && mem_op_index < (int)handshake.mem_buffer.size(),
+                         NULL);
             auto mem_access = handshake.mem_buffer[mem_op_index];
             uop->oracle.virt_addr = mem_access.first;
             uop->decode.mem_size = mem_access.second;
@@ -969,8 +906,7 @@ void core_oracle_t::pipe_recover(struct Mop_t* const Mop, const md_addr_t New_PC
         core->fetch->jeclear_enqueue(Mop, New_PC);
     else {
         if (Mop->fetch.bpred_update)
-            core->fetch->bpred->recover(Mop->fetch.bpred_update,
-                                        (New_PC != Mop->fetch.ftPC));
+            core->fetch->bpred->recover(Mop->fetch.bpred_update, (New_PC != Mop->fetch.ftPC));
         this->recover(Mop);
         core->commit->recover(Mop);
         core->exec->recover(Mop);
@@ -1047,8 +983,8 @@ void core_oracle_t::complete_flush(void) {
 buffer_result_t core_oracle_t::buffer_handshake(handshake_container_t* handshake) {
     ZTRACE_PRINT(core->id, "Buffering %x\n", handshake->pc);
     /* If we want a speculative handshake. */
-    if (spec_mode || // We're already speculating
-        core->fetch->PC != core->fetch->feeder_NPC) { // We're about to speculate
+    if (spec_mode ||                                   // We're already speculating
+        core->fetch->PC != core->fetch->feeder_NPC) {  // We're about to speculate
 
         /* But feeder isn't giving us one. */
         if (!handshake->flags.speculative) {
@@ -1063,7 +999,8 @@ buffer_result_t core_oracle_t::buffer_handshake(handshake_container_t* handshake
         /* Feeder is speculating, but not from the PC we are.
          * We'll grab a NOP again. */
         if (handshake->pc != core->fetch->PC) {
-            ZTRACE_PRINT(core->id, "Spec FetchPC %x different from handshakePC %x.\n",
+            ZTRACE_PRINT(core->id,
+                         "Spec FetchPC %x different from handshakePC %x.\n",
                          core->fetch->PC,
                          handshake->pc);
             handshake_container_t tmp_handshake = get_fake_spec_handshake();
@@ -1081,7 +1018,8 @@ buffer_result_t core_oracle_t::buffer_handshake(handshake_container_t* handshake
         /* This should happen very rarely, when handshake->npc was incorrect the previous
          * time around. E.g. a sysenter instruction. */
         if (handshake->pc != core->fetch->PC) {
-            ZTRACE_PRINT(core->id, "FetchPC %x different from handshakePC %x. Correcting.\n",
+            ZTRACE_PRINT(core->id,
+                         "FetchPC %x different from handshakePC %x. Correcting.\n",
                          core->fetch->PC,
                          handshake->pc);
             core->fetch->PC = handshake->pc;
@@ -1107,9 +1045,9 @@ handshake_container_t core_oracle_t::get_fake_spec_handshake() {
     new_handshake.flags.real = true;
     new_handshake.flags.valid = true;
     new_handshake.asid = core->current_thread->asid;
-    new_handshake.ins[0] = 0x0f; // 3-byte NOP
-    new_handshake.ins[1] = 0x1f; // 3-byte NOP
-    new_handshake.ins[2] = 0x00; // 3-byte NOP
+    new_handshake.ins[0] = 0x0f;  // 3-byte NOP
+    new_handshake.ins[1] = 0x1f;  // 3-byte NOP
+    new_handshake.ins[2] = 0x00;  // 3-byte NOP
     ZTRACE_PRINT(core->id, "fake handshake -> PC: %x\n", core->fetch->PC);
     core->stat.handshake_nops_produced++;
     return new_handshake;
