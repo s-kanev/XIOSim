@@ -138,7 +138,6 @@ class core_exec_IO_DPM_t:public core_exec_t
     bool first_byte_written;
     bool last_byte_written;
     int mem_size;
-    union val_t value;
     bool addr_valid;
     bool value_valid;
     int next_load; /* LDQ index of next load in program order */

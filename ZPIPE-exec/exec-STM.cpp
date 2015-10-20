@@ -120,7 +120,6 @@ class core_exec_STM_t:public core_exec_t
     md_addr_t virt_addr;
     md_paddr_t phys_addr;
     int mem_size;
-    union val_t value;
     bool addr_valid;
     bool value_valid;
     int next_load; /* LDQ index of next load in program order */

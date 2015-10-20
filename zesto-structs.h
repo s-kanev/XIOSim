@@ -91,16 +91,6 @@ extern "C" {
 #define MAX_EXEC_WIDTH 16
 #define MAX_PREFETCHERS 4 /* per cache; so IL1 can have MAX_PREFETCHERS prefetchers independent of the DL1 or LLC */
 
-union val_t {
-  byte_t b;
-  word_t w;
-  dword_t dw;
-  qword_t q;
-  sfloat_t s;
-  dfloat_t d;
-  efloat_t e;
-};
-
 /* structure for a uop's list of output dependencies (dataflow children) */
 struct odep_t {
   struct uop_t * uop;
