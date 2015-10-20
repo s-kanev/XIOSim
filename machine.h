@@ -54,13 +54,7 @@
 #ifndef X86_H
 #define X86_H
 
-#include <cstdint>
-
 extern "C" {
-
-#include <stdio.h>
-#include <assert.h>
-#include <math.h>
 
 #include "host.h"
 #include "misc.h"
@@ -74,19 +68,6 @@ typedef dword_t md_addr_t;
 
 /* physical address type definition (64-bit) */
 typedef qword_t md_paddr_t;
-
-namespace xiosim {
-namespace x86 {
-const size_t MAX_ILEN = 15;
-}
-}
-
-//XXX: This should go away once I'm done with the cleanup
-typedef struct {
-    size_t len;
-    bool rep;
-    uint8_t code[xiosim::x86::MAX_ILEN];
-} md_inst_t;
 
 }
 

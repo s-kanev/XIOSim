@@ -2,6 +2,7 @@
 #include "catch.hpp"
 
 #define DECODE_DEBUG
+#include "../fu.h"
 #include "test_xed_context.h"
 
 

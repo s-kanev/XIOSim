@@ -560,7 +560,7 @@ void core_commit_IO_DPM_t::IO_step(void)
         if(Mop->uop[Mop->decode.last_uop_index].decode.EOM)
         {
           ZESTO_STAT(core->stat.commit_insn++;)
-          ZESTO_STAT(core->stat.commit_bytes += Mop->fetch.inst.len;)
+          ZESTO_STAT(core->stat.commit_bytes += Mop->fetch.len;)
         }
 
         if(Mop->decode.is_ctrl)
@@ -571,7 +571,7 @@ void core_commit_IO_DPM_t::IO_step(void)
         ZESTO_STAT(core->stat.commit_branches += Mop->stat.num_branches;)
         ZESTO_STAT(core->stat.commit_refs += Mop->stat.num_refs;)
         ZESTO_STAT(core->stat.commit_loads += Mop->stat.num_loads;)
-        if(Mop->fetch.inst.rep)
+        if(Mop->decode.has_rep)
         {
           if(Mop->uop[Mop->decode.last_uop_index].decode.EOM)
             ZESTO_STAT(core->stat.commit_rep_insn++;)
@@ -589,7 +589,7 @@ void core_commit_IO_DPM_t::IO_step(void)
         core->stat.flow_count += Mop->stat.num_uops;
         core->stat.eff_flow_count += Mop->stat.num_eff_uops;
 
-        if(Mop->fetch.inst.rep) /* all iterations of a REP count as one macro-op! */
+        if(Mop->decode.has_rep) /* all iterations of a REP count as one macro-op! */
         {
           if(Mop->uop[0].decode.BOM)
           {

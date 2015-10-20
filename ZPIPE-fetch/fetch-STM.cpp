@@ -433,20 +433,20 @@ bool core_fetch_STM_t::do_fetch(void)
   core->oracle->consume(Mop);
 
   /* figure out where to fetch from next */
-  if(Mop->decode.is_ctrl || Mop->fetch.inst.rep)
+  if(Mop->decode.is_ctrl || Mop->decode.has_rep)
   {
     Mop->fetch.bpred_update = bpred->get_state_cache();
 
     Mop->fetch.pred_NPC = bpred->lookup(Mop->fetch.bpred_update,
-    Mop->decode.opflags, Mop->fetch.PC,Mop->fetch.PC+Mop->fetch.inst.len,Mop->decode.targetPC,
-    Mop->oracle.NextPC,(Mop->oracle.NextPC != (Mop->fetch.PC+Mop->fetch.inst.len)));
+    Mop->decode.opflags, Mop->fetch.PC,Mop->fetch.PC+Mop->fetch.len,Mop->decode.targetPC,
+    Mop->oracle.NextPC,(Mop->oracle.NextPC != (Mop->fetch.PC+Mop->fetch.len)));
 
 
     bpred->spec_update(Mop->fetch.bpred_update,Mop->decode.opflags,
     Mop->fetch.PC,Mop->decode.targetPC,Mop->oracle.NextPC,Mop->fetch.bpred_update->our_pred);
   }
   else
-    Mop->fetch.pred_NPC = Mop->fetch.PC + Mop->fetch.inst.len;
+    Mop->fetch.pred_NPC = Mop->fetch.PC + Mop->fetch.len;
 
   if(Mop->fetch.pred_NPC != Mop->oracle.NextPC)
   {
@@ -457,7 +457,7 @@ bool core_fetch_STM_t::do_fetch(void)
   /* advance the fetch PC to the next instruction */
   PC = Mop->fetch.pred_NPC;
 
-  if(  (Mop->fetch.pred_NPC != (Mop->fetch.PC + Mop->fetch.inst.len))
+  if(  (Mop->fetch.pred_NPC != (Mop->fetch.PC + Mop->fetch.len))
     && (Mop->fetch.pred_NPC != Mop->fetch.PC)) /* REPs don't count as taken branches w.r.t. fetching */
   {
     stall_reason = FSTALL_TBR;

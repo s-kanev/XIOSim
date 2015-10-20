@@ -3,14 +3,17 @@
 
 #include <string>
 
-#include "zesto-structs.h"
-
 extern "C" {
 #include "xed-interface.h"
 }
 
+struct Mop_t;
+struct uop_t;
+
 namespace xiosim {
 namespace x86 {
+
+const size_t MAX_ILEN = 15;
 
 void init_decoder();
 void decode(struct Mop_t * Mop);
@@ -29,12 +32,9 @@ inline const char * print_uop(const struct uop_t * uop) { return "NYI"; }
 
 std::string print_Mop(const struct Mop_t * Mop);
 
-inline xed_iclass_enum_t xed_iclass(const struct Mop_t * Mop)
-{
-    return xed_decoded_inst_get_iclass(&Mop->decode.inst);
-}
+xed_iclass_enum_t xed_iclass(const struct Mop_t * Mop);
 
-}
-}
+}  // xiosim::x86
+}  // xiosim
 
 #endif /* __DECODE_H__ */

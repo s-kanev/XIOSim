@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <sys/wait.h>
 #include <iostream>
 #ifdef SPECULATION_DEBUG
@@ -8,6 +9,7 @@
 #include "feeder.h"
 #include "speculation.h"
 
+#include "../machine.h" //for now
 #include "../decode.h"
 
 /* Chicken bit to disable speculation. */
@@ -45,7 +47,7 @@ BranchPredict(thread_state_t* tstate, handshake_container_t* handshake) {
      * Have to figure out something smarter. To begin with, the bpred really
      * shouldn't use decode information. TODO. */
     struct Mop_t jnk_Mop;
-    memcpy(jnk_Mop.fetch.inst.code, handshake->ins, xiosim::x86::MAX_ILEN);
+    memcpy(jnk_Mop.fetch.code, handshake->ins, xiosim::x86::MAX_ILEN);
     xiosim::x86::decode(&jnk_Mop);
     xiosim::x86::decode_flags(&jnk_Mop);
 

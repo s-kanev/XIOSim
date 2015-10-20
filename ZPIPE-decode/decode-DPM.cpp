@@ -404,7 +404,7 @@ void core_decode_DPM_t::step(void)
 
             /* does this Mop need help from the MS? */
             if((knobs->decode.max_uops[i] && (pipe[0][i]->stat.num_uops > knobs->decode.max_uops[i])) ||
-                pipe[0][i]->fetch.inst.rep)
+                pipe[0][i]->decode.has_rep)
               pipe[0][i]->timing.when_MS_started = core->sim_cycle + knobs->decode.MS_latency; /* all other insts (non-MS) have this timestamp default to TICK_T_MAX */
             if(IQ_Mop->decode.is_ctrl)
               branches_decoded++;
@@ -412,7 +412,7 @@ void core_decode_DPM_t::step(void)
           else /* other decoders must check uop limits */
           {
             if((!knobs->decode.max_uops[i] || (IQ_Mop->stat.num_uops <= knobs->decode.max_uops[i])) &&
-                !IQ_Mop->fetch.inst.rep) /* decoder0 handles reps */
+                !IQ_Mop->decode.has_rep) /* decoder0 handles reps */
             {
               /* consume the Mop from the IQ */
               pipe[0][i] = IQ_Mop;
@@ -428,7 +428,7 @@ void core_decode_DPM_t::step(void)
             }
             else
             {
-              if(IQ_Mop->fetch.inst.rep)
+              if(IQ_Mop->decode.has_rep)
                 stall_reason = DSTALL_REP;
               else if((IQ_Mop->stat.num_uops < knobs->decode.max_uops[0]) && knobs->decode.max_uops[0])
                 stall_reason = DSTALL_SMALL; /* flow too big for current decoder, but small enough for complex decoder */

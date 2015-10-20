@@ -3,6 +3,7 @@
  * Copyright, Svilen Kanev, 2014
 */
 
+#include <assert.h>
 #include <stdio.h>
 
 #include <cstdlib>

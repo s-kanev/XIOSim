@@ -72,8 +72,9 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
-#include <limits.h>
 #include <ctype.h>
+#include <limits.h>
+#include <cmath>
 
 #include "thread.h"
 #include "stats.h"

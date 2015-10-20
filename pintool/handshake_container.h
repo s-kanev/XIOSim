@@ -5,7 +5,8 @@
 #include <utility>
 #include <vector>
 
-#include "../machine.h"
+#include "../machine.h" //for now
+#include "../decode.h"
 
 struct handshake_flags_t {
     bool valid : 1; /* Did we finish dumping context */

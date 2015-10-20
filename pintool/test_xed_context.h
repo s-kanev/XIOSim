@@ -7,6 +7,7 @@ extern "C" {
 
 #include "../decode.h"
 #include "../uop_cracker.h"
+#include "../zesto-structs.h"
 
 class xed_context {
   public:
@@ -33,7 +34,7 @@ class xed_context {
             fatal("conversion to encode request failed\n");
         }
         unsigned int inst_len;
-        auto err = xed_encode(&enc_req, Mop.fetch.inst.code, MAX_ILEN, &inst_len);
+        auto err = xed_encode(&enc_req, Mop.fetch.code, MAX_ILEN, &inst_len);
         if (err != XED_ERROR_NONE) {
             fatal("xed_encode failed %s\n", xed_error_enum_t2str(err));
         }

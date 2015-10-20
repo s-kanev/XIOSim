@@ -75,6 +75,7 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
+#include <assert.h>
 #include "zesto-cache.h"
 
 extern class dram_t * dram;

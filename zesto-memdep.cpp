@@ -72,6 +72,8 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
+#include <cmath>
+
 #include "sim.h"
 #include "stats.h"
 #include "valcheck.h"

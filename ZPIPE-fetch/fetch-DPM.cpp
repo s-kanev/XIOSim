@@ -478,7 +478,7 @@ void core_fetch_DPM_t::post_fetch(void)
         ZESTO_STAT(core->stat.predecode_uops += Mop->stat.num_uops;)
         ZESTO_STAT(core->stat.predecode_eff_uops += Mop->stat.num_eff_uops;)
       }
-      ZESTO_STAT(core->stat.predecode_bytes += Mop->fetch.inst.len;)
+      ZESTO_STAT(core->stat.predecode_bytes += Mop->fetch.len;)
 
       IQ[IQ_tail] = pipe[knobs->fetch.depth-1][i];
       pipe[knobs->fetch.depth-1][i] = NULL;
@@ -533,7 +533,7 @@ void core_fetch_DPM_t::post_fetch(void)
         if(Mop->uop[Mop->decode.last_uop_index].decode.EOM)
         {
           ZESTO_STAT(core->stat.fetch_insn++;)
-          ZESTO_STAT(core->stat.fetch_bytes += Mop->fetch.inst.len;)
+          ZESTO_STAT(core->stat.fetch_bytes += Mop->fetch.len;)
         }
 
         ZESTO_STAT(core->stat.fetch_uops += Mop->stat.num_uops;)
@@ -659,7 +659,7 @@ bool core_fetch_DPM_t::do_fetch(void)
   }
 
   md_addr_t start_PC = Mop->fetch.PC;
-  md_addr_t end_PC = Mop->fetch.PC + Mop->fetch.inst.len - 1; /* addr of last byte */
+  md_addr_t end_PC = Mop->fetch.PC + Mop->fetch.len - 1; /* addr of last byte */
 
   /* We explicitly check for both the address of the first byte and the last
      byte, since x86 instructions have no alignment restrictions and therefore
@@ -736,7 +736,7 @@ bool core_fetch_DPM_t::do_fetch(void)
   core->current_thread->consumed = true;
 
   /* figure out where to fetch from next */
-  if(Mop->decode.is_ctrl || Mop->fetch.inst.rep)  /* XXX: illegal use of decode information */
+  if(Mop->decode.is_ctrl || Mop->decode.has_rep)  /* XXX: illegal use of decode information */
   {
     Mop->fetch.bpred_update = bpred->get_state_cache();
 
@@ -781,7 +781,7 @@ bool core_fetch_DPM_t::do_fetch(void)
   }
   /* Stall on REPs similarly to taken branches, otherwise they easily flood the oracle. */
   /* XXX: We should generalize this for a loop-stream decoder */
-  else if(Mop->fetch.inst.rep && PC == Mop->oracle.NextPC)
+  else if(Mop->decode.has_rep && PC == Mop->oracle.NextPC)
   {
     stall_reason = FSTALL_REP;
     return false;

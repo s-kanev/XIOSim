@@ -1,6 +1,7 @@
 #include <iostream>
 
 #include "decode.h"
+#include "zesto-structs.h"
 
 namespace xiosim {
 namespace x86 {
@@ -15,11 +16,11 @@ void init_decoder() {
 
 void decode(struct Mop_t * Mop) {
     xed_decoded_inst_zero_set_mode(&Mop->decode.inst, &machine_mode);
-    auto ret = xed_decode(&Mop->decode.inst, Mop->fetch.inst.code, MAX_ILEN);
+    auto ret = xed_decode(&Mop->decode.inst, Mop->fetch.code, MAX_ILEN);
     if (ret != XED_ERROR_NONE)
         fatal("XED failed to decode instruction at %x: ", Mop->fetch.PC);
 
-    Mop->fetch.inst.len = xed_decoded_inst_get_length(&Mop->decode.inst);
+    Mop->fetch.len = xed_decoded_inst_get_length(&Mop->decode.inst);
 }
 
 
@@ -159,6 +160,10 @@ std::string print_Mop(const struct Mop_t * Mop) {
     if (!ok)
         return "ERROR dissasembling";
     return buffer;
+}
+
+xed_iclass_enum_t xed_iclass(const struct Mop_t * Mop) {
+    return xed_decoded_inst_get_iclass(&Mop->decode.inst);
 }
 
 }

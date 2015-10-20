@@ -48,6 +48,7 @@
  * Copyright © 1994-2003 by Todd M. Austin, Ph.D. and SimpleScalar, LLC.
  */
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>

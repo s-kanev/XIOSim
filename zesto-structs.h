@@ -75,9 +75,13 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
+#include <assert.h>
+
 extern "C" {
 #include "xed-interface.h"
 }
+
+#include "decode.h"
 #include "fu.h"
 #include "regs.h"
 #include "uop_cracker.h"
@@ -304,7 +308,8 @@ struct alignas(16) Mop_t
     md_addr_t PC;
     md_addr_t pred_NPC;
     md_addr_t ftPC;
-    md_inst_t inst;
+    uint8_t code[x86::MAX_ILEN]; /* instruction bytes */
+    size_t len; /* instruction length */
     bool first_byte_requested;
     bool last_byte_requested;
 
@@ -321,6 +326,7 @@ struct alignas(16) Mop_t
 
     bool is_trap;
     bool is_ctrl;
+    bool has_rep;
 
     size_t last_stage_index; /* index of next uop to remove from decode pipe */
   } decode;
@@ -339,7 +345,7 @@ struct alignas(16) Mop_t
     seq_t seq;
     bool zero_rep; /* TRUE if inst has REP of zero */
     bool spec_mode; /* this instruction is on wrong path? */
-    /* XXX: In most cases this can be inferred from NextPC != fetch.PC + inst.len,
+    /* XXX: In most cases this can be inferred from NextPC != fetch.PC + len,
      * except when we encountered and unknown or overwritten instruction from
      * the feeder. So we keep oracle info about branches from feeder. */
     bool taken_branch;

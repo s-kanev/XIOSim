@@ -73,6 +73,9 @@
  */
 
 
+#include <assert.h>
+#include <cmath>
+
 #include "host.h"
 #include "machine.h"
 #include "misc.h"

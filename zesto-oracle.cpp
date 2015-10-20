@@ -131,9 +131,11 @@
  *
  * Copyright © 1994-2003 by Todd M. Austin, Ph.D. and SimpleScalar, LLC.
  */
-#define ZESTO_ORACLE_C
 
-#include <stddef.h>
+#include <cmath>
+#include <cstddef>
+#include <stack>
+
 #include "host.h"
 #include "misc.h"
 #include "thread.h"
@@ -149,8 +151,6 @@
 #include "zesto-alloc.h"
 #include "zesto-exec.h"
 #include "zesto-commit.h"
-
-#include <stack>
 
 using namespace std;
 
@@ -519,7 +519,7 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
     zesto_assert(spec_mode == handshake.flags.speculative, NULL);
 
     /* read encoding supplied by feeder */
-    memcpy(&Mop->fetch.inst.code, handshake.ins, xiosim::x86::MAX_ILEN);
+    memcpy(&Mop->fetch.code, handshake.ins, xiosim::x86::MAX_ILEN);
 
     /* then decode the instruction */
     x86::decode(Mop);
@@ -608,8 +608,6 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
         if (uop->decode.is_fence && core->current_thread->in_critical_section)
             uop->decode.is_light_fence = true;
 
-        /* XXX: execute the instruction */
-
         /* For loads, stas and stds, we need to grab virt_addr and mem_size from feeder. */
         if (uop->decode.is_load || uop->decode.is_sta || uop->decode.is_std) {
             zesto_assert(!handshake.mem_buffer.empty(), nullptr);
@@ -638,22 +636,6 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
         install_mapping(uop);
         flow_index += 1;  // MD_INC_FLOW;
     }
-
-#if 0
-  /* if PC == NPC, we're still REP'ing, or we've encountered an instruction
-   * we can't handle */
-  if(thread->regs.regs_PC == thread->regs.regs_NPC) {
-      assert(Mop->oracle.spec_mode || Mop->fetch.inst.rep || Mop->decode.op == NOP);
-      /* If we can't handle isntruction, at least set NPC correctly, so that we don't corrupt fetch sequence */
-      if(Mop->decode.op == NOP && !Mop->oracle.spec_mode) {
-          ZTRACE_PRINT(core->id, "XXX: Ignoring unknown instruction at pc: %x\n", thread->regs.regs_PC);
-          ZESTO_STAT(core->stat.oracle_unknown_insn++;)
-          assert(core->fetch->invalid);
-          Mop->fetch.pred_NPC = thread->regs.regs_NPC;
-          Mop->fetch.inst.len = thread->regs.regs_NPC - thread->regs.regs_PC;
-      }
-  }
-#endif
 
     /* Mark EOM -- counting REP iterations as separate instructions */
     Mop->uop[Mop->decode.last_uop_index].decode.EOM = true;

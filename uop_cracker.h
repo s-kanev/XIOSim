@@ -25,7 +25,7 @@ const size_t MAX_IDEPS = 3;
 /* Max numbder of output registers per uop (1+flags). */
 const size_t MAX_ODEPS = 2;
 
-}
-}
+}  // xiosim::x86
+}  // xiosim
 
 #endif /* __UOP_CRACKER_H__ */
