@@ -68,18 +68,22 @@ BranchPredict(thread_state_t* tstate, handshake_container_t* handshake) {
                        bpred_update->our_pred);
 
     bool correct = (pred_NPC == oracle_NPC);
-    /* Mispredicted, some tables (mostly RAS) will be recovered during the flush. */
-    if (!correct)
-        bpred->recover(bpred_update, handshake->flags.brtaken);
+    /* These are only called for branches that make it to the end of exec / commit.
+     * So, unlikely for already speculative branches. */
+    if (!speculation_mode) {
+        /* Mispredicted, some tables (mostly RAS) will be recovered during the flush. */
+        if (!correct)
+            bpred->recover(bpred_update, handshake->flags.brtaken);
 
-    /* Update tables (mostly BTBs) when commiting the branch. */
-    bpred->update(bpred_update,
-                  jnk_Mop.decode.opflags,
-                  handshake->pc,
-                  handshake->npc,
-                  handshake->tpc,
-                  oracle_NPC,
-                  handshake->flags.brtaken);
+        /* Update tables (mostly BTBs) when commiting the branch. */
+        bpred->update(bpred_update,
+                      jnk_Mop.decode.opflags,
+                      handshake->pc,
+                      handshake->npc,
+                      handshake->tpc,
+                      oracle_NPC,
+                      handshake->flags.brtaken);
+    }
     bpred->return_state_cache(bpred_update);
 
     return std::make_pair(correct, pred_NPC);
@@ -92,10 +96,6 @@ static ADDRINT CheckForSpeculation(THREADID tid) {
     /* We're speculating and have reached the speculation limit. We're done. */
     if (speculation_mode && tstate->num_inst >= max_speculated_inst)
         FinishSpeculation(tstate);
-
-    /* We're speculating. Let's not deal with nested speculation. */
-    if (speculation_mode)
-        return 0;
 
     /* In some corner cases (still ignroing instructions) there is no
      * instruction to speculate afer. */
@@ -112,6 +112,15 @@ static ADDRINT CheckForSpeculation(THREADID tid) {
     return (prediction.first == false);
 }
 
+/* Send the simulated app along the latest predicted path.
+ * ExecuteAt doesn't return -- we expect that this is called from the last analysis routine. */
+static void SendFeederSpeculating(thread_state_t* tstate, CONTEXT* ctxt) {
+    PIN_SetContextRegval(ctxt,
+                         LEVEL_BASE::REG_INST_PTR,
+                         reinterpret_cast<const UINT8*>(&tstate->lastBranchPrediction));
+    PIN_ExecuteAt(ctxt);
+}
+
 /* Fork a child feeder that will produce instructions on the speculative path.
  * It's ok if that feeder does something bad (say segfaults) -- in that case,
  * we'll just pick up from the non-speculative path.
@@ -122,6 +131,11 @@ static ADDRINT CheckForSpeculation(THREADID tid) {
  */
 static void Speculate(THREADID tid, CONTEXT* ctxt) {
     thread_state_t* tstate = get_tls(tid);
+
+    /* This is already a speculative feeder, just send it down the path. */
+    if (speculation_mode) {
+        SendFeederSpeculating(tstate, ctxt);
+    }
 
     /* Flush parent producer buffer before forking. */
     xiosim::buffer_management::FlushBuffers(tstate->tid);
@@ -142,12 +156,8 @@ static void Speculate(THREADID tid, CONTEXT* ctxt) {
         /* Zero instructions produced. We'll use this to limit speculation length. */
         tstate->num_inst = 0;
 
-        /* Send the simulated app along the latest predicted path.
-         * ExecuteAt doesn't return -- we rely that this is the last analysis routine. */
-        PIN_SetContextRegval(ctxt,
-                             LEVEL_BASE::REG_INST_PTR,
-                             reinterpret_cast<const UINT8*>(&tstate->lastBranchPrediction));
-        PIN_ExecuteAt(ctxt);
+        /* Finally, send the new child to speculate. */
+        SendFeederSpeculating(tstate, ctxt);
         break;
     }
     case 1: {
@@ -156,6 +166,7 @@ static void Speculate(THREADID tid, CONTEXT* ctxt) {
         break;
     }
     default: {  // parent
+
         /* Wait until child terminates (cleanly or not).
          * XXX: I've tried about 5 different versions of this and it seems that
          * just waitpid-ing is the most reliable (and among the fastests).
