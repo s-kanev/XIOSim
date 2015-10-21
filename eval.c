@@ -233,8 +233,8 @@ const char *eval_type_str[et_NUM] = {
   /* et_int */                "int",
   /* et_uint */                "unsigned int",
   /* et_addr */                "md_addr_t",
-  /* et_qword */        "qword_t",
-  /* et_sqword */        "sqword_t",
+  /* et_qword */        "uint64_t",
+  /* et_sqword */        "int64_t",
   /* et_float */        "float",
   /* et_double */        "double",
   /* et_symbol */        "symbol"
@@ -324,26 +324,26 @@ eval_as_float(struct eval_value_t val)
     }
 }
 
-/* eval_value_t (any numeric type) -> qword_t */
-qword_t
+/* eval_value_t (any numeric type) -> uint64_t */
+uint64_t
 eval_as_qword(struct eval_value_t val)
 {
   switch (val.type)
     {
     case et_double:
-      return (qword_t)val.value.as_double;
+      return (uint64_t)val.value.as_double;
     case et_float:
-      return (qword_t)val.value.as_float;
+      return (uint64_t)val.value.as_float;
     case et_qword:
       return val.value.as_qword;
     case et_sqword:
-      return (qword_t)val.value.as_sqword;
+      return (uint64_t)val.value.as_sqword;
     case et_addr:
-      return (qword_t)val.value.as_addr;
+      return (uint64_t)val.value.as_addr;
     case et_uint:
-      return (qword_t)val.value.as_uint;
+      return (uint64_t)val.value.as_uint;
     case et_int:
-      return (qword_t)val.value.as_int;
+      return (uint64_t)val.value.as_int;
     case et_symbol:
       fatal("symbol used in expression");
     default:
@@ -351,26 +351,26 @@ eval_as_qword(struct eval_value_t val)
     }
 }
 
-/* eval_value_t (any numeric type) -> sqword_t */
-sqword_t
+/* eval_value_t (any numeric type) -> int64_t */
+int64_t
 eval_as_sqword(struct eval_value_t val)
 {
   switch (val.type)
     {
     case et_double:
-      return (sqword_t)val.value.as_double;
+      return (int64_t)val.value.as_double;
     case et_float:
-      return (sqword_t)val.value.as_float;
+      return (int64_t)val.value.as_float;
     case et_qword:
-      return (sqword_t)val.value.as_qword;
+      return (int64_t)val.value.as_qword;
     case et_sqword:
       return val.value.as_sqword;
     case et_addr:
-      return (sqword_t)val.value.as_addr;
+      return (int64_t)val.value.as_addr;
     case et_uint:
-      return (sqword_t)val.value.as_uint;
+      return (int64_t)val.value.as_uint;
     case et_int:
-      return (sqword_t)val.value.as_int;
+      return (int64_t)val.value.as_int;
     case et_symbol:
       fatal("symbol used in expression");
     default:
@@ -701,7 +701,7 @@ f_neg(struct eval_value_t val1)
       break;
     case et_qword:
       val.type = et_sqword;
-      val.value.as_qword = - (sqword_t)val1.value.as_qword;
+      val.value.as_qword = - (int64_t)val1.value.as_qword;
       break;
     case et_sqword:
       val.type = et_sqword;
@@ -716,7 +716,7 @@ f_neg(struct eval_value_t val1)
         {
           /* promote type */
           val.type = et_sqword;
-          val.value.as_sqword = - ((sqword_t)val1.value.as_uint);
+          val.value.as_sqword = - ((int64_t)val1.value.as_uint);
         }
       else
         {
@@ -902,8 +902,8 @@ constant(struct eval_state_t *es)        /* expression evaluator */
   unsigned int uint_val;
   double double_val;
   char *endp;
-  sqword_t sqword_val;
-  qword_t qword_val;
+  int64_t sqword_val;
+  uint64_t qword_val;
 
 #if !defined(__CYGWIN32__)
   extern int errno;
@@ -936,7 +936,7 @@ constant(struct eval_state_t *es)        /* expression evaluator */
       return val;
     }
 
-  /* else, not an int/uint, attempt sqword_t conversion */
+  /* else, not an int/uint, attempt int64_t conversion */
   errno = 0;
   sqword_val = strtoll(es->tok_buf, &endp, /* parse base */0);
   if (!errno && !*endp)
@@ -947,7 +947,7 @@ constant(struct eval_state_t *es)        /* expression evaluator */
       return val;
     }
 
-  /* else, not an sqword_t, attempt qword_t conversion */
+  /* else, not an int64_t, attempt uint64_t conversion */
   errno = 0;
   qword_val = strtoll(es->tok_buf, &endp, /* parse base */0);
   if (!errno && !*endp)
@@ -1199,10 +1199,10 @@ eval_print(FILE *stream,                /* output stream */
       fprintf(stream, "%f [float]", (double)val.value.as_float);
       break;
     case et_qword:
-      fprintf(stream, "%llu [qword_t]", val.value.as_qword);
+      fprintf(stream, "%llu [uint64_t]", val.value.as_qword);
       break;
     case et_sqword:
-      fprintf(stream, "%lld [sqword_t]", val.value.as_sqword);
+      fprintf(stream, "%lld [int64_t]", val.value.as_sqword);
       break;
     case et_addr:
       fprintf(stream, "%x [md_addr_t]", val.value.as_addr);

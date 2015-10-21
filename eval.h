@@ -143,8 +143,8 @@ struct eval_value_t {
     int as_int;				/* value for type == et_int */
     unsigned int as_uint;		/* value for type == et_uint */
     md_addr_t as_addr;			/* value for type == et_addr */
-    qword_t as_qword;			/* value for type == ec_qword */
-    sqword_t as_sqword;			/* value for type == ec_sqword */
+    uint64_t as_qword;			/* value for type == ec_qword */
+    int64_t as_sqword;			/* value for type == ec_sqword */
     float as_float;			/* value for type == et_float */
     double as_double;			/* value for type == et_double */
     const char *as_symbol;			/* value for type == et_symbol */
@@ -162,10 +162,10 @@ double eval_as_double(struct eval_value_t val);
 float eval_as_float(struct eval_value_t val);
 
 /* eval_value_t (any numeric type) -> qword_t */
-qword_t eval_as_qword(struct eval_value_t val);
+uint64_t eval_as_qword(struct eval_value_t val);
 
 /* eval_value_t (any numeric type) -> sqword_t */
-sqword_t eval_as_sqword(struct eval_value_t val);
+int64_t eval_as_sqword(struct eval_value_t val);
 
 /* eval_value_t (any numeric type) -> md_addr_t */
 md_addr_t eval_as_addr(struct eval_value_t val);

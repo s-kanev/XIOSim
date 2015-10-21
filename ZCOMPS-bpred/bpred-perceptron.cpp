@@ -30,14 +30,14 @@ class bpred_perceptron_t:public bpred_dir_t
     short* top_entry;
     int sum;
     /* contents of bhr at lookup (used for update and recovery) */
-    qword_t lookup_bhr;
-    qword_t lookup_bhr_old;
+    uint64_t lookup_bhr;
+    uint64_t lookup_bhr_old;
   };
 
   protected:
 
-  qword_t bhr;
-  qword_t bhr_old;
+  uint64_t bhr;
+  uint64_t bhr_old;
 
   int top_size;
   int top_mask;

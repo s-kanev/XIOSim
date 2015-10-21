@@ -140,7 +140,7 @@ core_commit_STM_t::reg_stats(struct stat_sdb_t * const sdb)
 
   stat_reg_note(sdb,"#### TIMING STATS ####");
   sprintf(buf,"c%d.sim_cycle",arch->id);
-  stat_reg_qword(sdb, true, buf, "total number of cycles when last instruction (or uop) committed", (qword_t*) &core->stat.final_sim_cycle, 0, TRUE, NULL);
+  stat_reg_counter(sdb, true, buf, "total number of cycles when last instruction (or uop) committed", &core->stat.final_sim_cycle, 0, TRUE, NULL);
   /* instruction distribution stats */
   stat_reg_note(sdb,"\n#### INSTRUCTION STATS (no wrong-path) ####");
   sprintf(buf,"c%d.num_insn",arch->id);

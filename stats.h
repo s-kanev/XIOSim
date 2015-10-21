@@ -51,14 +51,15 @@
 #ifndef STAT_H
 #define STAT_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 #include <stdio.h>
 
 #include "host.h"
 #include "eval.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /*
  * The stats package is a uniform module for handling statistical variables,
@@ -76,8 +77,8 @@ extern "C" {
 enum stat_class_t {
   sc_int = 0,			/* integer stat */
   sc_uint,			/* unsigned integer stat */
-  sc_qword,			/* qword integer stat */
-  sc_sqword,			/* signed qword integer stat */
+  sc_qword,			/* uint64 integer stat */
+  sc_sqword,			/* signed uint64 integer stat */
   sc_float,			/* single-precision FP stat */
   sc_double,			/* double-precision FP stat */
   sc_dist,			/* array distribution stat */
@@ -140,17 +141,17 @@ struct stat_stat_t {
       unsigned int init_val;	/* initial unsigned integer value */
       unsigned int end_val;      /* final unsigned integer value */
     } for_uint;
-    /* sc == sc_qword */
-    struct stat_for_qword_t {
-      qword_t *var;		/* qword integer stat variable */
-      qword_t init_val;		/* qword integer value */
-      qword_t end_val;      /* final qword integer value */
+    /* sc == sc_uint64 */
+    struct stat_for_uint64_t {
+      uint64_t *var;		/* uint64 integer stat variable */
+      uint64_t init_val;		/* uint64 integer value */
+      uint64_t end_val;      /* final uint64 integer value */
     } for_qword;
-    /* sc == sc_sqword */
-    struct stat_for_sqword_t {
-      sqword_t *var;		/* signed qword integer stat variable */
-      sqword_t init_val;	/* signed qword integer value */
-      sqword_t end_val;     /* final signed qword integer value */
+    /* sc == sc_int64 */
+    struct stat_for_int64_t {
+      int64_t *var;		/* signed uint64 integer stat variable */
+      int64_t init_val;	/* signed uint64 integer value */
+      int64_t end_val;     /* final signed uint64 integer value */
     } for_sqword;
     /* sc == sc_float */
     struct stat_for_float_t {
@@ -238,25 +239,25 @@ stat_reg_uint(struct stat_sdb_t *sdb,	/* stat database */
           int scale_me,
 	      const char *format);		/* optional variable output format */
 
-/* register a qword integer statistical variable */
+/* register a uint64 integer statistical variable */
 struct stat_stat_t *
 stat_reg_qword(struct stat_sdb_t *sdb,	/* stat database */
          int print_me,
 	       const char *name,		/* stat variable name */
 	       const char *desc,		/* stat variable description */
-	       qword_t *var,		/* stat variable */
-	       qword_t init_val,	/* stat variable initial value */
+	       uint64_t *var,		/* stat variable */
+	       uint64_t init_val,	/* stat variable initial value */
            int scale_me,
 	       const char *format);		/* optional variable output format */
 
-/* register a signed qword integer statistical variable */
+/* register a signed uint64 integer statistical variable */
 struct stat_stat_t *
 stat_reg_sqword(struct stat_sdb_t *sdb,	/* stat database */
     int print_me,
 		const char *name,		/* stat variable name */
 		const char *desc,		/* stat variable description */
-		sqword_t *var,		/* stat variable */
-		sqword_t init_val,	/* stat variable initial value */
+		int64_t *var,		/* stat variable */
+		int64_t init_val,	/* stat variable initial value */
         int scale_me,
 		const char *format);		/* optional variable output format */
 

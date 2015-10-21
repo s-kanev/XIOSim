@@ -351,8 +351,8 @@ stat_reg_qword(struct stat_sdb_t *sdb,	/* stat database */
     int print_me,
     const char *name,		/* stat variable name */
     const char *desc,		/* stat variable description */
-    qword_t *var,		/* stat variable */
-    qword_t init_val,		/* stat variable initial value */
+    uint64_t *var,		/* stat variable */
+    uint64_t init_val,		/* stat variable initial value */
     int scale_me,
     const char *format)		/* optional variable output format */
 {
@@ -386,8 +386,8 @@ stat_reg_sqword(struct stat_sdb_t *sdb,	/* stat database */
     int print_me,
     const char *name,		/* stat variable name */
     const char *desc,		/* stat variable description */
-    sqword_t *var,		/* stat variable */
-    sqword_t init_val,	/* stat variable initial value */
+    int64_t *var,		/* stat variable */
+    int64_t init_val,	/* stat variable initial value */
     int scale_me,
     const char *format)		/* optional variable output format */
 {
@@ -1216,10 +1216,10 @@ void stat_scale_stat(struct stat_stat_t *stat, double weight)
        stat->variant.for_uint.end_val = (unsigned int)(weight * ((double) stat->variant.for_uint.end_val));
        break;
      case sc_qword:
-       stat->variant.for_qword.end_val = (qword_t)(weight * ((double) stat->variant.for_qword.end_val));
+       stat->variant.for_qword.end_val = (uint64_t)(weight * ((double) stat->variant.for_qword.end_val));
        break;
      case sc_sqword:
-       stat->variant.for_sqword.end_val = (sqword_t)(weight * ((double) stat->variant.for_sqword.end_val));
+       stat->variant.for_sqword.end_val = (int64_t)(weight * ((double) stat->variant.for_sqword.end_val));
        break;
      case sc_float:
        stat->variant.for_float.end_val = (float)(weight * ((double) stat->variant.for_float.end_val));

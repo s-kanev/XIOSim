@@ -29,8 +29,8 @@ class bpred_pathneural_t:public bpred_dir_t
   class bpred_pathneural_sc_t:public bpred_sc_t
   {
     public:
-    qword_t * bhr;
-    qword_t lookup_bhr;
+    uint64_t * bhr;
+    uint64_t lookup_bhr;
     md_addr_t lookup_path[MAX_PATHNEURAL_PATH];
     md_addr_t lookup_PC;
     int sum;
@@ -40,7 +40,7 @@ class bpred_pathneural_t:public bpred_dir_t
 
   int bht_size;
   int bht_mask;
-  qword_t * bht;
+  uint64_t * bht;
   int top_size;
   int top_mask;
   short **top; /* table of pathneurals */
@@ -56,7 +56,7 @@ class bpred_pathneural_t:public bpred_dir_t
   counter_t weights_written;
 
   int history_length;
-  qword_t history_mask;
+  uint64_t history_mask;
 
   public:
 
@@ -84,7 +84,7 @@ class bpred_pathneural_t:public bpred_dir_t
     bht_size = arg_bht_size;
     bht_mask = arg_bht_size-1;
     history_length = arg_history_length;
-    history_mask = (((qword_t)1)<<arg_history_length)-1;
+    history_mask = (((uint64_t)1)<<arg_history_length)-1;
 
     top_size = arg_top_size;
     top_mask = (1<<(int)(rint(ceil(log(arg_top_size)/log(2.0)))))-1;
@@ -103,7 +103,7 @@ class bpred_pathneural_t:public bpred_dir_t
     weight_max = (1<<(weight_width-1))-1;
     weight_min = -(1<<(weight_width-1));
 
-    bht = (qword_t*) calloc(bht_size,sizeof(*bht));
+    bht = (uint64_t*) calloc(bht_size,sizeof(*bht));
     if(!bht)
       fatal("couldn't malloc pathneural BHT");
     top = (short**) calloc(top_size,sizeof(*top));

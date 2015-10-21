@@ -1095,7 +1095,7 @@ struct cache_line_t * cache_get_evictee(
 
       while(1)
       {
-        qword_t way = cp->blocks[index][1].meta;
+        uint64_t way = cp->blocks[index][1].meta;
         struct cache_line_t * p = &cp->blocks[index][way];
 
         /* increment clock */

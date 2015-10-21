@@ -213,30 +213,30 @@ core_commit_IO_DPM_t::reg_stats(struct stat_sdb_t * const sdb)
 
   stat_reg_note(sdb,"#### TIMING STATS ####");
   sprintf(buf,"c%d.sim_cycle",arch->id);
-  stat_reg_qword(sdb, true, buf, "total number of cycles when last instruction (or uop) committed", (qword_t*) &core->stat.final_sim_cycle, 0, TRUE, NULL);
+  stat_reg_counter(sdb, true, buf, "total number of cycles when last instruction (or uop) committed", &core->stat.final_sim_cycle, 0, TRUE, NULL);
   /* cumulative slip cycles (not printed) */
   sprintf(buf,"c%d.Mop_fetch_Tslip",core->current_thread->id);
-  stat_reg_qword(sdb, false, buf, "total Mop fetch slip cycles", (qword_t*) &core->stat.Mop_fetch_slip, 0, TRUE, NULL);
+  stat_reg_counter(sdb, false, buf, "total Mop fetch slip cycles", &core->stat.Mop_fetch_slip, 0, TRUE, NULL);
   sprintf(buf,"c%d.Mop_f2d_Tslip",core->current_thread->id);
-  stat_reg_qword(sdb, false, buf, "total Mop fetch-to-decode slip cycles", (qword_t*) &core->stat.Mop_fetch2decode_slip, 0, TRUE, NULL);
+  stat_reg_counter(sdb, false, buf, "total Mop fetch-to-decode slip cycles", &core->stat.Mop_fetch2decode_slip, 0, TRUE, NULL);
   sprintf(buf,"c%d.Mop_decode_Tslip",core->current_thread->id);
-  stat_reg_qword(sdb, false, buf, "total Mop decode slip cycles", (qword_t*) &core->stat.Mop_decode_slip, 0, TRUE, NULL);
+  stat_reg_counter(sdb, false, buf, "total Mop decode slip cycles", &core->stat.Mop_decode_slip, 0, TRUE, NULL);
   sprintf(buf,"c%d.uop_d2a_Tslip",core->current_thread->id);
-  stat_reg_qword(sdb, false, buf, "total uop decode-to-alloc slip cycles", (qword_t*) &core->stat.uop_decode2alloc_slip, 0, TRUE, NULL);
+  stat_reg_counter(sdb, false, buf, "total uop decode-to-alloc slip cycles", &core->stat.uop_decode2alloc_slip, 0, TRUE, NULL);
   sprintf(buf,"c%d.uop_a2r_Tslip",core->current_thread->id);
-  stat_reg_qword(sdb, false, buf, "total uop alloc-to-ready slip cycles", (qword_t*) &core->stat.uop_alloc2ready_slip, 0, TRUE, NULL);
+  stat_reg_counter(sdb, false, buf, "total uop alloc-to-ready slip cycles", &core->stat.uop_alloc2ready_slip, 0, TRUE, NULL);
   sprintf(buf,"c%d.uop_r2i_Tslip",core->current_thread->id);
-  stat_reg_qword(sdb, false, buf, "total uop ready-to-issue slip cycles", (qword_t*) &core->stat.uop_ready2issue_slip, 0, TRUE, NULL);
+  stat_reg_counter(sdb, false, buf, "total uop ready-to-issue slip cycles", &core->stat.uop_ready2issue_slip, 0, TRUE, NULL);
   sprintf(buf,"c%d.uop_i2e_Tslip",core->current_thread->id);
-  stat_reg_qword(sdb, false, buf, "total uop issue-to-exec slip cycles", (qword_t*) &core->stat.uop_issue2exec_slip, 0, TRUE, NULL);
+  stat_reg_counter(sdb, false, buf, "total uop issue-to-exec slip cycles", &core->stat.uop_issue2exec_slip, 0, TRUE, NULL);
   sprintf(buf,"c%d.uop_e2w_Tslip",core->current_thread->id);
-  stat_reg_qword(sdb, false, buf, "total uop exec-to-WB slip cycles", (qword_t*) &core->stat.uop_exec2complete_slip, 0, TRUE, NULL);
+  stat_reg_counter(sdb, false, buf, "total uop exec-to-WB slip cycles", &core->stat.uop_exec2complete_slip, 0, TRUE, NULL);
   sprintf(buf,"c%d.uop_w2c_Tslip",core->current_thread->id);
-  stat_reg_qword(sdb, false, buf, "total uop WB-to-commit slip cycles", (qword_t*) &core->stat.uop_complete2commit_slip, 0, TRUE, NULL);
+  stat_reg_counter(sdb, false, buf, "total uop WB-to-commit slip cycles", &core->stat.uop_complete2commit_slip, 0, TRUE, NULL);
   sprintf(buf,"c%d.Mop_d2c_Tslip",core->current_thread->id);
-  stat_reg_qword(sdb, false, buf, "total Mop decode-to-commit slip cycles", (qword_t*) &core->stat.Mop_decode2commit_slip, 0, TRUE, NULL);
+  stat_reg_counter(sdb, false, buf, "total Mop decode-to-commit slip cycles", &core->stat.Mop_decode2commit_slip, 0, TRUE, NULL);
   sprintf(buf,"c%d.Mop_commit_Tslip",core->current_thread->id);
-  stat_reg_qword(sdb, false, buf, "total Mop commit slip cycles", (qword_t*) &core->stat.Mop_commit_slip, 0, TRUE, NULL);
+  stat_reg_counter(sdb, false, buf, "total Mop commit slip cycles", &core->stat.Mop_commit_slip, 0, TRUE, NULL);
   /* average slip cycles */
   sprintf(buf,"c%d.Mop_fetch_avg_slip",arch->id);
   sprintf(buf2,"c%d.Mop_fetch_Tslip / (c%d.commit_insn - c%d.num_traps)",arch->id,arch->id,arch->id);

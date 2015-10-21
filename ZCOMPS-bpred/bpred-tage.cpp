@@ -29,7 +29,7 @@ class bpred_tage_t:public bpred_dir_t
 #define TAGE_MAX_HIST 512
 #define TAGE_MAX_TABLES 16
 
-  typedef qword_t bpred_tage_hist_t[8]; /* Max length: 8 * 64 = 512 */
+  typedef uint64_t bpred_tage_hist_t[8]; /* Max length: 8 * 64 = 512 */
 
   struct bpred_tage_ent_t
   {
@@ -88,7 +88,7 @@ class bpred_tage_t:public bpred_dir_t
     for(i=0;i<hist_length/hash_length;i++)
     {
       result ^= (H[row]>>pos) & mask;
-      if(pos+hash_length > 64) /* wrap past end of current qword_t */
+      if(pos+hash_length > 64) /* wrap past end of current uint64_t */
       {
         row++;
         pos = (pos+hash_length)&63;
