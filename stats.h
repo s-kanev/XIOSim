@@ -30,6 +30,7 @@
 #define stat_reg_pred_formula stat_reg_comp_formula
 #define stat_reg_pred_int stat_reg_comp_int
 #define stat_reg_pred_string stat_reg_comp_string
+#define stat_reg_comp_counter stat_reg_comp_sqword
 
 using xiosim::stats::BaseStatistic;
 using xiosim::stats::Distribution;
@@ -154,6 +155,17 @@ xiosim::stats::Statistic<double>& stat_reg_double(StatsDatabase* sdb,
                                                   double init_val,
                                                   int scale_me,
                                                   const char* format);
+
+xiosim::stats::Statistic<double>& stat_reg_comp_double(StatsDatabase* sdb,
+                                                       int print_me,
+                                                       int core_id,
+                                                       const char* comp_name,
+                                                       const char* stat_name,
+                                                       const char* desc,
+                                                       double* var,
+                                                       double init_val,
+                                                       int scale_me,
+                                                       const char* format);
 
 // Nothing actually uses the print_fn_t option, so we'll just leave it as a
 // void* for now.

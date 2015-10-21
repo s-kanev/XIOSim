@@ -284,7 +284,7 @@ void cache_reg_stats(xiosim::stats::StatsDatabase* sdb,
         return;
 
     struct thread_t* arch = core->current_thread;
-    auto sim_cycle_st = stat_find_core_stat<sqword_t>(sdb, arch->id, "sim_cycle");
+    auto sim_cycle_st = stat_find_core_stat<qword_t>(sdb, arch->id, "sim_cycle");
     assert(sim_cycle_st);
     auto commit_insn_st = stat_find_core_stat<sqword_t>(sdb, arch->id, "commit_insn");
     assert(commit_insn_st);

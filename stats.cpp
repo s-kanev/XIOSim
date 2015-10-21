@@ -237,6 +237,24 @@ Statistic<double>& stat_reg_double(StatsDatabase* sdb,
     return reg_stat_helper<double>(sdb, print_me, name, desc, var, init_val, scale_me, format);
 }
 
+Statistic<double>& stat_reg_comp_double(StatsDatabase* sdb,
+                                        int print_me,
+                                        int core_id,
+                                        const char* comp_name,
+                                        const char* stat_name,
+                                        const char* desc,
+                                        double* var,
+                                        double init_val,
+                                        int scale_me,
+                                        const char* format) {
+    char full_stat_name[STAT_NAME_MAX_LEN];
+    char full_desc[DESC_MAX_LEN];
+    snprintf(full_stat_name, STAT_NAME_MAX_LEN, comp_stat_fmt, core_id, comp_name, stat_name);
+    snprintf(full_desc, DESC_MAX_LEN, desc, comp_name);
+    return stat_reg_double(
+            sdb, print_me, full_stat_name, full_desc, var, init_val, scale_me, format);
+}
+
 // Distributions
 
 Distribution* stat_reg_dist(StatsDatabase* sdb,
