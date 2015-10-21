@@ -8,15 +8,18 @@
 
 using namespace xiosim::stats;
 
+const size_t STAT_NAME_MAX_LEN = 64;
+const size_t DESC_MAX_LEN = 128;
+const char* core_stat_fmt = "c%d.%s";      // c<num>.<stat_name>
+const char* cache_stat_fmt = "c%d.%s.%s";  // c<num>.<cache_name>.<stat_name>
+const char* llc_stat_fmt = "%s.c%d.%s";  // <cache_name>.c<num>.<stat_name>
+
 //**************************************************//
 //                    Scalars                       //
 // *************************************************//
 
 // These all return references so they can be directly used in an expression
 // without an additional deference.
-
-const size_t STAT_NAME_MAX_LEN = 64;
-const char* core_stat_fmt = "c%d.%s";
 
 template <typename T>
 Statistic<T>& reg_stat_helper(StatsDatabase* sdb,
@@ -122,6 +125,49 @@ Statistic<sqword_t>& stat_reg_core_sqword(StatsDatabase* sdb,
     char full_stat_name[STAT_NAME_MAX_LEN];
     snprintf(full_stat_name, STAT_NAME_MAX_LEN, core_stat_fmt, core_id, name);
     return stat_reg_sqword(sdb, print_me, full_stat_name, desc, var, init_val, scale_me, format);
+}
+
+/* Cache stats are labeled by the originating core and the target cache.
+ *
+ * For non last-level caches:
+ *    Formatted stat name = c[core_id].[cache_name].[stat_name].
+ *    Formatted description = @desc, where @desc is assumed to contain a single
+ *        string formatting replacement character (e.g. "num misses in %s.")
+ *        where @cache_name will be substituted.
+ *
+ * For the LLC:
+ *    Formatted stat name = [cache_name].c[core_id].[stat_name]
+ *    Formatted description = @desc, where @desc is assumed to contain an
+ *        integer formatting replacement character AND a string replacement
+ *        character (e.g. "num misses for core %d in cache %s.") where @core_id
+ *        and @cache_name will be substituted, respectively.
+ *
+ * The difference in behavior is because LLCs do not belong to a core, so they
+ * should not be labeled as a subcategory of one.
+ *
+ */
+Statistic<sqword_t>& stat_reg_cache_sqword(StatsDatabase* sdb,
+                                           int print_me,
+                                           int core_id,
+                                           const char* cache_name,
+                                           const char* stat_name,
+                                           const char* desc,
+                                           sqword_t* var,
+                                           sqword_t init_val,
+                                           int scale_me,
+                                           const char* format,
+                                           bool is_llc) {
+    char full_stat_name[STAT_NAME_MAX_LEN];
+    char full_desc[DESC_MAX_LEN];
+    if (is_llc) {
+        snprintf(full_stat_name, STAT_NAME_MAX_LEN, llc_stat_fmt, cache_name, core_id, stat_name);
+        snprintf(full_desc, DESC_MAX_LEN, desc, core_id, cache_name);
+    } else {
+        snprintf(full_stat_name, STAT_NAME_MAX_LEN, cache_stat_fmt, core_id, cache_name, stat_name);
+        snprintf(full_desc, DESC_MAX_LEN, desc, cache_name);
+    }
+    return stat_reg_sqword(sdb, print_me, full_stat_name, full_desc, var, init_val, scale_me,
+                           format);
 }
 
 Statistic<float>& stat_reg_float(StatsDatabase* sdb,
@@ -301,6 +347,31 @@ Formula* stat_reg_core_formula(StatsDatabase* sdb,
     snprintf(full_stat_name, STAT_NAME_MAX_LEN, core_stat_fmt, core_id, name);
 
     Formula* formula = sdb->add_formula(full_stat_name, desc, expression);
+    if (format)
+        formula->set_output_fmt(format);
+    return formula;
+}
+
+Formula* stat_reg_cache_formula(StatsDatabase* sdb,
+                                int print_me,
+                                int core_id,
+                                const char* cache_name,
+                                const char* stat_name,
+                                const char* desc,
+                                xiosim::stats::ExpressionWrapper expression,
+                                const char* format,
+                                bool is_llc) {
+    char full_stat_name[STAT_NAME_MAX_LEN];
+    char full_desc[DESC_MAX_LEN];
+    if (is_llc) {
+        snprintf(full_stat_name, STAT_NAME_MAX_LEN, llc_stat_fmt, cache_name, core_id, stat_name);
+        snprintf(full_desc, DESC_MAX_LEN, desc, core_id, cache_name);
+    } else {
+        snprintf(full_stat_name, STAT_NAME_MAX_LEN, cache_stat_fmt, core_id, cache_name, stat_name);
+        snprintf(full_desc, DESC_MAX_LEN, desc, cache_name);
+    }
+
+    Formula* formula = sdb->add_formula(full_stat_name, full_desc, expression);
     if (format)
         formula->set_output_fmt(format);
     return formula;

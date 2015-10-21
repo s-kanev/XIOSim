@@ -273,375 +273,351 @@ struct cache_t * cache_create(
   return cp;
 }
 
-void cache_reg_stats(
-    xiosim::stats::StatsDatabase* sdb,
-    const struct core_t * const core,
-    struct cache_t * const cp)
-{
-  char buf[256];
-  char buf2[256];
-  char buf3[256];
-  char core_str[256];
+void cache_reg_stats(xiosim::stats::StatsDatabase* sdb,
+                     const struct core_t* const core,
+                     struct cache_t* const cp) {
+    using namespace xiosim::stats;
 
-  if (!core)
-      fatal("must provide a core for cache_reg_stats; for LLC, use LLC_reg_stats");
-  if (!cp)
-      return;
+    if (!core)
+        fatal("must provide a core for cache_reg_stats; for LLC, use LLC_reg_stats");
+    if (!cp)
+        return;
 
-  int id = core->current_thread->id;
-  sprintf(core_str,"c%d.",id);
+    struct thread_t* arch = core->current_thread;
+    auto sim_cycle_st = stat_find_core_stat<sqword_t>(sdb, arch->id, "sim_cycle");
+    assert(sim_cycle_st);
+    auto commit_insn_st = stat_find_core_stat<sqword_t>(sdb, arch->id, "commit_insn");
+    assert(commit_insn_st);
+    auto commit_uops_st = stat_find_core_stat<sqword_t>(sdb, arch->id, "commit_uops");
+    assert(commit_uops_st);
+    auto commit_eff_uops_st = stat_find_core_stat<sqword_t>(sdb, arch->id, "commit_eff_uops");
+    assert(commit_eff_uops_st);
 
-  if(cp->read_only == CACHE_READWRITE)
-  {
-    sprintf(buf,"%s%s.load_lookups",core_str,cp->name);
-    sprintf(buf2,"number of load lookups in %s",cp->name);
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.load_lookups, 0, TRUE, NULL);
-    sprintf(buf,"%s%s.load_misses",core_str,cp->name);
-    sprintf(buf2,"number of load misses in %s",cp->name);
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.load_misses, 0, TRUE, NULL);
-    sprintf(buf,"%s%s.load_miss_rate",core_str,cp->name);
-    sprintf(buf2,"load miss rate in %s",cp->name);
-    sprintf(buf3,"%s%s.load_misses/%s%s.load_lookups",core_str,cp->name,core_str,cp->name);
-    stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
+    if (cp->read_only == CACHE_READWRITE) {
+        auto& load_lookups_st = stat_reg_cache_counter(
+                sdb, true, arch->id, cp->name, "load_lookups", "number of load lookups in %s",
+                &cp->stat.load_lookups, 0, TRUE, NULL);
+        auto& load_misses_st = stat_reg_cache_counter(sdb, true, arch->id, cp->name, "load_misses",
+                                                      "number of load misses in %s",
+                                                      &cp->stat.load_misses, 0, TRUE, NULL);
+        stat_reg_cache_formula(sdb, true, arch->id, cp->name, "load_miss_rate",
+                               "load miss rate in %s", load_misses_st / load_lookups_st, "%12.4f");
 
-    sprintf(buf,"%s%s.store_lookups",core_str,cp->name);
-    sprintf(buf2,"number of store lookups in %s",cp->name);
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.store_lookups, 0, TRUE, NULL);
-    sprintf(buf,"%s%s.store_misses",core_str,cp->name);
-    sprintf(buf2,"number of store misses in %s",cp->name);
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.store_misses, 0, TRUE, NULL);
-    sprintf(buf,"%s%s.store_miss_rate",core_str,cp->name);
-    sprintf(buf2,"store miss rate in %s",cp->name);
-    sprintf(buf3,"%s%s.store_misses/%s%s.store_lookups",core_str,cp->name,core_str,cp->name);
-    stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
+        auto& store_lookups_st = stat_reg_cache_counter(
+                sdb, true, arch->id, cp->name, "store_lookups", "number of store lookups in %s",
+                &cp->stat.store_lookups, 0, TRUE, NULL);
+        auto& store_misses_st = stat_reg_cache_counter(
+                sdb, true, arch->id, cp->name, "store_misses", "number of store misses in %s",
+                &cp->stat.store_misses, 0, TRUE, NULL);
+        stat_reg_cache_formula(sdb, true, arch->id, cp->name, "store miss rate",
+                               "store miss rate in %s", store_misses_st / store_lookups_st,
+                               "%12.4f");
 
-    sprintf(buf,"%s%s.writeback_lookups",core_str,cp->name);
-    sprintf(buf2,"number of writeback lookups in %s",cp->name);
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.writeback_lookups, 0, TRUE, NULL);
-    sprintf(buf,"%s%s.writeback_misses",core_str,cp->name);
-    sprintf(buf2,"number of writeback misses in %s",cp->name);
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.writeback_misses, 0, TRUE, NULL);
-    sprintf(buf,"%s%s.writeback_miss_rate",core_str,cp->name);
-    sprintf(buf2,"writeback miss rate in %s",cp->name);
-    sprintf(buf3,"%s%s.writeback_misses/%s%s.writeback_lookups",core_str,cp->name,core_str,cp->name);
-    stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
+        auto& writeback_lookups_st = stat_reg_cache_counter(
+                sdb, true, arch->id, cp->name, "writeback_lookups",
+                "number of writeback lookups in %s", &cp->stat.writeback_lookups, 0, TRUE, NULL);
+        auto& writeback_misses_st = stat_reg_cache_counter(
+                sdb, true, arch->id, cp->name, "writeback_misses",
+                "number of writeback misses in %s", &cp->stat.writeback_misses, 0, TRUE, NULL);
+        stat_reg_cache_formula(sdb, true, arch->id, cp->name, "writeback_miss_rate",
+                               "writeback miss rate in %s",
+                               writeback_misses_st / writeback_lookups_st, "%12.4f");
 
-    if(cp->num_prefetchers > 0)
-    {
-      sprintf(buf,"%s%s.pf_lookups",core_str,cp->name);
-      sprintf(buf2,"number of prefetch lookups in %s",cp->name);
-      stat_reg_counter(sdb, true, buf, buf2, &cp->stat.prefetch_lookups, 0, TRUE, NULL);
-      sprintf(buf,"%s%s.pf_misses",core_str,cp->name);
-      sprintf(buf2,"number of prefetch misses in %s",cp->name);
-      stat_reg_counter(sdb, true, buf, buf2, &cp->stat.prefetch_misses, 0, TRUE, NULL);
-      sprintf(buf,"%s%s.pf_miss_rate",core_str,cp->name);
-      sprintf(buf2,"prefetch miss rate in %s",cp->name);
-      sprintf(buf3,"%s%s.pf_misses/%s%s.pf_lookups",core_str,cp->name,core_str,cp->name);
-      stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
+        // These do not include prefetcher lookups yet.
+        // TODO: Fix the names of these formulas and their descriptions.
+        Formula total_lookups("total_lookups",
+                              "total number of lookups in %s (excluding writebacks)", "%12.0f");
+        Formula total_misses("total_misses", "total number of misses in %s (excluding writebacks)",
+                             "%12.0f");
+        Formula total_miss_rate("total_miss_rate", "total miss rate in %s (excluding writebacks)",
+                                "%12.4f");
+        total_lookups = load_lookups_st + store_lookups_st;
+        total_misses = load_misses_st + store_misses_st;
 
-      sprintf(buf,"%s%s.pf_insertions",core_str,cp->name);
-      sprintf(buf2,"number of prefetched blocks inserted into %s",cp->name);
-      stat_reg_counter(sdb, true, buf, buf2, &cp->stat.prefetch_insertions, 0, TRUE, NULL);
-      sprintf(buf,"%s%s.pf_useful_insertions",core_str,cp->name);
-      sprintf(buf2,"number of prefetched blocks actually used in %s",cp->name);
-      stat_reg_counter(sdb, true, buf, buf2, &cp->stat.prefetch_useful_insertions, 0, TRUE, NULL);
-      sprintf(buf,"%s%s.pf_useful_rate",core_str,cp->name);
-      sprintf(buf2,"rate of useful prefetches in %s",cp->name);
-      sprintf(buf3,"%s%s.pf_useful_insertions/%s%s.pf_insertions",core_str,cp->name,core_str,cp->name);
-      stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
+        if (cp->num_prefetchers > 0) {
+            auto& pf_lookups_st = stat_reg_cache_counter(sdb, true, arch->id, cp->name, "pf_lookups",
+                                   "number of prefetch lookups in %s", &cp->stat.prefetch_lookups,
+                                   0, TRUE, NULL);
+            auto& pf_misses_st = stat_reg_cache_counter(sdb, true, arch->id, cp->name, "pf_misses",
+                                   "number of prefetch misses in %s", &cp->stat.prefetch_misses, 0,
+                                   TRUE, NULL);
+            stat_reg_cache_formula(sdb, true, arch->id, cp->name, "pf_miss_rate",
+                                   "prefetch miss rate in %s", pf_misses_st / pf_lookups_st,
+                                   "%12.4f");
+
+            auto& pf_insertions_st = stat_reg_cache_counter(sdb, true, arch->id, cp->name, "pf_insertions",
+                                   "number of prefetched blocks inserted into %s",
+                                   &cp->stat.prefetch_insertions, 0, TRUE, NULL);
+            auto& pf_useful_insertions_st = stat_reg_cache_counter(sdb, true, arch->id, cp->name, "pf_useful_insertions",
+                                   "number of prefetched blocks actually used in %s",
+                                   &cp->stat.prefetch_useful_insertions, 0, TRUE, NULL);
+            stat_reg_cache_formula(sdb, true, arch->id, cp->name, "pf_useful_rate",
+                                   "rate of useful prefetches in %s",
+                                   pf_useful_insertions_st / pf_insertions_st, "%12.4f");
+
+            total_lookups += pf_lookups_st;
+            total_misses += pf_misses_st;
+            total_miss_rate = (load_misses_st + store_misses_st + pf_misses_st) /
+                                 (load_lookups_st + store_lookups_st + pf_lookups_st);
+        } else {
+            // TODO: Add support for building Formulas from existing
+            // Statistics. Until then, we have to define this formula like so.
+            total_miss_rate = (load_misses_st + store_misses_st) /
+                                 (load_lookups_st + store_lookups_st);
+
+        }
+        stat_reg_formula(sdb, total_lookups);
+        stat_reg_formula(sdb, total_misses);
+        stat_reg_formula(sdb, total_miss_rate);
+
+        stat_reg_cache_formula(
+                sdb, true, arch->id, cp->name, "MPKI",
+                "total miss rate in MPKI (no prefetches) for %s (misses/thousand cycles)",
+                (load_misses_st + store_misses_st) / *commit_insn_st * Constant(1000), "%12.4f");
+        stat_reg_cache_formula(sdb, true, arch->id, cp->name, "MPKu",
+                         "total miss rate in MPKu (no prefetches) for %s (misses/thousand cycles)",
+                         (load_misses_st + store_misses_st) / *commit_uops_st * Constant(1000),
+                         "%12.4f");
+        stat_reg_cache_formula(sdb, true, arch->id, cp->name, "MPKeu",
+                         "total miss rate in MPKeu (no prefetches) for %s (misses/thousand cycles)",
+                         (load_misses_st + store_misses_st) / *commit_eff_uops_st * Constant(1000),
+                         "%12.4f");
+        stat_reg_cache_formula(sdb, true, arch->id, cp->name, "MPKC",
+                         "total miss rate in MPKC (no prefetches) for %s (misses/thousand cycles)",
+                         (load_misses_st + store_misses_st) / *sim_cycle_st * Constant(1000),
+                         "%12.4f");
+    } else {
+        auto& lookups_st =
+                stat_reg_cache_counter(sdb, true, arch->id, cp->name, "lookups",
+                                       "number of lookups in %s", &cp->stat.load_lookups, 0, TRUE, NULL);
+        auto& misses_st =
+                stat_reg_cache_counter(sdb, true, arch->id, cp->name, "misses",
+                                       "number of misses in %s", &cp->stat.load_misses, 0, TRUE, NULL);
+
+        if (cp->num_prefetchers > 0) {
+            auto& pf_lookups_st = stat_reg_cache_counter(sdb, true, arch->id, cp->name, "pf_lookups",
+                                   "number of prefetch lookups in %s", &cp->stat.prefetch_lookups,
+                                   0, TRUE, NULL);
+            auto& pf_misses_st = stat_reg_cache_counter(sdb, true, arch->id, cp->name, "pf_misses",
+                                   "number of prefetch misses in %s", &cp->stat.prefetch_misses, 0,
+                                   TRUE, NULL);
+            stat_reg_cache_formula(sdb, true, arch->id, cp->name, "pf_miss_rate",
+                                   "prefetch miss rate in %s", pf_misses_st / pf_lookups_st,
+                                   "%12.4f");
+
+            auto& pf_insertions_st = stat_reg_cache_counter(sdb, true, arch->id, cp->name, "pf_insertions",
+                                   "number of prefetched blocks inserted into %s",
+                                   &cp->stat.prefetch_insertions, 0, TRUE, NULL);
+            auto& pf_useful_insertions_st = stat_reg_cache_counter(sdb, true, arch->id, cp->name, "pf_useful_insertions",
+                                   "number of prefetched blocks actually used in %s",
+                                   &cp->stat.prefetch_useful_insertions, 0, TRUE, NULL);
+            stat_reg_cache_formula(sdb, true, arch->id, cp->name, "pf_useful_rate",
+                                   "rate of useful prefetches in %s",
+                                   pf_useful_insertions_st / pf_insertions_st, "%12.4f");
+
+            stat_reg_cache_formula(sdb, true, arch->id, cp->name, "miss_rate",
+                                   "miss rate in %s (no prefetches)", misses_st / lookups_st,
+                                   "%12.4f");
+            stat_reg_cache_formula(
+                    sdb, true, arch->id, cp->name, "total_miss_rate", "miss rate in %s",
+                    (misses_st + pf_misses_st) / (lookups_st + pf_lookups_st), "%12.4f");
+        } else {
+            stat_reg_cache_formula(sdb, true, arch->id, cp->name, "miss_rate",
+                                   "miss rate in %s (no prefetches)", misses_st / lookups_st,
+                                   "%12.4f");
+        }
+
+        stat_reg_cache_formula(sdb, true, arch->id, cp->name, "MPKI",
+                               "miss rate in MPKI (no prefetches) for %s",
+                               (misses_st) / *commit_insn_st * Constant(1000), "%12.4f");
+        stat_reg_cache_formula(sdb, true, arch->id, cp->name, "MPKu",
+                               "miss rate in MPKu (no prefetches) for %s",
+                               (misses_st) / *commit_uops_st * Constant(1000), "%12.4f");
+        stat_reg_cache_formula(sdb, true, arch->id, cp->name, "MPKeu",
+                               "miss rate in MPKeu (no prefetches) for %s",
+                               (misses_st) / *commit_eff_uops_st * Constant(1000), "%12.4f");
+        stat_reg_cache_formula(sdb, true, arch->id, cp->name, "MPKC",
+                               "miss rate in MPKC (no prefetches) for %s",
+                               (misses_st) / *sim_cycle_st * Constant(1000), "%12.4f");
     }
+    auto& MSHR_total_occupancy_st = stat_reg_cache_counter(
+            sdb, false, arch->id, cp->name, "MSHR_total_occupancy",
+            "cumulative MSHR occupancy in %s", &cp->stat.MSHR_occupancy, 0, TRUE, NULL);
+    stat_reg_cache_formula(sdb, true, arch->id, cp->name, "MSHR_avg_occupancy",
+                           "average MSHR entries in use in %s",
+                           MSHR_total_occupancy_st / *sim_cycle_st, "%12.4f");
+    auto& MSHR_full_cycles_st = stat_reg_cache_counter(
+            sdb, false, arch->id, cp->name, "MSHR_full_cycles", "cycles MSHR was full in %s",
+            &cp->stat.MSHR_full_cycles, 0, TRUE, NULL);
+    stat_reg_cache_formula(sdb, true, arch->id, cp->name, "MSHR_full",
+                           "fraction of time MSHRs are full in %s",
+                           MSHR_full_cycles_st / *sim_cycle_st, "%12.4f");
+    stat_reg_cache_counter(sdb, true, arch->id, cp->name, "MSHR_combos",
+                           "MSHR requests combined in %s", &cp->stat.MSHR_combos, 0, TRUE, NULL);
 
-    sprintf(buf,"%s%s.total_lookups",core_str,cp->name);
-    sprintf(buf2,"total number of lookups in %s (excluding writebacks)",cp->name);
-    sprintf(buf3,"%s%s.load_lookups + %s%s.store_lookups + %s%s.pf_lookups",core_str,cp->name,core_str,cp->name,core_str,cp->name);
-    stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.0f");
-    sprintf(buf,"%s%s.total_misses",core_str,cp->name);
-    sprintf(buf2,"total number of misses in %s (excluding writebacks)",cp->name);
-    sprintf(buf3,"%s%s.load_misses + %s%s.store_misses + %s%s.pf_misses",core_str,cp->name,core_str,cp->name,core_str,cp->name);
-    stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.0f");
-    sprintf(buf,"%s%s.total_miss_rate",core_str,cp->name);
-    sprintf(buf2,"total miss rate in %s (excluding writebacks)",cp->name);
-    sprintf(buf3,"%s%s.total_misses / %s%s.total_lookups",core_str,cp->name,core_str,cp->name);
-    stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
+    for (int i = 0; i < cp->num_prefetchers; i++)
+        cp->prefetcher[i]->reg_stats(sdb, core);
 
-    sprintf(buf,"%s%s.MPKI",core_str,cp->name);
-    sprintf(buf2,"total miss rate in MPKI (no prefetches) for %s",cp->name);
-    sprintf(buf3,"((%s%s.load_misses + %s%s.store_misses) / c%d.commit_insn) * 1000.0",core_str,cp->name,core_str,cp->name,id);
-    stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
-    sprintf(buf,"%s%s.MPKu",core_str,cp->name);
-    sprintf(buf2,"total miss rate in MPKu (no prefetches) for %s",cp->name);
-    sprintf(buf3,"((%s%s.load_misses + %s%s.store_misses) / c%d.commit_uops) * 1000.0",core_str,cp->name,core_str,cp->name,id);
-    stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
-    sprintf(buf,"%s%s.MPKeu",core_str,cp->name);
-    sprintf(buf2,"total miss rate in MPKeu (no prefetches) for %s",cp->name);
-    sprintf(buf3,"((%s%s.load_misses + %s%s.store_misses) / c%d.commit_eff_uops) * 1000.0",core_str,cp->name,core_str,cp->name,id);
-    stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
-    sprintf(buf,"%s%s.MPKC",core_str,cp->name);
-    sprintf(buf2,"total miss rate in MPKC (no prefetches) for %s (misses/thousand cycles)",cp->name);
-    sprintf(buf3,"((%s%s.load_misses + %s%s.store_misses) / c%d.sim_cycle) * 1000.0",core_str,cp->name,core_str,cp->name,id);
-    stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
-  }
-  else
-  {
-    sprintf(buf,"%s%s.lookups",core_str,cp->name);
-    sprintf(buf2,"number of lookups in %s",cp->name);
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.load_lookups, 0, TRUE, NULL);
-    sprintf(buf,"%s%s.misses",core_str,cp->name);
-    sprintf(buf2,"number of misses in %s",cp->name);
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.load_misses, 0, TRUE, NULL);
-    if(cp->num_prefetchers > 0)
-    {
-      sprintf(buf,"%s%s.pf_lookups",core_str,cp->name);
-      sprintf(buf2,"number of prefetch lookups in %s",cp->name);
-      stat_reg_counter(sdb, true, buf, buf2, &cp->stat.prefetch_lookups, 0, TRUE, NULL);
-      sprintf(buf,"%s%s.pf_misses",core_str,cp->name);
-      sprintf(buf2,"number of prefetch misses in %s",cp->name);
-      stat_reg_counter(sdb, true, buf, buf2, &cp->stat.prefetch_misses, 0, TRUE, NULL);
-      sprintf(buf,"%s%s.pf_miss_rate",core_str,cp->name);
-      sprintf(buf2,"prefetch miss rate in %s",cp->name);
-      sprintf(buf3,"%s%s.pf_misses/%s%s.pf_lookups",core_str,cp->name,core_str,cp->name);
-      stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
-
-      sprintf(buf,"%s%s.pf_insertions",core_str,cp->name);
-      sprintf(buf2,"number of prefetched blocks inserted into %s",cp->name);
-      stat_reg_counter(sdb, true, buf, buf2, &cp->stat.prefetch_insertions, 0, TRUE, NULL);
-      sprintf(buf,"%s%s.pf_useful_insertions",core_str,cp->name);
-      sprintf(buf2,"number of prefetched blocks actually used in %s",cp->name);
-      stat_reg_counter(sdb, true, buf, buf2, &cp->stat.prefetch_useful_insertions, 0, TRUE, NULL);
-      sprintf(buf,"%s%s.pf_useful_rate",core_str,cp->name);
-      sprintf(buf2,"rate of useful prefetches in %s",cp->name);
-      sprintf(buf3,"%s%s.pf_useful_insertions/%s%s.pf_insertions",core_str,cp->name,core_str,cp->name);
-      stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
-      sprintf(buf,"%s%s.miss_rate",core_str,cp->name);
-      sprintf(buf2,"miss rate in %s (no prefetches)",cp->name);
-      sprintf(buf3,"%s%s.misses/%s%s.lookups",core_str,cp->name,core_str,cp->name);
-      stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
-      sprintf(buf,"%s%s.total_miss_rate",core_str,cp->name);
-      sprintf(buf2,"miss rate in %s",cp->name);
-      sprintf(buf3,"(%s%s.misses+%s%s.pf_misses)/(%s%s.lookups+%s%s.pf_lookups)",core_str,cp->name,core_str,cp->name,core_str,cp->name,core_str,cp->name);
-      stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
-    }
-    else
-    {
-      sprintf(buf,"%s%s.miss_rate",core_str,cp->name);
-      sprintf(buf2,"miss rate in %s",cp->name);
-      sprintf(buf3,"%s%s.misses/%s%s.lookups",core_str,cp->name,core_str,cp->name);
-      stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
-    }
-
-    sprintf(buf,"%s%s.MPKI",core_str,cp->name);
-    sprintf(buf2,"miss rate in MPKI (no prefetches) for %s",cp->name);
-    sprintf(buf3,"(%s%s.misses / c%d.commit_insn) * 1000.0",core_str,cp->name,id);
-    stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
-    sprintf(buf,"%s%s.MPKu",core_str,cp->name);
-    sprintf(buf2,"miss rate in MPKu (no prefetches) for %s",cp->name);
-    sprintf(buf3,"(%s%s.misses / c%d.commit_uops) * 1000.0",core_str,cp->name,id);
-    stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
-    sprintf(buf,"%s%s.MPKeu",core_str,cp->name);
-    sprintf(buf2,"miss rate in MPKeu (no prefetches) for %s",cp->name);
-    sprintf(buf3,"(%s%s.misses / c%d.commit_eff_uops) * 1000.0",core_str,cp->name,id);
-    stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
-
-    sprintf(buf,"%s%s.MPKC",core_str,cp->name);
-    sprintf(buf2,"miss rate in MPKC (no prefetches) for %s",cp->name);
-    sprintf(buf3,"(%s%s.misses / c%d.sim_cycle) * 1000.0",core_str,cp->name,id);
-    stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
-  }
-  sprintf(buf,"%s%s.MSHR_total_occupancy",core_str,cp->name);
-  sprintf(buf2,"cumulative MSHR occupancy in %s",cp->name);
-  stat_reg_counter(sdb, false, buf, buf2, &cp->stat.MSHR_occupancy, 0, TRUE, NULL);
-  sprintf(buf,"%s%s.MSHR_avg_occupancy",core_str,cp->name);
-  sprintf(buf2,"average MSHR entries in use in %s",cp->name);
-  sprintf(buf3,"(%s%s.MSHR_total_occupancy / c%d.sim_cycle)",core_str,cp->name,id);
-  stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
-  sprintf(buf,"%s%s.MSHR_full_cycles",core_str,cp->name);
-  sprintf(buf2,"cycles MSHR was full in %s",cp->name);
-  stat_reg_counter(sdb, false, buf, buf2, &cp->stat.MSHR_full_cycles, 0, TRUE, NULL);
-  sprintf(buf,"%s%s.MSHR_full",core_str,cp->name);
-  sprintf(buf2,"fraction of time MSHRs are full in %s",cp->name);
-  sprintf(buf3,"(%s%s.MSHR_full_cycles / c%d.sim_cycle)",core_str,cp->name,id);
-  stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
-  sprintf(buf,"%s%s.MSHR_combos",core_str,cp->name);
-  sprintf(buf2,"MSHR requests combined in %s",cp->name);
-  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.MSHR_combos, 0, TRUE, NULL);
-
-  for(int i=0;i<cp->num_prefetchers;i++)
-    cp->prefetcher[i]->reg_stats(sdb,core);
-
-  if(cp->controller)
-    cp->controller->reg_stats(sdb);
+    if (cp->controller)
+        cp->controller->reg_stats(sdb);
 }
 
-void LLC_reg_stats(
-    xiosim::stats::StatsDatabase* sdb,
-    struct cache_t * const cp)
-{
-  char buf[256];
-  char buf2[256];
-  char buf3[256];
+void LLC_reg_stats(xiosim::stats::StatsDatabase* sdb, struct cache_t* const cp) {
+    using namespace xiosim::stats;
 
-  assert(cp->read_only == CACHE_READWRITE);
+    assert(cp->read_only == CACHE_READWRITE);
 
-  sprintf(buf,"LLC.load_lookups");
-  sprintf(buf2,"number of load lookups in LLC");
-  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.load_lookups, 0, TRUE, NULL);
-  sprintf(buf,"LLC.load_misses");
-  sprintf(buf2,"number of load misses in LLC");
-  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.load_misses, 0, TRUE, NULL);
-  sprintf(buf,"LLC.load_miss_rate");
-  sprintf(buf2,"load miss rate in LLC");
-  sprintf(buf3,"LLC.load_misses/LLC.load_lookups");
-  stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
+    auto sim_cycle_st = stat_find_stat<sqword_t>(sdb, "sim_cycle");
+    assert(sim_cycle_st);
 
-  sprintf(buf,"LLC.store_lookups");
-  sprintf(buf2,"number of store lookups in LLC");
-  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.store_lookups, 0, TRUE, NULL);
-  sprintf(buf,"LLC.store_misses");
-  sprintf(buf2,"number of store misses in LLC");
-  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.store_misses, 0, TRUE, NULL);
-  sprintf(buf,"LLC.store_miss_rate");
-  sprintf(buf2,"store miss rate in LLC");
-  sprintf(buf3,"LLC.store_misses/LLC.store_lookups");
-  stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
+    auto& LLC_load_lookups_st =
+            stat_reg_counter(sdb, true, "LLC.load_lookups", "number of load lookups in LLC",
+                             &cp->stat.load_lookups, 0, TRUE, NULL);
+    auto& LLC_load_misses_st =
+            stat_reg_counter(sdb, true, "LLC.load_misses", "number of load misses in LLC",
+                             &cp->stat.load_misses, 0, TRUE, NULL);
+    stat_reg_formula(sdb, true, "LLC.load_miss_rate", "load miss rate in LLC",
+                     LLC_load_misses_st / LLC_load_lookups_st, "%12.4f");
 
-  sprintf(buf,"LLC.writeback_lookups");
-  sprintf(buf2,"number of writeback lookups in LLC");
-  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.writeback_lookups, 0, TRUE, NULL);
-  sprintf(buf,"LLC.writeback_misses");
-  sprintf(buf2,"number of writeback misses in LLC");
-  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.writeback_misses, 0, TRUE, NULL);
-  sprintf(buf,"LLC.writeback_miss_rate");
-  sprintf(buf2,"writeback miss rate in LLC");
-  sprintf(buf3,"LLC.writeback_misses/LLC.writeback_lookups");
-  stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
+    auto& LLC_store_lookups_st =
+            stat_reg_counter(sdb, true, "LLC.store_lookups", "number of store lookups in LLC",
+                             &cp->stat.store_lookups, 0, TRUE, NULL);
+    auto& LLC_store_misses_st =
+            stat_reg_counter(sdb, true, "LLC.store_misses", "number of store misses in LLC",
+                             &cp->stat.store_misses, 0, TRUE, NULL);
+    stat_reg_formula(sdb, true, "LLC.store_miss_rate", "store miss rate in LLC",
+                     LLC_store_misses_st / LLC_store_lookups_st, "%12.4f");
 
-  if(cp->num_prefetchers > 0)
-  {
-    sprintf(buf,"LLC.pf_lookups");
-    sprintf(buf2,"number of prefetch lookups in LLC");
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.prefetch_lookups, 0, TRUE, NULL);
-    sprintf(buf,"LLC.pf_misses");
-    sprintf(buf2,"number of prefetch misses in LLC");
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.prefetch_misses, 0, TRUE, NULL);
-    sprintf(buf,"LLC.pf_miss_rate");
-    sprintf(buf2,"prefetch miss rate in LLC");
-    sprintf(buf3,"LLC.pf_misses/LLC.pf_lookups");
-    stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
+    auto& LLC_writeback_lookups_st = stat_reg_counter(sdb, true, "LLC.writeback_lookups",
+                                                      "number of writeback lookups in LLC",
+                                                      &cp->stat.writeback_lookups, 0, TRUE, NULL);
+    auto& LLC_writeback_misses_st =
+            stat_reg_counter(sdb, true, "LLC.writeback_misses", "number of writeback misses in LLC",
+                             &cp->stat.writeback_misses, 0, TRUE, NULL);
+    stat_reg_formula(sdb, true, "LLC.writeback_miss_rate", "writeback miss rate in LLC",
+                     LLC_writeback_misses_st / LLC_writeback_lookups_st, "%12.4f");
 
-    sprintf(buf,"LLC.pf_insertions");
-    sprintf(buf2,"number of prefetched blocks inserted into LLC");
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.prefetch_insertions, 0, TRUE, NULL);
-    sprintf(buf,"LLC.pf_useful_insertions");
-    sprintf(buf2,"number of prefetched blocks actually used in LLC");
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.prefetch_useful_insertions, 0, TRUE, NULL);
-    sprintf(buf,"LLC.pf_useful_rate");
-    sprintf(buf2,"rate of useful prefetches in LLC");
-    sprintf(buf3,"LLC.pf_useful_insertions/LLC.pf_insertions");
-    stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
-    sprintf(buf,"LLC.total_lookups");
-    sprintf(buf2,"total number of lookups in LLC (excluding writebacks)");
-    sprintf(buf3,"LLC.load_lookups + LLC.store_lookups + LLC.pf_lookups");
-    stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.0f");
-    sprintf(buf,"LLC.total_misses");
-    sprintf(buf2,"total number of misses in LLC (excluding writebacks)");
-    sprintf(buf3,"LLC.load_misses + LLC.store_misses + LLC.pf_misses");
-    stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.0f");
-  }
-  else
-  {
-    sprintf(buf,"LLC.total_lookups");
-    sprintf(buf2,"total number of lookups in LLC (excluding writebacks)");
-    sprintf(buf3,"LLC.load_lookups + LLC.store_lookups");
-    stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.0f");
-    sprintf(buf,"LLC.total_misses");
-    sprintf(buf2,"total number of misses in LLC (excluding writebacks)");
-    sprintf(buf3,"LLC.load_misses + LLC.store_misses");
-    stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.0f");
-  }
+    Formula total_lookups("total_lookups", "total number of lookups in LLC (excluding writebacks)",
+                          "%12.0f");
+    Formula total_misses("total_misses", "total number of misses in LLC (excluding writebacks)",
+                         "%12.0f");
+    Formula total_miss_rate("total_miss_rate", "total miss rate in LLC (excluding writebacks)",
+                            "%12.4f");
 
-  sprintf(buf,"LLC.total_miss_rate");
-  sprintf(buf2,"total miss rate in LLC (excluding writebacks)");
-  sprintf(buf3,"LLC.total_misses / LLC.total_lookups");
-  stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
+    total_lookups = LLC_load_lookups_st + LLC_store_lookups_st;
+    total_misses = LLC_load_misses_st + LLC_store_misses_st;
+    if (cp->num_prefetchers > 0) {
+        auto& LLC_pf_lookups_st =
+                stat_reg_counter(sdb, true, "LLC.pf_lookups", "number of prefetch lookups in LLC",
+                                 &cp->stat.prefetch_lookups, 0, TRUE, NULL);
+        auto& LLC_pf_misses_st =
+                stat_reg_counter(sdb, true, "LLC.pf_misses", "number of prefetch misses in LLC",
+                                 &cp->stat.prefetch_misses, 0, TRUE, NULL);
+        stat_reg_formula(sdb, true, "LLC.pf_miss_rate", "prefetch miss rate in LLC",
+                         LLC_pf_misses_st / LLC_pf_lookups_st, "%12.4f");
 
-  if(num_cores > 1)
-  {
-    sprintf(buf,"LLC.MPKC");
-    sprintf(buf2,"MPKC for the LLC (no prefetches or writebacks)");
-    sprintf(buf3,"((LLC.load_misses+LLC.store_misses) / sim_cycle) * 1000.0");
-    stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
-    sprintf(buf,"LLC.total_MPKC");
-    sprintf(buf2,"MPKC for the LLC (including prefetches)");
-    sprintf(buf3,"((LLC.load_misses+LLC.store_misses+LLC.pf_misses) / sim_cycle) * 1000.0");
-    stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
-  }
+        auto& LLC_pf_insertions_st = stat_reg_counter(
+                sdb, true, "LLC.pf_insertions", "number of prefetched blocks inserted into LLC",
+                &cp->stat.prefetch_insertions, 0, TRUE, NULL);
+        auto& LLC_pf_useful_insertions_st =
+                stat_reg_counter(sdb, true, "LLC.pf_useful_insertions",
+                                 "number of prefetched blocks actually used in LLC",
+                                 &cp->stat.prefetch_useful_insertions, 0, TRUE, NULL);
+        stat_reg_formula(sdb, true, "LLC.pf_useful_rate", "rate of useful prefetches in LLC",
+                         LLC_pf_useful_insertions_st / LLC_pf_insertions_st, "%12.4f");
 
-  sprintf(buf,"LLC.MSHR_total_occupancy");
-  sprintf(buf2,"cumulative MSHR occupancy in LLC");
-  stat_reg_counter(sdb, false, buf, buf2, &cp->stat.MSHR_occupancy, 0, TRUE, NULL);
-  sprintf(buf,"LLC.MSHR_avg_occupancy");
-  sprintf(buf2,"average MSHR entries in use in LLC");
-  sprintf(buf3,"(LLC.MSHR_total_occupancy / sim_cycle)");
-  stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
-  sprintf(buf,"LLC.MSHR_full_cycles");
-  sprintf(buf2,"cycles MSHR was full in LLC");
-  stat_reg_counter(sdb, false, buf, buf2, &cp->stat.MSHR_full_cycles, 0, TRUE, NULL);
-  sprintf(buf,"LLC.MSHR_full");
-  sprintf(buf2,"fraction of time MSHRs are full in LLC");
-  sprintf(buf3,"(LLC.MSHR_full_cycles / sim_cycle)");
-  stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
-  sprintf(buf,"LLC.MSHR_combos");
-  sprintf(buf2,"MSHR requests combined in LLC");
-  stat_reg_counter(sdb, true, buf, buf2, &cp->stat.MSHR_combos, 0, TRUE, NULL);
+        total_lookups += LLC_pf_lookups_st;
+        total_misses += LLC_pf_misses_st;
+        total_miss_rate = (LLC_load_misses_st + LLC_store_misses_st + LLC_pf_misses_st) /
+                          (LLC_load_lookups_st + LLC_store_lookups_st + LLC_pf_lookups_st);
 
-  if(num_cores == 1)
-  {
-    sprintf(buf,"LLC.lookups");
-    sprintf(buf2,"number of lookups in the LLC");
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.core_lookups[0], 0, TRUE, NULL);
-    sprintf(buf,"LLC.misses");
-    sprintf(buf2,"number of misses in the LLC");
-    stat_reg_counter(sdb, true, buf, buf2, &cp->stat.core_misses[0], 0, TRUE, NULL);
-    sprintf(buf,"LLC.MPKI");
-    sprintf(buf2,"MPKI for the LLC");
-    sprintf(buf3,"(LLC.misses / c0.commit_insn) * 1000.0");
-    stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
-    sprintf(buf,"LLC.MPKC");
-    sprintf(buf2,"MPKC for the LLC");
-    sprintf(buf3,"(LLC.misses / c0.sim_cycle) * 1000.0");
-    stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
-  }
-  else
-  {
-    for(int i=0;i<num_cores;i++)
-    {
-      sprintf(buf,"LLC.c%d.lookups",i);
-      sprintf(buf2,"number of lookups by core %d in shared %s cache",i,cp->name);
-      stat_reg_counter(sdb, true, buf, buf2, &cp->stat.core_lookups[i], 0, TRUE, NULL);
-      sprintf(buf,"LLC.c%d.misses",i);
-      sprintf(buf2,"number of misses by core %d in shared %s cache",i,cp->name);
-      stat_reg_counter(sdb, true, buf, buf2, &cp->stat.core_misses[i], 0, TRUE, NULL);
-      sprintf(buf,"LLC.c%d.miss_rate",i);
-      sprintf(buf2,"miss rate by core %d in shared %s cache",i,cp->name);
-      sprintf(buf3,"LLC.c%d.misses / LLC.c%d.lookups",i,i);
-      stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
-      sprintf(buf,"LLC.c%d.MPKI",i);
-      sprintf(buf2,"MPKI by core %d in shared %s cache",i,cp->name);
-      sprintf(buf3,"(LLC.c%d.misses / c%d.commit_insn) * 1000.0",i,i);
-      stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
-      sprintf(buf,"LLC.c%d.MPKC",i);
-      sprintf(buf2,"MPKC by core %d in shared %s cache",i,cp->name);
-      sprintf(buf3,"(LLC.c%d.misses / c%d.sim_cycle) * 1000.0",i,i);
-      stat_reg_formula(sdb, true, buf, buf2, buf3, "%12.4f");
+        if (num_cores > 1)
+            stat_reg_formula(sdb, true, "LLC.total_MPKC", "MPKC for the LLC (including prefetches)",
+                             (LLC_load_misses_st + LLC_store_misses_st + LLC_pf_misses_st) /
+                                     *sim_cycle_st * Constant(1000),
+                             "%12.4f");
+
+    } else {
+        // We register this stat even though we don't have a prefetcher because legacy.
+        if (num_cores > 1)
+            stat_reg_formula(sdb, true, "LLC.total_MPKC", "MPKC for the LLC (including prefetches)",
+                             (LLC_load_misses_st + LLC_store_misses_st) / *sim_cycle_st *
+                                     Constant(1000),
+                             "%12.4f");
+        total_miss_rate = (LLC_load_misses_st + LLC_store_misses_st) /
+                          (LLC_load_lookups_st + LLC_store_lookups_st);
     }
-  }
+    stat_reg_formula(sdb, total_lookups);
+    stat_reg_formula(sdb, total_misses);
+    stat_reg_formula(sdb, total_miss_rate);
 
-  if(cp->prefetcher)
-    for(int i=0;i<cp->num_prefetchers;i++)
-      cp->prefetcher[i]->reg_stats(sdb,NULL);
+    if (num_cores > 1) {
+        stat_reg_formula(sdb, true, "LLC.MPKC", "MPKC for the LLC (no prefetches or writebacks)",
+                         (LLC_load_misses_st + LLC_store_misses_st) / *sim_cycle_st *
+                                 Constant(1000),
+                         "%12.4f");
+    }
 
-  if(cp->controller)
-    cp->controller->reg_stats(sdb);
+    auto& LLC_MSHR_total_occupancy_st = stat_reg_counter(sdb, false, "LLC.MSHR_total_occupancy",
+                                                         "cumulative MSHR occupancy in LLC",
+                                                         &cp->stat.MSHR_occupancy, 0, TRUE, NULL);
+    stat_reg_formula(sdb, true, "LLC.MSHR_avg_occupancy", "average MSHR entries in use in LLC",
+                     LLC_MSHR_total_occupancy_st / *sim_cycle_st, "%12.4f");
+    auto& LLC_MSHR_full_cycles_st =
+            stat_reg_counter(sdb, false, "LLC.MSHR_full_cycles", "cycles MSHR was full in LLC",
+                             &cp->stat.MSHR_full_cycles, 0, TRUE, NULL);
+    stat_reg_formula(sdb, true, "LLC.MSHR_full", "fraction of time MSHRs are full in LLC",
+                     LLC_MSHR_full_cycles_st / *sim_cycle_st, "%12.4f");
+
+    stat_reg_counter(sdb, true, "LLC.MSHR_combos", "MSHR requests combined in LLC",
+                     &cp->stat.MSHR_combos, 0, TRUE, NULL);
+
+    if (num_cores == 1) {
+        auto commit_insn_st = stat_find_core_stat<sqword_t>(sdb, 0, "commit_insn");
+        assert(commit_insn_st);
+
+        stat_reg_counter(sdb, true, "LLC.lookups", "number of lookups in the LLC",
+                         &cp->stat.core_lookups[0], 0, TRUE, NULL);
+        auto& LLC_misses_st =
+                stat_reg_counter(sdb, true, "LLC.misses", "number of misses in the LLC",
+                                 &cp->stat.core_misses[0], 0, TRUE, NULL);
+        stat_reg_formula(sdb, true, "LLC.MPKI", "MPKI for the LLC",
+                         LLC_misses_st / *commit_insn_st * Constant(1000), "%12.4f");
+        stat_reg_formula(sdb, true, "LLC.MPKC", "MPKC for the LLC",
+                         LLC_misses_st / *sim_cycle_st * Constant(1000), "%12.4f");
+    } else {
+        for (int i = 0; i < num_cores; i++) {
+            auto commit_insn_st = stat_find_core_stat<sqword_t>(sdb, i, "commit_insn");
+            assert(commit_insn_st);
+            auto core_sim_cycle_st = stat_find_core_stat<sqword_t>(sdb, i, "sim_cycle");
+            assert(core_sim_cycle_st);
+
+            auto& LLC_lookups_st =
+                    stat_reg_cache_counter(sdb, true, i, cp->name, "lookups",
+                                           "number of lookups by core %d in shared %s cache",
+                                           &cp->stat.core_lookups[i], 0, TRUE, NULL, true);
+            auto& LLC_misses_st =
+                    stat_reg_cache_counter(sdb, true, i, cp->name, "misses",
+                                           "number of misses by core %d in shared %s cache",
+                                           &cp->stat.core_misses[i], 0, TRUE, NULL, true);
+            stat_reg_cache_formula(sdb, true, i, cp->name, "miss_rate",
+                                   "miss rate by core %d in shared %s cache",
+                                   LLC_misses_st / LLC_lookups_st, "%12.4f", true);
+            stat_reg_cache_formula(sdb, true, i, cp->name, "MPKI",
+                                   "MPKI by core %d in shared %s cache",
+                                   LLC_misses_st / *commit_insn_st * Constant(1000), "%12.4f", true);
+            stat_reg_cache_formula(sdb, true, i, cp->name, "MPKC",
+                                   "MPKC by core %d in shared %s cache",
+                                   LLC_misses_st / *core_sim_cycle_st * Constant(1000), "%12.4f", true);
+        }
+    }
+
+    if (cp->prefetcher)
+        for (int i = 0; i < cp->num_prefetchers; i++)
+            cp->prefetcher[i]->reg_stats(sdb, NULL);
+
+    if (cp->controller)
+        cp->controller->reg_stats(sdb);
 }
 
 /* Called after fast-forwarding/warmup to clear out the stats */

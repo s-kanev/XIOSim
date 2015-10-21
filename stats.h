@@ -24,6 +24,7 @@
 
 // Mimicking #define in machine.c.
 #define stat_reg_core_counter stat_reg_core_sqword
+#define stat_reg_cache_counter stat_reg_cache_sqword
 
 typedef xiosim::stats::BaseStatistic BaseStatistic;
 typedef xiosim::stats::Distribution Distribution;
@@ -95,6 +96,18 @@ xiosim::stats::Statistic<sqword_t>& stat_reg_core_sqword(StatsDatabase* sdb,
                                                          sqword_t init_val,
                                                          int scale_me,
                                                          const char* format);
+
+xiosim::stats::Statistic<sqword_t>& stat_reg_cache_sqword(StatsDatabase* sdb,
+                                                          int print_me,
+                                                          int core_id,
+                                                          const char* cache_name,
+                                                          const char* stat_name,
+                                                          const char* desc,
+                                                          sqword_t* var,
+                                                          sqword_t init_val,
+                                                          int scale_me,
+                                                          const char* format,
+                                                          bool is_llc = false);
 
 xiosim::stats::Statistic<float>& stat_reg_float(StatsDatabase* sdb,
                                                 int print_me,
@@ -199,6 +212,16 @@ Formula* stat_reg_core_formula(StatsDatabase* sdb,
                                const char* desc,
                                xiosim::stats::ExpressionWrapper expression,
                                const char* format);
+
+Formula* stat_reg_cache_formula(StatsDatabase* sdb,
+                                int print_me,
+                                int core_id,
+                                const char* cache_name,
+                                const char* stat_name,
+                                const char* desc,
+                                xiosim::stats::ExpressionWrapper expression,
+                                const char* format,
+                                bool is_llc = false);
 
 Formula* stat_reg_formula(StatsDatabase* sdb, Formula& formula);
 
