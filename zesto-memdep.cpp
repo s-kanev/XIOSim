@@ -112,27 +112,18 @@ void memdep_t::update(md_addr_t PC)
 
 void memdep_t::reg_stats(xiosim::stats::StatsDatabase* sdb, struct core_t * core)
 {
-  struct thread_t * arch = core->current_thread;
-  char buf[256];
-  char buf2[256];
-  char buf3[256];
+    using namespace xiosim::stats;
+    struct thread_t* arch = core->current_thread;
 
-  sprintf(buf,"c%d.%s.type",arch->id,name);
-  sprintf(buf2,"prediction algorithm of %s",name);
-  stat_reg_string(sdb, buf, buf2, type, NULL);
-  sprintf(buf,"c%d.%s.bits",arch->id,name);
-  sprintf(buf2,"total size of %s in bits",name);
-  stat_reg_int(sdb, true, buf, buf2, &bits, bits, FALSE, NULL);
-  sprintf(buf,"c%d.%s.size",arch->id,name);
-  sprintf(buf2,"total size of %s in KB",name);
-  sprintf(buf3,"c%d.%s.bits/8192.0",arch->id,name);
-  stat_reg_formula(sdb, true, buf, buf2, buf3, NULL);
-  sprintf(buf,"c%d.%s.lookups",arch->id,name);
-  sprintf(buf2,"number of prediction lookups in %s",name);
-  stat_reg_counter(sdb, true, buf, buf2, &lookups, 0, TRUE, NULL);
-  sprintf(buf,"c%d.%s.updates",arch->id,name);
-  sprintf(buf2,"number of prediction updates in %s",name);
-  stat_reg_counter(sdb, true, buf, buf2, &updates, 0, TRUE, NULL);
+    stat_reg_pred_string(sdb, arch->id, name, "type", "prediction algorithm of %s", type, NULL);
+    auto& bits_st = stat_reg_pred_int(sdb, true, arch->id, name, "bits", "total size of %s in bits",
+                                      &bits, bits, FALSE, NULL);
+    stat_reg_pred_formula(sdb, true, arch->id, name, "size", "total size of %s in KB",
+                          bits_st / Constant(8192), NULL);
+    stat_reg_pred_counter(sdb, true, arch->id, name, "lookups",
+                          "number of prediction lookups in %s", &lookups, 0, TRUE, NULL);
+    stat_reg_pred_counter(sdb, true, arch->id, name, "updates",
+                          "number of prediction updates in %s", &updates, 0, TRUE, NULL);
 }
 
 void memdep_t::freeze_stats(void)

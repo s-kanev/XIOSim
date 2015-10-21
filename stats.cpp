@@ -10,9 +10,10 @@ using namespace xiosim::stats;
 
 const size_t STAT_NAME_MAX_LEN = 64;
 const size_t DESC_MAX_LEN = 128;
-const char* core_stat_fmt = "c%d.%s";      // c<num>.<stat_name>
-const char* cache_stat_fmt = "c%d.%s.%s";  // c<num>.<cache_name>.<stat_name>
-const char* llc_stat_fmt = "%s.c%d.%s";  // <cache_name>.c<num>.<stat_name>
+const char* core_stat_fmt = "c%d.%s";      // c[num].[stat_name]
+const char* cache_stat_fmt = "c%d.%s.%s";  // c[num].[cache_name].[stat_name]
+const char* pred_stat_fmt = "c.%d.%s.%s";  // c[num].[pred_name].[stat_name]
+const char* llc_stat_fmt = "%s.c%d.%s";    // [cache_name].c[num].[stat_name]
 
 //**************************************************//
 //                    Scalars                       //
@@ -63,6 +64,28 @@ Statistic<int>& stat_reg_core_int(StatsDatabase* sdb,
     char full_stat_name[STAT_NAME_MAX_LEN];
     snprintf(full_stat_name, STAT_NAME_MAX_LEN, core_stat_fmt, core_id, name);
     return stat_reg_int(sdb, print_me, name, desc, var, init_val, scale_me, format);
+}
+
+/* Registers a predictor statistic.
+ *
+ * The statistic name is formatted as c[num].[pred_name].[stat_name].
+ * Predictors can be for branches or memory dependences.
+ */
+Statistic<int>& stat_reg_pred_int(StatsDatabase* sdb,
+                                  int print_me,
+                                  int core_id,
+                                  const char* pred_name,
+                                  const char* stat_name,
+                                  const char* desc,
+                                  int* var,
+                                  int init_val,
+                                  int scale_me,
+                                  const char* format) {
+    char full_stat_name[STAT_NAME_MAX_LEN];
+    char full_desc[DESC_MAX_LEN];
+    snprintf(full_stat_name, STAT_NAME_MAX_LEN, pred_stat_fmt, core_id, pred_name, stat_name);
+    snprintf(full_desc, DESC_MAX_LEN, desc, pred_name);
+    return stat_reg_int(sdb, print_me, full_stat_name, full_desc, var, init_val, scale_me, format);
 }
 
 Statistic<unsigned int>& stat_reg_uint(StatsDatabase* sdb,
@@ -127,6 +150,24 @@ Statistic<sqword_t>& stat_reg_core_sqword(StatsDatabase* sdb,
     return stat_reg_sqword(sdb, print_me, full_stat_name, desc, var, init_val, scale_me, format);
 }
 
+Statistic<sqword_t>& stat_reg_pred_sqword(StatsDatabase* sdb,
+                                          int print_me,
+                                          int core_id,
+                                          const char* pred_name,
+                                          const char* stat_name,
+                                          const char* desc,
+                                          sqword_t* var,
+                                          sqword_t init_val,
+                                          int scale_me,
+                                          const char* format) {
+    char full_stat_name[STAT_NAME_MAX_LEN];
+    char full_desc[DESC_MAX_LEN];
+    snprintf(full_stat_name, STAT_NAME_MAX_LEN, pred_stat_fmt, core_id, pred_name, stat_name);
+    snprintf(full_desc, DESC_MAX_LEN, desc, pred_name);
+    return stat_reg_sqword(sdb, print_me, full_stat_name, full_desc, var, init_val, scale_me,
+                           format);
+}
+
 /* Cache stats are labeled by the originating core and the target cache.
  *
  * For non last-level caches:
@@ -144,7 +185,6 @@ Statistic<sqword_t>& stat_reg_core_sqword(StatsDatabase* sdb,
  *
  * The difference in behavior is because LLCs do not belong to a core, so they
  * should not be labeled as a subcategory of one.
- *
  */
 Statistic<sqword_t>& stat_reg_cache_sqword(StatsDatabase* sdb,
                                            int print_me,
@@ -247,7 +287,7 @@ Distribution* stat_reg_sdist(StatsDatabase* sdb,
     return nullptr;
 }
 
-void reg_core_queue_occupancy_stats(xiosim::stats::StatsDatabase* sdb,
+void reg_core_queue_occupancy_stats(StatsDatabase* sdb,
                                     int core_id,
                                     std::string queue_name,
                                     counter_t* occupancy,
@@ -358,7 +398,7 @@ Formula* stat_reg_cache_formula(StatsDatabase* sdb,
                                 const char* cache_name,
                                 const char* stat_name,
                                 const char* desc,
-                                xiosim::stats::ExpressionWrapper expression,
+                                ExpressionWrapper expression,
                                 const char* format,
                                 bool is_llc) {
     char full_stat_name[STAT_NAME_MAX_LEN];
@@ -377,17 +417,52 @@ Formula* stat_reg_cache_formula(StatsDatabase* sdb,
     return formula;
 }
 
+Formula* stat_reg_pred_formula(StatsDatabase* sdb,
+                               int print_me,
+                               int core_id,
+                               const char* pred_name,
+                               const char* stat_name,
+                               const char* desc,
+                               ExpressionWrapper expression,
+                               const char* format) {
+    char full_stat_name[STAT_NAME_MAX_LEN];
+    char full_desc[DESC_MAX_LEN];
+    snprintf(full_stat_name, STAT_NAME_MAX_LEN, pred_stat_fmt, core_id, pred_name, stat_name);
+    snprintf(full_desc, DESC_MAX_LEN, desc, pred_name);
+
+    Formula* formula = sdb->add_formula(full_stat_name, full_desc, expression);
+    if (format)
+        formula->set_output_fmt(format);
+    return formula;
+}
+
+
 //**************************************************//
 //                    Strings                       //
 // *************************************************//
 
-xiosim::stats::Statistic<const char*>& stat_reg_string(StatsDatabase* sdb,
+Statistic<const char*>& stat_reg_string(StatsDatabase* sdb,
                                                        const char* name,
                                                        const char* desc,
                                                        const char* var,
                                                        const char* format) {
 
     Statistic<const char*>* stat = sdb->add_statistic(name, desc, var, format);
+    return *stat;
+}
+
+Statistic<const char*>& stat_reg_pred_string(StatsDatabase* sdb,
+                                             int core_id,
+                                             const char* pred_name,
+                                             const char* stat_name,
+                                             const char* desc,
+                                             const char* var,
+                                             const char* format) {
+    char full_stat_name[STAT_NAME_MAX_LEN];
+    char full_desc[DESC_MAX_LEN];
+    snprintf(full_stat_name, STAT_NAME_MAX_LEN, pred_stat_fmt, core_id, pred_name, stat_name);
+    snprintf(full_desc, DESC_MAX_LEN, desc, pred_name);
+    Statistic<const char*>* stat = sdb->add_statistic(full_stat_name, full_desc, var, format);
     return *stat;
 }
 

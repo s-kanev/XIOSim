@@ -25,11 +25,13 @@
 // Mimicking #define in machine.c.
 #define stat_reg_core_counter stat_reg_core_sqword
 #define stat_reg_cache_counter stat_reg_cache_sqword
+#define stat_reg_pred_counter stat_reg_pred_sqword
 
 typedef xiosim::stats::BaseStatistic BaseStatistic;
 typedef xiosim::stats::Distribution Distribution;
 typedef xiosim::stats::StatsDatabase StatsDatabase;
 typedef xiosim::stats::Formula Formula;
+typedef xiosim::stats::ExpressionWrapper ExpressionWrapper;
 
 xiosim::stats::Statistic<int>& stat_reg_int(StatsDatabase* sdb,
                                             int print_me,
@@ -44,6 +46,17 @@ xiosim::stats::Statistic<int>& stat_reg_core_int(StatsDatabase* sdb,
                                                  int print_me,
                                                  int core_id,
                                                  const char* name,
+                                                 const char* desc,
+                                                 int* var,
+                                                 int init_val,
+                                                 int scale_me,
+                                                 const char* format);
+
+xiosim::stats::Statistic<int>& stat_reg_pred_int(StatsDatabase* sdb,
+                                                 int print_me,
+                                                 int core_id,
+                                                 const char* pred_name,
+                                                 const char* stat_name,
                                                  const char* desc,
                                                  int* var,
                                                  int init_val,
@@ -108,6 +121,17 @@ xiosim::stats::Statistic<sqword_t>& stat_reg_cache_sqword(StatsDatabase* sdb,
                                                           int scale_me,
                                                           const char* format,
                                                           bool is_llc = false);
+
+xiosim::stats::Statistic<sqword_t>& stat_reg_pred_sqword(StatsDatabase* sdb,
+                                                         int print_me,
+                                                         int core_id,
+                                                         const char* pred_name,
+                                                         const char* stat_name,
+                                                         const char* desc,
+                                                         sqword_t* var,
+                                                         sqword_t init_val,
+                                                         int scale_me,
+                                                         const char* format);
 
 xiosim::stats::Statistic<float>& stat_reg_float(StatsDatabase* sdb,
                                                 int print_me,
@@ -197,12 +221,11 @@ Formula* stat_reg_formula(StatsDatabase* sdb,
                           const char* formula,
                           const char* format);
 
-/* Can we just use either ExpressionWrapper or Formula, but not both of them? */
 Formula* stat_reg_formula(StatsDatabase* sdb,
                           int print_me,
                           const char* name,
                           const char* desc,
-                          xiosim::stats::ExpressionWrapper expression,
+                          ExpressionWrapper expression,
                           const char* format);
 
 Formula* stat_reg_core_formula(StatsDatabase* sdb,
@@ -210,7 +233,7 @@ Formula* stat_reg_core_formula(StatsDatabase* sdb,
                                int core_id,
                                const char* name,
                                const char* desc,
-                               xiosim::stats::ExpressionWrapper expression,
+                               ExpressionWrapper expression,
                                const char* format);
 
 Formula* stat_reg_cache_formula(StatsDatabase* sdb,
@@ -219,9 +242,18 @@ Formula* stat_reg_cache_formula(StatsDatabase* sdb,
                                 const char* cache_name,
                                 const char* stat_name,
                                 const char* desc,
-                                xiosim::stats::ExpressionWrapper expression,
+                                ExpressionWrapper expression,
                                 const char* format,
                                 bool is_llc = false);
+
+Formula* stat_reg_pred_formula(StatsDatabase* sdb,
+                               int print_me,
+                               int core_id,
+                               const char* pred_name,
+                               const char* stat_name,
+                               const char* desc,
+                               ExpressionWrapper expression,
+                               const char* format);
 
 Formula* stat_reg_formula(StatsDatabase* sdb, Formula& formula);
 
@@ -230,6 +262,14 @@ xiosim::stats::Statistic<const char*>& stat_reg_string(StatsDatabase* sdb,
                                                        const char* desc,
                                                        const char* var,
                                                        const char* format);
+
+xiosim::stats::Statistic<const char*>& stat_reg_pred_string(StatsDatabase* sdb,
+                                                            int core_id,
+                                                            const char* pred_name,
+                                                            const char* stat_name,
+                                                            const char* desc,
+                                                            const char* var,
+                                                            const char* format);
 
 xiosim::stats::Statistic<const char*>& stat_reg_note(StatsDatabase* sdb, const char* note);
 
