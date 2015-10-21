@@ -412,7 +412,6 @@ void core_commit_IO_DPM_t::IO_step(void)
     }
 
     if(Mop->oracle.spec_mode)
-//      zesto_fatal("oldest instruction in processor is on wrong-path",(void)0);
       zesto_assert(false, (void)0);
 
     /* Are all uops in the Mop completed? */

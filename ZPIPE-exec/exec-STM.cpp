@@ -1203,7 +1203,7 @@ void core_exec_STM_t::ALU_exec(void)
                     {
                       overwrite_index = modinc(overwrite_index,knobs->exec.STQ_size);
                       if(overwrite_index == STQ_tail)
-                        zesto_fatal("searching for matching store color but hit the end of the STQ",(void)0);
+                        fatal("searching for matching store color but hit the end of the STQ");
 
                       md_addr_t new_st_addr = STQ[overwrite_index].virt_addr;
 
@@ -1318,7 +1318,7 @@ void core_exec_STM_t::RS_insert(struct uop_t * const uop)
       break;
   }
   if(RS_index == knobs->exec.RS_size)
-    zesto_fatal("RS and RS_num out of sync",(void)0);
+    fatal("RS and RS_num out of sync");
 
   RS[RS_index] = uop;
   RS_num++;

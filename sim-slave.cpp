@@ -104,7 +104,6 @@
 
 extern int *num_processes;
 extern void CheckIPCMessageQueue(bool isEarly, int caller_coreID);
-extern int heartbeat_count;
 /* power stats database */
 extern struct stat_sdb_t *rtp_sdb;
 

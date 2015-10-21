@@ -141,29 +141,6 @@
 #include "shadow_MopQ.h"
 #include "sim.h"
 
-/* The following macros are used to pretty similarly to regular fatal and assert
-   calls, with the exception that when *not* in DEBUG mode, the failure does not
-   immediately terminate the program.  Instead, the retval argument is immediately
-   returned by the enclosing function, and the oracle's hosed bit is set.  Upon
-   detecting that it is hosed, the oracle will attempt to flush the pipeline and
-   then restore the state of the processor.  This allows you to still get results
-   even when you haven't debugged every last corner case.  Make sure you check the
-   number of emergency recoveries in the simulator's output stats; if this number is
-   small relative to the number of total simulated cycles, then your bug probably
-   won't have much statistically significant impact on your results.  If it's a
-   large number, then go fix your bug(s)! */
-#ifdef DEBUG
-#define zesto_fatal(msg, retval) fatal(msg)
-#else
-#define zesto_fatal(msg, retval) { \
-  fprintf(stderr,"fatal (%s,%d:core %d): ",__FILE__,__LINE__,core->id); \
-  fprintf(stderr,"%s\n",msg); \
-  return (retval); \
-}
-#endif
-
-extern bool assert_spin;
-
 #define zesto_assert(cond, retval) {		\
   if(!(cond)) { \
     fprintf(stderr,"assertion failed (%s,%d:core %d): ",__FILE__,__LINE__,core->id); \

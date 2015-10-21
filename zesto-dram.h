@@ -101,7 +101,6 @@ class dram_t
   virtual void reg_stats(struct stat_sdb_t * const sdb);
 };
 
-#ifndef zesto_fatal
 #ifdef DEBUG
 #define dram_fatal(msg, retval) fatal(msg)
 #else
@@ -110,7 +109,6 @@ class dram_t
   fprintf(stderr,"%s\n",msg); \
   return (retval); \
 }
-#endif
 #endif
 
 #ifndef dram_assert

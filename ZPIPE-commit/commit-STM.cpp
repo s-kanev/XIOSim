@@ -203,7 +203,7 @@ void core_commit_STM_t::step(void)
     struct Mop_t * Mop = ROB[ROB_head]->Mop;
 
     if(Mop->oracle.spec_mode)
-      zesto_fatal("oldest instruction in processor is on wrong-path",(void)0);
+      fatal("oldest instruction in processor is on wrong-path");
 
     /* Are all uops in the Mop completed? */
     if(Mop->commit.complete_index != -1) /* still some outstanding insts */
