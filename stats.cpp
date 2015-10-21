@@ -10,10 +10,9 @@ using namespace xiosim::stats;
 
 const size_t STAT_NAME_MAX_LEN = 64;
 const size_t DESC_MAX_LEN = 128;
-const char* core_stat_fmt = "c%d.%s";      // c[num].[stat_name]
-const char* cache_stat_fmt = "c%d.%s.%s";  // c[num].[cache_name].[stat_name]
-const char* pred_stat_fmt = "c.%d.%s.%s";  // c[num].[pred_name].[stat_name]
-const char* llc_stat_fmt = "%s.c%d.%s";    // [cache_name].c[num].[stat_name]
+const char* core_stat_fmt = "c%d.%s";     // c[num].[stat_name]
+const char* comp_stat_fmt = "c%d.%s.%s";  // c[num].[comp_name].[stat_name]
+const char* llc_stat_fmt = "%s.c%d.%s";   // [cache_name].c[num].[stat_name]
 
 //**************************************************//
 //                    Scalars                       //
@@ -66,15 +65,17 @@ Statistic<int>& stat_reg_core_int(StatsDatabase* sdb,
     return stat_reg_int(sdb, print_me, name, desc, var, init_val, scale_me, format);
 }
 
-/* Registers a predictor statistic.
+/* Integer stat of a component that belongs to a core or is associated with a core.
  *
- * The statistic name is formatted as c[num].[pred_name].[stat_name].
- * Predictors can be for branches or memory dependences.
+ * Possible components are caches (both private caches and shared caches) and
+ * predictors.
+ *
+ * The statistic name is formatted as c[num].[comp_name].[stat_name].
  */
-Statistic<int>& stat_reg_pred_int(StatsDatabase* sdb,
+Statistic<int>& stat_reg_comp_int(StatsDatabase* sdb,
                                   int print_me,
                                   int core_id,
-                                  const char* pred_name,
+                                  const char* comp_name,
                                   const char* stat_name,
                                   const char* desc,
                                   int* var,
@@ -83,8 +84,8 @@ Statistic<int>& stat_reg_pred_int(StatsDatabase* sdb,
                                   const char* format) {
     char full_stat_name[STAT_NAME_MAX_LEN];
     char full_desc[DESC_MAX_LEN];
-    snprintf(full_stat_name, STAT_NAME_MAX_LEN, pred_stat_fmt, core_id, pred_name, stat_name);
-    snprintf(full_desc, DESC_MAX_LEN, desc, pred_name);
+    snprintf(full_stat_name, STAT_NAME_MAX_LEN, comp_stat_fmt, core_id, comp_name, stat_name);
+    snprintf(full_desc, DESC_MAX_LEN, desc, comp_name);
     return stat_reg_int(sdb, print_me, full_stat_name, full_desc, var, init_val, scale_me, format);
 }
 
@@ -150,10 +151,10 @@ Statistic<sqword_t>& stat_reg_core_sqword(StatsDatabase* sdb,
     return stat_reg_sqword(sdb, print_me, full_stat_name, desc, var, init_val, scale_me, format);
 }
 
-Statistic<sqword_t>& stat_reg_pred_sqword(StatsDatabase* sdb,
+Statistic<sqword_t>& stat_reg_comp_sqword(StatsDatabase* sdb,
                                           int print_me,
                                           int core_id,
-                                          const char* pred_name,
+                                          const char* comp_name,
                                           const char* stat_name,
                                           const char* desc,
                                           sqword_t* var,
@@ -162,34 +163,38 @@ Statistic<sqword_t>& stat_reg_pred_sqword(StatsDatabase* sdb,
                                           const char* format) {
     char full_stat_name[STAT_NAME_MAX_LEN];
     char full_desc[DESC_MAX_LEN];
-    snprintf(full_stat_name, STAT_NAME_MAX_LEN, pred_stat_fmt, core_id, pred_name, stat_name);
-    snprintf(full_desc, DESC_MAX_LEN, desc, pred_name);
+    snprintf(full_stat_name, STAT_NAME_MAX_LEN, comp_stat_fmt, core_id, comp_name, stat_name);
+    snprintf(full_desc, DESC_MAX_LEN, desc, comp_name);
     return stat_reg_sqword(sdb, print_me, full_stat_name, full_desc, var, init_val, scale_me,
                            format);
 }
 
-/* Cache stats are labeled by the originating core and the target cache.
+/* sqword stats of a component that belongs to a core or is associated with a core.
  *
- * For non last-level caches:
- *    Formatted stat name = c[core_id].[cache_name].[stat_name].
+ * Possible components are caches (both private caches and shared caches) and
+ * predictors.
+ *
+ * For non last-level caches and predictors:
+ *    Formatted stat name = c[core_id].[comp_name].[stat_name].
  *    Formatted description = @desc, where @desc is assumed to contain a single
  *        string formatting replacement character (e.g. "num misses in %s.")
- *        where @cache_name will be substituted.
+ *        where @comp_name (the name of the cache or predictor) will be
+ *        substituted.
  *
- * For the LLC:
- *    Formatted stat name = [cache_name].c[core_id].[stat_name]
+ * For the LLC, is_llc should be set to true.
+ *    Formatted stat name = [comp_name].c[core_id].[stat_name]
  *    Formatted description = @desc, where @desc is assumed to contain an
  *        integer formatting replacement character AND a string replacement
  *        character (e.g. "num misses for core %d in cache %s.") where @core_id
- *        and @cache_name will be substituted, respectively.
+ *        and @comp_name will be substituted, respectively.
  *
  * The difference in behavior is because LLCs do not belong to a core, so they
  * should not be labeled as a subcategory of one.
  */
-Statistic<sqword_t>& stat_reg_cache_sqword(StatsDatabase* sdb,
+Statistic<sqword_t>& stat_reg_comp_sqword(StatsDatabase* sdb,
                                            int print_me,
                                            int core_id,
-                                           const char* cache_name,
+                                           const char* comp_name,
                                            const char* stat_name,
                                            const char* desc,
                                            sqword_t* var,
@@ -200,11 +205,11 @@ Statistic<sqword_t>& stat_reg_cache_sqword(StatsDatabase* sdb,
     char full_stat_name[STAT_NAME_MAX_LEN];
     char full_desc[DESC_MAX_LEN];
     if (is_llc) {
-        snprintf(full_stat_name, STAT_NAME_MAX_LEN, llc_stat_fmt, cache_name, core_id, stat_name);
-        snprintf(full_desc, DESC_MAX_LEN, desc, core_id, cache_name);
+        snprintf(full_stat_name, STAT_NAME_MAX_LEN, llc_stat_fmt, comp_name, core_id, stat_name);
+        snprintf(full_desc, DESC_MAX_LEN, desc, core_id, comp_name);
     } else {
-        snprintf(full_stat_name, STAT_NAME_MAX_LEN, cache_stat_fmt, core_id, cache_name, stat_name);
-        snprintf(full_desc, DESC_MAX_LEN, desc, cache_name);
+        snprintf(full_stat_name, STAT_NAME_MAX_LEN, comp_stat_fmt, core_id, comp_name, stat_name);
+        snprintf(full_desc, DESC_MAX_LEN, desc, comp_name);
     }
     return stat_reg_sqword(sdb, print_me, full_stat_name, full_desc, var, init_val, scale_me,
                            format);
@@ -392,10 +397,10 @@ Formula* stat_reg_core_formula(StatsDatabase* sdb,
     return formula;
 }
 
-Formula* stat_reg_cache_formula(StatsDatabase* sdb,
+Formula* stat_reg_comp_formula(StatsDatabase* sdb,
                                 int print_me,
                                 int core_id,
-                                const char* cache_name,
+                                const char* comp_name,
                                 const char* stat_name,
                                 const char* desc,
                                 ExpressionWrapper expression,
@@ -404,11 +409,11 @@ Formula* stat_reg_cache_formula(StatsDatabase* sdb,
     char full_stat_name[STAT_NAME_MAX_LEN];
     char full_desc[DESC_MAX_LEN];
     if (is_llc) {
-        snprintf(full_stat_name, STAT_NAME_MAX_LEN, llc_stat_fmt, cache_name, core_id, stat_name);
-        snprintf(full_desc, DESC_MAX_LEN, desc, core_id, cache_name);
+        snprintf(full_stat_name, STAT_NAME_MAX_LEN, llc_stat_fmt, comp_name, core_id, stat_name);
+        snprintf(full_desc, DESC_MAX_LEN, desc, core_id, comp_name);
     } else {
-        snprintf(full_stat_name, STAT_NAME_MAX_LEN, cache_stat_fmt, core_id, cache_name, stat_name);
-        snprintf(full_desc, DESC_MAX_LEN, desc, cache_name);
+        snprintf(full_stat_name, STAT_NAME_MAX_LEN, comp_stat_fmt, core_id, comp_name, stat_name);
+        snprintf(full_desc, DESC_MAX_LEN, desc, comp_name);
     }
 
     Formula* formula = sdb->add_formula(full_stat_name, full_desc, expression);
@@ -416,26 +421,6 @@ Formula* stat_reg_cache_formula(StatsDatabase* sdb,
         formula->set_output_fmt(format);
     return formula;
 }
-
-Formula* stat_reg_pred_formula(StatsDatabase* sdb,
-                               int print_me,
-                               int core_id,
-                               const char* pred_name,
-                               const char* stat_name,
-                               const char* desc,
-                               ExpressionWrapper expression,
-                               const char* format) {
-    char full_stat_name[STAT_NAME_MAX_LEN];
-    char full_desc[DESC_MAX_LEN];
-    snprintf(full_stat_name, STAT_NAME_MAX_LEN, pred_stat_fmt, core_id, pred_name, stat_name);
-    snprintf(full_desc, DESC_MAX_LEN, desc, pred_name);
-
-    Formula* formula = sdb->add_formula(full_stat_name, full_desc, expression);
-    if (format)
-        formula->set_output_fmt(format);
-    return formula;
-}
-
 
 //**************************************************//
 //                    Strings                       //
@@ -451,17 +436,17 @@ Statistic<const char*>& stat_reg_string(StatsDatabase* sdb,
     return *stat;
 }
 
-Statistic<const char*>& stat_reg_pred_string(StatsDatabase* sdb,
+Statistic<const char*>& stat_reg_comp_string(StatsDatabase* sdb,
                                              int core_id,
-                                             const char* pred_name,
+                                             const char* comp_name,
                                              const char* stat_name,
                                              const char* desc,
                                              const char* var,
                                              const char* format) {
     char full_stat_name[STAT_NAME_MAX_LEN];
     char full_desc[DESC_MAX_LEN];
-    snprintf(full_stat_name, STAT_NAME_MAX_LEN, pred_stat_fmt, core_id, pred_name, stat_name);
-    snprintf(full_desc, DESC_MAX_LEN, desc, pred_name);
+    snprintf(full_stat_name, STAT_NAME_MAX_LEN, comp_stat_fmt, core_id, comp_name, stat_name);
+    snprintf(full_desc, DESC_MAX_LEN, desc, comp_name);
     Statistic<const char*>* stat = sdb->add_statistic(full_stat_name, full_desc, var, format);
     return *stat;
 }

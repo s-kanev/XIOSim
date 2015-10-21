@@ -24,14 +24,18 @@
 
 // Mimicking #define in machine.c.
 #define stat_reg_core_counter stat_reg_core_sqword
-#define stat_reg_cache_counter stat_reg_cache_sqword
-#define stat_reg_pred_counter stat_reg_pred_sqword
+#define stat_reg_cache_counter stat_reg_comp_sqword
+#define stat_reg_cache_formula stat_reg_comp_formula
+#define stat_reg_pred_counter stat_reg_comp_sqword
+#define stat_reg_pred_formula stat_reg_comp_formula
+#define stat_reg_pred_int stat_reg_comp_int
+#define stat_reg_pred_string stat_reg_comp_string
 
-typedef xiosim::stats::BaseStatistic BaseStatistic;
-typedef xiosim::stats::Distribution Distribution;
-typedef xiosim::stats::StatsDatabase StatsDatabase;
-typedef xiosim::stats::Formula Formula;
-typedef xiosim::stats::ExpressionWrapper ExpressionWrapper;
+using xiosim::stats::BaseStatistic;
+using xiosim::stats::Distribution;
+using xiosim::stats::StatsDatabase;
+using xiosim::stats::Formula;
+using xiosim::stats::ExpressionWrapper;
 
 xiosim::stats::Statistic<int>& stat_reg_int(StatsDatabase* sdb,
                                             int print_me,
@@ -52,10 +56,10 @@ xiosim::stats::Statistic<int>& stat_reg_core_int(StatsDatabase* sdb,
                                                  int scale_me,
                                                  const char* format);
 
-xiosim::stats::Statistic<int>& stat_reg_pred_int(StatsDatabase* sdb,
+xiosim::stats::Statistic<int>& stat_reg_comp_int(StatsDatabase* sdb,
                                                  int print_me,
                                                  int core_id,
-                                                 const char* pred_name,
+                                                 const char* comp_name,
                                                  const char* stat_name,
                                                  const char* desc,
                                                  int* var,
@@ -110,17 +114,17 @@ xiosim::stats::Statistic<sqword_t>& stat_reg_core_sqword(StatsDatabase* sdb,
                                                          int scale_me,
                                                          const char* format);
 
-xiosim::stats::Statistic<sqword_t>& stat_reg_cache_sqword(StatsDatabase* sdb,
-                                                          int print_me,
-                                                          int core_id,
-                                                          const char* cache_name,
-                                                          const char* stat_name,
-                                                          const char* desc,
-                                                          sqword_t* var,
-                                                          sqword_t init_val,
-                                                          int scale_me,
-                                                          const char* format,
-                                                          bool is_llc = false);
+xiosim::stats::Statistic<sqword_t>& stat_reg_comp_sqword(StatsDatabase* sdb,
+                                                         int print_me,
+                                                         int core_id,
+                                                         const char* comp_name,
+                                                         const char* stat_name,
+                                                         const char* desc,
+                                                         sqword_t* var,
+                                                         sqword_t init_val,
+                                                         int scale_me,
+                                                         const char* format,
+                                                         bool is_llc = false);
 
 xiosim::stats::Statistic<sqword_t>& stat_reg_pred_sqword(StatsDatabase* sdb,
                                                          int print_me,
@@ -236,24 +240,15 @@ Formula* stat_reg_core_formula(StatsDatabase* sdb,
                                ExpressionWrapper expression,
                                const char* format);
 
-Formula* stat_reg_cache_formula(StatsDatabase* sdb,
-                                int print_me,
-                                int core_id,
-                                const char* cache_name,
-                                const char* stat_name,
-                                const char* desc,
-                                ExpressionWrapper expression,
-                                const char* format,
-                                bool is_llc = false);
-
-Formula* stat_reg_pred_formula(StatsDatabase* sdb,
+Formula* stat_reg_comp_formula(StatsDatabase* sdb,
                                int print_me,
                                int core_id,
-                               const char* pred_name,
+                               const char* comp_name,
                                const char* stat_name,
                                const char* desc,
                                ExpressionWrapper expression,
-                               const char* format);
+                               const char* format,
+                               bool is_llc = false);
 
 Formula* stat_reg_formula(StatsDatabase* sdb, Formula& formula);
 
@@ -263,9 +258,9 @@ xiosim::stats::Statistic<const char*>& stat_reg_string(StatsDatabase* sdb,
                                                        const char* var,
                                                        const char* format);
 
-xiosim::stats::Statistic<const char*>& stat_reg_pred_string(StatsDatabase* sdb,
+xiosim::stats::Statistic<const char*>& stat_reg_comp_string(StatsDatabase* sdb,
                                                             int core_id,
-                                                            const char* pred_name,
+                                                            const char* comp_name,
                                                             const char* stat_name,
                                                             const char* desc,
                                                             const char* var,
