@@ -81,7 +81,6 @@
 #include "memory.h"
 #include "stats.h"
 #include "sim.h"
-#include "regs.h"
 
 #include "zesto-structs.h"
 #include "zesto-cache.h"

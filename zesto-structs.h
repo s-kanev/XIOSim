@@ -83,7 +83,6 @@ extern "C" {
 
 #include "decode.h"
 #include "fu.h"
-#include "regs.h"
 #include "uop_cracker.h"
 #include "zesto-core.h"
 

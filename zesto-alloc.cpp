@@ -75,6 +75,8 @@
 #include <limits.h>
 #include <cstddef>
 
+#include "regs.h"
+
 #include "zesto-core.h"
 #include "zesto-oracle.h"
 #include "zesto-decode.h"

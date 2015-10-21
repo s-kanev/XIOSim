@@ -75,6 +75,7 @@
 #include <cstddef>
 
 #include "misc.h"
+#include "regs.h"
 #include "sim.h"
 #include "synchronization.h"
 
