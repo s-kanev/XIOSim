@@ -1,5 +1,3 @@
-#include "thread.h"
-
 #include "zesto-core.h"
 #include "zesto-noc.h"
 
@@ -29,7 +27,7 @@ void bus_reg_stats(
 {
   char core_str[256];
   if(core)
-    sprintf(core_str,"c%d.",core->current_thread->id);
+    sprintf(core_str,"c%d.",core->id);
   else
     core_str[0] = '\0'; /* empty string */
 

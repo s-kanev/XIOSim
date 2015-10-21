@@ -119,7 +119,7 @@ prefetch_t::reg_stats(
   if(core == NULL)
     core_str[0] = 0; /* empty string */
   else
-    sprintf(core_str,"c%d.",core->current_thread->id);
+    sprintf(core_str,"c%d.",core->id);
 
   sprintf(buf,"%s%s.%s.bits",core_str,cp->name,type);
   sprintf(buf2,"total size of %s in bits",type);

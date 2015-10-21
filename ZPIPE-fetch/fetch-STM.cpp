@@ -176,7 +176,6 @@ core_fetch_STM_t::reg_stats(struct stat_sdb_t * const sdb)
 {
   char buf[1024];
   char buf2[1024];
-  struct thread_t * arch = core->current_thread;
 
   stat_reg_note(sdb,"\n#### BPRED STATS ####");
   bpred->reg_stats(sdb,core);
@@ -186,18 +185,18 @@ core_fetch_STM_t::reg_stats(struct stat_sdb_t * const sdb)
   cache_reg_stats(sdb, core, core->memory.ITLB);
 
   stat_reg_note(sdb,"\n#### FETCH STATS ####");
-  sprintf(buf,"c%d.fetch_insn",arch->id);
+  sprintf(buf,"c%d.fetch_insn",core->id);
   stat_reg_counter(sdb, true, buf, "total number of instructions fetched", &core->stat.fetch_insn, 0, TRUE, NULL);
-  sprintf(buf,"c%d.fetch_uops",arch->id);
+  sprintf(buf,"c%d.fetch_uops",core->id);
   stat_reg_counter(sdb, true, buf, "total number of uops fetched", &core->stat.fetch_uops, 0, TRUE, NULL);
-  sprintf(buf,"c%d.fetch_IPC",arch->id);
-  sprintf(buf2,"c%d.fetch_insn/c%d.sim_cycle",arch->id,arch->id);
+  sprintf(buf,"c%d.fetch_IPC",core->id);
+  sprintf(buf2,"c%d.fetch_insn/c%d.sim_cycle",core->id,core->id);
   stat_reg_formula(sdb, true, buf, "IPC at fetch", buf2, NULL);
-  sprintf(buf,"c%d.fetch_uPC",arch->id);
-  sprintf(buf2,"c%d.fetch_uops/c%d.sim_cycle",arch->id,arch->id);
+  sprintf(buf,"c%d.fetch_uPC",core->id);
+  sprintf(buf2,"c%d.fetch_uops/c%d.sim_cycle",core->id,core->id);
   stat_reg_formula(sdb, true, buf, "uPC at fetch", buf2, NULL);
 
-  sprintf(buf,"c%d.fetch_stall",core->current_thread->id);
+  sprintf(buf,"c%d.fetch_stall",core->id);
   core->stat.fetch_stall = stat_reg_dist(sdb, buf,
                                           "breakdown of stalls in fetch",
                                           /* initial value */0,
@@ -209,10 +208,10 @@ core_fetch_STM_t::reg_stats(struct stat_sdb_t * const sdb)
                                           /* scale_me */ TRUE,
                                           /* print fn */NULL);
 
-  sprintf(buf,"c%d.byteQ_occupancy",arch->id);
+  sprintf(buf,"c%d.byteQ_occupancy",core->id);
   stat_reg_counter(sdb, false, buf, "total byteQ occupancy (in lines/entries)", &core->stat.byteQ_occupancy, 0, TRUE, NULL);
-  sprintf(buf,"c%d.byteQ_avg",arch->id);
-  sprintf(buf2,"c%d.byteQ_occupancy/c%d.sim_cycle",arch->id,arch->id);
+  sprintf(buf,"c%d.byteQ_avg",core->id);
+  sprintf(buf2,"c%d.byteQ_occupancy/c%d.sim_cycle",core->id,core->id);
   stat_reg_formula(sdb, true, buf, "average byteQ occupancy (in insts)", buf2, NULL);
 }
 
@@ -297,7 +296,7 @@ seq_t core_fetch_STM_t::get_byteQ_action_id(void * const op)
 void core_fetch_STM_t::pre_fetch(void)
 {
   struct core_knobs_t * knobs = core->knobs;
-  int asid = core->current_thread->asid;
+  int asid = core->asid;
   int i;
 
   ZESTO_STAT(stat_add_sample(core->stat.fetch_stall, (int)stall_reason);)

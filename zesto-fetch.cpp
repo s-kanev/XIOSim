@@ -75,7 +75,6 @@
 #include <cstddef>
 
 #include "memory.h"
-#include "thread.h"
 #include "synchronization.h"
 
 #include "ztrace.h"

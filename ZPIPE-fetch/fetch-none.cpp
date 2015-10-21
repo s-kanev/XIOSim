@@ -24,7 +24,6 @@ class core_fetch_NONE_t:public core_fetch_t
     if (Mop == nullptr)
         return false;
     core->oracle->consume(Mop);
-    core->current_thread->consumed = true;
     PC = Mop->oracle.NextPC;
     return false;
   }

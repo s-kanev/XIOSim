@@ -93,7 +93,6 @@
 
 #include "sim.h"
 #include "stats.h"
-#include "thread.h"
 #include "valcheck.h"
 #include "zesto-core.h"
 #include "zesto-bpred.h"
@@ -227,7 +226,7 @@ void bpred_dir_t::reg_stats(
 {
   int id = 0;
   if(core)
-    id = core->current_thread->id;
+    id = core->id;
   char buf[256];
   char buf2[256];
   char buf3[256];
@@ -413,7 +412,7 @@ void fusion_t::reg_stats(
 {
   int id = 0;
   if(core)
-    id = core->current_thread->id;
+    id = core->id;
   char buf[256];
   char buf2[256];
   char buf3[256];
@@ -585,7 +584,7 @@ BTB_t::reg_stats(
 {
   int id = 0;
   if(core)
-    id = core->current_thread->id;
+    id = core->id;
   char buf[256];
   char buf2[256];
   char buf3[256];
@@ -780,7 +779,7 @@ RAS_t::reg_stats(
 {
   int id = 0;
   if(core)
-    id = core->current_thread->id;
+    id = core->id;
   char buf[256];
   char buf2[256];
   char buf3[256];
@@ -1134,7 +1133,7 @@ bpred_t::reg_stats(
 {
   int id = 0;
   if(core)
-    id = core->current_thread->id;
+    id = core->id;
 
   char buf[256];
   char buf2[256];

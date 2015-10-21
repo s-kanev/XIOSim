@@ -34,16 +34,15 @@ void core_commit_NONE_t::reg_stats(struct stat_sdb_t * const sdb)
 {
   char buf[1024];
   char buf2[1024];
-  struct thread_t * arch = core->current_thread;
 
   stat_reg_note(sdb,"\n#### COMMIT STATS ####");
 
-  sprintf(buf,"c%d.sim_cycle",arch->id);
+  sprintf(buf,"c%d.sim_cycle",core->id);
   stat_reg_counter(sdb, true, buf, "total number of cycles when last instruction (or uop) committed", &core->sim_cycle, 0, TRUE, NULL);
-  sprintf(buf,"c%d.commit_insn",arch->id);
+  sprintf(buf,"c%d.commit_insn",core->id);
   stat_reg_counter(sdb, true, buf, "total number of instructions committed", &core->stat.commit_insn, 0, TRUE, NULL);
-  sprintf(buf,"c%d.commit_IPC",arch->id);
-  sprintf(buf2,"c%d.commit_insn/c%d.sim_cycle",arch->id,arch->id);
+  sprintf(buf,"c%d.commit_IPC",core->id);
+  sprintf(buf2,"c%d.commit_insn/c%d.sim_cycle",core->id,core->id);
   stat_reg_formula(sdb, true, buf, "IPC at commit", buf2, NULL);
 }
 

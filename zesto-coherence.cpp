@@ -2,7 +2,6 @@
 
 #include "memory.h"
 #include "synchronization.h"
-#include "thread.h"
 
 #include "zesto-cache.h"
 #include "zesto-coherence.h"

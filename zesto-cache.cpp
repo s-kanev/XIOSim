@@ -77,7 +77,6 @@
 #include <cmath>
 
 #include "memory.h"
-#include "thread.h"
 #include "stats.h"
 #include "sim.h"
 
@@ -290,7 +289,7 @@ void cache_reg_stats(
   if(!core)
     fatal("must provide a core for cache_reg_stats; for LLC, use LLC_reg_stats");
 
-  int id = core->current_thread->id;
+  int id = core->id;
   sprintf(core_str,"c%d.",id);
 
   if(cp->read_only == CACHE_READWRITE)
@@ -1682,9 +1681,9 @@ static void update_request_stats(
 {
   /* LLC stats are per core */
   if((cp == uncore->LLC) && (ca->core)) {
-    CACHE_STAT(cp->stat.core_lookups[ca->core->current_thread->id]++;)
+    CACHE_STAT(cp->stat.core_lookups[ca->core->id]++;)
     if(!hit)
-      CACHE_STAT(cp->stat.core_misses[ca->core->current_thread->id]++;)
+      CACHE_STAT(cp->stat.core_misses[ca->core->id]++;)
   }
 
   /* Per-request type stats */

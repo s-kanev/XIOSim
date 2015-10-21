@@ -12,6 +12,7 @@
 
 #include "host.h"
 #include "misc.h"
+#include "sim.h"
 #include "stats.h"
 #include "memory.h"
 #include "synchronization.h"

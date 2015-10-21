@@ -74,7 +74,6 @@
 
 #include <cmath>
 #include <limits.h>
-#include "thread.h"
 #include "stats.h"
 #include "zesto-cache.h"
 #include "zesto-dram.h"

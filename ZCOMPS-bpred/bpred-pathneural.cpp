@@ -246,7 +246,7 @@ class bpred_pathneural_t:public bpred_dir_t
   {
     bpred_dir_t::reg_stats(sdb,core);
 
-    int id = core?core->current_thread->id:0;
+    int id = core?core->id:0;
     char buf[256];
     char buf2[256];
 

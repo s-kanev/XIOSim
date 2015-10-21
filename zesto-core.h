@@ -151,19 +151,21 @@ class core_t {
   /* pointer to configuration information */
   struct core_knobs_t * knobs;
 
-  /********************************/
-  /* "ISA" STATE (used by oracle) */
-  /********************************/
-  struct thread_t * current_thread;
   int id; /* core-id */
   tick_t sim_cycle; /* core-specific cycle counter */
-  bool active; /* FALSE if this core is not executing */
-  tick_t last_active_cycle; /* Last time this core was active */
   double cpu_speed; /* current core frequency in MHz */
-  double ns_passed; /* used to sync with uncore */
+
+  /* Simulation flow members */
+  bool active;              /* FALSE if this core is not executing */
+  tick_t last_active_cycle; /* Last time this core was active */
+  double ns_passed;         /* used to sync with uncore */
+  bool finished_cycle;      /* Ready to advance to next cycle? */
+  bool in_critical_section; /* Are we executing a HELIX sequential cut? */
 
   counter_t num_emergency_recoveries;
   int last_emergency_recovery_count; /* inst count at last recover to detect an unrecoverable situation */
+
+  int asid; /* Address space id this core is currently simulating from. */
 
   /***************************/
   /* MICROARCHITECTURE STATE */
@@ -321,6 +323,7 @@ class core_t {
     counter_t oracle_total_loads;
     counter_t oracle_total_branches;
     counter_t oracle_total_calls;
+    counter_t oracle_num_insn;
     counter_t oracle_num_refs;
     counter_t oracle_num_loads;
     counter_t oracle_num_branches;
@@ -335,8 +338,6 @@ class core_t {
     counter_t handshake_nops_produced;
   } stat;
 
-
-  int num_signals_in_pipe;
 
   /*************/
   /* FUNCTIONS */

@@ -7,7 +7,6 @@
 #include "synchronization.h"
 #include "stats.h"
 #include "interface.h"
-#include "thread.h"
 #include "zesto-core.h"
 #include "zesto-power.h"
 #include "zesto-uncore.h"
@@ -36,7 +35,6 @@ void start_slice(unsigned int slice_num)
 {
    int i = 0;
    core_t* core = cores[i];
-   struct thread_t *thread = core->current_thread;
 
    /* create stats database for this slice */
    struct stat_sdb_t* new_stat_db = stat_new();
@@ -51,7 +49,7 @@ void start_slice(unsigned int slice_num)
    cores[i]->stat.final_sim_cycle = slice_core_end_cycle;
    slice_core_start_cycle = cores[i]->sim_cycle;
    slice_uncore_start_cycle = uncore->sim_cycle;
-   slice_start_icount = thread->stat.num_insn;
+   slice_start_icount = core->stat.oracle_num_insn;
    slice_start_time = time((time_t *)NULL);
 }
 
@@ -75,7 +73,7 @@ void end_slice(unsigned int slice_num, unsigned long long feeder_slice_length, u
    double weight = (double)slice_weight_times_1000 / 100000.0;
    curr_sdb->slice_weight = weight;
 
-   unsigned long long slice_length = cores[i]->current_thread->stat.num_insn - slice_start_icount;
+   unsigned long long slice_length = cores[i]->stat.oracle_num_insn - slice_start_icount;
    // Check if simulator and feeder measure instruction counts in the same way
    // (they may not count REP-s the same, f.e.)
    double slice_length_diff = 1.0 - ((double)slice_length/(double)feeder_slice_length);
@@ -109,7 +107,7 @@ void end_slice(unsigned int slice_num, unsigned long long feeder_slice_length, u
    }
 
    double n_cycles = (double)cores[0]->sim_cycle;
-   double n_insn = (double)(cores[0]->current_thread->stat.num_insn - slice_start_icount);
+   double n_insn = (double)(cores[0]->stat.oracle_num_insn - slice_start_icount);
    double n_pin_n_insn = (double)feeder_slice_length;
    double curr_cpi = weight * n_cycles / n_insn;
    double curr_ipc = 1.0 / curr_cpi;

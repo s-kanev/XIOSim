@@ -76,7 +76,6 @@
 
 #include "sim.h"
 #include "stats.h"
-#include "thread.h"
 #include "valcheck.h"
 #include "zesto-core.h"
 #include "zesto-memdep.h"
@@ -115,25 +114,24 @@ void memdep_t::update(md_addr_t PC)
 
 void memdep_t::reg_stats(struct stat_sdb_t * sdb, struct core_t * core)
 {
-  struct thread_t * arch = core->current_thread;
   char buf[256];
   char buf2[256];
   char buf3[256];
 
-  sprintf(buf,"c%d.%s.type",arch->id,name);
+  sprintf(buf,"c%d.%s.type",core->id,name);
   sprintf(buf2,"prediction algorithm of %s",name);
   stat_reg_string(sdb, buf, buf2, type, NULL);
-  sprintf(buf,"c%d.%s.bits",arch->id,name);
+  sprintf(buf,"c%d.%s.bits",core->id,name);
   sprintf(buf2,"total size of %s in bits",name);
   stat_reg_int(sdb, true, buf, buf2, &bits, bits, FALSE, NULL);
-  sprintf(buf,"c%d.%s.size",arch->id,name);
+  sprintf(buf,"c%d.%s.size",core->id,name);
   sprintf(buf2,"total size of %s in KB",name);
-  sprintf(buf3,"c%d.%s.bits/8192.0",arch->id,name);
+  sprintf(buf3,"c%d.%s.bits/8192.0",core->id,name);
   stat_reg_formula(sdb, true, buf, buf2, buf3, NULL);
-  sprintf(buf,"c%d.%s.lookups",arch->id,name);
+  sprintf(buf,"c%d.%s.lookups",core->id,name);
   sprintf(buf2,"number of prediction lookups in %s",name);
   stat_reg_counter(sdb, true, buf, buf2, &lookups, 0, TRUE, NULL);
-  sprintf(buf,"c%d.%s.updates",arch->id,name);
+  sprintf(buf,"c%d.%s.updates",core->id,name);
   sprintf(buf2,"number of prediction updates in %s",name);
   stat_reg_counter(sdb, true, buf, buf2, &updates, 0, TRUE, NULL);
 }

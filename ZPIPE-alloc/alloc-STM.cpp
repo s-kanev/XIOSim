@@ -70,21 +70,20 @@ core_alloc_STM_t::reg_stats(struct stat_sdb_t * const sdb)
 {
   char buf[1024];
   char buf2[1024];
-  struct thread_t * arch = core->current_thread;
 
   stat_reg_note(sdb,"#### ALLOC STATS ####");
-  sprintf(buf,"c%d.alloc_insn",arch->id);
+  sprintf(buf,"c%d.alloc_insn",core->id);
   stat_reg_counter(sdb, true, buf, "total number of instructions alloced", &core->stat.alloc_insn, 0, TRUE, NULL);
-  sprintf(buf,"c%d.alloc_uops",arch->id);
+  sprintf(buf,"c%d.alloc_uops",core->id);
   stat_reg_counter(sdb, true, buf, "total number of uops alloced", &core->stat.alloc_uops, 0, TRUE, NULL);
-  sprintf(buf,"c%d.alloc_IPC",arch->id);
-  sprintf(buf2,"c%d.alloc_insn/c%d.sim_cycle",arch->id,arch->id);
+  sprintf(buf,"c%d.alloc_IPC",core->id);
+  sprintf(buf2,"c%d.alloc_insn/c%d.sim_cycle",core->id,core->id);
   stat_reg_formula(sdb, true, buf, "IPC at alloc", buf2, NULL);
-  sprintf(buf,"c%d.alloc_uPC",arch->id);
-  sprintf(buf2,"c%d.alloc_uops/c%d.sim_cycle",arch->id,arch->id);
+  sprintf(buf,"c%d.alloc_uPC",core->id);
+  sprintf(buf2,"c%d.alloc_uops/c%d.sim_cycle",core->id,core->id);
   stat_reg_formula(sdb, true, buf, "uPC at alloc", buf2, NULL);
 
-  sprintf(buf,"c%d.alloc_stall",core->current_thread->id);
+  sprintf(buf,"c%d.alloc_stall",core->id);
   core->stat.alloc_stall = stat_reg_dist(sdb, buf,
                                           "breakdown of stalls at alloc",
                                           /* initial value */0,

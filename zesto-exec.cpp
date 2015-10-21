@@ -78,7 +78,6 @@
 #include "decode.h"
 #include "memory.h"
 #include "synchronization.h"
-#include "thread.h"
 #include "uop_cracker.h"
 
 #include "zesto-structs.h"

@@ -156,7 +156,7 @@
 #define zesto_fatal(msg, retval) fatal(msg)
 #else
 #define zesto_fatal(msg, retval) { \
-  fprintf(stderr,"fatal (%s,%d:thread %d): ",__FILE__,__LINE__,core->current_thread->id); \
+  fprintf(stderr,"fatal (%s,%d:core %d): ",__FILE__,__LINE__,core->id); \
   fprintf(stderr,"%s\n",msg); \
   return (retval); \
 }
@@ -278,6 +278,11 @@ class core_oracle_t {
 
   /* Create a fake NOP handshake in case we don't have a real one from feeder. */
   handshake_container_t get_fake_spec_handshake();
+
+  public:
+  /* Did we manage to absorb a handshake from instruction feeder */
+  bool consumed;
+
 };
 
 #endif /* ZESTO_ORACLE_INCLUDED */

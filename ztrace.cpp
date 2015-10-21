@@ -1,4 +1,10 @@
 #include "decode.h"
+#include "memory.h"
+#include "sim.h"
+
+#include "zesto-core.h"
+#include "zesto-structs.h"
+
 #include "ztrace.h"
 
 const char* ztrace_filename = nullptr;
@@ -148,7 +154,7 @@ void ztrace_print(const struct Mop_t* Mop) {
                  "DEF|core=%d:virtPC=%x:physPC=%llx:op=%s:",
                  Mop->core->id,
                  Mop->fetch.PC,
-                 xiosim::memory::v2p_translate(cores[coreID]->current_thread->asid, Mop->fetch.PC),
+                 xiosim::memory::v2p_translate(cores[coreID]->asid, Mop->fetch.PC),
                  xiosim::x86::print_Mop(Mop).c_str());
     // ucode flow length
     ZTRACE_PRINT(coreID, "flow-length=%d\n", Mop->decode.flow_length);

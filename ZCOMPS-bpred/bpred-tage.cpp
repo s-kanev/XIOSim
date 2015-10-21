@@ -467,7 +467,7 @@ class bpred_tage_t:public bpred_dir_t
   BPRED_REG_STATS_HEADER
   {
     bpred_dir_t::reg_stats(sdb,core);
-    int id = core?core->current_thread->id:0;
+    int id = core?core->id:0;
     for(int i=0;i<num_tables;i++)
     {
       char buf[256];

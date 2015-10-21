@@ -130,7 +130,6 @@
 #include "host.h"
 #include "misc.h"
 #include "synchronization.h"
-#include "thread.h"
 
 #ifdef DEBUG
 /* active debug flag */

@@ -111,9 +111,6 @@ extern struct stat_sdb_t *rtp_sdb;
 
 extern double LLC_speed;
 
-/* architected state */
-struct thread_t ** threads = NULL;
-
 /* microarchitecture state */
 struct core_t ** cores = NULL;
 
@@ -150,28 +147,11 @@ sim_post_init(void)
   lk_init(&cycle_lock);
   lk_init(&cache_lock);
 
-  /* initialize architected state(s) */
-  threads = (struct thread_t **)calloc(num_cores,sizeof(*threads));
-  if(!threads)
-    fatal("failed to calloc threads");
-
   /* Initialize tracing */
   ztrace_init();
 
   /* Initialize virtual memory */
   xiosim::memory::init(*num_processes);
-
-  for(i=0;i<num_cores;i++)
-  {
-    threads[i] = (struct thread_t *)calloc(1,sizeof(**threads));
-    if(!threads[i])
-      fatal("failed to calloc threads[%d]",i);
-
-    threads[i]->id = i;
-
-    threads[i]->finished_cycle = false;
-    threads[i]->consumed = true;
-  }
 
   /* initialize microarchitecture state */
   cores = (struct core_t**) calloc(num_cores,sizeof(*cores));
@@ -183,7 +163,6 @@ sim_post_init(void)
     if(!cores[i])
       fatal("failed to calloc cores[]");
 
-    cores[i]->current_thread = threads[i];
     cores[i]->knobs = &knobs;
   }
 
@@ -463,7 +442,7 @@ void sim_main_slave_pre_pin(int coreID)
      * race through to here before that update is finished.
      */
     lk_lock(&cycle_lock, coreID+1);
-    cores[coreID]->current_thread->finished_cycle = true;
+    cores[coreID]->finished_cycle = true;
 
     /* Active core with smallest id -- Wait for all cores to be finished and
        update global state */
@@ -475,7 +454,7 @@ master_core:
         cores_finished_cycle = 0;
         cores_active = 0;
         for(int i=0; i<num_cores; i++) {
-          if(cores[i]->current_thread->finished_cycle)
+          if(cores[i]->finished_cycle)
             cores_finished_cycle++;
           if(cores[i]->active)
             cores_active++;
@@ -510,13 +489,13 @@ master_core:
 
       /* Unblock other cores to keep crunching. */
       for(int i=0; i<num_cores; i++)
-        cores[i]->current_thread->finished_cycle = false; 
+        cores[i]->finished_cycle = false;
       lk_unlock(&cycle_lock);
     }
     /* All other cores -- spin until global state update is finished */
     else
     {
-      while(cores[coreID]->current_thread->finished_cycle) {
+      while(cores[coreID]->finished_cycle) {
         if (coreID == min_coreID) 
           /* If we become the "master core", make sure everyone is at critical section. */
           goto master_core;
@@ -525,7 +504,7 @@ master_core:
          * go back to PIN */
         if (min_coreID == MAX_CORES) {
           ZTRACE_PRINT(min_coreID, "Returning from step loop looking suspicious %d", coreID);
-          cores[coreID]->current_thread->consumed = true;
+          cores[coreID]->oracle->consumed = true;
           lk_unlock(&cycle_lock);
           return;
         }

@@ -205,7 +205,7 @@ void activate_core(int coreID) {
     assert(coreID >= 0 && coreID < num_cores);
     ZTRACE_PRINT(coreID, "activate %d\n", coreID);
     lk_lock(&cycle_lock, coreID + 1);
-    cores[coreID]->current_thread->finished_cycle = false;  // Make sure master core will wait
+    cores[coreID]->finished_cycle = false;  // Make sure master core will wait
     cores[coreID]->exec->update_last_completed(cores[coreID]->sim_cycle);
     cores[coreID]->active = true;
     if (coreID < min_coreID)
@@ -234,7 +234,7 @@ void sim_drain_pipe(int coreID) {
     core->fetch->recover(core->fetch->feeder_NPC);
 
     if (core->memory.mem_repeater)
-        core->memory.mem_repeater->flush(core->current_thread->asid, NULL);
+        core->memory.mem_repeater->flush(core->asid, NULL);
 }
 
 void Zesto_Slice_Start(unsigned int slice_num) { start_slice(slice_num); }
@@ -249,7 +249,6 @@ void Zesto_Slice_End(unsigned int slice_num,
 void Zesto_Resume(int coreID, handshake_container_t* handshake) {
     assert(coreID >= 0 && coreID < num_cores);
     struct core_t* core = cores[coreID];
-    thread_t* thread = core->current_thread;
     bool slice_start = handshake->flags.isFirstInsn;
 
     core->stat.feeder_handshakes++;
@@ -281,7 +280,7 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake) {
     bool nuke_recovery = false;
 
     /* Make sure we didn't get back to feeder before absorbing a hshake. */
-    zesto_assert(thread->consumed, (void)0);
+    zesto_assert(core->oracle->consumed, (void)0);
     bool did_buffer = false;
     bool did_consume = false;
 
@@ -297,7 +296,7 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake) {
             buffer_result = core->oracle->buffer_handshake(handshake);
             did_buffer = (buffer_result == ALL_GOOD);
             if (buffer_result == HANDSHAKE_NOT_NEEDED) {
-                thread->consumed = true;
+                core->oracle->consumed = true;
                 return;
             }
         }
@@ -305,9 +304,9 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake) {
         /* Execute the oracle. If all is well, the handshake is consumed, and, depending
          * on fetch conditions (taken branches, fetch buffers), we either need a new one,
          * or can carry on simulating the cycle. */
-        thread->consumed = false;
+        core->oracle->consumed = false;
         fetch_more = sim_main_slave_fetch_insn(coreID);
-        did_consume = thread->consumed;
+        did_consume = core->oracle->consumed;
         if (!did_consume)
             zesto_assert(!fetch_more, (void)0);
 
@@ -330,7 +329,7 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake) {
 
             /* Oracle doesn't have the right handshake.
              * We'll get a new one from the feeder, once we re-enter. */
-            zesto_assert(thread->consumed, (void)0);
+            zesto_assert(core->oracle->consumed, (void)0);
             return;
         }
 
@@ -344,7 +343,7 @@ void Zesto_Resume(int coreID, handshake_container_t* handshake) {
         nuke_recovery = core->oracle->on_nuke_recovery_path();
         /* Re-check that we've consumed last op. If jeclear_delay == 0, we could have
          * blown it away, which technically does consume it. */
-        did_consume |= thread->consumed;
+        did_consume |= core->oracle->consumed;
         ZTRACE_PRINT(core->id, "End of loop. Buffer result: %d, consumed: %d, before_feeder: %d\n", buffer_result, did_consume, core->oracle->num_Mops_before_feeder());
 
     /* Stay in the loop until oracle needs a new handshake. */

@@ -138,7 +138,6 @@
 
 #include "host.h"
 #include "misc.h"
-#include "thread.h"
 #include "memory.h"
 #include "decode.h"
 #include "uop_cracker.h"
@@ -181,7 +180,8 @@ core_oracle_t::core_oracle_t(struct core_t* const arg_core)
     , current_Mop(NULL)
     , MopQ_spec_num(0)
     , drain_pipeline(false)
-    , shadow_MopQ(get_MopQ_size(arg_core->knobs)) {
+    , shadow_MopQ(get_MopQ_size(arg_core->knobs))
+    , consumed(true) {
     core = arg_core;
 
     int res = posix_memalign((void**)&MopQ, 16, MopQ_size * sizeof(*MopQ));
@@ -201,13 +201,12 @@ core_oracle_t::core_oracle_t(struct core_t* const arg_core)
 void core_oracle_t::reg_stats(struct stat_sdb_t* const sdb) {
     char buf[1024];
     char buf2[1024];
-    struct thread_t* arch = core->current_thread;
 
     stat_reg_note(sdb, "\n#### ORACLE STATS ####");
-    sprintf(buf, "c%d.oracle_num_insn", arch->id);
-    sprintf(buf2, "c%d.oracle_total_insn - c%d.oracle_insn_undo", arch->id, arch->id);
+    sprintf(buf, "c%d.oracle_num_insn", core->id);
+    sprintf(buf2, "c%d.oracle_total_insn - c%d.oracle_insn_undo", core->id, core->id);
     stat_reg_formula(sdb, true, buf, "number of instructions executed by oracle", buf2, "%12.0f");
-    sprintf(buf, "c%d.oracle_total_insn", arch->id);
+    sprintf(buf, "c%d.oracle_total_insn", core->id);
     stat_reg_counter(sdb,
                      true,
                      buf,
@@ -216,7 +215,7 @@ void core_oracle_t::reg_stats(struct stat_sdb_t* const sdb) {
                      0,
                      TRUE,
                      NULL);
-    sprintf(buf, "c%d.oracle_insn_undo", arch->id);
+    sprintf(buf, "c%d.oracle_insn_undo", core->id);
     stat_reg_counter(sdb,
                      false,
                      buf,
@@ -225,7 +224,7 @@ void core_oracle_t::reg_stats(struct stat_sdb_t* const sdb) {
                      0,
                      TRUE,
                      NULL);
-    sprintf(buf, "c%d.oracle_unknown_insn", arch->id);
+    sprintf(buf, "c%d.oracle_unknown_insn", core->id);
     stat_reg_counter(sdb,
                      true,
                      buf,
@@ -234,10 +233,10 @@ void core_oracle_t::reg_stats(struct stat_sdb_t* const sdb) {
                      0,
                      TRUE,
                      NULL);
-    sprintf(buf, "c%d.oracle_num_uops", arch->id);
-    sprintf(buf2, "c%d.oracle_total_uops - c%d.oracle_uop_undo", arch->id, arch->id);
+    sprintf(buf, "c%d.oracle_num_uops", core->id);
+    sprintf(buf2, "c%d.oracle_total_uops - c%d.oracle_uop_undo", core->id, core->id);
     stat_reg_formula(sdb, true, buf, "number of uops executed by oracle", buf2, "%12.0f");
-    sprintf(buf, "c%d.oracle_total_uops", arch->id);
+    sprintf(buf, "c%d.oracle_total_uops", core->id);
     stat_reg_counter(sdb,
                      true,
                      buf,
@@ -246,7 +245,7 @@ void core_oracle_t::reg_stats(struct stat_sdb_t* const sdb) {
                      0,
                      TRUE,
                      NULL);
-    sprintf(buf, "c%d.oracle_uop_undo", arch->id);
+    sprintf(buf, "c%d.oracle_uop_undo", core->id);
     stat_reg_counter(sdb,
                      false,
                      buf,
@@ -255,10 +254,10 @@ void core_oracle_t::reg_stats(struct stat_sdb_t* const sdb) {
                      0,
                      TRUE,
                      NULL);
-    sprintf(buf, "c%d.oracle_num_eff_uops", arch->id);
-    sprintf(buf2, "c%d.oracle_total_eff_uops - c%d.oracle_eff_uop_undo", arch->id, arch->id);
+    sprintf(buf, "c%d.oracle_num_eff_uops", core->id);
+    sprintf(buf2, "c%d.oracle_total_eff_uops - c%d.oracle_eff_uop_undo", core->id, core->id);
     stat_reg_formula(sdb, true, buf, "number of effective uops executed by oracle", buf2, "%12.0f");
-    sprintf(buf, "c%d.oracle_total_eff_uops", arch->id);
+    sprintf(buf, "c%d.oracle_total_eff_uops", core->id);
     stat_reg_counter(sdb,
                      true,
                      buf,
@@ -267,7 +266,7 @@ void core_oracle_t::reg_stats(struct stat_sdb_t* const sdb) {
                      0,
                      TRUE,
                      NULL);
-    sprintf(buf, "c%d.oracle_eff_uop_undo", arch->id);
+    sprintf(buf, "c%d.oracle_eff_uop_undo", core->id);
     stat_reg_counter(sdb,
                      false,
                      buf,
@@ -277,36 +276,36 @@ void core_oracle_t::reg_stats(struct stat_sdb_t* const sdb) {
                      TRUE,
                      NULL);
 
-    sprintf(buf, "c%d.oracle_IPC", arch->id);
-    sprintf(buf2, "c%d.oracle_num_insn / c%d.sim_cycle", arch->id, arch->id);
+    sprintf(buf, "c%d.oracle_IPC", core->id);
+    sprintf(buf2, "c%d.oracle_num_insn / c%d.sim_cycle", core->id, core->id);
     stat_reg_formula(sdb, true, buf, "IPC at oracle", buf2, NULL);
-    sprintf(buf, "c%d.oracle_uPC", arch->id);
-    sprintf(buf2, "c%d.oracle_num_uops / c%d.sim_cycle", arch->id, arch->id);
+    sprintf(buf, "c%d.oracle_uPC", core->id);
+    sprintf(buf2, "c%d.oracle_num_uops / c%d.sim_cycle", core->id, core->id);
     stat_reg_formula(sdb, true, buf, "uPC at oracle", buf2, NULL);
-    sprintf(buf, "c%d.oracle_euPC", arch->id);
-    sprintf(buf2, "c%d.oracle_num_eff_uops / c%d.sim_cycle", arch->id, arch->id);
+    sprintf(buf, "c%d.oracle_euPC", core->id);
+    sprintf(buf2, "c%d.oracle_num_eff_uops / c%d.sim_cycle", core->id, core->id);
     stat_reg_formula(sdb, true, buf, "euPC at oracle", buf2, NULL);
-    sprintf(buf, "c%d.oracle_total_IPC", arch->id);
-    sprintf(buf2, "c%d.oracle_total_insn / c%d.sim_cycle", arch->id, arch->id);
+    sprintf(buf, "c%d.oracle_total_IPC", core->id);
+    sprintf(buf2, "c%d.oracle_total_insn / c%d.sim_cycle", core->id, core->id);
     stat_reg_formula(sdb, true, buf, "IPC at oracle, including wrong-path", buf2, NULL);
-    sprintf(buf, "c%d.oracle_total_uPC", arch->id);
-    sprintf(buf2, "c%d.oracle_total_uops / c%d.sim_cycle", arch->id, arch->id);
+    sprintf(buf, "c%d.oracle_total_uPC", core->id);
+    sprintf(buf2, "c%d.oracle_total_uops / c%d.sim_cycle", core->id, core->id);
     stat_reg_formula(sdb, true, buf, "uPC at oracle, including wrong-path", buf2, NULL);
-    sprintf(buf, "c%d.oracle_total_euPC", arch->id);
-    sprintf(buf2, "c%d.oracle_total_eff_uops / c%d.sim_cycle", arch->id, arch->id);
+    sprintf(buf, "c%d.oracle_total_euPC", core->id);
+    sprintf(buf2, "c%d.oracle_total_eff_uops / c%d.sim_cycle", core->id, core->id);
     stat_reg_formula(sdb, true, buf, "euPC at oracle, including wrong-path", buf2, NULL);
-    sprintf(buf, "c%d.avg_oracle_flowlen", arch->id);
-    sprintf(buf2, "c%d.oracle_num_uops / c%d.oracle_num_insn", arch->id, arch->id);
+    sprintf(buf, "c%d.avg_oracle_flowlen", core->id);
+    sprintf(buf2, "c%d.oracle_num_uops / c%d.oracle_num_insn", core->id, core->id);
     stat_reg_formula(sdb, true, buf, "uops per instruction at oracle", buf2, NULL);
-    sprintf(buf, "c%d.avg_oracle_eff_flowlen", arch->id);
-    sprintf(buf2, "c%d.oracle_num_eff_uops / c%d.oracle_num_insn", arch->id, arch->id);
+    sprintf(buf, "c%d.avg_oracle_eff_flowlen", core->id);
+    sprintf(buf2, "c%d.oracle_num_eff_uops / c%d.oracle_num_insn", core->id, core->id);
     stat_reg_formula(sdb, true, buf, "effective uops per instruction at oracle", buf2, NULL);
-    sprintf(buf, "c%d.avg_oracle_total_flowlen", arch->id);
-    sprintf(buf2, "c%d.oracle_total_uops / c%d.oracle_total_insn", arch->id, arch->id);
+    sprintf(buf, "c%d.avg_oracle_total_flowlen", core->id);
+    sprintf(buf2, "c%d.oracle_total_uops / c%d.oracle_total_insn", core->id, core->id);
     stat_reg_formula(
         sdb, true, buf, "uops per instruction at oracle, including wrong-path", buf2, NULL);
-    sprintf(buf, "c%d.avg_oracle_total_eff_flowlen", arch->id);
-    sprintf(buf2, "c%d.oracle_total_eff_uops / c%d.oracle_total_insn", arch->id, arch->id);
+    sprintf(buf, "c%d.avg_oracle_total_eff_flowlen", core->id);
+    sprintf(buf2, "c%d.oracle_total_eff_uops / c%d.oracle_total_insn", core->id, core->id);
     stat_reg_formula(sdb,
                      true,
                      buf,
@@ -314,7 +313,7 @@ void core_oracle_t::reg_stats(struct stat_sdb_t* const sdb) {
                      buf2,
                      NULL);
 
-    sprintf(buf, "c%d.oracle_num_refs", arch->id);
+    sprintf(buf, "c%d.oracle_num_refs", core->id);
     stat_reg_counter(sdb,
                      true,
                      buf,
@@ -323,7 +322,7 @@ void core_oracle_t::reg_stats(struct stat_sdb_t* const sdb) {
                      0,
                      TRUE,
                      NULL);
-    sprintf(buf, "c%d.oracle_num_loads", arch->id);
+    sprintf(buf, "c%d.oracle_num_loads", core->id);
     stat_reg_counter(sdb,
                      true,
                      buf,
@@ -332,10 +331,10 @@ void core_oracle_t::reg_stats(struct stat_sdb_t* const sdb) {
                      0,
                      TRUE,
                      NULL);
-    sprintf(buf2, "c%d.oracle_num_refs - c%d.oracle_num_loads", arch->id, arch->id);
-    sprintf(buf, "c%d.oracle_num_stores", arch->id);
+    sprintf(buf2, "c%d.oracle_num_refs - c%d.oracle_num_loads", core->id, core->id);
+    sprintf(buf, "c%d.oracle_num_stores", core->id);
     stat_reg_formula(sdb, true, buf, "total number of stores executed by oracle", buf2, "%12.0f");
-    sprintf(buf, "c%d.oracle_num_branches", arch->id);
+    sprintf(buf, "c%d.oracle_num_branches", core->id);
     stat_reg_counter(sdb,
                      true,
                      buf,
@@ -345,7 +344,7 @@ void core_oracle_t::reg_stats(struct stat_sdb_t* const sdb) {
                      TRUE,
                      NULL);
 
-    sprintf(buf, "c%d.oracle_total_refs", arch->id);
+    sprintf(buf, "c%d.oracle_total_refs", core->id);
     stat_reg_counter(sdb,
                      true,
                      buf,
@@ -354,7 +353,7 @@ void core_oracle_t::reg_stats(struct stat_sdb_t* const sdb) {
                      0,
                      TRUE,
                      NULL);
-    sprintf(buf, "c%d.oracle_total_loads", arch->id);
+    sprintf(buf, "c%d.oracle_total_loads", core->id);
     stat_reg_counter(sdb,
                      true,
                      buf,
@@ -363,15 +362,15 @@ void core_oracle_t::reg_stats(struct stat_sdb_t* const sdb) {
                      0,
                      TRUE,
                      NULL);
-    sprintf(buf2, "c%d.oracle_total_refs - c%d.oracle_total_loads", arch->id, arch->id);
-    sprintf(buf, "c%d.oracle_total_stores", arch->id);
+    sprintf(buf2, "c%d.oracle_total_refs - c%d.oracle_total_loads", core->id, core->id);
+    sprintf(buf, "c%d.oracle_total_stores", core->id);
     stat_reg_formula(sdb,
                      true,
                      buf,
                      "total number of stores executed by oracle, including wrong-path",
                      buf2,
                      "%12.0f");
-    sprintf(buf, "c%d.oracle_total_branches", arch->id);
+    sprintf(buf, "c%d.oracle_total_branches", core->id);
     stat_reg_counter(sdb,
                      true,
                      buf,
@@ -380,7 +379,7 @@ void core_oracle_t::reg_stats(struct stat_sdb_t* const sdb) {
                      0,
                      TRUE,
                      NULL);
-    sprintf(buf, "c%d.oracle_total_calls", arch->id);
+    sprintf(buf, "c%d.oracle_total_calls", core->id);
     stat_reg_counter(sdb,
                      true,
                      buf,
@@ -389,13 +388,13 @@ void core_oracle_t::reg_stats(struct stat_sdb_t* const sdb) {
                      0,
                      TRUE,
                      NULL);
-    sprintf(buf, "c%d.MopQ_occupancy", arch->id);
+    sprintf(buf, "c%d.MopQ_occupancy", core->id);
     stat_reg_counter(
         sdb, true, buf, "total oracle MopQ occupancy", &core->stat.MopQ_occupancy, 0, TRUE, NULL);
-    sprintf(buf, "c%d.MopQ_avg", arch->id);
-    sprintf(buf2, "c%d.MopQ_occupancy/c%d.sim_cycle", arch->id, arch->id);
+    sprintf(buf, "c%d.MopQ_avg", core->id);
+    sprintf(buf2, "c%d.MopQ_occupancy/c%d.sim_cycle", core->id, core->id);
     stat_reg_formula(sdb, true, buf, "average oracle MopQ occupancy", buf2, NULL);
-    sprintf(buf, "c%d.MopQ_full", arch->id);
+    sprintf(buf, "c%d.MopQ_full", core->id);
     stat_reg_counter(sdb,
                      true,
                      buf,
@@ -404,10 +403,10 @@ void core_oracle_t::reg_stats(struct stat_sdb_t* const sdb) {
                      0,
                      TRUE,
                      NULL);
-    sprintf(buf, "c%d.MopQ_frac_full", arch->id);
-    sprintf(buf2, "c%d.MopQ_full/c%d.sim_cycle", arch->id, arch->id);
+    sprintf(buf, "c%d.MopQ_frac_full", core->id);
+    sprintf(buf2, "c%d.MopQ_full/c%d.sim_cycle", core->id, core->id);
     stat_reg_formula(sdb, true, buf, "fraction of cycles oracle MopQ was full", buf2, NULL);
-    sprintf(buf, "c%d.oracle_emergency_recoveries", arch->id);
+    sprintf(buf, "c%d.oracle_emergency_recoveries", core->id);
     stat_reg_counter(sdb,
                      true,
                      buf,
@@ -416,7 +415,7 @@ void core_oracle_t::reg_stats(struct stat_sdb_t* const sdb) {
                      0,
                      FALSE,
                      NULL);
-    sprintf(buf, "c%d.feeder_handshakes", arch->id);
+    sprintf(buf, "c%d.feeder_handshakes", core->id);
     stat_reg_counter(sdb,
                      true,
                      buf,
@@ -425,7 +424,7 @@ void core_oracle_t::reg_stats(struct stat_sdb_t* const sdb) {
                      0,
                      FALSE,
                      NULL);
-    sprintf(buf, "c%d.handshakes_dropped", arch->id);
+    sprintf(buf, "c%d.handshakes_dropped", core->id);
     stat_reg_counter(sdb,
                      true,
                      buf,
@@ -434,7 +433,7 @@ void core_oracle_t::reg_stats(struct stat_sdb_t* const sdb) {
                      0,
                      FALSE,
                      NULL);
-    sprintf(buf, "c%d.oracle_handshakes_buffered", arch->id);
+    sprintf(buf, "c%d.oracle_handshakes_buffered", core->id);
     stat_reg_counter(sdb,
                      true,
                      buf,
@@ -443,7 +442,7 @@ void core_oracle_t::reg_stats(struct stat_sdb_t* const sdb) {
                      0,
                      FALSE,
                      NULL);
-    sprintf(buf, "c%d.oracle_nop_handshakes", arch->id);
+    sprintf(buf, "c%d.oracle_nop_handshakes", core->id);
     stat_reg_counter(sdb,
                      true,
                      buf,
@@ -479,7 +478,6 @@ int core_oracle_t::next_index(const int index) {
 }
 
 struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
-    struct thread_t* thread = core->current_thread;
     struct core_knobs_t* knobs = core->knobs;
     size_t flow_index = 0;
     struct Mop_t* Mop = NULL;
@@ -531,10 +529,10 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
     core->fetch->feeder_NPC = oracle_NPC;
     core->fetch->prev_insn_fake = core->fetch->fake_insn;
     core->fetch->fake_insn = !handshake.flags.real;
-    core->current_thread->asid = handshake.asid;
+    core->asid = handshake.asid;
     /* Potentially change HELIX critical section state if instruction is fake. */
     if (!handshake.flags.real) {
-        core->current_thread->in_critical_section = handshake.flags.in_critical_section;
+        core->in_critical_section = handshake.flags.in_critical_section;
     }
 
     Mop->fetch.PC = requested_PC;
@@ -597,15 +595,12 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
         /* Fill mem repeater fields */
         if (uop->decode.is_load || uop->decode.is_sta || uop->decode.is_std) {
             uop->oracle.is_sync_op = core->fetch->fake_insn && !spec_mode;
-            uop->oracle.is_repeated =
-                core->current_thread->in_critical_section || uop->oracle.is_sync_op;
-            if (uop->oracle.is_sync_op && uop->decode.is_std)
-                core->num_signals_in_pipe++;
+            uop->oracle.is_repeated = core->in_critical_section || uop->oracle.is_sync_op;
         }
 
         /* Mark fences in critical section as light.
          * XXX: This is a hack, so I don't hijack new x86 opcodes for light fences */
-        if (uop->decode.is_fence && core->current_thread->in_critical_section)
+        if (uop->decode.is_fence && core->in_critical_section)
             uop->decode.is_light_fence = true;
 
         /* For loads, stas and stds, we need to grab virt_addr and mem_size from feeder. */
@@ -620,7 +615,7 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
 
             zesto_assert(uop->oracle.virt_addr != 0 || uop->Mop->oracle.spec_mode, NULL);
             uop->oracle.phys_addr =
-                xiosim::memory::v2p_translate(thread->asid, uop->oracle.virt_addr);
+                xiosim::memory::v2p_translate(core->asid, uop->oracle.virt_addr);
         }
 
         flow_index += 1;  // MD_INC_FLOW;
@@ -679,7 +674,7 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
 
 void core_oracle_t::update_stats(struct Mop_t* const Mop) {
     if (!Mop->oracle.spec_mode)
-        core->current_thread->stat.num_insn++;
+        core->stat.oracle_num_insn++;
     ZESTO_STAT(core->stat.oracle_total_insn++;)
 
     if (Mop->decode.opflags.CALL)
@@ -726,6 +721,7 @@ void core_oracle_t::update_stats(struct Mop_t* const Mop) {
 void core_oracle_t::consume(const struct Mop_t* const Mop) {
     assert(Mop == current_Mop);
     current_Mop = NULL;
+    consumed = true;
 }
 
 void core_oracle_t::commit_uop(struct uop_t* const uop) {
@@ -765,7 +761,7 @@ void core_oracle_t::commit(const struct Mop_t* const commit_Mop) {
         zesto_assert(MopQ_num == 1, (void)0);
         drain_pipeline = false;
         /* Force simulation to re-check feeder */
-        core->current_thread->consumed = true;
+        consumed = true;
     }
 
     Mop->valid = false;
@@ -782,7 +778,6 @@ void core_oracle_t::commit(const struct Mop_t* const commit_Mop) {
    state.  Bookkeeping for the MopQ and other core-level structures has to be
    dealt with separately. */
 void core_oracle_t::undo(struct Mop_t* const Mop, bool nuke) {
-    struct thread_t* thread = core->current_thread;
     /* walk uop list backwards, undoing each operation's effects */
     for (int i = Mop->decode.flow_length - 1; i >= 0; i--) {
         struct uop_t* uop = &Mop->uop[i];
@@ -791,7 +786,7 @@ void core_oracle_t::undo(struct Mop_t* const Mop, bool nuke) {
         /* collect stats */
         if (uop->decode.EOM) {
             if (!Mop->oracle.spec_mode) {
-                thread->stat.num_insn--; /* one less oracle instruction executed */
+                core->stat.oracle_num_insn--; /* one less oracle instruction executed */
             }
             ZESTO_STAT(core->stat.oracle_inst_undo++;)
         }
@@ -876,7 +871,7 @@ void core_oracle_t::recover(const struct Mop_t* const Mop) {
     core->fetch->feeder_NPC = Mop->oracle.NextPC;
 
     /* Force simulation to re-check feeder if needed */
-    core->current_thread->consumed = true;
+    consumed = true;
 
     current_Mop = NULL;
 }
@@ -959,7 +954,7 @@ void core_oracle_t::complete_flush(void) {
     drain_pipeline = false;
     current_Mop = NULL;
     /* Force simulation to re-check feeder if needed */
-    core->current_thread->consumed = true;
+    consumed = true;
 }
 
 buffer_result_t core_oracle_t::buffer_handshake(handshake_container_t* handshake) {
@@ -1026,7 +1021,7 @@ handshake_container_t core_oracle_t::get_fake_spec_handshake() {
     new_handshake.flags.speculative = true;
     new_handshake.flags.real = true;
     new_handshake.flags.valid = true;
-    new_handshake.asid = core->current_thread->asid;
+    new_handshake.asid = core->asid;
     new_handshake.ins[0] = 0x0f;  // 3-byte NOP
     new_handshake.ins[1] = 0x1f;  // 3-byte NOP
     new_handshake.ins[2] = 0x00;  // 3-byte NOP

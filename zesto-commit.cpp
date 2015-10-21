@@ -76,7 +76,6 @@
 
 #include "misc.h"
 #include "sim.h"
-#include "thread.h"
 #include "synchronization.h"
 
 #include "zesto-core.h"

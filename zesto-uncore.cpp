@@ -76,7 +76,6 @@
 #include <limits.h>
 #include <ctype.h>
 
-#include "thread.h"
 #include "stats.h"
 #include "sim.h"
 #include "zesto-core.h"

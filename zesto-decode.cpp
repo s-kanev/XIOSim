@@ -75,8 +75,6 @@
 #include <cmath>
 #include <cstddef>
 
-#include "thread.h"
-
 #include "zesto-core.h"
 #include "zesto-oracle.h"
 #include "zesto-decode.h"

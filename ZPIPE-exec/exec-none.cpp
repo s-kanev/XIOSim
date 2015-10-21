@@ -280,7 +280,7 @@ void core_exec_NONE_t::LDST_exec(void)
     cache_command cache_op = uop->decode.is_load ? CACHE_READ : CACHE_WRITE;
     md_addr_t addr = uop->oracle.virt_addr;
     md_addr_t pc = Mop->fetch.PC;
-    int asid = core->current_thread->asid;
+    int asid = core->asid;
 
     if (cache_enqueuable(core->memory.DL1, asid, addr)) {
       // Mark uop as sent to caches

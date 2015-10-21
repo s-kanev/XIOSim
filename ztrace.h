@@ -7,9 +7,6 @@
  * There is one circular buffer per core and one for the uncore.
  */
 
-#include "thread.h"
-#include "zesto-core.h"
-
 /* Prefix for ztrace output files.
  * Final filenames will be @ztrace_filename.{coreID}.
  */

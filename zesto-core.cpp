@@ -88,12 +88,14 @@
 
 /* CONSTRUCTOR */
 core_t::core_t(const int core_id):
-  knobs(NULL), current_thread(NULL), id(core_id),
-  sim_cycle(0), ns_passed(0.0), 
-  num_emergency_recoveries(0), last_emergency_recovery_count(0),
+  knobs(NULL), id(core_id),
+  sim_cycle(0), active(false), last_active_cycle(0),
+  ns_passed(0.0), finished_cycle(false),
+  in_critical_section(false), num_emergency_recoveries(0),
+  last_emergency_recovery_count(0),
   oracle(NULL), fetch(NULL), decode(NULL), alloc(NULL),
-  exec(NULL), commit(NULL), num_signals_in_pipe(0),
-  global_action_id(0), odep_free_pool(NULL)
+  exec(NULL), commit(NULL), global_action_id(0),
+  odep_free_pool(NULL), odep_free_pool_debt(0)
 {
   memzero(&memory,sizeof(memory));
   memzero(&stat,sizeof(stat));
