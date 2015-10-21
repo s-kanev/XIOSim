@@ -26,7 +26,7 @@ class shadow_Mop_t {
  * which might need to roll back oracle state hundreds of cycles (and instructions)
  * after we've consumed a Mop. When we detect a nuke, we clear the oracle MopQ,
  * and start the recovery with handshakes from the shadow MopQ, until we need new
- * ones from the feeder. Check Zesto_Resume() for that logic.
+ * ones from the feeder. Check libsim::simulate_handshake() for that logic.
  *
  * As opposed to the MopQ, which has speculative Mops right after non-spec ones,
  * here they hang in a vector on the side of the Mop that triggered the speculation.

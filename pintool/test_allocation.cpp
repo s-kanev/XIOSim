@@ -12,7 +12,6 @@
 #include "assert.h"
 #include "boost_interprocess.h"
 #include "catch.hpp"  // Must come before interface.h
-#include "../interface.h"
 #include "../synchronization.h"
 #include "multiprocess_shared.h"
 #include "mpkeys.h"

@@ -3,7 +3,6 @@
 
 #include "boost_interprocess.h"
 
-#include "../interface.h"
 #include "multiprocess_shared.h"
 #include "buffer.h"
 #include "BufferManager.h"

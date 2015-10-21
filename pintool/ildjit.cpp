@@ -24,6 +24,7 @@
 #include "parse_speedup.h"
 
 #include "../sim.h"
+#include "../helix.h"
 
 // True if ILDJIT has finished compilation and is executing user code
 BOOL ILDJIT_executionStarted = false;

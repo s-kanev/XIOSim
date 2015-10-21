@@ -17,7 +17,6 @@ extern "C" {
 #include <map>
 using namespace INSTLIB;
 
-#include "../interface.h"
 #include "../synchronization.h"
 #include "../memory.h"
 #include "../zesto-bpred.h"

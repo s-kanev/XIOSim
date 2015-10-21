@@ -55,19 +55,22 @@ CFLAGS = $(FFLAGS) $(OFLAGS) $(BINUTILS_INC) $(BINUTILS_LIB) $(ZTRACE) $(MCPAT_I
 #
 SRCS =  \
 eval.c          memory.cpp         misc.c\
-stats.c         slave.cpp         sim-main.c       slices.cpp\
-decode.cpp        uop_cracker.cpp  fu.cpp
+stats.c         sim.cpp          slices.cpp\
+decode.cpp        uop_cracker.cpp  fu.cpp\
+sim-loop.cpp
 
 HDRS = \
-host.h          memory.h\
+libsim.h        host.h          memory.h\
 misc.h                   sim.h           stats.h\
-interface.h     callbacks.h     pintool/buffer.h\
-decode.h        uop_cracker.h   fu.h
+pintool/buffer.h\
+decode.h        uop_cracker.h   fu.h\
+sim-loop.h
 
 OBJS =	\
 eval.$(OEXT)         memory.$(OEXT)       misc.$(OEXT)\
-stats.$(OEXT)        sim-main.$(OEXT)     slices.$(OEXT)     slave.$(OEXT)\
-decode.$(OEXT)       uop_cracker.$(OEXT)  fu.$(OEXT)
+stats.$(OEXT)        slices.$(OEXT)     sim.$(OEXT)\
+decode.$(OEXT)       uop_cracker.$(OEXT)  fu.$(OEXT)\
+sim-loop.$(OEXT)
 
 # Zesto specific files
 ZSRCS = \
@@ -92,12 +95,12 @@ ZOBJS=$(ZSRCS:.cpp=.o)
 #
 default: lib
 
-lib:	sim-slave.$(OEXT) $(OBJS) $(ZOBJS)
-	ar rs libsim.a sim-slave.$(OEXT) $(OBJS) $(ZOBJS)
+lib:	$(OBJS) $(ZOBJS)
+	ar rs libsim.a $(OBJS) $(ZOBJS)
 	ranlib libsim.a
 libd: CFLAGS += -DZTRACE -DZESTO_PIN_DBG
-libd:	sim-slave.$(OEXT) $(OBJS) $(ZOBJS)
-	ar rs libsim.a sim-slave.$(OEXT) $(OBJS) $(ZOBJS)
+libd:	$(OBJS) $(ZOBJS)
+	ar rs libsim.a $(OBJS) $(ZOBJS)
 	ranlib libsim.a
 
 # The various *.list files are automatically generated from
@@ -165,33 +168,27 @@ zesto-dvfs.$(OEXT): zesto-dvfs.cpp zesto-dvfs.h ZCOMPS-dvfs
 	$(CXX) $(CFLAGS) -c $*.cpp
 
 clean:
-	-$(RM) *.o *.obj core libsim*
+	-$(RM) *.a *.o *.obj core
 
 .PHONY: tags
 tags:
 	ctags -R --extra=+q .
 
 eval.o: host.h misc.h  zesto-structs.h
-slave.o: host.h misc.h zesto-structs.h
-slave.o:  memory.h stats.h sim.h
-slave.o: interface.h
+sim.o: host.h misc.h zesto-structs.h
+sim.o: memory.h stats.h sim.h
+sim.o: libsim.h
 slices.o: stats.h host.h  memory.h
 slices.o: zesto-core.h zesto-structs.h
-sim-main.o: host.h misc.h zesto-structs.h
-sim-main.o:  memory.h stats.h
-sim-main.o: sim.h zesto-core.h zesto-oracle.h zesto-fetch.h
-sim-main.o: zesto-decode.h zesto-bpred.h zesto-alloc.h zesto-exec.h
-sim-main.o: zesto-commit.h zesto-dram.h zesto-cache.h zesto-uncore.h
-sim-main.o: zesto-MC.h interface.h
-sim-slave.o: host.h misc.h zesto-structs.h
-sim-slave.o:  memory.h stats.h
-sim-slave.o: sim.h zesto-core.h zesto-oracle.h zesto-fetch.h
-sim-slave.o: zesto-decode.h zesto-bpred.h zesto-alloc.h zesto-exec.h
-sim-slave.o: zesto-commit.h zesto-dram.h zesto-cache.h zesto-uncore.h
-sim-slave.o: zesto-MC.h interface.h synchronization.h
-sim-slave.o: zesto-repeater.h
+sim-loop.o: host.h misc.h zesto-structs.h
+sim-loop.o:  memory.h stats.h libsim.h
+sim-loop.o: sim.h zesto-core.h zesto-oracle.h zesto-fetch.h
+sim-loop.o: zesto-decode.h zesto-bpred.h zesto-alloc.h zesto-exec.h
+sim-loop.o: zesto-commit.h zesto-dram.h zesto-cache.h zesto-uncore.h
+sim-loop.o: zesto-MC.h synchronization.h
+sim-loop.o: zesto-repeater.h
 memory.o: host.h misc.h zesto-structs.h
-memory.o:  stats.h  memory.h interface.h
+memory.o:  stats.h  memory.h
 misc.o: host.h misc.h zesto-structs.h
 misc.o: synchronization.h
 stats.o: host.h misc.h zesto-structs.h
@@ -201,7 +198,7 @@ libsim.a:  memory.h stats.h
 libsim.a: sim.h zesto-core.h zesto-oracle.h zesto-fetch.h
 libsim.a: zesto-decode.h zesto-bpred.h zesto-alloc.h zesto-exec.h
 libsim.a: zesto-commit.h zesto-dram.h zesto-cache.h zesto-uncore.h
-libsim.a: zesto-MC.h interface.h synchronization.h
+libsim.a: zesto-MC.h synchronization.h
 libsim.a: zesto-repeater.h
 zesto-core.o: zesto-core.h zesto-structs.h host.h misc.h
 zesto-core.o:

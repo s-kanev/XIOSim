@@ -506,13 +506,13 @@ ADDRINT returnArg(BOOL arg) { return arg; }
 
 VOID WarmCacheRead(VOID* addr) {
 #if 0
-    Zesto_WarmLLC((ADDRINT)addr, false);
+    xiosim::libsim::simulate_warmup((ADDRINT)addr, false);
 #endif
 }
 
 VOID WarmCacheWrite(VOID* addr) {
 #if 0
-    Zesto_WarmLLC((ADDRINT)addr, true);
+    xiosim::libsim::simulate_warmup((ADDRINT)addr, true);
 #endif
 }
 

@@ -96,6 +96,10 @@
 #define GET_BANK(x) (((x)>>cp->bank_shift) & cp->bank_mask)
 #define GET_MSHR_BANK(x) (((x)>>cp->bank_shift) & cp->MSHR_mask)
 
+/* Cache lock should be acquired before any access to the shared
+ * caches (including enqueuing requests from lower-level caches). */
+XIOSIM_LOCK cache_lock;
+
 struct cache_t * cache_create(
     struct core_t * const core,
     const char * const name,

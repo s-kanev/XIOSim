@@ -24,7 +24,6 @@
 
 #include "ezOptionParser_clean.hpp"
 
-#include "../interface.h"
 #include "multiprocess_shared.h"
 #include "ipc_queues.h"
 

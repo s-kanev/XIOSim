@@ -76,6 +76,7 @@
  */
 
 #include "ztrace.h"
+#include "synchronization.h"
 
 /* used when passing an MSHR index into the cache functions, but for
    whatever reason there's no corresponding MSHR entry */
@@ -401,6 +402,10 @@ inline bool cache_single_line_access(struct cache_t * const cp, const md_addr_t 
 /* Get the appropriate cycle counter (core, uncore) depending on
  * whether this is a shared/private cache */
 tick_t cache_get_cycle(const struct cache_t * const cp);
+
+/* Cache lock should be acquired before any access to the shared
+ * caches (including enqueuing requests from lower-level caches). */
+extern XIOSIM_LOCK cache_lock;
 
 #ifndef cache_fatal
 #ifdef DEBUG
