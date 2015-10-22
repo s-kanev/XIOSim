@@ -61,13 +61,13 @@ class handshake_container_t {
 
         /* Memory vector size, followed by elements */
         int vectorSize = mem_buffer.size();
-        const size_t vectorEntryBytes = sizeof(uint32_t) + sizeof(uint8_t);
+        const size_t vectorEntryBytes = sizeof(md_addr_t) + sizeof(uint8_t);
         size_t vectorBytes = vectorSize * vectorEntryBytes;
         buffPosition = copyToBuff(buffPosition, &(vectorBytes), sizeof(size_t));
 
         /* If available, memory accesses */
         for (auto access : mem_buffer) {
-            buffPosition = copyToBuff(buffPosition, &(access.first), sizeof(uint32_t));
+            buffPosition = copyToBuff(buffPosition, &(access.first), sizeof(md_addr_t));
             buffPosition = copyToBuff(buffPosition, &(access.second), sizeof(uint8_t));
         }
 
@@ -91,7 +91,7 @@ class handshake_container_t {
 
     void Deserialize(void const* const buffer, size_t buffer_size) {
         const size_t flagBytes = sizeof(handshake_flags_t);
-        const size_t vectorEntryBytes = sizeof(uint32_t) + sizeof(uint8_t);
+        const size_t vectorEntryBytes = sizeof(md_addr_t) + sizeof(uint8_t);
 #ifdef SERIALIZATION_DEBUG
         std::cerr << "[READ]TotalBytes: " << buffer_size << std::endl;
 #endif
@@ -109,10 +109,10 @@ class handshake_container_t {
 
         this->mem_buffer.clear();
         for (size_t i = 0; i < vectorNum; i++) {
-            uint32_t addr;
+            md_addr_t addr;
             uint8_t size;
 
-            buffPosition = copyFromBuff(&addr, buffPosition, sizeof(uint32_t));
+            buffPosition = copyFromBuff(&addr, buffPosition, sizeof(md_addr_t));
             buffPosition = copyFromBuff(&size, buffPosition, sizeof(uint8_t));
             this->mem_buffer.push_back(std::make_pair(addr, size));
         }

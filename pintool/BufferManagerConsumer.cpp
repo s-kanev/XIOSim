@@ -127,13 +127,13 @@ static ssize_t do_read(const int fd, void* buff, const size_t size) {
 }
 
 static bool readHandshake(pid_t tid, int fd, handshake_container_t* handshake) {
-    int bufferSize;
-    int bytesRead = do_read(fd, &(bufferSize), sizeof(int));
+    ssize_t bufferSize;
+    ssize_t bytesRead = do_read(fd, &(bufferSize), sizeof(ssize_t));
     if (bytesRead == -1) {
         cerr << "File read error: " << bytesRead << " Errcode:" << strerror(errno) << endl;
         abort();
     }
-    assert(bytesRead == sizeof(int));
+    assert(bytesRead == sizeof(size_t));
 
     /* We have read the size field already. Now read the rest. */
     bufferSize -= sizeof(bufferSize);
