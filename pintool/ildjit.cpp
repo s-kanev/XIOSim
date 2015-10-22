@@ -876,7 +876,7 @@ VOID AddILDJITCallbacks(IMG img) {
                        1,
                        IARG_INST_PTR,
                        IARG_REG_VALUE,
-                       LEVEL_BASE::REG_ESP,
+                       LEVEL_BASE::REG_FullRegName(LEVEL_BASE::REG_ESP),
                        IARG_CALL_ORDER,
                        CALL_ORDER_LAST,
                        IARG_END);
