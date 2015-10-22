@@ -95,34 +95,26 @@ core_commit_DPM_t::core_commit_DPM_t(struct core_t * const arg_core):
 
 void core_commit_DPM_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
 {
-    char buf[1024];
-    char buf2[1024];
     struct thread_t* arch = core->current_thread;
 
     stat_reg_note(sdb, "\n#### COMMIT STATS ####");
 
-    auto sim_cycle_st = stat_find_core_stat<qword_t>(sdb, arch->id, "sim_cycle");
-    assert(sim_cycle_st);
+    auto& sim_cycle_st = *stat_find_core_stat<qword_t>(sdb, arch->id, "sim_cycle");
+    auto& commit_insn_st = *stat_find_core_stat<qword_t>(sdb, arch->id, "commit_insn");
+    auto& commit_uops_st = *stat_find_core_stat<qword_t>(sdb, arch->id, "commit_uops");
+    auto& commit_eff_uops_st = *stat_find_core_stat<qword_t>(sdb, arch->id, "commit_eff_uops");
+
     auto& commit_bytes_st = stat_reg_core_counter(sdb, true, arch->id, "commit_bytes",
                                                   "total number of bytes committed",
                                                   &core->stat.commit_bytes, 0, TRUE, NULL);
-    auto& commit_insn_st = stat_reg_core_counter(sdb, true, arch->id, "commit_insn",
-                                                 "total number of instructions committed",
-                                                 &core->stat.commit_insn, 0, TRUE, NULL);
-    auto& commit_uops_st = stat_reg_core_counter(sdb, true, arch->id, "commit_uops",
-                                                 "total number of uops committed",
-                                                 &core->stat.commit_uops, 0, TRUE, NULL);
-    auto& commit_eff_uops_st = stat_reg_core_counter(sdb, true, arch->id, "commit_eff_uops",
-                                                     "total number of effective uops committed",
-                                                     &core->stat.commit_eff_uops, 0, TRUE, NULL);
     stat_reg_core_formula(sdb, true, arch->id, "commit_BPC", "BPC (bytes per cycle) at commit",
-                          commit_bytes_st / *sim_cycle_st, NULL);
+                          commit_bytes_st / sim_cycle_st, NULL);
     stat_reg_core_formula(sdb, true, arch->id, "commit_IPC", "IPC at commit",
-                          commit_insn_st / *sim_cycle_st, NULL);
+                          commit_insn_st / sim_cycle_st, NULL);
     stat_reg_core_formula(sdb, true, arch->id, "commit_uPC", "uPC at commit",
-                          commit_uops_st / *sim_cycle_st, NULL);
+                          commit_uops_st / sim_cycle_st, NULL);
     stat_reg_core_formula(sdb, true, arch->id, "commit_euPC", "effective uPC at commit",
-                          commit_eff_uops_st / *sim_cycle_st, NULL);
+                          commit_eff_uops_st / sim_cycle_st, NULL);
     stat_reg_core_formula(sdb, true, arch->id, "commit_byte_per_inst",
                           "average bytes per instruction", commit_bytes_st / commit_insn_st, NULL);
     stat_reg_core_formula(sdb, true, arch->id, "commit_byte_per_uops", "average bytes per uop",
@@ -169,15 +161,14 @@ void core_commit_DPM_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
             stat_reg_core_counter(sdb, false, arch->id, "ROB_full", "total cycles ROB was full",
                                   &core->stat.ROB_full_cycles, 0, TRUE, NULL);
     stat_reg_core_formula(sdb, true, arch->id, "ROB_avg", "average ROB occupancy",
-                          ROB_occupancy_st / *sim_cycle_st, NULL);
+                          ROB_occupancy_st / sim_cycle_st, NULL);
     stat_reg_core_formula(sdb, true, arch->id, "ROB_eff_avg", "average ROB effective occupancy",
-                          ROB_eff_occupancy_st / *sim_cycle_st, NULL);
+                          ROB_eff_occupancy_st / sim_cycle_st, NULL);
     stat_reg_core_formula(sdb, true, arch->id, "ROB_frac_empty", "fraction of cycles ROB was empty",
-                          ROB_empty_st / *sim_cycle_st, NULL);
+                          ROB_empty_st / sim_cycle_st, NULL);
     stat_reg_core_formula(sdb, true, arch->id, "ROB_frac_full", "fraction of cycles ROB was full",
-                          ROB_full_st / *sim_cycle_st, NULL);
-    auto store_lookups_st = stat_find_core_stat<int>(sdb, arch->id, "DL1_store_lookups");
-    assert(store_lookups_st);
+                          ROB_full_st / sim_cycle_st, NULL);
+    auto store_lookups_st = stat_find_core_stat<int>(sdb, arch->id, "DL1.store_lookups");
     auto& split_accesses_st =
             stat_reg_core_counter(sdb, true, arch->id, "DL1_store_split_accesses",
                                   "number of stores requiring split accesses",
@@ -191,10 +182,6 @@ void core_commit_DPM_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
             (PF_COUNT | PF_PDF), NULL, commit_stall_str, TRUE, NULL);
 
     stat_reg_note(sdb, "#### TIMING STATS ####");
-    stat_reg_core_qword(sdb, true, arch->id, "sim_cycle",
-                        "total number of cycles when last instruction (or uop) committed",
-                        (qword_t*)&core->stat.final_sim_cycle, 0, TRUE, NULL);
-
     /* cumulative slip cycles (not printed) */
     auto& fetch_Tslip = stat_reg_core_qword(sdb, false, arch->id, "Mop_fetch_Tslip",
                                             "total Mop fetch slip cycles",
@@ -258,17 +245,20 @@ void core_commit_DPM_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
     stat_reg_core_formula(sdb, true, arch->id, "Mop_commit_avg_slip", "Mop commit average delay",
                           commit_Tslip / (commit_insn_st - num_traps_st), NULL);
 
-    // TODO: Support sum of other formulas.
-    sprintf(buf, "c%d.Mop_avg_end_to_end", arch->id);
-    sprintf(buf2, "c%d.Mop_fetch_avg_slip + c%d.Mop_f2d_avg_slip + c%d.Mop_d2c_avg_slip + "
-                  "c%d.Mop_commit_avg_slip",
-            arch->id, arch->id, arch->id, arch->id);
-    stat_reg_formula(sdb, true, buf, "Mop average end-to-end pipeline delay", buf2, NULL);
+    // TODO: Support sum of other formulas. For now, just write the whole thing out by hand.
+    char stat_name[1024];
+    sprintf(stat_name, "c%d.Mop_avg_end_to_end", arch->id);
+    Formula Mop_avg_end_to_end(stat_name, "Mop average end-to-end pipeline delay");
+    Mop_avg_end_to_end =
+            fetch_Tslip / (commit_insn_st + num_traps_st)  +    // Mop_fetch_avg_slip.
+            f2d_Tslip / (commit_insn_st + num_traps_st)    +    // Mop_f2d_avg_slip.
+            decode_Tslip / (commit_insn_st - num_traps_st) +    // Mop_d2c_avg_slip.
+            commit_Tslip / (commit_insn_st - num_traps_st);     // Mop_commit_avg_slip.
 
     /* instruction distribution stats */
     stat_reg_note(sdb, "\n#### INSTRUCTION STATS (no wrong-path) ####");
-    stat_reg_core_counter(sdb, true, arch->id, "num_insn", "total number of instructions committed",
-                          &core->stat.commit_insn, 0, TRUE, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "num_insn", "total number of instructions committed",
+                          commit_insn_st, NULL);
     auto& num_refs_st = stat_reg_core_counter(sdb, true, arch->id, "num_refs",
                                               "total number of loads and stores committed",
                                               &core->stat.commit_refs, 0, TRUE, NULL);

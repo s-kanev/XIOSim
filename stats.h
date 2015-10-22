@@ -38,6 +38,25 @@ using xiosim::stats::StatsDatabase;
 using xiosim::stats::Formula;
 using xiosim::stats::ExpressionWrapper;
 
+/* Returns the full stat name for a core component.
+ *
+ * Args:
+ *    core_id: id of the core. If -1, then the core number part is omitted from the name.
+ *    comp_name: name of the component.
+ *    stat_name: name of the statistic
+ *    full_name: preallocated buffer that is large enough to hold the full stat name.
+ *    bool is_llc: true if the statistic is for the LLC, false otherwise.
+ *        Defaults to false.
+ *
+ * Returns:
+ *    Fully qualified stat name.
+ */
+void create_comp_stat_name(int core_id,
+                           const char* comp_name,
+                           const char* stat_name,
+                           char* full_name,
+                           bool is_llc=false);
+
 xiosim::stats::Statistic<int>& stat_reg_int(StatsDatabase* sdb,
                                             int print_me,
                                             const char* name,
@@ -229,14 +248,6 @@ void stat_add_samples(BaseStatistic* stat, dword_t index, int nsamples);
 /* Add a single sample to array or sparse array distribution STAT */
 void stat_add_sample(BaseStatistic* stat, dword_t index);
 
-/* Legacy.*/
-Formula* stat_reg_formula(StatsDatabase* sdb,
-                          int print_me,
-                          const char* name,
-                          const char* desc,
-                          const char* formula,
-                          const char* format);
-
 Formula* stat_reg_formula(StatsDatabase* sdb,
                           int print_me,
                           const char* name,
@@ -286,12 +297,15 @@ void stat_print_stats(StatsDatabase* sdb, FILE* fd);
 
 void stat_print_stat(BaseStatistic* stat, FILE* fd);
 
+// TODO: Make this return a reference instead of a pointer, so we can avoid
+// using dereferences in the reg_stats code.
 template <typename V>
 xiosim::stats::Statistic<V>* stat_find_stat(StatsDatabase* sdb,
                                             const char* stat_name) {
     using namespace xiosim::stats;
     BaseStatistic* base_stat = sdb->get_statistic(stat_name);
     Statistic<V>* stat = static_cast<Statistic<V>*>(base_stat);
+    assert(stat && "The statistic could not be found!");
     return stat;
 }
 
@@ -304,15 +318,15 @@ xiosim::stats::Statistic<V>* stat_find_core_stat(StatsDatabase* sdb,
     char full_stat_name[STAT_NAME_LEN];
     snprintf(full_stat_name, STAT_NAME_LEN, "c%d.%s", core_id, stat_name);
     Statistic<V>* stat = stat_find_stat<V>(sdb, full_stat_name);
+    assert(stat && "The statistic could not be found!");
     return stat;
 }
 
-void stat_find_dist(StatsDatabase* sdb, const char* stat_name, Distribution* dist);
+Distribution* stat_find_dist(StatsDatabase* sdb, const char* stat_name);
 
-void stat_find_core_dist(StatsDatabase* sdb,
-                         int core_id,
-                         const char* stat_name,
-                         Distribution* dist);
+Distribution* stat_find_core_dist(StatsDatabase* sdb, int core_id, const char* stat_name);
+
+Formula* stat_find_core_formula(StatsDatabase* sdb, int core_id, const char* stat_name);
 
 template <typename V>
 void stat_save_stat(xiosim::stats::Statistic<V>* stat) {

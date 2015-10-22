@@ -92,18 +92,14 @@ core_commit_STM_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
 
     stat_reg_note(sdb, "\n#### COMMIT STATS ####");
 
-    auto sim_cycle_st = stat_find_core_stat<qword_t>(sdb, arch->id, "sim_cycle");
-    assert(sim_cycle_st);
-    auto& commit_insn_st = stat_reg_core_counter(sdb, true, arch->id, "commit_insn",
-                                                 "total number of instructions committed",
-                                                 &core->stat.commit_insn, 0, TRUE, NULL);
-    auto& commit_uops_st = stat_reg_core_counter(sdb, true, arch->id, "commit_uops",
-                                                 "total number of uops committed",
-                                                 &core->stat.commit_uops, 0, TRUE, NULL);
+    auto& sim_cycle_st = *stat_find_core_stat<qword_t>(sdb, arch->id, "sim_cycle");
+    auto& commit_insn_st = *stat_find_core_stat<qword_t>(sdb, arch->id, "commit_insn");
+    auto& commit_uops_st = *stat_find_core_stat<qword_t>(sdb, arch->id, "commit_uops");
+
     stat_reg_core_formula(sdb, true, arch->id, "commit_IPC", "IPC at commit",
-                          commit_insn_st / *sim_cycle_st, NULL);
+                          commit_insn_st / sim_cycle_st, NULL);
     stat_reg_core_formula(sdb, true, arch->id, "commit_uPC", "uPC at commit",
-                          commit_uops_st / *sim_cycle_st, NULL);
+                          commit_uops_st / sim_cycle_st, NULL);
     stat_reg_core_formula(sdb, true, arch->id, "avg_commit_flowlen",
                           "uops per instruction at commit", commit_uops_st / commit_insn_st, NULL);
 
@@ -120,24 +116,21 @@ core_commit_STM_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
             stat_reg_core_counter(sdb, false, arch->id, "ROB_full", "total cycles ROB was full",
                                   &core->stat.ROB_full_cycles, 0, TRUE, NULL);
     stat_reg_core_formula(sdb, true, arch->id, "ROB_avg", "average ROB occupancy",
-                          ROB_occupancy_st / *sim_cycle_st, NULL);
+                          ROB_occupancy_st / sim_cycle_st, NULL);
     stat_reg_core_formula(sdb, true, arch->id, "ROB_frac_empty", "fraction of cycles ROB was empty",
-                          ROB_empty_st / *sim_cycle_st, NULL);
+                          ROB_empty_st / sim_cycle_st, NULL);
     stat_reg_core_formula(sdb, true, arch->id, "ROB_frac_full", "fraction of cycles ROB was full",
-                          ROB_full_st / *sim_cycle_st, NULL);
+                          ROB_full_st / sim_cycle_st, NULL);
 
     core->stat.commit_stall = stat_reg_core_dist(
             sdb, arch->id, "commit_stall", "breakdown of stalls at commit", 0, CSTALL_num, 1,
             (PF_COUNT | PF_PDF), NULL, commit_stall_str, TRUE, NULL);
 
     stat_reg_note(sdb, "#### TIMING STATS ####");
-    stat_reg_core_qword(sdb, true, arch->id, "sim_cycle",
-                        "total number of cycles when last instruction (or uop) committed",
-                        (qword_t*)&core->stat.final_sim_cycle, 0, TRUE, NULL);
     /* instruction distribution stats */
     stat_reg_note(sdb, "\n#### INSTRUCTION STATS (no wrong-path) ####");
-    stat_reg_core_counter(sdb, true, arch->id, "num_insn", "total number of instructions committed",
-                          &core->stat.commit_insn, 0, TRUE, NULL);
+    stat_reg_core_formula(sdb, true, arch->id, "num_insn", "total number of instructions committed",
+                          commit_insn_st, NULL);
     auto& num_refs_st = stat_reg_core_counter(sdb, true, arch->id, "num_refs",
                                               "total number of loads and stores committed",
                                               &core->stat.commit_refs, 0, TRUE, NULL);

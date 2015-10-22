@@ -387,7 +387,10 @@ void core_power_t::translate_params(system_core *core_params, system_L2 *L2_para
 void core_power_t::translate_stats(xiosim::stats::StatsDatabase* sdb,
                                    system_core* core_stats,
                                    system_L2* L2_stats) {
-  xiosim::stats::Statistic<sqword_t>* stat = nullptr;
+  using namespace xiosim::stats;
+  Statistic<sqword_t>* stat = nullptr;
+  Formula* formula = nullptr;
+
   int coreID = core->id;
 
   struct core_knobs_t* knobs = core->knobs;
@@ -408,8 +411,8 @@ void core_power_t::translate_stats(xiosim::stats::StatsDatabase* sdb,
   core_stats->load_instructions = stat->get_final_val();
   stat = stat_find_core_stat<sqword_t>(sdb, coreID, "oracle_total_refs");
   core_stats->store_instructions = stat->get_final_val() - core_stats->load_instructions;
-  stat = stat_find_core_stat<sqword_t>(sdb, coreID, "oracle_num_uops");
-  core_stats->committed_instructions = stat->get_final_val();
+  formula = stat_find_core_formula(sdb, coreID, "oracle_num_uops");
+  core_stats->committed_instructions = formula->evaluate();
 
   // core cycles at potentially variable frequency
   stat = stat_find_core_stat<sqword_t>(sdb, coreID, "sim_cycle");

@@ -71,14 +71,14 @@ class BaseStatistic {
     void set_scaled(bool scale) { this->scale = scale; }
     void set_output_fmt(std::string output_fmt) { this->output_fmt = output_fmt; }
 
-    /* Print the statistic to the file descriptor fd according to the output_fmt
-    * string if @print is true. */
+    /* Print the statistic to the file descriptor fd according to the
+     * output_fmt string if @print is true. */
     virtual void print_value(FILE* fd) = 0;
 
-    /* Scale the statistic value by @weight if @scale is true. */
+    /* Scale the final statistic value by @weight if @scale is true. */
     virtual void scale_value(double weight) = 0;
 
-    /* Accumulate the value(s) of another stat into the current one. */
+    /* Accumulate the final value(s) of another stat into the current final value. */
     virtual void accum_stat(BaseStatistic* other_stat) = 0;
 
     /* Saves the current value as the final value. */
@@ -217,11 +217,11 @@ class Statistic<
     virtual V get_init_val() const { return init_val; }
     virtual V get_final_val() const  { return final_val; }
 
-    virtual void scale_value(double weight) { *value = (V)(*value) * weight; }
+    virtual void scale_value(double weight) { final_val = ((double)(final_val)) * weight; }
 
     virtual void accum_stat(BaseStatistic* other) {
         Statistic<V>* stat = static_cast<Statistic<V>*>(other);
-        *value += *(stat->value);
+        *value += stat->final_val;
     }
 
     /* Saves the current value as the final value. */

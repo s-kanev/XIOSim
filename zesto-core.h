@@ -372,6 +372,7 @@ class core_t {
   static void zero_uop(struct uop_t * const uop);
   static void zero_Mop(struct Mop_t * const Mop);
 
+  void reg_common_stats(xiosim::stats::StatsDatabase* sdb);
   void reg_stats(xiosim::stats::StatsDatabase* sdb);
 
   protected:

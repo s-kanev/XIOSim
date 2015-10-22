@@ -93,8 +93,11 @@ TEST_CASE("Single-value int statistics", "singlevalue_int") {
         CHECK(mystat.get_output_fmt().compare("%12d") == 0);
         // Using an initial value of 1 should set the actual stat value to 1.
         REQUIRE(value == 1);
+        mystat.save_value();
         mystat.scale_value(2);
-        REQUIRE(mystat.get_value() == 2);
+        // SCaling the value only changes the final value.
+        REQUIRE(mystat.get_value() == 1);
+        REQUIRE(mystat.get_final_val() == 2);
         value = 20;
         REQUIRE(mystat.get_value() == value);
     }

@@ -13,6 +13,25 @@ const size_t DESC_MAX_LEN = 128;
 const char* core_stat_fmt = "c%d.%s";     // c[num].[stat_name]
 const char* comp_stat_fmt = "c%d.%s.%s";  // c[num].[comp_name].[stat_name]
 const char* llc_stat_fmt = "%s.c%d.%s";   // [cache_name].c[num].[stat_name]
+const char* nocore_comp_stat_fmt = "%s.%s";  // [comp_name].[stat_name]
+
+//**************************************************//
+//                    Helpers                       //
+// *************************************************//
+
+void create_comp_stat_name(int core_id,
+                           const char* comp_name,
+                           const char* stat_name,
+                           char* full_name,
+                           bool is_llc) {
+    // TODO: Replace with xiosim::INVALID_CORE after merge.
+    if (core_id == -1)
+        snprintf(full_name, STAT_NAME_MAX_LEN, nocore_comp_stat_fmt, comp_name, stat_name);
+    else if (is_llc)
+        snprintf(full_name, STAT_NAME_MAX_LEN, llc_stat_fmt, comp_name, core_id, stat_name);
+    else
+        snprintf(full_name, STAT_NAME_MAX_LEN, comp_stat_fmt, core_id, comp_name, stat_name);
+}
 
 //**************************************************//
 //                    Scalars                       //
@@ -84,7 +103,7 @@ Statistic<int>& stat_reg_comp_int(StatsDatabase* sdb,
                                   const char* format) {
     char full_stat_name[STAT_NAME_MAX_LEN];
     char full_desc[DESC_MAX_LEN];
-    snprintf(full_stat_name, STAT_NAME_MAX_LEN, comp_stat_fmt, core_id, comp_name, stat_name);
+    create_comp_stat_name(core_id, comp_name, stat_name, full_stat_name);
     snprintf(full_desc, DESC_MAX_LEN, desc, comp_name);
     return stat_reg_int(sdb, print_me, full_stat_name, full_desc, var, init_val, scale_me, format);
 }
@@ -163,10 +182,10 @@ Statistic<sqword_t>& stat_reg_comp_sqword(StatsDatabase* sdb,
                                           const char* format) {
     char full_stat_name[STAT_NAME_MAX_LEN];
     char full_desc[DESC_MAX_LEN];
-    snprintf(full_stat_name, STAT_NAME_MAX_LEN, comp_stat_fmt, core_id, comp_name, stat_name);
+    create_comp_stat_name(core_id, comp_name, stat_name, full_stat_name);
     snprintf(full_desc, DESC_MAX_LEN, desc, comp_name);
-    return stat_reg_sqword(sdb, print_me, full_stat_name, full_desc, var, init_val, scale_me,
-                           format);
+    return stat_reg_sqword(
+            sdb, print_me, full_stat_name, full_desc, var, init_val, scale_me, format);
 }
 
 /* sqword stats of a component that belongs to a core or is associated with a core.
@@ -208,7 +227,7 @@ Statistic<sqword_t>& stat_reg_comp_sqword(StatsDatabase* sdb,
         snprintf(full_stat_name, STAT_NAME_MAX_LEN, llc_stat_fmt, comp_name, core_id, stat_name);
         snprintf(full_desc, DESC_MAX_LEN, desc, core_id, comp_name);
     } else {
-        snprintf(full_stat_name, STAT_NAME_MAX_LEN, comp_stat_fmt, core_id, comp_name, stat_name);
+        create_comp_stat_name(core_id, comp_name, stat_name, full_stat_name, is_llc);
         snprintf(full_desc, DESC_MAX_LEN, desc, comp_name);
     }
     return stat_reg_sqword(sdb, print_me, full_stat_name, full_desc, var, init_val, scale_me,
@@ -249,7 +268,7 @@ Statistic<double>& stat_reg_comp_double(StatsDatabase* sdb,
                                         const char* format) {
     char full_stat_name[STAT_NAME_MAX_LEN];
     char full_desc[DESC_MAX_LEN];
-    snprintf(full_stat_name, STAT_NAME_MAX_LEN, comp_stat_fmt, core_id, comp_name, stat_name);
+    create_comp_stat_name(core_id, comp_name, stat_name, full_stat_name);
     snprintf(full_desc, DESC_MAX_LEN, desc, comp_name);
     return stat_reg_double(
             sdb, print_me, full_stat_name, full_desc, var, init_val, scale_me, format);
@@ -375,16 +394,6 @@ Formula* stat_reg_formula(StatsDatabase* sdb,
                           int print_me,
                           const char* name,
                           const char* desc,
-                          const char* formula,
-                          const char* format) {
-    // This is a legacy interface that will be removed, so just return NULL.
-    return nullptr;
-}
-
-Formula* stat_reg_formula(StatsDatabase* sdb,
-                          int print_me,
-                          const char* name,
-                          const char* desc,
                           ExpressionWrapper expression,
                           const char* format) {
     Formula* formula = sdb->add_formula(name, desc, expression);
@@ -426,13 +435,11 @@ Formula* stat_reg_comp_formula(StatsDatabase* sdb,
                                 bool is_llc) {
     char full_stat_name[STAT_NAME_MAX_LEN];
     char full_desc[DESC_MAX_LEN];
-    if (is_llc) {
-        snprintf(full_stat_name, STAT_NAME_MAX_LEN, llc_stat_fmt, comp_name, core_id, stat_name);
+    create_comp_stat_name(core_id, comp_name, stat_name, full_stat_name, is_llc);
+    if (is_llc)
         snprintf(full_desc, DESC_MAX_LEN, desc, core_id, comp_name);
-    } else {
-        snprintf(full_stat_name, STAT_NAME_MAX_LEN, comp_stat_fmt, core_id, comp_name, stat_name);
+    else
         snprintf(full_desc, DESC_MAX_LEN, desc, comp_name);
-    }
 
     Formula* formula = sdb->add_formula(full_stat_name, full_desc, expression);
     if (format)
@@ -463,7 +470,7 @@ Statistic<const char*>& stat_reg_comp_string(StatsDatabase* sdb,
                                              const char* format) {
     char full_stat_name[STAT_NAME_MAX_LEN];
     char full_desc[DESC_MAX_LEN];
-    snprintf(full_stat_name, STAT_NAME_MAX_LEN, comp_stat_fmt, core_id, comp_name, stat_name);
+    create_comp_stat_name(core_id, comp_name, stat_name, full_stat_name);
     snprintf(full_desc, DESC_MAX_LEN, desc, comp_name);
     Statistic<const char*>* stat = sdb->add_statistic(full_stat_name, full_desc, var, format);
     return *stat;
@@ -485,17 +492,20 @@ void stat_print_stats(StatsDatabase* sdb, FILE* fd) { sdb->print_all_stats(fd); 
 
 void stat_print_stat(BaseStatistic* stat, FILE* fd) { stat->print_value(fd); }
 
-void stat_find_dist(StatsDatabase* sdb, const char* stat_name, Distribution* dist) {
-    dist = static_cast<Distribution*>(sdb->get_statistic(stat_name));
+Distribution* stat_find_dist(StatsDatabase* sdb, const char* stat_name) {
+    return static_cast<Distribution*>(sdb->get_statistic(stat_name));
 }
 
-void stat_find_core_dist(StatsDatabase* sdb,
-                         int core_id,
-                         const char* stat_name,
-                         Distribution* dist) {
+Formula* stat_find_core_formula(StatsDatabase* sdb, int core_id, const char* stat_name) {
     char full_stat_name[STAT_NAME_MAX_LEN];
     snprintf(full_stat_name, STAT_NAME_MAX_LEN, core_stat_fmt, core_id, stat_name);
-    dist = static_cast<Distribution*>(sdb->get_statistic(full_stat_name));
+    return static_cast<Formula*>(sdb->get_statistic(full_stat_name));
+}
+
+Distribution* stat_find_core_dist(StatsDatabase* sdb, int core_id, const char* stat_name) {
+    char full_stat_name[STAT_NAME_MAX_LEN];
+    snprintf(full_stat_name, STAT_NAME_MAX_LEN, core_stat_fmt, core_id, stat_name);
+    return static_cast<Distribution*>(sdb->get_statistic(full_stat_name));
 }
 
 void stat_save_stats(StatsDatabase* sdb) { sdb->save_stats_values(); }

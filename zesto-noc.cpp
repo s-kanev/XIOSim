@@ -26,12 +26,9 @@ struct bus_t * bus_create(
 void bus_reg_stats(xiosim::stats::StatsDatabase* sdb,
                    struct core_t* const core,
                    struct bus_t* const bus) {
-    char core_str[256];
-    int core_id = core->id;
+    int core_id = INVALID_CORE;
     if (core)
-        sprintf(core_str, "c%d.", core->current_thread->id);
-    else
-        core_str[0] = '\0'; /* empty string */
+        core_id = core->id;
     if (!bus)
         return;
 

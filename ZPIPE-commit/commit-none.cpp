@@ -35,12 +35,8 @@ void core_commit_NONE_t::reg_stats(xiosim::stats::StatsDatabase* sdb) {
 
     stat_reg_note(sdb, "\n#### COMMIT STATS ####");
 
-    auto& sim_cycle_st = stat_reg_core_qword(sdb, true, arch->id, "sim_cycle",
-                        "total number of cycles when last instruction (or uop) committed",
-                        (qword_t*)&core->stat.final_sim_cycle, 0, TRUE, NULL);
-    auto& commit_insn_st = stat_reg_core_counter(sdb, true, arch->id, "commit_insn",
-                                                 "total number of instructions committed",
-                                                 &core->stat.commit_insn, 0, TRUE, NULL);
+    auto& sim_cycle_st = *stat_find_core_stat<qword_t>(sdb, arch->id, "sim_cycle");
+    auto& commit_insn_st = *stat_find_core_stat<qword_t>(sdb, arch->id, "commit_insn");
     stat_reg_core_formula(sdb, true, arch->id, "commit_IPC", "IPC at commit",
                           commit_insn_st / sim_cycle_st, NULL);
 }

@@ -355,35 +355,35 @@ void sim_reg_stats(xiosim::stats::StatsDatabase* sdb)
   int i;
   bool is_DPM = strcasecmp(knobs.model,"STM") != 0;
 
-  /* per core stats */
-  for(i=0;i<num_cores;i++)
-    cores[i]->reg_stats(sdb);
-
-  sdb->print_all_stats(stdout);
-
-  uncore_reg_stats(sdb);
-  xiosim::memory::reg_stats(sdb);
-
-  stat_reg_note(sdb, "\n#### SIMULATOR PERFORMANCE STATS ####");
+  /* These stats must come first. */
   auto& sim_cycle_st = stat_reg_qword(sdb, true, "sim_cycle",
                                      "total simulation cycles (CPU cycles assuming default freq)",
                                      (qword_t*)&uncore->default_cpu_cycles, 0, TRUE, NULL);
   stat_reg_double(sdb, true, "sim_time", "total simulated time (us)", &uncore->sim_time, 0.0, TRUE,
                   NULL);
   auto& sim_elapsed_time_st = stat_reg_int(sdb,
-                                          true,
-                                          "sim_elapsed_time",
-                                          "total simulation time in seconds",
-                                          &sim_elapsed_time,
-                                          0,
-                                          TRUE,
-                                          NULL);
+                                           true,
+                                           "sim_elapsed_time",
+                                           "total simulation time in seconds",
+                                           &sim_elapsed_time,
+                                           0,
+                                           TRUE,
+                                           NULL);
   stat_reg_formula(sdb,
                    true,
                    "sim_cycle_rate",
                    "simulation speed (in Mcycles/sec)",
                    sim_cycle_st / (sim_elapsed_time_st * Constant(1000000.0)),
                    NULL);
+
+  /* per core stats */
+  for(i=0;i<num_cores;i++)
+    cores[i]->reg_stats(sdb);
+
+  uncore_reg_stats(sdb);
+  xiosim::memory::reg_stats(sdb);
+
+  stat_reg_note(sdb, "\n#### SIMULATOR PERFORMANCE STATS ####");
 
   Formula all_insn("all_insn", "total insts simulated for all cores", "%12.0f");
   Formula sim_inst_rate("sim_inst_rate", "simulation speed (in MIPS)", "%12.0f");
@@ -407,6 +407,7 @@ void sim_reg_stats(xiosim::stats::StatsDatabase* sdb)
   sim_inst_rate /= (sim_elapsed_time_st * Constant(1000000.0));
   sim_uop_rate /= (sim_elapsed_time_st * Constant(1000000.0));
   stat_reg_formula(sdb, all_insn);
+  stat_reg_formula(sdb, all_uops);
   stat_reg_formula(sdb, sim_inst_rate);
   stat_reg_formula(sdb, sim_uop_rate);
 
@@ -426,7 +427,7 @@ void sim_reg_stats(xiosim::stats::StatsDatabase* sdb)
 
   // Total IPC formulas.
   if (num_cores == 1) {
-      auto c0_commit_insn_st = stat_find_stat<int>(sdb, "c0.commit_insn");
+      auto c0_commit_insn_st = stat_find_stat<sqword_t>(sdb, "c0.commit_insn");
       auto c0_sim_cycle_st = stat_find_stat<qword_t>(sdb, "c0.sim_cycle");
       stat_reg_formula(sdb, true, "total_IPC", "final commit IPC",
                        *c0_commit_insn_st / *c0_sim_cycle_st, NULL);

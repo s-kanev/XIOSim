@@ -86,7 +86,6 @@
 #include "zesto-exec.h"
 #include "zesto-commit.h"
 
-
 /* CONSTRUCTOR */
 core_t::core_t(const int core_id):
   knobs(NULL), current_thread(NULL), id(core_id),
@@ -295,8 +294,28 @@ void core_t::uop_init(struct uop_t * const uop)
   uop->exec.when_addr_translated = TICK_T_MAX;
 }
 
+void core_t::reg_common_stats(xiosim::stats::StatsDatabase* sdb)
+{
+    bool is_DPM = strcasecmp(knobs->model,"STM") != 0;
+    stat_reg_core_qword(sdb, true, id, "sim_cycle",
+                        "total number of cycles when last instruction (or uop) committed",
+                        (qword_t*)&stat.final_sim_cycle, 0, TRUE, NULL);
+    stat_reg_core_counter(sdb, true, id, "commit_insn",
+                          "total number of instructions committed",
+                          &stat.commit_insn, 0, TRUE, NULL);
+    stat_reg_core_counter(sdb, true, id, "commit_uops",
+                          "total number of uops committed",
+                          &stat.commit_uops, 0, TRUE, NULL);
+    if (is_DPM) {
+        stat_reg_core_counter(sdb, true, id, "commit_eff_uops",
+                              "total number of effective uops committed",
+                              &stat.commit_eff_uops, 0, TRUE, NULL);
+    }
+}
+
 void core_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
 {
+  reg_common_stats(sdb);
   oracle->reg_stats(sdb);
   fetch->reg_stats(sdb);
   decode->reg_stats(sdb);

@@ -467,7 +467,7 @@ void LLC_reg_stats(xiosim::stats::StatsDatabase* sdb, struct cache_t* const cp) 
 
     assert(cp->read_only == CACHE_READWRITE);
 
-    auto sim_cycle_st = stat_find_stat<sqword_t>(sdb, "sim_cycle");
+    auto sim_cycle_st = stat_find_stat<qword_t>(sdb, "sim_cycle");
     assert(sim_cycle_st);
 
     auto& LLC_load_lookups_st =
@@ -589,7 +589,7 @@ void LLC_reg_stats(xiosim::stats::StatsDatabase* sdb, struct cache_t* const cp) 
         for (int i = 0; i < num_cores; i++) {
             auto commit_insn_st = stat_find_core_stat<sqword_t>(sdb, i, "commit_insn");
             assert(commit_insn_st);
-            auto core_sim_cycle_st = stat_find_core_stat<sqword_t>(sdb, i, "sim_cycle");
+            auto core_sim_cycle_st = stat_find_core_stat<qword_t>(sdb, i, "sim_cycle");
             assert(core_sim_cycle_st);
 
             auto& LLC_lookups_st =
