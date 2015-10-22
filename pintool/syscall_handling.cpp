@@ -110,7 +110,8 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VO
         tstate->last_syscall_arg1 = mmap_arg.len;
         break;
 
-    case __NR_mmap2:
+#ifndef _LP64
+    case __NR_mmap2: // ia32-only
         arg2 = PIN_GetSyscallArgument(ictxt, std, 1);
 #ifdef ZESTO_PIN_DBG
         cerr << "Syscall mmap2(" << dec << syscall_num << ") addr: 0x" << hex << arg1
@@ -118,6 +119,7 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VO
 #endif
         tstate->last_syscall_arg1 = arg2;
         break;
+#endif // _LP64
 
     case __NR_mremap:
         arg2 = PIN_GetSyscallArgument(ictxt, std, 1);
@@ -234,7 +236,8 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VOI
         }
         break;
 
-    case __NR_mmap2:
+#ifndef _LP64
+    case __NR_mmap2: // ia32-only
 #ifdef ZESTO_PIN_DBG
         cerr << "Ret syscall mmap2(" << dec << tstate->last_syscall_number << ") addr: 0x" << hex
              << retval << " length: " << tstate->last_syscall_arg1 << dec << endl;
@@ -244,6 +247,7 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VOI
             SendIPCMessage(msg);
         }
         break;
+#endif // _LP64
 
     case __NR_mremap:
 #ifdef ZESTO_PIN_DBG
