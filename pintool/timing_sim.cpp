@@ -30,7 +30,7 @@ BaseAllocator* core_allocator = NULL;
 /* ========================================================================== */
 /* The loop running each simulated core. */
 void* SimulatorLoop(void* arg) {
-    int coreID = reinterpret_cast<int>(arg);
+    int coreID = static_cast<int>(reinterpret_cast<long>(arg));
     sim_thread_state_t* tstate = get_sim_tls(coreID);
 
     while (true) {

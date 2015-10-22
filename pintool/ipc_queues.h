@@ -1,6 +1,7 @@
 #ifndef __IPC_QUEUES__
 #define __IPC_QUEUES__
 
+#include "host.h"
 struct ipc_message_t;
 
 /* Send an IPC message. The flow now is from multiple producers
@@ -97,7 +98,7 @@ struct ipc_message_t {
         this->arg2 = slice_weight_times_1000;
     }
 
-    void Mmap(int asid, unsigned int addr, unsigned int length, bool mod_brk) {
+    void Mmap(int asid, md_addr_t addr, md_addr_t length, bool mod_brk) {
         this->id = MMAP;
         this->arg0 = asid;
         this->arg1 = addr;
@@ -105,7 +106,7 @@ struct ipc_message_t {
         this->arg3 = mod_brk;
     }
 
-    void Munmap(int asid, unsigned int addr, unsigned int length, bool mod_brk) {
+    void Munmap(int asid, md_addr_t addr, md_addr_t length, bool mod_brk) {
         this->id = MUNMAP;
         this->arg0 = asid;
         this->arg1 = addr;
@@ -113,7 +114,7 @@ struct ipc_message_t {
         this->arg3 = mod_brk;
     }
 
-    void UpdateBrk(int asid, unsigned int brk_end, bool do_mmap) {
+    void UpdateBrk(int asid, md_addr_t brk_end, bool do_mmap) {
         this->id = UPDATE_BRK;
         this->arg0 = asid;
         this->arg1 = brk_end;

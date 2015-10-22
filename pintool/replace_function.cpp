@@ -39,7 +39,7 @@ static size_t Encode(xed_encoder_instruction_t inst, uint8_t* inst_bytes) {
         PIN_ExitProcess(EXIT_FAILURE);
     }
 
-    size_t inst_len;
+    unsigned int inst_len;
     auto err = xed_encode(&enc_req, inst_bytes, xiosim::x86::MAX_ILEN, &inst_len);
     if (err != XED_ERROR_NONE) {
         cerr << "xed_encode failed " << xed_error_enum_t2str(err) << endl;
