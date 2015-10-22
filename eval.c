@@ -1199,13 +1199,13 @@ eval_print(FILE *stream,                /* output stream */
       fprintf(stream, "%f [float]", (double)val.value.as_float);
       break;
     case et_qword:
-      fprintf(stream, "%llu [uint64_t]", val.value.as_qword);
+      fprintf(stream, "%" PRIu64" [uint64_t]", val.value.as_qword);
       break;
     case et_sqword:
-      fprintf(stream, "%lld [int64_t]", val.value.as_sqword);
+      fprintf(stream, "%" PRId64" [int64_t]", val.value.as_sqword);
       break;
     case et_addr:
-      fprintf(stream, "%x [md_addr_t]", val.value.as_addr);
+      fprintf(stream, "%" PRIxPTR" [md_addr_t]", val.value.as_addr);
       break;
     case et_uint:
       fprintf(stream, "%u [uint]", val.value.as_uint);

@@ -183,7 +183,7 @@ void deinit() {
     for (int i = 0; i < num_cores; i++)
         if (cores[i]->stat.oracle_unknown_insn / (double)cores[i]->stat.oracle_total_insn > 0.02)
             fprintf(stderr,
-                    "WARNING: [%d] More than 2%% instructions turned to NOPs (%lld out of %lld)\n",
+                    "WARNING: [%d] More than 2%% instructions turned to NOPs (%" PRId64" out of %" PRId64")\n",
                     i,
                     cores[i]->stat.oracle_unknown_insn,
                     cores[i]->stat.oracle_total_insn);

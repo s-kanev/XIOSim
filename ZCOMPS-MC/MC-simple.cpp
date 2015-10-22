@@ -191,7 +191,7 @@ class MC_simple_t:public MC_t
       if(RQ[i].valid)
       {
         if(RQ[i].op)
-          fprintf(stderr,"%p(%lld)",RQ[i].op,((struct uop_t*)RQ[i].op)->decode.uop_seq);
+          fprintf(stderr,"%p(%" PRId64")",RQ[i].op,((struct uop_t*)RQ[i].op)->decode.uop_seq);
         fprintf(stderr," --> %s",RQ[i].prev_cp->name);
         fprintf(stderr," MSHR[%d][%d]",RQ[i].MSHR_bank,RQ[i].MSHR_index);
       }

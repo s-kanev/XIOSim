@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cinttypes>
 #include <limits>
 
 /* statistical counter types, use largest counter type available */

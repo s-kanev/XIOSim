@@ -896,8 +896,8 @@ print_sdist(struct stat_stat_t *stat,	/* stat variable */
   fprintf(fd, "%s.total = %.0f\n", stat->name, btotal);
   if (bcount > 0)
   {
-    fprintf(fd, "%s.imin = %x\n", stat->name, imin);
-    fprintf(fd, "%s.imax = %x\n", stat->name, imax);
+    fprintf(fd, "%s.imin = %" PRIxPTR"\n", stat->name, imin);
+    fprintf(fd, "%s.imax = %" PRIxPTR"\n", stat->name, imax);
   }
   else
   {
@@ -959,7 +959,7 @@ print_sdist(struct stat_stat_t *stat,	/* stat variable */
       {
         if (stat->format == NULL)
         {
-          fprintf(fd, "%x ", barr[i]->index);
+          fprintf(fd, "%" PRIxPTR" ", barr[i]->index);
           if (pf & PF_COUNT)
             fprintf(fd, "%10u ", barr[i]->count);
           if (pf & PF_PDF)

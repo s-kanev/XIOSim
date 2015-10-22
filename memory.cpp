@@ -61,14 +61,14 @@ void init(int num_processes)
 static md_paddr_t next_ppn_to_allocate = 0x00000100; /* arbitrary starting point; */
 static void mem_newmap(int asid, md_addr_t addr, size_t length)
 {
-    ZTRACE_PRINT(INVALID_CORE, "mem_newmap: %d, %x, length: %x\n", asid, addr, length);
+    ZTRACE_PRINT(INVALID_CORE, "mem_newmap: %d, %" PRIxPTR", length: %zd\n", asid, addr, length);
 
     assert(asid >= 0 && asid < num_address_spaces);
     assert(addr != 0); // Mapping 0-th page might cause hell to break loose, don't do it.
 
     /* Check alignment */
     if (MEM_OFFSET(addr)) {
-        fprintf(stderr, "mem_newmap: Address %x not aligned\n", addr);
+        fprintf(stderr, "mem_newmap: Address %" PRIxPTR" not aligned\n", addr);
         abort();
     }
 
@@ -90,13 +90,13 @@ static void mem_newmap(int asid, md_addr_t addr, size_t length)
 
 static void mem_delmap(int asid, md_addr_t addr, size_t length)
 {
-    ZTRACE_PRINT(INVALID_CORE, "mem_delmap: %d, %x, length: %x\n", asid, addr, length);
+    ZTRACE_PRINT(INVALID_CORE, "mem_delmap: %d, %" PRIxPTR", length: %zd\n", asid, addr, length);
 
     assert(asid >= 0 && asid < num_address_spaces);
 
     /* Check alignment */
     if (MEM_OFFSET(addr)) {
-        fprintf(stderr, "mem_delmap: Address %x not aligned\n", addr);
+        fprintf(stderr, "mem_delmap: Address %" PRIxPTR" not aligned\n", addr);
         abort();
     }
 

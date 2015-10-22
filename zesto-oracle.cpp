@@ -505,7 +505,7 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
     Mop->clear();
     Mop->core = core;
 
-    ZTRACE_PRINT(core->id, "reqPC: %x, feeder_NPC: %x\n", requested_PC, core->fetch->feeder_NPC);
+    ZTRACE_PRINT(core->id, "reqPC: %" PRIxPTR", feeder_NPC: %" PRIxPTR"\n", requested_PC, core->fetch->feeder_NPC);
     /* go to next instruction */
     if (requested_PC != core->fetch->feeder_NPC)
         spec_mode = true;
@@ -827,7 +827,7 @@ void core_oracle_t::recover(const struct Mop_t* const Mop) {
         bool nuke = !MopQ[idx].oracle.spec_mode;
 
         ZTRACE_PRINT(core->id,
-                     "Undoing M:%lld @ PC: %x, nuke: %d, num_Mops_nuked: %d\n",
+                     "Undoing M:%" PRId64" @ PC: %" PRIxPTR", nuke: %d, num_Mops_nuked: %d\n",
                      MopQ[idx].oracle.seq,
                      MopQ[idx].fetch.PC,
                      nuke,
@@ -863,7 +863,7 @@ void core_oracle_t::recover(const struct Mop_t* const Mop) {
     }
 
     ZTRACE_PRINT(core->id,
-                 "Recovering to fetchPC: %x; nuked_Mops: %d \n",
+                 "Recovering to fetchPC: %" PRIxPTR"; nuked_Mops: %u \n",
                  Mop->fetch.PC,
                  num_Mops_before_feeder());
 
@@ -958,7 +958,7 @@ void core_oracle_t::complete_flush(void) {
 }
 
 buffer_result_t core_oracle_t::buffer_handshake(handshake_container_t* handshake) {
-    ZTRACE_PRINT(core->id, "Buffering %x\n", handshake->pc);
+    ZTRACE_PRINT(core->id, "Buffering %" PRIxPTR"\n", handshake->pc);
     /* If we want a speculative handshake. */
     if (spec_mode ||                                   // We're already speculating
         core->fetch->PC != core->fetch->feeder_NPC) {  // We're about to speculate
@@ -977,7 +977,7 @@ buffer_result_t core_oracle_t::buffer_handshake(handshake_container_t* handshake
          * We'll grab a NOP again. */
         if (handshake->pc != core->fetch->PC) {
             ZTRACE_PRINT(core->id,
-                         "Spec FetchPC %x different from handshakePC %x.\n",
+                         "Spec FetchPC %" PRIxPTR" different from handshakePC %" PRIxPTR".\n",
                          core->fetch->PC,
                          handshake->pc);
             handshake_container_t tmp_handshake = get_fake_spec_handshake();
@@ -996,7 +996,7 @@ buffer_result_t core_oracle_t::buffer_handshake(handshake_container_t* handshake
          * time around. E.g. a sysenter instruction. */
         if (handshake->pc != core->fetch->PC) {
             ZTRACE_PRINT(core->id,
-                         "FetchPC %x different from handshakePC %x. Correcting.\n",
+                         "FetchPC %" PRIxPTR" different from handshakePC %" PRIxPTR". Correcting.\n",
                          core->fetch->PC,
                          handshake->pc);
             core->fetch->PC = handshake->pc;
@@ -1025,7 +1025,7 @@ handshake_container_t core_oracle_t::get_fake_spec_handshake() {
     new_handshake.ins[0] = 0x0f;  // 3-byte NOP
     new_handshake.ins[1] = 0x1f;  // 3-byte NOP
     new_handshake.ins[2] = 0x00;  // 3-byte NOP
-    ZTRACE_PRINT(core->id, "fake handshake -> PC: %x\n", core->fetch->PC);
+    ZTRACE_PRINT(core->id, "fake handshake -> PC: %" PRIxPTR"\n", core->fetch->PC);
     core->stat.handshake_nops_produced++;
     return new_handshake;
 }

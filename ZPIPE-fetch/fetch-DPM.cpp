@@ -745,7 +745,7 @@ bool core_fetch_DPM_t::do_fetch(void)
     bpred->spec_update(Mop->fetch.bpred_update, Mop->decode.opflags,
         Mop->fetch.PC, Mop->decode.targetPC, Mop->oracle.NextPC, Mop->fetch.bpred_update->our_pred);
 #ifdef ZTRACE
-    ztrace_print(Mop,"f|pred_targ=%x|target %s", Mop->fetch.pred_NPC, (Mop->fetch.pred_NPC == Mop->oracle.NextPC) ? "correct" : "mispred");
+    ztrace_print(Mop,"f|pred_targ=%" PRIxPTR"|target %s", Mop->fetch.pred_NPC, (Mop->fetch.pred_NPC == Mop->oracle.NextPC) ? "correct" : "mispred");
 #endif
   }
   else
@@ -760,7 +760,7 @@ bool core_fetch_DPM_t::do_fetch(void)
   /* advance the fetch PC to the next instruction */
   PC = Mop->fetch.pred_NPC;
 
-  ZTRACE_PRINT(core->id, "After bpred. PC: %x, oracle.NPC: %x, spec: %d, nuked_Mops: %d\n", PC, Mop->oracle.NextPC, core->oracle->spec_mode, core->oracle->num_Mops_before_feeder());
+  ZTRACE_PRINT(core->id, "After bpred. PC: %" PRIxPTR", oracle.NPC: %" PRIxPTR", spec: %d, nuked_Mops: %d\n", PC, Mop->oracle.NextPC, core->oracle->spec_mode, core->oracle->num_Mops_before_feeder());
 
   if(Mop->oracle.taken_branch)
   {

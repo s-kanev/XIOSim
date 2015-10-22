@@ -1539,7 +1539,7 @@ void print_heap(const struct cache_t * const cp)
   {
     fprintf(stderr,"%s[%d] <%d>: {",cp->name,i,cp->pipe_num[i]);
     for(int j=1;j<=cp->pipe_num[i];j++)
-      fprintf(stderr," %lld",cp->pipe[i][j].pipe_exit_time);
+      fprintf(stderr," %" PRId64"",cp->pipe[i][j].pipe_exit_time);
     fprintf(stderr," }\n");
   }
 }
@@ -2566,7 +2566,7 @@ tick_t cache_get_cycle(const struct cache_t * const cp)
 void cache_print(const struct cache_t * const cp)
 {
   fprintf(stderr,"<<<<< %s >>>>>\n",cp->name);
-  fprintf(stderr, "current cycle: %lld\n", cache_get_cycle(cp));
+  fprintf(stderr, "current cycle: %" PRId64"\n", cache_get_cycle(cp));
   for(int i=0;i<cp->banks;i++)
   {
     int j;
@@ -2581,7 +2581,7 @@ void cache_print(const struct cache_t * const cp)
           fprintf(stderr,"S:");
         else
           fprintf(stderr,"P:");
-        fprintf(stderr,"%p(%lld)",cp->pipe[i][j].op,((struct uop_t*)cp->pipe[i][j].op)->decode.uop_seq);
+        fprintf(stderr,"%p(%" PRId64")",cp->pipe[i][j].op,((struct uop_t*)cp->pipe[i][j].op)->decode.uop_seq);
       }
       else
         fprintf(stderr,"---");
@@ -2594,7 +2594,7 @@ void cache_print(const struct cache_t * const cp)
     for(j=0;j<cp->latency;j++)
     {
       if(cp->fill_pipe[i][j].valid)
-        fprintf(stderr,"%llx",cp->fill_pipe[i][j].paddr);
+        fprintf(stderr,"%" PRIx64"",cp->fill_pipe[i][j].paddr);
       else
         fprintf(stderr,"---");
       if(j != cp->latency-1)
@@ -2608,7 +2608,7 @@ void cache_print(const struct cache_t * const cp)
       if(cp->MSHR[i][j].cb)
       {
         fprintf(stderr," %c:",(cp->MSHR[i][j].cmd==CACHE_READ)?'L':'S');
-        fprintf(stderr,"%p(%lld)",cp->MSHR[i][j].op,((struct uop_t*)cp->MSHR[i][j].op)->decode.uop_seq);
+        fprintf(stderr,"%p(%" PRId64")",cp->MSHR[i][j].op,((struct uop_t*)cp->MSHR[i][j].op)->decode.uop_seq);
       }
       fprintf(stderr,"\n");
     }

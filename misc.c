@@ -239,7 +239,7 @@ void memzero(void * base, int bytes)
 
   asm ("xorps %%xmm0, %%xmm0"
        : : : "%xmm0");
-  if((((int)addr) & 0x0f) == 0) /* aligned */
+  if (((uintptr_t)addr & 0x0f) == 0) /* aligned */
     for(int i=0;i<bytes>>4;i++)
     {
       asm ("movaps %%xmm0,  (%0)\n\t"
@@ -283,7 +283,7 @@ void memswap(void * p1, void * p2, size_t num_bytes)
   char tmp[16];
 
   /* both buffers 16-byte aligned */
-  if(((((int)p1)&0x0f) | (((int)p2)&0x0f)) == 0)
+  if(((((uintptr_t)p1)&0x0f) | (((uintptr_t)p2)&0x0f)) == 0)
   {
     for(i=0;i<iter;i++)
     {

@@ -145,8 +145,8 @@
   if(!(cond)) { \
     fprintf(stderr,"assertion failed (%s,%d:core %d): ",__FILE__,__LINE__,core->id); \
     fprintf(stderr,"%s\n",#cond); \
-    fprintf(stderr, "cycle: %lld, num_Mops: %lld\n", core->sim_cycle, core->stat.oracle_total_insn); \
-    fprintf(stderr, "PC: %x, pin->PC: %x, pin->NPC: %x\n", core->fetch->PC, core->fetch->feeder_PC, core->fetch->feeder_NPC); \
+    fprintf(stderr, "cycle: %" PRId64", num_Mops: %" PRId64"\n", core->sim_cycle, core->stat.oracle_total_insn); \
+    fprintf(stderr, "PC: %" PRIxPTR", pin->PC: %" PRIxPTR", pin->NPC: %" PRIxPTR"\n", core->fetch->PC, core->fetch->feeder_PC, core->fetch->feeder_NPC); \
     fflush(stderr); \
     for (int __i=0; __i < num_cores; __i++) \
       cores[__i]->oracle->trace_in_flight_ops(); \

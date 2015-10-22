@@ -72,14 +72,14 @@ static void global_step(void) {
         /* Heartbeat -> print that the simulator is still alive */
         if ((heartbeat_frequency > 0) && (heartbeat_count >= heartbeat_frequency)) {
             lk_lock(printing_lock, 1);
-            fprintf(stderr, "##HEARTBEAT## %lld: {", uncore->sim_cycle);
-            long long int sum = 0;
+            fprintf(stderr, "##HEARTBEAT## %" PRId64": {", uncore->sim_cycle);
+            counter_t sum = 0;
             for (int i = 0; i < num_cores; i++) {
                 sum += cores[i]->stat.commit_insn;
                 if (i < (num_cores - 1))
-                    fprintf(stderr, "%lld, ", cores[i]->stat.commit_insn);
+                    fprintf(stderr, "%" PRId64", ", cores[i]->stat.commit_insn);
                 else
-                    fprintf(stderr, "%lld, all=%lld}\n", cores[i]->stat.commit_insn, sum);
+                    fprintf(stderr, "%" PRId64", all=%" PRId64"}\n", cores[i]->stat.commit_insn, sum);
             }
             fflush(stderr);
             lk_unlock(printing_lock);
@@ -325,7 +325,7 @@ void simulate_handshake(int coreID, handshake_container_t* handshake) {
     core->stat.feeder_handshakes++;
 
     if (!core->active && !(slice_start || handshake->flags.flush_pipe)) {
-        fprintf(stderr, "DEBUG DEBUG: Start/stop out of sync? %d PC: %x\n", coreID, handshake->pc);
+        fprintf(stderr, "DEBUG DEBUG: Start/stop out of sync? %d PC: %" PRIxPTR"\n", coreID, handshake->pc);
         return;
     }
 
@@ -346,7 +346,7 @@ void simulate_handshake(int coreID, handshake_container_t* handshake) {
     md_addr_t NPC = handshake->flags.brtaken ? handshake->tpc : handshake->npc;
 #endif
     ZTRACE_PRINT(coreID,
-                 "PIN -> PC: %x, NPC: %x spec: %d\n",
+                 "PIN -> PC: %" PRIxPTR", NPC: %" PRIxPTR" spec: %d\n",
                  handshake->pc,
                  NPC,
                  handshake->flags.speculative);

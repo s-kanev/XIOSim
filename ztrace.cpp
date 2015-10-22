@@ -1,3 +1,4 @@
+#include "host.h"
 #include "decode.h"
 #include "memory.h"
 #include "sim.h"
@@ -88,11 +89,11 @@ void ztrace_Mop_ID(const struct Mop_t* Mop) {
         return;
 
     int coreID = Mop->core->id;
-    ZTRACE_PRINT(coreID, "%lld|M:%lld|", Mop->core->sim_cycle, Mop->oracle.seq);
+    trace(coreID, "%" PRId64"|M:%" PRId64"|", Mop->core->sim_cycle, Mop->oracle.seq);
     if (Mop->oracle.spec_mode)
-        ZTRACE_PRINT(coreID, "X|");
+        trace(coreID, "X|");
     else
-        ZTRACE_PRINT(coreID, ".|");
+        trace(coreID, ".|");
 }
 
 void ztrace_uop_ID(const struct uop_t* uop) {
@@ -100,15 +101,15 @@ void ztrace_uop_ID(const struct uop_t* uop) {
         return;
 
     int coreID = uop->core->id;
-    ZTRACE_PRINT(coreID,
-                 "%lld|u:%lld:%lld|",
+    trace(coreID,
+                 "%" PRId64"|u:%" PRId64":%" PRId64"|",
                  uop->core->sim_cycle,
                  uop->decode.Mop_seq,
                  uop->decode.uop_seq);
     if (uop->Mop && uop->Mop->oracle.spec_mode)
-        ZTRACE_PRINT(coreID, "X|");
+        trace(coreID, "X|");
     else
-        ZTRACE_PRINT(coreID, ".|");
+        trace(coreID, ".|");
 }
 
 void ztrace_uop_alloc(const struct uop_t* uop) {
@@ -116,7 +117,7 @@ void ztrace_uop_alloc(const struct uop_t* uop) {
         return;
 
     int coreID = uop->core->id;
-    ZTRACE_PRINT(coreID,
+    trace(coreID,
                  "ROB:%d|LDQ:%d|STQ:%d|RS:%d|port:%d|",
                  uop->alloc.ROB_index,
                  uop->alloc.LDQ_index,
@@ -130,17 +131,17 @@ void ztrace_uop_timing(const struct uop_t* uop) {
         return;
 
     int coreID = uop->core->id;
-    ZTRACE_PRINT(coreID, "wd: %lld|", uop->timing.when_decoded);
-    ZTRACE_PRINT(coreID, "wa: %lld|", uop->timing.when_allocated);
+    trace(coreID, "wd: %" PRId64"|", uop->timing.when_decoded);
+    trace(coreID, "wa: %" PRId64"|", uop->timing.when_allocated);
     for (size_t i = 0; i < MAX_IDEPS; i++)
-        ZTRACE_PRINT(coreID, "wit%d: %lld|", i, uop->timing.when_itag_ready[i]);
+        trace(coreID, "wit%d: %" PRId64"|", (int)i, uop->timing.when_itag_ready[i]);
     for (size_t i = 0; i < MAX_IDEPS; i++)
-        ZTRACE_PRINT(coreID, "wiv%d: %lld|", i, uop->timing.when_ival_ready[i]);
-    ZTRACE_PRINT(coreID, "wot: %lld|", uop->timing.when_otag_ready);
-    ZTRACE_PRINT(coreID, "wr: %lld|", uop->timing.when_ready);
-    ZTRACE_PRINT(coreID, "wi: %lld|", uop->timing.when_issued);
-    ZTRACE_PRINT(coreID, "we: %lld|", uop->timing.when_exec);
-    ZTRACE_PRINT(coreID, "wc: %lld|", uop->timing.when_completed);
+        trace(coreID, "wiv%d: %" PRId64"|", (int)i, uop->timing.when_ival_ready[i]);
+    trace(coreID, "wot: %" PRId64"|", uop->timing.when_otag_ready);
+    trace(coreID, "wr: %" PRId64"|", uop->timing.when_ready);
+    trace(coreID, "wi: %" PRId64"|", uop->timing.when_issued);
+    trace(coreID, "we: %" PRId64"|", uop->timing.when_exec);
+    trace(coreID, "wc: %" PRId64"|", uop->timing.when_completed);
 }
 
 /* called by oracle when Mop first executes */
@@ -150,40 +151,36 @@ void ztrace_print(const struct Mop_t* Mop) {
     int coreID = Mop->core->id;
 
     // core id, PC{virtual,physical}
-    ZTRACE_PRINT(coreID,
-                 "DEF|core=%d:virtPC=%x:physPC=%llx:op=%s:",
+    trace(coreID,
+                 "DEF|core=%d:virtPC=%" PRIxPTR":physPC=%" PRIx64":op=%s:",
                  Mop->core->id,
                  Mop->fetch.PC,
                  xiosim::memory::v2p_translate(cores[coreID]->asid, Mop->fetch.PC),
                  xiosim::x86::print_Mop(Mop).c_str());
     // ucode flow length
-    ZTRACE_PRINT(coreID, "flow-length=%d\n", Mop->decode.flow_length);
+    trace(coreID, "flow-length=%d\n", (int)Mop->decode.flow_length);
 
     int count = 0;
     for (size_t i = 0; i < Mop->decode.flow_length;) {
         struct uop_t* uop = &Mop->uop[i];
         ztrace_uop_ID(uop);
-        ZTRACE_PRINT(coreID, "DEF");
+        trace(coreID, "DEF");
         if (uop->decode.BOM && !uop->decode.EOM)
-            ZTRACE_PRINT(coreID, "-BOM");
+            trace(coreID, "-BOM");
         if (uop->decode.EOM && !uop->decode.BOM)
-            ZTRACE_PRINT(coreID, "-EOM");
+            trace(coreID, "-EOM");
         // core id, uop number within flow
-        ZTRACE_PRINT(coreID, "|core=%d:uop-number=%d:", Mop->core->id, count);
-#if 0
-    // opcode name
-    ZTRACE_PRINT(coreID, "op=%s",md_op2name[uop->decode.op]);
-#endif
+        trace(coreID, "|core=%d:uop-number=%d:", Mop->core->id, count);
         if (uop->decode.in_fusion) {
-            ZTRACE_PRINT(coreID, "f");
+            trace(coreID, "f");
             if (uop->decode.is_fusion_head)
-                ZTRACE_PRINT(coreID, "H");  // fusion head
+                trace(coreID, "H");  // fusion head
             else
-                ZTRACE_PRINT(coreID, "b");  // fusion body
+                trace(coreID, "b");  // fusion body
         }
 
         // register identifiers
-        ZTRACE_PRINT(coreID,
+        trace(coreID,
                      ":odep0=%s:odep1=%s:i0=%s:i1=%s:i2=%s",
                      xed_reg_enum_t2str(uop->decode.odep_name[0]),
                      xed_reg_enum_t2str(uop->decode.odep_name[1]),
@@ -193,13 +190,13 @@ void ztrace_print(const struct Mop_t* Mop) {
 
         // load/store address and size
         if (uop->decode.is_load || uop->decode.is_sta)
-            ZTRACE_PRINT(coreID,
-                         ":VA=%lx:PA=%llx:mem-size=%d",
-                         (long unsigned int)uop->oracle.virt_addr,
+            trace(coreID,
+                         ":VA=%" PRIxPTR":PA=%" PRIx64":mem-size=%d",
+                         uop->oracle.virt_addr,
                          uop->oracle.phys_addr,
                          uop->decode.mem_size);
 
-        ZTRACE_PRINT(coreID, "\n");
+        trace(coreID, "\n");
 
         i += Mop->uop[i].decode.has_imm ? 3 : 1;
         count++;
@@ -211,13 +208,13 @@ void ztrace_Mop_timing(const struct Mop_t* Mop) {
         return;
 
     int coreID = Mop->core->id;
-    ZTRACE_PRINT(coreID, "wfs: %lld|", Mop->timing.when_fetch_started);
-    ZTRACE_PRINT(coreID, "wf: %lld|", Mop->timing.when_fetched);
-    ZTRACE_PRINT(coreID, "wMS: %lld|", Mop->timing.when_MS_started);
-    ZTRACE_PRINT(coreID, "wds: %lld|", Mop->timing.when_decode_started);
-    ZTRACE_PRINT(coreID, "wd: %lld|", Mop->timing.when_decode_finished);
-    ZTRACE_PRINT(coreID, "wcs: %lld|", Mop->timing.when_commit_started);
-    ZTRACE_PRINT(coreID, "wc: %lld|", Mop->timing.when_commit_finished);
+    trace(coreID, "wfs: %" PRId64"|", Mop->timing.when_fetch_started);
+    trace(coreID, "wf: %" PRId64"|", Mop->timing.when_fetched);
+    trace(coreID, "wMS: %" PRId64"|", Mop->timing.when_MS_started);
+    trace(coreID, "wds: %" PRId64"|", Mop->timing.when_decode_started);
+    trace(coreID, "wd: %" PRId64"|", Mop->timing.when_decode_finished);
+    trace(coreID, "wcs: %" PRId64"|", Mop->timing.when_commit_started);
+    trace(coreID, "wc: %" PRId64"|", Mop->timing.when_commit_finished);
 }
 
 void ztrace_print(const struct Mop_t* Mop, const char* fmt, ...) {
@@ -230,8 +227,8 @@ void ztrace_print(const struct Mop_t* Mop, const char* fmt, ...) {
     int coreID = Mop->core->id;
 
     ztrace_Mop_ID(Mop);
-    ZTRACE_VPRINT(coreID, fmt, v);
-    ZTRACE_PRINT(coreID, "\n");
+    vtrace(coreID, fmt, v);
+    trace(coreID, "\n");
 }
 
 void ztrace_print(const struct uop_t* uop, const char* fmt, ...) {
@@ -244,16 +241,16 @@ void ztrace_print(const struct uop_t* uop, const char* fmt, ...) {
     int coreID = uop->core->id;
 
     ztrace_uop_ID(uop);
-    ZTRACE_VPRINT(coreID, fmt, v);
-    ZTRACE_PRINT(coreID, "\n");
+    vtrace(coreID, fmt, v);
+    trace(coreID, "\n");
 }
 
 void ztrace_print(const int coreID, const char* fmt, ...) {
     va_list v;
     va_start(v, fmt);
 
-    ZTRACE_VPRINT(coreID, fmt, v);
-    ZTRACE_PRINT(coreID, "\n");
+    vtrace(coreID, fmt, v);
+    trace(coreID, "\n");
 }
 
 void ztrace_print_start(const struct uop_t* uop, const char* fmt, ...) {
@@ -266,22 +263,22 @@ void ztrace_print_start(const struct uop_t* uop, const char* fmt, ...) {
     int coreID = uop->core->id;
 
     ztrace_uop_ID(uop);
-    ZTRACE_VPRINT(coreID, fmt, v);
+    vtrace(coreID, fmt, v);
 }
 
 void ztrace_print_cont(const int coreID, const char* fmt, ...) {
     va_list v;
     va_start(v, fmt);
 
-    ZTRACE_VPRINT(coreID, fmt, v);
+    vtrace(coreID, fmt, v);
 }
 
 void ztrace_print_finish(const int coreID, const char* fmt, ...) {
     va_list v;
     va_start(v, fmt);
 
-    ZTRACE_VPRINT(coreID, fmt, v);
-    ZTRACE_PRINT(coreID, "\n");
+    vtrace(coreID, fmt, v);
+    trace(coreID, "\n");
 }
 
 #endif
