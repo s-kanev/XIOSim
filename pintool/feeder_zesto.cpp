@@ -640,10 +640,6 @@ VOID Instrument(INS ins, VOID* v) {
 
 /* ========================================================================== */
 VOID ThreadStart(THREADID threadIndex, CONTEXT* ictxt, INT32 flags, VOID* v) {
-    // ILDJIT is forking a compiler thread, ignore
-    //    if (KnobILDJIT.Value() && !ILDJIT_IsCreatingExecutor())
-    //        return;
-
     lk_lock(&syscall_lock, 1);
 
     thread_state_t* tstate = new thread_state_t(threadIndex);
@@ -651,18 +647,19 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT* ictxt, INT32 flags, VOID* v) {
 
     ADDRINT tos, bos;
 
-    tos = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_ESP);
+    tos = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_FullRegName(LEVEL_BASE::REG_ESP));
     CHAR** sp = (CHAR**)tos;
-    //    cerr << hex << "SP: " << (VOID*) sp << dec << endl;
 
-    // We care about the address space only on main thread creation
+    // This is essentially re-implementing:
+    // void *vdso = (uintptr_t) getauxval(AT_SYSINFO_EHDR);
+    // for the child process, so that we can map it to shadow page table.
+    // We only care about it at the program entry point (thread 0).
+    // Here's a nice map of the stack we're walking (for ia32).
+    // http://articles.manugarg.com/aboutelfauxiliaryvectors
     if (threadIndex == 0) {
         UINT32 argc = *(UINT32*)sp;
-        //        cerr << hex << "argc: " << argc << dec << endl;
-
         for (UINT32 i = 0; i < argc; i++) {
             sp++;
-            //            cerr << hex << (ADDRINT)(*sp) << dec << endl;
         }
         CHAR* last_argv = *sp;
         sp++;  // End of argv (=NULL);
@@ -670,27 +667,27 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT* ictxt, INT32 flags, VOID* v) {
         sp++;  // Start of envp
 
         CHAR** envp = sp;
-        //        cerr << "envp: " << hex << (ADDRINT)envp << endl;
         while (*envp != NULL) {
-            //            cerr << hex << (ADDRINT)(*envp) << dec << endl;
             envp++;
         }  // End of envp
 
         CHAR* last_env = *(envp - 1);
         envp++;  // Skip end of envp (=NULL)
 
+#ifdef _LP64
+        Elf64_auxv_t* auxv = (Elf64_auxv_t*)envp;
+#else
         Elf32_auxv_t* auxv = (Elf32_auxv_t*)envp;
-        //        cerr << "auxv: " << hex << auxv << endl;
-        for (; auxv->a_type != AT_NULL; auxv++) {  // go to end of aux_vector
-            // This containts the address of the kernel-mapped page used for a fast
-            // syscall routine
-            if (auxv->a_type == AT_SYSINFO) {
-#ifdef ZESTO_PIN_DBG
-                cerr << "AT_SYSINFO: " << hex << auxv->a_un.a_val << endl;
 #endif
-                ADDRINT vsyscall_page = (ADDRINT)(auxv->a_un.a_val & 0xfffff000);
+        for (; auxv->a_type != AT_NULL; auxv++) {  // walk aux_vector
+            // This containts the address of the vdso
+            if (auxv->a_type == AT_SYSINFO_EHDR) {
+#ifdef ZESTO_PIN_DBG
+                cerr << "AT_SYSINFO_EHDR: " << hex << auxv->a_un.a_val << endl;
+#endif
+                ADDRINT vdso = (ADDRINT)auxv->a_un.a_val;
                 ipc_message_t msg;
-                msg.Mmap(asid, vsyscall_page, PAGE_SIZE, false);
+                msg.Mmap(asid, vdso, PAGE_SIZE, false);
                 SendIPCMessage(msg);
             }
         }
@@ -698,8 +695,7 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT* ictxt, INT32 flags, VOID* v) {
         if (last_env != NULL)
             bos = (ADDRINT)last_env + strlen(last_env) + 1;
         else
-            bos = (ADDRINT)last_argv + strlen(last_argv) + 1;  // last_argv != NULLalways
-        //        cerr << "bos: " << hex << bos << dec << endl;
+            bos = (ADDRINT)last_argv + strlen(last_argv) + 1;  // last_argv != NULL
 
         // Reserve space for environment and arguments in case
         // execution starts on another thread.
@@ -1057,6 +1053,10 @@ INT32 main(INT32 argc, CHAR** argv) {
 }
 
 static VOID amd_hack() {
+#ifdef _LP64
+    cerr << "AMD hack only matters on ia32." << endl;
+    abort();
+#endif
     // use kernel version to distinguish between RHEL5 and RHEL6
     bool rhel6 = false;
 
