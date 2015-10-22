@@ -663,12 +663,6 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
     ztrace_print(Mop);
 #endif
 
-    /* For traps, start draining the pipeline, halting fetch from the next instruction on. */
-    if (Mop->decode.is_trap) {
-        ZTRACE_PRINT(core->id, "IT'S A TRAP!\n");
-        drain_pipeline = true;
-    }
-
     return Mop;
 }
 
@@ -722,6 +716,12 @@ void core_oracle_t::consume(const struct Mop_t* const Mop) {
     assert(Mop == current_Mop);
     current_Mop = NULL;
     consumed = true;
+
+    /* For traps, start draining the pipeline, halting fetch from the next instruction on. */
+    if (Mop->decode.is_trap) {
+        ZTRACE_PRINT(core->id, "IT'S A TRAP!\n");
+        drain_pipeline = true;
+    }
 }
 
 void core_oracle_t::commit_uop(struct uop_t* const uop) {
