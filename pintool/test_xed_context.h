@@ -19,12 +19,24 @@ class xed_context {
 
     xed_context() {
         xed_tables_init();
-        xed_state_zero(&dstate);
-        dstate.mmode=XED_MACHINE_MODE_LEGACY_32;
-        dstate.stack_addr_width=XED_ADDRESS_WIDTH_32b;
+#ifdef _LP64
+        xed_state_init2(&dstate, XED_MACHINE_MODE_LONG_64, XED_ADDRESS_WIDTH_64b);
+#else
+        xed_state_init2(&dstate, XED_MACHINE_MODE_LONG_COMPAT_32, XED_ADDRESS_WIDTH_32b);
+#endif
 
         init_decoder();
     }
+
+#ifdef _LP64
+    // In 64-bit mode, we need to explicitly specify 64-bit operand width
+    // for some encodings (like indirect jmps)
+    const unsigned int op_width = 64;
+    const unsigned int mem_op_width = 64;
+#else
+    const unsigned int op_width = 0;
+    const unsigned int mem_op_width = 32;
+#endif
 
     void encode(void) {
         xed_encoder_request_zero_set_mode(&enc_req, &dstate);

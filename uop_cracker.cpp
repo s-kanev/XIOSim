@@ -3,6 +3,7 @@
 #include <list>
 
 #include "decode.h"
+#include "regs.h"
 #include "uop_cracker.h"
 #include "zesto-structs.h"
 
@@ -515,8 +516,8 @@ static bool check_tables(struct Mop_t* Mop) {
 
         /* uop2: Subtract from ESP */
         Mop->uop[2].decode.FU_class = FU_IEU;
-        Mop->uop[2].decode.idep_name[0] = XED_REG_ESP;
-        Mop->uop[2].decode.odep_name[0] = XED_REG_ESP;
+        Mop->uop[2].decode.idep_name[0] = largest_reg(XED_REG_ESP);
+        Mop->uop[2].decode.odep_name[0] = largest_reg(XED_REG_ESP);
 
         /* uop(last): jump to target */
         Mop->uop[jmp_ind].decode.FU_class = FU_JEU;
@@ -546,8 +547,8 @@ static bool check_tables(struct Mop_t* Mop) {
 
         /* uop1: Add to ESP */
         Mop->uop[1].decode.FU_class = FU_IEU;
-        Mop->uop[1].decode.idep_name[0] = XED_REG_ESP;
-        Mop->uop[1].decode.odep_name[0] = XED_REG_ESP;
+        Mop->uop[1].decode.idep_name[0] = largest_reg(XED_REG_ESP);
+        Mop->uop[1].decode.odep_name[0] = largest_reg(XED_REG_ESP);
 
         /* uop2: jump to target */
         Mop->uop[2].decode.FU_class = FU_JEU;
@@ -589,8 +590,8 @@ static bool check_tables(struct Mop_t* Mop) {
 
         /* uop2: Subtract from ESP */
         Mop->uop[flow_start + 2].decode.FU_class = FU_IEU;
-        Mop->uop[flow_start + 2].decode.idep_name[0] = XED_REG_ESP;
-        Mop->uop[flow_start + 2].decode.odep_name[0] = XED_REG_ESP;
+        Mop->uop[flow_start + 2].decode.idep_name[0] = largest_reg(XED_REG_ESP);
+        Mop->uop[flow_start + 2].decode.odep_name[0] = largest_reg(XED_REG_ESP);
         return true;
     }
 
@@ -613,8 +614,8 @@ static bool check_tables(struct Mop_t* Mop) {
 
         /* uop1: Add to ESP */
         Mop->uop[1].decode.FU_class = FU_IEU;
-        Mop->uop[1].decode.idep_name[0] = XED_REG_ESP;
-        Mop->uop[1].decode.odep_name[0] = XED_REG_ESP;
+        Mop->uop[1].decode.idep_name[0] = largest_reg(XED_REG_ESP);
+        Mop->uop[1].decode.odep_name[0] = largest_reg(XED_REG_ESP);
         /* We don't fuse the add to the load -- they don't share an odep-idep operand.*/
 
         if (has_store) {
@@ -639,14 +640,14 @@ static bool check_tables(struct Mop_t* Mop) {
         Mop->uop[0].decode.odep_name[0] = XED_REG_TMP0;
 
         Mop->uop[1].decode.FU_class = get_uop_fu(Mop->uop[1]);
-        Mop->uop[1].decode.idep_name[0] = XED_REG_EAX;
+        Mop->uop[1].decode.idep_name[0] = largest_reg(XED_REG_EAX);
         Mop->uop[1].decode.idep_name[1] = XED_REG_TMP0;
-        Mop->uop[1].decode.odep_name[0] = XED_REG_EAX;
+        Mop->uop[1].decode.odep_name[0] = largest_reg(XED_REG_EAX);
 
         Mop->uop[2].decode.FU_class = get_uop_fu(Mop->uop[2]);
-        Mop->uop[2].decode.idep_name[0] = XED_REG_EAX;
+        Mop->uop[2].decode.idep_name[0] = largest_reg(XED_REG_EAX);
         Mop->uop[2].decode.idep_name[1] = XED_REG_TMP0;
-        Mop->uop[2].decode.odep_name[0] = XED_REG_EDX;
+        Mop->uop[2].decode.odep_name[0] = largest_reg(XED_REG_EDX);
         return true;
     }
 
@@ -693,7 +694,7 @@ static bool check_tables(struct Mop_t* Mop) {
         Mop->uop[2].decode.FU_class = FU_IEU;
         Mop->uop[2].decode.idep_name[0] = XED_REG_TMP0;
         Mop->uop[2].decode.idep_name[1] = XED_REG_TMP1;
-        Mop->uop[2].decode.odep_name[0] = XED_REG_EFLAGS;
+        Mop->uop[2].decode.odep_name[0] = largest_reg(XED_REG_EFLAGS);
         return true;
     }
 
@@ -750,18 +751,18 @@ static list<xed_reg_enum_t> get_registers_read(const struct Mop_t* Mop) {
             xed_reg_enum_t reg = xed_decoded_inst_get_reg(&Mop->decode.inst, op_t);
             /* Let's not deal with partial register reads for now:
              * If we depend on part of the register, we depend on the largest version. */
-            xed_reg_enum_t largest_reg = xed_get_largest_enclosing_register32(reg);
+            xed_reg_enum_t encl_reg = largest_reg(reg);
 
             /* XED lists many instructions (unnecessarily?) dependant on the IP.
              * Ignore that, in our model every instrution carries its IP. */
-            if (largest_reg == XED_REG_EIP)
+            if (encl_reg == largest_reg(XED_REG_EIP))
                 continue;
 
-            res.push_back(largest_reg);
+            res.push_back(encl_reg);
 
 #ifdef DEBUG_CRACKER
             std::cerr << xed_reg_enum_t2str(reg) << std::endl;
-            std::cerr << xed_reg_enum_t2str(largest_reg) << std::endl;
+            std::cerr << xed_reg_enum_t2str(encl_reg) << std::endl;
 #endif
         }
     }
@@ -785,12 +786,12 @@ static list<xed_reg_enum_t> get_registers_written(const struct Mop_t* Mop) {
             xed_reg_enum_t reg = xed_decoded_inst_get_reg(&Mop->decode.inst, op_t);
             /* Let's not deal with partial register reads for now:
              * If we depend on part of the register, we depend on the largest version. */
-            xed_reg_enum_t largest_reg = xed_get_largest_enclosing_register32(reg);
-            res.push_back(largest_reg);
+            xed_reg_enum_t encl_reg = largest_reg(reg);
+            res.push_back(encl_reg);
 
 #ifdef DEBUG_CRACKER
             std::cerr << xed_reg_enum_t2str(reg) << std::endl;
-            std::cerr << xed_reg_enum_t2str(largest_reg) << std::endl;
+            std::cerr << xed_reg_enum_t2str(encl_reg) << std::endl;
 #endif
         }
     }
@@ -811,7 +812,7 @@ get_memory_operand_registers_read(const struct Mop_t* Mop, size_t mem_op) {
     /* Add mem op base register, if any */
     xed_reg_enum_t base_reg = xed_decoded_inst_get_base_reg(&Mop->decode.inst, mem_op);
     if (base_reg != XED_REG_INVALID)
-        res.push_back(base_reg);
+        res.push_back(largest_reg(base_reg));
 #ifdef DEBUG_CRACKER
     std::cerr << xed_reg_enum_t2str(base_reg) << std::endl;
 #endif
@@ -822,7 +823,7 @@ get_memory_operand_registers_read(const struct Mop_t* Mop, size_t mem_op) {
     std::cerr << xed_reg_enum_t2str(index_reg) << std::endl;
 #endif
     if (index_reg != XED_REG_INVALID)
-        res.push_back(index_reg);
+        res.push_back(largest_reg(index_reg));
 
     /* XXX: should we do something about segements? They barely ever get written, so it probably
      * doesn't matter. */

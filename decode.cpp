@@ -10,8 +10,11 @@ xed_state_t machine_mode;
 
 void init_decoder() {
     xed_tables_init();
-    // XXX: Determine 32/64 from compiler flags
+#ifdef _LP64
+    xed_state_init2(&machine_mode, XED_MACHINE_MODE_LONG_64, XED_ADDRESS_WIDTH_64b);
+#else
     xed_state_init2(&machine_mode, XED_MACHINE_MODE_LONG_COMPAT_32, XED_ADDRESS_WIDTH_32b);
+#endif
 }
 
 void decode(struct Mop_t * Mop) {
