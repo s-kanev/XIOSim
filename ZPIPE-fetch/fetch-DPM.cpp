@@ -590,9 +590,9 @@ void core_fetch_DPM_t::pre_fetch(void)
   {
     if(byteQ[index].when_translation_requested == TICK_T_MAX)
     {
-      if(cache_enqueuable(core->memory.ITLB, asid, PAGE_TABLE_ADDR(asid, byteQ[index].addr)))
+      if(cache_enqueuable(core->memory.ITLB, asid, memory::page_table_address(asid, byteQ[index].addr)))
       {
-        cache_enqueue(core, core->memory.ITLB, NULL, CACHE_READ, 0, asid, PAGE_TABLE_ADDR(asid, byteQ[index].addr), byteQ[index].action_id, 0, NO_MSHR, &byteQ[index], ITLB_callback, NULL, NULL, get_byteQ_action_id);
+        cache_enqueue(core, core->memory.ITLB, NULL, CACHE_READ, 0, asid, memory::page_table_address(asid, byteQ[index].addr), byteQ[index].action_id, 0, NO_MSHR, &byteQ[index], ITLB_callback, NULL, NULL, get_byteQ_action_id);
         byteQ[index].when_translation_requested = core->sim_cycle;
         break;
       }
@@ -646,7 +646,7 @@ bool core_fetch_DPM_t::do_fetch(void)
 
   Mop = core->oracle->exec(PC);
 
-  if(Mop && ((PC >> PAGE_SHIFT) == 0)) {
+  if(Mop && (memory::page_round_down(PC) == 0)) {
     zesto_assert(core->oracle->spec_mode, false);
     stall_reason = FSTALL_ZPAGE;
     return false;

@@ -101,7 +101,7 @@ bool cache_controller_const_t::send_request_upstream(int bank, int MSHR_index, s
 {
   if(cache->next_level) /* enqueue the request to the next-level cache */
   {
-    if(!cache_enqueuable(cache->next_level, DO_NOT_TRANSLATE, MSHR->paddr))
+    if(!cache_enqueuable(cache->next_level, memory::DO_NOT_TRANSLATE, MSHR->paddr))
       return false;
 
     /* write miss means this is the last owner */
@@ -120,7 +120,7 @@ bool cache_controller_const_t::send_request_upstream(int bank, int MSHR_index, s
       lk_unlock(&lk_controller);
     }
 
-    cache_enqueue(MSHR->core, cache->next_level, cache, MSHR->cmd, DO_NOT_TRANSLATE, MSHR->PC, MSHR->paddr, MSHR->action_id, bank, MSHR_index, MSHR->op, MSHR->cb, MSHR->miss_cb, NULL, MSHR->get_action_id);
+    cache_enqueue(MSHR->core, cache->next_level, cache, MSHR->cmd, memory::DO_NOT_TRANSLATE, MSHR->PC, MSHR->paddr, MSHR->action_id, bank, MSHR_index, MSHR->op, MSHR->cb, MSHR->miss_cb, NULL, MSHR->get_action_id);
 
     bus_use(cache->next_bus, (MSHR->cmd == CACHE_WRITE || MSHR->cmd == CACHE_WRITEBACK) ? cache->linesize : 1, MSHR->cmd == CACHE_PREFETCH);
   }

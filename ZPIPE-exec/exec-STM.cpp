@@ -1062,13 +1062,13 @@ void core_exec_STM_t::LDQ_schedule(void)
         if(check_load_issue_conditions(LDQ[index].uop)) /* retval of true means load is predicted to be cleared for issue */
         {
           struct uop_t * uop = LDQ[index].uop;
-          if((cache_enqueuable(core->memory.DTLB, asid, PAGE_TABLE_ADDR(asid, uop->oracle.virt_addr))) &&
+          if((cache_enqueuable(core->memory.DTLB, asid, memory::page_table_address(asid, uop->oracle.virt_addr))) &&
              (cache_enqueuable(core->memory.DL1, asid, uop->oracle.virt_addr)) &&
              (port[uop->alloc.port_assignment].STQ->occupancy < port[uop->alloc.port_assignment].STQ->latency))
           {
             uop->exec.when_data_loaded = TICK_T_MAX;
             uop->exec.when_addr_translated = TICK_T_MAX;
-            cache_enqueue(core, core->memory.DTLB, NULL, CACHE_READ, asid, uop->Mop->fetch.PC, PAGE_TABLE_ADDR(asid, uop->oracle.virt_addr), uop->exec.action_id, 0, NO_MSHR, uop, DTLB_callback, NULL, NULL, get_uop_action_id);
+            cache_enqueue(core, core->memory.DTLB, NULL, CACHE_READ, asid, uop->Mop->fetch.PC, memory::page_table_address(asid, uop->oracle.virt_addr), uop->exec.action_id, 0, NO_MSHR, uop, DTLB_callback, NULL, NULL, get_uop_action_id);
             cache_enqueue(core, core->memory.DL1, NULL, CACHE_READ, asid, uop->Mop->fetch.PC, uop->oracle.virt_addr, uop->exec.action_id, 0, NO_MSHR, uop, DL1_callback, NULL, translated_callback, get_uop_action_id);
 
             int insert_position = port[uop->alloc.port_assignment].STQ->occupancy+1;
@@ -1437,7 +1437,7 @@ bool core_exec_STM_t::STQ_deallocate_std(struct uop_t * const uop)
 
   /* Store write back occurs here at commit. */
   if(!cache_enqueuable(core->memory.DL1, asid, uop->oracle.virt_addr) ||
-     !cache_enqueuable(core->memory.DTLB, asid, PAGE_TABLE_ADDR(asid, uop->oracle.virt_addr)))
+     !cache_enqueuable(core->memory.DTLB, asid, memory::page_table_address(asid, uop->oracle.virt_addr)))
     return false;
 
   /* These are just dummy placeholders, but we need them
@@ -1459,7 +1459,7 @@ bool core_exec_STM_t::STQ_deallocate_std(struct uop_t * const uop)
   dl1_uop->exec.action_id = STQ[STQ_head].action_id;
   dtlb_uop->exec.action_id = dl1_uop->exec.action_id;
 
-  cache_enqueue(core, core->memory.DTLB, NULL, CACHE_READ, asid, uop->Mop->fetch.PC, PAGE_TABLE_ADDR(asid, uop->oracle.virt_addr), dtlb_uop->exec.action_id, 0, NO_MSHR, dtlb_uop, store_dtlb_callback, NULL, NULL, get_uop_action_id);
+  cache_enqueue(core, core->memory.DTLB, NULL, CACHE_READ, asid, uop->Mop->fetch.PC, memory::page_table_address(asid, uop->oracle.virt_addr), dtlb_uop->exec.action_id, 0, NO_MSHR, dtlb_uop, store_dtlb_callback, NULL, NULL, get_uop_action_id);
   cache_enqueue(core, core->memory.DL1, NULL, CACHE_WRITE, asid, uop->Mop->fetch.PC, uop->oracle.virt_addr, dl1_uop->exec.action_id, 0, NO_MSHR, dl1_uop, store_dl1_callback, NULL, store_translated_callback, get_uop_action_id);
 
   STQ[STQ_head].std = NULL;

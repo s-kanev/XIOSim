@@ -2167,7 +2167,7 @@ static void cache_process_pipe(struct cache_t * const cp, int start_point)
                   else
                     pf_addr = cp->prefetcher[ii]->latest_lookup(ca->PC,ca->paddr);
 
-                  if(pf_addr & ~(PAGE_SIZE-1)) { /* don't prefetch from zeroth page */
+                  if(memory::page_round_down(pf_addr)) { /* don't prefetch from zeroth page */
                     int j;
 
                     /* search PFF to see if pf_addr already requested */
@@ -2492,9 +2492,9 @@ static void cache_prefetch(struct cache_t * const cp)
          && (cp->MSHR_num_pf[bank] < cp->prefetch_max))
       {
         md_addr_t pf_PC = cp->PFF[cp->PFF_head].PC;
-        if(cache_enqueuable(cp,DO_NOT_TRANSLATE,pf_addr))
+        if(cache_enqueuable(cp, memory::DO_NOT_TRANSLATE, pf_addr))
         {
-          cache_enqueue(core,cp,NULL,CACHE_PREFETCH,DO_NOT_TRANSLATE,pf_PC,pf_addr,(seq_t)-1,bank,NO_MSHR,NULL,dummy_callback,NULL,NULL,NULL);
+          cache_enqueue(core, cp, NULL, CACHE_PREFETCH, memory::DO_NOT_TRANSLATE, pf_PC, pf_addr, (seq_t)-1, bank, NO_MSHR, NULL, dummy_callback, NULL, NULL, NULL);
           cp->PFF_head = modinc(cp->PFF_head,cp->PFF_size); //(cp->PFF_head+1) % cp->PFF_size;
           cp->PFF_num --;
           cache_assert(cp->PFF_num >= 0,(void)0);

@@ -145,13 +145,6 @@ extern "C" {
 #define MIN(a, b)    (((a) < (b)) ? (a) : (b))
 #endif
 
-/* size of an array, in elements */
-#define N_ELT(ARR)   (sizeof(ARR)/sizeof((ARR)[0]))
-
-/* rounding macros, assumes ALIGN is a power of two */
-#define ROUND_UP(N,ALIGN)	(((N) + ((ALIGN)-1)) & ~((ALIGN)-1))
-#define ROUND_DOWN(N,ALIGN)	((N) & ~((ALIGN)-1))
-
 #ifdef DEBUG
 /* active debug flag */
 extern bool debugging;

@@ -9,6 +9,8 @@
 #include "zesto-uncore.h"
 #include "zesto-noc.h"
 
+using namespace xiosim;
+
 /* load in all definitions */
 #include "ZCOMPS-coherence.list"
 

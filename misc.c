@@ -336,7 +336,6 @@ static struct {
 FILE *
 gzopen(const char *fname, const char *type)
 {
-  int i;
   const char *cmd = NULL;
   const char *ext;
   FILE *fd;
@@ -348,7 +347,7 @@ gzopen(const char *fname, const char *type)
   /* check if extension indicates compressed file */
   if (ext != NULL && *ext != '\0')
     {
-      for (i=0; i < (int)N_ELT(gzcmds); i++)
+      for (size_t i=0; i < sizeof(gzcmds) / sizeof(gzcmds[0]); i++)
 	{
 	  if (!strcmp(gzcmds[i].type, type) && !strcmp(gzcmds[i].ext, ext))
 	    {

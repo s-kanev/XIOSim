@@ -1493,7 +1493,7 @@ void core_exec_IO_DPM_t::LDQ_schedule(void)
             bool send_to_dl1 = (!uop->oracle.is_repeated || (uop->oracle.is_repeated && knobs->memory.DL1_rep_req));
             if(!LDQ[index].first_byte_requested)
             {
-              if((cache_enqueuable(core->memory.DTLB, asid, PAGE_TABLE_ADDR(asid, uop->oracle.virt_addr))) &&
+              if((cache_enqueuable(core->memory.DTLB, asid, memory::page_table_address(asid, uop->oracle.virt_addr))) &&
                  (!send_to_dl1 || (send_to_dl1 && cache_enqueuable(core->memory.DL1, asid, uop->oracle.virt_addr))) &&
                  (!uop->oracle.is_repeated || (uop->oracle.is_repeated && core->memory.mem_repeater->enqueuable(CACHE_READ, asid, uop->oracle.virt_addr))) &&
                  (port[uop->alloc.port_assignment].STQ->pipe[0].uop == NULL))
@@ -1501,7 +1501,7 @@ void core_exec_IO_DPM_t::LDQ_schedule(void)
                 uop->exec.when_data_loaded = TICK_T_MAX;
                 if(!uop->oracle.is_sync_op && (uop->exec.when_addr_translated == 0)) {
                   uop->exec.when_addr_translated = TICK_T_MAX;
-                  cache_enqueue(core, core->memory.DTLB, NULL, CACHE_READ, asid, uop->Mop->fetch.PC, PAGE_TABLE_ADDR(asid, uop->oracle.virt_addr), uop->exec.action_id, 0, NO_MSHR, uop, DTLB_callback, load_miss_reschedule, NULL, get_uop_action_id);
+                  cache_enqueue(core, core->memory.DTLB, NULL, CACHE_READ, asid, uop->Mop->fetch.PC, memory::page_table_address(asid, uop->oracle.virt_addr), uop->exec.action_id, 0, NO_MSHR, uop, DTLB_callback, load_miss_reschedule, NULL, get_uop_action_id);
                 }
                 else
                   // The wait address is bogus, don't schedule a TLB translation
@@ -2051,7 +2051,7 @@ bool core_exec_IO_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
   struct cache_t * tlb = (core->memory.DTLB2)?core->memory.DTLB2:core->memory.DTLB;
   /* Wait until we can submit to DTLB */
   if(get_STQ_request_type(uop) == CACHE_WRITE &&
-     !cache_enqueuable(tlb, asid, PAGE_TABLE_ADDR(asid, uop->oracle.virt_addr)))
+     !cache_enqueuable(tlb, asid, memory::page_table_address(asid, uop->oracle.virt_addr)))
     return false;
   /* Wait until we can submit to DL1 */
   if(send_to_dl1 && !cache_enqueuable(core->memory.DL1, asid, uop->oracle.virt_addr))
@@ -2099,7 +2099,7 @@ bool core_exec_IO_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
       dtlb_uop->decode.Mop_seq = uop->decode.Mop_seq;
       dtlb_uop->decode.uop_seq = uop->decode.uop_seq;
 
-      cache_enqueue(core,tlb, NULL, CACHE_READ, asid, uop->Mop->fetch.PC, PAGE_TABLE_ADDR(asid, uop->oracle.virt_addr), dtlb_uop->exec.action_id, 0, NO_MSHR, dtlb_uop, store_dtlb_callback, NULL, NULL, get_uop_action_id);
+      cache_enqueue(core,tlb, NULL, CACHE_READ, asid, uop->Mop->fetch.PC, memory::page_table_address(asid, uop->oracle.virt_addr), dtlb_uop->exec.action_id, 0, NO_MSHR, dtlb_uop, store_dtlb_callback, NULL, NULL, get_uop_action_id);
     }
     else {
       STQ[STQ_head].translation_complete = true;

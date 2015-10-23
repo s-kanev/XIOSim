@@ -687,7 +687,7 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT* ictxt, INT32 flags, VOID* v) {
 #endif
                 ADDRINT vdso = (ADDRINT)auxv->a_un.a_val;
                 ipc_message_t msg;
-                msg.Mmap(asid, vdso, PAGE_SIZE, false);
+                msg.Mmap(asid, vdso, xiosim::memory::PAGE_SIZE, false);
                 SendIPCMessage(msg);
             }
         }
@@ -699,8 +699,8 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT* ictxt, INT32 flags, VOID* v) {
 
         // Reserve space for environment and arguments in case
         // execution starts on another thread.
-        ADDRINT tos_start = ROUND_DOWN(tos, PAGE_SIZE);
-        ADDRINT bos_end = ROUND_UP(bos, PAGE_SIZE);
+        ADDRINT tos_start = xiosim::memory::page_round_down(tos);
+        ADDRINT bos_end = xiosim::memory::page_round_up(bos);
         ipc_message_t msg;
         msg.Mmap(asid, tos_start, bos_end - tos_start, false);
         SendIPCMessage(msg);
