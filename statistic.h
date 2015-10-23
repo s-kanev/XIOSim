@@ -164,7 +164,9 @@ class Statistic : public StatisticCommon<V> {
             return;
         fprintf(fd, "%-28s", this->name.c_str());
         fprintf(fd, this->output_fmt.c_str(), value);
-        fprintf(fd, " # %s\n", this->desc.c_str());
+        if (!this->desc.empty())
+            fprintf(fd, " # %s", this->desc.c_str());
+        fprintf(fd, "\n");
     }
 
     /* Set the default output format if the provided output_fmt is empty or

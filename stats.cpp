@@ -477,8 +477,7 @@ Statistic<const char*>& stat_reg_comp_string(StatsDatabase* sdb,
 }
 
 Statistic<const char*>& stat_reg_note(StatsDatabase* sdb, const char* note) {
-    const char* not_a_stat = "--not a stat--";
-    Statistic<const char*>* stat = sdb->add_statistic(not_a_stat, not_a_stat, note);
+    Statistic<const char*>* stat = sdb->add_statistic("", "", note);
     return *stat;
 }
 

@@ -96,7 +96,7 @@ core_alloc_DPM_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
     auto sim_cycle_st = stat_find_core_stat<qword_t>(sdb, arch->id, "sim_cycle");
     assert(sim_cycle_st);
 
-    stat_reg_note(sdb, "#### ALLOC STATS ####");
+    stat_reg_note(sdb, "\n#### ALLOC STATS ####");
     auto& alloc_insn_st = stat_reg_core_counter(sdb, true, arch->id, "alloc_insn",
                                                 "total number of instructions alloced",
                                                 &core->stat.alloc_insn, 0, TRUE, NULL);

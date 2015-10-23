@@ -297,6 +297,7 @@ void core_t::uop_init(struct uop_t * const uop)
 void core_t::reg_common_stats(xiosim::stats::StatsDatabase* sdb)
 {
     bool is_DPM = strcasecmp(knobs->model,"STM") != 0;
+    stat_reg_note(sdb, "\n#### TOP LEVEL CORE STATS ####");
     stat_reg_core_qword(sdb, true, id, "sim_cycle",
                         "total number of cycles when last instruction (or uop) committed",
                         (qword_t*)&stat.final_sim_cycle, 0, TRUE, NULL);

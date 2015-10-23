@@ -19,6 +19,7 @@
 #include <cstdio>
 #include <map>
 #include <string>
+#include <vector>
 
 #include "statistic.h"
 #include "expression.h"
@@ -34,8 +35,8 @@ class StatsDatabase {
     StatsDatabase() { slice_weight = 1.0; }
 
     ~StatsDatabase() {
-        for (auto& stat_kv : database)
-            delete stat_kv.second;
+        for (auto stat : stat_list)
+            delete stat;
     }
 
     /* Statistic registration functions. Each function's signature is the same
@@ -54,7 +55,8 @@ class StatsDatabase {
                                   bool scale = true) {
         Statistic<int>* stat =
                 new Statistic<int>(name, desc, value, init_val, output_fmt, print, scale);
-        database[name] = stat;
+        stat_list.push_back(stat);
+        stat_db[name] = stat_list.size() - 1;
         return stat;
     }
 
@@ -67,7 +69,8 @@ class StatsDatabase {
                                            bool scale = true) {
         Statistic<unsigned int>* stat =
                 new Statistic<unsigned int>(name, desc, value, init_val, output_fmt, print, scale);
-        database[name] = stat;
+        stat_list.push_back(stat);
+        stat_db[name] = stat_list.size() - 1;
         return stat;
     }
 
@@ -80,7 +83,8 @@ class StatsDatabase {
                                      bool scale = true) {
         Statistic<double>* stat =
                 new Statistic<double>(name, desc, value, init_val, output_fmt, print, scale);
-        database[name] = stat;
+        stat_list.push_back(stat);
+        stat_db[name] = stat_list.size() - 1;
         return stat;
     }
 
@@ -93,7 +97,8 @@ class StatsDatabase {
                                     bool scale = true) {
         Statistic<float>* stat =
                 new Statistic<float>(name, desc, value, init_val, output_fmt, print, scale);
-        database[name] = stat;
+        stat_list.push_back(stat);
+        stat_db[name] = stat_list.size() - 1;
         return stat;
     }
 
@@ -106,7 +111,8 @@ class StatsDatabase {
                                         bool scale = true) {
         Statistic<long long>* stat =
                 new Statistic<long long>(name, desc, value, init_val, output_fmt, print, scale);
-        database[name] = stat;
+        stat_list.push_back(stat);
+        stat_db[name] = stat_list.size() - 1;
         return stat;
     }
 
@@ -119,7 +125,8 @@ class StatsDatabase {
                                                  bool scale = true) {
         Statistic<unsigned long long>* stat = new Statistic<unsigned long long>(
                 name, desc, value, init_val, output_fmt, print, scale);
-        database[name] = stat;
+        stat_list.push_back(stat);
+        stat_db[name] = stat_list.size() - 1;
         return stat;
     }
 
@@ -131,7 +138,8 @@ class StatsDatabase {
                                           bool scale = false) {
         Statistic<const char*>* stat =
                 new Statistic<const char*>(name, desc, value, output_fmt, print, scale);
-        database[name] = stat;
+        stat_list.push_back(stat);
+        stat_db[name] = stat_list.size() - 1;
         return stat;
     }
 
@@ -146,7 +154,8 @@ class StatsDatabase {
                                    bool scale = true) {
         Distribution* dist = new Distribution(
                 name, desc, init_val, array_sz, bucket_sz, stat_labels, output_fmt, print, scale);
-        database[name] = dist;
+        stat_list.push_back(dist);
+        stat_db[name] = stat_list.size() - 1;
         return dist;
     }
 
@@ -158,7 +167,8 @@ class StatsDatabase {
                          bool scale = true) {
         Formula* formula = new Formula(name, desc, output_fmt, print, scale);
         *formula = expression;
-        database[name] = formula;
+        stat_list.push_back(formula);
+        stat_db[name] = stat_list.size() - 1;
         return formula;
     }
 
@@ -168,13 +178,14 @@ class StatsDatabase {
      */
     Formula* add_formula(Formula& formula) {
         Formula* f = new Formula(std::move(formula));
-        database[f->get_name()] = f;
+        stat_list.push_back(f);
+        stat_db[f->get_name()] = stat_list.size() - 1;
         return f;
     }
 
     BaseStatistic* get_statistic(std::string stat_name) {
-        if (database.find(stat_name) != database.end())
-            return database[stat_name];
+        if (stat_db.find(stat_name) != stat_db.end())
+            return stat_list[stat_db[stat_name]];
         return nullptr;
     }
 
@@ -187,34 +198,35 @@ class StatsDatabase {
 
     // Convenience method for printing by stat name.
     void print_stat_by_name(std::string name, FILE* fd) {
-        if (database.find(name) != database.end())
-            print_stat_object(database[name], fd);
+        BaseStatistic* stat = get_statistic(name);
+        if (stat)
+            print_stat_object(stat, fd);
     }
 
     // Print all statistics to the specified file descriptor.
     void print_all_stats(FILE* fd) {
-        for (auto& stat_kv : database) {
-            print_stat_object(stat_kv.second, fd);
+        for (auto stat: stat_list) {
+            print_stat_object(stat, fd);
         }
     }
 
     // Scale all stats by slice_weight.
     void scale_all_stats() {
-        for (auto& stat_kv : database) {
-            stat_kv.second->scale_value(slice_weight);
+        for (auto stat : stat_list) {
+            stat->scale_value(slice_weight);
         }
     }
 
     // Save all statistics in the database.
     void save_stats_values() {
-        for (auto& stat_kv : database) {
-            stat_kv.second->save_value();
+        for (auto stat : stat_list) {
+            stat->save_value();
         }
     }
 
     void save_stats_deltas() {
-        for (auto& stat_kv : database) {
-            stat_kv.second->save_delta();
+        for (auto stat : stat_list) {
+            stat->save_delta();
         }
     }
 
@@ -224,11 +236,10 @@ class StatsDatabase {
     // store pointers to preallocated variables; they cannot create new
     // variables to track.
     void accum_all_stats(StatsDatabase* other) {
-        for (auto& stat_kv : other->database) {
-            BaseStatistic* other_stat = stat_kv.second;
-            BaseStatistic* this_stat;
-            if (database.find(stat_kv.first) != database.end()) {
-                this_stat = database[stat_kv.first];
+        for (auto other_stat : other->stat_list) {
+            std::string other_string_name = other_stat->get_name();
+            if (stat_db.find(other_string_name) != stat_db.end()) {
+                BaseStatistic* this_stat = stat_list[stat_db[other_string_name]];
                 this_stat->accum_stat(other_stat);
             }
         }
@@ -239,12 +250,20 @@ class StatsDatabase {
 
   private:
     /* To act as a heterogeneous container for Statistic<T>, Distribution, and
-     * Formula types, this map stores pointers to BaseStatistic objects. From
+     * Formula types, this vector stores pointers to BaseStatistic objects. From
      * the StatsDatabase class, all that is required of each BaseStatistic
      * object is the print_value() and scale_value() functions, which are
      * declared in BaseStatistic.
+     *
+     * We use a vector so that we can preserve the ordering of registration
+     * calls when printing the entire database.
      */
-    std::map<std::string, BaseStatistic*> database;
+    std::vector<BaseStatistic*> stat_list;
+
+    /* Maps a statistic name to the position in the database vector for fast
+     * access. */
+    std::map<std::string, size_t> stat_db;
+
 };
 
 }  // namespace stats

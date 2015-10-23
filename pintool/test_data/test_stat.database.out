@@ -1,3 +1,7 @@
+integer_stat                         100 # integer description
+double_stat                      50.1230 # double description
+long_long_stat                   1233445 # long long description
+string_stat                       string # string description
 dist                         # dist description
 dist.array_sz = 10
 dist.bucket_sz = 5
@@ -22,7 +26,3 @@ dist.start_dist
               40          0   0.00 100.00 
               45          0   0.00 100.00 
 dist.end_dist
-double_stat                      50.1230 # double description
-integer_stat                         100 # integer description
-long_long_stat                   1233445 # long long description
-string_stat                       string # string description
