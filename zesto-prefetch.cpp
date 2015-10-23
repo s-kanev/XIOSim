@@ -72,6 +72,7 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
+#include <cmath>
 #include <iostream>
 
 #include "memory.h"

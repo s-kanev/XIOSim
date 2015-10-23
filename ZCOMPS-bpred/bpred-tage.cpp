@@ -21,7 +21,6 @@ if(!strcasecmp(COMPONENT_NAME,type))
 }
 #else
 
-#include <math.h>
 #include <random>
 
 class bpred_tage_t:public bpred_dir_t
@@ -174,7 +173,7 @@ class bpred_tage_t:public bpred_dir_t
     num_tables = arg_num_tables;
     table_size = arg_table_size;
     table_mask = arg_table_size-1;
-    log_size = log_base2(arg_table_size);
+    log_size = std::log2(arg_table_size);
 
     bim_size = arg_bim_size;
     bim_mask = arg_bim_size-1;

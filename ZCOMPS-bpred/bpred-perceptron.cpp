@@ -3,7 +3,6 @@
  * __COPYRIGHT__ GT
  */
 
-#include <math.h>
 #define COMPONENT_NAME "perceptron"
 
 #ifdef BPRED_PARSE_ARGS
@@ -82,10 +81,10 @@ class bpred_perceptron_t:public bpred_dir_t
 
     /* if power of two, then actually need an extra bit to represent.
        also add one bit for the sign. */
-    if(theta == (1<<log_base2(theta)))
-      weight_width = log_base2(theta)+2;
+    if(theta == (1<<(int)std::log2(theta)))
+      weight_width = std::log2(theta)+2;
     else
-      weight_width = log_base2(theta)+1;
+      weight_width = std::log2(theta)+1;
 
     weight_max = (1<<(weight_width-1))-1;
     weight_min = -(1<<(weight_width-1));

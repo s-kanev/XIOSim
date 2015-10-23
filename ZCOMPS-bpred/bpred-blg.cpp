@@ -6,7 +6,6 @@
  * __COPYRIGHT__ GT
  */
 
-#include <math.h>
 #define COMPONENT_NAME "blg"
 
 #ifdef BPRED_PARSE_ARGS
@@ -123,9 +122,9 @@ class bpred_blg_t:public bpred_dir_t
     G_mask = arg_G_size-1;
     G_tag_size = arg_G_tag_size;
 
-    L_tag_shamt = log_base2(arg_L_size);
+    L_tag_shamt = std::log2(arg_L_size);
     L_tag_mask = (1<<arg_L_tag_size)-1;
-    G_tag_shamt = log_base2(arg_G_size);
+    G_tag_shamt = std::log2(arg_G_size);
     G_tag_mask = (1<<arg_G_tag_size)-1;
 
     B = (my2bc_t*) calloc(B_size,sizeof(*B));

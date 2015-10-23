@@ -211,25 +211,6 @@ _debug(const char *file, const char *func, const int line, const char *fmt, ...)
 }
 #endif /* DEBUG */
 
-/* return log of a number to the base 2 */
-int
-log_base2(const int n)
-{
-  int power = 0;
-
-  if (n <= 0 || (n & (n-1)) != 0)
-  {
-    return (int)ceil(log(n)/log(2.0));
-  }
-
-  int nn = n;
-  while (nn >>= 1)
-    power++;
-
-  return power;
-}
-
-
 /* The following are macros for basic memory operations.  If you have
    SSE support, these should run faster. */
 void memzero(void * base, int bytes)

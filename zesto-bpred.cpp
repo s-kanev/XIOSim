@@ -88,7 +88,7 @@
  * Makefile, so don't worry about it).
  */
 
-#include <math.h>
+#include <cmath>
 #include <ctype.h>
 
 #include "sim.h"

@@ -75,7 +75,7 @@ class BTB_btac_t:public BTB_t
     tag_width = arg_tag_width;
 
     btac_mask = num_entries-1;
-    tag_shift = log_base2(num_entries);
+    tag_shift = std::log2(num_entries);
     tag_mask = (1<<tag_width)-1;
 
     set = (struct BTB_btac_Entry_t**) calloc(num_entries,sizeof(*set));
@@ -100,8 +100,8 @@ class BTB_btac_t:public BTB_t
       }
     }
 
-    int tagsize = 8*sizeof(md_addr_t) - log_base2(num_entries);
-    int lrusize = log_base2(num_ways);
+    int tagsize = 8*sizeof(md_addr_t) - std::log2(num_entries);
+    int lrusize = std::log2(num_ways);
     int entrysize = sizeof(md_addr_t) + tagsize + lrusize + 1; /* +1 for valid bit */
     bits =  num_entries*num_ways*entrysize;
     type = strdup(COMPONENT_NAME);

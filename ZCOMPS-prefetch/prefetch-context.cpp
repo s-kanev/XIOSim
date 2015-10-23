@@ -75,7 +75,7 @@ class prefetch_context_t:public prefetch_t
     conf_bits = arg_conf_bits;
     u_bits = arg_u_bits;
 
-    tag_mask = ((1<<tag_bits)-1) << log_base2(num_entries);
+    tag_mask = ((1<<tag_bits)-1) << (int)std::log2(num_entries);
     next_mask = (1<<next_bits)-1;
     conf_max = (1<<conf_bits)-1;
     u_max = (1<<u_bits)-1;

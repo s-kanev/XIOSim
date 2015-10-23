@@ -86,7 +86,7 @@ class fusion_colt_t:public fusion_t
     bhr_mask = (1<<arg_bhr_width)-1;
 
     xormask = (meta_size-1)>>num_pred;
-    xor2shift = log_base2(meta_size)-num_pred;
+    xor2shift = std::log2(meta_size)-num_pred;
 
     history = (int*) calloc(history_size,sizeof(*history));
     if(!history)

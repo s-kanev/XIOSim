@@ -3,7 +3,6 @@
  * __COPYRIGHT__ GT
  */
 
-#include <math.h>
 #define COMPONENT_NAME "pathneural"
 
 #ifdef BPRED_PARSE_ARGS
@@ -124,7 +123,7 @@ class bpred_pathneural_t:public bpred_dir_t
 
     bits =  bht_size*history_length
          + top_size*(history_length+1)*weight_width
-         + history_length*log_base2(top_size);
+         + history_length*std::log2(top_size);
   }
 
   /* DESTROY */

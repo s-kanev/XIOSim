@@ -4,7 +4,6 @@
  * __COPYRIGHT__ GT
  */
 
-#include <math.h>
 #define COMPONENT_NAME "alloyedperceptron"
 
 #ifdef BPRED_PARSE_ARGS
@@ -100,10 +99,10 @@ class bpred_alloyedperceptron_t:public bpred_dir_t
 
     /* if power of two, then actually need an extra bit to represent.
        also add one bit for the sign. */
-    if(threshold == (1<<log_base2(threshold)))
-      weight_width = log_base2(threshold)+2;
+    if(threshold == (1<<(int)std::log2(threshold)))
+      weight_width = std::log2(threshold)+2;
     else
-      weight_width = log_base2(threshold)+1;
+      weight_width = std::log2(threshold)+1;
 
     weight_max = (1<<(weight_width-1))-1;
     weight_min = -(1<<(weight_width-1));

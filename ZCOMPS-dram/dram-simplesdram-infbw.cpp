@@ -137,10 +137,10 @@ class dram_simplesdram_infbw_t:public dram_t
         fatal("couldn't calloc dram bank[%d]",i);
     }
 
-    int offset_bits = log_base2(uncore->fsb_width);
+    int offset_bits = std::log2(uncore->fsb_width);
     int col_bits = 12-offset_bits; /* 4KB page */
-    int bank_bits = log_base2(num_banks);
-    int rank_bits = log_base2(num_ranks);
+    int bank_bits = std::log2(num_banks);
+    int rank_bits = std::log2(num_ranks);
     int row_bits = 33 - rank_bits - bank_bits - col_bits - offset_bits;
 
     num_rows = 1<<row_bits;

@@ -206,9 +206,6 @@ _debug(const char *file, const char *func, const int line, const char *fmt, ...)
 #define debug(fmt, args...)
 #endif
 
-/* return log of a number to the base 2 */
-int log_base2(const int n);
-
 /* fast modulo increment/decrement:
    gcc on -O1 or higher will if-convert the following functions
    to provide much cheaper implementations of increment and
