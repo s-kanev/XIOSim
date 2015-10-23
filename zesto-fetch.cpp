@@ -74,6 +74,7 @@
 
 #include <cstddef>
 
+#include "misc.h"
 #include "memory.h"
 #include "synchronization.h"
 

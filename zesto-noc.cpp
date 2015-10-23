@@ -1,3 +1,8 @@
+#include <cstdlib>
+#include <cstring>
+
+#include "misc.h"
+
 #include "zesto-core.h"
 #include "zesto-noc.h"
 

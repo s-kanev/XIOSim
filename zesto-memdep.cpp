@@ -74,9 +74,11 @@
 
 #include <cmath>
 
+#include "misc.h"
 #include "sim.h"
 #include "stats.h"
 #include "valcheck.h"
+
 #include "zesto-core.h"
 #include "zesto-memdep.h"
 

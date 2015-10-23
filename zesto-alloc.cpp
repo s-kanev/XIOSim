@@ -75,6 +75,8 @@
 #include <limits.h>
 #include <cstddef>
 
+#include "helix.h"
+#include "misc.h"
 #include "regs.h"
 
 #include "zesto-core.h"
@@ -84,7 +86,6 @@
 #include "zesto-exec.h"
 #include "zesto-commit.h"
 #include "zesto-fetch.h"
-#include "helix.h"
 
 
 /* default constructor */

@@ -3,6 +3,7 @@
 #include <list>
 
 #include "decode.h"
+#include "misc.h"
 #include "regs.h"
 #include "uop_cracker.h"
 #include "zesto-structs.h"

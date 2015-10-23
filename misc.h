@@ -1,51 +1,5 @@
 /* misc.h - miscellaneous interfaces
  * 
- * SimpleScalar Ô Tool Suite
- * © 1994-2003 Todd M. Austin, Ph.D. and SimpleScalar, LLC
- * All Rights Reserved.
- * 
- * THIS IS A LEGAL DOCUMENT BY DOWNLOADING SIMPLESCALAR, YOU ARE AGREEING TO
- * THESE TERMS AND CONDITIONS.
- * 
- * No portion of this work may be used by any commercial entity, or for any
- * commercial purpose, without the prior, written permission of SimpleScalar,
- * LLC (info@simplescalar.com). Nonprofit and noncommercial use is permitted as
- * described below.
- * 
- * 1. SimpleScalar is provided AS IS, with no warranty of any kind, express or
- * implied. The user of the program accepts full responsibility for the
- * application of the program and the use of any results.
- * 
- * 2. Nonprofit and noncommercial use is encouraged.  SimpleScalar may be
- * downloaded, compiled, executed, copied, and modified solely for nonprofit,
- * educational, noncommercial research, and noncommercial scholarship purposes
- * provided that this notice in its entirety accompanies all copies. Copies of
- * the modified software can be delivered to persons who use it solely for
- * nonprofit, educational, noncommercial research, and noncommercial
- * scholarship purposes provided that this notice in its entirety accompanies
- * all copies.
- * 
- * 3. ALL COMMERCIAL USE, AND ALL USE BY FOR PROFIT ENTITIES, IS EXPRESSLY
- * PROHIBITED WITHOUT A LICENSE FROM SIMPLESCALAR, LLC (info@simplescalar.com).
- * 
- * 4. No nonprofit user may place any restrictions on the use of this software,
- * including as modified by the user, by any other authorized user.
- * 
- * 5. Noncommercial and nonprofit users may distribute copies of SimpleScalar
- * in compiled or executable form as set forth in Section 2, provided that
- * either: (A) it is accompanied by the corresponding machine-readable source
- * code, or (B) it is accompanied by a written offer, with no time limit, to
- * give anyone a machine-readable copy of the corresponding source code in
- * return for reimbursement of the cost of distribution. This written offer
- * must permit verbatim duplication by anyone, or (C) it is distributed by
- * someone who received only the executable form, and is accompanied by a copy
- * of the written offer of source code.
- * 
- * 6. SimpleScalar was developed by Todd M. Austin, Ph.D. The tool suite is
- * currently maintained by SimpleScalar LLC (info@simplescalar.com). US Mail:
- * 2395 Timbercrest Court, Ann Arbor, MI 48105.
- * 
- * Copyright © 1994-2003 by Todd M. Austin, Ph.D. and SimpleScalar, LLC.
  * Copyright © 2009 by Gabriel H. Loh and the Georgia Tech Research Corporation
  * Atlanta, GA  30332-0415
  * All Rights Reserved.
@@ -121,13 +75,7 @@
 #ifndef MISC_H
 #define MISC_H
 
-extern "C" {
-
 #include <stdio.h>
-#include <stdlib.h>
-#include <stdarg.h>
-#include <string.h>
-#include <sys/types.h>
 
 /* boolean value defs */
 #ifndef TRUE
@@ -137,67 +85,11 @@ extern "C" {
 #define FALSE 0
 #endif
 
-/* various useful macros */
-#ifndef MAX
-#define MAX(a, b)    (((a) < (b)) ? (b) : (a))
-#endif
-#ifndef MIN
-#define MIN(a, b)    (((a) < (b)) ? (a) : (b))
-#endif
-
-#ifdef DEBUG
-/* active debug flag */
-extern bool debugging;
-#endif /* DEBUG */
-
-/* register a function to be called when an error is detected */
-void
-fatal_hook(void (*hook_fn)(FILE *stream));	/* fatal hook function */
-
-/* declare a fatal run-time error, calls fatal hook function */
+/* declare a fatal run-time error */
 #define fatal(fmt, ...)	\
   _fatal(__FILE__, __FUNCTION__, __LINE__, fmt, ## __VA_ARGS__)
 
-void
-_fatal(const char *file, const char *func, const int line, const char *fmt, ...)
-__attribute__ ((noreturn));
-
-#define warn(fmt, args...)	\
-  _warn(__FILE__, __FUNCTION__, __LINE__, fmt, ## args)
-
-void
-_warn(const char *file, const char *func, const int line, const char *fmt, ...);
-
-/* declare a oneshot warning */
-#define warnonce(fmt, args...)						\
-  do {									\
-    static int __first = TRUE;						\
-    if (__first) _warn(__FILE__, __FUNCTION__, __LINE__, fmt, ## args);	\
-    __first = FALSE;							\
-  } while (0)
-void
-_warn(const char *file, const char *func, const int line, const char *fmt, ...);
-
-/* print general information */
-#define info(fmt, args...)	\
-  _info(__FILE__, __FUNCTION__, __LINE__, fmt, ## args)
-
-void
-_info(const char *file, const char *func, const int line, const char *fmt, ...);
-
-#ifdef DEBUG
-/* print a debugging message */
-#define debug(fmt, args...)	\
-    do {                        \
-        if (debugging)         	\
-            _debug(__FILE__, __FUNCTION__, __LINE__, fmt, ## args); \
-    } while(0)
-
-void
-_debug(const char *file, const char *func, const int line, const char *fmt, ...);
-#else
-#define debug(fmt, args...)
-#endif
+[[ noreturn ]] void _fatal(const char *file, const char *func, const int line, const char *fmt, ...);
 
 /* fast modulo increment/decrement:
    gcc on -O1 or higher will if-convert the following functions
@@ -243,7 +135,5 @@ FILE *gzopen(const char *fname, const char *type);
 
 /* close compressed stream */
 void gzclose(FILE *fd);
-
-}
 
 #endif /* MISC_H */

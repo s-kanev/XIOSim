@@ -6,6 +6,7 @@ extern "C" {
 }
 
 #include "../decode.h"
+#include "../misc.h"
 #include "../uop_cracker.h"
 #include "../zesto-structs.h"
 

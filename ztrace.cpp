@@ -1,6 +1,8 @@
-#include "host.h"
+#include <cstdarg>
+
 #include "decode.h"
 #include "memory.h"
+#include "misc.h"
 #include "sim.h"
 
 #include "zesto-core.h"

@@ -81,14 +81,11 @@ namespace xiosim {
 namespace libsim {
 
 static void create_modules(void);
-void sim_print_stats(FILE* fd);
+static void sim_print_stats(FILE* fd);
 
 int init(int argc, char** argv) {
     char* s;
     int i;
-
-    /* register an error handler */
-    fatal_hook(sim_print_stats);
 
     /* Parse Zesto configuration file. This will populate both knobs and all_opts. */
     // TODO: Get rid of c-style cast.

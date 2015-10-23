@@ -75,7 +75,9 @@
 #include <limits.h>
 
 #include "memory.h"
+#include "misc.h"
 #include "stats.h"
+
 #include "zesto-cache.h"
 #include "zesto-uncore.h"
 #include "zesto-MC.h"

@@ -77,6 +77,7 @@
 
 #include "decode.h"
 #include "memory.h"
+#include "misc.h"
 #include "regs.h"
 #include "synchronization.h"
 #include "uop_cracker.h"

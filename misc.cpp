@@ -1,51 +1,5 @@
-/* misc.c - miscellaneous routines
+/* misc.cpp - miscellaneous routines
  *
- * SimpleScalar Ô Tool Suite
- * © 1994-2003 Todd M. Austin, Ph.D. and SimpleScalar, LLC
- * All Rights Reserved.
- * 
- * THIS IS A LEGAL DOCUMENT BY DOWNLOADING SIMPLESCALAR, YOU ARE AGREEING TO
- * THESE TERMS AND CONDITIONS.
- * 
- * No portion of this work may be used by any commercial entity, or for any
- * commercial purpose, without the prior, written permission of SimpleScalar,
- * LLC (info@simplescalar.com). Nonprofit and noncommercial use is permitted as
- * described below.
- * 
- * 1. SimpleScalar is provided AS IS, with no warranty of any kind, express or
- * implied. The user of the program accepts full responsibility for the
- * application of the program and the use of any results.
- * 
- * 2. Nonprofit and noncommercial use is encouraged.  SimpleScalar may be
- * downloaded, compiled, executed, copied, and modified solely for nonprofit,
- * educational, noncommercial research, and noncommercial scholarship purposes
- * provided that this notice in its entirety accompanies all copies. Copies of
- * the modified software can be delivered to persons who use it solely for
- * nonprofit, educational, noncommercial research, and noncommercial
- * scholarship purposes provided that this notice in its entirety accompanies
- * all copies.
- * 
- * 3. ALL COMMERCIAL USE, AND ALL USE BY FOR PROFIT ENTITIES, IS EXPRESSLY
- * PROHIBITED WITHOUT A LICENSE FROM SIMPLESCALAR, LLC (info@simplescalar.com).
- * 
- * 4. No nonprofit user may place any restrictions on the use of this software,
- * including as modified by the user, by any other authorized user.
- * 
- * 5. Noncommercial and nonprofit users may distribute copies of SimpleScalar
- * in compiled or executable form as set forth in Section 2, provided that
- * either: (A) it is accompanied by the corresponding machine-readable source
- * code, or (B) it is accompanied by a written offer, with no time limit, to
- * give anyone a machine-readable copy of the corresponding source code in
- * return for reimbursement of the cost of distribution. This written offer
- * must permit verbatim duplication by anyone, or (C) it is distributed by
- * someone who received only the executable form, and is accompanied by a copy
- * of the written offer of source code.
- * 
- * 6. SimpleScalar was developed by Todd M. Austin, Ph.D. The tool suite is
- * currently maintained by SimpleScalar LLC (info@simplescalar.com). US Mail:
- * 2395 Timbercrest Court, Ann Arbor, MI 48105.
- * 
- * Copyright © 1994-2003 by Todd M. Austin, Ph.D. and SimpleScalar, LLC.
  * Copyright © 2009 by Gabriel H. Loh and the Georgia Tech Research Corporation
  * Atlanta, GA  30332-0415
  * All Rights Reserved.
@@ -122,94 +76,21 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
-#include <errno.h>
-#include <math.h>
-#include <stddef.h>
-#include <unistd.h>
 
 #include "host.h"
 #include "misc.h"
-#include "synchronization.h"
 
-#ifdef DEBUG
-/* active debug flag */
-bool debugging = false;
-#endif /* DEBUG */
-
-
-/* fatal function hook, this function is called just before an exit
-   caused by a fatal error, used to spew stats, etc. */
-static void (*hook_fn)(FILE *stream) = NULL;
-
-/* register a function to be called when an error is detected */
-void
-fatal_hook(void (*fn)(FILE *stream))	/* fatal hook function */
-{
-  hook_fn = fn;
-}
-
-/* declare a fatal run-time error, calls fatal hook function */
-void
-_fatal(const char *file, const char *func, const int line, const char *fmt, ...)
-{
+/* declare a fatal run-time error */
+void _fatal(const char *file, const char *func, const int line, const char *fmt, ...) {
   va_list v;
   va_start(v, fmt);
 
   fprintf(stderr, "fatal: ");
   vfprintf(stderr, fmt, v);
-  fprintf(stderr, " [%s:%s, line %d]", func, file, line);
-  fprintf(stderr, "\n");
-  if (hook_fn)
-    (*hook_fn)(stderr);
+  fprintf(stderr, " [%s:%s, line %d]\n", func, file, line);
   fflush(stderr);
   exit(1);
 }
-
-/* declare a warning */
-void
-_warn(const char *file, const char *func, const int line, const char *fmt, ...)
-{
-  va_list v;
-  va_start(v, fmt);
-
-  fprintf(stderr, "warning: ");
-  vfprintf(stderr, fmt, v);
-  fprintf(stderr, " [%s:%s, line %d]", func, file, line);
-  fprintf(stderr, "\n");
-  fflush(stderr);
-}
-
-/* print general information */
-void
-_info(const char *file, const char *func, const int line, const char *fmt, ...)
-{
-  va_list v;
-  va_start(v, fmt);
-
-  vfprintf(stderr, fmt, v);
-  fprintf(stderr, " [%s:%s, line %d]", func, file, line);
-  fprintf(stderr, "\n");
-  fflush(stderr);
-}
-
-#ifdef DEBUG
-/* print a debugging message */
-void
-_debug(const char *file, const char *func, const int line, const char *fmt, ...)
-{
-    va_list v;
-    va_start(v, fmt);
-
-    if (debugging)
-      {
-        fprintf(stderr, "debug: ");
-        vfprintf(stderr, fmt, v);
-        fprintf(stderr, " [%s:%s, line %d]", func, file, line);
-        fprintf(stderr, "\n");
-      }
-    fflush(stderr);
-}
-#endif /* DEBUG */
 
 /* The following are macros for basic memory operations.  If you have
    SSE support, these should run faster. */

@@ -91,9 +91,11 @@
 #include <cmath>
 #include <ctype.h>
 
+#include "misc.h"
 #include "sim.h"
 #include "stats.h"
 #include "valcheck.h"
+
 #include "zesto-core.h"
 #include "zesto-bpred.h"
 

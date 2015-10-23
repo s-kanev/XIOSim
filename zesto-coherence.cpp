@@ -1,6 +1,8 @@
+#include <cstring>
 #include <map>
 
 #include "memory.h"
+#include "misc.h"
 #include "synchronization.h"
 
 #include "zesto-cache.h"

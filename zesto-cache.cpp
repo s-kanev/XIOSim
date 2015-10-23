@@ -77,6 +77,7 @@
 #include <cmath>
 
 #include "memory.h"
+#include "misc.h"
 #include "stats.h"
 #include "sim.h"
 

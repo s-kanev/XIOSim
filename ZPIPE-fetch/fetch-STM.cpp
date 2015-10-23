@@ -114,11 +114,7 @@ core_fetch_STM_t::core_fetch_STM_t(struct core_t * const arg_core):
       knobs->fetch.ras_opt_str
     );
 
-  if(knobs->fetch.jeclear_delay != 0)
-  {
-    warnonce("STM fetch model does not support non-zero latency jeclear delay... setting to zero");
-    knobs->fetch.jeclear_delay = 0;
-  }
+  zesto_assert(knobs->fetch.jeclear_delay == 0, void);
 
   /* IL1 */
   if(sscanf(knobs->memory.IL1_opt_str,"%[^:]:%d:%d:%d:%d:%d:%d:%c:%d",

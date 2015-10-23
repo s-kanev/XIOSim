@@ -1,5 +1,6 @@
 #include <iostream>
 
+#include "misc.h"
 #include "decode.h"
 #include "zesto-structs.h"
 

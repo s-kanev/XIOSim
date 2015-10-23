@@ -351,7 +351,7 @@ core_exec_STM_t::core_exec_STM_t(struct core_t * arg_core):
 
   /* DTLB2 */
   if(strcasecmp(knobs->memory.DTLB2_opt_str,"none") != 0)
-    warnonce("DTLB2 not used in STM model; option string ignored");
+    fatal("DTLB2 not used in STM model");
   core->memory.DTLB_bus = NULL;
   core->memory.DTLB2 = NULL;
 

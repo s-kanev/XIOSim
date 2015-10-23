@@ -51,13 +51,12 @@
 #ifndef EVAL_H
 #define EVAL_H
 
+#include <stdio.h>
+#include "host.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include <stdio.h>
-#include "host.h"
-#include "misc.h"
 
 /* forward declarations */
 struct eval_state_t;

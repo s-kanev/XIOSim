@@ -3,6 +3,7 @@
 #include <cmath>
 #include <vector>
 
+#include "misc.h"
 #include "synchronization.h"
 #include "stats.h"
 #include "sim.h"
@@ -61,7 +62,7 @@ void end_slice(unsigned int slice_num,
     slice_uncore_end_cycle = uncore->sim_cycle;
     slice_core_end_cycle = cores[i]->sim_cycle;
     time_t slice_end_time = time((time_t*)NULL);
-    sim_elapsed_time = MAX(slice_end_time - slice_start_time, 1);
+    sim_elapsed_time = std::max(slice_end_time - slice_start_time, (time_t)1);
 
     /* Ugh, this feels very dirty. Have to make sure we don't forget a cycle stat.
        The reason for doing this is that cycle counts increasing monotonously is

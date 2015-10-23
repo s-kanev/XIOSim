@@ -76,6 +76,7 @@
  */
 
 #include <assert.h>
+#include <cstring>
 
 extern "C" {
 #include "xed-interface.h"

@@ -1,7 +1,9 @@
+#include "misc.h"
+#include "ztrace.h"
+
 #include "zesto-structs.h"
 #include "zesto-core.h"
 #include "zesto-power.h"
-#include "ztrace.h"
 #include "zesto-dvfs.h"
 
 using namespace std;

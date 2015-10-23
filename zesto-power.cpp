@@ -1,6 +1,8 @@
 #include <cstddef>
 
+#include "misc.h"
 #include "stats.h"
+
 #include "zesto-power.h"
 #include "zesto-dvfs.h"
 #include "zesto-oracle.h"

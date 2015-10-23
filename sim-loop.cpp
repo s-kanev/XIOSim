@@ -55,7 +55,7 @@ static void sim_drain_pipe(int coreID);
 
 void sim_loop_init(void) {
     // Time between updating global state (uncore, different nocs)
-    sync_interval = MIN(1e-3 / LLC_speed, 1e-3 / cores[0]->memory.mem_repeater->speed);
+    sync_interval = std::min(1e-3 / LLC_speed, 1e-3 / cores[0]->memory.mem_repeater->speed);
 }
 
 static void global_step(void) {

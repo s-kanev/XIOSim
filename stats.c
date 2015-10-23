@@ -48,6 +48,8 @@
  * Copyright © 1994-2003 by Todd M. Austin, Ph.D. and SimpleScalar, LLC.
  */
 
+#include <algorithm>
+#include <cstring>
 #include <stdio.h>
 #include <stdlib.h>
 #include <limits.h>
@@ -750,7 +752,7 @@ print_dist(struct stat_stat_t *stat,	/* stat variable */
     /* on-line variance computation, tres cool, no!?! */
     bsqsum += ((double)stat->variant.for_dist.arr[i] *
         (double)stat->variant.for_dist.arr[i]);
-    bavg = btotal / MAX((double)bcount, 1.0);
+    bavg = btotal / std::max<double>(bcount, 1.0);
     bvar = (bsqsum - ((double)bcount * bavg * bavg)) / 
       (double)(((bcount - 1) > 0) ? (bcount - 1) : 1);
   }
@@ -775,7 +777,7 @@ print_dist(struct stat_stat_t *stat,	/* stat variable */
     fprintf(fd, "%s.imin = %d\n", stat->name, -1);
     fprintf(fd, "%s.imax = %d\n", stat->name, -1);
   }
-  fprintf(fd, "%s.average = %8.4f\n", stat->name, btotal/MAX(bcount, 1.0));
+  fprintf(fd, "%s.average = %8.4f\n", stat->name, btotal/std::max<double>(bcount, 1.0));
   fprintf(fd, "%s.std_dev = %8.4f\n", stat->name, sqrt(bvar));
   fprintf(fd, "%s.overflows = %u\n",
       stat->name, stat->variant.for_dist.overflows);
@@ -821,9 +823,9 @@ print_dist(struct stat_stat_t *stat,	/* stat variable */
           if (pf & PF_PDF)
             fprintf(fd, "%6.2f ",
                 (double)stat->variant.for_dist.arr[i] /
-                MAX(btotal, 1.0) * 100.0);
+                std::max(btotal, 1.0) * 100.0);
           if (pf & PF_CDF)
-            fprintf(fd, "%6.2f ", bsum/MAX(btotal, 1.0) * 100.0);
+            fprintf(fd, "%6.2f ", bsum/std::max(btotal, 1.0) * 100.0);
         }
         else
         {
@@ -834,15 +836,15 @@ print_dist(struct stat_stat_t *stat,	/* stat variable */
                   stat->variant.for_dist.imap[i],
                   stat->variant.for_dist.arr[i],
                   (double)stat->variant.for_dist.arr[i] /
-                  MAX(btotal, 1.0) * 100.0,
-                  bsum/MAX(btotal, 1.0) * 100.0);
+                  std::max(btotal, 1.0) * 100.0,
+                  bsum/std::max(btotal, 1.0) * 100.0);
             else
               fprintf(fd, stat->format,
                   i * stat->variant.for_dist.bucket_sz,
                   stat->variant.for_dist.arr[i],
                   (double)stat->variant.for_dist.arr[i] /
-                  MAX(btotal, 1.0) * 100.0,
-                  bsum/MAX(btotal, 1.0) * 100.0);
+                  std::max(btotal, 1.0) * 100.0,
+                  bsum/std::max(btotal, 1.0) * 100.0);
           }
           else
             fatal("distribution format not yet implemented");
@@ -964,9 +966,9 @@ print_sdist(struct stat_stat_t *stat,	/* stat variable */
             fprintf(fd, "%10u ", barr[i]->count);
           if (pf & PF_PDF)
             fprintf(fd, "%6.2f ",
-                (double)barr[i]->count/MAX(btotal, 1.0) * 100.0);
+                (double)barr[i]->count/std::max(btotal, 1.0) * 100.0);
           if (pf & PF_CDF)
-            fprintf(fd, "%6.2f ", bsum/MAX(btotal, 1.0) * 100.0);
+            fprintf(fd, "%6.2f ", bsum/std::max(btotal, 1.0) * 100.0);
         }
         else
         {
@@ -974,14 +976,14 @@ print_sdist(struct stat_stat_t *stat,	/* stat variable */
           {
             fprintf(fd, stat->format,
                 barr[i]->index, barr[i]->count,
-                (double)barr[i]->count/MAX(btotal, 1.0)*100.0,
-                bsum/MAX(btotal, 1.0) * 100.0);
+                (double)barr[i]->count/std::max(btotal, 1.0)*100.0,
+                bsum/std::max(btotal, 1.0) * 100.0);
           }
           else if (pf == (PF_COUNT|PF_PDF))
           {
             fprintf(fd, stat->format,
                 barr[i]->index, barr[i]->count,
-                (double)barr[i]->count/MAX(btotal, 1.0)*100.0);
+                (double)barr[i]->count/std::max(btotal, 1.0)*100.0);
           }
           else if (pf == PF_COUNT)
           {

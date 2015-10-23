@@ -21,9 +21,6 @@ extern const char* ztrace_filename;
 extern bool simulate_power;
 
 extern int rand_seed;
-#ifdef DEBUG
-extern bool debugging;
-#endif
 extern const char* sim_simout;
 extern const char * LLC_opt_str;
 extern const char * LLC_PF_opt_str[MAX_PREFETCHERS];

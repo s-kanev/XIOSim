@@ -73,8 +73,12 @@
  */
 
 #include <cmath>
+#include <cstring>
 #include <limits.h>
+
+#include "misc.h"
 #include "stats.h"
+
 #include "zesto-cache.h"
 #include "zesto-dram.h"
 #include "zesto-uncore.h"
