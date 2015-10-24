@@ -207,7 +207,7 @@ class Formula : public BaseStatistic {
     void operator+=(ExpressionWrapper added_expr) {
         if (expr) {
             std::unique_ptr<Expression> added_expr_ptr = added_expr;
-            ExpressionWrapper new_expr = added_expr_ptr + expr;
+            ExpressionWrapper new_expr = expr + added_expr_ptr;
             expr = new_expr;
         } else {
             expr = added_expr;
@@ -217,7 +217,7 @@ class Formula : public BaseStatistic {
     void operator-=(ExpressionWrapper sub_expr) {
         if (expr) {
             std::unique_ptr<Expression> sub_expr_ptr = sub_expr;
-            ExpressionWrapper new_expr = sub_expr_ptr - expr;
+            ExpressionWrapper new_expr = expr - sub_expr_ptr;
             expr = new_expr;
         } else {
             expr = sub_expr;
@@ -227,7 +227,7 @@ class Formula : public BaseStatistic {
     void operator*=(ExpressionWrapper mult_expr) {
         if (expr) {
             std::unique_ptr<Expression> mult_expr_ptr = mult_expr;
-            ExpressionWrapper new_expr = mult_expr_ptr - expr;
+            ExpressionWrapper new_expr = expr * mult_expr_ptr;
             expr = new_expr;
         } else {
             expr = mult_expr;
@@ -237,7 +237,7 @@ class Formula : public BaseStatistic {
     void operator/=(ExpressionWrapper div_expr) {
         if (expr) {
             std::unique_ptr<Expression> div_expr_ptr = div_expr;
-            ExpressionWrapper new_expr = div_expr_ptr - expr;
+            ExpressionWrapper new_expr = expr / div_expr_ptr;
             expr = new_expr;
         } else {
             expr = div_expr;
@@ -247,7 +247,7 @@ class Formula : public BaseStatistic {
     void operator^=(ExpressionWrapper exp_expr) {
         if (expr) {
             std::unique_ptr<Expression> exp_expr_ptr = exp_expr;
-            ExpressionWrapper new_expr = exp_expr_ptr ^ expr;
+            ExpressionWrapper new_expr = expr ^ exp_expr_ptr;
             expr = new_expr;
         } else {
             expr = exp_expr;
