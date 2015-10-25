@@ -101,37 +101,37 @@ core_alloc_IO_DPM_t::core_alloc_IO_DPM_t(struct core_t * const arg_core)
 }
 
 void core_alloc_IO_DPM_t::reg_stats(xiosim::stats::StatsDatabase* sdb) {
-    struct thread_t* arch = core->current_thread;
+    int coreID = core->id;
 
-    auto sim_cycle_st = stat_find_core_stat<qword_t>(sdb, arch->id, "sim_cycle");
+    auto sim_cycle_st = stat_find_core_stat<tick_t>(sdb, coreID, "sim_cycle");
     assert(sim_cycle_st);
 
     stat_reg_note(sdb, "#### ALLOC STATS ####");
-    auto& alloc_insn_st = stat_reg_core_counter(sdb, true, arch->id, "alloc_insn",
+    auto& alloc_insn_st = stat_reg_core_counter(sdb, true, coreID, "alloc_insn",
                                                 "total number of instructions alloced",
-                                                &core->stat.alloc_insn, 0, TRUE, NULL);
+                                                &core->stat.alloc_insn, 0, true, NULL);
     auto& alloc_uops_st =
-            stat_reg_core_counter(sdb, true, arch->id, "alloc_uops", "total number of uops alloced",
-                                  &core->stat.alloc_uops, 0, TRUE, NULL);
-    auto& alloc_eff_uops_st = stat_reg_core_counter(sdb, true, arch->id, "alloc_eff_uops",
+            stat_reg_core_counter(sdb, true, coreID, "alloc_uops", "total number of uops alloced",
+                                  &core->stat.alloc_uops, 0, true, NULL);
+    auto& alloc_eff_uops_st = stat_reg_core_counter(sdb, true, coreID, "alloc_eff_uops",
                                                     "total number of effective uops alloced",
-                                                    &core->stat.alloc_eff_uops, 0, TRUE, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "alloc_IPC", "IPC at alloc",
+                                                    &core->stat.alloc_eff_uops, 0, true, NULL);
+    stat_reg_core_formula(sdb, true, coreID, "alloc_IPC", "IPC at alloc",
                           alloc_insn_st / *sim_cycle_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "alloc_uPC", "uPC at alloc",
+    stat_reg_core_formula(sdb, true, coreID, "alloc_uPC", "uPC at alloc",
                           alloc_uops_st / *sim_cycle_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "alloc_euPC", "euPC at alloc",
+    stat_reg_core_formula(sdb, true, coreID, "alloc_euPC", "euPC at alloc",
                           alloc_eff_uops_st / *sim_cycle_st, NULL);
 
-    stat_reg_core_counter(sdb, true, arch->id, "regfile_reads", "number of register file reads",
-                          &core->stat.regfile_reads, 0, TRUE, NULL);
-    stat_reg_core_counter(sdb, true, arch->id, "fp_regfile_reads",
-                          "number of fp refister file reads", &core->stat.fp_regfile_reads, 0, TRUE,
+    stat_reg_core_counter(sdb, true, coreID, "regfile_reads", "number of register file reads",
+                          &core->stat.regfile_reads, 0, true, NULL);
+    stat_reg_core_counter(sdb, true, coreID, "fp_regfile_reads",
+                          "number of fp refister file reads", &core->stat.fp_regfile_reads, 0, true,
                           NULL);
 
     core->stat.alloc_stall = stat_reg_core_dist(
-            sdb, arch->id, "alloc_stall", "breakdown of stalls at alloc", 0, ASTALL_num, 1,
-            (PF_COUNT | PF_PDF), NULL, alloc_stall_str, TRUE, NULL);
+            sdb, coreID, "alloc_stall", "breakdown of stalls at alloc", 0, ASTALL_num, 1,
+            (PF_COUNT | PF_PDF), NULL, alloc_stall_str, true, NULL);
 }
 
 /************************/
@@ -219,10 +219,6 @@ void core_alloc_IO_DPM_t::step(void)
         {
           if(uop->timing.when_allocated == TICK_T_MAX)
           {
-            /* all store uops had better be marked is_std */
-            zesto_assert((!(uop->decode.opflags & F_STORE)) || uop->decode.is_std,(void)0);
-            zesto_assert((!(uop->decode.opflags & F_LOAD)) || uop->decode.is_load,(void)0);
-
             /* port bindings */
 
             /* fused instructions go together as atomic ops */
@@ -310,7 +306,7 @@ void core_alloc_IO_DPM_t::step(void)
 
             /* Get input mappings - this is a proxy for explicit register numbers, which
                you can always get from idep_uop->alloc.ROB_index */
-            for(int j=0;j<MAX_IDEPS;j++)
+            for(size_t j=0;j<MAX_IDEPS;j++)
             {
               /* This use of oracle info is valid: at this point the processor would be
                  looking up this information in the RAT, but this saves us having to
@@ -329,17 +325,17 @@ void core_alloc_IO_DPM_t::step(void)
                 odep->next = uop->exec.idep_uop[j]->exec.odep_uop;
                 uop->exec.idep_uop[j]->exec.odep_uop = odep;
                 odep->uop = uop;
-                odep->aflags = (uop->decode.idep_name[j] == DCREG(MD_REG_AFLAGS));
+                //odep->aflags = (uop->decode.idep_name[j] == DCREG(MD_REG_AFLAGS));
                 odep->op_num = j;
               }
             }
 
             /* Update read stats */
-            for(int j=0;j<MAX_IDEPS;j++)
+            for(size_t j=0;j<MAX_IDEPS;j++)
             {
-              if(REG_IS_GPR(uop->decode.idep_name[j]))
+              if(x86::is_ireg(uop->decode.idep_name[j]))
                 core->stat.regfile_reads++;
-              else if(REG_IS_FPR(uop->decode.idep_name[j]))
+              else if(x86::is_freg(uop->decode.idep_name[j]))
                 core->stat.fp_regfile_reads++;
             }
 
@@ -347,7 +343,7 @@ void core_alloc_IO_DPM_t::step(void)
                explicitly implementing a scoreboard); if value is ready, read
                it into data-capture window or payload RAM. */
             tick_t when_ready = 0;
-            for(int j=0;j<MAX_IDEPS;j++) /* for possible input argument */
+            for(size_t j=0;j<MAX_IDEPS;j++) /* for possible input argument */
             {
               if(uop->exec.idep_uop[j]) /* if the parent uop exists (i.e., still in the processor) */
               {
@@ -356,10 +352,6 @@ void core_alloc_IO_DPM_t::step(void)
                 {
                   uop->timing.when_ival_ready[j] = uop->exec.idep_uop[j]->timing.when_completed;
                   uop->exec.ivalue_valid[j] = true;
-                  if(uop->decode.idep_name[j] == DCREG(MD_REG_AFLAGS))
-                    uop->exec.ivalue[j].dw = uop->exec.idep_uop[j]->exec.oflags;
-                  else
-                    uop->exec.ivalue[j] = uop->exec.idep_uop[j]->exec.ovalue;
                 }
               }
               else /* read from ARF */
@@ -367,8 +359,6 @@ void core_alloc_IO_DPM_t::step(void)
                 uop->timing.when_itag_ready[j] = core->sim_cycle;
                 uop->timing.when_ival_ready[j] = core->sim_cycle;
                 uop->exec.ivalue_valid[j] = true; /* applies to invalid (DNA) inputs as well */
-                if(uop->decode.idep_name[j] != DNA)
-                  uop->exec.ivalue[j] = uop->oracle.ivalue[j]; /* oracle value == architected value */
               }
               if(when_ready < uop->timing.when_itag_ready[j])
                 when_ready = uop->timing.when_itag_ready[j];

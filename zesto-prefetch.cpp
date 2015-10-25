@@ -72,11 +72,15 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
+#include <cmath>
 #include <iostream>
 
-#include "stats.h"
+#include "memory.h"
+#include "misc.h"
 #include "sim.h"
+#include "stats.h"
 #include "valcheck.h"
+
 #include "zesto-core.h"
 #include "zesto-bpred.h"
 #include "zesto-cache.h"
@@ -104,12 +108,7 @@ prefetch_t::~prefetch_t()
   type = NULL;
 }
 
-/* The default prefetcher stats printing function. */
-void
-prefetch_t::reg_stats(
-    xiosim::stats::StatsDatabase* sdb,
-    const struct core_t * const core)
-{
+void prefetch_t::reg_stats(xiosim::stats::StatsDatabase* sdb, const struct core_t * const core) {
   using namespace xiosim::stats;
   char buf[256];
   char buf2[256];
@@ -118,7 +117,7 @@ prefetch_t::reg_stats(
   if(core == NULL)
     core_str[0] = 0; /* empty string */
   else
-    sprintf(core_str,"c%d.",core->current_thread->id);
+    sprintf(core_str,"c%d.",core->id);
 
   sprintf(buf,"%s%s.%s.bits",core_str,cp->name,type);
   sprintf(buf2,"total size of %s in bits",type);

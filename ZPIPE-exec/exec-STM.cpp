@@ -120,7 +120,6 @@ class core_exec_STM_t:public core_exec_t
     md_addr_t virt_addr;
     md_paddr_t phys_addr;
     int mem_size;
-    union val_t value;
     bool addr_valid;
     bool value_valid;
     int next_load; /* LDQ index of next load in program order */
@@ -139,7 +138,7 @@ class core_exec_STM_t:public core_exec_t
     struct readyQ_node_t * readyQ;
     struct ALU_t * STQ; /* store-queue lookup/search pipeline for load execution */
     int num_FU_types; /* the number of FU's bound to this port */
-    enum md_fu_class * FU_types; /* the corresponding types of those FUs */
+    enum fu_class * FU_types; /* the corresponding types of those FUs */
   } * port;
   bool check_for_work; /* used to skip ALU exec when there's no uops */
 
@@ -352,7 +351,7 @@ core_exec_STM_t::core_exec_STM_t(struct core_t * arg_core):
 
   /* DTLB2 */
   if(strcasecmp(knobs->memory.DTLB2_opt_str,"none") != 0)
-    warnonce("DTLB2 not used in STM model; option string ignored");
+    fatal("DTLB2 not used in STM model");
   core->memory.DTLB_bus = NULL;
   core->memory.DTLB2 = NULL;
 
@@ -385,11 +384,13 @@ core_exec_STM_t::core_exec_STM_t(struct core_t * arg_core):
   {
     int j;
     knobs->exec.port_binding[i].ports = (int*) calloc(knobs->exec.port_binding[i].num_FUs,sizeof(int));
-    if(!knobs->exec.port_binding[i].ports) fatal("couldn't calloc %s ports",MD_FU_NAME(i));
+    if(!knobs->exec.port_binding[i].ports) fatal("couldn't calloc %s ports", fu_name(static_cast<fu_class>(i)).c_str());
     for(j=0;j<knobs->exec.port_binding[i].num_FUs;j++)
     {
       if((knobs->exec.fu_bindings[i][j] < 0) || (knobs->exec.fu_bindings[i][j] >= knobs->exec.num_exec_ports))
-        fatal("port binding for %s is negative or exceeds the execution width (should be > 0 and < %d)",MD_FU_NAME(i),knobs->exec.num_exec_ports);
+        fatal("port binding for %s is negative or exceeds the execution width (should be > 0 and < %d)",
+               static_cast<fu_class>(i),
+               knobs->exec.num_exec_ports);
       knobs->exec.port_binding[i].ports[j] = knobs->exec.fu_bindings[i][j];
     }
   }
@@ -413,7 +414,7 @@ core_exec_STM_t::core_exec_STM_t(struct core_t * arg_core):
       port[port_num].FU[i]->issue_rate = issue_rate;
       port[port_num].FU[i]->pipe = (struct uop_action_t*) calloc(heap_size,sizeof(struct uop_action_t));
       if(!port[port_num].FU[i]->pipe)
-        fatal("couldn't calloc %s function unit execution pipeline",MD_FU_NAME(i));
+        fatal("couldn't calloc %s function unit execution pipeline", static_cast<fu_class>(i));
 
       if(i==FU_LD) /* load has AGEN and STQ access pipelines */
       {
@@ -437,7 +438,7 @@ core_exec_STM_t::core_exec_STM_t(struct core_t * arg_core):
     for(j=0;j<NUM_FU_CLASSES;j++)
       if(port[i].FU[j])
         port[i].num_FU_types++;
-    port[i].FU_types = (enum md_fu_class *)calloc(port[i].num_FU_types,sizeof(enum md_fu_class));
+    port[i].FU_types = (enum fu_class *)calloc(port[i].num_FU_types,sizeof(enum fu_class));
     if(!port[i].FU_types)
       fatal("couldn't calloc FU_types array on port %d",i);
     int k=0;
@@ -445,7 +446,7 @@ core_exec_STM_t::core_exec_STM_t(struct core_t * arg_core):
     {
       if(port[i].FU[j])
       {
-        port[i].FU_types[k] = (enum md_fu_class)j;
+        port[i].FU_types[k] = (enum fu_class)j;
         k++;
       }
     }
@@ -456,10 +457,8 @@ core_exec_STM_t::core_exec_STM_t(struct core_t * arg_core):
   check_for_work = true;
 }
 
-void
-core_exec_STM_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
-{
-    struct thread_t* arch = core->current_thread;
+void core_exec_STM_t::reg_stats(xiosim::stats::StatsDatabase* sdb) {
+    int coreID = core->id;
 
     stat_reg_note(sdb, "\n#### DATA CACHE STATS ####");
     cache_reg_stats(sdb, core, core->memory.DL1);
@@ -468,55 +467,37 @@ core_exec_STM_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
     bus_reg_stats(sdb, core, core->memory.DL2_bus);
 
     stat_reg_note(sdb, "#### EXEC STATS ####");
-    auto sim_cycle_st = stat_find_core_stat<qword_t>(sdb, arch->id, "sim_cycle");
+    auto sim_cycle_st = stat_find_core_stat<tick_t>(sdb, coreID, "sim_cycle");
     assert(sim_cycle_st);
     auto& exec_uops_issued_st =
-            stat_reg_core_counter(sdb, true, arch->id, "exec_uops_issued", "number of uops issued",
-                             &core->stat.exec_uops_issued, 0, TRUE, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "exec_uPC", "average number of uops executed per cycle",
+            stat_reg_core_counter(sdb, true, coreID, "exec_uops_issued", "number of uops issued",
+                             &core->stat.exec_uops_issued, 0, true, NULL);
+    stat_reg_core_formula(sdb, true, coreID, "exec_uPC", "average number of uops executed per cycle",
                      exec_uops_issued_st / *sim_cycle_st, NULL);
     auto& exec_uops_replayed_st =
-            stat_reg_core_counter(sdb, true, arch->id, "exec_uops_replayed", "number of uops replayed",
-                             &core->stat.exec_uops_replayed, 0, TRUE, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "exec_avg_replays", "average replays per uop",
+            stat_reg_core_counter(sdb, true, coreID, "exec_uops_replayed", "number of uops replayed",
+                             &core->stat.exec_uops_replayed, 0, true, NULL);
+    stat_reg_core_formula(sdb, true, coreID, "exec_avg_replays", "average replays per uop",
                      exec_uops_replayed_st / exec_uops_issued_st, NULL);
     auto& exec_uops_snatched_st = stat_reg_core_counter(
-            sdb, true, arch->id, "exec_uops_snatched", "number of uops snatched-back",
-            &core->stat.exec_uops_snatched_back, 0, TRUE, NULL);
+            sdb, true, coreID, "exec_uops_snatched", "number of uops snatched-back",
+            &core->stat.exec_uops_snatched_back, 0, true, NULL);
 
-    stat_reg_core_formula(sdb, true, arch->id, "exec_avg_snatched", "average snatch-backs per uop",
+    stat_reg_core_formula(sdb, true, coreID, "exec_avg_snatched", "average snatch-backs per uop",
                      exec_uops_snatched_st / exec_uops_issued_st, NULL);
-    stat_reg_core_counter(sdb, true, arch->id, "num_jeclear", "number of branch mispredictions",
-                     &core->stat.num_jeclear, 0, TRUE, NULL);
-    stat_reg_core_counter(sdb, true, arch->id, "wp_jeclear",
+    stat_reg_core_counter(sdb, true, coreID, "num_jeclear", "number of branch mispredictions",
+                     &core->stat.num_jeclear, 0, true, NULL);
+    stat_reg_core_counter(sdb, true, coreID, "wp_jeclear",
                      "number of branch mispredictions in the shadow of an earlier mispred",
-                     &core->stat.num_wp_jeclear, 0, TRUE, NULL);
+                     &core->stat.num_wp_jeclear, 0, true, NULL);
 
-    auto& RS_occupancy_st =
-            stat_reg_core_counter(sdb, false, arch->id, "RS_occupancy", "total RS occupancy",
-                             &core->stat.RS_occupancy, 0, TRUE, NULL);
-    auto& RS_empty_st =
-            stat_reg_core_counter(sdb, false, arch->id, "RS_empty", "total cycles RS was empty",
-                             &core->stat.RS_empty_cycles, 0, TRUE, NULL);
-    auto& RS_full_st = stat_reg_core_counter(sdb, false, arch->id, "RS_full", "total cycles RS was full",
-                                        &core->stat.RS_full_cycles, 0, TRUE, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "RS_avg", "average RS occupancy",
-                     RS_occupancy_st / *sim_cycle_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "RS_frac_empty", "fraction of cycles RS was empty",
-                     RS_empty_st / *sim_cycle_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "RS_frac_full", "fraction of cycles RS was full",
-                     RS_full_st / *sim_cycle_st, NULL);
-
-    reg_core_queue_occupancy_stats(sdb,
-                                   arch->id,
-                                   "LDQ",
-                                   &core->stat.LDQ_occupancy,
+    reg_core_queue_occupancy_stats(sdb, coreID, "RS", &core->stat.RS_occupancy,
+                                   &core->stat.RS_empty_cycles,
+                                   &core->stat.RS_full_cycles);
+    reg_core_queue_occupancy_stats(sdb, coreID, "LDQ", &core->stat.LDQ_occupancy,
                                    &core->stat.LDQ_empty_cycles,
                                    &core->stat.LDQ_full_cycles);
-    reg_core_queue_occupancy_stats(sdb,
-                                   arch->id,
-                                   "STQ",
-                                   &core->stat.STQ_occupancy,
+    reg_core_queue_occupancy_stats(sdb, coreID, "STQ", &core->stat.STQ_occupancy,
                                    &core->stat.STQ_empty_cycles,
                                    &core->stat.STQ_full_cycles);
 }
@@ -672,7 +653,7 @@ void core_exec_STM_t::RS_schedule(void) /* for uops in the RS */
     while(rq) /* if anyone's waiting to issue to this port */
     {
       struct uop_t * uop = rq->uop;
-      enum md_fu_class FU_class = uop->decode.FU_class;
+      enum fu_class FU_class = uop->decode.FU_class;
 
       if(uop->exec.action_id != rq->action_id) /* RQ entry has been squashed */
       {
@@ -795,7 +776,6 @@ void core_exec_STM_t::load_writeback(struct uop_t * const uop)
   zesto_assert((uop->alloc.LDQ_index >= 0) && (uop->alloc.LDQ_index < knobs->exec.LDQ_size),(void)0);
   if(!LDQ[uop->alloc.LDQ_index].hit_in_STQ) /* no match in STQ, so use cache value */
   {
-    uop->exec.ovalue = uop->oracle.ovalue; /* XXX: just using oracle value for now */
     uop->exec.ovalue_valid = true;
     zesto_assert(uop->timing.when_completed == TICK_T_MAX,(void)0);
     uop->timing.when_completed = core->sim_cycle;
@@ -820,7 +800,7 @@ void core_exec_STM_t::load_writeback(struct uop_t * const uop)
       zesto_assert(!odep->uop->exec.ivalue_valid[odep->op_num],(void)0);
       odep->uop->timing.when_ival_ready[odep->op_num] = core->sim_cycle;
 
-      for(int j=0;j<MAX_IDEPS;j++)
+      for(size_t j=0;j<MAX_IDEPS;j++)
         if(when_ready < odep->uop->timing.when_ival_ready[j])
           when_ready = odep->uop->timing.when_ival_ready[j];
 
@@ -832,13 +812,6 @@ void core_exec_STM_t::load_writeback(struct uop_t * const uop)
       }
 
       odep->uop->exec.ivalue_valid[odep->op_num] = true;
-      if(odep->aflags) /* shouldn't happen for loads? */
-      {
-        warn("load modified flags?\n");
-        odep->uop->exec.ivalue[odep->op_num].dw = uop->exec.oflags;
-      }
-      else
-        odep->uop->exec.ivalue[odep->op_num] = uop->exec.ovalue;
 
       odep = odep->next;
     }
@@ -952,7 +925,6 @@ void core_exec_STM_t::LDST_exec(void)
               zesto_assert(uop->timing.when_completed == TICK_T_MAX,(void)0);
               if(STQ[j].value_valid)
               {
-                uop->exec.ovalue = STQ[j].value;
                 uop->exec.ovalue_valid = true;
                 uop->timing.when_completed = core->sim_cycle;
                 update_last_completed(core->sim_cycle); /* for deadlock detection */
@@ -976,7 +948,7 @@ void core_exec_STM_t::LDST_exec(void)
 
                   odep->uop->timing.when_ival_ready[odep->op_num] = core->sim_cycle;
 
-                  for(int j=0;j<MAX_IDEPS;j++)
+                  for(size_t j=0;j<MAX_IDEPS;j++)
                     if(when_ready < odep->uop->timing.when_ival_ready[j])
                       when_ready = odep->uop->timing.when_ival_ready[j];
 
@@ -989,13 +961,6 @@ void core_exec_STM_t::LDST_exec(void)
 
                   /* bypass output value to dependents */
                   odep->uop->exec.ivalue_valid[odep->op_num] = true;
-                  if(odep->aflags) /* shouldn't happen for loads? */
-                  {
-                    warn("load modified flags?");
-                    odep->uop->exec.ivalue[odep->op_num].dw = uop->exec.oflags;
-                  }
-                  else
-                    odep->uop->exec.ivalue[odep->op_num] = uop->exec.ovalue;
 
                   odep = odep->next;
                 }
@@ -1043,7 +1008,7 @@ void core_exec_STM_t::LDST_exec(void)
 void core_exec_STM_t::LDQ_schedule(void)
 {
   struct core_knobs_t * knobs = core->knobs;
-  int asid = core->current_thread->asid;
+  int asid = core->asid;
   int i;
   int index = LDQ_head;
   /* walk LDQ, if anyone's ready, issue to DTLB/DL1 */
@@ -1057,13 +1022,13 @@ void core_exec_STM_t::LDQ_schedule(void)
         if(check_load_issue_conditions(LDQ[index].uop)) /* retval of true means load is predicted to be cleared for issue */
         {
           struct uop_t * uop = LDQ[index].uop;
-          if((cache_enqueuable(core->memory.DTLB, asid, PAGE_TABLE_ADDR(asid, uop->oracle.virt_addr))) &&
+          if((cache_enqueuable(core->memory.DTLB, asid, memory::page_table_address(asid, uop->oracle.virt_addr))) &&
              (cache_enqueuable(core->memory.DL1, asid, uop->oracle.virt_addr)) &&
              (port[uop->alloc.port_assignment].STQ->occupancy < port[uop->alloc.port_assignment].STQ->latency))
           {
             uop->exec.when_data_loaded = TICK_T_MAX;
             uop->exec.when_addr_translated = TICK_T_MAX;
-            cache_enqueue(core, core->memory.DTLB, NULL, CACHE_READ, asid, uop->Mop->fetch.PC, PAGE_TABLE_ADDR(asid, uop->oracle.virt_addr), uop->exec.action_id, 0, NO_MSHR, uop, DTLB_callback, NULL, NULL, get_uop_action_id);
+            cache_enqueue(core, core->memory.DTLB, NULL, CACHE_READ, asid, uop->Mop->fetch.PC, memory::page_table_address(asid, uop->oracle.virt_addr), uop->exec.action_id, 0, NO_MSHR, uop, DTLB_callback, NULL, NULL, get_uop_action_id);
             cache_enqueue(core, core->memory.DL1, NULL, CACHE_READ, asid, uop->Mop->fetch.PC, uop->oracle.virt_addr, uop->exec.action_id, 0, NO_MSHR, uop, DL1_callback, NULL, translated_callback, get_uop_action_id);
 
             int insert_position = port[uop->alloc.port_assignment].STQ->occupancy+1;
@@ -1114,7 +1079,7 @@ void core_exec_STM_t::ALU_exec(void)
     int j;
     for(j=0;j<port[i].num_FU_types;j++)
     {
-      enum md_fu_class FU_type = port[i].FU_types[j];
+      enum fu_class FU_type = port[i].FU_types[j];
       struct ALU_t * FU = port[i].FU[FU_type];
       if(FU && (FU->occupancy > 0))
       {
@@ -1144,9 +1109,7 @@ void core_exec_STM_t::ALU_exec(void)
             }
             else
             {
-              /* XXX for now just copy oracle value */
               uop->exec.ovalue_valid = true;
-              uop->exec.ovalue = uop->oracle.ovalue;
 
               /* alloc, uopQ, and decode all have to search for the
                  recovery point (Mop) because a long flow may have
@@ -1170,7 +1133,6 @@ void core_exec_STM_t::ALU_exec(void)
               {
                 zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
                 zesto_assert(!STQ[uop->alloc.STQ_index].value_valid,(void)0);
-                STQ[uop->alloc.STQ_index].value = uop->exec.ovalue;
                 STQ[uop->alloc.STQ_index].value_valid = true;
               }
 
@@ -1201,7 +1163,7 @@ void core_exec_STM_t::ALU_exec(void)
                     {
                       overwrite_index = modinc(overwrite_index,knobs->exec.STQ_size);
                       if(overwrite_index == STQ_tail)
-                        zesto_fatal("searching for matching store color but hit the end of the STQ",(void)0);
+                        fatal("searching for matching store color but hit the end of the STQ");
 
                       md_addr_t new_st_addr = STQ[overwrite_index].virt_addr;
 
@@ -1256,7 +1218,7 @@ void core_exec_STM_t::ALU_exec(void)
 
                 odep->uop->timing.when_ival_ready[odep->op_num] = core->sim_cycle;
 
-                for(int j=0;j<MAX_IDEPS;j++)
+                for(size_t j=0;j<MAX_IDEPS;j++)
                   if(when_ready < odep->uop->timing.when_ival_ready[j])
                     when_ready = odep->uop->timing.when_ival_ready[j];
 
@@ -1269,10 +1231,6 @@ void core_exec_STM_t::ALU_exec(void)
 
                 zesto_assert(!odep->uop->exec.ivalue_valid[odep->op_num],(void)0);
                 odep->uop->exec.ivalue_valid[odep->op_num] = true;
-                if(odep->aflags)
-                  odep->uop->exec.ivalue[odep->op_num].dw = uop->exec.oflags;
-                else
-                  odep->uop->exec.ivalue[odep->op_num] = uop->exec.ovalue;
 
                 odep = odep->next;
               }
@@ -1320,7 +1278,7 @@ void core_exec_STM_t::RS_insert(struct uop_t * const uop)
       break;
   }
   if(RS_index == knobs->exec.RS_size)
-    zesto_fatal("RS and RS_num out of sync",(void)0);
+    fatal("RS and RS_num out of sync");
 
   RS[RS_index] = uop;
   RS_num++;
@@ -1435,11 +1393,11 @@ void core_exec_STM_t::STQ_deallocate_sta(void)
 bool core_exec_STM_t::STQ_deallocate_std(struct uop_t * const uop)
 {
   struct core_knobs_t * knobs = core->knobs;
-  int asid = core->current_thread->asid;
+  int asid = core->asid;
 
   /* Store write back occurs here at commit. */
   if(!cache_enqueuable(core->memory.DL1, asid, uop->oracle.virt_addr) ||
-     !cache_enqueuable(core->memory.DTLB, asid, PAGE_TABLE_ADDR(asid, uop->oracle.virt_addr)))
+     !cache_enqueuable(core->memory.DTLB, asid, memory::page_table_address(asid, uop->oracle.virt_addr)))
     return false;
 
   /* These are just dummy placeholders, but we need them
@@ -1449,8 +1407,8 @@ bool core_exec_STM_t::STQ_deallocate_std(struct uop_t * const uop)
      entries until the store actually finishes accessing
      memory, but commit can proceed past this store once the
      request has entered into the cache hierarchy. */
-  struct uop_t * dl1_uop = core->get_uop_array(1);
-  struct uop_t * dtlb_uop = core->get_uop_array(1);
+  struct uop_t * dl1_uop = x86::get_uop_array(1);
+  struct uop_t * dtlb_uop = x86::get_uop_array(1);
   dl1_uop->core = core;
   dtlb_uop->core = core;
 
@@ -1461,7 +1419,7 @@ bool core_exec_STM_t::STQ_deallocate_std(struct uop_t * const uop)
   dl1_uop->exec.action_id = STQ[STQ_head].action_id;
   dtlb_uop->exec.action_id = dl1_uop->exec.action_id;
 
-  cache_enqueue(core, core->memory.DTLB, NULL, CACHE_READ, asid, uop->Mop->fetch.PC, PAGE_TABLE_ADDR(asid, uop->oracle.virt_addr), dtlb_uop->exec.action_id, 0, NO_MSHR, dtlb_uop, store_dtlb_callback, NULL, NULL, get_uop_action_id);
+  cache_enqueue(core, core->memory.DTLB, NULL, CACHE_READ, asid, uop->Mop->fetch.PC, memory::page_table_address(asid, uop->oracle.virt_addr), dtlb_uop->exec.action_id, 0, NO_MSHR, dtlb_uop, store_dtlb_callback, NULL, NULL, get_uop_action_id);
   cache_enqueue(core, core->memory.DL1, NULL, CACHE_WRITE, asid, uop->Mop->fetch.PC, uop->oracle.virt_addr, dl1_uop->exec.action_id, 0, NO_MSHR, dl1_uop, store_dl1_callback, NULL, store_translated_callback, get_uop_action_id);
 
   STQ[STQ_head].std = NULL;
@@ -1523,7 +1481,7 @@ void core_exec_STM_t::store_dl1_callback(void * const op)
   struct core_knobs_t * knobs = core->knobs;
 
   zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
-  core->return_uop_array(uop);
+  x86::return_uop_array(uop, 1);
 }
 
 void core_exec_STM_t::store_dtlb_callback(void * const op)
@@ -1533,7 +1491,7 @@ void core_exec_STM_t::store_dtlb_callback(void * const op)
   struct core_knobs_t * knobs = core->knobs;
 
   zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
-  core->return_uop_array(uop);
+  x86::return_uop_array(uop, 1);
 }
 
 bool core_exec_STM_t::store_translated_callback(void * const op, const seq_t action_id /* ignored */)

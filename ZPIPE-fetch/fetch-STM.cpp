@@ -13,9 +13,9 @@ class core_fetch_STM_t:public core_fetch_t
   enum fetch_stall_t {FSTALL_byteQ_FULL, /* byteQ is full */
                       FSTALL_TBR,      /* predicted taken */
                       FSTALL_EOL,      /* hit end of cache line */
-                      FSTALL_BOGUS,    /* encountered invalid inst on wrong-path */
                       FSTALL_SYSCALL,  /* syscall waiting for pipe to clear */
                       FSTALL_ZPAGE,    /* fetch request from zeroth page of memory */
+                      FSTALL_ORACLE,   /* oracle stall on MopQ capacity */
                       FSTALL_num
                      };
 
@@ -85,9 +85,9 @@ const char *core_fetch_STM_t::fetch_stall_str[FSTALL_num] = {
   "byteQ full             ",
   "taken branch           ",
   "end of cache line      ",
-  "wrong-path invalid inst",
   "trap waiting on drain  ",
-  "request for page zero  "
+  "request for page zero  ",
+  "oracle stall on MopQ   "
 };
 
 
@@ -114,11 +114,7 @@ core_fetch_STM_t::core_fetch_STM_t(struct core_t * const arg_core):
       knobs->fetch.ras_opt_str
     );
 
-  if(knobs->fetch.jeclear_delay != 0)
-  {
-    warnonce("STM fetch model does not support non-zero latency jeclear delay... setting to zero");
-    knobs->fetch.jeclear_delay = 0;
-  }
+  zesto_assert(knobs->fetch.jeclear_delay == 0, void);
 
   /* IL1 */
   if(sscanf(knobs->memory.IL1_opt_str,"%[^:]:%d:%d:%d:%d:%d:%d:%c:%d",
@@ -174,7 +170,7 @@ core_fetch_STM_t::core_fetch_STM_t(struct core_t * const arg_core):
 void
 core_fetch_STM_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
 {
-    struct thread_t* arch = core->current_thread;
+    int coreID = core->id;
 
     stat_reg_note(sdb, "\n#### BPRED STATS ####");
     bpred->reg_stats(sdb, core);
@@ -184,28 +180,28 @@ core_fetch_STM_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
     cache_reg_stats(sdb, core, core->memory.ITLB);
 
     stat_reg_note(sdb, "\n#### FETCH STATS ####");
-    auto sim_cycle_st = stat_find_core_stat<qword_t>(sdb, arch->id, "sim_cycle");
+    auto sim_cycle_st = stat_find_core_stat<tick_t>(sdb, coreID, "sim_cycle");
     assert(sim_cycle_st);
-    auto& fetch_insn_st = stat_reg_core_counter(sdb, true, arch->id, "fetch_insn",
+    auto& fetch_insn_st = stat_reg_core_counter(sdb, true, coreID, "fetch_insn",
                                                 "total number of instructions fetched",
-                                                &core->stat.fetch_insn, 0, TRUE, NULL);
+                                                &core->stat.fetch_insn, 0, true, NULL);
     auto& fetch_uops_st =
-            stat_reg_core_counter(sdb, true, arch->id, "fetch_uops", "total number of uops fetched",
-                                  &core->stat.fetch_uops, 0, TRUE, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "fetch_IPC", "IPC at fetch",
+            stat_reg_core_counter(sdb, true, coreID, "fetch_uops", "total number of uops fetched",
+                                  &core->stat.fetch_uops, 0, true, NULL);
+    stat_reg_core_formula(sdb, true, coreID, "fetch_IPC", "IPC at fetch",
                           fetch_insn_st / *sim_cycle_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "fetch_uPC", "uPC at fetch",
+    stat_reg_core_formula(sdb, true, coreID, "fetch_uPC", "uPC at fetch",
                           fetch_uops_st / *sim_cycle_st, NULL);
 
     core->stat.fetch_stall = stat_reg_core_dist(
-            sdb, arch->id, "fetch_stall", "breakdown of stalls in fetch", 0, FSTALL_num, 1,
-            (PF_COUNT | PF_PDF), NULL, fetch_stall_str, TRUE, NULL);
+            sdb, coreID, "fetch_stall", "breakdown of stalls in fetch", 0, FSTALL_num, 1,
+            (PF_COUNT | PF_PDF), NULL, fetch_stall_str, true, NULL);
 
-    auto& byteQ_occupancy_st = stat_reg_core_counter(sdb, false, arch->id, "byteQ_occupancy",
+    auto& byteQ_occupancy_st = stat_reg_core_counter(sdb, false, coreID, "byteQ_occupancy",
                                                      "total byteQ occupancy (in lines/entries)",
-                                                     &core->stat.byteQ_occupancy, 0, TRUE, NULL);
+                                                     &core->stat.byteQ_occupancy, 0, true, NULL);
 
-    stat_reg_core_formula(sdb, true, arch->id, "byteQ_avg", "average byteQ occupancy (in insts)",
+    stat_reg_core_formula(sdb, true, coreID, "byteQ_avg", "average byteQ occupancy (in insts)",
                           byteQ_occupancy_st / *sim_cycle_st, NULL);
 }
 
@@ -290,7 +286,7 @@ seq_t core_fetch_STM_t::get_byteQ_action_id(void * const op)
 void core_fetch_STM_t::pre_fetch(void)
 {
   struct core_knobs_t * knobs = core->knobs;
-  int asid = core->current_thread->asid;
+  int asid = core->asid;
   int i;
 
   ZESTO_STAT(stat_add_sample(core->stat.fetch_stall, (int)stall_reason);)
@@ -316,9 +312,9 @@ void core_fetch_STM_t::pre_fetch(void)
   {
     if(byteQ[index].when_translation_requested == TICK_T_MAX)
     {
-      if(cache_enqueuable(core->memory.ITLB, asid, PAGE_TABLE_ADDR(asid, byteQ[index].addr)))
+      if(cache_enqueuable(core->memory.ITLB, asid, memory::page_table_address(asid, byteQ[index].addr)))
       {
-        cache_enqueue(core, core->memory.ITLB, NULL, CACHE_READ, 0, asid, PAGE_TABLE_ADDR(asid, byteQ[index].addr), byteQ[index].action_id, 0, NO_MSHR, &byteQ[index], ITLB_callback, NULL, NULL, get_byteQ_action_id);
+        cache_enqueue(core, core->memory.ITLB, NULL, CACHE_READ, 0, asid, memory::page_table_address(asid, byteQ[index].addr), byteQ[index].action_id, 0, NO_MSHR, &byteQ[index], ITLB_callback, NULL, NULL, get_byteQ_action_id);
         byteQ[index].when_translation_requested = core->sim_cycle;
         break;
       }
@@ -364,22 +360,25 @@ bool core_fetch_STM_t::do_fetch(void)
   md_addr_t current_line = PC & byteQ_linemask;
   struct Mop_t * Mop = NULL;
   
+  /* Waiting for pipe to clear from system call/trap. */
+  if (core->oracle->is_draining()) {
+    stall_reason = FSTALL_SYSCALL;
+    return false;
+  }
+
   Mop = core->oracle->exec(PC);
-  if(Mop && ((PC >> PAGE_SHIFT) == 0))
-  {
+
+  if(Mop && (memory::page_round_down(PC) == 0)) {
     zesto_assert(core->oracle->spec_mode,false);
     stall_reason = FSTALL_ZPAGE;
     return false;
   }
 
-  if(!Mop) /* awaiting pipe to clear for system call/trap, or encountered wrong-path bogus inst */
-  {
-    if(bogus)
-      stall_reason = FSTALL_BOGUS;
-    else
-       stall_reason = FSTALL_SYSCALL;
+  if(!Mop) {
+    stall_reason = FSTALL_ORACLE;
     return false;
   }
+
 
   /* We explicitly check for both the address of the first byte and the last
      byte, since x86 instructions have no alignment restrictions and therefore
@@ -422,20 +421,20 @@ bool core_fetch_STM_t::do_fetch(void)
   core->oracle->consume(Mop);
 
   /* figure out where to fetch from next */
-  if(Mop->decode.is_ctrl || Mop->fetch.inst.rep)
+  if(Mop->decode.is_ctrl || Mop->decode.has_rep)
   {
     Mop->fetch.bpred_update = bpred->get_state_cache();
 
     Mop->fetch.pred_NPC = bpred->lookup(Mop->fetch.bpred_update,
-    Mop->decode.opflags, Mop->fetch.PC,Mop->fetch.PC+Mop->fetch.inst.len,Mop->decode.targetPC,
-    Mop->oracle.NextPC,(Mop->oracle.NextPC != (Mop->fetch.PC+Mop->fetch.inst.len)));
+    Mop->decode.opflags, Mop->fetch.PC,Mop->fetch.PC+Mop->fetch.len,Mop->decode.targetPC,
+    Mop->oracle.NextPC,(Mop->oracle.NextPC != (Mop->fetch.PC+Mop->fetch.len)));
 
 
     bpred->spec_update(Mop->fetch.bpred_update,Mop->decode.opflags,
     Mop->fetch.PC,Mop->decode.targetPC,Mop->oracle.NextPC,Mop->fetch.bpred_update->our_pred);
   }
   else
-    Mop->fetch.pred_NPC = Mop->fetch.PC + Mop->fetch.inst.len;
+    Mop->fetch.pred_NPC = Mop->fetch.PC + Mop->fetch.len;
 
   if(Mop->fetch.pred_NPC != Mop->oracle.NextPC)
   {
@@ -446,7 +445,7 @@ bool core_fetch_STM_t::do_fetch(void)
   /* advance the fetch PC to the next instruction */
   PC = Mop->fetch.pred_NPC;
 
-  if(  (Mop->fetch.pred_NPC != (Mop->fetch.PC + Mop->fetch.inst.len))
+  if(  (Mop->fetch.pred_NPC != (Mop->fetch.PC + Mop->fetch.len))
     && (Mop->fetch.pred_NPC != Mop->fetch.PC)) /* REPs don't count as taken branches w.r.t. fetching */
   {
     stall_reason = FSTALL_TBR;
@@ -455,6 +454,11 @@ bool core_fetch_STM_t::do_fetch(void)
   else if((Mop->fetch.PC & byteQ_linemask) != current_line)
   {
     stall_reason = FSTALL_EOL;
+    return false;
+  }
+  else if(core->oracle->is_draining())
+  {
+    stall_reason = FSTALL_SYSCALL;
     return false;
   }
 
@@ -528,7 +532,6 @@ core_fetch_STM_t::recover(const md_addr_t new_PC)
   /* XXX: use non-oracle nextPC as there may be multiple re-fetches */
   int i;
   PC = new_PC;
-  bogus = false;
 
   /* clear out the byteQ */
   for(i=0;i<knobs->fetch.byteQ_size;i++)

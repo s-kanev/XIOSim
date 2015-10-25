@@ -76,6 +76,7 @@
  */
 
 #include "ztrace.h"
+#include "synchronization.h"
 
 /* used when passing an MSHR index into the cache functions, but for
    whatever reason there's no corresponding MSHR entry */
@@ -96,18 +97,18 @@ enum read_only_t { CACHE_READWRITE, CACHE_READONLY };
 enum PF_state_t { PF_REFRAIN, PF_OK };
 
 struct line_coherence_data_t {
-  qword_t v;
+  uint64_t v;
 };
 
 struct action_coherence_data_t {
-  qword_t v;
+  uint64_t v;
 };
 
 struct cache_line_t {
   md_paddr_t tag;
   struct core_t * core; /* originating core */
   int way; /* which physical column/way am I in? */
-  qword_t meta; /* additional field for replacment policy meta data */
+  uint64_t meta; /* additional field for replacment policy meta data */
   struct line_coherence_data_t coh; /* additional fields needed by coherence protocol */
   bool valid;
   bool dirty;
@@ -402,9 +403,10 @@ inline bool cache_single_line_access(struct cache_t * const cp, const md_addr_t 
  * whether this is a shared/private cache */
 tick_t cache_get_cycle(const struct cache_t * const cp);
 
-/* since these cache functions cannot directly set the core->oracle.hosed
-   bit, they just return and depend on the rest of the core state getting
-   hosed to force a reset. */
+/* Cache lock should be acquired before any access to the shared
+ * caches (including enqueuing requests from lower-level caches). */
+extern XIOSIM_LOCK cache_lock;
+
 #ifndef cache_fatal
 #ifdef DEBUG
 #define cache_fatal(msg, retval) fatal(msg)

@@ -1,6 +1,8 @@
 #ifndef __HELIX_H__
 #define __HELIX_H__
 
+#include "zesto-structs.h"
+
 // bits 9..0 for the signal id
 const unsigned int HELIX_SIGNAL_ID_MASK = 0x3ff;
 // bits 14..10 is the first core id

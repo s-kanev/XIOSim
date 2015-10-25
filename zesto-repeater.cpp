@@ -3,6 +3,9 @@
  * Svilen Kanev, 2013
  */
 
+#include <cstring>
+
+#include "misc.h"
 #include "synchronization.h"
 
 #include "zesto-core.h"

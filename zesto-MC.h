@@ -132,22 +132,6 @@ class MC_t
 
 MC_t * MC_from_string(const char * const opt_string);
 
-/* since these cannot directly set the core->oracle.hosed bit, they
-   just return and depend on the rest of the core state getting hosed
-   to force a reset. */
-
-#ifndef zesto_fatal
-#ifdef DEBUG
-#define zesto_fatal(msg, retval) fatal(msg)
-#else
-#define zesto_fatal(msg, retval) { \
-  fprintf(stderr,"fatal (%s,%d:MC): ",__FILE__,__LINE__); \
-  fprintf(stderr,"%s\n",msg); \
-  return (retval); \
-}
-#endif
-#endif
-
 #ifndef MC_assert
 #ifdef DEBUG
 #define MC_assert(cond, retval) assert(cond)

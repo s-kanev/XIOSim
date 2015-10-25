@@ -2,6 +2,7 @@
 
 #include "BufferManagerProducer.h"
 #include "ignore_ins.h"
+#include "speculation.h"
 
 using namespace std;
 
@@ -24,6 +25,8 @@ KNOB<string> KnobIgnoreFunctions(KNOB_MODE_WRITEONCE,
                                  "",
                                  "Comma-separated list of functions to replace with a nop");
 
+extern KNOB<BOOL> KnobIgnoringInstructions;
+
 /* Encode replacement instructions in the provided buffer. */
 static size_t Encode(xed_encoder_instruction_t inst, uint8_t* inst_bytes) {
     xed_encoder_request_t enc_req;
@@ -36,8 +39,8 @@ static size_t Encode(xed_encoder_instruction_t inst, uint8_t* inst_bytes) {
         PIN_ExitProcess(EXIT_FAILURE);
     }
 
-    size_t inst_len;
-    auto err = xed_encode(&enc_req, inst_bytes, MD_MAX_ILEN, &inst_len);
+    unsigned int inst_len;
+    auto err = xed_encode(&enc_req, inst_bytes, xiosim::x86::MAX_ILEN, &inst_len);
     if (err != XED_ERROR_NONE) {
         cerr << "xed_encode failed " << xed_error_enum_t2str(err) << endl;
         PIN_ExitProcess(EXIT_FAILURE);
@@ -60,19 +63,20 @@ static void ReplacedFunctionBefore(THREADID tid, ADDRINT pc, ADDRINT retPC) {
         bool last_inst = (inst == repl_state.back());
         handshake_container_t* handshake = xiosim::buffer_management::GetBuffer(tstate->tid);
 
-        handshake->handshake.asid = asid;
+        handshake->asid = asid;
         handshake->flags.valid = true;
         handshake->flags.real = false;
         handshake->flags.isFirstInsn = false;
+        handshake->flags.speculative = speculation_mode;
 
-        handshake->handshake.pc = inst.pc;
-        handshake->handshake.tpc = inst.pc + inst.len;
-        handshake->handshake.npc = last_inst ? NextUnignoredPC(retPC) : inst.pc + inst.len;
+        handshake->pc = inst.pc;
+        handshake->tpc = inst.pc + inst.len;
+        handshake->npc = last_inst ? NextUnignoredPC(retPC) : inst.pc + inst.len;
         handshake->flags.brtaken = false;
-        memcpy(handshake->handshake.ins, (void*)inst.pc, inst.len);
+        memcpy(handshake->ins, (void*)inst.pc, inst.len);
 
 #ifdef PRINT_DYN_TRACE
-        printTrace("sim", handshake->handshake.pc, tid);
+        printTrace("sim", handshake->pc, tid);
 #endif
 
         xiosim::buffer_management::ProducerDone(tstate->tid);
@@ -109,7 +113,7 @@ static void AddReplacementCalls(IMG img, void* v) {
         }
 
         /* Allocate space for the replacement instructions so they have real PCs. */
-        void* inst_buffer = malloc(params->insts.size() * MD_MAX_ILEN);
+        void* inst_buffer = malloc(params->insts.size() * xiosim::x86::MAX_ILEN);
         if (inst_buffer == nullptr) {
             cerr << "Failed to alloc inst buffer. " << endl;
             PIN_ExitProcess(EXIT_FAILURE);
@@ -146,6 +150,8 @@ static void AddReplacementCalls(IMG img, void* v) {
                        IARG_END);
         RTN_Close(rtn);
 
+        /* Make sure ignoring API is enabled, otherwise below does nothing. */
+        ASSERTX(KnobIgnoringInstructions.Value());
         /* Fixup next PC in instrumentation. */
         IgnoreCallsTo(
             rtn_pc, params->num_params + 1 /* the call + param pushes */, (ADDRINT)inst_buffer);

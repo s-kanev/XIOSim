@@ -80,46 +80,33 @@ core_decode_STM_t::core_decode_STM_t(struct core_t * const arg_core)
   occupancy = (int*) calloc(knobs->decode.depth,sizeof(*occupancy));
   if(!occupancy)
     fatal("couldn't calloc decode pipe occupancy array");
-
-  if(knobs->decode.fusion_none)
-    knobs->decode.fusion_mode = 0x00000000;
-  else if(knobs->decode.fusion_all)
-  {
-    if(knobs->decode.fusion_all || knobs->decode.fusion_load_op || knobs->decode.fusion_fp_load_op || knobs->decode.fusion_sta_std || knobs->decode.fusion_partial)
-      warnonce("uop fusion not supported in Simple Timing Model");
-    knobs->decode.fusion_all = false;
-    knobs->decode.fusion_load_op = false;
-    knobs->decode.fusion_fp_load_op = false;
-    knobs->decode.fusion_sta_std = false;
-    knobs->decode.fusion_partial = false;
-  }
 }
 
 void
 core_decode_STM_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
 {
-    struct thread_t* arch = core->current_thread;
+    int coreID = core->id;
 
     stat_reg_note(sdb, "\n#### DECODE STATS ####");
-    stat_reg_core_counter(sdb, true, arch->id, "target_resteers", "decode-time target resteers",
-                          &core->stat.target_resteers, 0, TRUE, NULL);
-    auto& decode_insn_st = stat_reg_core_counter(sdb, true, arch->id, "decode_insn",
+    stat_reg_core_counter(sdb, true, coreID, "target_resteers", "decode-time target resteers",
+                          &core->stat.target_resteers, 0, true, NULL);
+    auto& decode_insn_st = stat_reg_core_counter(sdb, true, coreID, "decode_insn",
                                                  "total number of instructions decodeed",
-                                                 &core->stat.decode_insn, 0, TRUE, NULL);
-    auto& decode_uops_st = stat_reg_core_counter(sdb, true, arch->id, "decode_uops",
+                                                 &core->stat.decode_insn, 0, true, NULL);
+    auto& decode_uops_st = stat_reg_core_counter(sdb, true, coreID, "decode_uops",
                                                  "total number of uops decodeed",
-                                                 &core->stat.decode_uops, 0, TRUE, NULL);
-    auto core_sim_cycles_st = stat_find_core_stat<qword_t>(sdb, arch->id, "sim_cycle");
+                                                 &core->stat.decode_uops, 0, true, NULL);
+    auto core_sim_cycles_st = stat_find_core_stat<tick_t>(sdb, coreID, "sim_cycle");
     assert(core_sim_cycles_st);
 
-    stat_reg_core_formula(sdb, true, arch->id, "decode_uPC", "UPC at decode",
-                          decode_uops_st / *core_sim_cycles_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "decode_IPC", "IPC at decode",
+    stat_reg_core_formula(sdb, true, coreID, "decode_IPC", "IPC at decode",
                           decode_insn_st / *core_sim_cycles_st, NULL);
+    stat_reg_core_formula(sdb, true, coreID, "decode_uPC", "uPC at decode",
+                          decode_uops_st / *core_sim_cycles_st, NULL);
 
     core->stat.decode_stall = stat_reg_core_dist(
-            sdb, arch->id, "decode_stall", "breakdown of stalls at decode", 0, DSTALL_num, 1,
-            (PF_COUNT | PF_PDF), NULL, decode_stall_str, TRUE, NULL);
+            sdb, coreID, "decode_stall", "breakdown of stalls at decode", 0, DSTALL_num, 1,
+            (PF_COUNT | PF_PDF), NULL, decode_stall_str, true, NULL);
 }
 
 void core_decode_STM_t::update_occupancy(void)
@@ -140,7 +127,7 @@ core_decode_STM_t::check_target(struct Mop_t * const Mop)
   if(Mop->decode.is_ctrl)
   {
     if((Mop->fetch.pred_NPC != Mop->fetch.ftPC) /* branch is predicted taken */
-        || (Mop->decode.opflags | F_UNCOND))
+        || Mop->decode.opflags.UNCOND)
     {
       if(Mop->fetch.pred_NPC != Mop->decode.targetPC) /* wrong target */
       {
@@ -326,12 +313,6 @@ struct uop_t * core_decode_STM_t::uop_peek(void)
       struct Mop_t * Mop = pipe[stage][i];      /* Mop in current decoder */
       uop = &Mop->uop[Mop->decode.last_stage_index]; /* first non-queued uop */
       
-      zesto_assert((!(uop->decode.opflags & F_STORE)) || uop->decode.is_std,NULL);
-      zesto_assert((!(uop->decode.opflags & F_LOAD)) || uop->decode.is_load,NULL);
-
-      uop->decode.Mop_seq = Mop->oracle.seq;
-      uop->decode.uop_seq = (Mop->oracle.seq << UOP_SEQ_SHIFT) + uop->flow_index;
-
       zesto_assert(uop != NULL,NULL);
       return uop;
     }

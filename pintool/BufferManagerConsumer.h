@@ -1,6 +1,8 @@
 #ifndef __BUFFER_MANAGER_CONSUMER__
 #define __BUFFER_MANAGER_CONSUMER__
 
+#include "handshake_container.h"
+
 namespace xiosim {
 namespace buffer_management {
 /* Pushing and popping consumeBuffer_: */
@@ -13,7 +15,7 @@ extern handshake_container_t* Front(pid_t tid);
 extern void Pop(pid_t tid);
 
 /* Init consumeBuffer_ structures. */
-extern void InitBufferManagerConsumer(pid_t harness_pid, int num_cores);
+extern void InitBufferManagerConsumer(pid_t harness_pid);
 /* Cleanup. */
 extern void DeinitBufferManagerConsumer();
 /* Allocate consumeBuffer_ for a new program thread. */

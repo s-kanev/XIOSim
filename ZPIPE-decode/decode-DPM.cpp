@@ -114,77 +114,39 @@ core_decode_DPM_t::core_decode_DPM_t(struct core_t * const arg_core):
   uopQ = (struct uop_t**) calloc(knobs->decode.uopQ_size,sizeof(*uopQ));
   if(!uopQ)
     fatal("couldn't calloc uopQ");
-
-  if(knobs->decode.fusion_none)
-    knobs->decode.fusion_mode = 0x00000000;
-  else if(knobs->decode.fusion_all)
-    knobs->decode.fusion_mode = 0xffffffff;
-  else
-  {
-    knobs->decode.fusion_mode = FUSION_NONE;
-    if(knobs->decode.fusion_load_op)
-      knobs->decode.fusion_mode |= FUSION_LOAD_OP;
-    if(knobs->decode.fusion_fp_load_op)
-      knobs->decode.fusion_mode |= FUSION_FP_LOAD_OP;
-    if(knobs->decode.fusion_sta_std)
-      knobs->decode.fusion_mode |= FUSION_STA_STD;
-    if(knobs->decode.fusion_partial)
-      knobs->decode.fusion_mode |= FUSION_PARTIAL;
-    if(knobs->decode.fusion_load_op_st)
-      knobs->decode.fusion_mode |= FUSION_LD_OP_ST;
-  }
 }
 
-void
-core_decode_DPM_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
-{
-  struct thread_t* arch = core->current_thread;
-
-  stat_reg_note(sdb, "\n#### DECODE STATS ####");
-  stat_reg_core_counter(sdb, true, arch->id, "target_resteers", "decode-time target resteers",
-                        &core->stat.target_resteers, 0, TRUE, NULL);
-  stat_reg_core_counter(sdb, true, arch->id, "phantom_resteers", "decode-time phantom resteers",
-                        &core->stat.phantom_resteers, 0, TRUE, NULL);
-  auto& decode_insn_st = stat_reg_core_counter(sdb, true, arch->id, "decode_insn",
-                                               "total number of instructions decodeed",
-                                               &core->stat.decode_insn, 0, TRUE, NULL);
-  auto& decode_uops_st =
-          stat_reg_core_counter(sdb, true, arch->id, "decode_uops", "total number of uops decodeed",
-                                &core->stat.decode_uops, 0, TRUE, NULL);
-  auto& decode_eff_uops_st = stat_reg_core_counter(sdb, true, arch->id, "decode_eff_uops",
-                                                   "total number of effective uops decodeed",
-                                                   &core->stat.decode_eff_uops, 0, TRUE, NULL);
-  auto& uopQ_occupancy_st =
-          stat_reg_core_counter(sdb, false, arch->id, "uopQ_occupancy", "total uopQ occupancy",
-                                &core->stat.uopQ_occupancy, 0, TRUE, NULL);
-  auto& uopQ_eff_occupancy_st =
-          stat_reg_core_counter(sdb, false, arch->id, "uopQ_eff_occupancy", "total uopQ effective occupancy",
-                                &core->stat.uopQ_eff_occupancy, 0, TRUE, NULL);
-  auto& uopQ_empty_st =
-          stat_reg_core_counter(sdb, false, arch->id, "uopQ_empty", "total cycles uopQ was empty",
-                                &core->stat.uopQ_empty_cycles, 0, TRUE, NULL);
-  auto& uopQ_full_st = stat_reg_core_counter(sdb, false, arch->id, "uopQ_full", "total cycles uopQ was full",
-                                             &core->stat.uopQ_full_cycles, 0, TRUE, NULL);
-
-  auto core_sim_cycles_st = stat_find_core_stat<qword_t>(sdb, arch->id, "sim_cycle");
-  assert(core_sim_cycles_st);
-  stat_reg_core_formula(sdb, true, arch->id, "decode_IPC", "IPC at decode",
-                        decode_insn_st / *core_sim_cycles_st, NULL);
-  stat_reg_core_formula(sdb, true, arch->id, "decode_uPC", "uPC at decode",
-                        decode_uops_st / *core_sim_cycles_st, NULL);
-  stat_reg_core_formula(sdb, true, arch->id, "decode_euPC", "effective uPC at decode",
-                        decode_eff_uops_st / *core_sim_cycles_st, NULL);
-  stat_reg_core_formula(sdb, true, arch->id, "uopQ_avg", "average uopQ occupancy",
-                        uopQ_occupancy_st / *core_sim_cycles_st, NULL);
-  stat_reg_core_formula(sdb, true, arch->id, "uopQ_eff_avg", "average uopQ effective occupancy",
-                        uopQ_eff_occupancy_st / *core_sim_cycles_st, NULL);
-  stat_reg_core_formula(sdb, true, arch->id, "uopQ_frac_empty", "fraction of cycles uopQ was empty",
-                        uopQ_empty_st / *core_sim_cycles_st, NULL);
-  stat_reg_core_formula(sdb, true, arch->id, "uopQ_frac_full", "fraction of cycles uopQ was full",
-                        uopQ_full_st / *core_sim_cycles_st, NULL);
-  core->stat.decode_stall = stat_reg_core_dist(
-          sdb, arch->id, "decode_stall", "breakdown of stalls at decode", 0, DSTALL_num, 1,
-          (PF_COUNT | PF_PDF), NULL, decode_stall_str, TRUE, NULL);
+void core_decode_DPM_t::reg_stats(xiosim::stats::StatsDatabase* sdb) {
+    int coreID = core->id;
+ 
+    stat_reg_note(sdb, "\n#### DECODE STATS ####");
+    stat_reg_core_counter(sdb, true, coreID, "target_resteers", "decode-time target resteers",
+                          &core->stat.target_resteers, 0, true, NULL);
+    stat_reg_core_counter(sdb, true, coreID, "phantom_resteers", "decode-time phantom resteers",
+                          &core->stat.phantom_resteers, 0, true, NULL);
+    auto& decode_insn_st = stat_reg_core_counter(sdb, true, coreID, "decode_insn",
+                                                 "total number of instructions decodeed",
+                                                 &core->stat.decode_insn, 0, true, NULL);
+    auto& decode_uops_st =
+            stat_reg_core_counter(sdb, true, coreID, "decode_uops", "total number of uops decodeed",
+                                  &core->stat.decode_uops, 0, true, NULL);
+    auto& decode_eff_uops_st = stat_reg_core_counter(sdb, true, coreID, "decode_eff_uops",
+                                                     "total number of effective uops decodeed",
+                                                     &core->stat.decode_eff_uops, 0, true, NULL);
+    auto core_sim_cycles_st = stat_find_core_stat<tick_t>(sdb, coreID, "sim_cycle");
+    assert(core_sim_cycles_st);
+    stat_reg_core_formula(sdb, true, coreID, "decode_IPC", "IPC at decode",
+                          decode_insn_st / *core_sim_cycles_st, NULL);
+    stat_reg_core_formula(sdb, true, coreID, "decode_uPC", "uPC at decode",
+                          decode_uops_st / *core_sim_cycles_st, NULL);
+    stat_reg_core_formula(sdb, true, coreID, "decode_euPC", "effective uPC at decode",
+                          decode_eff_uops_st / *core_sim_cycles_st, NULL);
+    reg_core_queue_occupancy_stats(sdb, coreID, "uopQ", &core->stat.uopQ_occupancy,
+                                   &core->stat.uopQ_empty_cycles,
+                                   &core->stat.uopQ_full_cycles);
+    core->stat.decode_stall = stat_reg_core_dist(
+            sdb, coreID, "decode_stall", "breakdown of stalls at decode", 0, DSTALL_num, 1,
+            (PF_COUNT | PF_PDF), NULL, decode_stall_str, true, NULL);
 }
 
 void core_decode_DPM_t::update_occupancy(void)
@@ -227,7 +189,7 @@ core_decode_DPM_t::check_target(struct Mop_t * const Mop)
   else /* branch or REP */
   {
     if((Mop->fetch.pred_NPC != Mop->fetch.ftPC) /* branch is predicted taken */
-        || (Mop->decode.opflags | F_UNCOND))
+        || Mop->decode.opflags.UNCOND)
     {
       if(Mop->fetch.pred_NPC != Mop->decode.targetPC) /* wrong target */
       {
@@ -302,9 +264,6 @@ void core_decode_DPM_t::step(void)
           struct uop_t * uop = &Mop->uop[Mop->decode.last_stage_index]; /* first non-queued uop */
           Mop->decode.last_stage_index += uop->decode.has_imm ? 3 : 1;  /* increment the uop pointer to next uop */
           
-          zesto_assert((!(uop->decode.opflags & F_STORE)) || uop->decode.is_std,(void)0);
-          zesto_assert((!(uop->decode.opflags & F_LOAD)) || uop->decode.is_load,(void)0);
-
           if((!uop->decode.in_fusion) || uop->decode.is_fusion_head) /* don't enqueue fusion body */
           {
             uopQ[uopQ_tail] = uop;      /* queue the uop */
@@ -416,7 +375,7 @@ void core_decode_DPM_t::step(void)
 
             /* does this Mop need help from the MS? */
             if((knobs->decode.max_uops[i] && (pipe[0][i]->stat.num_uops > knobs->decode.max_uops[i])) ||
-                pipe[0][i]->fetch.inst.rep)
+                pipe[0][i]->decode.has_rep)
               pipe[0][i]->timing.when_MS_started = core->sim_cycle + knobs->decode.MS_latency; /* all other insts (non-MS) have this timestamp default to TICK_T_MAX */
             if(IQ_Mop->decode.is_ctrl)
               branches_decoded++;
@@ -424,7 +383,7 @@ void core_decode_DPM_t::step(void)
           else /* other decoders must check uop limits */
           {
             if((!knobs->decode.max_uops[i] || (IQ_Mop->stat.num_uops <= knobs->decode.max_uops[i])) &&
-                !IQ_Mop->fetch.inst.rep) /* decoder0 handles reps */
+                !IQ_Mop->decode.has_rep) /* decoder0 handles reps */
             {
               /* consume the Mop from the IQ */
               pipe[0][i] = IQ_Mop;
@@ -440,7 +399,7 @@ void core_decode_DPM_t::step(void)
             }
             else
             {
-              if(IQ_Mop->fetch.inst.rep)
+              if(IQ_Mop->decode.has_rep)
                 stall_reason = DSTALL_REP;
               else if((IQ_Mop->stat.num_uops < knobs->decode.max_uops[0]) && knobs->decode.max_uops[0])
                 stall_reason = DSTALL_SMALL; /* flow too big for current decoder, but small enough for complex decoder */

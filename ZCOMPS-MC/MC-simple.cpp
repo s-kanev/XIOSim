@@ -119,14 +119,14 @@ class MC_simple_t:public MC_t
             if(req_index == -1) /* don't have a request yet */
             {
               req_index = idx;
-              req_page = req->addr >> PAGE_SHIFT;
+              req_page = req->addr >> memory::PAGE_SHIFT;
               if(FIFO_scheduling || (req_page == last_request)) /* using FIFO, or this is access to same page as current access */
                 break;
             }
-            if((req->addr >> PAGE_SHIFT) == last_request) /* found an access to same page as current access */
+            if((req->addr >> memory::PAGE_SHIFT) == last_request) /* found an access to same page as current access */
             {
               req_index = idx;
-              req_page = req->addr >> PAGE_SHIFT;
+              req_page = req->addr >> memory::PAGE_SHIFT;
               break;
             }
           }
@@ -191,7 +191,7 @@ class MC_simple_t:public MC_t
       if(RQ[i].valid)
       {
         if(RQ[i].op)
-          fprintf(stderr,"%p(%lld)",RQ[i].op,((struct uop_t*)RQ[i].op)->decode.uop_seq);
+          fprintf(stderr,"%p(%" PRId64")",RQ[i].op,((struct uop_t*)RQ[i].op)->decode.uop_seq);
         fprintf(stderr," --> %s",RQ[i].prev_cp->name);
         fprintf(stderr," MSHR[%d][%d]",RQ[i].MSHR_bank,RQ[i].MSHR_index);
       }

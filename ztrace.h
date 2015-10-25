@@ -10,10 +10,6 @@
 /* Prefix for ztrace output files.
  * Final filenames will be @ztrace_filename.{coreID}.
  */
-#include "stats.h"
-#include "thread.h"
-#include "zesto-core.h"
-
 extern const char * ztrace_filename;
 
 #ifdef ZTRACE

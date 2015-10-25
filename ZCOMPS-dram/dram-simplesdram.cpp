@@ -137,10 +137,10 @@ class dram_simplesdram_t:public dram_t
         fatal("couldn't calloc dram bank[%d]",i);
     }
 
-    int offset_bits = log_base2(uncore->fsb_width);
+    int offset_bits = std::log2(uncore->fsb_width);
     int col_bits = 12-offset_bits; /* 4KB page */
-    int bank_bits = log_base2(num_banks);
-    int rank_bits = log_base2(num_ranks);
+    int bank_bits = std::log2(num_banks);
+    int rank_bits = std::log2(num_ranks);
     int row_bits = 33 - rank_bits - bank_bits - col_bits - offset_bits;
     num_rows = 1<<row_bits;
 
@@ -184,7 +184,7 @@ class dram_simplesdram_t:public dram_t
     int bank = (baddr>>bank_shift)&bank_mask;
     int row = (baddr>>row_shift)&row_mask;
 
-    tick_t when_start = MAX(when_command_bus_ready,uncore->sim_cycle);
+    tick_t when_start = std::max(when_command_bus_ready,uncore->sim_cycle);
     tick_t when_done = TICK_T_MAX;
 
     dram_assert(chunks > 0,when_start+c_RP+c_RAS+c_CAS-(uncore->sim_cycle));
@@ -197,7 +197,7 @@ class dram_simplesdram_t:public dram_t
 
     if(array[rank][bank].current_row == row) /* row buffer hit */
     {
-      when_done = MAX(when_start + lat,when_data_bus_ready + data_lat);
+      when_done = std::max(when_start + lat,when_data_bus_ready + data_lat);
       array[rank][bank].when_available = when_done;
 
       row_buffer_hits++;
@@ -213,8 +213,8 @@ class dram_simplesdram_t:public dram_t
       lat += c_RCD;
 
       /* can't activate page until precharged */
-      when_start = MAX(when_start + c_RP,array[rank][bank].when_precharge_ready);
-      when_done = MAX(when_start + lat,when_data_bus_ready + data_lat);
+      when_start = std::max(when_start + c_RP,array[rank][bank].when_precharge_ready);
+      when_done = std::max(when_start + lat,when_data_bus_ready + data_lat);
 
       array[rank][bank].when_available = when_done;
       array[rank][bank].current_row = row;
@@ -261,7 +261,7 @@ class dram_simplesdram_t:public dram_t
           refresh_row = modinc(refresh_row,num_rows); //(refresh_row+1) % num_rows;
       }
 
-      tick_t when_start = MAX(when_command_bus_ready,uncore->sim_cycle);
+      tick_t when_start = std::max(when_command_bus_ready,uncore->sim_cycle);
       tick_t when_done = TICK_T_MAX;
 
       if(array[rank][bank].current_row == row) /* row buffer hit */
@@ -272,7 +272,7 @@ class dram_simplesdram_t:public dram_t
       else /* not in row buffer - need to read and then write back */
       {
         /* can't activate page until precharged */
-        when_start = MAX(uncore->sim_cycle,array[rank][bank].when_precharge_ready);
+        when_start = std::max(uncore->sim_cycle,array[rank][bank].when_precharge_ready);
         when_done = when_start + c_CAS + c_RCD;
 
         array[rank][bank].when_available = when_done;

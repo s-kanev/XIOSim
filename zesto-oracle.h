@@ -135,43 +135,19 @@
  * Copyright © 1994-2003 by Todd M. Austin, Ph.D. and SimpleScalar, LLC.
  */
 
-#include "buffer.h"
-#include "stats.h"
 #include "synchronization.h"
-#include "zesto-cache.h"
+#include "shadow_MopQ.h"
+#include "sim.h"
+#include "stats.h"
 #include "ztrace.h"
-
-/* The following macros are used to pretty similarly to regular fatal and assert
-   calls, with the exception that when *not* in DEBUG mode, the failure does not
-   immediately terminate the program.  Instead, the retval argument is immediately
-   returned by the enclosing function, and the oracle's hosed bit is set.  Upon
-   detecting that it is hosed, the oracle will attempt to flush the pipeline and
-   then restore the state of the processor.  This allows you to still get results
-   even when you haven't debugged every last corner case.  Make sure you check the
-   number of emergency recoveries in the simulator's output stats; if this number is
-   small relative to the number of total simulated cycles, then your bug probably
-   won't have much statistically significant impact on your results.  If it's a
-   large number, then go fix your bug(s)! */
-#ifdef DEBUG
-#define zesto_fatal(msg, retval) fatal(msg)
-#else
-#define zesto_fatal(msg, retval) { \
-  core->oracle->hosed = TRUE; \
-  fprintf(stderr,"fatal (%s,%d:thread %d): ",__FILE__,__LINE__,core->current_thread->id); \
-  fprintf(stderr,"%s\n",msg); \
-  return (retval); \
-}
-#endif
-
-extern bool assert_spin;
+#include "zesto-cache.h"
 
 #define zesto_assert(cond, retval) {		\
   if(!(cond)) { \
-    core->oracle->hosed = TRUE; \
     fprintf(stderr,"assertion failed (%s,%d:core %d): ",__FILE__,__LINE__,core->id); \
     fprintf(stderr,"%s\n",#cond); \
-    fprintf(stderr, "cycle: %lld, num_Mops: %lld\n", core->sim_cycle, core->stat.oracle_total_insn); \
-    fprintf(stderr, "PC: %x, regs->NPC: %x, pin->PC: %x, pin->NPC: %x\n", core->fetch->PC, core->current_thread->regs.regs_NPC, core->fetch->feeder_PC, core->fetch->feeder_NPC); \
+    fprintf(stderr, "cycle: %" PRId64", num_Mops: %" PRId64"\n", core->sim_cycle, core->stat.oracle_total_insn); \
+    fprintf(stderr, "PC: %" PRIxPTR", pin->PC: %" PRIxPTR", pin->NPC: %" PRIxPTR"\n", core->fetch->PC, core->fetch->feeder_PC, core->fetch->feeder_NPC); \
     fflush(stderr); \
     for (int __i=0; __i < num_cores; __i++) \
       cores[__i]->oracle->trace_in_flight_ops(); \
@@ -179,14 +155,20 @@ extern bool assert_spin;
     if (assert_spin) \
       while(1); \
     exit(6); \
-    return (retval); \
   } \
 }
 
 #include <stdint.h>
+#include <list>
 #include <map>
+#include <unordered_map>
+
+class handshake_container_t;
+
+enum buffer_result_t { ALL_GOOD, HANDSHAKE_NOT_NEEDED, HANDSHAKE_NOT_CONSUMED };
 
 class core_oracle_t {
+  friend class shadow_MopQ_t;
 
   /* struct for tracking all in-flight writers of registers */
   struct map_node_t {
@@ -195,22 +177,9 @@ class core_oracle_t {
     struct map_node_t * next;
   };
 
-  /* structs for tracking pre-commit memory writes */
-#define MEM_HASH_SIZE 32768
-#define MEM_HASH_MASK (MEM_HASH_SIZE-1)
-
-  struct spec_mem_t {
-    struct {
-      struct spec_byte_t * head;
-      struct spec_byte_t * tail;
-    } hash[MEM_HASH_SIZE];
-  };
-
   public:
 
   bool spec_mode;  /* are we currently on a wrong-path? */
-  bool hosed; /* set to TRUE when something in the architected state (core->arch_state) has been seriously
-                corrupted. */
 
   core_oracle_t(struct core_t * const core);
   void reg_stats(xiosim::stats::StatsDatabase* sdb);
@@ -221,14 +190,14 @@ class core_oracle_t {
   int next_index(const int index);
   struct Mop_t * get_oldest_Mop();
 
-  void grab_feeder_state(handshake_container_t * handshake, bool allocate_shadow, bool check_pc_mismatch);
-  handshake_container_t * get_shadow_Mop(const struct Mop_t* Mop);
+  buffer_result_t buffer_handshake(handshake_container_t * handshake);
 
-  bool non_spec_read_byte(const md_addr_t addr, const struct Mop_t* Mop, byte_t * res);
-  uint8_t spec_do_read_byte(const md_addr_t addr, const struct Mop_t* Mop);
-  bool spec_read_byte(const md_addr_t addr, byte_t * const valp, bool no_tail=false);
-  struct spec_byte_t * spec_write_byte(const md_addr_t addr, const byte_t val,  struct uop_t * uop);
-
+  /* Can we absorb a new Mop. */
+  bool can_exec() {
+      return (current_Mop == nullptr) && // not stalled, so will need a new Mop
+             !drain_pipeline && // not draining from a trap
+             (MopQ_num < MopQ_size); // ...and has space for the new Mop
+  }
   struct Mop_t * exec(const md_addr_t requested_PC);
   void consume(const struct Mop_t * const Mop);
   void commit_uop(struct uop_t * const uop);
@@ -238,66 +207,60 @@ class core_oracle_t {
   void pipe_recover(struct Mop_t * const Mop, const md_addr_t New_PC); /* unrolls pipeline state */
   void pipe_flush(struct Mop_t * const Mop);
 
+  bool is_draining(void) const { return drain_pipeline; }
+
   void complete_flush(void);
 
   void trace_in_flight_ops(void);
 
-  unsigned int num_non_spec_Mops(void) const;
+  /* The difference between non-spec entries in the shadow_MopQ and MopQ -- these
+   * are the ones we need to re-execute before getting back to the feeder. */
   unsigned int num_Mops_before_feeder(void) const;
+  /* Is the oracle in the process of recovering from a nuke. */
+  bool on_nuke_recovery_path(void) const { return num_Mops_before_feeder() > 0; }
 
   protected:
-
-  /* static members shared by all cores */
-
-  static bool static_members_initialized;
 
   seq_t Mop_seq; /* Mop sequence number */
 
   struct Mop_t * MopQ;
   int MopQ_head;
   int MopQ_tail;
+  int MopQ_non_spec_tail; /* pointer to the youngest non-speculative Mop */
   int MopQ_num;
   int MopQ_size;
   struct Mop_t * current_Mop; /* pointer to track a Mop that has been executed but not consumed (i.e. due to fetch stall) */
   int MopQ_spec_num;
+  bool drain_pipeline; /* Are we draining from a trap */
 
-  Buffer * shadow_MopQ;
-
-  static struct map_node_t * map_free_pool;  /* for decode.dep_map */
-  static int map_free_pool_debt;
-  static struct spec_byte_t * spec_mem_free_pool; /* for oracle spec-memory map */
-  static int spec_mem_pool_debt;
+  shadow_MopQ_t shadow_MopQ;
 
   struct core_t * core;
-  struct spec_mem_t spec_mem_map;
   /* dependency tracking used by oracle */
-  struct {
-    struct map_node_t * head[MD_TOTAL_REGS];
-    struct map_node_t * tail[MD_TOTAL_REGS];
-  } dep_map;
+  std::unordered_map<xed_reg_enum_t, std::list<struct uop_t *>, std::hash<unsigned long> > dep_map;
 
   void undo(struct Mop_t * const Mop, bool nuke);
 
   void install_mapping(struct uop_t * const uop);
   void commit_mapping(const struct uop_t * const uop);
   void undo_mapping(const struct uop_t * const uop);
-  struct map_node_t * get_map_node(void);
-  void return_map_node(struct map_node_t * const p);
 
   void install_dependencies(struct uop_t * const uop);
   void commit_dependencies(struct uop_t * const uop);
   void undo_dependencies(struct uop_t * const uop);
 
-  struct spec_byte_t * get_spec_mem_node(void);
-  void return_spec_mem_node(struct spec_byte_t * const p);
+  void update_stats(struct Mop_t * const Mop);
 
-  void commit_write_byte(struct spec_byte_t * const p);
-  void squash_write_byte(struct spec_byte_t * const p);
+  /* # non-speculative Mops in the MopQ. */
+  unsigned int num_non_spec_Mops(void) const;
 
-  void write_spec_byte_to_mem(struct uop_t * const uop, struct spec_byte_t * p, bool skip_last);
-  void write_Mop_spec_bytes_to_mem(const struct Mop_t * const Mop, bool skip_last);
+  /* Create a fake NOP handshake in case we don't have a real one from feeder. */
+  handshake_container_t get_fake_spec_handshake();
 
-  void cleanup_aborted_mop(struct Mop_t * const Mop);
+  public:
+  /* Did we manage to absorb a handshake from instruction feeder */
+  bool consumed;
+
 };
 
 #endif /* ZESTO_ORACLE_INCLUDED */

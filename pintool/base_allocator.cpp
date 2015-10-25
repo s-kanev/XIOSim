@@ -8,7 +8,6 @@
 
 #include "boost_interprocess.h"
 #include "../synchronization.h"
-#include "../interface.h"
 #include "multiprocess_shared.h"
 
 #include "base_allocator.h"

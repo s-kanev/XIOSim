@@ -3,7 +3,6 @@
  * __COPYRIGHT__ GT
  */
 
-#include <math.h>
 #define COMPONENT_NAME "perceptron"
 
 #ifdef BPRED_PARSE_ARGS
@@ -30,14 +29,14 @@ class bpred_perceptron_t:public bpred_dir_t
     short* top_entry;
     int sum;
     /* contents of bhr at lookup (used for update and recovery) */
-    qword_t lookup_bhr;
-    qword_t lookup_bhr_old;
+    uint64_t lookup_bhr;
+    uint64_t lookup_bhr_old;
   };
 
   protected:
 
-  qword_t bhr;
-  qword_t bhr_old;
+  uint64_t bhr;
+  uint64_t bhr_old;
 
   int top_size;
   int top_mask;
@@ -82,10 +81,10 @@ class bpred_perceptron_t:public bpred_dir_t
 
     /* if power of two, then actually need an extra bit to represent.
        also add one bit for the sign. */
-    if(theta == (1<<log_base2(theta)))
-      weight_width = log_base2(theta)+2;
+    if(theta == (1<<(int)std::log2(theta)))
+      weight_width = std::log2(theta)+2;
     else
-      weight_width = log_base2(theta)+1;
+      weight_width = std::log2(theta)+1;
 
     weight_max = (1<<(weight_width-1))-1;
     weight_min = -(1<<(weight_width-1));
@@ -209,7 +208,7 @@ class bpred_perceptron_t:public bpred_dir_t
   {
     bpred_dir_t::reg_stats(sdb,core);
 
-    int id = core?core->current_thread->id:0;
+    int id = core?core->id:0;
     char buf[256];
     char buf2[256];
 

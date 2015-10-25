@@ -3,23 +3,21 @@
 
 #include "ezOptionParser_clean.hpp"
 
-#include "../interface.h"
+#include "../libsim.h"
 #include "../memory.h"
 #include "multiprocess_shared.h"
 #include "ipc_queues.h"
 
 #include "scheduler.h"
 #include "../synchronization.h"
-#include "buffer.h"
 #include "BufferManagerConsumer.h"
-#include "../zesto-core.h"
 #include "allocators_impl.h"
+#include "../sim.h"
+#include "../slices.h"
 
 #include "timing_sim.h"
 
 const char sim_name[] = "XIOSim";
-
-extern int num_cores;
 
 static sim_thread_state_t thread_states[MAX_CORES];
 
@@ -33,7 +31,7 @@ BaseAllocator* core_allocator = NULL;
 /* ========================================================================== */
 /* The loop running each simulated core. */
 void* SimulatorLoop(void* arg) {
-    int coreID = reinterpret_cast<int>(arg);
+    int coreID = static_cast<int>(reinterpret_cast<long>(arg));
     sim_thread_state_t* tstate = get_sim_tls(coreID);
 
     while (true) {
@@ -41,7 +39,7 @@ void* SimulatorLoop(void* arg) {
         lk_lock(&tstate->lock, 1);
 
         if (!tstate->is_running) {
-            deactivate_core(coreID);
+            xiosim::libsim::deactivate_core(coreID);
             tstate->sim_stopped = true;
             lk_unlock(&tstate->lock);
             return NULL;
@@ -96,12 +94,12 @@ void* SimulatorLoop(void* arg) {
 
             // First instruction, map stack pages, and flag we're not safe to kill
             if (handshake->flags.isFirstInsn) {
-                md_addr_t esp = handshake->handshake.ctxt.regs_R.dw[MD_REG_ESP];
+                md_addr_t esp = handshake->rSP;
                 md_addr_t bos;
                 lk_lock(lk_thread_bos, 1);
                 bos = thread_bos->at(instrument_tid);
                 lk_unlock(lk_thread_bos);
-                xiosim::memory::map_stack(handshake->handshake.asid, esp, bos);
+                xiosim::memory::map_stack(handshake->asid, esp, bos);
 
                 lk_lock(&tstate->lock, 1);
                 tstate->sim_stopped = false;
@@ -109,7 +107,7 @@ void* SimulatorLoop(void* arg) {
             }
 
             // Actual simulation happens here
-            Zesto_Resume(coreID, handshake);
+            xiosim::libsim::simulate_handshake(coreID, handshake);
 
             // invalidate the handshake
             xiosim::buffer_management::Pop(instrument_tid);
@@ -180,7 +178,7 @@ void StopSimulation(bool kill_sim_threads, int caller_coreID) {
         } while (!is_stopped);
     }
 
-    Zesto_Destroy();
+    xiosim::libsim::deinit();
 
     if (kill_sim_threads)
         exit(EXIT_SUCCESS);
@@ -262,11 +260,11 @@ int main(int argc, const char* argv[]) {
     opts.get("-num_cores")->getInt(num_cores);
 
     InitSharedState(false, harness_pid, num_cores);
-    xiosim::buffer_management::InitBufferManagerConsumer(harness_pid, num_cores);
+    xiosim::buffer_management::InitBufferManagerConsumer(harness_pid);
 
     // Prepare args for libsim
     SSARGS ssargs = MakeSimpleScalarArgcArgv(argc, argv);
-    Zesto_SlaveInit(ssargs.first, ssargs.second);
+    xiosim::libsim::init(ssargs.first, ssargs.second);
 
     InitScheduler(num_cores);
     // The following core/uncore power values correspond to 20% of total system
@@ -312,10 +310,10 @@ void CheckIPCMessageQueue(bool isEarly, int caller_coreID) {
         switch (ipcMessage.id) {
         /* Sim control related */
         case SLICE_START:
-            Zesto_Slice_Start(ipcMessage.arg0);
+            start_slice(ipcMessage.arg0);
             break;
         case SLICE_END:
-            Zesto_Slice_End(ipcMessage.arg0, ipcMessage.arg1, ipcMessage.arg2);
+            end_slice(ipcMessage.arg0, ipcMessage.arg1, ipcMessage.arg2);
             break;
         /* Shadow page table related */
         case MMAP:
@@ -329,16 +327,16 @@ void CheckIPCMessageQueue(bool isEarly, int caller_coreID) {
             break;
         /* Warm caches */
         case WARM_LLC:
-            Zesto_WarmLLC(ipcMessage.arg0, ipcMessage.arg1, ipcMessage.arg2);
+            xiosim::libsim::simulate_warmup(ipcMessage.arg0, ipcMessage.arg1, ipcMessage.arg2);
             break;
         case STOP_SIMULATION:
             StopSimulation(ipcMessage.arg0, caller_coreID);
             break;
         case ACTIVATE_CORE:
-            activate_core(ipcMessage.arg0);
+            xiosim::libsim::activate_core(ipcMessage.arg0);
             break;
         case DEACTIVATE_CORE:
-            deactivate_core(ipcMessage.arg0);
+            xiosim::libsim::deactivate_core(ipcMessage.arg0);
             break;
         case SCHEDULE_NEW_THREAD:
             ScheduleNewThread(ipcMessage.arg0);

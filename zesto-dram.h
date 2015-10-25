@@ -75,6 +75,7 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
+#include <assert.h>
 #include "zesto-cache.h"
 
 extern class dram_t * dram;
@@ -100,10 +101,6 @@ class dram_t
   virtual void reg_stats(xiosim::stats::StatsDatabase* sdb);
 };
 
-/* since these cannot directly set the core->oracle.hosed bit, they
-   just return and depend on the rest of the core state getting hosed
-   to force a reset. */
-#ifndef zesto_fatal
 #ifdef DEBUG
 #define dram_fatal(msg, retval) fatal(msg)
 #else
@@ -112,7 +109,6 @@ class dram_t
   fprintf(stderr,"%s\n",msg); \
   return (retval); \
 }
-#endif
 #endif
 
 #ifndef dram_assert

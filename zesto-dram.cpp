@@ -72,10 +72,13 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
+#include <cmath>
+#include <cstring>
 #include <limits.h>
 
+#include "misc.h"
 #include "stats.h"
-#include "thread.h"
+
 #include "zesto-cache.h"
 #include "zesto-dram.h"
 #include "zesto-uncore.h"

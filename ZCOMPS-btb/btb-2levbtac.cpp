@@ -105,7 +105,7 @@ class BTB_2levbtac_t:public BTB_t
 
     if(Xor)
     {
-      xorshift = log_base2(num_entries)-hist_width;
+      xorshift = std::log2(num_entries)-hist_width;
       if(xorshift < 0)
         xorshift = 0;
     }
@@ -113,7 +113,7 @@ class BTB_2levbtac_t:public BTB_t
 
     btac_mask = num_entries-1;
 
-    tag_shift = log_base2(num_entries);
+    tag_shift = std::log2(num_entries);
     tag_mask = (1<<tag_width)-1;
 
     bht = (int*) calloc(bht_size,sizeof(int));
@@ -143,8 +143,8 @@ class BTB_2levbtac_t:public BTB_t
     }
 
     int bhtsize = bht_size*hist_width;
-    int tagsize = 8*sizeof(md_addr_t) - log_base2(num_entries);
-    int lrusize = log_base2(num_ways);
+    int tagsize = 8*sizeof(md_addr_t) - std::log2(num_entries);
+    int lrusize = std::log2(num_ways);
     int entrysize = sizeof(md_addr_t) + tagsize + lrusize + 1; /* +1 for valid bit */
     bits =  num_entries*num_ways*entrysize + bhtsize;
     type = strdup(COMPONENT_NAME);

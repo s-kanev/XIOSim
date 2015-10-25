@@ -72,9 +72,13 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
-#include "stats.h"
+#include <cmath>
+
+#include "misc.h"
 #include "sim.h"
+#include "stats.h"
 #include "valcheck.h"
+
 #include "zesto-core.h"
 #include "zesto-memdep.h"
 
@@ -113,17 +117,17 @@ void memdep_t::update(md_addr_t PC)
 void memdep_t::reg_stats(xiosim::stats::StatsDatabase* sdb, struct core_t * core)
 {
     using namespace xiosim::stats;
-    struct thread_t* arch = core->current_thread;
+    int coreID = core->id;
 
-    stat_reg_pred_string(sdb, arch->id, name, "type", "prediction algorithm of %s", type, NULL);
-    auto& bits_st = stat_reg_pred_int(sdb, true, arch->id, name, "bits", "total size of %s in bits",
-                                      &bits, bits, FALSE, NULL);
-    stat_reg_pred_formula(sdb, true, arch->id, name, "size", "total size of %s in KB",
+    stat_reg_pred_string(sdb, coreID, name, "type", "prediction algorithm of %s", type, NULL);
+    auto& bits_st = stat_reg_pred_int(sdb, true, coreID, name, "bits", "total size of %s in bits",
+                                      &bits, bits, false, NULL);
+    stat_reg_pred_formula(sdb, true, coreID, name, "size", "total size of %s in KB",
                           bits_st / Constant(8192), NULL);
-    stat_reg_pred_counter(sdb, true, arch->id, name, "lookups",
-                          "number of prediction lookups in %s", &lookups, 0, TRUE, NULL);
-    stat_reg_pred_counter(sdb, true, arch->id, name, "updates",
-                          "number of prediction updates in %s", &updates, 0, TRUE, NULL);
+    stat_reg_pred_counter(sdb, true, coreID, name, "lookups",
+                          "number of prediction lookups in %s", &lookups, 0, true, NULL);
+    stat_reg_pred_counter(sdb, true, coreID, name, "updates",
+                          "number of prediction updates in %s", &updates, 0, true, NULL);
 }
 
 void memdep_t::freeze_stats(void)

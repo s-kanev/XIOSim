@@ -1,8 +1,8 @@
 #include <cstddef>
 
+#include "misc.h"
 #include "stats.h"
-#include "host.h"
-#include "thread.h"
+
 #include "zesto-power.h"
 #include "zesto-dvfs.h"
 #include "zesto-oracle.h"
@@ -208,34 +208,34 @@ void deinit_power(void)
 
 void translate_uncore_stats(xiosim::stats::StatsDatabase* sdb, root_system* stats)
 {
-  xiosim::stats::Statistic<sqword_t>* curr_stat = nullptr;
+  xiosim::stats::Statistic<counter_t>* curr_stat = nullptr;
 
   if (uncore->LLC)
   {
     if (!private_l2)
     {
-      curr_stat = stat_find_stat<sqword_t>(sdb, "LLC.load_lookups");
+      curr_stat = stat_find_stat<counter_t>(sdb, "LLC.load_lookups");
       stats->L2[0].read_accesses = curr_stat->get_final_val();
-      curr_stat = stat_find_stat<sqword_t>(sdb, "LLC.load_misses");
+      curr_stat = stat_find_stat<counter_t>(sdb, "LLC.load_misses");
       stats->L2[0].read_misses = curr_stat->get_final_val();
-      curr_stat = stat_find_stat<sqword_t>(sdb, "LLC.store_lookups");
+      curr_stat = stat_find_stat<counter_t>(sdb, "LLC.store_lookups");
       stats->L2[0].write_accesses = curr_stat->get_final_val();
-      curr_stat = stat_find_stat<sqword_t>(sdb, "LLC.store_misses");
+      curr_stat = stat_find_stat<counter_t>(sdb, "LLC.store_misses");
       stats->L2[0].write_misses = curr_stat->get_final_val();
     }
     else {
-      curr_stat = stat_find_stat<sqword_t>(sdb, "LLC.load_lookups");
+      curr_stat = stat_find_stat<counter_t>(sdb, "LLC.load_lookups");
       stats->L3[0].read_accesses = curr_stat->get_final_val();
-      curr_stat = stat_find_stat<sqword_t>(sdb, "LLC.load_misses");
+      curr_stat = stat_find_stat<counter_t>(sdb, "LLC.load_misses");
       stats->L3[0].read_misses = curr_stat->get_final_val();
-      curr_stat = stat_find_stat<sqword_t>(sdb, "LLC.store_lookups");
+      curr_stat = stat_find_stat<counter_t>(sdb, "LLC.store_lookups");
       stats->L3[0].write_accesses = curr_stat->get_final_val();
-      curr_stat = stat_find_stat<sqword_t>(sdb, "LLC.store_misses");
+      curr_stat = stat_find_stat<counter_t>(sdb, "LLC.store_misses");
       stats->L3[0].write_misses = curr_stat->get_final_val();
     }
   }
 
-  curr_stat = stat_find_stat<sqword_t>(sdb, "uncore.sim_cycle");
+  curr_stat = stat_find_stat<tick_t>(sdb, "uncore.sim_cycle");
   stats->total_cycles = curr_stat->get_final_val();
 }
 
@@ -388,7 +388,7 @@ void core_power_t::translate_stats(xiosim::stats::StatsDatabase* sdb,
                                    system_core* core_stats,
                                    system_L2* L2_stats) {
   using namespace xiosim::stats;
-  Statistic<sqword_t>* stat = nullptr;
+  Statistic<counter_t>* stat = nullptr;
   Formula* formula = nullptr;
 
   int coreID = core->id;
@@ -400,103 +400,103 @@ void core_power_t::translate_stats(xiosim::stats::StatsDatabase* sdb,
   // more or less the right thing.
   core_stats->vdd = core_power_t::default_vdd;
 
-  stat = stat_find_core_stat<sqword_t>(sdb, coreID, "oracle_total_uops");
+  stat = stat_find_core_stat<counter_t>(sdb, coreID, "oracle_total_uops");
   core_stats->total_instructions = stat->get_final_val();
 
-  stat = stat_find_core_stat<sqword_t>(sdb, coreID, "oracle_total_branches");
+  stat = stat_find_core_stat<counter_t>(sdb, coreID, "oracle_total_branches");
   core_stats->branch_instructions = stat->get_final_val();
-  stat = stat_find_core_stat<sqword_t>(sdb, coreID, "num_jeclear");
+  stat = stat_find_core_stat<counter_t>(sdb, coreID, "num_jeclear");
   core_stats->branch_mispredictions = stat->get_final_val();
-  stat = stat_find_core_stat<sqword_t>(sdb, coreID, "oracle_total_loads");
+  stat = stat_find_core_stat<counter_t>(sdb, coreID, "oracle_total_loads");
   core_stats->load_instructions = stat->get_final_val();
-  stat = stat_find_core_stat<sqword_t>(sdb, coreID, "oracle_total_refs");
+  stat = stat_find_core_stat<counter_t>(sdb, coreID, "oracle_total_refs");
   core_stats->store_instructions = stat->get_final_val() - core_stats->load_instructions;
   formula = stat_find_core_formula(sdb, coreID, "oracle_num_uops");
   core_stats->committed_instructions = formula->evaluate();
 
   // core cycles at potentially variable frequency
-  stat = stat_find_core_stat<sqword_t>(sdb, coreID, "sim_cycle");
+  stat = stat_find_core_stat<tick_t>(sdb, coreID, "sim_cycle");
   core_stats->total_cycles = stat->get_final_val();
 
   // get average frequency for this period
-  stat = stat_find_stat<sqword_t>(sdb, "sim_cycle");
+  stat = stat_find_stat<tick_t>(sdb, "sim_cycle");
   core_stats->clock_rate = (int)ceil(core_stats->total_cycles * knobs->default_cpu_speed /
                                      (double)stat->get_final_val());
 
   core_stats->idle_cycles = 0;
   core_stats->busy_cycles = core_stats->total_cycles - core_stats->idle_cycles;
 
-  stat = stat_find_core_stat<sqword_t>(sdb, coreID, "regfile_reads");
+  stat = stat_find_core_stat<counter_t>(sdb, coreID, "regfile_reads");
   core_stats->int_regfile_reads = stat->get_final_val();
-  stat = stat_find_core_stat<sqword_t>(sdb, coreID, "fp_regfile_reads");
+  stat = stat_find_core_stat<counter_t>(sdb, coreID, "fp_regfile_reads");
   core_stats->float_regfile_reads = stat->get_final_val();
-  stat = stat_find_core_stat<sqword_t>(sdb, coreID, "regfile_writes");
+  stat = stat_find_core_stat<counter_t>(sdb, coreID, "regfile_writes");
   core_stats->int_regfile_writes = stat->get_final_val();
-  stat = stat_find_core_stat<sqword_t>(sdb, coreID, "fp_regfile_writes");
+  stat = stat_find_core_stat<counter_t>(sdb, coreID, "fp_regfile_writes");
   core_stats->float_regfile_writes = stat->get_final_val();
 
-  stat = stat_find_core_stat<sqword_t>(sdb, coreID, "oracle_total_calls");
+  stat = stat_find_core_stat<counter_t>(sdb, coreID, "oracle_total_calls");
   core_stats->function_calls = stat->get_final_val();
 
-  stat = stat_find_core_stat<sqword_t>(sdb, coreID, "int_FU_occupancy");
+  stat = stat_find_core_stat<counter_t>(sdb, coreID, "int_FU_occupancy");
   core_stats->cdb_alu_accesses = stat->get_final_val();
-  stat = stat_find_core_stat<sqword_t>(sdb, coreID, "fp_FU_occupancy");
+  stat = stat_find_core_stat<counter_t>(sdb, coreID, "fp_FU_occupancy");
   core_stats->cdb_fpu_accesses = stat->get_final_val();
-  stat = stat_find_core_stat<sqword_t>(sdb, coreID, "mul_FU_occupancy");
+  stat = stat_find_core_stat<counter_t>(sdb, coreID, "mul_FU_occupancy");
   core_stats->cdb_mul_accesses = stat->get_final_val();
   core_stats->ialu_accesses = core_stats->cdb_alu_accesses;
   core_stats->fpu_accesses = core_stats->cdb_fpu_accesses;
   core_stats->mul_accesses = core_stats->cdb_mul_accesses;
 
-  stat = stat_find_core_stat<sqword_t>(sdb, coreID, "commit_insn");
+  stat = stat_find_core_stat<counter_t>(sdb, coreID, "commit_insn");
   core_stats->pipeline_duty_cycle = (double) stat->get_final_val();
-  stat = stat_find_core_stat<sqword_t>(sdb, coreID, "sim_cycle");
+  stat = stat_find_core_stat<tick_t>(sdb, coreID, "sim_cycle");
   core_stats->pipeline_duty_cycle /= stat->get_final_val();
   core_stats->pipeline_duty_cycle /= knobs->commit.width;
 
   if (core->memory.ITLB)
   {
-    stat = stat_find_core_stat<sqword_t>(sdb, coreID, "ITLB.lookups");
+    stat = stat_find_core_stat<counter_t>(sdb, coreID, "ITLB.lookups");
     core_stats->itlb.total_accesses = stat->get_final_val();
-    stat = stat_find_core_stat<sqword_t>(sdb, coreID, "ITLB.misses");
+    stat = stat_find_core_stat<counter_t>(sdb, coreID, "ITLB.misses");
     core_stats->itlb.total_misses = stat->get_final_val();
   }
 
   if (core->memory.DTLB)
   {
-    stat = stat_find_core_stat<sqword_t>(sdb, coreID, "DTLB.lookups");
+    stat = stat_find_core_stat<counter_t>(sdb, coreID, "DTLB.lookups");
     core_stats->dtlb.total_accesses = stat->get_final_val();
-    stat = stat_find_core_stat<sqword_t>(sdb, coreID, "DTLB.misses");
+    stat = stat_find_core_stat<counter_t>(sdb, coreID, "DTLB.misses");
     core_stats->dtlb.total_misses = stat->get_final_val();
   }
 
   if (core->memory.IL1)
   {
-    stat = stat_find_core_stat<sqword_t>(sdb, coreID, "IL1.lookups");
+    stat = stat_find_core_stat<counter_t>(sdb, coreID, "IL1.lookups");
     core_stats->icache.read_accesses = stat->get_final_val();
-    stat = stat_find_core_stat<sqword_t>(sdb, coreID, "IL1.misses");
+    stat = stat_find_core_stat<counter_t>(sdb, coreID, "IL1.misses");
     core_stats->icache.read_misses = stat->get_final_val();
   }
 
   if (core->memory.DL1)
   {
-    stat = stat_find_core_stat<sqword_t>(sdb, coreID, "DL1.load_lookups");
+    stat = stat_find_core_stat<counter_t>(sdb, coreID, "DL1.load_lookups");
     core_stats->dcache.read_accesses = stat->get_final_val();
-    stat = stat_find_core_stat<sqword_t>(sdb, coreID, "DL1.load_misses");
+    stat = stat_find_core_stat<counter_t>(sdb, coreID, "DL1.load_misses");
     core_stats->dcache.read_misses = stat->get_final_val();
-    stat = stat_find_core_stat<sqword_t>(sdb, coreID, "DL1.store_lookups");
+    stat = stat_find_core_stat<counter_t>(sdb, coreID, "DL1.store_lookups");
     core_stats->dcache.write_accesses = stat->get_final_val();
-    stat = stat_find_core_stat<sqword_t>(sdb, coreID, "DL1.store_misses");
+    stat = stat_find_core_stat<counter_t>(sdb, coreID, "DL1.store_misses");
     core_stats->dcache.write_misses = stat->get_final_val();
   }
 
   if (core->fetch->bpred->get_dir_btb())
   {
-    stat = stat_find_core_stat<sqword_t>(sdb, coreID, "BTB.lookups");
+    stat = stat_find_core_stat<counter_t>(sdb, coreID, "BTB.lookups");
     core_stats->BTB.read_accesses = stat->get_final_val();
-    stat = stat_find_core_stat<sqword_t>(sdb, coreID, "BTB.updates");
+    stat = stat_find_core_stat<counter_t>(sdb, coreID, "BTB.updates");
     core_stats->BTB.write_accesses = stat->get_final_val();
-    stat = stat_find_core_stat<sqword_t>(sdb, coreID, "BTB.spec_updates");
+    stat = stat_find_core_stat<counter_t>(sdb, coreID, "BTB.spec_updates");
     core_stats->BTB.write_accesses += stat->get_final_val();
   }
 }

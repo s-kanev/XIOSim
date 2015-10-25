@@ -10,15 +10,13 @@
 #include "boost_interprocess.h"
 #include "boost_statistics.h"
 
-#include "../interface.h"
+#include "../libsim.h"
 #include "multiprocess_shared.h"
 
 #include "scheduler.h"
 
+#include "../sim.h"
 #include "../zesto-core.h"
-#include "../zesto-structs.h"
-
-extern int num_cores;
 
 namespace xiosim {
 
@@ -85,9 +83,9 @@ int ScheduleNewThread(pid_t tid) {
     }
 
     lk_lock(&run_queues[coreID].lk, 1);
-    if (run_queues[coreID].q.empty() && !is_core_active(coreID)) {
+    if (run_queues[coreID].q.empty() && !xiosim::libsim::is_core_active(coreID)) {
         /* We can on @coreID straight away, activate it and update SHM state. */
-        activate_core(coreID);
+        xiosim::libsim::activate_core(coreID);
         UpdateSHMThreadCore(tid, coreID);
         UpdateSHMCoreThread(coreID, tid);
     } else {
@@ -175,7 +173,7 @@ void DescheduleActiveThread(int coreID) {
 #endif
     } else {
         /* No more work to do, let other cores progress */
-        deactivate_core(coreID);
+        xiosim::libsim::deactivate_core(coreID);
     }
 
     /* Let SHM know @coreID has @new_tid (potentially nothing) */
@@ -211,7 +209,7 @@ void GiveUpCore(int coreID, bool reschedule_thread) {
 #endif
     } else if (!reschedule_thread) {
         /* No more work to do, let core sleep */
-        deactivate_core(coreID);
+        xiosim::libsim::deactivate_core(coreID);
         new_tid = INVALID_THREADID;
     } else {
         /* Thread is the only one waiting for this core, reschedule is moot. */

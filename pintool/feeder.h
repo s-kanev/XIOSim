@@ -17,9 +17,9 @@ extern "C" {
 #include <map>
 using namespace INSTLIB;
 
-#include "../interface.h"
 #include "../synchronization.h"
 #include "../memory.h"
+#include "../zesto-bpred.h"
 
 class handshake_container_t;
 
@@ -80,6 +80,20 @@ class thread_state_t {
 
         num_inst = 0;
         lk_init(&lock);
+
+        // TODO(skanev): Unify configuration, so feeder can read the .cfg file.
+        const char *bpred_opt_strings[MAX_HYBRID_BPRED];
+        bpred_opt_strings[0] = "tage:TAGE5:5:2048:512:9:6:75";
+        bpred = new bpred_t(
+          nullptr,
+          1,
+          bpred_opt_strings,
+          "none",
+          "btac:BTB:512:4:8:l",
+          "2levbtac:iBTB:1:8:1:128:4:8:l",
+          "multistack:RAS:8:8"
+        );
+        lastBranchPrediction = 0;
     }
 
     VOID push_loop_state() {
@@ -120,6 +134,9 @@ class thread_state_t {
 
     // Per Loop State
     per_loop_state_t* loop_state;
+
+    class bpred_t* bpred;
+    ADDRINT lastBranchPrediction;
 
     XIOSIM_LOCK lock;
     // XXX: SHARED -- lock protects those

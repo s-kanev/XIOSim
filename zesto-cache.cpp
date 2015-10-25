@@ -72,11 +72,15 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
-#include <limits.h>
 #include <ctype.h>
+#include <limits.h>
+#include <cmath>
 
+#include "memory.h"
+#include "misc.h"
 #include "stats.h"
-#include "thread.h"
+#include "sim.h"
+
 #include "zesto-core.h"
 #include "zesto-cache.h"
 #include "zesto-prefetch.h"
@@ -92,6 +96,10 @@
 
 #define GET_BANK(x) (((x)>>cp->bank_shift) & cp->bank_mask)
 #define GET_MSHR_BANK(x) (((x)>>cp->bank_shift) & cp->MSHR_mask)
+
+/* Cache lock should be acquired before any access to the shared
+ * caches (including enqueuing requests from lower-level caches). */
+XIOSIM_LOCK cache_lock;
 
 struct cache_t * cache_create(
     struct core_t * const core,
@@ -283,43 +291,39 @@ void cache_reg_stats(xiosim::stats::StatsDatabase* sdb,
     if (!cp)
         return;
 
-    struct thread_t* arch = core->current_thread;
-    auto sim_cycle_st = stat_find_core_stat<qword_t>(sdb, arch->id, "sim_cycle");
-    assert(sim_cycle_st);
-    auto commit_insn_st = stat_find_core_stat<sqword_t>(sdb, arch->id, "commit_insn");
-    assert(commit_insn_st);
-    auto commit_uops_st = stat_find_core_stat<sqword_t>(sdb, arch->id, "commit_uops");
-    assert(commit_uops_st);
-    auto commit_eff_uops_st = stat_find_core_stat<sqword_t>(sdb, arch->id, "commit_eff_uops");
-    assert(commit_eff_uops_st);
+    int coreID = core->id;
+    auto sim_cycle_st = stat_find_core_stat<tick_t>(sdb, coreID, "sim_cycle");
+    auto commit_insn_st = stat_find_core_stat<counter_t>(sdb, coreID, "commit_insn");
+    auto commit_uops_st = stat_find_core_stat<counter_t>(sdb, coreID, "commit_uops");
+    auto commit_eff_uops_st = stat_find_core_stat<counter_t>(sdb, coreID, "commit_eff_uops");
 
     if (cp->read_only == CACHE_READWRITE) {
         auto& load_lookups_st = stat_reg_cache_counter(
-                sdb, true, arch->id, cp->name, "load_lookups", "number of load lookups in %s",
-                &cp->stat.load_lookups, 0, TRUE, NULL);
-        auto& load_misses_st = stat_reg_cache_counter(sdb, true, arch->id, cp->name, "load_misses",
+                sdb, true, coreID, cp->name, "load_lookups", "number of load lookups in %s",
+                &cp->stat.load_lookups, 0, true, NULL);
+        auto& load_misses_st = stat_reg_cache_counter(sdb, true, coreID, cp->name, "load_misses",
                                                       "number of load misses in %s",
-                                                      &cp->stat.load_misses, 0, TRUE, NULL);
-        stat_reg_cache_formula(sdb, true, arch->id, cp->name, "load_miss_rate",
+                                                      &cp->stat.load_misses, 0, true, NULL);
+        stat_reg_cache_formula(sdb, true, coreID, cp->name, "load_miss_rate",
                                "load miss rate in %s", load_misses_st / load_lookups_st, "%12.4f");
 
         auto& store_lookups_st = stat_reg_cache_counter(
-                sdb, true, arch->id, cp->name, "store_lookups", "number of store lookups in %s",
-                &cp->stat.store_lookups, 0, TRUE, NULL);
+                sdb, true, coreID, cp->name, "store_lookups", "number of store lookups in %s",
+                &cp->stat.store_lookups, 0, true, NULL);
         auto& store_misses_st = stat_reg_cache_counter(
-                sdb, true, arch->id, cp->name, "store_misses", "number of store misses in %s",
-                &cp->stat.store_misses, 0, TRUE, NULL);
-        stat_reg_cache_formula(sdb, true, arch->id, cp->name, "store miss rate",
+                sdb, true, coreID, cp->name, "store_misses", "number of store misses in %s",
+                &cp->stat.store_misses, 0, true, NULL);
+        stat_reg_cache_formula(sdb, true, coreID, cp->name, "store miss rate",
                                "store miss rate in %s", store_misses_st / store_lookups_st,
                                "%12.4f");
 
         auto& writeback_lookups_st = stat_reg_cache_counter(
-                sdb, true, arch->id, cp->name, "writeback_lookups",
-                "number of writeback lookups in %s", &cp->stat.writeback_lookups, 0, TRUE, NULL);
+                sdb, true, coreID, cp->name, "writeback_lookups",
+                "number of writeback lookups in %s", &cp->stat.writeback_lookups, 0, true, NULL);
         auto& writeback_misses_st = stat_reg_cache_counter(
-                sdb, true, arch->id, cp->name, "writeback_misses",
-                "number of writeback misses in %s", &cp->stat.writeback_misses, 0, TRUE, NULL);
-        stat_reg_cache_formula(sdb, true, arch->id, cp->name, "writeback_miss_rate",
+                sdb, true, coreID, cp->name, "writeback_misses",
+                "number of writeback misses in %s", &cp->stat.writeback_misses, 0, true, NULL);
+        stat_reg_cache_formula(sdb, true, coreID, cp->name, "writeback_miss_rate",
                                "writeback miss rate in %s",
                                writeback_misses_st / writeback_lookups_st, "%12.4f");
 
@@ -335,23 +339,23 @@ void cache_reg_stats(xiosim::stats::StatsDatabase* sdb,
         total_misses = load_misses_st + store_misses_st;
 
         if (cp->num_prefetchers > 0) {
-            auto& pf_lookups_st = stat_reg_cache_counter(sdb, true, arch->id, cp->name, "pf_lookups",
+            auto& pf_lookups_st = stat_reg_cache_counter(sdb, true, coreID, cp->name, "pf_lookups",
                                    "number of prefetch lookups in %s", &cp->stat.prefetch_lookups,
-                                   0, TRUE, NULL);
-            auto& pf_misses_st = stat_reg_cache_counter(sdb, true, arch->id, cp->name, "pf_misses",
+                                   0, true, NULL);
+            auto& pf_misses_st = stat_reg_cache_counter(sdb, true, coreID, cp->name, "pf_misses",
                                    "number of prefetch misses in %s", &cp->stat.prefetch_misses, 0,
-                                   TRUE, NULL);
-            stat_reg_cache_formula(sdb, true, arch->id, cp->name, "pf_miss_rate",
+                                   true, NULL);
+            stat_reg_cache_formula(sdb, true, coreID, cp->name, "pf_miss_rate",
                                    "prefetch miss rate in %s", pf_misses_st / pf_lookups_st,
                                    "%12.4f");
 
-            auto& pf_insertions_st = stat_reg_cache_counter(sdb, true, arch->id, cp->name, "pf_insertions",
+            auto& pf_insertions_st = stat_reg_cache_counter(sdb, true, coreID, cp->name, "pf_insertions",
                                    "number of prefetched blocks inserted into %s",
-                                   &cp->stat.prefetch_insertions, 0, TRUE, NULL);
-            auto& pf_useful_insertions_st = stat_reg_cache_counter(sdb, true, arch->id, cp->name, "pf_useful_insertions",
+                                   &cp->stat.prefetch_insertions, 0, true, NULL);
+            auto& pf_useful_insertions_st = stat_reg_cache_counter(sdb, true, coreID, cp->name, "pf_useful_insertions",
                                    "number of prefetched blocks actually used in %s",
-                                   &cp->stat.prefetch_useful_insertions, 0, TRUE, NULL);
-            stat_reg_cache_formula(sdb, true, arch->id, cp->name, "pf_useful_rate",
+                                   &cp->stat.prefetch_useful_insertions, 0, true, NULL);
+            stat_reg_cache_formula(sdb, true, coreID, cp->name, "pf_useful_rate",
                                    "rate of useful prefetches in %s",
                                    pf_useful_insertions_st / pf_insertions_st, "%12.4f");
 
@@ -364,96 +368,95 @@ void cache_reg_stats(xiosim::stats::StatsDatabase* sdb,
             // Statistics. Until then, we have to define this formula like so.
             total_miss_rate = (load_misses_st + store_misses_st) /
                                  (load_lookups_st + store_lookups_st);
-
         }
         stat_reg_formula(sdb, total_lookups);
         stat_reg_formula(sdb, total_misses);
         stat_reg_formula(sdb, total_miss_rate);
 
         stat_reg_cache_formula(
-                sdb, true, arch->id, cp->name, "MPKI",
+                sdb, true, coreID, cp->name, "MPKI",
                 "total miss rate in MPKI (no prefetches) for %s (misses/thousand cycles)",
                 (load_misses_st + store_misses_st) / *commit_insn_st * Constant(1000), "%12.4f");
-        stat_reg_cache_formula(sdb, true, arch->id, cp->name, "MPKu",
+        stat_reg_cache_formula(sdb, true, coreID, cp->name, "MPKu",
                          "total miss rate in MPKu (no prefetches) for %s (misses/thousand cycles)",
                          (load_misses_st + store_misses_st) / *commit_uops_st * Constant(1000),
                          "%12.4f");
-        stat_reg_cache_formula(sdb, true, arch->id, cp->name, "MPKeu",
+        stat_reg_cache_formula(sdb, true, coreID, cp->name, "MPKeu",
                          "total miss rate in MPKeu (no prefetches) for %s (misses/thousand cycles)",
                          (load_misses_st + store_misses_st) / *commit_eff_uops_st * Constant(1000),
                          "%12.4f");
-        stat_reg_cache_formula(sdb, true, arch->id, cp->name, "MPKC",
+        stat_reg_cache_formula(sdb, true, coreID, cp->name, "MPKC",
                          "total miss rate in MPKC (no prefetches) for %s (misses/thousand cycles)",
                          (load_misses_st + store_misses_st) / *sim_cycle_st * Constant(1000),
                          "%12.4f");
     } else {
         auto& lookups_st =
-                stat_reg_cache_counter(sdb, true, arch->id, cp->name, "lookups",
-                                       "number of lookups in %s", &cp->stat.load_lookups, 0, TRUE, NULL);
+                stat_reg_cache_counter(sdb, true, coreID, cp->name, "lookups",
+                                       "number of lookups in %s", &cp->stat.load_lookups, 0, true, NULL);
         auto& misses_st =
-                stat_reg_cache_counter(sdb, true, arch->id, cp->name, "misses",
-                                       "number of misses in %s", &cp->stat.load_misses, 0, TRUE, NULL);
+                stat_reg_cache_counter(sdb, true, coreID, cp->name, "misses",
+                                       "number of misses in %s", &cp->stat.load_misses, 0, true, NULL);
 
         if (cp->num_prefetchers > 0) {
-            auto& pf_lookups_st = stat_reg_cache_counter(sdb, true, arch->id, cp->name, "pf_lookups",
+            auto& pf_lookups_st = stat_reg_cache_counter(sdb, true, coreID, cp->name, "pf_lookups",
                                    "number of prefetch lookups in %s", &cp->stat.prefetch_lookups,
-                                   0, TRUE, NULL);
-            auto& pf_misses_st = stat_reg_cache_counter(sdb, true, arch->id, cp->name, "pf_misses",
+                                   0, true, NULL);
+            auto& pf_misses_st = stat_reg_cache_counter(sdb, true, coreID, cp->name, "pf_misses",
                                    "number of prefetch misses in %s", &cp->stat.prefetch_misses, 0,
-                                   TRUE, NULL);
-            stat_reg_cache_formula(sdb, true, arch->id, cp->name, "pf_miss_rate",
+                                   true, NULL);
+            stat_reg_cache_formula(sdb, true, coreID, cp->name, "pf_miss_rate",
                                    "prefetch miss rate in %s", pf_misses_st / pf_lookups_st,
                                    "%12.4f");
 
-            auto& pf_insertions_st = stat_reg_cache_counter(sdb, true, arch->id, cp->name, "pf_insertions",
+            auto& pf_insertions_st = stat_reg_cache_counter(sdb, true, coreID, cp->name, "pf_insertions",
                                    "number of prefetched blocks inserted into %s",
-                                   &cp->stat.prefetch_insertions, 0, TRUE, NULL);
-            auto& pf_useful_insertions_st = stat_reg_cache_counter(sdb, true, arch->id, cp->name, "pf_useful_insertions",
+                                   &cp->stat.prefetch_insertions, 0, true, NULL);
+            auto& pf_useful_insertions_st = stat_reg_cache_counter(sdb, true, coreID, cp->name, "pf_useful_insertions",
                                    "number of prefetched blocks actually used in %s",
-                                   &cp->stat.prefetch_useful_insertions, 0, TRUE, NULL);
-            stat_reg_cache_formula(sdb, true, arch->id, cp->name, "pf_useful_rate",
+                                   &cp->stat.prefetch_useful_insertions, 0, true, NULL);
+            stat_reg_cache_formula(sdb, true, coreID, cp->name, "pf_useful_rate",
                                    "rate of useful prefetches in %s",
                                    pf_useful_insertions_st / pf_insertions_st, "%12.4f");
 
-            stat_reg_cache_formula(sdb, true, arch->id, cp->name, "miss_rate",
+            stat_reg_cache_formula(sdb, true, coreID, cp->name, "miss_rate",
                                    "miss rate in %s (no prefetches)", misses_st / lookups_st,
                                    "%12.4f");
             stat_reg_cache_formula(
-                    sdb, true, arch->id, cp->name, "total_miss_rate", "miss rate in %s",
+                    sdb, true, coreID, cp->name, "total_miss_rate", "miss rate in %s",
                     (misses_st + pf_misses_st) / (lookups_st + pf_lookups_st), "%12.4f");
         } else {
-            stat_reg_cache_formula(sdb, true, arch->id, cp->name, "miss_rate",
+            stat_reg_cache_formula(sdb, true, coreID, cp->name, "miss_rate",
                                    "miss rate in %s (no prefetches)", misses_st / lookups_st,
                                    "%12.4f");
         }
 
-        stat_reg_cache_formula(sdb, true, arch->id, cp->name, "MPKI",
+        stat_reg_cache_formula(sdb, true, coreID, cp->name, "MPKI",
                                "miss rate in MPKI (no prefetches) for %s",
                                (misses_st) / *commit_insn_st * Constant(1000), "%12.4f");
-        stat_reg_cache_formula(sdb, true, arch->id, cp->name, "MPKu",
+        stat_reg_cache_formula(sdb, true, coreID, cp->name, "MPKu",
                                "miss rate in MPKu (no prefetches) for %s",
                                (misses_st) / *commit_uops_st * Constant(1000), "%12.4f");
-        stat_reg_cache_formula(sdb, true, arch->id, cp->name, "MPKeu",
+        stat_reg_cache_formula(sdb, true, coreID, cp->name, "MPKeu",
                                "miss rate in MPKeu (no prefetches) for %s",
                                (misses_st) / *commit_eff_uops_st * Constant(1000), "%12.4f");
-        stat_reg_cache_formula(sdb, true, arch->id, cp->name, "MPKC",
+        stat_reg_cache_formula(sdb, true, coreID, cp->name, "MPKC",
                                "miss rate in MPKC (no prefetches) for %s",
                                (misses_st) / *sim_cycle_st * Constant(1000), "%12.4f");
     }
     auto& MSHR_total_occupancy_st = stat_reg_cache_counter(
-            sdb, false, arch->id, cp->name, "MSHR_total_occupancy",
-            "cumulative MSHR occupancy in %s", &cp->stat.MSHR_occupancy, 0, TRUE, NULL);
-    stat_reg_cache_formula(sdb, true, arch->id, cp->name, "MSHR_avg_occupancy",
+            sdb, false, coreID, cp->name, "MSHR_total_occupancy",
+            "cumulative MSHR occupancy in %s", &cp->stat.MSHR_occupancy, 0, true, NULL);
+    stat_reg_cache_formula(sdb, true, coreID, cp->name, "MSHR_avg_occupancy",
                            "average MSHR entries in use in %s",
                            MSHR_total_occupancy_st / *sim_cycle_st, "%12.4f");
     auto& MSHR_full_cycles_st = stat_reg_cache_counter(
-            sdb, false, arch->id, cp->name, "MSHR_full_cycles", "cycles MSHR was full in %s",
-            &cp->stat.MSHR_full_cycles, 0, TRUE, NULL);
-    stat_reg_cache_formula(sdb, true, arch->id, cp->name, "MSHR_full",
+            sdb, false, coreID, cp->name, "MSHR_full_cycles", "cycles MSHR was full in %s",
+            &cp->stat.MSHR_full_cycles, 0, true, NULL);
+    stat_reg_cache_formula(sdb, true, coreID, cp->name, "MSHR_full",
                            "fraction of time MSHRs are full in %s",
                            MSHR_full_cycles_st / *sim_cycle_st, "%12.4f");
-    stat_reg_cache_counter(sdb, true, arch->id, cp->name, "MSHR_combos",
-                           "MSHR requests combined in %s", &cp->stat.MSHR_combos, 0, TRUE, NULL);
+    stat_reg_cache_counter(sdb, true, coreID, cp->name, "MSHR_combos",
+                           "MSHR requests combined in %s", &cp->stat.MSHR_combos, 0, true, NULL);
 
     for (int i = 0; i < cp->num_prefetchers; i++)
         cp->prefetcher[i]->reg_stats(sdb, core);
@@ -467,33 +470,32 @@ void LLC_reg_stats(xiosim::stats::StatsDatabase* sdb, struct cache_t* const cp) 
 
     assert(cp->read_only == CACHE_READWRITE);
 
-    auto sim_cycle_st = stat_find_stat<qword_t>(sdb, "sim_cycle");
-    assert(sim_cycle_st);
+    auto sim_cycle_st = stat_find_stat<tick_t>(sdb, "sim_cycle");
 
     auto& LLC_load_lookups_st =
             stat_reg_counter(sdb, true, "LLC.load_lookups", "number of load lookups in LLC",
-                             &cp->stat.load_lookups, 0, TRUE, NULL);
+                             &cp->stat.load_lookups, 0, true, NULL);
     auto& LLC_load_misses_st =
             stat_reg_counter(sdb, true, "LLC.load_misses", "number of load misses in LLC",
-                             &cp->stat.load_misses, 0, TRUE, NULL);
+                             &cp->stat.load_misses, 0, true, NULL);
     stat_reg_formula(sdb, true, "LLC.load_miss_rate", "load miss rate in LLC",
                      LLC_load_misses_st / LLC_load_lookups_st, "%12.4f");
 
     auto& LLC_store_lookups_st =
             stat_reg_counter(sdb, true, "LLC.store_lookups", "number of store lookups in LLC",
-                             &cp->stat.store_lookups, 0, TRUE, NULL);
+                             &cp->stat.store_lookups, 0, true, NULL);
     auto& LLC_store_misses_st =
             stat_reg_counter(sdb, true, "LLC.store_misses", "number of store misses in LLC",
-                             &cp->stat.store_misses, 0, TRUE, NULL);
+                             &cp->stat.store_misses, 0, true, NULL);
     stat_reg_formula(sdb, true, "LLC.store_miss_rate", "store miss rate in LLC",
                      LLC_store_misses_st / LLC_store_lookups_st, "%12.4f");
 
     auto& LLC_writeback_lookups_st = stat_reg_counter(sdb, true, "LLC.writeback_lookups",
                                                       "number of writeback lookups in LLC",
-                                                      &cp->stat.writeback_lookups, 0, TRUE, NULL);
+                                                      &cp->stat.writeback_lookups, 0, true, NULL);
     auto& LLC_writeback_misses_st =
             stat_reg_counter(sdb, true, "LLC.writeback_misses", "number of writeback misses in LLC",
-                             &cp->stat.writeback_misses, 0, TRUE, NULL);
+                             &cp->stat.writeback_misses, 0, true, NULL);
     stat_reg_formula(sdb, true, "LLC.writeback_miss_rate", "writeback miss rate in LLC",
                      LLC_writeback_misses_st / LLC_writeback_lookups_st, "%12.4f");
 
@@ -509,20 +511,20 @@ void LLC_reg_stats(xiosim::stats::StatsDatabase* sdb, struct cache_t* const cp) 
     if (cp->num_prefetchers > 0) {
         auto& LLC_pf_lookups_st =
                 stat_reg_counter(sdb, true, "LLC.pf_lookups", "number of prefetch lookups in LLC",
-                                 &cp->stat.prefetch_lookups, 0, TRUE, NULL);
+                                 &cp->stat.prefetch_lookups, 0, true, NULL);
         auto& LLC_pf_misses_st =
                 stat_reg_counter(sdb, true, "LLC.pf_misses", "number of prefetch misses in LLC",
-                                 &cp->stat.prefetch_misses, 0, TRUE, NULL);
+                                 &cp->stat.prefetch_misses, 0, true, NULL);
         stat_reg_formula(sdb, true, "LLC.pf_miss_rate", "prefetch miss rate in LLC",
                          LLC_pf_misses_st / LLC_pf_lookups_st, "%12.4f");
 
         auto& LLC_pf_insertions_st = stat_reg_counter(
                 sdb, true, "LLC.pf_insertions", "number of prefetched blocks inserted into LLC",
-                &cp->stat.prefetch_insertions, 0, TRUE, NULL);
+                &cp->stat.prefetch_insertions, 0, true, NULL);
         auto& LLC_pf_useful_insertions_st =
                 stat_reg_counter(sdb, true, "LLC.pf_useful_insertions",
                                  "number of prefetched blocks actually used in LLC",
-                                 &cp->stat.prefetch_useful_insertions, 0, TRUE, NULL);
+                                 &cp->stat.prefetch_useful_insertions, 0, true, NULL);
         stat_reg_formula(sdb, true, "LLC.pf_useful_rate", "rate of useful prefetches in LLC",
                          LLC_pf_useful_insertions_st / LLC_pf_insertions_st, "%12.4f");
 
@@ -560,46 +562,42 @@ void LLC_reg_stats(xiosim::stats::StatsDatabase* sdb, struct cache_t* const cp) 
 
     auto& LLC_MSHR_total_occupancy_st = stat_reg_counter(sdb, false, "LLC.MSHR_total_occupancy",
                                                          "cumulative MSHR occupancy in LLC",
-                                                         &cp->stat.MSHR_occupancy, 0, TRUE, NULL);
+                                                         &cp->stat.MSHR_occupancy, 0, true, NULL);
     stat_reg_formula(sdb, true, "LLC.MSHR_avg_occupancy", "average MSHR entries in use in LLC",
                      LLC_MSHR_total_occupancy_st / *sim_cycle_st, "%12.4f");
     auto& LLC_MSHR_full_cycles_st =
             stat_reg_counter(sdb, false, "LLC.MSHR_full_cycles", "cycles MSHR was full in LLC",
-                             &cp->stat.MSHR_full_cycles, 0, TRUE, NULL);
+                             &cp->stat.MSHR_full_cycles, 0, true, NULL);
     stat_reg_formula(sdb, true, "LLC.MSHR_full", "fraction of time MSHRs are full in LLC",
                      LLC_MSHR_full_cycles_st / *sim_cycle_st, "%12.4f");
 
     stat_reg_counter(sdb, true, "LLC.MSHR_combos", "MSHR requests combined in LLC",
-                     &cp->stat.MSHR_combos, 0, TRUE, NULL);
+                     &cp->stat.MSHR_combos, 0, true, NULL);
 
     if (num_cores == 1) {
-        auto commit_insn_st = stat_find_core_stat<sqword_t>(sdb, 0, "commit_insn");
-        assert(commit_insn_st);
-
+        auto commit_insn_st = stat_find_core_stat<counter_t>(sdb, 0, "commit_insn");
         stat_reg_counter(sdb, true, "LLC.lookups", "number of lookups in the LLC",
-                         &cp->stat.core_lookups[0], 0, TRUE, NULL);
+                         &cp->stat.core_lookups[0], 0, true, NULL);
         auto& LLC_misses_st =
                 stat_reg_counter(sdb, true, "LLC.misses", "number of misses in the LLC",
-                                 &cp->stat.core_misses[0], 0, TRUE, NULL);
+                                 &cp->stat.core_misses[0], 0, true, NULL);
         stat_reg_formula(sdb, true, "LLC.MPKI", "MPKI for the LLC",
                          LLC_misses_st / *commit_insn_st * Constant(1000), "%12.4f");
         stat_reg_formula(sdb, true, "LLC.MPKC", "MPKC for the LLC",
                          LLC_misses_st / *sim_cycle_st * Constant(1000), "%12.4f");
     } else {
         for (int i = 0; i < num_cores; i++) {
-            auto commit_insn_st = stat_find_core_stat<sqword_t>(sdb, i, "commit_insn");
-            assert(commit_insn_st);
-            auto core_sim_cycle_st = stat_find_core_stat<qword_t>(sdb, i, "sim_cycle");
-            assert(core_sim_cycle_st);
+            auto commit_insn_st = stat_find_core_stat<counter_t>(sdb, i, "commit_insn");
+            auto core_sim_cycle_st = stat_find_core_stat<tick_t>(sdb, i, "sim_cycle");
 
             auto& LLC_lookups_st =
                     stat_reg_cache_counter(sdb, true, i, cp->name, "lookups",
                                            "number of lookups by core %d in shared %s cache",
-                                           &cp->stat.core_lookups[i], 0, TRUE, NULL, true);
+                                           &cp->stat.core_lookups[i], 0, true, NULL, true);
             auto& LLC_misses_st =
                     stat_reg_cache_counter(sdb, true, i, cp->name, "misses",
                                            "number of misses by core %d in shared %s cache",
-                                           &cp->stat.core_misses[i], 0, TRUE, NULL, true);
+                                           &cp->stat.core_misses[i], 0, true, NULL, true);
             stat_reg_cache_formula(sdb, true, i, cp->name, "miss_rate",
                                    "miss rate by core %d in shared %s cache",
                                    LLC_misses_st / LLC_lookups_st, "%12.4f", true);
@@ -1069,7 +1067,7 @@ struct cache_line_t * cache_get_evictee(
 
       while(1)
       {
-        qword_t way = cp->blocks[index][1].meta;
+        uint64_t way = cp->blocks[index][1].meta;
         struct cache_line_t * p = &cp->blocks[index][way];
 
         /* increment clock */
@@ -1510,7 +1508,7 @@ void print_heap(const struct cache_t * const cp)
   {
     fprintf(stderr,"%s[%d] <%d>: {",cp->name,i,cp->pipe_num[i]);
     for(int j=1;j<=cp->pipe_num[i];j++)
-      fprintf(stderr," %lld",cp->pipe[i][j].pipe_exit_time);
+      fprintf(stderr," %" PRId64"",cp->pipe[i][j].pipe_exit_time);
     fprintf(stderr," }\n");
   }
 }
@@ -1656,9 +1654,9 @@ static void update_request_stats(
 {
   /* LLC stats are per core */
   if((cp == uncore->LLC) && (ca->core)) {
-    CACHE_STAT(cp->stat.core_lookups[ca->core->current_thread->id]++;)
+    CACHE_STAT(cp->stat.core_lookups[ca->core->id]++;)
     if(!hit)
-      CACHE_STAT(cp->stat.core_misses[ca->core->current_thread->id]++;)
+      CACHE_STAT(cp->stat.core_misses[ca->core->id]++;)
   }
 
   /* Per-request type stats */
@@ -2138,7 +2136,7 @@ static void cache_process_pipe(struct cache_t * const cp, int start_point)
                   else
                     pf_addr = cp->prefetcher[ii]->latest_lookup(ca->PC,ca->paddr);
 
-                  if(pf_addr & ~(PAGE_SIZE-1)) { /* don't prefetch from zeroth page */
+                  if(memory::page_round_down(pf_addr)) { /* don't prefetch from zeroth page */
                     int j;
 
                     /* search PFF to see if pf_addr already requested */
@@ -2463,9 +2461,9 @@ static void cache_prefetch(struct cache_t * const cp)
          && (cp->MSHR_num_pf[bank] < cp->prefetch_max))
       {
         md_addr_t pf_PC = cp->PFF[cp->PFF_head].PC;
-        if(cache_enqueuable(cp,DO_NOT_TRANSLATE,pf_addr))
+        if(cache_enqueuable(cp, memory::DO_NOT_TRANSLATE, pf_addr))
         {
-          cache_enqueue(core,cp,NULL,CACHE_PREFETCH,DO_NOT_TRANSLATE,pf_PC,pf_addr,(seq_t)-1,bank,NO_MSHR,NULL,dummy_callback,NULL,NULL,NULL);
+          cache_enqueue(core, cp, NULL, CACHE_PREFETCH, memory::DO_NOT_TRANSLATE, pf_PC, pf_addr, (seq_t)-1, bank, NO_MSHR, NULL, dummy_callback, NULL, NULL, NULL);
           cp->PFF_head = modinc(cp->PFF_head,cp->PFF_size); //(cp->PFF_head+1) % cp->PFF_size;
           cp->PFF_num --;
           cache_assert(cp->PFF_num >= 0,(void)0);
@@ -2537,7 +2535,7 @@ tick_t cache_get_cycle(const struct cache_t * const cp)
 void cache_print(const struct cache_t * const cp)
 {
   fprintf(stderr,"<<<<< %s >>>>>\n",cp->name);
-  fprintf(stderr, "current cycle: %lld\n", cache_get_cycle(cp));
+  fprintf(stderr, "current cycle: %" PRId64"\n", cache_get_cycle(cp));
   for(int i=0;i<cp->banks;i++)
   {
     int j;
@@ -2552,7 +2550,7 @@ void cache_print(const struct cache_t * const cp)
           fprintf(stderr,"S:");
         else
           fprintf(stderr,"P:");
-        fprintf(stderr,"%p(%lld)",cp->pipe[i][j].op,((struct uop_t*)cp->pipe[i][j].op)->decode.uop_seq);
+        fprintf(stderr,"%p(%" PRId64")",cp->pipe[i][j].op,((struct uop_t*)cp->pipe[i][j].op)->decode.uop_seq);
       }
       else
         fprintf(stderr,"---");
@@ -2565,7 +2563,7 @@ void cache_print(const struct cache_t * const cp)
     for(j=0;j<cp->latency;j++)
     {
       if(cp->fill_pipe[i][j].valid)
-        fprintf(stderr,"%llx",cp->fill_pipe[i][j].paddr);
+        fprintf(stderr,"%" PRIx64"",cp->fill_pipe[i][j].paddr);
       else
         fprintf(stderr,"---");
       if(j != cp->latency-1)
@@ -2579,7 +2577,7 @@ void cache_print(const struct cache_t * const cp)
       if(cp->MSHR[i][j].cb)
       {
         fprintf(stderr," %c:",(cp->MSHR[i][j].cmd==CACHE_READ)?'L':'S');
-        fprintf(stderr,"%p(%lld)",cp->MSHR[i][j].op,((struct uop_t*)cp->MSHR[i][j].op)->decode.uop_seq);
+        fprintf(stderr,"%p(%" PRId64")",cp->MSHR[i][j].op,((struct uop_t*)cp->MSHR[i][j].op)->decode.uop_seq);
       }
       fprintf(stderr,"\n");
     }

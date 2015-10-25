@@ -1,5 +1,4 @@
-/* Headers needed for statistics library. Must be included before machine.h to
- * prevent name conflicts with macros. */
+/* Headers needed for statistics library. */
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-local-typedefs"

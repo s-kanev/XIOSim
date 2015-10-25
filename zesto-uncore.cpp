@@ -72,12 +72,14 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
+#include <cmath>
 #include <limits.h>
 #include <ctype.h>
 
+#include "misc.h"
 #include "stats.h"
-#include "thread.h"
 #include "sim.h"
+
 #include "zesto-core.h"
 #include "zesto-cache.h"
 #include "zesto-prefetch.h"
@@ -143,7 +145,7 @@ uncore_t::uncore_t(
   char rp, ap, wp, wc;
 
   fsb_width = arg_fsb_width;
-  fsb_bits = log_base2(fsb_width);
+  fsb_bits = std::log2(fsb_width);
   int llc_ratio = (int)ceil(LLC_speed/fsb_speed);
 
   fsb = bus_create("FSB", fsb_width, &this->sim_cycle, llc_ratio);

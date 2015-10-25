@@ -93,222 +93,202 @@ core_commit_DPM_t::core_commit_DPM_t(struct core_t * const arg_core):
     fatal("couldn't calloc ROB");
 }
 
-void core_commit_DPM_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
-{
-    struct thread_t* arch = core->current_thread;
+void core_commit_DPM_t::reg_stats(xiosim::stats::StatsDatabase* sdb) {
+    int coreID = core->id;
 
     stat_reg_note(sdb, "\n#### COMMIT STATS ####");
 
-    auto& sim_cycle_st = *stat_find_core_stat<qword_t>(sdb, arch->id, "sim_cycle");
-    auto& commit_insn_st = *stat_find_core_stat<qword_t>(sdb, arch->id, "commit_insn");
-    auto& commit_uops_st = *stat_find_core_stat<qword_t>(sdb, arch->id, "commit_uops");
-    auto& commit_eff_uops_st = *stat_find_core_stat<qword_t>(sdb, arch->id, "commit_eff_uops");
+    auto& sim_cycle_st = *stat_find_core_stat<tick_t>(sdb, coreID, "sim_cycle");
+    auto& commit_insn_st = *stat_find_core_stat<counter_t>(sdb, coreID, "commit_insn");
+    auto& commit_uops_st = *stat_find_core_stat<counter_t>(sdb, coreID, "commit_uops");
+    auto& commit_eff_uops_st = *stat_find_core_stat<counter_t>(sdb, coreID, "commit_eff_uops");
 
-    auto& commit_bytes_st = stat_reg_core_counter(sdb, true, arch->id, "commit_bytes",
+    auto& commit_bytes_st = stat_reg_core_counter(sdb, true, coreID, "commit_bytes",
                                                   "total number of bytes committed",
-                                                  &core->stat.commit_bytes, 0, TRUE, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "commit_BPC", "BPC (bytes per cycle) at commit",
+                                                  &core->stat.commit_bytes, 0, true, NULL);
+    stat_reg_core_formula(sdb, true, coreID, "commit_BPC", "BPC (bytes per cycle) at commit",
                           commit_bytes_st / sim_cycle_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "commit_IPC", "IPC at commit",
+    stat_reg_core_formula(sdb, true, coreID, "commit_IPC", "IPC at commit",
                           commit_insn_st / sim_cycle_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "commit_uPC", "uPC at commit",
+    stat_reg_core_formula(sdb, true, coreID, "commit_uPC", "uPC at commit",
                           commit_uops_st / sim_cycle_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "commit_euPC", "effective uPC at commit",
+    stat_reg_core_formula(sdb, true, coreID, "commit_euPC", "effective uPC at commit",
                           commit_eff_uops_st / sim_cycle_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "commit_byte_per_inst",
+    stat_reg_core_formula(sdb, true, coreID, "commit_byte_per_inst",
                           "average bytes per instruction", commit_bytes_st / commit_insn_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "commit_byte_per_uops", "average bytes per uop",
+    stat_reg_core_formula(sdb, true, coreID, "commit_byte_per_uops", "average bytes per uop",
                           commit_bytes_st / commit_uops_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "commit_byte_per_eff_uop",
+    stat_reg_core_formula(sdb, true, coreID, "commit_byte_per_eff_uop",
                           "average bytes per effective uop", commit_bytes_st / commit_eff_uops_st,
                           NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "avg_commit_flowlen",
+    stat_reg_core_formula(sdb, true, coreID, "avg_commit_flowlen",
                           "uops per instruction at commit", commit_uops_st / commit_insn_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "avg_commit_eff_flowlen",
+    stat_reg_core_formula(sdb, true, coreID, "avg_commit_eff_flowlen",
                           "effective uops per instruction at commit",
                           commit_eff_uops_st / commit_insn_st, NULL);
 
-    auto& commit_fusions_st = stat_reg_core_counter(sdb, true, arch->id, "commit_fusions",
+    auto& commit_fusions_st = stat_reg_core_counter(sdb, true, coreID, "commit_fusions",
                                                     "total number of fused uops committed",
-                                                    &core->stat.commit_fusions, 0, TRUE, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "commit_fusion_uops", "fused uops at commit",
+                                                    &core->stat.commit_fusions, 0, true, NULL);
+    stat_reg_core_formula(sdb, true, coreID, "commit_fusion_uops", "fused uops at commit",
                           (commit_eff_uops_st - commit_uops_st) + commit_fusions_st, "%12.0f");
     // TODO: Duplicating the formula terms for now.
     stat_reg_core_formula(
-            sdb, true, arch->id, "commit_frac_fusion_uops",
+            sdb, true, coreID, "commit_frac_fusion_uops",
             "fraction of effective uops fused at commit",
             ((commit_eff_uops_st - commit_uops_st) + commit_fusions_st) / commit_eff_uops_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "commit_fusion_compression",
+    stat_reg_core_formula(sdb, true, coreID, "commit_fusion_compression",
                           "fraction of effective uops compressed via fusion at commit",
                           (commit_eff_uops_st - commit_uops_st) / commit_eff_uops_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "commit_fusion_expansion",
+    stat_reg_core_formula(sdb, true, coreID, "commit_fusion_expansion",
                           "average number of effective uops per uop (fused or standalone) commit",
                           commit_eff_uops_st / commit_uops_st, NULL);
 
-    stat_reg_core_counter(sdb, true, arch->id, "commit_dead_lock_flushes",
-                          "total number of pipe-flushes due to dead-locked pipeline",
-                          &core->stat.commit_deadlock_flushes, 0, FALSE, NULL);
-    auto& ROB_occupancy_st =
-            stat_reg_core_counter(sdb, false, arch->id, "ROB_occupancy", "total ROB occupancy",
-                                  &core->stat.ROB_occupancy, 0, TRUE, NULL);
-    auto& ROB_eff_occupancy_st = stat_reg_core_counter(
-            sdb, false, arch->id, "ROB_eff_occupancy", "total ROB effective_occupancy",
-            &core->stat.ROB_eff_occupancy, 0, TRUE, NULL);
-    auto& ROB_empty_st =
-            stat_reg_core_counter(sdb, false, arch->id, "ROB_empty", "total cycles ROB was empty",
-                                  &core->stat.ROB_empty_cycles, 0, TRUE, NULL);
-    auto& ROB_full_st =
-            stat_reg_core_counter(sdb, false, arch->id, "ROB_full", "total cycles ROB was full",
-                                  &core->stat.ROB_full_cycles, 0, TRUE, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "ROB_avg", "average ROB occupancy",
-                          ROB_occupancy_st / sim_cycle_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "ROB_eff_avg", "average ROB effective occupancy",
-                          ROB_eff_occupancy_st / sim_cycle_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "ROB_frac_empty", "fraction of cycles ROB was empty",
-                          ROB_empty_st / sim_cycle_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "ROB_frac_full", "fraction of cycles ROB was full",
-                          ROB_full_st / sim_cycle_st, NULL);
-    auto store_lookups_st = stat_find_core_stat<int>(sdb, arch->id, "DL1.store_lookups");
+    reg_core_queue_occupancy_stats(sdb, coreID, "ROB", &core->stat.ROB_occupancy,
+                                   &core->stat.ROB_empty_cycles,
+                                   &core->stat.ROB_full_cycles);
+
+    auto store_lookups_st = stat_find_core_stat<counter_t>(sdb, coreID, "DL1.store_lookups");
     auto& split_accesses_st =
-            stat_reg_core_counter(sdb, true, arch->id, "DL1_store_split_accesses",
+            stat_reg_core_counter(sdb, true, coreID, "DL1_store_split_accesses",
                                   "number of stores requiring split accesses",
-                                  &core->stat.DL1_store_split_accesses, 0, TRUE, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "DL1_store_split_frac",
+                                  &core->stat.DL1_store_split_accesses, 0, true, NULL);
+    stat_reg_core_formula(sdb, true, coreID, "DL1_store_split_frac",
                           "fraction of stores requiring split accesses",
                           split_accesses_st / (*store_lookups_st - split_accesses_st), NULL);
 
     core->stat.commit_stall = stat_reg_core_dist(
-            sdb, arch->id, "commit_stall", "breakdown of stalls at commit", 0, CSTALL_num, 1,
-            (PF_COUNT | PF_PDF), NULL, commit_stall_str, TRUE, NULL);
+            sdb, coreID, "commit_stall", "breakdown of stalls at commit", 0, CSTALL_num, 1,
+            (PF_COUNT | PF_PDF), NULL, commit_stall_str, true, NULL);
 
     stat_reg_note(sdb, "#### TIMING STATS ####");
     /* cumulative slip cycles (not printed) */
-    auto& fetch_Tslip = stat_reg_core_qword(sdb, false, arch->id, "Mop_fetch_Tslip",
+    auto& fetch_Tslip = stat_reg_core_counter(sdb, false, coreID, "Mop_fetch_Tslip",
                                             "total Mop fetch slip cycles",
-                                            (qword_t*)&core->stat.Mop_fetch_slip, 0, TRUE, NULL);
-    auto& f2d_Tslip = stat_reg_core_qword(
-            sdb, false, arch->id, "Mop_f2d_Tslip", "total Mop fetch-to-decode slip cycles",
-            (qword_t*)&core->stat.Mop_fetch2decode_slip, 0, TRUE, NULL);
-    auto& decode_Tslip = stat_reg_core_qword(sdb, false, arch->id, "Mop_decode_Tslip",
+                                            &core->stat.Mop_fetch_slip, 0, true, NULL);
+    auto& f2d_Tslip = stat_reg_core_counter(
+            sdb, false, coreID, "Mop_f2d_Tslip", "total Mop fetch-to-decode slip cycles",
+            &core->stat.Mop_fetch2decode_slip, 0, true, NULL);
+    auto& decode_Tslip = stat_reg_core_counter(sdb, false, coreID, "Mop_decode_Tslip",
                                              "total Mop decode slip cycles",
-                                             (qword_t*)&core->stat.Mop_decode_slip, 0, TRUE, NULL);
-    auto& d2a_Tslip = stat_reg_core_qword(
-            sdb, false, arch->id, "uop_d2a_Tslip", "total uop decode-to-alloc slip cycles",
-            (qword_t*)&core->stat.uop_decode2alloc_slip, 0, TRUE, NULL);
-    auto& a2r_Tslip = stat_reg_core_qword(
-            sdb, false, arch->id, "uop_a2r_Tslip", "total uop alloc-to-ready slip cycles",
-            (qword_t*)&core->stat.uop_alloc2ready_slip, 0, TRUE, NULL);
-    auto& r2i_Tslip = stat_reg_core_qword(
-            sdb, false, arch->id, "uop_r2i_Tslip", "total uop ready-to-issue slip cycles",
-            (qword_t*)&core->stat.uop_ready2issue_slip, 0, TRUE, NULL);
-    auto& i2e_Tslip = stat_reg_core_qword(sdb, false, arch->id, "uop_i2e_Tslip",
+                                             &core->stat.Mop_decode_slip, 0, true, NULL);
+    auto& d2a_Tslip = stat_reg_core_counter(
+            sdb, false, coreID, "uop_d2a_Tslip", "total uop decode-to-alloc slip cycles",
+            &core->stat.uop_decode2alloc_slip, 0, true, NULL);
+    auto& a2r_Tslip = stat_reg_core_counter(
+            sdb, false, coreID, "uop_a2r_Tslip", "total uop alloc-to-ready slip cycles",
+            &core->stat.uop_alloc2ready_slip, 0, true, NULL);
+    auto& r2i_Tslip = stat_reg_core_counter(
+            sdb, false, coreID, "uop_r2i_Tslip", "total uop ready-to-issue slip cycles",
+            &core->stat.uop_ready2issue_slip, 0, true, NULL);
+    auto& i2e_Tslip = stat_reg_core_counter(sdb, false, coreID, "uop_i2e_Tslip",
                                           "total uop issue-to-exec slip cycles",
-                                          (qword_t*)&core->stat.uop_issue2exec_slip, 0, TRUE, NULL);
-    auto& e2w_Tslip = stat_reg_core_qword(
-            sdb, false, arch->id, "uop_e2w_Tslip", "total uop exec-to-WB slip cycles",
-            (qword_t*)&core->stat.uop_exec2complete_slip, 0, TRUE, NULL);
-    auto& w2c_Tslip = stat_reg_core_qword(
-            sdb, false, arch->id, "uop_w2c_Tslip", "total uop WB-to-commit slip cycles",
-            (qword_t*)&core->stat.uop_complete2commit_slip, 0, TRUE, NULL);
-    auto& d2c_Tslip = stat_reg_core_qword(
-            sdb, false, arch->id, "Mop_d2c_Tslip", "total Mop decode-to-commit slip cycles",
-            (qword_t*)&core->stat.Mop_decode2commit_slip, 0, TRUE, NULL);
-    auto& commit_Tslip = stat_reg_core_qword(sdb, false, arch->id, "Mop_commit_Tslip",
+                                          &core->stat.uop_issue2exec_slip, 0, true, NULL);
+    auto& e2w_Tslip = stat_reg_core_counter(
+            sdb, false, coreID, "uop_e2w_Tslip", "total uop exec-to-WB slip cycles",
+            &core->stat.uop_exec2complete_slip, 0, true, NULL);
+    auto& w2c_Tslip = stat_reg_core_counter(
+            sdb, false, coreID, "uop_w2c_Tslip", "total uop WB-to-commit slip cycles",
+            &core->stat.uop_complete2commit_slip, 0, true, NULL);
+    auto& d2c_Tslip = stat_reg_core_counter(
+            sdb, false, coreID, "Mop_d2c_Tslip", "total Mop decode-to-commit slip cycles",
+            &core->stat.Mop_decode2commit_slip, 0, true, NULL);
+    auto& commit_Tslip = stat_reg_core_counter(sdb, false, coreID, "Mop_commit_Tslip",
                                              "total Mop commit slip cycles",
-                                             (qword_t*)&core->stat.Mop_commit_slip, 0, TRUE, NULL);
-    auto& num_traps_st = stat_reg_core_counter(sdb, true, arch->id, "num_traps",
-                                               "total number of traps committed",
-                                               &core->stat.commit_traps, 0, TRUE, NULL);
+                                             &core->stat.Mop_commit_slip, 0, true, NULL);
+    stat_reg_core_counter(sdb, true, coreID, "num_traps",
+                          "total number of traps committed",
+                          &core->stat.commit_traps, 0, true, NULL);
     /* average slip cycles */
-    stat_reg_core_formula(sdb, true, arch->id, "Mop_fetch_avg_slip", "Mop fetch average delay",
-                          fetch_Tslip / (commit_insn_st + num_traps_st), NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "Mop_f2d_avg_slip",
+    stat_reg_core_formula(sdb, true, coreID, "Mop_fetch_avg_slip", "Mop fetch average delay",
+                          fetch_Tslip / commit_insn_st, NULL);
+    stat_reg_core_formula(sdb, true, coreID, "Mop_f2d_avg_slip",
                           "Mop fetch-to-decode average delay",
-                          f2d_Tslip / (commit_insn_st + num_traps_st), NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "Mop_decode_avg_slip", "Mop decode average delay",
-                          decode_Tslip / (commit_insn_st - num_traps_st), NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "uop_d2a_avg_slip",
+                          f2d_Tslip / commit_insn_st, NULL);
+    stat_reg_core_formula(sdb, true, coreID, "Mop_decode_avg_slip", "Mop decode average delay",
+                          decode_Tslip / commit_insn_st, NULL);
+    stat_reg_core_formula(sdb, true, coreID, "uop_d2a_avg_slip",
                           "uop decode-to-alloc average delay", d2a_Tslip / commit_uops_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "uop2_a2r_avg_slip",
+    stat_reg_core_formula(sdb, true, coreID, "uop2_a2r_avg_slip",
                           "uop alloc-to-ready average delay", a2r_Tslip / commit_uops_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "uop_r2i_avg_slip",
+    stat_reg_core_formula(sdb, true, coreID, "uop_r2i_avg_slip",
                           "uop ready-to-issue average delay", r2i_Tslip / commit_uops_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "uop_i2e_avg_slip",
+    stat_reg_core_formula(sdb, true, coreID, "uop_i2e_avg_slip",
                           "uop issue-to-exec average delay", i2e_Tslip / commit_uops_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "uop_e2w_avg_slip", "uop exec-to-WB average delay",
+    stat_reg_core_formula(sdb, true, coreID, "uop_e2w_avg_slip", "uop exec-to-WB average delay",
                           e2w_Tslip / commit_uops_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "uop_w2c_avg_slip", "uop WB-to-commit average delay",
+    stat_reg_core_formula(sdb, true, coreID, "uop_w2c_avg_slip", "uop WB-to-commit average delay",
                           w2c_Tslip / commit_uops_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "Mop_d2c_avg_slip",
+    stat_reg_core_formula(sdb, true, coreID, "Mop_d2c_avg_slip",
                           "Mop decode-to-commit average delay",
-                          d2c_Tslip / (commit_insn_st - num_traps_st), NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "Mop_commit_avg_slip", "Mop commit average delay",
-                          commit_Tslip / (commit_insn_st - num_traps_st), NULL);
+                          d2c_Tslip / commit_insn_st, NULL);
+    stat_reg_core_formula(sdb, true, coreID, "Mop_commit_avg_slip", "Mop commit average delay",
+                          commit_Tslip / commit_insn_st, NULL);
 
     // TODO: Support sum of other formulas. For now, just write the whole thing out by hand.
     char stat_name[1024];
-    sprintf(stat_name, "c%d.Mop_avg_end_to_end", arch->id);
+    sprintf(stat_name, "c%d.Mop_avg_end_to_end", coreID);
     Formula Mop_avg_end_to_end(stat_name, "Mop average end-to-end pipeline delay");
     Mop_avg_end_to_end =
-            fetch_Tslip / (commit_insn_st + num_traps_st)  +    // Mop_fetch_avg_slip.
-            f2d_Tslip / (commit_insn_st + num_traps_st)    +    // Mop_f2d_avg_slip.
-            decode_Tslip / (commit_insn_st - num_traps_st) +    // Mop_d2c_avg_slip.
-            commit_Tslip / (commit_insn_st - num_traps_st);     // Mop_commit_avg_slip.
+            fetch_Tslip / commit_insn_st  +    // Mop_fetch_avg_slip.
+            f2d_Tslip / commit_insn_st    +    // Mop_f2d_avg_slip.
+            decode_Tslip / commit_insn_st +    // Mop_d2c_avg_slip.
+            commit_Tslip / commit_insn_st;     // Mop_commit_avg_slip.
 
     /* instruction distribution stats */
     stat_reg_note(sdb, "\n#### INSTRUCTION STATS (no wrong-path) ####");
-    stat_reg_core_formula(sdb, true, arch->id, "num_insn", "total number of instructions committed",
+    stat_reg_core_formula(sdb, true, coreID, "num_insn", "total number of instructions committed",
                           commit_insn_st, NULL);
-    auto& num_refs_st = stat_reg_core_counter(sdb, true, arch->id, "num_refs",
+    auto& num_refs_st = stat_reg_core_counter(sdb, true, coreID, "num_refs",
                                               "total number of loads and stores committed",
-                                              &core->stat.commit_refs, 0, TRUE, NULL);
-    auto& num_loads_st = stat_reg_core_counter(sdb, true, arch->id, "num_loads",
+                                              &core->stat.commit_refs, 0, true, NULL);
+    auto& num_loads_st = stat_reg_core_counter(sdb, true, coreID, "num_loads",
                                                "total number of loads committed",
-                                               &core->stat.commit_loads, 0, TRUE, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "num_stores", "total number of stores committed",
+                                               &core->stat.commit_loads, 0, true, NULL);
+    stat_reg_core_formula(sdb, true, coreID, "num_stores", "total number of stores committed",
                           num_refs_st - num_loads_st, "%12.0f");
-    stat_reg_core_counter(sdb, true, arch->id, "num_branches", "total number of branches committed",
-                          &core->stat.commit_branches, 0, TRUE, NULL);
-    auto& num_rep_insn_st = stat_reg_core_counter(sdb, true, arch->id, "num_rep_insn",
+    stat_reg_core_counter(sdb, true, coreID, "num_branches", "total number of branches committed",
+                          &core->stat.commit_branches, 0, true, NULL);
+    auto& num_rep_insn_st = stat_reg_core_counter(sdb, true, coreID, "num_rep_insn",
                                                   "total number of REP insts committed",
-                                                  &core->stat.commit_rep_insn, 0, TRUE, NULL);
-    auto& num_rep_iter_st = stat_reg_core_counter(sdb, true, arch->id, "num_rep_iter",
+                                                  &core->stat.commit_rep_insn, 0, true, NULL);
+    auto& num_rep_iter_st = stat_reg_core_counter(sdb, true, coreID, "num_rep_iter",
                                                   "total number of REP iterations committed",
-                                                  &core->stat.commit_rep_iterations, 0, TRUE, NULL);
-    auto& num_rep_uops_st = stat_reg_core_counter(sdb, true, arch->id, "num_rep_uops",
+                                                  &core->stat.commit_rep_iterations, 0, true, NULL);
+    auto& num_rep_uops_st = stat_reg_core_counter(sdb, true, coreID, "num_rep_uops",
                                                   "total number of uops in REP insts committed",
-                                                  &core->stat.commit_rep_uops, 0, TRUE, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "num_avg_reps", "average iterations per REP inst",
+                                                  &core->stat.commit_rep_uops, 0, true, NULL);
+    stat_reg_core_formula(sdb, true, coreID, "num_avg_reps", "average iterations per REP inst",
                           num_rep_iter_st / num_rep_insn_st, "%12.2f");
-    stat_reg_core_formula(sdb, true, arch->id, "num_avg_rep_uops", "average uops per REP inst",
+    stat_reg_core_formula(sdb, true, coreID, "num_avg_rep_uops", "average uops per REP inst",
                           num_rep_uops_st / num_rep_insn_st, "%12.2f");
-    auto& num_UROM_insn_st = stat_reg_core_counter(sdb, true, arch->id, "num_UROM_insn",
+    auto& num_UROM_insn_st = stat_reg_core_counter(sdb, true, coreID, "num_UROM_insn",
                                                    "total number of insn using the UROM committed",
-                                                   &core->stat.commit_UROM_insn, 0, TRUE, NULL);
-    auto& num_UROM_uops_st = stat_reg_core_counter(sdb, true, arch->id, "num_UROM_uops",
+                                                   &core->stat.commit_UROM_insn, 0, true, NULL);
+    auto& num_UROM_uops_st = stat_reg_core_counter(sdb, true, coreID, "num_UROM_uops",
                                                    "total number of uops using the UROM committed",
-                                                   &core->stat.commit_UROM_uops, 0, TRUE, NULL);
-    stat_reg_core_counter(sdb, true, arch->id, "num_UROM_eff_uops",
+                                                   &core->stat.commit_UROM_uops, 0, true, NULL);
+    stat_reg_core_counter(sdb, true, coreID, "num_UROM_eff_uops",
                           "total number of effective uops using the UROM committed",
-                          &core->stat.commit_UROM_eff_uops, 0, TRUE, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "num_avg_UROM_uops", "average uops per UROM inst",
+                          &core->stat.commit_UROM_eff_uops, 0, true, NULL);
+    stat_reg_core_formula(sdb, true, coreID, "num_avg_UROM_uops", "average uops per UROM inst",
                           num_UROM_uops_st / num_UROM_insn_st, "%12.2f");
-    stat_reg_core_formula(sdb, true, arch->id, "avg_flowlen", "average uops per instruction",
+    stat_reg_core_formula(sdb, true, coreID, "avg_flowlen", "average uops per instruction",
                           commit_uops_st / commit_insn_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "avg_eff_flowlen",
+    stat_reg_core_formula(sdb, true, coreID, "avg_eff_flowlen",
                           "average effective uops per instruction",
                           commit_eff_uops_st / commit_insn_st, NULL);
-    stat_reg_core_counter(sdb, true, arch->id, "regfile_writes", "number of register file writes",
-                          &core->stat.regfile_writes, 0, TRUE, NULL);
-    stat_reg_core_counter(sdb, true, arch->id, "fp_regfile_writes",
+    stat_reg_core_counter(sdb, true, coreID, "regfile_writes", "number of register file writes",
+                          &core->stat.regfile_writes, 0, true, NULL);
+    stat_reg_core_counter(sdb, true, coreID, "fp_regfile_writes",
                           "number of fp register file writes", &core->stat.fp_regfile_writes, 0,
-                          TRUE, NULL);
+                          true, NULL);
     core->stat.flow_histo =
-            stat_reg_core_dist(sdb, arch->id, "flow_lengths", "histogram of uop flow lengths", 0,
-                               FLOW_HISTO_SIZE, 1, (PF_COUNT | PF_PDF), NULL, NULL, TRUE, NULL);
+            stat_reg_core_dist(sdb, coreID, "flow_lengths", "histogram of uop flow lengths", 0,
+                               FLOW_HISTO_SIZE, 1, (PF_COUNT | PF_PDF), NULL, NULL, true, NULL);
     core->stat.eff_flow_histo = stat_reg_core_dist(
-            sdb, arch->id, "eff_flow_lengths", "histogram of effective uop flow lengths", 0,
-            FLOW_HISTO_SIZE, 1, (PF_COUNT | PF_PDF), NULL, NULL, TRUE, NULL);
+            sdb, coreID, "eff_flow_lengths", "histogram of effective uop flow lengths", 0,
+            FLOW_HISTO_SIZE, 1, (PF_COUNT | PF_PDF), NULL, NULL, true, NULL);
 }
 
 void core_commit_DPM_t::update_occupancy(void)
@@ -340,7 +320,7 @@ void core_commit_DPM_t::step(void)
      in the pipeline and no forward progress is being made, this
      code will eventually detect it. A global watchdog will check
      if any core is making progress and accordingly if not.*/
-  if(core->current_thread->active && ((core->sim_cycle - core->exec->last_completed) > deadlock_threshold))
+  if(core->active && ((core->sim_cycle - core->exec->last_completed) > deadlock_threshold))
   {
     deadlocked = true;
     return;
@@ -385,7 +365,7 @@ void core_commit_DPM_t::step(void)
         struct uop_t * uop = &Mop->uop[Mop->commit.complete_index];
 
         Mop->commit.complete_index += uop->decode.has_imm ? 3 : 1;
-        if(Mop->commit.complete_index >= Mop->decode.flow_length)
+        if(Mop->commit.complete_index >= (int) Mop->decode.flow_length)
         {
           Mop->commit.complete_index = -1; /* Mark this Mop as all done */
 #ifdef ZTRACE
@@ -480,10 +460,12 @@ void core_commit_DPM_t::step(void)
         zesto_assert(uop->timing.when_exec != TICK_T_MAX,(void)0);
       }
 
-      if(REG_IS_GPR(uop->decode.odep_name))
-        core->stat.regfile_writes++;
-      else if(REG_IS_FPR(uop->decode.odep_name))
-        core->stat.fp_regfile_writes++;
+      for (size_t oreg = 0; oreg < MAX_ODEPS; oreg++) {
+        if(x86::is_ireg(uop->decode.odep_name[oreg]))
+          core->stat.regfile_writes++;
+        else if(x86::is_freg(uop->decode.odep_name[oreg]))
+          core->stat.fp_regfile_writes++;
+      }
 
       /* this cleans up idep/odep ptrs, register mappings, and
          commit stores to the real (non-spec) memory system */
@@ -492,7 +474,7 @@ void core_commit_DPM_t::step(void)
       /* mark uop as committed in Mop */
       Mop->commit.commit_index += uop->decode.has_imm ? 3 : 1;
 
-      if(Mop->commit.commit_index >= Mop->decode.flow_length)
+      if(Mop->commit.commit_index >= (int) Mop->decode.flow_length)
       {
         Mop->commit.commit_index = -1; /* The entire Mop has been committed */
 
@@ -500,7 +482,7 @@ void core_commit_DPM_t::step(void)
         if(Mop->uop[Mop->decode.last_uop_index].decode.EOM)
         {
           ZESTO_STAT(core->stat.commit_insn++;)
-          ZESTO_STAT(core->stat.commit_bytes += Mop->fetch.inst.len;)
+          ZESTO_STAT(core->stat.commit_bytes += Mop->fetch.len;)
         }
 
         if(Mop->decode.is_ctrl)
@@ -511,7 +493,7 @@ void core_commit_DPM_t::step(void)
         ZESTO_STAT(core->stat.commit_branches += Mop->stat.num_branches;)
         ZESTO_STAT(core->stat.commit_refs += Mop->stat.num_refs;)
         ZESTO_STAT(core->stat.commit_loads += Mop->stat.num_loads;)
-        if(Mop->fetch.inst.rep)
+        if(Mop->decode.has_rep)
         {
           if(Mop->uop[Mop->decode.last_uop_index].decode.EOM)
             ZESTO_STAT(core->stat.commit_rep_insn++;)
@@ -529,7 +511,7 @@ void core_commit_DPM_t::step(void)
         core->stat.flow_count += Mop->stat.num_uops;
         core->stat.eff_flow_count += Mop->stat.num_eff_uops;
 
-        if(Mop->fetch.inst.rep) /* all iterations of a REP count as one macro-op! */
+        if(Mop->decode.has_rep) /* all iterations of a REP count as one macro-op! */
         {
           if(Mop->uop[0].decode.BOM)
           {
@@ -631,7 +613,6 @@ core_commit_DPM_t::recover(const struct Mop_t * const Mop)
 
     while(ROB[index] && (ROB[index]->Mop != Mop))
     {
-      int i;
       struct uop_t * dead_uop = ROB[index];
 
       zesto_assert(ROB_num > 0,(void)0);
@@ -683,7 +664,7 @@ core_commit_DPM_t::recover(const struct Mop_t * const Mop)
            need to clean-up our parent's forward-pointers (odeps)
            and our own back-pointers (our fwd-ptrs would have
            already cleaned-up our own children). */
-        for(i=0;i<MAX_IDEPS;i++)
+        for(size_t i=0;i<MAX_IDEPS;i++)
         {
           struct uop_t * parent = dead_uop->exec.idep_uop[i];
           if(parent) /* I have an active parent */
@@ -693,7 +674,7 @@ core_commit_DPM_t::recover(const struct Mop_t * const Mop)
             current = parent->exec.odep_uop;
             while(current)
             {
-              if((current->uop == dead_uop) && (current->op_num == i))
+              if((current->uop == dead_uop) && (current->op_num == (int)i))
                 break;
               prev = current;
               current = current->next;
@@ -756,7 +737,6 @@ core_commit_DPM_t::recover(void)
 
     while(ROB[index])
     {
-      int i;
       struct uop_t * dead_uop = ROB[index];
 
       zesto_assert(ROB_num > 0,(void)0);
@@ -810,7 +790,7 @@ core_commit_DPM_t::recover(void)
            need to clean-up our parent's forward-pointers (odeps)
            and our own back-pointers (our fwd-ptrs would have
            already cleaned-up our own children). */
-        for(i=0;i<MAX_IDEPS;i++)
+        for(size_t i=0;i<MAX_IDEPS;i++)
         {
           struct uop_t * parent = dead_uop->exec.idep_uop[i];
           if(parent) /* I have an active parent */
@@ -820,7 +800,7 @@ core_commit_DPM_t::recover(void)
             current = parent->exec.odep_uop;
             while(current)
             {
-              if((current->uop == dead_uop) && (current->op_num == i))
+              if((current->uop == dead_uop) && (current->op_num == (int)i))
                 break;
               prev = current;
               current = current->next;

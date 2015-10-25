@@ -84,11 +84,18 @@ else
     DRAMSIM_LIB = $(ZESTO_HOME)/DRAMSim2/libdramsim.a
 endif
 
+ifeq ($(XED_ROOT),)
+    $(error XED kid not found in PIN_ROOT)
+endif
+XED_LIBS = -lxed
+XED_LPATHS = -L$(XED_ROOT)/lib
+XED_CXXFLAGS = -I$(XED_ROOT)/include
+
 # Now the actual compilation flags
 CXXFLAGS ?= -g -std=c++11
 CXXFLAGS += -Wno-unused-function -Wno-unknown-pragmas -Wno-unused-local-typedefs
 CXXFLAGS += -DDEBUG -D_FILE_OFFSET_BITS=64
-CXXFLAGS += $(CONFUSE_CXXFLAGS) $(BOOST_CXXFLAGS)
+CXXFLAGS += $(CONFUSE_CXXFLAGS) $(BOOST_CXXFLAGS) $(XED_CXXFLAGS)
 CXXFLAGS += -I$(INSTLIB_HOME)
 CXXFLAGS += -I$(CATCH_HOME) -I$(ZESTO_HOME)
 CXXFLAGS += -msse4a -mfpmath=sse
@@ -96,8 +103,8 @@ CXXFLAGS += -msse4a -mfpmath=sse
 # additional debug flags
 ifeq ($(DEBUG),1)
     CXXFLAGS += -DZESTO_PIN_DBG -DIPC_DEBUG -DPRINT_WAITS -DSCHEDULER_DEBUG
-    CXXFLAGS += -DPARSE_DEBUG -DALLOCATOR_DEBUG -DCOMPRESSION_DEBUG -DMP_DEBUG
-    CXXFLAGS += -DROI_DEBUG
+    CXXFLAGS += -DPARSE_DEBUG -DALLOCATOR_DEBUG -DSERIALIZATION_DEBUG -DMP_DEBUG
+    CXXFLAGS += -DROI_DEBUG -DSPECULATION_DEBUG
     CXXFLAGS += -O0
 endif
 
@@ -109,27 +116,37 @@ endif
 TIMING = $(OBJDIR)timing_sim
 FEEDER = $(OBJDIR)feeder_zesto.so
 HARNESS = $(OBJDIR)harness
-UNIT_TESTS = $(OBJDIR)test_allocation $(OBJDIR)test_parse_speedup $(OBJDIR)test_speedup_models $(OBJDIR)test_handshake_compression $(OBJDIR)test_parse_configs $(OBJDIR)test_stat_database
+UNIT_TESTS = $(OBJDIR)test_allocation $(OBJDIR)test_parse_speedup $(OBJDIR)test_speedup_models $(OBJDIR)test_handshake_serialization $(OBJDIR)test_uop_cracker $(OBJDIR)test_decoder $(OBJDIR)test_stat_database
+# XXX: 'unit tests' that actually require linking with all of libsim.
+# we need to untangle the mess that are config dependences.
+NOT_SO_UNIT_TESTS = $(OBJDIR)test_parse_configs
 
 SPEEDUP_OBJS = $(OBJDIR)base_speedup_model.o $(OBJDIR)log_speedup_model.o $(OBJDIR)linear_speedup_model.o $(OBJDIR)linreg.o
 ALLOCATOR_OBJS = $(SPEEDUP_OBJS) $(OBJDIR)penalty_allocator.o $(OBJDIR)local_opt_allocator.o $(OBJDIR)gang_allocator.o $(OBJDIR)base_allocator.o $(OBJDIR)optimization_targets.o
 
-TIMING_OBJS = $(OBJDIR)timing_sim.o $(OBJDIR)lib.o $(OBJDIR)scheduler.o $(ALLOCATOR_OBJS) $(OBJDIR)multiprocess_shared.o  $(OBJDIR)ipc_queues.o $(OBJDIR)mpkeys_impl.o $(OBJDIR)BufferManagerConsumer.o $(OBJDIR)BufferManager.o $(OBJDIR)buffer.o
+TIMING_OBJS = $(OBJDIR)timing_sim.o $(OBJDIR)scheduler.o $(ALLOCATOR_OBJS) $(OBJDIR)multiprocess_shared.o  $(OBJDIR)ipc_queues.o $(OBJDIR)mpkeys_impl.o $(OBJDIR)BufferManagerConsumer.o $(OBJDIR)BufferManager.o
 
-FEEDER_OBJS = $(OBJDIR)feeder_zesto.o $(OBJDIR)ildjit.o $(OBJDIR)parse_speedup.o $(OBJDIR)linreg.o $(OBJDIR)utils.o $(OBJDIR)sync_pthreads.o $(OBJDIR)syscall_handling.o $(OBJDIR)ignore_ins.o $(OBJDIR)mpkeys_impl.o $(OBJDIR)ipc_queues.o $(OBJDIR)multiprocess_shared.o $(OBJDIR)BufferManagerProducer.o $(OBJDIR)BufferManager.o $(OBJDIR)buffer.o $(OBJDIR)roi.o $(OBJDIR)replace_function.o
+FEEDER_OBJS = $(OBJDIR)feeder_zesto.o $(OBJDIR)ildjit.o $(OBJDIR)parse_speedup.o $(OBJDIR)linreg.o $(OBJDIR)utils.o $(OBJDIR)sync_pthreads.o $(OBJDIR)syscall_handling.o $(OBJDIR)ignore_ins.o $(OBJDIR)mpkeys_impl.o $(OBJDIR)ipc_queues.o $(OBJDIR)multiprocess_shared.o $(OBJDIR)BufferManagerProducer.o $(OBJDIR)BufferManager.o $(OBJDIR)roi.o $(OBJDIR)replace_function.o $(OBJDIR)speculation.o
 
 HARNESS_OBJS = $(OBJDIR)harness.o $(OBJDIR)ipc_queues.o $(OBJDIR)mpkeys_impl.o
 
-UNIT_TEST_DEPS = $(ALLOCATOR_OBJS) $(SPEEDUP_OBJS) $(OBJDIR)parse_speedup.o $(OBJDIR)linreg.o $(OBJDIR)multiprocess_shared.o $(OBJDIR)ipc_queues.o $(OBJDIR)mpkeys_impl.o $(ZESTO_HOME)/zesto-config-params.o $(OBJDIR)lib.o $(OBJDIR)buffer.o
+DECODING_OBJS = $(ZESTO_HOME)/decode.o $(ZESTO_HOME)/uop_cracker.o $(ZESTO_HOME)/fu.o $(ZESTO_HOME)/misc.o
+
+STATS_OBJS = $(ZESTO_HOME)/stats.o $(ZESTO_HOME)/expression.o
+
+UNIT_TEST_DEPS = $(ALLOCATOR_OBJS) $(SPEEDUP_OBJS) $(OBJDIR)parse_speedup.o $(OBJDIR)linreg.o $(OBJDIR)multiprocess_shared.o $(OBJDIR)ipc_queues.o $(OBJDIR)mpkeys_impl.o $(ZESTO_HOME)/zesto-config-params.o $(DECODING_OBJS) $(STATS_OBJS)
+
 UNIT_TEST_OBJS = $(UNIT_TESTS:%=%.o)
+NOT_SO_UNIT_TEST_OBJS = $(NOT_SO_UNIT_TESTS:%=%.o)
 
 ##############################################################
 #
 # build targets
 #
 ##############################################################
-all: $(OBJDIR) $(TIMING) $(HARNESS) $(FEEDER) $(UNIT_TESTS)
-test: $(OBJDIR) $(UNIT_TESTS)
+all: $(OBJDIR) $(TIMING) $(HARNESS) $(FEEDER) $(UNIT_TESTS) $(NOT_SO_UNIT_TESTS)
+
+test: $(OBJDIR) $(UNIT_TESTS) $(NOT_SO_UNIT_TESTS)
 
 ##############################################################
 #
@@ -174,16 +191,19 @@ $(OBJDIR)%.o : %.cpp
 #
 ##############################################################
 $(TIMING): $(TIMING_OBJS) $(SIM_LIB) $(MCPAT_LIB) $(DRAMSIM_LIB) $(REPEATER_LIB)
-	${LINKER} -g ${LINK_EXE}$@ $^ $(BOOST_LIBS) $(CONFUSE_LIB)
+	${LINKER} -g ${LINK_EXE}$@ ${XED_LPATHS} $^ $(BOOST_LIBS) $(XED_LIBS) $(CONFUSE_LIB)
 
-$(FEEDER): $(FEEDER_OBJS)
+$(FEEDER): $(FEEDER_OBJS) $(SIM_LIB)
 	${LINKER} -g $(TOOL_LDFLAGS) ${LINK_EXE}$@ ${TOOL_LPATHS} $^ $(TOOL_OBJS) $(BOOST_LIBS) $(TOOL_LIBS)
 
 $(HARNESS): $(HARNESS_OBJS)
 	${LINKER} -g ${LINK_EXE}$@ ${CONFUSE_LPATHS} $^ $(BOOST_LIBS) $(CONFUSE_LIB)
 
-$(UNIT_TESTS): % : %.o $(UNIT_TEST_DEPS) $(SIM_LIB) $(REPEATER_LIB) $(DRAMSIM_LIB) $(MCPAT_LIB)
-	${LINKER} -g ${LINK_EXE}$@ $^ ${CONFUSE_LPATHS} $(BOOST_LIBS) $(CONFUSE_LIB)
+$(UNIT_TESTS): % : %.o $(UNIT_TEST_DEPS) $(REPEATER_LIB) $(DRAMSIM_LIB) $(MCPAT_LIB)
+	${LINKER} -g ${LINK_EXE}$@ ${XED_LPATHS} $^ ${CONFUSE_LPATHS} $(BOOST_LIBS) $(XED_LIBS) $(CONFUSE_LIB)
+
+$(NOT_SO_UNIT_TESTS): % : %.o $(UNIT_TEST_DEPS) $(SIM_LIB) $(REPEATER_LIB) $(DRAMSIM_LIB) $(MCPAT_LIB)
+	${LINKER} -g ${LINK_EXE}$@ ${XED_LPATHS} $^ ${CONFUSE_LPATHS} $(BOOST_LIBS) $(XED_LIBS) $(CONFUSE_LIB)
 
 ##############################################################
 #
@@ -217,9 +237,11 @@ install:
 ##############################################################
 run_unit_tests: test
 	$(foreach t,$(UNIT_TESTS),$t;)
+	$(foreach t,$(NOT_SO_UNIT_TESTS),$t;)
 
 run_unit_tests_junit: test
 	$(foreach t,$(UNIT_TESTS),$t -r junit -o $(subst $(OBJDIR),$(ZESTO_HOME)/,$t.xml;))
+	$(foreach t,$(NOT_SO_UNIT_TESTS),$t -r junit -o $(subst $(OBJDIR),$(ZESTO_HOME)/,$t.xml;))
 
 run_integration_tests: all
 	cd $(ZESTO_HOME); py.test scripts/run_tests.py

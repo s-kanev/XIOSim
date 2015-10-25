@@ -75,9 +75,9 @@
 #include <cstddef>
 
 #include "misc.h"
-#include "stats.h"
+#include "regs.h"
 #include "sim.h"
-#include "thread.h"
+#include "stats.h"
 #include "synchronization.h"
 
 #include "zesto-core.h"

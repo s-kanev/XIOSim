@@ -21,15 +21,14 @@ if(!strcasecmp(COMPONENT_NAME,type))
 }
 #else
 
-#include <math.h>
-
+#include <random>
 
 class bpred_tage_t:public bpred_dir_t
 {
 #define TAGE_MAX_HIST 512
 #define TAGE_MAX_TABLES 16
 
-  typedef qword_t bpred_tage_hist_t[8]; /* Max length: 8 * 64 = 512 */
+  typedef uint64_t bpred_tage_hist_t[8]; /* Max length: 8 * 64 = 512 */
 
   struct bpred_tage_ent_t
   {
@@ -88,7 +87,7 @@ class bpred_tage_t:public bpred_dir_t
     for(i=0;i<hist_length/hash_length;i++)
     {
       result ^= (H[row]>>pos) & mask;
-      if(pos+hash_length > 64) /* wrap past end of current qword_t */
+      if(pos+hash_length > 64) /* wrap past end of current uint64_t */
       {
         row++;
         pos = (pos+hash_length)&63;
@@ -128,6 +127,11 @@ class bpred_tage_t:public bpred_dir_t
 
   bpred_tage_hist_t bhr;
 
+  /* For generating random numbers without touching any global state */
+  std::random_device random_device;
+  std::default_random_engine random_engine;
+  std::uniform_int_distribution<int> rand_int;
+
   public:
 
   /* CREATE */
@@ -140,6 +144,7 @@ class bpred_tage_t:public bpred_dir_t
                const int arg_first_length,
                const int arg_last_length
               ) : bpred_dir_t(core)
+                , random_engine(random_device())
   {
     init();
 
@@ -168,7 +173,7 @@ class bpred_tage_t:public bpred_dir_t
     num_tables = arg_num_tables;
     table_size = arg_table_size;
     table_mask = arg_table_size-1;
-    log_size = log_base2(arg_table_size);
+    log_size = std::log2(arg_table_size);
 
     bim_size = arg_bim_size;
     bim_mask = arg_bim_size-1;
@@ -368,9 +373,8 @@ class bpred_tage_t:public bpred_dir_t
           {
             if(allocated2) /* more than one choice */
             {
-              int r;
-              random_r(core->current_thread->rand_state, &r);
-              if((r & 0xffff) > 21845) /* choose allocated over allocated2 with 2:1 probability */
+              int r = rand_int(random_engine);
+              if(r > rand_int.max() / 3) /* choose allocated over allocated2 with 2:1 probability */
                 allocated = allocated2;
             }
             struct bpred_tage_ent_t * ent = &T[allocated][sc->index[allocated]&table_mask];
@@ -462,7 +466,7 @@ class bpred_tage_t:public bpred_dir_t
   BPRED_REG_STATS_HEADER
   {
     bpred_dir_t::reg_stats(sdb,core);
-    int id = core?core->current_thread->id:0;
+    int id = core?core->id:0;
     for(int i=0;i<num_tables;i++)
     {
       char buf[256];

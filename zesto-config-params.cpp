@@ -14,7 +14,6 @@ cfg_t *all_opts;
 // Global settings about the system and the simulation.
 cfg_opt_t system_cfg[] {
   CFG_BOOL("help", cfg_false, CFGF_NONE),
-  CFG_BOOL("debug", cfg_false, CFGF_NONE),
   CFG_BOOL("assert_spin", cfg_false, CFGF_NONE),
   CFG_INT("seed", 1, CFGF_NONE),
   CFG_INT("num_cores", 1, CFGF_NONE),
@@ -193,12 +192,9 @@ cfg_opt_t fetch_cfg[] {
 };
 
 cfg_opt_t uop_fusion_cfg[] {
-  CFG_BOOL("disable_all", cfg_false, CFGF_NONE),
-  CFG_BOOL("enable_all", cfg_false, CFGF_NONE),
   CFG_BOOL("load_comp_op", cfg_false, CFGF_NONE),
   CFG_BOOL("fpload_comp_op", cfg_false, CFGF_NONE),
   CFG_BOOL("sta_std", cfg_false, CFGF_NONE),
-  CFG_BOOL("partial_reg_write", cfg_false, CFGF_NONE),
   CFG_BOOL("load_op_store", cfg_false, CFGF_NONE),
   CFG_END()
 };

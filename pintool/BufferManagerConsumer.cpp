@@ -3,7 +3,6 @@
 
 #include "boost_interprocess.h"
 
-#include "../interface.h"
 #include "multiprocess_shared.h"
 #include "buffer.h"
 #include "BufferManager.h"
@@ -17,17 +16,16 @@ namespace buffer_management {
 static void copyFileToConsumer(pid_t tid, std::string fname, size_t to_read);
 static bool readHandshake(pid_t tid, int fd, handshake_container_t* handshake);
 
-static std::unordered_map<pid_t, Buffer*> consumeBuffer_;
+static std::unordered_map<pid_t, Buffer<handshake_container_t>*> consumeBuffer_;
 static std::unordered_map<pid_t, int> readBufferSize_;
 static std::unordered_map<pid_t, void*> readBuffer_;
-static std::unordered_map<pid_t, regs_t*> shadowRegs_;
 /* Lock that we capture when allocating a thread. This is the only
  * time we write to any of the unordered maps above. After that,
  * we can just access them lock-free. */
 static XIOSIM_LOCK init_lock_;
 
-void InitBufferManagerConsumer(pid_t harness_pid, int num_cores) {
-    InitBufferManager(harness_pid, num_cores);
+void InitBufferManagerConsumer(pid_t harness_pid) {
+    InitBufferManager(harness_pid);
 }
 
 void DeinitBufferManagerConsumer() { DeinitBufferManager(); }
@@ -38,9 +36,8 @@ void AllocateThreadConsumer(pid_t tid, int buffer_capacity) {
     readBufferSize_[tid] = 4096;
     readBuffer_[tid] = malloc(4096);
     assert(readBuffer_[tid]);
-    shadowRegs_[tid] = (regs_t*)calloc(1, sizeof(regs_t));
 
-    consumeBuffer_[tid] = new Buffer(buffer_capacity);
+    consumeBuffer_[tid] = new Buffer<handshake_container_t>(buffer_capacity);
 }
 
 handshake_container_t* Front(pid_t tid) {
@@ -130,13 +127,13 @@ static ssize_t do_read(const int fd, void* buff, const size_t size) {
 }
 
 static bool readHandshake(pid_t tid, int fd, handshake_container_t* handshake) {
-    int bufferSize;
-    int bytesRead = do_read(fd, &(bufferSize), sizeof(int));
+    ssize_t bufferSize;
+    ssize_t bytesRead = do_read(fd, &(bufferSize), sizeof(ssize_t));
     if (bytesRead == -1) {
         cerr << "File read error: " << bytesRead << " Errcode:" << strerror(errno) << endl;
         abort();
     }
-    assert(bytesRead == sizeof(int));
+    assert(bytesRead == sizeof(size_t));
 
     /* We have read the size field already. Now read the rest. */
     bufferSize -= sizeof(bufferSize);
@@ -151,17 +148,7 @@ static bool readHandshake(pid_t tid, int fd, handshake_container_t* handshake) {
     }
     assert(bytesRead == bufferSize);
 
-    /* Prepare handshake regs from shadow regs. So we can apply delta compression.
-     */
-    regs_t* shadow_regs = shadowRegs_[tid];
-    memcpy(&(handshake->handshake.ctxt), shadow_regs, sizeof(regs_t));
-
     handshake->Deserialize(readBuffer, bufferSize);
-
-    /* This is ugly and maybe costly. Update the shadow copy.
-     * If we care enough, we should double-buffer */
-    memcpy(shadow_regs, &(handshake->handshake.ctxt), sizeof(regs_t));
-
     return true;
 }
 }

@@ -81,7 +81,7 @@ class prefetch_stream_t:public prefetch_t
   {
     lookups++;
 
-    md_paddr_t page_addr = paddr & ~(PAGE_SIZE-1);
+    md_paddr_t page_addr = memory::page_round_down(paddr);
 
     /* see if we can find a matching entry */
     struct prefetch_stream_table_t * p = upstream_head;
@@ -94,7 +94,7 @@ class prefetch_stream_t:public prefetch_t
     /* check upstreams */
     while(p)
     {
-      if(page_addr == (p->last_paddr & ~(PAGE_SIZE-1))) /* hit */
+      if(page_addr == memory::page_round_down(p->last_paddr)) /* hit */
       {
         up_hit = true;
         break;
@@ -129,7 +129,7 @@ class prefetch_stream_t:public prefetch_t
     prev = NULL;
     while(p)
     {
-      if(page_addr == (p->last_paddr & ~(PAGE_SIZE-1))) /* hit */
+      if(page_addr == memory::page_round_down(p->last_paddr)) /* hit */
       {
         down_hit = true;
         break;

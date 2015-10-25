@@ -144,8 +144,7 @@ class prefetch_2lev_IP_t:public prefetch_t
       pf_paddr = paddr + table[index].last_stride;
 
       // If going to cross page boundary, don't prefetch
-      int page_mask = ~((1 << PAGE_SHIFT) - 1);
-      if((pf_paddr & page_mask) != (paddr & page_mask)) {
+      if(memory::page_round_down(pf_paddr) != memory::page_round_down(paddr)) {
         return 0;
       }
     }

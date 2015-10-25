@@ -7,10 +7,6 @@
  *
  * Eventually, this should go away entirely.
  *
- * NOTE: stat_reg_counter -> stat_reg_sqword and stat_reg_addr -> stat_reg_uint
- * under machine.h, which is being phased out, so this needs to be updated
- * after the oracle purge is merged in.
- *
  * Author: Sam Xi
  */
 
@@ -23,6 +19,7 @@
 #include "stat_database.h"
 
 // Mimicking #define in machine.c.
+#define stat_reg_counter stat_reg_sqword
 #define stat_reg_core_counter stat_reg_core_sqword
 #define stat_reg_cache_counter stat_reg_comp_sqword
 #define stat_reg_cache_formula stat_reg_comp_formula
@@ -96,64 +93,64 @@ xiosim::stats::Statistic<unsigned int>& stat_reg_uint(StatsDatabase* sdb,
                                                       int scale_me,
                                                       const char* format);
 
-xiosim::stats::Statistic<qword_t>& stat_reg_qword(StatsDatabase* sdb,
+xiosim::stats::Statistic<uint64_t>& stat_reg_qword(StatsDatabase* sdb,
                                                   int print_me,
                                                   const char* name,
                                                   const char* desc,
-                                                  qword_t* var,
-                                                  qword_t init_val,
+                                                  uint64_t* var,
+                                                  uint64_t init_val,
                                                   int scale_me,
                                                   const char* format);
 
-xiosim::stats::Statistic<qword_t>& stat_reg_core_qword(StatsDatabase* sdb,
+xiosim::stats::Statistic<uint64_t>& stat_reg_core_qword(StatsDatabase* sdb,
                                                        int print_me,
                                                        int core_id,
                                                        const char* name,
                                                        const char* desc,
-                                                       qword_t* var,
-                                                       qword_t init_val,
+                                                       uint64_t* var,
+                                                       uint64_t init_val,
                                                        int scale_me,
                                                        const char* format);
 
-xiosim::stats::Statistic<sqword_t>& stat_reg_sqword(StatsDatabase* sdb,
+xiosim::stats::Statistic<int64_t>& stat_reg_sqword(StatsDatabase* sdb,
                                                     int print_me,
                                                     const char* name,
                                                     const char* desc,
-                                                    sqword_t* var,
-                                                    sqword_t init_val,
+                                                    int64_t* var,
+                                                    int64_t init_val,
                                                     int scale_me,
                                                     const char* format);
 
-xiosim::stats::Statistic<sqword_t>& stat_reg_core_sqword(StatsDatabase* sdb,
+xiosim::stats::Statistic<int64_t>& stat_reg_core_sqword(StatsDatabase* sdb,
                                                          int print_me,
                                                          int core_id,
                                                          const char* name,
                                                          const char* desc,
-                                                         sqword_t* var,
-                                                         sqword_t init_val,
+                                                         int64_t* var,
+                                                         int64_t init_val,
                                                          int scale_me,
                                                          const char* format);
 
-xiosim::stats::Statistic<sqword_t>& stat_reg_comp_sqword(StatsDatabase* sdb,
+xiosim::stats::Statistic<int64_t>& stat_reg_comp_sqword(StatsDatabase* sdb,
                                                          int print_me,
                                                          int core_id,
                                                          const char* comp_name,
                                                          const char* stat_name,
                                                          const char* desc,
-                                                         sqword_t* var,
-                                                         sqword_t init_val,
+                                                         int64_t* var,
+                                                         int64_t init_val,
                                                          int scale_me,
                                                          const char* format,
                                                          bool is_llc = false);
 
-xiosim::stats::Statistic<sqword_t>& stat_reg_pred_sqword(StatsDatabase* sdb,
+xiosim::stats::Statistic<int64_t>& stat_reg_pred_sqword(StatsDatabase* sdb,
                                                          int print_me,
                                                          int core_id,
                                                          const char* pred_name,
                                                          const char* stat_name,
                                                          const char* desc,
-                                                         sqword_t* var,
-                                                         sqword_t init_val,
+                                                         int64_t* var,
+                                                         int64_t init_val,
                                                          int scale_me,
                                                          const char* format);
 
@@ -236,17 +233,8 @@ void reg_core_queue_occupancy_stats(xiosim::stats::StatsDatabase* sdb,
                                     counter_t* cycles_empty,
                                     counter_t* cycles_full);
 
-/* Add nsamples to array or sparse array distribution stat.
- *
- * dword_t = md_addr_t, but we haven't included machine.h at this point yet, so
- * we don't get that typedef (and it's only going to disappear anyways).
- *
- * Never used in the simulator.
- */
-void stat_add_samples(BaseStatistic* stat, dword_t index, int nsamples);
-
 /* Add a single sample to array or sparse array distribution STAT */
-void stat_add_sample(BaseStatistic* stat, dword_t index);
+void stat_add_sample(BaseStatistic* stat, unsigned int index);
 
 Formula* stat_reg_formula(StatsDatabase* sdb,
                           int print_me,

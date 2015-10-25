@@ -15,10 +15,10 @@ class core_fetch_DPM_t:public core_fetch_t
                       FSTALL_TBR,      /* predicted taken */
                       FSTALL_EOL,      /* hit end of cache line */
                       FSTALL_SPLIT,    /* instruction split across two lines (special case of EOL) */
-                      FSTALL_BOGUS,    /* encountered invalid inst on wrong-path */
                       FSTALL_SYSCALL,  /* syscall waiting for pipe to clear */
                       FSTALL_ZPAGE,    /* fetch request from zeroth page of memory */
                       FSTALL_REP,      /* no need to fetch REP instruction */
+                      FSTALL_ORACLE,   /* oracle stall on MopQ capacity */
                       FSTALL_num
                      };
 
@@ -110,10 +110,10 @@ const char *core_fetch_DPM_t::fetch_stall_str[FSTALL_num] = {
   "taken branch           ",
   "end of cache line      ",
   "inst split on two lines",
-  "wrong-path invalid inst",
   "trap waiting on drain  ",
   "request for page zero  ",
-  "no need to fetch REP   "
+  "no need to fetch REP   ",
+  "oracle stall on MopQ   "
 };
 
 
@@ -224,10 +224,8 @@ core_fetch_DPM_t::core_fetch_DPM_t(struct core_t * const arg_core):
 
 }
 
-void
-core_fetch_DPM_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
-{
-    struct thread_t* arch = core->current_thread;
+void core_fetch_DPM_t::reg_stats(xiosim::stats::StatsDatabase* sdb) {
+    int coreID = core->id;
 
     stat_reg_note(sdb, "\n#### BPRED STATS ####");
     bpred->reg_stats(sdb, core);
@@ -237,99 +235,69 @@ core_fetch_DPM_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
     cache_reg_stats(sdb, core, core->memory.ITLB);
 
     stat_reg_note(sdb, "\n#### FETCH STATS ####");
-    auto sim_cycle_st = stat_find_core_stat<qword_t>(sdb, arch->id, "sim_cycle");
+    auto sim_cycle_st = stat_find_core_stat<tick_t>(sdb, coreID, "sim_cycle");
     assert(sim_cycle_st);
 
-    auto& fetch_bytes_st = stat_reg_core_counter(sdb, true, arch->id, "fetch_bytes",
+    auto& fetch_bytes_st = stat_reg_core_counter(sdb, true, coreID, "fetch_bytes",
                                                  "total number of bytes fetched",
-                                                 &core->stat.fetch_bytes, 0, TRUE, NULL);
-    auto& fetch_insn_st = stat_reg_core_counter(sdb, true, arch->id, "fetch_insn",
+                                                 &core->stat.fetch_bytes, 0, true, NULL);
+    auto& fetch_insn_st = stat_reg_core_counter(sdb, true, coreID, "fetch_insn",
                                                 "total number of instructions fetched",
-                                                &core->stat.fetch_insn, 0, TRUE, NULL);
+                                                &core->stat.fetch_insn, 0, true, NULL);
     auto& fetch_uops_st =
-            stat_reg_core_counter(sdb, true, arch->id, "fetch_uops", "total number of uops fetched",
-                                  &core->stat.fetch_uops, 0, TRUE, NULL);
-    auto& fetch_eff_uops_st = stat_reg_core_counter(sdb, true, arch->id, "fetch_eff_uops",
+            stat_reg_core_counter(sdb, true, coreID, "fetch_uops", "total number of uops fetched",
+                                  &core->stat.fetch_uops, 0, true, NULL);
+    auto& fetch_eff_uops_st = stat_reg_core_counter(sdb, true, coreID, "fetch_eff_uops",
                                                     "total number of effective uops fetched",
-                                                    &core->stat.fetch_eff_uops, 0, TRUE, NULL);
+                                                    &core->stat.fetch_eff_uops, 0, true, NULL);
 
-    stat_reg_core_formula(sdb, true, arch->id, "fetch_BPC", "BPC (bytes per cycle) at fetch",
+    stat_reg_core_formula(sdb, true, coreID, "fetch_BPC", "BPC (bytes per cycle) at fetch",
                           fetch_bytes_st / *sim_cycle_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "fetch_IPC", "IPC at fetch",
+    stat_reg_core_formula(sdb, true, coreID, "fetch_IPC", "IPC at fetch",
                           fetch_insn_st / *sim_cycle_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "fetch_uPC", "uPC at fetch",
+    stat_reg_core_formula(sdb, true, coreID, "fetch_uPC", "uPC at fetch",
                           fetch_uops_st / *sim_cycle_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "fetch_euPC", "euPC at fetch",
+    stat_reg_core_formula(sdb, true, coreID, "fetch_euPC", "euPC at fetch",
                           fetch_eff_uops_st / *sim_cycle_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "fetch_byte_per_inst",
+    stat_reg_core_formula(sdb, true, coreID, "fetch_byte_per_inst",
                           "average bytes per instruction", fetch_bytes_st / fetch_insn_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "fetch_byte_per_uop", "average bytes per uop",
+    stat_reg_core_formula(sdb, true, coreID, "fetch_byte_per_uop", "average bytes per uop",
                           fetch_bytes_st / fetch_uops_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "fetch_byte_per_eff_uop",
+    stat_reg_core_formula(sdb, true, coreID, "fetch_byte_per_eff_uop",
                           "average bytes per effective uop", fetch_bytes_st / fetch_eff_uops_st,
                           NULL);
 
     core->stat.fetch_stall = stat_reg_core_dist(
-            sdb, arch->id, "fetch_stall", "breakdown of stalls in fetch", 0, FSTALL_num, 1,
-            (PF_COUNT | PF_PDF), NULL, fetch_stall_str, TRUE, NULL);
+            sdb, coreID, "fetch_stall", "breakdown of stalls in fetch", 0, FSTALL_num, 1,
+            (PF_COUNT | PF_PDF), NULL, fetch_stall_str, true, NULL);
 
-    auto& byteQ_occupancy_st = stat_reg_core_counter(sdb, false, arch->id, "byteQ_occupancy",
-                                                     "total byteQ occupancy (in lines/entries)",
-                                                     &core->stat.byteQ_occupancy, 0, TRUE, NULL);
-
-    stat_reg_core_formula(sdb, true, arch->id, "byteQ_avg", "average byteQ occupancy (in insts)",
-                          byteQ_occupancy_st / *sim_cycle_st, NULL);
-
-    auto& predecode_bytes_st = stat_reg_core_counter(sdb, true, arch->id, "predecode_bytes",
+    reg_core_queue_occupancy_stats(sdb, coreID, "byteQ",
+                                   &core->stat.byteQ_occupancy, NULL, NULL);
+    auto& predecode_bytes_st = stat_reg_core_counter(sdb, true, coreID, "predecode_bytes",
                                                      "total number of bytes predecoded",
-                                                     &core->stat.predecode_bytes, 0, TRUE, NULL);
-    auto& predecode_insn_st = stat_reg_core_counter(sdb, true, arch->id, "predecode_insn",
+                                                     &core->stat.predecode_bytes, 0, true, NULL);
+    auto& predecode_insn_st = stat_reg_core_counter(sdb, true, coreID, "predecode_insn",
                                                     "total number of instructions predecoded",
-                                                    &core->stat.predecode_insn, 0, TRUE, NULL);
-    auto& predecode_uops_st = stat_reg_core_counter(sdb, true, arch->id, "predecode_uops",
+                                                    &core->stat.predecode_insn, 0, true, NULL);
+    auto& predecode_uops_st = stat_reg_core_counter(sdb, true, coreID, "predecode_uops",
                                                     "total number of uops predecoded",
-                                                    &core->stat.predecode_uops, 0, TRUE, NULL);
+                                                    &core->stat.predecode_uops, 0, true, NULL);
     auto& predecode_eff_uops_st = stat_reg_core_counter(
-            sdb, true, arch->id, "predecode_eff_uops", "total number of effective uops predecoded",
-            &core->stat.predecode_eff_uops, 0, TRUE, NULL);
+            sdb, true, coreID, "predecode_eff_uops", "total number of effective uops predecoded",
+            &core->stat.predecode_eff_uops, 0, true, NULL);
 
-    stat_reg_core_formula(sdb, true, arch->id, "predecode_BPC",
+    stat_reg_core_formula(sdb, true, coreID, "predecode_BPC",
                           "BPC (bytes per cycle) at predecode", predecode_bytes_st / *sim_cycle_st,
                           NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "predecode_IPC", "IPC at predecode",
+    stat_reg_core_formula(sdb, true, coreID, "predecode_IPC", "IPC at predecode",
                           predecode_insn_st / *sim_cycle_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "predecode_uPC", "uPC at predecode",
+    stat_reg_core_formula(sdb, true, coreID, "predecode_uPC", "uPC at predecode",
                           predecode_uops_st / *sim_cycle_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "predecode_euPC", "euPC at predecode",
+    stat_reg_core_formula(sdb, true, coreID, "predecode_euPC", "euPC at predecode",
                           predecode_eff_uops_st / *sim_cycle_st, NULL);
 
-    auto& IQ_occupancy_st = stat_reg_core_counter(sdb, false, arch->id, "IQ_occupancy",
-                                                  "total IQ occupancy (in insts)",
-                                                  &core->stat.IQ_occupancy, 0, TRUE, NULL);
-    auto& IQ_uop_occupancy_st = stat_reg_core_counter(sdb, false, arch->id, "IQ_uop_occupancy",
-                                                      "total IQ occupancy (in uops)",
-                                                      &core->stat.IQ_uop_occupancy, 0, TRUE, NULL);
-    auto& IQ_eff_uop_occupancy_st = stat_reg_core_counter(
-            sdb, false, arch->id, "IQ_eff_uop_occupancy", "total IQ occupancy (in effective uops)",
-            &core->stat.IQ_eff_uop_occupancy, 0, TRUE, NULL);
-    auto& IQ_empty_st =
-            stat_reg_core_counter(sdb, false, arch->id, "IQ_empty", "total cycles IQ was empty",
-                                  &core->stat.IQ_empty_cycles, 0, TRUE, NULL);
-    auto& IQ_full_st =
-            stat_reg_core_counter(sdb, false, arch->id, "IQ_full", "total cycles IQ was full",
-                                  &core->stat.IQ_full_cycles, 0, TRUE, NULL);
-
-    stat_reg_core_formula(sdb, true, arch->id, "IQ_avg", "average IQ occupancy (in insts)",
-                          IQ_occupancy_st / *sim_cycle_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "IQ_uop_avg", "average IQ occupancy (in uops)",
-                          IQ_uop_occupancy_st / *sim_cycle_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "IQ_eff_uop_avg",
-                          "average IQ occupancy (in effective uops)",
-                          IQ_eff_uop_occupancy_st / *sim_cycle_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "IQ_frac_empty", "fraction of cycles IQ was empty",
-                          IQ_empty_st / *sim_cycle_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "IQ_frac_full", "fraction of cycles IQ was full",
-                          IQ_full_st / *sim_cycle_st, NULL);
+    reg_core_queue_occupancy_stats(sdb, coreID, "IQ", &core->stat.IQ_occupancy,
+                                   &core->stat.IQ_empty_cycles, &core->stat.IQ_full_cycles);
 }
 
 void core_fetch_DPM_t::update_occupancy(void)
@@ -339,8 +307,6 @@ void core_fetch_DPM_t::update_occupancy(void)
 
     /* IQ */
   core->stat.IQ_occupancy += IQ_num;
-  core->stat.IQ_uop_occupancy += IQ_uop_num;
-  core->stat.IQ_eff_uop_occupancy += IQ_eff_uop_num;
   if(IQ_num >= core->knobs->fetch.IQ_size)
     core->stat.IQ_full_cycles++;
   if(IQ_num <= 0)
@@ -476,7 +442,7 @@ void core_fetch_DPM_t::post_fetch(void)
         ZESTO_STAT(core->stat.predecode_uops += Mop->stat.num_uops;)
         ZESTO_STAT(core->stat.predecode_eff_uops += Mop->stat.num_eff_uops;)
       }
-      ZESTO_STAT(core->stat.predecode_bytes += Mop->fetch.inst.len;)
+      ZESTO_STAT(core->stat.predecode_bytes += Mop->fetch.len;)
 
       IQ[IQ_tail] = pipe[knobs->fetch.depth-1][i];
       pipe[knobs->fetch.depth-1][i] = NULL;
@@ -531,7 +497,7 @@ void core_fetch_DPM_t::post_fetch(void)
         if(Mop->uop[Mop->decode.last_uop_index].decode.EOM)
         {
           ZESTO_STAT(core->stat.fetch_insn++;)
-          ZESTO_STAT(core->stat.fetch_bytes += Mop->fetch.inst.len;)
+          ZESTO_STAT(core->stat.fetch_bytes += Mop->fetch.len;)
         }
 
         ZESTO_STAT(core->stat.fetch_uops += Mop->stat.num_uops;)
@@ -563,7 +529,7 @@ void core_fetch_DPM_t::post_fetch(void)
 void core_fetch_DPM_t::pre_fetch(void)
 {
   struct core_knobs_t * knobs = core->knobs;
-  int asid = core->current_thread->asid;
+  int asid = core->asid;
   int i;
 
   ZESTO_STAT(stat_add_sample(core->stat.fetch_stall, (int)stall_reason);)
@@ -589,9 +555,9 @@ void core_fetch_DPM_t::pre_fetch(void)
   {
     if(byteQ[index].when_translation_requested == TICK_T_MAX)
     {
-      if(cache_enqueuable(core->memory.ITLB, asid, PAGE_TABLE_ADDR(asid, byteQ[index].addr)))
+      if(cache_enqueuable(core->memory.ITLB, asid, memory::page_table_address(asid, byteQ[index].addr)))
       {
-        cache_enqueue(core, core->memory.ITLB, NULL, CACHE_READ, 0, asid, PAGE_TABLE_ADDR(asid, byteQ[index].addr), byteQ[index].action_id, 0, NO_MSHR, &byteQ[index], ITLB_callback, NULL, NULL, get_byteQ_action_id);
+        cache_enqueue(core, core->memory.ITLB, NULL, CACHE_READ, 0, asid, memory::page_table_address(asid, byteQ[index].addr), byteQ[index].action_id, 0, NO_MSHR, &byteQ[index], ITLB_callback, NULL, NULL, get_byteQ_action_id);
         byteQ[index].when_translation_requested = core->sim_cycle;
         break;
       }
@@ -637,26 +603,27 @@ bool core_fetch_DPM_t::do_fetch(void)
   md_addr_t current_line = PC & byteQ_linemask;
   struct Mop_t * Mop = NULL;
 
+  /* Waiting for pipe to clear from system call/trap. */
+  if (core->oracle->is_draining()) {
+    stall_reason = FSTALL_SYSCALL;
+    return false;
+  }
+
   Mop = core->oracle->exec(PC);
 
-  if(Mop && ((PC >> PAGE_SHIFT) == 0))
-  {
+  if(Mop && (memory::page_round_down(PC) == 0)) {
     zesto_assert(core->oracle->spec_mode, false);
     stall_reason = FSTALL_ZPAGE;
     return false;
   }
 
-  if(!Mop) /* awaiting pipe to clear for system call/trap, or encountered wrong-path bogus inst */
-  {
-    if(bogus)
-      stall_reason = FSTALL_BOGUS;
-    else
-      stall_reason = FSTALL_SYSCALL;
+  if(!Mop) {
+    stall_reason = FSTALL_ORACLE;
     return false;
   }
 
   md_addr_t start_PC = Mop->fetch.PC;
-  md_addr_t end_PC = Mop->fetch.PC + Mop->fetch.inst.len - 1; /* addr of last byte */
+  md_addr_t end_PC = Mop->fetch.PC + Mop->fetch.len - 1; /* addr of last byte */
 
   /* We explicitly check for both the address of the first byte and the last
      byte, since x86 instructions have no alignment restrictions and therefore
@@ -730,10 +697,9 @@ bool core_fetch_DPM_t::do_fetch(void)
   byteQ[byteQ_index].num_Mop++;
 
   core->oracle->consume(Mop);
-  core->current_thread->consumed = true;
 
   /* figure out where to fetch from next */
-  if(Mop->decode.is_ctrl || Mop->fetch.inst.rep)  /* XXX: illegal use of decode information */
+  if(Mop->decode.is_ctrl || Mop->decode.has_rep)  /* XXX: illegal use of decode information */
   {
     Mop->fetch.bpred_update = bpred->get_state_cache();
 
@@ -744,7 +710,7 @@ bool core_fetch_DPM_t::do_fetch(void)
     bpred->spec_update(Mop->fetch.bpred_update, Mop->decode.opflags,
         Mop->fetch.PC, Mop->decode.targetPC, Mop->oracle.NextPC, Mop->fetch.bpred_update->our_pred);
 #ifdef ZTRACE
-    ztrace_print(Mop,"f|pred_targ=%x|target %s", Mop->fetch.pred_NPC, (Mop->fetch.pred_NPC == Mop->oracle.NextPC) ? "correct" : "mispred");
+    ztrace_print(Mop,"f|pred_targ=%" PRIxPTR"|target %s", Mop->fetch.pred_NPC, (Mop->fetch.pred_NPC == Mop->oracle.NextPC) ? "correct" : "mispred");
 #endif
   }
   else
@@ -759,7 +725,7 @@ bool core_fetch_DPM_t::do_fetch(void)
   /* advance the fetch PC to the next instruction */
   PC = Mop->fetch.pred_NPC;
 
-  ZTRACE_PRINT(core->id, "After bpred. PC: %x, oracle.NPC: %x, spec: %d, nuked_Mops: %d\n", PC, Mop->oracle.NextPC, core->oracle->spec_mode, core->oracle->num_Mops_before_feeder());
+  ZTRACE_PRINT(core->id, "After bpred. PC: %" PRIxPTR", oracle.NPC: %" PRIxPTR", spec: %d, nuked_Mops: %d\n", PC, Mop->oracle.NextPC, core->oracle->spec_mode, core->oracle->num_Mops_before_feeder());
 
   if(Mop->oracle.taken_branch)
   {
@@ -778,9 +744,14 @@ bool core_fetch_DPM_t::do_fetch(void)
   }
   /* Stall on REPs similarly to taken branches, otherwise they easily flood the oracle. */
   /* XXX: We should generalize this for a loop-stream decoder */
-  else if(Mop->fetch.inst.rep && PC == Mop->oracle.NextPC)
+  else if(Mop->decode.has_rep && PC == Mop->oracle.NextPC)
   {
     stall_reason = FSTALL_REP;
+    return false;
+  }
+  else if(core->oracle->is_draining())
+  {
+    stall_reason = FSTALL_SYSCALL;
     return false;
   }
 
@@ -857,7 +828,6 @@ core_fetch_DPM_t::recover(const md_addr_t new_PC)
   /* XXX: use non-oracle nextPC as there may be multiple re-fetches */
   int i;
   PC = new_PC;
-  bogus = false;
 
   /* clear out the byteQ */
   for(i=0;i<knobs->fetch.byteQ_size;i++)

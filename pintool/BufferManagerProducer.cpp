@@ -14,6 +14,8 @@
 #include "buffer.h"
 #include "BufferManagerProducer.h"
 
+#include "../sim.h"
+
 namespace xiosim {
 namespace buffer_management {
 
@@ -22,10 +24,9 @@ static void writeHandshake(pid_t tid, int fd, std::string fname, handshake_conta
 static int getKBFreeSpace(std::string path);
 static std::string genFileName(std::string path);
 
-static std::unordered_map<pid_t, Buffer*> produceBuffer_;
+static std::unordered_map<pid_t, Buffer<handshake_container_t>*> produceBuffer_;
 static std::unordered_map<pid_t, int> writeBufferSize_;
 static std::unordered_map<pid_t, void*> writeBuffer_;
-static std::unordered_map<pid_t, regs_t*> shadowRegs_;
 static std::vector<std::string> bridgeDirs_;
 static std::string gpid_;
 /* Lock that we capture when allocating a thread. This is the only
@@ -33,13 +34,12 @@ static std::string gpid_;
  * we can just access them lock-free. */
 static XIOSIM_LOCK init_lock_;
 
-void InitBufferManagerProducer(pid_t harness_pid, int num_cores) {
-    InitBufferManager(harness_pid, num_cores);
+void InitBufferManagerProducer(pid_t harness_pid) {
+    InitBufferManager(harness_pid);
 
     produceBuffer_.reserve(MAX_CORES);
     writeBufferSize_.reserve(MAX_CORES);
     writeBuffer_.reserve(MAX_CORES);
-    shadowRegs_.reserve(MAX_CORES);
 
     bridgeDirs_.push_back("/dev/shm/");
     bridgeDirs_.push_back("/tmp/");
@@ -58,11 +58,10 @@ void AllocateThreadProducer(pid_t tid) {
     std::lock_guard<XIOSIM_LOCK> l(init_lock_);
     int bufferCapacity = AllocateThread(tid);
 
-    produceBuffer_[tid] = new Buffer(bufferCapacity);
+    produceBuffer_[tid] = new Buffer<handshake_container_t>(bufferCapacity);
     writeBufferSize_[tid] = 4096;
     writeBuffer_[tid] = malloc(4096);
     assert(writeBuffer_[tid]);
-    shadowRegs_[tid] = (regs_t*)calloc(1, sizeof(regs_t));
 
     /* send IPC message to allocate consumer-side */
     ipc_message_t msg;
@@ -92,9 +91,7 @@ handshake_container_t* GetBuffer(pid_t tid) {
  * for a new buffer, so GetBuffer() cannot fail.
  */
 void ProducerDone(pid_t tid, bool keepLock) {
-    ASSERTX(!produceBuffer_[tid]->empty());
-    handshake_container_t* last = produceBuffer_[tid]->back();
-    ASSERTX(last->flags.valid);
+    assert(!produceBuffer_[tid]->empty());
 
     /* We've filled the in-memory buffer. Time to flush to a file. */
     if (produceBuffer_[tid]->full()) {
@@ -111,6 +108,8 @@ void ProducerDone(pid_t tid, bool keepLock) {
  * with a thread to the backing file.
  */
 void FlushBuffers(pid_t tid) { copyProducerToFile(tid, false); }
+
+bool ProducerEmpty(pid_t tid) { return produceBuffer_[tid]->empty(); }
 
 static void copyProducerToFile(pid_t tid, bool checkSpace) {
     int result;
@@ -207,8 +206,7 @@ static ssize_t do_write(const int fd, const void* buff, const size_t size) {
 
 static void writeHandshake(pid_t tid, int fd, std::string fname, handshake_container_t* handshake) {
     void* writeBuffer = writeBuffer_[tid];
-    regs_t* const shadow_regs = shadowRegs_[tid];
-    size_t totalBytes = handshake->Serialize(writeBuffer, 4096, shadow_regs);
+    size_t totalBytes = handshake->Serialize(writeBuffer, 4096);
 
     ssize_t bytesWritten = do_write(fd, writeBuffer, totalBytes);
     if (bytesWritten == -1) {
@@ -231,10 +229,6 @@ static void writeHandshake(pid_t tid, int fd, std::string fname, handshake_conta
         cerr << fname << endl;
         abort();
     }
-
-    /* This is ugly and maybe costly. Update the shadow copy.
-     * If we care enough, we should double-buffer */
-    memcpy(shadow_regs, &(handshake->handshake.ctxt), sizeof(regs_t));
 }
 
 static int getKBFreeSpace(std::string path) {

@@ -74,13 +74,16 @@
 
 #include <limits.h>
 
+#include "memory.h"
+#include "misc.h"
 #include "stats.h"
-#include "thread.h"
+
 #include "zesto-cache.h"
 #include "zesto-uncore.h"
 #include "zesto-MC.h"
 #include "zesto-dram.h"
 #include "zesto-noc.h"
+#include "zesto-structs.h"
 
 
 

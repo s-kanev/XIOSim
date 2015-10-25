@@ -1,69 +1,59 @@
-/* regs.h - architected register state interfaces */
-
-/* SimpleScalar(TM) Tool Suite
- * Copyright (C) 1994-2002 by Todd M. Austin, Ph.D. and SimpleScalar, LLC.
- * All Rights Reserved. 
- * 
- * THIS IS A LEGAL DOCUMENT, BY USING SIMPLESCALAR,
- * YOU ARE AGREEING TO THESE TERMS AND CONDITIONS.
- * 
- * No portion of this work may be used by any commercial entity, or for any
- * commercial purpose, without the prior, written permission of SimpleScalar,
- * LLC (info@simplescalar.com). Nonprofit and noncommercial use is permitted
- * as described below.
- * 
- * 1. SimpleScalar is provided AS IS, with no warranty of any kind, express
- * or implied. The user of the program accepts full responsibility for the
- * application of the program and the use of any results.
- * 
- * 2. Nonprofit and noncommercial use is encouraged. SimpleScalar may be
- * downloaded, compiled, executed, copied, and modified solely for nonprofit,
- * educational, noncommercial research, and noncommercial scholarship
- * purposes provided that this notice in its entirety accompanies all copies.
- * Copies of the modified software can be delivered to persons who use it
- * solely for nonprofit, educational, noncommercial research, and
- * noncommercial scholarship purposes provided that this notice in its
- * entirety accompanies all copies.
- * 
- * 3. ALL COMMERCIAL USE, AND ALL USE BY FOR PROFIT ENTITIES, IS EXPRESSLY
- * PROHIBITED WITHOUT A LICENSE FROM SIMPLESCALAR, LLC (info@simplescalar.com).
- * 
- * 4. No nonprofit user may place any restrictions on the use of this software,
- * including as modified by the user, by any other authorized user.
- * 
- * 5. Noncommercial and nonprofit users may distribute copies of SimpleScalar
- * in compiled or executable form as set forth in Section 2, provided that
- * either: (A) it is accompanied by the corresponding machine-readable source
- * code, or (B) it is accompanied by a written offer, with no time limit, to
- * give anyone a machine-readable copy of the corresponding source code in
- * return for reimbursement of the cost of distribution. This written offer
- * must permit verbatim duplication by anyone, or (C) it is distributed by
- * someone who received only the executable form, and is accompanied by a
- * copy of the written offer of source code.
- * 
- * 6. SimpleScalar was developed by Todd M. Austin, Ph.D. The tool suite is
- * currently maintained by SimpleScalar LLC (info@simplescalar.com). US Mail:
- * 2395 Timbercrest Court, Ann Arbor, MI 48105.
- * 
- * Copyright (C) 1994-2002 by Todd M. Austin, Ph.D. and SimpleScalar, LLC.
- */
+/* regs.h - register helper functions */
 
 #ifndef REGS_H
 #define REGS_H
 
-#include "host.h"
-#include "machine.h"
-#include "misc.h"
+extern "C" {
+#include "xed-interface.h"
+}
 
-struct regs_t {
-  md_gpr_t regs_R;		/* (signed) integer register file */
-  md_fpr_t regs_F;		/* floating point register file */
-  md_ctrl_t regs_C;		/* control register file */
-  md_addr_t regs_PC;		/* program counter */
-  md_addr_t regs_NPC;		/* next-cycle program counter */
-  md_seg_t regs_S;  		/* segment register file */ // UCSD
-  md_seg_base_t regs_SD;    /* segment bases (part of hidden state) */
-  md_xmm_t regs_XMM;        /* 128-bit register file */
-};
+namespace xiosim {
+namespace x86 {
+
+inline bool is_ireg(xed_reg_enum_t reg) {
+    auto reg_class = xed_reg_class(reg);
+    return reg_class == XED_REG_CLASS_GPR;
+}
+
+inline bool is_freg(xed_reg_enum_t reg) {
+    auto reg_class = xed_reg_class(reg);
+    return reg_class == XED_REG_CLASS_X87 ||
+            reg_class == XED_REG_CLASS_XMM ||
+            reg_class == XED_REG_CLASS_YMM;
+}
+
+inline bool is_xmmreg(xed_reg_enum_t reg) {
+    auto reg_class = xed_reg_class(reg);
+    return reg_class == XED_REG_CLASS_XMM;
+}
+
+inline bool is_creg(xed_reg_enum_t reg) {
+    auto reg_class = xed_reg_class(reg);
+    return reg_class == XED_REG_CLASS_FLAGS ||
+            reg_class == XED_REG_CLASS_XCR;
+}
+
+inline bool is_sreg(xed_reg_enum_t reg) {
+    auto reg_class = xed_reg_class(reg);
+    return reg_class == XED_REG_CLASS_SR;
+}
+
+/* Get the largest architectural register covering @reg.
+ * This is different based on 32/64-bit mode:
+ * - in 32b, largest_reg(XED_REG_EAX) == XED_REG_EAX
+ * - in 64b, largest_reg(XED_REG_EAX) == XED_REG_RAX
+ * All explicit register name mentions should be wrapped in this function,
+ * so we don't miss dependences due to distinguishing, say EAX/RAX.
+ */
+inline xed_reg_enum_t largest_reg(const xed_reg_enum_t reg) {
+#ifdef _LP64
+    return xed_get_largest_enclosing_register(reg);
+#else
+    return xed_get_largest_enclosing_register32(reg);
+#endif
+}
+
+}
+}
 
 #endif /* REGS_H */

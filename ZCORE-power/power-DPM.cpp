@@ -85,53 +85,53 @@ void core_power_DPM_t::translate_stats(xiosim::stats::StatsDatabase* sdb,
                                        system_L2* L2_stats) {
   core_power_t::translate_stats(sdb, core_stats, L2_stats);
 
-  xiosim::stats::Statistic<long long>* stat = nullptr;
+  xiosim::stats::Statistic<counter_t>* stat = nullptr;
   int coreID = core->id;
 
-  stat = stat_find_core_stat<long long>(sdb, coreID, "fetch_uops");
+  stat = stat_find_core_stat<counter_t>(sdb, coreID, "fetch_uops");
   core_stats->int_instructions = stat->get_final_val();
   core_stats->fp_instructions = 0;
 
-  stat = stat_find_core_stat<long long>(sdb, coreID, "commit_uops");
+  stat = stat_find_core_stat<counter_t>(sdb, coreID, "commit_uops");
   core_stats->committed_int_instructions = stat->get_final_val();
   core_stats->committed_fp_instructions = 0;
 
-  stat = stat_find_core_stat<long long>(sdb, coreID, "commit_uops");
+  stat = stat_find_core_stat<counter_t>(sdb, coreID, "commit_uops");
   core_stats->ROB_reads = stat->get_final_val();
-  stat = stat_find_core_stat<long long>(sdb, coreID, "ROB_writes");
+  stat = stat_find_core_stat<counter_t>(sdb, coreID, "ROB_writes");
   core_stats->ROB_writes = stat->get_final_val();
-  stat = stat_find_core_stat<long long>(sdb, coreID, "regfile_reads");
+  stat = stat_find_core_stat<counter_t>(sdb, coreID, "regfile_reads");
   core_stats->rename_reads = stat->get_final_val();
-  stat = stat_find_core_stat<long long>(sdb, coreID, "regfile_writes");
+  stat = stat_find_core_stat<counter_t>(sdb, coreID, "regfile_writes");
   core_stats->rename_writes = stat->get_final_val();
-  stat = stat_find_core_stat<long long>(sdb, coreID, "fp_regfile_reads");
+  stat = stat_find_core_stat<counter_t>(sdb, coreID, "fp_regfile_reads");
   core_stats->fp_rename_reads = stat->get_final_val();
-  stat = stat_find_core_stat<long long>(sdb, coreID, "fp_regfile_writes");
+  stat = stat_find_core_stat<counter_t>(sdb, coreID, "fp_regfile_writes");
   core_stats->fp_rename_writes = stat->get_final_val();
 
-  stat = stat_find_core_stat<long long>(sdb, coreID, "alloc_uops");
+  stat = stat_find_core_stat<counter_t>(sdb, coreID, "alloc_uops");
   core_stats->inst_window_reads = stat->get_final_val();
-  stat = stat_find_core_stat<long long>(sdb, coreID, "alloc_uops");
+  stat = stat_find_core_stat<counter_t>(sdb, coreID, "alloc_uops");
   core_stats->inst_window_writes = stat->get_final_val();
   core_stats->inst_window_wakeup_accesses = 0;
   core_stats->fp_inst_window_reads = 0;
   core_stats->fp_inst_window_writes = 0;
   core_stats->fp_inst_window_wakeup_accesses = 0;
 
-  stat = stat_find_core_stat<long long>(sdb, coreID, "oracle_total_calls");
+  stat = stat_find_core_stat<counter_t>(sdb, coreID, "oracle_total_calls");
   core_stats->context_switches = stat->get_final_val();
 
   if (core->memory.DL2)
   {
     zesto_assert(L2_stats != NULL, (void)0);
 
-    stat = stat_find_core_stat<long long>(sdb, coreID, "DL2.load_lookups");
+    stat = stat_find_core_stat<counter_t>(sdb, coreID, "DL2.load_lookups");
     L2_stats->read_accesses = stat->get_final_val();
-    stat = stat_find_core_stat<long long>(sdb, coreID, "DL2.load_misses");
+    stat = stat_find_core_stat<counter_t>(sdb, coreID, "DL2.load_misses");
     L2_stats->read_misses = stat->get_final_val();
-    stat = stat_find_core_stat<long long>(sdb, coreID, "DL2.store_lookups");
+    stat = stat_find_core_stat<counter_t>(sdb, coreID, "DL2.store_lookups");
     L2_stats->write_accesses = stat->get_final_val();
-    stat = stat_find_core_stat<long long>(sdb, coreID, "DL2.store_misses");
+    stat = stat_find_core_stat<counter_t>(sdb, coreID, "DL2.store_misses");
     L2_stats->write_misses = stat->get_final_val();
   }
 }

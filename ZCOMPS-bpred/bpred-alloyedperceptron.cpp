@@ -4,7 +4,6 @@
  * __COPYRIGHT__ GT
  */
 
-#include <math.h>
 #define COMPONENT_NAME "alloyedperceptron"
 
 #ifdef BPRED_PARSE_ARGS
@@ -32,9 +31,9 @@ class bpred_alloyedperceptron_t:public bpred_dir_t
     public:
     short* top_entry;
     short* ltop_entry;
-    qword_t * lbhr;
+    uint64_t * lbhr;
     int sum;
-    qword_t lookup_bhr;
+    uint64_t lookup_bhr;
   };
 
   protected:
@@ -42,10 +41,10 @@ class bpred_alloyedperceptron_t:public bpred_dir_t
   /* local hist */
   int bht_size;
   int bht_mask;
-  qword_t * bht;
+  uint64_t * bht;
   /* global hist */
   int bhr_size;
-  qword_t bhr;
+  uint64_t bhr;
 
   int top_size;
   short **top;  /* table of perceptrons */
@@ -56,9 +55,9 @@ class bpred_alloyedperceptron_t:public bpred_dir_t
   int threshold;
 
   int ghistory_length;
-  qword_t ghistory_mask;
+  uint64_t ghistory_mask;
   int lhistory_length;
-  qword_t lhistory_mask;
+  uint64_t lhistory_mask;
 
   public:
 
@@ -89,9 +88,9 @@ class bpred_alloyedperceptron_t:public bpred_dir_t
     bht_size = arg_bht_size;
     bht_mask = arg_bht_size-1;
     lhistory_length = arg_lhistory_length;
-    lhistory_mask = (((qword_t)1)<<arg_lhistory_length)-1;
+    lhistory_mask = (((uint64_t)1)<<arg_lhistory_length)-1;
     ghistory_length = arg_ghistory_length;
-    ghistory_mask = (((qword_t)1)<<arg_ghistory_length)-1;
+    ghistory_mask = (((uint64_t)1)<<arg_ghistory_length)-1;
 
     top_size = arg_top_size;
 
@@ -100,15 +99,15 @@ class bpred_alloyedperceptron_t:public bpred_dir_t
 
     /* if power of two, then actually need an extra bit to represent.
        also add one bit for the sign. */
-    if(threshold == (1<<log_base2(threshold)))
-      weight_width = log_base2(threshold)+2;
+    if(threshold == (1<<(int)std::log2(threshold)))
+      weight_width = std::log2(threshold)+2;
     else
-      weight_width = log_base2(threshold)+1;
+      weight_width = std::log2(threshold)+1;
 
     weight_max = (1<<(weight_width-1))-1;
     weight_min = -(1<<(weight_width-1));
 
-    bht = (qword_t*) calloc(bht_size,sizeof(*bht));
+    bht = (uint64_t*) calloc(bht_size,sizeof(*bht));
     if(!bht)
       fatal("couldn't malloc alloyedperceptron BHT");
     top = (short**) calloc(top_size,sizeof(*top));
@@ -296,7 +295,7 @@ class bpred_alloyedperceptron_t:public bpred_dir_t
   {
     bpred_dir_t::reg_stats(sdb,core);
 
-    int id = core?core->current_thread->id:0;
+    int id = core?core->id:0;
     char buf[256];
     char buf2[256];
 

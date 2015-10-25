@@ -2,6 +2,7 @@
 #define __BUFFER_MANAGER_PRODUCER__
 
 #include "BufferManager.h"
+#include "handshake_container.h"
 
 namespace xiosim {
 namespace buffer_management {
@@ -23,8 +24,11 @@ handshake_container_t* Back(pid_t tid);
  * be consumed straight away. */
 void FlushBuffers(pid_t tid);
 
+/* Any elements in the current produceBuffer_? */
+bool ProducerEmpty(pid_t tid);
+
 /* Init producerBuffer_ structures. */
-void InitBufferManagerProducer(pid_t harness_pid, int num_cores);
+void InitBufferManagerProducer(pid_t harness_pid);
 /* Cleanup. */
 void DeinitBufferManagerProducer(void);
 /* Allocate produceBuffer_ for a new program thread. */

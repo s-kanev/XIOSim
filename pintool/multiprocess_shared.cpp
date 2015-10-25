@@ -2,10 +2,10 @@
 
 #include "boost_interprocess.h"
 
-#include "../interface.h"
 #include "multiprocess_shared.h"
 #include "ipc_queues.h"
 #include "scheduler.h"
+#include "../sim.h"
 
 using namespace xiosim::shared;
 
@@ -45,7 +45,11 @@ SHARED_VAR_DEFINE(bool, waits_as_loads);
 SHARED_VAR_DEFINE(int, ss_curr);
 SHARED_VAR_DEFINE(int, ss_prev);
 
+namespace xiosim {
+namespace shared {
 static int num_cores;
+}  // xiosim::shared
+}  // xiosim
 
 int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores_) {
     using namespace boost::interprocess;
@@ -83,11 +87,11 @@ int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores_) {
 
     InitIPCQueues();
 
-    num_cores = num_cores_;
+    xiosim::shared::num_cores = num_cores_;
 
     SHARED_VAR_INIT(bool, sleeping_enabled, false)
 
-    SHARED_VAR_ARRAY_INIT(pid_t, coreThreads, num_cores, xiosim::INVALID_THREADID);
+    SHARED_VAR_ARRAY_INIT(pid_t, coreThreads, xiosim::shared::num_cores, xiosim::INVALID_THREADID);
     SHARED_VAR_CONSTRUCT(ThreadCoreMap, threadCores);
     SHARED_VAR_INIT(XIOSIM_LOCK, lk_coreThreads);
     lk_init(lk_coreThreads);
@@ -159,7 +163,7 @@ pid_t GetSHMCoreThread(int coreID) {
 }
 
 int GetSHMThreadCore(pid_t tid) {
-    int res = INVALID_CORE;
+    int res = xiosim::INVALID_CORE;
     lk_lock(lk_coreThreads, 1);
     if (threadCores->find(tid) != threadCores->end())
         res = threadCores->operator[](tid);
@@ -178,7 +182,7 @@ bool IsSHMThreadSimulatingMaybe(pid_t tid) {
 
 CoreSet GetProcessCores(int asid) {
     CoreSet res;
-    for (int coreID = 0; coreID < num_cores; coreID++) {
+    for (int coreID = 0; coreID < xiosim::shared::num_cores; coreID++) {
         pid_t tid = GetSHMCoreThread(coreID);
         if (tid == xiosim::INVALID_THREADID)
             continue;

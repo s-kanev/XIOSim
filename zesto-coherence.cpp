@@ -1,7 +1,9 @@
+#include <cstring>
 #include <map>
 
+#include "memory.h"
+#include "misc.h"
 #include "stats.h"
-#include "thread.h"
 #include "synchronization.h"
 
 #include "zesto-cache.h"
@@ -9,6 +11,8 @@
 #include "zesto-core.h"
 #include "zesto-uncore.h"
 #include "zesto-noc.h"
+
+using namespace xiosim;
 
 /* load in all definitions */
 #include "ZCOMPS-coherence.list"

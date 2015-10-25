@@ -85,59 +85,42 @@ core_commit_STM_t::core_commit_STM_t(struct core_t * const arg_core):
     fatal("couldn't calloc ROB");
 }
 
-void
-core_commit_STM_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
-{
-    struct thread_t* arch = core->current_thread;
+void core_commit_STM_t::reg_stats(xiosim::stats::StatsDatabase* sdb) {
+    int coreID = core->id;
 
     stat_reg_note(sdb, "\n#### COMMIT STATS ####");
 
-    auto& sim_cycle_st = *stat_find_core_stat<qword_t>(sdb, arch->id, "sim_cycle");
-    auto& commit_insn_st = *stat_find_core_stat<qword_t>(sdb, arch->id, "commit_insn");
-    auto& commit_uops_st = *stat_find_core_stat<qword_t>(sdb, arch->id, "commit_uops");
+    auto& sim_cycle_st = *stat_find_core_stat<tick_t>(sdb, coreID, "sim_cycle");
+    auto& commit_insn_st = *stat_find_core_stat<counter_t>(sdb, coreID, "commit_insn");
+    auto& commit_uops_st = *stat_find_core_stat<counter_t>(sdb, coreID, "commit_uops");
 
-    stat_reg_core_formula(sdb, true, arch->id, "commit_IPC", "IPC at commit",
+    stat_reg_core_formula(sdb, true, coreID, "commit_IPC", "IPC at commit",
                           commit_insn_st / sim_cycle_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "commit_uPC", "uPC at commit",
+    stat_reg_core_formula(sdb, true, coreID, "commit_uPC", "uPC at commit",
                           commit_uops_st / sim_cycle_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "avg_commit_flowlen",
+    stat_reg_core_formula(sdb, true, coreID, "avg_commit_flowlen",
                           "uops per instruction at commit", commit_uops_st / commit_insn_st, NULL);
 
-    stat_reg_core_counter(sdb, true, arch->id, "commit_dead_lock_flushes",
-                          "total number of pipe-flushes due to dead-locked pipeline",
-                          &core->stat.commit_deadlock_flushes, 0, FALSE, NULL);
-    auto& ROB_occupancy_st =
-            stat_reg_core_counter(sdb, false, arch->id, "ROB_occupancy", "total ROB occupancy",
-                                  &core->stat.ROB_occupancy, 0, TRUE, NULL);
-    auto& ROB_empty_st =
-            stat_reg_core_counter(sdb, false, arch->id, "ROB_empty", "total cycles ROB was empty",
-                                  &core->stat.ROB_empty_cycles, 0, TRUE, NULL);
-    auto& ROB_full_st =
-            stat_reg_core_counter(sdb, false, arch->id, "ROB_full", "total cycles ROB was full",
-                                  &core->stat.ROB_full_cycles, 0, TRUE, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "ROB_avg", "average ROB occupancy",
-                          ROB_occupancy_st / sim_cycle_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "ROB_frac_empty", "fraction of cycles ROB was empty",
-                          ROB_empty_st / sim_cycle_st, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "ROB_frac_full", "fraction of cycles ROB was full",
-                          ROB_full_st / sim_cycle_st, NULL);
+    reg_core_queue_occupancy_stats(sdb, coreID, "ROB", &core->stat.ROB_occupancy,
+                                   &core->stat.ROB_empty_cycles,
+                                   &core->stat.ROB_full_cycles);
 
     core->stat.commit_stall = stat_reg_core_dist(
-            sdb, arch->id, "commit_stall", "breakdown of stalls at commit", 0, CSTALL_num, 1,
-            (PF_COUNT | PF_PDF), NULL, commit_stall_str, TRUE, NULL);
+            sdb, coreID, "commit_stall", "breakdown of stalls at commit", 0, CSTALL_num, 1,
+            (PF_COUNT | PF_PDF), NULL, commit_stall_str, true, NULL);
 
     stat_reg_note(sdb, "#### TIMING STATS ####");
     /* instruction distribution stats */
     stat_reg_note(sdb, "\n#### INSTRUCTION STATS (no wrong-path) ####");
-    stat_reg_core_formula(sdb, true, arch->id, "num_insn", "total number of instructions committed",
+    stat_reg_core_formula(sdb, true, coreID, "num_insn", "total number of instructions committed",
                           commit_insn_st, NULL);
-    auto& num_refs_st = stat_reg_core_counter(sdb, true, arch->id, "num_refs",
+    auto& num_refs_st = stat_reg_core_counter(sdb, true, coreID, "num_refs",
                                               "total number of loads and stores committed",
-                                              &core->stat.commit_refs, 0, TRUE, NULL);
-    auto& num_loads_st = stat_reg_core_counter(sdb, true, arch->id, "num_loads",
+                                              &core->stat.commit_refs, 0, true, NULL);
+    auto& num_loads_st = stat_reg_core_counter(sdb, true, coreID, "num_loads",
                                                "total number of loads committed",
-                                               &core->stat.commit_loads, 0, TRUE, NULL);
-    stat_reg_core_formula(sdb, true, arch->id, "num_stores", "total number of stores committed",
+                                               &core->stat.commit_loads, 0, true, NULL);
+    stat_reg_core_formula(sdb, true, coreID, "num_stores", "total number of stores committed",
                           num_refs_st - num_loads_st, "%12.0f");
 }
 
@@ -169,7 +152,7 @@ void core_commit_STM_t::step(void)
      in the pipeline and no forward progress is being made, this
      code will eventually detect it. A global watchdog will check
      if any core is making progress and accordingly if not.*/
-  if(core->current_thread->active && ((core->sim_cycle - core->exec->last_completed) > deadlock_threshold))
+  if(core->active && ((core->sim_cycle - core->exec->last_completed) > deadlock_threshold))
   {
     deadlocked = true; 
 #ifdef ZTRACE
@@ -190,7 +173,7 @@ void core_commit_STM_t::step(void)
     struct Mop_t * Mop = ROB[ROB_head]->Mop;
 
     if(Mop->oracle.spec_mode)
-      zesto_fatal("oldest instruction in processor is on wrong-path",(void)0);
+      fatal("oldest instruction in processor is on wrong-path");
 
     /* Are all uops in the Mop completed? */
     if(Mop->commit.complete_index != -1) /* still some outstanding insts */
@@ -200,7 +183,7 @@ void core_commit_STM_t::step(void)
         struct uop_t * uop = &Mop->uop[Mop->commit.complete_index];
 
         Mop->commit.complete_index += uop->decode.has_imm ? 3 : 1;
-        if(Mop->commit.complete_index >= Mop->decode.flow_length)
+        if(Mop->commit.complete_index >= (int) Mop->decode.flow_length)
         {
           Mop->commit.complete_index = -1; /* Mark this Mop as all done */
           if(Mop->fetch.bpred_update)
@@ -259,7 +242,7 @@ void core_commit_STM_t::step(void)
       /* mark uop as committed in Mop */
       Mop->commit.commit_index += uop->decode.has_imm ? 3 : 1;
 
-      if(Mop->commit.commit_index >= Mop->decode.flow_length)
+      if(Mop->commit.commit_index >= (int) Mop->decode.flow_length)
       {
         Mop->commit.commit_index = -1; /* The entire Mop has been committed */
 
@@ -317,7 +300,6 @@ core_commit_STM_t::recover(const struct Mop_t * const Mop)
 
     while(ROB[index] && (ROB[index]->Mop != Mop))
     {
-      int i;
       struct uop_t * dead_uop = ROB[index];
 
       zesto_assert(ROB_num > 0,(void)0);
@@ -357,7 +339,7 @@ core_commit_STM_t::recover(const struct Mop_t * const Mop)
          need to clean-up our parent's forward-pointers (odeps)
          and our own back-pointers (our fwd-ptrs would have
          already cleaned-up our own children). */
-      for(i=0;i<MAX_IDEPS;i++)
+      for(size_t i=0;i<MAX_IDEPS;i++)
       {
         struct uop_t * parent = dead_uop->exec.idep_uop[i];
         if(parent) /* I have an active parent */
@@ -367,7 +349,7 @@ core_commit_STM_t::recover(const struct Mop_t * const Mop)
           current = parent->exec.odep_uop;
           while(current)
           {
-            if((current->uop == dead_uop) && (current->op_num == i))
+            if((current->uop == dead_uop) && (current->op_num == (int)i))
               break;
             prev = current;
             current = current->next;
@@ -412,7 +394,6 @@ core_commit_STM_t::recover(void)
 
     while(ROB[index])
     {
-      int i;
       struct uop_t * dead_uop = ROB[index];
 
       zesto_assert(ROB_num > 0,(void)0);
@@ -452,7 +433,7 @@ core_commit_STM_t::recover(void)
          need to clean-up our parent's forward-pointers (odeps)
          and our own back-pointers (our fwd-ptrs would have
          already cleaned-up our own children). */
-      for(i=0;i<MAX_IDEPS;i++)
+      for(size_t i=0;i<MAX_IDEPS;i++)
       {
         struct uop_t * parent = dead_uop->exec.idep_uop[i];
         if(parent) /* I have an active parent */
@@ -462,7 +443,7 @@ core_commit_STM_t::recover(void)
           current = parent->exec.odep_uop;
           while(current)
           {
-            if((current->uop == dead_uop) && (current->op_num == i))
+            if((current->uop == dead_uop) && (current->op_num == (int)i))
               break;
             prev = current;
             current = current->next;

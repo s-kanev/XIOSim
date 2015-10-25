@@ -9,8 +9,6 @@
 #include <boost/tokenizer.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 
-#include "../interface.h"
-
 #include "parse_speedup.h"
 
 // Cores for which speedup data is available.

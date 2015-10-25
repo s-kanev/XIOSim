@@ -3,7 +3,6 @@
  * __COPYRIGHT__ GT
  */
 
-#include <math.h>
 #define COMPONENT_NAME "skewed"
 
 #ifdef BPRED_PARSE_ARGS
@@ -86,7 +85,7 @@ class bpred_skewed_t:public bpred_dir_t
     pht_mask = arg_pht_size-1;
     history_length = arg_history_length;
     history_mask = (1<<arg_history_length)-1;
-    half_length = log_base2(arg_pht_size);
+    half_length = std::log2(arg_pht_size);
     half_mask = pht_mask;
     high_mask = arg_pht_size>>1;
     partial_update = arg_partial_update;

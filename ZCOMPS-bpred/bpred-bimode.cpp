@@ -4,7 +4,6 @@
  * __COPYRIGHT__ GT
  */
 
-#include <math.h>
 #define COMPONENT_NAME "bimode"
 
 #ifdef BPRED_PARSE_ARGS
@@ -83,7 +82,7 @@ class bpred_bimode_t:public bpred_dir_t
     Xor = arg_Xor;
     if(Xor)
     {
-      xorshift = log_base2(pht_size)-history_length;
+      xorshift = std::log2(pht_size)-history_length;
       if(xorshift < 0)
         xorshift = 0;
     }

@@ -1,6 +1,7 @@
 /* Implementation of temporary replacement statistics library layer. */
 
 #include "expression.h"
+#include "sim.h"
 #include "statistic.h"
 #include "stat_database.h"
 
@@ -24,8 +25,7 @@ void create_comp_stat_name(int core_id,
                            const char* stat_name,
                            char* full_name,
                            bool is_llc) {
-    // TODO: Replace with xiosim::INVALID_CORE after merge.
-    if (core_id == -1)
+    if (core_id == xiosim::INVALID_CORE)
         snprintf(full_name, STAT_NAME_MAX_LEN, nocore_comp_stat_fmt, comp_name, stat_name);
     else if (is_llc)
         snprintf(full_name, STAT_NAME_MAX_LEN, llc_stat_fmt, comp_name, core_id, stat_name);
@@ -120,24 +120,24 @@ Statistic<unsigned int>& stat_reg_uint(StatsDatabase* sdb,
             sdb, print_me, name, desc, var, init_val, scale_me, format);
 }
 
-Statistic<qword_t>& stat_reg_qword(StatsDatabase* sdb,
+Statistic<uint64_t>& stat_reg_qword(StatsDatabase* sdb,
                                    int print_me,
                                    const char* name,
                                    const char* desc,
-                                   qword_t* var,
-                                   qword_t init_val,
+                                   uint64_t* var,
+                                   uint64_t init_val,
                                    int scale_me,
                                    const char* format) {
-    return reg_stat_helper<qword_t>(sdb, print_me, name, desc, var, init_val, scale_me, format);
+    return reg_stat_helper<uint64_t>(sdb, print_me, name, desc, var, init_val, scale_me, format);
 }
 
-Statistic<qword_t>& stat_reg_core_qword(StatsDatabase* sdb,
+Statistic<uint64_t>& stat_reg_core_qword(StatsDatabase* sdb,
                                    int print_me,
                                    int core_id,
                                    const char* name,
                                    const char* desc,
-                                   qword_t* var,
-                                   qword_t init_val,
+                                   uint64_t* var,
+                                   uint64_t init_val,
                                    int scale_me,
                                    const char* format) {
     char full_stat_name[STAT_NAME_MAX_LEN];
@@ -145,47 +145,29 @@ Statistic<qword_t>& stat_reg_core_qword(StatsDatabase* sdb,
     return stat_reg_qword(sdb, print_me, full_stat_name, desc, var, init_val, scale_me, format);
 }
 
-Statistic<sqword_t>& stat_reg_sqword(StatsDatabase* sdb,
+Statistic<int64_t>& stat_reg_sqword(StatsDatabase* sdb,
                                      int print_me,
                                      const char* name,
                                      const char* desc,
-                                     sqword_t* var,
-                                     sqword_t init_val,
+                                     int64_t* var,
+                                     int64_t init_val,
                                      int scale_me,
                                      const char* format) {
-    return reg_stat_helper<sqword_t>(sdb, print_me, name, desc, var, init_val, scale_me, format);
+    return reg_stat_helper<int64_t>(sdb, print_me, name, desc, var, init_val, scale_me, format);
 }
 
-Statistic<sqword_t>& stat_reg_core_sqword(StatsDatabase* sdb,
+Statistic<int64_t>& stat_reg_core_sqword(StatsDatabase* sdb,
                                           int print_me,
                                           int core_id,
                                           const char* name,
                                           const char* desc,
-                                          sqword_t* var,
-                                          sqword_t init_val,
+                                          int64_t* var,
+                                          int64_t init_val,
                                           int scale_me,
                                           const char* format) {
     char full_stat_name[STAT_NAME_MAX_LEN];
     snprintf(full_stat_name, STAT_NAME_MAX_LEN, core_stat_fmt, core_id, name);
     return stat_reg_sqword(sdb, print_me, full_stat_name, desc, var, init_val, scale_me, format);
-}
-
-Statistic<sqword_t>& stat_reg_comp_sqword(StatsDatabase* sdb,
-                                          int print_me,
-                                          int core_id,
-                                          const char* comp_name,
-                                          const char* stat_name,
-                                          const char* desc,
-                                          sqword_t* var,
-                                          sqword_t init_val,
-                                          int scale_me,
-                                          const char* format) {
-    char full_stat_name[STAT_NAME_MAX_LEN];
-    char full_desc[DESC_MAX_LEN];
-    create_comp_stat_name(core_id, comp_name, stat_name, full_stat_name);
-    snprintf(full_desc, DESC_MAX_LEN, desc, comp_name);
-    return stat_reg_sqword(
-            sdb, print_me, full_stat_name, full_desc, var, init_val, scale_me, format);
 }
 
 /* sqword stats of a component that belongs to a core or is associated with a core.
@@ -210,14 +192,14 @@ Statistic<sqword_t>& stat_reg_comp_sqword(StatsDatabase* sdb,
  * The difference in behavior is because LLCs do not belong to a core, so they
  * should not be labeled as a subcategory of one.
  */
-Statistic<sqword_t>& stat_reg_comp_sqword(StatsDatabase* sdb,
+Statistic<int64_t>& stat_reg_comp_sqword(StatsDatabase* sdb,
                                            int print_me,
                                            int core_id,
                                            const char* comp_name,
                                            const char* stat_name,
                                            const char* desc,
-                                           sqword_t* var,
-                                           sqword_t init_val,
+                                           int64_t* var,
+                                           int64_t init_val,
                                            int scale_me,
                                            const char* format,
                                            bool is_llc) {
@@ -335,8 +317,7 @@ void reg_core_queue_occupancy_stats(StatsDatabase* sdb,
                                     counter_t* occupancy,
                                     counter_t* cycles_empty,
                                     counter_t* cycles_full) {
-    auto sim_cycle_st = stat_find_core_stat<qword_t>(sdb, core_id, "sim_cycle");
-    assert(sim_cycle_st);
+    auto sim_cycle_st = stat_find_core_stat<tick_t>(sdb, core_id, "sim_cycle");
 
     std::string occupancy_st_name = queue_name + "_occupancy";
     std::string empty_st_name = queue_name + "_empty";
@@ -355,33 +336,29 @@ void reg_core_queue_occupancy_stats(StatsDatabase* sdb,
     auto& occupancy_st = stat_reg_core_counter(
             sdb, true, core_id, occupancy_st_name.c_str(),
             occupancy_st_desc.c_str(), occupancy, 0, true, NULL);
-    auto& empty_st = stat_reg_core_counter(
-            sdb, true, core_id, empty_st_name.c_str(),
-            empty_st_desc.c_str(), cycles_empty, 0, true, NULL);
-    auto& full_st = stat_reg_core_counter(
-            sdb, true, core_id, full_st_name.c_str(),
-            full_st_desc.c_str(), cycles_full, 0, true, NULL);
     stat_reg_core_formula(
             sdb, true, core_id, avg_st_name.c_str(),
             avg_st_desc.c_str(), occupancy_st / *sim_cycle_st, NULL);
-    stat_reg_core_formula(
-            sdb, true, core_id, frac_empty_st_name.c_str(),
-            frac_empty_st_desc.c_str(), empty_st / *sim_cycle_st, NULL);
-    stat_reg_core_formula(
-            sdb, true, core_id, frac_full_st_name.c_str(),
-            frac_full_st_desc.c_str(), full_st / *sim_cycle_st, NULL);
-}
-
-/* Add nsamples to array or sparse array distribution stat.
- *
- * Never used in the simulator.
- */
-void stat_add_samples(BaseStatistic* stat, dword_t index, int nsamples) {
-    assert(false && "Not supported.\n");
+    if (cycles_empty) {
+        auto& empty_st = stat_reg_core_counter(
+                sdb, true, core_id, empty_st_name.c_str(),
+                empty_st_desc.c_str(), cycles_empty, 0, true, NULL);
+        stat_reg_core_formula(
+                sdb, true, core_id, frac_empty_st_name.c_str(),
+                frac_empty_st_desc.c_str(), empty_st / *sim_cycle_st, NULL);
+    }
+    if (cycles_full) {
+        auto& full_st = stat_reg_core_counter(
+                sdb, true, core_id, full_st_name.c_str(),
+                full_st_desc.c_str(), cycles_full, 0, true, NULL);
+        stat_reg_core_formula(
+                sdb, true, core_id, frac_full_st_name.c_str(),
+                frac_full_st_desc.c_str(), full_st / *sim_cycle_st, NULL);
+    }
 }
 
 /* Add a single sample to array or sparse array distribution STAT */
-void stat_add_sample(BaseStatistic* stat, dword_t index) {
+void stat_add_sample(BaseStatistic* stat, unsigned int index) {
     Distribution* dist = static_cast<Distribution*>(stat);
     dist->add_samples(index, 1);
 }

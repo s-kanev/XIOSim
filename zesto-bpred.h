@@ -75,7 +75,6 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
-#include "machine.h"
 #include "zesto-structs.h"
 
 /* Top-level "branch predictor" this handles direction, target, return address, etc. */
@@ -122,7 +121,7 @@ class bpred_t
      outcome = correct taken/not-taken decision */
   md_addr_t lookup(
       class bpred_state_cache_t * const scvp,
-      const unsigned int opflags,
+      const inst_flags_t opflags,
       const md_addr_t PC,
       const md_addr_t fallthruPC,
       const md_addr_t targetPC,
@@ -131,7 +130,7 @@ class bpred_t
 
   void update(
       class bpred_state_cache_t * const scvp,
-      const unsigned int opflags,
+      const inst_flags_t opflags,
       const md_addr_t PC,
       const md_addr_t fallthruPC,
       const md_addr_t targetPC,
@@ -140,7 +139,7 @@ class bpred_t
 
   void spec_update(
       class bpred_state_cache_t * const scvp,
-      const unsigned int opflags,
+      const inst_flags_t opflags,
       const md_addr_t PC,
       const md_addr_t targetPC,
       const md_addr_t oraclePC,

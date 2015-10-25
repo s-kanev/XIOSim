@@ -10,7 +10,6 @@
 #ifndef __ZESTO_CONFIG_H__
 #define __ZESTO_CONFIG_H__
 
-#include "machine.h"  // Make sure this doesn't interfere with boost interprocess.
 #include "confuse.h"
 #include "zesto-structs.h"
 
@@ -22,9 +21,6 @@ extern const char* ztrace_filename;
 extern bool simulate_power;
 
 extern int rand_seed;
-#ifdef DEBUG
-extern bool debugging;
-#endif
 extern const char* sim_simout;
 extern const char * LLC_opt_str;
 extern const char * LLC_PF_opt_str[MAX_PREFETCHERS];
@@ -109,12 +105,12 @@ void store_uncore_options(cfg_t *uncore_opt, core_knobs_t *knobs);
  * Params:
  * @exec_cfg: Execution stage config.
  * @exeu_name: Execution unit name.
- * @fu_type: Functional unit type, enumerated in md_fu_class.
+ * @fu_type: Functional unit type, enumerated in fu_class.
  * @knobs: Configuration knobs.
  */
 void store_execution_unit_options(cfg_t *exec_cfg,
                                   const char* exeu_name,
-                                  md_fu_class fu_type,
+                                  fu_class fu_type,
                                   core_knobs_t *knobs);
 
 /* Stores an int list config value into a preallocated array.

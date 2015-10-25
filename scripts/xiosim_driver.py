@@ -30,6 +30,7 @@ class XIOSimDriver(object):
         self.cmd += "-pin " + self.PIN + " "
         self.cmd += "-xyzzy "
         self.cmd += "-pause_tool 1 "
+        self.cmd += "-catch_signals 0 "
         self.cmd += "-t " + os.path.join(self.INSTALL_DIR, "feeder_zesto.so") + " "
 
     def AddPintoolOptions(self, num_cores):
@@ -47,10 +48,14 @@ class XIOSimDriver(object):
     def AddMolecoolOptions(self):
         self.cmd += "-ildjit "
 
+    def AddIgnoreOptions(self):
+        self.cmd += "-ignore_api "
+
     def AddROIOptions(self):
         self.cmd += "-roi "
 
     def AddReplaceOptions(self, func):
+        self.AddIgnoreOptions()
         self.cmd += "-ignore_functions %s " % func
 
     def AddTraceFile(self, file):

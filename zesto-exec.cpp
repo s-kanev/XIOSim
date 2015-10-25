@@ -72,12 +72,18 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
+#include <cmath>
 #include <cstddef>
 
+#include "decode.h"
+#include "memory.h"
+#include "misc.h"
+#include "regs.h"
 #include "stats.h"
-#include "thread.h"
 #include "synchronization.h"
+#include "uop_cracker.h"
 
+#include "zesto-structs.h"
 #include "zesto-cache.h"
 #include "zesto-noc.h"
 #include "zesto-repeater.h"
@@ -117,6 +123,12 @@ enum cache_command core_exec_t::get_STQ_request_type(const struct uop_t * const 
     return CACHE_WRITE;
 
   return is_addr_helix_signal(uop->oracle.virt_addr) ? CACHE_SIGNAL : CACHE_WAIT;
+}
+
+int core_exec_t::get_fp_penalty(const struct uop_t * const uop)
+{
+  bool freg_output = x86::is_freg(uop->decode.odep_name[0]);
+  return (freg_output ^ uop->decode.is_fpop) ? core->knobs->exec.fp_penalty : 0;
 }
 
 extern int min_coreID;

@@ -31,13 +31,12 @@ class core_commit_NONE_t:public core_commit_t
 };
 
 void core_commit_NONE_t::reg_stats(xiosim::stats::StatsDatabase* sdb) {
-    struct thread_t* arch = core->current_thread;
-
+    int coreID = core->id;
     stat_reg_note(sdb, "\n#### COMMIT STATS ####");
 
-    auto& sim_cycle_st = *stat_find_core_stat<qword_t>(sdb, arch->id, "sim_cycle");
-    auto& commit_insn_st = *stat_find_core_stat<qword_t>(sdb, arch->id, "commit_insn");
-    stat_reg_core_formula(sdb, true, arch->id, "commit_IPC", "IPC at commit",
+    auto& sim_cycle_st = *stat_find_core_stat<tick_t>(sdb, coreID, "sim_cycle");
+    auto& commit_insn_st = *stat_find_core_stat<counter_t>(sdb, coreID, "commit_insn");
+    stat_reg_core_formula(sdb, true, coreID, "commit_IPC", "IPC at commit",
                           commit_insn_st / sim_cycle_st, NULL);
 }
 
@@ -52,7 +51,7 @@ void core_commit_NONE_t::IO_step()
   if (Mop->timing.when_commit_finished > core->sim_cycle) {
     // Partially complete, have to check all uops.
     bool all_completed = true;
-    for (int i = 0; i < Mop->decode.flow_length; i++) {
+    for (size_t i = 0; i < Mop->decode.flow_length; i++) {
       uop_t * uop = &Mop->uop[i];
       if (uop->decode.is_imm)
         continue;
@@ -64,11 +63,20 @@ void core_commit_NONE_t::IO_step()
   }
 
   // Mop is complete, commit all uops.
-  for (int i = 0; i < Mop->decode.flow_length; i++) {
-    if (!Mop->uop[i].decode.is_imm) {
+  for (size_t i = 0; i < Mop->decode.flow_length; i++) {
+    struct uop_t* uop = &Mop->uop[i];
+    if (!uop->decode.is_imm) {
+
+#ifdef ZTRACE
+      ztrace_print(uop,"c|commit|uop committed");
+#endif
       core->oracle->commit_uop(&Mop->uop[i]);
     }
   }
+#ifdef ZTRACE
+  ztrace_print(Mop,"c|commit|all uops in Mop committed; Mop retired");
+#endif
+
   // ... and the Mop itself.
   core->oracle->commit(Mop);
   core->stat.commit_insn++;
