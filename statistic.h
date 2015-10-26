@@ -1,7 +1,7 @@
 /* Definitions of scalar and distribution statistic types.
  *
  * Supports the following data types:
- * - int, unsigned int, double, float, long long, unsigned long long,
+ * - int, unsigned int, double, float, int64_t, uint64_t,
  *   const char*.
  *
  * Author: Sam Xi
@@ -13,6 +13,8 @@
 #include <string>
 
 #include "boost_statistics.h"
+
+#include "host.h"
 
 // NOTE: Temporary.
 const int PF_COUNT = 0x0001;
@@ -270,15 +272,15 @@ class Statistic<
     /* signed qword. */
     template <typename U = V>
     void set_output_format_default(
-            typename boost::enable_if<boost::is_same<U, long long>>::type* = 0) {
-        this->output_fmt = "%12lld";
+            typename boost::enable_if<boost::is_same<U, int64_t>>::type* = 0) {
+        this->output_fmt = "%12" PRId64;
     }
 
     /* unsigned qword. */
     template <typename U = V>
     void set_output_format_default(
-            typename boost::enable_if<boost::is_same<U, unsigned long long>>::type* = 0) {
-        this->output_fmt = "%12lu";
+            typename boost::enable_if<boost::is_same<U, uint64_t>>::type* = 0) {
+        this->output_fmt = "%12" PRIu64;
     }
 
   protected:

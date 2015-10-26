@@ -1,7 +1,7 @@
 /* Definition of formulas and expressions.  *
  * Brief usage:
  *   Statistic<int> some_stat;
- *   Statistic<long long> some_other_stat;
+ *   Statistic<int64_t> some_other_stat;
  *   Formula formula( constructor params... );
  *   formula = some_stat + some_other_stat;
  *   formula = some_stat + Constant(3);
@@ -148,10 +148,10 @@ class ExpressionWrapper {
 
     ExpressionWrapper(const Statistic<float>& scalar) : expr(new Scalar<float>(scalar)) {}
 
-    ExpressionWrapper(const Statistic<long long>& scalar) : expr(new Scalar<long long>(scalar)) {}
+    ExpressionWrapper(const Statistic<int64_t>& scalar) : expr(new Scalar<int64_t>(scalar)) {}
 
-    ExpressionWrapper(const Statistic<unsigned long long>& scalar)
-        : expr(new Scalar<unsigned long long>(scalar)) {}
+    ExpressionWrapper(const Statistic<uint64_t>& scalar)
+        : expr(new Scalar<uint64_t>(scalar)) {}
 
     ExpressionWrapper(const Constant& constant) : expr(new Constant(constant)) {}
 

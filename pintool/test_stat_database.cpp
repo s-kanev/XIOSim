@@ -62,9 +62,9 @@ bool check_printfs(FILE* test_file, const char* golden_file_name) {
         bool lines_equal = (strncmp(golden_buf, test_buf, golden_len) == 0);
         if (!lines_equal) {
             // Print lines to the console for debugging BEFORE the REQUIRE macro.
-            printf("DIFFERENCE ON LINE %d.\n", line_num);
-            printf("Test output    : %s\n", test_buf);
-            printf("Correct output : %s\n", golden_buf);
+            fprintf(stderr, "DIFFERENCE ON LINE %d.\n", line_num);
+            fprintf(stderr, "Test output    : %s\n", test_buf);
+            fprintf(stderr, "Correct output : %s\n", golden_buf);
             REQUIRE(lines_equal);
         }
         line_num++;
@@ -292,11 +292,11 @@ TEST_CASE("Formula statistics", "formulas") {
     SECTION("Formulas with 3 operands.") {
         int stat_1_value = 0;
         unsigned stat_2_value = 0;
-        long long stat_3_value = 0;
+        int64_t stat_3_value = 0;
 
         Statistic<int> stat_1("stat_1", "integer statistic", &stat_1_value, 0);
         Statistic<unsigned> stat_2("stat_2", "unsigned statistic", &stat_2_value, 0);
-        Statistic<long long> stat_3("stat_3", "long long statistic", &stat_3_value, 0);
+        Statistic<int64_t> stat_3("stat_3", "int64_t statistic", &stat_3_value, 0);
         Formula sum("add_three_stats", "Add three statistics together");
         Formula nested_sum("add_three_stats_nested", "Add explicitly nested statistics together.");
         sum = stat_1 + stat_2 + stat_3;
@@ -405,7 +405,7 @@ TEST_CASE("Full statistics database", "database") {
 
     int int_value = 0;
     double double_value = 0.0;
-    long long ll_value = 0;
+    int64_t ll_value = 0;
     const char* str_value = "string";
 
     StatsDatabase sdb;
@@ -413,8 +413,8 @@ TEST_CASE("Full statistics database", "database") {
         sdb.add_statistic("integer_stat", "integer description", &int_value, 0);
     Statistic<double>* double_stat =
         sdb.add_statistic("double_stat", "double description", &double_value, 0);
-    Statistic<long long>* ll_stat =
-        sdb.add_statistic("long_long_stat", "long long description", &ll_value, 0);
+    Statistic<int64_t>* ll_stat =
+        sdb.add_statistic("long_long_stat", "int64_t description", &ll_value, 0);
     sdb.add_statistic("string_stat", "string description", str_value);
     Distribution* dist = sdb.add_distribution("dist", "dist description", 0, 10, 5);
 

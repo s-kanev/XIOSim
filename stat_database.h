@@ -3,8 +3,7 @@
  * This library tracks scalar, distribution, and formula type statistics.
  *
  * Scalar types supported:
- *  - int, unsigned int, double, float, long long, unsigned long long, const
- *    char*
+ *  - int, unsigned int, double, float, int64_t, uint64_t, const char*
  * Distributions only support integer data.
  * Formulas support any scalar type of statistic. Constant values are supported
  * as well (see details in expression.h).
@@ -102,28 +101,28 @@ class StatsDatabase {
         return stat;
     }
 
-    Statistic<long long>* add_statistic(const char* name,
+    Statistic<int64_t>* add_statistic(const char* name,
                                         const char* desc,
-                                        long long* value,
-                                        long long init_val,
+                                        int64_t* value,
+                                        int64_t init_val,
                                         const char* output_fmt = "%12lld",
                                         bool print = true,
                                         bool scale = true) {
-        Statistic<long long>* stat =
-                new Statistic<long long>(name, desc, value, init_val, output_fmt, print, scale);
+        Statistic<int64_t>* stat =
+                new Statistic<int64_t>(name, desc, value, init_val, output_fmt, print, scale);
         stat_list.push_back(stat);
         stat_db[name] = stat_list.size() - 1;
         return stat;
     }
 
-    Statistic<unsigned long long>* add_statistic(const char* name,
+    Statistic<uint64_t>* add_statistic(const char* name,
                                                  const char* desc,
-                                                 unsigned long long* value,
-                                                 unsigned long long init_val,
+                                                 uint64_t* value,
+                                                 uint64_t init_val,
                                                  const char* output_fmt = "%12lu",
                                                  bool print = true,
                                                  bool scale = true) {
-        Statistic<unsigned long long>* stat = new Statistic<unsigned long long>(
+        Statistic<uint64_t>* stat = new Statistic<uint64_t>(
                 name, desc, value, init_val, output_fmt, print, scale);
         stat_list.push_back(stat);
         stat_db[name] = stat_list.size() - 1;

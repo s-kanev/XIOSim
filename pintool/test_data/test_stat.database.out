@@ -1,6 +1,6 @@
 integer_stat                         100 # integer description
 double_stat                      50.1230 # double description
-long_long_stat                   1233445 # long long description
+long_long_stat                   1233445 # int64_t description
 string_stat                       string # string description
 dist                         # dist description
 dist.array_sz = 10
