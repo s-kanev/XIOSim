@@ -75,6 +75,8 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
+#include "zesto-cache.h"
+
 class core_exec_t
 {
   public:

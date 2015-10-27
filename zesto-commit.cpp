@@ -103,13 +103,13 @@ core_commit_t::~core_commit_t()
 
 
 /* load in all definitions */
-#include "ZPIPE-commit.list"
+#include "ZPIPE-commit.list.h"
 
 
 class core_commit_t * commit_create(const char * commit_opt_string, struct core_t * core)
 {
 #define ZESTO_PARSE_ARGS
-#include "ZPIPE-commit.list"
+#include "ZPIPE-commit.list.h"
 
   fatal("unknown commit type \"%s\"",commit_opt_string);
 #undef ZESTO_PARSE_ARGS

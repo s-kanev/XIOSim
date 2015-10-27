@@ -17,7 +17,7 @@ class vf_controller_t {
   protected:
     struct core_t * const core;
     tick_t last_power_computation;
-    std::queue<pair<tick_t, double> > voltages;
+    std::queue<std::pair<tick_t, double> > voltages;
 };
 
 class vf_controller_t * vf_controller_create(const char * opt_string, struct core_t * core);

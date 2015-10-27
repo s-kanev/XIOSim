@@ -3,17 +3,18 @@
 
 #include "ezOptionParser_clean.hpp"
 
-#include "../libsim.h"
-#include "../memory.h"
+#include "libsim.h"
+#include "zesto-structs.h"
+#include "memory.h"
 #include "multiprocess_shared.h"
 #include "ipc_queues.h"
 
 #include "scheduler.h"
-#include "../synchronization.h"
+#include "synchronization.h"
 #include "BufferManagerConsumer.h"
 #include "allocators_impl.h"
-#include "../sim.h"
-#include "../slices.h"
+#include "sim.h"
+#include "slices.h"
 
 #include "timing_sim.h"
 

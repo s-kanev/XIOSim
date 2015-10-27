@@ -1,7 +1,13 @@
 #ifndef __IPC_QUEUES__
 #define __IPC_QUEUES__
 
+#include <assert.h>
+#include <list>
+#include <vector>
+
 #include "host.h"
+#include "multiprocess_shared.h"
+
 struct ipc_message_t;
 
 /* Send an IPC message. The flow now is from multiple producers
@@ -195,7 +201,7 @@ struct ipc_message_t {
     }
 };
 static size_t hash_value(ipc_message_t const& obj) {
-    boost::hash<int> hasher;
+    std::hash<int> hasher;
     return hasher(obj.id) ^ hasher(obj.arg0);
 }
 

@@ -1396,7 +1396,7 @@ static void MSHR_WB_insert(
   int new_index = MSHR - cp->MSHR[new_bank];
 
   cp->MSHR_WB_num[new_bank]++;
-  cache_assert(cp->MSHR_WB_num[new_bank] <= cp->MSHR_WB_size,NULL);
+  cache_assert(cp->MSHR_WB_num[new_bank] <= cp->MSHR_WB_size, (void)NULL);
 
   MSHR->core = cache_block->core;
   MSHR->op = NULL;
@@ -1442,7 +1442,7 @@ static void MSHR_insert(
     int this_bank = GET_MSHR_BANK(ca->paddr);
 
     cp->MSHR_num[this_bank]++;
-    cache_assert(cp->MSHR_num[this_bank] <= (cp->MSHR_size-cp->MSHR_WB_size),NULL);
+    cache_assert(cp->MSHR_num[this_bank] <= (cp->MSHR_size-cp->MSHR_WB_size), (void)NULL);
 
     if(MSHR_linked)
       MSHR->when_started = cache_get_cycle(cp);

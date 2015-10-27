@@ -7,16 +7,15 @@
 #include <map>
 #include <list>
 
-#include "boost_interprocess.h"
-#include "boost_statistics.h"
-
-#include "../libsim.h"
 #include "multiprocess_shared.h"
 
-#include "scheduler.h"
-
+#include "../libsim.h"
 #include "../sim.h"
+#include "../synchronization.h"
 #include "../zesto-core.h"
+#include "../zesto-structs.h"
+
+#include "scheduler.h"
 
 namespace xiosim {
 

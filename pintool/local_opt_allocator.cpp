@@ -7,7 +7,6 @@
  * Author: Sam Xi
  */
 
-#include "boost_interprocess.h"
 #include "../synchronization.h"
 #include "multiprocess_shared.h"
 #include <iostream>

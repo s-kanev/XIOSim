@@ -150,7 +150,7 @@ typedef struct{
 	double write_misses;
 	double replacements;
 } BTB_systemcore;
-typedef struct{
+struct system_core{
 	//all params at the level of system.core(0-n)
 	int clock_rate;
 	bool opt_local;
@@ -289,7 +289,7 @@ typedef struct{
 	dcache_systemcore dcache;
 	BTB_systemcore BTB;
 
-} system_core;
+};
 typedef struct{
 	//params
 	int Directory_type;
@@ -332,7 +332,7 @@ typedef struct{
 	double conflicts;
 	double duty_cycle;
 } system_L2Directory;
-typedef struct{
+struct system_L2{
 	//params
 	double L2_config[20];
 	int clockrate;
@@ -374,7 +374,7 @@ typedef struct{
 	double homenode_read_misses;
 	double homenode_write_misses;
 	double dir_duty_cycle;
-} system_L2;
+};
 typedef struct{
 	//params
 	double L3_config[20];

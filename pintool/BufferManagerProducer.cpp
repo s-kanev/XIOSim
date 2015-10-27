@@ -4,12 +4,6 @@
 #include <sstream>
 #include <mutex>
 
-#include "pin.H"
-
-#include "boost_interprocess.h"
-
-#include "feeder.h"
-#include "multiprocess_shared.h"
 #include "ipc_queues.h"
 #include "buffer.h"
 #include "BufferManagerProducer.h"
@@ -45,11 +39,11 @@ void InitBufferManagerProducer(pid_t harness_pid) {
     bridgeDirs_.push_back("/tmp/");
 
     int pid = getpgrp();
-    ostringstream iss;
+    std::ostringstream iss;
     iss << pid;
     gpid_ = iss.str().c_str();
     assert(gpid_.length() > 0);
-    cerr << " Creating temp files with prefix " << gpid_ << "_*" << endl;
+    std::cerr << " Creating temp files with prefix " << gpid_ << "_*" << std::endl;
 }
 
 void DeinitBufferManagerProducer() { DeinitBufferManager(); }
@@ -132,14 +126,14 @@ static void copyProducerToFile(pid_t tid, bool checkSpace) {
                 madeFile = true;
                 break;
             }
-            // cerr << "Out of space on " + bridgeDirs_[i] + " !!!" << endl;
+            // std::cerr << "Out of space on " + bridgeDirs_[i] + " !!!" << std::endl;
         }
         if (madeFile == false) {
-            cerr << "Nowhere left for the poor file bridge :(" << endl;
-            cerr << "BridgeDirs:" << endl;
+            std::cerr << "Nowhere left for the poor file bridge :(" << std::endl;
+            std::cerr << "BridgeDirs:" << std::endl;
             for (int i = 0; i < (int)bridgeDirs_.size(); i++) {
                 int space = getKBFreeSpace(bridgeDirs_[i]);
-                cerr << bridgeDirs_[i] << ":" << space << " in KB" << endl;
+                std::cerr << bridgeDirs_[i] << ":" << space << " in KB" << std::endl;
             }
             abort();
         }
@@ -157,8 +151,8 @@ static void copyProducerToFile(pid_t tid, bool checkSpace) {
 
     int fd = open(filename.c_str(), O_WRONLY | O_CREAT, 0777);
     if (fd == -1) {
-        cerr << "Opened to write: " << filename;
-        cerr << "Pipe open error: " << fd << " Errcode:" << strerror(errno) << endl;
+        std::cerr << "Opened to write: " << filename;
+        std::cerr << "Pipe open error: " << fd << " Errcode:" << strerror(errno) << std::endl;
         abort();
     }
 
@@ -170,8 +164,8 @@ static void copyProducerToFile(pid_t tid, bool checkSpace) {
 
     result = close(fd);
     if (result != 0) {
-        cerr << "Close error: "
-             << " Errcode:" << strerror(errno) << endl;
+        std::cerr << "Close error: "
+             << " Errcode:" << strerror(errno) << std::endl;
         abort();
     }
 
@@ -194,9 +188,9 @@ static ssize_t do_write(const int fd, const void* buff, const size_t size) {
     do {
         ssize_t res = write(fd, (void*)((char*)buff + bytesWritten), size - bytesWritten);
         if (res == -1) {
-            cerr << "failed write!" << endl;
-            cerr << "bytesWritten:" << bytesWritten << endl;
-            cerr << "size:" << size << endl;
+            std::cerr << "failed write!" << std::endl;
+            std::cerr << "bytesWritten:" << bytesWritten << std::endl;
+            std::cerr << "size:" << size << std::endl;
             return -1;
         }
         bytesWritten += res;
@@ -210,23 +204,23 @@ static void writeHandshake(pid_t tid, int fd, std::string fname, handshake_conta
 
     ssize_t bytesWritten = do_write(fd, writeBuffer, totalBytes);
     if (bytesWritten == -1) {
-        cerr << "Pipe write error: " << bytesWritten << " Errcode:" << strerror(errno) << endl;
+        std::cerr << "Pipe write error: " << bytesWritten << " Errcode:" << strerror(errno) << std::endl;
 
-        cerr << "Opened to write: " << fname << endl;
-        cerr << "Thread Id:" << tid << endl;
-        cerr << "fd:" << fd << endl;
-        cerr << "ProduceBuffer size:" << produceBuffer_[tid]->size() << endl;
+        std::cerr << "Opened to write: " << fname << std::endl;
+        std::cerr << "Thread Id:" << tid << std::endl;
+        std::cerr << "fd:" << fd << std::endl;
+        std::cerr << "ProduceBuffer size:" << produceBuffer_[tid]->size() << std::endl;
 
-        cerr << "BridgeDirs:" << endl;
+        std::cerr << "BridgeDirs:" << std::endl;
         for (int i = 0; i < (int)bridgeDirs_.size(); i++) {
             int space = getKBFreeSpace(bridgeDirs_[i]);
-            cerr << bridgeDirs_[i] << ":" << space << " in KB" << endl;
+            std::cerr << bridgeDirs_[i] << ":" << space << " in KB" << std::endl;
         }
         abort();
     }
     if (bytesWritten != (ssize_t)totalBytes) {
-        cerr << "File write error: " << bytesWritten << " expected:" << totalBytes << endl;
-        cerr << fname << endl;
+        std::cerr << "File write error: " << bytesWritten << " expected:" << totalBytes << std::endl;
+        std::cerr << fname << std::endl;
         abort();
     }
 }

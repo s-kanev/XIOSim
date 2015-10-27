@@ -1,11 +1,9 @@
 #include <sstream>
 
-#include "boost_interprocess.h"
-
-#include "multiprocess_shared.h"
 #include "ipc_queues.h"
 #include "scheduler.h"
 #include "../sim.h"
+#include "multiprocess_shared.h"
 
 using namespace xiosim::shared;
 

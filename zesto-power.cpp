@@ -10,8 +10,10 @@
 #include "zesto-fetch.h"
 #include "zesto-bpred.h"
 #include "zesto-uncore.h"
+#include "zesto-cache.h"
 
-#include "mcpat.h"
+#include "mcpat/XML_Parse.h"
+#include "mcpat/mcpat.h"
 
 class ParseXML *XML = NULL; //Interface to McPAT
 
@@ -502,7 +504,7 @@ void core_power_t::translate_stats(xiosim::stats::StatsDatabase* sdb,
 }
 
 /* load in all definitions */
-#include "ZCORE-power.list"
+#include "ZCORE-power.list.h"
 
 /* default constructor */
 core_power_t::core_power_t(struct core_t * _core):
@@ -519,7 +521,7 @@ core_power_t::~core_power_t(void)
 class core_power_t * power_create(const char * power_opt_string, struct core_t * core)
 {
 #define ZESTO_PARSE_ARGS
-#include "ZCORE-power.list"
+#include "ZCORE-power.list.h"
 
   fatal("unknown power model type \"%s\"", power_opt_string);
 #undef ZESTO_PARSE_ARGS

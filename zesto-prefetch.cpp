@@ -75,6 +75,7 @@
 #include <cmath>
 #include <iostream>
 
+#include "2bitc.h"
 #include "memory.h"
 #include "misc.h"
 #include "sim.h"
@@ -82,10 +83,8 @@
 #include "valcheck.h"
 
 #include "zesto-core.h"
-#include "zesto-bpred.h"
 #include "zesto-cache.h"
 #include "zesto-prefetch.h"
-#include "zesto-uncore.h"
 
 using namespace std;
 
@@ -147,7 +146,7 @@ paddr           - physical address load is reading from
 
 
 
-#include "ZCOMPS-prefetch.list"
+#include "ZCOMPS-prefetch.list.h"
 
 
 #define PREFETCH_PARSE_ARGS
@@ -168,7 +167,7 @@ prefetch_create(const char * const opt_string, struct cache_t * const cp)
   
   /* include the argument parsing code.  PREFETCH_PARSE_ARGS is defined to
      include only the parsing code and not the other prefetcher code. */
-#include "ZCOMPS-prefetch.list"
+#include "ZCOMPS-prefetch.list.h"
 
 
   /* UNKNOWN prefetch Type */

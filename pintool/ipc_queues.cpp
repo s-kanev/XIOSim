@@ -1,8 +1,3 @@
-#include "pin.H"
-
-#include "boost_interprocess.h"
-
-#include "multiprocess_shared.h"
 #include "ipc_queues.h"
 
 SHARED_VAR_DEFINE(MessageQueue, ipcMessageQueue)

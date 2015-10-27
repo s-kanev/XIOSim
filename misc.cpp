@@ -136,7 +136,6 @@ void memzero(void * base, int bytes)
    reduce memory operations by about 33%. */
 void memswap(void * p1, void * p2, size_t num_bytes)
 {
-  int i;
   char * addr1 = (char*) p1;
   char * addr2 = (char*) p2;
 #ifdef USE_SSE_MOVE
@@ -147,7 +146,7 @@ void memswap(void * p1, void * p2, size_t num_bytes)
   /* both buffers 16-byte aligned */
   if(((((uintptr_t)p1)&0x0f) | (((uintptr_t)p2)&0x0f)) == 0)
   {
-    for(i=0;i<iter;i++)
+    for(int i=0;i<iter;i++)
     {
       asm ("movaps (%0), %%xmm0\n\t" // load p1 into xmm0 and xmm1
            "movaps (%1), %%xmm1\n\t" // load p2 into xmm2 and xmm3
@@ -160,7 +159,7 @@ void memswap(void * p1, void * p2, size_t num_bytes)
   }
   else /* unaligned */
   {
-    for(i=0;i<iter;i++)
+    for(int i=0;i<iter;i++)
     {
       asm ("movlps (%0),  %%xmm0\n\t" // load p1 into xmm0 and xmm1
            "movlps 8(%0), %%xmm1\n\t"

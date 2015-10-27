@@ -288,7 +288,7 @@ SharedCache::SharedCache(ParseXML* XML_interface, int ithCache_, InputParameter*
   directory.caches.optimize_array();
   directory.area += directory.caches.local_result.area;
   //output_data_csv(directory.caches.local_result);
-  ///*out_file<<"area="<<area<<endl;
+  // *out_file<<"area="<<area<<endl;
 
   //miss buffer Each MSHR contains enough state to handle one or more accesses of any type to a single memory line.
   //Due to the generality of the MSHR mechanism, the amount of state involved is non-trivial,
@@ -318,7 +318,7 @@ SharedCache::SharedCache(ParseXML* XML_interface, int ithCache_, InputParameter*
   directory.missb.optimize_array();
   directory.area += directory.missb.local_result.area;
   //output_data_csv(directory.missb.local_result);
-  ///*out_file<<"area="<<area<<endl;
+  // *out_file<<"area="<<area<<endl;
 
   //fill buffer
   tag							   = XML->sys.physical_address_width + EXTRA_TAG_BITS;
@@ -346,7 +346,7 @@ SharedCache::SharedCache(ParseXML* XML_interface, int ithCache_, InputParameter*
   directory.ifb.optimize_array();
   directory.area += directory.ifb.local_result.area;
   //output_data_csv(directory.ifb.local_result);
-  ///*out_file<<"area="<<area<<endl;
+  // *out_file<<"area="<<area<<endl;
 
   //prefetch buffer
   tag							   = XML->sys.physical_address_width + EXTRA_TAG_BITS;//check with previous entries to decide wthether to merge.
@@ -374,7 +374,7 @@ SharedCache::SharedCache(ParseXML* XML_interface, int ithCache_, InputParameter*
   directory.prefetchb.optimize_array();
   directory.area += directory.prefetchb.local_result.area;
   //output_data_csv(directory.prefetchb.local_result);
-  ///*out_file<<"area="<<area<<endl;
+  // *out_file<<"area="<<area<<endl;
 
   //WBB
   tag							   = XML->sys.physical_address_width + EXTRA_TAG_BITS;
@@ -436,7 +436,7 @@ SharedCache::SharedCache(ParseXML* XML_interface, int ithCache_, InputParameter*
   directory1.caches.optimize_array();
   directory1.area += directory1.caches.local_result.area;
   //output_data_csv(directory.caches.local_result);
-  ///*out_file<<"area="<<area<<endl;
+  // *out_file<<"area="<<area<<endl;
 
   //miss buffer Each MSHR contains enough state to handle one or more accesses of any type to a single memory line.
   //Due to the generality of the MSHR mechanism, the amount of state involved is non-trivial,
@@ -466,7 +466,7 @@ SharedCache::SharedCache(ParseXML* XML_interface, int ithCache_, InputParameter*
   directory1.missb.optimize_array();
   directory1.area += directory1.missb.local_result.area;
   //output_data_csv(directory.missb.local_result);
-  ///*out_file<<"area="<<area<<endl;
+  // *out_file<<"area="<<area<<endl;
 
   //fill buffer
   tag							   = XML->sys.physical_address_width + EXTRA_TAG_BITS;
@@ -494,7 +494,7 @@ SharedCache::SharedCache(ParseXML* XML_interface, int ithCache_, InputParameter*
   directory1.ifb.optimize_array();
   directory1.area += directory1.ifb.local_result.area;
   //output_data_csv(directory.ifb.local_result);
-  ///*out_file<<"area="<<area<<endl;
+  // *out_file<<"area="<<area<<endl;
 
   //prefetch buffer
   tag							   = XML->sys.physical_address_width + EXTRA_TAG_BITS;//check with previous entries to decide wthether to merge.
@@ -522,7 +522,7 @@ SharedCache::SharedCache(ParseXML* XML_interface, int ithCache_, InputParameter*
   directory1.prefetchb.optimize_array();
   directory1.area += directory1.prefetchb.local_result.area;
   //output_data_csv(directory.prefetchb.local_result);
-  ///*out_file<<"area="<<area<<endl;
+  // *out_file<<"area="<<area<<endl;
 
   //WBB
   tag							   = XML->sys.physical_address_width + EXTRA_TAG_BITS;
@@ -861,20 +861,20 @@ void SharedCache::displayEnergy(uint32_t indent,bool is_tdp)
 //  llCache.maxPower	+=  (llCache.caches.l_ip.num_rw_ports*(0.67*llCache.caches.local_result.power.readOp.dynamic+0.33*llCache.caches.local_result.power.writeOp.dynamic)
 //                        +llCache.caches.l_ip.num_rd_ports*llCache.caches.local_result.power.readOp.dynamic+llCache.caches.l_ip.num_wr_ports*llCache.caches.local_result.power.writeOp.dynamic
 //                        +llCache.caches.l_ip.num_se_rd_ports*llCache.caches.local_result.power.readOp.dynamic)*clockRate;
-//  ///*out_file<<"llCache.maxPower=" <<llCache.maxPower<<endl;
+//  // *out_file<<"llCache.maxPower=" <<llCache.maxPower<<endl;
 //
 //  llCache.maxPower	+=  llCache.missb.l_ip.num_search_ports*llCache.missb.local_result.power.searchOp.dynamic*clockRate;
-//  ///*out_file<<"llCache.maxPower=" <<llCache.maxPower<<endl;
+//  // *out_file<<"llCache.maxPower=" <<llCache.maxPower<<endl;
 //
 //  llCache.maxPower	+=  llCache.ifb.l_ip.num_search_ports*llCache.ifb.local_result.power.searchOp.dynamic*clockRate;
-//  ///*out_file<<"llCache.maxPower=" <<llCache.maxPower<<endl;
+//  // *out_file<<"llCache.maxPower=" <<llCache.maxPower<<endl;
 //
 //  llCache.maxPower	+=  llCache.prefetchb.l_ip.num_search_ports*llCache.prefetchb.local_result.power.searchOp.dynamic*clockRate;
-//  ///*out_file<<"llCache.maxPower=" <<llCache.maxPower<<endl;
+//  // *out_file<<"llCache.maxPower=" <<llCache.maxPower<<endl;
 //
 //  llCache.maxPower	+=  llCache.wbb.l_ip.num_search_ports*llCache.wbb.local_result.power.searchOp.dynamic*clockRate;
 //  //llCache.maxPower *=  scktRatio; //TODO: this calculation should be self-contained
-//  ///*out_file<<"llCache.maxPower=" <<llCache.maxPower<<endl;
+//  // *out_file<<"llCache.maxPower=" <<llCache.maxPower<<endl;
 //
 ////  directory_power =  (directory.caches.l_ip.num_rw_ports*(0.67*directory.caches.local_result.power.readOp.dynamic+0.33*directory.caches.local_result.power.writeOp.dynamic)
 ////                        +directory.caches.l_ip.num_rd_ports*directory.caches.local_result.power.readOp.dynamic+directory.caches.l_ip.num_wr_ports*directory.caches.local_result.power.writeOp.dynamic
@@ -897,16 +897,16 @@ void SharedCache::displayEnergy(uint32_t indent,bool is_tdp)
 //		  directory.maxPower	+=  (directory.caches.l_ip.num_rw_ports*(0.67*directory.caches.local_result.power.readOp.dynamic+0.33*directory.caches.local_result.power.writeOp.dynamic)
 //		                        +directory.caches.l_ip.num_rd_ports*directory.caches.local_result.power.readOp.dynamic+directory.caches.l_ip.num_wr_ports*directory.caches.local_result.power.writeOp.dynamic
 //		                        +directory.caches.l_ip.num_se_rd_ports*directory.caches.local_result.power.readOp.dynamic)*clockRate;
-//		  ///*out_file<<"directory.maxPower=" <<directory.maxPower<<endl;
+//		  // *out_file<<"directory.maxPower=" <<directory.maxPower<<endl;
 //
 //		  directory.maxPower	+=  directory.missb.l_ip.num_search_ports*directory.missb.local_result.power.searchOp.dynamic*clockRate;
-//		  ///*out_file<<"directory.maxPower=" <<directory.maxPower<<endl;
+//		  // *out_file<<"directory.maxPower=" <<directory.maxPower<<endl;
 //
 //		  directory.maxPower	+=  directory.ifb.l_ip.num_search_ports*directory.ifb.local_result.power.searchOp.dynamic*clockRate;
-//		  ///*out_file<<"directory.maxPower=" <<directory.maxPower<<endl;
+//		  // *out_file<<"directory.maxPower=" <<directory.maxPower<<endl;
 //
 //		  directory.maxPower	+=  directory.prefetchb.l_ip.num_search_ports*directory.prefetchb.local_result.power.searchOp.dynamic*clockRate;
-//		  ///*out_file<<"directory.maxPower=" <<directory.maxPower<<endl;
+//		  // *out_file<<"directory.maxPower=" <<directory.maxPower<<endl;
 //
 //		  directory.maxPower	+=  directory.wbb.l_ip.num_search_ports*directory.wbb.local_result.power.searchOp.dynamic*clockRate;
 //
@@ -948,16 +948,16 @@ void SharedCache::displayEnergy(uint32_t indent,bool is_tdp)
 //	  		  directory.maxPower	+=  (directory.caches.l_ip.num_rw_ports*(0.67*directory.caches.local_result.power.readOp.dynamic+0.33*directory.caches.local_result.power.writeOp.dynamic)
 //	  		                        +directory.caches.l_ip.num_rd_ports*directory.caches.local_result.power.readOp.dynamic+directory.caches.l_ip.num_wr_ports*directory.caches.local_result.power.writeOp.dynamic
 //	  		                        +directory.caches.l_ip.num_se_rd_ports*directory.caches.local_result.power.readOp.dynamic)*clockRate;
-//	  		  ///*out_file<<"directory.maxPower=" <<directory.maxPower<<endl;
+//	  		  // *out_file<<"directory.maxPower=" <<directory.maxPower<<endl;
 //
 //	  		  directory.maxPower	+=  directory.missb.l_ip.num_search_ports*directory.missb.local_result.power.searchOp.dynamic*clockRate;
-//	  		  ///*out_file<<"directory.maxPower=" <<directory.maxPower<<endl;
+//	  		  // *out_file<<"directory.maxPower=" <<directory.maxPower<<endl;
 //
 //	  		  directory.maxPower	+=  directory.ifb.l_ip.num_search_ports*directory.ifb.local_result.power.searchOp.dynamic*clockRate;
-//	  		  ///*out_file<<"directory.maxPower=" <<directory.maxPower<<endl;
+//	  		  // *out_file<<"directory.maxPower=" <<directory.maxPower<<endl;
 //
 //	  		  directory.maxPower	+=  directory.prefetchb.l_ip.num_search_ports*directory.prefetchb.local_result.power.searchOp.dynamic*clockRate;
-//	  		  ///*out_file<<"directory.maxPower=" <<directory.maxPower<<endl;
+//	  		  // *out_file<<"directory.maxPower=" <<directory.maxPower<<endl;
 //
 //	  		  directory.maxPower	+=  directory.wbb.l_ip.num_search_ports*directory.wbb.local_result.power.searchOp.dynamic*clockRate;
 //
@@ -976,16 +976,16 @@ void SharedCache::displayEnergy(uint32_t indent,bool is_tdp)
 //	  		  directory1.maxPower	+=  (directory1.caches.l_ip.num_rw_ports*(0.67*directory1.caches.local_result.power.readOp.dynamic+0.33*directory1.caches.local_result.power.writeOp.dynamic)
 //	  				  +directory1.caches.l_ip.num_rd_ports*directory1.caches.local_result.power.readOp.dynamic+directory1.caches.l_ip.num_wr_ports*directory1.caches.local_result.power.writeOp.dynamic
 //	  				  +directory1.caches.l_ip.num_se_rd_ports*directory1.caches.local_result.power.readOp.dynamic)*clockRate;
-//	  		  ///*out_file<<"directory1.maxPower=" <<directory1.maxPower<<endl;
+//	  		  // *out_file<<"directory1.maxPower=" <<directory1.maxPower<<endl;
 //
 //	  		  directory1.maxPower	+=  directory1.missb.l_ip.num_search_ports*directory1.missb.local_result.power.searchOp.dynamic*clockRate;
-//	  		  ///*out_file<<"directory1.maxPower=" <<directory1.maxPower<<endl;
+//	  		  // *out_file<<"directory1.maxPower=" <<directory1.maxPower<<endl;
 //
 //	  		  directory1.maxPower	+=  directory1.ifb.l_ip.num_search_ports*directory1.ifb.local_result.power.searchOp.dynamic*clockRate;
-//	  		  ///*out_file<<"directory1.maxPower=" <<directory1.maxPower<<endl;
+//	  		  // *out_file<<"directory1.maxPower=" <<directory1.maxPower<<endl;
 //
 //	  		  directory1.maxPower	+=  directory1.prefetchb.l_ip.num_search_ports*directory1.prefetchb.local_result.power.searchOp.dynamic*clockRate;
-//	  		  ///*out_file<<"directory1.maxPower=" <<directory1.maxPower<<endl;
+//	  		  // *out_file<<"directory1.maxPower=" <<directory1.maxPower<<endl;
 //
 //	  		  directory1.maxPower	+=  directory1.wbb.l_ip.num_search_ports*directory1.wbb.local_result.power.searchOp.dynamic*clockRate;
 //
@@ -1029,24 +1029,24 @@ void SharedCache::displayEnergy(uint32_t indent,bool is_tdp)
 //*out_file<<"L2cache dynamic power="<<L2Tot.power.readOp.dynamic<<endl;
 //*out_file<<"L2cache laeakge power="<<L2Tot.power.readOp.leakage<<endl;
 //
-//  ///*out_file<<"llCache.maxPower=" <<llCache.maxPower<<endl;
+//  // *out_file<<"llCache.maxPower=" <<llCache.maxPower<<endl;
 //
 //
 //  maxPower          +=  llCache.maxPower;
-//  ///*out_file<<"maxpower=" <<maxPower<<endl;
+//  // *out_file<<"maxpower=" <<maxPower<<endl;
 //
 ////  maxPower	  +=  pipeLogicCache.power.readOp.dynamic*clockRate;
-////  ///*out_file<<"pipeLogic.power="<<pipeLogicCache.power.readOp.dynamic*clockRate<<endl;
-////  ///*out_file<<"maxpower=" <<maxPower<<endl;
+////  // *out_file<<"pipeLogic.power="<<pipeLogicCache.power.readOp.dynamic*clockRate<<endl;
+////  // *out_file<<"maxpower=" <<maxPower<<endl;
 ////
 ////  maxPower	  +=  pipeLogicDirectory.power.readOp.dynamic*clockRate;
-////  ///*out_file<<"pipeLogic.power="<<pipeLogicDirectory.power.readOp.dynamic*clockRate<<endl;
-////  ///*out_file<<"maxpower=" <<maxPower<<endl;
+////  // *out_file<<"pipeLogic.power="<<pipeLogicDirectory.power.readOp.dynamic*clockRate<<endl;
+////  // *out_file<<"maxpower=" <<maxPower<<endl;
 ////
 ////  //clock power
 ////  maxPower += clockNetwork.total_power.readOp.dynamic*clockRate;
-////  ///*out_file<<"clockNetwork.total_power="<<clockNetwork.total_power.readOp.dynamic*clockRate<<endl;
-////  ///*out_file<<"maxpower=" <<maxPower<<endl;
+////  // *out_file<<"clockNetwork.total_power="<<clockNetwork.total_power.readOp.dynamic*clockRate<<endl;
+////  // *out_file<<"maxpower=" <<maxPower<<endl;
 //
 //}
 

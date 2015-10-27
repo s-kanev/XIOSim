@@ -99,7 +99,7 @@ void mcpat_compute_energy(bool print_power, double * cores_rtp, double * uncore_
         proc->cores[i]->l2cache->cachep.executionTime = proc->XML->sys.core[i].total_cycles/(proc->cores[i]->coredynp.clockRate * 1e6);
    }
 
-   for (i=0; i<proc->l2array.size();i++)
+   for (i=0; i<(int)proc->l2array.size();i++)
       proc->l2array[i]->cachep.executionTime = proc->XML->sys.total_cycles/(proc->XML->sys.L2[i].clockrate*1e6);
    for (i=0; i<proc->numL1Dir;i++)
       proc->l1dirarray[i]->cachep.executionTime = proc->XML->sys.total_cycles/(proc->XML->sys.L2[i].clockrate*1e6);

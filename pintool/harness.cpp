@@ -20,8 +20,6 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include "boost_interprocess.h"
-
 #include "ezOptionParser_clean.hpp"
 
 #include "multiprocess_shared.h"

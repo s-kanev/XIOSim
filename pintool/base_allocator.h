@@ -9,7 +9,7 @@
 #include <map>
 #include <vector>
 #include <string>
-#include "../synchronization.h"
+#include "synchronization.h"
 
 #include "base_speedup_model.h"
 

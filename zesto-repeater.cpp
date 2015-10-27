@@ -15,7 +15,7 @@
 extern struct core_knobs_t knobs;
 
 /* Load in definitions */
-#include "ZCOMPS-repeater.list"
+#include "ZCOMPS-repeater.list.h"
 
 #define REPEATER_PARSE_ARGS
 class repeater_t * repeater_create(
@@ -28,7 +28,7 @@ class repeater_t * repeater_create(
   /* the format string "%[^:]" for scanf reads a string consisting of non-':' characters */
   if(sscanf(opt_string,"%[^:]",type) != 1)
     fatal("malformed repeater option string: %s",opt_string);
-#include "ZCOMPS-repeater.list"
+#include "ZCOMPS-repeater.list.h"
 
   fatal("Unknown memory repeater type (%s)", opt_string);
 }
@@ -42,7 +42,7 @@ void repeater_init(const char * const opt_string)
   if(sscanf(opt_string,"%[^:]",type) != 1)
     fatal("malformed repeater option string: %s",opt_string);
 
-#include "ZCOMPS-repeater.list"
+#include "ZCOMPS-repeater.list.h"
 
   fatal("Unknown memory repeater type (%s)", opt_string);
 }
@@ -55,7 +55,7 @@ void repeater_shutdown(const char * const opt_string)
   char type[255];
   if(sscanf(opt_string,"%[^:]",type) != 1)
     fatal("malformed repeater option string: %s",opt_string);
-#include "ZCOMPS-repeater.list"
+#include "ZCOMPS-repeater.list.h"
 
   fatal("Unknown memory repeater type (%s)", opt_string);
 }

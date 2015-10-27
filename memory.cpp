@@ -7,10 +7,10 @@
 #include <stdio.h>
 
 #include <cstdlib>
+#include <cstring>
 #include <unordered_map>
 #include <mutex>
 
-#include "stats.h"
 #include "host.h"
 #include "misc.h"
 #include "sim.h"

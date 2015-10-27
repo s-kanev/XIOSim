@@ -149,7 +149,7 @@ void dram_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
 
 
 /* include all of the DRAM definitions */
-#include "ZCOMPS-dram.list"
+#include "ZCOMPS-dram.list.h"
 
 static dram_t * dram_from_string(const char * const opt_string)
 {
@@ -162,7 +162,7 @@ static dram_t * dram_from_string(const char * const opt_string)
   /* include the argument parsing code.  DRAM_PARSE_ARGS is defined to
      include only the parsing code and not the other dram code. */
 #define DRAM_PARSE_ARGS
-#include "ZCOMPS-dram.list"
+#include "ZCOMPS-dram.list.h"
 #undef DRAM_PARSE_ARGS
 
   /* UNKNOWN DRAM Type */

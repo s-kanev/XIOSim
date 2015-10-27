@@ -10,8 +10,6 @@
 #include <map>
 #include <queue>
 
-#include "boost_interprocess.h"
-
 #include "multiprocess_shared.h"
 #include "../sim.h"
 #include "BufferManager.h"

@@ -208,8 +208,10 @@ static void Speculate(THREADID tid, CONTEXT* ctxt) {
  */
 void FinishSpeculation(thread_state_t* tstate) {
     assert(speculation_mode);
+#ifndef NDEBUG
     handshake_container_t* last = xiosim::buffer_management::Back(tstate->tid);
     assert(last->flags.valid);
+#endif
 
 #ifdef SPECULATION_DEBUG
     std::cerr << "Speculated " << tstate->num_inst << " instructions. Terminating cleanly."

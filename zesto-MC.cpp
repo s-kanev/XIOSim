@@ -151,7 +151,7 @@ void MC_t::reset_stats(void)
 #define MC_PRINT_HEADER \
   void print(FILE * const fp)
 
-#include "ZCOMPS-MC.list"
+#include "ZCOMPS-MC.list.h"
 
 MC_t * MC_from_string(const char * const opt_string)
 {
@@ -164,7 +164,7 @@ MC_t * MC_from_string(const char * const opt_string)
   /* include the argument parsing code.  MC_PARSE_ARGS is defined to
      include only the parsing code and not the other dram code. */
 #define MC_PARSE_ARGS
-#include "ZCOMPS-MC.list"
+#include "ZCOMPS-MC.list.h"
 #undef MC_PARSE_ARGS
 
   /* UNKNOWN Memory-Controller Type */

@@ -1,7 +1,9 @@
 #ifndef ZESTO_POWER_INCLUDED
 #define ZESTO_POWER_INCLUDE
 
-#include "XML_Parse.h"
+/* McPAT interface fwd */
+struct system_core;
+struct system_L2;
 
 void init_power(void);
 void deinit_power(void);

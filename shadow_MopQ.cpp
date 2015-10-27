@@ -2,7 +2,6 @@
 
 #include "zesto-structs.h"
 #include "zesto-oracle.h"
-#include "zesto-fetch.h"
 #include "shadow_MopQ.h"
 
 /* Get the shadow MopQ entry corresponding to Mop in the oracle MopQ.

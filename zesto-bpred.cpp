@@ -91,6 +91,7 @@
 #include <cmath>
 #include <ctype.h>
 
+#include "2bitc.h"
 #include "misc.h"
 #include "sim.h"
 #include "stats.h"
@@ -138,7 +139,7 @@ our_pred - what the branch predictor had predicted (some predictors
 #define BPRED_RET_CACHE_HEADER \
   void ret_cache(class bpred_sc_t * const scvp)
 
-#include "ZCOMPS-bpred.list"
+#include "ZCOMPS-bpred.list.h"
 
 #define BPRED_PARSE_ARGS
 /*====================================================*/
@@ -156,7 +157,7 @@ bpred_from_string(const core_t * core, const char * const opt_string)
 
   /* include the argument parsing code.  BPRED_PARSE_ARGS is defined to
      include only the parsing code and not the other branch predictor code. */
-#include "ZCOMPS-bpred.list"
+#include "ZCOMPS-bpred.list.h"
 
   /* UNKNOWN Predictor Type */
   fatal("Unknown branch predictor type (%s)",opt_string);
@@ -305,7 +306,7 @@ our_pred - what the meta-predictor had predicted
 #define FUSION_RET_CACHE_HEADER \
   void ret_cache(class fusion_sc_t * const scvp)
 
-#include "ZCOMPS-fusion.list"
+#include "ZCOMPS-fusion.list.h"
 
 #define BPRED_PARSE_ARGS
 /*====================================================*/
@@ -326,7 +327,7 @@ fusion_from_string(
 
   /* include the argument parsing code.  BPRED_PARSE_ARGS is defined to
      include only the parsing code and not the other predictor code. */
-#include "ZCOMPS-fusion.list"
+#include "ZCOMPS-fusion.list.h"
 
   /* UNKNOWN fusion Type */
   fatal("Unknown predictor fusion type (%s)",opt_string);
@@ -480,7 +481,7 @@ our_pred   - what the branch-predictor had predicted
   void ret_cache(class BTB_sc_t * const scvp)
 
 
-#include "ZCOMPS-btb.list"
+#include "ZCOMPS-btb.list.h"
 
 /*=================================================*/
 /* BTB argument parsing                            */
@@ -498,7 +499,7 @@ BTB_from_string(const char * const opt_string)
 
   /* include the argument parsing code.  BPRED_PARSE_ARGS is defined to
      include only the parsing code and not the other predictor code. */
-#include "ZCOMPS-btb.list"
+#include "ZCOMPS-btb.list.h"
 
   /* UNKNOWN BTB Type */
   fatal("Unknown BTB type (%s)",opt_string);
@@ -655,7 +656,7 @@ oPC        - oracle PC or actual return address
 
 
 
-#include "ZCOMPS-ras.list"
+#include "ZCOMPS-ras.list.h"
 
 
 #define BPRED_PARSE_ARGS
@@ -671,7 +672,7 @@ RAS_from_string(const char * const opt_string)
 
   /* include the argument parsing code.  BPRED_PARSE_ARGS is defined to
      include only the parsing code and not the other predictor code. */
-#include "ZCOMPS-ras.list"
+#include "ZCOMPS-ras.list.h"
 
   /* UNKNOWN RAS Type */
   fatal("Unknown RAS type (%s)",opt_string);

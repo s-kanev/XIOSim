@@ -1,11 +1,11 @@
+#include <fcntl.h>
 #include <unordered_map>
 #include <mutex>
 
-#include "boost_interprocess.h"
-
-#include "multiprocess_shared.h"
 #include "buffer.h"
 #include "BufferManager.h"
+#include "synchronization.h"
+
 #include "BufferManagerConsumer.h"
 
 using namespace std;

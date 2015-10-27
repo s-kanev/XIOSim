@@ -2,7 +2,6 @@
 #define SIM_H
 
 #include "stats.h"
-#include "zesto-structs.h"
 
 extern struct core_knobs_t knobs;
 

@@ -3,8 +3,8 @@
 
 #include <vector>
 
-#include "buffer.h"
-#include "handshake_container.h"
+#include "pintool/buffer.h"
+#include "pintool/handshake_container.h"
 #include "zesto-oracle.h"
 
 class shadow_Mop_t {

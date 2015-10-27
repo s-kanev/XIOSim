@@ -135,12 +135,11 @@
  * Copyright © 1994-2003 by Todd M. Austin, Ph.D. and SimpleScalar, LLC.
  */
 
-#include "synchronization.h"
+#include "zesto-fetch.h"
 #include "shadow_MopQ.h"
 #include "sim.h"
 #include "stats.h"
 #include "ztrace.h"
-#include "zesto-cache.h"
 
 #define zesto_assert(cond, retval) {		\
   if(!(cond)) { \

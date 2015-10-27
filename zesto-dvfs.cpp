@@ -9,12 +9,12 @@
 using namespace std;
 
 /* load in all definitions */
-#include "ZCOMPS-dvfs.list"
+#include "ZCOMPS-dvfs.list.h"
 
 class vf_controller_t * vf_controller_create(const char * opt_string, struct core_t * core)
 {
 #define ZESTO_PARSE_ARGS
-#include "ZCOMPS-dvfs.list"
+#include "ZCOMPS-dvfs.list.h"
 #undef ZESTO_PARSE_ARGS
 
   fatal("unknown dvfs controller type (%s)", opt_string);

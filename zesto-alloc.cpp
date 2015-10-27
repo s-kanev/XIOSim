@@ -102,13 +102,13 @@ core_alloc_t::~core_alloc_t()
 
 
 /* load in all definitions */
-#include "ZPIPE-alloc.list"
+#include "ZPIPE-alloc.list.h"
 
 
 class core_alloc_t * alloc_create(const char * alloc_opt_string, struct core_t * core)
 {
 #define ZESTO_PARSE_ARGS
-#include "ZPIPE-alloc.list"
+#include "ZPIPE-alloc.list.h"
 
   fatal("unknown alloc engine type \"%s\"",alloc_opt_string);
 #undef ZESTO_PARSE_ARGS

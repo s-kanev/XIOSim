@@ -156,7 +156,7 @@ conflict_exists - oracle answer for whether it's safe for the load to exec
 
 
 
-#include "ZCOMPS-memdep.list"
+#include "ZCOMPS-memdep.list.h"
 
 
 #define MEMDEP_PARSE_ARGS
@@ -174,7 +174,7 @@ memdep_create(const struct core_t * core, const char * const opt_string)
     fatal("malformed memdep option string: %s",opt_string);
   /* include the argument parsing code.  MEMDEP_PARSE_ARGS is defined to
      include only the parsing code and not the other branch predictor code. */
-#include "ZCOMPS-memdep.list"
+#include "ZCOMPS-memdep.list.h"
 
 
   /* UNKNOWN memdep Type */

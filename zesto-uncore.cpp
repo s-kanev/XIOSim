@@ -80,7 +80,6 @@
 #include "stats.h"
 #include "sim.h"
 
-#include "zesto-core.h"
 #include "zesto-cache.h"
 #include "zesto-prefetch.h"
 #include "zesto-uncore.h"

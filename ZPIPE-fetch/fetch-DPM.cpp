@@ -8,7 +8,6 @@
 		  || !strcasecmp(fetch_opt_string,"IO-DPM"))
     return new core_fetch_DPM_t(core);
 #else
-
 class core_fetch_DPM_t:public core_fetch_t
 {
   enum fetch_stall_t {FSTALL_byteQ_FULL, /* byteQ is full */

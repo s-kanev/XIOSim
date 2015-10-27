@@ -75,8 +75,10 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
-#include "zesto-cache.h"
-#include "zesto-MC.h"
+#include "host.h"
+
+struct bus_t;
+struct MC_t;
 
 extern class uncore_t * uncore;
 

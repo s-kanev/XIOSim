@@ -134,13 +134,13 @@ int core_exec_t::get_fp_penalty(const struct uop_t * const uop)
 extern int min_coreID;
 
 /* load in all definitions */
-#include "ZPIPE-exec.list"
+#include "ZPIPE-exec.list.h"
 
 
 class core_exec_t * exec_create(const char * exec_opt_string, struct core_t * core)
 {
 #define ZESTO_PARSE_ARGS
-#include "ZPIPE-exec.list"
+#include "ZPIPE-exec.list.h"
 
   fatal("unknown exec type \"%s\"",exec_opt_string);
 #undef ZESTO_PARSE_ARGS

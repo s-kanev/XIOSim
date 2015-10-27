@@ -101,13 +101,13 @@ core_decode_t::~core_decode_t()
 
 
 /* load in all definitions */
-#include "ZPIPE-decode.list"
+#include "ZPIPE-decode.list.h"
 
 
 class core_decode_t * decode_create(const char * decode_opt_string, struct core_t * core)
 {
 #define ZESTO_PARSE_ARGS
-#include "ZPIPE-decode.list"
+#include "ZPIPE-decode.list.h"
 
   fatal("unknown decode type \"%s\"",decode_opt_string);
 #undef ZESTO_PARSE_ARGS

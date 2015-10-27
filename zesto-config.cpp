@@ -10,7 +10,6 @@
 
 #include "confuse.h"
 #include "pintool/ezOptionParser_clean.hpp"
-#include "boost_statistics.h"
 
 #include "misc.h"
 #include "sim.h"

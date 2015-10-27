@@ -109,13 +109,13 @@ core_fetch_t::~core_fetch_t()
 
 
 /* load in all definitions */
-#include "ZPIPE-fetch.list"
+#include "ZPIPE-fetch.list.h"
 
 
 class core_fetch_t * fetch_create(const char * fetch_opt_string, struct core_t * core)
 {
 #define ZESTO_PARSE_ARGS
-#include "ZPIPE-fetch.list"
+#include "ZPIPE-fetch.list.h"
 
   fatal("unknown fetch engine type \"%s\"",fetch_opt_string);
 #undef ZESTO_PARSE_ARGS
