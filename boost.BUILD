@@ -21,3 +21,13 @@ cc_library(
     ]),
     includes = ["boost_1_54_0"],
 )
+
+cc_library(
+    visibility = ["//visibility:public"],
+    name = "tokenizer",
+    hdrs = glob([
+        "boost_1_54_0/boost/tokenizer.hpp",
+        "boost_1_54_0/boost/algorithm/string/predicate.hpp",
+    ]),
+    includes = ["boost_1_54_0"],
+)

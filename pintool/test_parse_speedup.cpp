@@ -1,6 +1,5 @@
 /* Unit tests for the speedup data parser. */
 
-#define CATCH_CONFIG_MAIN
 #include <string>
 #include <vector>
 
@@ -9,7 +8,7 @@
 
 TEST_CASE("Complete front-to-end test of the speedup data parser", "parser") {
     using namespace std;
-    const char* filepath = "loop_speedup_data.csv";
+    const char* filepath = "pintool/loop_speedup_data.csv";
     LoadHelixSpeedupModelData(filepath);
     // Data has four points, and GetHelixLoopScaling() adds a fifth for 1 core.
     const int NUM_POINTS = 4;

@@ -18,3 +18,10 @@ new_http_archive(
     sha256 = "34543ccff48b853241bac57dce8353bfc2c9b01d49b51f9cd6619d4a946fa5ef",
     build_file = "confuse.BUILD",
 )
+
+new_http_archive(
+    name = "catch",
+    url = "https://github.com/philsquared/Catch/archive/v1.2.1.tar.gz",
+    sha256 = "24da0b6a6680256607da5ceb28004cb399009eae9f591614d7d22e3532f6980c",
+    build_file = "catch.BUILD",
+)

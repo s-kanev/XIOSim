@@ -1,14 +1,18 @@
 #ifndef __TEST_XED_CONTEXT_H__
 #define __TEST_XED_CONTEXT_H__
 
+#ifdef DECODE_DEBUG
+#include <iostream>
+#endif
+
 extern "C" {
 #include "xed-interface.h"
 }
 
-#include "../decode.h"
-#include "../misc.h"
-#include "../uop_cracker.h"
-#include "../zesto-structs.h"
+#include "decode.h"
+#include "misc.h"
+#include "uop_cracker.h"
+#include "zesto-structs.h"
 
 class xed_context {
   public:

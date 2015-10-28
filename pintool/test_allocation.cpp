@@ -7,12 +7,10 @@
  */
 
 #define CATCH_CONFIG_RUNNER
+#include "catch.hpp"
 
-#include "algorithm"  // For std::find.
-#include "assert.h"
-#include "boost_interprocess.h"
-#include "catch.hpp"  // Must come before interface.h
-#include "../synchronization.h"
+#include <assert.h>
+#include "synchronization.h"
 #include "multiprocess_shared.h"
 #include "mpkeys.h"
 #include <algorithm>
@@ -98,7 +96,7 @@ TEST_CASE("Penalty allocator", "penalty") {
     using namespace xiosim;
     SHARED_VAR_INIT(int, num_processes);
     *num_processes = 3;
-    char* filepath = "loop_speedup_data.csv";
+    char* filepath = "pintool/loop_speedup_data.csv";
     // We need a smaller allocation to actuall trigger the penalty policies.
     const int PENALTY_NUM_CORES = 8;
     PenaltyAllocator& core_allocator = reinterpret_cast<PenaltyAllocator&>(
@@ -153,7 +151,7 @@ TEST_CASE("Locally optimal allocator, 1 process", "local_1") {
     SHARED_VAR_INIT(int, num_processes);
     const int NUM_TEST_PROCESSES = 1;
     *num_processes = NUM_TEST_PROCESSES;
-    char* filepath = "loop_speedup_data.csv";
+    char* filepath = "pintool/loop_speedup_data.csv";
     LoadHelixSpeedupModelData(filepath);
 #ifdef DEBUG
     std::cout << "Number of processes: " << *num_processes << std::endl;
@@ -183,7 +181,7 @@ TEST_CASE("Locally optimal allocator, 2 processes", "local_2") {
     SHARED_VAR_INIT(int, num_processes);
     const int NUM_TEST_PROCESSES = 2;
     *num_processes = NUM_TEST_PROCESSES;
-    char* filepath = "loop_speedup_data.csv";
+    char* filepath = "pintool/loop_speedup_data.csv";
 #ifdef DEBUG
     std::cout << "Number of processes: " << *num_processes << std::endl;
 #endif

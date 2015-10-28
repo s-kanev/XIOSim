@@ -1,5 +1,3 @@
-#define CATCH_CONFIG_MAIN
-
 #include "catch.hpp"
 //#define SERIAlIZATION_DEBUG
 #include "handshake_container.h"
@@ -15,10 +13,10 @@ struct test_context {
 
         producer_handshake.Serialize(buffer, buffer_size);
 
-        size_t bytes_written = *(size_t*)buffer;
+        size_t bytes_written = *reinterpret_cast<size_t*>(buffer);
         bytes_written -= sizeof(size_t);
 
-        consumer_handshake.Deserialize(buffer + 4, bytes_written);
+        consumer_handshake.Deserialize(buffer + sizeof(size_t), bytes_written);
 
         REQUIRE(producer_handshake == consumer_handshake);
     }

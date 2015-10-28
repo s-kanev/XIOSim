@@ -10,7 +10,6 @@ cc_binary(
         "//:libsim",
         ":allocators",
         ":buffer_manager_consumer",
-        ":ipc_queues",
         ":multiprocess",
         ":scheduler",
         ":ezOptionParser",
@@ -25,8 +24,6 @@ cc_binary(
         "feeder_zesto.cpp",
         "ildjit.h",
         "ildjit.cpp",
-        "parse_speedup.h",
-        "parse_speedup.cpp",
         "sync_pthreads.h",
         "sync_pthreads.cpp",
         "syscall_handling.h",
@@ -43,14 +40,14 @@ cc_binary(
         "utils.cpp",
     ],
     deps = [
-        "@pin//:pin",
-        "@pin//:xed",
         ":legacy_instlib",
         ":buffer_manager_producer",
-        ":ipc_queues",
         ":multiprocess",
         ":linreg",
+        ":parse_speedup",
         "//:zesto-bpred",
+        "@pin//:pin",
+        "@pin//:xed",
     ],
     linkopts = [ "-lrt", "-lm", "-ldl", "-pthread" ],
     #linkshared = 1 -- we really should, but the linker complains about non-PIC in libpin.a
@@ -61,7 +58,6 @@ cc_binary(
     srcs = [ "harness.cpp" ],
     deps = [
         ":multiprocess",
-        ":ipc_queues",
         "@confuse//:main",
         ":ezOptionParser",
     ],
@@ -79,6 +75,8 @@ cc_library(
     hdrs = [ "multiprocess_shared.h" ],
     srcs = [
         "boost_interprocess.h",
+        "ipc_queues.h",
+        "ipc_queues.cpp",
         "mpkeys.h",
         "mpkeys_impl.cpp",
         "multiprocess_shared.cpp",
@@ -114,6 +112,37 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "test_allocation",
+    srcs = [ "test_allocation.cpp" ],
+    deps = [
+        ":allocators",
+        ":parse_speedup",
+        "@catch//:main",
+    ],
+    data = [ "loop_speedup_data.csv" ],
+    linkopts = [ "-lrt", "-lm", "-ldl", "-pthread" ],
+)
+
+cc_library(
+    name = "parse_speedup",
+    srcs = [ "parse_speedup.cpp" ],
+    hdrs = [ "parse_speedup.h" ],
+    deps = [ "@boost//:tokenizer" ],
+)
+
+cc_test(
+    name = "test_parse_speedup",
+    srcs = [ "test_parse_speedup.cpp" ],
+    deps = [
+        "//:catch_impl",
+        ":parse_speedup",
+        "@catch//:main",
+    ],
+    data = [ "loop_speedup_data.csv" ],
+)
+
+
 cc_library(
     name = "speedup_models",
     hdrs = [
@@ -130,13 +159,15 @@ cc_library(
     ],
 )
 
-cc_library(
-    name = "ipc_queues",
-    hdrs = [ "ipc_queues.h" ],
-    srcs = [ "ipc_queues.cpp" ],
+cc_test(
+    name = "test_speedup_models",
+    srcs = [ "test_speedup_models.cpp" ],
     deps = [
-        ":multiprocess",
+        "//:catch_impl",
+        ":speedup_models",
+        "@catch//:main",
     ],
+    linkopts = [ "-lm" ],
 )
 
 cc_library(
@@ -201,6 +232,16 @@ cc_library(
     deps = [
         "//:x86",
     ]
+)
+
+cc_test(
+    name = "test_handshake_serialization",
+    srcs = [ "test_handshake_serialization.cpp" ],
+    deps = [
+        "//:catch_impl",
+        ":handshake_container",
+        "@catch//:main",
+    ],
 )
 
 cc_library(

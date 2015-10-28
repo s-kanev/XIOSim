@@ -1,13 +1,14 @@
 #ifndef __HANDSHAKE_CONTAINER__
 #define __HANDSHAKE_CONTAINER__
 
+#include <assert.h>
 #include <cstring>
 #include <iostream>
 #include <utility>
 #include <vector>
 
-#include "../host.h"
-#include "../decode.h"
+#include "host.h"
+#include "decode.h"
 
 struct handshake_flags_t {
     bool valid : 1; /* Did we finish dumping context */

@@ -8,12 +8,9 @@
  * Author: Sam Xi
  */
 
-#define CATCH_CONFIG_MAIN
-
 #include <iostream>
 
 #include "catch.hpp"
-#include "../boost_statistics.h"
 #include "zesto-structs.h"
 #include "zesto-config.h"
 
@@ -39,7 +36,7 @@
 void CheckIPCMessageQueue(bool isEarly, int caller_coreID) {}
 
 TEST_CASE("Test configuration parsing", "config") {
-    const char* config_file = "../config/default.cfg";
+    const char* config_file = "config/default.cfg";
     const char* argv[2] = { "-config", config_file };
     read_config_file(2, argv, &knobs);
 

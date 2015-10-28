@@ -4,8 +4,6 @@
  * Author: Sam Xi
  */
 
-#define CATCH_CONFIG_MAIN
-
 #include "catch.hpp"
 #include "speedup_models.h"
 

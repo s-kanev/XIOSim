@@ -1,9 +1,8 @@
-#define CATCH_CONFIG_MAIN
 #include "catch.hpp"
 
 #define DECODE_DEBUG
-#include "../fu.h"
-#include "../regs.h"
+#include "fu.h"
+#include "regs.h"
 #include "test_xed_context.h"
 
 

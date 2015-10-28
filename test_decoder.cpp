@@ -1,7 +1,7 @@
-#define CATCH_CONFIG_MAIN
 #include "catch.hpp"
 
 #define DECODE_DEBUG
+#include "regs.h"
 #include "test_xed_context.h"
 
 TEST_CASE("nop", "Flags tests") {
@@ -60,8 +60,8 @@ TEST_CASE("jmp direct", "Flags tests") {
 
 TEST_CASE("jmp indirect", "Flags tests") {
     xed_context c;
-    xed_inst1(&c.x, c.dstate, XED_ICLASS_JMP, 0,
-              xed_reg(XED_REG_EAX));
+    xed_inst1(&c.x, c.dstate, XED_ICLASS_JMP, c.op_width,
+              xed_reg(largest_reg(XED_REG_EAX)));
     c.encode();
 
     c.decode();
@@ -102,8 +102,8 @@ TEST_CASE("call direct", "Flags tests") {
 
 TEST_CASE("call indirect", "Flags tests") {
     xed_context c;
-    xed_inst1(&c.x, c.dstate, XED_ICLASS_CALL_NEAR, 0,
-              xed_mem_b(XED_REG_EAX, 32));
+    xed_inst1(&c.x, c.dstate, XED_ICLASS_CALL_NEAR, c.op_width,
+              xed_mem_b(XED_REG_EDX, c.mem_op_width));
     c.encode();
 
     c.decode();

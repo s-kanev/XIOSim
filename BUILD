@@ -147,6 +147,18 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "test_parse_configs",
+    srcs = [ "test_parse_configs.cpp" ],
+    deps = [
+        ":catch_impl",
+        ":libsim",
+        "@catch//:main",
+    ],
+    data = [ "config/default.cfg" ],
+    linkopts = [ "-lconfuse", "-lm" ],
+)
+
 cc_library(
     name = "memory",
     hdrs = [ "memory.h" ],
@@ -193,14 +205,46 @@ cc_library(
     hdrs = [
         "decode.h",
         "fu.h",
-        "uop_cracker.h",
         "regs.h",
+        "uop_cracker.h",
     ],
     deps = [
         ":misc",
         ":stats",
         "@pin//:xed"
     ],
+)
+
+cc_test(
+    name = "test_decoder",
+    srcs = [
+        "test_decoder.cpp",
+        "test_xed_context.h",
+    ],
+    deps = [
+        ":catch_impl",
+        ":misc",
+        ":x86",
+        ":zesto-structs",
+        "@catch//:main",
+        "@pin//:xed",
+    ]
+)
+
+cc_test(
+    name = "test_uop_cracker",
+    srcs = [
+        "test_uop_cracker.cpp",
+        "test_xed_context.h",
+    ],
+    deps = [
+        ":catch_impl",
+        ":misc",
+        ":x86",
+        ":zesto-structs",
+        "@catch//:main",
+        "@pin//:xed",
+    ]
 )
 
 cc_library(
@@ -231,10 +275,29 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "test_stat_database",
+    srcs = [ "test_stat_database.cpp" ],
+    deps = [
+        ":catch_impl",
+        ":stats",
+        "@catch//:main",
+    ],
+    data = glob([ "test_data/test_stat.*.out" ]),
+    linkopts = [ "-lm" ],
+)
+
 cc_library(
     name = "boost_stats_include",
     hdrs = ["boost_statistics.h"],
     deps = [
         "@boost//:accumulators",
     ],
+)
+
+# compile catch runner code only once
+cc_library(
+    name = "catch_impl",
+    srcs = [ "catch_impl.cpp" ],
+    deps = [ "@catch//:main" ],
 )
