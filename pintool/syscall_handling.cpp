@@ -18,12 +18,12 @@
 
 // from linux/arch/x86/ia32/sys_ia32.c
 struct mmap_arg_struct {
-    UINT32 addr;
-    UINT32 len;
-    UINT32 prot;
-    UINT32 flags;
-    UINT32 fd;
-    UINT32 offset;
+    ADDRINT addr;
+    size_t len;
+    int prot;
+    int flags;
+    int fd;
+    off_t offset;
 };
 
 // from times.h
@@ -47,20 +47,9 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VOI
 
 /* ========================================================================== */
 VOID InitSyscallHandling() {
-    lk_init(&syscall_lock);
-
     PIN_AddSyscallEntryFunction(SyscallEntry, 0);
     PIN_AddSyscallExitFunction(SyscallExit, 0);
 }
-
-/* ========================================================================== */
-/*
-VOID SyscallEntry(THREADID threadIndex, CONTEXT * ictxt, SYSCALL_STANDARD std,
-VOID *v)
-{
-
-    MakeSSRequest(threadIndex, 0, 0, 0, false, ictxt, hshake);
-}*/
 
 /* ========================================================================== */
 VOID SyscallEntry(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VOID* v) {
@@ -102,12 +91,17 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VO
         break;
 
     case __NR_mmap:  // oldmmap
+#ifndef _LP64
         memcpy(&mmap_arg, (void*)arg1, sizeof(mmap_arg_struct));
+#else
+        mmap_arg.addr = arg1;
+        mmap_arg.len = PIN_GetSyscallArgument(ictxt, std, 1);
+#endif
+        tstate->last_syscall_arg1 = mmap_arg.len;
 #ifdef ZESTO_PIN_DBG
         cerr << "Syscall oldmmap(" << dec << syscall_num << ") addr: 0x" << hex << mmap_arg.addr
              << " length: " << mmap_arg.len << dec << endl;
 #endif
-        tstate->last_syscall_arg1 = mmap_arg.len;
         break;
 
 #ifndef _LP64
