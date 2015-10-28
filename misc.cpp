@@ -92,6 +92,12 @@ void _fatal(const char *file, const char *func, const int line, const char *fmt,
   exit(1);
 }
 
+assert_fail_callback assert_fail;
+
+void register_assert_fail_handler(assert_fail_callback callback) {
+    assert_fail = callback;
+}
+
 /* The following are macros for basic memory operations.  If you have
    SSE support, these should run faster. */
 void memzero(void * base, int bytes)
@@ -193,7 +199,6 @@ void memswap(void * p1, void * p2, size_t num_bytes)
     addr2++;
   }*/
 }
-
 
 #ifdef GZIP_PATH
 

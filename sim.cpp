@@ -82,6 +82,7 @@ namespace libsim {
 
 static void create_modules(void);
 static void sim_print_stats(FILE* fd);
+void on_assert_fail(int coreID);
 
 int init(int argc, char** argv) {
     char* s;
@@ -112,6 +113,8 @@ int init(int argc, char** argv) {
 
     /* Initialize tracing */
     ztrace_init();
+
+    register_assert_fail_handler(on_assert_fail);
 
     /* Initialize virtual memory */
     xiosim::memory::init(*num_processes);
@@ -340,6 +343,23 @@ void compute_rtp_power(void) {
     stat_save_stats_delta(rtp_sdb);  // Store delta values for translation
     compute_power(rtp_sdb, false);
     stat_save_stats(rtp_sdb);  // Create new checkpoint for next delta
+}
+
+/* On assertion failure, dump ztrace. Potentially spin so we can attach a debugger. */
+void on_assert_fail(int coreID) {
+    if (coreID != xiosim::INVALID_CORE) {
+        core_t* core = cores[coreID];
+        fprintf(stderr, "core: %d, cycle: %" PRId64", num_Mops: %" PRId64"\n", coreID, core->sim_cycle, core->stat.oracle_total_insn);
+        fprintf(stderr, "PC: %" PRIxPTR", pin->PC: %" PRIxPTR", pin->NPC: %" PRIxPTR"\n", core->fetch->PC, core->fetch->feeder_PC, core->fetch->feeder_NPC);
+    }
+    fflush(stderr);
+
+    for (int i=0; i < num_cores; i++)
+        cores[i]->oracle->trace_in_flight_ops();
+    ztrace_flush();
+
+    if (assert_spin)
+        while(1);
 }
 
 }  // xiosim::libsim

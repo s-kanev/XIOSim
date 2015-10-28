@@ -82,21 +82,9 @@
 #include "stats.h"
 #include "ztrace.h"
 
-#define zesto_assert(cond, retval) {		\
-  if(!(cond)) { \
-    fprintf(stderr,"assertion failed (%s,%d:core %d): ",__FILE__,__LINE__,core->id); \
-    fprintf(stderr,"%s\n",#cond); \
-    fprintf(stderr, "cycle: %" PRId64", num_Mops: %" PRId64"\n", core->sim_cycle, core->stat.oracle_total_insn); \
-    fprintf(stderr, "PC: %" PRIxPTR", pin->PC: %" PRIxPTR", pin->NPC: %" PRIxPTR"\n", core->fetch->PC, core->fetch->feeder_PC, core->fetch->feeder_NPC); \
-    fflush(stderr); \
-    for (int __i=0; __i < num_cores; __i++) \
-      cores[__i]->oracle->trace_in_flight_ops(); \
-    ztrace_flush(); \
-    if (assert_spin) \
-      while(1); \
-    exit(6); \
-  } \
-}
+/* Until we replace it with xiosim_core_assert(). As before, there's always
+ * a core_t* core pointer defined when we call zesto_assert(). */
+#define zesto_assert(cond, retval) xiosim_core_assert((cond), core->id)
 
 #include <stdint.h>
 #include <list>

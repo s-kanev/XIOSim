@@ -76,6 +76,7 @@
 #define MISC_H
 
 #include <stdio.h>
+#include <functional>
 
 /* boolean value defs */
 #ifndef TRUE
@@ -90,6 +91,22 @@
   _fatal(__FILE__, __FUNCTION__, __LINE__, fmt, ## __VA_ARGS__)
 
 [[ noreturn ]] void _fatal(const char *file, const char *func, const int line, const char *fmt, ...);
+
+typedef std::function<void(int coreID)> assert_fail_callback;
+extern assert_fail_callback assert_fail;
+void register_assert_fail_handler(assert_fail_callback callback);
+
+#define xiosim_core_assert(cond, coreID) \
+    if (!(cond)) {\
+        fprintf(stderr,"assertion failed (%s:%d): %s\n", __FILE__, __LINE__, #cond); \
+        fflush(stderr); \
+        if (assert_fail) \
+            assert_fail((coreID)); \
+        exit(6); \
+    }
+
+/* XXX: xiosim::INVALID_CORE once we pull it out of sim.h */
+#define xiosim_assert(cond) xiosim_core_assert((cond), -1)
 
 /* fast modulo increment/decrement:
    gcc on -O1 or higher will if-convert the following functions
