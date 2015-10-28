@@ -221,9 +221,11 @@ core_exec_NONE_t::core_exec_NONE_t(class core_t * const arg_core)
 
 void core_exec_NONE_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
 {
-  stat_reg_note(sdb,"\n#### DATA CACHE STATS ####");
-  cache_reg_stats(sdb, core, core->memory.DL1);
-  cache_reg_stats(sdb, core, core->memory.DL2);
+    stat_reg_note(sdb,"\n#### DATA CACHE STATS ####");
+    cache_reg_stats(sdb, core, core->memory.DL1);
+    cache_reg_stats(sdb, core, core->memory.DTLB);
+    cache_reg_stats(sdb, core, core->memory.DTLB2);
+    cache_reg_stats(sdb, core, core->memory.DL2);
 }
 
 
