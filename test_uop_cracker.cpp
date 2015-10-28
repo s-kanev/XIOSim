@@ -864,3 +864,21 @@ TEST_CASE("RR padd", "[uop]") {
     /* Parallel int ops for now go to the integer unit */
     REQUIRE(c.Mop.uop[0].decode.FU_class == FU_IEU);
 }
+
+TEST_CASE("MOVSD_XMM", "[uop]") {
+    xed_context c;
+    xed_inst2(&c.x, c.dstate, XED_ICLASS_MOVSD_XMM, 0,
+              xed_reg(XED_REG_XMM1),
+              xed_mem_bd(XED_REG_EDX,
+                         xed_disp(0xbeef, 32),
+                         64));
+    c.encode();
+
+    c.decode_and_crack();
+
+    REQUIRE(c.Mop.decode.flow_length == 1);
+    REQUIRE(c.Mop.uop[0].decode.is_load == true);
+
+    REQUIRE(c.Mop.uop[0].decode.idep_name[0] == largest_reg(XED_REG_EDX));
+    REQUIRE(c.Mop.uop[0].decode.odep_name[0] == largest_reg(XED_REG_XMM1));
+}

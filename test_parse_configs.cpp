@@ -34,6 +34,8 @@
 // actually needs this function to do anything, I'm just declaring an empty
 // funcion to satisfy the linker.
 void CheckIPCMessageQueue(bool isEarly, int caller_coreID) {}
+int* num_processes;
+XIOSIM_LOCK* printing_lock;
 
 TEST_CASE("Test configuration parsing", "config") {
     const char* config_file = "config/default.cfg";

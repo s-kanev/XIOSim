@@ -27,7 +27,7 @@ namespace x86 {
 static thread_local std::list<uop_t*> uop_free_lists[MAX_NUM_UOPS + 1];
 
 struct uop_t* get_uop_array(const size_t num_uops) {
-    assert(num_uops > 0 && num_uops <= MAX_NUM_UOPS);
+    xiosim_assert(num_uops > 0 && num_uops <= MAX_NUM_UOPS);
     auto& free_list = uop_free_lists[num_uops];
 
     void* space = nullptr;
@@ -45,7 +45,7 @@ struct uop_t* get_uop_array(const size_t num_uops) {
 }
 
 void return_uop_array(struct uop_t* p, const size_t num_uops) {
-    assert(num_uops > 0 && num_uops <= MAX_NUM_UOPS);
+    xiosim_assert(num_uops > 0 && num_uops <= MAX_NUM_UOPS);
     /* Make sure we destruct all uops. */
     for (size_t i = 0; i < num_uops; i++)
         p[i].~uop_t();
@@ -147,7 +147,7 @@ static void fallback(struct Mop_t* Mop) {
     /* Fill out register read dependences from XED.
      * All of them go to the main uop. */
     auto ideps = get_registers_read(Mop);
-    assert(ideps.size() <= MAX_IDEPS);
+    xiosim_assert(ideps.size() <= MAX_IDEPS);
     /* Reserve idep 0 for the load->op dependence through a temp register. */
     int idep_ind = Mop_has_load ? 1 : 0;
     for (auto it = ideps.begin(); it != ideps.end(); it++, idep_ind++) {
@@ -156,7 +156,7 @@ static void fallback(struct Mop_t* Mop) {
 
     /* Similarly for register write dependences. */
     auto odeps = get_registers_written(Mop);
-    assert(odeps.size() <= MAX_ODEPS);
+    xiosim_assert(odeps.size() <= MAX_ODEPS);
     /* Reserve odep 0 for the op->store dependence through a temp register. */
     int odep_ind = Mop_has_store ? 1 : 0;
     for (auto it = odeps.begin(); it != odeps.end(); it++, odep_ind++) {
@@ -168,14 +168,14 @@ static void fallback(struct Mop_t* Mop) {
         fill_out_load_uop(Mop, Mop->uop[0]);
         Mop->uop[0].decode.odep_name[0] = XED_REG_TMP0;
 
-        assert(main_uop.decode.idep_name[0] == XED_REG_INVALID);
+        xiosim_assert(main_uop.decode.idep_name[0] == XED_REG_INVALID);
         main_uop.decode.idep_name[0] = XED_REG_TMP0;
     }
 
     /* Last two uops are STA and STD. */
     if (Mop_has_store) {
         auto std_temp_reg = Mop_has_load ? XED_REG_TMP1 : XED_REG_TMP0;
-        assert(main_uop.decode.odep_name[0] == XED_REG_INVALID);
+        xiosim_assert(main_uop.decode.odep_name[0] == XED_REG_INVALID);
         main_uop.decode.odep_name[0] = std_temp_reg;
 
         fill_out_sta_uop(Mop, Mop->uop[op_index + 1]);
@@ -213,7 +213,7 @@ static bool check_load(const struct Mop_t* Mop) {
     case XED_IFORM_MOVQ_MMXq_MEMq_0F6F:
     case XED_IFORM_MOVQ_XMMdq_MEMq_0F6E:
     case XED_IFORM_MOVQ_XMMdq_MEMq_0F7E:
-    case XED_IFORM_MOVSD_XMM_MEMsd_XMMsd:
+    case XED_IFORM_MOVSD_XMM_XMMdq_MEMsd:
     case XED_IFORM_MOVSHDUP_XMMps_MEMps:
     case XED_IFORM_MOVSLDUP_XMMps_MEMps:
     case XED_IFORM_MOVSS_XMMdq_MEMss:
@@ -280,6 +280,7 @@ static bool check_store(const struct Mop_t* Mop) {
     case XED_IFORM_MOVQ_MEMq_MMXq_0F7F:
     case XED_IFORM_MOVQ_MEMq_XMMq_0F7E:
     case XED_IFORM_MOVQ_MEMq_XMMq_0FD6:
+    case XED_IFORM_MOVSD_XMM_MEMsd_XMMsd:
     case XED_IFORM_MOVUPD_MEMpd_XMMpd:
     case XED_IFORM_MOVUPS_MEMps_XMMps:
     case XED_IFORM_STOSB:
@@ -463,7 +464,7 @@ static bool check_tables(struct Mop_t* Mop) {
 
         /* Set output register. */
         auto regs_written = get_registers_written(Mop);
-        assert(regs_written.size() == 1);
+        xiosim_assert(regs_written.size() == 1);
         Mop->uop[0].decode.odep_name[0] = regs_written.front();
         return true;
     }
@@ -479,7 +480,7 @@ static bool check_tables(struct Mop_t* Mop) {
         auto regs_read = get_registers_read(Mop);
         if (regs_read.size() > 0) {
             // XXX: STOS is predicated on flags, ignore for now.
-            // assert(regs_read.size() == 1);
+            // xiosim_assert(regs_read.size() == 1);
             std_reg = regs_read.front();
         }
         fill_out_std_uop(Mop, Mop->uop[1], std_reg);
@@ -527,7 +528,7 @@ static bool check_tables(struct Mop_t* Mop) {
         /* add target dependences in the indirect case */
         if (iform == XED_IFORM_CALL_NEAR_GPRv) {
             auto regs_read = get_registers_read(Mop);
-            assert(regs_read.size() == 1);
+            xiosim_assert(regs_read.size() == 1);
             Mop->uop[jmp_ind].decode.idep_name[0] = regs_read.front();
         } else if (iform == XED_IFORM_CALL_NEAR_MEMv) {
             fill_out_load_uop(Mop, Mop->uop[3]);
@@ -664,7 +665,7 @@ static bool check_tables(struct Mop_t* Mop) {
 
         /* Set output register. */
         auto regs_written = get_registers_written(Mop);
-        assert(regs_written.size() == 1);
+        xiosim_assert(regs_written.size() == 1);
         Mop->uop[0].decode.odep_name[0] = regs_written.front();
         return true;
     }
@@ -731,7 +732,7 @@ void crack(struct Mop_t* Mop) {
     fallback(Mop);
 
     /* there better be at least one uop */
-    assert(Mop->decode.flow_length);
+    xiosim_assert(Mop->decode.flow_length);
 }
 
 /* Get an instruction's expllicitly read registers.
@@ -807,7 +808,7 @@ get_memory_operand_registers_read(const struct Mop_t* Mop, size_t mem_op) {
     list<xed_reg_enum_t> res;
 #ifndef NDEBUG
     size_t num_mem = xed_decoded_inst_number_of_memory_operands(&Mop->decode.inst);
-    assert(mem_op < num_mem);
+    xiosim_assert(mem_op < num_mem);
 #endif
 
     /* Add mem op base register, if any */

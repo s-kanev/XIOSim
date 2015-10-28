@@ -3,6 +3,7 @@
  *
  * Author: Sam Xi
  */
+#include <iostream>
 
 #include "catch.hpp"
 #include "speedup_models.h"
