@@ -624,9 +624,9 @@ void core_exec_DPM_t::update_occupancy(void)
 
     /* STQ */
   core->stat.STQ_occupancy += STQ_num;
-  if(STQ_num >= core->knobs->exec.STQ_size)
+  if(STQ_senior_num >= core->knobs->exec.STQ_size)
     core->stat.STQ_full_cycles++;
-  if(STQ_num <= 0)
+  if(STQ_senior_num <= 0)
     core->stat.STQ_empty_cycles++;
 
   for(int i=0; i<core->knobs->exec.num_exec_ports; i++)
