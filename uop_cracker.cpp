@@ -497,15 +497,15 @@ static bool check_tables(struct Mop_t* Mop) {
     }
 
     if (check_call(Mop)) {
-        Mop->decode.flow_length = 4;
-        size_t jmp_ind = 3;
+        Mop->decode.flow_length = 3;
+        size_t jmp_ind = 2;
         size_t store_memory_op_index = 0;
         auto iform = xed_decoded_inst_get_iform_enum(&Mop->decode.inst);
         /* Indirect calls to memory have an additional load uop and an additional
          * memory operand. Ugly. */
         if (iform == XED_IFORM_CALL_NEAR_MEMv) {
             Mop->decode.flow_length++;
-            jmp_ind = 4;
+            jmp_ind++;
             store_memory_op_index = 1;
         }
         Mop->allocate_uops();
@@ -516,10 +516,7 @@ static bool check_tables(struct Mop_t* Mop) {
         /* std is technically dependant on EIP. But in our model each instruction
          * carries its own IP. */
 
-        /* uop2: Subtract from ESP */
-        Mop->uop[2].decode.FU_class = FU_IEU;
-        Mop->uop[2].decode.idep_name[0] = largest_reg(XED_REG_ESP);
-        Mop->uop[2].decode.odep_name[0] = largest_reg(XED_REG_ESP);
+        /* Subtract from ESP is handled by the stack engine in most cases. */
 
         /* uop(last): jump to target */
         Mop->uop[jmp_ind].decode.FU_class = FU_JEU;
@@ -531,8 +528,8 @@ static bool check_tables(struct Mop_t* Mop) {
             xiosim_assert(regs_read.size() == 1);
             Mop->uop[jmp_ind].decode.idep_name[0] = regs_read.front();
         } else if (iform == XED_IFORM_CALL_NEAR_MEMv) {
-            fill_out_load_uop(Mop, Mop->uop[3]);
-            Mop->uop[3].decode.odep_name[0] = XED_REG_TMP0;
+            fill_out_load_uop(Mop, Mop->uop[jmp_ind - 1]);
+            Mop->uop[jmp_ind - 1].decode.odep_name[0] = XED_REG_TMP0;
 
             Mop->uop[jmp_ind].decode.idep_name[0] = XED_REG_TMP0;
         }
@@ -540,28 +537,25 @@ static bool check_tables(struct Mop_t* Mop) {
     }
 
     if (check_ret(Mop)) {
-        Mop->decode.flow_length = 3;
+        Mop->decode.flow_length = 2;
         Mop->allocate_uops();
 
         /* uop0: Load jump destination */
         fill_out_load_uop(Mop, Mop->uop[0]);
         Mop->uop[0].decode.odep_name[0] = XED_REG_TMP0;
 
-        /* uop1: Add to ESP */
-        Mop->uop[1].decode.FU_class = FU_IEU;
-        Mop->uop[1].decode.idep_name[0] = largest_reg(XED_REG_ESP);
-        Mop->uop[1].decode.odep_name[0] = largest_reg(XED_REG_ESP);
+        /* Add to ESP is handled by the stack engine in most cases. */
 
-        /* uop2: jump to target */
-        Mop->uop[2].decode.FU_class = FU_JEU;
-        Mop->uop[2].decode.is_ctrl = true;
-        Mop->uop[2].decode.idep_name[0] = XED_REG_TMP0;
+        /* uop1: jump to target */
+        Mop->uop[1].decode.FU_class = FU_JEU;
+        Mop->uop[1].decode.is_ctrl = true;
+        Mop->uop[1].decode.idep_name[0] = XED_REG_TMP0;
 
         return true;
     }
 
     if (check_push(Mop)) {
-        Mop->decode.flow_length = 3;
+        Mop->decode.flow_length = 2;
         bool has_load = is_load(Mop);
         size_t store_memory_op_index = 0;
         if (has_load) {
@@ -589,16 +583,12 @@ static bool check_tables(struct Mop_t* Mop) {
             /* else, this is the immediate case */
         }
         fill_out_std_uop(Mop, Mop->uop[flow_start + 1], data_reg, store_memory_op_index);
-
-        /* uop2: Subtract from ESP */
-        Mop->uop[flow_start + 2].decode.FU_class = FU_IEU;
-        Mop->uop[flow_start + 2].decode.idep_name[0] = largest_reg(XED_REG_ESP);
-        Mop->uop[flow_start + 2].decode.odep_name[0] = largest_reg(XED_REG_ESP);
+        /* Subtract from ESP is handled by the stack engine in most cases. */
         return true;
     }
 
     if (check_pop(Mop)) {
-        Mop->decode.flow_length = 2;
+        Mop->decode.flow_length = 1;
         bool has_store = is_store(Mop);
         size_t read_mem_operand_ind = 0;
         if (has_store) {
@@ -614,15 +604,11 @@ static bool check_tables(struct Mop_t* Mop) {
             Mop->uop[0].decode.odep_name[0] = get_registers_written(Mop).front();
         }
 
-        /* uop1: Add to ESP */
-        Mop->uop[1].decode.FU_class = FU_IEU;
-        Mop->uop[1].decode.idep_name[0] = largest_reg(XED_REG_ESP);
-        Mop->uop[1].decode.odep_name[0] = largest_reg(XED_REG_ESP);
-        /* We don't fuse the add to the load -- they don't share an odep-idep operand.*/
+        /* Add to ESP is handled by the stack engine in most cases. */
 
         if (has_store) {
-            fill_out_sta_uop(Mop, Mop->uop[2], 0);
-            fill_out_std_uop(Mop, Mop->uop[3], XED_REG_TMP0, 0);
+            fill_out_sta_uop(Mop, Mop->uop[1], 0);
+            fill_out_std_uop(Mop, Mop->uop[2], XED_REG_TMP0, 0);
         }
         return true;
     }
@@ -833,5 +819,16 @@ get_memory_operand_registers_read(const struct Mop_t* Mop, size_t mem_op) {
 
     return res;
 }
+
+/* Note on the stack engine for push / pop / call / ret flows:
+ * It's a small adder in decode that removes the need for an ESP-adjustment uop.
+ * There's a wonderful description in http://www.agner.org/optimize/microarchitecture.pdf
+ * Our flows don't model the additional fixup uops if we have something like:
+ * push eax; add ecx, esp (the add should have one more uop to get the arch ESP)
+ * Nor do we model the actual stack delta counter (which seems to be 8 bits)
+ * because that would make the cracker stateful.
+ * Both these are much rarer cases than a regular push / call, etc.
+ */
+
 }  // xiosim::x86
 }  // xiosim

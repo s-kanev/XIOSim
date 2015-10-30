@@ -16,7 +16,7 @@ extern "C" {
 
 class xed_context {
   public:
-    xed_encoder_instruction_t x; 
+    xed_encoder_instruction_t x;
     xed_encoder_request_t enc_req;
     xed_state_t dstate;
 
