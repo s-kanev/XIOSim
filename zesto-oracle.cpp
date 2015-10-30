@@ -75,7 +75,12 @@
 
 #include <cmath>
 #include <cstddef>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
 #include <stack>
+#include <sstream>
+
 
 #include "host.h"
 #include "misc.h"
@@ -123,6 +128,8 @@ core_oracle_t::core_oracle_t(struct core_t* const arg_core)
     , MopQ_spec_num(0)
     , drain_pipeline(false)
     , shadow_MopQ(get_MopQ_size(arg_core->knobs))
+    , iclass_histogram(XED_ICLASS_LAST, 0)
+    , iform_histogram(XED_IFORM_LAST, 0)
     , consumed(true) {
     core = arg_core;
 
@@ -520,6 +527,15 @@ void core_oracle_t::update_stats(struct Mop_t* const Mop) {
             }
         }
     }
+
+    /* TODO: we should use our fancy stats lib for these two.
+     * For now, they print to a different file, and resolve labels
+     * a little differently from what's supported. */
+    auto iclass = xed_decoded_inst_get_iclass(&Mop->decode.inst);
+    iclass_histogram[iclass]++;
+
+    auto iform = xed_decoded_inst_get_iform_enum(&Mop->decode.inst);
+    iform_histogram[iform]++;
 }
 
 /* After calling oracle-exec, you need to first call this function
@@ -1027,4 +1043,26 @@ void core_oracle_t::commit_dependencies(struct uop_t* const uop) {
         odep = next;
     }
     uop->oracle.odep_uop = nullptr;
+}
+
+void core_oracle_t::dump_instruction_histograms(const std::string iclass_prefix, const std::string iform_prefix) {
+    std::stringstream ss;
+    ss << "." << core->id;
+    std::ofstream icof(iclass_prefix + ss.str());
+    for (size_t i = 0; i < iclass_histogram.size(); i++) {
+        if (iclass_histogram[i] > 0) {
+            icof << std::setw(20) << std::left;
+            icof << xed_iclass_enum_t2str(static_cast<xed_iclass_enum_t>(i)) << " ";
+            icof << std::setw(12) << std::right << iclass_histogram[i] << std::endl;
+        }
+    }
+
+    std::ofstream ifof(iform_prefix + ss.str());
+    for (size_t i = 0; i < iform_histogram.size(); i++) {
+        if (iform_histogram[i] > 0) {
+            ifof << std::setw(36) << std::left;
+            ifof << xed_iform_enum_t2str(static_cast<xed_iform_enum_t>(i)) << " ";
+            ifof << std::setw(12) << std::right << iform_histogram[i] << std::endl;
+        }
+    }
 }

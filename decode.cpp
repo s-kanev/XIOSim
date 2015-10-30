@@ -1,5 +1,3 @@
-#include <iostream>
-
 #include "misc.h"
 #include "decode.h"
 #include "zesto-structs.h"
@@ -7,7 +5,7 @@
 namespace xiosim {
 namespace x86 {
 
-xed_state_t machine_mode;
+static xed_state_t machine_mode;
 
 void init_decoder() {
     xed_tables_init();
@@ -170,5 +168,5 @@ xed_iclass_enum_t xed_iclass(const struct Mop_t * Mop) {
     return xed_decoded_inst_get_iclass(&Mop->decode.inst);
 }
 
-}
-}
+}  // xiosim::x86
+}  // xiosim

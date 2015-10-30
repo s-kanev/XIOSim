@@ -76,6 +76,13 @@
  *
  */
 
+#include <stdint.h>
+#include <list>
+#include <map>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
 #include "zesto-fetch.h"
 #include "shadow_MopQ.h"
 #include "sim.h"
@@ -85,11 +92,6 @@
 /* Until we replace it with xiosim_core_assert(). As before, there's always
  * a core_t* core pointer defined when we call zesto_assert(). */
 #define zesto_assert(cond, retval) xiosim_core_assert((cond), core->id)
-
-#include <stdint.h>
-#include <list>
-#include <map>
-#include <unordered_map>
 
 class handshake_container_t;
 
@@ -147,6 +149,8 @@ class core_oracle_t {
   /* Is the oracle in the process of recovering from a nuke. */
   bool on_nuke_recovery_path(void) const { return num_Mops_before_feeder() > 0; }
 
+  /* Print instruction type stats. */
+  void dump_instruction_histograms(const std::string iclass_prefix, const std::string iform_prefix);
   protected:
 
   seq_t Mop_seq; /* Mop sequence number */
@@ -166,6 +170,10 @@ class core_oracle_t {
   struct core_t * core;
   /* dependency tracking used by oracle */
   std::unordered_map<xed_reg_enum_t, std::list<struct uop_t *>, std::hash<unsigned long> > dep_map;
+
+  /* Instruction type stats. */
+  std::vector<counter_t> iclass_histogram;
+  std::vector<counter_t> iform_histogram;
 
   void undo(struct Mop_t * const Mop, bool nuke);
 

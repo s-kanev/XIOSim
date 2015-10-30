@@ -180,6 +180,10 @@ void deinit() {
         cores[i]->oracle->trace_in_flight_ops();
     ztrace_flush();
 
+    /* Print instruction type histograms */
+    for (int i = 0; i < num_cores; i++)
+        cores[i]->oracle->dump_instruction_histograms("iclass_hist", "iform_hist");
+
     for (int i = 0; i < num_cores; i++)
         if (cores[i]->stat.oracle_unknown_insn / (double)cores[i]->stat.oracle_total_insn > 0.02)
             fprintf(stderr,
