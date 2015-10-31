@@ -245,9 +245,7 @@ VOID ILDJIT_startSimulation(THREADID tid, ADDRINT ip) {
 
     ILDJIT_executorTID = tid;
 
-    //#ifdef ZESTO_PIN_DBG
     cerr << "Starting execution, TID: " << tid << endl;
-    //#endif
 
     lk_unlock(&ildjit_lock);
 
@@ -271,9 +269,7 @@ VOID ILDJIT_endSimulation(THREADID tid, ADDRINT ip) {
         return;
 
     // If we reach this, we're done with all parallel loops, just exit
-    //#ifdef ZESTO_PIN_DBG
     cerr << "Stopping simulation, TID: " << tid << endl;
-    //#endif
 
     PauseSimulation();
 }
@@ -284,9 +280,7 @@ VOID ILDJIT_ExecutorCreate(THREADID tid) {
 
     ILDJIT_executorCreation = true;
 
-    //#ifdef ZESTO_PIN_DBG
     cerr << "Starting creation, TID: " << tid << endl;
-    //#endif
 
     lk_unlock(&ildjit_lock);
 }
@@ -509,7 +503,7 @@ VOID ILDJIT_startIteration(THREADID tid) {
 
 /* ========================================================================== */
 VOID ILDJIT_endParallelLoop(THREADID tid, ADDRINT loop, ADDRINT numIterations) {
-#ifdef ZESTO_PIN_DBG
+#ifdef ILDJIT_DEBUG
     cerr << tid << ": Pausing simulation!" << endl;
 #endif
     if (ExecMode == EXECUTION_MODE_SIMULATE) {
@@ -657,7 +651,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
     memcpy(handshake->ins, wait_template_1, wait_template_1_size);
     wait_address =
         getSignalAddress(ssID) | HELIX_WAIT_MASK | (is_light ? HELIX_LIGHT_WAIT_MASK : 0);
-    *(INT32*)(&handshake->ins[wait_template_1_addr_offset]) = wait_address;
+    memcpy(&handshake->ins[wait_template_1_addr_offset], &wait_address, sizeof(UINT32));
     assert(ssID < HELIX_MAX_SIGNAL_ID);
 
 #ifdef PRINT_DYN_TRACE
@@ -711,6 +705,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc) {
     assert(ssID < 1024);
     thread_state_t* tstate = get_tls(tid);
     handshake_container_t* handshake;
+    UINT32 signal_address;
 
     /* Not simulating -- just ignore. */
     if (ExecMode != EXECUTION_MODE_SIMULATE)
@@ -765,7 +760,8 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc) {
     handshake->flags.brtaken = false;
     memcpy(handshake->ins, signal_template, sizeof(signal_template));
     // Address comes right after opcode and MoodRM bytes
-    *(INT32*)(&handshake->ins[2]) = getSignalAddress(ssID);
+    signal_address = getSignalAddress(ssID);
+    memcpy(&handshake->ins[2], &signal_address, sizeof(UINT32));
     assert(ssID < HELIX_MAX_SIGNAL_ID);
 
 #ifdef PRINT_DYN_TRACE
@@ -780,7 +776,7 @@ cleanup:
 
 /* ========================================================================== */
 VOID ILDJIT_setAffinity(THREADID tid, INT32 coreID) {
-#ifdef ZESTO_PIN_DBG
+#ifdef ILDJIT_DEBUG
     thread_state_t* tstate = get_tls(tid);
     lk_lock(printing_lock, 1);
     cerr << "Call to setAffinity: " << tstate->tid << " " << coreID << endl;
@@ -794,7 +790,7 @@ VOID ILDJIT_setAffinity(THREADID tid, INT32 coreID) {
 
 /* ========================================================================== */
 VOID AddILDJITCallbacks(IMG img) {
-#ifdef ZESTO_PIN_DBG
+#ifdef ILDJIT_DEBUG
     cerr << "Adding ILDJIT callbacks: ";
 #endif
 
@@ -802,7 +798,7 @@ VOID AddILDJITCallbacks(IMG img) {
     RTN rtn;
     rtn = RTN_FindByName(img, "MOLECOOL_codeExecutorCreation");
     if (RTN_Valid(rtn)) {
-#ifdef ZESTO_PIN_DBG
+#ifdef ILDJIT_DEBUG
         cerr << "MOLECOOL_codeExecutorCreation ";
 #endif
         RTN_Open(rtn);
@@ -813,7 +809,7 @@ VOID AddILDJITCallbacks(IMG img) {
 
     rtn = RTN_FindByName(img, "MOLECOOL_init");
     if (RTN_Valid(rtn)) {
-#ifdef ZESTO_PIN_DBG
+#ifdef ILDJIT_DEBUG
         cerr << "MOLECOOL_init ";
 #endif
         RTN_Open(rtn);
@@ -829,7 +825,7 @@ VOID AddILDJITCallbacks(IMG img) {
     rtn = RTN_FindByName(img, "MOLECOOL_startIteration");
     if (RTN_Valid(rtn)) {
         fprintf(stderr, "MOLECOOL_startIteration(): %p\n", RTN_Funptr(rtn));
-#ifdef ZESTO_PIN_DBG
+#ifdef ILDJIT_DEBUG
         cerr << "MOLECOOL_startIteration ";
 #endif
         RTN_Open(rtn);
@@ -937,7 +933,7 @@ VOID AddILDJITCallbacks(IMG img) {
 
     rtn = RTN_FindByName(img, "MOLECOOL_codeExecutorCreationEnd");
     if (RTN_Valid(rtn)) {
-#ifdef ZESTO_PIN_DBG
+#ifdef ILDJIT_DEBUG
         cerr << "MOLECOOL_codeExecutorCreationEnd ";
 #endif
         RTN_Open(rtn);
@@ -948,7 +944,7 @@ VOID AddILDJITCallbacks(IMG img) {
 
     rtn = RTN_FindByName(img, "MOLECOOL_startInitParallelLoop");
     if (RTN_Valid(rtn)) {
-#ifdef ZESTO_PIN_DBG
+#ifdef ILDJIT_DEBUG
         cerr << "MOLECOOL_startInitParallelLoop ";
 #endif
         RTN_Open(rtn);
@@ -963,7 +959,7 @@ VOID AddILDJITCallbacks(IMG img) {
 
     rtn = RTN_FindByName(img, "MOLECOOL_startParallelLoop");
     if (RTN_Valid(rtn)) {
-#ifdef ZESTO_PIN_DBG
+#ifdef ILDJIT_DEBUG
         cerr << "MOLECOOL_startParallelLoop ";
 #endif
         RTN_Open(rtn);
@@ -982,7 +978,7 @@ VOID AddILDJITCallbacks(IMG img) {
 
     rtn = RTN_FindByName(img, "MOLECOOL_startLoop");
     if (RTN_Valid(rtn)) {
-#ifdef ZESTO_PIN_DBG
+#ifdef ILDJIT_DEBUG
         cerr << "MOLECOOL_startLoop ";
 #endif
         fprintf(stderr, "MOLECOOL_startLoop(): %p\n", RTN_Funptr(rtn));
@@ -1003,7 +999,7 @@ VOID AddILDJITCallbacks(IMG img) {
 
     rtn = RTN_FindByName(img, "MOLECOOL_startLoop");
     if (RTN_Valid(rtn)) {
-#ifdef ZESTO_PIN_DBG
+#ifdef ILDJIT_DEBUG
         cerr << "MOLECOOL_startLoop ";
 #endif
         RTN_Open(rtn);
@@ -1020,7 +1016,7 @@ VOID AddILDJITCallbacks(IMG img) {
 
     rtn = RTN_FindByName(img, "MOLECOOL_startSimulation");
     if (RTN_Valid(rtn)) {
-#ifdef ZESTO_PIN_DBG
+#ifdef ILDJIT_DEBUG
         cerr << "MOLECOOL_startSimulation ";
 #endif
         RTN_Open(rtn);
@@ -1035,7 +1031,7 @@ VOID AddILDJITCallbacks(IMG img) {
 
     rtn = RTN_FindByName(img, "MOLECOOL_endSimulation");
     if (RTN_Valid(rtn)) {
-#ifdef ZESTO_PIN_DBG
+#ifdef ILDJIT_DEBUG
         cerr << "MOLECOOL_endSimulation ";
 #endif
         RTN_Open(rtn);
@@ -1045,7 +1041,7 @@ VOID AddILDJITCallbacks(IMG img) {
 
     rtn = RTN_FindByName(img, "MOLECOOL_setAffinity");
     if (RTN_Valid(rtn)) {
-#ifdef ZESTO_PIN_DBG
+#ifdef ILDJIT_DEBUG
         cerr << "MOLECOOL_setAffinity ";
 #endif
         RTN_Open(rtn);
@@ -1060,7 +1056,7 @@ VOID AddILDJITCallbacks(IMG img) {
                        IARG_END);
         RTN_Close(rtn);
     }
-#ifdef ZESTO_PIN_DBG
+#ifdef ILDJIT_DEBUG
     cerr << endl;
 #endif
 }
@@ -1151,7 +1147,8 @@ VOID insertBasicSafetySync(thread_state_t* curr_tstate) {
     handshake_0->flags.brtaken = false;
     memcpy(handshake_0->ins, signal_template, sizeof(signal_template));
     // Address comes right after opcode and MoodRM bytes
-    *(INT32*)(&handshake_0->ins[2]) = getSignalAddress(HELIX_SYNC_SIGNAL_ID);
+    UINT32 signal_address = getSignalAddress(HELIX_SYNC_SIGNAL_ID);
+    memcpy(&handshake_0->ins[2], &signal_address, sizeof(UINT32));
     xiosim::buffer_management::ProducerDone(curr_tstate->tid, true);
 
     /* Insert a MFENCE. This makes sure that all operations to the repeater
@@ -1184,8 +1181,8 @@ VOID insertBasicSafetySync(thread_state_t* curr_tstate) {
 
     memcpy(handshake_w->ins, wait_template_1, wait_template_1_size);
     // Address comes right after opcode and MoodRM bytes
-    *(INT32*)(&handshake_w->ins[wait_template_1_addr_offset]) =
-        getSignalAddress(HELIX_SYNC_SIGNAL_ID) | HELIX_WAIT_MASK;
+    UINT32 wait_address = getSignalAddress(HELIX_SYNC_SIGNAL_ID) | HELIX_WAIT_MASK;
+    memcpy(&handshake_w->ins[wait_template_1_addr_offset], &wait_address, sizeof(UINT32));
     xiosim::buffer_management::ProducerDone(curr_tstate->tid, true);
 }
 
@@ -1204,8 +1201,8 @@ VOID insertCollectionOnZero(thread_state_t* curr_tstate, bool threadZero) {
 
         memcpy(handshake_w->ins, wait_template_1, wait_template_1_size);
         // Address comes right after opcode and MoodRM bytes
-        *(INT32*)(&handshake_w->ins[wait_template_1_addr_offset]) =
-            getSignalAddress(HELIX_COLLECT_SIGNAL_ID) | HELIX_WAIT_MASK;
+        UINT32 wait_address = getSignalAddress(HELIX_COLLECT_SIGNAL_ID) | HELIX_WAIT_MASK;
+        memcpy(&handshake_w->ins[wait_template_1_addr_offset], &wait_address, sizeof(UINT32));
         xiosim::buffer_management::ProducerDone(curr_tstate->tid, true);
     } else {
         handshake_container_t* handshake_0 = xiosim::buffer_management::GetBuffer(curr_tstate->tid);
@@ -1220,7 +1217,8 @@ VOID insertCollectionOnZero(thread_state_t* curr_tstate, bool threadZero) {
         handshake_0->flags.brtaken = false;
         memcpy(handshake_0->ins, signal_template, sizeof(signal_template));
         // Address comes right after opcode and MoodRM bytes
-        *(INT32*)(&handshake_0->ins[2]) = getSignalAddress(HELIX_COLLECT_SIGNAL_ID);
+        UINT32 signal_address = getSignalAddress(HELIX_COLLECT_SIGNAL_ID);
+        memcpy(&handshake_0->ins[2], &signal_address, sizeof(UINT32));
         xiosim::buffer_management::ProducerDone(curr_tstate->tid, true);
     }
 
@@ -1237,8 +1235,8 @@ VOID insertCollectionOnZero(thread_state_t* curr_tstate, bool threadZero) {
 
     memcpy(handshake_w->ins, wait_template_1, wait_template_1_size);
     // Address comes right after opcode and MoodRM bytes
-    *(INT32*)(&handshake_w->ins[wait_template_1_addr_offset]) =
-        getSignalAddress(HELIX_FINISH_SIGNAL_ID) | HELIX_WAIT_MASK;
+    UINT32 wait_address =  getSignalAddress(HELIX_FINISH_SIGNAL_ID) | HELIX_WAIT_MASK;
+    memcpy(&handshake_w->ins[wait_template_1_addr_offset], &wait_address, sizeof(UINT32));
     xiosim::buffer_management::ProducerDone(curr_tstate->tid, true);
 }
 

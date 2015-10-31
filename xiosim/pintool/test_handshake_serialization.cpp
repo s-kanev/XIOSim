@@ -13,7 +13,8 @@ struct test_context {
 
         producer_handshake.Serialize(buffer, buffer_size);
 
-        size_t bytes_written = *reinterpret_cast<size_t*>(buffer);
+        size_t bytes_written;
+        memcpy(&bytes_written, buffer, sizeof(size_t));
         bytes_written -= sizeof(size_t);
 
         consumer_handshake.Deserialize(buffer + sizeof(size_t), bytes_written);

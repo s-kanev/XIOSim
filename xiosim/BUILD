@@ -1,5 +1,11 @@
 package( default_visibility = ["//visibility:public"] )
 
+test_suite(
+    name = "unit_tests",
+    tags = [ "small" ],
+)
+
+
 cc_library(
     name = "libsim",
     hdrs = [ "libsim.h" ],

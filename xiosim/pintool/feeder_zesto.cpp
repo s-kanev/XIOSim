@@ -137,7 +137,7 @@ VOID ImageUnload(IMG img, VOID* v) {
     ADDRINT start = IMG_LowAddress(img);
     ADDRINT length = IMG_HighAddress(img) - start;
 
-#ifdef ZESTO_PIN_DBG
+#ifdef FEEDER_DEBUG
     cerr << "Image unload, addr: " << hex << start << " len: " << length
          << " end_addr: " << start + length << endl;
 #endif
@@ -242,7 +242,7 @@ VOID ImageLoad(IMG img, VOID* v) {
     ADDRINT start = IMG_LowAddress(img);
     ADDRINT length = IMG_HighAddress(img) - start;
 
-#ifdef ZESTO_PIN_DBG
+#ifdef FEEDER_DEBUG
     cerr << "Image load, addr: " << hex << start << " len: " << length
          << " end_addr: " << start + length << endl;
 #endif
@@ -681,7 +681,7 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT* ictxt, INT32 flags, VOID* v) {
         for (; auxv->a_type != AT_NULL; auxv++) {  // walk aux_vector
             // This containts the address of the vdso
             if (auxv->a_type == AT_SYSINFO_EHDR) {
-#ifdef ZESTO_PIN_DBG
+#ifdef FEEDER_DEBUG
                 cerr << "AT_SYSINFO_EHDR: " << hex << auxv->a_un.a_val << endl;
 #endif
                 ADDRINT vdso = (ADDRINT)auxv->a_un.a_val;
@@ -971,7 +971,7 @@ VOID ThreadFini(THREADID tid, const CONTEXT* ctxt, INT32 code, VOID* v) {
 
 /* ========================================================================== */
 INT32 main(INT32 argc, CHAR** argv) {
-#ifdef ZESTO_PIN_DBG
+#ifdef FEEDER_DEBUG
     cerr << "[" << getpid() << "]"
          << " feeder_zesto args: ";
     for (int i = 0; i < argc; i++)

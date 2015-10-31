@@ -139,7 +139,7 @@ class AllocatorParser {
         else if (speedup_model_str == "logarithmic")
             speedup_model_type = SpeedupModelType::LOGARITHMIC;
         else
-            assert(false);
+            abort();
 
         OptimizationTarget opt_target;
         if (allocator_opt_target == "energy")
@@ -147,13 +147,13 @@ class AllocatorParser {
         else if (allocator_opt_target == "throughput")
             opt_target = OptimizationTarget::THROUGHPUT;
         else
-            assert(false);
+            abort();
 
         if (allocator_type.find("gang") != allocator_type.npos) {
             char name[16];
             int max_cores;
             if (sscanf(allocator_type.c_str(), "%[^:]:%d", name, &max_cores) != 2)
-                assert(false);
+                abort();
             assert(max_cores > 0 && max_cores <= num_cores);
             return GangAllocator::Get(
                 opt_target, speedup_model_type, core_power, uncore_power, max_cores);
@@ -164,7 +164,7 @@ class AllocatorParser {
         if (allocator_type == "penalty")
             return PenaltyAllocator::Get(
                 opt_target, speedup_model_type, core_power, uncore_power, num_cores);
-        assert(false);
+        abort();
     }
 };
 

@@ -1,5 +1,10 @@
 package( default_visibility = ["//visibility:public"] )
 
+test_suite(
+    name = "unit_tests",
+    tags = [ "small" ],
+)
+
 cc_binary(
     name = "timing_sim",
     srcs = [

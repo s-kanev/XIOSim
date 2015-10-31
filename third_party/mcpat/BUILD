@@ -27,8 +27,6 @@ cc_library(
         "//third_party/mcpat/cacti:lib",
     ],
     copts = [
-        "-Wno-reorder",
-        "-Wno-unused-variable",
-        "-Wno-unused-but-set-variable",
+        "-Wno-all", # mcpat is full of warnings, disable
     ],
 )

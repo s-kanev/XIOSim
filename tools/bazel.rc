@@ -1,0 +1,4 @@
+build --compilation_mode "opt"
+build --cpu "k8"
+build --dynamic_mode "off"
+build --crosstool_top "//tools_local/cpp:toolchain"

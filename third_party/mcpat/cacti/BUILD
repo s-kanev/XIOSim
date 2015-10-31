@@ -31,10 +31,7 @@ cc_library(
     copts = [
         "-DPIN",
         "-DNTHREADS=1",
-        "-Wno-reorder",
-        "-Wno-unused-variable",
-        "-Wno-unused-but-set-variable",
-        "-Wno-return-type",
+        "-Wno-all", # mcpat is full of warnings, disable
     ],
     linkopts = [ "-lm" , "-pthread" ],
 )

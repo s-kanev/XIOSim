@@ -74,7 +74,7 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VO
 
     switch (syscall_num) {
     case __NR_brk:
-#ifdef ZESTO_PIN_DBG
+#ifdef SYSCALL_DEBUG
         cerr << "Syscall brk(" << dec << syscall_num << ") addr: 0x" << hex << arg1 << dec << endl;
 #endif
         tstate->last_syscall_arg1 = arg1;
@@ -82,7 +82,7 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VO
 
     case __NR_munmap:
         arg2 = PIN_GetSyscallArgument(ictxt, std, 1);
-#ifdef ZESTO_PIN_DBG
+#ifdef SYSCALL_DEBUG
         cerr << "Syscall munmap(" << dec << syscall_num << ") addr: 0x" << hex << arg1
              << " length: " << arg2 << dec << endl;
 #endif
@@ -98,7 +98,7 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VO
         mmap_arg.len = PIN_GetSyscallArgument(ictxt, std, 1);
 #endif
         tstate->last_syscall_arg1 = mmap_arg.len;
-#ifdef ZESTO_PIN_DBG
+#ifdef SYSCALL_DEBUG
         cerr << "Syscall oldmmap(" << dec << syscall_num << ") addr: 0x" << hex << mmap_arg.addr
              << " length: " << mmap_arg.len << dec << endl;
 #endif
@@ -107,7 +107,7 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VO
 #ifndef _LP64
     case __NR_mmap2: // ia32-only
         arg2 = PIN_GetSyscallArgument(ictxt, std, 1);
-#ifdef ZESTO_PIN_DBG
+#ifdef SYSCALL_DEBUG
         cerr << "Syscall mmap2(" << dec << syscall_num << ") addr: 0x" << hex << arg1
              << " length: " << arg2 << dec << endl;
 #endif
@@ -118,7 +118,7 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VO
     case __NR_mremap:
         arg2 = PIN_GetSyscallArgument(ictxt, std, 1);
         arg3 = PIN_GetSyscallArgument(ictxt, std, 2);
-#ifdef ZESTO_PIN_DBG
+#ifdef SYSCALL_DEBUG
         cerr << "Syscall mremap(" << dec << syscall_num << ") old_addr: 0x" << hex << arg1
              << " old_length: " << arg2 << " new_length: " << arg3 << dec << endl;
 #endif
@@ -129,7 +129,7 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VO
 
 #ifdef TIME_TRANSPARENCY
     case __NR_times:
-#ifdef ZESTO_PIN_DBG
+#ifdef SYSCALL_DEBUG
         cerr << "Syscall times(" << dec << syscall_num << ") num_ins: " << SimOrgInsCount << endl;
 #endif
         tstate->last_syscall_arg1 = arg1;
@@ -138,7 +138,7 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VO
     case __NR_mprotect:
         arg2 = PIN_GetSyscallArgument(ictxt, std, 1);
         arg3 = PIN_GetSyscallArgument(ictxt, std, 2);
-#ifdef ZESTO_PIN_DBG
+#ifdef SYSCALL_DEBUG
         cerr << "Syscall mprotect(" << dec << syscall_num << ") addr: " << hex << arg1 << dec
              << " length: " << arg2 << " prot: " << hex << arg3 << dec << endl;
 #endif
@@ -147,13 +147,13 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VO
         tstate->last_syscall_arg3 = arg3;
         break;
 
-#ifdef ZESTO_PIN_DBG
+#ifdef SYSCALL_DEBUG
     case __NR_open:
         cerr << "Syscall open (" << dec << syscall_num << ") path: " << (char*)arg1 << endl;
         break;
 #endif
 
-#ifdef ZESTO_PIN_DBG
+#ifdef SYSCALL_DEBUG
     case __NR_exit:
         cerr << "Syscall exit (" << dec << syscall_num << ") code: " << arg1 << endl;
         break;
@@ -161,7 +161,7 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VO
 
     /*
         case __NR_sysconf:
-    #ifdef ZESTO_PIN_DBG
+    #ifdef SYSCALL_DEBUG
             cerr << "Syscall sysconf (" << dec << syscall_num << ") arg: " << arg1
     << endl;
     #endif
@@ -169,7 +169,7 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VO
             break;
     */
     default:
-#ifdef ZESTO_PIN_DBG
+#ifdef SYSCALL_DEBUG
         cerr << "Syscall " << dec << syscall_num << endl;
 #endif
         break;
@@ -193,7 +193,7 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VOI
 
     switch (tstate->last_syscall_number) {
     case __NR_brk:
-#ifdef ZESTO_PIN_DBG
+#ifdef SYSCALL_DEBUG
         cerr << "Ret syscall brk(" << dec << tstate->last_syscall_number << ") addr: 0x" << hex
              << retval << dec << endl;
 #endif
@@ -208,7 +208,7 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VOI
         break;
 
     case __NR_munmap:
-#ifdef ZESTO_PIN_DBG
+#ifdef SYSCALL_DEBUG
         cerr << "Ret syscall munmap(" << dec << tstate->last_syscall_number << ") addr: 0x" << hex
              << tstate->last_syscall_arg1 << " length: " << tstate->last_syscall_arg2 << dec
              << endl;
@@ -220,7 +220,7 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VOI
         break;
 
     case __NR_mmap:  // oldmap
-#ifdef ZESTO_PIN_DBG
+#ifdef SYSCALL_DEBUG
         cerr << "Ret syscall oldmmap(" << dec << tstate->last_syscall_number << ") addr: 0x" << hex
              << retval << " length: " << tstate->last_syscall_arg1 << dec << endl;
 #endif
@@ -232,7 +232,7 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VOI
 
 #ifndef _LP64
     case __NR_mmap2: // ia32-only
-#ifdef ZESTO_PIN_DBG
+#ifdef SYSCALL_DEBUG
         cerr << "Ret syscall mmap2(" << dec << tstate->last_syscall_number << ") addr: 0x" << hex
              << retval << " length: " << tstate->last_syscall_arg1 << dec << endl;
 #endif
@@ -244,7 +244,7 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VOI
 #endif // _LP64
 
     case __NR_mremap:
-#ifdef ZESTO_PIN_DBG
+#ifdef SYSCALL_DEBUG
         cerr << "Ret syscall mremap(" << dec << tstate->last_syscall_number << ") " << hex
              << " old_addr: 0x" << tstate->last_syscall_arg1
              << " old_length: " << tstate->last_syscall_arg2 << " new address: 0x" << retval
@@ -270,7 +270,7 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VOI
 
 /* Present ourself as if we have num_cores cores */
 /*    case __NR_sysconf:
-#ifdef ZESTO_PIN_DBG
+#ifdef SYSCALL_DEBUG
         cerr << "Syscall sysconf (" << dec << syscall_num << ") ret" << endl;
 #endif
         if (tstate->last_syscall_arg1 == _SC_NPROCESSORS_ONLN)
@@ -284,7 +284,7 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VOI
     case __NR_times:
         buf = (tms*)tstate->last_syscall_arg1;
         adj_time = retval - (clock_t)sim_time;
-#ifdef ZESTO_PIN_DBG
+#ifdef SYSCALL_DEBUG
         cerr << "Ret syscall times(" << dec << tstate->last_syscall_number << ") old: " << retval
              << " adjusted: " << adj_time << " user: " << buf->tms_utime
              << " user_adj: " << (buf->tms_utime - sim_time) << " system: " << buf->tms_stime
