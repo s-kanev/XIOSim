@@ -356,5 +356,49 @@ class SegfTest(XIOSimTest):
     def runTest(self):
         self.runAndValidate()
 
+class ChaseTest(XIOSimTest):
+    ''' Pointer chase test.'''
+    def setDriverParams(self):
+        bmk_cfg = self.writeTestBmkConfig("chase")
+        self.xio.AddBmks(bmk_cfg)
+
+        self.xio.AddPinOptions()
+        self.xio.AddPintoolOptions(num_cores=1)
+        self.xio.AddROIOptions()
+        test_cfg = self.writeTestConfig(os.path.join(self.xio.GetTreeDir(),
+                                                     "config", "N.cfg"),
+                                        repl)
+        self.xio.AddZestoOptions(test_cfg)
+
+    def setUp(self):
+        super(ChaseTest, self).setUp()
+        self.expected_vals.append((xs.PerfStatRE("all_insn"), 1310720))
+        self.expected_vals.append((xs.PerfStatRE("total_IPC"), 0.283))
+
+    def runTest(self):
+        self.runAndValidate()
+
+class PrefetchTest(XIOSimTest):
+    ''' Pointer chase test with a SW prefetch.'''
+    def setDriverParams(self):
+        bmk_cfg = self.writeTestBmkConfig("chase")
+        self.xio.AddBmks(bmk_cfg)
+
+        self.xio.AddPinOptions()
+        self.xio.AddPintoolOptions(num_cores=1)
+        self.xio.AddROIOptions()
+        test_cfg = self.writeTestConfig(os.path.join(self.xio.GetTreeDir(),
+                                                     "config", "N.cfg"),
+                                        repl)
+        self.xio.AddZestoOptions(test_cfg)
+
+    def setUp(self):
+        super(PrefetchTest, self).setUp()
+        self.expected_vals.append((xs.PerfStatRE("all_insn"), 2621440))
+        self.expected_vals.append((xs.PerfStatRE("total_IPC"), 1.5856))
+
+    def runTest(self):
+        self.runAndValidate()
+
 if __name__ == "__main__":
     unittest.main()

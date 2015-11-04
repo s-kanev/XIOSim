@@ -240,6 +240,13 @@ static bool check_load(const struct Mop_t* Mop) {
     case XED_IFORM_LODSW:
     case XED_IFORM_LODSD:
     case XED_IFORM_LODSQ:
+    /* Treat prefetches as 64b loads. There's a lot more we can do to be more
+     * accurate with real HW (like actually respect temporal hints), but this
+     * should be enough to cover the common cases. */
+    case XED_IFORM_PREFETCHNTA_MEMmprefetch:
+    case XED_IFORM_PREFETCHT0_MEMmprefetch:
+    case XED_IFORM_PREFETCHT1_MEMmprefetch:
+    case XED_IFORM_PREFETCHT2_MEMmprefetch:
         return true;
     default:
         return false;
@@ -464,8 +471,9 @@ static bool check_tables(struct Mop_t* Mop) {
 
         /* Set output register. */
         auto regs_written = get_registers_written(Mop);
-        xiosim_assert(regs_written.size() == 1);
-        Mop->uop[0].decode.odep_name[0] = regs_written.front();
+        xiosim_assert(regs_written.size() <= 1);
+        if (regs_written.size())
+            Mop->uop[0].decode.odep_name[0] = regs_written.front();
         return true;
     }
 
