@@ -565,6 +565,9 @@ struct core_knobs_t
    * pintool/base_speedup_model.h for more details.
    */
   const char * allocator_opt_target;
+
+  md_addr_t stopwatch_start_pc;
+  md_addr_t stopwatch_stop_pc;
 };
 
 extern struct core_t ** cores;

@@ -24,6 +24,8 @@ cfg_opt_t system_cfg[] {
   CFG_INT("power_rtp_interval", 0, CFGF_NONE),
   CFG_STR("power_rtp_file", "", CFGF_NONE),
   CFG_STR("output_redir", "sim.out", CFGF_NONE),
+  CFG_INT("stopwatch_start_pc", 0, CFGF_NONE),
+  CFG_INT("stopwatch_stop_pc", 0, CFGF_NONE),
   CFG_END()
 };
 

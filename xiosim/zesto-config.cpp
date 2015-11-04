@@ -287,6 +287,9 @@ void store_system_options(cfg_t *system_opt, core_knobs_t *knobs) {
   knobs->power.rtp_interval = cfg_getint(system_opt, "power_rtp_interval");
   knobs->power.rtp_filename = cfg_getstr(system_opt, "power_rtp_file");
   sim_simout = cfg_getstr(system_opt, "output_redir");
+  knobs->stopwatch_start_pc = cfg_getint(system_opt, "stopwatch_start_pc");
+  knobs->stopwatch_stop_pc = cfg_getint(system_opt, "stopwatch_stop_pc");
+
 }
 
 // TODO(skanev): No need for reconstructing argc, argv. Move to "one set of
