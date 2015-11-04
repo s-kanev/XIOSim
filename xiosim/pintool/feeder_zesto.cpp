@@ -7,7 +7,6 @@
 */
 /* ========================================================================== */
 /* ========================================================================== */
-
 #include <iostream>
 #include <iomanip>
 #include <map>
@@ -640,6 +639,9 @@ VOID Instrument(INS ins, VOID* v) {
 /* ========================================================================== */
 VOID ThreadStart(THREADID threadIndex, CONTEXT* ictxt, INT32 flags, VOID* v) {
     lk_lock(&syscall_lock, 1);
+#ifdef ZESTO_PIN_DBG
+        cerr << "Thread start tid: " << dec << threadIndex << endl;
+#endif
 
     thread_state_t* tstate = new thread_state_t(threadIndex);
     PIN_SetThreadData(tls_key, tstate, threadIndex);
@@ -1040,6 +1042,15 @@ INT32 main(INT32 argc, CHAR** argv) {
         string func;
         while (getline(ss, func, ',')) {
             IgnoreFunction(func);
+        }
+    }
+
+    if (!KnobIgnorePCs.Value().empty()) {
+        stringstream ss(KnobIgnorePCs.Value());
+        string pc_str;
+        while (getline(ss, pc_str, ',')) {
+            ADDRINT pc = std::stol(pc_str, nullptr, 0);
+            IgnorePC(pc);
         }
     }
 

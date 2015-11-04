@@ -25,6 +25,12 @@ KNOB<BOOL> KnobIgnoringInstructions(KNOB_MODE_WRITEONCE,
                                     "false",
                                     "Use ignoring API (usually to replace in-simulator callbacks)");
 
+KNOB<string> KnobIgnorePCs(KNOB_MODE_WRITEONCE,
+                           "pintool",
+                           "ignore_pcs",
+                           "",
+                           "Comma-separated list of pcs to ignore");
+
 ADDRINT NextUnignoredPC(ADDRINT pc) {
     ADDRINT curr = pc;
     lk_lock(&lk_ignored_tpc, 1);
@@ -39,7 +45,16 @@ VOID IgnoreCallsTo(ADDRINT addr, UINT32 num_insn, ADDRINT replacement_pc) {
     ignore_ips[addr] = replacement_info_t(num_insn, replacement_pc);
 }
 
-static replacement_info_t CheckInstructionReplacement(INS ins) {
+VOID IgnorePC(ADDRINT pc) {
+    ignore_ips[pc] = replacement_info_t(1, -1);
+}
+
+static BOOL IsIgnoredInstruction(INS ins) {
+    ADDRINT pc = INS_Address(ins);
+    return ignore_ips.count(pc) > 0;
+}
+
+static replacement_info_t IsCallToIgnoredFunction(INS ins) {
     ADDRINT target_pc;
     if (INS_IsDirectCall(ins)) {
         target_pc = INS_DirectBranchOrCallTargetAddress(ins);
@@ -88,7 +103,11 @@ VOID InstrumentInsIgnoring(TRACE trace, VOID* v) {
 
     for (BBL bbl = TRACE_BblHead(trace); BBL_Valid(bbl); bbl = BBL_Next(bbl)) {
         for (INS ins = BBL_InsHead(bbl); INS_Valid(ins); ins = INS_Next(ins)) {
-            replacement_info_t repl = CheckInstructionReplacement(ins);
+            BOOL ignored_ins = IsIgnoredInstruction(ins);
+            if (ignored_ins)
+                IgnoreIns(ins);
+
+            replacement_info_t repl = IsCallToIgnoredFunction(ins);
             if (repl.ins_to_ignore == 0)
                 continue;
 

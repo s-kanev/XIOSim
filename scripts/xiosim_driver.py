@@ -54,6 +54,10 @@ class XIOSimDriver(object):
     def AddROIOptions(self):
         self.cmd += "-roi "
 
+    def AddIgnorePCOptions(self, pcs):
+        self.AddIgnoreOptions()
+        self.cmd += "-ignore_pcs %s " % pcs
+
     def AddReplaceOptions(self, func):
         self.AddIgnoreOptions()
         self.cmd += "-ignore_functions %s " % func

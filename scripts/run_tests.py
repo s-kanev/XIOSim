@@ -400,5 +400,27 @@ class PrefetchTest(XIOSimTest):
     def runTest(self):
         self.runAndValidate()
 
+class IgnorePCTest(XIOSimTest):
+    ''' End-to-end test where we ignore specific instructions.'''
+    def setDriverParams(self):
+        bmk_cfg = self.writeTestBmkConfig("ignore")
+        self.xio.AddBmks(bmk_cfg)
+
+        self.xio.AddPinOptions()
+        self.xio.AddPintoolOptions(num_cores=1)
+        self.xio.AddIgnorePCOptions("0x40108a")
+        test_cfg = self.writeTestConfig(os.path.join(self.xio.GetTreeDir(),
+                                                     "config", "none.cfg"),
+                                        repl)
+        self.xio.AddZestoOptions(test_cfg)
+
+    def setUp(self):
+        super(IgnorePCTest, self).setUp()
+        self.expected_vals.append((xs.PerfStatRE("all_insn"), 30000.0))
+
+    def runTest(self):
+        self.runAndValidate()
+
+
 if __name__ == "__main__":
     unittest.main()
