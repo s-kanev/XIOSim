@@ -18,8 +18,10 @@ cc_binary(
         ":multiprocess",
         ":scheduler",
         ":ezOptionParser",
+        "//third_party:confuse",
+        "@confuse//:main",
     ],
-    linkopts = [ "-lrt", "-lconfuse" ]
+    linkopts = [ "-lrt" ],
 )
 
 cc_binary(
@@ -63,10 +65,11 @@ cc_binary(
     srcs = [ "harness.cpp" ],
     deps = [
         ":multiprocess",
-        "@confuse//:main",
         ":ezOptionParser",
+        "//third_party:confuse",
+        "@confuse//:main",
     ],
-    linkopts = [ "-lrt", "-lm", "-lconfuse", "-pthread" ],
+    linkopts = [ "-lrt", "-lm", "-pthread" ],
 )
 
 cc_library(

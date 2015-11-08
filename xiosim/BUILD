@@ -149,6 +149,7 @@ cc_library(
     deps = [
         ":zesto-structs",
         "//xiosim/pintool:ezOptionParser",
+        "//third_party:confuse",
         "@confuse//:main",
     ],
 )
@@ -160,9 +161,11 @@ cc_test(
         ":catch_impl",
         ":libsim",
         "@catch//:main",
+        "//third_party:confuse",
+        "@confuse//:main",
     ],
     data = [ "config/default.cfg" ],
-    linkopts = [ "-lconfuse", "-lm" ],
+    linkopts = [ "-lm" ],
     size = "small",
 )
 

@@ -1,9 +1,24 @@
 licenses(["notice"])
 
+CONFUSE_PATH = "libconfuse-2.8"
+
 cc_library(
     visibility = ["//visibility:public"],
     name = "main",
-    # XXX: Figure out how to deal with autotools
+    includes = [ CONFUSE_PATH + "/src" ],
+)
+
+# We'll compile these in a wrapper rule in @//third_party,
+# because we also want to depend on @//third_party/confuse:confuse_h
+# and bazel doesn't support that yet (coming in 0.2).
+filegroup(
+    visibility = ["//visibility:public"],
+    name = "srcs",
+    srcs = [
+        CONFUSE_PATH + "/src/confuse.c",
+        CONFUSE_PATH + "/src/confuse.h",
+    ],
+
 )
 
 config_setting(
