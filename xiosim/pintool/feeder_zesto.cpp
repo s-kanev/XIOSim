@@ -64,6 +64,9 @@ KNOB<int>
     KnobNumCores(KNOB_MODE_WRITEONCE, "pintool", "num_cores", "1", "Number of cores simulated");
 KNOB<pid_t> KnobHarnessPid(
     KNOB_MODE_WRITEONCE, "pintool", "harness_pid", "-1", "Process id of the harness process.");
+KNOB<BOOL> KnobTimingVirtualization(
+    KNOB_MODE_WRITEONCE, "pintool", "timing_virtualization", "true",
+    "Return simulated time instead of host time for timing calls like gettimeofday().");
 
 map<ADDRINT, string> pc_diss;
 
@@ -169,6 +172,33 @@ VOID EndSimSlice(int slice_num, int slice_length, int slice_weight_times_1000) {
     /* Stop instrumenting, time to fast forward */
     ExecMode = EXECUTION_MODE_FASTFORWARD;
     CODECACHE_FlushCache();
+}
+
+/* ================================= */
+VOID SyncWithTimingSim(THREADID tid) {
+    thread_state_t* tstate = get_tls(tid);
+
+    /* When the handshake is consumed, this will let the scheduler de-schedule
+     * the thread. */
+    auto release_hshake = xiosim::buffer_management::GetBuffer(tstate->tid);
+    release_hshake->flags.giveCoreUp = true;
+    release_hshake->flags.giveUpReschedule = false;
+    release_hshake->flags.valid = true;
+    release_hshake->flags.real = false;
+    xiosim::buffer_management::ProducerDone(tstate->tid, true);
+    xiosim::buffer_management::FlushBuffers(tstate->tid);
+
+    while (IsSHMThreadSimulatingMaybe(tstate->tid))
+        PIN_Sleep(10);
+
+    /* Feeder and timing sim are now in sync for this thread. */
+}
+
+VOID RescheduleThread(THREADID tid) {
+    thread_state_t* tstate = get_tls(tid);
+    ipc_message_t msg;
+    msg.ScheduleNewThread(tstate->tid);
+    SendIPCMessage(msg);
 }
 
 /* ========================================================================== */

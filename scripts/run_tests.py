@@ -2,6 +2,7 @@
 
 import copy
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -30,7 +31,7 @@ class XIOSimTest(unittest.TestCase):
         self.setDriverParams()
         self.expected_vals = []
         self.expected_exprs = []
-
+        self.bmk_expected_vals = []
 
     def tearDown(self):
         if self.clean_run_dir:
@@ -48,6 +49,12 @@ class XIOSimTest(unittest.TestCase):
             val = xs.GetStat(self.xio.GetSimOut(), re)
             res = xs.ValidateStat(val, golden_val)
             self.assertEqual(res, True, "%s: expected %.2f, got %.2f" %
+                                        (re, golden_val, val))
+
+        for re, golden_val in self.bmk_expected_vals:
+            val = xs.GetStat(self.xio.GetTestOut(), re)
+            res = xs.ValidateStat(val, golden_val)
+            self.assertEqual(res, True, "%s: expected %.6f, got %.6f" %
                                         (re, golden_val, val))
 
         for re, expr in self.expected_exprs:
@@ -432,6 +439,27 @@ class IgnorePCTest(XIOSimTest):
     def runTest(self):
         self.runAndValidate()
 
+class TimeTest(XIOSimTest):
+    ''' End-to-end test for gettimeofday(). '''
+    def setDriverParams(self):
+        bmk_cfg = self.writeTestBmkConfig("time")
+        self.xio.AddBmks(bmk_cfg)
+        self.xio.AddPinOptions()
+        self.xio.AddPintoolOptions(num_cores=1)
+        self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
+                                              "xiosim/config", "N.cfg"))
+
+    def setUp(self):
+        super(TimeTest, self).setUp()
+        self.expected_vals.append((xs.PerfStatRE("all_insn"), 3000000.0))
+
+        # Set up expected output from the simulated program.
+        # 2M instructions / 3.2GHz = 625us.
+        elapsed_re = "Elapsed: (%s) sec" % xs.DECIMAL_RE
+        self.bmk_expected_vals.append((elapsed_re, 0.000625))
+
+    def runTest(self):
+        self.runAndValidate()
 
 if __name__ == "__main__":
     unittest.main()

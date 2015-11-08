@@ -2,10 +2,6 @@
 #include <syscall.h>
 #include <sys/mman.h>
 
-#ifdef TIME_TRANSPARENCY
-#include "rdtsc.h"
-#endif
-
 #include "boost_interprocess.h"
 
 #include "feeder.h"
@@ -34,11 +30,9 @@ struct tms {
     clock_t tms_cstime;
 };
 
-#ifdef TIME_TRANSPARENCY
-// Tracks the time we spend in simulation and tries to subtract it from timing
-// calls
-UINT64 sim_time = 0;
-#endif
+// These fields will be populated by the first call to gettimeofday().
+struct timeval initial_system_time = {0, 0};
+double initial_global_sim_time = 0;
 
 XIOSIM_LOCK syscall_lock;
 
@@ -127,14 +121,13 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VO
         tstate->last_syscall_arg3 = arg3;
         break;
 
-#ifdef TIME_TRANSPARENCY
-    case __NR_times:
+    case __NR_gettimeofday:
 #ifdef SYSCALL_DEBUG
-        cerr << "Syscall times(" << dec << syscall_num << ") num_ins: " << SimOrgInsCount << endl;
+        cerr << "Syscall gettimeofday(" << dec << syscall_num << ")" << endl;
 #endif
         tstate->last_syscall_arg1 = arg1;
         break;
-#endif
+
     case __NR_mprotect:
         arg2 = PIN_GetSyscallArgument(ictxt, std, 1);
         arg3 = PIN_GetSyscallArgument(ictxt, std, 2);
@@ -185,11 +178,8 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VOI
 
     thread_state_t* tstate = get_tls(threadIndex);
 
-#ifdef TIME_TRANSPARENCY
-    // for times()
-    tms* buf;
-    clock_t adj_time;
-#endif
+    // for gettimeofday.
+    struct timeval* tv;
 
     switch (tstate->last_syscall_number) {
     case __NR_brk:
@@ -280,38 +270,35 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VOI
             }
         break;*/
 
-#ifdef TIME_TRANSPARENCY
-    case __NR_times:
-        buf = (tms*)tstate->last_syscall_arg1;
-        adj_time = retval - (clock_t)sim_time;
+    case __NR_gettimeofday:
+        if (retval != (ADDRINT)-1 && KnobTimingVirtualization.Value()) {
+            tv = (struct timeval*)tstate->last_syscall_arg1;
+            if (ExecMode == EXECUTION_MODE_SIMULATE) {
+                SyncWithTimingSim(threadIndex);
+                if (initial_system_time.tv_sec == 0 && initial_system_time.tv_usec == 0) {
+                    // If this is the first time we're calling gettimeofday(),
+                    // return the host time and use this as the offset for all
+                    // future calls (which will return simulated time).
+                    initial_system_time.tv_sec = tv->tv_sec;
+                    initial_system_time.tv_usec = tv->tv_usec;
+                    // Record the initial global_sim_time as computed by the
+                    // timing simulator for computing the delta.
+                    initial_global_sim_time = *global_sim_time;
+                } else {
+                    double sim_time_passed = *global_sim_time - initial_global_sim_time;
+                    time_t secs_passed = (sim_time_passed/1000000.0);
+                    suseconds_t usecs_passed = sim_time_passed - secs_passed*1000000.0;
+                    tv->tv_sec = secs_passed + initial_system_time.tv_sec;
+                    tv->tv_usec = usecs_passed + initial_system_time.tv_usec;
+                }
+                RescheduleThread(threadIndex);
+            }
 #ifdef SYSCALL_DEBUG
-        cerr << "Ret syscall times(" << dec << tstate->last_syscall_number << ") old: " << retval
-             << " adjusted: " << adj_time << " user: " << buf->tms_utime
-             << " user_adj: " << (buf->tms_utime - sim_time) << " system: " << buf->tms_stime
-             << endl;
+            cerr << "Ret syscall gettimeoftime(" << dec << tstate->last_syscall_number << ") old: "
+                 << retval << ", tv_sec: " << tv->tv_sec << ", tv_usec: " << tv->tv_usec << endl;
 #endif
-        /* Compensate for time we spent on simulation
-         * Included for full transparency - some apps detect we are taking a long
-         time
-         * and do bad things like dropping frames
-         * Since we have no decent way of measuring how much time the simulator
-         spends in the OS
-         * (other than calling times() for every instruction), we assume the
-         simulator is ainly
-          user code. XXX: how reasonable is this assmuption???
-         */
-        buf->tms_utime -= sim_time;
-        /* buf->tms_stime -=  0.1 * sim_time; ?? */
-        // Don't touch child process timing -- we don't support child processes
-        // anyway
-
-        // Adjust aggregate time passed by time spent in sim
-        // Return value as 32-bit int in EAX
-        if ((INT32)retval != -1)
-            PIN_SetContextReg(ictxt, REG_EAX, adj_time);
-        // XXX: To make this work, we need to use PIN_ExecuteAt()
+        }
         break;
-#endif
 
     default:
         break;

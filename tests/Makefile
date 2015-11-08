@@ -1,4 +1,7 @@
-all: piii/fib piii/roi piii/repl piii/segf piii/step piii/rep piii/chase piii/prefetch piii/ignore k8/fib k8/roi k8/repl k8/segf k8/step k8/rep k8/chase k8/prefetch k8/ignore
+all: piii/fib piii/roi piii/repl piii/segf piii/step \
+		 piii/rep piii/chase piii/prefetch piii/ignore piii/time \
+		 k8/fib k8/roi k8/repl k8/segf k8/step k8/rep k8/chase \
+		 k8/prefetch k8/ignore k8/time
 
 
 piii/fib: fib.cpp
@@ -19,6 +22,8 @@ piii/prefetch: prefetch.cpp
 	g++ -m32 -std=c++1y -static -O1 -DPREFETCH -o $@ $<
 piii/ignore: ignore.cpp
 	g++ -m32 -std=c++1y -static -O0 -o $@ $<
+piii/time: time.cpp
+	g++ -m32 -O1 -static -o $@ $<
 
 k8/fib: fib.cpp
 	g++ -std=c++1y -static -O0 -o $@ $<
@@ -38,3 +43,5 @@ k8/prefetch: prefetch.cpp
 	g++ -std=c++1y -static -O1 -DPREFETCH -o $@ $<
 k8/ignore: ignore.cpp
 	g++ -std=c++1y -static -O0 -o $@ $<
+k8/time: time.cpp
+	g++ -O1 -static -o $@ $<

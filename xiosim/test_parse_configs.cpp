@@ -36,6 +36,7 @@
 void CheckIPCMessageQueue(bool isEarly, int caller_coreID) {}
 int* num_processes;
 XIOSIM_LOCK* printing_lock;
+double* global_sim_time;
 
 TEST_CASE("Test configuration parsing", "config") {
     const char* config_file = "xiosim/config/default.cfg";

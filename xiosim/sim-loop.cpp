@@ -30,7 +30,7 @@
 #include "libsim.h"
 
 extern void CheckIPCMessageQueue(bool isEarly, int caller_coreID);
-
+extern double* global_sim_time;
 extern double LLC_speed;
 
 int heartbeat_frequency = 0;
@@ -113,6 +113,8 @@ static void global_step(void) {
         uncore->sim_time = uncore->sim_cycle / LLC_speed;
         uncore->default_cpu_cycles =
             (tick_t)ceil((double)uncore->sim_cycle * knobs.default_cpu_speed / LLC_speed);
+        // Update global simulation time for feeder.
+        *global_sim_time = uncore->sim_time;
 
         /* power computation */
         if (knobs.power.compute && (knobs.power.rtp_interval > 0) &&

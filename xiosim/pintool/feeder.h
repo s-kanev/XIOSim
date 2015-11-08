@@ -24,6 +24,7 @@ class handshake_container_t;
 
 extern KNOB<BOOL> KnobILDJIT;
 extern KNOB<int> KnobNumCores;
+extern KNOB<BOOL> KnobTimingVirtualization;
 
 /* A list of the threads in this feeder. */
 extern list<THREADID> thread_list;
@@ -171,20 +172,33 @@ extern EXECUTION_MODE ExecMode;
  * parallel loop.
 */
 
+/* Let the timing simulator catch up with the feeder so we can sync on some
+ * global state (like total sim cycles or time). This will deschedule the
+ * thread, so after the work that needs to be accomplished is done, it should
+ * be rescheduled with RescheduleThread(). */
+VOID SyncWithTimingSim(THREADID tid);
+
+/* Reschedules a thread after a timing-feeder sync operation. */
+VOID RescheduleThread(THREADID tid);
+
 /* Make sure that all sim threads drain any handshake buffers that could be in
  * their respective scheduler run queues.
  * Start ignoring all produced instructions. Deallocate all cores.
  * Invariant: after this call, all sim threads are spinning in SimulatorLoop */
 VOID PauseSimulation();
+
 /* Allocate cores. Make sure threads start producing instructions.
  * Schedule threads for simulation. */
 VOID ResumeSimulation(bool allocate_cores);
+
 /* Start a new simulation slice (after waiting for all processes).
  * Add instrumentation calls and set ExecMode. */
 VOID StartSimSlice(int slice_num);
+
 /* End simulation slice (after waiting for all processes).
  * Remove all instrumetation so we can FF fast between slices. */
 VOID EndSimSlice(int slice_num, int slice_length, int slice_weight_times_1000);
+
 /* Call the current core allocator and get the # of cores we are allowed to use.
  * Some allocators use profiled scaling and serial runtimes to make their decisions.
  * Check out base_allocator.h for the API. */
