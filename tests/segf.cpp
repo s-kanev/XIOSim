@@ -1,6 +1,3 @@
-// g++ -O0 -m32 -static -o segf segf.c
-// TODO(skanev): add a makefile for ubenchmarks
-
 // Trigger a segfault on a non-taken path. Should cleanly kill speculative process.
 
 #define ITER 2000
@@ -18,6 +15,7 @@ int main(int argc, char** argv)
         else {
             // Test loads from addr 0
             int kaboom = *(int*)NULL;
+            (void) kaboom;
         }
     }
 

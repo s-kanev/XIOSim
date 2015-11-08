@@ -1,4 +1,4 @@
-#include <stdio.h>
+#include <cstdio>
 
 int fib(int n)
 {
@@ -8,7 +8,7 @@ int fib(int n)
     return fib(n-1)+fib(n-2);
 }
 
-main()
+int main(int argc, char* argv[])
 {
   int i;
   for(i=0;i<16;i++)

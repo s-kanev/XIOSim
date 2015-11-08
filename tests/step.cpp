@@ -1,6 +1,3 @@
-// g++ -O3 -m32 -mtune=atom -static -o step step.c
-// TODO(skanev): add a makefile for ubenchmarks
-
 // Step in IPC from high to low
 
 #define COMPUTE_ITER 12000

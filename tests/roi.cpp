@@ -1,6 +1,3 @@
-// g++ -O0 -m32 -mtune=atom -static -o roi roi.c
-// TODO(skanev): add a makefile for ubenchmarks
-
 #include <cstdio>
 #include <cstdlib>
 

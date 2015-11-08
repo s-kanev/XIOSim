@@ -41,7 +41,8 @@ class shadow_Mop_t {
 class shadow_MopQ_t {
   public:
     shadow_MopQ_t(size_t buff_size)
-        : buffer_(buff_size) {}
+        : buffer_(buff_size)
+        , size_(0) {}
 
     /* Get the shadow MopQ entry corresponding to Mop in the oracle MopQ. */
     handshake_container_t const& get_shadow_Mop(const struct Mop_t* Mop);

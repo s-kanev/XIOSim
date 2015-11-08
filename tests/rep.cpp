@@ -1,6 +1,3 @@
-// g++ -std=c++11 -O0 -m32 -static -o rep rep.cpp
-// TODO(skanev): add a makefile for ubenchmarks
-
 #include <cstddef>
 #include <cstdint>
 

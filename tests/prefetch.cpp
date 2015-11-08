@@ -1,7 +1,3 @@
-// g++ -std=c++11 -O1 -static -o chase prefetch.cpp
-// g++ -D PREFETCH -std=c++11 -O1 -static -o prefetch prefetch.cpp
-// TODO(skanev): add a makefile for ubenchmarks
-
 #include <algorithm>
 #include <cstdint>
 #include <cstddef>

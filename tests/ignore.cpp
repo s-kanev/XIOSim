@@ -1,6 +1,3 @@
-// g++ -O0 -o ignore ignore.cpp
-// TODO(skanev): add a makefile for ubenchmarks
-
 #include <cstdio>
 #include <cstdlib>
 

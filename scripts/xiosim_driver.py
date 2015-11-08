@@ -3,11 +3,18 @@ import shlex
 import subprocess
 
 class XIOSimDriver(object):
-    def __init__(self, PIN_ROOT, INSTALL_DIR, TREE_DIR, clean_arch=None, env=None):
+    def __init__(self, PIN_ROOT, INSTALL_DIR, TREE_DIR, TARGET_ARCH, clean_arch=None, env=None):
+        ''' TARGET_ARCH uses bazel notation. "piii" is ia32, "k8" is ia64.
+        '''
         self.cmd = ""
+        #self.PIN = os.path.join(TREE_DIR, "bazel-xiosim/external/pin/pin-2.14-67254-gcc.4.4.7-linux/pin.sh")
+        # Ugh, we still need PIN_ROOT. Apparently the "bazel-xiosim" symlink above is
+        # actually "bazel-{cwd}", so it will change if we checkout under a different
+        # directory. TODO: Figure out a way around this. 
         self.PIN = os.path.join(PIN_ROOT, "pin.sh")
         self.INSTALL_DIR = INSTALL_DIR
         self.TREE_DIR = TREE_DIR
+        self.TARGET_ARCH = TARGET_ARCH
         if clean_arch:
             self.AddCleanArch()
         if env:
@@ -15,7 +22,11 @@ class XIOSimDriver(object):
         self.AddHarness()
 
     def AddCleanArch(self):
-        self.cmd += "/usr/bin/setarch i686 -BR "
+        self.cmd += "/usr/bin/setarch "
+        if self.TARGET_ARCH == "piii":
+            self.cmd += "i686 -BR "
+        else:
+            self.cmd += "x86_64 -R "
 
     def AddEnvironment(self, env):
         self.cmd += "/usr/bin/env -i " + env + " "
@@ -113,7 +124,7 @@ class XIOSimDriver(object):
     def GenerateTestBmkConfig(self, test, num_copies=1):
         res = []
         res.append("program {\n")
-        res.append("  exe = \"%s\"\n" % os.path.join(self.TREE_DIR, "tests", test))
+        res.append("  exe = \"%s\"\n" % os.path.join(self.TREE_DIR, "tests", self.TARGET_ARCH, test))
         append_pid = ""
         if num_copies > 1:
             append_pid = ".$$"
