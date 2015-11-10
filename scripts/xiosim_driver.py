@@ -3,23 +3,20 @@ import shlex
 import subprocess
 
 class XIOSimDriver(object):
-    def __init__(self, PIN_ROOT, INSTALL_DIR, TREE_DIR, TARGET_ARCH, clean_arch=None, env=None):
+    def __init__(self, INSTALL_DIR, TREE_DIR, TARGET_ARCH, clean_arch=None, env=""):
         ''' TARGET_ARCH uses bazel notation. "piii" is ia32, "k8" is ia64.
         '''
         self.cmd = ""
-        #self.PIN = os.path.join(TREE_DIR, "bazel-xiosim/external/pin/pin-2.14-67254-gcc.4.4.7-linux/pin.sh")
-        # Ugh, we still need PIN_ROOT. Apparently the "bazel-xiosim" symlink above is
-        # actually "bazel-{cwd}", so it will change if we checkout under a different
-        # directory. TODO: Figure out a way around this.
-        self.PIN = os.path.join(PIN_ROOT, "pin.sh")
         self.INSTALL_DIR = INSTALL_DIR
+        self.PIN_DIR = os.path.join(INSTALL_DIR, "external/pin")
+        self.PIN = os.path.join(self.PIN_DIR, "pinbin")
+        env = "PIN_VM_LD_LIBRARY_PATH=%s;%s" % (self.PIN_DIR, env)
         self.TREE_DIR = TREE_DIR
         self.TARGET_ARCH = TARGET_ARCH
         self.test = ""
         if clean_arch:
             self.AddCleanArch()
-        if env:
-            self.AddEnvironment(env)
+        self.AddEnvironment(env)
         self.AddHarness()
 
     def AddCleanArch(self):
@@ -33,7 +30,7 @@ class XIOSimDriver(object):
         self.cmd += "/usr/bin/env -i " + env + " "
 
     def AddHarness(self):
-        self.cmd +=  os.path.join(self.INSTALL_DIR, "harness") + " "
+        self.cmd +=  os.path.join(self.INSTALL_DIR, "xiosim/pintool/harness") + " "
 
     def AddBmks(self, bmk_cfg):
         self.cmd += "-benchmark_cfg " + bmk_cfg + " "
@@ -43,7 +40,7 @@ class XIOSimDriver(object):
         self.cmd += "-xyzzy "
         self.cmd += "-pause_tool 1 "
         self.cmd += "-catch_signals 0 "
-        self.cmd += "-t " + os.path.join(self.INSTALL_DIR, "feeder_zesto.so") + " "
+        self.cmd += "-t " + os.path.join(self.INSTALL_DIR, "xiosim/pintool/feeder_zesto.so") + " "
 
     def AddPintoolOptions(self, num_cores):
         self.cmd += "-num_cores %d " % num_cores

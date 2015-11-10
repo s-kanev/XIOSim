@@ -15,9 +15,8 @@ import xiosim_stat as xs
 def CreateDriver():
     XIOSIM_INSTALL = os.environ["XIOSIM_INSTALL"]
     XIOSIM_TREE = os.environ["XIOSIM_TREE"]
-    PIN_ROOT = os.environ["PIN_ROOT"]
     ARCH = os.environ["TARGET_ARCH"]
-    xio = xd.XIOSimDriver(PIN_ROOT, XIOSIM_INSTALL, XIOSIM_TREE, ARCH)
+    xio = xd.XIOSimDriver(XIOSIM_INSTALL, XIOSIM_TREE, ARCH)
     return xio
 
 
@@ -98,7 +97,7 @@ class Fib1Test(XIOSimTest):
 
     def setUp(self):
         super(Fib1Test, self).setUp()
-        self.expected_vals.append((xs.PerfStatRE("all_insn"), 118369.0))
+        self.expected_vals.append((xs.PerfStatRE("all_insn"), 114495.0))
 
     def runTest(self):
         self.runAndValidate()
@@ -117,7 +116,7 @@ class NoneTest(XIOSimTest):
 
     def setUp(self):
         super(NoneTest, self).setUp()
-        self.expected_vals.append((xs.PerfStatRE("all_insn"), 118369.0))
+        self.expected_vals.append((xs.PerfStatRE("all_insn"), 114495.0))
 
     def runTest(self):
         self.runAndValidate()
@@ -157,7 +156,7 @@ class Fib1SkipTest(XIOSimTest):
 
     def setUp(self):
         super(Fib1SkipTest, self).setUp()
-        self.expected_vals.append((xs.PerfStatRE("all_insn"), 68369.0))
+        self.expected_vals.append((xs.PerfStatRE("all_insn"), 64495.0))
 
     def runTest(self):
         self.runAndValidate()
@@ -201,7 +200,7 @@ class Fib1PinPointsTest(XIOSimTest):
 
     def setUp(self):
         super(Fib1PinPointsTest, self).setUp()
-        self.expected_vals.append((xs.PerfStatRE("all_insn"), 10100.0))
+        self.expected_vals.append((xs.PerfStatRE("all_insn"), 9430.0))
 
     def runTest(self):
         self.runAndValidate()
@@ -330,7 +329,7 @@ class Fib2Test(XIOSimTest):
 
     def setUp(self):
         super(Fib2Test, self).setUp()
-        self.expected_vals.append((xs.PerfStatRE("all_insn"), 236483.00))
+        self.expected_vals.append((xs.PerfStatRE("all_insn"), 228990.00))
 
     def runTest(self):
         self.runAndValidate()

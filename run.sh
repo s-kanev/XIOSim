@@ -1,6 +1,9 @@
 #!/bin/bash
 
-PIN=bazel-xiosim/external/pin/pin-2.14-67254-gcc.4.4.7-linux/pin.sh
+PIN_PATH=bazel-bin/external/pin
+export PIN_VM_LD_LIBRARY_PATH=${PIN_PATH}
+PIN=${PIN_PATH}/pinbin
+
 BIN_PATH=bazel-bin/xiosim/pintool
 PINTOOL=${BIN_PATH}/feeder_zesto.so
 ZESTOCFG=xiosim/config/N.cfg
