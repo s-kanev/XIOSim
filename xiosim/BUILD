@@ -1,10 +1,27 @@
 package( default_visibility = ["//visibility:public"] )
 
+filegroup(
+    name = "simulator",
+    srcs = [
+        "//xiosim/pintool:timing_sim",
+        "//xiosim/pintool:feeder_zesto.so",
+        "//xiosim/pintool:harness",
+    ],
+)
+
+test_suite(
+    name = "all_unit",
+    tags = [ "small" ],
+    tests = [
+        ":unit_tests",
+        "//xiosim/pintool:unit_tests"
+    ]
+)
+
 test_suite(
     name = "unit_tests",
     tags = [ "small" ],
 )
-
 
 cc_library(
     name = "libsim",
