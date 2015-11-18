@@ -35,16 +35,20 @@ double gettimeofday_test() {
   gettimeofday(&start, NULL);
   printf("Start time of day: %d s %d us\n", start.tv_sec, start.tv_usec);
 
-  unsigned long long counter = 0;
-  while (counter < ITER) {
-      counter++;
-  }
+  unsigned int counter = 0;
+  __asm__ __volatile ("loop: addl $1, %0;"
+                      "cmpl %1, %0;"
+                      "jb loop;"
+                      : "=a"(counter)
+                      : "r"(ITER)
+                      : "memory");
+
   gettimeofday(&end, NULL);
 
-  /* 1M iterations of a 3 instruction loop -> 3M instructions. The branch is
-   * highly predictable, and with pipelining we'll average 2 cycles per
-   * iteration for a total of 2M cycles.  Default NHM config is 3.2GHz, so we
-   * should expect around a time difference of 2M / 3.2GHz = 625us.
+  /* 1M iterations of a 3 instruction loop -> 3M instructions.
+   * With pipelining we get 2 cycles per iteration for a total of 2M cycles.
+   * Default NHM config is 3.2GHz, so we should expect a time difference
+   * of around 2M / 3.2GHz = 625us.
    */
   printf("Counter value = %d\n", counter);
   printf("End time of day: %d s %d us\n", end.tv_sec, end.tv_usec);

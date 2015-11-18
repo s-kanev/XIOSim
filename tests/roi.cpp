@@ -1,14 +1,6 @@
 #include <cstdio>
 #include <cstdlib>
 
-int fib(int n)
-{
-    if(n <= 1)
-        return 1;
-    else
-        return fib(n-1) + fib(n-2);
-}
-
 extern "C" void xiosim_roi_begin() __attribute__ ((noinline));
 extern "C" void xiosim_roi_end() __attribute__ ((noinline));
 
@@ -17,12 +9,14 @@ void xiosim_roi_end() { __asm__ __volatile__ ("":::"memory"); }
 
 int main(int argc, char* argv[])
 {
-    const int lim = 19;
-    fprintf(stderr, "fib(%d) = %d\n", lim, fib(lim));
-    // Time in ROI should be ~217 K instructions
+    const int32_t NUM_ITERS = 30000;
+    // Time in ROI should be 90K instructions
     xiosim_roi_begin();
-    fprintf(stderr, "fib(%d) = %d\n", lim, fib(lim));
+    __asm__ __volatile ("loop: subl $1, %%eax;"
+                        "cmpl $0, %%eax;"
+                        "jns loop;"
+                        :
+                        : "a"(NUM_ITERS));
     xiosim_roi_end();
-    fprintf(stderr, "fib(%d) = %d\n", lim, fib(lim));
     return 0;
 }

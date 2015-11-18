@@ -97,7 +97,10 @@ class Fib1Test(XIOSimTest):
 
     def setUp(self):
         super(Fib1Test, self).setUp()
-        self.expected_vals.append((xs.PerfStatRE("all_insn"), 114495.0))
+        if self.xio.TARGET_ARCH == "k8":
+            self.expected_vals.append((xs.PerfStatRE("all_insn"), 112176.00))
+        else:
+            self.expected_vals.append((xs.PerfStatRE("all_insn"), 114495.0))
 
     def runTest(self):
         self.runAndValidate()
@@ -116,7 +119,10 @@ class NoneTest(XIOSimTest):
 
     def setUp(self):
         super(NoneTest, self).setUp()
-        self.expected_vals.append((xs.PerfStatRE("all_insn"), 114495.0))
+        if self.xio.TARGET_ARCH == "k8":
+            self.expected_vals.append((xs.PerfStatRE("all_insn"), 112176.00))
+        else:
+            self.expected_vals.append((xs.PerfStatRE("all_insn"), 114495.0))
 
     def runTest(self):
         self.runAndValidate()
@@ -156,7 +162,10 @@ class Fib1SkipTest(XIOSimTest):
 
     def setUp(self):
         super(Fib1SkipTest, self).setUp()
-        self.expected_vals.append((xs.PerfStatRE("all_insn"), 64495.0))
+        if self.xio.TARGET_ARCH == "k8":
+            self.expected_vals.append((xs.PerfStatRE("all_insn"), 62176.00))
+        else:
+            self.expected_vals.append((xs.PerfStatRE("all_insn"), 64495.0))
 
     def runTest(self):
         self.runAndValidate()
@@ -200,7 +209,10 @@ class Fib1PinPointsTest(XIOSimTest):
 
     def setUp(self):
         super(Fib1PinPointsTest, self).setUp()
-        self.expected_vals.append((xs.PerfStatRE("all_insn"), 9430.0))
+        if self.xio.TARGET_ARCH == "k8":
+            self.expected_vals.append((xs.PerfStatRE("all_insn"), 10000.0))
+        else:
+            self.expected_vals.append((xs.PerfStatRE("all_insn"), 9430.0))
 
     def runTest(self):
         self.runAndValidate()
@@ -219,7 +231,7 @@ class ROITest(XIOSimTest):
 
     def setUp(self):
         super(ROITest, self).setUp()
-        self.expected_vals.append((xs.PerfStatRE("all_insn"), 217000.0))
+        self.expected_vals.append((xs.PerfStatRE("all_insn"), 90000.0))
 
     def runTest(self):
         self.runAndValidate()
@@ -248,11 +260,14 @@ class ReplaceTest(XIOSimTest):
     def setUp(self):
         super(ReplaceTest, self).setUp()
         # repl is ~1M instructions
-        # when we correctly ignore the middle call, we expect ~450K
-        self.expected_vals.append((xs.PerfStatRE("all_insn"), 447000.0))
-        # repl when we just ignore the middle call takes ~397K cycles + 30K magic
+        # when we correctly ignore the middle call, we expect ~466K
+        if self.xio.TARGET_ARCH == "k8":
+            self.expected_vals.append((xs.PerfStatRE("all_insn"), 466283.00))
+        else:
+            self.expected_vals.append((xs.PerfStatRE("all_insn"), 439975.00))
+        # repl when we just ignore the middle call takes ~550K cycles + 30K magic
         # XXX: Disable this check for now. Branch NOP-iness makes this flaky
-        # self.expected_vals.append((xs.PerfStatRE("sim_cycle"), 426000.0))
+        # self.expected_vals.append((xs.PerfStatRE("sim_cycle"), 580000.0))
 
     def runTest(self):
         self.runAndValidate()
@@ -276,7 +291,10 @@ class PowerTest(XIOSimTest):
 
     def setUp(self):
         super(PowerTest, self).setUp()
-        self.expected_vals.append((xs.PowerStatRE("  Runtime Dynamic"), 0.589))
+        if self.xio.TARGET_ARCH == "k8":
+            self.expected_vals.append((xs.PowerStatRE("  Runtime Dynamic"), 0.53))
+        else:
+            self.expected_vals.append((xs.PowerStatRE("  Runtime Dynamic"), 0.589))
         self.expected_vals.append((xs.PowerStatRE("  Total Leakage"), 0.48))
 
     def runTest(self):
@@ -305,9 +323,7 @@ class DFSTest(XIOSimTest):
 
     def setUp(self):
         super(DFSTest, self).setUp()
-        # Average freq ~901 MHz = 1600 * 2757944.0 / 4895888.0
-        self.expected_vals.append((xs.PerfStatRE("c0.sim_cycle"), 2757944.0))
-        self.expected_vals.append((xs.PerfStatRE("sim_cycle"), 4895888.0))
+        self.expected_vals.append((xs.PerfStatRE("c0.effective_frequency"), 901.0))
         # XXX: The dynamic number appears a little low, but that's more of a
         # validation issue, not a "hey, DFS is working" issue
         self.expected_vals.append((xs.PowerStatRE("  Runtime Dynamic"), 0.263))
@@ -329,7 +345,10 @@ class Fib2Test(XIOSimTest):
 
     def setUp(self):
         super(Fib2Test, self).setUp()
-        self.expected_vals.append((xs.PerfStatRE("all_insn"), 228990.00))
+        if self.xio.TARGET_ARCH == "k8":
+            self.expected_vals.append((xs.PerfStatRE("all_insn"), 224352.00))
+        else:
+            self.expected_vals.append((xs.PerfStatRE("all_insn"), 228990.0))
 
     def runTest(self):
         self.runAndValidate()
@@ -425,7 +444,7 @@ class IgnorePCTest(XIOSimTest):
         self.xio.AddPintoolOptions(num_cores=1)
         self.xio.AddROIOptions()
         if self.xio.TARGET_ARCH == "k8":
-            self.xio.AddIgnorePCOptions("0x40108a")
+            self.xio.AddIgnorePCOptions("0x400e2a")
         else:
             self.xio.AddIgnorePCOptions("0x8048bcd")
         self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
@@ -453,7 +472,7 @@ class TimeTest(XIOSimTest):
         self.expected_vals.append((xs.PerfStatRE("all_insn"), 3000000.0))
 
         # Set up expected output from the simulated program.
-        # 2M instructions / 3.2GHz = 625us.
+        # 2M cycles / 3.2GHz = 625us.
         elapsed_re = "Elapsed: (%s) sec" % xs.DECIMAL_RE
         self.bmk_expected_vals.append((elapsed_re, 0.000625))
 
