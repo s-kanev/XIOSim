@@ -18,9 +18,8 @@ cc_binary(
         ":buffer_manager_consumer",
         ":multiprocess",
         ":scheduler",
-        ":ezOptionParser",
-        "//third_party:confuse",
-        "@confuse//:main",
+        "//third_party/ezOptionParser:ezOptionParser",
+        "//third_party/confuse:confuse",
     ],
     linkopts = [ "-lrt" ],
 )
@@ -48,7 +47,7 @@ cc_binary(
         "utils.cpp",
     ],
     deps = [
-        ":legacy_instlib",
+        "//third_party/InstLib:legacy_instlib",
         ":buffer_manager_producer",
         ":multiprocess",
         ":linreg",
@@ -66,17 +65,10 @@ cc_binary(
     srcs = [ "harness.cpp" ],
     deps = [
         ":multiprocess",
-        ":ezOptionParser",
-        "//third_party:confuse",
-        "@confuse//:main",
+        "//third_party/ezOptionParser:ezOptionParser",
+        "//third_party/confuse:confuse",
     ],
     linkopts = [ "-lrt", "-lm", "-pthread" ],
-)
-
-cc_library(
-    name = "legacy_instlib",
-    hdrs = glob([ "InstLib/*.H" ]),
-    includes = [ "InstLib" ],
 )
 
 cc_library(
@@ -255,10 +247,4 @@ cc_test(
         "@catch//:main",
     ],
     size = "small",
-)
-
-cc_library(
-    name = "ezOptionParser",
-    hdrs = [ "ezOptionParser_clean.hpp" ],
-    srcs = [ "ezOptionParser.hpp" ],
 )

@@ -9,7 +9,6 @@
 // The benchmarK_cfg flag is required.
 //
 // Author: Sam Xi
-
 #include <iostream>
 #include <sstream>
 #include <stdlib.h>

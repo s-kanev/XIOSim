@@ -9,7 +9,7 @@
 #include <sstream>
 
 #include "confuse.h"
-#include "pintool/ezOptionParser_clean.hpp"
+#include "ezOptionParser_clean.hpp"
 
 #include "misc.h"
 #include "sim.h"
