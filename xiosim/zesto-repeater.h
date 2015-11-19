@@ -15,6 +15,7 @@ class repeater_t {
 
     repeater_t(struct core_t * const _core, const char * const _name, struct cache_t * const _next_level) :
         core(_core), name(_name), nextLevel(_next_level) { }
+    virtual ~repeater_t() { }
 
     /* Called every cycle. Repeater processing happens here. */
     virtual void step() = 0;

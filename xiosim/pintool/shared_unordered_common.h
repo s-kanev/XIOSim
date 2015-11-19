@@ -43,6 +43,10 @@ template <typename K, typename V> class SharedUnorderedMapCommon {
         initialize(buckets);
     }
 
+    virtual ~SharedUnorderedMapCommon() {
+        shm->template destroy<InternalMap>(data_key.c_str());
+    }
+
     void initialize_late(managed_shared_memory* shm,
                          const char* internal_map_name,
                          std::size_t buckets = DEFAULT_NUM_BUCKETS) {

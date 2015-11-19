@@ -42,6 +42,7 @@ class power {
  */
 class Expression {
   public:
+    virtual ~Expression() {}
     virtual Result evaluate() const = 0;
 };
 

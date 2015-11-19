@@ -60,6 +60,8 @@ class LinearRegression {
     // Constructor using arrays of x values and y values
     LinearRegression(double* x, double* y, long size = 0);
 
+    virtual ~LinearRegression() {}
+
     virtual void addXY(const double& x, const double& y);
     void addPoint(const Point2D& p) { addXY(p.getX(), p.getY()); }
 

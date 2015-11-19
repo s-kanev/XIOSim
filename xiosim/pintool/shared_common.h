@@ -43,7 +43,7 @@ template <typename K, typename V> class SharedMemoryMapCommon {
 
     // Destroys the pointer to the shared map.
     // TODO: Only delete if no processes have mapped this structure.
-    ~SharedMemoryMapCommon() {}
+    virtual ~SharedMemoryMapCommon() {}
 
     void initialize_late(managed_shared_memory* shm, const char* internal_map_name) {
         this->shm = shm;

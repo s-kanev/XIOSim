@@ -9,6 +9,7 @@ class cache_controller_t {
   cache_controller_t (
     struct core_t * const core,
     struct cache_t * const cache);
+  virtual ~cache_controller_t() {}
 
   virtual controller_array_response_t check_array(struct cache_line_t * line) = 0;
   virtual controller_response_t check_MSHR(struct cache_action_t * MSHR_item) = 0;
@@ -18,7 +19,7 @@ class cache_controller_t {
   virtual bool send_request_upstream(int bank, int MSHR_index, struct cache_action_t * MSHR) = 0;
   virtual void send_response_downstream(struct cache_action_t * const MSHR) = 0;
 
-  virtual void reg_stats(xiosim::stats::StatsDatabase* sdb) { };
+  virtual void reg_stats(xiosim::stats::StatsDatabase* sdb) { }
 
   protected:
   struct cache_t * const cache;

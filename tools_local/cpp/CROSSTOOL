@@ -90,6 +90,7 @@ toolchain {
   compiler_flag: "-Werror"
   # Enable a few more warnings that aren't part of -Wall.
   compiler_flag: "-Wunused-but-set-parameter"
+  cxx_flag: "-Wnon-virtual-dtor"
   # But disable some that are problematic.
   compiler_flag: "-Wno-free-nonheap-object" # has false positives
 
@@ -228,6 +229,7 @@ toolchain {
   compiler_flag: "-Werror"
   # Enable a few more warnings that aren't part of -Wall.
   compiler_flag: "-Wunused-but-set-parameter"
+  cxx_flag: "-Wnon-virtual-dtor"
   # But disable some that are problematic.
   compiler_flag: "-Wno-free-nonheap-object" # has false positives
 
