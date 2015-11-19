@@ -1,23 +1,5 @@
 package( default_visibility = ["//visibility:public"] )
-
-filegroup(
-    name = "simulator",
-    srcs = [
-        "//xiosim/pintool:timing_sim",
-        "//xiosim/pintool:feeder_zesto.so",
-        "//xiosim/pintool:harness",
-        "@pin//:cp_pinbin",
-    ],
-)
-
-test_suite(
-    name = "all_unit",
-    tags = [ "small" ],
-    tests = [
-        ":unit_tests",
-        "//xiosim/pintool:unit_tests"
-    ]
-)
+licenses(["notice"]) # BSD
 
 test_suite(
     name = "unit_tests",

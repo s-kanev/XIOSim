@@ -3,8 +3,8 @@ XIOSim
 XIOSim is a detailed user-mode microarchitectural simulator for the x86 architecture.
 It has detailed models for in-order (Atom-like) and out-of-order (Nehalem-like) cores
 and tightly-integrated power models. XIOSim supports multiprogram and multithreaded
-execution, regions-of-interest (including SimPoints). It runs at 10s KIPS per simulated
-core and uses cores on the simulation host to speed up muliticore simulation
+execution, regions-of-interest (including SimPoints). It runs at 100s KIPS per simulated
+core and uses cores on the simulation host to speed up multicore simulation
 (fastest runs use 2x the number of simulated cores).
 
 XIOSim builds up on and integrates a significant amount of others' work:
@@ -15,23 +15,15 @@ XIOSim builds up on and integrates a significant amount of others' work:
 - The DRAM models from [DRAMSim2](http://wiki.umd.edu/DRAMSim2/index.php/Main_Page).
 
 ### Dependences ###
-- Pin kit version 2.14+ [Download](http://www.pintool.org/downloads.html)
-- Recent version of GCC including C++11 support (4.7+ is ok)
-- Boost 1.54+
-- libconfuse
+- Bazel 0.1 [Download](http://bazel.io/docs/install.html)
 - (integration tests only) Python and py.test
 
-To install dependent libraries on an Ubuntu system:
-
-~~~
-sudo apt-get install libboost-all-dev libconfuse-dev:i386
-~~~
+XIOSim uses [bazel](http://bazel.io) for fetching and building dependences.
+Check out [third_party](third_party/) for a complete list of libraries we use.
 
 ### Try it out ###
 ~~~
-export PIN_ROOT=</path/to/your/pin/installation>
-cd pintool
-make
+bazel build :xiosim
 ./run.sh
 ~~~
 
@@ -58,8 +50,13 @@ For example:
 ~~~
 
 ### ISA support ####
-The simulator supports user-mode, 32-bit instructions. Some basic SSE instructions
-are supported for doing floating point, but by no means the whole extension set
-(a warning is printed if more than 2% instructions are unsupported.
-In that case, ping Svilen to add your fancy instructions).
-Support for 64-bit mode, SSEx and/or AVX is planned.
+The simulator supports user-mode, ia32 and x86_64 instructions. If you want to
+simulate 32-bit applications, build with `bazel build --cpu=piii :xiosim`.
+
+### License ###
+XIOSim is under the BSD license, unless otherwise noted. In-tree third-party compoments
+are under licences that are no more restrictive: Zesto is under a notice-type
+license, copyright Georgia Tech; McPAT and CACTI are under a notice-type license,
+copyright HP; ezOptionParser is under an MIT license; InstLib is under an
+Intel Open Source license. Despite what some Zesto files mention, there is no
+more code derived from SimpleScalar and covered by the SimpleScalar license.

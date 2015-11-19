@@ -1,4 +1,5 @@
 package( default_visibility = ["//visibility:public"] )
+licenses(["notice"]) #BSD
 
 test_suite(
     name = "unit_tests",
