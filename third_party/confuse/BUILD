@@ -1,7 +1,8 @@
-# This wrapper package should disappear once the config.h problem
-# in confuse.BUILD gets resolved.
-package( default_visibility = ["//visibility:public"] )
 licenses(["notice"])
+package( default_visibility = ["//visibility:public"] )
+
+# Forwarding package, rules should depend on this, so it's easy to
+# overwrite if, say, we have the actual package at a different location.
 
 cc_library(
     name = "confuse",

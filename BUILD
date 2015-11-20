@@ -11,7 +11,7 @@ filegroup(
         "//xiosim/pintool:timing_sim",
         "//xiosim/pintool:feeder_zesto.so",
         "//xiosim/pintool:harness",
-        "@pin//:cp_pinbin",
+        "//third_party/pin:cp_pinbin",
     ],
 )
 

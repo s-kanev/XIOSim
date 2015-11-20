@@ -159,7 +159,7 @@ cc_test(
     deps = [
         ":catch_impl",
         ":libsim",
-        "@catch//:main",
+        "//third_party/catch:main",
         "//third_party/confuse:confuse",
     ],
     data = [ "config/default.cfg" ],
@@ -219,7 +219,7 @@ cc_library(
     deps = [
         ":misc",
         ":stats",
-        "@pin//:xed"
+        "//third_party/pin:xed"
     ],
 )
 
@@ -234,8 +234,8 @@ cc_test(
         ":misc",
         ":x86",
         ":zesto-structs",
-        "@catch//:main",
-        "@pin//:xed",
+        "//third_party/catch:main",
+        "//third_party/pin:xed"
     ],
     size = "small",
 )
@@ -251,8 +251,8 @@ cc_test(
         ":misc",
         ":x86",
         ":zesto-structs",
-        "@catch//:main",
-        "@pin//:xed",
+        "//third_party/catch:main",
+        "//third_party/pin:xed"
     ],
     size = "small",
 )
@@ -291,7 +291,7 @@ cc_test(
     deps = [
         ":catch_impl",
         ":stats",
-        "@catch//:main",
+        "//third_party/catch:main",
     ],
     data = glob([ "test_data/test_stat.*.out" ]),
     linkopts = [ "-lm" ],
@@ -302,7 +302,7 @@ cc_library(
     name = "boost_stats_include",
     hdrs = ["boost_statistics.h"],
     deps = [
-        "@boost//:accumulators",
+        "//third_party/boost:accumulators",
     ],
 )
 
@@ -310,5 +310,5 @@ cc_library(
 cc_library(
     name = "catch_impl",
     srcs = [ "catch_impl.cpp" ],
-    deps = [ "@catch//:main" ],
+    deps = [ "//third_party/catch:main" ],
 )

@@ -53,8 +53,8 @@ cc_binary(
         ":linreg",
         ":parse_speedup",
         "//xiosim:zesto-bpred",
-        "@pin//:pin",
-        "@pin//:xed",
+        "//third_party/pin:pin",
+        "//third_party/pin:xed",
     ],
     linkopts = [ "-lrt", "-lm", "-ldl", "-pthread" ],
     #linkshared = 1 -- we really should, but the linker complains about non-PIC in libpin.a
@@ -89,7 +89,7 @@ cc_library(
     deps = [
         "//xiosim:misc",
         "//xiosim:synchronization",
-        "@boost//:interprocess",
+        "//third_party/boost:interprocess",
     ],
 )
 
@@ -119,7 +119,7 @@ cc_test(
     deps = [
         ":allocators",
         ":parse_speedup",
-        "@catch//:main",
+        "//third_party/catch:main",
     ],
     data = [ "test_data/loop_speedup_data.csv" ],
     linkopts = [ "-lrt", "-lm", "-ldl", "-pthread" ],
@@ -130,7 +130,7 @@ cc_library(
     name = "parse_speedup",
     srcs = [ "parse_speedup.cpp" ],
     hdrs = [ "parse_speedup.h" ],
-    deps = [ "@boost//:tokenizer" ],
+    deps = [ "//third_party/boost:tokenizer" ],
 )
 
 cc_test(
@@ -139,7 +139,7 @@ cc_test(
     deps = [
         "//xiosim:catch_impl",
         ":parse_speedup",
-        "@catch//:main",
+        "//third_party/catch:main",
     ],
     data = [ "test_data/loop_speedup_data.csv" ],
     size = "small",
@@ -168,7 +168,7 @@ cc_test(
     deps = [
         "//xiosim:catch_impl",
         ":speedup_models",
-        "@catch//:main",
+        "//third_party/catch:main",
     ],
     linkopts = [ "-lm" ],
     size = "small",
@@ -244,7 +244,7 @@ cc_test(
     deps = [
         "//xiosim:catch_impl",
         ":handshake_container",
-        "@catch//:main",
+        "//third_party/catch:main",
     ],
     size = "small",
 )
