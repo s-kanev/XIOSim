@@ -38,6 +38,7 @@ toolchain {
   cxx_flag: "-std=c++1y"
   linker_flag: "-lstdc++"
   linker_flag: "-B/usr/bin/"
+  linker_flag: "-Wl,-Bsymbolic"
 
   # TODO(bazel-team): In theory, the path here ought to exactly match the path
   # used by gcc. That works because bazel currently doesn't track files at
@@ -177,6 +178,7 @@ toolchain {
   cxx_flag: "-std=c++1y"
   linker_flag: "-lstdc++"
   linker_flag: "-B/usr/bin/"
+  linker_flag: "-Wl,-Bsymbolic"
 
   # TODO(bazel-team): In theory, the path here ought to exactly match the path
   # used by gcc. That works because bazel currently doesn't track files at

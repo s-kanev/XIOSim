@@ -57,7 +57,7 @@ cc_binary(
         "//third_party/pin:xed",
     ],
     linkopts = [ "-lrt", "-lm", "-ldl", "-pthread" ],
-    #linkshared = 1 -- we really should, but the linker complains about non-PIC in libpin.a
+    linkshared = 1
 )
 
 cc_binary(
