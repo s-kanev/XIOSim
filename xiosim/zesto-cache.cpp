@@ -763,7 +763,7 @@ struct cache_line_t * cache_is_hit(
             for(int i=0;i<cp->log2_assoc;i++)
             {
               const int pos = (way >> (cp->log2_assoc-i)) + (1<<i);
-              
+
               if((way>>(cp->log2_assoc-i-1)) & 1)
                 bitmask |= (1<<pos);
               else
@@ -771,6 +771,7 @@ struct cache_line_t * cache_is_hit(
             }
             cp->blocks[index][0].meta = bitmask;
           }
+          XIOSIM_FALLTHROUGH;
             /* NO BREAK IN THE CASE STATEMENT HERE: Do the LRU ordering, too.
                This doesn't affect the behavior of the replacement policy, but
                for highly-associative caches it'll speed up any subsequent
@@ -909,7 +910,7 @@ void cache_insert_block(
         for(int i=0;i<cp->log2_assoc;i++)
         {
           int pos = (way >> (cp->log2_assoc-i)) + (1<<i);
-          
+
           if((way>>(cp->log2_assoc-i-1)) & 1)
             bitmask |= (1<<pos);
           else
@@ -917,6 +918,7 @@ void cache_insert_block(
         }
         cp->blocks[index][0].meta = bitmask;
       }
+      XIOSIM_FALLTHROUGH;
       /* same comment about case statement fall-through as in cache_is_hit() */
       case REPLACE_RANDOM:
       case REPLACE_LRU:

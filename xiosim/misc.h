@@ -142,6 +142,17 @@ inline int mod2m(int x, int m)
   return ret;
 }
 
+/* Macro to annotate fallthrough labels, when supported (clang only for now) */
+#ifdef __has_warning
+#if __has_warning("-Wimplicit-fallthrough")
+#define XIOSIM_FALLTHROUGH [[clang::fallthrough]]
+#else
+#define XIOSIM_FALLTHROUGH
+#endif
+#else
+#define XIOSIM_FALLTHROUGH
+#endif
+
 /* fast memset macros - uses GCC's inline assembly */
 void memzero(void * base, int bytes);
 void memswap(void * p1, void * p2, size_t num_bytes);

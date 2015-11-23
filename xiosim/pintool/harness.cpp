@@ -139,6 +139,7 @@ pid_t fork_timing_simulator(std::string run_str, bool debug_timing) {
         }
         case 1: {
             perror("Fork failed.");
+            abort();
         }
         default: {  // parent
             std::cout << "Timing simulator: " << timing_sim_pid << std::endl;
