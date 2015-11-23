@@ -1,5 +1,5 @@
 #ifndef ZESTO_POWER_INCLUDED
-#define ZESTO_POWER_INCLUDE
+#define ZESTO_POWER_INCLUDED
 
 /* McPAT interface fwd */
 struct system_core;
