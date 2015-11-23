@@ -16,18 +16,17 @@
 
 namespace xiosim {
 namespace buffer_management {
-using namespace boost::interprocess;
 using namespace xiosim::shared;
 
-typedef allocator<char, managed_shared_memory::segment_manager> char_allocator;
+typedef boost::interprocess::allocator<char, managed_shared_memory::segment_manager> char_allocator;
 typedef boost::interprocess::basic_string<char, std::char_traits<char>, char_allocator> shm_string;
-typedef allocator<shm_string, managed_shared_memory::segment_manager> shm_string_allocator;
+typedef boost::interprocess::allocator<shm_string, managed_shared_memory::segment_manager> shm_string_allocator;
 
 /* A per-thread instance of fileBuffer. Lives in shared memory, so both producers
  * and consumers can access it. Keeps a list of the files (which themselves are typically
  * in /dev/shm) that make up for the buffer, and each file's size. */
 class FileBuffer {
-    typedef allocator<int, managed_shared_memory::segment_manager> int_allocator;
+    typedef boost::interprocess::allocator<int, managed_shared_memory::segment_manager> int_allocator;
     typedef boost::interprocess::deque<int, int_allocator> shm_int_deque;
     typedef boost::interprocess::deque<shm_string, shm_string_allocator> shm_string_deque;
     typedef boost::interprocess::allocator<void, managed_shared_memory::segment_manager>

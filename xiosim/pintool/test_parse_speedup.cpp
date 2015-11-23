@@ -8,6 +8,7 @@
 
 TEST_CASE("Complete front-to-end test of the speedup data parser", "parser") {
     using namespace std;
+    using std::string;
     const char* filepath = "xiosim/pintool/test_data/loop_speedup_data.csv";
     LoadHelixSpeedupModelData(filepath);
     // Data has four points, and GetHelixLoopScaling() adds a fifth for 1 core.

@@ -199,6 +199,8 @@ void StopSimulation(bool kill_sim_threads, int caller_coreID) {
  * stage. */
 typedef pair<unsigned int, char**> SSARGS;
 SSARGS MakeSimpleScalarArgcArgv(unsigned int argc, const char* argv[]) {
+    using std::string;
+
     char** ssArgv = 0;
     unsigned int ssArgBegin = 0;
     unsigned int ssArgc = 0;
