@@ -37,5 +37,7 @@ def gen_list(component, dirs, extra_deps=[]):
         deps = [
             ":stats",
             ":x86",
+            "//xiosim/pintool:buffer",
+            "//xiosim/pintool:handshake_container",
         ] + extra_deps,
     )
