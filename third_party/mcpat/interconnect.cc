@@ -175,7 +175,7 @@ interconnect::interconnect(
   if (pipelinable)//Only global wires has the option to choose whether routing over or not
 	  area.set_area(area.get_area()*route_over_perc + no_device_under_wire_area.get_area()*(1-route_over_perc));
 
-  Wire wreset();
+  Wire wreset;
 }
 
 void interconnect::leakage_feedback(double temperature)//TODO: add code for processing power gating
