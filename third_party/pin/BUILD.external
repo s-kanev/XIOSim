@@ -1,7 +1,7 @@
 licenses(["notice"]) # Intel open source
 
-PIN_PATH = "pin-2.14-67254-gcc.4.4.7-linux"
-XED_PATH = PIN_PATH + "/extras/xed2-%s/"
+PIN_PATH = "pin-2.14-71313-gcc.4.4.7-linux"
+XED_PATH = PIN_PATH + "/extras/xed-%s/"
 
 cc_library(
     visibility = ["//visibility:public"],
@@ -36,28 +36,12 @@ cc_library(
     srcs = select({
         ":k8" : [
             PIN_PATH + "/intel64/lib/libpin.a",
-            PIN_PATH + "/intel64/lib-ext/libelf.so",
-            PIN_PATH + "/intel64/lib-ext/libdwarf.so",
+            PIN_PATH + "/intel64/lib-ext/libpindwarf.a",
         ],
         ":piii" : [
             PIN_PATH + "/ia32/lib/libpin.a",
-            PIN_PATH + "/ia32/lib-ext/libelf.so",
-            PIN_PATH + "/ia32/lib-ext/libdwarf.so",
+            PIN_PATH + "/ia32/lib-ext/libpindwarf.a",
         ],
-    }),
-)
-
-filegroup(
-    name = "pin_ext_libs",
-    srcs = select({
-        ":k8" : [
-            PIN_PATH + "/intel64/lib-ext/libelf.so",
-            PIN_PATH + "/intel64/lib-ext/libdwarf.so"
-    ],
-        ":piii" : [
-            PIN_PATH + "/ia32/lib-ext/libelf.so",
-            PIN_PATH + "/ia32/lib-ext/libdwarf.so"
-    ],
     }),
 )
 
@@ -75,16 +59,11 @@ filegroup(
 genrule(
     visibility = ["//visibility:public"],
     name = "cp_pinbin",
-    outs = [ "pinbin", "libelf.so", "libdwarf.so", "libelf.so.0", "libdwarf.so.0" ],
+    outs = [ "pinbin" ],
     srcs = [
-        ":pin_ext_libs",
         ":pin_bin"
     ],
-    cmd = "OUT_DIR=$$(dirname `echo $(OUTS) | cut -d\" \" -f 1`);" +
-        "for f in $(locations :pin_ext_libs); do " +
-        "cp $$f $${OUT_DIR}/$$(basename $$f);" +
-        "cp $$f $${OUT_DIR}/$$(basename $$f).0;" +
-        "done; " +
+    cmd = "OUT_DIR=$$(dirname $(OUTS));" +
         "cp $(location :pin_bin) $${OUT_DIR}/",
     output_to_bindir = 1,
 )

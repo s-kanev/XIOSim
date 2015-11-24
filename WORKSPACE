@@ -7,8 +7,8 @@ new_http_archive(
 
 new_http_archive(
     name = "pin",
-    url = "https://software.intel.com/sites/landingpage/pintool/downloads/pin-2.14-67254-gcc.4.4.7-linux.tar.gz",
-    sha256 = "4499cfed383f362a0c74560a3ee66a5f117bea95f40067224ddf3c2606c77006",
+    url = "https://software.intel.com/sites/landingpage/pintool/downloads/pin-2.14-71313-gcc.4.4.7-linux.tar.gz",
+    sha256 = "1c29f589515772411a699a82fc4a3156cad95863a29741dfa6522865d4d281a1",
     build_file = "third_party/pin/BUILD.external",
 )
 

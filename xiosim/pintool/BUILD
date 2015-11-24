@@ -56,7 +56,7 @@ cc_binary(
         "//third_party/pin:pin",
         "//third_party/pin:xed",
     ],
-    linkopts = [ "-lrt", "-lm", "-ldl", "-pthread" ],
+    linkopts = [ "-Wl,-Bsymbolic", "-lrt", "-lm", "-ldl", "-pthread" ],
     linkshared = 1
 )
 
