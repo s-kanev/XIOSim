@@ -208,8 +208,8 @@ TEST_CASE("Locally optimal allocator, 2 processes", "local_2") {
     // Initialize thread variables.
     pthread_mutex_init(&cout_lock, NULL);
     pthread_mutex_init(&ackTestMessages_lock, NULL);
-    pthread_t threads[*num_processes];
-    locally_optimal_args args[*num_processes];
+    std::vector<pthread_t> threads(*num_processes);
+    std::vector<locally_optimal_args> args(*num_processes);
     for (int i = 0; i < NUM_TESTS; i++) {
         for (int j = 0; j < NUM_TEST_PROCESSES; j++) {
             args[j].allocator = &core_allocator;
