@@ -17,7 +17,7 @@ struct loop_data {
  * each loop when run on 2, 4, 8, and 16 cores, as well as the mean serial
  * runtime and variance over all invocations. Stores this data in a map.
  */
-void LoadHelixSpeedupModelData(const char* filepath);
+void LoadHelixSpeedupModelData(const std::string filepath);
 
 /* Returns parsed scaling data for a cerain loop. */
 std::vector<double> GetHelixLoopScaling(const std::string& loop_name);

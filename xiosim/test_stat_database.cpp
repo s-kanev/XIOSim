@@ -14,6 +14,7 @@
 #include "stats.h"
 
 using namespace xiosim::stats;
+const std::string XIOSIM_PACKAGE_PATH = "xiosim/";
 
 /* Opens a new randomly named temporary file for testing printfs.
  *
@@ -35,11 +36,11 @@ void cleanup_temp_file(FILE* temp_file, char* temp_file_name) {
     std::remove(temp_file_name);
 }
 
-bool check_printfs(FILE* test_file, const char* golden_file_name) {
+bool check_printfs(FILE* test_file, const std::string golden_file_name) {
     // Rewind the test file stream to the beginning so we can start reading.
     rewind(test_file);
 
-    FILE* golden_file = fopen(golden_file_name, "r");
+    FILE* golden_file = fopen(golden_file_name.c_str(), "r");
     REQUIRE(golden_file != NULL);
 
     const int MAX_LINE_LENGTH = 200;
@@ -116,7 +117,7 @@ TEST_CASE("Single-value int statistics", "singlevalue_int") {
         value = 1000;
         mystat.print_value(temp_file);
 
-        check_printfs(temp_file, "xiosim/test_data/test_stat.singlevalue_int.out");
+        check_printfs(temp_file, XIOSIM_PACKAGE_PATH + "test_data/test_stat.singlevalue_int.out");
         cleanup_temp_file(temp_file, temp_file_name);
     }
 
@@ -180,7 +181,7 @@ TEST_CASE("Distribution", "distribution") {
 
         dist.print_value(temp_file);
 
-        check_printfs(temp_file, "xiosim/test_data/test_stat.distribution.unlabeled.out");
+        check_printfs(temp_file, XIOSIM_PACKAGE_PATH + "test_data/test_stat.distribution.unlabeled.out");
         cleanup_temp_file(temp_file, temp_file_name);
     }
 
@@ -208,7 +209,7 @@ TEST_CASE("Distribution", "distribution") {
 
         dist.print_value(temp_file);
 
-        check_printfs(temp_file, "xiosim/test_data/test_stat.distribution.labeled.out");
+        check_printfs(temp_file, XIOSIM_PACKAGE_PATH + "test_data/test_stat.distribution.labeled.out");
         cleanup_temp_file(temp_file, temp_file_name);
     }
 }
@@ -392,7 +393,7 @@ TEST_CASE("Registering formula statistics through the API layer.", "stat_reg_for
     REQUIRE(ratio->evaluate() == Approx(0.00013793));
 
     sdb.print_all_stats(temp_file);
-    check_printfs(temp_file, "xiosim/test_data/test_stat.reg_api.out");
+    check_printfs(temp_file, XIOSIM_PACKAGE_PATH + "test_data/test_stat.reg_api.out");
     cleanup_temp_file(temp_file, temp_file_name);
 }
 
@@ -431,6 +432,6 @@ TEST_CASE("Full statistics database", "database") {
 
     sdb.print_all_stats(temp_file);
 
-    check_printfs(temp_file, "xiosim/test_data/test_stat.database.out");
+    check_printfs(temp_file, XIOSIM_PACKAGE_PATH + "test_data/test_stat.database.out");
     cleanup_temp_file(temp_file, temp_file_name);
 }

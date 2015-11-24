@@ -54,7 +54,7 @@ static void InterpolateSpeedup(double* speedup_in, double* speedup_out) {
  * each loop when run on 2,4,8,and 16 cores and stores the data in a map.
  */
 /* ========================================================================== */
-void LoadHelixSpeedupModelData(const char* filepath) {
+void LoadHelixSpeedupModelData(const std::string filepath) {
     using std::string;
     using boost::tokenizer;
     using boost::escaped_list_separator;

@@ -44,6 +44,8 @@ pthread_mutex_t ackTestMessages_lock;
 const int NUM_CORES_TEST = 16;
 const size_t NUM_DATA_POINTS = 4;
 
+const std::string XIOSIM_PACKAGE_PATH = "xiosim/";
+
 /* Thread function that calls the Allocate() method in the locally optimal
  * allocator. Tests whether the allocator properly waits for all threads to
  * check in before making a decision.
@@ -96,7 +98,7 @@ TEST_CASE("Penalty allocator", "penalty") {
     using namespace xiosim;
     SHARED_VAR_INIT(int, num_processes);
     *num_processes = 3;
-    char* filepath = "xiosim/pintool/test_data/loop_speedup_data.csv";
+    std::string filepath = XIOSIM_PACKAGE_PATH + "pintool/test_data/loop_speedup_data.csv";
     // We need a smaller allocation to actuall trigger the penalty policies.
     const int PENALTY_NUM_CORES = 8;
     PenaltyAllocator& core_allocator = reinterpret_cast<PenaltyAllocator&>(
@@ -151,7 +153,7 @@ TEST_CASE("Locally optimal allocator, 1 process", "local_1") {
     SHARED_VAR_INIT(int, num_processes);
     const int NUM_TEST_PROCESSES = 1;
     *num_processes = NUM_TEST_PROCESSES;
-    char* filepath = "xiosim/pintool/test_data/loop_speedup_data.csv";
+    std::string filepath = XIOSIM_PACKAGE_PATH + "pintool/test_data/loop_speedup_data.csv";
     LoadHelixSpeedupModelData(filepath);
 #ifdef DEBUG
     std::cout << "Number of processes: " << *num_processes << std::endl;
@@ -181,7 +183,7 @@ TEST_CASE("Locally optimal allocator, 2 processes", "local_2") {
     SHARED_VAR_INIT(int, num_processes);
     const int NUM_TEST_PROCESSES = 2;
     *num_processes = NUM_TEST_PROCESSES;
-    char* filepath = "xiosim/pintool/test_data/loop_speedup_data.csv";
+    std::string filepath = XIOSIM_PACKAGE_PATH + "pintool/test_data/loop_speedup_data.csv";
 #ifdef DEBUG
     std::cout << "Number of processes: " << *num_processes << std::endl;
 #endif

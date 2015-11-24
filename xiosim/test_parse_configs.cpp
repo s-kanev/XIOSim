@@ -38,9 +38,11 @@ int* num_processes;
 XIOSIM_LOCK* printing_lock;
 double* global_sim_time;
 
+const std::string XIOSIM_PACKAGE_PATH = "xiosim/";
+
 TEST_CASE("Test configuration parsing", "config") {
-    const char* config_file = "xiosim/config/default.cfg";
-    const char* argv[2] = { "-config", config_file };
+    std::string config_file = XIOSIM_PACKAGE_PATH + "config/default.cfg";
+    const char* argv[2] = { "-config", config_file.c_str() };
     read_config_file(2, argv, &knobs);
 
     // Only test a subset of the configuration parameters.
