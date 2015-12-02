@@ -141,7 +141,7 @@ void init_power(void)
     XML->sys.L3[0].L3_config[3] = uncore->LLC->banks;
     // Same as L2 case above -- convert to uncore cycles and set throughput == latency.
     XML->sys.L3[0].L3_config[5] = uncore->LLC->latency * (LLC_speed / knobs.default_cpu_speed);
-    XML->sys.L3[0].L3_config[4] = XML->sys.L3[0].L3_config[4];
+    XML->sys.L3[0].L3_config[4] = XML->sys.L3[0].L3_config[5];
 
     // # read ports
     XML->sys.L3[0].ports[0] = 1;
