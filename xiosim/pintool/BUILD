@@ -1,9 +1,15 @@
-package( default_visibility = ["//visibility:public"] )
-licenses(["notice"]) #BSD
+# Description:
+#   XIOSim sources that don't belong in libsim.
+
+package(default_visibility = ["//visibility:public"])
+
+licenses(["notice"])  #BSD
+
+exports_files(["LICENSE"])
 
 test_suite(
     name = "unit_tests",
-    tags = [ "small" ],
+    tags = ["small"],
 )
 
 cc_binary(
@@ -12,16 +18,16 @@ cc_binary(
         "timing_sim.cpp",
         "timing_sim.h",
     ],
+    linkopts = ["-lrt"],
     deps = [
-        "//xiosim:libsim",
         ":allocators",
         ":buffer_manager_consumer",
         ":multiprocess",
         ":scheduler",
-        "//third_party/ezOptionParser:ezOptionParser",
-        "//third_party/confuse:confuse",
+        "//third_party/confuse",
+        "//third_party/ezOptionParser",
+        "//xiosim:libsim",
     ],
-    linkopts = [ "-lrt" ],
 )
 
 cc_binary(
@@ -29,55 +35,64 @@ cc_binary(
     srcs = [
         "feeder.h",
         "feeder_zesto.cpp",
-        "ildjit.h",
-        "ildjit.cpp",
-        "sync_pthreads.h",
-        "sync_pthreads.cpp",
-        "syscall_handling.h",
-        "syscall_handling.cpp",
-        "ignore_ins.h",
         "ignore_ins.cpp",
-        "replace_function.h",
+        "ignore_ins.h",
+        "ildjit.cpp",
+        "ildjit.h",
         "replace_function.cpp",
-        "roi.h",
+        "replace_function.h",
         "roi.cpp",
-        "speculation.h",
+        "roi.h",
         "speculation.cpp",
-        "utils.h",
+        "speculation.h",
+        "sync_pthreads.cpp",
+        "sync_pthreads.h",
+        "syscall_handling.cpp",
+        "syscall_handling.h",
         "utils.cpp",
+        "utils.h",
     ],
+    linkopts = [
+        "-Wl,-Bsymbolic",
+        "-lrt",
+        "-lm",
+        "-ldl",
+        "-pthread",
+    ],
+    linkshared = 1,
     deps = [
-        "//third_party/InstLib:legacy_instlib",
         ":buffer_manager_producer",
-        ":multiprocess",
         ":linreg",
+        ":multiprocess",
         ":parse_speedup",
-        "//xiosim:zesto-bpred",
-        "//third_party/pin:pin",
+        "//third_party/InstLib:legacy_instlib",
+        "//third_party/pin",
         "//third_party/pin:xed",
+        "//xiosim:zesto-bpred",
     ],
-    linkopts = [ "-Wl,-Bsymbolic", "-lrt", "-lm", "-ldl", "-pthread" ],
-    linkshared = 1
 )
 
 cc_binary(
     name = "harness",
-    srcs = [ "harness.cpp" ],
+    srcs = ["harness.cpp"],
+    linkopts = [
+        "-lrt",
+        "-lm",
+        "-pthread",
+    ],
     deps = [
         ":multiprocess",
-        "//third_party/ezOptionParser:ezOptionParser",
-        "//third_party/confuse:confuse",
+        "//third_party/confuse",
+        "//third_party/ezOptionParser",
     ],
-    linkopts = [ "-lrt", "-lm", "-pthread" ],
 )
 
 cc_library(
     name = "multiprocess",
-    hdrs = [ "multiprocess_shared.h" ],
     srcs = [
         "boost_interprocess.h",
-        "ipc_queues.h",
         "ipc_queues.cpp",
+        "ipc_queues.h",
         "mpkeys.h",
         "mpkeys_impl.cpp",
         "multiprocess_shared.cpp",
@@ -86,76 +101,81 @@ cc_library(
         "shared_unordered_common.h",
         "shared_unordered_map.h",
     ],
+    hdrs = ["multiprocess_shared.h"],
     deps = [
+        "//third_party/boost:interprocess",
         "//xiosim:misc",
         "//xiosim:synchronization",
-        "//third_party/boost:interprocess",
     ],
 )
 
 cc_library(
     name = "allocators",
+    srcs = [
+        "base_allocator.cpp",
+        "base_allocator.h",
+        "gang_allocator.cpp",
+        "local_opt_allocator.cpp",
+        "optimization_targets.cpp",
+        "penalty_allocator.cpp",
+    ],
     hdrs = [
         "allocators_impl.h",
     ],
-    srcs = [
-        "base_allocator.h",
-        "base_allocator.cpp",
-        "gang_allocator.cpp",
-        "local_opt_allocator.cpp",
-        "penalty_allocator.cpp",
-        "optimization_targets.cpp",
-    ],
     deps = [
-        "//xiosim:synchronization",
         ":multiprocess",
         ":speedup_models",
+        "//xiosim:synchronization",
     ],
 )
 
 cc_test(
     name = "test_allocation",
-    srcs = [ "test_allocation.cpp" ],
+    size = "small",
+    srcs = ["test_allocation.cpp"],
+    data = ["test_data/loop_speedup_data.csv"],
+    linkopts = [
+        "-lrt",
+        "-lm",
+        "-ldl",
+        "-pthread",
+    ],
     deps = [
         ":allocators",
         ":parse_speedup",
         "//third_party/catch:main",
     ],
-    data = [ "test_data/loop_speedup_data.csv" ],
-    linkopts = [ "-lrt", "-lm", "-ldl", "-pthread" ],
-    size = "small",
 )
 
 cc_library(
     name = "parse_speedup",
-    srcs = [ "parse_speedup.cpp" ],
-    hdrs = [ "parse_speedup.h" ],
-    deps = [ "//third_party/boost:tokenizer" ],
+    srcs = ["parse_speedup.cpp"],
+    hdrs = ["parse_speedup.h"],
+    deps = ["//third_party/boost:tokenizer"],
 )
 
 cc_test(
     name = "test_parse_speedup",
-    srcs = [ "test_parse_speedup.cpp" ],
+    size = "small",
+    srcs = ["test_parse_speedup.cpp"],
+    data = ["test_data/loop_speedup_data.csv"],
     deps = [
-        "//xiosim:catch_impl",
         ":parse_speedup",
         "//third_party/catch:main",
+        "//xiosim:catch_impl",
     ],
-    data = [ "test_data/loop_speedup_data.csv" ],
-    size = "small",
 )
-
 
 cc_library(
     name = "speedup_models",
+    srcs = [
+        "base_speedup_model.cpp",
+        "base_speedup_model.h",
+        "linear_speedup_model.cpp",
+        "log_speedup_model.cpp",
+    ],
     hdrs = [
         "speedup_models.h",
-    ],
-    srcs = [
-        "base_speedup_model.h",
-        "base_speedup_model.cpp",
-        "log_speedup_model.cpp",
-        "linear_speedup_model.cpp",
     ],
     deps = [
         ":linreg",
@@ -164,24 +184,24 @@ cc_library(
 
 cc_test(
     name = "test_speedup_models",
-    srcs = [ "test_speedup_models.cpp" ],
+    size = "small",
+    srcs = ["test_speedup_models.cpp"],
+    linkopts = ["-lm"],
     deps = [
-        "//xiosim:catch_impl",
         ":speedup_models",
         "//third_party/catch:main",
+        "//xiosim:catch_impl",
     ],
-    linkopts = [ "-lm" ],
-    size = "small",
 )
 
 cc_library(
     name = "scheduler",
-    hdrs = [ "scheduler.h" ],
-    srcs = [ "scheduler.cpp" ],
+    srcs = ["scheduler.cpp"],
+    hdrs = ["scheduler.h"],
     deps = [
         ":multiprocess",
-        "//xiosim:synchronization",
         "//xiosim:libsim",
+        "//xiosim:synchronization",
         "//xiosim:zesto-core",
         "//xiosim:zesto-structs",
     ],
@@ -189,8 +209,8 @@ cc_library(
 
 cc_library(
     name = "buffer_manager",
-    hdrs = [ "BufferManager.h" ],
-    srcs = [ "BufferManager.cpp" ],
+    srcs = ["BufferManager.cpp"],
+    hdrs = ["BufferManager.h"],
     deps = [
         ":multiprocess",
     ],
@@ -198,8 +218,8 @@ cc_library(
 
 cc_library(
     name = "buffer_manager_consumer",
-    hdrs = [ "BufferManagerConsumer.h" ],
-    srcs = [ "BufferManagerConsumer.cpp" ],
+    srcs = ["BufferManagerConsumer.cpp"],
+    hdrs = ["BufferManagerConsumer.h"],
     deps = [
         ":buffer",
         ":buffer_manager",
@@ -210,8 +230,8 @@ cc_library(
 
 cc_library(
     name = "buffer_manager_producer",
-    hdrs = [ "BufferManagerProducer.h" ],
-    srcs = [ "BufferManagerProducer.cpp" ],
+    srcs = ["BufferManagerProducer.cpp"],
+    hdrs = ["BufferManagerProducer.h"],
     deps = [
         ":buffer",
         ":buffer_manager",
@@ -221,30 +241,30 @@ cc_library(
 
 cc_library(
     name = "linreg",
-    hdrs = [ "linreg.h" ],
-    srcs = [ "linreg.cpp" ],
+    srcs = ["linreg.cpp"],
+    hdrs = ["linreg.h"],
 )
 
 cc_library(
     name = "buffer",
-    hdrs = [ "buffer.h" ],
+    hdrs = ["buffer.h"],
 )
 
 cc_library(
     name = "handshake_container",
-    hdrs = [ "handshake_container.h" ],
+    hdrs = ["handshake_container.h"],
     deps = [
         "//xiosim:x86",
-    ]
+    ],
 )
 
 cc_test(
     name = "test_handshake_serialization",
-    srcs = [ "test_handshake_serialization.cpp" ],
+    size = "small",
+    srcs = ["test_handshake_serialization.cpp"],
     deps = [
-        "//xiosim:catch_impl",
         ":handshake_container",
         "//third_party/catch:main",
+        "//xiosim:catch_impl",
     ],
-    size = "small",
 )

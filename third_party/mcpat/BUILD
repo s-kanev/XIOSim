@@ -1,8 +1,12 @@
-licenses(["reciprocal"])
+# Description:
+#   McPAT is a processor power model.
+
+licenses(["notice"])
+
+exports_files(["LICENSE"])
 
 cc_library(
     name = "lib",
-    visibility = ["//visibility:public"],
     srcs = glob([
         "XML_Parse.cc",
         "array.cc",
@@ -20,13 +24,14 @@ cc_library(
         "*.h",
     ]),
     hdrs = [
-        "mcpat.h",
         "XML_Parse.h",
-    ],
-    deps = [
-        "//third_party/mcpat/cacti:lib",
+        "mcpat.h",
     ],
     copts = [
-        "-Wno-all", # mcpat is full of warnings, disable
+        "-Wno-all",  # mcpat is full of warnings, disable
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//third_party/mcpat/cacti:lib",
     ],
 )

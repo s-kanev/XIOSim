@@ -1,9 +1,15 @@
-package( default_visibility = ["//visibility:public"] )
-licenses(["notice"]) # MIT
+# Description:
+#   ezOptionParser is a flags parsing library.
+
+package(default_visibility = ["//visibility:public"])
+
+licenses(["notice"])  # MIT
+
+exports_files(["LICENSE"])
 
 cc_library(
     name = "ezOptionParser",
-    hdrs = [ "ezOptionParser_clean.hpp" ],
-    srcs = [ "ezOptionParser.hpp" ],
-    includes = [ "." ],
+    srcs = ["ezOptionParser.hpp"],
+    hdrs = ["ezOptionParser_clean.hpp"],
+    includes = ["."],
 )

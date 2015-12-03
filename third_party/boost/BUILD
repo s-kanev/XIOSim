@@ -1,22 +1,25 @@
+# Description:
+#   Forwarding package, rules should depend on this, so it's easy to
+#   overwrite if, say, we have the actual package at a different location.
+
 licenses(["notice"])
 
-# Forwarding package, rules should depend on this, so it's easy to
-# overwrite if, say, we have the actual package at a different location.
+exports_files(["LICENSE"])
 
 cc_library(
-    visibility = ["//visibility:public"],
     name = "accumulators",
+    visibility = ["//visibility:public"],
     deps = ["@boost//:accumulators"],
 )
 
 cc_library(
-    visibility = ["//visibility:public"],
     name = "interprocess",
+    visibility = ["//visibility:public"],
     deps = ["@boost//:interprocess"],
 )
 
 cc_library(
-    visibility = ["//visibility:public"],
     name = "tokenizer",
+    visibility = ["//visibility:public"],
     deps = ["@boost//:tokenizer"],
 )

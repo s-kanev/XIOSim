@@ -1,37 +1,45 @@
-licenses(["reciprocal"])
+# Description:
+#   Cacti is a cache model distributed with McPAT.
+
+licenses(["notice"])
+
+exports_files(["LICENSE"])
 
 cc_library(
     name = "lib",
-    visibility = ["//visibility:public"],
     srcs = [
+        "Ucache.cc",
+        "arbiter.cc",
         "area.cc",
         "bank.cc",
-        "mat.cc",
-        "main.cc",
-        "Ucache.cc",
-        "io.cc",
-        "technology.cc",
         "basic_circuit.cc",
-        "parameter.cc",
-        "decoder.cc",
-        "component.cc",
-        "uca.cc",
-        "subarray.cc",
-        "wire.cc",
-        "htree2.cc",
         "cacti_interface.cc",
-        "router.cc",
-        "nuca.cc",
+        "component.cc",
         "crossbar.cc",
-        "arbiter.cc",
+        "decoder.cc",
+        "htree2.cc",
+        "io.cc",
+        "main.cc",
+        "mat.cc",
+        "nuca.cc",
+        "parameter.cc",
         "powergating.cc",
+        "router.cc",
+        "subarray.cc",
+        "technology.cc",
+        "uca.cc",
+        "wire.cc",
     ],
-    hdrs = glob([ "*.h" ]),
-    includes = [ "." ],
+    hdrs = glob(["*.h"]),
     copts = [
         "-DPIN",
         "-DNTHREADS=1",
-        "-Wno-all", # mcpat is full of warnings, disable
+        "-Wno-all",  # mcpat is full of warnings, disable
     ],
-    linkopts = [ "-lm" , "-pthread" ],
+    includes = ["."],
+    linkopts = [
+        "-lm",
+        "-pthread",
+    ],
+    visibility = ["//visibility:public"],
 )
