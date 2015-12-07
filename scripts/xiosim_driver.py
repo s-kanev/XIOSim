@@ -137,6 +137,16 @@ class XIOSimDriver(object):
         res.append("}\n")
         return res
 
+    def GenerateTestAttachBmkConfig(self, test, pid):
+        self.test = test
+
+        res = []
+        res.append("program {\n")
+        res.append("  pid = %d\n" % pid)
+        res.append("}\n")
+        return res
+
+
     def GenerateConfigFile(self, config, changes):
         ''' Generate a config file from an existing one, by replacing some stats.
             config: path to the original config file.

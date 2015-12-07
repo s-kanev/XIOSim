@@ -28,6 +28,7 @@ boost::interprocess::managed_shared_memory* global_shm;
 SHARED_VAR_DEFINE(XIOSIM_LOCK, printing_lock)
 SHARED_VAR_DEFINE(int, num_processes)
 SHARED_VAR_DEFINE(int, next_asid)
+SHARED_VAR_DEFINE(time_t, feeder_watchdogs)
 
 #include "confuse.h"  // For parsing config files.
 
@@ -43,7 +44,7 @@ const std::string HARNESS_PID_FLAG = "-harness_pid";
 const char* LAST_PINTOOL_ARG = "-s";
 const char* FIRST_PIN_ARG = "-pin";
 
-pid_t* harness_pids;
+std::vector<pid_t> harness_pids;
 int harness_num_processes = 0;
 
 }  // namespace shared
@@ -115,9 +116,6 @@ std::string get_timing_sim_args(std::string harness_args) {
     // Prefix with invoking timing_sim binary
     harness_args = timing_fname + " " + harness_args;
 
-    // Remove trailing "--"
-    auto pos = harness_args.rfind("--");
-    harness_args.erase(pos);
     std::cout << "timing_sim args: " << harness_args << std::endl;
     return harness_args;
 }
@@ -153,6 +151,49 @@ pid_t fork_timing_simulator(std::string run_str, bool debug_timing) {
     return timing_sim_pid;
 }
 
+static void wait_for_feeders(int num_feeders, bool no_waitpid) {
+    std::cout << "[HARNESS] Waiting for feeder children to finish." << std::endl;
+
+    if (no_waitpid) {
+        // Ghetto waitpid replacement.
+        // Each feeder routinely updates a location in shm and we periodicially
+        // check on it. If we don't hear from the feeder for a while, we assume it
+        // has terminated (cleanly or not).
+        // We do this because in some execution modes (pin -pid <process>)
+        // the feeder process is actually not a direct child of the
+        // harness (and can't enter its process group), so we don't get SIGCHLD signals.
+        const int WATCHDOG_PERIOD = 30; // sec
+        while (1) {
+            time_t curr_time = time(nullptr);
+            int feeders_done = 0;
+            for (int asid = 0; asid < num_feeders; asid++) {
+                time_t last_seen = feeder_watchdogs[asid];
+                if (std::difftime(curr_time, last_seen) > WATCHDOG_PERIOD)
+                    feeders_done++;
+            }
+
+            if (feeders_done == num_feeders)
+                return;
+
+            sleep(WATCHDOG_PERIOD);
+        }
+    } else {
+        // Waits for the children process to finish. If any of the children, including
+        // the timing simulator process, terminate unexpectedly, then ALL children are
+        // killed immediately. Otherwise, it waits for only the producer children to
+        // finish normally.
+        int status;
+        for (int i = 0; i < num_feeders; i++) {
+            // Wait for any child process to finish.
+            pid_t terminated_process = wait(&status);
+            if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+                std::cerr << "Process " << terminated_process << " failed." << std::endl;
+                kill_children(status);
+            }
+        }
+    }
+}
+
 int main(int argc, const char* argv[]) {
     using namespace boost::interprocess;
     using namespace xiosim::shared;
@@ -173,11 +214,13 @@ int main(int argc, const char* argv[]) {
                               CFG_STR("exe", "", CFGF_NONE),
                               CFG_STR("args", "", CFGF_NONE),
                               CFG_INT("instances", 1, CFGF_NONE),
+                              CFG_INT("pid", -1, CFGF_NONE),
                               CFG_END() };
     cfg_opt_t opts[]{ CFG_SEC("program", program_opts, CFGF_MULTI), CFG_END() };
     cfg_t* cfg = cfg_init(opts, 0);
     cfg_parse(cfg, cfg_filename.c_str());
 
+    bool has_pid_attach = false;
     // Compute the total number of benchmark processes that will be forked.
     int num_programs = cfg_size(cfg, "program");
     assert(num_programs > 0);
@@ -185,6 +228,15 @@ int main(int argc, const char* argv[]) {
         cfg_t* program_cfg = cfg_getnsec(cfg, "program", i);
         int instances = cfg_getint(program_cfg, "instances");
         harness_num_processes += instances;
+
+        int pid = cfg_getint(program_cfg, "pid");
+        if (pid != -1) {
+            has_pid_attach = true;
+            if (instances != 1)  {
+                std::cerr << "Program instances != 1 when attaching to pid!" << std::endl;
+                abort();
+            }
+        }
     }
     harness_num_processes++;  // For the timing simulator.
 
@@ -227,7 +279,6 @@ int main(int argc, const char* argv[]) {
         std::cerr << "Failed to find -pin or -s args!" << std::endl;
         abort();
     }
-    command_stream << "-- ";  // For appending the benchmark program arguments.
 
     std::cerr << "HARNESS CMD: " << command_stream.str() << std::endl;
 
@@ -259,18 +310,19 @@ int main(int argc, const char* argv[]) {
     SHARED_VAR_INIT(XIOSIM_LOCK, printing_lock);
     SHARED_VAR_INIT(int, num_processes, harness_num_processes - 1);
     SHARED_VAR_INIT(int, next_asid, 0);
+    time_t initial_time = time(nullptr);
+    SHARED_VAR_ARRAY_INIT(time_t, feeder_watchdogs, harness_num_processes-1, initial_time);
     InitIPCQueues();
     init_lock.unlock();
 
     // Track the pids of all children.
-    harness_pids = new pid_t[harness_num_processes];
+    harness_pids.reserve(harness_num_processes);
 
     // Create a process for timing simulator and store its pid.
     harness_pids[harness_num_processes - 1] =
         fork_timing_simulator(command_stream.str(), debug_timing);
 
     // Fork all the benchmark child processes.
-    int status;
     int nthprocess = 0;
     for (int program = 0; program < num_programs; program++) {
         cfg_t* program_cfg = cfg_getnsec(cfg, "program", program);
@@ -280,10 +332,19 @@ int main(int argc, const char* argv[]) {
             harness_pids[nthprocess] = fork();
             std::string run_str = command_stream.str();
 
-            // Append program command line arguments.
-            std::stringstream ss;
-            ss << cfg_getstr(program_cfg, "exe") << " " << cfg_getstr(program_cfg, "args");
-            run_str += ss.str();
+            int pid = cfg_getint(program_cfg, "pid");
+            if (pid == -1) {
+                // Append program command line arguments.
+                std::stringstream ss;
+                ss << "-- " << cfg_getstr(program_cfg, "exe") << " " << cfg_getstr(program_cfg, "args");
+                run_str += ss.str();
+            } else {
+                // Add pin -pid flag before tool arguments.
+                size_t feeder_opt_pos = run_str.find("-t ");
+                std::stringstream ss;
+                ss << "-pid " << pid << " ";
+                run_str.insert(feeder_opt_pos, ss.str());
+            }
 
             switch (harness_pids[nthprocess]) {
             case 0: {  // child
@@ -293,6 +354,7 @@ int main(int argc, const char* argv[]) {
                     std::cerr << "chdir failed with " << strerror(errno) << std::endl;
                     abort();
                 }
+                std::cerr << "[HARNESS] Feeder cmd: " << run_str << std::endl;
                 int ret = system(run_str.c_str());
                 if (WIFSIGNALED(ret))
                     abort();
@@ -304,7 +366,9 @@ int main(int argc, const char* argv[]) {
                 break;
             }
             default: {  // parent
-                std::cout << "New producer: " << harness_pids[nthprocess] << std::endl;
+                if (pid != -1)
+                    harness_pids[nthprocess] = pid;
+                std::cout << "[HARNESS] New producer: " << harness_pids[nthprocess] << std::endl;
                 nthprocess++;
                 break;
             }
@@ -312,20 +376,7 @@ int main(int argc, const char* argv[]) {
         }
     }
 
-    // Waits for the children process to finish. If any of the children, including
-    // the timing simulator process, terminate unexpectedly, then ALL children are
-    // killed immediately. Otherwise, it waits for only the producer children to
-    // finish normally. The timing simulator is instructed to terminate
-    // separately later.
-    std::cout << "[HARNESS] Waiting for feeder children to finish." << std::endl;
-    for (int i = 0; i < harness_num_processes - 1; i++) {
-        // Wait for any child process to finish.
-        pid_t terminated_process = wait(&status);
-        if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-            std::cerr << "Process " << terminated_process << " failed." << std::endl;
-            kill_children(status);
-        }
-    }
+    wait_for_feeders(harness_num_processes - 1, has_pid_attach);
 
     std::cout << "[HARNESS] Letting timing_sim finish" << std::endl;
     /* Tell timing simulator to die quietly */
@@ -335,6 +386,7 @@ int main(int argc, const char* argv[]) {
 
     pid_t timing_pid = harness_pids[harness_num_processes - 1];
     pid_t wait_res;
+    int status;
     do {
         wait_res = waitpid(timing_pid, &status, 0);
         if (wait_res == -1) {
@@ -350,7 +402,6 @@ int main(int argc, const char* argv[]) {
 
     remove_shared_memory();
     std::cout << "[HARNESS] Parent exiting." << std::endl;
-    delete[](harness_pids);
     return 0;
 }
 

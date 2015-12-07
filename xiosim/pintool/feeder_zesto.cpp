@@ -89,6 +89,8 @@ int asid;
 xed_state_t dstate;
 static void InitXed();
 
+static void InitWatchdog();
+
 /* ========================================================================== */
 /* Pinpoint related */
 // Track the number of instructions executed
@@ -669,7 +671,7 @@ VOID Instrument(INS ins, VOID* v) {
 /* ========================================================================== */
 VOID ThreadStart(THREADID threadIndex, CONTEXT* ictxt, INT32 flags, VOID* v) {
     lk_lock(&syscall_lock, 1);
-#ifdef ZESTO_PIN_DBG
+#ifdef FEEDER_DEBUG
         cerr << "Thread start tid: " << dec << threadIndex << endl;
 #endif
 
@@ -687,7 +689,11 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT* ictxt, INT32 flags, VOID* v) {
     // We only care about it at the program entry point (thread 0).
     // Here's a nice map of the stack we're walking (for ia32).
     // http://articles.manugarg.com/aboutelfauxiliaryvectors
-    if (threadIndex == 0) {
+    // TODO(skanev): wait, can't we actually just do getauxval()?
+    // We *are* in the app's address space already. Double-check.
+    // For now, just don't do it when we attach with -pid -- in that case this
+    // doesn't get called at the entry point of main (and we can't use esp).
+    if (threadIndex == 0 && !PIN_IsAttaching()) {
         UINT32 argc = *(UINT32*)sp;
         for (UINT32 i = 0; i < argc; i++) {
             sp++;
@@ -783,7 +789,6 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT* ictxt, INT32 flags, VOID* v) {
         thread_list.push_back(threadIndex);
         lk_unlock(&thread_list_lock);
     }
-
     lk_unlock(&syscall_lock);
 }
 
@@ -1066,6 +1071,7 @@ INT32 main(INT32 argc, CHAR** argv) {
     PIN_AddFiniFunction(Fini, 0);
     InitSyscallHandling();
     InitXed();
+    InitWatchdog();
 
     if (!KnobIgnoreFunctions.Value().empty()) {
         stringstream ss(KnobIgnoreFunctions.Value());
@@ -1276,4 +1282,42 @@ static void InitXed() {
 #else
     xed_state_init2(&dstate, XED_MACHINE_MODE_LONG_COMPAT_32, XED_ADDRESS_WIDTH_32b);
 #endif
+}
+
+/* ========================================================================== */
+void WatchdogHandler(int signal) {
+    if (signal != SIGVTALRM)
+        return;
+
+    feeder_watchdogs[asid] = time(nullptr);
+}
+
+/* ========================================================================== */
+static void InitWatchdog() {
+    /* Unblock SIGVTALRM. */
+    sigset_t oldset;
+    sigemptyset(&oldset);
+    sigaddset(&oldset, SIGVTALRM);
+    sigprocmask(SIG_UNBLOCK, &oldset, nullptr);
+
+    /* Set SIGVTALRM signal handler.
+     * We don't use PIN_AddContextChangeFunction() because we run pin with
+     * -catch_signals false -- see speculation.cpp. */
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = &WatchdogHandler;
+    int res = sigaction(SIGVTALRM, &sa, nullptr);
+    if (res != 0) {
+        perror(nullptr);
+        abort();
+    }
+
+    /* Set up watchdog timer. */
+    const time_t INTERVAL_SEC = 5;
+    const struct itimerval watchdog_interval{{INTERVAL_SEC, 0}, {INTERVAL_SEC, 0}};
+    res = setitimer(ITIMER_VIRTUAL, &watchdog_interval, nullptr);
+    if (res != 0) {
+        perror(nullptr);
+        abort();
+    }
 }

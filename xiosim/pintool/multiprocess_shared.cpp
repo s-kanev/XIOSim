@@ -14,6 +14,7 @@ boost::interprocess::managed_shared_memory* global_shm;
 SHARED_VAR_DEFINE(XIOSIM_LOCK, printing_lock)
 SHARED_VAR_DEFINE(int, num_processes)
 SHARED_VAR_DEFINE(int, next_asid)
+SHARED_VAR_DEFINE(time_t, feeder_watchdogs)
 
 SHARED_VAR_DEFINE(int, num_done_fastforward)
 SHARED_VAR_DEFINE(int, fastforward_epoch)
@@ -112,6 +113,7 @@ int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores_) {
 
     SHARED_VAR_INIT(XIOSIM_LOCK, printing_lock);
     SHARED_VAR_INIT(int, num_processes);
+    SHARED_VAR_INIT(time_t, feeder_watchdogs);
 
     SHARED_VAR_INIT(int, num_done_fastforward, 0);
     SHARED_VAR_INIT(int, fastforward_epoch, 0);

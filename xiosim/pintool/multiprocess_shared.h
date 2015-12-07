@@ -34,6 +34,7 @@ extern boost::interprocess::managed_shared_memory* global_shm;
 SHARED_VAR_DECLARE(XIOSIM_LOCK, printing_lock)
 SHARED_VAR_DECLARE(int, num_processes)
 SHARED_VAR_DECLARE(int, next_asid)
+SHARED_VAR_DECLARE(time_t, feeder_watchdogs)
 
 SHARED_VAR_DECLARE(int, num_done_fastforward)
 SHARED_VAR_DECLARE(int, fastforward_epoch)
