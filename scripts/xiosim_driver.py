@@ -18,6 +18,7 @@ class XIOSimDriver(object):
             self.AddCleanArch()
         self.AddEnvironment(env)
         self.AddHarness()
+        self.AddTimingSim()
 
     def AddCleanArch(self):
         self.cmd += "/usr/bin/setarch "
@@ -34,6 +35,9 @@ class XIOSimDriver(object):
 
     def AddBmks(self, bmk_cfg):
         self.cmd += "-benchmark_cfg " + bmk_cfg + " "
+
+    def AddTimingSim(self):
+        self.cmd += "-timing_sim " + os.path.join(self.INSTALL_DIR, "xiosim/pintool/timing_sim") + " "
 
     def AddPinOptions(self):
         self.cmd += "-pin " + self.PIN + " "

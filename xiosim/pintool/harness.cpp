@@ -41,6 +41,7 @@ namespace shared {
 
 const std::string CFG_FILE_FLAG = "-benchmark_cfg";
 const std::string HARNESS_PID_FLAG = "-harness_pid";
+const std::string TIMING_SIM_FLAG = "-timing_sim";
 const char* LAST_PINTOOL_ARG = "-s";
 const char* FIRST_PIN_ARG = "-pin";
 
@@ -101,28 +102,23 @@ void kill_children(int sig) {
 }
 
 // Modify the generic pintool command for the timing simulator.
-std::string get_timing_sim_args(std::string harness_args) {
-    size_t feeder_opt_end_pos = harness_args.find("-t ") + strlen("-t ");
+std::string get_timing_sim_args(std::string harness_args, std::string timing_filename) {
     size_t feeder_so_pos = harness_args.find("feeder_zesto.so");
     size_t feeder_so_end_pos = feeder_so_pos + strlen("feeder_zesto.so");
-
-    std::string feeder_path =
-        harness_args.substr(feeder_opt_end_pos, feeder_so_pos - feeder_opt_end_pos);
-    std::string timing_fname = feeder_path + "timing_sim";
 
     // Remove everything before and including the "-t" feeder option
     harness_args.erase(0, feeder_so_end_pos);
 
     // Prefix with invoking timing_sim binary
-    harness_args = timing_fname + " " + harness_args;
+    harness_args = timing_filename + " " + harness_args;
 
     std::cout << "timing_sim args: " << harness_args << std::endl;
     return harness_args;
 }
 
 // Fork the timing simulator process and return its pid.
-pid_t fork_timing_simulator(std::string run_str, bool debug_timing) {
-    std::string timing_cmd = get_timing_sim_args(run_str);
+pid_t fork_timing_simulator(std::string run_str, std::string timing_filename, bool debug_timing) {
+    std::string timing_cmd = get_timing_sim_args(run_str, timing_filename);
     pid_t timing_sim_pid;
 
     if (!debug_timing) {
@@ -201,6 +197,7 @@ int main(int argc, const char* argv[]) {
     ez::ezOptionParser cmd_opts;
     cmd_opts.overview = "XIOSim harness options";
     cmd_opts.syntax = "-benchmark_cfg CFG_FILE [-debug_timing]";
+    cmd_opts.add("timing_sim", 1, 1, 0, "Path to timing_sim binary", TIMING_SIM_FLAG.c_str());
     cmd_opts.add("benchmarks.cfg", 1, 1, 0, "Programs to simulate", CFG_FILE_FLAG.c_str());
     cmd_opts.add("", 0, 0, 0, "Debug timing_sim (start manually)", "-debug_timing");
     cmd_opts.parse(argc, argv);
@@ -208,6 +205,8 @@ int main(int argc, const char* argv[]) {
     std::string cfg_filename;
     cmd_opts.get(CFG_FILE_FLAG.c_str())->getString(cfg_filename);
     bool debug_timing = cmd_opts.get("-debug_timing")->isSet;
+    std::string timing_filename;
+    cmd_opts.get(TIMING_SIM_FLAG.c_str())->getString(timing_filename);
 
     // Parse the benchmark configuration file.
     cfg_opt_t program_opts[]{ CFG_STR("run_path", ".", CFGF_NONE),
@@ -320,7 +319,7 @@ int main(int argc, const char* argv[]) {
 
     // Create a process for timing simulator and store its pid.
     harness_pids[harness_num_processes - 1] =
-        fork_timing_simulator(command_stream.str(), debug_timing);
+        fork_timing_simulator(command_stream.str(), timing_filename, debug_timing);
 
     // Fork all the benchmark child processes.
     int nthprocess = 0;
