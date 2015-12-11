@@ -95,8 +95,12 @@ int init(int argc, char** argv) {
     /* redirect I/O? */
     if (sim_simout != NULL) {
         fflush(stderr);
-        if (!freopen(sim_simout, "w", stderr))
+        if (!freopen(sim_simout, "w", stderr)) {
+            /* Print error message to stdout too, stderr might be messed up. */
+            fprintf(stdout, "unable to redirect simulator output to file `%s'\n", sim_simout);
+            fflush(stdout);
             fatal("unable to redirect simulator output to file `%s'", sim_simout);
+        }
     }
 
     /* seed the random number generator */
