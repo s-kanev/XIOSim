@@ -82,11 +82,13 @@ void* SimulatorLoop(void* arg) {
             }
 
             if (handshake->flags.giveCoreUp) {
+                bool should_reschedule = handshake->flags.giveUpReschedule;
+
                 // invalidate the handshake
                 xiosim::buffer_management::Pop(instrument_tid);
 
                 // Let the scheduler send something else to this core
-                GiveUpCore(coreID, handshake->flags.giveUpReschedule);
+                GiveUpCore(coreID, should_reschedule);
                 break;
             }
 
