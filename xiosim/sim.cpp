@@ -265,9 +265,9 @@ void sim_reg_stats(xiosim::stats::StatsDatabase* sdb) {
     stat_reg_note(sdb, "\n#### SIMULATOR PERFORMANCE STATS ####");
 
     Formula all_insn("all_insn", "total insts simulated for all cores", "%12.0f");
-    Formula sim_inst_rate("sim_inst_rate", "simulation speed (in MIPS)", "%12.0f");
+    Formula sim_inst_rate("sim_inst_rate", "simulation speed (in MIPS)");
     Formula all_uops("all_uops", "total uops simulated for all cores", "%12.0f");
-    Formula sim_uop_rate("sim_uop_rate", "simulation speed (in MuPS)", "%12.0f");
+    Formula sim_uop_rate("sim_uop_rate", "simulation speed (in MuPS)");
 
     /* Incrementally build each formula.  We can't yet define a formula in terms
      * of another, so each one needs to be constructed separately.
@@ -293,7 +293,7 @@ void sim_reg_stats(xiosim::stats::StatsDatabase* sdb) {
     if (is_DPM) {
         Formula all_eff_uops("all_eff_uops", "total effective uops simulated for all cores",
                              "%12.0f");
-        Formula sim_eff_uop_rate("sim_eff_uop_rate", "simulation speed (in MeuPS)", "%12.0f");
+        Formula sim_eff_uop_rate("sim_eff_uop_rate", "simulation speed (in MeuPS)");
         for (i = 0; i < num_cores; i++) {
             auto commit_eff_uops_st = stat_find_core_stat<counter_t>(sdb, i, "commit_eff_uops");
             assert(commit_eff_uops_st);
