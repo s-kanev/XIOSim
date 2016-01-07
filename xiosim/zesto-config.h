@@ -85,7 +85,7 @@ extern cfg_opt_t top_level_cfg[];
  * Zesto configuration file path to be in the flag "-config". Options are
  * stored in the knobs struct.
  */
-int read_config_file(int argc, const char* argv[], core_knobs_t* knobs);
+void read_config_file(int argc, const char* argv[], core_knobs_t* knobs);
 
 /* Primary pipeline configuration function declarations. */
 void store_system_options(cfg_t *system_opt, core_knobs_t *knobs);

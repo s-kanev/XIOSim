@@ -294,7 +294,7 @@ void store_system_options(cfg_t *system_opt, core_knobs_t *knobs) {
 
 // TODO(skanev): No need for reconstructing argc, argv. Move to "one set of
 // flags to rule them all" in timing_sim
-int read_config_file(int argc, const char* argv[], core_knobs_t *knobs) {
+void read_config_file(int argc, const char* argv[], core_knobs_t *knobs) {
   ez::ezOptionParser opts;
   opts.overview = "XIOSim Zesto options";
   opts.syntax = "XXX";
@@ -308,12 +308,9 @@ int read_config_file(int argc, const char* argv[], core_knobs_t *knobs) {
   int ret = cfg_parse(all_opts, cfg_file.c_str());
   if (ret == CFG_FILE_ERROR) {
     std::stringstream err;
-    err << "Failed to open configuration file " << cfg_file;
-    perror(err.str().c_str());
-    return 1;
+    fatal("Failed to open configuration file %s", cfg_file.c_str());
   } else if (ret == CFG_PARSE_ERROR) {
-    fprintf(stderr, "Parsing error.\n");
-    return 2;
+    fatal("Config file parsing error.");
   }
 
   cfg_t *system_opt = cfg_getsec(all_opts, "system_cfg");
@@ -323,5 +320,4 @@ int read_config_file(int argc, const char* argv[], core_knobs_t *knobs) {
   store_system_options(system_opt, knobs);
   store_core_options(core_opt, knobs);
   store_uncore_options(uncore_opt, knobs);
-  return 0;
 }
