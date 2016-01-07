@@ -458,6 +458,20 @@ static bool check_cmps(const struct Mop_t* Mop) {
     return false;
 }
 
+static bool check_rdtsc(const struct Mop_t* Mop) {
+    auto iclass = xed_decoded_inst_get_iclass(&Mop->decode.inst);
+    switch (iclass) {
+    case XED_ICLASS_RDTSC:
+    case XED_ICLASS_RDTSCP:
+        return true;
+    default:
+        return false;
+    }
+
+    return false;
+}
+
+
 /* Check special-casing Mop->uop tables. Returns
  * true and modifies Mop if it has found a cracking.
  */
@@ -704,6 +718,23 @@ static bool check_tables(struct Mop_t* Mop) {
            So, just don't specify the output regs. The trap will drain the
            pipeline anyway.
          */
+        return true;
+    }
+
+    /* RDTSC and RDTSCP write to 2 and 3 output registers. */
+    if (check_rdtsc(Mop)) {
+        auto regs_written = get_registers_written(Mop);
+        size_t n_regs = regs_written.size();
+
+        Mop->decode.flow_length = n_regs;
+        Mop->allocate_uops();
+
+        size_t i = 0;
+        for (auto reg : regs_written) {
+            Mop->uop[i].decode.FU_class = FU_IEU;
+            Mop->uop[i].decode.odep_name[0] = reg;
+            i++;
+        }
         return true;
     }
 
