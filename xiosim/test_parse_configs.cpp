@@ -117,4 +117,6 @@ TEST_CASE("Test configuration parsing", "config") {
             REQUIRE(strcmp(LLC_PF_opt_str[0], "none") == 0);
         }
     }
+
+    cfg_free(all_opts);
 }

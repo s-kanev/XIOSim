@@ -49,7 +49,8 @@ cfg_opt_t iprefetch_cfg[] {
 
 cfg_opt_t itlb_cfg[] {
   CFG_STR("config", "ITLB:32:4:1:3:L:1", CFGF_NONE),
-  CFG_STR("coherency_controller", "none", CFGF_NONE)
+  CFG_STR("coherency_controller", "none", CFGF_NONE),
+  CFG_END()
 };
 
 cfg_opt_t icache_cfg[] {
@@ -83,12 +84,14 @@ cfg_opt_t dprefetch_cfg[] {
 
 cfg_opt_t dtlb_cfg[] {
   CFG_STR("config", "DTLB:4:4:1:2:L:4", CFGF_NONE),
-  CFG_STR("coherency_controller", "none", CFGF_NONE)
+  CFG_STR("coherency_controller", "none", CFGF_NONE),
+  CFG_END()
 };
 
 cfg_opt_t d2tlb_cfg[] {
   CFG_STR("config", "none", CFGF_NONE),
-  CFG_STR("coherency_controller", "none", CFGF_NONE)
+  CFG_STR("coherency_controller", "none", CFGF_NONE),
+  CFG_END()
 };
 
 cfg_opt_t dcache_cfg[] {
