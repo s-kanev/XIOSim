@@ -52,7 +52,6 @@
 #include "mat.h"
 #include "crossbar.h"
 #include "arbiter.h"
-#include "ROUTER.def"
 
 #define FLIP_FLOP_L 0 //W leakage
 #define FLIP_FLOP_D 0 //J dynamic
