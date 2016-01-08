@@ -155,7 +155,7 @@ void decode_flags(struct Mop_t * Mop) {
 }
 
 std::string print_Mop(const struct Mop_t * Mop) {
-    char buffer[255];
+    char buffer[511];
 
     xed_decoded_inst_dump(&Mop->decode.inst, buffer, sizeof(buffer));
     bool ok = xed_format_context(XED_SYNTAX_INTEL, &Mop->decode.inst, buffer, sizeof(buffer), 0, 0, 0);
