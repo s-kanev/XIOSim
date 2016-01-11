@@ -67,6 +67,8 @@ KNOB<pid_t> KnobHarnessPid(
 KNOB<BOOL> KnobTimingVirtualization(
     KNOB_MODE_WRITEONCE, "pintool", "timing_virtualization", "true",
     "Return simulated time instead of host time for timing calls like gettimeofday().");
+KNOB<BOOL> KnobBufferSkipSpaceCheck(KNOB_MODE_WRITEONCE, "pintool", "buffer_skip_space_check",
+                                    "false", "Never check for free space in BufferProducer");
 
 map<ADDRINT, string> pc_diss;
 
@@ -1027,7 +1029,8 @@ INT32 main(INT32 argc, CHAR** argv) {
     // Synchronize all processes here to ensure that in multiprogramming mode,
     // no process will start too far before the others.
     asid = InitSharedState(true, KnobHarnessPid.Value(), KnobNumCores.Value());
-    xiosim::buffer_management::InitBufferManagerProducer(KnobHarnessPid.Value());
+    xiosim::buffer_management::InitBufferManagerProducer(KnobHarnessPid.Value(),
+                                                         KnobBufferSkipSpaceCheck.Value());
 
     if (KnobAMDHack.Value()) {
         amd_hack();

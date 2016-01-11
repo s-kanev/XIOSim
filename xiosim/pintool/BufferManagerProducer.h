@@ -28,7 +28,7 @@ void FlushBuffers(pid_t tid);
 bool ProducerEmpty(pid_t tid);
 
 /* Init producerBuffer_ structures. */
-void InitBufferManagerProducer(pid_t harness_pid);
+void InitBufferManagerProducer(pid_t harness_pid, bool skip_space_check);
 /* Cleanup. */
 void DeinitBufferManagerProducer(void);
 /* Allocate produceBuffer_ for a new program thread. */

@@ -13,10 +13,12 @@
 namespace xiosim {
 namespace buffer_management {
 
+static bool alwaysSkipSpaceCheck;
+
 static void copyProducerToFile(pid_t tid, bool checkSpace);
 static void writeHandshake(pid_t tid, int fd, std::string fname, handshake_container_t* handshake);
 static int getKBFreeSpace(std::string path);
-static std::string genFileName(std::string path);
+static std::pair<std::string, int> getTempFile(std::string path, pid_t tid);
 
 static std::unordered_map<pid_t, Buffer<handshake_container_t>*> produceBuffer_;
 static std::unordered_map<pid_t, int> writeBufferSize_;
@@ -28,7 +30,7 @@ static std::string gpid_;
  * we can just access them lock-free. */
 static XIOSIM_LOCK init_lock_;
 
-void InitBufferManagerProducer(pid_t harness_pid) {
+void InitBufferManagerProducer(pid_t harness_pid, bool skip_space_check) {
     InitBufferManager(harness_pid);
 
     produceBuffer_.reserve(MAX_CORES);
@@ -44,6 +46,8 @@ void InitBufferManagerProducer(pid_t harness_pid) {
     gpid_ = iss.str().c_str();
     assert(gpid_.length() > 0);
     std::cerr << " Creating temp files with prefix " << gpid_ << "_*" << std::endl;
+
+    alwaysSkipSpaceCheck = skip_space_check;
 }
 
 void DeinitBufferManagerProducer() { DeinitBufferManager(); }
@@ -107,7 +111,7 @@ bool ProducerEmpty(pid_t tid) { return produceBuffer_[tid]->empty(); }
 
 static void copyProducerToFile(pid_t tid, bool checkSpace) {
     int result;
-    bool madeFile = false;
+    bool found_space = false;
     size_t to_write = produceBuffer_[tid]->size();
     size_t written = 0;
     int bridge_dir_ind = 0;
@@ -118,17 +122,17 @@ static void copyProducerToFile(pid_t tid, bool checkSpace) {
     /* If we're running out of space (and we care), cycle through
      * bridgeDirs_ until we find one with enough space. If we don't
      * care, we'll just default to the first one. */
-    if (checkSpace) {
+    if (!alwaysSkipSpaceCheck && checkSpace) {
         for (int i = 0; i < (int)bridgeDirs_.size(); i++) {
             int space = getKBFreeSpace(bridgeDirs_[i]);
             if (space > 1000000) {  // 1.0 GB
                 bridge_dir_ind = i;
-                madeFile = true;
+                found_space = true;
                 break;
             }
-            // std::cerr << "Out of space on " + bridgeDirs_[i] + " !!!" << std::endl;
+            std::cerr << "Out of space on " + bridgeDirs_[i] + " !!!" << std::endl;
         }
-        if (madeFile == false) {
+        if (found_space == false) {
             std::cerr << "Nowhere left for the poor file bridge :(" << std::endl;
             std::cerr << "BridgeDirs:" << std::endl;
             for (int i = 0; i < (int)bridgeDirs_.size(); i++) {
@@ -147,12 +151,12 @@ static void copyProducerToFile(pid_t tid, bool checkSpace) {
      * doesn't become an issue again with compressed handshakes and 100s of GBs
      * of /dev/shm space. */
 
-    auto filename = genFileName(bridgeDirs_[bridge_dir_ind]);
-
-    int fd = open(filename.c_str(), O_WRONLY | O_CREAT, 0777);
+    std::string filename;
+    int fd;
+    std::tie(filename, fd) = getTempFile(bridgeDirs_[bridge_dir_ind], tid);
     if (fd == -1) {
-        std::cerr << "Opened to write: " << filename;
-        std::cerr << "Pipe open error: " << fd << " Errcode:" << strerror(errno) << std::endl;
+        std::cerr << "Failed to open: " << filename << std::endl;
+        std::cerr << "Errcode:" << strerror(errno) << std::endl;
         abort();
     }
 
@@ -165,7 +169,7 @@ static void copyProducerToFile(pid_t tid, bool checkSpace) {
     result = close(fd);
     if (result != 0) {
         std::cerr << "Close error: "
-             << " Errcode:" << strerror(errno) << std::endl;
+                  << " Errcode:" << strerror(errno) << std::endl;
         abort();
     }
 
@@ -204,7 +208,8 @@ static void writeHandshake(pid_t tid, int fd, std::string fname, handshake_conta
 
     ssize_t bytesWritten = do_write(fd, writeBuffer, totalBytes);
     if (bytesWritten == -1) {
-        std::cerr << "Pipe write error: " << bytesWritten << " Errcode:" << strerror(errno) << std::endl;
+        std::cerr << "Pipe write error: " << bytesWritten << " Errcode:" << strerror(errno)
+                  << std::endl;
 
         std::cerr << "Opened to write: " << fname << std::endl;
         std::cerr << "Thread Id:" << tid << std::endl;
@@ -219,7 +224,8 @@ static void writeHandshake(pid_t tid, int fd, std::string fname, handshake_conta
         abort();
     }
     if (bytesWritten != (ssize_t)totalBytes) {
-        std::cerr << "File write error: " << bytesWritten << " expected:" << totalBytes << std::endl;
+        std::cerr << "File write error: " << bytesWritten << " expected:" << totalBytes
+                  << std::endl;
         std::cerr << fname << std::endl;
         abort();
     }
@@ -231,15 +237,16 @@ static int getKBFreeSpace(std::string path) {
     return ((unsigned long long)fsinfo.f_bsize * (unsigned long long)fsinfo.f_bavail / 1024);
 }
 
-static std::string genFileName(std::string path) {
-    char* temp = tempnam(path.c_str(), gpid_.c_str());
-    std::string res = std::string(temp);
-    assert(res.find(path) != std::string::npos);
-    res.insert(path.length() + gpid_.length(), "_");
-    res = res + ".xiosim";
-
-    free(temp);
-    return res;
+static std::pair<std::string, int> getTempFile(std::string path, pid_t tid) {
+    std::stringstream tid_;
+    tid_ << tid;
+    std::string suffix = ".xiosim";
+    std::string fname = path + gpid_ + "_" + tid_.str() + "_XXXXXX" + suffix;
+    char* c_fname = strdup(fname.c_str());
+    int fd = mkstemps(c_fname, suffix.length());
+    std::string filename(c_fname);
+    free(c_fname);
+    return std::make_pair(filename, fd);
 }
 }
 }
