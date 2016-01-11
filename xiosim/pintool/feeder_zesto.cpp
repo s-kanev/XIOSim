@@ -69,6 +69,8 @@ KNOB<BOOL> KnobTimingVirtualization(
     "Return simulated time instead of host time for timing calls like gettimeofday().");
 KNOB<BOOL> KnobBufferSkipSpaceCheck(KNOB_MODE_WRITEONCE, "pintool", "buffer_skip_space_check",
                                     "false", "Never check for free space in BufferProducer");
+KNOB<BOOL> KnobDisableControlROI(KNOB_MODE_WRITEONCE, "pintool", "disable_control_roi", "false",
+                                 "Don't use InstLib control hooks");
 
 map<ADDRINT, string> pc_diss;
 
@@ -1040,7 +1042,7 @@ INT32 main(INT32 argc, CHAR** argv) {
         MOLECOOL_Init();
     }
 
-    if (!KnobILDJIT.Value() && !KnobROI.Value()) {
+    if (!KnobDisableControlROI.Value() && !KnobILDJIT.Value() && !KnobROI.Value()) {
         // Try activate pinpoints alarm, must be done before PIN_StartProgram
         if (control.CheckKnobs(PPointHandler, 0) != 1) {
             cerr << "Error reading control parametrs, exiting." << endl;
