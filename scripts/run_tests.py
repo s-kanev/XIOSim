@@ -4,6 +4,7 @@ import copy
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -31,10 +32,13 @@ class XIOSimTest(unittest.TestCase):
         self.expected_vals = []
         self.expected_exprs = []
         self.bmk_expected_vals = []
+        self.background_bmk = None
 
     def tearDown(self):
         if self.clean_run_dir:
             shutil.rmtree(self.xio.GetRunDir())
+        if self.background_bmk:
+            self.background_bmk.kill()
 
 
     def runAndValidate(self):
@@ -64,8 +68,18 @@ class XIOSimTest(unittest.TestCase):
                                    (re, test_fn.__name__, test_val, val))
 
     def writeTestBmkConfig(self, bmk, num_copies=1):
-        ''' Create a temp benchmark config file in the test run directory.'''
+        ''' Create a temp benchmark config file in the test run directory. '''
         cfg_file = self.xio.GenerateTestBmkConfig(bmk, num_copies)
+        bmk_cfg = os.path.join(self.run_dir, "%s.cfg" % bmk)
+        with open(bmk_cfg, "w") as f:
+            for l in cfg_file:
+                f.write(l)
+        return bmk_cfg
+
+    def writeTestAttachBmkConfig(self, bmk, pid):
+        ''' Create a temp benchmark config file for attaching in the test
+        run directory. '''
+        cfg_file = self.xio.GenerateTestAttachBmkConfig(bmk, pid)
         bmk_cfg = os.path.join(self.run_dir, "%s.cfg" % bmk)
         with open(bmk_cfg, "w") as f:
             for l in cfg_file:
@@ -82,6 +96,14 @@ class XIOSimTest(unittest.TestCase):
             for l in cfg_contents:
                 f.write(l)
         return cfg_file
+
+    def startBackgroundBenchmark(self, bmk):
+        ''' Start a benchmark run in the background that we can attach to
+        later. '''
+        bmk_bin = self.xio.GetTestBin(bmk)
+        child = subprocess.Popen(bmk_bin, cwd=self.run_dir)
+        self.background_bmk = child
+        return child.pid
 
 
 class Fib1Test(XIOSimTest):
@@ -477,6 +499,29 @@ class TimeTest(XIOSimTest):
         self.bmk_expected_vals.append((elapsed_re, 0.000625))
 
     def runTest(self):
+        self.runAndValidate()
+
+#TODO(skanev): Re-enable after fixing XIOSIM-32
+@unittest.skip("Flaky under load. Fix first.")
+class AttachTest(XIOSimTest):
+    ''' End-to-end test for attaching to a running process. '''
+    def setDriverParams(self):
+        # will get created later, when we have a pid
+        bmk_cfg = os.path.join(self.run_dir, "loop.cfg")
+        self.xio.AddBmks(bmk_cfg)
+        self.xio.AddPinOptions()
+        self.xio.AddPintoolOptions(num_cores=1)
+        self.xio.AddInstLength(10000)
+        self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
+                                              "xiosim/config", "none.cfg"))
+
+    def setUp(self):
+        super(AttachTest, self).setUp()
+        self.expected_vals.append((xs.PerfStatRE("all_insn"), 10000.0))
+
+    def runTest(self):
+        pid = self.startBackgroundBenchmark("loop")
+        self.writeTestAttachBmkConfig("loop", pid)
         self.runAndValidate()
 
 if __name__ == "__main__":

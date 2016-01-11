@@ -10,7 +10,6 @@ class XIOSimDriver(object):
         self.INSTALL_DIR = INSTALL_DIR
         self.PIN_DIR = os.path.join(INSTALL_DIR, "external/pin")
         self.PIN = os.path.join(self.PIN_DIR, "pinbin")
-        env = "PIN_VM_LD_LIBRARY_PATH=%s;%s" % (self.PIN_DIR, env)
         self.TREE_DIR = TREE_DIR
         self.TARGET_ARCH = TARGET_ARCH
         self.test = ""
@@ -126,12 +125,15 @@ class XIOSimDriver(object):
     def GetTreeDir(self):
         return self.TREE_DIR
 
+    def GetTestBin(self, test):
+        return os.path.join(self.TREE_DIR, "tests", self.TARGET_ARCH, test)
+
     def GenerateTestBmkConfig(self, test, num_copies):
         self.test = test
 
         res = []
         res.append("program {\n")
-        res.append("  exe = \"%s\"\n" % os.path.join(self.TREE_DIR, "tests", self.TARGET_ARCH, self.test))
+        res.append("  exe = \"%s\"\n" % self.GetTestBin(test))
         append_pid = ""
         if num_copies > 1:
             append_pid = ".$$"
