@@ -134,8 +134,15 @@ list<THREADID> GetAffineThreads() {
     /* Order threads by affinity. */
     lk_lock(&thread_list_lock, 1);
     list<THREADID> affine_threads = thread_list;
-    affine_threads.sort(
-        [](THREADID a, THREADID b) { return virtual_affinity[a] < virtual_affinity[b]; });
+    affine_threads.sort([](THREADID a, THREADID b) {
+        int vaa = virtual_affinity[a];
+        int vab = virtual_affinity[b];
+        if (vaa == INVALID_CORE && vab != INVALID_CORE)
+            return false;
+        if (vaa != INVALID_CORE && vab == INVALID_CORE)
+            return true;
+        return vaa < vab;
+    });
     lk_unlock(&thread_list_lock);
     return affine_threads;
 }
