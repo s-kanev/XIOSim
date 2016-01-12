@@ -17,61 +17,17 @@
 KNOB<BOOL> KnobPthreads(
     KNOB_MODE_WRITEONCE, "pintool", "pthreads", "false", "Special-case pthreads synchronization");
 
+
 VOID PTHREAD_beforeJoin(THREADID tid) {
-    if (ExecMode != EXECUTION_MODE_SIMULATE)
-        return;
-
-    thread_state_t* tstate = get_tls(tid);
-    lk_lock(&tstate->lock, tid + 1);
-    tstate->ignore = true;
-    lk_unlock(&tstate->lock);
-
-    handshake_container_t* handshake = xiosim::buffer_management::GetBuffer(tstate->tid);
-    handshake->flags.valid = true;
-    handshake->flags.real = false;
-    handshake->flags.giveCoreUp = true;
-    handshake->flags.giveUpReschedule = true;
-    xiosim::buffer_management::ProducerDone(tstate->tid);
-
-    xiosim::buffer_management::FlushBuffers(tstate->tid);
+    AddGiveUpHandshake(tid, true, true);
 }
 
 VOID PTHREAD_beforeMutexLock(THREADID tid) {
-    if (ExecMode != EXECUTION_MODE_SIMULATE)
-        return;
-
-    thread_state_t* tstate = get_tls(tid);
-    lk_lock(&tstate->lock, tid + 1);
-    tstate->ignore = true;
-    lk_unlock(&tstate->lock);
-
-    handshake_container_t* handshake = xiosim::buffer_management::GetBuffer(tstate->tid);
-    handshake->flags.valid = true;
-    handshake->flags.real = false;
-    handshake->flags.giveCoreUp = true;
-    handshake->flags.giveUpReschedule = true;
-    xiosim::buffer_management::ProducerDone(tstate->tid);
-
-    xiosim::buffer_management::FlushBuffers(tstate->tid);
+    AddGiveUpHandshake(tid, true, true);
 }
 
 VOID PTHREAD_beforeCondWait(THREADID tid) {
-    if (ExecMode != EXECUTION_MODE_SIMULATE)
-        return;
-
-    thread_state_t* tstate = get_tls(tid);
-    lk_lock(&tstate->lock, tid + 1);
-    tstate->ignore = true;
-    lk_unlock(&tstate->lock);
-
-    handshake_container_t* handshake = xiosim::buffer_management::GetBuffer(tstate->tid);
-    handshake->flags.valid = true;
-    handshake->flags.real = false;
-    handshake->flags.giveCoreUp = true;
-    handshake->flags.giveUpReschedule = true;
-    xiosim::buffer_management::ProducerDone(tstate->tid);
-
-    xiosim::buffer_management::FlushBuffers(tstate->tid);
+    AddGiveUpHandshake(tid, true, true);
 }
 
 VOID PTHREAD_stopIgnore(THREADID tid) {

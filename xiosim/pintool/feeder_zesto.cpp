@@ -187,27 +187,49 @@ VOID EndSimSlice(int slice_num, int slice_length, int slice_weight_times_1000) {
     CODECACHE_FlushCache();
 }
 
-/* ================================= */
+/* ========================================================================== */
 VOID SyncWithTimingSim(THREADID tid) {
     thread_state_t* tstate = get_tls(tid);
 
-    /* When the handshake is consumed, this will let the scheduler de-schedule
-     * the thread. */
-    auto release_hshake = xiosim::buffer_management::GetBuffer(tstate->tid);
-    release_hshake->flags.giveCoreUp = true;
-    release_hshake->flags.giveUpReschedule = false;
-    release_hshake->flags.valid = true;
-    release_hshake->flags.real = false;
-    xiosim::buffer_management::ProducerDone(tstate->tid, true);
-    xiosim::buffer_management::FlushBuffers(tstate->tid);
+    /* Tell scheduler to de-schedule thread. */
+    AddGiveUpHandshake(tid, false, false);
 
+    /* And wait until it gets de-scheduled. */
     while (IsSHMThreadSimulatingMaybe(tstate->tid))
         PIN_Sleep(10);
 
     /* Feeder and timing sim are now in sync for this thread. */
 }
 
-VOID RescheduleThread(THREADID tid) {
+/* ========================================================================== */
+void AddGiveUpHandshake(THREADID tid, bool start_ignoring, bool reschedule) {
+    if (ExecMode != EXECUTION_MODE_SIMULATE)
+        return;
+
+    thread_state_t* tstate = get_tls(tid);
+    if (start_ignoring) {
+        lk_lock(&tstate->lock, tid + 1);
+        tstate->ignore = true;
+        lk_unlock(&tstate->lock);
+    }
+
+    /* When the handshake is consumed, this will let the scheduler de-schedule
+     * the thread. */
+    handshake_container_t* handshake = xiosim::buffer_management::GetBuffer(tstate->tid);
+    handshake->flags.valid = true;
+    handshake->flags.real = false;
+    handshake->flags.giveCoreUp = true;
+    handshake->flags.giveUpReschedule = reschedule;
+    xiosim::buffer_management::ProducerDone(tstate->tid);
+
+    xiosim::buffer_management::FlushBuffers(tstate->tid);
+}
+
+/* ========================================================================== */
+VOID ScheduleThread(THREADID tid) {
+    if (ExecMode != EXECUTION_MODE_SIMULATE)
+        return;
+
     thread_state_t* tstate = get_tls(tid);
     ipc_message_t msg;
     msg.ScheduleNewThread(tstate->tid);
@@ -779,11 +801,7 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT* ictxt, INT32 flags, VOID* v) {
         thread_bos->operator[](tstate->tid) = bos;
         lk_unlock(lk_thread_bos);
 
-        if (ExecMode == EXECUTION_MODE_SIMULATE) {
-            ipc_message_t msg;
-            msg.ScheduleNewThread(tstate->tid);
-            SendIPCMessage(msg);
-        }
+        ScheduleThread(threadIndex);
 
         if (!KnobILDJIT.Value() && ExecMode == EXECUTION_MODE_SIMULATE) {
             lk_lock(&tstate->lock, threadIndex + 1);
@@ -878,16 +896,8 @@ VOID PauseSimulation() {
             memcpy(trap_hshake->ins, syscall_template, sizeof(syscall_template));
             xiosim::buffer_management::ProducerDone(curr_tid, true);
 
-            /* When the handshake is consumed, this will let the scheduler
-             * de-schedule the thread */
-            auto release_hshake = xiosim::buffer_management::GetBuffer(curr_tid);
-            release_hshake->flags.giveCoreUp = true;
-            release_hshake->flags.giveUpReschedule = false;
-            release_hshake->flags.valid = true;
-            release_hshake->flags.real = false;
-            xiosim::buffer_management::ProducerDone(curr_tid, true);
-
-            xiosim::buffer_management::FlushBuffers(curr_tid);
+            /* When the handshake is consumed, this will let the scheduler de-schedule the thread */
+            AddGiveUpHandshake(tid, false, false);
         }
     }
 

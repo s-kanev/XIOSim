@@ -1,3 +1,4 @@
+#include <linux/futex.h>
 #include <map>
 #include <syscall.h>
 #include <sys/mman.h>
@@ -66,10 +67,15 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VO
 
     tstate->last_syscall_number = syscall_num;
 
+#ifdef SYSCALL_DEBUG
+    stringstream log;
+    log << tstate->tid << ": ";
+#endif
+
     switch (syscall_num) {
     case __NR_brk:
 #ifdef SYSCALL_DEBUG
-        cerr << "Syscall brk(" << dec << syscall_num << ") addr: 0x" << hex << arg1 << dec << endl;
+        log << "Syscall brk(" << dec << syscall_num << ") addr: 0x" << hex << arg1 << dec << endl;
 #endif
         tstate->last_syscall_arg1 = arg1;
         break;
@@ -77,7 +83,7 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VO
     case __NR_munmap:
         arg2 = PIN_GetSyscallArgument(ictxt, std, 1);
 #ifdef SYSCALL_DEBUG
-        cerr << "Syscall munmap(" << dec << syscall_num << ") addr: 0x" << hex << arg1
+        log << "Syscall munmap(" << dec << syscall_num << ") addr: 0x" << hex << arg1
              << " length: " << arg2 << dec << endl;
 #endif
         tstate->last_syscall_arg1 = arg1;
@@ -93,7 +99,7 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VO
 #endif
         tstate->last_syscall_arg1 = mmap_arg.len;
 #ifdef SYSCALL_DEBUG
-        cerr << "Syscall oldmmap(" << dec << syscall_num << ") addr: 0x" << hex << mmap_arg.addr
+        log << "Syscall oldmmap(" << dec << syscall_num << ") addr: 0x" << hex << mmap_arg.addr
              << " length: " << mmap_arg.len << dec << endl;
 #endif
         break;
@@ -102,7 +108,7 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VO
     case __NR_mmap2: // ia32-only
         arg2 = PIN_GetSyscallArgument(ictxt, std, 1);
 #ifdef SYSCALL_DEBUG
-        cerr << "Syscall mmap2(" << dec << syscall_num << ") addr: 0x" << hex << arg1
+        log << "Syscall mmap2(" << dec << syscall_num << ") addr: 0x" << hex << arg1
              << " length: " << arg2 << dec << endl;
 #endif
         tstate->last_syscall_arg1 = arg2;
@@ -113,7 +119,7 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VO
         arg2 = PIN_GetSyscallArgument(ictxt, std, 1);
         arg3 = PIN_GetSyscallArgument(ictxt, std, 2);
 #ifdef SYSCALL_DEBUG
-        cerr << "Syscall mremap(" << dec << syscall_num << ") old_addr: 0x" << hex << arg1
+        log << "Syscall mremap(" << dec << syscall_num << ") old_addr: 0x" << hex << arg1
              << " old_length: " << arg2 << " new_length: " << arg3 << dec << endl;
 #endif
         tstate->last_syscall_arg1 = arg1;
@@ -123,7 +129,7 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VO
 
     case __NR_gettimeofday:
 #ifdef SYSCALL_DEBUG
-        cerr << "Syscall gettimeofday(" << dec << syscall_num << ")" << endl;
+        log << "Syscall gettimeofday(" << dec << syscall_num << ")" << endl;
 #endif
         tstate->last_syscall_arg1 = arg1;
         break;
@@ -132,7 +138,7 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VO
         arg2 = PIN_GetSyscallArgument(ictxt, std, 1);
         arg3 = PIN_GetSyscallArgument(ictxt, std, 2);
 #ifdef SYSCALL_DEBUG
-        cerr << "Syscall mprotect(" << dec << syscall_num << ") addr: " << hex << arg1 << dec
+        log << "Syscall mprotect(" << dec << syscall_num << ") addr: " << hex << arg1 << dec
              << " length: " << arg2 << " prot: " << hex << arg3 << dec << endl;
 #endif
         tstate->last_syscall_arg1 = arg1;
@@ -140,22 +146,74 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VO
         tstate->last_syscall_arg3 = arg3;
         break;
 
+    case __NR_futex:
+        {
+        arg2 = PIN_GetSyscallArgument(ictxt, std, 1);
+        tstate->last_syscall_arg2 = arg2;
+#ifdef SYSCALL_DEBUG
+        log << "Syscall futex(*, " << arg2 << ")" << endl;
+#endif
+        int futex_op = FUTEX_CMD_MASK & arg2;
+        if (futex_op == FUTEX_WAIT || futex_op == FUTEX_WAIT_BITSET) {
+            AddGiveUpHandshake(threadIndex, false, true);
+        }
+        }
+        break;
+
+    case __NR_epoll_wait:
+    case __NR_epoll_pwait:
+#ifdef SYSCALL_DEBUG
+        log << "Syscall epoll_wait(*)" << endl;
+#endif
+        AddGiveUpHandshake(threadIndex, false, true);
+        break;
+
+    case __NR_poll:
+    case __NR_ppoll:
+#ifdef SYSCALL_DEBUG
+        log << "Syscall poll(*)" << endl;
+#endif
+        AddGiveUpHandshake(threadIndex, false, true);
+        break;
+
+    case __NR_select:
+    case __NR_pselect6:
+#ifdef SYSCALL_DEBUG
+        log << "Syscall select(*)" << endl;
+#endif
+        AddGiveUpHandshake(threadIndex, false, true);
+        break;
+
+    case __NR_nanosleep:
+#ifdef SYSCALL_DEBUG
+        log << "Syscall nanosleep(*)" << endl;
+#endif
+        AddGiveUpHandshake(threadIndex, false, true);
+        break;
+
+    case __NR_pause:
+#ifdef SYSCALL_DEBUG
+        log << "Syscall pause(*)" << endl;
+#endif
+        AddGiveUpHandshake(threadIndex, false, true);
+        break;
+
 #ifdef SYSCALL_DEBUG
     case __NR_open:
-        cerr << "Syscall open (" << dec << syscall_num << ") path: " << (char*)arg1 << endl;
+        log << "Syscall open (" << dec << syscall_num << ") path: " << (char*)arg1 << endl;
         break;
 #endif
 
 #ifdef SYSCALL_DEBUG
     case __NR_exit:
-        cerr << "Syscall exit (" << dec << syscall_num << ") code: " << arg1 << endl;
+        log << "Syscall exit (" << dec << syscall_num << ") code: " << arg1 << endl;
         break;
 #endif
 
     /*
         case __NR_sysconf:
     #ifdef SYSCALL_DEBUG
-            cerr << "Syscall sysconf (" << dec << syscall_num << ") arg: " << arg1
+            log << "Syscall sysconf (" << dec << syscall_num << ") arg: " << arg1
     << endl;
     #endif
             tstate->last_syscall_arg1 = arg1;
@@ -163,10 +221,14 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VO
     */
     default:
 #ifdef SYSCALL_DEBUG
-        cerr << "Syscall " << dec << syscall_num << endl;
+        log << "Syscall " << dec << syscall_num << endl;
 #endif
         break;
     }
+
+#ifdef SYSCALL_DEBUG
+    cerr << log.str();
+#endif
     lk_unlock(&syscall_lock);
 }
 
@@ -178,13 +240,18 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VOI
 
     thread_state_t* tstate = get_tls(threadIndex);
 
+#ifdef SYSCALL_DEBUG
+    stringstream log;
+    log << tstate->tid << ": ";
+#endif
+
     // for gettimeofday.
     struct timeval* tv;
 
     switch (tstate->last_syscall_number) {
     case __NR_brk:
 #ifdef SYSCALL_DEBUG
-        cerr << "Ret syscall brk(" << dec << tstate->last_syscall_number << ") addr: 0x" << hex
+        log << "Ret syscall brk(" << dec << tstate->last_syscall_number << ") addr: 0x" << hex
              << retval << dec << endl;
 #endif
         if (tstate->last_syscall_arg1 != 0)
@@ -199,7 +266,7 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VOI
 
     case __NR_munmap:
 #ifdef SYSCALL_DEBUG
-        cerr << "Ret syscall munmap(" << dec << tstate->last_syscall_number << ") addr: 0x" << hex
+        log << "Ret syscall munmap(" << dec << tstate->last_syscall_number << ") addr: 0x" << hex
              << tstate->last_syscall_arg1 << " length: " << tstate->last_syscall_arg2 << dec
              << endl;
 #endif
@@ -211,7 +278,7 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VOI
 
     case __NR_mmap:  // oldmap
 #ifdef SYSCALL_DEBUG
-        cerr << "Ret syscall oldmmap(" << dec << tstate->last_syscall_number << ") addr: 0x" << hex
+        log << "Ret syscall oldmmap(" << dec << tstate->last_syscall_number << ") addr: 0x" << hex
              << retval << " length: " << tstate->last_syscall_arg1 << dec << endl;
 #endif
         if (retval != (ADDRINT)-1) {
@@ -223,7 +290,7 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VOI
 #ifndef _LP64
     case __NR_mmap2: // ia32-only
 #ifdef SYSCALL_DEBUG
-        cerr << "Ret syscall mmap2(" << dec << tstate->last_syscall_number << ") addr: 0x" << hex
+        log << "Ret syscall mmap2(" << dec << tstate->last_syscall_number << ") addr: 0x" << hex
              << retval << " length: " << tstate->last_syscall_arg1 << dec << endl;
 #endif
         if (retval != (ADDRINT)-1) {
@@ -235,7 +302,7 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VOI
 
     case __NR_mremap:
 #ifdef SYSCALL_DEBUG
-        cerr << "Ret syscall mremap(" << dec << tstate->last_syscall_number << ") " << hex
+        log << "Ret syscall mremap(" << dec << tstate->last_syscall_number << ") " << hex
              << " old_addr: 0x" << tstate->last_syscall_arg1
              << " old_length: " << tstate->last_syscall_arg2 << " new address: 0x" << retval
              << " new_length: " << tstate->last_syscall_arg3 << dec << endl;
@@ -261,7 +328,7 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VOI
 /* Present ourself as if we have num_cores cores */
 /*    case __NR_sysconf:
 #ifdef SYSCALL_DEBUG
-        cerr << "Syscall sysconf (" << dec << syscall_num << ") ret" << endl;
+        log << "Syscall sysconf (" << dec << syscall_num << ") ret" << endl;
 #endif
         if (tstate->last_syscall_arg1 == _SC_NPROCESSORS_ONLN)
             if ((INT32)retval != - 1) {
@@ -291,10 +358,10 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VOI
                     tv->tv_sec = secs_passed + initial_system_time.tv_sec;
                     tv->tv_usec = usecs_passed + initial_system_time.tv_usec;
                 }
-                RescheduleThread(threadIndex);
+                ScheduleThread(threadIndex);
             }
 #ifdef SYSCALL_DEBUG
-            cerr << "Ret syscall gettimeoftime(" << dec << tstate->last_syscall_number << ") old: "
+            log << "Ret syscall gettimeoftime(" << dec << tstate->last_syscall_number << ") old: "
                  << retval << ", tv_sec: " << tv->tv_sec << ", tv_usec: " << tv->tv_usec << endl;
 #endif
         }
@@ -303,5 +370,8 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VOI
     default:
         break;
     }
+#ifdef SYSCALL_DEBUG
+    cerr << log.str();
+#endif
     lk_unlock(&syscall_lock);
 }

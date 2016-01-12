@@ -172,15 +172,6 @@ extern EXECUTION_MODE ExecMode;
  * parallel loop.
 */
 
-/* Let the timing simulator catch up with the feeder so we can sync on some
- * global state (like total sim cycles or time). This will deschedule the
- * thread, so after the work that needs to be accomplished is done, it should
- * be rescheduled with RescheduleThread(). */
-VOID SyncWithTimingSim(THREADID tid);
-
-/* Reschedules a thread after a timing-feeder sync operation. */
-VOID RescheduleThread(THREADID tid);
-
 /* Make sure that all sim threads drain any handshake buffers that could be in
  * their respective scheduler run queues.
  * Start ignoring all produced instructions. Deallocate all cores.
@@ -198,6 +189,25 @@ VOID StartSimSlice(int slice_num);
 /* End simulation slice (after waiting for all processes).
  * Remove all instrumetation so we can FF fast between slices. */
 VOID EndSimSlice(int slice_num, int slice_length, int slice_weight_times_1000);
+
+/* Add a deschedule handshake to thread @tid. When the consumer eventually
+ * consumes that handshake, the scheduler de-schedules thread @tid from its
+ * core.
+ * If @start_ignoring, the feeder won't produce instructions past the point of
+ * this call, until re-enabled.
+ * If @reschedule, on de-scheduling the scheduler will re-add the thread to the
+ * end of the same core's run queue.
+ * */
+VOID AddGiveUpHandshake(THREADID tid, bool start_ignoring, bool reschedule);
+
+/* Let the timing simulator catch up with the feeder so the feeder can depend on
+ * some timing state -- like returning simulated time to the app.
+ * This will call AddGiveUpHandshake(), and then wait until the current thread is
+ * de-scheduled. It should be rescheduled with ScheduleThread(). */
+VOID SyncWithTimingSim(THREADID tid);
+
+/* Tell the scheduler to schedule a thread. */
+VOID ScheduleThread(THREADID tid);
 
 /* Call the current core allocator and get the # of cores we are allowed to use.
  * Some allocators use profiled scaling and serial runtimes to make their decisions.
