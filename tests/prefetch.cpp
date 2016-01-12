@@ -54,7 +54,8 @@ int main(int argc, char* argv[]) {
     /* Generate a permutation of indices */
     for (size_t i = 0; i < SIZE; i++)
         indices[i] = i;
-    std::random_device rd;
+    // pseudo-random with fixed seed for reproducibility
+    std::mt19937 rd(1);
     std::default_random_engine e1(rd());
     std::shuffle(std::begin(indices), std::end(indices), e1);
 
