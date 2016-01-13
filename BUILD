@@ -10,6 +10,7 @@ filegroup(
     name = "xiosim",
     srcs = [
         "//third_party/pin:cp_pinbin",
+        "//xiosim:configs",
         "//xiosim/pintool:feeder_zesto.so",
         "//xiosim/pintool:harness",
         "//xiosim/pintool:timing_sim",
@@ -23,4 +24,10 @@ test_suite(
         "//xiosim:unit_tests",
         "//xiosim/pintool:unit_tests",
     ],
+)
+
+test_suite(
+    name = "all_integration",
+    tags = ["large"],
+    tests = ["//scripts:integration_tests"],
 )

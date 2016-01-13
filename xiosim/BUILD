@@ -27,6 +27,11 @@ cc_library(
     ],
 )
 
+filegroup(
+    name = "configs",
+    srcs = glob(["config/*.cfg"]),
+)
+
 cc_library(
     name = "zesto-uncore",
     srcs = ["zesto-uncore.cpp"],

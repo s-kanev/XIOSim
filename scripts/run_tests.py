@@ -13,11 +13,24 @@ import xiosim_driver as xd
 import xiosim_stat as xs
 
 
-def CreateDriver():
-    XIOSIM_INSTALL = os.environ["XIOSIM_INSTALL"]
-    XIOSIM_TREE = os.environ["XIOSIM_TREE"]
-    ARCH = os.environ["TARGET_ARCH"]
-    xio = xd.XIOSimDriver(XIOSIM_INSTALL, XIOSIM_TREE, ARCH)
+def CreateDriver(bazel_env):
+    if bazel_env:
+        TEST_DIR = os.environ["TEST_SRCDIR"]
+        XIOSIM_INSTALL = TEST_DIR
+        XIOSIM_TREE = TEST_DIR
+        # the bazel sandbox doesn't have /dev/shm mounted
+        BRIDGE_DIRS = "/tmp/"
+    else:
+        XIOSIM_INSTALL = os.environ["XIOSIM_INSTALL"]
+        XIOSIM_TREE = os.environ["XIOSIM_TREE"]
+        BRIDGE_DIRS = ""
+
+    if "TARGET_ARCH" in os.environ:
+        ARCH = os.environ["TARGET_ARCH"]
+    else:
+        # TODO(skanev): figure out how to plumb through bazel's cpu parameter
+        ARCH = "k8"
+    xio = xd.XIOSimDriver(XIOSIM_INSTALL, XIOSIM_TREE, ARCH, bridge_dirs=BRIDGE_DIRS)
     return xio
 
 
@@ -25,9 +38,14 @@ class XIOSimTest(unittest.TestCase):
     ''' Test fixtures for XIOSim end-to-end tests.'''
     def setUp(self):
         ''' Set up a driver with common options and a temp run directory.'''
-        self.xio = CreateDriver()
-        self.run_dir = tempfile.mkdtemp()
-        self.clean_run_dir = ("LEAVE_TEST_DIR" not in os.environ)
+        # Running under bazel, we don't need no other environment
+        bazel_env = ("TEST_SRCDIR" in os.environ)
+        self.xio = CreateDriver(bazel_env)
+        if bazel_env:
+            self.run_dir = os.environ["TEST_TMPDIR"]
+        else:
+            self.run_dir = tempfile.mkdtemp()
+        self.clean_run_dir = ("LEAVE_TEST_DIR" not in os.environ) and not bazel_env
         self.setDriverParams()
         self.expected_vals = []
         self.expected_exprs = []

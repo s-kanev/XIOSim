@@ -3,7 +3,7 @@ import shlex
 import subprocess
 
 class XIOSimDriver(object):
-    def __init__(self, INSTALL_DIR, TREE_DIR, TARGET_ARCH, clean_arch=None, env=""):
+    def __init__(self, INSTALL_DIR, TREE_DIR, TARGET_ARCH, clean_arch=None, env="", bridge_dirs=""):
         ''' TARGET_ARCH uses bazel notation. "piii" is ia32, "k8" is ia64.
         '''
         self.cmd = ""
@@ -13,6 +13,7 @@ class XIOSimDriver(object):
         self.TREE_DIR = TREE_DIR
         self.TARGET_ARCH = TARGET_ARCH
         self.test = ""
+        self.bridge_dirs = bridge_dirs
         if clean_arch:
             self.AddCleanArch()
         self.AddEnvironment(env)
@@ -78,6 +79,8 @@ class XIOSimDriver(object):
         self.cmd += "-trace %s " % file
 
     def AddZestoOptions(self, cfg):
+        if self.bridge_dirs:
+            self.cmd += "-buffer_bridge_dirs %s " % self.bridge_dirs
         self.cmd += "-s "
         self.cmd += "-config " + cfg + " "
 
