@@ -71,6 +71,8 @@ KNOB<BOOL> KnobBufferSkipSpaceCheck(KNOB_MODE_WRITEONCE, "pintool", "buffer_skip
                                     "false", "Never check for free space in BufferProducer");
 KNOB<BOOL> KnobDisableControlROI(KNOB_MODE_WRITEONCE, "pintool", "disable_control_roi", "false",
                                  "Don't use InstLib control hooks");
+KNOB<string> KnobBridgeDirs(KNOB_MODE_WRITEONCE, "pintool", "buffer_bridge_dirs", "/dev/shm/,/tmp/",
+                            "Buffer bridge location (comma-separated list of directories)");
 
 map<ADDRINT, string> pc_diss;
 
@@ -1049,7 +1051,8 @@ INT32 main(INT32 argc, CHAR** argv) {
     // no process will start too far before the others.
     asid = InitSharedState(true, KnobHarnessPid.Value(), KnobNumCores.Value());
     xiosim::buffer_management::InitBufferManagerProducer(KnobHarnessPid.Value(),
-                                                         KnobBufferSkipSpaceCheck.Value());
+                                                         KnobBufferSkipSpaceCheck.Value(),
+                                                         KnobBridgeDirs.Value());
 
     if (KnobAMDHack.Value()) {
         amd_hack();

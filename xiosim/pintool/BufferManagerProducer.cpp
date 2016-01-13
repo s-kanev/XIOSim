@@ -30,15 +30,33 @@ static std::string gpid_;
  * we can just access them lock-free. */
 static XIOSIM_LOCK init_lock_;
 
-void InitBufferManagerProducer(pid_t harness_pid, bool skip_space_check) {
+static std::vector<std::string> split(std::string str, std::string delimiter) {
+    std::vector<std::string> res;
+    size_t start = 0;
+    size_t del_index = std::string::npos;
+
+    do {
+        if (start >= str.size()) {
+            res.push_back("");
+            break;
+        }
+
+        del_index = str.find(delimiter, start);
+        size_t count = del_index - start;
+        res.push_back(str.substr(start,count));
+        start += del_index + 1;
+    } while(del_index != std::string::npos);
+    return res;
+}
+
+void InitBufferManagerProducer(pid_t harness_pid, bool skip_space_check, std::string bridge_dirs) {
     InitBufferManager(harness_pid);
 
     produceBuffer_.reserve(MAX_CORES);
     writeBufferSize_.reserve(MAX_CORES);
     writeBuffer_.reserve(MAX_CORES);
 
-    bridgeDirs_.push_back("/dev/shm/");
-    bridgeDirs_.push_back("/tmp/");
+    bridgeDirs_ = split(bridge_dirs, ",");
 
     int pid = getpgrp();
     std::ostringstream iss;
