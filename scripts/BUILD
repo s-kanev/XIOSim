@@ -174,6 +174,15 @@ py_test(
     main = "run_tests.py",
 )
 
+py_test(
+    name = "RdtscTest",
+    size = "large",
+    srcs = [":integration_framework"],
+    args = ["RdtscTest"],
+    data = [":integration_data"],
+    main = "run_tests.py",
+)
+
 # Framework files to launch the simulator and define tests
 filegroup(
     name = "integration_framework",

@@ -37,6 +37,7 @@ void CheckIPCMessageQueue(bool isEarly, int caller_coreID) {}
 int* num_processes;
 XIOSIM_LOCK* printing_lock;
 double* global_sim_time;
+int64_t* timestamp_counters;
 
 const std::string XIOSIM_PACKAGE_PATH = "xiosim/";
 

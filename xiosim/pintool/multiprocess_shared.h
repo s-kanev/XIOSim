@@ -45,6 +45,7 @@ SHARED_VAR_DECLARE(int, slice_epoch)
 SHARED_VAR_DECLARE(XIOSIM_LOCK, lk_num_done_slice)
 
 SHARED_VAR_DECLARE(double, global_sim_time)
+SHARED_VAR_DECLARE(int64_t, timestamp_counters);
 
 typedef xiosim::shared::SharedMemoryMap<pid_t, int> ThreadProcessMap;
 SHARED_VAR_DECLARE(ThreadProcessMap, threadProcess)

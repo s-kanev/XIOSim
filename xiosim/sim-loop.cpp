@@ -31,6 +31,7 @@
 
 extern void CheckIPCMessageQueue(bool isEarly, int caller_coreID);
 extern double* global_sim_time;
+extern int64_t* timestamp_counters;
 extern double LLC_speed;
 
 int heartbeat_frequency = 0;
@@ -122,12 +123,14 @@ static void global_step(void) {
             compute_rtp_power();
         }
 
-        if (knobs.dvfs_interval > 0)
-            for (int i = 0; i < num_cores; i++)
+        if (knobs.dvfs_interval > 0) {
+            for (int i = 0; i < num_cores; i++) {
                 if (cores[i]->sim_cycle >= cores[i]->vf_controller->next_invocation) {
                     cores[i]->vf_controller->change_vf();
                     cores[i]->vf_controller->next_invocation += knobs.dvfs_interval;
                 }
+            }
+        }
 
         heartbeat_count++;
         deadlock_count++;
@@ -165,6 +168,7 @@ static void sim_main_slave_pre_pin(int coreID) {
         cores[coreID]->stat.final_sim_cycle = cores[coreID]->sim_cycle;
         // Finally time to step local cycle counter
         cores[coreID]->sim_cycle++;
+        timestamp_counters[coreID] = cores[coreID]->sim_cycle;
 
         cores[coreID]->ns_passed += 1e-3 / cores[coreID]->cpu_speed;
     }

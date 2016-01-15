@@ -540,6 +540,25 @@ class AttachTest(XIOSimTest):
     def runTest(self):
         pid = self.startBackgroundBenchmark("loop")
         self.writeTestAttachBmkConfig("loop", pid)
+
+class RdtscTest(XIOSimTest):
+    ''' End-to-end test for rdtsc virtualization. '''
+    def setDriverParams(self):
+        bmk_cfg = self.writeTestBmkConfig("rdtsc")
+        self.xio.AddBmks(bmk_cfg)
+        self.xio.AddPinOptions()
+        self.xio.AddPintoolOptions(num_cores=1)
+        self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
+                                              "xiosim/config", "N.cfg"))
+
+    def setUp(self):
+        super(RdtscTest, self).setUp()
+        high_re = "High difference: (%s)" % xs.DECIMAL_RE
+        low_re = "Low difference: (%s)" % xs.DECIMAL_RE
+        self.bmk_expected_vals.append((high_re, 0))
+        self.bmk_expected_vals.append((low_re, 100000))
+
+    def runTest(self):
         self.runAndValidate()
 
 if __name__ == "__main__":

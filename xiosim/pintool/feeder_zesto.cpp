@@ -82,6 +82,10 @@ ofstream trace_file;
 // Used to access thread-local storage
 static TLS_KEY tls_key;
 
+// Populated by the first rdtsc instruction for a core. All subsequent rdtsc
+// insns return this plus an offset.
+static tick_t* initial_timestamps;
+
 XIOSIM_LOCK thread_list_lock;
 list<THREADID> thread_list;
 map<THREADID, int> virtual_affinity;
@@ -406,6 +410,45 @@ static VOID FinalizeBuffer(thread_state_t* tstate, handshake_container_t* handsh
     xiosim::buffer_management::ProducerDone(tstate->tid);
 }
 
+/* Virtualization of rdtsc which returns the value of sim_cycle for the core. */
+VOID ReadRDTSC(THREADID tid, ADDRINT pc, ADDRINT next_pc, CONTEXT *ictxt) {
+    if (CheckIgnoreConditions(tid, pc)) {
+        thread_state_t* tstate = get_tls(tid);
+        if (speculation_mode) {
+            FinishSpeculation(tstate);
+            return;
+        }
+        // We need to get the core this thread is running on before we sync
+        // (which requires descheduling said thread).
+        int core_id = GetSHMThreadCore(tstate->tid);
+        SyncWithTimingSim(tid);
+        tick_t sim_cycles = 0;
+        uint32_t lo = 0, hi = 0;
+        if (core_id != xiosim::INVALID_CORE)
+            sim_cycles = timestamp_counters[core_id];
+
+        if (initial_timestamps[core_id] == TICK_T_MAX) {
+            // No initial timestamp has been recorded for this core yet.
+            tick_t host_timestamp = 0;
+            __asm__("rdtsc" : "=a"(lo), "=d"(hi));
+            host_timestamp = hi;
+            host_timestamp <<= 32;
+            host_timestamp |= lo;
+            initial_timestamps[core_id] = host_timestamp;
+        }
+        tick_t current_timestamp = initial_timestamps[core_id] + sim_cycles;
+        lo = current_timestamp & 0xFFFFFFFF;
+        hi = (current_timestamp >> 32);
+
+        PIN_SetContextRegval(ictxt, LEVEL_BASE::REG_EAX, reinterpret_cast<UINT8*>(&lo));
+        PIN_SetContextRegval(ictxt, LEVEL_BASE::REG_EDX, reinterpret_cast<UINT8*>(&hi));
+        PIN_SetContextRegval(ictxt, LEVEL_BASE::REG_INST_PTR, reinterpret_cast<UINT8*>(&next_pc));
+
+        ScheduleThread(tid);
+        PIN_ExecuteAt(ictxt);
+    }
+}
+
 /* ========================================================================== */
 /* We grab the addresses and sizes of memory operands. */
 VOID GrabInstructionMemory(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_mem_op, ADDRINT pc) {
@@ -700,6 +743,21 @@ VOID Instrument(INS ins, VOID* v) {
                        IARG_BOOL,
                        true,
                        IARG_END);
+    }
+
+    if (KnobTimingVirtualization.Value()) {
+        if (INS_Opcode(ins) == XED_ICLASS_RDTSC ||
+            INS_Opcode(ins) == XED_ICLASS_RDTSCP) {
+            INS_InsertCall(ins,
+                           IPOINT_BEFORE,
+                           (AFUNPTR)ReadRDTSC,
+                           IARG_THREAD_ID,
+                           IARG_INST_PTR,
+                           IARG_ADDRINT,
+                           INS_NextAddress(ins),
+                           IARG_CONTEXT,
+                           IARG_END);
+        }
     }
 }
 
@@ -1114,6 +1172,10 @@ INT32 main(INT32 argc, CHAR** argv) {
             IgnorePC(pc);
         }
     }
+
+    initial_timestamps = new tick_t[KnobNumCores.Value()];
+    for (int i = 0; i < KnobNumCores.Value(); i++)
+        initial_timestamps[i] = TICK_T_MAX;
 
     *sleeping_enabled = true;
     enable_producers();

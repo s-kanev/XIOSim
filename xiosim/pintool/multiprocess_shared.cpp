@@ -25,6 +25,7 @@ SHARED_VAR_DEFINE(int, slice_epoch)
 SHARED_VAR_DEFINE(XIOSIM_LOCK, lk_num_done_slice)
 
 SHARED_VAR_DEFINE(double, global_sim_time)
+SHARED_VAR_DEFINE(int64_t, timestamp_counters)
 
 SHARED_VAR_DEFINE(ThreadProcessMap, threadProcess)
 SHARED_VAR_DEFINE(XIOSIM_LOCK, lk_threadProcess)
@@ -126,6 +127,7 @@ int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores_) {
     lk_init(lk_num_done_slice);
 
     SHARED_VAR_INIT(double, global_sim_time, 0);
+    SHARED_VAR_ARRAY_INIT(int64_t, timestamp_counters, xiosim::shared::num_cores, 0);
 
     int_allocator* int_alloc_inst = new int_allocator(global_shm->get_segment_manager());
     shared_core_set_allocator* core_set_alloc_inst =
@@ -137,6 +139,7 @@ int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores_) {
                     *core_set_alloc_inst);
     SHARED_VAR_INIT(XIOSIM_LOCK, lk_processCoreSet);
     lk_init(lk_processCoreSet);
+
 
     SHARED_VAR_INIT(int, ss_curr);
     SHARED_VAR_INIT(int, ss_prev);

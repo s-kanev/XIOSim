@@ -1,8 +1,8 @@
 all: piii/fib piii/roi piii/repl piii/segf piii/step \
 		 piii/rep piii/chase piii/prefetch piii/ignore piii/time \
-		 piii/loop \
+		 piii/loop piii/rdtsc \
 		 k8/fib k8/roi k8/repl k8/segf k8/step k8/rep k8/chase \
-		 k8/prefetch k8/ignore k8/time k8/loop
+		 k8/prefetch k8/ignore k8/time k8/loop k8/rdtsc
 
 
 piii/fib: fib.cpp
@@ -27,6 +27,8 @@ piii/time: time.cpp
 	g++ -m32 -O1 -static -o $@ $<
 piii/loop: loop.cpp
 	g++ -m32 -O0 -static -o $@ $<
+piii/rdtsc: rdtsc.cpp
+	g++ -m32 -O1 -static -falign-functions=16 -o $@ $<
 
 k8/fib: fib.cpp
 	g++ -std=c++1y -static -O0 -o $@ $<
@@ -50,3 +52,5 @@ k8/time: time.cpp
 	g++ -O1 -static -o $@ $<
 k8/loop: loop.cpp
 	g++ -O0 -static -o $@ $<
+k8/rdtsc: rdtsc.cpp
+	g++ -O1 -static -falign-functions=16 -o $@ $<
