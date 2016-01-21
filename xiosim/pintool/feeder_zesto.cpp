@@ -426,16 +426,6 @@ VOID ReadRDTSC(THREADID tid, ADDRINT pc, ADDRINT next_pc, CONTEXT *ictxt) {
         uint32_t lo = 0, hi = 0;
         if (core_id != xiosim::INVALID_CORE)
             sim_cycles = timestamp_counters[core_id];
-
-        if (initial_timestamps[core_id] == TICK_T_MAX) {
-            // No initial timestamp has been recorded for this core yet.
-            tick_t host_timestamp = 0;
-            __asm__("rdtsc" : "=a"(lo), "=d"(hi));
-            host_timestamp = hi;
-            host_timestamp <<= 32;
-            host_timestamp |= lo;
-            initial_timestamps[core_id] = host_timestamp;
-        }
         tick_t current_timestamp = initial_timestamps[core_id] + sim_cycles;
         lo = current_timestamp & 0xFFFFFFFF;
         hi = (current_timestamp >> 32);
@@ -1040,6 +1030,20 @@ VOID ResumeSimulation(bool allocate_cores) {
             done &= IsSHMThreadSimulatingMaybe(curr_tid);
         }
     } while (!done);
+
+    // Record initial timestamps for these cores if not recorded yet.
+    for (pid_t curr_tid : scheduled_threads) {
+        int core_id = GetSHMThreadCore(curr_tid);
+        if (initial_timestamps[core_id] == TICK_T_MAX) {
+            tick_t host_timestamp = 0;
+            uint32_t lo, hi;
+            __asm__("rdtsc" : "=a"(lo), "=d"(hi));
+            host_timestamp = hi;
+            host_timestamp <<= 32;
+            host_timestamp |= lo;
+            initial_timestamps[core_id] = host_timestamp;
+        }
+    }
 }
 
 /* ========================================================================== */
