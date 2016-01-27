@@ -2,13 +2,18 @@
  *
  * Simulator should return simulated time instead of host time.
  *
- * Compile: g++ -O1 -m32 -static -o time time.c
  */
 
 #include <sys/time.h>
 #include <sys/times.h>
 #include <stdio.h>
 #include <unistd.h>
+
+extern "C" void xiosim_roi_begin() __attribute__ ((noinline));
+extern "C" void xiosim_roi_end() __attribute__ ((noinline));
+
+void xiosim_roi_begin() { __asm__ __volatile__ ("":::"memory"); }
+void xiosim_roi_end() { __asm__ __volatile__ ("":::"memory"); }
 
 const int ITER = 1000000;
 
@@ -30,34 +35,39 @@ double times_test() {
   return (end.tms_utime - start.tms_utime);
 }
 
+unsigned loop() {
+  unsigned counter = 0;
+  __asm__ __volatile ("1: addl $1, %0;"
+                      "cmpl %2, %1;"
+                      "jb 1b;"
+                      : "=a"(counter)
+                      : "0"(counter), "i"(ITER)
+                      : "memory");
+  return counter;
+}
+
 double gettimeofday_test() {
   struct timeval start, end;
   gettimeofday(&start, NULL);
-  printf("Start time of day: %d s %d us\n", start.tv_sec, start.tv_usec);
 
-  unsigned int counter = 0;
-  __asm__ __volatile ("loop: addl $1, %0;"
-                      "cmpl %1, %0;"
-                      "jb loop;"
-                      : "=a"(counter)
-                      : "r"(ITER)
-                      : "memory");
+  unsigned counter = loop();
 
   gettimeofday(&end, NULL);
 
   /* 1M iterations of a 3 instruction loop -> 3M instructions.
-   * With pipelining we get 2 cycles per iteration for a total of 2M cycles.
+   * With pipelining we get 1 cycles per iteration for a total of 1M cycles.
    * Default NHM config is 3.2GHz, so we should expect a time difference
-   * of around 2M / 3.2GHz = 625us.
+   * of around 1M / 3.2GHz = 317us.
    */
   printf("Counter value = %d\n", counter);
-  printf("End time of day: %d s %d us\n", end.tv_sec, end.tv_usec);
   return (end.tv_sec - start.tv_sec) + 1.0*(end.tv_usec - start.tv_usec)/(1e6);
 }
 
 int main() {
   // For now, just test gettimeofday() because we haven't completed times().
+  xiosim_roi_begin();
   double elapsed = gettimeofday_test();
+  xiosim_roi_end();
   printf("Elapsed: %3.8f sec\n", elapsed);
   return 0;
 }

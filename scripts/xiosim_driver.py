@@ -78,6 +78,9 @@ class XIOSimDriver(object):
     def AddTraceFile(self, file):
         self.cmd += "-trace %s " % file
 
+    def DisableSpeculation(self):
+        self.cmd += "-speculation false "
+
     def AddZestoOptions(self, cfg):
         if self.bridge_dirs:
             self.cmd += "-buffer_bridge_dirs %s " % self.bridge_dirs

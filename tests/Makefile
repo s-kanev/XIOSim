@@ -24,7 +24,7 @@ piii/prefetch: prefetch.cpp
 piii/ignore: ignore.cpp
 	g++ -m32 -std=c++1y -static -O0 -o $@ $<
 piii/time: time.cpp
-	g++ -m32 -O1 -static -o $@ $<
+	g++ -m32 -O1 -falign-functions=64 -static -o $@ $<
 piii/loop: loop.cpp
 	g++ -m32 -O0 -static -o $@ $<
 piii/rdtsc: rdtsc.cpp
@@ -49,7 +49,9 @@ k8/prefetch: prefetch.cpp
 k8/ignore: ignore.cpp
 	g++ -std=c++1y -static -O0 -o $@ $<
 k8/time: time.cpp
-	g++ -O1 -static -o $@ $<
+	g++ -O1 -falign-functions=64 -static -o $@ $<
+k8/time_vdso: time.cpp
+	g++ -O1 -falign-functions=64 -o $@ $<
 k8/loop: loop.cpp
 	g++ -O0 -static -o $@ $<
 k8/rdtsc: rdtsc.cpp

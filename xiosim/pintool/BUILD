@@ -39,6 +39,8 @@ cc_binary(
         "ignore_ins.h",
         "ildjit.cpp",
         "ildjit.h",
+        "paravirt.cpp",
+        "paravirt.h",
         "replace_function.cpp",
         "replace_function.h",
         "roi.cpp",
@@ -51,6 +53,8 @@ cc_binary(
         "syscall_handling.h",
         "utils.cpp",
         "utils.h",
+        "vdso.cpp",
+        "vdso.h",
     ],
     linkopts = [
         "-Wl,-Bsymbolic",

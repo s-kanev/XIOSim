@@ -54,7 +54,7 @@ class XIOSimTest(unittest.TestCase):
 
     def tearDown(self):
         if self.clean_run_dir:
-            shutil.rmtree(self.xio.GetRunDir())
+            shutil.rmtree(self.run_dir)
         if self.background_bmk:
             self.background_bmk.kill()
 
@@ -504,6 +504,7 @@ class TimeTest(XIOSimTest):
         self.xio.AddBmks(bmk_cfg)
         self.xio.AddPinOptions()
         self.xio.AddPintoolOptions(num_cores=1)
+        self.xio.AddROIOptions()
         self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
                                               "xiosim/config", "N.cfg"))
 
@@ -512,9 +513,36 @@ class TimeTest(XIOSimTest):
         self.expected_vals.append((xs.PerfStatRE("all_insn"), 3000000.0))
 
         # Set up expected output from the simulated program.
-        # 2M cycles / 3.2GHz = 625us.
+        # 1M cycles / 3.2GHz = 317us.
         elapsed_re = "Elapsed: (%s) sec" % xs.DECIMAL_RE
-        self.bmk_expected_vals.append((elapsed_re, 0.000625))
+        self.bmk_expected_vals.append((elapsed_re, 0.000317))
+
+    def runTest(self):
+        self.runAndValidate()
+
+class TimeVDSOTest(XIOSimTest):
+    ''' End-to-end test for __vdso_gettimeofday(). '''
+    def setDriverParams(self):
+        bmk_cfg = self.writeTestBmkConfig("time")
+        self.xio.AddBmks(bmk_cfg)
+        self.xio.AddPinOptions()
+        self.xio.AddPintoolOptions(num_cores=1)
+        self.xio.AddROIOptions()
+        self.xio.AddTraceFile("trace.out")
+        self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
+                                              "xiosim/config", "N.cfg"))
+
+    def setUp(self):
+        super(TimeVDSOTest, self).setUp()
+        if self.xio.TARGET_ARCH == "piii":
+            self.tearDown()
+            self.skipTest("VDSO not used for gettimeofday() on i686")
+        self.expected_vals.append((xs.PerfStatRE("all_insn"), 3000000.0))
+
+        # Set up expected output from the simulated program.
+        # 1M cycles / 3.2GHz = 317us.
+        elapsed_re = "Elapsed: (%s) sec" % xs.DECIMAL_RE
+        self.bmk_expected_vals.append((elapsed_re, 0.000317))
 
     def runTest(self):
         self.runAndValidate()

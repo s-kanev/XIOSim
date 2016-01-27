@@ -24,7 +24,6 @@ class handshake_container_t;
 
 extern KNOB<BOOL> KnobILDJIT;
 extern KNOB<int> KnobNumCores;
-extern KNOB<BOOL> KnobTimingVirtualization;
 
 /* A list of the threads in this feeder. */
 extern list<THREADID> thread_list;
@@ -44,6 +43,9 @@ extern int asid;
 
 /* Xed machine mode state for when we need to encode/decode things. */
 extern xed_state_t dstate;
+
+/* Host TSC values for timing virtualization. */
+extern tick_t* initial_timestamps;
 
 #define ATOMIC_ITERATE(_list, _it, _lock)                                                          \
     for (lk_lock(&(_lock), 1), (_it) = (_list).begin(), lk_unlock(&(_lock)); [&] {                 \
@@ -213,6 +215,11 @@ VOID ScheduleThread(THREADID tid);
  * Some allocators use profiled scaling and serial runtimes to make their decisions.
  * Check out base_allocator.h for the API. */
 int AllocateCores(std::vector<double> scaling, double serial_runtime);
+
+/* Helper to check if producer thread @tid will grab instruction at @pc.
+ * If return value is false, we can skip instrumentaion. Can hog execution
+ * if producers are disabled by producer_sleep. */
+BOOL CheckIgnoreConditions(THREADID tid, ADDRINT pc);
 
 /* Insert instrumentation that we didn't add so we can skip ILDJIT compilation even faster. */
 VOID doLateILDJITInstrumentation();

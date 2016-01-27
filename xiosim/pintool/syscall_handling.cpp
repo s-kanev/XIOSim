@@ -6,9 +6,9 @@
 #include "boost_interprocess.h"
 
 #include "feeder.h"
-#include "multiprocess_shared.h"
 #include "ipc_queues.h"
 #include "BufferManagerProducer.h"
+#include "paravirt.h"
 #include "speculation.h"
 
 #include "syscall_handling.h"
@@ -22,18 +22,6 @@ struct mmap_arg_struct {
     int fd;
     off_t offset;
 };
-
-// from times.h
-struct tms {
-    clock_t tms_utime;
-    clock_t tms_stime;
-    clock_t tms_cutime;
-    clock_t tms_cstime;
-};
-
-// These fields will be populated by the first call to gettimeofday().
-struct timeval initial_system_time = {0, 0};
-double initial_global_sim_time = 0;
 
 XIOSIM_LOCK syscall_lock;
 
@@ -132,6 +120,7 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VO
         log << "Syscall gettimeofday(" << dec << syscall_num << ")" << endl;
 #endif
         tstate->last_syscall_arg1 = arg1;
+        BeforeGettimeofday(threadIndex, arg1);
         break;
 
     case __NR_mprotect:
@@ -245,9 +234,6 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VOI
     log << tstate->tid << ": ";
 #endif
 
-    // for gettimeofday.
-    struct timeval* tv;
-
     switch (tstate->last_syscall_number) {
     case __NR_brk:
 #ifdef SYSCALL_DEBUG
@@ -338,33 +324,14 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VOI
         break;*/
 
     case __NR_gettimeofday:
-        if (retval != (ADDRINT)-1 && KnobTimingVirtualization.Value()) {
-            tv = (struct timeval*)tstate->last_syscall_arg1;
-            if (ExecMode == EXECUTION_MODE_SIMULATE) {
-                SyncWithTimingSim(threadIndex);
-                if (initial_system_time.tv_sec == 0 && initial_system_time.tv_usec == 0) {
-                    // If this is the first time we're calling gettimeofday(),
-                    // return the host time and use this as the offset for all
-                    // future calls (which will return simulated time).
-                    initial_system_time.tv_sec = tv->tv_sec;
-                    initial_system_time.tv_usec = tv->tv_usec;
-                    // Record the initial global_sim_time as computed by the
-                    // timing simulator for computing the delta.
-                    initial_global_sim_time = *global_sim_time;
-                } else {
-                    double sim_time_passed = *global_sim_time - initial_global_sim_time;
-                    time_t secs_passed = (sim_time_passed/1000000.0);
-                    suseconds_t usecs_passed = sim_time_passed - secs_passed*1000000.0;
-                    tv->tv_sec = secs_passed + initial_system_time.tv_sec;
-                    tv->tv_usec = usecs_passed + initial_system_time.tv_usec;
-                }
-                ScheduleThread(threadIndex);
-            }
+        AfterGettimeofday(threadIndex, retval);
 #ifdef SYSCALL_DEBUG
-            log << "Ret syscall gettimeoftime(" << dec << tstate->last_syscall_number << ") old: "
-                 << retval << ", tv_sec: " << tv->tv_sec << ", tv_usec: " << tv->tv_usec << endl;
-#endif
+        {
+            timeval* tv = (struct timeval*)tstate->last_syscall_arg1;
+            log << "Ret syscall gettimeofday(" << dec << tstate->last_syscall_number << ") old: "
+                << retval << ", tv_sec: " << tv->tv_sec << ", tv_usec: " << tv->tv_usec << endl;
         }
+#endif
         break;
 
     default:

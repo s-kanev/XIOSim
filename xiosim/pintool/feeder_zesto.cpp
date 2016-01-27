@@ -15,7 +15,6 @@
 #include <list>
 #include <sstream>
 #include <stdlib.h>
-#include <elf.h>
 #include <sys/mman.h>
 #include <sys/sysinfo.h>
 #include <syscall.h>
@@ -40,6 +39,8 @@
 #include "roi.h"
 #include "replace_function.h"
 #include "speculation.h"
+#include "paravirt.h"
+#include "vdso.h"
 
 using namespace std;
 
@@ -49,24 +50,21 @@ using namespace std;
 /* ========================================================================== */
 /* ========================================================================== */
 
-KNOB<string> KnobInsTraceFile(
-    KNOB_MODE_WRITEONCE, "pintool", "trace", "", "File where instruction trace is written");
-KNOB<BOOL>
-    KnobILDJIT(KNOB_MODE_WRITEONCE, "pintool", "ildjit", "false", "Application run is ildjit");
+KNOB<string> KnobInsTraceFile(KNOB_MODE_WRITEONCE, "pintool", "trace", "",
+                              "File where instruction trace is written");
+KNOB<BOOL> KnobILDJIT(KNOB_MODE_WRITEONCE, "pintool", "ildjit", "false",
+                      "Application run is ildjit");
 KNOB<BOOL> KnobAMDHack(KNOB_MODE_WRITEONCE,
                        "pintool",
                        "amd_hack",
                        "false",
                        "Using AMD syscall hack for use with hpc cluster");
-KNOB<BOOL> KnobWarmLLC(
-    KNOB_MODE_WRITEONCE, "pintool", "warm_llc", "false", "Warm LLC while fast-forwarding");
-KNOB<int>
-    KnobNumCores(KNOB_MODE_WRITEONCE, "pintool", "num_cores", "1", "Number of cores simulated");
-KNOB<pid_t> KnobHarnessPid(
-    KNOB_MODE_WRITEONCE, "pintool", "harness_pid", "-1", "Process id of the harness process.");
-KNOB<BOOL> KnobTimingVirtualization(
-    KNOB_MODE_WRITEONCE, "pintool", "timing_virtualization", "true",
-    "Return simulated time instead of host time for timing calls like gettimeofday().");
+KNOB<BOOL> KnobWarmLLC(KNOB_MODE_WRITEONCE, "pintool", "warm_llc", "false",
+                       "Warm LLC while fast-forwarding");
+KNOB<int> KnobNumCores(KNOB_MODE_WRITEONCE, "pintool", "num_cores", "1",
+                       "Number of cores simulated");
+KNOB<pid_t> KnobHarnessPid(KNOB_MODE_WRITEONCE, "pintool", "harness_pid", "-1",
+                           "Process id of the harness process.");
 KNOB<BOOL> KnobBufferSkipSpaceCheck(KNOB_MODE_WRITEONCE, "pintool", "buffer_skip_space_check",
                                     "false", "Never check for free space in BufferProducer");
 KNOB<BOOL> KnobDisableControlROI(KNOB_MODE_WRITEONCE, "pintool", "disable_control_roi", "false",
@@ -82,9 +80,9 @@ ofstream trace_file;
 // Used to access thread-local storage
 static TLS_KEY tls_key;
 
-// Populated by the first rdtsc instruction for a core. All subsequent rdtsc
+// Populated when a thread gets scheduled with the host tsc. All subsequent rdtsc
 // insns return this plus an offset.
-static tick_t* initial_timestamps;
+tick_t* initial_timestamps;
 
 XIOSIM_LOCK thread_list_lock;
 list<THREADID> thread_list;
@@ -313,7 +311,7 @@ VOID ImageLoad(IMG img, VOID* v) {
     ADDRINT length = IMG_HighAddress(img) - start;
 
 #ifdef FEEDER_DEBUG
-    cerr << "Image load, addr: " << hex << start << " len: " << length
+    cerr << "Image load " << IMG_Name(img) << " addr: " << hex << start << " len: " << length
          << " end_addr: " << start + length << endl;
 #endif
 
@@ -367,7 +365,7 @@ VOID MakeSSRequest(THREADID tid,
 /* Helper to check if producer thread @tid will grab instruction at @pc.
  * If return value is false, we can skip instrumentaion. Can hog execution
  * if producers are disabled by producer_sleep. */
-static BOOL CheckIgnoreConditions(THREADID tid, ADDRINT pc) {
+BOOL CheckIgnoreConditions(THREADID tid, ADDRINT pc) {
     wait_producers();
 
     thread_state_t* tstate = get_tls(tid);
@@ -408,35 +406,6 @@ static VOID FinalizeBuffer(thread_state_t* tstate, handshake_container_t* handsh
     // Let simulator consume instruction from SimulatorLoop
     handshake->flags.valid = true;
     xiosim::buffer_management::ProducerDone(tstate->tid);
-}
-
-/* Virtualization of rdtsc which returns the value of sim_cycle for the core. */
-VOID ReadRDTSC(THREADID tid, ADDRINT pc, ADDRINT next_pc, CONTEXT *ictxt) {
-    if (CheckIgnoreConditions(tid, pc)) {
-        thread_state_t* tstate = get_tls(tid);
-        if (speculation_mode) {
-            FinishSpeculation(tstate);
-            return;
-        }
-        // We need to get the core this thread is running on before we sync
-        // (which requires descheduling said thread).
-        int core_id = GetSHMThreadCore(tstate->tid);
-        SyncWithTimingSim(tid);
-        tick_t sim_cycles = 0;
-        uint32_t lo = 0, hi = 0;
-        if (core_id != xiosim::INVALID_CORE)
-            sim_cycles = timestamp_counters[core_id];
-        tick_t current_timestamp = initial_timestamps[core_id] + sim_cycles;
-        lo = current_timestamp & 0xFFFFFFFF;
-        hi = (current_timestamp >> 32);
-
-        PIN_SetContextRegval(ictxt, LEVEL_BASE::REG_EAX, reinterpret_cast<UINT8*>(&lo));
-        PIN_SetContextRegval(ictxt, LEVEL_BASE::REG_EDX, reinterpret_cast<UINT8*>(&hi));
-        PIN_SetContextRegval(ictxt, LEVEL_BASE::REG_INST_PTR, reinterpret_cast<UINT8*>(&next_pc));
-
-        ScheduleThread(tid);
-        PIN_ExecuteAt(ictxt);
-    }
 }
 
 /* ========================================================================== */
@@ -734,49 +703,35 @@ VOID Instrument(INS ins, VOID* v) {
                        true,
                        IARG_END);
     }
-
-    if (KnobTimingVirtualization.Value()) {
-        if (INS_Opcode(ins) == XED_ICLASS_RDTSC ||
-            INS_Opcode(ins) == XED_ICLASS_RDTSCP) {
-            INS_InsertCall(ins,
-                           IPOINT_BEFORE,
-                           (AFUNPTR)ReadRDTSC,
-                           IARG_THREAD_ID,
-                           IARG_INST_PTR,
-                           IARG_ADDRINT,
-                           INS_NextAddress(ins),
-                           IARG_CONTEXT,
-                           IARG_END);
-        }
-    }
 }
 
 /* ========================================================================== */
 VOID ThreadStart(THREADID threadIndex, CONTEXT* ictxt, INT32 flags, VOID* v) {
     lk_lock(&syscall_lock, 1);
 #ifdef FEEDER_DEBUG
-        cerr << "Thread start tid: " << dec << threadIndex << endl;
+    cerr << "Thread start tid: " << dec << threadIndex << endl;
 #endif
 
     thread_state_t* tstate = new thread_state_t(threadIndex);
     PIN_SetThreadData(tls_key, tstate, threadIndex);
 
+    // Map a page for the VDSO.
+    if (threadIndex == 0) {
+        ADDRINT vdso = vdso_addr();
+#ifdef FEEDER_DEBUG
+        cerr << "VDSO address: " << hex << vdso << endl;
+#endif
+        ipc_message_t vdso_msg;
+        vdso_msg.Mmap(asid, vdso, xiosim::memory::PAGE_SIZE, false);
+        SendIPCMessage(vdso_msg);
+    }
+
     ADDRINT tos, bos;
-
     tos = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_FullRegName(LEVEL_BASE::REG_ESP));
-    CHAR** sp = (CHAR**)tos;
-
-    // This is essentially re-implementing:
-    // void *vdso = (uintptr_t) getauxval(AT_SYSINFO_EHDR);
-    // for the child process, so that we can map it to shadow page table.
-    // We only care about it at the program entry point (thread 0).
-    // Here's a nice map of the stack we're walking (for ia32).
-    // http://articles.manugarg.com/aboutelfauxiliaryvectors
-    // TODO(skanev): wait, can't we actually just do getauxval()?
-    // We *are* in the app's address space already. Double-check.
-    // For now, just don't do it when we attach with -pid -- in that case this
-    // doesn't get called at the entry point of main (and we can't use esp).
+    // Try to find bottom of the stack if we are starting at main().
+    // Walk until we reach the end of the environment.
     if (threadIndex == 0 && !PIN_IsAttaching()) {
+        CHAR** sp = (CHAR**)tos;
         UINT32 argc = *(UINT32*)sp;
         for (UINT32 i = 0; i < argc; i++) {
             sp++;
@@ -792,25 +747,6 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT* ictxt, INT32 flags, VOID* v) {
         }  // End of envp
 
         CHAR* last_env = *(envp - 1);
-        envp++;  // Skip end of envp (=NULL)
-
-#ifdef _LP64
-        Elf64_auxv_t* auxv = (Elf64_auxv_t*)envp;
-#else
-        Elf32_auxv_t* auxv = (Elf32_auxv_t*)envp;
-#endif
-        for (; auxv->a_type != AT_NULL; auxv++) {  // walk aux_vector
-            // This containts the address of the vdso
-            if (auxv->a_type == AT_SYSINFO_EHDR) {
-#ifdef FEEDER_DEBUG
-                cerr << "AT_SYSINFO_EHDR: " << hex << auxv->a_un.a_val << endl;
-#endif
-                ADDRINT vdso = (ADDRINT)auxv->a_un.a_val;
-                ipc_message_t msg;
-                msg.Mmap(asid, vdso, xiosim::memory::PAGE_SIZE, false);
-                SendIPCMessage(msg);
-            }
-        }
 
         if (last_env != NULL)
             bos = (ADDRINT)last_env + strlen(last_env) + 1;
@@ -821,10 +757,9 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT* ictxt, INT32 flags, VOID* v) {
         // execution starts on another thread.
         ADDRINT tos_start = xiosim::memory::page_round_down(tos);
         ADDRINT bos_end = xiosim::memory::page_round_up(bos);
-        ipc_message_t msg;
-        msg.Mmap(asid, tos_start, bos_end - tos_start, false);
-        SendIPCMessage(msg);
-
+        ipc_message_t bos_msg;
+        bos_msg.Mmap(asid, tos_start, bos_end - tos_start, false);
+        SendIPCMessage(bos_msg);
     } else {
         bos = tos;
     }
@@ -1112,9 +1047,8 @@ INT32 main(INT32 argc, CHAR** argv) {
     // Synchronize all processes here to ensure that in multiprogramming mode,
     // no process will start too far before the others.
     asid = InitSharedState(true, KnobHarnessPid.Value(), KnobNumCores.Value());
-    xiosim::buffer_management::InitBufferManagerProducer(KnobHarnessPid.Value(),
-                                                         KnobBufferSkipSpaceCheck.Value(),
-                                                         KnobBridgeDirs.Value());
+    xiosim::buffer_management::InitBufferManagerProducer(
+            KnobHarnessPid.Value(), KnobBufferSkipSpaceCheck.Value(), KnobBridgeDirs.Value());
 
     if (KnobAMDHack.Value()) {
         amd_hack();
@@ -1148,6 +1082,7 @@ INT32 main(INT32 argc, CHAR** argv) {
         TRACE_AddInstrumentFunction(InstrumentInsIgnoring, 0);
         INS_AddInstrumentFunction(Instrument, 0);
         INS_AddInstrumentFunction(InstrumentSpeculation, 0);
+        TRACE_AddInstrumentFunction(InstrumentParavirt, 0);
     }
 
     PIN_AddThreadStartFunction(ThreadStart, NULL);
@@ -1268,6 +1203,7 @@ VOID doLateILDJITInstrumentation() {
     TRACE_AddInstrumentFunction(InstrumentInsIgnoring, 0);
     INS_AddInstrumentFunction(Instrument, 0);
     INS_AddInstrumentFunction(InstrumentSpeculation, 0);
+    TRACE_AddInstrumentFunction(InstrumentParavirt, 0);
     CODECACHE_FlushCache();
     ReleaseVmLock();
 
@@ -1280,7 +1216,8 @@ VOID printTrace(string stype, ADDRINT pc, pid_t tid) {
     }
 
     lk_lock(printing_lock, tid + 1);
-    pc_file << tid << " " << " " << speculation_mode << " " << stype << " " << pc << " " << pc_diss[pc] << endl;
+    pc_file << tid << " "
+            << " " << speculation_mode << " " << stype << " " << pc << " " << pc_diss[pc] << endl;
     pc_file.flush();
     lk_unlock(printing_lock);
 }
@@ -1405,7 +1342,10 @@ static void InitWatchdog() {
 
     /* Set up watchdog timer. */
     const time_t INTERVAL_SEC = 5;
-    const struct itimerval watchdog_interval{{INTERVAL_SEC, 0}, {INTERVAL_SEC, 0}};
+    const struct itimerval watchdog_interval {
+        { INTERVAL_SEC, 0 }
+        , { INTERVAL_SEC, 0 }
+    };
     res = setitimer(ITIMER_VIRTUAL, &watchdog_interval, nullptr);
     if (res != 0) {
         perror(nullptr);
