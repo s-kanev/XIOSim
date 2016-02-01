@@ -1,3 +1,5 @@
+#include <syscall.h>
+
 #include "xiosim/sim.h"
 #include "xiosim/synchronization.h"
 
@@ -39,6 +41,7 @@ void BeforeGettimeofday(THREADID tid, ADDRINT arg1) {
         return;
     }
 
+    tstate->last_syscall_number = __NR_gettimeofday;
     tstate->last_syscall_arg1 = arg1;
 }
 
@@ -67,6 +70,10 @@ void AfterGettimeofday(THREADID tid, ADDRINT retval) {
     if (retval == (ADDRINT)-1)
         return;
 
+#ifdef SYSCALL_DEBUG
+    std::cerr << "gettimeofday will wait." << std::endl;
+#endif
+
     timeval* tv = (struct timeval*)tstate->last_syscall_arg1;
     SyncWithTimingSim(tid);
     {
@@ -89,6 +96,12 @@ void AfterGettimeofday(THREADID tid, ADDRINT retval) {
         }
     }
     ScheduleThread(tid);
+
+    tstate->last_syscall_number = 0;
+
+#ifdef SYSCALL_DEBUG
+    std::cerr << "gettimeofday waited." << std::endl;
+#endif
 }
 
 /* Virtualization of rdtsc which returns the value of sim_cycle for the core. */
@@ -101,6 +114,14 @@ VOID ReadRDTSC(THREADID tid, ADDRINT pc, ADDRINT next_pc, CONTEXT *ictxt) {
         FinishSpeculation(tstate);
         return;
     }
+
+    if (tstate->last_syscall_number == __NR_gettimeofday) {
+        return;
+    }
+
+#ifdef SYSCALL_DEBUG
+    std::cerr << "RDTSC will wait." << std::endl;
+#endif
 
     // We need to get the core this thread is running on before we sync
     // (which requires descheduling said thread).
@@ -119,6 +140,10 @@ VOID ReadRDTSC(THREADID tid, ADDRINT pc, ADDRINT next_pc, CONTEXT *ictxt) {
     PIN_SetContextRegval(ictxt, LEVEL_BASE::REG_INST_PTR, reinterpret_cast<UINT8*>(&next_pc));
 
     ScheduleThread(tid);
+
+#ifdef SYSCALL_DEBUG
+    std::cerr << "RDTSC waited." << std::endl;
+#endif
     PIN_ExecuteAt(ictxt);
 }
 

@@ -340,5 +340,7 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VOI
 #ifdef SYSCALL_DEBUG
     cerr << log.str();
 #endif
+
+    tstate->last_syscall_number = 0;
     lk_unlock(&syscall_lock);
 }
