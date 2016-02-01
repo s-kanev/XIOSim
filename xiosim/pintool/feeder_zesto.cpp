@@ -199,8 +199,7 @@ VOID SyncWithTimingSim(THREADID tid) {
     AddGiveUpHandshake(tid, false, false);
 
     /* And wait until it gets de-scheduled. */
-    while (IsSHMThreadSimulatingMaybe(tstate->tid))
-        PIN_Sleep(10);
+    while (IsSHMThreadSimulatingMaybe(tstate->tid)) ;
 
     /* Feeder and timing sim are now in sync for this thread. */
 }
@@ -238,6 +237,12 @@ VOID ScheduleThread(THREADID tid) {
     ipc_message_t msg;
     msg.ScheduleNewThread(tstate->tid);
     SendIPCMessage(msg);
+
+    /* Wait until the thread has been scheduled.
+     * Since there is no guarantee when IPC messages are consumed, not
+     * waiting can cause it to race to SyncWithTimingSim,
+     * before it has been scheduled to run. */
+    while (!IsSHMThreadSimulatingMaybe(tstate->tid)) ;
 }
 
 /* ========================================================================== */
