@@ -24,8 +24,6 @@ if(!strcasecmp(COMPONENT_NAME,type))
 
 #else
 
-extern double LLC_speed;
-
 class repeater_none_t: public repeater_t {
   public:
     repeater_none_t(struct core_t * const _core, const char * const _name, struct cache_t * const _next_level) :
@@ -35,7 +33,7 @@ class repeater_none_t: public repeater_t {
         // in global_step().
         // The real repeater implementation (repeater_default_t) has to run at core
         // speeds, so we have to rethink its clock domains if we want DFS to work with it.
-        speed = LLC_speed;
+        speed = uncore_knobs.LLC_speed;
       }
     virtual void step() { };
     virtual int enqueuable(const enum cache_command cmd, const int asid, const md_addr_t addr) { return true; }

@@ -206,7 +206,6 @@ cc_library(
         ":memory",
         ":stats",
         ":synchronization",
-        ":zesto-config",
         ":zesto-core",
         ":zesto-structs",
         ":zesto-uncore",
@@ -222,9 +221,8 @@ cc_library(
     ],
     hdrs = ["zesto-config.h"],
     deps = [
-        ":zesto-structs",
+        ":knobs",
         "//third_party/confuse",
-        "//third_party/ezOptionParser",
     ],
 )
 
@@ -236,7 +234,7 @@ cc_test(
     linkopts = ["-lm"],
     deps = [
         ":catch_impl",
-        ":libsim",
+        ":zesto-config",
         "//third_party/catch:main",
         "//third_party/confuse",
     ],
@@ -269,6 +267,12 @@ cc_library(
         ":x86",
         ":zesto-structs",
     ],
+)
+
+cc_library(
+    name = "knobs",
+    hdrs = ["knobs.h"],
+    deps = [":x86"],
 )
 
 cc_library(

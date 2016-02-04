@@ -17,10 +17,6 @@
 
 class ParseXML *XML = NULL; //Interface to McPAT
 
-extern int num_cores;
-extern struct core_knobs_t knobs;
-extern double LLC_speed;
-
 double uncore_rtp;
 double *cores_rtp;
 
@@ -42,7 +38,7 @@ void init_power(void)
 
 
   /* Translate uncore params */
-  XML->sys.number_of_cores = num_cores;
+  XML->sys.number_of_cores = system_knobs.num_cores;
   XML->sys.number_of_L1Directories = 0;
   XML->sys.number_of_L2Directories = 0;
   XML->sys.number_of_NoCs = 0;
@@ -51,7 +47,7 @@ void init_power(void)
   XML->sys.homogeneous_L1Directories = 0;
   XML->sys.homogeneous_L2Directories = 0;
   XML->sys.core_tech_node = 45;
-  XML->sys.target_core_clockrate = (int)knobs.default_cpu_speed;
+  XML->sys.target_core_clockrate = (int)core_knobs.default_cpu_speed;
   XML->sys.temperature = 380; // K
   XML->sys.interconnect_projection_type = 0; // aggressive
   XML->sys.longer_channel_device = 1; // use when appropirate
@@ -63,7 +59,7 @@ void init_power(void)
 
   int num_l2 = 0;
   bool has_hp_core = false;
-  for (int i=0; i<num_cores; i++)
+  for (int i=0; i<system_knobs.num_cores; i++)
   {
     // If any core has a private L2, we assume L3 is LLC
     if(cores[i]->memory.DL2)
@@ -103,7 +99,7 @@ void init_power(void)
     // Setting that ratio to 1 (we know [5]) would leave both pipelined and
     // non-pipelined designs on the table. >1 would mean we always want pipelining
     // and sometimes cacti has to try harder to give us that. <1 doesn't make sense.
-    XML->sys.L2[0].L2_config[5] = uncore->LLC->latency * (LLC_speed / knobs.default_cpu_speed);
+    XML->sys.L2[0].L2_config[5] = uncore->LLC->latency * (uncore_knobs.LLC_speed / core_knobs.default_cpu_speed);
     XML->sys.L2[0].L2_config[4] = XML->sys.L2[0].L2_config[5];
 
     // McPAT doesn't use below two apparantly
@@ -126,7 +122,7 @@ void init_power(void)
     // # WB buffers
     XML->sys.L2[0].buffer_sizes[3] = uncore->LLC->MSHR_WB_size;
 
-    XML->sys.L2[0].clockrate = (int)LLC_speed;
+    XML->sys.L2[0].clockrate = (int)uncore_knobs.LLC_speed;
     XML->sys.L2[0].device_type = LOP;
 
     XML->sys.L2[0].vdd = 0;
@@ -140,7 +136,7 @@ void init_power(void)
     // We might want to hardcode this to 1,2,4 for big multicores.
     XML->sys.L3[0].L3_config[3] = uncore->LLC->banks;
     // Same as L2 case above -- convert to uncore cycles and set throughput == latency.
-    XML->sys.L3[0].L3_config[5] = uncore->LLC->latency * (LLC_speed / knobs.default_cpu_speed);
+    XML->sys.L3[0].L3_config[5] = uncore->LLC->latency * (uncore_knobs.LLC_speed / core_knobs.default_cpu_speed);
     XML->sys.L3[0].L3_config[4] = XML->sys.L3[0].L3_config[5];
 
     // # read ports
@@ -159,7 +155,7 @@ void init_power(void)
     // # WB buffers
     XML->sys.L3[0].buffer_sizes[3] = uncore->LLC->MSHR_WB_size;
 
-    XML->sys.L3[0].clockrate = (int)LLC_speed;
+    XML->sys.L3[0].clockrate = (int)uncore_knobs.LLC_speed;
     XML->sys.L3[0].device_type = LOP;
   }
 
@@ -168,32 +164,30 @@ void init_power(void)
   XML->sys.niu.number_units = 0;
   XML->sys.pcie.number_units = 0;
 
-  for (int i=0; i<num_cores; i++)
+  for (int i=0; i<system_knobs.num_cores; i++)
     cores[i]->power->translate_params(&XML->sys.core[i], &XML->sys.L2[i]);
 
-  cores_leakage = (double*)calloc(num_cores, sizeof(*cores_leakage));
+  cores_leakage = (double*)calloc(system_knobs.num_cores, sizeof(*cores_leakage));
   if (cores_leakage == NULL)
     fatal("couldn't allocate memory");
 
   mcpat_initialize(XML, &cerr, cores_leakage, &uncore_leakage, 5);
 
-  cores_rtp = (double*)calloc(num_cores, sizeof(*cores_rtp));
+  cores_rtp = (double*)calloc(system_knobs.num_cores, sizeof(*cores_rtp));
   if (cores_rtp == NULL)
     fatal("couldn't allocate memory");
 
-  core_knobs_t* knobs = cores[0]->knobs;
-
-  if (knobs->power.rtp_interval > 0)
+  if (system_knobs.power.rtp_interval > 0)
   {
-    assert(knobs->power.rtp_filename);
-    rtp_file = fopen(knobs->power.rtp_filename, "w");
+    assert(system_knobs.power.rtp_filename);
+    rtp_file = fopen(system_knobs.power.rtp_filename, "w");
     if (rtp_file == NULL)
-      fatal("couldn't open rtp power file: %s", knobs->power.rtp_filename);
+      fatal("couldn't open rtp power file: %s", system_knobs.power.rtp_filename);
   }
 
   // Initialize Vdd from mcpat defaults
   core_power_t::default_vdd = g_tp.peri_global.Vdd;
-  for (int i=0; i<num_cores; i++)
+  for (int i=0; i<system_knobs.num_cores; i++)
     if (cores[i]->vf_controller) {
       cores[i]->vf_controller->vdd = g_tp.peri_global.Vdd;
       cores[i]->vf_controller->vf_controller_t::change_vf();
@@ -245,7 +239,7 @@ void compute_power(xiosim::stats::StatsDatabase* sdb, bool print_power)
 {
   /* Get necessary simualtor stats */
   translate_uncore_stats(sdb, &XML->sys);
-  for(int i=0; i<num_cores; i++)
+  for(int i=0; i<system_knobs.num_cores; i++)
     cores[i]->power->translate_stats(sdb, &XML->sys.core[i], &XML->sys.L2[i]);
 
   /* Invoke mcpat */
@@ -254,7 +248,7 @@ void compute_power(xiosim::stats::StatsDatabase* sdb, bool print_power)
   /* Print power trace */
   if (rtp_file)
   {
-    for(int i=0; i<num_cores; i++) {
+    for(int i=0; i<system_knobs.num_cores; i++) {
       /* Scale trace with voltage changes */
       double vdd = cores[i]->vf_controller->get_average_vdd();
       cores[i]->power->rt_power = cores_rtp[i] * (vdd * vdd) / (core_power_t::default_vdd * core_power_t::default_vdd);

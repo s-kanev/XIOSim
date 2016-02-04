@@ -15,7 +15,6 @@
 #include <map>
 #include <cstddef>
 
-#include "confuse.h"
 #include "host.h"
 #include "misc.h"
 #include "memory.h"
@@ -25,7 +24,6 @@
 #include "synchronization.h"
 #include "decode.h"
 
-#include "zesto-config.h"
 #include "zesto-core.h"
 #include "zesto-fetch.h"
 #include "zesto-oracle.h"
@@ -44,9 +42,6 @@
 #include "sim-loop.h"
 #include "libsim.h"
 
-/* libconfuse options database */
-extern cfg_t* all_opts;
-
 /* stats database */
 xiosim::stats::StatsDatabase* sim_sdb;
 
@@ -56,23 +51,8 @@ xiosim::stats::StatsDatabase* rtp_sdb;
 /* microarchitecture state */
 struct core_t** cores = NULL;
 
-/* microarchitecture configuration parameters/knobs */
-struct core_knobs_t knobs;
-
-/* number of cores */
-int num_cores = 1;
-
-/* redirected program/simulator output file names */
-const char* sim_simout = nullptr;
-
-/* random number generator seed */
-int rand_seed;
-
 /* execution start/end times */
 int sim_elapsed_time;
-
-/* spin on assertion failure so we can attach a debbuger */
-bool assert_spin;
 
 /* extern so we don't bring in all of multiprocess_shared.h */
 extern int* num_processes;
@@ -84,32 +64,25 @@ static void create_modules(void);
 static void sim_print_stats(FILE* fd);
 void on_assert_fail(int coreID);
 
-int init(int argc, char** argv) {
-    char* s;
-    int i;
-
-    /* Parse Zesto configuration file. This will populate both knobs and all_opts. */
-    // TODO: Get rid of c-style cast.
-    read_config_file(argc, (const char**)argv, &knobs);
-
+void init() {
     /* redirect I/O? */
-    if (sim_simout != NULL) {
+    if (system_knobs.sim_simout != NULL) {
         fflush(stderr);
-        if (!freopen(sim_simout, "w", stderr)) {
+        if (!freopen(system_knobs.sim_simout, "w", stderr)) {
             /* Print error message to stdout too, stderr might be messed up. */
-            fprintf(stdout, "unable to redirect simulator output to file `%s'\n", sim_simout);
+            fprintf(stdout, "unable to redirect simulator output to file `%s'\n", system_knobs.sim_simout);
             fflush(stdout);
-            fatal("unable to redirect simulator output to file `%s'", sim_simout);
+            fatal("unable to redirect simulator output to file `%s'", system_knobs.sim_simout);
         }
     }
 
     /* seed the random number generator */
-    if (rand_seed == 0) {
+    if (system_knobs.rand_seed == 0) {
         /* seed with the timer value, true random */
         srand(time((time_t*)NULL));
     } else {
         /* seed with default or user-specified random number generator seed */
-        srand(rand_seed);
+        srand(system_knobs.rand_seed);
     }
 
     /* initialize the instruction decoder */
@@ -141,28 +114,17 @@ int init(int argc, char** argv) {
     /* record start of execution time, used in rate stats */
     time_t sim_start_time = time((time_t*)NULL);
 
-    /* emit the command line for later reuse */
-    fprintf(stderr, "sim: command line: ");
-    for (i = 0; i < argc; i++)
-        fprintf(stderr, "%s ", argv[i]);
-    fprintf(stderr, "\n");
-
     /* output simulation conditions */
-    s = ctime(&sim_start_time);
+    char* s = ctime(&sim_start_time);
     if (s[strlen(s) - 1] == '\n')
         s[strlen(s) - 1] = '\0';
-    fprintf(stderr, "\nsim: simulation started @ %s, options follow:\n", s);
+    fprintf(stderr, "sim: simulation started @ %s, options follow:\n", s);
     char buff[128];
     gethostname(buff, sizeof(buff));
-    fprintf(stderr, "Executing on host: %s\n", buff);
+    fprintf(stderr, "Executing on host: %s\n\n", buff);
 
-    cfg_print(all_opts, stderr);
-    fprintf(stderr, "\n");
-
-    if (knobs.power.compute)
+    if (system_knobs.power.compute)
         init_power();
-
-    return 0;
 }
 
 void deinit() {
@@ -171,24 +133,24 @@ void deinit() {
 
     /* print simulator stats */
     sim_print_stats(stderr);
-    if (knobs.power.compute) {
+    if (system_knobs.power.compute) {
         stat_save_stats(sim_sdb);
         compute_power(sim_sdb, true);
         deinit_power();
     }
 
-    repeater_shutdown(knobs.exec.repeater_opt_str);
+    repeater_shutdown(core_knobs.exec.repeater_opt_str);
 
     /* If captured, print out ztrace */
-    for (int i = 0; i < num_cores; i++)
+    for (int i = 0; i < system_knobs.num_cores; i++)
         cores[i]->oracle->trace_in_flight_ops();
     ztrace_flush();
 
     /* Print instruction type histograms */
-    for (int i = 0; i < num_cores; i++)
+    for (int i = 0; i < system_knobs.num_cores; i++)
         cores[i]->oracle->dump_instruction_histograms("iclass_hist", "iform_hist");
 
-    for (int i = 0; i < num_cores; i++)
+    for (int i = 0; i < system_knobs.num_cores; i++)
         if (cores[i]->stat.oracle_unknown_insn / (double)cores[i]->stat.oracle_total_insn > 0.02)
             fprintf(stderr,
                     "WARNING: [%d] More than 2%% instructions turned to NOPs (%" PRId64
@@ -196,51 +158,47 @@ void deinit() {
                     i,
                     cores[i]->stat.oracle_unknown_insn,
                     cores[i]->stat.oracle_total_insn);
-
-    // Free memory allocated by libconfuse for the configuration options.
-    cfg_free(all_opts);
 }
 
 /* initialize core state, etc. - called AFTER config parameters have been parsed */
 static void create_modules(void) {
-    uncore_create();
-    dram_create();
+    uncore_create(uncore_knobs);
+    dram_create(uncore_knobs);
 
     /* initialize microarchitecture state */
-    cores = (struct core_t**)calloc(num_cores, sizeof(*cores));
+    cores = (struct core_t**)calloc(system_knobs.num_cores, sizeof(*cores));
     if (!cores)
         fatal("failed to calloc cores");
-    for (int i = 0; i < num_cores; i++) {
+    for (int i = 0; i < system_knobs.num_cores; i++) {
         cores[i] = new core_t(i);
         if (!cores[i])
             fatal("failed to calloc cores[]");
 
-        cores[i]->knobs = &knobs;
+        cores[i]->knobs = &core_knobs;
     }
 
     // Needs to be called before creating core->exec
-    repeater_init(knobs.exec.repeater_opt_str);
+    repeater_init(core_knobs.exec.repeater_opt_str);
 
-    for (int i = 0; i < num_cores; i++) {
+    for (int i = 0; i < system_knobs.num_cores; i++) {
         cores[i]->oracle = new core_oracle_t(cores[i]);
-        cores[i]->commit = commit_create(knobs.model, cores[i]);
-        cores[i]->exec = exec_create(knobs.model, cores[i]);
-        cores[i]->alloc = alloc_create(knobs.model, cores[i]);
-        cores[i]->decode = decode_create(knobs.model, cores[i]);
-        cores[i]->fetch = fetch_create(knobs.model, cores[i]);
-        cores[i]->power = power_create(knobs.model, cores[i]);
-        cores[i]->vf_controller = vf_controller_create(knobs.dvfs_opt_str, cores[i]);
+        cores[i]->commit = commit_create(core_knobs.model, cores[i]);
+        cores[i]->exec = exec_create(core_knobs.model, cores[i]);
+        cores[i]->alloc = alloc_create(core_knobs.model, cores[i]);
+        cores[i]->decode = decode_create(core_knobs.model, cores[i]);
+        cores[i]->fetch = fetch_create(core_knobs.model, cores[i]);
+        cores[i]->power = power_create(core_knobs.model, cores[i]);
+        cores[i]->vf_controller = vf_controller_create(system_knobs.dvfs_opt_str, cores[i]);
     }
 
-    if (strcasecmp(knobs.dvfs_opt_str, "none") && strcasecmp(knobs.exec.repeater_opt_str, "none"))
+    if (strcasecmp(system_knobs.dvfs_opt_str, "none") && strcasecmp(core_knobs.exec.repeater_opt_str, "none"))
         fatal("DVFS is not compatible with the memory repeater.");
 }
 
 /* register simulation statistics */
 void sim_reg_stats(xiosim::stats::StatsDatabase* sdb) {
     using namespace xiosim::stats;
-    int i;
-    bool is_DPM = strcasecmp(knobs.model, "STM") != 0;
+    bool is_DPM = strcasecmp(core_knobs.model, "STM") != 0;
 
     /* These stats must come first. */
     auto& sim_cycle_st = stat_reg_counter(
@@ -256,7 +214,7 @@ void sim_reg_stats(xiosim::stats::StatsDatabase* sdb) {
                      sim_cycle_st / (sim_elapsed_time_st * Constant(1000000.0)), NULL);
 
     /* per core stats */
-    for (i = 0; i < num_cores; i++)
+    for (int i = 0; i < system_knobs.num_cores; i++)
         cores[i]->reg_stats(sdb);
 
     uncore_reg_stats(sdb);
@@ -272,7 +230,7 @@ void sim_reg_stats(xiosim::stats::StatsDatabase* sdb) {
     /* Incrementally build each formula.  We can't yet define a formula in terms
      * of another, so each one needs to be constructed separately.
      */
-    for (i = 0; i < num_cores; i++) {
+    for (int i = 0; i < system_knobs.num_cores; i++) {
         auto commit_insn_st = stat_find_core_stat<counter_t>(sdb, i, "commit_insn");
         assert(commit_insn_st);
         all_insn += *commit_insn_st;
@@ -294,7 +252,7 @@ void sim_reg_stats(xiosim::stats::StatsDatabase* sdb) {
         Formula all_eff_uops("all_eff_uops", "total effective uops simulated for all cores",
                              "%12.0f");
         Formula sim_eff_uop_rate("sim_eff_uop_rate", "simulation speed (in MeuPS)");
-        for (i = 0; i < num_cores; i++) {
+        for (int i = 0; i < system_knobs.num_cores; i++) {
             auto commit_eff_uops_st = stat_find_core_stat<counter_t>(sdb, i, "commit_eff_uops");
             assert(commit_eff_uops_st);
             all_eff_uops += *commit_eff_uops_st;
@@ -305,7 +263,7 @@ void sim_reg_stats(xiosim::stats::StatsDatabase* sdb) {
     }
 
     // Total IPC formulas.
-    if (num_cores == 1) {
+    if (system_knobs.num_cores == 1) {
         auto c0_commit_insn_st = stat_find_stat<counter_t>(sdb, "c0.commit_insn");
         auto c0_sim_cycle_st = stat_find_stat<tick_t>(sdb, "c0.sim_cycle");
         stat_reg_formula(sdb, true, "total_IPC", "final commit IPC",
@@ -314,26 +272,26 @@ void sim_reg_stats(xiosim::stats::StatsDatabase* sdb) {
         // Compute geometric means of IPC.
         Formula gm_ipc("GM_IPC", "geometric mean IPC across all cores");
         Formula gm_upc("GM_uPC", "geometric mean uPC across all cores");
-        for (i = 0; i < num_cores; i++) {
+        for (int i = 0; i < system_knobs.num_cores; i++) {
             auto core_commit_ipc_st = stat_find_core_stat<counter_t>(sdb, i, "commit_IPC");
             auto core_commit_upc_st = stat_find_core_stat<counter_t>(sdb, i, "commit_uPC");
             assert(core_commit_ipc_st && core_commit_upc_st);
             gm_ipc += *core_commit_ipc_st;
             gm_upc += *core_commit_upc_st;
         }
-        gm_ipc ^= Constant(1.0 / num_cores);
-        gm_upc ^= Constant(1.0 / num_cores);
+        gm_ipc ^= Constant(1.0 / system_knobs.num_cores);
+        gm_upc ^= Constant(1.0 / system_knobs.num_cores);
         stat_reg_formula(sdb, gm_ipc);
         stat_reg_formula(sdb, gm_upc);
 
         if (is_DPM) {
             Formula gm_eff_upc("GM_euPC", "geometric mean euPC across all cores");
-            for (i = 0; i < num_cores; i++) {
+            for (int i = 0; i < system_knobs.num_cores; i++) {
                 auto core_commit_eupc_st = stat_find_core_stat<counter_t>(sdb, i, "commit_euPC");
                 assert(core_commit_eupc_st);
                 gm_upc += *core_commit_eupc_st;
             }
-            gm_eff_upc ^= Constant(1.0 / num_cores);
+            gm_eff_upc ^= Constant(1.0 / system_knobs.num_cores);
             stat_reg_formula(sdb, gm_eff_upc);
         }
     }
@@ -362,11 +320,11 @@ void on_assert_fail(int coreID) {
     }
     fflush(stderr);
 
-    for (int i=0; i < num_cores; i++)
+    for (int i=0; i < system_knobs.num_cores; i++)
         cores[i]->oracle->trace_in_flight_ops();
     ztrace_flush();
 
-    if (assert_spin)
+    if (system_knobs.assert_spin)
         while(1);
 }
 

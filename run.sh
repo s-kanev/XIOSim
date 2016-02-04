@@ -1,7 +1,6 @@
 #!/bin/bash
 
 PIN_PATH=bazel-bin/external/pin
-export PIN_VM_LD_LIBRARY_PATH=${PIN_PATH}
 PIN=${PIN_PATH}/pinbin
 
 BIN_PATH=bazel-bin/xiosim/pintool
@@ -13,16 +12,14 @@ BENCHMARK_CFG_FILE=benchmarks.cfg
 CMD_LINE="setarch x86_64 -R ${BIN_PATH}/harness \
                 -benchmark_cfg $BENCHMARK_CFG_FILE  \
                 -timing_sim ${TIMING_SIM} \
+                -config $ZESTOCFG \
                 -pin $PIN  \
                 -pause_tool 1  \
                 -xyzzy  \
                 -catch_signals 0 \
                 -t  \
                 $PINTOOL  \
-                -speculation false \
-                -num_cores 1  \
-                -s  \
-                -config $ZESTOCFG"
+                -speculation false"
 
 echo $CMD_LINE
 $CMD_LINE

@@ -7,11 +7,6 @@
  * There is one circular buffer per core and one for the uncore.
  */
 
-/* Prefix for ztrace output files.
- * Final filenames will be @ztrace_filename.{coreID}.
- */
-extern const char * ztrace_filename;
-
 #ifdef ZTRACE
 /* Opens ztrace files */
 extern void ztrace_init();

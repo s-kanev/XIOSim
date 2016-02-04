@@ -130,10 +130,9 @@ class Fib1Test(XIOSimTest):
         bmk_cfg = self.writeTestBmkConfig("fib")
         self.xio.AddBmks(bmk_cfg)
 
-        self.xio.AddPinOptions()
-        self.xio.AddPintoolOptions(num_cores=1)
-        self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
+        self.xio.AddConfigFile(os.path.join(self.xio.GetTreeDir(),
                                               "xiosim/config", "N.cfg"))
+        self.xio.AddPinOptions()
 
     def setUp(self):
         super(Fib1Test, self).setUp()
@@ -152,10 +151,9 @@ class NoneTest(XIOSimTest):
         bmk_cfg = self.writeTestBmkConfig("fib")
         self.xio.AddBmks(bmk_cfg)
 
-        self.xio.AddPinOptions()
-        self.xio.AddPintoolOptions(num_cores=1)
-        self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
+        self.xio.AddConfigFile(os.path.join(self.xio.GetTreeDir(),
                                               "xiosim/config", "none.cfg"))
+        self.xio.AddPinOptions()
 
     def setUp(self):
         super(NoneTest, self).setUp()
@@ -174,11 +172,10 @@ class Fib1LengthTest(XIOSimTest):
         bmk_cfg = self.writeTestBmkConfig("fib")
         self.xio.AddBmks(bmk_cfg)
 
-        self.xio.AddPinOptions()
-        self.xio.AddPintoolOptions(num_cores=1)
-        self.xio.AddInstLength(10000)
-        self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
+        self.xio.AddConfigFile(os.path.join(self.xio.GetTreeDir(),
                                               "xiosim/config", "N.cfg"))
+        self.xio.AddPinOptions()
+        self.xio.AddInstLength(10000)
 
     def setUp(self):
         super(Fib1LengthTest, self).setUp()
@@ -194,11 +191,10 @@ class Fib1SkipTest(XIOSimTest):
         bmk_cfg = self.writeTestBmkConfig("fib")
         self.xio.AddBmks(bmk_cfg)
 
-        self.xio.AddPinOptions()
-        self.xio.AddPintoolOptions(num_cores=1)
-        self.xio.AddSkipInst(50000)
-        self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
+        self.xio.AddConfigFile(os.path.join(self.xio.GetTreeDir(),
                                               "xiosim/config", "N.cfg"))
+        self.xio.AddPinOptions()
+        self.xio.AddSkipInst(50000)
 
     def setUp(self):
         super(Fib1SkipTest, self).setUp()
@@ -217,13 +213,12 @@ class Fib1PinPointTest(XIOSimTest):
         bmk_cfg = self.writeTestBmkConfig("fib")
         self.xio.AddBmks(bmk_cfg)
 
+        self.xio.AddConfigFile(os.path.join(self.xio.GetTreeDir(),
+                                              "xiosim/config", "N.cfg"))
         self.xio.AddPinOptions()
-        self.xio.AddPintoolOptions(num_cores=1)
         ppfile = os.path.join(self.xio.GetTreeDir(), "tests",
                               self.xio.TARGET_ARCH, "fib..pintool.1.pp")
         self.xio.AddPinPointFile(ppfile)
-        self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
-                                              "xiosim/config", "N.cfg"))
 
     def setUp(self):
         super(Fib1PinPointTest, self).setUp()
@@ -239,13 +234,12 @@ class Fib1PinPointsTest(XIOSimTest):
         bmk_cfg = self.writeTestBmkConfig("fib")
         self.xio.AddBmks(bmk_cfg)
 
+        self.xio.AddConfigFile(os.path.join(self.xio.GetTreeDir(),
+                                              "xiosim/config", "N.cfg"))
         self.xio.AddPinOptions()
-        self.xio.AddPintoolOptions(num_cores=1)
         ppfile = os.path.join(self.xio.GetTreeDir(), "tests",
                               self.xio.TARGET_ARCH, "fib..pintool.2.pp")
         self.xio.AddPinPointFile(ppfile)
-        self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
-                                              "xiosim/config", "N.cfg"))
 
     def setUp(self):
         super(Fib1PinPointsTest, self).setUp()
@@ -263,11 +257,10 @@ class ROITest(XIOSimTest):
         bmk_cfg = self.writeTestBmkConfig("roi")
         self.xio.AddBmks(bmk_cfg)
 
-        self.xio.AddPinOptions()
-        self.xio.AddPintoolOptions(num_cores=1)
-        self.xio.AddROIOptions()
-        self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
+        self.xio.AddConfigFile(os.path.join(self.xio.GetTreeDir(),
                                               "xiosim/config", "N.cfg"))
+        self.xio.AddPinOptions()
+        self.xio.AddROIOptions()
 
     def setUp(self):
         super(ROITest, self).setUp()
@@ -282,9 +275,6 @@ class ReplaceTest(XIOSimTest):
         bmk_cfg = self.writeTestBmkConfig("repl")
         self.xio.AddBmks(bmk_cfg)
 
-        self.xio.AddPinOptions()
-        self.xio.AddPintoolOptions(num_cores=1)
-        self.xio.AddReplaceOptions("fib_repl")
         # 30K cycles for the magic instruction that replaces fib_repl()
         # 30K is high enough that the test can catch if we didn't add it,
         # yet low enough that it doesn't tickle the deadlock threshold (50K)
@@ -295,7 +285,9 @@ class ReplaceTest(XIOSimTest):
         test_cfg = self.writeTestConfig(os.path.join(self.xio.GetTreeDir(),
                                                      "xiosim/config", "N.cfg"),
                                         repl)
-        self.xio.AddZestoOptions(test_cfg)
+        self.xio.AddConfigFile(test_cfg)
+        self.xio.AddPinOptions()
+        self.xio.AddReplaceOptions("fib_repl")
 
     def setUp(self):
         super(ReplaceTest, self).setUp()
@@ -318,16 +310,15 @@ class PowerTest(XIOSimTest):
         bmk_cfg = self.writeTestBmkConfig("fib")
         self.xio.AddBmks(bmk_cfg)
 
-        self.xio.AddPinOptions()
-        self.xio.AddPintoolOptions(num_cores=1)
-
         repl = {
             "system_cfg.simulate_power" : "true"
         }
         test_cfg = self.writeTestConfig(os.path.join(self.xio.GetTreeDir(),
                                                      "xiosim/config", "A.cfg"),
                                         repl)
-        self.xio.AddZestoOptions(test_cfg)
+        self.xio.AddConfigFile(test_cfg)
+        self.xio.AddPinOptions()
+
 
     def setUp(self):
         super(PowerTest, self).setUp()
@@ -348,18 +339,17 @@ class DFSTest(XIOSimTest):
         bmk_cfg = self.writeTestBmkConfig("step")
         self.xio.AddBmks(bmk_cfg)
 
-        self.xio.AddPinOptions()
-        self.xio.AddPintoolOptions(num_cores=1)
-
         repl = {
             "system_cfg.simulate_power" : "true",
-            "uncore_cfg.dvfs_cfg.config" : "\"sample\"",
-            "uncore_cfg.dvfs_cfg.interval" : "20000",
+            "system_cfg.dvfs_cfg.config" : "\"sample\"",
+            "system_cfg.dvfs_cfg.interval" : "20000",
         }
         test_cfg = self.writeTestConfig(os.path.join(self.xio.GetTreeDir(),
                                                      "xiosim/config", "A.cfg"),
                                         repl)
-        self.xio.AddZestoOptions(test_cfg)
+        self.xio.AddConfigFile(test_cfg)
+        self.xio.AddPinOptions()
+
 
     def setUp(self):
         super(DFSTest, self).setUp()
@@ -378,10 +368,9 @@ class Fib2Test(XIOSimTest):
         bmk_cfg = self.writeTestBmkConfig("fib", num_copies=2)
         self.xio.AddBmks(bmk_cfg)
 
-        self.xio.AddPinOptions()
-        self.xio.AddPintoolOptions(num_cores=1)
-        self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
+        self.xio.AddConfigFile(os.path.join(self.xio.GetTreeDir(),
                                               "xiosim/config", "N.cfg"))
+        self.xio.AddPinOptions()
 
     def setUp(self):
         super(Fib2Test, self).setUp()
@@ -399,11 +388,10 @@ class REPTest(XIOSimTest):
         bmk_cfg = self.writeTestBmkConfig("rep")
         self.xio.AddBmks(bmk_cfg)
 
-        self.xio.AddPinOptions()
-        self.xio.AddPintoolOptions(num_cores=1)
-        self.xio.AddROIOptions()
-        self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
+        self.xio.AddConfigFile(os.path.join(self.xio.GetTreeDir(),
                                               "xiosim/config", "none.cfg"))
+        self.xio.AddPinOptions()
+        self.xio.AddROIOptions()
 
     def setUp(self):
         super(REPTest, self).setUp()
@@ -419,10 +407,9 @@ class SegfTest(XIOSimTest):
         bmk_cfg = self.writeTestBmkConfig("segf")
         self.xio.AddBmks(bmk_cfg)
 
-        self.xio.AddPinOptions()
-        self.xio.AddPintoolOptions(num_cores=1)
-        self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
+        self.xio.AddConfigFile(os.path.join(self.xio.GetTreeDir(),
                                               "xiosim/config", "N.cfg"))
+        self.xio.AddPinOptions()
 
     def setUp(self):
         super(SegfTest, self).setUp()
@@ -436,11 +423,10 @@ class ChaseTest(XIOSimTest):
         bmk_cfg = self.writeTestBmkConfig("chase")
         self.xio.AddBmks(bmk_cfg)
 
-        self.xio.AddPinOptions()
-        self.xio.AddPintoolOptions(num_cores=1)
-        self.xio.AddROIOptions()
-        self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
+        self.xio.AddConfigFile(os.path.join(self.xio.GetTreeDir(),
                                               "xiosim/config", "N.cfg"))
+        self.xio.AddPinOptions()
+        self.xio.AddROIOptions()
 
     def setUp(self):
         super(ChaseTest, self).setUp()
@@ -458,11 +444,10 @@ class PrefetchTest(XIOSimTest):
         bmk_cfg = self.writeTestBmkConfig("prefetch")
         self.xio.AddBmks(bmk_cfg)
 
-        self.xio.AddPinOptions()
-        self.xio.AddPintoolOptions(num_cores=1)
-        self.xio.AddROIOptions()
-        self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
+        self.xio.AddConfigFile(os.path.join(self.xio.GetTreeDir(),
                                               "xiosim/config", "N.cfg"))
+        self.xio.AddPinOptions()
+        self.xio.AddROIOptions()
 
     def setUp(self):
         super(PrefetchTest, self).setUp()
@@ -480,15 +465,14 @@ class IgnorePCTest(XIOSimTest):
         bmk_cfg = self.writeTestBmkConfig("ignore")
         self.xio.AddBmks(bmk_cfg)
 
+        self.xio.AddConfigFile(os.path.join(self.xio.GetTreeDir(),
+                                              "xiosim/config", "none.cfg"))
         self.xio.AddPinOptions()
-        self.xio.AddPintoolOptions(num_cores=1)
         self.xio.AddROIOptions()
         if self.xio.TARGET_ARCH == "k8":
             self.xio.AddIgnorePCOptions("0x400e2a")
         else:
             self.xio.AddIgnorePCOptions("0x8048bcd")
-        self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
-                                              "xiosim/config", "none.cfg"))
 
     def setUp(self):
         super(IgnorePCTest, self).setUp()
@@ -502,11 +486,10 @@ class TimeTest(XIOSimTest):
     def setDriverParams(self):
         bmk_cfg = self.writeTestBmkConfig("time")
         self.xio.AddBmks(bmk_cfg)
-        self.xio.AddPinOptions()
-        self.xio.AddPintoolOptions(num_cores=1)
-        self.xio.AddROIOptions()
-        self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
+        self.xio.AddConfigFile(os.path.join(self.xio.GetTreeDir(),
                                               "xiosim/config", "N.cfg"))
+        self.xio.AddPinOptions()
+        self.xio.AddROIOptions()
 
     def setUp(self):
         super(TimeTest, self).setUp()
@@ -525,12 +508,11 @@ class TimeVDSOTest(XIOSimTest):
     def setDriverParams(self):
         bmk_cfg = self.writeTestBmkConfig("time")
         self.xio.AddBmks(bmk_cfg)
+        self.xio.AddConfigFile(os.path.join(self.xio.GetTreeDir(),
+                                              "xiosim/config", "N.cfg"))
         self.xio.AddPinOptions()
-        self.xio.AddPintoolOptions(num_cores=1)
         self.xio.AddROIOptions()
         self.xio.AddTraceFile("trace.out")
-        self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
-                                              "xiosim/config", "N.cfg"))
 
     def setUp(self):
         super(TimeVDSOTest, self).setUp()
@@ -555,11 +537,10 @@ class AttachTest(XIOSimTest):
         # will get created later, when we have a pid
         bmk_cfg = os.path.join(self.run_dir, "loop.cfg")
         self.xio.AddBmks(bmk_cfg)
-        self.xio.AddPinOptions()
-        self.xio.AddPintoolOptions(num_cores=1)
-        self.xio.AddInstLength(10000)
-        self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
+        self.xio.AddConfigFile(os.path.join(self.xio.GetTreeDir(),
                                               "xiosim/config", "none.cfg"))
+        self.xio.AddPinOptions()
+        self.xio.AddInstLength(10000)
 
     def setUp(self):
         super(AttachTest, self).setUp()
@@ -574,10 +555,9 @@ class RdtscTest(XIOSimTest):
     def setDriverParams(self):
         bmk_cfg = self.writeTestBmkConfig("rdtsc")
         self.xio.AddBmks(bmk_cfg)
-        self.xio.AddPinOptions()
-        self.xio.AddPintoolOptions(num_cores=1)
-        self.xio.AddZestoOptions(os.path.join(self.xio.GetTreeDir(),
+        self.xio.AddConfigFile(os.path.join(self.xio.GetTreeDir(),
                                               "xiosim/config", "N.cfg"))
+        self.xio.AddPinOptions()
 
     def setUp(self):
         super(RdtscTest, self).setUp()

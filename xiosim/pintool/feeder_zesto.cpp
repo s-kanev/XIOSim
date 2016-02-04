@@ -25,6 +25,7 @@
 
 #include "xiosim/memory.h"
 #include "xiosim/sim.h"
+#include "xiosim/zesto-config.h"
 
 #include "BufferManagerProducer.h"
 #include "feeder.h"
@@ -61,8 +62,8 @@ KNOB<BOOL> KnobAMDHack(KNOB_MODE_WRITEONCE,
                        "Using AMD syscall hack for use with hpc cluster");
 KNOB<BOOL> KnobWarmLLC(KNOB_MODE_WRITEONCE, "pintool", "warm_llc", "false",
                        "Warm LLC while fast-forwarding");
-KNOB<int> KnobNumCores(KNOB_MODE_WRITEONCE, "pintool", "num_cores", "1",
-                       "Number of cores simulated");
+KNOB<string> KnobConfigFile(KNOB_MODE_WRITEONCE, "pintool", "config" , "",
+                            "Simulator configuration file.");
 KNOB<pid_t> KnobHarnessPid(KNOB_MODE_WRITEONCE, "pintool", "harness_pid", "-1",
                            "Process id of the harness process.");
 KNOB<BOOL> KnobBufferSkipSpaceCheck(KNOB_MODE_WRITEONCE, "pintool", "buffer_skip_space_check",
@@ -98,6 +99,11 @@ xed_state_t dstate;
 static void InitXed();
 
 static void InitWatchdog();
+
+/* Feeder-side version of knobs declared in sim.h. */
+core_knobs_t core_knobs;
+uncore_knobs_t uncore_knobs;
+system_knobs_t system_knobs;
 
 /* ========================================================================== */
 /* Pinpoint related */
@@ -1049,9 +1055,12 @@ INT32 main(INT32 argc, CHAR** argv) {
 
     PIN_SemaphoreInit(&producers_sem);
 
+    read_config_file(KnobConfigFile.Value(), &core_knobs, &uncore_knobs, &system_knobs);
+    int num_cores = system_knobs.num_cores;
+
     // Synchronize all processes here to ensure that in multiprogramming mode,
     // no process will start too far before the others.
-    asid = InitSharedState(true, KnobHarnessPid.Value(), KnobNumCores.Value());
+    asid = InitSharedState(true, KnobHarnessPid.Value(), num_cores);
     xiosim::buffer_management::InitBufferManagerProducer(
             KnobHarnessPid.Value(), KnobBufferSkipSpaceCheck.Value(), KnobBridgeDirs.Value());
 
@@ -1117,8 +1126,8 @@ INT32 main(INT32 argc, CHAR** argv) {
         }
     }
 
-    initial_timestamps = new tick_t[KnobNumCores.Value()];
-    for (int i = 0; i < KnobNumCores.Value(); i++)
+    initial_timestamps = new tick_t[num_cores];
+    for (int i = 0; i < num_cores; i++)
         initial_timestamps[i] = TICK_T_MAX;
 
     *sleeping_enabled = true;

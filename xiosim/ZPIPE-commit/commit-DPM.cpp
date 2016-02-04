@@ -571,10 +571,10 @@ void core_commit_DPM_t::step(void)
           Mop->uop[Mop->decode.last_uop_index].decode.EOM,Mop->decode.is_trap);
 #endif
 
-        if (Mop->fetch.PC == knobs->stopwatch_start_pc) {
+        if (Mop->fetch.PC == system_knobs.stopwatch_start_pc) {
           ticker = core->sim_cycle;
         }
-        if (Mop->fetch.PC == knobs->stopwatch_stop_pc) {
+        if (Mop->fetch.PC == system_knobs.stopwatch_stop_pc) {
           ticker = core->sim_cycle - ticker;
           fprintf(stderr, "Measurement: %" PRId64 " cycles\n", ticker);
         }

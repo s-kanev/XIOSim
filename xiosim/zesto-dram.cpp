@@ -70,12 +70,6 @@
 /* this pointer hold DRAM implementation/model-specific state */
 class dram_t * dram = NULL;
 
-// TODO: Making this nonstatic for now, because it has to be available for
-// zesto-config as an extern variable. In the future, we may put all the new
-// configuration code into the appropriate zesto file and restore these back to
-// static.
-const char * dram_opt_string = NULL;
-
 void dram_t::init(void)
 {
   total_accesses = 0;
@@ -149,8 +143,8 @@ static dram_t * dram_from_string(const char * const opt_string)
   fatal("Unknown dram type (%s)",opt_string);
 }
 
-void dram_create(void)
+void dram_create(const uncore_knobs_t& knobs)
 {
-  dram = dram_from_string(dram_opt_string);
+  dram = dram_from_string(knobs.dram_opt_string);
 }
 

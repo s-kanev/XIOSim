@@ -19,7 +19,6 @@
 
 /* Global members from sim.cpp that we'll overwrite between slices. */
 extern xiosim::stats::StatsDatabase* sim_sdb;
-extern const char* sim_simout;
 extern int sim_elapsed_time;
 
 static unsigned long long slice_core_start_cycle = 0;
@@ -57,7 +56,6 @@ void end_slice(unsigned int slice_num,
                unsigned long long feeder_slice_length,
                unsigned long long slice_weight_times_1000) {
     int i = 0;
-    core_knobs_t* knobs = cores[i]->knobs;
     xiosim::stats::StatsDatabase* curr_sdb = all_stats.back();
     slice_uncore_end_cycle = uncore->sim_cycle;
     slice_core_end_cycle = cores[i]->sim_cycle;
@@ -91,19 +89,19 @@ void end_slice(unsigned int slice_num,
 
     stat_save_stats(curr_sdb);
     /* Print slice stats separately */
-    if (/*verbose && */ sim_simout != NULL) {
+    if (/*verbose && */ system_knobs.sim_simout != NULL) {
         char curr_filename[PATH_MAX];
-        sprintf(curr_filename, "%s.slice.%d", sim_simout, slice_num);
+        sprintf(curr_filename, "%s.slice.%d", system_knobs.sim_simout, slice_num);
         FILE* curr_fd = freopen(curr_filename, "w", stderr);
         if (curr_fd != NULL) {
             stat_print_stats(curr_sdb, stderr);
-            if (knobs->power.compute)
+            if (system_knobs.power.compute)
                 compute_power(curr_sdb, true);
             fclose(curr_fd);
         }
         // Restore stderr redirection
-        if (sim_simout)
-            curr_fd = freopen(sim_simout, "a", stderr);
+        if (system_knobs.sim_simout)
+            curr_fd = freopen(system_knobs.sim_simout, "a", stderr);
         else
             curr_fd = fopen("/dev/tty", "a");
         if (curr_fd == NULL)

@@ -8,8 +8,6 @@
 #include "zesto-core.h"
 #include "zesto-noc.h"
 
-extern bool fsb_magic;
-
 /* create a generic bus that can be used to connect one or more caches */
 struct bus_t* bus_create(const char* const name,
                          const int width,
@@ -63,7 +61,7 @@ void bus_reg_stats(xiosim::stats::StatsDatabase* sdb,
 /* Returns true is the bus is available */
 int bus_free(const struct bus_t* const bus) {
     /* HACEDY HACKEDY HACK -- magic FSB */
-    if (fsb_magic && strncmp(bus->name, "FSB", 3) == 0)
+    if (uncore_knobs.fsb_magic && strncmp(bus->name, "FSB", 3) == 0)
         return true;
     /* assume bus clock is locked to appropriate clock (synchronous): only
        allow operations when cycle MOD bus-multiplier is zero */

@@ -148,6 +148,7 @@ static void copyProducerToFile(pid_t tid, bool checkSpace) {
                 found_space = true;
                 break;
             }
+
             std::cerr << "Out of space on " + bridgeDirs_[i] + " !!!" << std::endl;
         }
         if (found_space == false) {

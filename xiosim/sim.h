@@ -1,12 +1,12 @@
 #ifndef SIM_H
 #define SIM_H
 
+#include "knobs.h"
 #include "stats.h"
 
-extern struct core_knobs_t knobs;
-
-/* spin on assertion failure so we can attach a debbuger */
-extern bool assert_spin;
+extern struct core_knobs_t core_knobs;
+extern struct uncore_knobs_t uncore_knobs;
+extern struct system_knobs_t system_knobs;
 
 namespace xiosim {
 
@@ -15,8 +15,6 @@ const int INVALID_CORE = -1;
 
 }  // xiosim
 
-/* number of cores */
-extern int num_cores;
 extern struct core_t** cores;
 
 namespace xiosim {

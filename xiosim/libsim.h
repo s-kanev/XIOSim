@@ -6,6 +6,8 @@
 #ifndef __LIBSIM_H__
 #define __LIBSIM_H__
 
+#include <string>
+
 #include "host.h"
 
 class handshake_container_t;
@@ -13,7 +15,7 @@ class handshake_container_t;
 namespace xiosim {
 namespace libsim {
 
-int init(int argc, char** argv);
+void init();
 void deinit();
 
 void simulate_handshake(int coreID, handshake_container_t* handshake);

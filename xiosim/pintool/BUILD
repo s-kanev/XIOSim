@@ -27,6 +27,7 @@ cc_binary(
         "//third_party/confuse",
         "//third_party/ezOptionParser",
         "//xiosim:libsim",
+        "//xiosim:zesto-config",
     ],
 )
 
@@ -73,6 +74,7 @@ cc_binary(
         "//third_party/pin",
         "//third_party/pin:xed",
         "//xiosim:zesto-bpred",
+        "//xiosim:zesto-config",
     ],
 )
 

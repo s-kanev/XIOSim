@@ -39,15 +39,17 @@ class XIOSimDriver(object):
     def AddTimingSim(self):
         self.cmd += "-timing_sim " + os.path.join(self.INSTALL_DIR, "xiosim/pintool/timing_sim") + " "
 
+    def AddConfigFile(self, cfg):
+        self.cmd += "-config " + cfg + " "
+
     def AddPinOptions(self):
         self.cmd += "-pin " + self.PIN + " "
         self.cmd += "-xyzzy "
         self.cmd += "-pause_tool 1 "
         self.cmd += "-catch_signals 0 "
         self.cmd += "-t " + os.path.join(self.INSTALL_DIR, "xiosim/pintool/feeder_zesto.so") + " "
-
-    def AddPintoolOptions(self, num_cores):
-        self.cmd += "-num_cores %d " % num_cores
+        if self.bridge_dirs:
+            self.cmd += "-buffer_bridge_dirs %s " % self.bridge_dirs
 
     def AddPinPointFile(self, file):
         self.cmd += "-ppfile %s " % file
@@ -80,12 +82,6 @@ class XIOSimDriver(object):
 
     def DisableSpeculation(self):
         self.cmd += "-speculation false "
-
-    def AddZestoOptions(self, cfg):
-        if self.bridge_dirs:
-            self.cmd += "-buffer_bridge_dirs %s " % self.bridge_dirs
-        self.cmd += "-s "
-        self.cmd += "-config " + cfg + " "
 
     def Exec(self, stdin_file=None, stdout_file=None, stderr_file=None, cwd=None):
         print self.cmd

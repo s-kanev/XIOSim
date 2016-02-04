@@ -1,11 +1,12 @@
 #include "ezOptionParser_clean.hpp"
 
+#include "xiosim/knobs.h"
 #include "xiosim/libsim.h"
 #include "xiosim/memory.h"
 #include "xiosim/sim.h"
 #include "xiosim/slices.h"
 #include "xiosim/synchronization.h"
-#include "xiosim/zesto-structs.h"
+#include "xiosim/zesto-config.h"
 
 #include "BufferManagerConsumer.h"
 #include "allocators_impl.h"
@@ -15,9 +16,12 @@
 
 #include "timing_sim.h"
 
-const char sim_name[] = "XIOSim";
+/* configuration parameters/knobs */
+struct core_knobs_t core_knobs;
+struct uncore_knobs_t uncore_knobs;
+struct system_knobs_t system_knobs;
 
-static sim_thread_state_t thread_states[MAX_CORES];
+static sim_thread_state_t thread_states[xiosim::MAX_CORES];
 
 inline sim_thread_state_t* get_sim_tls(int coreID) { return &thread_states[coreID]; }
 
@@ -154,7 +158,7 @@ void SpawnSimulatorThreads(int numCores) {
 void StopSimulation(bool kill_sim_threads, int caller_coreID) {
     if (kill_sim_threads) {
         /* Signal simulator threads to die */
-        for (int coreID = 0; coreID < num_cores; coreID++) {
+        for (int coreID = 0; coreID < system_knobs.num_cores; coreID++) {
             sim_thread_state_t* curr_tstate = get_sim_tls(coreID);
             lk_lock(&curr_tstate->lock, 1);
             curr_tstate->is_running = false;
@@ -166,7 +170,7 @@ void StopSimulation(bool kill_sim_threads, int caller_coreID) {
         do {
             is_stopped = true;
 
-            for (int coreID = 0; coreID < num_cores; coreID++) {
+            for (int coreID = 0; coreID < system_knobs.num_cores; coreID++) {
                 if (coreID == caller_coreID)
                     continue;
 
@@ -179,72 +183,11 @@ void StopSimulation(bool kill_sim_threads, int caller_coreID) {
     }
 
     xiosim::libsim::deinit();
+    // Free memory allocated by libconfuse for the configuration options.
+    free_config();
 
     if (kill_sim_threads)
         exit(EXIT_SUCCESS);
-}
-
-/* ========================================================================== */
-/** The command line arguments passed upon invocation need paring because (1)
- *the
- * command line can have arguments for SimpleScalar and (2) Pin cannot see the
- * SimpleScalar's arguments otherwise it will barf; it'll expect KNOB
- * declarations for those arguments. Thereforce, we follow a convention that
- * anything declared past "-s" and before "--" on the command line must be
- * passed along as SimpleScalar's argument list.
- *
- * SimpleScalar's arguments are extracted out of the command line in twos steps:
- * First, we create a new argument vector that can be passed to SimpleScalar.
- * This is done by calloc'ing and copying the arguments over. Thereafter, in the
- * second stage we nullify SimpleScalar's arguments from the original (Pin's)
- * command line so that Pin doesn't see during its own command line parsing
- * stage. */
-typedef pair<unsigned int, char**> SSARGS;
-SSARGS MakeSimpleScalarArgcArgv(unsigned int argc, const char* argv[]) {
-    using std::string;
-
-    char** ssArgv = 0;
-    unsigned int ssArgBegin = 0;
-    unsigned int ssArgc = 0;
-    unsigned int ssArgEnd = argc;
-
-    for (unsigned int i = 0; i < argc; i++) {
-        if ((string(argv[i]) == "-s") || (string(argv[i]) == "--")) {
-            ssArgBegin = i + 1;  // Points to a valid arg
-            break;
-        }
-    }
-
-    if (ssArgBegin) {
-        ssArgc = (ssArgEnd - ssArgBegin)  // Specified command line args
-                 + (2);                   // Null terminator for argv
-    } else {
-        // Coming here implies the command line has not been setup properly even
-        // to run Pin, so return. Pin will complain appropriately.
-        return make_pair(argc, const_cast<char**>(argv));
-    }
-
-    // This buffer will hold SimpleScalar's argv
-    ssArgv = reinterpret_cast<char**>(calloc(ssArgc, sizeof(char*)));
-    if (ssArgv == NULL) {
-        std::cerr << "Calloc argv failed" << std::endl;
-        abort();
-    }
-
-    unsigned int ssArgIndex = 0;
-    ssArgv[ssArgIndex++] = const_cast<char*>(sim_name);  // Does not matter; just for sanity
-    for (unsigned int pin = ssArgBegin; pin < ssArgEnd; pin++) {
-        if (string(argv[pin]) != "--") {
-            string* argvCopy = new string(argv[pin]);
-            ssArgv[ssArgIndex++] = const_cast<char*>(argvCopy->c_str());
-        }
-    }
-
-    // Terminate the argv. Ending must terminate with a pointer *referencing* a
-    // NULL. Simply terminating the end of argv[n] w/ NULL violates conventions
-    ssArgv[ssArgIndex++] = new char('\0');
-
-    return make_pair(ssArgc, ssArgv);
 }
 
 /* ========================================================================== */
@@ -253,31 +196,34 @@ int main(int argc, const char* argv[]) {
     opts.overview = "XIOSim timing_sim options";
     opts.syntax = "XXX";
     opts.add("-1", 1, 1, 0, "Harness PID", "-harness_pid");
-    opts.add("1", 1, 1, 0, "Number of cores simulated", "-num_cores");
+    opts.add("", 1, 1, 0, "Simulator config file", "-config");
     opts.parse(argc, argv);
 
     int harness_pid;
     opts.get("-harness_pid")->getInt(harness_pid);
-    int num_cores;
-    opts.get("-num_cores")->getInt(num_cores);
+    std::string cfg_file;
+    opts.get("-config")->getString(cfg_file);
 
-    InitSharedState(false, harness_pid, num_cores);
+    /* Parse configuration file. This will populate all knobs. */
+    read_config_file(cfg_file, &core_knobs, &uncore_knobs, &system_knobs);
+
+    InitSharedState(false, harness_pid, system_knobs.num_cores);
     xiosim::buffer_management::InitBufferManagerConsumer(harness_pid);
 
-    // Prepare args for libsim
-    SSARGS ssargs = MakeSimpleScalarArgcArgv(argc, argv);
-    xiosim::libsim::init(ssargs.first, ssargs.second);
+    xiosim::libsim::init();
+    print_config(stderr);
+    fprintf(stderr, "\n");
 
-    InitScheduler(num_cores);
+    InitScheduler(system_knobs.num_cores);
     // The following core/uncore power values correspond to 20% of total system
     // power going to the uncore.
-    core_allocator = &(AllocatorParser::Get(knobs.allocator,
-                                            knobs.allocator_opt_target,
-                                            knobs.speedup_model,
-                                            1,                          // core_power
-                                            num_cores / (1 / 0.2 - 1),  // uncore_power
-                                            num_cores));
-    SpawnSimulatorThreads(num_cores);
+    core_allocator = &(AllocatorParser::Get(system_knobs.allocator,
+                                            system_knobs.allocator_opt_target,
+                                            system_knobs.speedup_model,
+                                            1,                                       // core_power
+                                            system_knobs.num_cores / (1 / 0.2 - 1),  // uncore_power
+                                            system_knobs.num_cores));
+    SpawnSimulatorThreads(system_knobs.num_cores);
 
     return 0;
 }
@@ -319,10 +265,12 @@ void CheckIPCMessageQueue(bool isEarly, int caller_coreID) {
             break;
         /* Shadow page table related */
         case MMAP:
-            xiosim::memory::notify_mmap(ipcMessage.arg0, ipcMessage.arg1, ipcMessage.arg2, ipcMessage.arg3);
+            xiosim::memory::notify_mmap(
+                    ipcMessage.arg0, ipcMessage.arg1, ipcMessage.arg2, ipcMessage.arg3);
             break;
         case MUNMAP:
-            xiosim::memory::notify_munmap(ipcMessage.arg0, ipcMessage.arg1, ipcMessage.arg2, ipcMessage.arg3);
+            xiosim::memory::notify_munmap(
+                    ipcMessage.arg0, ipcMessage.arg1, ipcMessage.arg2, ipcMessage.arg3);
             break;
         case UPDATE_BRK:
             xiosim::memory::update_brk(ipcMessage.arg0, ipcMessage.arg1, ipcMessage.arg2);

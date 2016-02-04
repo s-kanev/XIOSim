@@ -67,11 +67,6 @@ extern "C" {
 #include "uop_cracker.h"
 #include "zesto-core.h"
 
-#define MAX_HYBRID_BPRED 8 /* maximum number of sub-components in a hybrid branch predictor */
-#define MAX_DECODE_WIDTH 16
-#define MAX_EXEC_WIDTH 16
-#define MAX_PREFETCHERS 4 /* per cache; so IL1 can have MAX_PREFETCHERS prefetchers independent of the DL1 or LLC */
-
 /* structure for a uop's list of output dependencies (dataflow children) */
 struct odep_t {
   struct uop_t * uop;
@@ -80,21 +75,9 @@ struct odep_t {
   struct odep_t * next;
 };
 
+// TODO(skanev): Evil. Clean up namespaces.
 using namespace xiosim;
 using namespace xiosim::x86;
-
-/* Flags for allowing different types of uop fusion. */
-struct fusion_flags_t {
-    bool LOAD_OP:1;
-    bool STA_STD:1;
-    bool LOAD_OP_ST:1; /* for atomic Mop execution */
-    bool FP_LOAD_OP:1; /* same as load op, but for fp ops */
-
-    bool matches(fusion_flags_t& rhs) {
-        return (LOAD_OP && rhs.LOAD_OP) || (STA_STD && rhs.STA_STD) ||
-               (LOAD_OP_ST && rhs.LOAD_OP_ST) || (FP_LOAD_OP && rhs.FP_LOAD_OP);
-    }
-};
 
 /* uArch micro-op structure */
 struct alignas(16) uop_t
@@ -409,148 +392,6 @@ struct alignas(16) Mop_t
 };
 
 
-/* holds all of the parameters for a core, plus any additional helper variables
-   for command line parsing (e.g., config strings) */
-struct core_knobs_t
-{
-  const char * model;
-  double default_cpu_speed; /* in MHz */
-  const char * dvfs_opt_str;
-  int dvfs_interval;
-
-  struct {
-    int byteQ_size;
-    int byteQ_linesize; /* in bytes */
-    int depth; /* predecode pipe */
-    int width; /* predecode pipe */
-    int IQ_size;
-    int jeclear_delay;
-
-    int   num_bpred_components;
-    const char *bpred_opt_str[MAX_HYBRID_BPRED];
-    const char *fusion_opt_str;
-    const char *dirjmpbtb_opt_str;
-    const char *indirjmpbtb_opt_str;
-    const char *ras_opt_str;
-  } fetch;
-
-  struct {
-    int depth; /* decode pipe */
-    int width; /* decode pipe */
-    int target_stage;        /* stage in which a wrong taken BTB target is detected and corrected */
-    int *max_uops; /* maximum number of uops emittable per decoder */
-    int MS_latency; /* number of cycles from decoder[0] to uROM/MS */
-    int uopQ_size;
-    fusion_flags_t fusion_mode; /* which fusion types are allowed */
-    int decoders[MAX_DECODE_WIDTH];
-    int num_decoder_specs;
-    int branch_decode_limit; /* maximum number of branches decoded per cycle */
-  } decode;
-
-  struct {
-    int depth; /* alloc pipe */
-    int width; /* alloc pipe */
-    bool drain_flush; /* use drain flush? */
-  } alloc;
-
-  struct {
-    int RS_size;
-    int LDQ_size;
-    int STQ_size;
-    struct {
-      int num_FUs;
-      int *ports;
-    } port_binding[NUM_FU_CLASSES];
-    int num_exec_ports;
-    int payload_depth;
-    int fu_bindings[NUM_FU_CLASSES][MAX_EXEC_WIDTH];
-    int num_bindings[NUM_FU_CLASSES];
-    int latency[NUM_FU_CLASSES];
-    int issue_rate[NUM_FU_CLASSES];
-    const char * memdep_opt_str;
-    int fp_penalty; /* extra cycles to forward to FP cluster */
-    bool tornado_breaker;
-    bool throttle_partial;
-    const char * repeater_opt_str;
-  } exec;
-
-  struct {
-    /* prefetch arguments */
-    int IL1_num_PF; int IL1_PFFsize; int IL1_PFthresh; int IL1_PFmax; int IL1_PF_buffer_size;
-    int IL1_PF_filter_size; int IL1_PF_filter_reset; bool IL1_PF_on_miss;
-    int IL1_WMinterval; double IL1_low_watermark; double IL1_high_watermark;
-    float IL1_magic_hit_rate;
-    int DL1_num_PF; int DL1_PFFsize; int DL1_PFthresh; int DL1_PFmax; int DL1_PF_buffer_size;
-    int DL1_PF_filter_size; int DL1_PF_filter_reset; bool DL1_PF_on_miss;
-    int DL1_WMinterval; double DL1_low_watermark; double DL1_high_watermark;
-    const char * DL1_MSHR_cmd;
-    float DL1_magic_hit_rate;
-    int DL2_num_PF; int DL2_PFFsize; int DL2_PFthresh; int DL2_PFmax; int DL2_PF_buffer_size;
-    int DL2_PF_filter_size; int DL2_PF_filter_reset; bool DL2_PF_on_miss;
-    int DL2_WMinterval; double DL2_low_watermark; double DL2_high_watermark;
-    const char * DL2_MSHR_cmd;
-    float DL2_magic_hit_rate;
-
-    /* for storing command line parameters */
-    const char * IL1_opt_str;
-    const char * ITLB_opt_str;
-    const char * DL1_opt_str;
-    const char * DL2_opt_str;
-    const char * DTLB_opt_str;
-    const char * DTLB2_opt_str;
-
-    const char * IL1PF_opt_str[MAX_PREFETCHERS];
-    const char * DL1PF_opt_str[MAX_PREFETCHERS];
-    const char * DL2PF_opt_str[MAX_PREFETCHERS];
-
-    const char * IL1_controller_opt_str;
-    const char * ITLB_controller_opt_str;
-    const char * DL1_controller_opt_str;
-    const char * DL2_controller_opt_str;
-    const char * DTLB_controller_opt_str;
-    const char * DTLB2_controller_opt_str;
-
-    bool DL1_rep_req;
-  } memory;
-
-  struct {
-    int ROB_size;
-    int width;
-    int branch_limit; /* maximum number of branches committed per cycle */
-    int pre_commit_depth;
-  } commit;
-
-  struct {
-    bool compute;
-    int rtp_interval;
-    const char * rtp_filename;
-  } power;
-
-  int scheduler_tick;
-
-  /* A command line flag specifying the core allocation policy. Valid options:
-   * "gang", "local", or "penalty". See pintool/base_allocator.h for more
-   * details.
-   */
-  const char * allocator;
-
-  /* A command line flag specifying the speedup model to use when calculating
-   * core allocations. Valid options: "linear" or "log". See
-   * pintool/base_speedup_model.h for more details.
-   */
-  const char * speedup_model;
-
-  /* A command line flag specifying the optimization target when computing core
-   * allocations. Valid options: "energy" or "throughput". See
-   * pintool/base_speedup_model.h for more details.
-   */
-  const char * allocator_opt_target;
-
-  md_addr_t stopwatch_start_pc;
-  md_addr_t stopwatch_stop_pc;
-};
-
 extern struct core_t ** cores;
-extern struct core_knobs_t knobs;
 
 #endif /* ZESTO_STRUCTS_INCLUDED */

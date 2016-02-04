@@ -5,14 +5,14 @@
 
 #include <cstring>
 
+#include "sim.h"
 #include "misc.h"
 #include "synchronization.h"
 
 #include "zesto-core.h"
 #include "zesto-cache.h"
+#include "zesto-structs.h"
 #include "zesto-repeater.h"
-
-extern struct core_knobs_t knobs;
 
 /* Load in definitions */
 #include "xiosim/ZCOMPS-repeater.list.h"

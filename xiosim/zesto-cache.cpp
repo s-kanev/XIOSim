@@ -252,8 +252,8 @@ struct cache_t * cache_create(
 
   if(!strcasecmp(name,"LLC"))
   {
-    cp->stat.core_lookups = (counter_t*) calloc(num_cores,sizeof(*cp->stat.core_lookups));
-    cp->stat.core_misses = (counter_t*) calloc(num_cores,sizeof(*cp->stat.core_misses));
+    cp->stat.core_lookups = (counter_t*) calloc(system_knobs.num_cores,sizeof(*cp->stat.core_lookups));
+    cp->stat.core_misses = (counter_t*) calloc(system_knobs.num_cores,sizeof(*cp->stat.core_misses));
     if(!cp->stat.core_lookups || !cp->stat.core_misses)
       fatal("failed to calloc cp->stat.core_{lookups|misses} for %s",name);
   }
@@ -513,7 +513,7 @@ void LLC_reg_stats(xiosim::stats::StatsDatabase* sdb, struct cache_t* const cp) 
         total_miss_rate = (LLC_load_misses_st + LLC_store_misses_st + LLC_pf_misses_st) /
                           (LLC_load_lookups_st + LLC_store_lookups_st + LLC_pf_lookups_st);
 
-        if (num_cores > 1)
+        if (system_knobs.num_cores > 1)
             stat_reg_formula(sdb, true, "LLC.total_MPKC", "MPKC for the LLC (including prefetches)",
                              (LLC_load_misses_st + LLC_store_misses_st + LLC_pf_misses_st) /
                                      *sim_cycle_st * Constant(1000),
@@ -521,7 +521,7 @@ void LLC_reg_stats(xiosim::stats::StatsDatabase* sdb, struct cache_t* const cp) 
 
     } else {
         // We register this stat even though we don't have a prefetcher because legacy.
-        if (num_cores > 1)
+        if (system_knobs.num_cores > 1)
             stat_reg_formula(sdb, true, "LLC.total_MPKC", "MPKC for the LLC (including prefetches)",
                              (LLC_load_misses_st + LLC_store_misses_st) / *sim_cycle_st *
                                      Constant(1000),
@@ -533,7 +533,7 @@ void LLC_reg_stats(xiosim::stats::StatsDatabase* sdb, struct cache_t* const cp) 
     stat_reg_formula(sdb, total_misses);
     stat_reg_formula(sdb, total_miss_rate);
 
-    if (num_cores > 1) {
+    if (system_knobs.num_cores > 1) {
         stat_reg_formula(sdb, true, "LLC.MPKC", "MPKC for the LLC (no prefetches or writebacks)",
                          (LLC_load_misses_st + LLC_store_misses_st) / *sim_cycle_st *
                                  Constant(1000),
@@ -554,7 +554,7 @@ void LLC_reg_stats(xiosim::stats::StatsDatabase* sdb, struct cache_t* const cp) 
     stat_reg_counter(sdb, true, "LLC.MSHR_combos", "MSHR requests combined in LLC",
                      &cp->stat.MSHR_combos, 0, true, NULL);
 
-    if (num_cores == 1) {
+    if (system_knobs.num_cores == 1) {
         auto commit_insn_st = stat_find_core_stat<counter_t>(sdb, 0, "commit_insn");
         stat_reg_counter(sdb, true, "LLC.lookups", "number of lookups in the LLC",
                          &cp->stat.core_lookups[0], 0, true, NULL);
@@ -566,7 +566,7 @@ void LLC_reg_stats(xiosim::stats::StatsDatabase* sdb, struct cache_t* const cp) 
         stat_reg_formula(sdb, true, "LLC.MPKC", "MPKC for the LLC",
                          LLC_misses_st / *sim_cycle_st * Constant(1000), "%12.4f");
     } else {
-        for (int i = 0; i < num_cores; i++) {
+        for (int i = 0; i < system_knobs.num_cores; i++) {
             auto commit_insn_st = stat_find_core_stat<counter_t>(sdb, i, "commit_insn");
             auto core_sim_cycle_st = stat_find_core_stat<tick_t>(sdb, i, "sim_cycle");
 
@@ -608,8 +608,8 @@ void cache_reset_stats(struct cache_t * const cp)
   {
     cp->stat.core_lookups = core_lookups;
     cp->stat.core_misses = core_misses;
-    memzero(cp->stat.core_lookups,num_cores*sizeof(*cp->stat.core_lookups));
-    memzero(cp->stat.core_misses,num_cores*sizeof(*cp->stat.core_misses));
+    memzero(cp->stat.core_lookups,system_knobs.num_cores*sizeof(*cp->stat.core_lookups));
+    memzero(cp->stat.core_misses,system_knobs.num_cores*sizeof(*cp->stat.core_misses));
   }
 }
 

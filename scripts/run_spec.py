@@ -58,12 +58,6 @@ def RunSPECBenchmark(name):
     bmk_cfg = WriteBmkConfig(xio, run, run_dir)
     xio.AddBmks(bmk_cfg)
 
-    xio.AddPinOptions()
-    xio.AddPintoolOptions(num_cores=1)
-    # Grab a pinpoints file from the original SPEC repo
-    ppfile = os.path.join(run.directory, "%s.pintool.1.pp" % name)
-    xio.AddPinPointFile(ppfile)
-
     # We want to get results in a separate results directory, a tad cleaner
     outfile = os.path.join(RESULT_DIR, "%s.sim.out" % name)
     repl = {
@@ -71,7 +65,13 @@ def RunSPECBenchmark(name):
     }
     orig_cfg = os.path.join(xio.GetTreeDir(), CONFIG_FILE)
     arch_cfg = WriteArchConfig(xio, run, run_dir, orig_cfg, repl)
-    xio.AddZestoOptions(arch_cfg)
+    xio.AddConfigFile(arch_cfg)
+
+    xio.AddPinOptions()
+    # Grab a pinpoints file from the original SPEC repo
+    ppfile = os.path.join(run.directory, "%s.pintool.1.pp" % name)
+    xio.AddPinPointFile(ppfile)
+
 
     out_file = os.path.join(run_dir, "harness.out")
     err_file = os.path.join(run_dir, "harness.err")

@@ -6,6 +6,7 @@
 #include <queue>
 #include <map>
 #include <list>
+#include <vector>
 
 #include "multiprocess_shared.h"
 
@@ -33,7 +34,8 @@ struct RunQueue {
     // XXX: END SHARED
 };
 
-static RunQueue* run_queues;
+static std::vector<RunQueue> run_queues;
+static int num_cores;
 
 static int last_coreID;
 static XIOSIM_LOCK last_coreID_lk;
@@ -47,8 +49,10 @@ static void UpdateSHMThreadCore(pid_t tid, int coreID);
 static void RemoveSHMThread(pid_t tid);
 
 /* ========================================================================== */
-void InitScheduler(int num_cores) {
-    run_queues = new RunQueue[num_cores];
+void InitScheduler(int num_cores_) {
+    num_cores = num_cores_;
+    run_queues.resize(num_cores);
+
     last_coreID = 0;
     lk_init(&last_coreID_lk);
 
@@ -263,7 +267,7 @@ bool IsCoreBusy(int coreID) {
 /* ========================================================================== */
 bool NeedsReschedule(int coreID) {
     tick_t since_schedule = cores[coreID]->sim_cycle - run_queues[coreID].last_reschedule;
-    return (knobs.scheduler_tick > 0) && (since_schedule > knobs.scheduler_tick);
+    return (system_knobs.scheduler_tick > 0) && (since_schedule > system_knobs.scheduler_tick);
 }
 
 /* ========================================================================== */

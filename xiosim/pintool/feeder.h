@@ -18,12 +18,12 @@ extern "C" {
 using namespace INSTLIB;
 
 #include "xiosim/synchronization.h"
+#include "xiosim/sim.h"
 #include "xiosim/zesto-bpred.h"
 
 class handshake_container_t;
 
 extern KNOB<BOOL> KnobILDJIT;
-extern KNOB<int> KnobNumCores;
 
 /* A list of the threads in this feeder. */
 extern list<THREADID> thread_list;
@@ -83,17 +83,14 @@ class thread_state_t {
         num_inst = 0;
         lk_init(&lock);
 
-        // TODO(skanev): Unify configuration, so feeder can read the .cfg file.
-        const char *bpred_opt_strings[MAX_HYBRID_BPRED];
-        bpred_opt_strings[0] = "tage:TAGE5:5:2048:512:9:6:75";
         bpred = new bpred_t(
           nullptr,
-          1,
-          bpred_opt_strings,
-          "none",
-          "btac:BTB:512:4:8:l",
-          "2levbtac:iBTB:1:8:1:128:4:8:l",
-          "multistack:RAS:8:8"
+          core_knobs.fetch.num_bpred_components,
+          core_knobs.fetch.bpred_opt_str,
+          core_knobs.fetch.fusion_opt_str,
+          core_knobs.fetch.dirjmpbtb_opt_str,
+          core_knobs.fetch.indirjmpbtb_opt_str,
+          core_knobs.fetch.ras_opt_str
         );
         lastBranchPrediction = 0;
     }

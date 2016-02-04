@@ -10,8 +10,6 @@
 
 #include "ztrace.h"
 
-const char* ztrace_filename = nullptr;
-
 #ifdef ZTRACE
 
 #define MAX_TRACEBUFF_ITEMS 300000
@@ -23,17 +21,17 @@ static int tracebuff_occupancy[MAX_CORES + 1];
 static FILE* ztrace_fp[MAX_CORES + 1];
 
 void ztrace_init(void) {
-    if (ztrace_filename && strcmp(ztrace_filename, "")) {
+    if (system_knobs.ztrace_filename && strcmp(system_knobs.ztrace_filename, "")) {
         char buff[512];
 
         for (int i = 0; i < num_cores; i++) {
-            snprintf(buff, 512, "%s.%d", ztrace_filename, i);
+            snprintf(buff, 512, "%s.%d", system_knobs.ztrace_filename, i);
             ztrace_fp[i] = fopen(buff, "w");
             if (!ztrace_fp[i])
                 fatal("failed to open ztrace file %s", buff);
         }
 
-        snprintf(buff, 512, "%s.uncore", ztrace_filename);
+        snprintf(buff, 512, "%s.uncore", system_knobs.ztrace_filename);
         ztrace_fp[num_cores] = fopen(buff, "w");
         if (!ztrace_fp[num_cores])
             fatal("failed to open ztrace file %s", buff);

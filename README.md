@@ -38,15 +38,14 @@ Simulated applications are specified in their own configuration file.
 Check out [how that looks](benchmarks.cfg).
 You can add as many as you want for a single multiprogram simulation.
 
-A few parameters (mostly related to regions-of-interest) are
-passed as command-line flags (between the -t and -s switches).
+A few instruction feeder parameters (mostly related to regions-of-interest) are
+passed as command-line flags (after the pintool -t switch).
 For example:
 
 ~~~
 -ppfile test.pp     # to use a PinPoints file.
 -skip 10000         # to fast-forward the first 10,000 instructions.
 -length 10000       # to only simmulate 10,000 instructions.
--parsec             # to properly use the Parsec suite region-of-interest hooks (ROI).
 ~~~
 
 ### ISA support ####

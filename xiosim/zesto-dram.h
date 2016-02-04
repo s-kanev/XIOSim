@@ -56,11 +56,12 @@
  */
 
 #include <assert.h>
+#include "knobs.h"
 #include "zesto-cache.h"
 
 extern class dram_t * dram;
 
-void dram_create(void);
+void dram_create(const uncore_knobs_t& knobs);
 
 class dram_t
 {

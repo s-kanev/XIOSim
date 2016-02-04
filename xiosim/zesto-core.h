@@ -56,6 +56,7 @@
  *
  */
 
+#include "knobs.h"
 #include "stats.h"
 #define ZESTO_STAT(x) {if(core->active) {x}}
 

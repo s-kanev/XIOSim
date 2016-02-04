@@ -32,9 +32,6 @@
 extern void CheckIPCMessageQueue(bool isEarly, int caller_coreID);
 extern double* global_sim_time;
 extern int64_t* timestamp_counters;
-extern double LLC_speed;
-
-int heartbeat_frequency = 0;
 
 namespace xiosim {
 namespace libsim {
@@ -56,12 +53,12 @@ static void sim_drain_pipe(int coreID);
 
 void sim_loop_init(void) {
     // Time between updating global state (uncore, different nocs)
-    sync_interval = std::min(1e-3 / LLC_speed, 1e-3 / cores[0]->memory.mem_repeater->speed);
+    sync_interval = std::min(1e-3 / uncore_knobs.LLC_speed, 1e-3 / cores[0]->memory.mem_repeater->speed);
 }
 
 static void global_step(void) {
     static int repeater_noc_ticks = 0;
-    double uncore_ratio = cores[0]->memory.mem_repeater->speed / LLC_speed;
+    double uncore_ratio = cores[0]->memory.mem_repeater->speed / uncore_knobs.LLC_speed;
     // XXX: Assume repeater NoC running at a multiple of the uncore clock
     // (effectively no DFS when we have a repeater)
     // This should get fixed once we clock the repeater network separately.
@@ -71,13 +68,13 @@ static void global_step(void) {
 
     if (repeater_noc_ticks == 0) {
         /* Heartbeat -> print that the simulator is still alive */
-        if ((heartbeat_frequency > 0) && (heartbeat_count >= heartbeat_frequency)) {
+        if ((system_knobs.heartbeat_frequency > 0) && (heartbeat_count >= system_knobs.heartbeat_frequency)) {
             lk_lock(printing_lock, 1);
             fprintf(stderr, "##HEARTBEAT## %" PRId64": {", uncore->sim_cycle);
             counter_t sum = 0;
-            for (int i = 0; i < num_cores; i++) {
+            for (int i = 0; i < system_knobs.num_cores; i++) {
                 sum += cores[i]->stat.commit_insn;
-                if (i < (num_cores - 1))
+                if (i < (system_knobs.num_cores - 1))
                     fprintf(stderr, "%" PRId64", ", cores[i]->stat.commit_insn);
                 else
                     fprintf(stderr, "%" PRId64", all=%" PRId64"}\n", cores[i]->stat.commit_insn, sum);
@@ -91,7 +88,7 @@ static void global_step(void) {
         if ((core_commit_t::deadlock_threshold > 0) &&
             (deadlock_count >= core_commit_t::deadlock_threshold)) {
             bool deadlocked = true;
-            for (int i = 0; i < num_cores; i++) {
+            for (int i = 0; i < system_knobs.num_cores; i++) {
                 if (!cores[i]->active)
                     continue;
                 deadlocked &= cores[i]->commit->deadlocked;
@@ -111,23 +108,23 @@ static void global_step(void) {
             fprintf(stderr, "### starting timing simulation \n");
 
         uncore->sim_cycle++;
-        uncore->sim_time = uncore->sim_cycle / LLC_speed;
+        uncore->sim_time = uncore->sim_cycle / uncore_knobs.LLC_speed;
         uncore->default_cpu_cycles =
-            (tick_t)ceil((double)uncore->sim_cycle * knobs.default_cpu_speed / LLC_speed);
+            (tick_t)ceil((double)uncore->sim_cycle * core_knobs.default_cpu_speed / uncore_knobs.LLC_speed);
         // Update global simulation time for feeder.
         *global_sim_time = uncore->sim_time;
 
         /* power computation */
-        if (knobs.power.compute && (knobs.power.rtp_interval > 0) &&
-            (uncore->sim_cycle % knobs.power.rtp_interval == 0)) {
+        if (system_knobs.power.compute && (system_knobs.power.rtp_interval > 0) &&
+            (uncore->sim_cycle % system_knobs.power.rtp_interval == 0)) {
             compute_rtp_power();
         }
 
-        if (knobs.dvfs_interval > 0) {
-            for (int i = 0; i < num_cores; i++) {
+        if (system_knobs.dvfs_interval > 0) {
+            for (int i = 0; i < system_knobs.num_cores; i++) {
                 if (cores[i]->sim_cycle >= cores[i]->vf_controller->next_invocation) {
                     cores[i]->vf_controller->change_vf();
-                    cores[i]->vf_controller->next_invocation += knobs.dvfs_interval;
+                    cores[i]->vf_controller->next_invocation += system_knobs.dvfs_interval;
                 }
             }
         }
@@ -152,7 +149,7 @@ static void global_step(void) {
     }
 
     // Until we fix synchronization, this is global, and running at core freq.
-    for (int i = 0; i < num_cores; i++)
+    for (int i = 0; i < system_knobs.num_cores; i++)
         if (cores[i]->memory.mem_repeater)
             cores[i]->memory.mem_repeater->step();
 }
@@ -194,7 +191,7 @@ static void sim_main_slave_pre_pin(int coreID) {
                 /* Re-check if all cores finished this cycle. */
                 cores_finished_cycle = 0;
                 cores_active = 0;
-                for (int i = 0; i < num_cores; i++) {
+                for (int i = 0; i < system_knobs.num_cores; i++) {
                     if (cores[i]->finished_cycle)
                         cores_finished_cycle++;
                     if (cores[i]->active)
@@ -221,7 +218,7 @@ static void sim_main_slave_pre_pin(int coreID) {
             /* Non-active cores should still step their private caches because there might
              * be accesses scheduled there from the repeater network */
             /* XXX: This is round-robin for LLC based on core id, if that matters */
-            for (int i = 0; i < num_cores; i++) {
+            for (int i = 0; i < system_knobs.num_cores; i++) {
                 if (!cores[i]->active) {
                     if (cores[i]->memory.DL2)
                         cache_process(cores[i]->memory.DL2);
@@ -230,7 +227,7 @@ static void sim_main_slave_pre_pin(int coreID) {
             }
 
             /* Unblock other cores to keep crunching. */
-            for (int i = 0; i < num_cores; i++)
+            for (int i = 0; i < system_knobs.num_cores; i++)
                 cores[i]->finished_cycle = false;
             lk_unlock(&cycle_lock);
         }
@@ -324,7 +321,7 @@ void sim_main_slave_post_pin(int coreID) {
 }
 
 void simulate_handshake(int coreID, handshake_container_t* handshake) {
-    assert(coreID >= 0 && coreID < num_cores);
+    assert(coreID >= 0 && coreID < system_knobs.num_cores);
     struct core_t* core = cores[coreID];
     bool slice_start = handshake->flags.isFirstInsn;
 
@@ -437,25 +434,25 @@ void simulate_handshake(int coreID, handshake_container_t* handshake) {
 }
 
 void deactivate_core(int coreID) {
-    assert(coreID >= 0 && coreID < num_cores);
+    assert(coreID >= 0 && coreID < system_knobs.num_cores);
     ZTRACE_PRINT(coreID, "deactivate %d\n", coreID);
     lk_lock(&cycle_lock, coreID + 1);
     cores[coreID]->active = false;
     cores[coreID]->last_active_cycle = cores[coreID]->sim_cycle;
     int i;
-    for (i = 0; i < num_cores; i++) {
+    for (i = 0; i < system_knobs.num_cores; i++) {
         if (cores[i]->active) {
             min_coreID = i;
             break;
         }
     }
-    if (i == num_cores)
+    if (i == system_knobs.num_cores)
         min_coreID = MAX_CORES;
     lk_unlock(&cycle_lock);
 }
 
 void activate_core(int coreID) {
-    assert(coreID >= 0 && coreID < num_cores);
+    assert(coreID >= 0 && coreID < system_knobs.num_cores);
     ZTRACE_PRINT(coreID, "activate %d\n", coreID);
     lk_lock(&cycle_lock, coreID + 1);
     cores[coreID]->finished_cycle = false;  // Make sure master core will wait
@@ -467,7 +464,7 @@ void activate_core(int coreID) {
 }
 
 bool is_core_active(int coreID) {
-    assert(coreID >= 0 && coreID < num_cores);
+    assert(coreID >= 0 && coreID < system_knobs.num_cores);
     bool result;
     lk_lock(&cycle_lock, coreID + 1);
     result = cores[coreID]->active;
