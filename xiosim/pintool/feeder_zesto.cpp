@@ -41,6 +41,7 @@
 #include "replace_function.h"
 #include "speculation.h"
 #include "paravirt.h"
+#include "profiling.h"
 #include "vdso.h"
 
 using namespace std;
@@ -335,6 +336,8 @@ VOID ImageLoad(IMG img, VOID* v) {
 
     AddROICallbacks(img);
 
+    AddProfilingCallbacks(img);
+
     ipc_message_t msg;
     msg.Mmap(asid, start, length, false);
     SendIPCMessage(msg);
@@ -421,12 +424,12 @@ static VOID FinalizeBuffer(thread_state_t* tstate, handshake_container_t* handsh
 
 /* ========================================================================== */
 /* We grab the addresses and sizes of memory operands. */
-VOID GrabInstructionMemory(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_mem_op, ADDRINT pc) {
+VOID GrabInstructionMemory(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_callback, ADDRINT pc) {
     if (!CheckIgnoreConditions(tid, pc))
         return;
 
     thread_state_t* tstate = get_tls(tid);
-    handshake_container_t* handshake = GetProperBuffer(tstate->tid, first_mem_op);
+    handshake_container_t* handshake = GetProperBuffer(tstate->tid, first_callback);
 
     handshake->mem_buffer.push_back(std::make_pair(addr, size));
 }
@@ -438,7 +441,7 @@ VOID GrabInstructionContext(THREADID tid,
                             ADDRINT npc,
                             ADDRINT tpc,
                             ADDRINT esp_value,
-                            BOOL has_memory,
+                            BOOL first_callback,
                             BOOL done_instrumenting) {
     if (!CheckIgnoreConditions(tid, pc)) {
 #ifdef PRINT_DYN_TRACE
@@ -452,7 +455,7 @@ VOID GrabInstructionContext(THREADID tid,
 #endif
 
     thread_state_t* tstate = get_tls(tid);
-    handshake_container_t* handshake = GetProperBuffer(tstate->tid, !has_memory);
+    handshake_container_t* handshake = GetProperBuffer(tstate->tid, first_callback);
 
     tstate->num_inst++;
 
@@ -601,8 +604,8 @@ VOID Instrument(INS ins, VOID* v) {
         return;
 
     // Tracing
+    ADDRINT pc = INS_Address(ins);
     if (!KnobInsTraceFile.Value().empty()) {
-        ADDRINT pc = INS_Address(ins);
         USIZE size = INS_Size(ins);
 
         trace_file << pc << " " << INS_Disassemble(ins);
@@ -644,6 +647,7 @@ VOID Instrument(INS ins, VOID* v) {
     UINT32 memOperands = INS_MemoryOperandCount(ins);
     for (UINT32 memOp = 0; memOp < memOperands; memOp++) {
         UINT32 memSize = INS_MemoryOperandSize(ins, memOp);
+        BOOL first_callback = (memOp == 0) && !HasProfilingInstrumentation(pc);
         INS_InsertCall(ins,
                        IPOINT_BEFORE,
                        (AFUNPTR)GrabInstructionMemory,
@@ -653,11 +657,12 @@ VOID Instrument(INS ins, VOID* v) {
                        IARG_UINT32,
                        memSize,
                        IARG_BOOL,
-                       (memOp == 0),
+                       first_callback,
                        IARG_INST_PTR,
                        IARG_END);
     }
 
+    BOOL first_callback = (memOperands == 0) && !HasProfilingInstrumentation(pc);
     if (!INS_IsBranchOrCall(ins)) {
         BOOL extraRepInstrumentation = INS_HasRealRep(ins);
         INS_InsertCall(ins,
@@ -673,7 +678,7 @@ VOID Instrument(INS ins, VOID* v) {
                        IARG_REG_VALUE,
                        LEVEL_BASE::REG_FullRegName(LEVEL_BASE::REG_ESP),
                        IARG_BOOL,
-                       (memOperands > 0),
+                       first_callback,
                        IARG_BOOL,
                        !extraRepInstrumentation,
                        IARG_END);
@@ -709,7 +714,7 @@ VOID Instrument(INS ins, VOID* v) {
                        IARG_REG_VALUE,
                        LEVEL_BASE::REG_FullRegName(LEVEL_BASE::REG_ESP),
                        IARG_BOOL,
-                       (memOperands > 0),
+                       first_callback,
                        IARG_BOOL,
                        true,
                        IARG_END);

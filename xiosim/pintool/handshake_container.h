@@ -22,6 +22,8 @@ struct handshake_flags_t {
     bool real : 1;                /* Is this a real instruction */
     bool in_critical_section : 1; /* Thread executing a sequential cut? */
     bool speculative : 1;         /* Is instruction on a wrong path */
+    bool is_profiling_start : 1;  /* Is a profiling start point */
+    bool is_profiling_stop : 1;   /* Is a profiling stop point */
 };
 
 class handshake_container_t {
@@ -47,7 +49,8 @@ class handshake_container_t {
         , rSP(rhs.rSP)
         , asid(rhs.asid)
         , flags(rhs.flags)
-        , mem_buffer(rhs.mem_buffer) {
+        , mem_buffer(rhs.mem_buffer)
+        , profile_id(rhs.profile_id) {
         memcpy(ins, rhs.ins, sizeof(ins));
     }
 
@@ -59,6 +62,11 @@ class handshake_container_t {
         /* Flags */
         const size_t flagBytes = sizeof(handshake_flags_t);
         buffPosition = copyToBuff(buffPosition, &(flags), flagBytes);
+
+        /* Profiling id, if used. */
+        if (flags.is_profiling_start || flags.is_profiling_stop) {
+            buffPosition = copyToBuff(buffPosition, &profile_id, sizeof(profile_id));
+        }
 
         /* Memory vector size, followed by elements */
         int vectorSize = mem_buffer.size();
@@ -101,6 +109,11 @@ class handshake_container_t {
 
         /* Flags */
         buffPosition = copyFromBuff(&(this->flags), buffPosition, flagBytes);
+
+        /* Profiling id, if used. */
+        if (flags.is_profiling_start || flags.is_profiling_stop) {
+            buffPosition = copyFromBuff(&profile_id, buffPosition, sizeof(profile_id));
+        }
 
         /* Memory vector size, followed by elements */
         size_t vectorBytes;
@@ -147,10 +160,13 @@ class handshake_container_t {
     /* Addresses and sizes of instruction memory accesses. */
     std::vector<std::pair<md_addr_t, uint8_t> > mem_buffer;
 
+    /* iff flags.{start,stop}_profiling, the id of the respective profile */
+    uint32_t profile_id;
+
     bool operator==(const handshake_container_t& rhs) {
         return memcmp(&flags, &rhs.flags, sizeof(flags)) == 0 && mem_buffer == rhs.mem_buffer &&
                pc == rhs.pc && npc == rhs.npc && tpc == rhs.tpc && rSP == rhs.rSP &&
-               memcmp(ins, rhs.ins, sizeof(ins)) == 0 && asid == rhs.asid;
+               memcmp(ins, rhs.ins, sizeof(ins)) == 0 && asid == rhs.asid && profile_id == rhs.profile_id;
     }
 
     friend std::ostream& operator<<(std::ostream& out, class handshake_container_t& hand) {

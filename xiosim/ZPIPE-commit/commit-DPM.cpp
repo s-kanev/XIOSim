@@ -60,8 +60,6 @@ class core_commit_DPM_t:public core_commit_t
   tick_t when_rep_fetched;
   tick_t when_rep_decode_started;
   tick_t when_rep_commit_started;
-
-  tick_t ticker;
 };
 
 /* number of buckets in uop-flow-length histogram */
@@ -571,13 +569,7 @@ void core_commit_DPM_t::step(void)
           Mop->uop[Mop->decode.last_uop_index].decode.EOM,Mop->decode.is_trap);
 #endif
 
-        if (Mop->fetch.PC == system_knobs.stopwatch_start_pc) {
-          ticker = core->sim_cycle;
-        }
-        if (Mop->fetch.PC == system_knobs.stopwatch_stop_pc) {
-          ticker = core->sim_cycle - ticker;
-          fprintf(stderr, "Measurement: %" PRId64 " cycles\n", ticker);
-        }
+        core->update_stopwatch(Mop);
 
         /* Let the oracle know that we are done with this Mop. */
         core->oracle->commit(Mop);

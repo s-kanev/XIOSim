@@ -449,6 +449,10 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
 
     update_stats(Mop);
 
+    Mop->oracle.stopwatch_start = handshake.flags.is_profiling_start;
+    Mop->oracle.stopwatch_stop = handshake.flags.is_profiling_stop;
+    Mop->oracle.stopwatch_id = handshake.profile_id;
+
     /* commit this inst to the MopQ */
     MopQ_tail = modinc(MopQ_tail, MopQ_size);  //(MopQ_tail + 1) % MopQ_size;
     MopQ_num++;

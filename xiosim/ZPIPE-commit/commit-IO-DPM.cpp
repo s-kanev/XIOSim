@@ -609,6 +609,8 @@ void core_commit_IO_DPM_t::IO_step(void)
           Mop->uop[Mop->decode.last_uop_index].decode.EOM,Mop->decode.is_trap);
 #endif
 
+        core->update_stopwatch(Mop);
+
         /* Let the oracle know that we are done with this Mop. */
         core->oracle->commit(Mop);
       }

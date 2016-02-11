@@ -90,6 +90,16 @@ static void store_str_list(cfg_t* cfg,
     }
 }
 
+/* Same as above, but supporting unlimited variable-length lists. */
+static std::vector<std::string> store_str_list(cfg_t* cfg, const char* attr_name) {
+    int num_entries = cfg_size(cfg, attr_name);
+    std::vector<std::string> res;
+    for (int i = 0; i < num_entries; i++) {
+        res.push_back(cfg_getnstr(cfg, attr_name, i));
+    }
+    return res;
+}
+
 /* Execution units consist of an execution latency, issue rate, and a set of
  * port bindings. This function parses the list of port bindings in the
  * configuration and copies the values into the appropriate knob, as well as
@@ -327,8 +337,12 @@ static void store_system_options(cfg_t* system_opt, system_knobs_t* knobs) {
     knobs->power.rtp_interval = cfg_getint(system_opt, "power_rtp_interval");
     knobs->power.rtp_filename = cfg_getstr(system_opt, "power_rtp_file");
 
-    knobs->stopwatch_start_pc = cfg_getint(system_opt, "stopwatch_start_pc");
-    knobs->stopwatch_stop_pc = cfg_getint(system_opt, "stopwatch_stop_pc");
+    knobs->profiling_file_prefix = cfg_getstr(system_opt, "profiling_file_prefix");
+    knobs->profiling_start = store_str_list(system_opt, "profiling_start");
+    knobs->profiling_stop = store_str_list(system_opt, "profiling_stop");
+    if ((knobs->profiling_start.size() != knobs->profiling_stop.size()) &&
+        knobs->profiling_stop.size() > 0)
+        fatal("profiling_start and profiling_stop must be equal size, or profiling_stop zero");
 
     cfg_t* dvfs_opt = cfg_getsec(system_opt, "dvfs_cfg");
     knobs->dvfs_opt_str = cfg_getstr(dvfs_opt, "config");

@@ -256,7 +256,6 @@ class core_t {
     counter_t handshake_nops_produced;
   } stat;
 
-
   /*************/
   /* FUNCTIONS */
   /*************/
@@ -269,12 +268,17 @@ class core_t {
   void reg_common_stats(xiosim::stats::StatsDatabase* sdb);
   void reg_stats(xiosim::stats::StatsDatabase* sdb);
 
+  void update_stopwatch(const Mop_t* Mop);
+
   protected:
 
   seq_t global_action_id; /* tag for squashable "actions" */
 
   struct odep_t * odep_free_pool;     /* for uop->odep links */
   int odep_free_pool_debt;
+
+  std::vector<tick_t> stopwatches;
+  std::vector<FILE*> stopwatch_files;
 };
 
 #endif /* ZESTO_UARCH_INCLUDED */

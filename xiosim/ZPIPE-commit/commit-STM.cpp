@@ -256,6 +256,8 @@ void core_commit_STM_t::step(void)
         ZESTO_STAT(core->stat.commit_refs += Mop->stat.num_refs;)
         ZESTO_STAT(core->stat.commit_loads += Mop->stat.num_loads;)
 
+        core->update_stopwatch(Mop);
+
         /* Let the oracle know that we are done with this Mop. */
         core->oracle->commit(Mop);
       }

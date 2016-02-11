@@ -42,6 +42,8 @@ cc_binary(
         "ildjit.h",
         "paravirt.cpp",
         "paravirt.h",
+        "profiling.cpp",
+        "profiling.h",
         "replace_function.cpp",
         "replace_function.h",
         "roi.cpp",

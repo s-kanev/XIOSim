@@ -313,6 +313,9 @@ struct alignas(16) Mop_t
      * the feeder. So we keep oracle info about branches from feeder. */
     bool taken_branch;
     bool recover_inst; /* TRUE if the NPC for this Mop is wrong */
+    bool stopwatch_start;
+    bool stopwatch_stop;
+    uint32_t stopwatch_id;
   } oracle;
 
   struct {

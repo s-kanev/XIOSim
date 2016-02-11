@@ -1,6 +1,9 @@
 #ifndef __KNOBS_H__
 #define __KNOBS_H__
 
+#include <string>
+#include <vector>
+
 #include "fu.h"
 #include "host.h"
 #include "uop_cracker.h"
@@ -195,9 +198,6 @@ struct system_knobs_t {
         const char* rtp_filename;
     } power;
 
-    md_addr_t stopwatch_start_pc;
-    md_addr_t stopwatch_stop_pc;
-
     int scheduler_tick;
 
     /* Core allocation policy. Valid options:
@@ -220,5 +220,17 @@ struct system_knobs_t {
 
     const char* dvfs_opt_str;
     int dvfs_interval;
+
+    /* Prefix for profiling result files.
+     * Filenames are prefix.<core>.<profile_id>. */
+    const char* profiling_file_prefix;
+    /* Start points for profiling. A list of symbol(+offset).
+     * For example, {"tc_malloc", "tc_free+0x5"} will start profiles at the entry point
+     * point of tc_malloc, and 5 bytes below the entry point of tc_free. */
+    std::vector<std::string> profiling_start;
+    /* End points for profiling. Either empty, or a list of symbol(+offset), the same
+     * length as profiling_start. If empty, profiles will stop at the exit points of
+     * @symbol. */
+    std::vector<std::string> profiling_stop;
 };
 #endif /* __KNOBS_H__ */

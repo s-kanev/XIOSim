@@ -53,6 +53,8 @@
  *
  */
 
+#include <sstream>
+
 #include "misc.h"
 #include "stats.h"
 #include "synchronization.h"
@@ -87,9 +89,22 @@ core_t::core_t(const int core_id)
     , commit(NULL)
     , global_action_id(0)
     , odep_free_pool(NULL)
-    , odep_free_pool_debt(0) {
+    , odep_free_pool_debt(0)
+    , stopwatches(system_knobs.profiling_start.size(), TICK_T_MAX) {
     memzero(&memory, sizeof(memory));
     memzero(&stat, sizeof(stat));
+
+    for (size_t i = 0; i < system_knobs.profiling_start.size(); i++) {
+        if (system_knobs.profiling_start[i] == "")
+            continue;
+
+        std::stringstream ss;
+        ss << system_knobs.profiling_file_prefix << "." << core_id << "." << i;
+        FILE* fp = fopen(ss.str().c_str(), "w");
+        if (!fp)
+            fatal("failed to open profiling file %s", ss.str().c_str());
+        stopwatch_files.push_back(fp);
+    }
 }
 
 /* assign a new, unique id */
@@ -153,4 +168,17 @@ void core_t::reg_stats(xiosim::stats::StatsDatabase* sdb) {
     alloc->reg_stats(sdb);
     exec->reg_stats(sdb);
     commit->reg_stats(sdb);
+}
+
+
+void core_t::update_stopwatch(const Mop_t* Mop) {
+    if (Mop->oracle.stopwatch_start) {
+        stopwatches[Mop->oracle.stopwatch_id] = sim_cycle;
+    }
+
+    if (Mop->oracle.stopwatch_stop) {
+        tick_t diff = sim_cycle - stopwatches[Mop->oracle.stopwatch_id];
+        FILE* fp = stopwatch_files[Mop->oracle.stopwatch_id];
+        fprintf(fp, "%" PRId64 "\n", diff);
+    }
 }
