@@ -118,7 +118,7 @@ runs = (
 
         BenchmarkRun('458.sjeng', 'sjeng', 'ref.txt', '', 'ref.out', 'ref.err', 'ref', ['ref.txt']),
 
-        BenchmarkRun('462.libquantum', 'libquantum', 'libquantum 1397 8', '', 'ref.out', 'ref.err', 'ref', ['control']),
+        BenchmarkRun('462.libquantum', 'libquantum', '1397 8', '', 'ref.out', 'ref.err', 'ref', ['control']),
 
         BenchmarkRun('464.h264ref', 'h264ref', '-d foreman_ref_encoder_baseline.cfg', '', 'foreman_ref_baseline_encodelog.out', 'foreman_ref_baseline_encodelog.err', 'foreman_ref_baseline_encodelog', ['foreman_qcif.yuv', 'leakybucketrate.cfg', 'foreman_ref_encoder_baseline.cfg']),
         BenchmarkRun('464.h264ref', 'h264ref', '-d foreman_ref_encoder_main.cfg', '', 'foreman_ref_main_encodelog.out', 'foreman_ref_main_encodelog.err', 'foreman_ref_main_encodelog', ['foreman_qcif.yuv', 'leakybucketrate.cfg', 'foreman_ref_encoder_main.cfg']),
