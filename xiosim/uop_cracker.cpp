@@ -471,6 +471,18 @@ static bool check_rdtsc(const struct Mop_t* Mop) {
     return false;
 }
 
+static bool check_sincos(const struct Mop_t* Mop) {
+    auto iclass = xed_decoded_inst_get_iclass(&Mop->decode.inst);
+    switch (iclass) {
+    case XED_ICLASS_FSINCOS:
+        return true;
+    default:
+        return false;
+    }
+
+    return false;
+}
+
 
 /* Check special-casing Mop->uop tables. Returns
  * true and modifies Mop if it has found a cracking.
@@ -735,6 +747,22 @@ static bool check_tables(struct Mop_t* Mop) {
             Mop->uop[i].decode.odep_name[0] = reg;
             i++;
         }
+        return true;
+    }
+
+    /* FSINCOS writes to 2 FP registers. */
+    if (check_sincos(Mop)) {
+        Mop->decode.flow_length = 2;
+        Mop->allocate_uops();
+
+        Mop->uop[0].decode.FU_class = FU_FCPLX;
+        Mop->uop[0].decode.idep_name[0] = XED_REG_ST0;
+        Mop->uop[0].decode.odep_name[0] = XED_REG_ST1;
+
+        Mop->uop[1].decode.FU_class = FU_FCPLX;
+        Mop->uop[1].decode.idep_name[0] = XED_REG_ST0;
+        Mop->uop[1].decode.odep_name[0] = XED_REG_ST0;
+        Mop->uop[1].decode.odep_name[1] = XED_REG_X87STATUS;
         return true;
     }
 

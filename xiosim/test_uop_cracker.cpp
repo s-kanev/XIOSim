@@ -831,3 +831,19 @@ TEST_CASE("MOVSD_XMM", "[uop]") {
     REQUIRE(c.Mop.uop[0].decode.idep_name[0] == largest_reg(XED_REG_EDX));
     REQUIRE(c.Mop.uop[0].decode.odep_name[0] == largest_reg(XED_REG_XMM1));
 }
+
+TEST_CASE("FSINCOS", "[uop]") {
+    xed_context c;
+    /* XXX: fsincons is actually 0-operand. Why does XED insist on 2 explicit ones?? */
+    xed_inst2(&c.x, c.dstate, XED_ICLASS_FSINCOS, 0,
+              xed_reg(XED_REG_ST0),
+              xed_reg(XED_REG_ST1));
+    c.encode();
+
+    c.decode_and_crack();
+
+    REQUIRE(c.Mop.decode.flow_length == 2);
+
+    REQUIRE(c.Mop.uop[0].decode.odep_name[0] == largest_reg(XED_REG_ST1));
+    REQUIRE(c.Mop.uop[1].decode.odep_name[0] == largest_reg(XED_REG_ST0));
+}
