@@ -7,17 +7,17 @@ import spec
 # Configuration params
 RUN_DIR_ROOT = "/home/skanev/spec_out" # Benchmarks will execute in subdirectories of this
 RESULT_DIR = "/home/skanev/spec_out"   # Results will be written here
-CONFIG_FILE = "config/N.cfg"           # Starting config file (relative to XIOSIM_TREE)
+CONFIG_FILE = "xiosim/config/H.cfg"    # Starting config file (relative to XIOSIM_TREE)
 
 def CreateDriver():
-    PIN_ROOT = os.environ["PIN_ROOT"]
     XIOSIM_INSTALL = os.environ["XIOSIM_INSTALL"]
     XIOSIM_TREE = os.environ["XIOSIM_TREE"]
-    env = None
+    ARCH = os.environ["TARGET_ARCH"]
+    env = ""
     use_own_lib = ("XIOSIM_ANCIENT_LIB" in os.environ)
     if use_own_lib:
         env = "LD_LIBRARY_PATH=/home/skanev/lib"
-    xio = xd.XIOSimDriver(PIN_ROOT, XIOSIM_INSTALL, XIOSIM_TREE,
+    xio = xd.XIOSimDriver(XIOSIM_INSTALL, XIOSIM_TREE, ARCH,
                           clean_arch=True, env=env)
     return xio
 
