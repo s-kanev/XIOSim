@@ -36,8 +36,9 @@ toolchain {
   tool_path { name: "dwp" path: "/usr/bin/dwp" }
   tool_path { name: "gcc" path: "/usr/bin/gcc" }
   cxx_flag: "-std=c++1y"
-  # TODO(skanev): remove this once intel releases a pin kit built with gcc 5.0+
+  # TODO(skanev): remove these once intel releases a pin kit built with gcc 5.1+
   cxx_flag: "-fabi-version=2"
+  cxx_flag: "-D_GLIBCXX_USE_CXX11_ABI=0"
   linker_flag: "-lstdc++"
   linker_flag: "-B/usr/bin/"
 
@@ -178,6 +179,7 @@ toolchain {
   tool_path { name: "gcc" path: "/usr/bin/gcc" }
   cxx_flag: "-std=c++1y"
   cxx_flag: "-fabi-version=2"
+  cxx_flag: "-D_GLIBCXX_USE_CXX11_ABI=0"
   linker_flag: "-lstdc++"
   linker_flag: "-B/usr/bin/"
 
