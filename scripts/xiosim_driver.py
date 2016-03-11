@@ -45,6 +45,7 @@ class XIOSimDriver(object):
     def AddPinOptions(self):
         self.cmd += "-pin " + self.PIN + " "
         self.cmd += "-xyzzy "
+        self.cmd += "-ifeellucky "
         self.cmd += "-pause_tool 1 "
         self.cmd += "-catch_signals 0 "
         self.cmd += "-t " + os.path.join(self.INSTALL_DIR, "xiosim/pintool/feeder_zesto.so") + " "
