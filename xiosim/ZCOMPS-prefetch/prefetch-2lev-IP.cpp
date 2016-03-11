@@ -34,7 +34,7 @@ if(!strcasecmp(COMPONENT_NAME,type))
   int last_stride_bits;
   if(sscanf(opt_string,"%*[^:]:%d:%d:%d",&num_entries,&last_addr_bits,&last_stride_bits) != 3)
     fatal("bad %s prefetcher options string %s (should be \"2lev-IP:num_entries:addr-bits:stride-bits\")",cp->name,opt_string);
-  return new prefetch_2lev_IP_t(cp,num_entries,last_addr_bits,last_stride_bits);
+  return std::make_unique<prefetch_2lev_IP_t>(cp, num_entries, last_addr_bits, last_stride_bits);
 }
 #else
 

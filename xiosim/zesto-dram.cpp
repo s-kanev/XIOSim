@@ -68,7 +68,7 @@
    chip. */
 
 /* this pointer hold DRAM implementation/model-specific state */
-class dram_t * dram = NULL;
+std::unique_ptr<class dram_t> dram;
 
 void dram_t::init(void)
 {
@@ -125,7 +125,7 @@ void dram_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
 /* include all of the DRAM definitions */
 #include "xiosim/ZCOMPS-dram.list.h"
 
-static dram_t * dram_from_string(const char * const opt_string)
+static std::unique_ptr<dram_t> dram_from_string(const char * const opt_string)
 {
   char type[256];
 

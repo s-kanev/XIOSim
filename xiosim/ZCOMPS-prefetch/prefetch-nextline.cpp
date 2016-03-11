@@ -8,7 +8,7 @@
 #ifdef PREFETCH_PARSE_ARGS
 if(!strcasecmp(COMPONENT_NAME,type))
 {
-  return new prefetch_nextline_t(cp);
+  return std::make_unique<prefetch_nextline_t>(cp);
 }
 #else
 

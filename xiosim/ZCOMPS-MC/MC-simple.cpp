@@ -13,7 +13,7 @@ if(!strcasecmp(COMPONENT_NAME,type))
            
   if(sscanf(opt_string,"%*[^:]:%d:%d",&RQ_size,&FIFO) != 2)
     fatal("bad memory controller options string %s (should be \"simple:RQ-size:FIFO\")",opt_string);
-  return new MC_simple_t(RQ_size,FIFO);
+  return std::make_unique<MC_simple_t>(RQ_size,FIFO);
 }
 #else
 
@@ -150,7 +150,7 @@ class MC_simple_t:public MC_t
       {
         req = &RQ[idx];
 
-        if((req->when_finished <= uncore->sim_cycle) && (req->when_returned == TICK_T_MAX) && (!req->prev_cp || bus_free(uncore->fsb)))
+        if((req->when_finished <= uncore->sim_cycle) && (req->when_returned == TICK_T_MAX) && (!req->prev_cp || bus_free(uncore->fsb.get())))
         {
           req->when_returned = uncore->sim_cycle;
 
@@ -160,7 +160,7 @@ class MC_simple_t:public MC_t
           if(req->prev_cp)
           {
             fill_arrived(req->prev_cp, req->MSHR_bank, req->MSHR_index);
-            bus_use(uncore->fsb, req->linesize >> uncore->fsb_DDR, req->cmd == CACHE_PREFETCH);
+            bus_use(uncore->fsb.get(), req->linesize >> uncore->fsb_DDR, req->cmd == CACHE_PREFETCH);
             break; /* might as well break, since only one request can writeback per cycle */
           }
         }

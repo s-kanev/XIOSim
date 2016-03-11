@@ -84,7 +84,7 @@ core_decode_t::~core_decode_t()
 #include "xiosim/ZPIPE-decode.list.h"
 
 
-class core_decode_t * decode_create(const char * decode_opt_string, struct core_t * core)
+std::unique_ptr<class core_decode_t> decode_create(const char * decode_opt_string, struct core_t * core)
 {
 #define ZESTO_PARSE_ARGS
 #include "xiosim/ZPIPE-decode.list.h"

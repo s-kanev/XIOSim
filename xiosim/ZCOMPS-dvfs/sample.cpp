@@ -2,7 +2,7 @@
 
 #ifdef ZESTO_PARSE_ARGS
   if(!strcasecmp(opt_string, "sample"))
-    return new vf_controller_sample_t(core);
+    return std::make_unique<vf_controller_sample_t>(core);
 #else
 
 /* This is a simple policy to get the flavor of the DVFS API.

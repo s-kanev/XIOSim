@@ -6,7 +6,7 @@
 
 #ifdef ZESTO_PARSE_ARGS
   if(!strcasecmp(exec_opt_string,"DPM"))
-    return new core_exec_DPM_t(core);
+    return std::make_unique<class core_exec_DPM_t>(core);
 #else
 
 class core_exec_DPM_t:public core_exec_t
@@ -41,6 +41,7 @@ class core_exec_DPM_t:public core_exec_t
   public:
 
   core_exec_DPM_t(struct core_t * const core);
+  ~core_exec_DPM_t();
   virtual void reg_stats(xiosim::stats::StatsDatabase* sdb);
   virtual void freeze_stats(void);
   virtual void update_occupancy(void);
@@ -169,7 +170,7 @@ class core_exec_DPM_t:public core_exec_t
   } * port;
   bool check_for_work; /* used to skip ALU exec when there's no uops */
 
-  struct memdep_t * memdep;
+  std::unique_ptr<class memdep_t> memdep;
 
 
   /* various exec utility functions */
@@ -210,6 +211,7 @@ class core_exec_DPM_t:public core_exec_t
 /*******************/
 
 core_exec_DPM_t::core_exec_DPM_t(struct core_t * const arg_core):
+  core_exec_t(arg_core),
   readyQ_free_pool(NULL),
 #ifdef DEBUG
   readyQ_free_pool_debt(0),
@@ -239,201 +241,7 @@ core_exec_DPM_t::core_exec_DPM_t(struct core_t * const arg_core):
   for(i=0;i<knobs->exec.STQ_size;i++)
     STQ[i].sta = NULL;
 
-  /*********************************************************/
-  /* Data cache parsing first, functional units after this */
-  /*********************************************************/
-  char name[256];
-  int sets, assoc, linesize, latency, banks, bank_width, MSHR_entries, MSHR_WB_entries;
-  char rp, ap, wp, wc;
-  
-  /* note: caches must be instantiated from the level furthest from the core first (e.g., L2) */
-
-  /* per-core DL2 */
-
-  /* per-core L2 bus (between L1 and L2) */
-  if(!strcasecmp(knobs->memory.DL2_opt_str,"none"))
-  {
-    core->memory.DL2 = NULL;
-    core->memory.DL2_bus = NULL;
-  }
-  else
-  {
-    if(sscanf(knobs->memory.DL2_opt_str,"%[^:]:%d:%d:%d:%d:%d:%d:%c:%c:%c:%d:%d:%c",
-        name,&sets,&assoc,&linesize,&banks,&bank_width,&latency,&rp,&ap,&wp, &MSHR_entries, &MSHR_WB_entries, &wc) != 13)
-      fatal("invalid DL2 options: <name:sets:assoc:linesize:banks:bank-width:latency:repl-policy:alloc-policy:write-policy:num-MSHR:WB-buffers:write-combining>\n\t(%s)",knobs->memory.DL2_opt_str);
-    core->memory.DL2 = cache_create(core,name,CACHE_READWRITE,sets,assoc,linesize,
-                             rp,ap,wp,wc,banks,bank_width,latency,
-                             MSHR_entries,MSHR_WB_entries,1,uncore->LLC,uncore->LLC_bus,
-                             knobs->memory.DL2_magic_hit_rate);
-
-    if(!knobs->memory.DL2_MSHR_cmd || !strcasecmp(knobs->memory.DL2_MSHR_cmd,"fcfs"))
-      core->memory.DL2->MSHR_cmd_order = NULL;
-    else
-    {
-      if(strlen(knobs->memory.DL2_MSHR_cmd) != 4)
-        fatal("-dl1:mshr_cmd must either be \"fcfs\" or contain all four of [RWBP]");
-      bool R_seen = false;
-      bool W_seen = false;
-      bool B_seen = false;
-      bool P_seen = false;
-
-      core->memory.DL2->MSHR_cmd_order = (enum cache_command*)calloc(4,sizeof(enum cache_command));
-      if(!core->memory.DL2->MSHR_cmd_order)
-        fatal("failed to calloc MSHR_cmd_order array for DL2");
-
-      for(int c=0;c<4;c++)
-      {
-        switch(toupper(knobs->memory.DL2_MSHR_cmd[c]))
-        {
-          case 'R': core->memory.DL2->MSHR_cmd_order[c] = CACHE_READ; R_seen = true; break;
-          case 'W': core->memory.DL2->MSHR_cmd_order[c] = CACHE_WRITE; W_seen = true; break;
-          case 'B': core->memory.DL2->MSHR_cmd_order[c] = CACHE_WRITEBACK; B_seen = true; break;
-          case 'P': core->memory.DL2->MSHR_cmd_order[c] = CACHE_PREFETCH; P_seen = true; break;
-          default: fatal("unknown cache operation '%c' for -dl1:mshr_cmd; must be one of [RWBP]");
-        }
-      }
-      if(!R_seen || !W_seen || !B_seen || !P_seen)
-        fatal("-dl1:mshr_cmd must contain *each* of [RWBP]");
-    }
-
-    core->memory.DL2->prefetcher = (struct prefetch_t**) calloc(knobs->memory.DL2_num_PF,sizeof(*core->memory.DL2->prefetcher));
-    core->memory.DL2->num_prefetchers = knobs->memory.DL2_num_PF;
-    if(!core->memory.DL2->prefetcher)
-      fatal("couldn't calloc %s's prefetcher array",core->memory.DL2->name);
-    for(i=0;i<knobs->memory.DL2_num_PF;i++)
-      core->memory.DL2->prefetcher[i] = prefetch_create(knobs->memory.DL2PF_opt_str[i],core->memory.DL2);
-    if(core->memory.DL2->prefetcher[0] == NULL)
-      core->memory.DL2->num_prefetchers = knobs->memory.DL2_num_PF = 0;
-    core->memory.DL2->prefetch_on_miss = knobs->memory.DL2_PF_on_miss;
-
-    core->memory.DL2->PFF_size = knobs->memory.DL2_PFFsize;
-    core->memory.DL2->PFF = (cache_t::PFF_t*) calloc(knobs->memory.DL2_PFFsize,sizeof(*core->memory.DL2->PFF));
-    if(!core->memory.DL2->PFF)
-      fatal("failed to calloc %s's prefetch FIFO",core->memory.DL2->name);
-    core->memory.DL2->prefetch_threshold = knobs->memory.DL2_PFthresh;
-    core->memory.DL2->prefetch_max = knobs->memory.DL2_PFmax;
-    core->memory.DL2->PF_low_watermark = knobs->memory.DL2_low_watermark;
-    core->memory.DL2->PF_high_watermark = knobs->memory.DL2_high_watermark;
-    core->memory.DL2->PF_sample_interval = knobs->memory.DL2_WMinterval;
-
-    core->memory.DL2_bus = bus_create("DL2_bus", core->memory.DL2->linesize, &core->memory.DL2->sim_cycle, 1);
-  }
-
-  /* per-core DL1 */
-  if(sscanf(knobs->memory.DL1_opt_str,"%[^:]:%d:%d:%d:%d:%d:%d:%c:%c:%c:%d:%d:%c",
-      name,&sets,&assoc,&linesize,&banks,&bank_width,&latency,&rp,&ap,&wp, &MSHR_entries, &MSHR_WB_entries, &wc) != 13)
-    fatal("invalid DL1 options: <name:sets:assoc:linesize:banks:bank-width:latency:repl-policy:alloc-policy:write-policy:num-MSHR:WB-buffers:write-combining>\n\t(%s)",knobs->memory.DL1_opt_str);
-
-  if(core->memory.DL2)
-    core->memory.DL1 = cache_create(core,name,CACHE_READWRITE,sets,assoc,linesize,
-                             rp,ap,wp,wc,banks,bank_width,latency,
-                             MSHR_entries,MSHR_WB_entries,1,core->memory.DL2,core->memory.DL2_bus,
-                             knobs->memory.DL1_magic_hit_rate);
-  else
-    core->memory.DL1 = cache_create(core,name,CACHE_READWRITE,sets,assoc,linesize,
-                             rp,ap,wp,wc,banks,bank_width,latency,
-                             MSHR_entries,MSHR_WB_entries,1,uncore->LLC,uncore->LLC_bus,
-                             knobs->memory.DL1_magic_hit_rate);
-  if(!knobs->memory.DL1_MSHR_cmd || !strcasecmp(knobs->memory.DL1_MSHR_cmd,"fcfs"))
-    core->memory.DL1->MSHR_cmd_order = NULL;
-  else
-  {
-    if(strlen(knobs->memory.DL1_MSHR_cmd) != 4)
-      fatal("-dl1:mshr_cmd must either be \"fcfs\" or contain all four of [RWBP]");
-    bool R_seen = false;
-    bool W_seen = false;
-    bool B_seen = false;
-    bool P_seen = false;
-
-    core->memory.DL1->MSHR_cmd_order = (enum cache_command*)calloc(4,sizeof(enum cache_command));
-    if(!core->memory.DL1->MSHR_cmd_order)
-      fatal("failed to calloc MSHR_cmd_order array for DL1");
-
-    for(int c=0;c<4;c++)
-    {
-      switch(toupper(knobs->memory.DL1_MSHR_cmd[c]))
-      {
-        case 'R': core->memory.DL1->MSHR_cmd_order[c] = CACHE_READ; R_seen = true; break;
-        case 'W': core->memory.DL1->MSHR_cmd_order[c] = CACHE_WRITE; W_seen = true; break;
-        case 'B': core->memory.DL1->MSHR_cmd_order[c] = CACHE_WRITEBACK; B_seen = true; break;
-        case 'P': core->memory.DL1->MSHR_cmd_order[c] = CACHE_PREFETCH; P_seen = true; break;
-        default: fatal("unknown cache operation '%c' for -dl1:mshr_cmd; must be one of [RWBP]");
-      }
-    }
-    if(!R_seen || !W_seen || !B_seen || !P_seen)
-      fatal("-dl1:mshr_cmd must contain *each* of [RWBP]");
-  }
-
-  core->memory.DL1->prefetcher = (struct prefetch_t**) calloc(knobs->memory.DL1_num_PF,sizeof(*core->memory.DL1->prefetcher));
-  core->memory.DL1->num_prefetchers = knobs->memory.DL1_num_PF;
-  if(!core->memory.DL1->prefetcher)
-    fatal("couldn't calloc %s's prefetcher array",core->memory.DL1->name);
-  for(i=0;i<knobs->memory.DL1_num_PF;i++)
-    core->memory.DL1->prefetcher[i] = prefetch_create(knobs->memory.DL1PF_opt_str[i],core->memory.DL1);
-  if(core->memory.DL1->prefetcher[0] == NULL)
-    core->memory.DL1->num_prefetchers = knobs->memory.DL1_num_PF = 0;
-  core->memory.DL1->prefetch_on_miss = knobs->memory.DL1_PF_on_miss;
-
-  core->memory.DL1->PFF_size = knobs->memory.DL1_PFFsize;
-  core->memory.DL1->PFF = (cache_t::PFF_t*) calloc(knobs->memory.DL1_PFFsize,sizeof(*core->memory.DL1->PFF));
-  if(!core->memory.DL1->PFF)
-    fatal("failed to calloc %s's prefetch FIFO",core->memory.DL1->name);
-  prefetch_buffer_create(core->memory.DL1,knobs->memory.DL1_PF_buffer_size);
-  prefetch_filter_create(core->memory.DL1,knobs->memory.DL1_PF_filter_size,knobs->memory.DL1_PF_filter_reset);
-  core->memory.DL1->prefetch_threshold = knobs->memory.DL1_PFthresh;
-  core->memory.DL1->prefetch_max = knobs->memory.DL1_PFmax;
-  core->memory.DL1->PF_low_watermark = knobs->memory.DL1_low_watermark;
-  core->memory.DL1->PF_high_watermark = knobs->memory.DL1_high_watermark;
-  core->memory.DL1->PF_sample_interval = knobs->memory.DL1_WMinterval;
-
-  core->memory.DL1->controller = controller_create(knobs->memory.DL1_controller_opt_str, core, core->memory.DL1);
-  if(core->memory.DL2 != NULL)
-    core->memory.DL2->controller = controller_create(knobs->memory.DL2_controller_opt_str, core, core->memory.DL2);
-
-
-  /* DTLBs */
-
-  /* DTLB2 */
-  if(!strcasecmp(knobs->memory.DTLB2_opt_str,"none"))
-  {
-    core->memory.DTLB2 = NULL;
-    core->memory.DTLB_bus = NULL;
-  }
-  else
-  {
-    core->memory.DTLB_bus = bus_create("DTLB_bus", 1, &core->sim_cycle, 1);
-
-    if(sscanf(knobs->memory.DTLB2_opt_str,"%[^:]:%d:%d:%d:%d:%c:%d",
-        name,&sets,&assoc,&banks,&latency, &rp, &MSHR_entries) != 7)
-      fatal("invalid DTLB2 options: <name:sets:assoc:banks:latency:repl-policy:num-MSHR>");
-
-    if(core->memory.DL2)
-      core->memory.DTLB2 = cache_create(core,name,CACHE_READONLY,sets,assoc,1,rp,'w','t','n',banks,1,latency,MSHR_entries,4,1,core->memory.DL2,core->memory.DL2_bus,-1.0); /* on a complete TLB miss, go to the L2 cache to simulate the traffic from a HW page-table walker */
-    else
-      core->memory.DTLB2 = cache_create(core,name,CACHE_READONLY,sets,assoc,1,rp,'w','t','n',banks,1,latency,MSHR_entries,4,1,uncore->LLC,uncore->LLC_bus,-1.0); /* on a complete TLB miss, go to the LLC to simulate the traffic from a HW page-table walker */
-    core->memory.DTLB2->MSHR_cmd_order = NULL;
-  }
-
-  /* DTLB */
-  if(sscanf(knobs->memory.DTLB_opt_str,"%[^:]:%d:%d:%d:%d:%c:%d",
-      name,&sets,&assoc,&banks,&latency, &rp, &MSHR_entries) != 7)
-    fatal("invalid DTLB options: <name:sets:assoc:banks:latency:repl-policy:num-MSHR>");
-
-  if(core->memory.DTLB2)
-  {
-    core->memory.DTLB = cache_create(core,name,CACHE_READONLY,sets,assoc,1,rp,'w','t','n',banks,1,latency,MSHR_entries,4,1,core->memory.DTLB2,core->memory.DTLB_bus,-1.0);
-    core->memory.DTLB->MSHR_cmd_order = NULL;
-  }
-  else
-  {
-    core->memory.DTLB = cache_create(core,name,CACHE_READONLY,sets,assoc,1,rp,'w','t','n',banks,1,latency,MSHR_entries,4,1,uncore->LLC,uncore->LLC_bus,-1.0);
-    core->memory.DTLB->MSHR_cmd_order = NULL;
-  }
-
-  core->memory.DTLB->controller = controller_create(knobs->memory.DTLB_controller_opt_str, core, core->memory.DTLB);
-  if(core->memory.DTLB2 != NULL)
-    core->memory.DTLB2->controller = controller_create(knobs->memory.DTLB2_controller_opt_str, core, core->memory.DTLB2);
-
+  create_caches(true);
 
   /************************************/
   /* execution port payload pipelines */
@@ -446,24 +254,6 @@ core_exec_DPM_t::core_exec_DPM_t(struct core_t * const arg_core):
     port[i].payload_pipe = (struct uop_action_t*) calloc(knobs->exec.payload_depth,sizeof(*port->payload_pipe));
     if(!port[i].payload_pipe)
       fatal("couldn't calloc payload pipe");
-  }
-
-  /***************************/
-  /* execution port bindings */
-  /***************************/
-  for(i=0;i<NUM_FU_CLASSES;i++)
-  {
-    int j;
-    knobs->exec.port_binding[i].ports = (int*) calloc(knobs->exec.port_binding[i].num_FUs,sizeof(int));
-    if(!knobs->exec.port_binding[i].ports) fatal("couldn't calloc %s ports", fu_name(static_cast<fu_class>(i)).c_str());
-    for(j=0;j<knobs->exec.port_binding[i].num_FUs;j++)
-    {
-      if((knobs->exec.fu_bindings[i][j] < 0) || (knobs->exec.fu_bindings[i][j] >= knobs->exec.num_exec_ports))
-        fatal("port binding for %s is negative or exceeds the execution width (should be > 0 and < %d)",
-               static_cast<fu_class>(i),
-               knobs->exec.num_exec_ports);
-      knobs->exec.port_binding[i].ports[j] = knobs->exec.fu_bindings[i][j];
-    }
   }
 
   /***************************************/
@@ -521,22 +311,42 @@ core_exec_DPM_t::core_exec_DPM_t(struct core_t * const arg_core):
     }
   }
 
-
   memdep = memdep_create(core, knobs->exec.memdep_opt_str);
 
-  core->memory.mem_repeater = repeater_create(core->knobs->exec.repeater_opt_str, core, "MR1", core->memory.DL1);
-
   check_for_work = true;
+}
+
+core_exec_DPM_t::~core_exec_DPM_t() {
+    for (int i = 0; i < core->knobs->exec.num_exec_ports; i++) {
+        free(port[i].FU_types);
+        if (port[i].STQ) {
+            free(port[i].STQ->pipe);
+            free(port[i].STQ);
+        }
+        for (int j = 0; j < NUM_FU_CLASSES; j++) {
+            if (port[i].FU[j]) {
+                free(port[i].FU[j]->pipe);
+                free(port[i].FU[j]);
+            }
+        }
+        free(port[i].payload_pipe);
+    }
+    free(port);
+    free(STQ);
+    free(LDQ);
+    free(RS);
+
+    while (readyQ_free_pool) {
+        auto curr = readyQ_free_pool;
+        readyQ_free_pool = readyQ_free_pool->next;
+        free(curr);
+    }
 }
 
 void core_exec_DPM_t::reg_stats(xiosim::stats::StatsDatabase* sdb) {
     int coreID = core->id;
 
-    stat_reg_note(sdb, "\n#### DATA CACHE STATS ####");
-    cache_reg_stats(sdb, core, core->memory.DL1);
-    cache_reg_stats(sdb, core, core->memory.DTLB);
-    cache_reg_stats(sdb, core, core->memory.DTLB2);
-    cache_reg_stats(sdb, core, core->memory.DL2);
+    reg_dcache_stats(sdb);
 
     stat_reg_note(sdb, "#### EXEC STATS ####");
     auto sim_cycle_st = stat_find_core_stat<tick_t>(sdb, coreID, "sim_cycle");
@@ -1150,7 +960,7 @@ void core_exec_DPM_t::load_writeback(struct uop_t * const uop)
 void core_exec_DPM_t::DL1_callback(void * const op)
 {
   struct uop_t * uop = (struct uop_t*) op;
-  class core_exec_DPM_t * E = (core_exec_DPM_t*)uop->core->exec;
+  class core_exec_DPM_t * E = (core_exec_DPM_t*)uop->core->exec.get();
   if(uop->alloc.LDQ_index != -1)
   {
     struct LDQ_t * LDQ_item = &E->LDQ[uop->alloc.LDQ_index];
@@ -1183,7 +993,7 @@ void core_exec_DPM_t::DL1_callback(void * const op)
 void core_exec_DPM_t::DL1_split_callback(void * const op)
 {
   struct uop_t * uop = (struct uop_t*) op;
-  class core_exec_DPM_t * E = (core_exec_DPM_t*)uop->core->exec;
+  class core_exec_DPM_t * E = (core_exec_DPM_t*)uop->core->exec.get();
   if(uop->alloc.LDQ_index != -1)
   {
     struct LDQ_t * LDQ_item = &E->LDQ[uop->alloc.LDQ_index];
@@ -1218,7 +1028,7 @@ void core_exec_DPM_t::repeater_callback(void * const op, bool is_hit)
   struct uop_t * uop = (struct uop_t*) op;
   struct core_t * core = uop->core;
   struct core_knobs_t * knobs = core->knobs;
-  class core_exec_DPM_t * E = (core_exec_DPM_t*)uop->core->exec;
+  class core_exec_DPM_t * E = (core_exec_DPM_t*)uop->core->exec.get();
 
   if(uop->alloc.LDQ_index != -1)
   {
@@ -1282,7 +1092,7 @@ void core_exec_DPM_t::repeater_split_callback(void * const op, bool is_hit)
   struct uop_t * uop = (struct uop_t*) op;
   struct core_t * core = uop->core;
   struct core_knobs_t * knobs = core->knobs;
-  class core_exec_DPM_t * E = (core_exec_DPM_t*)uop->core->exec;
+  class core_exec_DPM_t * E = (core_exec_DPM_t*)uop->core->exec.get();
 
   if(uop->alloc.LDQ_index != -1)
   {
@@ -1346,7 +1156,7 @@ void core_exec_DPM_t::DTLB_callback(void * const op)
 {
   struct uop_t * uop = (struct uop_t*) op;
   struct core_t * core = uop->core;
-  struct core_exec_DPM_t * E = (core_exec_DPM_t*)uop->core->exec;
+  struct core_exec_DPM_t * E = (core_exec_DPM_t*)uop->core->exec.get();
   if(uop->alloc.LDQ_index != -1)
   {
     struct LDQ_t * LDQ_item = &E->LDQ[uop->alloc.LDQ_index];
@@ -1390,7 +1200,7 @@ void core_exec_DPM_t::load_miss_reschedule(void * const op, const int new_pred_l
 {
   struct uop_t * uop = (struct uop_t*) op;
   struct core_t * core = uop->core;
-  struct core_exec_DPM_t * E = (core_exec_DPM_t*)core->exec;
+  struct core_exec_DPM_t * E = (core_exec_DPM_t*)core->exec.get();
   struct core_knobs_t * knobs = core->knobs;
   zesto_assert(uop->decode.is_load,(void)0);
 
@@ -1728,12 +1538,7 @@ void core_exec_DPM_t::LDST_exec(void)
     }
   }
 
-  lk_lock(&cache_lock, core->id+1);
-  if(core->memory.DTLB2) cache_process(core->memory.DTLB2);
-  cache_process(core->memory.DTLB);
-  if(core->memory.DL2) cache_process(core->memory.DL2);
-  cache_process(core->memory.DL1);
-  lk_unlock(&cache_lock);
+  step_dcaches();
 }
 
 /* Schedule load uops to execute from the LDQ.  Load execution occurs in a two-step
@@ -1801,22 +1606,22 @@ void core_exec_DPM_t::LDQ_schedule(void)
             bool send_to_dl1 = (!uop->oracle.is_repeated || (uop->oracle.is_repeated && knobs->memory.DL1_rep_req));
             if(!LDQ[index].first_byte_requested)
             {
-              if((cache_enqueuable(core->memory.DTLB, asid, memory::page_table_address(asid, uop->oracle.virt_addr))) &&
-                 (!send_to_dl1 || (send_to_dl1 && cache_enqueuable(core->memory.DL1, asid, uop->oracle.virt_addr))) &&
+              if((cache_enqueuable(core->memory.DTLB.get(), asid, memory::page_table_address(asid, uop->oracle.virt_addr))) &&
+                 (!send_to_dl1 || (send_to_dl1 && cache_enqueuable(core->memory.DL1.get(), asid, uop->oracle.virt_addr))) &&
                  (!uop->oracle.is_repeated || (uop->oracle.is_repeated && core->memory.mem_repeater->enqueuable(CACHE_READ, asid, uop->oracle.virt_addr))) &&
                  (port[uop->alloc.port_assignment].STQ->pipe[0].uop == NULL))
               {
                 uop->exec.when_data_loaded = TICK_T_MAX;
                 if(!uop->oracle.is_sync_op && (uop->exec.when_addr_translated == 0)) {
                   uop->exec.when_addr_translated = TICK_T_MAX;
-                  cache_enqueue(core, core->memory.DTLB, NULL, CACHE_READ, asid, uop->Mop->fetch.PC, memory::page_table_address(asid, uop->oracle.virt_addr), uop->exec.action_id, 0, NO_MSHR, uop, DTLB_callback, load_miss_reschedule, NULL, get_uop_action_id);
+                  cache_enqueue(core, core->memory.DTLB.get(), NULL, CACHE_READ, asid, uop->Mop->fetch.PC, memory::page_table_address(asid, uop->oracle.virt_addr), uop->exec.action_id, 0, NO_MSHR, uop, DTLB_callback, load_miss_reschedule, NULL, get_uop_action_id);
                 }
                 else
                   // The wait address is bogus, don't schedule a TLB translation
                   uop->exec.when_addr_translated = core->sim_cycle;
 
                 if(send_to_dl1 && !uop->oracle.is_sync_op)
-                  cache_enqueue(core, core->memory.DL1, NULL, CACHE_READ, asid, uop->Mop->fetch.PC, uop->oracle.virt_addr, uop->exec.action_id, 0, NO_MSHR, uop, DL1_callback, load_miss_reschedule, translated_callback, get_uop_action_id);
+                  cache_enqueue(core, core->memory.DL1.get(), NULL, CACHE_READ, asid, uop->Mop->fetch.PC, uop->oracle.virt_addr, uop->exec.action_id, 0, NO_MSHR, uop, DL1_callback, load_miss_reschedule, translated_callback, get_uop_action_id);
 
                 if(uop->oracle.is_repeated) {
                   core->memory.mem_repeater->enqueue(uop->oracle.is_sync_op ? CACHE_WAIT : CACHE_READ,
@@ -1831,7 +1636,7 @@ void core_exec_DPM_t::LDQ_schedule(void)
 
                 LDQ[index].first_byte_requested = true;
                 if(uop->oracle.is_sync_op ||
-                   cache_single_line_access(core->memory.DL1, uop->oracle.virt_addr, uop->decode.mem_size))
+                   cache_single_line_access(core->memory.DL1.get(), uop->oracle.virt_addr, uop->decode.mem_size))
                 {
                   /* not a split-line access */
                   LDQ[index].last_byte_requested = true;
@@ -1905,13 +1710,13 @@ void core_exec_DPM_t::LDQ_schedule(void)
               md_addr_t split_addr = uop->oracle.virt_addr + uop->decode.mem_size;
               /* split-line access.  XXX: we're currently not handling the 2nd translation
                  for acceses that cross *pages*. */
-              if((!send_to_dl1 || (send_to_dl1 && cache_enqueuable(core->memory.DL1, asid, split_addr))) &&
+              if((!send_to_dl1 || (send_to_dl1 && cache_enqueuable(core->memory.DL1.get(), asid, split_addr))) &&
                  (!uop->oracle.is_repeated || (uop->oracle.is_repeated && core->memory.mem_repeater->enqueuable(CACHE_READ, asid, split_addr))))
               {
                 if(send_to_dl1) {
                   ZESTO_STAT(core->stat.DL1_load_split_accesses++;)
 
-                  cache_enqueue(core, core->memory.DL1, NULL, CACHE_READ, asid, uop->Mop->fetch.PC, split_addr, uop->exec.action_id, 0, NO_MSHR, uop, DL1_split_callback, load_miss_reschedule, translated_callback, get_uop_action_id, true);
+                  cache_enqueue(core, core->memory.DL1.get(), NULL, CACHE_READ, asid, uop->Mop->fetch.PC, split_addr, uop->exec.action_id, 0, NO_MSHR, uop, DL1_split_callback, load_miss_reschedule, translated_callback, get_uop_action_id, true);
                 }
                 if(uop->oracle.is_repeated) {
                   core->memory.mem_repeater->enqueue(CACHE_READ, asid, split_addr, uop, repeater_split_callback, get_uop_action_id);
@@ -2597,13 +2402,13 @@ bool core_exec_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
   /* Store write back occurs here at commit.  NOTE: stores go directly to
      DTLB2 (See "Intel 64 and IA-32 Architectures Optimization Reference
      Manual"). */
-  struct cache_t * tlb = (core->memory.DTLB2) ? core->memory.DTLB2 : core->memory.DTLB;
+  struct cache_t* tlb = (core->memory.DTLB2) ? core->memory.DTLB2.get() : core->memory.DTLB.get();
   /* Wait until we can submit to DTLB (sync ops don't use TLB) */
   if(get_STQ_request_type(uop) == CACHE_WRITE && 
      !cache_enqueuable(tlb, asid, memory::page_table_address(asid, uop->oracle.virt_addr)))
     return false;
   /* Wait until we can submit to DL1 */
-  if(send_to_dl1 && !cache_enqueuable(core->memory.DL1, asid, uop->oracle.virt_addr))
+  if(send_to_dl1 && !cache_enqueuable(core->memory.DL1.get(), asid, uop->oracle.virt_addr))
     return false;
 
   /* Wait until we can submit to repeater */
@@ -2636,7 +2441,7 @@ bool core_exec_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
       dl1_uop->oracle.is_repeated = uop->oracle.is_repeated;
       dl1_uop->oracle.is_sync_op = uop->oracle.is_sync_op;
 
-      cache_enqueue(core, core->memory.DL1, NULL, CACHE_WRITE, asid, uop->Mop->fetch.PC, uop->oracle.virt_addr, dl1_uop->exec.action_id, 0, NO_MSHR, dl1_uop, store_dl1_callback, NULL, store_translated_callback, get_uop_action_id);
+      cache_enqueue(core, core->memory.DL1.get(), NULL, CACHE_WRITE, asid, uop->Mop->fetch.PC, uop->oracle.virt_addr, dl1_uop->exec.action_id, 0, NO_MSHR, dl1_uop, store_dl1_callback, NULL, store_translated_callback, get_uop_action_id);
     }
 
     /* Send to DTLB(2), if not a helix signal */
@@ -2672,7 +2477,7 @@ bool core_exec_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
 
     /* not a split-line access */
     if(uop->oracle.is_sync_op ||
-       cache_single_line_access(core->memory.DL1, uop->oracle.virt_addr, uop->decode.mem_size))
+       cache_single_line_access(core->memory.DL1.get(), uop->oracle.virt_addr, uop->decode.mem_size))
     {
       STQ[STQ_head].last_byte_requested = true;
       STQ[STQ_head].last_byte_written = true;
@@ -2687,7 +2492,7 @@ bool core_exec_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
     md_addr_t split_addr = uop->oracle.virt_addr + uop->decode.mem_size;
     zesto_assert(!uop->oracle.is_sync_op, 0);
     /* Wait until we can submit to DL1 */
-    if(send_to_dl1 && !cache_enqueuable(core->memory.DL1, asid, split_addr))
+    if(send_to_dl1 && !cache_enqueuable(core->memory.DL1.get(), asid, split_addr))
       return false;
     /* Wait until we can submit to repeater */
     if(uop->oracle.is_repeated)
@@ -2707,7 +2512,7 @@ bool core_exec_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
       dl1_split_uop->oracle.is_repeated = uop->oracle.is_repeated;
       dl1_split_uop->oracle.is_sync_op = uop->oracle.is_sync_op;
 
-      cache_enqueue(core, core->memory.DL1, NULL, CACHE_WRITE, asid, uop->Mop->fetch.PC, split_addr, dl1_split_uop->exec.action_id, 0, NO_MSHR, dl1_split_uop, store_dl1_split_callback, NULL, store_translated_callback, get_uop_action_id);
+      cache_enqueue(core, core->memory.DL1.get(), NULL, CACHE_WRITE, asid, uop->Mop->fetch.PC, split_addr, dl1_split_uop->exec.action_id, 0, NO_MSHR, dl1_split_uop, store_dl1_split_callback, NULL, store_translated_callback, get_uop_action_id);
     }
 
     /* Submit second access to repeater */
@@ -2827,7 +2632,7 @@ void core_exec_DPM_t::store_dl1_callback(void * const op)
 {
   struct uop_t * uop = (struct uop_t *)op;
   struct core_t * core = uop->core;
-  struct core_exec_DPM_t * E = (core_exec_DPM_t*)core->exec;
+  struct core_exec_DPM_t * E = (core_exec_DPM_t*)core->exec.get();
   struct core_knobs_t * knobs = core->knobs;
 
 #ifdef ZTRACE
@@ -2854,7 +2659,7 @@ void core_exec_DPM_t::store_dl1_split_callback(void * const op)
 {
   struct uop_t * uop = (struct uop_t *)op;
   struct core_t * core = uop->core;
-  struct core_exec_DPM_t * E = (core_exec_DPM_t*)core->exec;
+  struct core_exec_DPM_t * E = (core_exec_DPM_t*)core->exec.get();
   struct core_knobs_t * knobs = core->knobs;
 
 #ifdef ZTRACE
@@ -2880,7 +2685,7 @@ void core_exec_DPM_t::store_dtlb_callback(void * const op)
 {
   struct uop_t * uop = (struct uop_t *)op;
   struct core_t * core = uop->core;
-  struct core_exec_DPM_t * E = (core_exec_DPM_t*)core->exec;
+  struct core_exec_DPM_t * E = (core_exec_DPM_t*)core->exec.get();
   struct core_knobs_t * knobs = core->knobs;
   
 #ifdef ZTRACE
@@ -2898,7 +2703,7 @@ bool core_exec_DPM_t::store_translated_callback(void * const op, const seq_t act
   struct uop_t * uop = (struct uop_t *)op;
   struct core_t * core = uop->core;
   struct core_knobs_t * knobs = core->knobs;
-  struct core_exec_DPM_t * E = (core_exec_DPM_t*)core->exec;
+  struct core_exec_DPM_t * E = (core_exec_DPM_t*)core->exec.get();
 
   if((uop->alloc.STQ_index == -1) || (uop->exec.action_id != E->STQ[uop->alloc.STQ_index].action_id))
     return true;
@@ -2910,7 +2715,7 @@ void core_exec_DPM_t::repeater_store_callback(void * const op, bool is_hit)
 {
   struct uop_t * uop = (struct uop_t *)op;
   struct core_t * core = uop->core;
-  struct core_exec_DPM_t * E = (core_exec_DPM_t*)core->exec;
+  struct core_exec_DPM_t * E = (core_exec_DPM_t*)core->exec.get();
   struct core_knobs_t * knobs = core->knobs;
 
 #ifdef ZTRACE
@@ -2936,7 +2741,7 @@ void core_exec_DPM_t::repeater_split_store_callback(void * const op, bool is_hit
 {
   struct uop_t * uop = (struct uop_t *)op;
   struct core_t * core = uop->core;
-  struct core_exec_DPM_t * E = (core_exec_DPM_t*)core->exec;
+  struct core_exec_DPM_t * E = (core_exec_DPM_t*)core->exec.get();
   struct core_knobs_t * knobs = core->knobs;
 
 #ifdef ZTRACE

@@ -12,7 +12,7 @@ if(!strcasecmp(COMPONENT_NAME,type))
            
   if(sscanf(opt_string,"%*[^:]:%[^:]:%d",name,&num_entries) != 2)
     fatal("bad bpred options string %s (should be \"2bC:name:num_entries\")",opt_string);
-  return new bpred_2bC_t(core,name,num_entries);
+  return std::make_unique<bpred_2bC_t>(core,name,num_entries);
 }
 #else
 
@@ -43,12 +43,8 @@ class bpred_2bC_t:public bpred_dir_t
     /* verify arguments are valid */
     CHECK_PPOW2(arg_num_entries);
 
-    name = strdup(arg_name);
-    if(!name)
-      fatal("couldn't malloc 2bC name (strdup)");
-    type = strdup("2bC");
-    if(!type)
-      fatal("couldn't malloc 2bC type (strdup)");
+    name = arg_name;
+    type = "2bC";
 
     num_entries = arg_num_entries;
     entry_mask = arg_num_entries-1;

@@ -92,6 +92,7 @@ class core_oracle_t {
   bool spec_mode;  /* are we currently on a wrong-path? */
 
   core_oracle_t(struct core_t * const core);
+  ~core_oracle_t();
   void reg_stats(xiosim::stats::StatsDatabase* sdb);
   void update_occupancy(void);
 

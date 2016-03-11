@@ -55,6 +55,9 @@ static int num_cores;
 }  // xiosim::shared
 }  // xiosim
 
+static shared_core_set_allocator* core_set_alloc_inst;
+static int_allocator* int_alloc_inst;
+
 int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores_) {
     using namespace boost::interprocess;
     int* process_counter = NULL;
@@ -129,9 +132,8 @@ int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores_) {
     SHARED_VAR_INIT(double, global_sim_time, 0);
     SHARED_VAR_ARRAY_INIT(int64_t, timestamp_counters, xiosim::shared::num_cores, 0);
 
-    int_allocator* int_alloc_inst = new int_allocator(global_shm->get_segment_manager());
-    shared_core_set_allocator* core_set_alloc_inst =
-        new shared_core_set_allocator(global_shm->get_segment_manager());
+    int_alloc_inst = new int_allocator(global_shm->get_segment_manager());
+    core_set_alloc_inst = new shared_core_set_allocator(global_shm->get_segment_manager());
     SHARED_VAR_INIT(SharedCoreSetArray,
                     processCoreSet,
                     *num_processes,
@@ -161,6 +163,14 @@ int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores_) {
     std::cout << getpid() << ": Proceeeding to execute." << std::endl;
 #endif
     return asid;
+}
+
+void DeinitSharedState() {
+    DeinitIPCQueues();
+
+    delete core_set_alloc_inst;
+    delete int_alloc_inst;
+    delete global_shm;
 }
 
 pid_t GetSHMCoreThread(int coreID) {

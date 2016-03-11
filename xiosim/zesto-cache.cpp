@@ -81,7 +81,55 @@
  * caches (including enqueuing requests from lower-level caches). */
 XIOSIM_LOCK cache_lock;
 
-struct cache_t * cache_create(
+static void prefetch_buffer_destroy(struct cache_t* const cp);
+static void prefetch_filter_destroy(struct cache_t * const cp);
+
+/* Helper to parse MSRH cmd order parameter. */
+static void cache_set_MSHR_cmd_order(struct cache_t* cp, const char* const MSHR_cmd) {
+    if (!MSHR_cmd || !strcasecmp(MSHR_cmd, "fcfs")) {
+        cp->MSHR_cmd_order = NULL;
+        return;
+    }
+
+    if (strlen(MSHR_cmd) != 4)
+        fatal("%s.mshr_cmd must either be \"fcfs\" or contain all four of [RWBP]", cp->name);
+    bool R_seen = false;
+    bool W_seen = false;
+    bool B_seen = false;
+    bool P_seen = false;
+
+    cp->MSHR_cmd_order = (enum cache_command*)calloc(4, sizeof(enum cache_command));
+    if (!cp->MSHR_cmd_order)
+        fatal("failed to calloc MSHR_cmd_order array for %s", cp->name);
+
+    for (int c = 0; c < 4; c++) {
+        switch (toupper(MSHR_cmd[c])) {
+        case 'R':
+            cp->MSHR_cmd_order[c] = CACHE_READ;
+            R_seen = true;
+            break;
+        case 'W':
+            cp->MSHR_cmd_order[c] = CACHE_WRITE;
+            W_seen = true;
+            break;
+        case 'B':
+            cp->MSHR_cmd_order[c] = CACHE_WRITEBACK;
+            B_seen = true;
+            break;
+        case 'P':
+            cp->MSHR_cmd_order[c] = CACHE_PREFETCH;
+            P_seen = true;
+            break;
+        default:
+            fatal("unknown cache operation '%c' for %s.mshr_cmd; must be one of [RWBP]", cp->name,
+                  MSHR_cmd[c]);
+        }
+    }
+    if (!R_seen || !W_seen || !B_seen || !P_seen)
+        fatal("%s.mshr_cmd must contain *each* of [RWBP]", cp->name);
+}
+
+std::unique_ptr<struct cache_t> cache_create(
     struct core_t * const core,
     const char * const name,
     const bool read_only,
@@ -100,13 +148,13 @@ struct cache_t * cache_create(
     const int MSHR_banks, /* number of MSHR banks */
     struct cache_t * const next_level_cache, /* e.g., for the DL1, this should point to the L2 */
     struct bus_t * const next_bus, /* e.g., for the DL1, this should point to the bus between DL1 and L2 */
-    const float magic_hit_rate
+    const float magic_hit_rate,
+    const char * const MSHR_cmd
     )
 {
   int i;
-  struct cache_t * cp = (struct cache_t*) calloc(1,sizeof(*cp));
-  if(!cp)
-    fatal("failed to calloc cache %s",name);
+  struct cache_t * cp = new cache_t();
+  memset(cp, 0, sizeof(struct cache_t));
 
   enum repl_policy_t replacement_policy;
   enum alloc_policy_t allocate_policy;
@@ -184,16 +232,14 @@ struct cache_t * cache_create(
   if((banks & (banks-1)) != 0)
     fatal("%s banks must be power of two");
 
-  cp->blocks = (struct cache_line_t**) calloc(sets,sizeof(*cp->blocks));
-  if(!cp->blocks)
-    fatal("failed to calloc cp->blocks");
+  cp->blocks = new cache_line_t* [sets]();
+  cp->blocks_owners = new std::unique_ptr<struct cache_line_t[]>[sets]();
   for(i=0;i<sets;i++)
   {
     /* allocate as one big block! */
-    struct cache_line_t * line = (struct cache_line_t*) calloc(assoc,sizeof(*line));
-    memset(line,0,assoc*sizeof(*line)); // for some weird reason valgrind was reporting that "line" was being used uninitialized, despite being calloc'd above?
-    if(!line)
-      fatal("failed to calloc cache line for %s",name);
+    struct cache_line_t* line = new cache_line_t[assoc]();
+    memset(line, 0, assoc * sizeof(*line));
+    cp->blocks_owners[i].reset(line);
 
     for(int j=0;j<assoc;j++)
     {
@@ -249,6 +295,7 @@ struct cache_t * cache_create(
   cp->MSHR_WB_num = (int*) calloc(MSHR_banks,sizeof(*cp->MSHR_num));
   if(!cp->MSHR_WB_num)
     fatal("failed to calloc cp->MSHR_num");
+  cache_set_MSHR_cmd_order(cp, MSHR_cmd);
 
   if(!strcasecmp(name,"LLC"))
   {
@@ -258,7 +305,42 @@ struct cache_t * cache_create(
       fatal("failed to calloc cp->stat.core_{lookups|misses} for %s",name);
   }
 
-  return cp;
+  return std::unique_ptr<struct cache_t>(cp);
+}
+
+cache_t::~cache_t() {
+    if (!strcasecmp(name,"LLC")) {
+        free(this->stat.core_lookups);
+        free(this->stat.core_misses);
+    }
+    if (this->MSHR_cmd_order)
+        free(this->MSHR_cmd_order);
+    free(this->MSHR_WB_num);
+    free(this->MSHR_unprocessed_num);
+    free(this->MSHR_fill_num);
+    free(this->MSHR_num_pf);
+    free(this->MSHR_num);
+    for (int i = 0; i < MSHR_banks; i++)
+        free(this->MSHR[i]);
+    free(this->MSHR);
+
+    for (int i = 0; i < banks; i++) {
+        free(this->fill_pipe[i]);
+        free(this->pipe[i]);
+    }
+    free(this->fill_num);
+    free(this->fill_pipe);
+    free(this->pipe_num);
+    free(this->pipe);
+
+    delete[] this->blocks_owners;
+    delete[] this->blocks;
+
+    free(this->PFF);
+    prefetch_filter_destroy(this);
+    prefetch_buffer_destroy(this);
+
+    free(this->name);
 }
 
 void cache_reg_stats(xiosim::stats::StatsDatabase* sdb,
@@ -590,9 +672,8 @@ void LLC_reg_stats(xiosim::stats::StatsDatabase* sdb, struct cache_t* const cp) 
         }
     }
 
-    if (cp->prefetcher)
-        for (int i = 0; i < cp->num_prefetchers; i++)
-            cp->prefetcher[i]->reg_stats(sdb, NULL);
+    for (int i = 0; i < cp->num_prefetchers; i++)
+        cp->prefetcher[i]->reg_stats(sdb, NULL);
 
     if (cp->controller)
         cp->controller->reg_stats(sdb);
@@ -631,6 +712,14 @@ void prefetch_buffer_create(
   }
 }
 
+static void prefetch_buffer_destroy(struct cache_t* const cp) {
+    while (cp->PF_buffer) {
+        struct prefetch_buffer_t* curr = cp->PF_buffer;
+        cp->PF_buffer = cp->PF_buffer->next;
+        free(curr);
+    }
+}
+
 /* Create an optional prefetch filter that predicts whether a prefetch will be
    useful.  If it's predicted to not be, then don't bother inserting the
    prefetch into the cache.  TODO: this should be updated so that the prefetch
@@ -655,6 +744,15 @@ void prefetch_filter_create(
     fatal("couldn't calloc prefetch filter table");
   for(int i=0;i<num_entries;i++)
     cp->PF_filter->table[i] = 3;
+}
+
+static void prefetch_filter_destroy(struct cache_t * const cp) {
+    if (!cp->PF_filter)
+        return;
+    if (cp->PF_filter->num_entries == 0)
+        return;
+    free(cp->PF_filter->table);
+    free(cp->PF_filter);
 }
 
 /* Returns true if the prefetch should get inserted into the cache */
@@ -703,6 +801,33 @@ static void prefetch_filter_update(
   }
 }
 
+void prefetchers_create(struct cache_t* cp, const prefetcher_knobs_t& pf_knobs) {
+    cp->num_prefetchers = pf_knobs.num_pf;
+    cp->prefetcher.resize(pf_knobs.num_pf);
+
+    for (int i = 0; i < pf_knobs.num_pf; i++)
+        cp->prefetcher[i] = prefetch_create(pf_knobs.pf_opt_str[i], cp);
+
+    if (!cp->prefetcher[0]) {
+        cp->prefetcher.clear();
+        cp->num_prefetchers = 0;
+    }
+
+    cp->PFF_size = pf_knobs.pff_size;
+    cp->PFF = (cache_t::PFF_t*)calloc(pf_knobs.pff_size, sizeof(*cp->PFF));
+    if (!cp->PFF)
+        fatal("failed to calloc %s's prefetch FIFO", cp->name);
+
+    cp->prefetch_threshold = pf_knobs.pf_thresh;
+    cp->prefetch_max = pf_knobs.pf_max;
+    prefetch_buffer_create(cp, pf_knobs.pf_buffer_size);
+    prefetch_filter_create(cp, pf_knobs.pf_filter_size, pf_knobs.pf_filter_reset);
+    cp->prefetch_on_miss = pf_knobs.pf_on_miss;
+
+    cp->PF_sample_interval = pf_knobs.watermark_interval;
+    cp->PF_low_watermark = pf_knobs.low_watermark;
+    cp->PF_high_watermark = pf_knobs.high_watermark;
+}
 
 /* Check to see if a given address can be found in the cache.  This is only a "peek" function
    in that it does not update any hit/miss stats, although it does update replacement state. */
@@ -1484,7 +1609,7 @@ void fill_arrived(
 
 void print_heap(const struct cache_t * const cp)
 {
-  if(cp == uncore->LLC)
+  if(cp == uncore->LLC.get())
     return;
   for(int i=0;i<cp->banks;i++)
   {
@@ -1635,7 +1760,7 @@ static void update_request_stats(
     const bool hit)
 {
   /* LLC stats are per core */
-  if((cp == uncore->LLC) && (ca->core)) {
+  if((cp == uncore->LLC.get()) && (ca->core)) {
     CACHE_STAT(cp->stat.core_lookups[ca->core->id]++;)
     if(!hit)
       CACHE_STAT(cp->stat.core_misses[ca->core->id]++;)
@@ -2402,7 +2527,7 @@ static void cache_process_MSHR(struct cache_t * const cp, int start_point)
 void cache_process(struct cache_t * const cp)
 {
   /* Advance local cycle count */
-  if (cp != uncore->LLC)
+  if (cp != uncore->LLC.get())
     cp->sim_cycle++;
 
   if (!cp->check_for_work)
@@ -2474,42 +2599,51 @@ static void prefetch_controller_update(struct cache_t * const cp)
 void step_LLC_PF_controller(struct uncore_t * const uncore)
 {
   /* update prefetch controllers */
-  prefetch_controller_update(uncore->LLC);
+  prefetch_controller_update(uncore->LLC.get());
 }
 
 void prefetch_LLC(struct uncore_t * const uncore)
 {
-  cache_prefetch(uncore->LLC);
+  cache_prefetch(uncore->LLC.get());
 }
 
-void step_core_PF_controllers(struct core_t * const core)
-{
-  /* update prefetch controllers */
-  if(core->memory.DL2) prefetch_controller_update(core->memory.DL1);
-  prefetch_controller_update(core->memory.DL1);
-  if(core->memory.IL1) prefetch_controller_update(core->memory.IL1);
+void step_core_PF_controllers(struct core_t* const core) {
+    /* update prefetch controllers */
+    if (core->memory.DL2)
+        prefetch_controller_update(core->memory.DL1.get());
+    if (core->memory.DL1)
+        prefetch_controller_update(core->memory.DL1.get());
+    if (core->memory.IL1)
+        prefetch_controller_update(core->memory.IL1.get());
 }
 
-void prefetch_core_caches(struct core_t * const core)
-{
-  if(core->memory.DL2) cache_prefetch(core->memory.DL1);
-  cache_prefetch(core->memory.DL1);
-  if(core->memory.IL1) cache_prefetch(core->memory.IL1);
+void prefetch_core_caches(struct core_t* const core) {
+    if (core->memory.DL2)
+        cache_prefetch(core->memory.DL1.get());
+    if (core->memory.DL1)
+        cache_prefetch(core->memory.DL1.get());
+    if (core->memory.IL1)
+        cache_prefetch(core->memory.IL1.get());
 }
 
-void cache_freeze_stats(struct core_t * const core)
-{
-  core->memory.IL1->frozen = true;
-  core->memory.DL1->frozen = true;
-  if(core->memory.DL2) core->memory.DL2->frozen = true;
-  core->memory.ITLB->frozen = true;
-  core->memory.DTLB->frozen = true;
-  if(core->memory.DTLB2) core->memory.DTLB2->frozen = true;
+void cache_freeze_stats(struct core_t* const core) {
+    if (core->memory.IL1)
+        core->memory.IL1->frozen = true;
+    if (core->memory.DL1)
+        core->memory.DL1->frozen = true;
+    if (core->memory.DL2)
+        core->memory.DL2->frozen = true;
+    if (core->memory.ITLB)
+        core->memory.ITLB->frozen = true;
+    if (core->memory.DTLB)
+        core->memory.DTLB->frozen = true;
+    if (core->memory.DTLB2)
+        core->memory.DTLB2->frozen = true;
 }
 
 tick_t cache_get_cycle(const struct cache_t * const cp)
 {
-  if(cp == uncore->LLC)
+  if(cp == uncore->LLC.get())
     return uncore->sim_cycle;
   return cp->sim_cycle;
 }

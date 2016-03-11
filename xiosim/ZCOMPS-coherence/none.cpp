@@ -2,7 +2,7 @@
 
 #ifdef ZESTO_PARSE_ARGS
   if(!strcasecmp(controller_opt_string,"none"))
-    return new cache_controller_none_t(core, cache, controller_opt_string);
+    return std::make_unique<cache_controller_none_t>(core, cache, controller_opt_string);
 #else
 
 class cache_controller_none_t : public cache_controller_t {
@@ -44,7 +44,7 @@ bool cache_controller_none_t::can_schedule_upstream()
 {
   if (cache->next_level)
     return (!cache->next_bus || bus_free(cache->next_bus));
-  return bus_free(uncore->fsb);
+  return bus_free(uncore->fsb.get());
 }
 
 bool cache_controller_none_t::can_schedule_downstream(struct cache_t * const prev_cache)
@@ -70,7 +70,7 @@ bool cache_controller_none_t::send_request_upstream(int bank, int MSHR_index, st
 
     uncore->MC->enqueue(cache, MSHR->cmd, MSHR->paddr, cache->linesize, MSHR->action_id, bank, MSHR_index, MSHR->op, MSHR->cb, MSHR->get_action_id);
 
-    bus_use(uncore->fsb, (MSHR->cmd == CACHE_WRITE || MSHR->cmd == CACHE_WRITEBACK) ? (cache->linesize>>uncore->fsb_DDR) : 1, MSHR->cmd == CACHE_PREFETCH);
+    bus_use(uncore->fsb.get(), (MSHR->cmd == CACHE_WRITE || MSHR->cmd == CACHE_WRITEBACK) ? (cache->linesize>>uncore->fsb_DDR) : 1, MSHR->cmd == CACHE_PREFETCH);
   }
 
   MSHR->when_started = cache_get_cycle(cache);

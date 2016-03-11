@@ -17,7 +17,7 @@ if(!strcasecmp(COMPONENT_NAME,type))
   char replace_policy;
   if(sscanf(opt_string,"%*[^:]:%[^:]:%d:%d:%d:%d:%d:%d:%c",name,&l1size,&hist_width,&Xor,&num_ents,&num_ways,&tag_width,&replace_policy) != 8)
     fatal("bad BTB options string %s (should be \"2levbtac:name:l1size:hist_width:xor:entries:ways:tag_width:replacement_policy\")",opt_string);
-  return new BTB_2levbtac_t(name,l1size,hist_width,Xor,num_ents,num_ways,tag_width,replace_policy);
+  return std::make_unique<BTB_2levbtac_t>(name,l1size,hist_width,Xor,num_ents,num_ways,tag_width,replace_policy);
 }
 #else
 
@@ -85,11 +85,10 @@ class BTB_2levbtac_t:public BTB_t
     CHECK_BOOL(arg_Xor);
     if(tolower(arg_replacement_policy) != 'l' &&
        tolower(arg_replacement_policy) != 'r')
-      fatal("%s(%s) %s must be 'l' (LRU) or 'r' (random).",arg_name,COMPONENT_NAME,"replacement_policy");
+      fatal("%s replacement policy must be 'l' (LRU) or 'r' (random).",COMPONENT_NAME);
 
-    name = strdup(arg_name);
-    if(!name)
-      fatal("couldn't malloc 2levbtac name (strdup)");
+    name = arg_name;
+    type = COMPONENT_NAME;
 
     bht_size = arg_bht_size;
     hist_width = arg_hist_width;
@@ -147,13 +146,11 @@ class BTB_2levbtac_t:public BTB_t
     int lrusize = std::log2(num_ways);
     int entrysize = sizeof(md_addr_t) + tagsize + lrusize + 1; /* +1 for valid bit */
     bits =  num_entries*num_ways*entrysize + bhtsize;
-    type = strdup(COMPONENT_NAME);
   }
 
   /* DESTROY */
   ~BTB_2levbtac_t()
   {
-    free(name); name = NULL;
     for(int i=0;i<num_entries;i++)
     {
       struct BTB_2levbtac_Entry_t * p;
@@ -164,8 +161,8 @@ class BTB_2levbtac_t:public BTB_t
         free(p);
       }
     }
+    free(set); set = NULL;
     free(bht); bht = NULL;
-    free(type); type = NULL;
   }
 
   /* LOOKUP */

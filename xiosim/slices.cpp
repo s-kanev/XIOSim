@@ -140,6 +140,9 @@ void scale_all_slices(void) {
     /* register new database with stat counters */
     xiosim::libsim::sim_reg_stats(avg_stat_db);
 
+    /* clean up old global DB */
+    /* TODO(skanev): this gets a bit ugly (as anything in this file). Clean up! */
+    delete sim_sdb;
     /* ... and set it as the default that gets output */
     sim_sdb = avg_stat_db;
 
@@ -151,5 +154,10 @@ void scale_all_slices(void) {
         xiosim::stats::StatsDatabase* curr_sdb = *it;
         curr_sdb->scale_all_stats();
         sim_sdb->accum_all_stats(curr_sdb);
+    }
+
+    /* clean up slice DBs */
+    for (auto sdb : all_stats) {
+        delete sdb;
     }
 }

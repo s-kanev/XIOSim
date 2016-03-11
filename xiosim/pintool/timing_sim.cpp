@@ -147,6 +147,8 @@ void SpawnSimulatorThreads(int numCores) {
     for (int i = 0; i < numCores; i++) {
         pthread_join(threads[i], NULL);
     }
+
+    delete[] threads;
 }
 
 /* ========================================================================== */
@@ -182,12 +184,14 @@ void StopSimulation(bool kill_sim_threads, int caller_coreID) {
         } while (!is_stopped);
     }
 
+    xiosim::buffer_management::DeinitBufferManagerConsumer();
     xiosim::libsim::deinit();
     // Free memory allocated by libconfuse for the configuration options.
     free_config();
+    DeinitSharedState();
 
     if (kill_sim_threads)
-        exit(EXIT_SUCCESS);
+        pthread_exit(NULL);
 }
 
 /* ========================================================================== */

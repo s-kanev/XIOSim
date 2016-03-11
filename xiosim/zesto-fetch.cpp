@@ -87,12 +87,50 @@ core_fetch_t::~core_fetch_t()
 {
 }
 
+/* Helper to create all icache and iTLB structures and attach them to core->memory. */
+void core_fetch_t::create_caches() {
+    struct core_knobs_t* knobs = core->knobs;
+
+    char name[256];
+    int sets, assoc, linesize, latency, banks, bank_width, MSHR_entries;
+    char rp;
+
+    /* IL1 */
+    if (sscanf(knobs->memory.IL1_opt_str, "%[^:]:%d:%d:%d:%d:%d:%d:%c:%d", name, &sets, &assoc,
+               &linesize, &banks, &bank_width, &latency, &rp, &MSHR_entries) != 9)
+        fatal("invalid IL1 options: "
+              "<name:sets:assoc:linesize:banks:bank_width:latency:repl-policy:num-MSHR>\n\t(%s)",
+              knobs->memory.IL1_opt_str);
+
+    /* the write-related options don't matter since the IL1 will(should) never see any stores */
+    struct cache_t* next_level = (core->memory.DL2) ? core->memory.DL2.get() : uncore->LLC.get();
+    struct bus_t* next_bus = (core->memory.DL2) ? core->memory.DL2_bus.get() : uncore->LLC_bus.get();
+    core->memory.IL1 = cache_create(core, name, CACHE_READONLY, sets, assoc, linesize, rp, 'w', 't',
+                                    'n', banks, bank_width, latency, MSHR_entries, 4, 1, next_level,
+                                    next_bus, knobs->memory.IL1_magic_hit_rate, nullptr);
+
+    prefetchers_create(core->memory.IL1.get(), knobs->memory.IL1_pf);
+
+    /* ITLB */
+    if (sscanf(knobs->memory.ITLB_opt_str, "%[^:]:%d:%d:%d:%d:%c:%d", name, &sets, &assoc, &banks,
+               &latency, &rp, &MSHR_entries) != 7)
+        fatal("invalid ITLB options: <name:sets:assoc:banks:latency:repl-policy:num-MSHR>");
+
+    core->memory.ITLB =
+            cache_create(core, name, CACHE_READONLY, sets, assoc, 1, rp, 'w', 't', 'n', banks, 1,
+                         latency, MSHR_entries, 4, 1, next_level, next_bus, -1.0, nullptr);
+
+    core->memory.IL1->controller =
+            controller_create(knobs->memory.IL1_controller_opt_str, core, core->memory.IL1.get());
+    core->memory.ITLB->controller =
+            controller_create(knobs->memory.ITLB_controller_opt_str, core, core->memory.ITLB.get());
+}
 
 /* load in all definitions */
 #include "xiosim/ZPIPE-fetch.list.h"
 
 
-class core_fetch_t * fetch_create(const char * fetch_opt_string, struct core_t * core)
+std::unique_ptr<class core_fetch_t> fetch_create(const char * fetch_opt_string, struct core_t * core)
 {
 #define ZESTO_PARSE_ARGS
 #include "xiosim/ZPIPE-fetch.list.h"

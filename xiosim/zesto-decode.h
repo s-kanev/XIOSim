@@ -55,6 +55,7 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
+#include <memory>
 
 class core_decode_t {
 
@@ -80,6 +81,6 @@ class core_decode_t {
   struct core_t * core;
 };
 
-class core_decode_t * decode_create(const char * decode_opt_string, struct core_t * core);
+std::unique_ptr<class core_decode_t> decode_create(const char * decode_opt_string, struct core_t * core);
 
 #endif /* ZESTO_DECODE_INCLUDED */

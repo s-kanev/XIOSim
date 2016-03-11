@@ -15,7 +15,7 @@ if(!strcasecmp(COMPONENT_NAME,type))
   int u_bits;
   if(sscanf(opt_string,"%*[^:]:%d:%d:%d:%d:%d",&num_entries,&tag_bits,&next_bits,&conf_bits,&u_bits) != 5)
     fatal("bad %s prefetcher options string %s (should be \"context:num_entries:tag-bits:next-bits:conf-bits:u-bits\")",cp->name,opt_string);
-  return new prefetch_context_t(cp,num_entries,tag_bits,next_bits,conf_bits,u_bits);
+  return std::make_unique<prefetch_context_t>(cp, num_entries, tag_bits, next_bits, conf_bits, u_bits);
 }
 #else
 

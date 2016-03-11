@@ -133,7 +133,7 @@ void MC_t::reset_stats(void)
 
 #include "xiosim/ZCOMPS-MC.list.h"
 
-MC_t * MC_from_string(const char * const opt_string)
+std::unique_ptr<MC_t> MC_from_string(const char * const opt_string)
 {
   char type[256];
 

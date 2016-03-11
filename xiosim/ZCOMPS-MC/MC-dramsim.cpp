@@ -25,7 +25,7 @@ if(!strcasecmp("dramsim",type))
   config_path = buf_config;
   part_name = buf_part;
 
-  return new MC_dramsim_t(config_path, part_name);
+  return std::make_unique<MC_dramsim_t>(config_path, part_name);
 }
 #else
 
@@ -196,7 +196,7 @@ class MC_dramsim_t:public MC_t
 
       MC_action_t* req = &(*it);
 
-      if((req->when_finished <= uncore->sim_cycle) && (req->when_returned == TICK_T_MAX) && (!req->prev_cp || bus_free(uncore->fsb))) {
+      if((req->when_finished <= uncore->sim_cycle) && (req->when_returned == TICK_T_MAX) && (!req->prev_cp || bus_free(uncore->fsb.get()))) {
 
         req->when_returned = uncore->sim_cycle;
         total_service_cycles += uncore->sim_cycle - req->when_enqueued;
@@ -204,7 +204,7 @@ class MC_dramsim_t:public MC_t
         /* fill previous level as appropriate */
         if(req->prev_cp) {
           fill_arrived(req->prev_cp,req->MSHR_bank,req->MSHR_index);
-          bus_use(uncore->fsb,req->linesize>>uncore->fsb_DDR,req->cmd==CACHE_PREFETCH);
+          bus_use(uncore->fsb.get(),req->linesize>>uncore->fsb_DDR,req->cmd==CACHE_PREFETCH);
           it = outstanding_reqs.erase(it);
           break; /* might as well break, since only one request can writeback per cycle */
         }

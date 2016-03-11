@@ -1,8 +1,11 @@
 #ifndef ZESTO_NOC_INCLUDED
 #define ZESTO_NOC_INCLUDED
 
+#include <memory>
+#include <string>
+
 struct bus_t {
-  char * name;
+  std::string name;
   int width; /* in bytes tranferrable per cycle */
   const tick_t * clock; /* The sim_cycle used to drive this bus */
   int ratio; /* number of ^ clock cycles per bus cycle */
@@ -15,7 +18,7 @@ struct bus_t {
   } stat;
 };
 
-struct bus_t * bus_create(
+std::unique_ptr<struct bus_t> bus_create(
     const char * const name,
     const int width,
     const tick_t * clock,

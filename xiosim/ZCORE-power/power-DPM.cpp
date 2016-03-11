@@ -3,13 +3,14 @@
 
 #ifdef ZESTO_PARSE_ARGS
   if(!strcasecmp(power_opt_string,"DPM"))
-    return new core_power_DPM_t(core);
+    return std::make_unique<core_power_DPM_t>(core);
 #else
 
 class core_power_DPM_t : public core_power_t {
 
   public:
   core_power_DPM_t(struct core_t *_core);
+  ~core_power_DPM_t() {}
 
   void translate_params(system_core *core_params, system_L2 *L2_params);
   void translate_stats(xiosim::stats::StatsDatabase* sdb,

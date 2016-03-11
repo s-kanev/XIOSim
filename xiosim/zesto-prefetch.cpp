@@ -133,8 +133,7 @@ paddr           - physical address load is reading from
 /*====================================================*/
 /* argument parsing                                   */
 /*====================================================*/
-  struct prefetch_t *
-prefetch_create(const char * const opt_string, struct cache_t * const cp)
+std::unique_ptr<class prefetch_t> prefetch_create(const char * const opt_string, struct cache_t * const cp)
 {
   char type[256];
 
@@ -143,7 +142,7 @@ prefetch_create(const char * const opt_string, struct cache_t * const cp)
     fatal("malformed prefetch option string: %s",opt_string);
 
   if(!strcasecmp(type,"none"))
-    return NULL;
+    return std::unique_ptr<class prefetch_t>();
   
   /* include the argument parsing code.  PREFETCH_PARSE_ARGS is defined to
      include only the parsing code and not the other prefetcher code. */

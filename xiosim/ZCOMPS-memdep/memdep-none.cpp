@@ -8,7 +8,7 @@
 #ifdef MEMDEP_PARSE_ARGS
 if(!strcasecmp(COMPONENT_NAME,type))
 {
-  return new memdep_none_t(core);
+  return std::make_unique<memdep_none_t>(core);
 }
 #else
 
@@ -20,8 +20,8 @@ class memdep_none_t:public memdep_t
   memdep_none_t(const struct core_t * _core) : memdep_t(_core)
   {
     init();
-    name = strdup(COMPONENT_NAME); if(!name) fatal("failed to allocate memory for %s (strdup)",COMPONENT_NAME);
-    type = strdup(COMPONENT_NAME); if(!type) fatal("failed to allocate memory for %s (strdup)",COMPONENT_NAME);
+    name = COMPONENT_NAME;
+    type = COMPONENT_NAME;
   }
 
   /* LOOKUP */

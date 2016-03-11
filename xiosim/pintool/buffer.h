@@ -1,8 +1,9 @@
 #ifndef BUF_FER_H
 #define BUF_FER_H
 
+#include <cassert>
 #include <cstddef>
-#include <assert.h>
+#include <memory>
 
 /* Buffer is a pre-allocated circular queue.
  * T must be default-constructible, and have a void Invalidate(void) method. */
@@ -91,7 +92,7 @@ class Buffer {
 
   private:
     int numPool_;
-    T* pool_;
+    std::unique_ptr<T[]> pool_;
     int head_;
     int tail_;
 

@@ -10,7 +10,7 @@
 #ifdef REPEATER_PARSE_ARGS
 if(!strcasecmp(COMPONENT_NAME,type))
 {
-  repeater_t * result = librepeater_create(core, name, next_level);
+  auto result = std::unique_ptr<repeater_default_t>(librepeater_create(core, name, next_level));
   result->speed = core->knobs->default_cpu_speed; // Assume repeater runs at core frequency
   return result;
 }

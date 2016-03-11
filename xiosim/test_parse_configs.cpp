@@ -43,18 +43,18 @@ TEST_CASE("Test configuration parsing", "config") {
         }
 
         SECTION("Checking L1 icache prefetcher options") {
-            REQUIRE(core_knobs.memory.IL1_num_PF == 1);
-            REQUIRE(strcmp(core_knobs.memory.IL1PF_opt_str[0], "nextline") == 0);
+            REQUIRE(core_knobs.memory.IL1_pf.num_pf == 1);
+            REQUIRE(strcmp(core_knobs.memory.IL1_pf.pf_opt_str[0], "nextline") == 0);
         }
     }
 
     SECTION("Checking decode stage configuration") {
         SECTION("Checking decoder max uops options") {
-            REQUIRE(core_knobs.decode.num_decoder_specs == 4);
-            REQUIRE(core_knobs.decode.decoders[0] == 4);
-            REQUIRE(core_knobs.decode.decoders[1] == 1);
-            REQUIRE(core_knobs.decode.decoders[2] == 1);
-            REQUIRE(core_knobs.decode.decoders[3] == 1);
+            REQUIRE(core_knobs.decode.max_uops.size() == 4);
+            REQUIRE(core_knobs.decode.max_uops[0] == 4);
+            REQUIRE(core_knobs.decode.max_uops[1] == 1);
+            REQUIRE(core_knobs.decode.max_uops[2] == 1);
+            REQUIRE(core_knobs.decode.max_uops[3] == 1);
         }
     }
 
@@ -66,19 +66,19 @@ TEST_CASE("Test configuration parsing", "config") {
 
     SECTION("Checking execution stage configuration") {
         SECTION("Checking L1 data cache prefetcher options") {
-            REQUIRE(core_knobs.memory.DL1_num_PF == 1);
-            REQUIRE(strcmp(core_knobs.memory.DL1PF_opt_str[0], "nextline") == 0);
+            REQUIRE(core_knobs.memory.DL1_pf.num_pf == 1);
+            REQUIRE(strcmp(core_knobs.memory.DL1_pf.pf_opt_str[0], "nextline") == 0);
         }
 
         SECTION("Checking L2 data cache prefetcher options") {
-            REQUIRE(core_knobs.memory.DL2_num_PF == 1);
-            REQUIRE(strcmp(core_knobs.memory.DL2PF_opt_str[0], "nextline") == 0);
+            REQUIRE(core_knobs.memory.DL2_pf.num_pf == 1);
+            REQUIRE(strcmp(core_knobs.memory.DL2_pf.pf_opt_str[0], "nextline") == 0);
         }
 
         SECTION("Checking integer ALU execution unit") {
             REQUIRE(core_knobs.exec.port_binding[FU_IEU].num_FUs == 2);
-            REQUIRE(core_knobs.exec.fu_bindings[FU_IEU][0] == 0);
-            REQUIRE(core_knobs.exec.fu_bindings[FU_IEU][1] == 1);
+            REQUIRE(core_knobs.exec.port_binding[FU_IEU].ports[0] == 0);
+            REQUIRE(core_knobs.exec.port_binding[FU_IEU].ports[1] == 1);
             REQUIRE(core_knobs.exec.latency[FU_IEU] == 1);
             REQUIRE(core_knobs.exec.issue_rate[FU_IEU] == 1);
         }
@@ -94,8 +94,8 @@ TEST_CASE("Test configuration parsing", "config") {
     SECTION("Checking uncore configuration") {
         REQUIRE(strcmp(uncore_knobs.LLC_opt_str, "LLC:2048:16:64:16:64:12:L:W:B:8:1:8:C") == 0);
         SECTION("Checking LLC prefecher options") {
-            REQUIRE(uncore_knobs.LLC_num_PF == 1);
-            REQUIRE(strcmp(uncore_knobs.LLC_PF_opt_str[0], "none") == 0);
+            REQUIRE(uncore_knobs.LLC_pf.num_pf == 1);
+            REQUIRE(strcmp(uncore_knobs.LLC_pf.pf_opt_str[0], "none") == 0);
         }
     }
 

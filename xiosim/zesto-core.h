@@ -56,9 +56,16 @@
  *
  */
 
+#include <memory>
+
 #include "knobs.h"
 #include "stats.h"
 #define ZESTO_STAT(x) {if(core->active) {x}}
+
+#include "zesto-cache.h"
+#include "zesto-dvfs.h"
+#include "zesto-noc.h"
+#include "zesto-repeater.h"
 
 struct uop_t;
 
@@ -92,29 +99,29 @@ class core_t {
   /* MICROARCHITECTURE STATE */
   /***************************/
 
-  class core_oracle_t * oracle;
-  class core_fetch_t * fetch;
-  class core_decode_t * decode;
-  class core_alloc_t * alloc;
-  class core_exec_t * exec;
-  class core_commit_t * commit;
-  class core_power_t * power;
+  std::unique_ptr<class core_oracle_t> oracle;
+  std::unique_ptr<class core_fetch_t> fetch;
+  std::unique_ptr<class core_decode_t> decode;
+  std::unique_ptr<class core_alloc_t> alloc;
+  std::unique_ptr<class core_exec_t> exec;
+  std::unique_ptr<class core_commit_t> commit;
+  std::unique_ptr<class core_power_t> power;
 
   struct core_memory_t {
-    struct cache_t * IL1;
-    struct cache_t * ITLB;
+    std::unique_ptr<struct cache_t> IL1;
+    std::unique_ptr<struct cache_t> ITLB;
 
-    struct cache_t * DL1;
-    struct cache_t * DL2;
-    struct bus_t * DL2_bus; /* connects DL1 to DL2 */
-    struct cache_t * DTLB;
-    struct cache_t * DTLB2;
-    struct bus_t * DTLB_bus; /* connects DTLB to DTLB2 */
+    std::unique_ptr<struct cache_t> DL1;
+    std::unique_ptr<struct cache_t> DL2;
+    std::unique_ptr<struct bus_t> DL2_bus; /* connects DL1 to DL2 */
+    std::unique_ptr<struct cache_t> DTLB;
+    std::unique_ptr<struct cache_t> DTLB2;
+    std::unique_ptr<struct bus_t> DTLB_bus; /* connects DTLB to DTLB2 */
 
-    class repeater_t * mem_repeater;
+    std::unique_ptr<class repeater_t> mem_repeater;
   } memory;
 
-  class vf_controller_t * vf_controller;
+  std::unique_ptr<class vf_controller_t> vf_controller;
 
   /**********************/
   /* VARIOUS STATISTICS */
@@ -260,6 +267,7 @@ class core_t {
   /* FUNCTIONS */
   /*************/
   core_t(const int core_id);
+  ~core_t();
   seq_t new_action_id(void);
 
   struct odep_t * get_odep_link(void);

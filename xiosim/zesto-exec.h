@@ -55,6 +55,7 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
+#include <memory>
 #include "zesto-cache.h"
 
 class core_exec_t
@@ -64,7 +65,7 @@ class core_exec_t
   /* watchdog for detecting dead/live-locked simulations */
   tick_t last_completed;
 
-  core_exec_t(void);
+  core_exec_t(struct core_t* const arg_core);
   virtual ~core_exec_t();
   virtual void reg_stats(xiosim::stats::StatsDatabase* sdb) = 0;
   virtual void freeze_stats(void) = 0;
@@ -149,8 +150,12 @@ class core_exec_t
   enum cache_command get_STQ_request_type(const struct uop_t * uop);
   /* Calculate penalty for cronssing int / fp pipelines. */
   int get_fp_penalty(const struct uop_t * const uop);
+
+  virtual void create_caches(bool create_TLBs);
+  virtual void reg_dcache_stats(xiosim::stats::StatsDatabase* sdb);
+  virtual void step_dcaches();
 };
 
-class core_exec_t * exec_create(const char * exec_opt_string, struct core_t * core);
+std::unique_ptr<class core_exec_t> exec_create(const char * exec_opt_string, struct core_t * core);
 
 #endif /* ZESTO_EXEC_INCLUDED */

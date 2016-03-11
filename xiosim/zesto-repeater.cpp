@@ -18,7 +18,7 @@
 #include "xiosim/ZCOMPS-repeater.list.h"
 
 #define REPEATER_PARSE_ARGS
-class repeater_t * repeater_create(
+std::unique_ptr<class repeater_t>  repeater_create(
     const char * const opt_string,
     struct core_t * const core,
     const char * const name,

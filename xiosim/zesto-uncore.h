@@ -55,13 +55,15 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
+#include <memory>
+
 #include "host.h"
 #include "knobs.h"
 
 struct bus_t;
 struct MC_t;
 
-extern class uncore_t* uncore;
+extern std::unique_ptr<class uncore_t> uncore;
 
 /* container class for the miscellaneous non-core objects, not
    including the L2, but up to and including the front-side bus */
@@ -80,13 +82,13 @@ class uncore_t {
     bool fsb_DDR;
 
     /* shared last-level cache */
-    struct bus_t* LLC_bus;
-    struct cache_t* LLC;
+    std::unique_ptr<struct bus_t> LLC_bus;
+    std::unique_ptr<struct cache_t> LLC;
     tick_t LLC_cycle_mask;
 
-    struct bus_t* fsb;
+    std::unique_ptr<struct bus_t> fsb;
 
-    class MC_t* MC;
+    std::unique_ptr<class MC_t> MC;
 
     /* constructor */
     uncore_t(const uncore_knobs_t& knobs);

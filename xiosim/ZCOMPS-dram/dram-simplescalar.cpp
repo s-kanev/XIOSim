@@ -33,7 +33,7 @@ if(!strcasecmp(COMPONENT_NAME,type))
     if(sscanf(opt_string,"%*[^:]:%d",&latency) != 1)
       fatal("bad dram options string %s (should be \"simplescalar:latency[:units]\")",opt_string);
   }
-  return new dram_simplescalar_t(latency,units);
+  return std::make_unique<dram_simplescalar_t>(latency,units);
 }
 #else
 

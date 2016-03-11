@@ -12,7 +12,7 @@
 
 #ifdef ZESTO_PARSE_ARGS
   if(!strcasecmp(commit_opt_string,"IO-DPM"))
-    return new core_commit_IO_DPM_t(core);
+    return std::make_unique<class core_commit_IO_DPM_t>(core);
 #else
 
 class core_commit_IO_DPM_t:public core_commit_t
@@ -30,6 +30,7 @@ class core_commit_IO_DPM_t:public core_commit_t
   public:
 
   core_commit_IO_DPM_t(struct core_t * const core);
+  ~core_commit_IO_DPM_t();
   virtual void reg_stats(xiosim::stats::StatsDatabase* sdb);
   virtual void update_occupancy(void);
 
@@ -109,6 +110,11 @@ core_commit_IO_DPM_t::core_commit_IO_DPM_t(struct core_t * const arg_core):
   if(!pre_commit_pipe)
     fatal("couldn't calloc pre-commit pipe");
 
+}
+
+core_commit_IO_DPM_t::~core_commit_IO_DPM_t() {
+    free(pre_commit_pipe);
+    free(ROB);
 }
 
 void core_commit_IO_DPM_t::reg_stats(xiosim::stats::StatsDatabase* sdb) {

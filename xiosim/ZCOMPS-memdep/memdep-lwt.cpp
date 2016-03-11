@@ -12,7 +12,7 @@ if(!strcasecmp(COMPONENT_NAME,type))
            
   if(sscanf(opt_string,"%*[^:]:%[^:]:%d:%d",name,&num_entries,&reset_interval) != 3)
     fatal("bad memdep options string %s (should be \"lwt:name:num_entries:reset_interval\")",opt_string);
-  return new memdep_lwt_t(core,name,num_entries,reset_interval);
+  return std::make_unique<memdep_lwt_t>(core,name,num_entries,reset_interval);
 }
 #else
 
@@ -40,12 +40,8 @@ class memdep_lwt_t:public memdep_t
     CHECK_PPOW2(arg_num_entries);
     CHECK_POS(arg_reset_interval);
 
-    name = strdup(arg_name);
-    if(!name)
-      fatal("couldn't malloc lwt-memdep name (strdup)");
-    type = strdup("lwt-memdep");
-    if(!type)
-      fatal("couldn't malloc lwt-memdep type (strdup)");
+    name = arg_name;
+    type = "lwt-memdep";
 
     num_entries = arg_num_entries;
     reset_interval = arg_reset_interval;

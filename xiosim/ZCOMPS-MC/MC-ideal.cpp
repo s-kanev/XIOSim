@@ -8,7 +8,7 @@ if(!strcasecmp("ideal",type))
 {
   if(sscanf(opt_string,"%*[^:]") != 0)
     fatal("bad memory controller options string %s (should be \"simple\")",opt_string);
-  return new MC_ideal_t();
+  return std::make_unique<MC_ideal_t>();
 }
 #else
 
@@ -41,7 +41,7 @@ class MC_ideal_t:public MC_t
     if(prev_cp)
     {
       fill_arrived(prev_cp,MSHR_bank,MSHR_index);
-      bus_use(uncore->fsb,linesize>>uncore->fsb_DDR,cmd==CACHE_PREFETCH);
+      bus_use(uncore->fsb.get(),linesize>>uncore->fsb_DDR,cmd==CACHE_PREFETCH);
     }
 
     total_accesses++;

@@ -8,7 +8,7 @@
 #ifdef BPRED_PARSE_ARGS
 if(!strcasecmp(COMPONENT_NAME,type))
 {
-  return new bpred_taken_t(core);
+  return std::make_unique<bpred_taken_t>(core);
 }
 #else
 
@@ -21,13 +21,8 @@ class bpred_taken_t:public bpred_dir_t
   {
     init();
 
-    name = strdup(COMPONENT_NAME);
-    if(!name)
-      fatal("couldn't malloc taken name (strdup)");
-
-    type = strdup("static taken");
-    if(!type)
-      fatal("couldn't malloc taken type (strdup)");
+    name = COMPONENT_NAME;
+    type = "static taken";
 
     bits = 0;
   }

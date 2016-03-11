@@ -55,6 +55,8 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
+#include <string>
+
 #include "zesto-structs.h"
 
 /* Top-level "branch predictor" this handles direction, target, return address, etc. */
@@ -63,14 +65,14 @@ class bpred_t
   protected:
 
   unsigned int num_pred;
-  class bpred_dir_t ** bpreds;     /* branch direction predictor state(s) */
-  class fusion_t * fusion;         /* meta-predictor state, combines preds from
-                                       the branch direction predictors */
-  class RAS_t * ras;                /* subroutine return address predictor state */
-  class BTB_t * dirjmp_BTB;         /* direct (pc-relative) br/jmp target predictor */
-  class BTB_t * indirjmp_BTB;       /* indirect (computed) br/jmp target predictor;
-                                       if only one BTB is used for all targets, then
-                                       these pointers will point to the same place. */
+  std::unique_ptr<class bpred_dir_t>* bpreds; /* branch direction predictor state(s) */
+  std::unique_ptr<class fusion_t> fusion; /* meta-predictor state, combines preds from
+                                             the branch direction predictors */
+  std::unique_ptr<class RAS_t> ras; /* subroutine return address predictor state */
+  std::unique_ptr<class BTB_t> dirjmp_BTB; /* direct (pc-relative) br/jmp target predictor */
+  std::unique_ptr<class BTB_t> indirjmp_BTB; /* indirect (computed) br/jmp target predictor;
+                                        if only one BTB is used for all targets, then
+                                        these pointers will point to the same place. */
   int bpredSCC_size;
   int bpredSCC_head;
   class bpred_state_cache_t ** bpredSCC;
@@ -146,9 +148,9 @@ class bpred_t
   void   return_state_cache(class bpred_state_cache_t * const /* state cache being returned */);
 
   /* Accessors */
-  class RAS_t* get_ras(void) { return ras; }
-  class BTB_t* get_dir_btb(void) { return dirjmp_BTB; }
-  class bpred_dir_t** get_dir_bpred(void) { return bpreds; }
+  class RAS_t* get_ras(void) { return ras.get(); }
+  class BTB_t* get_dir_btb(void) { return dirjmp_BTB.get(); }
+  std::unique_ptr<class bpred_dir_t>* get_dir_bpred(void) { return bpreds; }
 
   private: /* called from constructor/destructor */
   void   init_state_cache_pool(int /* initial pool size */);
@@ -174,8 +176,8 @@ class bpred_dir_t
   friend class bpred_t;
 
   protected:
-  char * name;
-  char * type;
+  std::string name;
+  std::string type;
   int bits;
 
   void init(void);
@@ -248,8 +250,8 @@ class fusion_t
   friend class bpred_t;
 
   protected:
-  char * name;
-  char * type;
+  std::string name;
+  std::string type;
   int bits;
   int num_pred;
 
@@ -317,8 +319,8 @@ class BTB_t
   friend class bpred_t;
 
   protected:
-  char * name;
-  char * type;
+  std::string name;
+  std::string type;
   int bits;
 
   counter_t num_hits;
@@ -393,8 +395,8 @@ class RAS_t
   friend class bpred_t;
 
   protected:
-  char * name;
-  char * type;
+  std::string name;
+  std::string type;
   int bits;
 
   counter_t num_hits;

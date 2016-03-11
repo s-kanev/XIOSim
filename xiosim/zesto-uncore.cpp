@@ -73,7 +73,7 @@
  */
 
 /* The global pointer to the uncore object */
-class uncore_t* uncore = NULL;
+std::unique_ptr<class uncore_t> uncore;
 
 /* constructor */
 uncore_t::uncore_t(const uncore_knobs_t& knobs)
@@ -107,78 +107,16 @@ uncore_t::uncore_t(const uncore_knobs_t& knobs)
 
     LLC = cache_create(NULL, name, CACHE_READWRITE, sets, assoc, linesize, rp, ap, wp, wc, banks,
                        bank_width, latency_scaled, MSHR_entries, MSHR_WB_entries, MSHR_banks, NULL,
-                       fsb, knobs.LLC_magic_hit_rate);
-    if (!knobs.LLC_MSHR_cmd || !strcasecmp(knobs.LLC_MSHR_cmd, "fcfs"))
-        LLC->MSHR_cmd_order = NULL;
-    else {
-        if (strlen(knobs.LLC_MSHR_cmd) != 4)
-            fatal("-LLC:mshr_cmd must either be \"fcfs\" or contain all four of [RWBP]");
-        bool R_seen = false;
-        bool W_seen = false;
-        bool B_seen = false;
-        bool P_seen = false;
+                       fsb.get(), knobs.LLC_magic_hit_rate, knobs.LLC_MSHR_cmd);
 
-        LLC->MSHR_cmd_order = (enum cache_command*)calloc(4, sizeof(enum cache_command));
-        if (!LLC->MSHR_cmd_order)
-            fatal("failed to calloc MSHR_cmd_order array for LLC");
-
-        for (int c = 0; c < 4; c++) {
-            switch (toupper(knobs.LLC_MSHR_cmd[c])) {
-            case 'R':
-                LLC->MSHR_cmd_order[c] = CACHE_READ;
-                R_seen = true;
-                break;
-            case 'W':
-                LLC->MSHR_cmd_order[c] = CACHE_WRITE;
-                W_seen = true;
-                break;
-            case 'B':
-                LLC->MSHR_cmd_order[c] = CACHE_WRITEBACK;
-                B_seen = true;
-                break;
-            case 'P':
-                LLC->MSHR_cmd_order[c] = CACHE_PREFETCH;
-                P_seen = true;
-                break;
-            default:
-                fatal("unknown cache operation '%c' for -LLC:mshr_cmd; must be one of [RWBP]");
-            }
-        }
-        if (!R_seen || !W_seen || !B_seen || !P_seen)
-            fatal("-LLC:mshr_cmd must contain *each* of [RWBP]");
-    }
-
-    LLC->PFF_size = knobs.LLC_PFFsize;
-    LLC->PFF = (cache_t::PFF_t*)calloc(knobs.LLC_PFFsize, sizeof(*LLC->PFF));
-    if (!LLC->PFF)
-        fatal("failed to calloc %s's prefetch FIFO", LLC->name);
-    prefetch_buffer_create(LLC, knobs.LLC_PF_buffer_size);
-    prefetch_filter_create(LLC, knobs.LLC_PF_filter_size, knobs.LLC_PF_filter_reset);
-    LLC->prefetch_threshold = knobs.LLC_PFthresh;
-    LLC->prefetch_max = knobs.LLC_PFmax;
-    LLC->PF_low_watermark = knobs.LLC_low_watermark;
-    LLC->PF_high_watermark = knobs.LLC_high_watermark;
-    LLC->PF_sample_interval = knobs.LLC_WMinterval;
-
-    LLC->prefetcher = (struct prefetch_t**)calloc(
-            knobs.LLC_num_PF ? knobs.LLC_num_PF : 1 /* avoid 0-size alloc */, sizeof(*LLC->prefetcher));
-    LLC->num_prefetchers = knobs.LLC_num_PF;
-    if (!LLC->prefetcher)
-        fatal("couldn't calloc %s's prefetcher array", LLC->name);
-    for (int i = 0; i < knobs.LLC_num_PF; i++)
-        LLC->prefetcher[i] = prefetch_create(knobs.LLC_PF_opt_str[i], LLC);
-    if (LLC->prefetcher[0] == NULL)
-        LLC->num_prefetchers = 0;
+    prefetchers_create(LLC.get(), knobs.LLC_pf);
 
     LLC_bus = bus_create("LLC_bus", LLC->linesize * LLC->banks, &this->sim_cycle, 1);
-    LLC->controller = controller_create(knobs.LLC_controller_str, NULL, LLC);
+    LLC->controller = controller_create(knobs.LLC_controller_str, NULL, LLC.get());
 }
 
 /* destructor */
-uncore_t::~uncore_t() {
-    delete (MC);
-    MC = NULL;
-}
+uncore_t::~uncore_t() {}
 
 /* register all of the stats */
 void uncore_reg_stats(xiosim::stats::StatsDatabase* sdb) {
@@ -186,16 +124,16 @@ void uncore_reg_stats(xiosim::stats::StatsDatabase* sdb) {
     stat_reg_counter(sdb, true, "uncore.sim_cycle", "number of uncore cycles simulated",
                      &uncore->sim_cycle, 0, TRUE, NULL);
 
-    LLC_reg_stats(sdb, uncore->LLC);
-    bus_reg_stats(sdb, NULL, uncore->LLC_bus);
+    LLC_reg_stats(sdb, uncore->LLC.get());
+    bus_reg_stats(sdb, NULL, uncore->LLC_bus.get());
 
     stat_reg_note(sdb, "\n#### MAIN MEMORY/DRAM STATS ####");
 
     dram->reg_stats(sdb);
 
-    bus_reg_stats(sdb, NULL, uncore->fsb);
+    bus_reg_stats(sdb, NULL, uncore->fsb.get());
 
     uncore->MC->reg_stats(sdb);
 }
 
-void uncore_create(const uncore_knobs_t& knobs) { uncore = new uncore_t(knobs); }
+void uncore_create(const uncore_knobs_t& knobs) { uncore = std::make_unique<uncore_t>(knobs); }

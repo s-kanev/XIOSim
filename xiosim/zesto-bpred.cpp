@@ -125,9 +125,8 @@ our_pred - what the branch predictor had predicted (some predictors
 /*====================================================*/
 /* argument parsing                                   */
 /*====================================================*/
-static class bpred_dir_t *
-bpred_from_string(const core_t * core, const char * const opt_string)
-{
+static std::unique_ptr<class bpred_dir_t> bpred_from_string(const core_t* core,
+                                                            const char* const opt_string) {
   char name[256];
   char type[256];
 
@@ -144,20 +143,13 @@ bpred_from_string(const core_t * core, const char * const opt_string)
 }
 #undef BPRED_PARSE_ARGS
 
-bpred_dir_t::bpred_dir_t(const core_t * core) : core(core)
-{
-}
+bpred_dir_t::bpred_dir_t(const core_t* core)
+    : core(core) {}
 
-bpred_dir_t::~bpred_dir_t()
-{
-  if(name) free(name); name = NULL;
-  if(type) free(type); type = NULL;
-}
+bpred_dir_t::~bpred_dir_t() {}
 
 void bpred_dir_t::init(void)
 {
-  name = NULL;
-  type = NULL;
   num_hits = 0;
   lookups = 0;
   updates = 0;
@@ -212,27 +204,27 @@ void bpred_dir_t::reg_stats(xiosim::stats::StatsDatabase* sdb, struct core_t* co
 
     auto commit_insn_st = stat_find_core_stat<counter_t>(sdb, core_id, "commit_insn");
 
-    stat_reg_comp_string(sdb, core_id, name, "type", "prediction algorithm of %s", type, NULL);
-    auto& bits_st = stat_reg_comp_int(sdb, true, core_id, name, "bits", "total size of %s in bits",
+    stat_reg_comp_string(sdb, core_id, name.c_str(), "type", "prediction algorithm of %s", type.c_str(), NULL);
+    auto& bits_st = stat_reg_comp_int(sdb, true, core_id, name.c_str(), "bits", "total size of %s in bits",
                                       &bits, bits, false, NULL);
-    stat_reg_comp_formula(sdb, true, core_id, name, "size", "total size of %s in KB",
+    stat_reg_comp_formula(sdb, true, core_id, name.c_str(), "size", "total size of %s in KB",
                           bits_st / Constant(8192), NULL);
 
-    stat_reg_comp_counter(sdb, true, core_id, name, "lookups",
+    stat_reg_comp_counter(sdb, true, core_id, name.c_str(), "lookups",
                           "number of prediction lookups in %s (including wrong-path)", &lookups, 0,
                           true, NULL);
     auto& updates_st =
-            stat_reg_comp_counter(sdb, true, core_id, name, "updates",
+            stat_reg_comp_counter(sdb, true, core_id, name.c_str(), "updates",
                                   "number of prediction updates in %s", &updates, 0, true, NULL);
-    stat_reg_comp_counter(sdb, true, core_id, name, "spec_updates",
+    stat_reg_comp_counter(sdb, true, core_id, name.c_str(), "spec_updates",
                           "number of speculative prediction updates in %s", &spec_updates, 0, true,
                           NULL);
     auto& hits_st =
-            stat_reg_comp_counter(sdb, true, core_id, name, "hits",
+            stat_reg_comp_counter(sdb, true, core_id, name.c_str(), "hits",
                                   "number of correct predictions in %s", &num_hits, 0, true, NULL);
-    stat_reg_comp_formula(sdb, true, core_id, name, "hit_rate",
+    stat_reg_comp_formula(sdb, true, core_id, name.c_str(), "hit_rate",
                           "fraction of correct predictions in %s", hits_st / updates_st, NULL);
-    stat_reg_comp_formula(sdb, true, core_id, name, "MPKI", "misses per thousand insts in %s",
+    stat_reg_comp_formula(sdb, true, core_id, name.c_str(), "MPKI", "misses per thousand insts in %s",
                           ((updates_st - hits_st) / *commit_insn_st) * Constant(1000), NULL);
 }
 
@@ -292,12 +284,8 @@ our_pred - what the meta-predictor had predicted
 /*====================================================*/
 /* fusion argument parsing                            */
 /*====================================================*/
-static class fusion_t *
-fusion_from_string(
-    const int num_pred,
-    struct bpred_dir_t ** bpreds,
-    const char * const opt_string)
-{
+static std::unique_ptr<class fusion_t> fusion_from_string(const int num_pred,
+                                                          const char* const opt_string) {
   char name[256];
   char type[256];
 
@@ -314,20 +302,12 @@ fusion_from_string(
 }
 #undef BPRED_PARSE_ARGS
 
-fusion_t::fusion_t(void)
-{
-}
+fusion_t::fusion_t(void) {}
 
-fusion_t::~fusion_t(void)
-{
-  if(name) free(name); name = NULL;
-  if(type) free(type); type = NULL;
-}
+fusion_t::~fusion_t(void) {}
 
 void fusion_t::init(void)
 {
-  name = NULL;
-  type = NULL;
   num_hits = 0;
   lookups = 0;
   updates = 0;
@@ -386,27 +366,27 @@ void fusion_t::reg_stats(xiosim::stats::StatsDatabase* sdb, struct core_t* const
 
     auto commit_insn_st = stat_find_core_stat<counter_t>(sdb, core_id, "commit_insn");
 
-    stat_reg_comp_string(sdb, core_id, name, "type", "fusion algorithm of %s", type, NULL);
-    auto& bits_st = stat_reg_comp_int(sdb, true, core_id, name, "bits", "total size of %s in bits",
+    stat_reg_comp_string(sdb, core_id, name.c_str(), "type", "fusion algorithm of %s", type.c_str(), NULL);
+    auto& bits_st = stat_reg_comp_int(sdb, true, core_id, name.c_str(), "bits", "total size of %s in bits",
                                       &bits, bits, false, NULL);
-    stat_reg_comp_formula(sdb, true, core_id, name, "size", "total size of %s in KB",
+    stat_reg_comp_formula(sdb, true, core_id, name.c_str(), "size", "total size of %s in KB",
                           bits_st / Constant(8192), NULL);
 
-    stat_reg_comp_counter(sdb, true, core_id, name, "lookups",
+    stat_reg_comp_counter(sdb, true, core_id, name.c_str(), "lookups",
                           "number of prediction lookups in %s (including wrong-path)", &lookups, 0,
                           true, NULL);
     auto& updates_st =
-            stat_reg_comp_counter(sdb, true, core_id, name, "updates",
+            stat_reg_comp_counter(sdb, true, core_id, name.c_str(), "updates",
                                   "number of prediction updates in %s", &updates, 0, true, NULL);
-    stat_reg_comp_counter(sdb, true, core_id, name, "spec_updates",
+    stat_reg_comp_counter(sdb, true, core_id, name.c_str(), "spec_updates",
                           "number of speculative prediction updates in %s", &spec_updates, 0, true,
                           NULL);
     auto& hits_st =
-            stat_reg_comp_counter(sdb, true, core_id, name, "hits",
+            stat_reg_comp_counter(sdb, true, core_id, name.c_str(), "hits",
                                   "number of correct predictions in %s", &num_hits, 0, true, NULL);
-    stat_reg_comp_formula(sdb, true, core_id, name, "hit_rate",
+    stat_reg_comp_formula(sdb, true, core_id, name.c_str(), "hit_rate",
                           "fraction of correct predictions in %s", hits_st / updates_st, NULL);
-    stat_reg_comp_formula(sdb, true, core_id, name, "MPKI", "misses per thousand insts in %s",
+    stat_reg_comp_formula(sdb, true, core_id, name.c_str(), "MPKI", "misses per thousand insts in %s",
                           ((updates_st - hits_st) / *commit_insn_st) * Constant(1000), NULL);
 }
 
@@ -467,9 +447,7 @@ our_pred   - what the branch-predictor had predicted
 /* BTB argument parsing                            */
 /*=================================================*/
 #define BPRED_PARSE_ARGS
-static class BTB_t *
-BTB_from_string(const char * const opt_string)
-{
+static std::unique_ptr<class BTB_t> BTB_from_string(const char* const opt_string) {
   char name[256];
   char type[256];
 
@@ -486,21 +464,12 @@ BTB_from_string(const char * const opt_string)
 }
 #undef BPRED_PARSE_ARGS
 
+BTB_t::BTB_t() {}
 
-BTB_t::BTB_t()
-{
-}
-
-BTB_t::~BTB_t()
-{
-  if(name) free(name); name = NULL;
-  if(type) free(type); type = NULL;
-}
+BTB_t::~BTB_t() {}
 
 void BTB_t::init(void)
 {
-  name = NULL;
-  type = NULL;
   num_hits = 0;
   lookups = 0;
   updates = 0;
@@ -545,34 +514,34 @@ void BTB_t::reg_stats(xiosim::stats::StatsDatabase* sdb, struct core_t* const co
 
     auto commit_insn_st = stat_find_core_stat<counter_t>(sdb, core_id, "commit_insn");
 
-    stat_reg_comp_string(sdb, core_id, "type", name, "BTB type of %s", type, NULL);
-    auto& bits_st = stat_reg_comp_int(sdb, true, core_id, name, "bits", "total size of %s in bits",
+    stat_reg_comp_string(sdb, core_id, "type", name.c_str(), "BTB type of %s", type.c_str(), NULL);
+    auto& bits_st = stat_reg_comp_int(sdb, true, core_id, name.c_str(), "bits", "total size of %s in bits",
                                       &bits, bits, false, NULL);
-    stat_reg_comp_formula(sdb, true, core_id, name, "size", "total size of %s in KB",
+    stat_reg_comp_formula(sdb, true, core_id, name.c_str(), "size", "total size of %s in KB",
                           bits_st / Constant(8192), NULL);
 
-    stat_reg_comp_counter(sdb, true, core_id, name, "lookups",
+    stat_reg_comp_counter(sdb, true, core_id, name.c_str(), "lookups",
                           "number of prediction lookups in %s (including wrong-path)", &lookups, 0,
                           true, NULL);
     auto& updates_st =
-            stat_reg_comp_counter(sdb, true, core_id, name, "updates",
+            stat_reg_comp_counter(sdb, true, core_id, name.c_str(), "updates",
                                   "number of prediction updates in %s", &updates, 0, true, NULL);
-    stat_reg_comp_counter(sdb, true, core_id, name, "spec_updates",
+    stat_reg_comp_counter(sdb, true, core_id, name.c_str(), "spec_updates",
                           "number of speculative prediction updates in %s", &spec_updates, 0, true,
                           NULL);
     auto& hits_st =
-            stat_reg_comp_counter(sdb, true, core_id, name, "hits",
+            stat_reg_comp_counter(sdb, true, core_id, name.c_str(), "hits",
                                   "number of correct predictions in %s", &num_hits, 0, true, NULL);
-    stat_reg_comp_formula(sdb, true, core_id, name, "hit_rate",
+    stat_reg_comp_formula(sdb, true, core_id, name.c_str(), "hit_rate",
                           "fraction of correct predictions in %s", hits_st / updates_st, NULL);
 
-    stat_reg_comp_formula(sdb, true, core_id, name, "MPKI", "misses per thousand insts in %s",
+    stat_reg_comp_formula(sdb, true, core_id, name.c_str(), "MPKI", "misses per thousand insts in %s",
                           ((updates_st - hits_st) / *commit_insn_st) * Constant(1000), NULL);
 
     auto& num_nt_st =
-            stat_reg_comp_counter(sdb, true, core_id, name, "num_nt",
+            stat_reg_comp_counter(sdb, true, core_id, name.c_str(), "num_nt",
                                   "number of NT predictions from %s", &num_nt, 0, true, NULL);
-    stat_reg_comp_formula(sdb, true, core_id, name, "frac_nt",
+    stat_reg_comp_formula(sdb, true, core_id, name.c_str(), "frac_nt",
                           "fraction of targets predicted NT by %s", num_nt_st / updates_st, NULL);
 }
 
@@ -640,9 +609,7 @@ oPC        - oracle PC or actual return address
 
 
 #define BPRED_PARSE_ARGS
-static class RAS_t *
-RAS_from_string(const char * const opt_string)
-{
+std::unique_ptr<class RAS_t> RAS_from_string(const char* const opt_string) {
   char name[256];
   char type[256];
 
@@ -664,16 +631,10 @@ RAS_t::RAS_t()
   init();
 }
 
-RAS_t::~RAS_t()
-{
-  if(name) free(name); name = NULL;
-  if(type) free(type); type = NULL;
-}
+RAS_t::~RAS_t() {}
 
 void RAS_t::init(void)
 {
-  name = NULL;
-  type = NULL;
   bits = 0;
   num_hits = 0;
   num_pushes = 0;
@@ -726,24 +687,24 @@ void RAS_t::reg_stats(xiosim::stats::StatsDatabase* sdb, struct core_t* const co
 
     auto commit_insn_st = stat_find_core_stat<counter_t>(sdb, core_id, "commit_insn");
 
-    stat_reg_comp_string(sdb, core_id, name, "type", "RAS type of %s", type, NULL);
-    auto& bits_st = stat_reg_comp_int(sdb, true, core_id, name, "bits", "total size of %s in bits",
+    stat_reg_comp_string(sdb, core_id, name.c_str(), "type", "RAS type of %s", type.c_str(), NULL);
+    auto& bits_st = stat_reg_comp_int(sdb, true, core_id, name.c_str(), "bits", "total size of %s in bits",
                                       &bits, bits, false, NULL);
-    stat_reg_comp_formula(sdb, true, core_id, name, "size", "total size of %s in KB",
+    stat_reg_comp_formula(sdb, true, core_id, name.c_str(), "size", "total size of %s in KB",
                           bits_st / Constant(8192), NULL);
-    stat_reg_comp_counter(sdb, true, core_id, name, "pushes",
+    stat_reg_comp_counter(sdb, true, core_id, name.c_str(), "pushes",
                           "number of stack pushes to %s (including wrong-path)", &num_pushes, 0,
                           true, NULL);
-    auto& pops_st = stat_reg_comp_counter(sdb, true, core_id, name, "pops",
+    auto& pops_st = stat_reg_comp_counter(sdb, true, core_id, name.c_str(), "pops",
                                           "number of stack pops to %s (including wrong-path)",
                                           &num_pops, 0, true, NULL);
-    stat_reg_comp_counter(sdb, true, core_id, name, "recover",
+    stat_reg_comp_counter(sdb, true, core_id, name.c_str(), "recover",
                           "number of stack recoveries/repairs to %s", &num_recovers, 0, true, NULL);
-    auto& hits_st = stat_reg_comp_counter(sdb, true, core_id, name, "hits",
+    auto& hits_st = stat_reg_comp_counter(sdb, true, core_id, name.c_str(), "hits",
                                           "correct predictions in %s", &num_hits, 0, true, NULL);
-    stat_reg_comp_formula(sdb, true, core_id, name, "hit_rate",
+    stat_reg_comp_formula(sdb, true, core_id, name.c_str(), "hit_rate",
                           "fraction of correct predictions in %s", hits_st / pops_st, NULL);
-    stat_reg_comp_formula(sdb, true, core_id, name, "MPKI", "misses per thousand insts in %s",
+    stat_reg_comp_formula(sdb, true, core_id, name.c_str(), "MPKI", "misses per thousand insts in %s",
                           ((pops_st - hits_st) / *commit_insn_st) * Constant(1000), NULL);
 }
 
@@ -785,27 +746,20 @@ bpred_t::bpred_t(
   num_pred = arg_num_pred;
 
   /* component br direction preds */
-  bpreds = (class bpred_dir_t**) calloc(arg_num_pred,sizeof(class bpred_dir_t*));
-  if(!bpreds)
-    fatal("failed to calloc bpred array");
+  bpreds = new std::unique_ptr<bpred_dir_t> [arg_num_pred]();
   for(int i=0;i<arg_num_pred;i++)
     bpreds[i] = bpred_from_string(core, bpred_opts[i]);
 
   /* meta-predictor */
-  fusion = fusion_from_string(num_pred,bpreds,fusion_opt);
+  fusion = fusion_from_string(num_pred,fusion_opt);
 
   /* target predictors */
   dirjmp_BTB = BTB_from_string(dirjmp_BTB_opt);
 
-  if(indirjmp_BTB_opt)
-  {
+  if (indirjmp_BTB_opt) {
     if(strcasecmp(indirjmp_BTB_opt,"none")) /* use a different BTB for computed targets? */
       indirjmp_BTB = BTB_from_string(indirjmp_BTB_opt);
-    else
-      indirjmp_BTB = NULL;
   }
-  else
-    indirjmp_BTB = NULL;
 
   ras = RAS_from_string(RAS_opt);
 
@@ -821,6 +775,8 @@ bpred_t::bpred_t(
   num_hits = 0;
   frozen = false;
 
+  SC_debt = 0;
+
   init_state_cache_pool(32);
 }
 
@@ -828,21 +784,7 @@ bpred_t::~bpred_t()
 {
   destroy_state_cache_pool();
 
-  if(indirjmp_BTB)
-  {
-    delete indirjmp_BTB; indirjmp_BTB = NULL;
-  }
-  delete dirjmp_BTB; dirjmp_BTB = NULL;
-
-  delete ras; ras = NULL;
-
-  delete fusion;
-
-  for(int i=0;i<(int)num_pred;i++)
-  {
-    delete bpreds[i]; bpreds[i] = NULL;
-  }
-  free(bpreds); bpreds = NULL;
+  delete[] bpreds;
 }
 
 /*==============================================================

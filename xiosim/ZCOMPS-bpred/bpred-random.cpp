@@ -8,7 +8,7 @@
 #ifdef BPRED_PARSE_ARGS
 if(!strcasecmp(COMPONENT_NAME,type))
 {
-  return new bpred_random_t(core);
+  return std::make_unique<bpred_random_t>(core);
 }
 #else
 
@@ -25,12 +25,8 @@ struct bpred_random_t:public bpred_dir_t
   {
     init();
 
-    name = strdup(COMPONENT_NAME);
-    if(!name)
-      fatal("couldn't malloc random name (strdup)");
-    type = strdup("completely random");
-    if(!type)
-      fatal("couldn't malloc random name (strdup)");
+    name = COMPONENT_NAME;
+    type = "completely random";
 
     bits = 0;
   }
@@ -66,8 +62,8 @@ struct bpred_random_t:public bpred_dir_t
     char buf[256];
     char buf2[256];
 
-    sprintf(buf,"c%d.%s.num_taken",id,name);
-    sprintf(buf2,"number of taken branch predictions by %s",name);
+    sprintf(buf,"c%d.%s.num_taken",id,name.c_str());
+    sprintf(buf2,"number of taken branch predictions by %s",name.c_str());
     stat_reg_counter(sdb, true, buf, buf2, &num_taken, 0, TRUE, NULL);
   }
 

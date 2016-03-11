@@ -1,6 +1,7 @@
 #ifndef __ZESTO_DVFS__
 #define __ZESTO_DVFS__
 
+#include <memory>
 #include <queue>
 
 class vf_controller_t {
@@ -21,6 +22,6 @@ class vf_controller_t {
     std::queue<std::pair<tick_t, double> > voltages;
 };
 
-class vf_controller_t * vf_controller_create(const char * opt_string, struct core_t * core);
+std::unique_ptr<vf_controller_t> vf_controller_create(const char * opt_string, struct core_t * core);
 
 #endif /* __ZESTO_DVFS__ */

@@ -8,7 +8,7 @@
 #ifdef BPRED_PARSE_ARGS
 if(!strcasecmp(COMPONENT_NAME,type))
 {
-  return new bpred_nottaken_t(core);
+  return std::make_unique<bpred_nottaken_t>(core);
 }
 #else
 
@@ -21,13 +21,8 @@ class bpred_nottaken_t:public bpred_dir_t
   {
     init();
 
-    name = strdup(COMPONENT_NAME);
-    if(!name)
-      fatal("couldn't malloc nottaken name (strdup)");
-
-    type = strdup("static not-taken");
-    if(!type)
-      fatal("couldn't malloc nottaken type (strdup)");
+    name = COMPONENT_NAME;
+    type = "static not-taken";
 
     bits = 0;
   }

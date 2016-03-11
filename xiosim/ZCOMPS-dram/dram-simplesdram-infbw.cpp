@@ -50,7 +50,7 @@ if(!strcasecmp(COMPONENT_NAME,type))
 
   if(sscanf(opt_string,"%*[^:]:%d:%d:%lf:%lf:%lf:%lf:%lf:%d",&ranks,&banks,&t_RAS,&t_RCD,&t_CAS,&t_WR,&t_RP,&refresh_period) != 8)
     fatal("bad dram options string %s (should be \"simplesdram-infbw:ranks:banks:t_RAS:t_RCD:t_CAS:t_WR:t_RP:refresh_period\")",opt_string);
-  return new dram_simplesdram_infbw_t(ranks,banks,t_RAS,t_RCD,t_CAS,t_WR,t_RP,refresh_period);
+  return std::make_unique<dram_simplesdram_infbw_t>(ranks,banks,t_RAS,t_RCD,t_CAS,t_WR,t_RP,refresh_period);
 }
 #else
 

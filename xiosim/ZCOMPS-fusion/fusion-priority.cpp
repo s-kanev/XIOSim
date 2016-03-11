@@ -12,7 +12,7 @@ if(!strcasecmp("priority",type))
 
   if(sscanf(opt_string,"%*[^:]:%[^:]:%d",name,&num_entries) != 2)
     fatal("bad fusion options string %s (should be \"priority:name:num_entries\")",opt_string);
-  return new fusion_priority_t(name,num_pred,num_entries);
+  return std::make_unique<fusion_priority_t>(name,num_pred,num_entries);
 }
 #else
 
@@ -37,12 +37,8 @@ class fusion_priority_t:public fusion_t
     /* verify arguments are valid */
     CHECK_PPOW2(arg_meta_size);
 
-    name = strdup(arg_name);
-    if(!name)
-      fatal("couldn't malloc fusion priority name (strdup)");
-    type = strdup("priority Multi-Hybrid");
-    if(!type)
-      fatal("couldn't malloc fusion priority type (strdup)");
+    name = arg_name;
+    type = "priority Multi-Hybrid";
 
 
     num_pred = arg_num_pred;

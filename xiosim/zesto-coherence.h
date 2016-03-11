@@ -1,6 +1,8 @@
 #ifndef ZESTO_COHERENCE_INCLUDED
 #define ZESTO_COHERENCE_INCLUDED
 
+#include <memory>
+
 enum controller_response_t { MSHR_CHECK_ARRAY, MSHR_STALL };
 enum controller_array_response_t { ARRAY_HIT, ARRAY_MISS };
 
@@ -31,6 +33,6 @@ class LLC_controller_t {
 
 };
 
-class cache_controller_t * controller_create(const char * controller_opt_string, struct core_t * core, struct cache_t * cache);
+std::unique_ptr<class cache_controller_t> controller_create(const char * controller_opt_string, struct core_t * core, struct cache_t * cache);
 
 #endif /*ZESTO_COHERENCE*/

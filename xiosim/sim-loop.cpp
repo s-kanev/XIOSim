@@ -143,9 +143,9 @@ static void global_step(void) {
         dram->refresh();
         uncore->MC->step();
 
-        step_LLC_PF_controller(uncore);
+        step_LLC_PF_controller(uncore.get());
 
-        cache_process(uncore->LLC);
+        cache_process(uncore->LLC.get());
     }
 
     // Until we fix synchronization, this is global, and running at core freq.
@@ -221,8 +221,8 @@ static void sim_main_slave_pre_pin(int coreID) {
             for (int i = 0; i < system_knobs.num_cores; i++) {
                 if (!cores[i]->active) {
                     if (cores[i]->memory.DL2)
-                        cache_process(cores[i]->memory.DL2);
-                    cache_process(cores[i]->memory.DL1);
+                        cache_process(cores[i]->memory.DL2.get());
+                    cache_process(cores[i]->memory.DL1.get());
                 }
             }
 
@@ -297,7 +297,7 @@ void sim_main_slave_post_pin(int coreID) {
        lowest priority when competing for queues, buffers, etc. */
     if (coreID == min_coreID) {
         lk_lock(&cache_lock, coreID + 1);
-        prefetch_LLC(uncore);
+        prefetch_LLC(uncore.get());
         lk_unlock(&cache_lock);
     }
 
@@ -492,10 +492,10 @@ void simulate_warmup(int asid, md_addr_t addr, bool is_write) {
 
     enum cache_command cmd = is_write ? CACHE_WRITE : CACHE_READ;
     md_paddr_t paddr = xiosim::memory::v2p_translate(asid, addr);
-    if (!cache_is_hit(uncore->LLC, cmd, paddr, core)) {
-        struct cache_line_t* p = cache_get_evictee(uncore->LLC, paddr, core);
+    if (!cache_is_hit(uncore->LLC.get(), cmd, paddr, core)) {
+        struct cache_line_t* p = cache_get_evictee(uncore->LLC.get(), paddr, core);
         p->dirty = p->valid = false;
-        cache_insert_block(uncore->LLC, cmd, paddr, core);
+        cache_insert_block(uncore->LLC.get(), cmd, paddr, core);
     }
 }
 

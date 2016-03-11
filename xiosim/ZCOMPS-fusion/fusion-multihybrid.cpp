@@ -17,7 +17,7 @@ if(!strcasecmp("multihybrid",type))
 
   if(sscanf(opt_string,"%*[^:]:%[^:]:%d",name,&num_entries) != 2)
     fatal("bad fusion options string %s (should be \"multihybrid:name:num_entries\")",opt_string);
-  return new fusion_multihybrid_t(name,num_pred,num_entries);
+  return std::make_unique<fusion_multihybrid_t>(name,num_pred,num_entries);
 }
 #else
 
@@ -57,12 +57,8 @@ class fusion_multihybrid_t:public fusion_t
     if(arg_num_pred != 4)
       fatal("multihybrid must have exactly four components");
 
-    name = strdup(arg_name);
-    if(!name)
-      fatal("couldn't malloc fusion multihybrid name (strdup)");
-    type = strdup("multihybrid Selection");
-    if(!type)
-      fatal("couldn't malloc fusion multihybrid type (strdup)");
+    name = arg_name;
+    type = "multihybrid Selection";
 
     num_pred = arg_num_pred;
     meta_size = arg_meta_size;
@@ -89,6 +85,9 @@ class fusion_multihybrid_t:public fusion_t
   /* DESTROY */
   ~fusion_multihybrid_t()
   {
+    if(meta[0]) free(meta[0]);
+    if(meta[1]) free(meta[1]);
+    if(meta[2]) free(meta[2]);
     if(meta) free(meta); meta = NULL;
   }
 

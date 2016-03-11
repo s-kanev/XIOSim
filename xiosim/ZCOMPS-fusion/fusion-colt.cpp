@@ -14,7 +14,7 @@ if(!strcasecmp("colt",type))
   int bhr_width;
   if(sscanf(opt_string,"%*[^:]:%[^:]:%d:%d:%d:%d",name,&num_entries,&counter_width,&history_size,&bhr_width) != 5)
     fatal("bad fusion options string %s (should be \"colt:name:num-entries:counter_width:history-size:bhr-width\")",opt_string);
-  return new fusion_colt_t(name,num_pred,num_entries,counter_width,history_size,bhr_width);
+  return std::make_unique<fusion_colt_t>(name,num_pred,num_entries,counter_width,history_size,bhr_width);
 }
 #else
 
@@ -67,12 +67,8 @@ class fusion_colt_t:public fusion_t
     CHECK_NNEG(arg_bhr_width);
     CHECK_POS_LEQ(arg_counter_width,8);
 
-    name = strdup(arg_name);
-    if(!name)
-      fatal("couldn't malloc fusion colt name (strdup)");
-    type = strdup("fusion Table");
-    if(!type)
-      fatal("couldn't malloc fusion colt type (strdup)");
+    name = arg_name;
+    type = "fusion Table";
 
     num_pred = arg_num_pred;
     meta_size = arg_meta_size;

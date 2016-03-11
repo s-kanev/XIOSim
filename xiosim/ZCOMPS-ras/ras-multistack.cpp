@@ -11,7 +11,7 @@ if(!strcasecmp(COMPONENT_NAME,type))
   int spec_size, real_size;
   if(sscanf(opt_string,"%*[^:]:%[^:]:%d:%d",name,&spec_size,&real_size) != 3)
     fatal("bad ras options string %s (should be \"multistack:name:spec_size:real_size\")",opt_string);
-  return new RAS_multistack_t(name,spec_size,real_size);
+  return std::make_unique<RAS_multistack_t>(name,spec_size,real_size);
 }
 #else
 
@@ -62,12 +62,10 @@ class RAS_multistack_t:public RAS_t
     real_head = 0;
     spec_to_real_head = 0;
 
-    name = strdup(arg_name);
-    if(!name)
-      fatal("couldn't malloc stack name (strdup)");
+    name = arg_name;
+    type = "finite RAS";
 
     bits = spec_size*8*sizeof(stack_entry_t) + real_size*8*sizeof(md_addr_t);
-    type = strdup("finite RAS");
   }
 
   /* DESTROY */
@@ -75,8 +73,6 @@ class RAS_multistack_t:public RAS_t
   {
     free(spec_stack); spec_stack = NULL;
     free(real_stack); real_stack = NULL;
-    free(name); name = NULL;
-    free(type); type = NULL;
   }
 
   int get_size(void)

@@ -109,6 +109,9 @@ std::string harness_args(std::string cfg_file) {
 
 std::string get_timing_sim_cmd(std::string timing_filename, std::string cfg_file) {
     std::string res = timing_filename + " " + harness_args(cfg_file);
+#ifdef VALGRIND
+    res = "valgrind --leak-check=full -- " + res;
+#endif
     std::cerr << "[HARNESS] Timing_sim cmd: " << res << std::endl;
     return res;
 }

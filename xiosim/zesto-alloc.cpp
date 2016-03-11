@@ -85,7 +85,7 @@ core_alloc_t::~core_alloc_t()
 #include "xiosim/ZPIPE-alloc.list.h"
 
 
-class core_alloc_t * alloc_create(const char * alloc_opt_string, struct core_t * core)
+std::unique_ptr<class core_alloc_t> alloc_create(const char * alloc_opt_string, struct core_t * core)
 {
 #define ZESTO_PARSE_ARGS
 #include "xiosim/ZPIPE-alloc.list.h"

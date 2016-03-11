@@ -16,7 +16,7 @@ if(!strcasecmp(COMPONENT_NAME,type))
 
   if(sscanf(opt_string,"%*[^:]:%[^:]:%d:%d:%d:%d",name,&l1_size,&l2_size,&his_width,&Xor) != 5)
     fatal("bad bpred options string %s (should be \"2lev:name:l1_size:l2_size:his_width:xor\")",opt_string);
-  return new bpred_2lev_t(core,name,l1_size,l2_size,his_width,Xor);
+  return std::make_unique<bpred_2lev_t>(core,name,l1_size,l2_size,his_width,Xor);
 }
 #else
 
@@ -62,12 +62,8 @@ class bpred_2lev_t:public bpred_dir_t
     CHECK_NNEG(arg_history_length);
     CHECK_BOOL(arg_Xor);
 
-    name = strdup(arg_name);
-    if(!name)
-      fatal("couldn't malloc 2lev name (strdup)");
-    type = strdup("2lev");
-    if(!type)
-      fatal("couldn't malloc 2lev type (strdup)");
+    name = arg_name;
+    type = "2lev";
 
     bht_size = arg_bht_size;
     bht_mask = arg_bht_size-1;

@@ -8,7 +8,7 @@
 #ifdef BPRED_PARSE_ARGS
 if(!strcasecmp("random",type))
 {
-  return new fusion_random_t(num_pred);
+  return std::make_unique<fusion_random_t>(num_pred);
 }
 #else
 
@@ -21,12 +21,8 @@ class fusion_random_t:public fusion_t
   {
     init();
 
-    name = strdup(COMPONENT_NAME);
-    if(!name)
-      fatal("couldn't malloc fusion random name (strdup)");
-    type = strdup("random Selection");
-    if(!type)
-      fatal("couldn't malloc fusion random type (strdup)");
+    name = COMPONENT_NAME;
+    type = "random Selection";
 
     num_pred = arg_num_pred;
 

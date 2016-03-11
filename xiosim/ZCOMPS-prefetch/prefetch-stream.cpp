@@ -13,7 +13,7 @@ if(!strcasecmp(COMPONENT_NAME,type))
   int num_downstream_entries;
   if(sscanf(opt_string,"%*[^:]:%d:%d",&num_upstream_entries,&num_downstream_entries) != 2)
     fatal("bad %s prefetcher options string %s (should be \"stream:num_upstream_entries:num_downstream_entries\")",cp->name,opt_string);
-  return new prefetch_stream_t(cp,num_upstream_entries,num_downstream_entries);
+  return std::make_unique<prefetch_stream_t>(cp, num_upstream_entries, num_downstream_entries);
 }
 #else
 

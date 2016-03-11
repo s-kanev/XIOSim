@@ -14,7 +14,7 @@ if(!strcasecmp(COMPONENT_NAME,type))
   char replace_policy;
   if(sscanf(opt_string,"%*[^:]:%[^:]:%d:%d:%d:%c",name,&num_ents,&num_ways,&tag_width,&replace_policy) != 5)
     fatal("bad BTB options string %s (should be \"btac:name:entries:ways:tag-width:replacement_policy\")",opt_string);
-  return new BTB_btac_t(name,num_ents,num_ways,tag_width,replace_policy);
+  return std::make_unique<BTB_btac_t>(name,num_ents,num_ways,tag_width,replace_policy);
 }
 #else
 
@@ -63,11 +63,10 @@ class BTB_btac_t:public BTB_t
     CHECK_PPOW2(arg_num_entries);
     CHECK_POS(arg_num_ways);
     if((tolower(arg_replacement_policy) != 'l') && (tolower(arg_replacement_policy) != 'r'))
-      fatal("%s(%s) %s must be 'l' (LRU) or 'r' (random).",name,COMPONENT_NAME,"replacement_policy");
+      fatal("%s replacement policy must be 'l' (LRU) or 'r' (random).",COMPONENT_NAME);
 
-    name = strdup(arg_name);
-    if(!name)
-      fatal("couldn't malloc btac name (strdup)");
+    name = arg_name;
+    type = COMPONENT_NAME;
 
     num_entries = arg_num_entries;
     num_ways = arg_num_ways;
@@ -104,14 +103,11 @@ class BTB_btac_t:public BTB_t
     int lrusize = std::log2(num_ways);
     int entrysize = sizeof(md_addr_t) + tagsize + lrusize + 1; /* +1 for valid bit */
     bits =  num_entries*num_ways*entrysize;
-    type = strdup(COMPONENT_NAME);
   }
 
   /* DESTROY */
   ~BTB_btac_t()
   {
-    free(name); name = NULL;
-    free(type); type = NULL;
     for(int i=0;i<num_entries;i++)
     {
       struct BTB_btac_Entry_t * p;

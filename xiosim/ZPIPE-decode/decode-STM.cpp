@@ -5,7 +5,7 @@
 
 #ifdef ZESTO_PARSE_ARGS
   if(!strcasecmp(decode_opt_string,"STM"))
-    return new core_decode_STM_t(core);
+    return std::make_unique<class core_decode_STM_t>(core);
 #else
 
 class core_decode_STM_t:public core_decode_t
@@ -21,6 +21,7 @@ class core_decode_STM_t:public core_decode_t
 
   /* constructor, stats registration */
   core_decode_STM_t(struct core_t * const core);
+  ~core_decode_STM_t();
   virtual void reg_stats(xiosim::stats::StatsDatabase* sdb);
   virtual void update_occupancy(void);
 
@@ -59,8 +60,8 @@ core_decode_STM_t::core_decode_STM_t(struct core_t * const arg_core)
   if(knobs->decode.depth <= 0)
     fatal("decode pipe depth must be > 0");
 
-  if((knobs->decode.width <= 0) || (knobs->decode.width > MAX_DECODE_WIDTH))
-    fatal("decode pipe width must be > 0 and < %d (change MAX_DECODE_WIDTH if you want more)",MAX_DECODE_WIDTH);
+  if(knobs->decode.width <= 0)
+    fatal("decode pipe width must be > 0");
 
   if(knobs->decode.target_stage <= 0 || knobs->decode.target_stage >= knobs->decode.depth)
     fatal("decode target resteer stage (%d) must be > 0, and less than decode pipe depth (currently set to %d)",knobs->decode.target_stage,knobs->decode.depth);
@@ -80,6 +81,13 @@ core_decode_STM_t::core_decode_STM_t(struct core_t * const arg_core)
   occupancy = (int*) calloc(knobs->decode.depth,sizeof(*occupancy));
   if(!occupancy)
     fatal("couldn't calloc decode pipe occupancy array");
+}
+
+core_decode_STM_t::~core_decode_STM_t() {
+    free(occupancy);
+    for (int i = 0; i < core->knobs->decode.depth; i++)
+        free(pipe[i]);
+    free(pipe);
 }
 
 void

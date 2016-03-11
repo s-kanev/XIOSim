@@ -126,6 +126,13 @@ core_oracle_t::core_oracle_t(struct core_t* const arg_core)
     }
 }
 
+core_oracle_t::~core_oracle_t() {
+    for (int i = 0; i < MopQ_size; i++) {
+        MopQ[i].clear();
+    }
+    free(MopQ);
+}
+
 /* register oracle-related stats in the stat-database (sdb) */
 void core_oracle_t::reg_stats(xiosim::stats::StatsDatabase* sdb) {
     int coreID = core->id;
@@ -782,7 +789,7 @@ buffer_result_t core_oracle_t::buffer_handshake(handshake_container_t* handshake
             /* We'll just manufacture ourselves a NOP. */
             handshake_container_t tmp_handshake = get_fake_spec_handshake();
             /* ... put it on the shadow_MopQ ... */
-            shadow_MopQ.push_handshake(&tmp_handshake);
+            shadow_MopQ.push_handshake(tmp_handshake);
             /* ... and make sure we're not done with the current one. */
             return HANDSHAKE_NOT_CONSUMED;
         }
@@ -795,7 +802,7 @@ buffer_result_t core_oracle_t::buffer_handshake(handshake_container_t* handshake
                          core->fetch->PC,
                          handshake->pc);
             handshake_container_t tmp_handshake = get_fake_spec_handshake();
-            shadow_MopQ.push_handshake(&tmp_handshake);
+            shadow_MopQ.push_handshake(tmp_handshake);
             return HANDSHAKE_NOT_CONSUMED;
         }
     } else {
@@ -822,7 +829,7 @@ buffer_result_t core_oracle_t::buffer_handshake(handshake_container_t* handshake
     core->stat.handshakes_buffered++;
     /* Store a shadow handshake for recovery purposes */
     zesto_assert(!shadow_MopQ.full(), ALL_GOOD);
-    shadow_MopQ.push_handshake(handshake);
+    shadow_MopQ.push_handshake(*handshake);
     return ALL_GOOD;
 }
 

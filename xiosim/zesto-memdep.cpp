@@ -76,18 +76,11 @@ void memdep_t::init()
 memdep_t::memdep_t(const struct core_t * _core) : core(_core)
 {
   init();
-  name = strdup("none");
-  type = strdup("no memory speculation");
-  if(!name || !type)
-    fatal("failed to allocate memory for memdep-none (strdup)");
+  name = "none";
+  type = "no memory speculation";
 }
 
-memdep_t::~memdep_t()
-{
-  if(name) free(name);
-  if(type) free(type);
-  name = NULL; type = NULL;
-}
+memdep_t::~memdep_t() {}
 
 void memdep_t::update(md_addr_t PC)
 {
@@ -99,14 +92,14 @@ void memdep_t::reg_stats(xiosim::stats::StatsDatabase* sdb, struct core_t * core
     using namespace xiosim::stats;
     int coreID = core->id;
 
-    stat_reg_pred_string(sdb, coreID, name, "type", "prediction algorithm of %s", type, NULL);
-    auto& bits_st = stat_reg_pred_int(sdb, true, coreID, name, "bits", "total size of %s in bits",
+    stat_reg_pred_string(sdb, coreID, name.c_str(), "type", "prediction algorithm of %s", type.c_str(), NULL);
+    auto& bits_st = stat_reg_pred_int(sdb, true, coreID, name.c_str(), "bits", "total size of %s in bits",
                                       &bits, bits, false, NULL);
-    stat_reg_pred_formula(sdb, true, coreID, name, "size", "total size of %s in KB",
+    stat_reg_pred_formula(sdb, true, coreID, name.c_str(), "size", "total size of %s in KB",
                           bits_st / Constant(8192), NULL);
-    stat_reg_pred_counter(sdb, true, coreID, name, "lookups",
+    stat_reg_pred_counter(sdb, true, coreID, name.c_str(), "lookups",
                           "number of prediction lookups in %s", &lookups, 0, true, NULL);
-    stat_reg_pred_counter(sdb, true, coreID, name, "updates",
+    stat_reg_pred_counter(sdb, true, coreID, name.c_str(), "updates",
                           "number of prediction updates in %s", &updates, 0, true, NULL);
 }
 
@@ -143,8 +136,7 @@ conflict_exists - oracle answer for whether it's safe for the load to exec
 /*====================================================*/
 /* argument parsing                                   */
 /*====================================================*/
-class memdep_t *
-memdep_create(const struct core_t * core, const char * const opt_string)
+std::unique_ptr<class memdep_t> memdep_create(const struct core_t * core, const char * const opt_string)
 {
   char name[256];
   char type[256];

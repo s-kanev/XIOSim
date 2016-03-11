@@ -9,7 +9,7 @@
 #ifdef BPRED_PARSE_ARGS
 if(!strcasecmp(COMPONENT_NAME,type))
 {
-  return new bpred_btfnt_t(core);
+  return std::make_unique<bpred_btfnt_t>(core);
 }
 #else
 
@@ -22,12 +22,8 @@ class bpred_btfnt_t:public bpred_dir_t
   {
     init();
 
-    name = strdup(COMPONENT_NAME);
-    if(!name)
-      fatal("couldn't malloc BTFNT name (strdup)");
-    type = strdup("static btfnt");
-    if(!type)
-      fatal("couldn't malloc BTFNT type (strdup)");
+    name = COMPONENT_NAME;
+    type = "static btfnt";
 
     bits = 0;
   }

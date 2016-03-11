@@ -100,5 +100,6 @@ SHARED_VAR_DECLARE(int, ss_prev);
 
 /* Init state in shared memory. Returns unique address space id for producers */
 int InitSharedState(bool producer_process, pid_t harness_pid, int num_cores);
+void DeinitSharedState();
 
 #endif /* __MP_SHARED__ */

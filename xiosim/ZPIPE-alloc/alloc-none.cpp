@@ -1,6 +1,6 @@
 #ifdef ZESTO_PARSE_ARGS
   if(!strcasecmp(alloc_opt_string,"none"))
-    return new core_alloc_NONE_t(core);
+    return std::make_unique<class core_alloc_NONE_t>(core);
 #else
 
 class core_alloc_NONE_t:public core_alloc_t

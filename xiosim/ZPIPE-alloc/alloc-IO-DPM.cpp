@@ -7,7 +7,7 @@
 
 #ifdef ZESTO_PARSE_ARGS
   if(!strcasecmp(alloc_opt_string,"IO-DPM"))
-    return new core_alloc_IO_DPM_t(core);
+    return std::make_unique<class core_alloc_IO_DPM_t>(core);
 #else
 
 #include <list>
@@ -29,6 +29,7 @@ class core_alloc_IO_DPM_t:public core_alloc_t
   public:
 
   core_alloc_IO_DPM_t(struct core_t * const core);
+  ~core_alloc_IO_DPM_t();
   virtual void reg_stats(xiosim::stats::StatsDatabase* sdb);
 
   virtual void step(void);
@@ -98,6 +99,15 @@ core_alloc_IO_DPM_t::core_alloc_IO_DPM_t(struct core_t * const arg_core)
   can_alloc = (bool*) calloc(knobs->exec.num_exec_ports,sizeof(*can_alloc));
   if(!can_alloc)
     fatal("couldn't calloc can_alloc array");
+}
+
+core_alloc_IO_DPM_t::~core_alloc_IO_DPM_t() {
+    free(can_alloc);
+    free(port_loading);
+    free(occupancy);
+    for (int i = 0; i < core->knobs->alloc.depth; i++)
+        free(pipe[i]);
+    free(pipe);
 }
 
 void core_alloc_IO_DPM_t::reg_stats(xiosim::stats::StatsDatabase* sdb) {

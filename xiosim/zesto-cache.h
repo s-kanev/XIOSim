@@ -55,8 +55,12 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
-#include "ztrace.h"
+#include <memory>
+#include <vector>
+
+#include "knobs.h"
 #include "synchronization.h"
+#include "ztrace.h"
 
 /* used when passing an MSHR index into the cache functions, but for
    whatever reason there's no corresponding MSHR entry */
@@ -151,6 +155,7 @@ struct prefetch_filter_t {
 };
 
 struct cache_t {
+  ~cache_t();
 
   struct core_t * core; /* to which core does this belong? NULL = shared */
   counter_t sim_cycle; /* private caches: the clock this cache is running from.
@@ -170,6 +175,10 @@ struct cache_t {
   int addr_shift; /* to mask out the block offset */
 
   struct cache_line_t ** blocks;
+  /* blocks are allocated as one big chunk of memory per set, and the various block[i]
+   * pointers are overwritten to keep track of MRU. Just keep a pointer to free the
+   * big chunk. */
+  std::unique_ptr<struct cache_line_t[]>* blocks_owners;
 
   enum repl_policy_t replacement_policy;
   enum alloc_policy_t allocate_policy;
@@ -217,7 +226,7 @@ struct cache_t {
     struct core_t * core;
   } * PFF;
 
-  struct prefetch_t ** prefetcher;
+  std::vector<std::unique_ptr<struct prefetch_t>> prefetcher;
   int num_prefetchers;
   /* prefetch control */
   int prefetch_threshold; /* only perform prefetch if MSHR occupancy is less than this threshold */
@@ -248,7 +257,7 @@ struct cache_t {
   bool check_for_MSHR_WB_work;
 
   /* coherency controllers */
-  struct cache_controller_t * controller;
+  std::unique_ptr<struct cache_controller_t> controller;
 
   float magic_hit_rate;
 
@@ -278,7 +287,7 @@ struct cache_t {
   } stat;
 };
 
-struct cache_t * cache_create(
+std::unique_ptr<struct cache_t> cache_create(
     struct core_t * const core,
     const char * const name,
     const bool read_only,
@@ -297,7 +306,8 @@ struct cache_t * cache_create(
     const int MSHR_banked,
     struct cache_t * const next_level_cache,
     struct bus_t * const bus_next,
-    const float magic_hit_rate);
+    const float magic_hit_rate,
+    const char * const MSHR_cmd);
 
 void cache_reg_stats(
     xiosim::stats::StatsDatabase* sdb,
@@ -318,6 +328,8 @@ void prefetch_filter_create(
     struct cache_t * const cp,
     const int num_entries,
     const int reset_interval);
+
+void prefetchers_create(struct cache_t* cp, const prefetcher_knobs_t& pf_knobs);
 
 void cache_process(struct cache_t * const cp);
 

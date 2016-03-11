@@ -22,7 +22,7 @@ cache_controller_t::cache_controller_t(struct core_t * const _core, struct cache
   cache(_cache), core(_core)
 {}
 
-class cache_controller_t * controller_create(const char * controller_opt_string, struct core_t * core, struct cache_t * cache)
+std::unique_ptr<class cache_controller_t> controller_create(const char * controller_opt_string, struct core_t * core, struct cache_t * cache)
 {
 #define ZESTO_PARSE_ARGS
 #include "xiosim/ZCOMPS-coherence.list.h"

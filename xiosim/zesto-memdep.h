@@ -55,6 +55,9 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
+#include <memory>
+#include <string>
+
 #include "zesto-structs.h"
 #include "zesto-core.h"
 
@@ -63,9 +66,9 @@
 class memdep_t
 {
   protected:
-    char * name;
+    std::string name;
+    std::string type;
     const struct core_t * core;
-    char * type;
     int bits;
     counter_t lookups;
     counter_t updates;
@@ -87,6 +90,6 @@ class memdep_t
 };
 
 /* Create a new memory dependence predictor */
-struct memdep_t * memdep_create(const struct core_t *, const char * const);
+std::unique_ptr<class memdep_t> memdep_create(const struct core_t *, const char * const);
 
 #endif /* ZESTO_MEMDEP_INCLUDED */

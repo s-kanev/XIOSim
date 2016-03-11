@@ -8,7 +8,7 @@
 #ifdef BPRED_PARSE_ARGS
 if(!strcasecmp(COMPONENT_NAME,type))
 {
-  return new RAS_perfect_t();
+  return std::make_unique<RAS_perfect_t>();
 }
 #else
 
@@ -20,21 +20,12 @@ class RAS_perfect_t:public RAS_t
   {
     init();
 
-    name = strdup("RAS");
-    if(!name)
-      fatal("couldn't malloc perfect name (strdup)");
-
-    type = strdup(COMPONENT_NAME);
-    if(!type)
-      fatal("couldn't malloc perfect type (strdup)");
+    name = "RAS";
+    type = COMPONENT_NAME;
   }
 
   /* DESTROY */
-  ~RAS_perfect_t()
-  {
-    if(name) free(name); name = NULL;
-    if(type) free(type); type = NULL;
-  }
+  ~RAS_perfect_t() {}
 
   int get_size(void)
   {

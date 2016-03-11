@@ -5,7 +5,7 @@
 
 #ifdef ZESTO_PARSE_ARGS
   if(!strcasecmp(commit_opt_string,"DPM"))
-    return new core_commit_DPM_t(core);
+    return std::make_unique<class core_commit_DPM_t>(core);
 #else
 
 class core_commit_DPM_t:public core_commit_t
@@ -23,6 +23,7 @@ class core_commit_DPM_t:public core_commit_t
   public:
 
   core_commit_DPM_t(struct core_t * const core);
+  ~core_commit_DPM_t();
   virtual void reg_stats(xiosim::stats::StatsDatabase* sdb);
   virtual void update_occupancy(void);
 
@@ -91,6 +92,10 @@ core_commit_DPM_t::core_commit_DPM_t(struct core_t * const arg_core):
   ROB = (struct uop_t**) calloc(knobs->commit.ROB_size,sizeof(*ROB));
   if(!ROB)
     fatal("couldn't calloc ROB");
+}
+
+core_commit_DPM_t::~core_commit_DPM_t() {
+    free(ROB);
 }
 
 void core_commit_DPM_t::reg_stats(xiosim::stats::StatsDatabase* sdb) {

@@ -11,7 +11,7 @@ using namespace std;
 /* load in all definitions */
 #include "xiosim/ZCOMPS-dvfs.list.h"
 
-class vf_controller_t * vf_controller_create(const char * opt_string, struct core_t * core)
+std::unique_ptr<class vf_controller_t> vf_controller_create(const char * opt_string, struct core_t * core)
 {
 #define ZESTO_PARSE_ARGS
 #include "xiosim/ZCOMPS-dvfs.list.h"

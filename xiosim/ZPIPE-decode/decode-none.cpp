@@ -1,6 +1,6 @@
 #ifdef ZESTO_PARSE_ARGS
   if(!strcasecmp(decode_opt_string,"none"))
-    return new core_decode_NONE_t(core);
+    return std::make_unique<class core_decode_NONE_t>(core);
 #else
 
 class core_decode_NONE_t:public core_decode_t

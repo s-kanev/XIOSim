@@ -9,7 +9,7 @@
 #ifdef BPRED_PARSE_ARGS
 if(!strcasecmp(COMPONENT_NAME,type))
 {
-  return new bpred_perfect_t(core);
+  return std::make_unique<bpred_perfect_t>(core);
 }
 #else
 
@@ -21,12 +21,8 @@ class bpred_perfect_t:public bpred_dir_t
   {
     init();
 
-    name = strdup(COMPONENT_NAME);
-    if(!name)
-      fatal("couldn't malloc perfect name (strdup)");
-    type = strdup("perfect/oracle");
-    if(!type)
-      fatal("couldn't malloc perfect name (strdup)");
+    name = COMPONENT_NAME;
+    type = "perfect/oracle";
 
     bits = 0;
   }

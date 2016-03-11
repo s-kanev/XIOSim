@@ -29,7 +29,15 @@ void InitBufferManagerConsumer(pid_t harness_pid) {
     InitBufferManager(harness_pid);
 }
 
-void DeinitBufferManagerConsumer() { DeinitBufferManager(); }
+void DeinitBufferManagerConsumer() {
+    DeinitBufferManager();
+
+    for (auto& kv : readBuffer_)
+        free(kv.second);
+
+    for (auto& kv : consumeBuffer_)
+        delete kv.second;
+}
 
 void AllocateThreadConsumer(pid_t tid, int buffer_capacity) {
     std::lock_guard<XIOSIM_LOCK> l(init_lock_);

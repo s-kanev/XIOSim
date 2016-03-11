@@ -6,7 +6,7 @@
 
 #ifdef ZESTO_PARSE_ARGS
   if(!strcasecmp(alloc_opt_string,"STM"))
-    return new core_alloc_STM_t(core);
+    return std::make_unique<class core_alloc_STM_t>(core);
 #else
 
 class core_alloc_STM_t:public core_alloc_t
@@ -24,6 +24,7 @@ class core_alloc_STM_t:public core_alloc_t
   public:
 
   core_alloc_STM_t(struct core_t * const core);
+  ~core_alloc_STM_t();
   virtual void reg_stats(xiosim::stats::StatsDatabase* sdb);
 
   virtual void step(void);
@@ -63,6 +64,10 @@ core_alloc_STM_t::core_alloc_STM_t(struct core_t * const arg_core)
   port_loading = (int*) calloc(knobs->exec.num_exec_ports,sizeof(*port_loading));
   if(!port_loading)
     fatal("couldn't calloc allocation port-loading scoreboard");
+}
+
+core_alloc_STM_t::~core_alloc_STM_t() {
+    free(port_loading);
 }
 
 void core_alloc_STM_t::reg_stats(xiosim::stats::StatsDatabase* sdb)

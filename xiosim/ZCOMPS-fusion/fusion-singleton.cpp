@@ -8,7 +8,7 @@
 #ifdef BPRED_PARSE_ARGS
 if(!strcasecmp("none",type))
 {
-  return new fusion_singleton_t();
+  return std::make_unique<fusion_singleton_t>();
 }
 #else
 
@@ -21,12 +21,8 @@ class fusion_singleton_t:public fusion_t
     init();
 
     num_pred = 1;
-    name = strdup(COMPONENT_NAME);
-    if(!name)
-      fatal("couldn't malloc fusion singleton name (strdup)");
-    type = strdup("none");
-    if(!type)
-      fatal("couldn't malloc fusion singleton type (strdup)");
+    name = COMPONENT_NAME;
+    type = "none";
 
     bits = 0;
   }

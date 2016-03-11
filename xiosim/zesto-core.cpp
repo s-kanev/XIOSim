@@ -66,6 +66,7 @@
 #include "zesto-alloc.h"
 #include "zesto-exec.h"
 #include "zesto-commit.h"
+#include "zesto-power.h"
 
 #include "zesto-core.h"
 
@@ -81,12 +82,6 @@ core_t::core_t(const int core_id)
     , in_critical_section(false)
     , num_emergency_recoveries(0)
     , last_emergency_recovery_count(0)
-    , oracle(NULL)
-    , fetch(NULL)
-    , decode(NULL)
-    , alloc(NULL)
-    , exec(NULL)
-    , commit(NULL)
     , global_action_id(0)
     , odep_free_pool(NULL)
     , odep_free_pool_debt(0)
@@ -104,6 +99,14 @@ core_t::core_t(const int core_id)
         if (!fp)
             fatal("failed to open profiling file %s", ss.str().c_str());
         stopwatch_files.push_back(fp);
+    }
+}
+
+core_t::~core_t() {
+    while(odep_free_pool) {
+        struct odep_t* curr = odep_free_pool;
+        odep_free_pool = odep_free_pool->next;
+        free(curr);
     }
 }
 

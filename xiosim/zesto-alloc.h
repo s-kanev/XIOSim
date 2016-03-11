@@ -55,6 +55,8 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
+#include <memory>
+
 class core_alloc_t {
 
   public:
@@ -83,6 +85,6 @@ class core_alloc_t {
 };
 
 
-class core_alloc_t * alloc_create(const char * alloc_opt_string, struct core_t * core);
+std::unique_ptr<class core_alloc_t> alloc_create(const char * alloc_opt_string, struct core_t * core);
 
 #endif /* ZESTO_ALLOC_INCLUDED */

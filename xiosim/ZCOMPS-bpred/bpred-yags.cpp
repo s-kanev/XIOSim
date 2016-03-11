@@ -17,7 +17,7 @@ if(!strcasecmp(COMPONENT_NAME,type))
 
   if(sscanf(opt_string,"%*[^:]:%[^:]:%d:%d:%d:%d:%d:%d",name,&l1_size,&l2_size,&his_width,&Xor,&cache_size,&tag_width) != 7)
     fatal("bad bpred options string %s (should be \"yags:name:l1_size:l2_size:his_width:xor:cache_size:tag_width\")",opt_string);
-  return new bpred_yags_t(core,name,l1_size,l2_size,his_width,Xor,cache_size,tag_width);
+  return std::make_unique<bpred_yags_t>(core,name,l1_size,l2_size,his_width,Xor,cache_size,tag_width);
 }
 #else
 
@@ -82,12 +82,8 @@ class bpred_yags_t:public bpred_dir_t
     CHECK_NNEG(arg_history_length);
     CHECK_BOOL(arg_Xor);
 
-    name = strdup(arg_name);
-    if(!name)
-      fatal("couldn't malloc yags name (strdup)");
-    type = strdup(COMPONENT_NAME);
-    if(!type)
-      fatal("couldn't malloc yags type (strdup)");
+    name = arg_name;
+    type = COMPONENT_NAME;
 
     bht_size = arg_bht_size;
     bht_mask = arg_bht_size-1;

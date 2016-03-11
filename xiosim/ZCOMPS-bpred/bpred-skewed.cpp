@@ -17,7 +17,7 @@ if(!strcasecmp(COMPONENT_NAME,type))
 
   if(sscanf(opt_string,"%*[^:]:%[^:]:%d:%d:%d:%d:%d:%d",name,&l1_size,&l2_size,&his_width,&partial_update,&enhanced,&double_bim) != 7)
     fatal("bad bpred options string %s (should be \"skewed:name:l1_size:l2_size:his_width:partial_update:enhanced:double-bim\")",opt_string);
-  return new bpred_skewed_t(core,name,l1_size,l2_size,his_width,partial_update,enhanced,double_bim);
+  return std::make_unique<bpred_skewed_t>(core,name,l1_size,l2_size,his_width,partial_update,enhanced,double_bim);
 }
 #else
 
@@ -72,12 +72,8 @@ class bpred_skewed_t:public bpred_dir_t
     CHECK_BOOL(arg_double_bim);
     CHECK_BOOL(arg_partial_update);
 
-    name = strdup(arg_name);
-    if(!name)
-      fatal("couldn't malloc skewed name (strdup)");
-    type = strdup(COMPONENT_NAME);
-    if(!type)
-      fatal("couldn't malloc skewed type (strdup)");
+    name = arg_name;
+    type = COMPONENT_NAME;
 
     bht_size = arg_bht_size;
     bht_mask = arg_bht_size-1;

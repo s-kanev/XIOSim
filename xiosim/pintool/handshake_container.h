@@ -34,6 +34,11 @@ class handshake_container_t {
         memset(&flags, 0, sizeof(flags));
         flags.real = true;
         mem_buffer.clear();
+        mem_buffer.shrink_to_fit();
+        /* XXX: shrink_to_fit() is actually not guaranteed to free by the standard.
+         * So technically Buffer->pop() can still leave memory behind.
+         * Maybe make mem_buffer a list? It's 1-element for most instructions anyway.
+         * 2 max IIRC. */
         pc = 0;
         npc = 0;
         tpc = 0;

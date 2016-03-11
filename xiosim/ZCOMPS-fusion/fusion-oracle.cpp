@@ -14,7 +14,7 @@
 #ifdef BPRED_PARSE_ARGS
 if(!strcasecmp("oracle",type) || !strcmp("perfect",type))
 {
-  return new fusion_oracle_t(num_pred);
+  return std::make_unique<fusion_oracle_t>(num_pred);
 }
 #else
 
@@ -27,13 +27,8 @@ class fusion_oracle_t:public fusion_t
   {
     init();
 
-    name = strdup(COMPONENT_NAME);
-    if(!name)
-      fatal("couldn't malloc fusion oracle name (strdup)");
-
-    type = strdup("oracle");
-    if(!type)
-      fatal("couldn't malloc fusion oracle type (strdup)");
+    name = COMPONENT_NAME;
+    type = "oracle";
 
     num_pred = arg_num_pred;
 

@@ -8,7 +8,7 @@
 #ifdef BPRED_PARSE_ARGS
 if(!strcasecmp(COMPONENT_NAME,type))
 {
-  return new BTB_perfect_t();
+  return std::make_unique<BTB_perfect_t>();
 }
 #else
 
@@ -20,19 +20,12 @@ class BTB_perfect_t:public BTB_t
   {
     init();
 
-    name = strdup(COMPONENT_NAME);
-    if(!name)
-      fatal("couldn't malloc perfect name (strdup)");
-
-    type = strdup(COMPONENT_NAME);
+    name = COMPONENT_NAME;
+    type = COMPONENT_NAME;
   }
 
   /* DESTROY */
-  ~BTB_perfect_t()
-  {
-    free(name); name = NULL;
-    free(type); type = NULL;
-  }
+  ~BTB_perfect_t() {}
 
   /* LOOKUP */
   BTB_LOOKUP_HEADER

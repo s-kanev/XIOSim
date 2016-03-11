@@ -7,7 +7,7 @@
 #ifdef REPEATER_PARSE_ARGS
 if(!strcasecmp(COMPONENT_NAME,type))
 {
-  return new repeater_none_t(core, name, next_level);
+  return std::make_unique<repeater_none_t>(core, name, next_level);
 }
 
 #elif defined(REPEATER_INIT)

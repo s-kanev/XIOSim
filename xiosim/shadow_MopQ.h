@@ -48,13 +48,13 @@ class shadow_MopQ_t {
     handshake_container_t const& get_shadow_Mop(const struct Mop_t* Mop);
 
     /* Push the newest element to the queue. */
-    void push_handshake(const handshake_container_t* handshake) {
-        if (!handshake->flags.speculative) {
+    void push_handshake(const handshake_container_t& handshake) {
+        if (!handshake.flags.speculative) {
             handshake_container_t* shadow_handshake = &buffer_.get_buffer()->Mop;
-            new (shadow_handshake) handshake_container_t(*handshake);
+            new (shadow_handshake) handshake_container_t(handshake);
             buffer_.push_done();
         } else {
-            buffer_.back()->speculated.push_back(*handshake);
+            buffer_.back()->speculated.push_back(handshake);
         }
         size_++;
     }

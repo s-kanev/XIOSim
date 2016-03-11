@@ -6,7 +6,7 @@
 
 #ifdef ZESTO_PARSE_ARGS
   if(!strcasecmp(exec_opt_string,"STM"))
-    return new core_exec_STM_t(core);
+    return std::make_unique<class core_exec_STM_t>(core);
 #else
 
 class core_exec_STM_t:public core_exec_t
@@ -41,6 +41,7 @@ class core_exec_STM_t:public core_exec_t
   public:
 
   core_exec_STM_t(struct core_t * const core);
+  ~core_exec_STM_t();
   virtual void reg_stats(xiosim::stats::StatsDatabase* sdb);
   virtual void freeze_stats(void);
   virtual void update_occupancy(void);
@@ -172,6 +173,7 @@ class core_exec_STM_t:public core_exec_t
 /*******************/
 
 core_exec_STM_t::core_exec_STM_t(struct core_t * arg_core):
+  core_exec_t(arg_core),
   readyQ_free_pool(NULL), 
 #ifdef DEBUG
   readyQ_free_pool_debt(0),
@@ -200,175 +202,9 @@ core_exec_STM_t::core_exec_STM_t(struct core_t * arg_core):
   for(i=0;i<knobs->exec.STQ_size;i++)
     STQ[i].sta = NULL;
 
-  /*********************************************************/
-  /* Data cache parsing first, functional units after this */
-  /*********************************************************/
-  char name[256];
-  int sets, assoc, linesize, latency, banks, bank_width, MSHR_entries, MSHR_WB_entries;
-  char rp, ap, wp, wc;
-  
-  /* note: caches must be instantiated from the level furthest from the core first (e.g., LLC) */
-
-  /* per-core DL2 */
-
-  /* per-core L2 bus (between L1 and L2) */
-  if(!strcasecmp(knobs->memory.DL2_opt_str,"none"))
-  {
-    core->memory.DL2 = NULL;
-    core->memory.DL2_bus = NULL;
-  }
-  else
-  {
-    if(sscanf(knobs->memory.DL2_opt_str,"%[^:]:%d:%d:%d:%d:%d:%d:%c:%c:%c:%d:%d:%c",
-        name,&sets,&assoc,&linesize,&banks,&bank_width,&latency,&rp,&ap,&wp, &MSHR_entries, &MSHR_WB_entries, &wc) != 13)
-      fatal("invalid DL2 options: <name:sets:assoc:linesize:banks:bank-width:latency:repl-policy:alloc-policy:write-policy:num-MSHR:WB-buffers:write-combining>\n\t(%s)",knobs->memory.DL2_opt_str);
-    core->memory.DL2 = cache_create(core,name,CACHE_READWRITE,sets,assoc,linesize,
-                             rp,ap,wp,wc,banks,bank_width,latency,
-                             MSHR_entries,MSHR_WB_entries,1,uncore->LLC,uncore->LLC_bus,
-                             knobs->memory.DL2_magic_hit_rate);
-
-    if(!knobs->memory.DL2_MSHR_cmd || !strcasecmp(knobs->memory.DL2_MSHR_cmd,"fcfs"))
-      core->memory.DL2->MSHR_cmd_order = NULL;
-    else
-    {
-      if(strlen(knobs->memory.DL2_MSHR_cmd) != 4)
-        fatal("-dl1:mshr_cmd must either be \"fcfs\" or contain all four of [RWBP]");
-      bool R_seen = false;
-      bool W_seen = false;
-      bool B_seen = false;
-      bool P_seen = false;
-
-      core->memory.DL2->MSHR_cmd_order = (enum cache_command*)calloc(4,sizeof(enum cache_command));
-      if(!core->memory.DL2->MSHR_cmd_order)
-        fatal("failed to calloc MSHR_cmd_order array for DL2");
-
-      for(int c=0;c<4;c++)
-      {
-        switch(toupper(knobs->memory.DL2_MSHR_cmd[c]))
-        {
-          case 'R': core->memory.DL2->MSHR_cmd_order[c] = CACHE_READ; R_seen = true; break;
-          case 'W': core->memory.DL2->MSHR_cmd_order[c] = CACHE_WRITE; W_seen = true; break;
-          case 'B': core->memory.DL2->MSHR_cmd_order[c] = CACHE_WRITEBACK; B_seen = true; break;
-          case 'P': core->memory.DL2->MSHR_cmd_order[c] = CACHE_PREFETCH; P_seen = true; break;
-          default: fatal("unknown cache operation '%c' for -dl1:mshr_cmd; must be one of [RWBP]");
-        }
-      }
-      if(!R_seen || !W_seen || !B_seen || !P_seen)
-        fatal("-dl1:mshr_cmd must contain *each* of [RWBP]");
-    }
-
-    core->memory.DL2->prefetcher = (struct prefetch_t**) calloc(knobs->memory.DL2_num_PF,sizeof(*core->memory.DL2->prefetcher));
-    core->memory.DL2->num_prefetchers = knobs->memory.DL2_num_PF;
-    if(!core->memory.DL2->prefetcher)
-      fatal("couldn't calloc %s's prefetcher array",core->memory.DL2->name);
-    for(i=0;i<knobs->memory.DL2_num_PF;i++)
-      core->memory.DL2->prefetcher[i] = prefetch_create(knobs->memory.DL2PF_opt_str[i],core->memory.DL2);
-    if(core->memory.DL2->prefetcher[0] == NULL)
-      core->memory.DL2->num_prefetchers = knobs->memory.DL2_num_PF = 0;
-    core->memory.DL2->prefetch_on_miss = knobs->memory.DL2_PF_on_miss;
-
-    core->memory.DL2->PFF_size = knobs->memory.DL2_PFFsize;
-    core->memory.DL2->PFF = (cache_t::PFF_t*) calloc(knobs->memory.DL2_PFFsize,sizeof(*core->memory.DL2->PFF));
-    if(!core->memory.DL2->PFF)
-      fatal("failed to calloc %s's prefetch FIFO",core->memory.DL2->name);
-    core->memory.DL2->prefetch_threshold = knobs->memory.DL2_PFthresh;
-    core->memory.DL2->prefetch_max = knobs->memory.DL2_PFmax;
-    core->memory.DL2->PF_low_watermark = knobs->memory.DL2_low_watermark;
-    core->memory.DL2->PF_high_watermark = knobs->memory.DL2_high_watermark;
-    core->memory.DL2->PF_sample_interval = knobs->memory.DL2_WMinterval;
-
-    core->memory.DL2_bus = bus_create("DL2_bus", core->memory.DL2->linesize, &core->sim_cycle, 1);
-  }
-
-  /* per-core DL1 */
-  if(sscanf(knobs->memory.DL1_opt_str,"%[^:]:%d:%d:%d:%d:%d:%d:%c:%c:%c:%d:%d:%c",
-      name,&sets,&assoc,&linesize,&banks,&bank_width,&latency,&rp,&ap,&wp, &MSHR_entries, &MSHR_WB_entries, &wc) != 13)
-    fatal("invalid DL1 options: <name:sets:assoc:linesize:banks:bank-width:latency:repl-policy:alloc-policy:write-policy:num-MSHR:WB-buffers:write-combining>\n\t(%s)",knobs->memory.DL1_opt_str);
-
-  if(core->memory.DL2)
-    core->memory.DL1 = cache_create(core,name,CACHE_READWRITE,sets,assoc,linesize,
-                             rp,ap,wp,wc,banks,bank_width,latency,
-                             MSHR_entries,MSHR_WB_entries,1,core->memory.DL2,core->memory.DL2_bus,
-                             knobs->memory.DL1_magic_hit_rate);
-  else
-    core->memory.DL1 = cache_create(core,name,CACHE_READWRITE,sets,assoc,linesize,
-                             rp,ap,wp,wc,banks,bank_width,latency,
-                             MSHR_entries,MSHR_WB_entries,1,uncore->LLC,uncore->LLC_bus,
-                             knobs->memory.DL1_magic_hit_rate);
-  if(!knobs->memory.DL1_MSHR_cmd || !strcasecmp(knobs->memory.DL1_MSHR_cmd,"fcfs"))
-    core->memory.DL1->MSHR_cmd_order = NULL;
-  else
-  {
-    if(strlen(knobs->memory.DL1_MSHR_cmd) != 4)
-      fatal("-dl1:mshr_cmd must either be \"fcfs\" or contain all four of [RWBP]");
-    bool R_seen = false;
-    bool W_seen = false;
-    bool B_seen = false;
-    bool P_seen = false;
-
-    core->memory.DL1->MSHR_cmd_order = (enum cache_command*)calloc(4,sizeof(enum cache_command));
-    if(!core->memory.DL1->MSHR_cmd_order)
-      fatal("failed to calloc MSHR_cmd_order array for DL1");
-
-    for(int c=0;c<4;c++)
-    {
-      switch(toupper(knobs->memory.DL1_MSHR_cmd[c]))
-      {
-        case 'R': core->memory.DL1->MSHR_cmd_order[c] = CACHE_READ; R_seen = true; break;
-        case 'W': core->memory.DL1->MSHR_cmd_order[c] = CACHE_WRITE; W_seen = true; break;
-        case 'B': core->memory.DL1->MSHR_cmd_order[c] = CACHE_WRITEBACK; B_seen = true; break;
-        case 'P': core->memory.DL1->MSHR_cmd_order[c] = CACHE_PREFETCH; P_seen = true; break;
-        default: fatal("unknown cache operation '%c' for -dl1:mshr_cmd; must be one of [RWBP]");
-      }
-    }
-    if(!R_seen || !W_seen || !B_seen || !P_seen)
-      fatal("-dl1:mshr_cmd must contain *each* of [RWBP]");
-  }
-
-  core->memory.DL1->prefetcher = (struct prefetch_t**) calloc(knobs->memory.DL1_num_PF,sizeof(*core->memory.DL1->prefetcher));
-  core->memory.DL1->num_prefetchers = knobs->memory.DL1_num_PF;
-  if(!core->memory.DL1->prefetcher)
-    fatal("couldn't calloc %s's prefetcher array",core->memory.DL1->name);
-  for(i=0;i<knobs->memory.DL1_num_PF;i++)
-    core->memory.DL1->prefetcher[i] = prefetch_create(knobs->memory.DL1PF_opt_str[i],core->memory.DL1);
-  if(core->memory.DL1->prefetcher[0] == NULL)
-    core->memory.DL1->num_prefetchers = knobs->memory.DL1_num_PF = 0;
-  core->memory.DL1->prefetch_on_miss = knobs->memory.DL1_PF_on_miss;
-
-  core->memory.DL1->PFF_size = knobs->memory.DL1_PFFsize;
-  core->memory.DL1->PFF = (cache_t::PFF_t*) calloc(knobs->memory.DL1_PFFsize,sizeof(*core->memory.DL1->PFF));
-  if(!core->memory.DL1->PFF)
-    fatal("failed to calloc %s's prefetch FIFO",core->memory.DL1->name);
-  core->memory.DL1->prefetch_threshold = knobs->memory.DL1_PFthresh;
-  core->memory.DL1->prefetch_max = knobs->memory.DL1_PFmax;
-  core->memory.DL1->PF_low_watermark = knobs->memory.DL1_low_watermark;
-  core->memory.DL1->PF_high_watermark = knobs->memory.DL1_high_watermark;
-  core->memory.DL1->PF_sample_interval = knobs->memory.DL1_WMinterval;
-
-  core->memory.DL1->controller = controller_create(knobs->memory.DL1_controller_opt_str, core, core->memory.DL1);
-  if(core->memory.DL2 != NULL)
-    core->memory.DL2->controller = controller_create(knobs->memory.DL2_controller_opt_str, core, core->memory.DL2);
-
-  /* DTLB2 */
-  if(strcasecmp(knobs->memory.DTLB2_opt_str,"none") != 0)
+  if (strcasecmp(knobs->memory.DTLB2_opt_str, "none") != 0)
     fatal("DTLB2 not used in STM model");
-  core->memory.DTLB_bus = NULL;
-  core->memory.DTLB2 = NULL;
-
-  /* DTLB */
-  if(sscanf(knobs->memory.DTLB_opt_str,"%[^:]:%d:%d:%d:%d:%c:%d",
-      name,&sets,&assoc,&banks,&latency, &rp, &MSHR_entries) != 7)
-    fatal("invalid DTLB options: <name:sets:assoc:banks:latency:repl-policy:num-MSHR>");
-
-  if(core->memory.DL2)
-    core->memory.DTLB = cache_create(core,name,CACHE_READONLY,sets,assoc,1,rp,'w','t','n',banks,1,latency,MSHR_entries,4,1,core->memory.DL2,core->memory.DL2_bus,-1.0);
-  else
-    core->memory.DTLB = cache_create(core,name,CACHE_READONLY,sets,assoc,1,rp,'w','t','n',banks,1,latency,MSHR_entries,4,1,uncore->LLC,uncore->LLC_bus,-1.0);
-  core->memory.DTLB->MSHR_cmd_order = NULL;
-
-  core->memory.DTLB->controller = controller_create(knobs->memory.DTLB_controller_opt_str, core, core->memory.DTLB);
-  if(core->memory.DTLB2 != NULL)
-    core->memory.DTLB2->controller = controller_create(knobs->memory.DTLB2_controller_opt_str, core, core->memory.DTLB2);
+  create_caches(true);
 
   /*******************/
   /* execution ports */
@@ -376,24 +212,6 @@ core_exec_STM_t::core_exec_STM_t(struct core_t * arg_core):
   port = (core_exec_STM_t::exec_port_t*) calloc(knobs->exec.num_exec_ports,sizeof(*port));
   if(!port)
     fatal("couldn't calloc exec ports");
-
-  /***************************/
-  /* execution port bindings */
-  /***************************/
-  for(i=0;i<NUM_FU_CLASSES;i++)
-  {
-    int j;
-    knobs->exec.port_binding[i].ports = (int*) calloc(knobs->exec.port_binding[i].num_FUs,sizeof(int));
-    if(!knobs->exec.port_binding[i].ports) fatal("couldn't calloc %s ports", fu_name(static_cast<fu_class>(i)).c_str());
-    for(j=0;j<knobs->exec.port_binding[i].num_FUs;j++)
-    {
-      if((knobs->exec.fu_bindings[i][j] < 0) || (knobs->exec.fu_bindings[i][j] >= knobs->exec.num_exec_ports))
-        fatal("port binding for %s is negative or exceeds the execution width (should be > 0 and < %d)",
-               static_cast<fu_class>(i),
-               knobs->exec.num_exec_ports);
-      knobs->exec.port_binding[i].ports[j] = knobs->exec.fu_bindings[i][j];
-    }
-  }
 
   /***************************************/
   /* functional unit execution pipelines */
@@ -452,19 +270,39 @@ core_exec_STM_t::core_exec_STM_t(struct core_t * arg_core):
     }
   }
 
-  core->memory.mem_repeater = repeater_create(core->knobs->exec.repeater_opt_str, core, "MR1", core->memory.DL1);
-
   check_for_work = true;
+}
+
+core_exec_STM_t::~core_exec_STM_t() {
+    for (int i = 0; i < core->knobs->exec.num_exec_ports; i++) {
+        free(port[i].FU_types);
+        if (port[i].STQ) {
+            free(port[i].STQ->pipe);
+            free(port[i].STQ);
+        }
+        for (int j = 0; j < NUM_FU_CLASSES; j++) {
+            if (port[i].FU[j]) {
+                free(port[i].FU[j]->pipe);
+                free(port[i].FU[j]);
+            }
+        }
+    }
+    free(port);
+    free(STQ);
+    free(LDQ);
+    free(RS);
+
+    while (readyQ_free_pool) {
+        auto curr = readyQ_free_pool;
+        readyQ_free_pool = readyQ_free_pool->next;
+        free(curr);
+    }
 }
 
 void core_exec_STM_t::reg_stats(xiosim::stats::StatsDatabase* sdb) {
     int coreID = core->id;
 
-    stat_reg_note(sdb, "\n#### DATA CACHE STATS ####");
-    cache_reg_stats(sdb, core, core->memory.DL1);
-    cache_reg_stats(sdb, core, core->memory.DTLB);
-    cache_reg_stats(sdb, core, core->memory.DL2);
-    bus_reg_stats(sdb, core, core->memory.DL2_bus);
+    reg_dcache_stats(sdb);
 
     stat_reg_note(sdb, "#### EXEC STATS ####");
     auto sim_cycle_st = stat_find_core_stat<tick_t>(sdb, coreID, "sim_cycle");
@@ -822,7 +660,7 @@ void core_exec_STM_t::DL1_callback(void * const op)
 {
   struct uop_t * const uop = (struct uop_t*) op;
   struct core_t * const core = uop->core; // for use with zesto-assert
-  class core_exec_STM_t * E = (core_exec_STM_t*)uop->core->exec;
+  class core_exec_STM_t * E = (core_exec_STM_t*)uop->core->exec.get();
   if(uop->alloc.LDQ_index != -1)
   {
     zesto_assert(uop->exec.when_data_loaded == TICK_T_MAX,(void)0);
@@ -843,7 +681,7 @@ void core_exec_STM_t::DTLB_callback(void * const op)
 {
   struct uop_t * const uop = (struct uop_t*) op;
   struct core_t * const core = uop->core; 
-  struct core_exec_STM_t * const E = (core_exec_STM_t*)core->exec;
+  struct core_exec_STM_t * const E = (core_exec_STM_t*)core->exec.get();
   if(uop->alloc.LDQ_index != -1)
   {
     zesto_assert(uop->exec.when_addr_translated == TICK_T_MAX,(void)0);
@@ -995,11 +833,7 @@ void core_exec_STM_t::LDST_exec(void)
     }
   }
 
-  lk_lock(&cache_lock, core->id+1);
-  cache_process(core->memory.DTLB);
-  if(core->memory.DL2) cache_process(core->memory.DL2);
-  cache_process(core->memory.DL1);
-  lk_unlock(&cache_lock);
+  step_dcaches();
 }
 
 /* Schedule load uops to execute from the LDQ.  Load execution occurs in a two-step
@@ -1022,14 +856,14 @@ void core_exec_STM_t::LDQ_schedule(void)
         if(check_load_issue_conditions(LDQ[index].uop)) /* retval of true means load is predicted to be cleared for issue */
         {
           struct uop_t * uop = LDQ[index].uop;
-          if((cache_enqueuable(core->memory.DTLB, asid, memory::page_table_address(asid, uop->oracle.virt_addr))) &&
-             (cache_enqueuable(core->memory.DL1, asid, uop->oracle.virt_addr)) &&
+          if((cache_enqueuable(core->memory.DTLB.get(), asid, memory::page_table_address(asid, uop->oracle.virt_addr))) &&
+             (cache_enqueuable(core->memory.DL1.get(), asid, uop->oracle.virt_addr)) &&
              (port[uop->alloc.port_assignment].STQ->occupancy < port[uop->alloc.port_assignment].STQ->latency))
           {
             uop->exec.when_data_loaded = TICK_T_MAX;
             uop->exec.when_addr_translated = TICK_T_MAX;
-            cache_enqueue(core, core->memory.DTLB, NULL, CACHE_READ, asid, uop->Mop->fetch.PC, memory::page_table_address(asid, uop->oracle.virt_addr), uop->exec.action_id, 0, NO_MSHR, uop, DTLB_callback, NULL, NULL, get_uop_action_id);
-            cache_enqueue(core, core->memory.DL1, NULL, CACHE_READ, asid, uop->Mop->fetch.PC, uop->oracle.virt_addr, uop->exec.action_id, 0, NO_MSHR, uop, DL1_callback, NULL, translated_callback, get_uop_action_id);
+            cache_enqueue(core, core->memory.DTLB.get(), NULL, CACHE_READ, asid, uop->Mop->fetch.PC, memory::page_table_address(asid, uop->oracle.virt_addr), uop->exec.action_id, 0, NO_MSHR, uop, DTLB_callback, NULL, NULL, get_uop_action_id);
+            cache_enqueue(core, core->memory.DL1.get(), NULL, CACHE_READ, asid, uop->Mop->fetch.PC, uop->oracle.virt_addr, uop->exec.action_id, 0, NO_MSHR, uop, DL1_callback, NULL, translated_callback, get_uop_action_id);
 
             int insert_position = port[uop->alloc.port_assignment].STQ->occupancy+1;
             port[uop->alloc.port_assignment].STQ->pipe[insert_position].uop = uop;
@@ -1396,8 +1230,8 @@ bool core_exec_STM_t::STQ_deallocate_std(struct uop_t * const uop)
   int asid = core->asid;
 
   /* Store write back occurs here at commit. */
-  if(!cache_enqueuable(core->memory.DL1, asid, uop->oracle.virt_addr) ||
-     !cache_enqueuable(core->memory.DTLB, asid, memory::page_table_address(asid, uop->oracle.virt_addr)))
+  if(!cache_enqueuable(core->memory.DL1.get(), asid, uop->oracle.virt_addr) ||
+     !cache_enqueuable(core->memory.DTLB.get(), asid, memory::page_table_address(asid, uop->oracle.virt_addr)))
     return false;
 
   /* These are just dummy placeholders, but we need them
@@ -1419,8 +1253,8 @@ bool core_exec_STM_t::STQ_deallocate_std(struct uop_t * const uop)
   dl1_uop->exec.action_id = STQ[STQ_head].action_id;
   dtlb_uop->exec.action_id = dl1_uop->exec.action_id;
 
-  cache_enqueue(core, core->memory.DTLB, NULL, CACHE_READ, asid, uop->Mop->fetch.PC, memory::page_table_address(asid, uop->oracle.virt_addr), dtlb_uop->exec.action_id, 0, NO_MSHR, dtlb_uop, store_dtlb_callback, NULL, NULL, get_uop_action_id);
-  cache_enqueue(core, core->memory.DL1, NULL, CACHE_WRITE, asid, uop->Mop->fetch.PC, uop->oracle.virt_addr, dl1_uop->exec.action_id, 0, NO_MSHR, dl1_uop, store_dl1_callback, NULL, store_translated_callback, get_uop_action_id);
+  cache_enqueue(core, core->memory.DTLB.get(), NULL, CACHE_READ, asid, uop->Mop->fetch.PC, memory::page_table_address(asid, uop->oracle.virt_addr), dtlb_uop->exec.action_id, 0, NO_MSHR, dtlb_uop, store_dtlb_callback, NULL, NULL, get_uop_action_id);
+  cache_enqueue(core, core->memory.DL1.get(), NULL, CACHE_WRITE, asid, uop->Mop->fetch.PC, uop->oracle.virt_addr, dl1_uop->exec.action_id, 0, NO_MSHR, dl1_uop, store_dl1_callback, NULL, store_translated_callback, get_uop_action_id);
 
   STQ[STQ_head].std = NULL;
   STQ[STQ_head].translation_complete = false;

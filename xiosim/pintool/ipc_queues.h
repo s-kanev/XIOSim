@@ -31,6 +31,8 @@ void CheckIPCMessageQueue(bool isEarly, int caller_coreID);
  * by any process that want to send/receive IPC messages. */
 void InitIPCQueues(void);
 
+void DeinitIPCQueues(void);
+
 enum ipc_message_id_t {
     SLICE_START,
     SLICE_END,

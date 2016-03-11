@@ -55,6 +55,8 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
+#include <memory>
+
 class core_commit_t
 {
   enum commit_stall_t {CSTALL_NONE,      /* no stall */
@@ -106,6 +108,6 @@ class core_commit_t
   struct core_t * core;
 };
 
-class core_commit_t * commit_create(const char * commit_opt_string, struct core_t * core);
+std::unique_ptr<class core_commit_t> commit_create(const char * commit_opt_string, struct core_t * core);
 
 #endif /* ZESTO_COMMIT_INCLUDED */

@@ -9,7 +9,7 @@ if(!strcasecmp(COMPONENT_NAME,type))
 
   if(sscanf(opt_string,"%*[^:]:%f",&hit_rate) != 1)
     fatal("bad bpred options string %s (should be \"magic:hit_rate\")",opt_string);
-  return new bpred_magic_t(core, hit_rate);
+  return std::make_unique<bpred_magic_t>(core, hit_rate);
 }
 #else
 
@@ -28,12 +28,8 @@ class bpred_magic_t:public bpred_dir_t
   {
     init();
 
-    name = strdup(COMPONENT_NAME);
-    if(!name)
-      fatal("couldn't malloc magic name (strdup)");
-    type = strdup("magic hit rate");
-    if(!type)
-      fatal("couldn't malloc magic name (strdup)");
+    name = COMPONENT_NAME;
+    type = "magic hit rate";
 
     bits = 0;
   }

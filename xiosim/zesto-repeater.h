@@ -6,6 +6,8 @@
 #ifndef __ZESTO_REPEATER_H
 #define __ZESTO_REPEATER_H
 
+#include <memory>
+
 class repeater_t {
   public:
     struct core_t * core;
@@ -40,7 +42,7 @@ class repeater_t {
 };
 
 /* Initialize the repeater.  */
-class repeater_t * repeater_create(
+std::unique_ptr<class repeater_t>  repeater_create(
     const char * const opt_string,
     struct core_t * const core,
     const char * const name,

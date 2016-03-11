@@ -55,6 +55,8 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
+#include <memory>
+
 class core_fetch_t {
 
   public:
@@ -65,11 +67,12 @@ class core_fetch_t {
   bool fake_insn;       // Instruction that we artificially injected
   bool prev_insn_fake;  // Same for previously fetched instruction
   bool invalid; /* TRUE if oracle encounters an instruction it doesn't know */
-  class bpred_t * bpred;
+  std::unique_ptr<class bpred_t> bpred;
 
   /* constructor, stats registration */
   core_fetch_t(void);
   virtual ~core_fetch_t();
+  virtual void create_caches();
   virtual void reg_stats(xiosim::stats::StatsDatabase* sdb) = 0;
   virtual void update_occupancy(void) = 0;
 
@@ -109,6 +112,6 @@ class core_fetch_t {
 };
 
 
-class core_fetch_t * fetch_create(const char * fetch_opt_string, struct core_t * core);
+std::unique_ptr<class core_fetch_t> fetch_create(const char * fetch_opt_string, struct core_t * core);
 
 #endif /* ZESTO_FETCH_INCLUDED */

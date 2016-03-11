@@ -55,6 +55,8 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
+#include <memory>
+
 #include "statistic.h"
 #include "stat_database.h"
 #include "zesto-cache.h"
@@ -110,7 +112,7 @@ class MC_t
   virtual void print(FILE * const fp) = 0;
 };
 
-MC_t * MC_from_string(const char * const opt_string);
+std::unique_ptr<MC_t> MC_from_string(const char * const opt_string);
 
 #ifndef MC_assert
 #ifdef DEBUG

@@ -69,6 +69,16 @@ static void store_int_list(cfg_t* cfg, const char* attr_name, int* target, int* 
     }
 }
 
+/* Same as above, but supporting unlimited variable-length lists. */
+static std::vector<int> store_int_list(cfg_t* cfg, const char* attr_name) {
+    int num_entries = cfg_size(cfg, attr_name);
+    std::vector<int> res;
+    for (int i = 0; i < num_entries; i++) {
+        res.push_back(cfg_getnint(cfg, attr_name, i));
+    }
+    return res;
+}
+
 /* Stores a string list config value into a preallocated array.
  *
  * Params:
@@ -120,18 +130,38 @@ static void store_execution_unit_options(cfg_t* exec_opt,
     // target system, so we should not set any defaults.
     if (!exeu_opt)
         return;
-    store_int_list(exeu_opt,
-                   "port_binding",
-                   knobs->exec.fu_bindings[fu_type],
-                   &knobs->exec.port_binding[fu_type].num_FUs,
-                   MAX_EXEC_WIDTH);
+    knobs->exec.port_binding[fu_type].ports = store_int_list(exeu_opt, "port_binding");
+    knobs->exec.port_binding[fu_type].num_FUs = knobs->exec.port_binding[fu_type].ports.size();
+    if (knobs->exec.port_binding[fu_type].ports.size() == 0)
+        fatal("no port bindings for %s", exeu_name);
+    for (int port : knobs->exec.port_binding[fu_type].ports) {
+        if (port < 0 || port >= knobs->exec.num_exec_ports)
+            fatal("port binding for %s is negative or exceeds the execution width (should be > 0 "
+                  "and < %d)",
+                  exeu_name,
+                  knobs->exec.num_exec_ports);
+    }
     knobs->exec.latency[fu_type] = cfg_getint(exeu_opt, "latency");
     knobs->exec.issue_rate[fu_type] = cfg_getint(exeu_opt, "rate");
 }
 
+static void store_prefetcher_options(cfg_t* pf_opt, prefetcher_knobs_t* pf_knobs) {
+    store_str_list(pf_opt, "config", pf_knobs->pf_opt_str, &pf_knobs->num_pf, MAX_PREFETCHERS);
+    pf_knobs->pff_size = cfg_getint(pf_opt, "fifosize");
+    pf_knobs->pf_thresh = cfg_getint(pf_opt, "threshold");
+    pf_knobs->pf_max = cfg_getint(pf_opt, "max_outstanding_requests");
+    pf_knobs->pf_buffer_size = cfg_getint(pf_opt, "buffer");
+    pf_knobs->pf_filter_size = cfg_getint(pf_opt, "filter");
+    pf_knobs->pf_filter_reset = cfg_getint(pf_opt, "filter_reset");
+    pf_knobs->pf_on_miss = cfg_getbool(pf_opt, "on_miss_only");
+    pf_knobs->low_watermark = cfg_getfloat(pf_opt, "watermark_min");
+    pf_knobs->high_watermark = cfg_getfloat(pf_opt, "watermark_max");
+    pf_knobs->watermark_interval = cfg_getint(pf_opt, "watermark_sampling_interval");
+}
+
 static void store_fetch_options(cfg_t* fetch_opt, core_knobs_t* knobs) {
     cfg_t* icache_opt = cfg_getsec(fetch_opt, "icache_cfg");
-    cfg_t* prefetch_opt = cfg_getsec(icache_opt, "iprefetch_cfg");
+    cfg_t* icache_prefetch_opt = cfg_getsec(icache_opt, "iprefetch_cfg");
     cfg_t* itlb_opt = cfg_getsec(icache_opt, "itlb_cfg");
     cfg_t* branch_pred_opt = cfg_getsec(fetch_opt, "branch_pred_cfg");
     cfg_t* byte_queue_opt = cfg_getsec(fetch_opt, "byte_queue_cfg");
@@ -152,17 +182,8 @@ static void store_fetch_options(cfg_t* fetch_opt, core_knobs_t* knobs) {
     knobs->memory.IL1_opt_str = cfg_getstr(icache_opt, "config");
     knobs->memory.IL1_controller_opt_str = cfg_getstr(icache_opt, "coherency_controller");
     knobs->memory.IL1_magic_hit_rate = cfg_getfloat(icache_opt, "magic_hit_rate");
-    store_str_list(prefetch_opt, "config", knobs->memory.IL1PF_opt_str, &knobs->memory.IL1_num_PF,
-                   MAX_PREFETCHERS);
-    knobs->memory.IL1_PFFsize = cfg_getint(prefetch_opt, "fifosize");
-    knobs->memory.IL1_PF_buffer_size = cfg_getint(prefetch_opt, "buffer");
-    knobs->memory.IL1_PF_filter_size = cfg_getint(prefetch_opt, "filter");
-    knobs->memory.IL1_PF_filter_reset = cfg_getint(prefetch_opt, "filter_reset");
-    knobs->memory.IL1_PFthresh = cfg_getint(prefetch_opt, "threshold");
-    knobs->memory.IL1_PFmax = cfg_getint(prefetch_opt, "max_outstanding_requests");
-    knobs->memory.IL1_low_watermark = cfg_getfloat(prefetch_opt, "watermark_min");
-    knobs->memory.IL1_high_watermark = cfg_getfloat(prefetch_opt, "watermark_max");
-    knobs->memory.IL1_WMinterval = cfg_getint(prefetch_opt, "watermark_sampling_interval");
+    store_prefetcher_options(icache_prefetch_opt, &knobs->memory.IL1_pf);
+
     knobs->memory.ITLB_opt_str = cfg_getstr(itlb_opt, "config");
     knobs->memory.ITLB_controller_opt_str = cfg_getstr(itlb_opt, "coherency_controller");
 }
@@ -174,11 +195,11 @@ static void store_decode_options(cfg_t* decode_opt, core_knobs_t* knobs) {
     knobs->decode.width = cfg_getint(decode_opt, "width");
     knobs->decode.target_stage = cfg_getint(decode_opt, "branch_agen_stage");
     knobs->decode.branch_decode_limit = cfg_getint(decode_opt, "branch_decode_limit");
-    store_int_list(decode_opt,
-                   "decoder_max_uops",
-                   knobs->decode.decoders,
-                   &knobs->decode.num_decoder_specs,
-                   MAX_DECODE_WIDTH);
+    knobs->decode.max_uops = store_int_list(decode_opt, "decoder_max_uops");
+    if (knobs->decode.max_uops.size() && knobs->decode.max_uops.size() != (size_t)knobs->decode.width)
+        fatal("number of decoder_max_uops must be 0 or equal to decode pipeline width");
+    if (knobs->decode.max_uops.size() == 0)
+        knobs->decode.max_uops = std::vector<int>(knobs->decode.width, 0);
     knobs->decode.MS_latency = cfg_getint(decode_opt, "ucode_sequencer_latency");
     knobs->decode.uopQ_size = cfg_getint(decode_opt, "uop_queue_size");
     knobs->decode.fusion_mode.LOAD_OP = cfg_getbool(uop_fusion_opt, "load_comp_op");
@@ -221,29 +242,8 @@ static void store_exec_stage_options(cfg_t* exec_opt, core_knobs_t* knobs) {
     knobs->memory.DL2_controller_opt_str = cfg_getstr(l2_opt, "coherency_controller");
     knobs->memory.DL2_magic_hit_rate = cfg_getfloat(l2_opt, "magic_hit_rate");
 
-    store_str_list(dpf_opt, "config", knobs->memory.DL1PF_opt_str, &knobs->memory.DL1_num_PF,
-                   MAX_PREFETCHERS);
-    knobs->memory.DL1_PFFsize = cfg_getint(dpf_opt, "fifosize");
-    knobs->memory.DL1_PF_buffer_size = cfg_getint(dpf_opt, "buffer");
-    knobs->memory.DL1_PF_filter_size = cfg_getint(dpf_opt, "filter");
-    knobs->memory.DL1_PF_filter_reset = cfg_getint(dpf_opt, "filter_reset");
-    knobs->memory.DL1_PFthresh = cfg_getint(dpf_opt, "threshold");
-    knobs->memory.DL1_PFmax = cfg_getint(dpf_opt, "max_outstanding_requests");
-    knobs->memory.DL1_low_watermark = cfg_getfloat(dpf_opt, "watermark_min");
-    knobs->memory.DL1_high_watermark = cfg_getfloat(dpf_opt, "watermark_max");
-    knobs->memory.DL1_WMinterval = cfg_getint(dpf_opt, "watermark_sampling_interval");
-
-    store_str_list(l2pf_opt, "config", knobs->memory.DL2PF_opt_str, &knobs->memory.DL2_num_PF,
-                   MAX_PREFETCHERS);
-    knobs->memory.DL2_PFFsize = cfg_getint(l2pf_opt, "fifosize");
-    knobs->memory.DL2_PF_buffer_size = cfg_getint(l2pf_opt, "buffer");
-    knobs->memory.DL2_PF_filter_size = cfg_getint(l2pf_opt, "filter");
-    knobs->memory.DL2_PF_filter_reset = cfg_getint(l2pf_opt, "filter_reset");
-    knobs->memory.DL2_PFthresh = cfg_getint(l2pf_opt, "threshold");
-    knobs->memory.DL2_PFmax = cfg_getint(l2pf_opt, "max_outstanding_requests");
-    knobs->memory.DL2_low_watermark = cfg_getfloat(l2pf_opt, "watermark_min");
-    knobs->memory.DL2_high_watermark = cfg_getfloat(l2pf_opt, "watermark_max");
-    knobs->memory.DL2_WMinterval = cfg_getint(l2pf_opt, "watermark_sampling_interval");
+    store_prefetcher_options(dpf_opt, &knobs->memory.DL1_pf);
+    store_prefetcher_options(l2pf_opt, &knobs->memory.DL2_pf);
 
     knobs->memory.DTLB_opt_str = cfg_getstr(dtlb_opt, "config");
     knobs->memory.DTLB_controller_opt_str = cfg_getstr(dtlb_opt, "coherency_controller");
@@ -302,17 +302,8 @@ static void store_uncore_options(cfg_t* uncore_opt, uncore_knobs_t* knobs) {
     knobs->LLC_speed = cfg_getfloat(llccache_opt, "clock");
     knobs->LLC_controller_str = cfg_getstr(llccache_opt, "coherency_controller");
     knobs->LLC_magic_hit_rate = cfg_getfloat(llccache_opt, "magic_hit_rate");
-    store_str_list(llcprefetch_opt, "config", knobs->LLC_PF_opt_str, &knobs->LLC_num_PF,
-                   MAX_PREFETCHERS);
-    knobs->LLC_PFFsize = cfg_getint(llcprefetch_opt, "fifosize");
-    knobs->LLC_PF_buffer_size = cfg_getint(llcprefetch_opt, "buffer");
-    knobs->LLC_PF_filter_size = cfg_getint(llcprefetch_opt, "filter");
-    knobs->LLC_PF_filter_reset = cfg_getint(llcprefetch_opt, "filter_reset");
-    knobs->LLC_PFthresh = cfg_getint(llcprefetch_opt, "threshold");
-    knobs->LLC_PFmax = cfg_getint(llcprefetch_opt, "max_outstanding_requests");
-    knobs->LLC_low_watermark = cfg_getfloat(llcprefetch_opt, "watermark_min");
-    knobs->LLC_high_watermark = cfg_getfloat(llcprefetch_opt, "watermark_max");
-    knobs->LLC_WMinterval = cfg_getint(llcprefetch_opt, "watermark_sampling_interval");
+
+    store_prefetcher_options(llcprefetch_opt, &knobs->LLC_pf);
 
     knobs->fsb_width = cfg_getint(fsb_opt, "width");
     knobs->fsb_DDR = cfg_getbool(fsb_opt, "ddr");

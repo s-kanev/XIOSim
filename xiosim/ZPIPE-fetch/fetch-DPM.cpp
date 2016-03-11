@@ -6,7 +6,7 @@
 #ifdef ZESTO_PARSE_ARGS
   if(!strcasecmp(fetch_opt_string,"DPM")
 		  || !strcasecmp(fetch_opt_string,"IO-DPM"))
-    return new core_fetch_DPM_t(core);
+    return std::make_unique<class core_fetch_DPM_t>(core);
 #else
 class core_fetch_DPM_t:public core_fetch_t
 {
@@ -25,6 +25,7 @@ class core_fetch_DPM_t:public core_fetch_t
 
   /* constructor, stats registration */
   core_fetch_DPM_t(struct core_t * const core);
+  ~core_fetch_DPM_t();
   virtual void reg_stats(xiosim::stats::StatsDatabase* sdb);
   virtual void update_occupancy(void);
 
@@ -120,19 +121,16 @@ core_fetch_DPM_t::core_fetch_DPM_t(struct core_t * const arg_core):
   byteQ_num(0),
   IQ_num(0),
   IQ_uop_num(0),
-  IQ_eff_uop_num(0)
+  IQ_eff_uop_num(0),
+  stall_reason(FSTALL_SYSCALL)
 {
   struct core_knobs_t * knobs = arg_core->knobs;
   core = arg_core;
 
   /* must come after exec_init()! */
-  char name[256];
-  int sets, assoc, linesize, latency, banks, bank_width, MSHR_entries;
-  char rp;
-  int i;
 
   /* bpred */
-  bpred = new bpred_t(
+  bpred = std::make_unique<bpred_t>(
       core,
       knobs->fetch.num_bpred_components,
       knobs->fetch.bpred_opt_str,
@@ -149,54 +147,7 @@ core_fetch_DPM_t::core_fetch_DPM_t(struct core_t * const arg_core):
       fatal("couldn't calloc jeclear pipe");
   }
 
-  /* IL1 */
-  if(sscanf(knobs->memory.IL1_opt_str,"%[^:]:%d:%d:%d:%d:%d:%d:%c:%d",
-      name,&sets,&assoc,&linesize,&banks,&bank_width,&latency, &rp, &MSHR_entries) != 9)
-    fatal("invalid IL1 options: <name:sets:assoc:linesize:banks:bank_width:latency:repl-policy:num-MSHR>\n\t(%s)",knobs->memory.IL1_opt_str);
-
-  /* the write-related options don't matter since the IL1 will(should) never see any stores */
-  if(core->memory.DL2)
-    core->memory.IL1 = cache_create(core,name,CACHE_READONLY,sets,assoc,linesize,rp,'w','t','n',banks,bank_width,latency,MSHR_entries,4,1,core->memory.DL2,core->memory.DL2_bus,knobs->memory.IL1_magic_hit_rate);
-  else
-    core->memory.IL1 = cache_create(core,name,CACHE_READONLY,sets,assoc,linesize,rp,'w','t','n',banks,bank_width,latency,MSHR_entries,4,1,uncore->LLC,uncore->LLC_bus,knobs->memory.IL1_magic_hit_rate);
-  core->memory.IL1->MSHR_cmd_order = NULL;
-
-  core->memory.IL1->PFF_size = knobs->memory.IL1_PFFsize;
-  core->memory.IL1->PFF = (cache_t::PFF_t *) calloc(knobs->memory.IL1_PFFsize,sizeof(*core->memory.IL1->PFF));
-  if(!core->memory.IL1->PFF)
-    fatal("failed to calloc %s's prefetch FIFO",core->memory.IL1->name);
-  prefetch_buffer_create(core->memory.IL1,knobs->memory.IL1_PF_buffer_size);
-  prefetch_filter_create(core->memory.IL1,knobs->memory.IL1_PF_filter_size,knobs->memory.IL1_PF_filter_reset);
-  core->memory.IL1->prefetch_threshold = knobs->memory.IL1_PFthresh;
-  core->memory.IL1->prefetch_max = knobs->memory.IL1_PFmax;
-  core->memory.IL1->PF_low_watermark = knobs->memory.IL1_low_watermark;
-  core->memory.IL1->PF_high_watermark = knobs->memory.IL1_high_watermark;
-  core->memory.IL1->PF_sample_interval = knobs->memory.IL1_WMinterval;
-
-  core->memory.IL1->prefetcher = (struct prefetch_t **) calloc(knobs->memory.IL1_num_PF,sizeof(*core->memory.IL1->prefetcher));
-  core->memory.IL1->num_prefetchers = knobs->memory.IL1_num_PF;
-  if(!core->memory.IL1->prefetcher)
-    fatal("couldn't calloc %s's prefetcher array",core->memory.IL1->name);
-  for(i=0;i<knobs->memory.IL1_num_PF;i++)
-    core->memory.IL1->prefetcher[i] = prefetch_create(knobs->memory.IL1PF_opt_str[i],core->memory.IL1);
-  if(core->memory.IL1->prefetcher[0] == NULL)
-    core->memory.IL1->num_prefetchers = knobs->memory.IL1_num_PF = 0;
-  core->memory.IL1->prefetch_on_miss = knobs->memory.IL1_PF_on_miss;
-
-  /* ITLB */
-  if(sscanf(knobs->memory.ITLB_opt_str,"%[^:]:%d:%d:%d:%d:%c:%d",
-      name,&sets,&assoc,&banks,&latency, &rp, &MSHR_entries) != 7)
-    fatal("invalid ITLB options: <name:sets:assoc:banks:latency:repl-policy:num-MSHR>");
-
-  if(core->memory.DL2)
-    core->memory.ITLB = cache_create(core,name,CACHE_READONLY,sets,assoc,1,rp,'w','t','n',banks,1,latency,MSHR_entries,4,1,core->memory.DL2,core->memory.DL2_bus, -1.0);
-  else
-    core->memory.ITLB = cache_create(core,name,CACHE_READONLY,sets,assoc,1,rp,'w','t','n',banks,1,latency,MSHR_entries,4,1,uncore->LLC,uncore->LLC_bus, -1.0);
-  core->memory.ITLB->MSHR_cmd_order = NULL;
-
-  core->memory.IL1->controller = controller_create(knobs->memory.IL1_controller_opt_str, core, core->memory.IL1);
-  core->memory.ITLB->controller = controller_create(knobs->memory.ITLB_controller_opt_str, core, core->memory.ITLB);
-
+  create_caches();
 
   byteQ = (byteQ_entry_t*) calloc(knobs->fetch.byteQ_size,sizeof(*byteQ));
   byteQ_head = byteQ_tail = 0;
@@ -209,7 +160,7 @@ core_fetch_DPM_t::core_fetch_DPM_t(struct core_t * const arg_core):
   if(!pipe)
     fatal("couldn't calloc predecode pipe");
 
-  for(i=0;i<knobs->fetch.depth;i++)
+  for(int i=0;i<knobs->fetch.depth;i++)
   {
     pipe[i] = (struct Mop_t**) calloc(knobs->fetch.width,sizeof(**pipe));
     if(!pipe[i])
@@ -220,7 +171,19 @@ core_fetch_DPM_t::core_fetch_DPM_t(struct core_t * const arg_core):
   if(!IQ)
     fatal("couldn't calloc decode instruction queue");
   IQ_head = IQ_tail = 0;
+}
 
+core_fetch_DPM_t::~core_fetch_DPM_t() {
+    free(IQ);
+
+    for (int i = 0; i < core->knobs->fetch.depth; i++) {
+        free(pipe[i]);
+    }
+    free(pipe);
+
+    free(byteQ);
+
+    free(jeclear_pipe);
 }
 
 void core_fetch_DPM_t::reg_stats(xiosim::stats::StatsDatabase* sdb) {
@@ -230,8 +193,8 @@ void core_fetch_DPM_t::reg_stats(xiosim::stats::StatsDatabase* sdb) {
     bpred->reg_stats(sdb, core);
 
     stat_reg_note(sdb, "\n#### INST CACHE STATS ####");
-    cache_reg_stats(sdb, core, core->memory.IL1);
-    cache_reg_stats(sdb, core, core->memory.ITLB);
+    cache_reg_stats(sdb, core, core->memory.IL1.get());
+    cache_reg_stats(sdb, core, core->memory.ITLB.get());
 
     stat_reg_note(sdb, "\n#### FETCH STATS ####");
     auto sim_cycle_st = stat_find_core_stat<tick_t>(sdb, coreID, "sim_cycle");
@@ -425,8 +388,8 @@ void core_fetch_DPM_t::post_fetch(void)
   /* This gets processed here, so that demand misses from the DL1 get higher
      priority for accessing the L2 */
   lk_lock(&cache_lock, core->id+1);
-  cache_process(core->memory.ITLB);
-  cache_process(core->memory.IL1);
+  cache_process(core->memory.ITLB.get());
+  cache_process(core->memory.IL1.get());
   lk_unlock(&cache_lock);
 
   /* check predecode pipe's last stage for instructions to put into the IQ */
@@ -539,9 +502,9 @@ void core_fetch_DPM_t::pre_fetch(void)
   {
     if(byteQ[index].when_fetch_requested == TICK_T_MAX)
     {
-      if(cache_enqueuable(core->memory.IL1, asid, byteQ[index].addr))
+      if(cache_enqueuable(core->memory.IL1.get(), asid, byteQ[index].addr))
       {
-        cache_enqueue(core, core->memory.IL1, NULL, CACHE_READ, asid, byteQ[index].addr, byteQ[index].addr, byteQ[index].action_id, 0, NO_MSHR, &byteQ[index], IL1_callback, NULL, translated_callback, get_byteQ_action_id);
+        cache_enqueue(core, core->memory.IL1.get(), NULL, CACHE_READ, asid, byteQ[index].addr, byteQ[index].addr, byteQ[index].action_id, 0, NO_MSHR, &byteQ[index], IL1_callback, NULL, translated_callback, get_byteQ_action_id);
         byteQ[index].when_fetch_requested = core->sim_cycle;
         break;
       }
@@ -554,9 +517,9 @@ void core_fetch_DPM_t::pre_fetch(void)
   {
     if(byteQ[index].when_translation_requested == TICK_T_MAX)
     {
-      if(cache_enqueuable(core->memory.ITLB, asid, memory::page_table_address(asid, byteQ[index].addr)))
+      if(cache_enqueuable(core->memory.ITLB.get(), asid, memory::page_table_address(asid, byteQ[index].addr)))
       {
-        cache_enqueue(core, core->memory.ITLB, NULL, CACHE_READ, 0, asid, memory::page_table_address(asid, byteQ[index].addr), byteQ[index].action_id, 0, NO_MSHR, &byteQ[index], ITLB_callback, NULL, NULL, get_byteQ_action_id);
+        cache_enqueue(core, core->memory.ITLB.get(), NULL, CACHE_READ, 0, asid, memory::page_table_address(asid, byteQ[index].addr), byteQ[index].action_id, 0, NO_MSHR, &byteQ[index], ITLB_callback, NULL, NULL, get_byteQ_action_id);
         byteQ[index].when_translation_requested = core->sim_cycle;
         break;
       }

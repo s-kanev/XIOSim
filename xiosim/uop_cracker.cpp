@@ -23,37 +23,55 @@ namespace x86 {
  * allocating anything that's not a uop. Note that it's ok to use it for uops because
  * the action_id field will still be at the same offset, and every structure will
  * drop the cancelled uop once it sees a mismatch.
+ * TODO(skanev): move this pool to a separate file.
  */
-static thread_local std::list<uop_t*> uop_free_lists[MAX_NUM_UOPS + 1];
+class uop_pool_t {
+  public:
+    struct uop_t* get_uop_array(const size_t num_uops) {
+        xiosim_assert(num_uops > 0 && num_uops <= MAX_NUM_UOPS);
+        auto& free_list = uop_free_lists[num_uops];
 
-struct uop_t* get_uop_array(const size_t num_uops) {
-    xiosim_assert(num_uops > 0 && num_uops <= MAX_NUM_UOPS);
-    auto& free_list = uop_free_lists[num_uops];
-
-    void* space = nullptr;
-    if (free_list.empty()) {
-        /* Allocate aligned storage for the uop array. */
-        if (posix_memalign(&space, alignof(struct uop_t), num_uops * sizeof(struct uop_t)))
-            fatal("Memory allocation failed.");
-    } else {
-        /* We have an appropriate free list entry for reuse. */
-        space = free_list.front();
-        free_list.pop_front();
+        void* space = nullptr;
+        if (free_list.empty()) {
+            /* Allocate aligned storage for the uop array. */
+            if (posix_memalign(&space, alignof(struct uop_t), num_uops * sizeof(struct uop_t)))
+                fatal("Memory allocation failed.");
+        } else {
+            /* We have an appropriate free list entry for reuse. */
+            space = free_list.front();
+            free_list.pop_front();
+        }
+        /* Regardless, construct our brand new uops. */
+        return new (space) uop_t[num_uops];
     }
-    /* Regardless, construct our brand new uops. */
-    return new (space) uop_t[num_uops];
-}
 
-void return_uop_array(struct uop_t* p, const size_t num_uops) {
-    xiosim_assert(num_uops > 0 && num_uops <= MAX_NUM_UOPS);
-    /* Make sure we destruct all uops. */
-    for (size_t i = 0; i < num_uops; i++)
-        p[i].~uop_t();
+    void return_uop_array(struct uop_t* p, const size_t num_uops) {
+        xiosim_assert(num_uops > 0 && num_uops <= MAX_NUM_UOPS);
+        /* Make sure we destruct all uops. */
+        for (size_t i = 0; i < num_uops; i++)
+            p[i].~uop_t();
 
-    /* Add uop array to appropriate free list. */
-    auto& free_list = uop_free_lists[num_uops];
-    free_list.push_front(p);
+        /* Add uop array to appropriate free list. */
+        auto& free_list = uop_free_lists[num_uops];
+        free_list.push_front(p);
+    }
+
+    ~uop_pool_t() {
+        for (size_t i = 0; i <= MAX_NUM_UOPS; i++) {
+            for (uop_t* ptr : uop_free_lists[i]) {
+                free(ptr);
+            }
+        }
+    }
+
+  protected:
+    std::list<uop_t*> uop_free_lists[MAX_NUM_UOPS + 1];
+};
+static thread_local uop_pool_t uop_pool;
+struct uop_t* get_uop_array(const size_t num_uops) {
+    return uop_pool.get_uop_array(num_uops);
 }
+void return_uop_array(uop_t* p, const size_t num_uops) { uop_pool.return_uop_array(p, num_uops); }
 
 static list<xed_reg_enum_t> get_registers_read(const struct Mop_t* Mop);
 static list<xed_reg_enum_t> get_registers_written(const struct Mop_t* Mop);

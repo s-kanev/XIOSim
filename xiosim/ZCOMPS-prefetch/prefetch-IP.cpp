@@ -14,7 +14,7 @@ if(!strcasecmp(COMPONENT_NAME,type))
   int last_prefetch_bits;
   if(sscanf(opt_string,"%*[^:]:%d:%d:%d:%d",&num_entries,&last_addr_bits,&last_stride_bits,&last_prefetch_bits) != 4)
     fatal("bad %s prefetcher options string %s (should be \"IP:num_entries:addr-bits:stride-bits:last-PF-bits\")",cp->name,opt_string);
-  return new prefetch_IP_t(cp,num_entries,last_addr_bits,last_stride_bits,last_prefetch_bits);
+  return std::make_unique<prefetch_IP_t>(cp, num_entries, last_addr_bits, last_stride_bits, last_prefetch_bits);
 }
 #else
 

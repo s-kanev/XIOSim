@@ -21,7 +21,7 @@ if(!strcasecmp(COMPONENT_NAME,type))
 
   if(sscanf(opt_string,"%*[^:]:%[^:]:%d:%d:%d:%d:%d:%d:%d",name,&B_size,&L_size,&L_hist_len,&L_hist_size,&L_tag_size,&G_size,&G_tag_size) != 8)
     fatal("bad bpred options string %s (should be \"blg:name:B_size:L_size:L_hist_len:L_hist_size:L_tag_size:G_size:G_tag_size\")",opt_string);
-  return new bpred_blg_t(core,name,B_size,L_size,L_hist_len,L_hist_size,L_tag_size,G_size,G_tag_size);
+  return std::make_unique<bpred_blg_t>(core,name,B_size,L_size,L_hist_len,L_hist_size,L_tag_size,G_size,G_tag_size);
 }
 #else
 
@@ -103,12 +103,8 @@ class bpred_blg_t:public bpred_dir_t
     CHECK_PPOW2(arg_G_size);
     CHECK_POS(arg_G_tag_size);
 
-    name = strdup(arg_name);
-    if(!name)
-      fatal("couldn't malloc blg name (strdup)");
-    type = strdup(COMPONENT_NAME);
-    if(!type)
-      fatal("couldn't malloc blg type (strdup)");
+    name = arg_name;
+    type = COMPONENT_NAME;
 
     B_size = arg_B_size;
     B_mask = arg_B_size-1;

@@ -25,6 +25,9 @@ const int DO_NOT_TRANSLATE = -1;
 /* initialize memory system  */
 void init(int num_processes);
 
+/* clean up */
+void deinit();
+
 /* register memory system-specific statistics */
 void reg_stats(xiosim::stats::StatsDatabase* sdb);
 

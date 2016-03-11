@@ -13,7 +13,7 @@ if(!strcasecmp("mcfarling",type))
 
   if(sscanf(opt_string,"%*[^:]:%[^:]:%d",name,&num_entries) != 2)
     fatal("bad fusion options string %s (should be \"mcfarling:name:num_entries\")",opt_string);
-  return new fusion_mcfarling_t(name,num_pred,num_entries);
+  return std::make_unique<fusion_mcfarling_t>(name,num_pred,num_entries);
 }
 #else
 
@@ -39,12 +39,8 @@ class fusion_mcfarling_t:public fusion_t
     if(arg_num_pred != 2)
       fatal("mcfarling fusion only valid for two component/direction predictors");
 
-    name = strdup(arg_name);
-    if(!name)
-      fatal("couldn't malloc fusion mcfarling name (strdup)");
-    type = strdup("McFarling tournament selection");
-    if(!type)
-      fatal("couldn't malloc fusion mcfarling type (strdup)");
+    name = arg_name;
+    type = "McFarling tournament selection";
 
     num_pred = arg_num_pred;
     meta_size = arg_meta_size;

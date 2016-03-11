@@ -57,6 +57,13 @@ void init(int num_processes)
     memset(brk_point, 0, num_processes * sizeof(brk_point[0]));
 }
 
+void deinit()
+{
+    delete[] brk_point;
+    delete[] page_count;
+    delete[] page_tables;
+}
+
 /* We allocate physical pages to virtual pages on a
  * first-come-first-serve basis. Seems like linux frowns upon
  * page coloring, so should be reasonably accurate. */

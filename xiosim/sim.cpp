@@ -158,6 +158,16 @@ void deinit() {
                     i,
                     cores[i]->stat.oracle_unknown_insn,
                     cores[i]->stat.oracle_total_insn);
+
+    for (int i = 0; i < system_knobs.num_cores; i++) {
+        delete cores[i];
+    }
+    free(cores);
+
+    xiosim::memory::deinit();
+
+    delete sim_sdb;
+    delete rtp_sdb;
 }
 
 /* initialize core state, etc. - called AFTER config parameters have been parsed */
@@ -181,7 +191,7 @@ static void create_modules(void) {
     repeater_init(core_knobs.exec.repeater_opt_str);
 
     for (int i = 0; i < system_knobs.num_cores; i++) {
-        cores[i]->oracle = new core_oracle_t(cores[i]);
+        cores[i]->oracle = std::make_unique<class core_oracle_t>(cores[i]);
         cores[i]->commit = commit_create(core_knobs.model, cores[i]);
         cores[i]->exec = exec_create(core_knobs.model, cores[i]);
         cores[i]->alloc = alloc_create(core_knobs.model, cores[i]);

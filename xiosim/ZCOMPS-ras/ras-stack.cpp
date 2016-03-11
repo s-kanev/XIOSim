@@ -11,7 +11,7 @@ if(!strcasecmp(COMPONENT_NAME,type))
   int size;
   if(sscanf(opt_string,"%*[^:]:%[^:]:%d",name,&size) != 2)
     fatal("bad ras options string %s (should be \"stack:name:size\")",opt_string);
-  return new RAS_stack_t(name,size);
+  return std::make_unique<RAS_stack_t>(name,size);
 }
 #else
 
@@ -45,20 +45,16 @@ class RAS_stack_t:public RAS_t
 
     head = 0;
 
-    name = strdup(arg_name);
-    if(!name)
-      fatal("couldn't malloc stack name (strdup)");
+    name = arg_name;
+    type = "finite RAS";
 
     bits = size*8*sizeof(md_addr_t);
-    type = strdup("finite RAS");
   }
 
   /* DESTROY */
   ~RAS_stack_t()
   {
     free(stack); stack = NULL;
-    free(name); name = NULL;
-    free(type); type = NULL;
   }
 
   int get_size(void)

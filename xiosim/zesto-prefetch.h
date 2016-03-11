@@ -55,6 +55,8 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
+#include <memory>
+
 #include "zesto-structs.h"
 #include "zesto-cache.h"
 
@@ -77,6 +79,6 @@ class prefetch_t
 };
 
 /* Create a new prefetcher */
-class prefetch_t * prefetch_create(const char * const, struct cache_t * const);
+std::unique_ptr<class prefetch_t> prefetch_create(const char * const, struct cache_t * const);
 
 #endif /* ZESTO_PREFETCH_INCLUDED */

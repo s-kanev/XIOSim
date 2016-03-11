@@ -16,7 +16,7 @@ if(!strcasecmp(COMPONENT_NAME,type))
 
   if(sscanf(opt_string,"%*[^:]:%[^:]:%d:%d:%d:%d",name,&gbhr_width,&l1_size,&his_width,&top_size) != 5)
     fatal("bad bpred options string %s (should be \"alloyedperceptron:name:gbhr_width:l1_size:lhis_width:top_size\")",opt_string);
-  return new bpred_alloyedperceptron_t(core,name,gbhr_width,l1_size,his_width,top_size);
+  return std::make_unique<bpred_alloyedperceptron_t>(core,name,gbhr_width,l1_size,his_width,top_size);
 }
 #else
 
@@ -78,12 +78,8 @@ class bpred_alloyedperceptron_t:public bpred_dir_t
     CHECK_NNEG(arg_lhistory_length);
     CHECK_NNEG(arg_top_size);
 
-    name = strdup(arg_name);
-    if(!name)
-      fatal("couldn't malloc alloyedperceptron name (strdup)");
-    type = strdup(COMPONENT_NAME);
-    if(!type)
-      fatal("couldn't malloc alloyedperceptron type (strdup)");
+    name = arg_name;
+    type = COMPONENT_NAME;
 
     bht_size = arg_bht_size;
     bht_mask = arg_bht_size-1;
@@ -299,11 +295,11 @@ class bpred_alloyedperceptron_t:public bpred_dir_t
     char buf[256];
     char buf2[256];
 
-    sprintf(buf,"c%d.%s.threshold",id,name);
-    sprintf(buf2,"%s training threshold",type);
+    sprintf(buf,"c%d.%s.threshold",id,name.c_str());
+    sprintf(buf2,"%s training threshold",type.c_str());
     stat_reg_int(sdb, true, buf, buf2, &threshold, threshold, FALSE, NULL);
-    sprintf(buf,"c%d.%s.weight_width",id,name);
-    sprintf(buf2,"%s weight/counter width in bits",type);
+    sprintf(buf,"c%d.%s.weight_width",id,name.c_str());
+    sprintf(buf2,"%s weight/counter width in bits",type.c_str());
     stat_reg_int(sdb, true, buf, buf2, &weight_width, weight_width, FALSE, NULL);
   }
 

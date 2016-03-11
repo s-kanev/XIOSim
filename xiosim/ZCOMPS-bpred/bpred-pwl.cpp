@@ -15,7 +15,7 @@ if(!strcasecmp(COMPONENT_NAME,type))
 
   if(sscanf(opt_string,"%*[^:]:%[^:]:%d:%d:%d:%d",name,&l1_size,&his_width,&top_size,&pc_bits) != 5)
     fatal("bad bpred options string %s (should be \"pwl:name:l1_size:his_width:top_size:pc-bits\")",opt_string);
-  return new bpred_pwl_t(core,name,l1_size,his_width,top_size,pc_bits);
+  return std::make_unique<bpred_pwl_t>(core,name,l1_size,his_width,top_size,pc_bits);
 }
 #else
 
@@ -76,12 +76,8 @@ class bpred_pwl_t:public bpred_dir_t
     CHECK_PPOW2(arg_bht_size);
     CHECK_NNEG(arg_history_length);
 
-    name = strdup(arg_name);
-    if(!name)
-      fatal("couldn't malloc pwl name (strdup)");
-    type = strdup(COMPONENT_NAME);
-    if(!type)
-      fatal("couldn't malloc pwl type (strdup)");
+    name = arg_name;
+    type = COMPONENT_NAME;
 
     pc_bits = arg_pc_bits;
     pc_mask = (1<<arg_pc_bits)-1;
@@ -252,11 +248,11 @@ class bpred_pwl_t:public bpred_dir_t
     char buf[256];
     char buf2[256];
 
-    sprintf(buf,"c%d.%s.threshold",id,name);
-    sprintf(buf2,"%s training threshold",type);
+    sprintf(buf,"c%d.%s.threshold",id,name.c_str());
+    sprintf(buf2,"%s training threshold",type.c_str());
     stat_reg_int(sdb, true, buf, buf2, &theta, theta, FALSE, NULL);
-    sprintf(buf,"c%d.%s.weight_width",id,name);
-    sprintf(buf2,"%s weight/counter width in bits",type);
+    sprintf(buf,"c%d.%s.weight_width",id,name.c_str());
+    sprintf(buf2,"%s weight/counter width in bits",type.c_str());
     stat_reg_int(sdb, true, buf, buf2, &weight_width, weight_width, FALSE, NULL);
   }
 

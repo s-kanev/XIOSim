@@ -9,7 +9,7 @@
  */
 handshake_container_t const& shadow_MopQ_t::get_shadow_Mop(const struct Mop_t* Mop) {
     struct core_t* core = Mop->core;
-    core_oracle_t* oracle = core->oracle;
+    core_oracle_t* oracle = core->oracle.get();
 
     int Mop_ind = oracle->get_index(Mop);
     int from_head = (Mop_ind - oracle->MopQ_head) & (oracle->MopQ_size - 1);

@@ -17,7 +17,7 @@ if(!strcasecmp(COMPONENT_NAME,type))
 
   if(sscanf(opt_string,"%*[^:]:%[^:]:%d:%d:%d:%d:%d:%d",name,&num_tables,&bim_size,&table_size,&tag_width,&first_length,&last_length) != 7)
     fatal("bad bpred options string %s (should be \"tage:name:num-tables:bim-size:table-size:tag-width:first-hist-length:last-hist-length\")",opt_string);
-  return new bpred_tage_t(core,name,num_tables,bim_size,table_size,tag_width,first_length,last_length);
+  return std::make_unique<bpred_tage_t>(core,name,num_tables,bim_size,table_size,tag_width,first_length,last_length);
 }
 #else
 
@@ -163,12 +163,8 @@ class bpred_tage_t:public bpred_dir_t
     for(i=0;i<8;i++)
       bhr[i] = 0;
 
-    name = strdup(arg_name);
-    if(!name)
-      fatal("couldn't malloc tage name (strdup)");
-    type = strdup(COMPONENT_NAME);
-    if(!type)
-      fatal("couldn't malloc tage type (strdup)");
+    name = arg_name;
+    type = COMPONENT_NAME;
 
     num_tables = arg_num_tables;
     table_size = arg_table_size;
@@ -472,8 +468,8 @@ class bpred_tage_t:public bpred_dir_t
       char buf[256];
       char buf2[256];
 
-      sprintf(buf,"c%d.%s.uses%d",id,name,i);
-      sprintf(buf2,"predictions made with %s's T[%d]",name,i);
+      sprintf(buf,"c%d.%s.uses%d",id,name.c_str(),i);
+      sprintf(buf2,"predictions made with %s's T[%d]",name.c_str(),i);
       stat_reg_counter(sdb, true, buf, buf2, &Tuses[i], 0, TRUE, NULL);
     }
   }

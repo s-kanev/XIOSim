@@ -86,7 +86,7 @@ core_commit_t::~core_commit_t()
 #include "xiosim/ZPIPE-commit.list.h"
 
 
-class core_commit_t * commit_create(const char * commit_opt_string, struct core_t * core)
+std::unique_ptr<class core_commit_t> commit_create(const char * commit_opt_string, struct core_t * core)
 {
 #define ZESTO_PARSE_ARGS
 #include "xiosim/ZPIPE-commit.list.h"

@@ -2,7 +2,7 @@
 
 #ifdef ZESTO_PARSE_ARGS
   if(!strcasecmp(opt_string, "none"))
-    return new vf_controller_none_t(core);
+    return std::make_unique<vf_controller_none_t>(core);
 #else
 
 class vf_controller_none_t : public vf_controller_t {

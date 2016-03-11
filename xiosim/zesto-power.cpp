@@ -357,7 +357,7 @@ void core_power_t::translate_params(system_core *core_params, system_L2 *L2_para
       core_params->BTB.BTB_config[5] = 1; //latency
     }
 
-    class bpred_dir_t *pred = core->fetch->bpred->get_dir_bpred()[0];
+    auto pred = core->fetch->bpred->get_dir_bpred()[0].get();
     core_params->predictor.local_predictor_entries  = pred->get_local_size();
     core_params->predictor.local_predictor_size[0]  = pred->get_local_width(0);
     core_params->predictor.local_predictor_size[1]  = pred->get_local_width(1);
@@ -507,12 +507,7 @@ core_power_t::core_power_t(struct core_t * _core):
 {
 }
 
-/* default destructor */
-core_power_t::~core_power_t(void)
-{
-}
-
-class core_power_t * power_create(const char * power_opt_string, struct core_t * core)
+std::unique_ptr<class core_power_t> power_create(const char * power_opt_string, struct core_t * core)
 {
 #define ZESTO_PARSE_ARGS
 #include "xiosim/ZCORE-power.list.h"
