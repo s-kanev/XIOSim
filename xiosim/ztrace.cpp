@@ -24,7 +24,7 @@ void ztrace_init(void) {
     if (system_knobs.ztrace_filename && strcmp(system_knobs.ztrace_filename, "")) {
         char buff[512];
 
-        for (int i = 0; i < num_cores; i++) {
+        for (int i = 0; i < system_knobs.num_cores; i++) {
             snprintf(buff, 512, "%s.%d", system_knobs.ztrace_filename, i);
             ztrace_fp[i] = fopen(buff, "w");
             if (!ztrace_fp[i])
@@ -32,8 +32,8 @@ void ztrace_init(void) {
         }
 
         snprintf(buff, 512, "%s.uncore", system_knobs.ztrace_filename);
-        ztrace_fp[num_cores] = fopen(buff, "w");
-        if (!ztrace_fp[num_cores])
+        ztrace_fp[system_knobs.num_cores] = fopen(buff, "w");
+        if (!ztrace_fp[system_knobs.num_cores])
             fatal("failed to open ztrace file %s", buff);
     }
 }
@@ -46,8 +46,8 @@ void trace(const int coreID, const char* fmt, ...) {
 }
 
 void vtrace(const int coreID, const char* fmt, va_list v) {
-    int trace_id = (coreID == INVALID_CORE) ? num_cores : coreID;
-    assert(trace_id >= 0 && trace_id <= num_cores);
+    int trace_id = (coreID == INVALID_CORE) ? system_knobs.num_cores : coreID;
+    assert(trace_id >= 0 && trace_id <= system_knobs.num_cores);
 
     vsprintf(tracebuff[trace_id][tracebuff_tail[trace_id]], fmt, v);
 
@@ -59,7 +59,7 @@ void vtrace(const int coreID, const char* fmt, va_list v) {
 }
 
 void ztrace_flush(void) {
-    for (int i = 0; i < num_cores + 1; i++) {
+    for (int i = 0; i < system_knobs.num_cores + 1; i++) {
         if (tracebuff_occupancy[i] == 0)
             continue;
 
