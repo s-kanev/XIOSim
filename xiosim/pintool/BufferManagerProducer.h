@@ -11,8 +11,10 @@ namespace buffer_management {
 
 /* Pushing and popping produceBuffer_: */
 /* The two steps of a push -- get a buffer, do magic with
- * it, and call ProducerDone once it can be consumed / flushed
- * In between, Back() will return a pointer to that buffer. */
+ * it, and call ProducerDone once it can be consumed / flushed.
+ * GetBuffer() returns the first buffer that doesn't have its valid
+ * bit set -- either the same as Back(), or a new one, if Back() is
+ * already done/valid. */
 handshake_container_t* GetBuffer(pid_t tid);
 /* By assumption, we call ProducerDone() once we have a completely
  * instrumented, valid handshake, so that we don't need to handle

@@ -9,9 +9,6 @@
 #include "BufferManagerProducer.h"
 #include "speculation.h"
 
-static std::map<ADDRINT, bool> profiling_pcs;
-static XIOSIM_LOCK pcs_lock;
-
 /* Mark instruction as profiling start point.
  * First in the order of instrumentation, all other routines should adjust. */
 static void beforeStart(THREADID tid, ADDRINT pc, UINT32 profile_id) {
@@ -53,16 +50,9 @@ static void beforeStop(THREADID tid, ADDRINT pc, UINT32 profile_id) {
 }
 
 static void MarkInstrumented(ADDRINT pc) {
-    std::lock_guard<XIOSIM_LOCK> l(pcs_lock);
-    profiling_pcs[pc] = true;
 #ifdef PROFILING_DEBUG
     cerr << "Profiling marker at: " << hex << pc << dec << endl;
 #endif
-}
-
-bool HasProfilingInstrumentation(ADDRINT pc) {
-    std::lock_guard<XIOSIM_LOCK> l(pcs_lock);
-    return profiling_pcs.count(pc) > 0;
 }
 
 static void AddCallback(

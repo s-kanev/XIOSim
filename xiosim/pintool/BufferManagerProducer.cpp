@@ -94,6 +94,11 @@ handshake_container_t* Back(pid_t tid) {
  * filling directly.
  */
 handshake_container_t* GetBuffer(pid_t tid) {
+    if (!produceBuffer_[tid]->empty()) {
+        handshake_container_t* curr_back = produceBuffer_[tid]->back();
+        if (!curr_back->flags.valid)
+            return curr_back;
+    }
     // Push is guaranteed to succeed because each call to
     // GetBuffer() is followed by a call to ProducerDone()
     // which will make space if full

@@ -400,15 +400,11 @@ BOOL CheckIgnoreConditions(THREADID tid, ADDRINT pc) {
 }
 
 /* Helper to grab the correct buffer that we put instrumentation information
- * for thread @tid. Either a new one (@first_instrumentation == true), or the
- * last one being filled in. */
-static handshake_container_t* GetProperBuffer(pid_t tid, BOOL first_instrumentation) {
+ * for thread @tid.
+ * Either a new one, or the last one being filled in, that is still not marked valid. */
+static handshake_container_t* GetProperBuffer(pid_t tid) {
     handshake_container_t* res;
-    if (first_instrumentation) {
-        res = xiosim::buffer_management::GetBuffer(tid);
-    } else {
-        res = xiosim::buffer_management::Back(tid);
-    }
+    res = xiosim::buffer_management::GetBuffer(tid);
     ASSERTX(res != NULL);
     ASSERTX(!res->flags.valid);
     return res;
@@ -424,12 +420,12 @@ static VOID FinalizeBuffer(thread_state_t* tstate, handshake_container_t* handsh
 
 /* ========================================================================== */
 /* We grab the addresses and sizes of memory operands. */
-VOID GrabInstructionMemory(THREADID tid, ADDRINT addr, UINT32 size, BOOL first_callback, ADDRINT pc) {
+VOID GrabInstructionMemory(THREADID tid, ADDRINT addr, UINT32 size, ADDRINT pc) {
     if (!CheckIgnoreConditions(tid, pc))
         return;
 
     thread_state_t* tstate = get_tls(tid);
-    handshake_container_t* handshake = GetProperBuffer(tstate->tid, first_callback);
+    handshake_container_t* handshake = GetProperBuffer(tstate->tid);
 
     handshake->mem_buffer.push_back(std::make_pair(addr, size));
 }
@@ -441,7 +437,6 @@ VOID GrabInstructionContext(THREADID tid,
                             ADDRINT npc,
                             ADDRINT tpc,
                             ADDRINT esp_value,
-                            BOOL first_callback,
                             BOOL done_instrumenting) {
     if (!CheckIgnoreConditions(tid, pc)) {
 #ifdef PRINT_DYN_TRACE
@@ -455,7 +450,7 @@ VOID GrabInstructionContext(THREADID tid,
 #endif
 
     thread_state_t* tstate = get_tls(tid);
-    handshake_container_t* handshake = GetProperBuffer(tstate->tid, first_callback);
+    handshake_container_t* handshake = GetProperBuffer(tstate->tid);
 
     tstate->num_inst++;
 
@@ -495,7 +490,7 @@ VOID FixRepInstructionNPC(THREADID tid,
         return;
 
     thread_state_t* tstate = get_tls(tid);
-    handshake_container_t* handshake = GetProperBuffer(tstate->tid, false);
+    handshake_container_t* handshake = GetProperBuffer(tstate->tid);
 
     BOOL scan = false, zf = false;
     ADDRINT op1 = 0;
@@ -647,7 +642,6 @@ VOID Instrument(INS ins, VOID* v) {
     UINT32 memOperands = INS_MemoryOperandCount(ins);
     for (UINT32 memOp = 0; memOp < memOperands; memOp++) {
         UINT32 memSize = INS_MemoryOperandSize(ins, memOp);
-        BOOL first_callback = (memOp == 0) && !HasProfilingInstrumentation(pc);
         INS_InsertCall(ins,
                        IPOINT_BEFORE,
                        (AFUNPTR)GrabInstructionMemory,
@@ -656,13 +650,10 @@ VOID Instrument(INS ins, VOID* v) {
                        memOp,
                        IARG_UINT32,
                        memSize,
-                       IARG_BOOL,
-                       first_callback,
                        IARG_INST_PTR,
                        IARG_END);
     }
 
-    BOOL first_callback = (memOperands == 0) && !HasProfilingInstrumentation(pc);
     if (!INS_IsBranchOrCall(ins)) {
         BOOL extraRepInstrumentation = INS_HasRealRep(ins);
         INS_InsertCall(ins,
@@ -677,8 +668,6 @@ VOID Instrument(INS ins, VOID* v) {
                        IARG_FALLTHROUGH_ADDR,
                        IARG_REG_VALUE,
                        LEVEL_BASE::REG_FullRegName(LEVEL_BASE::REG_ESP),
-                       IARG_BOOL,
-                       first_callback,
                        IARG_BOOL,
                        !extraRepInstrumentation,
                        IARG_END);
@@ -713,8 +702,6 @@ VOID Instrument(INS ins, VOID* v) {
                        IARG_BRANCH_TARGET_ADDR,
                        IARG_REG_VALUE,
                        LEVEL_BASE::REG_FullRegName(LEVEL_BASE::REG_ESP),
-                       IARG_BOOL,
-                       first_callback,
                        IARG_BOOL,
                        true,
                        IARG_END);
