@@ -141,6 +141,7 @@ toolchain {
     compiler_flag: "-DMP_DEBUG"
     compiler_flag: "-DROI_DEBUG"
     compiler_flag: "-DSPECULATION_DEBUG"
+    compiler_flag: "-DPROFILING_DEBUG"
   }
 
   compilation_mode_flags {
@@ -282,6 +283,7 @@ toolchain {
     compiler_flag: "-DMP_DEBUG"
     compiler_flag: "-DROI_DEBUG"
     compiler_flag: "-DSPECULATION_DEBUG"
+    compiler_flag: "-DPROFILING_DEBUG"
   }
 
   compilation_mode_flags {

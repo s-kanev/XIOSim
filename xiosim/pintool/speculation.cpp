@@ -101,7 +101,7 @@ static ADDRINT CheckForSpeculation(THREADID tid) {
         FinishSpeculation(tstate);
 
     /* In some corner cases (still ignroing instructions) there is no
-     * instruction to speculate afer. */
+     * instruction to speculate after. */
     if (xiosim::buffer_management::ProducerEmpty(tstate->tid))
         return 0;
 

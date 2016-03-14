@@ -55,6 +55,9 @@ static void beforeStop(THREADID tid, ADDRINT pc, UINT32 profile_id) {
 static void MarkInstrumented(ADDRINT pc) {
     std::lock_guard<XIOSIM_LOCK> l(pcs_lock);
     profiling_pcs[pc] = true;
+#ifdef PROFILING_DEBUG
+    cerr << "Profiling marker at: " << hex << pc << dec << endl;
+#endif
 }
 
 bool HasProfilingInstrumentation(ADDRINT pc) {
