@@ -371,7 +371,7 @@ Formula* stat_reg_formula(StatsDatabase* sdb,
                           int print_me,
                           const char* name,
                           const char* desc,
-                          ExpressionWrapper expression,
+                          const Expression& expression,
                           const char* format) {
     Formula* formula = sdb->add_formula(name, desc, expression);
     if (format)
@@ -390,7 +390,7 @@ Formula* stat_reg_core_formula(StatsDatabase* sdb,
                                int core_id,
                                const char* name,
                                const char* desc,
-                               ExpressionWrapper expression,
+                               const Expression& expression,
                                const char* format) {
     char full_stat_name[STAT_NAME_MAX_LEN];
     snprintf(full_stat_name, STAT_NAME_MAX_LEN, core_stat_fmt, core_id, name);
@@ -407,7 +407,7 @@ Formula* stat_reg_comp_formula(StatsDatabase* sdb,
                                 const char* comp_name,
                                 const char* stat_name,
                                 const char* desc,
-                                ExpressionWrapper expression,
+                                const Expression& expression,
                                 const char* format,
                                 bool is_llc) {
     char full_stat_name[STAT_NAME_MAX_LEN];

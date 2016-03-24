@@ -96,7 +96,7 @@ void memdep_t::reg_stats(xiosim::stats::StatsDatabase* sdb, struct core_t * core
     auto& bits_st = stat_reg_pred_int(sdb, true, coreID, name.c_str(), "bits", "total size of %s in bits",
                                       &bits, bits, false, NULL);
     stat_reg_pred_formula(sdb, true, coreID, name.c_str(), "size", "total size of %s in KB",
-                          bits_st / Constant(8192), NULL);
+                          bits_st / 8192, NULL);
     stat_reg_pred_counter(sdb, true, coreID, name.c_str(), "lookups",
                           "number of prediction lookups in %s", &lookups, 0, true, NULL);
     stat_reg_pred_counter(sdb, true, coreID, name.c_str(), "updates",

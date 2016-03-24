@@ -221,7 +221,7 @@ void sim_reg_stats(xiosim::stats::StatsDatabase* sdb) {
                                              &sim_elapsed_time, 0, true, NULL);
     stat_reg_formula(sdb, true, "sim_cycle_rate",
                      "simulation speed (in Mcycles/sec)",
-                     sim_cycle_st / (sim_elapsed_time_st * Constant(1000000.0)), NULL);
+                     sim_cycle_st / (sim_elapsed_time_st * 1000000.0), NULL);
 
     /* per core stats */
     for (int i = 0; i < system_knobs.num_cores; i++)
@@ -251,8 +251,8 @@ void sim_reg_stats(xiosim::stats::StatsDatabase* sdb) {
         all_uops += *commit_uops_st;
         sim_uop_rate += *commit_uops_st;
     }
-    sim_inst_rate /= (sim_elapsed_time_st * Constant(1000000.0));
-    sim_uop_rate /= (sim_elapsed_time_st * Constant(1000000.0));
+    sim_inst_rate /= (sim_elapsed_time_st * 1000000.0);
+    sim_uop_rate /= (sim_elapsed_time_st * 1000000.0);
     stat_reg_formula(sdb, all_insn);
     stat_reg_formula(sdb, all_uops);
     stat_reg_formula(sdb, sim_inst_rate);
@@ -268,7 +268,7 @@ void sim_reg_stats(xiosim::stats::StatsDatabase* sdb) {
             all_eff_uops += *commit_eff_uops_st;
             sim_eff_uop_rate += *commit_eff_uops_st;
         }
-        sim_eff_uop_rate /= (sim_elapsed_time_st * Constant(1000000.0));
+        sim_eff_uop_rate /= (sim_elapsed_time_st * 1000000.0);
         stat_reg_formula(sdb, sim_eff_uop_rate);
     }
 
@@ -283,25 +283,25 @@ void sim_reg_stats(xiosim::stats::StatsDatabase* sdb) {
         Formula gm_ipc("GM_IPC", "geometric mean IPC across all cores");
         Formula gm_upc("GM_uPC", "geometric mean uPC across all cores");
         for (int i = 0; i < system_knobs.num_cores; i++) {
-            auto core_commit_ipc_st = stat_find_core_stat<counter_t>(sdb, i, "commit_IPC");
-            auto core_commit_upc_st = stat_find_core_stat<counter_t>(sdb, i, "commit_uPC");
+            auto core_commit_ipc_st = stat_find_core_formula(sdb, i, "commit_IPC");
+            auto core_commit_upc_st = stat_find_core_formula(sdb, i, "commit_uPC");
             assert(core_commit_ipc_st && core_commit_upc_st);
-            gm_ipc += *core_commit_ipc_st;
-            gm_upc += *core_commit_upc_st;
+            gm_ipc *= *core_commit_ipc_st;
+            gm_upc *= *core_commit_upc_st;
         }
-        gm_ipc ^= Constant(1.0 / system_knobs.num_cores);
-        gm_upc ^= Constant(1.0 / system_knobs.num_cores);
+        gm_ipc ^= (1.0 / system_knobs.num_cores);
+        gm_upc ^= (1.0 / system_knobs.num_cores);
         stat_reg_formula(sdb, gm_ipc);
         stat_reg_formula(sdb, gm_upc);
 
         if (is_DPM) {
             Formula gm_eff_upc("GM_euPC", "geometric mean euPC across all cores");
             for (int i = 0; i < system_knobs.num_cores; i++) {
-                auto core_commit_eupc_st = stat_find_core_stat<counter_t>(sdb, i, "commit_euPC");
+                auto core_commit_eupc_st = stat_find_core_formula(sdb, i, "commit_euPC");
                 assert(core_commit_eupc_st);
-                gm_upc += *core_commit_eupc_st;
+                gm_eff_upc *= *core_commit_eupc_st;
             }
-            gm_eff_upc ^= Constant(1.0 / system_knobs.num_cores);
+            gm_eff_upc ^= (1.0 / system_knobs.num_cores);
             stat_reg_formula(sdb, gm_eff_upc);
         }
     }

@@ -21,7 +21,7 @@
 #include <vector>
 
 #include "statistic.h"
-#include "expression.h"
+#include "expression_impl.h"
 
 namespace xiosim {
 namespace stats {
@@ -160,7 +160,7 @@ class StatsDatabase {
 
     Formula* add_formula(const char* name,
                          const char* desc,
-                         std::unique_ptr<Expression> expression,
+                         const Expression& expression,
                          const char* output_fmt = "%12.4f",
                          bool print = true,
                          bool scale = true) {
@@ -172,11 +172,9 @@ class StatsDatabase {
     }
 
     /* Add an existing formula object.
-     *
-     * The new formula will be move constructed from the given formula.
      */
-    Formula* add_formula(Formula& formula) {
-        Formula* f = new Formula(std::move(formula));
+    Formula* add_formula(const Formula& formula) {
+        Formula* f = new Formula(formula);
         stat_list.push_back(f);
         stat_db[f->get_name()] = stat_list.size() - 1;
         return f;

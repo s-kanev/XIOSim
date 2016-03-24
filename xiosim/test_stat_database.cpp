@@ -217,7 +217,7 @@ TEST_CASE("Distribution", "distribution") {
 TEST_CASE("Formula statistics", "formulas") {
     SECTION("Formulas that add constants.") {
         Formula f("add_constants", "description");
-        f = Constant(3) + Constant(4);
+        f = Constant(3) + 4;
         CHECK(f.evaluate() == 7);
     }
 
@@ -225,7 +225,7 @@ TEST_CASE("Formula statistics", "formulas") {
         int int_value = 0;
         Statistic<int> int_stat("integer_stat", "integer statistic", &int_value, 0);
         Formula f("add_stats_constants", "description");
-        f = int_stat + Constant(5);
+        f = int_stat + 5;
 
         REQUIRE(f.evaluate() == 5);
 
@@ -359,6 +359,75 @@ TEST_CASE("Formula statistics", "formulas") {
         stat_1_value += 5;
         REQUIRE(assign.evaluate() == 10);
     }
+
+    SECTION("Nested formulas.") {
+        int stat_1_value = 0;
+        unsigned stat_2_value = 0;
+        int64_t stat_3_value = 0;
+
+        Statistic<int> stat_1("stat_1", "integer statistic", &stat_1_value, 0);
+        Statistic<unsigned> stat_2("stat_2", "unsigned statistic", &stat_2_value, 0);
+        Statistic<int64_t> stat_3("stat_3", "int64_t statistic", &stat_3_value, 0);
+
+        Formula sum("add_three_stats", "Add three statistics together");
+        Formula partial_sum("two_out_of_three", "Partial sum of the above");
+        Formula nested_sum("add_three_stats_nested", "Add explicitly nested statistics together.");
+        sum = stat_1 + stat_2 + stat_3;
+        partial_sum = stat_2 + stat_3;
+        nested_sum = stat_1 + partial_sum;
+
+        REQUIRE(sum.evaluate() == 0);
+        REQUIRE(nested_sum.evaluate() == 0);
+
+        stat_1_value = 10;
+        REQUIRE(sum.evaluate() == 10);
+        REQUIRE(nested_sum.evaluate() == 10);
+
+        stat_2_value++;
+        REQUIRE(sum.evaluate() == 11);
+        REQUIRE(nested_sum.evaluate() == 11);
+
+        stat_3_value += 3;
+        REQUIRE(sum.evaluate() == 14);
+        REQUIRE(nested_sum.evaluate() == 14);
+
+        SECTION("Nested formula copying.") {
+            /* Modifying partial_sum shouldn't affect nested_sum. */
+            partial_sum += stat_3; /* == stat_2 + 2 * stat_3 */
+            REQUIRE(nested_sum.evaluate() == 14);
+            REQUIRE(partial_sum.evaluate() == 7);
+        }
+    }
+
+    SECTION("More nested formulas.") {
+        int inst_1_val;
+        int cycles_1_val;
+        Statistic<int> inst_1("inst_1", "", &inst_1_val, 0);
+        Statistic<int> cycles_1("inst_1", "", &cycles_1_val, 0);
+        inst_1_val = 112124;
+        cycles_1_val = 222843;
+
+        int inst_2_val;
+        int cycles_2_val;
+        Statistic<int> inst_2("inst_2", "", &inst_2_val, 0);
+        Statistic<int> cycles_2("inst_2", "", &cycles_2_val, 0);
+        inst_2_val = 112124;
+        cycles_2_val = 219149;
+
+        Formula ipc_1("IPC_1", "IPC");
+        ipc_1 = inst_1 / cycles_1;
+        REQUIRE(ipc_1.evaluate() == Approx(0.50315));
+
+        Formula ipc_2("IPC_2", "IPC");
+        ipc_2 = inst_2 / cycles_2;
+        REQUIRE(ipc_2.evaluate() == Approx(0.51163));
+
+        Formula g_IPC("g_IPC", "geomean IPC");
+        g_IPC *= ipc_1;
+        g_IPC *= ipc_2;
+        g_IPC ^= 0.5;
+        REQUIRE(g_IPC.evaluate() == Approx(0.50738));
+    }
 }
 
 
@@ -376,7 +445,7 @@ TEST_CASE("Registering formula statistics through the API layer.", "stat_reg_for
     Formula* formula =
             stat_reg_formula(&sdb, true, "formula", "A formula", int_stat + double_stat, NULL);
     Formula* ratio = stat_reg_formula(
-            &sdb, true, "ratio", "A ratio", int_stat / (double_stat * Constant(1000.0)), NULL);
+            &sdb, true, "ratio", "A ratio", int_stat / (double_stat * 1000.0), NULL);
     REQUIRE(formula->evaluate() == 0);
 
     int_value = 5;

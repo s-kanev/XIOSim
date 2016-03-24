@@ -15,7 +15,7 @@
 
 #include "host.h"
 #include "statistic.h"
-#include "expression.h"
+#include "expression_impl.h"
 #include "stat_database.h"
 
 // Mimicking #define in machine.c.
@@ -33,7 +33,7 @@ using xiosim::stats::BaseStatistic;
 using xiosim::stats::Distribution;
 using xiosim::stats::StatsDatabase;
 using xiosim::stats::Formula;
-using xiosim::stats::ExpressionWrapper;
+using xiosim::stats::Expression;
 
 /* Returns the full stat name for a core component.
  *
@@ -240,7 +240,7 @@ Formula* stat_reg_formula(StatsDatabase* sdb,
                           int print_me,
                           const char* name,
                           const char* desc,
-                          ExpressionWrapper expression,
+                          const Expression& expression,
                           const char* format);
 
 Formula* stat_reg_core_formula(StatsDatabase* sdb,
@@ -248,7 +248,7 @@ Formula* stat_reg_core_formula(StatsDatabase* sdb,
                                int core_id,
                                const char* name,
                                const char* desc,
-                               ExpressionWrapper expression,
+                               const Expression& expression,
                                const char* format);
 
 Formula* stat_reg_comp_formula(StatsDatabase* sdb,
@@ -257,7 +257,7 @@ Formula* stat_reg_comp_formula(StatsDatabase* sdb,
                                const char* comp_name,
                                const char* stat_name,
                                const char* desc,
-                               ExpressionWrapper expression,
+                               const Expression& expression,
                                const char* format,
                                bool is_llc = false);
 

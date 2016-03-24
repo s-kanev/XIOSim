@@ -438,18 +438,18 @@ void cache_reg_stats(xiosim::stats::StatsDatabase* sdb,
         stat_reg_cache_formula(
                 sdb, true, coreID, cp->name, "MPKI",
                 "total miss rate in MPKI (no prefetches) for %s (misses/thousand cycles)",
-                (load_misses_st + store_misses_st) / *commit_insn_st * Constant(1000), "%12.4f");
+                (load_misses_st + store_misses_st) / *commit_insn_st * 1000, "%12.4f");
         stat_reg_cache_formula(sdb, true, coreID, cp->name, "MPKu",
                          "total miss rate in MPKu (no prefetches) for %s (misses/thousand cycles)",
-                         (load_misses_st + store_misses_st) / *commit_uops_st * Constant(1000),
+                         (load_misses_st + store_misses_st) / *commit_uops_st * 1000,
                          "%12.4f");
         stat_reg_cache_formula(sdb, true, coreID, cp->name, "MPKeu",
                          "total miss rate in MPKeu (no prefetches) for %s (misses/thousand cycles)",
-                         (load_misses_st + store_misses_st) / *commit_eff_uops_st * Constant(1000),
+                         (load_misses_st + store_misses_st) / *commit_eff_uops_st * 1000,
                          "%12.4f");
         stat_reg_cache_formula(sdb, true, coreID, cp->name, "MPKC",
                          "total miss rate in MPKC (no prefetches) for %s (misses/thousand cycles)",
-                         (load_misses_st + store_misses_st) / *sim_cycle_st * Constant(1000),
+                         (load_misses_st + store_misses_st) / *sim_cycle_st * 1000,
                          "%12.4f");
     } else {
         auto& lookups_st =
@@ -494,16 +494,16 @@ void cache_reg_stats(xiosim::stats::StatsDatabase* sdb,
 
         stat_reg_cache_formula(sdb, true, coreID, cp->name, "MPKI",
                                "miss rate in MPKI (no prefetches) for %s",
-                               (misses_st) / *commit_insn_st * Constant(1000), "%12.4f");
+                               (misses_st) / *commit_insn_st * 1000, "%12.4f");
         stat_reg_cache_formula(sdb, true, coreID, cp->name, "MPKu",
                                "miss rate in MPKu (no prefetches) for %s",
-                               (misses_st) / *commit_uops_st * Constant(1000), "%12.4f");
+                               (misses_st) / *commit_uops_st * 1000, "%12.4f");
         stat_reg_cache_formula(sdb, true, coreID, cp->name, "MPKeu",
                                "miss rate in MPKeu (no prefetches) for %s",
-                               (misses_st) / *commit_eff_uops_st * Constant(1000), "%12.4f");
+                               (misses_st) / *commit_eff_uops_st * 1000, "%12.4f");
         stat_reg_cache_formula(sdb, true, coreID, cp->name, "MPKC",
                                "miss rate in MPKC (no prefetches) for %s",
-                               (misses_st) / *sim_cycle_st * Constant(1000), "%12.4f");
+                               (misses_st) / *sim_cycle_st * 1000, "%12.4f");
     }
     auto& MSHR_total_occupancy_st = stat_reg_cache_counter(
             sdb, false, coreID, cp->name, "MSHR_total_occupancy",
@@ -598,7 +598,7 @@ void LLC_reg_stats(xiosim::stats::StatsDatabase* sdb, struct cache_t* const cp) 
         if (system_knobs.num_cores > 1)
             stat_reg_formula(sdb, true, "LLC.total_MPKC", "MPKC for the LLC (including prefetches)",
                              (LLC_load_misses_st + LLC_store_misses_st + LLC_pf_misses_st) /
-                                     *sim_cycle_st * Constant(1000),
+                                     *sim_cycle_st * 1000,
                              "%12.4f");
 
     } else {
@@ -606,7 +606,7 @@ void LLC_reg_stats(xiosim::stats::StatsDatabase* sdb, struct cache_t* const cp) 
         if (system_knobs.num_cores > 1)
             stat_reg_formula(sdb, true, "LLC.total_MPKC", "MPKC for the LLC (including prefetches)",
                              (LLC_load_misses_st + LLC_store_misses_st) / *sim_cycle_st *
-                                     Constant(1000),
+                                     1000,
                              "%12.4f");
         total_miss_rate = (LLC_load_misses_st + LLC_store_misses_st) /
                           (LLC_load_lookups_st + LLC_store_lookups_st);
@@ -618,7 +618,7 @@ void LLC_reg_stats(xiosim::stats::StatsDatabase* sdb, struct cache_t* const cp) 
     if (system_knobs.num_cores > 1) {
         stat_reg_formula(sdb, true, "LLC.MPKC", "MPKC for the LLC (no prefetches or writebacks)",
                          (LLC_load_misses_st + LLC_store_misses_st) / *sim_cycle_st *
-                                 Constant(1000),
+                                 1000,
                          "%12.4f");
     }
 
@@ -644,9 +644,9 @@ void LLC_reg_stats(xiosim::stats::StatsDatabase* sdb, struct cache_t* const cp) 
                 stat_reg_counter(sdb, true, "LLC.misses", "number of misses in the LLC",
                                  &cp->stat.core_misses[0], 0, true, NULL);
         stat_reg_formula(sdb, true, "LLC.MPKI", "MPKI for the LLC",
-                         LLC_misses_st / *commit_insn_st * Constant(1000), "%12.4f");
+                         LLC_misses_st / *commit_insn_st * 1000, "%12.4f");
         stat_reg_formula(sdb, true, "LLC.MPKC", "MPKC for the LLC",
-                         LLC_misses_st / *sim_cycle_st * Constant(1000), "%12.4f");
+                         LLC_misses_st / *sim_cycle_st * 1000, "%12.4f");
     } else {
         for (int i = 0; i < system_knobs.num_cores; i++) {
             auto commit_insn_st = stat_find_core_stat<counter_t>(sdb, i, "commit_insn");
@@ -665,10 +665,10 @@ void LLC_reg_stats(xiosim::stats::StatsDatabase* sdb, struct cache_t* const cp) 
                                    LLC_misses_st / LLC_lookups_st, "%12.4f", true);
             stat_reg_cache_formula(sdb, true, i, cp->name, "MPKI",
                                    "MPKI by core %d in shared %s cache",
-                                   LLC_misses_st / *commit_insn_st * Constant(1000), "%12.4f", true);
+                                   LLC_misses_st / *commit_insn_st * 1000, "%12.4f", true);
             stat_reg_cache_formula(sdb, true, i, cp->name, "MPKC",
                                    "MPKC by core %d in shared %s cache",
-                                   LLC_misses_st / *core_sim_cycle_st * Constant(1000), "%12.4f", true);
+                                   LLC_misses_st / *core_sim_cycle_st * 1000, "%12.4f", true);
         }
     }
 

@@ -349,8 +349,9 @@ cc_library(
 cc_library(
     name = "stats",
     srcs = [
-        "expression.cpp",
         "expression.h",
+        "expression_impl.cpp",
+        "expression_impl.h",
         "stat_database.h",
         "statistic.h",
         "stats.cpp",

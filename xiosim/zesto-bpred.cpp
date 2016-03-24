@@ -208,7 +208,7 @@ void bpred_dir_t::reg_stats(xiosim::stats::StatsDatabase* sdb, struct core_t* co
     auto& bits_st = stat_reg_comp_int(sdb, true, core_id, name.c_str(), "bits", "total size of %s in bits",
                                       &bits, bits, false, NULL);
     stat_reg_comp_formula(sdb, true, core_id, name.c_str(), "size", "total size of %s in KB",
-                          bits_st / Constant(8192), NULL);
+                          bits_st / 8192, NULL);
 
     stat_reg_comp_counter(sdb, true, core_id, name.c_str(), "lookups",
                           "number of prediction lookups in %s (including wrong-path)", &lookups, 0,
@@ -225,7 +225,7 @@ void bpred_dir_t::reg_stats(xiosim::stats::StatsDatabase* sdb, struct core_t* co
     stat_reg_comp_formula(sdb, true, core_id, name.c_str(), "hit_rate",
                           "fraction of correct predictions in %s", hits_st / updates_st, NULL);
     stat_reg_comp_formula(sdb, true, core_id, name.c_str(), "MPKI", "misses per thousand insts in %s",
-                          ((updates_st - hits_st) / *commit_insn_st) * Constant(1000), NULL);
+                          ((updates_st - hits_st) / *commit_insn_st) * 1000, NULL);
 }
 
 void bpred_dir_t::reset_stats(void)
@@ -370,7 +370,7 @@ void fusion_t::reg_stats(xiosim::stats::StatsDatabase* sdb, struct core_t* const
     auto& bits_st = stat_reg_comp_int(sdb, true, core_id, name.c_str(), "bits", "total size of %s in bits",
                                       &bits, bits, false, NULL);
     stat_reg_comp_formula(sdb, true, core_id, name.c_str(), "size", "total size of %s in KB",
-                          bits_st / Constant(8192), NULL);
+                          bits_st / 8192, NULL);
 
     stat_reg_comp_counter(sdb, true, core_id, name.c_str(), "lookups",
                           "number of prediction lookups in %s (including wrong-path)", &lookups, 0,
@@ -387,7 +387,7 @@ void fusion_t::reg_stats(xiosim::stats::StatsDatabase* sdb, struct core_t* const
     stat_reg_comp_formula(sdb, true, core_id, name.c_str(), "hit_rate",
                           "fraction of correct predictions in %s", hits_st / updates_st, NULL);
     stat_reg_comp_formula(sdb, true, core_id, name.c_str(), "MPKI", "misses per thousand insts in %s",
-                          ((updates_st - hits_st) / *commit_insn_st) * Constant(1000), NULL);
+                          ((updates_st - hits_st) / *commit_insn_st) * 1000, NULL);
 }
 
 void fusion_t::reset_stats(void)
@@ -518,7 +518,7 @@ void BTB_t::reg_stats(xiosim::stats::StatsDatabase* sdb, struct core_t* const co
     auto& bits_st = stat_reg_comp_int(sdb, true, core_id, name.c_str(), "bits", "total size of %s in bits",
                                       &bits, bits, false, NULL);
     stat_reg_comp_formula(sdb, true, core_id, name.c_str(), "size", "total size of %s in KB",
-                          bits_st / Constant(8192), NULL);
+                          bits_st / 8192, NULL);
 
     stat_reg_comp_counter(sdb, true, core_id, name.c_str(), "lookups",
                           "number of prediction lookups in %s (including wrong-path)", &lookups, 0,
@@ -536,7 +536,7 @@ void BTB_t::reg_stats(xiosim::stats::StatsDatabase* sdb, struct core_t* const co
                           "fraction of correct predictions in %s", hits_st / updates_st, NULL);
 
     stat_reg_comp_formula(sdb, true, core_id, name.c_str(), "MPKI", "misses per thousand insts in %s",
-                          ((updates_st - hits_st) / *commit_insn_st) * Constant(1000), NULL);
+                          ((updates_st - hits_st) / *commit_insn_st) * 1000, NULL);
 
     auto& num_nt_st =
             stat_reg_comp_counter(sdb, true, core_id, name.c_str(), "num_nt",
@@ -691,7 +691,7 @@ void RAS_t::reg_stats(xiosim::stats::StatsDatabase* sdb, struct core_t* const co
     auto& bits_st = stat_reg_comp_int(sdb, true, core_id, name.c_str(), "bits", "total size of %s in bits",
                                       &bits, bits, false, NULL);
     stat_reg_comp_formula(sdb, true, core_id, name.c_str(), "size", "total size of %s in KB",
-                          bits_st / Constant(8192), NULL);
+                          bits_st / 8192, NULL);
     stat_reg_comp_counter(sdb, true, core_id, name.c_str(), "pushes",
                           "number of stack pushes to %s (including wrong-path)", &num_pushes, 0,
                           true, NULL);
@@ -705,7 +705,7 @@ void RAS_t::reg_stats(xiosim::stats::StatsDatabase* sdb, struct core_t* const co
     stat_reg_comp_formula(sdb, true, core_id, name.c_str(), "hit_rate",
                           "fraction of correct predictions in %s", hits_st / pops_st, NULL);
     stat_reg_comp_formula(sdb, true, core_id, name.c_str(), "MPKI", "misses per thousand insts in %s",
-                          ((pops_st - hits_st) / *commit_insn_st) * Constant(1000), NULL);
+                          ((pops_st - hits_st) / *commit_insn_st) * 1000, NULL);
 }
 
 void RAS_t::reset_stats(void)
@@ -1043,11 +1043,11 @@ void bpred_t::reg_stats(xiosim::stats::StatsDatabase* sdb, struct core_t* const 
     stat_reg_core_formula(
             sdb, true, core_id, "bpred_dir_MPKI",
             "overall branch direction mispredictions per Kinst",
-            ((bpred_updates_st - bpred_dir_hits_st) / *commit_insn_st) * Constant(1000), NULL);
+            ((bpred_updates_st - bpred_dir_hits_st) / *commit_insn_st) * 1000, NULL);
     stat_reg_core_formula(
             sdb, true, core_id, "bpred_addr_MPKI",
             "overall branch address mispredictions per Kinst",
-            ((bpred_updates_st - bpred_addr_hits_st) / *commit_insn_st) * Constant(1000), NULL);
+            ((bpred_updates_st - bpred_addr_hits_st) / *commit_insn_st) * 1000, NULL);
 
     for (unsigned int i = 0; i < num_pred; i++)
         bpreds[i]->reg_stats(sdb, core);

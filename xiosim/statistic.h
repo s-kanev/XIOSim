@@ -15,6 +15,7 @@
 #include "boost_statistics.h"
 
 #include "host.h"
+#include "expression.h"
 
 // NOTE: Temporary.
 const int PF_COUNT = 0x0001;
@@ -187,12 +188,12 @@ class Statistic : public StatisticCommon<V> {
 
 /* Specialization for arithmetic types. Distinguishing factors: arithmetic types
  * are initialized to an initial value, and they can be scaled.
+ * Implements the Expression interface, which means that we can form expression trees
+ * from Statistic-s.
  */
 template <typename V>
-class Statistic<
-        V,
-        typename boost::enable_if<boost::is_arithmetic<V>>::type> : public StatisticCommon<V> {
-
+class Statistic<V, typename boost::enable_if<boost::is_arithmetic<V>>::type>
+        : public StatisticCommon<V>, public Expression {
   public:
     Statistic(const char* name,
               const char* desc,
@@ -212,7 +213,9 @@ class Statistic<
 
     Statistic(const Statistic<V>& stat)
         : StatisticCommon<V>(stat)
-        , value(stat.value) {
+        , value(stat.value)
+        , init_val(stat.init_val)
+        , final_val(stat.final_val) {
         if (this->output_fmt.empty())
             set_output_format_default();
     }
@@ -282,6 +285,11 @@ class Statistic<
             typename boost::enable_if<boost::is_same<U, uint64_t>>::type* = 0) {
         this->output_fmt = "%12" PRIu64;
     }
+
+    /* Expression members: */
+
+    virtual Result evaluate() const { return get_value(); }
+    virtual std::unique_ptr<Expression> deep_copy() const { return std::make_unique<Statistic<V>>(*this); }
 
   protected:
     V* value;     // Pointer to allocated memory storing the value.
