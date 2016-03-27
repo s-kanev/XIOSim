@@ -569,5 +569,31 @@ class RdtscTest(XIOSimTest):
     def runTest(self):
         self.runAndValidate()
 
+class Fib2CoreTest(XIOSimTest):
+    ''' End-to-end test with multiple programs running on 2 cores.'''
+    def setDriverParams(self):
+        bmk_cfg = self.writeTestBmkConfig("fib", num_copies=2)
+        self.xio.AddBmks(bmk_cfg)
+
+        repl = {
+            "system_cfg.num_cores" : "2",
+        }
+        test_cfg = self.writeTestConfig(os.path.join(self.xio.GetTreeDir(),
+                                                     "xiosim/config", "H.cfg"),
+                                        repl)
+        self.xio.AddConfigFile(test_cfg)
+
+        self.xio.AddPinOptions()
+
+    def setUp(self):
+        super(Fib2CoreTest, self).setUp()
+        if self.xio.TARGET_ARCH == "k8":
+            self.expected_vals.append((xs.PerfStatRE("all_insn"), 224352.00))
+        else:
+            self.expected_vals.append((xs.PerfStatRE("all_insn"), 228990.0))
+
+    def runTest(self):
+        self.runAndValidate()
+
 if __name__ == "__main__":
     unittest.main()
