@@ -152,8 +152,7 @@ void ztrace_print(const struct Mop_t* Mop) {
 
     // core id, PC{virtual,physical}
     trace(coreID,
-                 "DEF|core=%d:virtPC=%" PRIxPTR":physPC=%" PRIx64":op=%s:",
-                 Mop->core->id,
+                 "DEF|virtPC=%" PRIxPTR":physPC=%" PRIx64":op=%s:",
                  Mop->fetch.PC,
                  xiosim::memory::v2p_translate(cores[coreID]->asid, Mop->fetch.PC),
                  xiosim::x86::print_Mop(Mop).c_str());
@@ -170,7 +169,7 @@ void ztrace_print(const struct Mop_t* Mop) {
         if (uop->decode.EOM && !uop->decode.BOM)
             trace(coreID, "-EOM");
         // core id, uop number within flow
-        trace(coreID, "|core=%d:uop-number=%d:", Mop->core->id, count);
+        trace(coreID, "|uop=%d:", count);
         if (uop->decode.in_fusion) {
             trace(coreID, "f");
             if (uop->decode.is_fusion_head)
