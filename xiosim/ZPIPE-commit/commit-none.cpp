@@ -27,7 +27,7 @@ class core_commit_NONE_t:public core_commit_t
   virtual bool pre_commit_available() { return false; }
   virtual void pre_commit_step() { }
   virtual void pre_commit_recover(struct Mop_t * const Mop) { }
-  virtual int squash_uop(struct uop_t * const uop) { return 0; }
+  virtual void squash_uop(struct uop_t * const uop) { }
 };
 
 void core_commit_NONE_t::reg_stats(xiosim::stats::StatsDatabase* sdb) {

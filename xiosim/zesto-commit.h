@@ -98,7 +98,12 @@ class core_commit_t
   virtual void pre_commit_fused_insert(struct uop_t * const uop) = 0;
   virtual void pre_commit_step(void) = 0;
   virtual void pre_commit_recover(struct Mop_t * const Mop) = 0;
-  virtual int squash_uop(struct uop_t * const uop) = 0;
+
+  /* Squash a uop -- invalidate all actions and deallocate it from all exec buffers.
+   * Also, clean up exec idep/odep pointers.
+   * XXX: Different pipeline styles call this in different orders: DPM (young -> old),
+   * IO_DPM (old -> young). */
+  virtual void squash_uop(struct uop_t * const uop) = 0;
 
   bool deadlocked;
   static const int deadlock_threshold = 50000;

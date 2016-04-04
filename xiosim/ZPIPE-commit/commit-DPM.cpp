@@ -43,7 +43,7 @@ class core_commit_DPM_t:public core_commit_t
   virtual bool pre_commit_available();
   virtual void pre_commit_step();
   virtual void pre_commit_recover(struct Mop_t * const Mop);
-  virtual int squash_uop(struct uop_t * const uop);
+  virtual void squash_uop(struct uop_t * const uop);
 
 
   protected:
@@ -53,6 +53,13 @@ class core_commit_DPM_t:public core_commit_t
   int ROB_tail;
   int ROB_num;
   int ROB_eff_num;
+  void ROB_pop_back();
+  void ROB_pop_front();
+  inline class uop_t* ROB_back() {
+      int back_ind = moddec(ROB_tail, core->knobs->commit.ROB_size);
+      return ROB[back_ind];
+  }
+
 
   static const char *commit_stall_str[CSTALL_num];
 
@@ -428,10 +435,7 @@ void core_commit_DPM_t::step(void)
       /* remove uop from ROB */
       if((!uop->decode.in_fusion) || (uop->decode.fusion_next == NULL)) /* fusion dealloc's on fusion-tail */
       {
-        ROB[ROB_head] = NULL;
-        ROB_num --;
-        ROB_eff_num --;
-        ROB_head = modinc(ROB_head,knobs->commit.ROB_size); //(ROB_head+1) % knobs->commit.ROB_size;
+        ROB_pop_front();
         if(uop->decode.in_fusion)
         {
           ZESTO_STAT(core->stat.commit_fusions++;)
@@ -594,333 +598,177 @@ void core_commit_DPM_t::step(void)
   ZESTO_STAT(stat_add_sample(core->stat.commit_stall, (int)stall_reason);)
 }
 
-void core_commit_DPM_t::IO_step()
-{
-  /* Compatibility: Simulation can call this */
+void core_commit_DPM_t::IO_step() { /* Compatibility: Simulation can call this */ }
+
+/* Clean up idep/odep pointers between uop and PARENTS.
+ * Since we're working our way back from the most speculative instruction, we only
+ * need to clean-up our parent's forward-pointers (odeps) and our own back-pointers
+ * (our fwd-ptrs would have already been cleaned-up by our own children). */
+static void undo_dependences(struct uop_t* const uop) {
+    for (size_t i = 0; i < MAX_IDEPS; i++) {
+        struct uop_t* parent = uop->exec.idep_uop[i];
+        if (parent == nullptr)
+            continue;
+
+        struct odep_t* current = parent->exec.odep_uop;
+        struct odep_t* prev = nullptr;
+        while (current) {
+            if ((current->uop == uop) && ((size_t)current->op_num == i)) {
+                /* remove self from parent's odep list */
+                if (prev)
+                    prev->next = current->next;
+                else
+                    parent->exec.odep_uop = current->next;
+                /* return the odep struct */
+                uop->core->return_odep_link(current);
+                break;
+            }
+            prev = current;
+            current = current->next;
+        }
+        /* eliminate my own idep */
+        uop->exec.idep_uop[i] = nullptr;
+    }
+    xiosim_core_assert(uop->exec.odep_uop == nullptr, uop->core->id);
+}
+
+void core_commit_DPM_t::squash_uop(struct uop_t* const dead_uop) {
+    /* squash this instruction - this invalidates all in-flight actions (e.g., uop execution, cache
+     * accesses) */
+    dead_uop->exec.action_id = core->new_action_id();
+
+    /* update allocation scoreboard if appropriate */
+    /* if(uop->alloc.RS_index != -1) */ /* fusion messes up this check */
+    if (dead_uop->timing.when_exec == TICK_T_MAX && (dead_uop->alloc.port_assignment != -1))
+        core->alloc->RS_deallocate(dead_uop);
+
+    if (dead_uop->alloc.RS_index != -1) /* currently in RS */
+        core->exec->RS_deallocate(dead_uop);
+
+    /* In the following, we have to check it the uop has even been allocated yet... this has
+       to do with our non-atomic implementation of allocation for fused-uops */
+    if (dead_uop->decode.is_load || dead_uop->decode.is_fence) {
+        if (dead_uop->timing.when_allocated != TICK_T_MAX)
+            core->exec->LDQ_squash(dead_uop);
+    } else if (dead_uop->decode.is_std) { /* dealloc when we get to the STA */
+        if (dead_uop->timing.when_allocated != TICK_T_MAX)
+            core->exec->STQ_squash_std(dead_uop);
+    } else if (dead_uop->decode.is_sta) {
+        if (dead_uop->timing.when_allocated != TICK_T_MAX)
+            core->exec->STQ_squash_sta(dead_uop);
+    }
+
+    undo_dependences(dead_uop);
 }
 
 /* Walk ROB from youngest uop until we find the requested Mop.
    (NOTE: We stop at any uop belonging to the Mop.  We assume
    that recovery only occurs on Mop boundaries.)
-   Release resources (PREGs, RS/ROB/LSQ entries, etc. as we go).
-   If Mop == NULL, we're blowing away the entire pipeline. */
-void
-core_commit_DPM_t::recover(const struct Mop_t * const Mop)
-{
-  assert(Mop != NULL);
-  struct core_knobs_t * knobs = core->knobs;
-  if(ROB_num > 0)
-  {
-    /* requested uop should always be in the ROB */
-    int index = moddec(ROB_tail,knobs->commit.ROB_size); //(ROB_tail-1+knobs->commit.ROB_size) % knobs->commit.ROB_size;
+   Release resources (PREGs, RS/ROB/LSQ entries, etc. as we go). */
+void core_commit_DPM_t::recover(const struct Mop_t* const Mop) {
+    assert(Mop != NULL);
+    struct core_knobs_t* knobs = core->knobs;
+    if (ROB_num == 0)
+        return;
 
+    /* requested uop should always be in the ROB */
+    class uop_t* back = ROB_back();
     /* if there's only the one inst in the pipe, then we don't need to drain */
-    if(knobs->alloc.drain_flush && (ROB[index]->Mop != Mop))
-      core->alloc->start_drain();
+    if (knobs->alloc.drain_flush && (back->Mop != Mop))
+        core->alloc->start_drain();
 
-    while(ROB[index] && (ROB[index]->Mop != Mop))
-    {
-      struct uop_t * dead_uop = ROB[index];
+    while (back && back->Mop != Mop) {
+        struct uop_t* dead_uop = back;
+        if (dead_uop->decode.in_fusion)
+            dead_uop = dead_uop->get_fusion_tail();
 
-      zesto_assert(ROB_num > 0,(void)0);
-
-      if(dead_uop->decode.in_fusion)
-      {
-        zesto_assert(dead_uop->decode.is_fusion_head,(void)0);
-        while(dead_uop->decode.fusion_next)
-          dead_uop = dead_uop->decode.fusion_next;
-        zesto_assert(dead_uop != dead_uop->decode.fusion_head,(void)0);
-      }
-
-      while(dead_uop)
-      {
-        /* squash this instruction - this invalidates all in-flight actions (e.g., uop execution, cache accesses) */
-        dead_uop->exec.action_id = core->new_action_id();
-        if(dead_uop->timing.when_allocated != TICK_T_MAX)
-          ROB_eff_num--;
-
-        /* update allocation scoreboard if appropriate */
-        /* if(uop->alloc.RS_index != -1) *//* fusion messes up this check */
-        if(dead_uop->timing.when_exec == TICK_T_MAX && (dead_uop->alloc.port_assignment != -1))
-          core->alloc->RS_deallocate(dead_uop);
-
-        if(dead_uop->alloc.RS_index != -1) /* currently in RS */
-          core->exec->RS_deallocate(dead_uop);
-
-
-        /* In the following, we have to check it the uop has even been allocated yet... this has
-           to do with our non-atomic implementation of allocation for fused-uops */
-        if(dead_uop->decode.is_load || dead_uop->decode.is_fence)
-        {
-          if(dead_uop->timing.when_allocated != TICK_T_MAX)
-            core->exec->LDQ_squash(dead_uop);
-        }
-        else if(dead_uop->decode.is_std) /* dealloc when we get to the STA */
-        {
-          if(dead_uop->timing.when_allocated != TICK_T_MAX)
-            core->exec->STQ_squash_std(dead_uop);
-        }
-        else if(dead_uop->decode.is_sta)
-        {
-          if(dead_uop->timing.when_allocated != TICK_T_MAX)
-            core->exec->STQ_squash_sta(dead_uop);
+        while (dead_uop) {
+            if (dead_uop->timing.when_allocated != TICK_T_MAX)
+                ROB_eff_num--;
+            squash_uop(dead_uop);
+            dead_uop = dead_uop->get_fusion_prev();
         }
 
-        /* clean up idep/odep pointers.  Since we're working our
-           way back from the most speculative instruction, we only
-           need to clean-up our parent's forward-pointers (odeps)
-           and our own back-pointers (our fwd-ptrs would have
-           already cleaned-up our own children). */
-        for(size_t i=0;i<MAX_IDEPS;i++)
-        {
-          struct uop_t * parent = dead_uop->exec.idep_uop[i];
-          if(parent) /* I have an active parent */
-          {
-            struct odep_t * prev, * current;
-            prev = NULL;
-            current = parent->exec.odep_uop;
-            while(current)
-            {
-              if((current->uop == dead_uop) && (current->op_num == (int)i))
-                break;
-              prev = current;
-              current = current->next;
+        ROB_pop_back();
+        back = ROB_back();
+    }
+}
+
+void core_commit_DPM_t::recover(void) {
+    if (ROB_num > 0) {
+        class uop_t* back = ROB_back();
+        while (back) {
+            struct uop_t* dead_uop = back;
+            if (dead_uop->decode.in_fusion)
+                dead_uop = dead_uop->get_fusion_tail();
+
+            while (dead_uop) {
+                if (dead_uop->timing.when_allocated != TICK_T_MAX)
+                    ROB_eff_num--;
+                squash_uop(dead_uop);
+                dead_uop = dead_uop->get_fusion_prev();
             }
 
-            zesto_assert(current,(void)0);
-
-            /* remove self from parent's odep list */
-            if(prev)
-              prev->next = current->next;
-            else
-              parent->exec.odep_uop = current->next;
-
-            /* eliminate my own idep */
-            dead_uop->exec.idep_uop[i] = NULL;
-
-            /* return the odep struct */
-            core->return_odep_link(current);
-          }
+            ROB_pop_back();
+            back = ROB_back();
         }
-
-        zesto_assert(dead_uop->exec.odep_uop == NULL,(void)0);
-
-        if((!dead_uop->decode.in_fusion) || dead_uop->decode.is_fusion_head)
-          dead_uop = NULL;
-        else
-        {
-          /* this is ugly... need to traverse fused uop linked-list
-             in reverse; most fused uops are short, so we're just
-             going to re-traverse... if longer fused uops are
-             supported, it may make sense to implement a
-             doubly-linked list instead. */
-          struct uop_t * p = ROB[index];
-          while(p->decode.fusion_next != dead_uop)
-            p = p->decode.fusion_next;
-
-          dead_uop = p;
-        }
-      }
-
-      ROB[index] = NULL;
-      ROB_tail = moddec(ROB_tail,knobs->commit.ROB_size); //(ROB_tail-1+knobs->commit.ROB_size) % knobs->commit.ROB_size;
-      ROB_num --;
-      zesto_assert(ROB_num >= 0,(void)0);
-      zesto_assert(ROB_eff_num >= 0,(void)0);
-
-      index = moddec(index,knobs->commit.ROB_size); //(index-1+knobs->commit.ROB_size) % knobs->commit.ROB_size;
     }
-  }
+
+    core->exec->STQ_squash_senior();
+
+    core->exec->recover_check_assertions();
+    xiosim_core_assert(ROB_num == 0, core->id);
 }
 
-void
-core_commit_DPM_t::recover(void)
-{
-  struct core_knobs_t * knobs = core->knobs;
-  if(ROB_num > 0)
-  {
-    /* requested uop should always be in the ROB */
-    int index = moddec(ROB_tail,knobs->commit.ROB_size); //(ROB_tail-1+knobs->commit.ROB_size) % knobs->commit.ROB_size;
-
-    while(ROB[index])
-    {
-      struct uop_t * dead_uop = ROB[index];
-
-      zesto_assert(ROB_num > 0,(void)0);
-
-      if(dead_uop->decode.in_fusion)
-      {
-        zesto_assert(dead_uop->decode.is_fusion_head,(void)0);
-        while(dead_uop->decode.fusion_next)
-          dead_uop = dead_uop->decode.fusion_next;
-        zesto_assert(dead_uop != dead_uop->decode.fusion_head,(void)0);
-      }
-
-      while(dead_uop)
-      {
-        /* squash this instruction - this invalidates all in-flight actions (e.g., uop execution, cache accesses) */
-        dead_uop->exec.action_id = core->new_action_id();
-        if(dead_uop->timing.when_allocated != TICK_T_MAX)
-          ROB_eff_num--;
-
-        /* update allocation scoreboard if appropriate */
-        /* if(uop->alloc.RS_index != -1) */
-        /* fusion messes up this check */
-        if(dead_uop->timing.when_exec == TICK_T_MAX && (dead_uop->alloc.port_assignment != -1))
-          core->alloc->RS_deallocate(dead_uop);
-
-        if(dead_uop->alloc.RS_index != -1) /* currently in RS */
-          core->exec->RS_deallocate(dead_uop);
-
-
-        /* In the following, we have to check it the uop has even
-           been allocated yet... this has to do with our non-atomic
-           implementation of allocation for fused-uops */
-        if(dead_uop->decode.is_load || dead_uop->decode.is_fence)
-        {
-          if(dead_uop->timing.when_allocated != TICK_T_MAX)
-            core->exec->LDQ_squash(dead_uop);
-        }
-        else if(dead_uop->decode.is_std) /* dealloc when we get to the STA */
-        {
-          if(dead_uop->timing.when_allocated != TICK_T_MAX)
-            core->exec->STQ_squash_std(dead_uop);
-        }
-        else if(dead_uop->decode.is_sta)
-        {
-          if(dead_uop->timing.when_allocated != TICK_T_MAX)
-            core->exec->STQ_squash_sta(dead_uop);
-        }
-
-        /* clean up idep/odep pointers.  Since we're working our
-           way back from the most speculative instruction, we only
-           need to clean-up our parent's forward-pointers (odeps)
-           and our own back-pointers (our fwd-ptrs would have
-           already cleaned-up our own children). */
-        for(size_t i=0;i<MAX_IDEPS;i++)
-        {
-          struct uop_t * parent = dead_uop->exec.idep_uop[i];
-          if(parent) /* I have an active parent */
-          {
-            struct odep_t * prev, * current;
-            prev = NULL;
-            current = parent->exec.odep_uop;
-            while(current)
-            {
-              if((current->uop == dead_uop) && (current->op_num == (int)i))
-                break;
-              prev = current;
-              current = current->next;
-            }
-
-            zesto_assert(current,(void)0);
-
-            /* remove self from parent's odep list */
-            if(prev)
-              prev->next = current->next;
-            else
-              parent->exec.odep_uop = current->next;
-
-            /* eliminate my own idep */
-            dead_uop->exec.idep_uop[i] = NULL;
-
-            /* return the odep struct */
-            core->return_odep_link(current);
-          }
-        }
-
-        zesto_assert(dead_uop->exec.odep_uop == NULL,(void)0);
-
-        if((!dead_uop->decode.in_fusion) || dead_uop->decode.is_fusion_head)
-          dead_uop = NULL;
-        else
-        {
-          /* this is ugly... need to traverse fused uop linked-list
-             in reverse; most fused uops are short, so we're just
-             going to retraverse... if longer fused uops are
-             supported, it may make sense to implement a
-             doubly-linked list instead. */
-          struct uop_t * p = ROB[index];
-          while(p->decode.fusion_next != dead_uop)
-            p = p->decode.fusion_next;
-
-          dead_uop = p;
-        }
-      }
-
-      ROB[index] = NULL;
-      ROB_tail = moddec(ROB_tail,knobs->commit.ROB_size); //(ROB_tail-1+knobs->commit.ROB_size) % knobs->commit.ROB_size;
-      ROB_num --;
-      zesto_assert(ROB_num >= 0,(void)0);
-      zesto_assert(ROB_eff_num >= 0,(void)0);
-
-      index = moddec(index,knobs->commit.ROB_size); //(index-1+knobs->commit.ROB_size) % knobs->commit.ROB_size;
-    }
-  }
-
-  core->exec->STQ_squash_senior();
-
-  core->exec->recover_check_assertions();
-  zesto_assert(ROB_num == 0,(void)0);
+bool core_commit_DPM_t::ROB_available(void) {
+    struct core_knobs_t* knobs = core->knobs;
+    return ROB_num < knobs->commit.ROB_size;
 }
 
-bool core_commit_DPM_t::ROB_available(void)
-{
-  struct core_knobs_t * knobs = core->knobs;
-  return ROB_num < knobs->commit.ROB_size;
+bool core_commit_DPM_t::ROB_empty(void) { return 0 == ROB_num; }
+
+bool core_commit_DPM_t::pipe_empty(void) { return 0 == ROB_num; }
+
+void core_commit_DPM_t::ROB_insert(struct uop_t* const uop) {
+    struct core_knobs_t* knobs = core->knobs;
+    ROB[ROB_tail] = uop;
+    uop->alloc.ROB_index = ROB_tail;
+    ROB_num++;
+    ROB_eff_num++;
+    ROB_tail = modinc(ROB_tail, knobs->commit.ROB_size);  //(ROB_tail+1) % knobs->commit.ROB_size;
 }
 
-bool core_commit_DPM_t::ROB_empty(void)
-{
-  return 0 == ROB_num;
+void core_commit_DPM_t::ROB_fuse_insert(struct uop_t* const uop) {
+    uop->alloc.ROB_index = uop->decode.fusion_head->alloc.ROB_index;
+    ROB_eff_num++;
 }
 
-bool core_commit_DPM_t::pipe_empty(void)
-{
-  return 0 == ROB_num;
+void core_commit_DPM_t::ROB_pop_back() {
+    int back_ind = moddec(ROB_tail, core->knobs->commit.ROB_size);
+    ROB[back_ind] = nullptr;
+    ROB_tail = back_ind;
+    ROB_num--;
+    xiosim_core_assert(ROB_num >= 0, core->id);
+    xiosim_core_assert(ROB_eff_num >= 0, core->id);
 }
 
-void core_commit_DPM_t::ROB_insert(struct uop_t * const uop)
-{
-  struct core_knobs_t * knobs = core->knobs;
-  ROB[ROB_tail] = uop;
-  uop->alloc.ROB_index = ROB_tail;
-  ROB_num++;
-  ROB_eff_num++;
-  ROB_tail = modinc(ROB_tail,knobs->commit.ROB_size); //(ROB_tail+1) % knobs->commit.ROB_size;
-}
-
-void core_commit_DPM_t::ROB_fuse_insert(struct uop_t * const uop)
-{
-  uop->alloc.ROB_index = uop->decode.fusion_head->alloc.ROB_index;
-  ROB_eff_num++;
+void core_commit_DPM_t::ROB_pop_front() {
+    ROB[ROB_head] = nullptr;
+    ROB_num--;
+    ROB_eff_num--;
+    ROB_head = modinc(ROB_head, core->knobs->commit.ROB_size);
+    xiosim_core_assert(ROB_num >= 0, core->id);
+    xiosim_core_assert(ROB_eff_num >= 0, core->id);
 }
 
 /* Dummy fucntions for compatibility with IO pipe */
-void core_commit_DPM_t::pre_commit_insert(struct uop_t * const uop)
-{
-  fatal("shouldn't be called");
+void core_commit_DPM_t::pre_commit_insert(struct uop_t* const uop) { fatal("shouldn't be called"); }
+void core_commit_DPM_t::pre_commit_fused_insert(struct uop_t* const uop) {
+    fatal("shouldn't be called");
 }
-void core_commit_DPM_t::pre_commit_fused_insert(struct uop_t * const uop)
-{
-  fatal("shouldn't be called");
+bool core_commit_DPM_t::pre_commit_available() { fatal("shouldn't be called"); }
+void core_commit_DPM_t::pre_commit_step() { /* Compatibility: simulation can call this */ }
+void core_commit_DPM_t::pre_commit_recover(struct Mop_t* const Mop) {
+    fatal("shouldn't be called");
 }
-bool core_commit_DPM_t::pre_commit_available()
-{
-  fatal("shouldn't be called");
-}
-void core_commit_DPM_t::pre_commit_step()
-{
-  /* Compatibility: simulation can call this */
-}
-void core_commit_DPM_t::pre_commit_recover(struct Mop_t * const Mop)
-{
-  fatal("shouldn't be called");
-}
-int core_commit_DPM_t::squash_uop(struct uop_t * const uop)
-{
-  fatal("shouldn't be called");
-}
-
-
 #endif

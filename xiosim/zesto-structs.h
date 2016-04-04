@@ -245,6 +245,29 @@ struct alignas(16) uop_t
       this->exec.when_addr_translated = TICK_T_MAX;
   }
 
+  /* XXX: replace these with actual lists, so we don't roll our own half-baked ones everywhere */
+  /* For a fused uop packet, return the last uop. */
+  class uop_t* get_fusion_tail(void) {
+      assert(this->decode.in_fusion);
+      assert(this->decode.fusion_next);
+
+      class uop_t* result = this;
+      while(result->decode.fusion_next)
+          result = result->decode.fusion_next;
+      return result;
+  }
+
+  /* XXX: copying fwd walk, will disappear */
+  class uop_t* get_fusion_prev(void) {
+      if (!this->decode.in_fusion)
+          return nullptr;
+      if (this == this->decode.fusion_head)
+          return nullptr;
+      class uop_t* result = this->decode.fusion_head;
+      while (result->decode.fusion_next != this)
+          result = result->decode.fusion_next;
+      return result;
+  }
 };
 
 /* Macro-op decoded flags. */

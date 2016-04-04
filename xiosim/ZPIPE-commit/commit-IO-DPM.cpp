@@ -51,7 +51,7 @@ class core_commit_IO_DPM_t:public core_commit_t
   virtual void pre_commit_step();
   virtual void pre_commit_recover(struct Mop_t * const Mop);
 
-  virtual int squash_uop(struct uop_t * const uop);
+  virtual void squash_uop(struct uop_t * const uop);
 
 
   protected:
@@ -642,7 +642,7 @@ void core_commit_IO_DPM_t::step()
 
 /* squashes a uop, reardless in which stage it is; deallocates from LDQ and STQ; other structures and stats should be updated by the caller; retutns effective ROB entries;
    Because of clearing dependency pointers, should be called in program order, from oldest to youngest */
-int core_commit_IO_DPM_t::squash_uop(struct uop_t * const uop)
+void core_commit_IO_DPM_t::squash_uop(struct uop_t * const uop)
 {
 
   struct uop_t * dead_uop = uop;
@@ -651,14 +651,10 @@ int core_commit_IO_DPM_t::squash_uop(struct uop_t * const uop)
     dead_uop = dead_uop->decode.fusion_head;
 //    zesto_assert(dead_uop->decode.is_fusion_head,0);
 
-  int num_eff_ROB = 0;
   while(dead_uop)
   {
     /* squash this instruction - this invalidates all in-flight actions (e.g., uop execution, cache accesses) */
     dead_uop->exec.action_id = core->new_action_id();
-
-    if(dead_uop->alloc.ROB_index >= 0)
-      num_eff_ROB++;
 
     /* In the following, we have to check if the uop has even been allocated yet... this has
        to do with our non-atomic implementation of allocation for fused-uops */
@@ -743,9 +739,23 @@ int core_commit_IO_DPM_t::squash_uop(struct uop_t * const uop)
     else
       dead_uop = dead_uop->decode.fusion_next;
   }
-  return num_eff_ROB;
 }
 
+/* Helper: for a uop, gets the number of fused uops that are also allocated in the ROB.
+ * XXX: Unclear if we actually need to check if the uops are in the ROB, but leaving this
+ * for now. This pipeline needs a good big refactor anyways. */
+static int get_num_eff_uops_in_ROB(const struct uop_t* const uop) {
+    if (!uop->decode.in_fusion)
+        return (uop->alloc.ROB_index >= 0);
+
+    int result = 0;
+    struct uop_t* curr = uop->decode.fusion_head;
+    while (curr) {
+        result += (curr->alloc.ROB_index >= 0);
+        curr = curr->decode.fusion_next;
+    }
+    return result;
+}
 
 /* Walk ROB from oldest uop until we find the requested Mop and start squashing.
    (NOTE: We start after all uops belonging to the Mop.  We assume
@@ -779,7 +789,8 @@ core_commit_IO_DPM_t::recover(const struct Mop_t * const Mop)
 
       zesto_assert(ROB_num > 0,(void)0);
 
-      int eff_uop_num = this->squash_uop(curr_uop);
+      int eff_uop_num = get_num_eff_uops_in_ROB(curr_uop);
+      this->squash_uop(curr_uop);
 
       ROB[i] = NULL;
       ROB_num --;
@@ -834,7 +845,8 @@ core_commit_IO_DPM_t::recover(void)
 
       zesto_assert(ROB_num > 0,(void)0);
 
-      int eff_uop_num = this->squash_uop(curr_uop);
+      int eff_uop_num = get_num_eff_uops_in_ROB(curr_uop);
+      this->squash_uop(curr_uop);
 
       ROB[i] = NULL;
       ROB_num --;
