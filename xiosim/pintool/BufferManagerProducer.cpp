@@ -146,12 +146,28 @@ static void copyProducerToFile(pid_t tid, bool checkSpace) {
      * bridgeDirs_ until we find one with enough space. If we don't
      * care, we'll just default to the first one. */
     if (!alwaysSkipSpaceCheck && checkSpace) {
+        bool waited = false;
         for (int i = 0; i < (int)bridgeDirs_.size(); i++) {
             int space = getKBFreeSpace(bridgeDirs_[i]);
             if (space > 1000000) {  // 1.0 GB
                 bridge_dir_ind = i;
                 found_space = true;
                 break;
+            }
+
+            /* Before we move on to the next bridge directory, give the consumers a
+             * chance to catch up and free up some space. Only do this once, so we
+             * don't deadlock when we legitimately need huge buffers. This shouldn't
+             * affect performance, because (i) we're not producer-limited if we've
+             * filled out multiple GBs of buffer space; (ii) we're not introducing
+             * extra contention on the buffer locks (which we'd do have to do if we
+             * were monitoring total buffer occupancy).
+             * Still, more of a hack than a general rate-limiting solution, though. */
+            if (!waited) {
+                xio_sleep(100);
+                waited = true;
+                i--;
+                continue;
             }
 
             std::cerr << "Out of space on " + bridgeDirs_[i] + " !!!" << std::endl;
