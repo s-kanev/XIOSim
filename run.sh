@@ -16,6 +16,7 @@ CMD_LINE="setarch x86_64 -R ${BIN_PATH}/harness \
                 -pin $PIN  \
                 -pause_tool 1  \
                 -xyzzy  \
+                -ifeellucky \
                 -catch_signals 0 \
                 -t  \
                 $PINTOOL  \
