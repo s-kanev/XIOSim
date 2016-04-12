@@ -297,9 +297,7 @@ class Statistic<V, typename boost::enable_if<boost::is_arithmetic<V>>::type>
     V final_val;  // Final value of the statistic. Used to compare deltas.
 };
 
-/* Distribution statistic.
- * TODO: Add a copy constructor.
- * */
+/* Distribution statistic. */
 class Distribution : public BaseStatistic {
   public:
     Distribution(const char* name,
@@ -322,6 +320,21 @@ class Distribution : public BaseStatistic {
         for (unsigned int i = 0; i < array_sz; i++) {
             this->array[i] = init_val;
             this->final_array[i] = init_val;
+        }
+    }
+
+    Distribution(const Distribution& rhs)
+        : BaseStatistic(rhs)
+        , array(new unsigned int[rhs.array_sz])
+        , final_array(new unsigned int[rhs.array_sz])
+        , array_sz(rhs.array_sz)
+        , overflows(rhs.overflows)
+        , bucket_sz(rhs.bucket_sz)
+        , init_val(rhs.init_val)
+        , stat_labels(rhs.stat_labels) {
+        for (unsigned int i = 0; i < array_sz; i++) {
+            this->array[i] = rhs.array[i];
+            this->final_array[i] = rhs.final_array[i];
         }
     }
 
@@ -367,12 +380,14 @@ class Distribution : public BaseStatistic {
         for (unsigned int i = 0; i < array_sz; i++) {
             array[i] = array[i] * weight;
         }
+        overflows = (unsigned int) (overflows * weight);
     }
 
     virtual void accum_stat(BaseStatistic* other) {
         Distribution* dist = static_cast<Distribution*>(other);
         for (unsigned int i = 0; i < array_sz; i++)
             array[i] += dist->array[i];
+        overflows += dist->overflows;
     }
 
     virtual void save_value() {
