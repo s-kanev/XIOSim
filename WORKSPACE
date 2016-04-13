@@ -14,8 +14,8 @@ new_http_archive(
 
 new_http_archive(
     name = "confuse",
-    url = "https://github.com/martinh/libconfuse/archive/v2.8.zip",
-    sha256 = "34543ccff48b853241bac57dce8353bfc2c9b01d49b51f9cd6619d4a946fa5ef",
+    url = "https://github.com/martinh/libconfuse/releases/download/v3.0/confuse-3.0.tar.gz",
+    sha256 = "f1f326d9443103036d19c32d3f3efec3a85c3b081d99534463668d29992c4648",
     build_file = "third_party/confuse/BUILD.external",
 )
 

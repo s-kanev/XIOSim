@@ -1,6 +1,6 @@
 licenses(["notice"])
 
-CONFUSE_PATH = "libconfuse-2.8"
+CONFUSE_PATH = "confuse-3.0"
 
 cc_library(
     visibility = ["//visibility:public"],
