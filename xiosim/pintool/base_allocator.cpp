@@ -6,7 +6,6 @@
 #include <map>
 #include <string>
 
-#include "boost_interprocess.h"
 #include "xiosim/synchronization.h"
 
 #include "multiprocess_shared.h"

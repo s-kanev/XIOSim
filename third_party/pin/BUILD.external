@@ -15,14 +15,34 @@ cc_library(
         ":piii" : [ XED_PATH % "ia32" + "include"],
     }),
     srcs = select({
-        ":k8" : [ XED_PATH % "intel64" + "lib/libxed.a"],
-        ":piii" : [ XED_PATH % "ia32" + "lib/libxed.a"],
+        ":k8" : glob([
+                XED_PATH % "intel64" + "lib/libxed.a",
+                XED_PATH % "intel64" + "include/*.h"
+            ]),
+        ":piii" : glob([
+                XED_PATH % "ia32" + "lib/libxed.a",
+                XED_PATH % "ia32" + "include/*.h"
+            ]),
     }),
 )
 
 cc_library(
     visibility = ["//visibility:public"],
     name = "pin",
+    hdrs =  glob([
+        PIN_PATH + "/source/include/pin/pin.H",
+        # Everything below belongs in srcs, but bazel doesn't like the
+        # non-standard header extensions there.
+        PIN_PATH + "/source/include/pin/*.h",
+        PIN_PATH + "/source/include/pin/*.H",
+        PIN_PATH + "/source/include/pin/*.PLH",
+        PIN_PATH + "/source/include/pin/gen/*.hpp",
+        PIN_PATH + "/source/include/pin/gen/*.CVH",
+        PIN_PATH + "/source/include/pin/gen/*.PH",
+        PIN_PATH + "/source/include/pin/gen/*.TLH",
+        PIN_PATH + "/extras/components/include/**/*.h",
+        PIN_PATH + "/extras/components/include/**/*.hpp",
+    ]),
     includes = [
         PIN_PATH + "/source/include/pin",
         PIN_PATH + "/source/include/pin/gen",

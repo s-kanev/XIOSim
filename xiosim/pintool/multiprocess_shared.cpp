@@ -1,6 +1,6 @@
 #include <sstream>
 
-#include "xiosim/sim.h"
+#include "xiosim/core_const.h"
 
 #include "ipc_queues.h"
 #include "scheduler.h"

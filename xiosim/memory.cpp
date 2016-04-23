@@ -11,9 +11,9 @@
 #include <unordered_map>
 #include <mutex>
 
+#include "core_const.h"
 #include "host.h"
 #include "misc.h"
-#include "sim.h"
 #include "stats.h"
 #include "synchronization.h"
 #include "ztrace.h"

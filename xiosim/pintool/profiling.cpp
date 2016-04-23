@@ -2,9 +2,6 @@
 #include <regex>
 #include <string>
 
-#include "xiosim/sim.h"
-#include "xiosim/synchronization.h"
-
 #include "feeder.h"
 #include "BufferManagerProducer.h"
 #include "speculation.h"

@@ -55,9 +55,16 @@
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
 
+#include <memory>
 #include <string>
 
 #include "zesto-structs.h"
+
+namespace xiosim {
+namespace stats {
+class StatsDatabase;  // fwd
+}
+}
 
 /* Top-level "branch predictor" this handles direction, target, return address, etc. */
 class bpred_t

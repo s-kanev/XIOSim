@@ -73,9 +73,7 @@
 
 #include "2bitc.h"
 #include "misc.h"
-#include "sim.h"
 #include "stats.h"
-#include "sim.h"
 #include "valcheck.h"
 
 #include "zesto-core.h"

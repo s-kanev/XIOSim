@@ -116,7 +116,7 @@ double LogSpeedupModel::LambertW(const double z) {
     const double eps = 4.0e-16, em1 = 0.3678794411714423215955237701614608;
     double p, e, t, w;
     // if (dbgW) fprintf(stderr,"LambertW: z=%g\n",z);
-    if (z < -em1 || isinf(z) || isnan(z)) {
+    if (z < -em1 || std::isinf(z) || std::isnan(z)) {
         fprintf(stderr, "LambertW: bad argument %g, exiting.\n", z);
         exit(1);
     }

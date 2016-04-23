@@ -1,7 +1,8 @@
 #include "misc.h"
 
-#include "zesto-structs.h"
+#include "zesto-core.h"
 #include "zesto-oracle.h"
+#include "zesto-structs.h"
 #include "shadow_MopQ.h"
 
 /* Get the shadow MopQ entry corresponding to Mop in the oracle MopQ.

@@ -66,14 +66,10 @@
 #include "zesto-alloc.h"
 #include "zesto-cache.h"
 #include "zesto-decode.h"
-#include "zesto-prefetch.h"
 #include "zesto-bpred.h"
 #include "zesto-exec.h"
 #include "zesto-commit.h"
 #include "zesto-uncore.h"
-#include "zesto-MC.h"
-#include "zesto-dram.h"
-#include "zesto-noc.h"
 #include "zesto-coherence.h"
 
 

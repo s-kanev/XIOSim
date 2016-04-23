@@ -77,6 +77,7 @@
 #include "zesto-alloc.h"
 #include "zesto-exec.h"
 #include "zesto-commit.h"
+#include "ztrace.h"
 
 using namespace std;
 

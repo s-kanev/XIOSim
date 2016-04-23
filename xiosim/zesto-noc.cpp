@@ -1,8 +1,8 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "core_const.h"
 #include "misc.h"
-#include "sim.h"
 #include "stats.h"
 
 #include "zesto-core.h"

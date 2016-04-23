@@ -1,6 +1,6 @@
 #include <syscall.h>
 
-#include "xiosim/sim.h"
+#include "xiosim/core_const.h"
 #include "xiosim/synchronization.h"
 
 #include "feeder.h"

@@ -1,25 +1,44 @@
 licenses(["notice"]) # boost licence
 
+# This is a quite incomplete attempt to enumerate the dependencies of
+# the pieces of boost we use.
+# Not sure it buys us much over just glob("boost/**/*.hpp").
+
 cc_library(
     visibility = ["//visibility:public"],
     name = "accumulators",
     hdrs = glob([
-        "boost_1_54_0/boost/accumulators/accumulators.hpp",
-        "boost_1_54_0/boost/accumulators/statistics/*.hpp",
+        "boost_1_54_0/boost/accumulators/**/*.hpp",
+        "boost_1_54_0/boost/blank.hpp",
+        "boost_1_54_0/boost/blank_fwd.hpp",
+        "boost_1_54_0/boost/concept/**/*.hpp",
+        "boost_1_54_0/boost/concept_check.hpp",
+        "boost_1_54_0/boost/fusion/**/*.hpp",
+        "boost_1_54_0/boost/parameter/**/*.hpp",
+        "boost_1_54_0/boost/typeof/**/*.hpp",
     ]),
     includes = ["boost_1_54_0"],
+    deps = [
+        ":base",
+        ":iterator",
+        ":type_traits",
+        ":utility",
+    ],
 )
 
 cc_library(
     visibility = ["//visibility:public"],
     name = "interprocess",
     hdrs = glob([
-        "boost_1_54_0/boost/interprocess/*.hpp",
-        "boost_1_54_0/boost/interprocess/allocators/*.hpp",
-        "boost_1_54_0/boost/interprocess/containers/*.hpp",
-        "boost_1_54_0/boost/interprocess/sync/*.hpp",
+        "boost_1_54_0/boost/interprocess/**/*.hpp",
     ]),
     includes = ["boost_1_54_0"],
+    deps = [
+        ":base",
+        ":containers",
+        ":date_time",
+        ":type_traits",
+    ],
 )
 
 cc_library(
@@ -27,7 +46,219 @@ cc_library(
     name = "tokenizer",
     hdrs = glob([
         "boost_1_54_0/boost/tokenizer.hpp",
-        "boost_1_54_0/boost/algorithm/string/predicate.hpp",
+        "boost_1_54_0/boost/token_iterator.hpp",
+        "boost_1_54_0/boost/token_functions.hpp",
+    ]),
+    includes = ["boost_1_54_0"],
+    deps = [
+        ":algorithm_string",
+        ":base",
+        ":iterator",
+    ],
+)
+
+cc_library(
+    visibility = ["//visibility:public"],
+    name = "type_traits",
+    hdrs = glob([
+        "boost_1_54_0/boost/type_traits.hpp",
+        "boost_1_54_0/boost/type_traits/*.hpp",
+        "boost_1_54_0/boost/type_traits/detail/*.hpp",
+        "boost_1_54_0/boost/type_traits/detail.hpp",
+    ]),
+    includes = ["boost_1_54_0"],
+    deps = [
+        ":mpl",
+    ],
+)
+
+cc_library(
+    visibility = ["//visibility:public"],
+    name = "mpl",
+    hdrs = glob([
+        "boost_1_54_0/boost/mpl/**/*.hpp",
+        "boost_1_54_0/boost/detail/*.hpp",
+        "boost_1_54_0/boost/preprocessor/**/*.hpp",
+    ]),
+    includes = ["boost_1_54_0"],
+)
+
+cc_library(
+    visibility = ["//visibility:public"],
+    name = "containers",
+    hdrs = glob([
+        "boost_1_54_0/boost/container/allocator_traits.hpp",
+        "boost_1_54_0/boost/container/container_fwd.hpp",
+        "boost_1_54_0/boost/container/deque.hpp",
+        "boost_1_54_0/boost/container/map.hpp",
+        "boost_1_54_0/boost/container/detail/*.hpp",
+        "boost_1_54_0/boost/container/set.hpp",
+        "boost_1_54_0/boost/container/string.hpp",
+        "boost_1_54_0/boost/container/throw_exception.hpp",
+        "boost_1_54_0/boost/container/vector.hpp",
+        "boost_1_54_0/boost/exception/**/*.hpp",
+        "boost_1_54_0/boost/move/**/*.hpp",
+        "boost_1_54_0/boost/intrusive/**/*.hpp",
+        "boost_1_54_0/boost/swap.hpp",
+        "boost_1_54_0/boost/tuple/**/*.hpp",
+        "boost_1_54_0/boost/unordered/**/*.hpp",
+        "boost_1_54_0/boost/unordered_map.hpp",
+    ]),
+    includes = ["boost_1_54_0"],
+    deps = [
+        ":functional",
+        ":iterator",
+    ],
+)
+
+cc_library(
+    visibility = ["//visibility:public"],
+    name = "functional",
+    hdrs = glob([
+        "boost_1_54_0/boost/functional/**/*.hpp",
+        "boost_1_54_0/boost/integer/static_log2.hpp",
+        "boost_1_54_0/boost/integer_fwd.hpp",
+    ]),
+    includes = ["boost_1_54_0"],
+    deps = [
+        ":utility",
+    ],
+)
+
+cc_library(
+    visibility = ["//visibility:public"],
+    name = "date_time",
+    hdrs = glob([
+        "boost_1_54_0/boost/date_time/**/*.hpp",
+        "boost_1_54_0/boost/date_time/**/*.ipp",
+    ]),
+    includes = ["boost_1_54_0"],
+    deps = [
+        ":operators",
+        ":smart_ptr",
+    ],
+)
+
+cc_library(
+    visibility = ["//visibility:public"],
+    name = "smart_ptr",
+    hdrs = glob([
+        "boost_1_54_0/boost/shared_ptr.hpp",
+        "boost_1_54_0/boost/smart_ptr/**/*.hpp",
+    ]),
+    includes = ["boost_1_54_0"],
+    deps = [
+        ":base",
+    ],
+)
+
+cc_library(
+    visibility = ["//visibility:public"],
+    name = "operators",
+    hdrs = glob([
+        "boost_1_54_0/boost/operators.hpp",
+    ]),
+    includes = ["boost_1_54_0"],
+    deps = [
+        ":base",
+    ],
+)
+
+cc_library(
+    visibility = ["//visibility:public"],
+    name = "iterator",
+    hdrs = glob([
+        "boost_1_54_0/boost/detail/iterator.hpp",
+        "boost_1_54_0/boost/iterator.hpp",
+        "boost_1_54_0/boost/iterator/**/*.hpp",
+    ]),
+    includes = ["boost_1_54_0"],
+    deps = [
+        ":base",
+        ":mpl",
+        ":type_traits",
+        ":utility",
+    ],
+)
+
+cc_library(
+    visibility = ["//visibility:public"],
+    name = "utility",
+    hdrs = glob([
+        "boost_1_54_0/boost/utility.hpp",
+        "boost_1_54_0/boost/utility/**/*.hpp",
+    ]),
+    includes = ["boost_1_54_0"],
+    deps = [
+        ":base",
+    ],
+)
+
+cc_library(
+    visibility = ["//visibility:public"],
+    name = "algorithm_string",
+    hdrs = glob([
+        "boost_1_54_0/boost/algorithm/string.hpp",
+        "boost_1_54_0/boost/algorithm/string/**/*.hpp",
+    ]),
+    includes = ["boost_1_54_0"],
+    deps = [
+        ":base",
+        ":range",
+    ],
+)
+
+cc_library(
+    visibility = ["//visibility:public"],
+    name = "range",
+    hdrs = glob([
+        "boost_1_54_0/boost/next_prior.hpp",
+        "boost_1_54_0/boost/range.hpp",
+        "boost_1_54_0/boost/range/**/*.hpp",
+    ]),
+    includes = ["boost_1_54_0"],
+    deps = [
+        ":base",
+        ":concept",
+    ],
+)
+
+cc_library(
+    visibility = ["//visibility:public"],
+    name = "concept",
+    hdrs = glob([
+        "boost_1_54_0/boost/concept.hpp",
+        "boost_1_54_0/boost/concept/**/*.hpp",
+        "boost_1_54_0/boost/concept_check.hpp",
+        "boost_1_54_0/boost/concept_check/**/*.hpp",
+    ]),
+    includes = ["boost_1_54_0"],
+    deps = [
+        ":base",
+        ":mpl",
+        ":type_traits",
+    ],
+)
+
+cc_library(
+    visibility = ["//visibility:public"],
+    name = "base",
+    hdrs = glob([
+        "boost_1_54_0/boost/aligned_storage.hpp",
+        "boost_1_54_0/boost/assert.hpp",
+        "boost_1_54_0/boost/checked_delete.hpp",
+        "boost_1_54_0/boost/config.hpp",
+        "boost_1_54_0/boost/cstdint.hpp",
+        "boost_1_54_0/boost/config/**/*.hpp",
+        "boost_1_54_0/boost/current_function.hpp",
+        "boost_1_54_0/boost/detail/workaround.hpp",
+        "boost_1_54_0/boost/limits.hpp",
+        "boost_1_54_0/boost/memory_order.hpp",
+        "boost_1_54_0/boost/pointer_to_other.hpp",
+        "boost_1_54_0/boost/ref.hpp",
+        "boost_1_54_0/boost/static_assert.hpp",
+        "boost_1_54_0/boost/throw_exception.hpp",
+        "boost_1_54_0/boost/version.hpp",
     ]),
     includes = ["boost_1_54_0"],
 )

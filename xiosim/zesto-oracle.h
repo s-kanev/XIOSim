@@ -56,24 +56,25 @@
  *
  */
 
-#include <stdint.h>
 #include <list>
 #include <map>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
-#include "zesto-fetch.h"
+#include "host.h"
 #include "shadow_MopQ.h"
-#include "sim.h"
-#include "stats.h"
-#include "ztrace.h"
 
 /* Until we replace it with xiosim_core_assert(). As before, there's always
  * a core_t* core pointer defined when we call zesto_assert(). */
 #define zesto_assert(cond, retval) xiosim_core_assert((cond), core->id)
 
-class handshake_container_t;
+class handshake_container_t;  // fwd
+namespace xiosim {
+namespace stats {
+class StatsDatabase;  // fwd
+}
+}
 
 enum buffer_result_t { ALL_GOOD, HANDSHAKE_NOT_NEEDED, HANDSHAKE_NOT_CONSUMED };
 

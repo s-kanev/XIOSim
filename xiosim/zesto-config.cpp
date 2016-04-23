@@ -10,9 +10,9 @@
 
 #include "confuse.h"
 
+#include "core_const.h"
 #include "misc.h"
 #include "knobs.h"
-#include "sim.h"
 #include "zesto-config.h"
 
 using namespace xiosim;

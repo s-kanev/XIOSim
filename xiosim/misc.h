@@ -58,6 +58,8 @@
 #include <stdio.h>
 #include <functional>
 
+#include "core_const.h"
+
 /* boolean value defs */
 #ifndef TRUE
 #define TRUE 1
@@ -85,8 +87,7 @@ void register_assert_fail_handler(assert_fail_callback callback);
         exit(6); \
     }
 
-/* XXX: xiosim::INVALID_CORE once we pull it out of sim.h */
-#define xiosim_assert(cond) xiosim_core_assert((cond), -1)
+#define xiosim_assert(cond) xiosim_core_assert((cond), xiosim::INVALID_CORE)
 
 /* fast modulo increment/decrement:
    gcc on -O1 or higher will if-convert the following functions

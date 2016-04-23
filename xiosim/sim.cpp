@@ -15,6 +15,7 @@
 #include <map>
 #include <cstddef>
 
+#include "core_const.h"
 #include "host.h"
 #include "misc.h"
 #include "memory.h"
@@ -38,6 +39,7 @@
 #include "zesto-power.h"
 #include "zesto-dvfs.h"
 #include "zesto-repeater.h"
+#include "ztrace.h"
 
 #include "sim-loop.h"
 #include "libsim.h"

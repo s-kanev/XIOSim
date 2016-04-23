@@ -1,7 +1,7 @@
 /* Implementation of temporary replacement statistics library layer. */
 
+#include "core_const.h"
 #include "expression.h"
-#include "sim.h"
 #include "statistic.h"
 #include "stat_database.h"
 

@@ -26,6 +26,7 @@ cc_binary(
         ":scheduler",
         "//third_party/confuse",
         "//third_party/ezOptionParser",
+        "//xiosim:core_const",
         "//xiosim:libsim",
         "//xiosim:zesto-config",
     ],
@@ -75,6 +76,10 @@ cc_binary(
         "//third_party/InstLib:legacy_instlib",
         "//third_party/pin",
         "//third_party/pin:xed",
+        "//xiosim:core_const",
+        "//xiosim:helix",
+        "//xiosim:knobs",
+        "//xiosim:memory",
         "//xiosim:zesto-bpred",
         "//xiosim:zesto-config",
     ],
@@ -104,6 +109,7 @@ cc_library(
         "mpkeys.h",
         "mpkeys_impl.cpp",
         "multiprocess_shared.cpp",
+        "scheduler.h", # to break dependency cycle
         "shared_common.h",
         "shared_map.h",
         "shared_unordered_common.h",
@@ -112,6 +118,8 @@ cc_library(
     hdrs = ["multiprocess_shared.h"],
     deps = [
         "//third_party/boost:interprocess",
+        "//xiosim:core_const",
+        "//xiosim:core_set",
         "//xiosim:misc",
         "//xiosim:synchronization",
     ],
@@ -125,6 +133,7 @@ cc_library(
         "gang_allocator.cpp",
         "local_opt_allocator.cpp",
         "optimization_targets.cpp",
+        "optimization_targets.h",
         "penalty_allocator.cpp",
     ],
     hdrs = [
@@ -208,6 +217,7 @@ cc_library(
     hdrs = ["scheduler.h"],
     deps = [
         ":multiprocess",
+        "//xiosim:core_const",
         "//xiosim:libsim",
         "//xiosim:synchronization",
         "//xiosim:zesto-core",
@@ -221,6 +231,7 @@ cc_library(
     hdrs = ["BufferManager.h"],
     deps = [
         ":multiprocess",
+        "//xiosim:core_const",
     ],
 )
 

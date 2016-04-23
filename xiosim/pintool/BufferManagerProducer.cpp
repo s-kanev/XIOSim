@@ -8,7 +8,7 @@
 #include "buffer.h"
 #include "BufferManagerProducer.h"
 
-#include "xiosim/sim.h"
+#include "xiosim/core_const.h"
 
 namespace xiosim {
 namespace buffer_management {

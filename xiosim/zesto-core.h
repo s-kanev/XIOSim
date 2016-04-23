@@ -59,15 +59,14 @@
 #include <memory>
 
 #include "knobs.h"
-#include "stats.h"
+
+namespace xiosim {
+namespace stats {
+class Distribution;  // fwd
+class StatsDatabase;  // fwd
+}
+}
 #define ZESTO_STAT(x) {if(core->active) {x}}
-
-#include "zesto-cache.h"
-#include "zesto-dvfs.h"
-#include "zesto-noc.h"
-#include "zesto-repeater.h"
-
-struct uop_t;
 
 /* state for the processor microarchitecture (per core) */
 class core_t {

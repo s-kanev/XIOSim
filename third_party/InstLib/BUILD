@@ -12,6 +12,10 @@ exports_files(["LICENSE"])
 
 cc_library(
     name = "legacy_instlib",
-    hdrs = glob(["InstLib/*.H"]),
-    includes = ["."],
+    hdrs = glob([
+        "legacy_instlib.H",
+        # Below should be in srcs, but bazel doesn't like the non-standard header
+        # extension there.
+        "*.H"
+    ]),
 )

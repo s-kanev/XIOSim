@@ -71,13 +71,11 @@
 #include "zesto-core.h"
 #include "zesto-oracle.h"
 #include "zesto-alloc.h"
-#include "zesto-fetch.h"
 #include "zesto-exec.h"
 #include "zesto-commit.h"
 #include "zesto-memdep.h"
-#include "zesto-prefetch.h"
-#include "zesto-uncore.h"
 #include "zesto-coherence.h"
+#include "zesto-uncore.h"
 #include "helix.h"
 
 /* default constructor */

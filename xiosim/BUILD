@@ -50,22 +50,23 @@ cc_library(
     srcs = ["zesto-noc.cpp"],
     hdrs = ["zesto-noc.h"],
     deps = [
+        ":core_const",
         ":misc",
         ":stats",
+        ":uarch_headers",
     ],
 )
 
 cc_library(
     name = "zesto-cache",
-    srcs = [
-        "2bitc.h",
-        "zesto-cache.cpp",
-    ],
+    srcs = ["zesto-cache.cpp"],
     hdrs = ["zesto-cache.h"],
     deps = [
+        ":memory",
         ":stats",
         ":zesto-coherence",
         ":zesto-prefetch",
+        ":ztrace",
     ],
 )
 
@@ -74,6 +75,7 @@ load("components", "gen_list")
 gen_list(
     component = "fetch",
     dirs = ["ZPIPE-fetch"],
+    extra_deps = [":memory"],
 )
 
 gen_list(
@@ -84,11 +86,17 @@ gen_list(
 gen_list(
     component = "alloc",
     dirs = ["ZPIPE-alloc"],
+    extra_deps = [":helix"],
 )
 
 gen_list(
     component = "exec",
     dirs = ["ZPIPE-exec"],
+    extra_deps = [
+        ":helix",
+        ":memory",
+        ":zesto-memdep",
+    ],
 )
 
 gen_list(
@@ -104,31 +112,46 @@ gen_list(
         "ZCOMPS-btb",
         "ZCOMPS-ras",
     ],
+    extra_deps = [
+        ":2bitc",
+        ":valcheck",
+    ],
 )
 
 gen_list(
     component = "memdep",
     dirs = ["ZCOMPS-memdep"],
+    extra_deps = [":valcheck"],
 )
 
 gen_list(
     component = "prefetch",
     dirs = ["ZCOMPS-prefetch"],
+    extra_deps = [
+        ":2bitc",
+        ":memory",
+        ":valcheck",
+    ],
 )
 
 gen_list(
     component = "coherence",
     dirs = ["ZCOMPS-coherence"],
+    extra_deps = [
+        ":memory",
+        ":synchronization"
+    ],
 )
 
 gen_list(
     component = "dram",
-    dirs = ["ZCOMPS-dram"],  #, extra_deps=[":zesto-uncore"])
+    dirs = ["ZCOMPS-dram"],
 )
 
 gen_list(
     component = "MC",
     dirs = ["ZCOMPS-MC"],
+    extra_deps = [":memory"],
 )
 
 gen_list(
@@ -154,7 +177,6 @@ gen_list(
 cc_library(
     name = "zesto-core",
     srcs = [
-        "2bitc.h",
         "zesto-core.cpp",
         "zesto-oracle.cpp",
     ],
@@ -163,9 +185,11 @@ cc_library(
         "zesto-oracle.h",
     ],
     deps = [
+        ":memory",
         ":shadow_MopQ",
         ":stats",
         ":synchronization",
+        ":uarch_headers",
         ":zesto-alloc",
         ":zesto-bpred",
         ":zesto-commit",
@@ -184,6 +208,7 @@ cc_library(
     hdrs = ["shadow_MopQ.h"],
     deps = [
         ":misc",
+        ":uarch_headers",
         ":zesto-structs",
         "//xiosim/pintool:buffer",
         "//xiosim/pintool:handshake_container",
@@ -193,6 +218,7 @@ cc_library(
 cc_library(
     name = "sim",
     srcs = [
+        "libsim.h",
         "sim.cpp",
         "sim-loop.cpp",
         "slices.cpp",
@@ -203,10 +229,12 @@ cc_library(
         "slices.h",
     ],
     deps = [
+        ":knobs",
         ":memory",
         ":stats",
         ":synchronization",
         ":zesto-core",
+        ":zesto-power",
         ":zesto-structs",
         ":zesto-uncore",
         ":ztrace",
@@ -245,6 +273,7 @@ cc_library(
     srcs = ["memory.cpp"],
     hdrs = ["memory.h"],
     deps = [
+        "core_const",
         ":misc",
         ":stats",
         ":synchronization",
@@ -262,8 +291,10 @@ cc_library(
     srcs = ["ztrace.cpp"],
     hdrs = ["ztrace.h"],
     deps = [
+        ":core_const",
         ":misc",
         ":stats",
+        ":uarch_headers",
         ":x86",
         ":zesto-structs",
     ],
@@ -279,7 +310,10 @@ cc_library(
     name = "zesto-structs",
     hdrs = ["zesto-structs.h"],
     defines = ["USE_SSE_MOVE"],
-    deps = [":x86"],
+    deps = [
+        ":host",
+        ":x86",
+    ],
 )
 
 cc_library(
@@ -288,6 +322,7 @@ cc_library(
         "decode.cpp",
         "fu.cpp",
         "uop_cracker.cpp",
+        "zesto-structs.h", # to avoid circular dependecy
     ],
     hdrs = [
         "decode.h",
@@ -339,11 +374,12 @@ cc_test(
 cc_library(
     name = "misc",
     srcs = ["misc.cpp"],
-    hdrs = [
-        "host.h",
-        "misc.h",
-    ],
+    hdrs = ["misc.h"],
     copts = ["-DUSE_SSE_MOVE"],
+    deps = [
+        ":core_const",
+        ":host",
+    ],
 )
 
 cc_library(
@@ -356,12 +392,11 @@ cc_library(
         "statistic.h",
         "stats.cpp",
     ],
-    hdrs = [
-        "host.h",
-        "stats.h",
-    ],
+    hdrs = ["stats.h"],
     deps = [
         ":boost_stats_include",
+        ":core_const",
+        ":host",
     ],
 )
 
@@ -391,4 +426,69 @@ cc_library(
     name = "catch_impl",
     srcs = ["catch_impl.cpp"],
     deps = ["//third_party/catch:main"],
+)
+
+cc_library(
+    name = "helix",
+    hdrs = ["helix.h"],
+    deps = [":zesto-structs"],
+)
+
+cc_library(
+    name = "2bitc",
+    hdrs = ["2bitc.h"],
+)
+
+cc_library(
+    name = "core_const",
+    hdrs = ["core_const.h"],
+)
+
+cc_library(
+    name = "core_set",
+    hdrs = ["core-set.h"],
+)
+
+cc_library(
+    name = "host",
+    hdrs = ["host.h"],
+)
+
+cc_library(
+    name = "valcheck",
+    hdrs = ["valcheck.h"],
+)
+
+# There are quite a few header dependcy cycles in uarch components.
+# So, we just have one large bundle of all headers and will rebuild if
+# any of them change.
+cc_library(
+    name = "uarch_headers",
+    hdrs = [
+        "shadow_MopQ.h",
+        "zesto-cache.h",
+        "zesto-core.h",
+        "zesto-dvfs.h",
+        "zesto-noc.h",
+        "zesto-oracle.h",
+        "zesto-repeater.h",
+        "zesto-fetch.h",
+        "zesto-alloc.h",
+        "zesto-decode.h",
+        "zesto-exec.h",
+        "zesto-commit.h",
+        "zesto-uncore.h",
+        "zesto-coherence.h",
+        "zesto-bpred.h",
+        "zesto-MC.h",
+        "zesto-dram.h",
+        "zesto-power.h",
+    ],
+    deps = [
+        ":knobs",
+        ":stats",
+        ":synchronization",
+        "//xiosim/pintool:buffer",
+        "//xiosim/pintool:handshake_container",
+    ],
 )

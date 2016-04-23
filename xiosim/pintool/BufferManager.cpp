@@ -11,7 +11,7 @@
 #include <queue>
 
 #include "multiprocess_shared.h"
-#include "xiosim/sim.h"
+#include "xiosim/core_const.h"
 #include "BufferManager.h"
 
 namespace xiosim {

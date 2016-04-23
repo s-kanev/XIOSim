@@ -1,9 +1,9 @@
 #include "ezOptionParser_clean.hpp"
 
+#include "xiosim/core_const.h"
 #include "xiosim/knobs.h"
 #include "xiosim/libsim.h"
 #include "xiosim/memory.h"
-#include "xiosim/sim.h"
 #include "xiosim/slices.h"
 #include "xiosim/synchronization.h"
 #include "xiosim/zesto-config.h"

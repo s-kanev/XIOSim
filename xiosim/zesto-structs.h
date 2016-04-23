@@ -64,8 +64,8 @@ extern "C" {
 
 #include "decode.h"
 #include "fu.h"
+#include "host.h"
 #include "uop_cracker.h"
-#include "zesto-core.h"
 
 /* structure for a uop's list of output dependencies (dataflow children) */
 struct odep_t {

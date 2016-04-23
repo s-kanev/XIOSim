@@ -208,4 +208,10 @@ struct system_knobs_t {
      * @symbol. */
     std::vector<std::string> profiling_stop;
 };
+
+/* Globals */
+extern struct core_knobs_t core_knobs;
+extern struct uncore_knobs_t uncore_knobs;
+extern struct system_knobs_t system_knobs;
+
 #endif /* __KNOBS_H__ */

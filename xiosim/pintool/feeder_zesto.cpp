@@ -23,8 +23,9 @@
 #include <utility>
 #include <signal.h>
 
+#include "xiosim/core_const.h"
+#include "xiosim/knobs.h"
 #include "xiosim/memory.h"
-#include "xiosim/sim.h"
 #include "xiosim/zesto-config.h"
 
 #include "BufferManagerProducer.h"
@@ -101,7 +102,7 @@ static void InitXed();
 
 static void InitWatchdog();
 
-/* Feeder-side version of knobs declared in sim.h. */
+/* Feeder-side version of knobs */
 core_knobs_t core_knobs;
 uncore_knobs_t uncore_knobs;
 system_knobs_t system_knobs;

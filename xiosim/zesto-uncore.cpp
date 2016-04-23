@@ -58,7 +58,6 @@
 
 #include "misc.h"
 #include "stats.h"
-#include "sim.h"
 
 #include "zesto-cache.h"
 #include "zesto-prefetch.h"

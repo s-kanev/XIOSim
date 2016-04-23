@@ -10,8 +10,8 @@
 
 #include "multiprocess_shared.h"
 
+#include "xiosim/core_const.h"
 #include "xiosim/libsim.h"
-#include "xiosim/sim.h"
 #include "xiosim/synchronization.h"
 #include "xiosim/zesto-core.h"
 #include "xiosim/zesto-structs.h"

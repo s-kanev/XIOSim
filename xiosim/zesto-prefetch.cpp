@@ -58,7 +58,6 @@
 #include "2bitc.h"
 #include "memory.h"
 #include "misc.h"
-#include "sim.h"
 #include "stats.h"
 #include "valcheck.h"
 

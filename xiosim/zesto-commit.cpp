@@ -56,14 +56,12 @@
 
 #include "misc.h"
 #include "regs.h"
-#include "sim.h"
 #include "stats.h"
 #include "synchronization.h"
 
 #include "zesto-core.h"
 #include "zesto-oracle.h"
 #include "zesto-fetch.h"
-#include "zesto-decode.h"
 #include "zesto-alloc.h"
 #include "zesto-exec.h"
 #include "zesto-cache.h"

@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <cmath>
 
+#include "core_const.h"
 #include "host.h"
 #include "misc.h"
 #include "memory.h"
@@ -25,6 +26,7 @@
 #include "zesto-MC.h"
 #include "zesto-power.h"
 #include "zesto-dvfs.h"
+#include "ztrace.h"
 
 #include "synchronization.h"
 #include "libsim.h"

@@ -8,7 +8,7 @@
 #include <queue>
 #include <stack>
 
-#include "xiosim/sim.h"
+#include "xiosim/core_const.h"
 #include "xiosim/helix.h"
 
 #include "BufferManagerProducer.h"

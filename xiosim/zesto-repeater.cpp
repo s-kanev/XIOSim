@@ -5,9 +5,7 @@
 
 #include <cstring>
 
-#include "sim.h"
 #include "misc.h"
-#include "synchronization.h"
 
 #include "zesto-core.h"
 #include "zesto-cache.h"

@@ -1,9 +1,9 @@
 #include <cstdarg>
 
+#include "core_const.h"
 #include "decode.h"
 #include "memory.h"
 #include "misc.h"
-#include "sim.h"
 
 #include "zesto-core.h"
 #include "zesto-structs.h"

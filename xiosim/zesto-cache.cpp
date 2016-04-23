@@ -56,10 +56,11 @@
 #include <limits.h>
 #include <cmath>
 
+#include "core_const.h"
 #include "memory.h"
 #include "misc.h"
 #include "stats.h"
-#include "sim.h"
+#include "ztrace.h"
 
 #include "zesto-core.h"
 #include "zesto-cache.h"
@@ -76,6 +77,14 @@
 
 #define GET_BANK(x) (((x)>>cp->bank_shift) & cp->bank_mask)
 #define GET_MSHR_BANK(x) (((x)>>cp->bank_shift) & cp->MSHR_mask)
+
+#ifdef ZTRACE
+#ifndef CACHE_ZTRACE
+
+#define CACHE_ZTRACE(fmt, ...) ztrace_print(cp->core == NULL ? INVALID_CORE : cp->core->id, fmt, ## __VA_ARGS__)
+
+#endif
+#endif
 
 /* Cache lock should be acquired before any access to the shared
  * caches (including enqueuing requests from lower-level caches). */

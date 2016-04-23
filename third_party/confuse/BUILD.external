@@ -15,6 +15,7 @@ filegroup(
     visibility = ["//visibility:public"],
     name = "srcs",
     srcs = [
+        CONFUSE_PATH + "/src/compat.h",
         CONFUSE_PATH + "/src/confuse.c",
         CONFUSE_PATH + "/src/confuse.h",
     ],

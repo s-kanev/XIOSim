@@ -66,6 +66,10 @@
 #include "zesto-alloc.h"
 #include "zesto-exec.h"
 #include "zesto-commit.h"
+#include "zesto-cache.h"
+#include "zesto-dvfs.h"
+#include "zesto-noc.h"
+#include "zesto-repeater.h"
 #include "zesto-power.h"
 
 #include "zesto-core.h"

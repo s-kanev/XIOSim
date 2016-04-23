@@ -35,10 +35,8 @@ def gen_list(component, dirs, extra_deps=[]):
         hdrs = hdrs,
         srcs = srcs,
         deps = [
-            ":knobs",
-            ":stats",
+            ":uarch_headers",
             ":x86",
-            "//xiosim/pintool:buffer",
-            "//xiosim/pintool:handshake_container",
+            ":ztrace",
         ] + extra_deps,
     )

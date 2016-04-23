@@ -7,18 +7,19 @@
               Svilen Kanev, 2011
 */
 
+#include <stack>
+#include <map>
+
 extern "C" {
 #include "xed-interface.h"
 }
 
 #include "pin.H"
-#include "legacy_instlib.H"
-#include <stack>
-#include <map>
+#include "third_party/InstLib/legacy_instlib.H"
 using namespace INSTLIB;
 
+#include "xiosim/knobs.h"
 #include "xiosim/synchronization.h"
-#include "xiosim/sim.h"
 #include "xiosim/zesto-bpred.h"
 
 class handshake_container_t;

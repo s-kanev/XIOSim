@@ -60,7 +60,6 @@
 
 #include "knobs.h"
 #include "synchronization.h"
-#include "ztrace.h"
 
 /* used when passing an MSHR index into the cache functions, but for
    whatever reason there's no corresponding MSHR entry */
@@ -422,14 +421,6 @@ extern XIOSIM_LOCK cache_lock;
     return (retval); \
   } \
 }
-#endif
-#endif
-
-#ifdef ZTRACE
-#ifndef CACHE_ZTRACE
-
-#define CACHE_ZTRACE(fmt, ...) ztrace_print(cp->core == NULL ? INVALID_CORE : cp->core->id, fmt, ## __VA_ARGS__)
-
 #endif
 #endif
 
