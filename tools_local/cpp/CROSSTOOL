@@ -149,6 +149,36 @@ toolchain {
 
     compiler_flag: "-O3"
   }
+
+  feature {
+    name: 'fdo_instrument'
+    provides: 'profile'
+    flag_set {
+      action: 'c-compile'
+      action: 'c++-compile'
+      action: 'c++-link'
+      flag_group {
+        flag: '-fprofile-generate=%{fdo_instrument_path}'
+      }
+      flag_group {
+        flag: '-fno-data-sections'
+      }
+    }
+  }
+
+  feature {
+    name: 'fdo_optimize'
+    provides: 'profile'
+    flag_set {
+      action: 'c-compile'
+      action: 'c++-compile'
+      expand_if_all_available: 'fdo_profile_path'
+      flag_group {
+        flag: '-fprofile-use=%{fdo_profile_path}'
+        flag: '-fprofile-correction'
+      }
+    }
+  }
 }
 
 # Same as above with just one additional "-m32" flag.
@@ -294,4 +324,34 @@ toolchain {
 
   compiler_flag: "-m32"
   linker_flag: "-m32"
+
+  feature {
+    name: 'fdo_instrument'
+    provides: 'profile'
+    flag_set {
+      action: 'c-compile'
+      action: 'c++-compile'
+      action: 'c++-link'
+      flag_group {
+        flag: '-fprofile-generate=%{fdo_instrument_path}'
+      }
+      flag_group {
+        flag: '-fno-data-sections'
+      }
+    }
+  }
+
+  feature {
+    name: 'fdo_optimize'
+    provides: 'profile'
+    flag_set {
+      action: 'c-compile'
+      action: 'c++-compile'
+      expand_if_all_available: 'fdo_profile_path'
+      flag_group {
+        flag: '-fprofile-use=%{fdo_profile_path}'
+        flag: '-fprofile-correction'
+      }
+    }
+  }
 }
