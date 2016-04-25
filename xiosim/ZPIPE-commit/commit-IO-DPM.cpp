@@ -182,7 +182,7 @@ void core_commit_IO_DPM_t::reg_stats(xiosim::stats::StatsDatabase* sdb) {
                           split_accesses_st / (*store_lookups_st - split_accesses_st), NULL);
 
     core->stat.commit_stall = stat_reg_core_dist(
-            sdb, coreID, "commit_stall", "breakdown of stalls at commit", 0, CSTALL_num, 1,
+            sdb, coreID, "commit_stall", "breakdown of stalls at commit", 0, CSTALL_num,
             (PF_COUNT | PF_PDF), NULL, commit_stall_str, true, NULL);
 
     stat_reg_note(sdb, "#### TIMING STATS ####");
@@ -309,10 +309,10 @@ void core_commit_IO_DPM_t::reg_stats(xiosim::stats::StatsDatabase* sdb) {
                           true, NULL);
     core->stat.flow_histo =
             stat_reg_core_dist(sdb, coreID, "flow_lengths", "histogram of uop flow lengths", 0,
-                               FLOW_HISTO_SIZE, 1, (PF_COUNT | PF_PDF), NULL, NULL, true, NULL);
+                               FLOW_HISTO_SIZE, (PF_COUNT | PF_PDF), NULL, NULL, true, NULL);
     core->stat.eff_flow_histo = stat_reg_core_dist(
             sdb, coreID, "eff_flow_lengths", "histogram of effective uop flow lengths", 0,
-            FLOW_HISTO_SIZE, 1, (PF_COUNT | PF_PDF), NULL, NULL, true, NULL);
+            FLOW_HISTO_SIZE, (PF_COUNT | PF_PDF), NULL, NULL, true, NULL);
 }
 
 void core_commit_IO_DPM_t::update_occupancy(void)

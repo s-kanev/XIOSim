@@ -235,6 +235,7 @@ struct cache_t {
   enum PF_state_t PF_state;
   int PF_last_sample; /* cumulative FSB utilization at last sample point */
   int PF_sample_interval;
+  int PF_next_sample_cycle;
   double PF_low_watermark;  /* {0.0 ... 1.0} */
   double PF_high_watermark; /* {0.0 ... 1.0} */
 

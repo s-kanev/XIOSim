@@ -263,13 +263,12 @@ Distribution* stat_reg_dist(StatsDatabase* sdb,
                             const char* desc,
                             unsigned int init_val,
                             unsigned int arr_sz,
-                            unsigned int bucket_sz,
                             int pf, /* print format, use PF_* defs */
                             const char* format,
                             const char** imap,
                             int scale_me,
                             void* print_fn) /* optional user print function */ {
-    Distribution* dist = sdb->add_distribution(name, desc, init_val, arr_sz, bucket_sz, imap);
+    auto dist = sdb->add_distribution(name, desc, init_val, arr_sz, imap);
     if (format)
         dist->set_output_fmt(format);
     if (!scale_me)
@@ -285,7 +284,6 @@ Distribution* stat_reg_core_dist(StatsDatabase* sdb,
                                  const char* desc,
                                  unsigned int init_val,
                                  unsigned int arr_sz,
-                                 unsigned int bucket_sz,
                                  int pf, /* print format, use PF_* defs */
                                  const char* format,
                                  const char** imap,
@@ -293,22 +291,8 @@ Distribution* stat_reg_core_dist(StatsDatabase* sdb,
                                  void* print_fn) /* optional user print function */ {
     char full_stat_name[STAT_NAME_MAX_LEN];
     snprintf(full_stat_name, STAT_NAME_MAX_LEN, core_stat_fmt, core_id, name);
-    return stat_reg_dist(sdb, full_stat_name, desc, init_val, arr_sz, bucket_sz, pf,
+    return stat_reg_dist(sdb, full_stat_name, desc, init_val, arr_sz, pf,
                          format, imap, scale_me, print_fn);
-}
-
-Distribution* stat_reg_sdist(StatsDatabase* sdb,
-                             const char* name,
-                             const char* desc,
-                             unsigned int init_val,
-                             int pf,
-                             const char* format,
-                             int scale_me,
-                             void* print_fn) {
-    // Sparse distributions are never used in the simulator anyways.  Keeping
-    // this here to be complete but it will go away.
-    assert(false && "Sparse distributions not supported.\n");
-    return nullptr;
 }
 
 void reg_core_queue_occupancy_stats(StatsDatabase* sdb,

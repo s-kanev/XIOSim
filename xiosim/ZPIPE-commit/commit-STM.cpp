@@ -111,7 +111,7 @@ void core_commit_STM_t::reg_stats(xiosim::stats::StatsDatabase* sdb) {
                                    &core->stat.ROB_full_cycles);
 
     core->stat.commit_stall = stat_reg_core_dist(
-            sdb, coreID, "commit_stall", "breakdown of stalls at commit", 0, CSTALL_num, 1,
+            sdb, coreID, "commit_stall", "breakdown of stalls at commit", 0, CSTALL_num,
             (PF_COUNT | PF_PDF), NULL, commit_stall_str, true, NULL);
 
     stat_reg_note(sdb, "#### TIMING STATS ####");

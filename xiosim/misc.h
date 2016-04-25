@@ -78,6 +78,7 @@ typedef std::function<void(int coreID)> assert_fail_callback;
 extern assert_fail_callback assert_fail;
 void register_assert_fail_handler(assert_fail_callback callback);
 
+#ifndef NDEBUG
 #define xiosim_core_assert(cond, coreID) \
     if (!(cond)) {\
         fprintf(stderr,"assertion failed (%s:%d): %s\n", __FILE__, __LINE__, #cond); \
@@ -86,6 +87,10 @@ void register_assert_fail_handler(assert_fail_callback callback);
             assert_fail((coreID)); \
         exit(6); \
     }
+#else
+#define xiosim_core_assert(cond, coreID) do { } while(0)
+#endif
+
 
 #define xiosim_assert(cond) xiosim_core_assert((cond), xiosim::INVALID_CORE)
 

@@ -31,8 +31,6 @@ struct dist_stats_t {
     unsigned int count;
     unsigned int sum;
     double mean;
-    unsigned int min;
-    unsigned int max;
     double stddev;
     double variance;
 };
@@ -304,7 +302,6 @@ class Distribution : public BaseStatistic {
                  const char* desc,
                  unsigned int init_val,
                  unsigned int array_sz,
-                 unsigned int bucket_sz,
                  const char** stat_labels = NULL,
                  const char* output_fmt = "",
                  bool print = true,
@@ -313,7 +310,6 @@ class Distribution : public BaseStatistic {
         this->init_val = init_val;
         this->stat_labels = stat_labels;
         this->array_sz = array_sz;
-        this->bucket_sz = bucket_sz;
         this->overflows = 0;
         this->array = new unsigned int[array_sz];
         this->final_array = new unsigned int[array_sz];
@@ -329,7 +325,6 @@ class Distribution : public BaseStatistic {
         , final_array(new unsigned int[rhs.array_sz])
         , array_sz(rhs.array_sz)
         , overflows(rhs.overflows)
-        , bucket_sz(rhs.bucket_sz)
         , init_val(rhs.init_val)
         , stat_labels(rhs.stat_labels) {
         for (unsigned int i = 0; i < array_sz; i++) {
@@ -349,7 +344,7 @@ class Distribution : public BaseStatistic {
      * is treated as an index into the distribution array. num_samples defaults
      * to 1 if unspecified. */
     void add_samples(unsigned int value, unsigned int num_samples = 1) {
-        unsigned int arr_idx = value / bucket_sz;
+        unsigned int arr_idx = value;
         if (arr_idx < array_sz)
             array[arr_idx] += num_samples;
         else
@@ -359,19 +354,18 @@ class Distribution : public BaseStatistic {
     // Computes various distribution related statistics.
     void compute_dist_stats(dist_stats_t* stats) {
         using namespace boost::accumulators;
-        accumulator_set<unsigned int,
-                        features<tag::mean, tag::moment<2>, tag::min, tag::max, tag::count>> acc;
-        for (unsigned int i = 0; i < array_sz; i++)
-            acc(array[i]);
+        accumulator_set<unsigned int, features<tag::mean, tag::variance>, unsigned> acc;
+        stats->count = 0;
+        for (unsigned int i = 0; i < array_sz; i++) {
+            stats->count += array[i];
+            acc(i, weight=array[i]);
+        }
 
         // Despite the using declaration, there are some naming conflicts from
         // STL that require us to fully qualify some of these functions.
-        stats->count = boost::accumulators::count(acc);
         stats->sum = boost::accumulators::sum(acc);
-        stats->min = boost::accumulators::min(acc);
-        stats->max = boost::accumulators::max(acc);
         stats->mean = boost::accumulators::mean(acc);
-        stats->variance = boost::accumulators::moment<2>(acc);
+        stats->variance = boost::accumulators::variance(acc);
         stats->stddev = sqrt(stats->variance);
     }
 
@@ -405,12 +399,8 @@ class Distribution : public BaseStatistic {
         compute_dist_stats(&stats);
 
         fprintf(fd, "%-28s # %s\n", name.c_str(), desc.c_str());
-        fprintf(fd, "%s.array_sz = %u\n", name.c_str(), array_sz);
-        fprintf(fd, "%s.bucket_sz = %u\n", name.c_str(), bucket_sz);
         fprintf(fd, "%s.count = %u\n", name.c_str(), stats.count);
         fprintf(fd, "%s.total = %d\n", name.c_str(), stats.sum);
-        fprintf(fd, "%s.imin = %d\n", name.c_str(), stats.count > 0 ? stats.min : -1);
-        fprintf(fd, "%s.imax = %d\n", name.c_str(), stats.count > 0 ? stats.max : -1);
         fprintf(fd, "%s.average = %8.4f\n", name.c_str(), stats.mean);
         fprintf(fd, "%s.std_dev = %8.4f\n", name.c_str(), stats.stddev);
         fprintf(fd, "%s.overflows = %u\n", name.c_str(), overflows);
@@ -429,10 +419,10 @@ class Distribution : public BaseStatistic {
             if (stat_labels)  // Has custom labels.
                 fprintf(fd, "%-16s ", stat_labels[i]);
             else
-                fprintf(fd, index_fmt, i * bucket_sz);
+                fprintf(fd, index_fmt, i);
             fprintf(fd, count_fmt, array[i]);
-            fprintf(fd, pdf_fmt, (double)array[i] / fmax(stats.sum, 1.0) * 100.0);
-            fprintf(fd, cdf_fmt, cdf / fmax(stats.sum, 1.0) * 100.0);
+            fprintf(fd, pdf_fmt, (double)array[i] / fmax(stats.count, 1.0) * 100.0);
+            fprintf(fd, cdf_fmt, cdf / fmax(stats.count, 1.0) * 100.0);
             fprintf(fd, "\n");
         }
         fprintf(fd, "%s.end_dist\n", name.c_str());
@@ -443,7 +433,6 @@ class Distribution : public BaseStatistic {
     unsigned int* final_array;  // Final distribution values.
     unsigned int array_sz;      // Array size.
     unsigned int overflows;     // Store values beyond the size of the array.
-    unsigned int bucket_sz;     // Array bucket size.
     unsigned int init_val;      // Initial value for all elements in the distribution.
     // Labels for each element in the distribution. Corresponds to array index
     // for index.

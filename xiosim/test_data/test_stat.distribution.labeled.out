@@ -1,12 +1,8 @@
 labeled_dist                 # Distribution description
-labeled_dist.array_sz = 10
-labeled_dist.bucket_sz = 5
-labeled_dist.count = 10
-labeled_dist.total = 44
-labeled_dist.imin = 0
-labeled_dist.imax = 20
-labeled_dist.average =   4.4000
-labeled_dist.std_dev =   8.1854
+labeled_dist.count = 44
+labeled_dist.total = 151
+labeled_dist.average =   3.4318
+labeled_dist.std_dev =   2.5172
 labeled_dist.overflows = 0
 # pdf = prob. dist. fn. cdf = cumulative dist. fn.
 #          index      count    pdf    cdf 

@@ -428,8 +428,7 @@ void core_exec_STM_t::return_readyQ_node(struct readyQ_node_t * const p)
    one readyQ per execution port) */
 void core_exec_STM_t::insert_ready_uop(struct uop_t * const uop)
 {
-  struct core_knobs_t * knobs = core->knobs;
-  zesto_assert((uop->alloc.port_assignment >= 0) && (uop->alloc.port_assignment < knobs->exec.num_exec_ports),(void)0);
+  zesto_assert((uop->alloc.port_assignment >= 0) && (uop->alloc.port_assignment < core->knobs->exec.num_exec_ports),(void)0);
   zesto_assert(uop->timing.when_completed == TICK_T_MAX,(void)0);
   zesto_assert(uop->timing.when_issued == TICK_T_MAX,(void)0);
   zesto_assert(!uop->exec.in_readyQ,(void)0);
@@ -566,8 +565,6 @@ bool core_exec_STM_t::check_load_issue_conditions(const struct uop_t * const uop
       i=moddec(i,knobs->exec.STQ_size) )
   {
     /* check addr match */
-    int st_mem_size = STQ[i].mem_size;
-    int ld_mem_size = uop->decode.mem_size;
     md_addr_t st_addr;
     
     if(STQ[i].addr_valid)
@@ -578,8 +575,8 @@ bool core_exec_STM_t::check_load_issue_conditions(const struct uop_t * const uop
       return false; /* store-addr unknown */
     }
 
-    zesto_assert(st_mem_size,false);
-    zesto_assert(ld_mem_size,false);
+    zesto_assert(STQ[i].mem_size,false);
+    zesto_assert(uop->decode.mem_size,false);
     zesto_assert(uop->Mop->oracle.spec_mode || ld_addr,false);
     zesto_assert(st_addr || (STQ[i].sta && STQ[i].sta->Mop->oracle.spec_mode),false);
 
@@ -610,8 +607,7 @@ bool core_exec_STM_t::check_load_issue_conditions(const struct uop_t * const uop
 
 void core_exec_STM_t::load_writeback(struct uop_t * const uop)
 {
-  struct core_knobs_t * knobs = core->knobs;
-  zesto_assert((uop->alloc.LDQ_index >= 0) && (uop->alloc.LDQ_index < knobs->exec.LDQ_size),(void)0);
+  zesto_assert((uop->alloc.LDQ_index >= 0) && (uop->alloc.LDQ_index < core->knobs->exec.LDQ_size),(void)0);
   if(!LDQ[uop->alloc.LDQ_index].hit_in_STQ) /* no match in STQ, so use cache value */
   {
     uop->exec.ovalue_valid = true;
@@ -1095,23 +1091,21 @@ void core_exec_STM_t::recover(void)
 
 bool core_exec_STM_t::RS_available(void)
 {
-  struct core_knobs_t * knobs = core->knobs;
-  return RS_num < knobs->exec.RS_size;
+  return RS_num < core->knobs->exec.RS_size;
 }
 
 /* assumes you already called RS_available to check that
    an entry is available */
 void core_exec_STM_t::RS_insert(struct uop_t * const uop)
 {
-  struct core_knobs_t * knobs = core->knobs;
   int RS_index;
   /* find a free RS entry */
-  for(RS_index=0;RS_index < knobs->exec.RS_size;RS_index++)
+  for(RS_index=0;RS_index < core->knobs->exec.RS_size;RS_index++)
   {
     if(RS[RS_index] == NULL)
       break;
   }
-  if(RS_index == knobs->exec.RS_size)
+  if(RS_index == core->knobs->exec.RS_size)
     fatal("RS and RS_num out of sync");
 
   RS[RS_index] = uop;
@@ -1128,8 +1122,7 @@ void core_exec_STM_t::RS_fuse_insert(struct uop_t * const uop)
 
 void core_exec_STM_t::RS_deallocate(struct uop_t * const dead_uop)
 {
-  struct core_knobs_t * knobs = core->knobs;
-  zesto_assert(dead_uop->alloc.RS_index < knobs->exec.RS_size,(void)0);
+  zesto_assert(dead_uop->alloc.RS_index < core->knobs->exec.RS_size,(void)0);
 
   RS[dead_uop->alloc.RS_index] = NULL;
   RS_num --;
@@ -1139,43 +1132,39 @@ void core_exec_STM_t::RS_deallocate(struct uop_t * const dead_uop)
 
 bool core_exec_STM_t::LDQ_available(void)
 {
-  struct core_knobs_t * knobs = core->knobs;
-  return LDQ_num < knobs->exec.LDQ_size;
+  return LDQ_num < core->knobs->exec.LDQ_size;
 }
 
 void core_exec_STM_t::LDQ_insert(struct uop_t * const uop)
 {
-  struct core_knobs_t * knobs = core->knobs;
   //memset(&LDQ[LDQ_tail],0,sizeof(*LDQ));
   memzero(&LDQ[LDQ_tail],sizeof(*LDQ));
   LDQ[LDQ_tail].uop = uop;
   LDQ[LDQ_tail].mem_size = uop->decode.mem_size;
-  LDQ[LDQ_tail].store_color = moddec(STQ_tail,knobs->exec.STQ_size); //(STQ_tail - 1 + knobs->exec.STQ_size) % knobs->exec.STQ_size;
+  LDQ[LDQ_tail].store_color = moddec(STQ_tail,core->knobs->exec.STQ_size); //(STQ_tail - 1 + knobs->exec.STQ_size) % knobs->exec.STQ_size;
   LDQ[LDQ_tail].when_issued = TICK_T_MAX;
   uop->alloc.LDQ_index = LDQ_tail;
   LDQ_num++;
-  LDQ_tail = modinc(LDQ_tail,knobs->exec.LDQ_size); //(LDQ_tail+1) % knobs->exec.LDQ_size;
+  LDQ_tail = modinc(LDQ_tail,core->knobs->exec.LDQ_size); //(LDQ_tail+1) % knobs->exec.LDQ_size;
 }
 
 /* called by commit */
 void core_exec_STM_t::LDQ_deallocate(struct uop_t * const uop)
 {
-  struct core_knobs_t * knobs = core->knobs;
   LDQ[LDQ_head].uop = NULL;
   LDQ_num --;
-  LDQ_head = modinc(LDQ_head,knobs->exec.LDQ_size); //(LDQ_head+1) % knobs->exec.LDQ_size;
+  LDQ_head = modinc(LDQ_head,core->knobs->exec.LDQ_size); //(LDQ_head+1) % knobs->exec.LDQ_size;
   uop->alloc.LDQ_index = -1;
 }
 
 void core_exec_STM_t::LDQ_squash(struct uop_t * const dead_uop)
 {
-  struct core_knobs_t * knobs = core->knobs;
-  zesto_assert((dead_uop->alloc.LDQ_index >= 0) && (dead_uop->alloc.LDQ_index < knobs->exec.LDQ_size),(void)0);
+  zesto_assert((dead_uop->alloc.LDQ_index >= 0) && (dead_uop->alloc.LDQ_index < core->knobs->exec.LDQ_size),(void)0);
   zesto_assert(LDQ[dead_uop->alloc.LDQ_index].uop == dead_uop,(void)0);
   //memset(&LDQ[dead_uop->alloc.LDQ_index],0,sizeof(LDQ[0]));
   memzero(&LDQ[dead_uop->alloc.LDQ_index],sizeof(LDQ[0]));
   LDQ_num --;
-  LDQ_tail = moddec(LDQ_tail,knobs->exec.LDQ_size); //(LDQ_tail - 1 + knobs->exec.LDQ_size) % knobs->exec.LDQ_size;
+  LDQ_tail = moddec(LDQ_tail,core->knobs->exec.LDQ_size); //(LDQ_tail - 1 + knobs->exec.LDQ_size) % knobs->exec.LDQ_size;
   zesto_assert(LDQ_num >= 0,(void)0);
   dead_uop->alloc.LDQ_index = -1;
 }
@@ -1187,31 +1176,26 @@ bool core_exec_STM_t::STQ_empty(void)
 
 bool core_exec_STM_t::STQ_available(void)
 {
-  struct core_knobs_t * knobs = core->knobs;
-  return STQ_num < knobs->exec.STQ_size;
+  return STQ_num < core->knobs->exec.STQ_size;
 }
 
 void core_exec_STM_t::STQ_insert_sta(struct uop_t * const uop)
 {
-  struct core_knobs_t * knobs = core->knobs;
   //memset(&STQ[STQ_tail],0,sizeof(*STQ));
   memzero(&STQ[STQ_tail],sizeof(*STQ));
   STQ[STQ_tail].sta = uop;
-  if(STQ[STQ_tail].sta != NULL)
-    uop->decode.is_sta = true;
   STQ[STQ_tail].mem_size = uop->decode.mem_size;
   STQ[STQ_tail].uop_seq = uop->decode.uop_seq;
   STQ[STQ_tail].next_load = LDQ_tail;
   uop->alloc.STQ_index = STQ_tail;
   STQ_num++;
-  STQ_tail = modinc(STQ_tail,knobs->exec.STQ_size); //(STQ_tail+1) % knobs->exec.STQ_size;
+  STQ_tail = modinc(STQ_tail,core->knobs->exec.STQ_size); //(STQ_tail+1) % knobs->exec.STQ_size;
 }
 
 void core_exec_STM_t::STQ_insert_std(struct uop_t * const uop)
 {
-  struct core_knobs_t * knobs = core->knobs;
   /* STQ_tail already incremented from the STA.  Just add this uop to STQ->std */
-  int index = moddec(STQ_tail,knobs->exec.STQ_size); //(STQ_tail - 1 + knobs->exec.STQ_size) % knobs->exec.STQ_size;
+  int index = moddec(STQ_tail,core->knobs->exec.STQ_size); //(STQ_tail - 1 + knobs->exec.STQ_size) % knobs->exec.STQ_size;
   uop->alloc.STQ_index = index;
   STQ[index].std = uop;
   zesto_assert(STQ[index].sta,(void)0); /* shouldn't have STD w/o a corresponding STA */
@@ -1226,7 +1210,6 @@ void core_exec_STM_t::STQ_deallocate_sta(void)
 /* returns true if successful */
 bool core_exec_STM_t::STQ_deallocate_std(struct uop_t * const uop)
 {
-  struct core_knobs_t * knobs = core->knobs;
   int asid = core->asid;
 
   /* Store write back occurs here at commit. */
@@ -1260,7 +1243,7 @@ bool core_exec_STM_t::STQ_deallocate_std(struct uop_t * const uop)
   STQ[STQ_head].translation_complete = false;
   STQ[STQ_head].write_complete = false;
   STQ_num --;
-  STQ_head = modinc(STQ_head,knobs->exec.STQ_size); //(STQ_head+1) % knobs->exec.STQ_size;
+  STQ_head = modinc(STQ_head,core->knobs->exec.STQ_size); //(STQ_head+1) % knobs->exec.STQ_size;
 
   return true;
 }
@@ -1272,22 +1255,20 @@ void core_exec_STM_t::STQ_deallocate_senior(void)
 
 void core_exec_STM_t::STQ_squash_sta(struct uop_t * const dead_uop)
 {
-  struct core_knobs_t * knobs = core->knobs;
-  zesto_assert((dead_uop->alloc.STQ_index >= 0) && (dead_uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
+  zesto_assert((dead_uop->alloc.STQ_index >= 0) && (dead_uop->alloc.STQ_index < core->knobs->exec.STQ_size),(void)0);
   zesto_assert(STQ[dead_uop->alloc.STQ_index].std == NULL,(void)0);
   zesto_assert(STQ[dead_uop->alloc.STQ_index].sta == dead_uop,(void)0);
   //memset(&STQ[dead_uop->alloc.STQ_index],0,sizeof(STQ[0]));
   memzero(&STQ[dead_uop->alloc.STQ_index],sizeof(STQ[0]));
   STQ_num --;
-  STQ_tail = moddec(STQ_tail,knobs->exec.STQ_size); //(STQ_tail - 1 + knobs->exec.STQ_size) % knobs->exec.STQ_size;
+  STQ_tail = moddec(STQ_tail,core->knobs->exec.STQ_size); //(STQ_tail - 1 + knobs->exec.STQ_size) % knobs->exec.STQ_size;
   zesto_assert(STQ_num >= 0,(void)0);
   dead_uop->alloc.STQ_index = -1;
 }
 
 void core_exec_STM_t::STQ_squash_std(struct uop_t * const dead_uop)
 {
-  struct core_knobs_t * knobs = core->knobs;
-  zesto_assert((dead_uop->alloc.STQ_index >= 0) && (dead_uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
+  zesto_assert((dead_uop->alloc.STQ_index >= 0) && (dead_uop->alloc.STQ_index < core->knobs->exec.STQ_size),(void)0);
   zesto_assert(STQ[dead_uop->alloc.STQ_index].std == dead_uop,(void)0);
   STQ[dead_uop->alloc.STQ_index].std = NULL;
   dead_uop->alloc.STQ_index = -1;
@@ -1311,20 +1292,18 @@ void core_exec_STM_t::recover_check_assertions(void)
 void core_exec_STM_t::store_dl1_callback(void * const op)
 {
   struct uop_t * const uop = (struct uop_t *)op;
-  struct core_t * const core = uop->core;
-  struct core_knobs_t * knobs = core->knobs;
-
-  zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
+  xiosim_core_assert((uop->alloc.STQ_index >= 0) &&
+                             (uop->alloc.STQ_index < uop->core->knobs->exec.STQ_size),
+                     uop->core->id);
   x86::return_uop_array(uop, 1);
 }
 
 void core_exec_STM_t::store_dtlb_callback(void * const op)
 {
   struct uop_t * const uop = (struct uop_t *)op;
-  struct core_t * const core = uop->core;
-  struct core_knobs_t * knobs = core->knobs;
-
-  zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
+  xiosim_core_assert((uop->alloc.STQ_index >= 0) &&
+                             (uop->alloc.STQ_index < uop->core->knobs->exec.STQ_size),
+                     uop->core->id);
   x86::return_uop_array(uop, 1);
 }
 

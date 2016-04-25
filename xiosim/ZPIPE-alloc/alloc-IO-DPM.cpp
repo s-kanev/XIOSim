@@ -140,7 +140,7 @@ void core_alloc_IO_DPM_t::reg_stats(xiosim::stats::StatsDatabase* sdb) {
                           NULL);
 
     core->stat.alloc_stall = stat_reg_core_dist(
-            sdb, coreID, "alloc_stall", "breakdown of stalls at alloc", 0, ASTALL_num, 1,
+            sdb, coreID, "alloc_stall", "breakdown of stalls at alloc", 0, ASTALL_num,
             (PF_COUNT | PF_PDF), NULL, alloc_stall_str, true, NULL);
 }
 

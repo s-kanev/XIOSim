@@ -190,7 +190,6 @@ Distribution* stat_reg_dist(StatsDatabase* sdb,
                             const char* desc,
                             unsigned int init_val,
                             unsigned int arr_sz,
-                            unsigned int bucket_sz,
                             int pf, /* print format, use PF_* defs */
                             const char* format,
                             const char** imap,
@@ -203,21 +202,11 @@ Distribution* stat_reg_core_dist(StatsDatabase* sdb,
                                  const char* desc,
                                  unsigned int init_val,
                                  unsigned int arr_sz,
-                                 unsigned int bucket_sz,
                                  int pf, /* print format, use PF_* defs */
                                  const char* format,
                                  const char** imap,
                                  int scale_me,
                                  void* print_fn);
-
-Distribution* stat_reg_sdist(StatsDatabase* sdb,
-                             const char* name,
-                             const char* desc,
-                             unsigned int init_val,
-                             int pf,
-                             const char* format,
-                             int scale_me,
-                             void* print_fn);
 
 /* Registers some named queue's occupancy statistics.
  *

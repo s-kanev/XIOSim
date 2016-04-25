@@ -147,7 +147,7 @@ void core_decode_DPM_t::reg_stats(xiosim::stats::StatsDatabase* sdb) {
                                    &core->stat.uopQ_empty_cycles,
                                    &core->stat.uopQ_full_cycles);
     core->stat.decode_stall = stat_reg_core_dist(
-            sdb, coreID, "decode_stall", "breakdown of stalls at decode", 0, DSTALL_num, 1,
+            sdb, coreID, "decode_stall", "breakdown of stalls at decode", 0, DSTALL_num,
             (PF_COUNT | PF_PDF), NULL, decode_stall_str, true, NULL);
 }
 

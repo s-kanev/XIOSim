@@ -96,10 +96,7 @@ static void global_step(void) {
                 deadlocked &= cores[i]->commit->deadlocked;
             }
 
-            if (deadlocked) {
-                core_t* core = cores[0];
-                zesto_assert(false, (void)0);
-            }
+            xiosim_assert(!deadlocked);
 
             deadlock_count = 0;
         }
@@ -424,11 +421,6 @@ void simulate_handshake(int coreID, handshake_container_t* handshake) {
         /* Re-check that we've consumed last op. If jeclear_delay == 0, we could have
          * blown it away, which technically does consume it. */
         did_consume |= core->oracle->consumed;
-        ZTRACE_PRINT(core->id,
-                     "End of loop. Buffer result: %d, consumed: %d, before_feeder: %d\n",
-                     buffer_result,
-                     did_consume,
-                     core->oracle->num_Mops_before_feeder());
 
         /* Stay in the loop until oracle needs a new handshake. */
     } while (buffer_result == HANDSHAKE_NOT_CONSUMED || !did_consume || nuke_recovery ||

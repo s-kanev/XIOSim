@@ -154,7 +154,7 @@ core_fetch_STM_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
                           fetch_uops_st / *sim_cycle_st, NULL);
 
     core->stat.fetch_stall = stat_reg_core_dist(
-            sdb, coreID, "fetch_stall", "breakdown of stalls in fetch", 0, FSTALL_num, 1,
+            sdb, coreID, "fetch_stall", "breakdown of stalls in fetch", 0, FSTALL_num,
             (PF_COUNT | PF_PDF), NULL, fetch_stall_str, true, NULL);
 
     auto& byteQ_occupancy_st = stat_reg_core_counter(sdb, false, coreID, "byteQ_occupancy",

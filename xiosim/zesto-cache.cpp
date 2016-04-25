@@ -834,6 +834,7 @@ void prefetchers_create(struct cache_t* cp, const prefetcher_knobs_t& pf_knobs) 
     cp->prefetch_on_miss = pf_knobs.pf_on_miss;
 
     cp->PF_sample_interval = pf_knobs.watermark_interval;
+    cp->PF_next_sample_cycle = cp->PF_sample_interval;
     cp->PF_low_watermark = pf_knobs.low_watermark;
     cp->PF_high_watermark = pf_knobs.high_watermark;
 }
@@ -2592,8 +2593,9 @@ static void cache_prefetch(struct cache_t * const cp)
 /* Update the bus-utilization-based prefetch controller. */
 static void prefetch_controller_update(struct cache_t * const cp)
 {
-  if(cp->PF_sample_interval && ((cache_get_cycle(cp) % cp->PF_sample_interval) == 0))
+  if(cp->PF_sample_interval && (cache_get_cycle(cp) == cp->PF_next_sample_cycle))
   {
+    cp->PF_next_sample_cycle += cp->PF_sample_interval;
     int current_sample = (int)cp->next_bus->stat.utilization;
     double duty_cycle = (current_sample - cp->PF_last_sample) / (double) cp->PF_sample_interval;
     if(duty_cycle < cp->PF_low_watermark)

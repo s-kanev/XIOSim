@@ -35,6 +35,7 @@ def gen_list(component, dirs, extra_deps=[]):
         hdrs = hdrs,
         srcs = srcs,
         deps = [
+            ":stats",
             ":uarch_headers",
             ":x86",
             ":ztrace",

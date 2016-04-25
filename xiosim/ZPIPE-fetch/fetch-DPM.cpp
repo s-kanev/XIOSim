@@ -230,7 +230,7 @@ void core_fetch_DPM_t::reg_stats(xiosim::stats::StatsDatabase* sdb) {
                           NULL);
 
     core->stat.fetch_stall = stat_reg_core_dist(
-            sdb, coreID, "fetch_stall", "breakdown of stalls in fetch", 0, FSTALL_num, 1,
+            sdb, coreID, "fetch_stall", "breakdown of stalls in fetch", 0, FSTALL_num,
             (PF_COUNT | PF_PDF), NULL, fetch_stall_str, true, NULL);
 
     reg_core_queue_occupancy_stats(sdb, coreID, "byteQ",

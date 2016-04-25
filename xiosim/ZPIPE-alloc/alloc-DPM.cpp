@@ -128,7 +128,7 @@ void core_alloc_DPM_t::reg_stats(xiosim::stats::StatsDatabase* sdb) {
     stat_reg_core_counter(sdb, true, coreID, "ROB_writes", "number of write accesses to ROB",
                           &core->stat.ROB_writes, 0, true, NULL);
     core->stat.alloc_stall = stat_reg_core_dist(
-            sdb, coreID, "alloc_stall", "breakdown of stalls at alloc", 0, ASTALL_num, 1,
+            sdb, coreID, "alloc_stall", "breakdown of stalls at alloc", 0, ASTALL_num,
             (PF_COUNT | PF_PDF), NULL, alloc_stall_str, true, NULL);
 }
 

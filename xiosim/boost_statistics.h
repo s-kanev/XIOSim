@@ -4,13 +4,10 @@
 #pragma GCC diagnostic ignored "-Wunused-local-typedefs"
 
 #include <boost/accumulators/accumulators.hpp>
-#include <boost/accumulators/statistics/count.hpp>
-#include <boost/accumulators/statistics/max.hpp>
-#include <boost/accumulators/statistics/mean.hpp>
-#include <boost/accumulators/statistics/min.hpp>
-#include <boost/accumulators/statistics/moment.hpp>
 #include <boost/accumulators/statistics/stats.hpp>
-#include <boost/accumulators/statistics/sum.hpp>
+#include <boost/accumulators/statistics/weighted_mean.hpp>
+#include <boost/accumulators/statistics/weighted_sum.hpp>
+#include <boost/accumulators/statistics/weighted_variance.hpp>
 #include <boost/type_traits/is_arithmetic.hpp>
 #include <boost/type_traits/is_same.hpp>
 #include <boost/utility/enable_if.hpp>

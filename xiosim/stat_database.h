@@ -146,13 +146,12 @@ class StatsDatabase {
                                    const char* desc,
                                    unsigned init_val,
                                    unsigned int array_sz,
-                                   unsigned int bucket_sz,
                                    const char** stat_labels = NULL,
                                    const char* output_fmt = "",
                                    bool print = true,
                                    bool scale = true) {
-        Distribution* dist = new Distribution(
-                name, desc, init_val, array_sz, bucket_sz, stat_labels, output_fmt, print, scale);
+        auto dist = new Distribution(
+                name, desc, init_val, array_sz, stat_labels, output_fmt, print, scale);
         stat_list.push_back(dist);
         stat_db[name] = stat_list.size() - 1;
         return dist;

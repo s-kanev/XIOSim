@@ -149,34 +149,30 @@ TEST_CASE("Single-value double statistics", "singlevalue_double") {
 
 TEST_CASE("Distribution", "distribution") {
     const int array_sz = 10;
-    const int bucket_sz = 5;
     int init_val = 0;
     SECTION("Unlabeled distribution") {
         char temp_file_name[21];
         FILE* temp_file = open_temp_file(temp_file_name);
 
-        Distribution dist("dist", "Distribution description.", init_val, array_sz, bucket_sz);
+        Distribution dist("dist", "Distribution description.", init_val, array_sz);
         dist.add_samples(0, 10);
+        dist.add_samples(1, 10);
+        dist.add_samples(2, 10);
+        dist.add_samples(3, 10);
+        dist.add_samples(4, 10);
         dist.add_samples(5, 10);
+        dist.add_samples(6, 10);
+        dist.add_samples(7, 10);
+        dist.add_samples(8, 10);
+        dist.add_samples(9, 10);
         dist.add_samples(10, 10);
-        dist.add_samples(15, 10);
-        dist.add_samples(20, 10);
-        dist.add_samples(25, 10);
-        dist.add_samples(30, 10);
-        dist.add_samples(35, 10);
-        dist.add_samples(40, 10);
-        dist.add_samples(45, 10);
-        dist.add_samples(50, 10);
 
         dist_stats_t stats;
         dist.compute_dist_stats(&stats);
-        REQUIRE(stats.count == 10);
-        REQUIRE(stats.sum == 100);
-        REQUIRE(stats.min == 10);
-        REQUIRE(stats.max == 10);
-        REQUIRE(stats.mean == 10);
-        REQUIRE(stats.variance == 100);
-        REQUIRE(stats.stddev == 10);
+        REQUIRE(stats.count == 100);
+        REQUIRE(stats.sum == 450);
+        REQUIRE(stats.mean == Approx(4.5));
+        REQUIRE(stats.stddev == Approx(2.8723));
         REQUIRE(dist.get_overflows() == 10);
 
         dist.print_value(temp_file);
@@ -198,14 +194,12 @@ TEST_CASE("Distribution", "distribution") {
                           "Distribution description",
                           init_val,
                           array_sz,
-                          bucket_sz,
                           stat_labels,
                           output_fmt);
-        dist.add_samples(0, 5);
-        dist.add_samples(1, 5);
-        dist.add_samples(12, 13);
-        dist.add_samples(27, 1);
-        dist.add_samples(30, 20);
+        dist.add_samples(0, 10);
+        dist.add_samples(2, 13);
+        dist.add_samples(5, 1);
+        dist.add_samples(6, 20);
 
         dist.print_value(temp_file);
 
@@ -484,7 +478,7 @@ TEST_CASE("Full statistics database", "database") {
     Statistic<int64_t>* ll_stat =
         sdb.add_statistic("long_long_stat", "int64_t description", &ll_value, 0);
     sdb.add_statistic("string_stat", "string description", str_value);
-    Distribution* dist = sdb.add_distribution("dist", "dist description", 0, 10, 5);
+    Distribution* dist = sdb.add_distribution("dist", "dist description", 0, 4);
 
     // Don't need to add too many; distributions have their own unit tests.
     dist->add_samples(0, 50);

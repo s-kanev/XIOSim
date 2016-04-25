@@ -412,48 +412,43 @@ void core_exec_IO_DPM_t::freeze_stats(void)
 void core_exec_IO_DPM_t::update_occupancy(void)
 {
     /* LDQ */
-  core->stat.LDQ_occupancy += LDQ_num;
-  if(LDQ_num >= core->knobs->exec.LDQ_size)
-    core->stat.LDQ_full_cycles++;
-  if(LDQ_num <= 0)
-    core->stat.LDQ_empty_cycles++;
+    core->stat.LDQ_occupancy += LDQ_num;
+    if (LDQ_num >= core->knobs->exec.LDQ_size)
+        core->stat.LDQ_full_cycles++;
+    if (LDQ_num <= 0)
+        core->stat.LDQ_empty_cycles++;
 
     /* STQ */
-  core->stat.STQ_occupancy += STQ_num;
-  if(STQ_senior_num >= core->knobs->exec.STQ_size)
-    core->stat.STQ_full_cycles++;
-  if(STQ_senior_num <= 0)
-    core->stat.STQ_empty_cycles++;
+    core->stat.STQ_occupancy += STQ_num;
+    if (STQ_senior_num >= core->knobs->exec.STQ_size)
+        core->stat.STQ_full_cycles++;
+    if (STQ_senior_num <= 0)
+        core->stat.STQ_empty_cycles++;
 
-  for(int i=0; i<core->knobs->exec.num_exec_ports; i++)
-  {
-    port[i].issue_occupancy += port[i].occupancy;
-
-    for(int j=0; j<NUM_FU_CLASSES; j++)
-      if(port[i].FU[j])
-      {
-        switch(j)
-        {
-          case FU_IEU:
-          case FU_JEU:
-          case FU_SHIFT:
-            core->stat.int_FU_occupancy += port[i].FU[j]->occupancy;
-            break;
-          case FU_FADD:
-          case FU_FMUL:
-          case FU_FDIV:
-          case FU_FCPLX:
-            core->stat.fp_FU_occupancy += port[i].FU[j]->occupancy;
-            break;
-          case FU_IMUL:
-          case FU_IDIV:
-            core->stat.mul_FU_occupancy += port[i].FU[j]->occupancy;
-            break;
-          default:
-            break;
+    for (int i = 0; i < core->knobs->exec.num_exec_ports; i++) {
+        for (int j = 0; j < port[i].num_FU_types; j++) {
+            enum fu_class FU_type = port[i].FU_types[j];
+            switch (FU_type) {
+            case FU_IEU:
+            case FU_JEU:
+            case FU_SHIFT:
+                core->stat.int_FU_occupancy += port[i].FU[FU_type]->occupancy;
+                break;
+            case FU_FADD:
+            case FU_FMUL:
+            case FU_FDIV:
+            case FU_FCPLX:
+                core->stat.fp_FU_occupancy += port[i].FU[FU_type]->occupancy;
+                break;
+            case FU_IMUL:
+            case FU_IDIV:
+                core->stat.mul_FU_occupancy += port[i].FU[FU_type]->occupancy;
+                break;
+            default:
+                break;
+            }
         }
-      }
-  }
+    }
 }
 
 void core_exec_IO_DPM_t::reset_execution(void)
@@ -512,7 +507,6 @@ bool core_exec_IO_DPM_t::check_load_issue_conditions(const struct uop_t * const 
   {
     /* check addr match */
     int st_mem_size = STQ[i].mem_size;
-    int ld_mem_size = uop->decode.mem_size;
     md_addr_t st_addr1, st_addr2;
 
     if(STQ[i].addr_valid)
@@ -529,7 +523,7 @@ bool core_exec_IO_DPM_t::check_load_issue_conditions(const struct uop_t * const 
     st_addr2 = st_addr1 + st_mem_size - 1; /* addr of last byte */
 
     zesto_assert(st_mem_size,false);
-    zesto_assert(ld_mem_size,false);
+    zesto_assert(uop->decode.mem_size,false);
     /* XXX: The following assert should be used, but under RHEL5-compiled binaries,
        there seems to be some weird thing going on where the GS segment register is
        getting zeroed out somewhere which later leads to a null-pointer dereference.
@@ -591,8 +585,7 @@ bool core_exec_IO_DPM_t::check_load_issue_conditions(const struct uop_t * const 
 
 void core_exec_IO_DPM_t::load_writeback(struct uop_t * const uop)
 {
-  struct core_knobs_t * knobs = core->knobs;
-  zesto_assert((uop->alloc.LDQ_index >= 0) && (uop->alloc.LDQ_index < knobs->exec.LDQ_size),(void)0);
+  zesto_assert((uop->alloc.LDQ_index >= 0) && (uop->alloc.LDQ_index < core->knobs->exec.LDQ_size),(void)0);
   if(!LDQ[uop->alloc.LDQ_index].hit_in_STQ) /* no match in STQ, so use cache value */
   {
 #ifdef ZTRACE
@@ -2000,8 +1993,7 @@ void core_exec_IO_DPM_t::STQ_deallocate_senior(void)
 
 void core_exec_IO_DPM_t::STQ_squash_sta(struct uop_t * const dead_uop)
 {
-  struct core_knobs_t * knobs = core->knobs;
-  zesto_assert((dead_uop->alloc.STQ_index >= 0) && (dead_uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
+  zesto_assert((dead_uop->alloc.STQ_index >= 0) && (dead_uop->alloc.STQ_index < core->knobs->exec.STQ_size),(void)0);
   zesto_assert(STQ[dead_uop->alloc.STQ_index].sta == dead_uop,(void)0);
   STQ[dead_uop->alloc.STQ_index].sta = NULL;
   dead_uop->alloc.STQ_index = -1;
@@ -2065,13 +2057,12 @@ void core_exec_IO_DPM_t::store_dl1_callback(void * const op)
   struct uop_t * uop = (struct uop_t *)op;
   struct core_t * core = uop->core;
   struct core_exec_IO_DPM_t * E = (core_exec_IO_DPM_t*)core->exec.get();
-  struct core_knobs_t * knobs = core->knobs;
 
 #ifdef ZTRACE
   ztrace_print(uop,"c|store|written to cache/memory");
 #endif
 
-  zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
+  zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < core->knobs->exec.STQ_size),(void)0);
   if(!uop->oracle.is_repeated) /* repeater accesses always have precedence */
   {
     if(uop->exec.action_id == E->STQ[uop->alloc.STQ_index].action_id)
@@ -2092,13 +2083,12 @@ void core_exec_IO_DPM_t::store_dl1_split_callback(void * const op)
   struct uop_t * uop = (struct uop_t *)op;
   struct core_t * core = uop->core;
   struct core_exec_IO_DPM_t * E = (core_exec_IO_DPM_t*)core->exec.get();
-  struct core_knobs_t * knobs = core->knobs;
 
 #ifdef ZTRACE
   ztrace_print(uop,"c|store|split written to cache/memory");
 #endif
 
-  zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
+  zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < core->knobs->exec.STQ_size),(void)0);
   if(!uop->oracle.is_repeated) /* repeater accesses always have precedence */
   {
     if(uop->exec.action_id == E->STQ[uop->alloc.STQ_index].action_id)
@@ -2118,13 +2108,12 @@ void core_exec_IO_DPM_t::store_dtlb_callback(void * const op)
   struct uop_t * uop = (struct uop_t *)op;
   struct core_t * core = uop->core;
   struct core_exec_IO_DPM_t * E = (core_exec_IO_DPM_t*)core->exec.get();
-  struct core_knobs_t * knobs = core->knobs;
 
 #ifdef ZTRACE
   ztrace_print(uop,"c|store|translated");
 #endif
 
-  zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
+  zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < core->knobs->exec.STQ_size),(void)0);
   if(uop->exec.action_id == E->STQ[uop->alloc.STQ_index].action_id)
     E->STQ[uop->alloc.STQ_index].translation_complete = true;
   x86::return_uop_array(uop, 1);
@@ -2134,12 +2123,11 @@ bool core_exec_IO_DPM_t::store_translated_callback(void * const op, const seq_t 
 {
   struct uop_t * uop = (struct uop_t *)op;
   struct core_t * core = uop->core;
-  struct core_knobs_t * knobs = core->knobs;
   struct core_exec_IO_DPM_t * E = (core_exec_IO_DPM_t*)core->exec.get();
 
   if((uop->alloc.STQ_index == -1) || (uop->exec.action_id != E->STQ[uop->alloc.STQ_index].action_id))
     return true;
-  zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < knobs->exec.STQ_size),true);
+  zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < core->knobs->exec.STQ_size),true);
   return E->STQ[uop->alloc.STQ_index].translation_complete;
 }
 
@@ -2148,7 +2136,6 @@ void core_exec_IO_DPM_t::repeater_store_callback(void * const op, bool is_hit)
   struct uop_t * uop = (struct uop_t *)op;
   struct core_t * core = uop->core;
   struct core_exec_IO_DPM_t * E = (core_exec_IO_DPM_t*)core->exec.get();
-  struct core_knobs_t * knobs = core->knobs;
 
 #ifdef ZTRACE
   ztrace_print(uop,"c|store|written to repeater");
@@ -2156,7 +2143,7 @@ void core_exec_IO_DPM_t::repeater_store_callback(void * const op, bool is_hit)
 
   zesto_assert(uop->oracle.is_repeated, (void)0);
   zesto_assert(is_hit, (void)0);
-  zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
+  zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < core->knobs->exec.STQ_size),(void)0);
   if(uop->exec.action_id == E->STQ[uop->alloc.STQ_index].action_id)
   {
     E->STQ[uop->alloc.STQ_index].first_byte_written = true;
@@ -2174,7 +2161,6 @@ void core_exec_IO_DPM_t::repeater_split_store_callback(void * const op, bool is_
   struct uop_t * uop = (struct uop_t *)op;
   struct core_t * core = uop->core;
   struct core_exec_IO_DPM_t * E = (core_exec_IO_DPM_t*)core->exec.get();
-  struct core_knobs_t * knobs = core->knobs;
 
 #ifdef ZTRACE
   ztrace_print(uop,"c|store|split written to repeater");
@@ -2182,7 +2168,7 @@ void core_exec_IO_DPM_t::repeater_split_store_callback(void * const op, bool is_
 
   zesto_assert(uop->oracle.is_repeated, (void)0);
   zesto_assert(is_hit, (void)0);
-  zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < knobs->exec.STQ_size),(void)0);
+  zesto_assert((uop->alloc.STQ_index >= 0) && (uop->alloc.STQ_index < core->knobs->exec.STQ_size),(void)0);
   if(uop->exec.action_id == E->STQ[uop->alloc.STQ_index].action_id)
   {
     zesto_assert(!uop->oracle.is_sync_op, (void)0);
@@ -3081,7 +3067,6 @@ bool core_exec_IO_DPM_t::can_issue_IO(struct uop_t * const uop)
 bool core_exec_IO_DPM_t::exec_fused_ST(struct uop_t * const uop)
 {
   struct uop_t * curr_uop = uop;
-  struct core_knobs_t * knobs = core->knobs;
 
   zesto_assert(curr_uop->decode.is_sta, false);
 
@@ -3093,7 +3078,7 @@ bool core_exec_IO_DPM_t::exec_fused_ST(struct uop_t * const uop)
   curr_uop->timing.when_completed = core->sim_cycle;
   core->exec->STQ_insert_sta(curr_uop);
 
-  zesto_assert((curr_uop->alloc.STQ_index >= 0) && (curr_uop->alloc.STQ_index < knobs->exec.STQ_size), false);
+  zesto_assert((curr_uop->alloc.STQ_index >= 0) && (curr_uop->alloc.STQ_index < core->knobs->exec.STQ_size), false);
   zesto_assert(!STQ[curr_uop->alloc.STQ_index].addr_valid, false);
   STQ[curr_uop->alloc.STQ_index].virt_addr = curr_uop->oracle.virt_addr;
   STQ[curr_uop->alloc.STQ_index].addr_valid = true;
@@ -3121,7 +3106,7 @@ bool core_exec_IO_DPM_t::exec_fused_ST(struct uop_t * const uop)
   curr_uop->timing.when_completed = core->sim_cycle;
   core->exec->STQ_insert_std(curr_uop);
 
-  zesto_assert((curr_uop->alloc.STQ_index >= 0) && (curr_uop->alloc.STQ_index < knobs->exec.STQ_size), false);
+  zesto_assert((curr_uop->alloc.STQ_index >= 0) && (curr_uop->alloc.STQ_index < core->knobs->exec.STQ_size), false);
   zesto_assert(!STQ[curr_uop->alloc.STQ_index].value_valid, false);
 
   curr_uop->exec.ovalue_valid = true;

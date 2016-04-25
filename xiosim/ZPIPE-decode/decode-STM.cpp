@@ -113,7 +113,7 @@ core_decode_STM_t::reg_stats(xiosim::stats::StatsDatabase* sdb)
                           decode_uops_st / *core_sim_cycles_st, NULL);
 
     core->stat.decode_stall = stat_reg_core_dist(
-            sdb, coreID, "decode_stall", "breakdown of stalls at decode", 0, DSTALL_num, 1,
+            sdb, coreID, "decode_stall", "breakdown of stalls at decode", 0, DSTALL_num,
             (PF_COUNT | PF_PDF), NULL, decode_stall_str, true, NULL);
 }
 
