@@ -5,6 +5,7 @@
 
 #include <queue>
 #include <map>
+#include <mutex>
 #include <list>
 #include <vector>
 
@@ -48,6 +49,38 @@ static void UpdateSHMCoreThread(int coreID, pid_t tid);
 static void UpdateSHMThreadCore(pid_t tid, int coreID);
 static void RemoveSHMThread(pid_t tid);
 
+struct TCB {
+    pid_t tid;
+
+    /* tid of a thread we're trying to join on.
+     * When blocked_on != INVALID_THREADID, the thread still sits on a run queue,
+     * but gets shuffled back if it reaches the head. So all is good and fair.
+     * XXX: This is a prototype of a more general blocking mechanism where we
+     * can block on an arbitrary memory address (for sys_futex) or file descriptor
+     * (for sys_epoll and the like).
+     */
+    pid_t blocked_on;
+
+    /* Which run queue is this thread sitting on.
+     * This is different from threadCores[tid]. threadCores is INVALID_CORE,
+     * unless the thread is actually running on a core, while run_queue_ID is set
+     * while the thread is waiting on a queue as well. */
+    int run_queue_ID;
+
+    TCB(pid_t tid)
+        : tid(tid)
+        , blocked_on(INVALID_THREADID)
+        , run_queue_ID(INVALID_CORE) {}
+};
+static std::map<pid_t, TCB> threads;
+static XIOSIM_LOCK tcb_lk;
+
+/* From blocker to blocked */
+static std::map<pid_t, pid_t> blocked_thread_map;
+static XIOSIM_LOCK blocked_threads_lk;
+static bool IsThreadBlocked(pid_t);
+static void UnblockSleepers(pid_t tid);
+
 /* ========================================================================== */
 void InitScheduler(int num_cores_) {
     num_cores = num_cores_;
@@ -85,9 +118,18 @@ int ScheduleNewThread(pid_t tid) {
         lk_unlock(&last_coreID_lk);
     }
 
+    {
+        /* We know what runQ we'll sit on, set the TCB field
+           (and create a TCB if it's our first time around). */
+        std::lock_guard<XIOSIM_LOCK> l(tcb_lk);
+        if (threads.count(tid) == 0)
+            threads.insert(std::make_pair(tid, tid));
+        threads.at(tid).run_queue_ID = coreID;
+    }
+
     lk_lock(&run_queues[coreID].lk, 1);
     if (run_queues[coreID].q.empty() && !xiosim::libsim::is_core_active(coreID)) {
-        /* We can on @coreID straight away, activate it and update SHM state. */
+        /* We can go on @coreID straight away, activate it and update SHM state. */
         xiosim::libsim::activate_core(coreID);
         UpdateSHMThreadCore(tid, coreID);
         UpdateSHMCoreThread(coreID, tid);
@@ -137,6 +179,75 @@ void ScheduleProcessThreads(int asid, std::list<pid_t> threads) {
     }
 }
 
+/* Helper to shuffle blocked threads on the front of the runQ to the back.
+ * Assumes the caller is holding run_queues[@coreID].lk */
+static void RequeueSleepers(int coreID) {
+    if (run_queues[coreID].q.empty())
+        return;
+
+    pid_t curr_head;
+    pid_t first_tid = run_queues[coreID].q.front();
+
+    while (true) {
+        curr_head = run_queues[coreID].q.front();
+
+        /* Found an unblocked thread, we're done. */
+        if (!IsThreadBlocked(curr_head))
+            return;
+
+        /* Else, a blocked thread gives up its slot. And we are still fair. */
+        run_queues[coreID].q.pop();
+        run_queues[coreID].q.push(curr_head);
+
+        /* We've gone a full round around the runQ and found nothing. */
+        if (first_tid == run_queues[coreID].q.front()) {
+            return;
+        }
+    }
+}
+
+/* Helper to get the first non-blocked thread on the requested runQ.
+ * Assumes the caller is holding run_queues[@coreID].lk
+ * If there are "non-real", i.e. blocked, threads at the head of the runQ,
+ * they will get shuffled to the back until we either find a non-blocked one,
+ * or we go full circle. */
+static pid_t GetRealRunQHead(int coreID) {
+    if (run_queues[coreID].q.empty())
+        return INVALID_THREADID;
+
+    RequeueSleepers(coreID);
+
+    pid_t new_head = run_queues[coreID].q.front();
+    if (IsThreadBlocked(new_head))
+        return INVALID_THREADID;
+
+    return new_head;
+}
+
+/* Helper to schedule the next thread, if any, to an already activated core.
+ * Skips all blocked thread on the runQ.
+ * Assumes the caller is holding run_queues[@coreID].lk */
+static void ScheduleNextUnblockedThread(int coreID) {
+    pid_t new_tid = GetRealRunQHead(coreID);
+
+    if (new_tid != INVALID_THREADID) {
+        /* Let SHM know @new_tid is running on @coreID */
+        UpdateSHMThreadCore(new_tid, coreID);
+
+#ifdef SCHEDULER_DEBUG
+        lk_lock(printing_lock, 1);
+        std::cerr << "Thread " << new_tid << " going on core " << coreID << std::endl;
+        lk_unlock(printing_lock);
+#endif
+    } else {
+        /* No more work to do, let other cores progress */
+        xiosim::libsim::deactivate_core(coreID);
+    }
+
+    /* Let SHM know @coreID has @new_tid (potentially nothing) */
+    UpdateSHMCoreThread(coreID, new_tid);
+}
+
 /* ========================================================================== */
 void DescheduleActiveThread(int coreID) {
     lk_lock(&run_queues[coreID].lk, 1);
@@ -150,38 +261,20 @@ void DescheduleActiveThread(int coreID) {
     lk_unlock(printing_lock);
 #endif
 
-    /* Deallocate thread state -- XXX: send IPC back to feeder */
-    /*    thread_state_t* tstate = get_tls(tid);
-        delete tstate;
-        PIN_DeleteThreadDataKey(tid);
-        lk_lock(&thread_list_lock, 1);
-        thread_list.remove(tid);
-        lk_unlock(&thread_list_lock);
-    */
     /* This thread is no more. */
-    RemoveSHMThread(tid);
     run_queues[coreID].q.pop();
-
-    pid_t new_tid = INVALID_THREADID;
-    if (!run_queues[coreID].q.empty()) {
-        new_tid = run_queues[coreID].q.front();
-
-        /* Let SHM know @new_tid is running on @coreID */
-        UpdateSHMThreadCore(new_tid, coreID);
-
-#ifdef SCHEDULER_DEBUG
-        lk_lock(printing_lock, tid + 1);
-        std::cerr << "Thread " << new_tid << " going on core " << coreID << std::endl;
-        lk_unlock(printing_lock);
-#endif
-    } else {
-        /* No more work to do, let other cores progress */
-        xiosim::libsim::deactivate_core(coreID);
+    RemoveSHMThread(tid);
+    {
+        std::lock_guard<XIOSIM_LOCK> l(tcb_lk);
+        threads.erase(tid);
     }
 
-    /* Let SHM know @coreID has @new_tid (potentially nothing) */
-    UpdateSHMCoreThread(coreID, new_tid);
+    /* Schedule the next unblocked thread from this runQ, if any. */
+    ScheduleNextUnblockedThread(coreID);
     lk_unlock(&run_queues[coreID].lk);
+
+    /* Threads that were waiting to join on this one are now good to go */
+    UnblockSleepers(tid);
 }
 
 /* ========================================================================== */
@@ -200,10 +293,9 @@ void GiveUpCore(int coreID, bool reschedule_thread) {
     /* This thread gets descheduled. */
     run_queues[coreID].q.pop();
 
-    pid_t new_tid;
-    if (!run_queues[coreID].q.empty()) {
+    pid_t new_tid = GetRealRunQHead(coreID);
+    if (new_tid != INVALID_THREADID) {
         /* There is another thread waiting for the core. It gets scheduled. */
-        new_tid = run_queues[coreID].q.front();
 
 #ifdef SCHEDULER_DEBUG
         lk_lock(printing_lock, tid + 1);
@@ -214,12 +306,19 @@ void GiveUpCore(int coreID, bool reschedule_thread) {
         /* No more work to do, let core sleep */
         xiosim::libsim::deactivate_core(coreID);
         new_tid = INVALID_THREADID;
+    } else if (IsThreadBlocked(tid)) {
+        /* Thread is the only one waiting for this core, but also blocked.
+         * Same as an empty queue. */
+        xiosim::libsim::deactivate_core(coreID);
+        new_tid = INVALID_THREADID;
     } else {
         /* Thread is the only one waiting for this core, reschedule is moot. */
         new_tid = tid;
     }
     /* Let SHM know @coreID has @new_tid (potentially nothing) */
     UpdateSHMCoreThread(coreID, new_tid);
+    if (new_tid != tid && new_tid != INVALID_THREADID)
+        UpdateSHMThreadCore(new_tid, coreID);
 
     if (reschedule_thread) {
         /* Reschedule at the back of (possibly empty) runqueue for @coreID. */
@@ -231,13 +330,18 @@ void GiveUpCore(int coreID, bool reschedule_thread) {
         lk_unlock(printing_lock);
 #endif
 
-        /* If old thread is requeued behind a new thread, update its SHM status. */
-        if (new_tid != tid)
-            UpdateSHMThreadCore(new_tid, INVALID_CORE);
+        /* If old thread is requeued behind a new thread, update old's SHM status. */
+        if (new_tid != tid && new_tid != INVALID_THREADID) {
+            UpdateSHMThreadCore(tid, INVALID_CORE);
+        }
     } else {
         /* For all we know in this case, old thread will never be scheduled again.
          */
         RemoveSHMThread(tid);
+        {
+            std::lock_guard<XIOSIM_LOCK> l(tcb_lk);
+            threads.at(tid).run_queue_ID = INVALID_CORE;
+        }
     }
 
     lk_unlock(&run_queues[coreID].lk);
@@ -249,8 +353,11 @@ pid_t GetCoreThread(int coreID) {
     lk_lock(&run_queues[coreID].lk, 1);
     if (run_queues[coreID].q.empty())
         result = INVALID_THREADID;
-    else
+    else {
         result = run_queues[coreID].q.front();
+        if (IsThreadBlocked(result))
+            result = INVALID_THREADID;
+    }
     lk_unlock(&run_queues[coreID].lk);
     return result;
 }
@@ -290,8 +397,7 @@ static int GetThreadAffinity(pid_t tid) {
 }
 
 /* Helpers for updating SHM thread->core and core->thread maps, which is allowed
- * only
- * by the scheduler. */
+ * only by the scheduler. */
 static void UpdateSHMCoreThread(int coreID, pid_t tid) {
     lk_lock(lk_coreThreads, 1);
     coreThreads[coreID] = tid;
@@ -312,4 +418,64 @@ static void RemoveSHMThread(pid_t tid) {
     lk_unlock(lk_coreThreads);
 }
 
+static bool IsThreadBlocked(pid_t tid) {
+    std::lock_guard<XIOSIM_LOCK> l(tcb_lk);
+    TCB& tcb = threads.at(tid);
+    return tcb.blocked_on != INVALID_THREADID;
+}
+
+void BlockThread(int coreID, pid_t tid, pid_t blocked_on) {
+    {
+        std::lock_guard<XIOSIM_LOCK> l(tcb_lk);
+        TCB& tcb = threads.at(tid);
+        tcb.blocked_on = blocked_on;
+    }
+    {
+        std::lock_guard<XIOSIM_LOCK> l(blocked_threads_lk);
+        // XXX: For now, we'll have a proper list of waiters soon.
+        assert(blocked_thread_map.count(blocked_on) == 0);
+        blocked_thread_map[blocked_on] = tid;
+    }
+
+#ifdef SCHEDULER_DEBUG
+    {
+        std::lock_guard<XIOSIM_LOCK> l(*printing_lock);
+        std::cerr << "Thread " << tid << " joining " << blocked_on << " on core " << coreID << std::endl;
+    }
+#endif
+    GiveUpCore(coreID, true);
+}
+
+void UnblockSleepers(pid_t tid) {
+    pid_t blockee;
+    {
+        std::lock_guard<XIOSIM_LOCK> l(blocked_threads_lk);
+        if (blocked_thread_map.count(tid) == 0)
+            return;
+
+        blockee = blocked_thread_map[tid];
+        blocked_thread_map.erase(tid);
+    }
+    int run_queue_ID;
+    {
+        std::lock_guard<XIOSIM_LOCK> l(tcb_lk);
+        TCB& tcb = threads.at(blockee);
+        assert(tcb.blocked_on = tid);
+        tcb.blocked_on = INVALID_THREADID;
+        run_queue_ID = tcb.run_queue_ID;
+    }
+    if (run_queue_ID == INVALID_CORE)
+        return;
+    {
+        std::lock_guard<XIOSIM_LOCK> l(run_queues[run_queue_ID].lk);
+        /* If the thread we're waking up is at the head of its runQ, the runQ is
+         * effectively empty. We need to wake the core up and schedule the thread.
+         * In all other cases, all will be well when the thread's turn comes. */
+        if (run_queues[run_queue_ID].q.front() == blockee) {
+            xiosim::libsim::activate_core(run_queue_ID);
+            UpdateSHMThreadCore(blockee, run_queue_ID);
+            UpdateSHMCoreThread(run_queue_ID, blockee);
+        }
+    }
+}
 }  // namespace xiosim

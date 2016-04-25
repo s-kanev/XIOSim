@@ -96,6 +96,16 @@ void* SimulatorLoop(void* arg) {
                 break;
             }
 
+            if (handshake->flags.blockThread) {
+                pid_t blocked_on = handshake->mem_buffer.front().first;
+
+                // invalidate the handshake
+                xiosim::buffer_management::Pop(instrument_tid);
+
+                BlockThread(coreID, instrument_tid, blocked_on);
+                break;
+            }
+
             // First instruction, map stack pages, and flag we're not safe to kill
             if (handshake->flags.isFirstInsn) {
                 md_addr_t esp = handshake->rSP;

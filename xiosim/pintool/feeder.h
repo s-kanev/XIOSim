@@ -206,6 +206,10 @@ VOID AddGiveUpHandshake(THREADID tid, bool start_ignoring, bool reschedule);
  * de-scheduled. It should be rescheduled with ScheduleThread(). */
 VOID SyncWithTimingSim(THREADID tid);
 
+/* Similar to AddGiveUpHandshake(). Except, once consumed, the thread will
+ * wait to join @blocked_on. */
+void AddBlockedHandshake(THREADID tid, pid_t blocked_on);
+
 /* Tell the scheduler to schedule a thread. */
 VOID ScheduleThread(THREADID tid);
 

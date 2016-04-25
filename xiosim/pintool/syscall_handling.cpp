@@ -137,10 +137,16 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VO
 
     case __NR_futex:
         {
+        {
+            std::lock_guard<XIOSIM_LOCK> l(tstate->lock);
+            if (tstate->ignore)
+                break;
+        }
         arg2 = PIN_GetSyscallArgument(ictxt, std, 1);
+        tstate->last_syscall_arg1 = arg1;
         tstate->last_syscall_arg2 = arg2;
 #ifdef SYSCALL_DEBUG
-        log << "Syscall futex(*, " << arg2 << ")" << endl;
+        log << "Syscall futex(" << hex << arg1 << dec << "," << arg2 << ")" << endl;
 #endif
         int futex_op = FUTEX_CMD_MASK & arg2;
         if (futex_op == FUTEX_WAIT || futex_op == FUTEX_WAIT_BITSET) {
@@ -332,6 +338,15 @@ VOID SyscallExit(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VOI
                 << retval << ", tv_sec: " << tv->tv_sec << ", tv_usec: " << tv->tv_usec << endl;
         }
 #endif
+        break;
+
+    case __NR_futex:
+        {
+#ifdef SYSCALL_DEBUG
+        log << "Ret syscall futex(" << hex << tstate->last_syscall_arg1 << dec << ","
+            << tstate->last_syscall_arg2 << ")" << endl;
+#endif
+        }
         break;
 
     default:

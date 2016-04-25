@@ -52,6 +52,10 @@ bool IsCoreBusy(int coreID);
  */
 bool NeedsReschedule(int coreID);
 
+/* Have thread @tid, currently running on @coreID, give the
+ * core up, and block until thread @blocked_on exits. */
+void BlockThread(int coreID, pid_t tid, pid_t blocked_on);
+
 }  // namespace xiosim
 
 #endif /* __SCHEDULER_H__ */

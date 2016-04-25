@@ -17,6 +17,7 @@ struct handshake_flags_t {
     bool giveCoreUp : 1;          /* Notify the scheduler to release thread */
     bool giveUpReschedule : 1;    /* When ^ is true, should thread get re-scheduled */
     bool killThread : 1;          /* Thread is exiting, deschedule it and clean up once consumed */
+    bool blockThread : 1;
     bool brtaken : 1;             /* Taken or Not-Taken for branch instructions */
     bool flush_pipe : 1;          /* Flush core pipelie */
     bool real : 1;                /* Is this a real instruction */
