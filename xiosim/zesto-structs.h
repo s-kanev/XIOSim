@@ -102,8 +102,10 @@ struct alignas(16) uop_t
     bool is_sta;  /* Is store-address uop? */
     bool is_std;  /* Is store-data uop? */
     bool is_nop;  /* Is NOP? */
-    bool is_fence; /* Is fence? */
-    bool is_light_fence; /* Light fence? (heavy vs light == wait for commit vs wait for WB) */
+    bool is_lfence; /* Is fence? */
+    bool is_sfence; /* Is sfence? */
+    bool is_mfence; /* Is mfence? Only set if is_lfence or is_sfence. Will require syncing between LDQ and STQ. */
+    bool is_light_fence; /* Light fence? (heavy vs light == wait for commit vs wait for WB, it only seems to be useful for HELIX) */
     bool is_agen; /* Is AGEN uop (LEA instruction) */
     bool is_fpop; /* Is floating-point op? */
 
@@ -282,6 +284,7 @@ struct inst_flags_t {
     bool INDIR:1;    /* indirect control inst */
     bool CALL:1;     /* function call */
     bool RETN:1;     /* subroutine return */
+    bool ATOMIC:1;   /* atomic -- valid lock prefix or XCHG */
 };
 
 /* x86 Macro-op structure */

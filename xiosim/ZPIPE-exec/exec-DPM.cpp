@@ -74,6 +74,7 @@ class core_exec_DPM_t:public core_exec_t
   virtual void STQ_deallocate_sta(void);
   virtual bool STQ_deallocate_std(struct uop_t * const uop);
   virtual void STQ_deallocate_senior(void);
+  virtual bool STQ_deallocate_fence(struct uop_t * const uop);
   virtual void STQ_squash_sta(struct uop_t * const dead_uop);
   virtual void STQ_squash_std(struct uop_t * const dead_uop);
   virtual void STQ_squash_senior(void);
@@ -140,6 +141,7 @@ class core_exec_DPM_t:public core_exec_t
     bool last_byte_requested;
     bool first_byte_written;
     bool last_byte_written;
+    bool is_fence;
     int mem_size;
     bool addr_valid;
     bool value_valid;
@@ -702,7 +704,7 @@ bool core_exec_DPM_t::check_load_issue_conditions(const struct uop_t * const uop
   /* Conservative fence implementation -- if there is an older fence in LDQ,
    * don't issue. */
   for (int j = LDQ_head; j != uop->alloc.LDQ_index; j = modinc(j, knobs->exec.LDQ_size)) {
-    if (LDQ[j].uop->decode.is_fence &&
+    if (LDQ[j].uop->decode.is_lfence &&
         LDQ[j].uop->timing.when_completed == TICK_T_MAX)
       return false;
   }
@@ -715,6 +717,9 @@ bool core_exec_DPM_t::check_load_issue_conditions(const struct uop_t * const uop
       ((modinc(i,knobs->exec.STQ_size)) != STQ_senior_head) && (STQ[i].uop_seq < uop->decode.uop_seq) && (num_stores < STQ_senior_num);
       i=moddec(i,knobs->exec.STQ_size) )
   {
+    if (STQ[i].is_fence)
+      continue;
+
     /* check addr match */
     int st_mem_size = STQ[i].mem_size;
     md_addr_t st_addr1, st_addr2;
@@ -1541,28 +1546,35 @@ void core_exec_DPM_t::LDQ_schedule(void)
 {
   struct core_knobs_t * knobs = core->knobs;
   int asid = core->asid;
-  int i;
   /* walk LDQ, if anyone's ready, issue to DTLB/DL1 */
 
-  int index = LDQ_head;
-  for(i=0;i<LDQ_num;i++)
+  int i;
+  int index;
+  for(i = 0, index = LDQ_head; i < LDQ_num; i++, index = modinc(index, knobs->exec.LDQ_size))
   {
-    //int index = (LDQ_head + i) % knobs->exec.LDQ_size;
-
     /* Load fences */
-    if(LDQ[index].uop->decode.is_fence) {
+    if(LDQ[index].uop->decode.is_lfence) {
       struct uop_t *fence = LDQ[index].uop;
       if (fence->timing.when_completed != TICK_T_MAX)
         continue;
 
-      /* Only let a fence commit from the head of the LDQ. */
-      if (index != LDQ_head) {
-        index = modinc(index,knobs->exec.LDQ_size);
-        continue;
+      /* Only let a fence commit from the head of the LDQ.
+       * XXX: The *effective* head of the LDQ, i.e. if everything older than us is completed --
+       * this lets us have multiple lfences in the same Mop.
+       * FIXME(skanev): this scan is expensive, we can optimize it. */
+      bool older_completed = true;
+      for (int j = moddec(index, knobs->exec.LDQ_size); j != moddec(LDQ_head, knobs->exec.LDQ_size);
+           j = moddec(j, knobs->exec.LDQ_size)) {
+        if (LDQ[j].uop->timing.when_completed == TICK_T_MAX) {
+          older_completed = false;
+          break;
+        }
       }
+      if (!older_completed)
+        continue;
 
       /* MFENCE needs to wait until stores prior to it complete */
-      if (xed_iclass(fence->Mop) == XED_ICLASS_MFENCE) { //XXX: fix once we have a uop enum
+      if (fence->decode.is_mfence) {
         int stq_ind = LDQ[index].store_color;
 
         /* Light fence -- the youngest store (at allocation time of the fence)
@@ -1582,7 +1594,6 @@ void core_exec_DPM_t::LDQ_schedule(void)
       zesto_assert(fence->timing.when_completed == TICK_T_MAX,(void)0);
       fence->timing.when_completed = core->sim_cycle;
 
-      index = modinc(index,knobs->exec.LDQ_size);
       continue;
     }
 
@@ -1661,7 +1672,7 @@ void core_exec_DPM_t::LDQ_schedule(void)
                       if(uop->Mop->oracle.spec_mode)
                         ZESTO_STAT(core->stat.num_wp_jeclear++;)
 #ifdef ZTRACE
-          ztrace_print(uop,"e|jeclear|UNEXPECTED flush");
+                      ztrace_print(uop,"e|jeclear|UNEXPECTED flush");
 #endif
                     }
                     else
@@ -1753,7 +1764,6 @@ void core_exec_DPM_t::LDQ_schedule(void)
         }
       }
     }
-    index = modinc(index,knobs->exec.LDQ_size);
   }
 }
 
@@ -2354,11 +2364,10 @@ void core_exec_DPM_t::STQ_insert_sta(struct uop_t * const uop)
   //memset(&STQ[STQ_tail],0,sizeof(*STQ));
   memzero(&STQ[STQ_tail],sizeof(*STQ));
   STQ[STQ_tail].sta = uop;
-  if(STQ[STQ_tail].sta != NULL)
-    uop->decode.is_sta = true;
   STQ[STQ_tail].mem_size = uop->decode.mem_size;
   STQ[STQ_tail].uop_seq = uop->decode.uop_seq;
   STQ[STQ_tail].next_load = LDQ_tail;
+  STQ[STQ_tail].is_fence = uop->decode.is_sfence;
   STQ[STQ_tail].action_id = core->new_action_id();
   uop->alloc.STQ_index = STQ_tail;
   STQ_num++;
@@ -2382,11 +2391,47 @@ void core_exec_DPM_t::STQ_deallocate_sta(void)
   STQ[STQ_head].sta = NULL;
 }
 
+bool core_exec_DPM_t::STQ_deallocate_fence(struct uop_t* const uop) {
+    /* Only let a fence commit from the head of the *senior* queue. */
+    if (uop->alloc.STQ_index != STQ_senior_head)
+        return false;
+
+    /* An mfence waits until our pair uop in the LDQ is completed,
+     * which would mean that all loads prior to us have gone to caches. */
+    if (uop->decode.is_mfence) {
+        if (LDQ_num > 0) {
+            struct uop_t* LDQ_head_uop = LDQ[LDQ_head].uop;
+
+            /* LDQ_head is older than iout pair fence uop. */
+            if (LDQ_head_uop->decode.uop_seq < uop->decode.uop_seq - 1)
+                return false;
+
+            if (LDQ_head_uop->decode.is_lfence &&
+                LDQ_head_uop->decode.uop_seq < uop->decode.uop_seq &&
+                LDQ_head_uop->timing.when_completed > core->sim_cycle)
+                return false;
+        }
+    }
+
+    STQ[STQ_senior_head].write_complete = true;
+    STQ[STQ_senior_head].translation_complete = true;
+
+    STQ[STQ_senior_head].sta = nullptr;
+    STQ[STQ_senior_head].std = nullptr;
+    STQ_num--;
+    STQ_head = modinc(STQ_head, core->knobs->exec.STQ_size);
+    /* don't touch the senior STQ, we'll deallocate from there as usual */
+    return true;
+}
+
 /* returns true if successful */
 bool core_exec_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
 {
   struct core_knobs_t * knobs = core->knobs;
   int asid = core->asid;
+
+  if (uop->decode.is_sfence)
+    return STQ_deallocate_fence(uop);
 
   bool send_to_dl1 = (!uop->oracle.is_repeated ||
                        (uop->oracle.is_repeated && knobs->memory.DL1_rep_req));
@@ -2407,8 +2452,6 @@ bool core_exec_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
     if(!core->memory.mem_repeater->enqueuable(get_STQ_request_type(uop), asid, uop->oracle.virt_addr))
     return false;
   }
-
-  /* TODO: Add mfence handling to wait for loads */
 
   if(!STQ[STQ_head].first_byte_requested)
   {

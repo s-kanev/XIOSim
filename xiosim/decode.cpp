@@ -87,19 +87,6 @@ bool is_nop(const struct Mop_t * Mop) {
     return false;
 }
 
-bool is_fence(const struct Mop_t * Mop) {
-    auto iclass = xed_decoded_inst_get_iclass(&Mop->decode.inst);
-    switch (iclass) {
-      case XED_ICLASS_MFENCE:
-      case XED_ICLASS_SFENCE:
-      case XED_ICLASS_LFENCE:
-        return true;
-      default:
-        return false;
-    }
-    return false;
-}
-
 bool is_indirect(const struct Mop_t * Mop) {
     auto iform = xed_decoded_inst_get_iform_enum(&Mop->decode.inst);
     switch (iform) {
@@ -135,6 +122,10 @@ bool is_fp(const struct Mop_t * Mop) {
     return false;
 }
 
+bool is_atomic(const struct Mop_t* Mop) {
+    return xed_operand_values_get_atomic(xed_decoded_inst_operands_const(&Mop->decode.inst));
+}
+
 void decode_flags(struct Mop_t * Mop) {
     Mop->decode.is_trap = is_trap(Mop);
     Mop->decode.is_ctrl = is_ctrl(Mop);
@@ -152,6 +143,7 @@ void decode_flags(struct Mop_t * Mop) {
     flags.MEM = flags.LOAD || flags.STORE;
     flags.TRAP = Mop->decode.is_trap;
     flags.INDIR = is_indirect(Mop);
+    flags.ATOMIC = is_atomic(Mop);
 }
 
 std::string print_Mop(const struct Mop_t * Mop) {
@@ -162,10 +154,6 @@ std::string print_Mop(const struct Mop_t * Mop) {
     if (!ok)
         return "ERROR dissasembling";
     return buffer;
-}
-
-xed_iclass_enum_t xed_iclass(const struct Mop_t * Mop) {
-    return xed_decoded_inst_get_iclass(&Mop->decode.inst);
 }
 
 }  // xiosim::x86

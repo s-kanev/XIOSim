@@ -24,15 +24,12 @@ bool is_ctrl(const struct Mop_t * Mop);
 bool is_load(const struct Mop_t * Mop);
 bool is_store(const struct Mop_t * Mop);
 bool is_nop(const struct Mop_t * Mop);
-bool is_fence(const struct Mop_t * Mop);
 /* Does Mop execute in FP-like cluster -- x87, SSE, AVX */
 bool is_fp(const struct Mop_t * Mop);
 
 inline const char * print_uop(const struct uop_t * uop) { return "NYI"; }
 
 std::string print_Mop(const struct Mop_t * Mop);
-
-xed_iclass_enum_t xed_iclass(const struct Mop_t * Mop);
 
 }  // xiosim::x86
 }  // xiosim

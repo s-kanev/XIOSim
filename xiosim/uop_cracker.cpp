@@ -117,6 +117,23 @@ static void fill_out_std_uop(const struct Mop_t* Mop,
     std_uop.decode.idep_name[0] = data_reg;
 }
 
+static void fill_out_cmov_uops(const struct Mop_t* Mop,
+                               struct uop_t& cmov_uop1,
+                               struct uop_t& cmov_uop2,
+                               const xed_reg_enum_t src_op,
+                               const xed_reg_enum_t dst_op,
+                               const xed_reg_enum_t tmp_reg) {
+
+    cmov_uop1.decode.FU_class = FU_IEU;
+    cmov_uop1.decode.idep_name[0] = largest_reg(XED_REG_EFLAGS);
+    cmov_uop1.decode.idep_name[1] = src_op;
+    cmov_uop1.decode.odep_name[0] = tmp_reg;
+
+    cmov_uop2.decode.FU_class = FU_IEU;
+    cmov_uop2.decode.idep_name[0] = tmp_reg;
+    cmov_uop2.decode.odep_name[0] = dst_op;
+}
+
 /* Create a 1-uop mapping for this Mop, keeping:
  * - register input / output same as the Mop
  * - flags (load/store/jump) same as the Mop
@@ -141,11 +158,15 @@ static void fallback(struct Mop_t* Mop) {
     /* Allocate uop array that we can start filling out. */
     Mop->allocate_uops();
 
+    auto iclass = xed_decoded_inst_get_iclass(&Mop->decode.inst);
     /* Fill out flags for main uop. */
     struct uop_t& main_uop = Mop->uop[op_index];
     main_uop.decode.is_ctrl = Mop->decode.is_ctrl;
     main_uop.decode.is_nop = is_nop(Mop);
-    main_uop.decode.is_fence = is_fence(Mop);
+    // XXX: handle fences outside of fallback().
+    main_uop.decode.is_mfence = (iclass == XED_ICLASS_MFENCE);
+    main_uop.decode.is_lfence = (iclass == XED_ICLASS_LFENCE) || main_uop.decode.is_mfence;
+    main_uop.decode.is_sfence = (iclass == XED_ICLASS_SFENCE) || main_uop.decode.is_mfence;
     main_uop.decode.is_fpop = is_fp(Mop);
 
     /* Flag for load-op uop fusion. */
@@ -501,6 +522,54 @@ static bool check_sincos(const struct Mop_t* Mop) {
     return false;
 }
 
+static bool check_cmovcc(const struct Mop_t* Mop) {
+    auto icat = xed_decoded_inst_get_category(&Mop->decode.inst);
+    switch (icat) {
+    case XED_CATEGORY_CMOV:
+        return true;
+    default:
+        return false;
+    }
+
+    return false;
+}
+
+static bool check_cmpxchg(const struct Mop_t* Mop) {
+    auto iform = xed_decoded_inst_get_iform_enum(&Mop->decode.inst);
+    switch (iform) {
+    case XED_IFORM_CMPXCHG_GPRv_GPRv:
+    case XED_IFORM_CMPXCHG_GPR8_GPR8:
+    case XED_IFORM_CMPXCHG_MEMv_GPRv:
+    case XED_IFORM_CMPXCHG_MEMb_GPR8:
+#if 0
+    /* These have some evil flows with 15/22 uops. Instead of implementing them,
+     * I'll run away and scream for a while. */
+    case XED_IFORM_CMPXCHG16B_MEMdq:
+    case XED_IFORM_CMPXCHG8B_MEMq:
+#endif
+        return true;
+    default:
+        return false;
+    }
+
+    return false;
+}
+
+static bool check_xchg(const struct Mop_t* Mop) {
+    auto iform = xed_decoded_inst_get_iform_enum(&Mop->decode.inst);
+    switch (iform) {
+    case XED_IFORM_XCHG_GPRv_GPRv:
+    case XED_IFORM_XCHG_GPRv_OrAX:
+    case XED_IFORM_XCHG_GPR8_GPR8:
+    case XED_IFORM_XCHG_MEMv_GPRv:
+    case XED_IFORM_XCHG_MEMb_GPR8:
+        return true;
+    default:
+        return false;
+    }
+
+    return false;
+}
 
 /* Check special-casing Mop->uop tables. Returns
  * true and modifies Mop if it has found a cracking.
@@ -781,6 +850,179 @@ static bool check_tables(struct Mop_t* Mop) {
         Mop->uop[1].decode.idep_name[0] = XED_REG_ST0;
         Mop->uop[1].decode.odep_name[0] = XED_REG_ST0;
         Mop->uop[1].decode.odep_name[1] = XED_REG_X87STATUS;
+        return true;
+    }
+
+    /* CMOVcc has 2 dependent uops.
+     * XXX: CMOVBE/NBE/A/NA apparently have 3, which we'll ignore.
+     * XXX: on BDW and newer, it's one fewer, which we'll also ignore. */
+    if (check_cmovcc(Mop)) {
+        Mop->decode.flow_length = 2;
+        Mop->allocate_uops();
+
+        fill_out_cmov_uops(Mop, Mop->uop[0], Mop->uop[1], get_registers_read(Mop).front(),
+                           get_registers_written(Mop).front(), XED_REG_TMP0);
+        return true;
+    }
+
+    /* CMPXCHG is ... interesting.
+     * Agner Fog (and HSW measurements) suggests 6 uops (5 after fusion) for the mem-reg
+     * iform with 8 throughput (we count STA/STD separately, so that would be 7 of our uops).
+     * In the natural breakdown with 2-operand uops,
+     * (LD->CMP->3x CMOVs (1 for rAX, 2 with inverted conditions for the STD)->STA/STD)
+     * 3 of these are CMOV uops though, and they seem to break down to 2 uops each
+     * (see above). We'll assume that even though from measurements 2 of these CMOVs
+     * seem 1-uop.
+     * (XXX: the difference might be between a CMOV with temp reg operands and a CMOV with
+     * a physical register operand).
+     * The reg-reg form measures 9 cycles and 9 uops on HSW?! No idea why, so I'll just keep
+     * our simple model with 3 cycles and 7 uops. Reg-reg should be really rare anyways. */
+    if (check_cmpxchg(Mop)) {
+        bool has_load = is_load(Mop);
+        bool has_lock = Mop->decode.opflags.ATOMIC;
+
+        Mop->decode.flow_length = has_load ? 10 : 7;
+        if (has_lock)
+            Mop->decode.flow_length += 4;
+        size_t start_ind = 0;
+        Mop->allocate_uops();
+
+        xed_reg_enum_t dst_operand, src_operand;
+        auto regs_read = get_registers_read(Mop);
+        if (has_load) {
+            start_ind = 1;
+
+            if (has_lock) {
+                uop_t& mfence_uop_1 = Mop->uop[0];
+                mfence_uop_1.decode.FU_class = FU_LD;
+                mfence_uop_1.decode.is_lfence = true;
+                mfence_uop_1.decode.is_mfence = true;
+                start_ind++;
+
+                uop_t& mfence_uop_2 = Mop->uop[1];
+                mfence_uop_2.decode.FU_class = FU_STA;
+                mfence_uop_2.decode.is_sfence = true;
+                mfence_uop_2.decode.is_mfence = true;
+                start_ind++;
+            }
+
+            fill_out_load_uop(Mop, Mop->uop[start_ind - 1], 0);
+            Mop->uop[start_ind - 1].decode.odep_name[0] = XED_REG_TMP0;
+            dst_operand = XED_REG_TMP0;
+            src_operand = regs_read.front();
+        } else {
+            dst_operand = regs_read.front();
+            src_operand = *(++regs_read.begin());
+        }
+
+        /* compare EAX and load result */
+        Mop->uop[start_ind].decode.FU_class = FU_IEU;
+        Mop->uop[start_ind].decode.idep_name[0] = largest_reg(XED_REG_EAX);
+        Mop->uop[start_ind].decode.idep_name[1] = dst_operand;
+        Mop->uop[start_ind].decode.odep_name[0] =
+                XED_REG_TMP1;  // same as TMP0 so this can be fused to the load
+        Mop->uop[start_ind].decode.odep_name[1] = largest_reg(XED_REG_EFLAGS);
+        Mop->uop[start_ind].decode.fusable.LOAD_OP = has_load && !has_lock;
+
+        /* CMOV for mem operand if equal */
+        xed_reg_enum_t cmov_dest = has_load ? XED_REG_TMP2 : dst_operand;
+        fill_out_cmov_uops(Mop, Mop->uop[start_ind + 1], Mop->uop[start_ind + 2], src_operand, cmov_dest, XED_REG_TMP8);
+
+        /* CMOV for mem operand if not equal */
+        fill_out_cmov_uops(Mop, Mop->uop[start_ind + 3], Mop->uop[start_ind + 4], XED_REG_TMP1, cmov_dest, XED_REG_TMP7);
+
+        /* CMOV for EAX */
+        fill_out_cmov_uops(Mop, Mop->uop[start_ind + 5], Mop->uop[start_ind + 6], XED_REG_TMP1, largest_reg(XED_REG_EAX), XED_REG_TMP6);
+
+        /* Store happens regardless of the comparison result.
+         * Store data is different though. */
+        if (has_load) {
+            fill_out_sta_uop(Mop, Mop->uop[start_ind + 7], 0);
+            fill_out_std_uop(Mop, Mop->uop[start_ind + 8], XED_REG_TMP2);
+
+            if (has_lock) {
+                uop_t& mfence_uop_1 = Mop->uop[start_ind + 9];
+                mfence_uop_1.decode.FU_class = FU_LD;
+                mfence_uop_1.decode.is_lfence = true;
+                /* FIXME(skanev): this does need to be an mfence. Otherwise we can get a
+                 * ST->LD forwarding between this Mops store and a following load.
+                 * Our current implementation of fences doesn't allow two mfences in one Mop
+                 * because of atomic commit. */
+                //mfence_uop_1.decode.is_mfence = true;
+
+                uop_t& mfence_uop_2 = Mop->uop[start_ind + 10];
+                mfence_uop_2.decode.FU_class = FU_STA;
+                mfence_uop_2.decode.is_sfence = true;
+                mfence_uop_2.decode.is_mfence = true;
+            }
+
+        }
+
+        return true;
+    }
+
+    if (check_xchg(Mop)) {
+        bool has_load = is_load(Mop);
+        bool has_lock = Mop->decode.opflags.ATOMIC;
+
+        Mop->decode.flow_length = has_load ? 4 : 3;
+        if (has_lock)
+            Mop->decode.flow_length += 4;
+        size_t curr_ind = 0;
+        Mop->allocate_uops();
+
+        if (has_lock) {
+            uop_t& mfence_uop_1 = Mop->uop[0];
+            mfence_uop_1.decode.FU_class = FU_LD;
+            mfence_uop_1.decode.is_lfence = true;
+            mfence_uop_1.decode.is_mfence = true;
+
+            uop_t& mfence_uop_2 = Mop->uop[1];
+            mfence_uop_2.decode.FU_class = FU_STA;
+            mfence_uop_2.decode.is_sfence = true;
+            mfence_uop_2.decode.is_mfence = true;
+            curr_ind += 2;
+        }
+
+        auto regs_read = get_registers_read(Mop);
+        auto regs_written = get_registers_written(Mop);
+
+        if (has_load) {
+            fill_out_load_uop(Mop, Mop->uop[curr_ind], 0);
+            Mop->uop[curr_ind].decode.odep_name[0] = XED_REG_TMP0;
+
+            fill_out_sta_uop(Mop, Mop->uop[curr_ind + 1], 0);
+            fill_out_std_uop(Mop, Mop->uop[curr_ind + 2], regs_read.front());
+            curr_ind += 3;
+        } else {
+            Mop->uop[curr_ind].decode.FU_class = FU_IEU;
+            Mop->uop[curr_ind].decode.idep_name[0] = *(++regs_read.begin());
+            Mop->uop[curr_ind].decode.odep_name[0] = XED_REG_TMP0;
+
+            Mop->uop[curr_ind + 1].decode.FU_class = FU_IEU;
+            Mop->uop[curr_ind + 1].decode.idep_name[0] = regs_read.front();
+            Mop->uop[curr_ind + 1].decode.odep_name[0] = *(++regs_written.begin());
+            curr_ind += 2;
+        }
+
+        Mop->uop[curr_ind].decode.FU_class = FU_IEU;
+        Mop->uop[curr_ind].decode.idep_name[0] = XED_REG_TMP0;
+        Mop->uop[curr_ind].decode.odep_name[0] = regs_written.front();
+        curr_ind++;
+
+        if (has_lock) {
+            uop_t& mfence_uop_1 = Mop->uop[curr_ind];
+            mfence_uop_1.decode.FU_class = FU_LD;
+            mfence_uop_1.decode.is_lfence = true;
+            //FIXME(skanev): same as above.
+            //mfence_uop_1.decode.is_mfence = true;
+
+            uop_t& mfence_uop_2 = Mop->uop[curr_ind + 1];
+            mfence_uop_2.decode.FU_class = FU_STA;
+            mfence_uop_2.decode.is_sfence = true;
+            mfence_uop_2.decode.is_mfence = true;
+            curr_ind += 2;
+        }
         return true;
     }
 

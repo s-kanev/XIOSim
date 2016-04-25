@@ -2,7 +2,7 @@ all: piii/fib piii/roi piii/repl piii/segf piii/step \
 		 piii/rep piii/chase piii/prefetch piii/ignore piii/time \
 		 piii/loop piii/rdtsc \
 		 k8/fib k8/roi k8/repl k8/segf k8/step k8/rep k8/chase \
-		 k8/prefetch k8/ignore k8/time k8/loop k8/rdtsc
+		 k8/prefetch k8/ignore k8/time k8/loop k8/rdtsc k8/atomics
 
 
 piii/fib: fib.cpp
@@ -56,3 +56,5 @@ k8/loop: loop.cpp
 	g++ -O0 -static -o $@ $<
 k8/rdtsc: rdtsc.cpp
 	g++ -O1 -static -falign-functions=16 -o $@ $<
+k8/atomics: atomics.cpp
+	g++ -std=c++1y -O1 -static -falign-loops=64 -o $@ $<

@@ -179,7 +179,7 @@ void core_alloc_DPM_t::step(void)
             }
 
             /* for loads, is the LDQ full? */
-            if((uop->decode.is_load || uop->decode.is_fence) && !core->exec->LDQ_available())
+            if((uop->decode.is_load || uop->decode.is_lfence) && !core->exec->LDQ_available())
             {
               stall_reason = ASTALL_LDQ;
               abort_alloc = true;
@@ -189,7 +189,7 @@ void core_alloc_DPM_t::step(void)
                Bob Colwell's description in Shen&Lipasti Chap 7 where he describes
                allocation on STD.  We emit STA uops first since the oracle needs to
                use the STA result to feed the following STD uop. */
-            if(uop->decode.is_sta && !core->exec->STQ_available())
+            if((uop->decode.is_sta || uop->decode.is_sfence) && !core->exec->STQ_available())
             {
               stall_reason = ASTALL_STQ;
               abort_alloc = true;
@@ -198,7 +198,8 @@ void core_alloc_DPM_t::step(void)
 
             /* is the RS full? -- don't need to alloc for NOPs,fences, signals */
             if(!core->exec->RS_available() && !uop->decode.is_nop &&
-                !uop->decode.is_fence && !is_uop_helix_signal(uop))
+                !uop->decode.is_lfence && !uop->decode.is_sfence &&
+                !is_uop_helix_signal(uop))
             {
               stall_reason = ASTALL_RS;
               abort_alloc = true;
@@ -214,16 +215,17 @@ void core_alloc_DPM_t::step(void)
               core->commit->ROB_fuse_insert(uop);
 
             /* place in LDQ/STQ if needed */
-            if(uop->decode.is_load || uop->decode.is_fence)
+            if(uop->decode.is_load || uop->decode.is_lfence)
               core->exec->LDQ_insert(uop);
-            else if(uop->decode.is_sta)
+            else if(uop->decode.is_sta || uop->decode.is_sfence)
               core->exec->STQ_insert_sta(uop);
             else if(uop->decode.is_std)
               core->exec->STQ_insert_std(uop);
 
             /* port bindings */
             if(!uop->decode.is_nop && !uop->Mop->decode.is_trap &&
-                !uop->decode.is_fence && !is_uop_helix_signal(uop))
+                !uop->decode.is_lfence && !uop->decode.is_sfence &&
+                !is_uop_helix_signal(uop))
             {
               /* port-binding is trivial when there's only one valid port */
               if(knobs->exec.port_binding[uop->decode.FU_class].num_FUs == 1)
@@ -318,7 +320,7 @@ void core_alloc_DPM_t::step(void)
 
 
             }
-            else /* is_nop || is_trap || is_fence*/
+            else /* is_nop || is_trap || is_lfence || is_sfence */
             {
               /* NOP's don't go through exec pipeline; they go straight to the
                  ROB and are immediately marked as completed (they still take
@@ -329,9 +331,10 @@ void core_alloc_DPM_t::step(void)
                  the LDQ */
               uop->timing.when_ready = core->sim_cycle;
               uop->timing.when_issued = core->sim_cycle;
-              if (!uop->decode.is_fence)
+              if (!uop->decode.is_lfence)
                 uop->timing.when_completed = core->sim_cycle;
-              if (uop->decode.is_fence || is_uop_helix_signal(uop) || uop->decode.is_nop)
+              if (uop->decode.is_lfence || uop->decode.is_sfence ||
+                  is_uop_helix_signal(uop) || uop->decode.is_nop)
                 uop->timing.when_exec = core->sim_cycle;
 
               if (is_uop_helix_signal(uop) && uop->decode.is_sta)

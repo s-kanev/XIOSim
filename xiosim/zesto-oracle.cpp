@@ -409,7 +409,7 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
 
         /* Mark fences in critical section as light.
          * XXX: This is a hack, so I don't hijack new x86 opcodes for light fences */
-        if (uop->decode.is_fence && core->in_critical_section)
+        if (uop->decode.is_lfence && core->in_critical_section)
             uop->decode.is_light_fence = true;
 
         /* For loads, stas and stds, we need to grab virt_addr and mem_size from feeder. */

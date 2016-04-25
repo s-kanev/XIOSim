@@ -405,11 +405,11 @@ void core_commit_DPM_t::step(void)
       if(uop->decode.BOM && (uop->Mop->timing.when_commit_started == TICK_T_MAX))
         uop->Mop->timing.when_commit_started = core->sim_cycle;
 
-      if(uop->decode.is_load || uop->decode.is_fence)
+      if(uop->decode.is_load || uop->decode.is_lfence)
         core->exec->LDQ_deallocate(uop);
       else if(uop->decode.is_sta)
         core->exec->STQ_deallocate_sta();
-      else if(uop->decode.is_std) /* we alloc on STA, dealloc on STD */
+      else if(uop->decode.is_std || uop->decode.is_sfence) /* we alloc on STA, dealloc on STD */
       {
         if(!core->exec->STQ_deallocate_std(uop)) {
           stall_reason = CSTALL_STQ;
@@ -647,13 +647,13 @@ void core_commit_DPM_t::squash_uop(struct uop_t* const dead_uop) {
 
     /* In the following, we have to check it the uop has even been allocated yet... this has
        to do with our non-atomic implementation of allocation for fused-uops */
-    if (dead_uop->decode.is_load || dead_uop->decode.is_fence) {
+    if (dead_uop->decode.is_load || dead_uop->decode.is_lfence) {
         if (dead_uop->timing.when_allocated != TICK_T_MAX)
             core->exec->LDQ_squash(dead_uop);
     } else if (dead_uop->decode.is_std) { /* dealloc when we get to the STA */
         if (dead_uop->timing.when_allocated != TICK_T_MAX)
             core->exec->STQ_squash_std(dead_uop);
-    } else if (dead_uop->decode.is_sta) {
+    } else if (dead_uop->decode.is_sta || dead_uop->decode.is_sfence) {
         if (dead_uop->timing.when_allocated != TICK_T_MAX)
             core->exec->STQ_squash_sta(dead_uop);
     }
