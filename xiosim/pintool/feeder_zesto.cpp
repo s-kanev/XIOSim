@@ -255,7 +255,7 @@ VOID ScheduleThread(THREADID tid) {
 
 /* ========================================================================== */
 VOID PPointHandler(CONTROL_EVENT ev, VOID* v, CONTEXT* ctxt, VOID* ip, THREADID tid) {
-    cerr << "tid: " << dec << tid << " ip: " << hex << ip << " ";
+    cerr << "tid: " << dec << tid << " ip: " << hex << ip << " " << dec;
 
     /* If we are speculating, and we reach a start or stop point, we are done
      * (before we mess up shared state). */
@@ -265,7 +265,7 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID* v, CONTEXT* ctxt, VOID* ip, THREADID 
     }
 
     if (tid < ISIMPOINT_MAX_THREADS)
-        cerr << dec << " Inst. Count " << icount.Count(tid) << " ";
+        cerr << " Inst. Count " << icount.Count(tid) << " ";
 
     switch (ev) {
     case CONTROL_START: {
@@ -325,7 +325,7 @@ VOID ImageLoad(IMG img, VOID* v) {
 
 #ifdef FEEDER_DEBUG
     cerr << "Image load " << IMG_Name(img) << " addr: " << hex << start << " len: " << length
-         << " end_addr: " << start + length << endl;
+         << " end_addr: " << start + length << dec << endl;
 #endif
 
     // Register callback interface to get notified on ILDJIT events
@@ -995,11 +995,11 @@ VOID ThreadFini(THREADID tid, const CONTEXT* ctxt, INT32 code, VOID* v) {
         return;
     }
 
-    lk_lock(printing_lock, tid + 1);
-    cerr << "Thread exit. ID: " << tid << endl;
-    lk_unlock(printing_lock);
-
     thread_state_t* tstate = get_tls(tid);
+
+    lk_lock(printing_lock, tid + 1);
+    cerr << "[" << tstate->tid << "] Thread exit. ID: " << tid << endl;
+    lk_unlock(printing_lock);
 
     BOOL was_scheduled = tstate->num_inst > 0;
 

@@ -30,7 +30,7 @@ static void BeginROI(THREADID tid, ADDRINT pc) {
 
     {
         std::lock_guard<XIOSIM_LOCK> l(*printing_lock);
-        cerr << "tid: " << dec << tid << " ip: " << hex << pc << " ";
+        cerr << "tid: " << tid << " ip: " << hex << pc << dec << " ";
         cerr << "Start" << endl;
     }
 
@@ -49,7 +49,7 @@ static void EndROI(THREADID tid, ADDRINT pc) {
 
     {
         std::lock_guard<XIOSIM_LOCK> l(*printing_lock);
-        cerr << "tid: " << dec << tid << " ip: " << hex << pc << " ";
+        cerr << "tid: "<< tid << " ip: " << hex << pc << dec << " ";
         cerr << "Stop" << endl;
     }
 
