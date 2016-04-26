@@ -58,6 +58,7 @@
 #include "regs.h"
 #include "stats.h"
 #include "synchronization.h"
+#include "ztrace.h"
 
 #include "zesto-core.h"
 #include "zesto-oracle.h"

@@ -421,6 +421,4 @@ struct alignas(16) Mop_t
 };
 
 
-extern struct core_t ** cores;
-
 #endif /* ZESTO_STRUCTS_INCLUDED */

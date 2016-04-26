@@ -75,18 +75,25 @@ load("components", "gen_list")
 gen_list(
     component = "fetch",
     dirs = ["ZPIPE-fetch"],
-    extra_deps = [":memory"],
+    extra_deps = [
+        ":memory",
+        ":ztrace",
+    ],
 )
 
 gen_list(
     component = "decode",
     dirs = ["ZPIPE-decode"],
+    extra_deps = [":ztrace"],
 )
 
 gen_list(
     component = "alloc",
     dirs = ["ZPIPE-alloc"],
-    extra_deps = [":helix"],
+    extra_deps = [
+        ":helix",
+        ":ztrace",
+    ],
 )
 
 gen_list(
@@ -96,12 +103,14 @@ gen_list(
         ":helix",
         ":memory",
         ":zesto-memdep",
+        ":ztrace",
     ],
 )
 
 gen_list(
     component = "commit",
     dirs = ["ZPIPE-commit"],
+    extra_deps = [":ztrace"],
 )
 
 gen_list(
@@ -167,11 +176,17 @@ gen_list(
         ":zesto-core",
         ":zesto-uncore",
     ],
+    extra_srcs = [
+        "sim.h" # for cores
+    ],
 )
 
 gen_list(
     component = "dvfs",
     dirs = ["ZCOMPS-dvfs"],
+    extra_deps = [
+        ":ztrace",
+    ],
 )
 
 cc_library(

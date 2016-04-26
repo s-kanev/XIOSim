@@ -1,6 +1,7 @@
 #include <cstddef>
 
 #include "misc.h"
+#include "sim.h"
 #include "stats.h"
 
 #include "zesto-power.h"

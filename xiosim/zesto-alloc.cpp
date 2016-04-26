@@ -59,6 +59,7 @@
 #include "misc.h"
 #include "regs.h"
 #include "stats.h"
+#include "ztrace.h"
 
 #include "zesto-core.h"
 #include "zesto-oracle.h"

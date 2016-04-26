@@ -16,4 +16,6 @@ void compute_rtp_power(void);
 }  // xiosim::libsim
 }  // xiosim
 
+extern struct core_t ** cores;
+
 #endif /* SIM_H */

@@ -2,7 +2,6 @@
 
 #include "core_const.h"
 #include "decode.h"
-#include "memory.h"
 #include "misc.h"
 
 #include "zesto-core.h"
@@ -150,11 +149,10 @@ void ztrace_print(const struct Mop_t* Mop) {
 
     int coreID = Mop->core->id;
 
-    // core id, PC{virtual,physical}
+    // core id, PC
     trace(coreID,
-                 "DEF|virtPC=%" PRIxPTR":physPC=%" PRIx64":op=%s:",
+                 "DEF|PC=%" PRIxPTR":op=%s:",
                  Mop->fetch.PC,
-                 xiosim::memory::v2p_translate(cores[coreID]->asid, Mop->fetch.PC),
                  xiosim::x86::print_Mop(Mop).c_str());
     // ucode flow length
     trace(coreID, "flow-length=%d\n", (int)Mop->decode.flow_length);

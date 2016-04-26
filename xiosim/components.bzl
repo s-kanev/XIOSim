@@ -1,4 +1,4 @@
-def gen_list(component, dirs, extra_deps=[]):
+def gen_list(component, dirs, extra_deps=[], extra_srcs=[]):
     for dir_ in dirs:
         # Generate a filegroup for each cpp in the directory
         native.filegroup(
@@ -33,11 +33,10 @@ def gen_list(component, dirs, extra_deps=[]):
     native.cc_library(
         name = "zesto-%s" % component,
         hdrs = hdrs,
-        srcs = srcs,
+        srcs = srcs + extra_srcs,
         deps = [
             ":stats",
             ":uarch_headers",
             ":x86",
-            ":ztrace",
         ] + extra_deps,
     )

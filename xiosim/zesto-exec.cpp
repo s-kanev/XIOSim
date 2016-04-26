@@ -63,6 +63,7 @@
 #include "stats.h"
 #include "synchronization.h"
 #include "uop_cracker.h"
+#include "ztrace.h"
 
 #include "zesto-structs.h"
 #include "zesto-cache.h"
