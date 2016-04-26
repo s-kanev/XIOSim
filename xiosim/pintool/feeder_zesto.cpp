@@ -339,6 +339,8 @@ VOID ImageLoad(IMG img, VOID* v) {
 
     AddProfilingCallbacks(img);
 
+    AddIgnoredInstructionPCs(img, system_knobs.ignored_pcs);
+
     ipc_message_t msg;
     msg.Mmap(asid, start, length, false);
     SendIPCMessage(msg);
@@ -1102,22 +1104,8 @@ INT32 main(INT32 argc, CHAR** argv) {
     InitXed();
     InitWatchdog();
 
-    if (!KnobIgnoreFunctions.Value().empty()) {
-        stringstream ss(KnobIgnoreFunctions.Value());
-        string func;
-        while (getline(ss, func, ',')) {
-            IgnoreFunction(func);
-        }
-    }
-
-    if (!KnobIgnorePCs.Value().empty()) {
-        stringstream ss(KnobIgnorePCs.Value());
-        string pc_str;
-        while (getline(ss, pc_str, ',')) {
-            ADDRINT pc = std::stol(pc_str, nullptr, 0);
-            IgnorePC(pc);
-        }
-    }
+    for (std::string func : system_knobs.ignored_funcs)
+        IgnoreFunction(func);
 
     initial_timestamps = new tick_t[num_cores];
     for (int i = 0; i < num_cores; i++)

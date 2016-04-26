@@ -1,8 +1,9 @@
 #include <map>
-#include <regex>
 #include <string>
 
 #include "feeder.h"
+#include "profiling.h"
+#include "utils.h"
 #include "BufferManagerProducer.h"
 #include "speculation.h"
 
@@ -108,29 +109,6 @@ static void AddRetCallback(IMG img, std::string sym, AFUNPTR callback, UINT32 pr
     RTN_Close(rtn);
 }
 
-/* Parse a start/stop point definition of symbol(+offset).
- * Returns (symbol_name, offset).
- */
-static std::pair<std::string, ADDRINT> parse_sym(std::string sym_off) {
-    auto re = std::regex("([^\\+]*)(?:\\+)?((?:0x)?[A-Fa-f0-9]+)?");
-    std::smatch re_match;
-
-    if (!std::regex_match(sym_off, re_match, re)) {
-        std::cerr << "Couldn't parse symbol " << sym_off << std::endl;
-        abort();
-    }
-
-    if (re_match.size() - 1 != 2) {
-        std::cerr << "Knob parse RE has the wrong number of groups." << std::endl;
-        abort();
-    }
-
-    ADDRINT off = 0;
-    if (re_match[2].length() > 0)
-        off = std::stol(re_match[2], nullptr, 0);
-    return std::make_pair(re_match[1], off);
-}
-
 void AddProfilingCallbacks(IMG img) {
     for (size_t i = 0; i < system_knobs.profiling_start.size(); i++) {
         std::string sym_start = system_knobs.profiling_start[i];
@@ -140,14 +118,18 @@ void AddProfilingCallbacks(IMG img) {
         if (sym_start == "")
             return;
 
-        auto start_pair = parse_sym(sym_start);
-        AddCallback(img, start_pair.first, start_pair.second, AFUNPTR(beforeStart), i);
+        symbol_off_t start_pair;
+        if (!parse_sym(sym_start, start_pair))
+            abort();
+        AddCallback(img, start_pair.symbol_name, start_pair.offset, AFUNPTR(beforeStart), i);
 
         if (sym_stop != "") {
-            auto stop_pair = parse_sym(sym_stop);
-            AddCallback(img, stop_pair.first, stop_pair.second, AFUNPTR(beforeStop), i);
+            symbol_off_t stop_pair;
+            if (!parse_sym(sym_stop, stop_pair))
+                abort();
+            AddCallback(img, stop_pair.symbol_name, stop_pair.offset, AFUNPTR(beforeStop), i);
         } else {
-            AddRetCallback(img, start_pair.first, AFUNPTR(beforeStop), i);
+            AddRetCallback(img, start_pair.symbol_name, AFUNPTR(beforeStop), i);
         }
     }
 }

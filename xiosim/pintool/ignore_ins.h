@@ -18,6 +18,11 @@ VOID IgnoreCallsTo(ADDRINT addr, UINT32 num_insn, ADDRINT replacement_pc);
  */
 VOID IgnorePC(ADDRINT pc);
 
+/* Add the absolute addresses of ignored instructions. If the PCs are specified
+ * through symbols and offsets, then resolve the absolute address.
+ */
+VOID AddIgnoredInstructionPCs(IMG img, std::vector<std::string>& ignored_pcs);
+
 /* Used at analysis time to properly set NPCs of instructions, taking into
  * account ignored ones.
  */

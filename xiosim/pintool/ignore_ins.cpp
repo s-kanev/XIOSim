@@ -2,6 +2,7 @@
 
 #include "feeder.h"
 #include "ignore_ins.h"
+#include "utils.h"
 
 struct replacement_info_t {
     UINT32 ins_to_ignore;
@@ -46,6 +47,9 @@ VOID IgnoreCallsTo(ADDRINT addr, UINT32 num_insn, ADDRINT replacement_pc) {
 }
 
 VOID IgnorePC(ADDRINT pc) {
+#ifdef IGNORE_DEBUG
+    cerr << "Ignoring instruction at 0x" << hex << pc << dec << endl;
+#endif
     ignore_ips[pc] = replacement_info_t(1, -1);
 }
 
@@ -95,6 +99,28 @@ bool IsInstructionIgnored(ADDRINT pc) {
     result = (ignored_tpc.count(pc) > 0);
     lk_unlock(&lk_ignored_tpc);
     return result;
+}
+
+VOID AddIgnoredInstructionPCs(IMG img, std::vector<std::string>& ignored_pcs) {
+    // Support either ignoring instructions with exact PCs or with
+    // symbol_name+offset.
+    for (std::string sym : ignored_pcs) {
+        symbol_off_t symbol_pair;
+        ADDRINT pc = 0;
+        bool err = !parse_sym(sym, symbol_pair);
+        if (err) {
+            pc = std::stol(sym, nullptr, 0);
+        } else {
+            ADDRINT offset = symbol_pair.offset;
+            RTN rtn = RTN_FindByName(img, symbol_pair.symbol_name.c_str());
+            if (!RTN_Valid(rtn))
+                continue;
+            ADDRINT rtn_start = RTN_Address(rtn);
+            ASSERTX(offset < RTN_Size(rtn));
+            pc = rtn_start + offset;
+        }
+        IgnorePC(pc);
+    }
 }
 
 VOID InstrumentInsIgnoring(TRACE trace, VOID* v) {

@@ -281,13 +281,14 @@ class ReplaceTest(XIOSimTest):
         repl = {
             "core_cfg.exec_cfg.exeu magic.latency" : "30000",
             "core_cfg.exec_cfg.exeu magic.rate" : "30000",
+            "system_cfg.ignore_cfg.funcs" : "{\"fib_repl\"}",
         }
         test_cfg = self.writeTestConfig(os.path.join(self.xio.GetTreeDir(),
                                                      "xiosim/config", "N.cfg"),
                                         repl)
         self.xio.AddConfigFile(test_cfg)
         self.xio.AddPinOptions()
-        self.xio.AddReplaceOptions("fib_repl")
+        self.xio.AddIgnoreOptions()
 
     def setUp(self):
         super(ReplaceTest, self).setUp()
@@ -465,14 +466,17 @@ class IgnorePCTest(XIOSimTest):
         bmk_cfg = self.writeTestBmkConfig("ignore")
         self.xio.AddBmks(bmk_cfg)
 
-        self.xio.AddConfigFile(os.path.join(self.xio.GetTreeDir(),
-                                              "xiosim/config", "none.cfg"))
+        if self.xio.TARGET_ARCH == "k8":
+            repl = {"system_cfg.ignore_cfg.pcs" : "{\"main+0x20\"}"}
+        else:
+            repl = {"system_cfg.ignore_cfg.pcs" : "{\"main+0x17\"}"}
+        test_cfg = self.writeTestConfig(os.path.join(self.xio.GetTreeDir(),
+                                                     "xiosim/config", "none.cfg"),
+                                        repl)
+        self.xio.AddConfigFile(test_cfg)
         self.xio.AddPinOptions()
         self.xio.AddROIOptions()
-        if self.xio.TARGET_ARCH == "k8":
-            self.xio.AddIgnorePCOptions("0x400e2a")
-        else:
-            self.xio.AddIgnorePCOptions("0x8048bcd")
+        self.xio.AddIgnoreOptions()
 
     def setUp(self):
         super(IgnorePCTest, self).setUp()

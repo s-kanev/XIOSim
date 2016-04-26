@@ -207,6 +207,11 @@ struct system_knobs_t {
      * length as profiling_start. If empty, profiles will stop at the exit points of
      * @symbol. */
     std::vector<std::string> profiling_stop;
+
+    /* Function names to ignore. */
+    std::vector<std::string> ignored_funcs;
+    /* Individual instructions to ignore, indexed by symbol_name(+offset) or by absolute address. */
+    std::vector<std::string> ignored_pcs;
 };
 
 /* Globals */

@@ -16,6 +16,15 @@ cfg_opt_t scheduler_cfg[]{ CFG_INT("scheduler_tick", 0, CFGF_NONE),
                            CFG_STR("allocator_opt_target", "throughput", CFGF_NONE),
                            CFG_STR("speedup_model", "linear", CFGF_NONE), CFG_END() };
 
+cfg_opt_t profiling_cfg[]{ CFG_STR("file_prefix", "", CFGF_NONE),
+                           CFG_STR_LIST("start", "{}", CFGF_NONE),
+                           CFG_STR_LIST("stop", "{}", CFGF_NONE),
+                           CFG_END() };
+
+cfg_opt_t ignore_cfg[]{ CFG_STR_LIST("funcs", "{}", CFGF_NONE),
+                        CFG_STR_LIST("pcs", "{}", CFGF_NONE),
+                        CFG_END() };
+
 // Global settings about the system and the simulation.
 cfg_opt_t system_cfg[]{ CFG_BOOL("assert_spin", cfg_false, CFGF_NONE),
                         CFG_INT("seed", 1, CFGF_NONE),
@@ -26,9 +35,8 @@ cfg_opt_t system_cfg[]{ CFG_BOOL("assert_spin", cfg_false, CFGF_NONE),
                         CFG_INT("power_rtp_interval", 0, CFGF_NONE),
                         CFG_STR("power_rtp_file", "", CFGF_NONE),
                         CFG_STR("output_redir", "sim.out", CFGF_NONE),
-                        CFG_STR("profiling_file_prefix", "", CFGF_NONE),
-                        CFG_STR_LIST("profiling_start", "{}", CFGF_NONE),
-                        CFG_STR_LIST("profiling_stop", "{}", CFGF_NONE),
+                        CFG_SEC("profiling_cfg", profiling_cfg, CFGF_NONE),
+                        CFG_SEC("ignore_cfg", ignore_cfg, CFGF_NONE),
                         CFG_SEC("dvfs_cfg", dvfs_cfg, CFGF_NONE),
                         CFG_SEC("scheduler_cfg", scheduler_cfg, CFGF_NONE),
                         CFG_END() };

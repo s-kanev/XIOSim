@@ -48,6 +48,8 @@ extern cfg_opt_t fsb_cfg[];
 extern cfg_opt_t dram_cfg[];
 extern cfg_opt_t dvfs_cfg[];
 extern cfg_opt_t scheduler_cfg[];
+extern cfg_opt_t profiling_cfg[];
+extern cfg_opt_t ignore_cfg[];
 extern cfg_opt_t uncore_cfg[];
 extern cfg_opt_t top_level_cfg[];
 
@@ -328,12 +330,17 @@ static void store_system_options(cfg_t* system_opt, system_knobs_t* knobs) {
     knobs->power.rtp_interval = cfg_getint(system_opt, "power_rtp_interval");
     knobs->power.rtp_filename = cfg_getstr(system_opt, "power_rtp_file");
 
-    knobs->profiling_file_prefix = cfg_getstr(system_opt, "profiling_file_prefix");
-    knobs->profiling_start = store_str_list(system_opt, "profiling_start");
-    knobs->profiling_stop = store_str_list(system_opt, "profiling_stop");
+    cfg_t* profiling_opt = cfg_getsec(system_opt, "profiling_cfg");
+    knobs->profiling_file_prefix = cfg_getstr(profiling_opt, "file_prefix");
+    knobs->profiling_start = store_str_list(profiling_opt, "start");
+    knobs->profiling_stop = store_str_list(profiling_opt, "stop");
     if ((knobs->profiling_start.size() != knobs->profiling_stop.size()) &&
         knobs->profiling_stop.size() > 0)
-        fatal("profiling_start and profiling_stop must be equal size, or profiling_stop zero");
+        fatal("profiling.start and profiling.stop must be equal size, or profiling.stop zero");
+
+    cfg_t* ignore_opt = cfg_getsec(system_opt, "ignore_cfg");
+    knobs->ignored_funcs = store_str_list(ignore_opt, "funcs");
+    knobs->ignored_pcs = store_str_list(ignore_opt, "pcs");
 
     cfg_t* dvfs_opt = cfg_getsec(system_opt, "dvfs_cfg");
     knobs->dvfs_opt_str = cfg_getstr(dvfs_opt, "config");
