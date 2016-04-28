@@ -1,9 +1,10 @@
 #include <linux/futex.h>
 #include <map>
+#include <sched.h>
 #include <syscall.h>
 #include <sys/mman.h>
 
-#include "boost_interprocess.h"
+#include "xiosim/core_const.h"
 
 #include "feeder.h"
 #include "ipc_queues.h"
@@ -146,7 +147,7 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VO
         tstate->last_syscall_arg1 = arg1;
         tstate->last_syscall_arg2 = arg2;
 #ifdef SYSCALL_DEBUG
-        log << "Syscall futex(" << hex << arg1 << dec << "," << arg2 << ")" << endl;
+        log << "Syscall futex(" << hex << arg1 << dec << ", " << arg2 << ")" << endl;
 #endif
         int futex_op = FUTEX_CMD_MASK & arg2;
         if (futex_op == FUTEX_WAIT || futex_op == FUTEX_WAIT_BITSET) {
@@ -205,6 +206,36 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VO
         break;
 #endif
 
+    case __NR_sched_setaffinity:
+        {
+        arg2 = PIN_GetSyscallArgument(ictxt, std, 1);
+        arg3 = PIN_GetSyscallArgument(ictxt, std, 2);
+#ifdef SYSCALL_DEBUG
+        log << "Syscall sched_setaffinity(" << arg1 << ", " << arg2 << ")";
+#endif
+        size_t mask_size = (size_t) arg2;
+        cpu_set_t* mask = (cpu_set_t*) arg3;
+        if (CPU_COUNT(mask) > 1) {
+#ifdef SYSCALL_DEBUG
+            log << endl;
+#endif
+            cerr << "We don't virtualize sched_setaffinity with a mask > 1." << endl;
+            break;
+        }
+        int coreID = xiosim::INVALID_CORE;
+        for (size_t i = 0; i < mask_size; i++) {
+            if (CPU_ISSET(i, mask)) {
+                coreID = static_cast<int>(i);
+                break;
+            }
+        }
+#ifdef SYSCALL_DEBUG
+        log << " cpu " << coreID << endl;
+#endif
+
+        AddAffinityHandshake(threadIndex, coreID);
+        }
+        break;
     /*
         case __NR_sysconf:
     #ifdef SYSCALL_DEBUG

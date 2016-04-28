@@ -213,7 +213,7 @@ VOID SyncWithTimingSim(THREADID tid) {
 }
 
 /* ========================================================================== */
-void AddGiveUpHandshake(THREADID tid, bool start_ignoring, bool reschedule) {
+VOID AddGiveUpHandshake(THREADID tid, bool start_ignoring, bool reschedule) {
     if (ExecMode != EXECUTION_MODE_SIMULATE)
         return;
 
@@ -237,7 +237,7 @@ void AddGiveUpHandshake(THREADID tid, bool start_ignoring, bool reschedule) {
 }
 
 /* ========================================================================== */
-void AddBlockedHandshake(THREADID tid, pid_t blocked_on) {
+VOID AddBlockedHandshake(THREADID tid, pid_t blocked_on) {
     if (ExecMode != EXECUTION_MODE_SIMULATE)
         return;
 
@@ -248,6 +248,24 @@ void AddBlockedHandshake(THREADID tid, pid_t blocked_on) {
     handshake->flags.blockThread = true;
     /* We'll abuse mem_buffer to store the pid to block on for now. */
     handshake->mem_buffer.push_back(std::make_pair(blocked_on, 0));
+    xiosim::buffer_management::ProducerDone(tstate->tid);
+
+    xiosim::buffer_management::FlushBuffers(tstate->tid);
+}
+
+
+/* ========================================================================== */
+VOID AddAffinityHandshake(THREADID tid, int coreID) {
+    if (ExecMode != EXECUTION_MODE_SIMULATE)
+        return;
+
+    thread_state_t* tstate = get_tls(tid);
+    handshake_container_t* handshake = xiosim::buffer_management::GetBuffer(tstate->tid);
+    handshake->flags.valid = true;
+    handshake->flags.real = false;
+    handshake->flags.setThreadAffinity = true;
+    /* We'll abuse mem_buffer to store the coreID we're pinned to. */
+    handshake->mem_buffer.push_back(std::make_pair(coreID, 0));
     xiosim::buffer_management::ProducerDone(tstate->tid);
 
     xiosim::buffer_management::FlushBuffers(tstate->tid);

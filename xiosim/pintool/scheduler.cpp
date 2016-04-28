@@ -94,9 +94,9 @@ void InitScheduler(int num_cores_) {
 }
 
 /* ========================================================================== */
-int ScheduleNewThread(pid_t tid) {
+int ScheduleNewThread(pid_t tid, bool check_reschedule) {
     /* Make sure thread is queued at one and only one runqueue. */
-    if (IsSHMThreadSimulatingMaybe(tid)) {
+    if (check_reschedule && IsSHMThreadSimulatingMaybe(tid)) {
 #ifdef SCHEDULER_DEBUG
         lk_lock(printing_lock, 1);
         std::cerr << "ScheduleNewThread: thread " << tid << " already scheduled, ignoring."
@@ -479,4 +479,27 @@ void UnblockSleepers(pid_t tid) {
         }
     }
 }
+
+void MigrateThread(pid_t tid, int coreID) {
+#ifdef SCHEDULER_DEBUG
+    {
+        std::lock_guard<XIOSIM_LOCK> l(*printing_lock);
+        std::cerr << "Thread " << tid << " leaving core " << coreID << std::endl;
+    }
+#endif
+    {
+        std::lock_guard<XIOSIM_LOCK> l(run_queues[coreID].lk);
+        assert(run_queues[coreID].q.front() == tid);
+        /* Deschedule thread, but don't update it's metadata, so we can do it atomically
+         * on schedule. */
+        run_queues[coreID].q.pop();
+        run_queues[coreID].last_reschedule = cores[coreID]->sim_cycle;
+        /* Advance the core we're leaving. */
+        TickleQueue(coreID);
+    }
+
+    /* Thread will go on its preferred core. */
+    ScheduleNewThread(tid, false);
+}
+
 }  // namespace xiosim

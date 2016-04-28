@@ -106,6 +106,17 @@ void* SimulatorLoop(void* arg) {
                 break;
             }
 
+            if (handshake->flags.setThreadAffinity) {
+                int affine_coreID = handshake->mem_buffer.front().first;
+
+                // invalidate the handshake
+                xiosim::buffer_management::Pop(instrument_tid);
+
+                xiosim::SetThreadAffinity(instrument_tid, affine_coreID);
+                xiosim::MigrateThread(instrument_tid, coreID);
+                break;
+            }
+
             // First instruction, map stack pages, and flag we're not safe to kill
             if (handshake->flags.isFirstInsn) {
                 md_addr_t esp = handshake->rSP;

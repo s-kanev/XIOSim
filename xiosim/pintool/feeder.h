@@ -210,6 +210,8 @@ VOID SyncWithTimingSim(THREADID tid);
  * wait to join @blocked_on. */
 void AddBlockedHandshake(THREADID tid, pid_t blocked_on);
 
+void AddAffinityHandshake(THREADID tid, int coreID);
+
 /* Tell the scheduler to schedule a thread. */
 VOID ScheduleThread(THREADID tid);
 

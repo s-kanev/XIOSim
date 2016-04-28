@@ -16,7 +16,7 @@ void InitScheduler(int num_cores);
  * It will be immediately marked for scheduling on a core.
  * Returns the scheduled coreID, or INVALID_CORE.
  */
-int ScheduleNewThread(pid_t tid);
+int ScheduleNewThread(pid_t tid, bool check_reschedule = true);
 
 void ScheduleProcessThreads(int asid, std::list<pid_t> threads);
 
@@ -55,6 +55,11 @@ bool NeedsReschedule(int coreID);
 /* Have thread @tid, currently running on @coreID, give the
  * core up, and block until thread @blocked_on exits. */
 void BlockThread(int coreID, pid_t tid, pid_t blocked_on);
+
+/* Remove thread @tid from the head of the queue at @coreID,
+ * and reschedule it (potentially on a different core).
+ * Different from GiveUpCore(@tid, true), which will always reschedule on the same core */
+void MigrateThread(pid_t tid, int coreID);
 
 }  // namespace xiosim
 
