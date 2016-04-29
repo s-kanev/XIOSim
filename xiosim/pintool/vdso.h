@@ -7,6 +7,9 @@
 
 /* Get VDSO base address from the auxv. */
 uintptr_t vdso_addr();
+#ifdef WE_DONT_NEED_NO_STINKING_LIBC
+extern uintptr_t auxv_start;
+#endif
 
 /* Parse VDSO ELF dynamic symbol tables. Not thread-safe. */
 void vdso_init_from_sysinfo_ehdr(uintptr_t base);

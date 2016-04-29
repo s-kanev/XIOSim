@@ -15,12 +15,16 @@
  * architecture that has a vDSO.
  */
 
+#include <cassert>
+#include <iostream>
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
 #include <limits.h>
 #include <elf.h>
+#ifndef WE_DONT_NEED_NO_STINKING_LIBC
 #include <sys/auxv.h>
+#endif
 
 #include "vdso.h"
 
@@ -189,4 +193,24 @@ std::pair<uintptr_t, size_t> vdso_sym(const char* name) {
     return std::make_pair(0, 0);
 }
 
+#ifndef WE_DONT_NEED_NO_STINKING_LIBC
 uintptr_t vdso_addr() { return static_cast<uintptr_t>(getauxval(AT_SYSINFO_EHDR)); }
+#else
+uintptr_t auxv_start = 0;
+uintptr_t vdso_addr() {
+    assert(auxv_start);
+
+    ELF(auxv_t)* auxv = (ELF(auxv_t)*) auxv_start;
+    for (; auxv->a_type != AT_NULL; auxv++) {  // walk aux_vector
+        if (auxv->a_type == AT_SYSINFO_EHDR) {
+#ifdef FEEDER_DEBUG
+            std::cerr << "AT_SYSINFO_EHDR: " << std::hex << auxv->a_un.a_val << std::endl;
+#endif
+            uintptr_t vdso = (uintptr_t)auxv->a_un.a_val;
+            return vdso;
+        }
+    }
+    std::cerr << "Couldn't find vdso. " << std::endl;
+    abort();
+}
+#endif

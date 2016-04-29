@@ -756,17 +756,6 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT* ictxt, INT32 flags, VOID* v) {
     thread_state_t* tstate = new thread_state_t(threadIndex);
     PIN_SetThreadData(tls_key, tstate, threadIndex);
 
-    // Map a page for the VDSO.
-    if (threadIndex == 0) {
-        ADDRINT vdso = vdso_addr();
-#ifdef FEEDER_DEBUG
-        cerr << "VDSO address: " << hex << vdso << endl;
-#endif
-        ipc_message_t vdso_msg;
-        vdso_msg.Mmap(asid, vdso, xiosim::memory::PAGE_SIZE, false);
-        SendIPCMessage(vdso_msg);
-    }
-
     ADDRINT tos, bos;
     tos = PIN_GetContextReg(ictxt, LEVEL_BASE::REG_FullRegName(LEVEL_BASE::REG_ESP));
     // Try to find bottom of the stack if we are starting at main().
@@ -789,6 +778,10 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT* ictxt, INT32 flags, VOID* v) {
 
         CHAR* last_env = *(envp - 1);
 
+#ifdef WE_DONT_NEED_NO_STINKING_LIBC
+        auxv_start = (uintptr_t)(envp + 1);  // Skip end of envp (=NULL)
+#endif
+
         if (last_env != NULL)
             bos = (ADDRINT)last_env + strlen(last_env) + 1;
         else
@@ -803,6 +796,17 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT* ictxt, INT32 flags, VOID* v) {
         SendIPCMessage(bos_msg);
     } else {
         bos = tos;
+    }
+
+    // Map a page for the VDSO.
+    if (threadIndex == 0) {
+        ADDRINT vdso = vdso_addr();
+#ifdef FEEDER_DEBUG
+        cerr << "VDSO address: " << hex << vdso << endl;
+#endif
+        ipc_message_t vdso_msg;
+        vdso_msg.Mmap(asid, vdso, xiosim::memory::PAGE_SIZE, false);
+        SendIPCMessage(vdso_msg);
     }
 
     // Application threads only -- create buffers for them
