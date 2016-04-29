@@ -184,10 +184,10 @@ py_test(
 )
 
 py_test(
-    name = "TimeVdsoTest",
+    name = "TimeVDSOTest",
     size = "large",
     srcs = [":integration_framework"],
-    args = ["TimeVdsoTest"],
+    args = ["TimeVDSOTest"],
     data = [":integration_data"],
     main = "run_tests.py",
 )
