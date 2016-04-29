@@ -54,15 +54,9 @@ cc_library(
         ":piii" : [ "TARGET_IA32", "HOST_IA32", "TARGET_LINUX" ],
     }),
     srcs = select({
-        ":k8" : [
-            PIN_PATH + "/intel64/lib/libpin.a",
-            PIN_PATH + "/intel64/lib-ext/libpindwarf.a",
-        ],
-        ":piii" : [
-            PIN_PATH + "/ia32/lib/libpin.a",
-            PIN_PATH + "/ia32/lib-ext/libpindwarf.a",
-        ],
-    }),
+        ":k8" : [PIN_PATH + "/intel64/lib/libpin.a"],
+        ":piii" : [PIN_PATH + "/ia32/lib/libpin.a"],
+    }) + [":weak_pindwarf"],
 )
 
 filegroup(
@@ -71,6 +65,28 @@ filegroup(
         ":k8" : [ PIN_PATH + "/intel64/bin/pinbin" ],
         ":piii" : [ PIN_PATH + "/ia32/bin/pinbin" ],
     }),
+)
+
+load("@//third_party/pin:weaken.bzl", "cc_weaken")
+# libpindwarf.a contains a few symbols from libstdc++ (which are byte-for-byte
+# equivalent). When we link libstc++ statically, they clash.
+# So, we'll patch libpindwarf to make these weak.
+cc_weaken(
+    name = "weak_pindwarf",
+    srcs = select({
+        "k8" : PIN_PATH + "/intel64/lib-ext/libpindwarf.a",
+        "piii" : PIN_PATH + "/ia32/lib-ext/libpindwarf.a",
+    }),
+    symbols = [
+        "_ZNSt14error_categoryD0Ev",
+        "_ZNSt14error_categoryD1Ev",
+        "_ZNSt14error_categoryD2Ev",
+        "_ZNKSt14error_category23default_error_conditionEi",
+        "_ZNKSt14error_category10equivalentERKSt10error_codei",
+        "_ZNKSt14error_category10equivalentEiRKSt15error_condition",
+        "_ZSt15system_categoryv",
+        "_ZSt16generic_categoryv",
+    ],
 )
 
 

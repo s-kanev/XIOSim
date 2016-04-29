@@ -15,7 +15,8 @@ XIOSim builds up on and integrates a significant amount of others' work:
 - The DRAM models from [DRAMSim2](http://wiki.umd.edu/DRAMSim2/index.php/Main_Page).
 
 ### Dependences ###
-- Bazel 0.1 [Download](http://bazel.io/docs/install.html)
+- Bazel 0.1.4 or newer [Download](http://bazel.io/docs/install.html)
+- a recent C++ toolchain with C++14 support (GCC 4.9 or newer)
 - (integration tests only) Python and py.test
 
 XIOSim uses [bazel](http://bazel.io) for fetching and building dependences.
