@@ -495,7 +495,7 @@ void MigrateThread(pid_t tid, int coreID) {
         run_queues[coreID].q.pop();
         run_queues[coreID].last_reschedule = cores[coreID]->sim_cycle;
         /* Advance the core we're leaving. */
-        TickleQueue(coreID);
+        ScheduleNextUnblockedThread(coreID);
     }
 
     /* Thread will go on its preferred core. */
