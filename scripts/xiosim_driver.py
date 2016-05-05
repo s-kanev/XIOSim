@@ -84,11 +84,14 @@ class XIOSimDriver(object):
     def DisableSpeculation(self):
         self.cmd += "-speculation false "
 
-    def Exec(self, stdin_file=None, stdout_file=None, stderr_file=None, cwd=None):
+    def Exec(self, stdin_file=None, stdout_file=None, stderr_file=None, cwd=None, dry_run=False):
         print self.cmd
 
         if cwd:
             self.run_dir = cwd
+
+        if dry_run:
+            return 0
 
         # Provide input/output redirection
         if stdin_file:
