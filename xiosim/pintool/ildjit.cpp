@@ -640,6 +640,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
     handshake->flags.isFirstInsn = first_insn;
     handshake->rSP = esp_val; /* Needed when first_insn to set up stack pages */
     handshake->flags.real = false;
+    handshake->flags.helix_op = true;
     handshake->flags.in_critical_section = true;
     handshake->asid = asid;
     handshake->flags.valid = true;
@@ -662,6 +663,7 @@ VOID ILDJIT_afterWait(THREADID tid, ADDRINT ssID, ADDRINT is_light, ADDRINT pc, 
 
     handshake_2 = xiosim::buffer_management::GetBuffer(tstate->tid);
     handshake_2->flags.real = false;
+    handshake_2->flags.helix_op = true;
     handshake_2->flags.in_critical_section = true;
     handshake_2->asid = asid;
     handshake_2->flags.valid = true;
@@ -750,6 +752,7 @@ VOID ILDJIT_afterSignal(THREADID tid, ADDRINT ssID, ADDRINT pc) {
 
     handshake->flags.isFirstInsn = false;
     handshake->flags.real = false;
+    handshake->flags.helix_op = true;
     handshake->flags.in_critical_section = (tstate->loop_state->unmatchedWaits > 0);
     handshake->asid = asid;
     handshake->flags.valid = true;
@@ -1138,6 +1141,7 @@ VOID insertBasicSafetySync(thread_state_t* curr_tstate) {
     handshake_container_t* handshake_0 = xiosim::buffer_management::GetBuffer(curr_tstate->tid);
 
     handshake_0->flags.real = false;
+    handshake_0->flags.helix_op = true;
     handshake_0->asid = asid;
     handshake_0->flags.valid = true;
 
@@ -1155,6 +1159,7 @@ VOID insertBasicSafetySync(thread_state_t* curr_tstate) {
      * have been scheduled */
     handshake_container_t* handshake = xiosim::buffer_management::GetBuffer(curr_tstate->tid);
     handshake->flags.real = false;
+    handshake->flags.helix_op = true;
     handshake->asid = asid;
     handshake->flags.valid = true;
 
@@ -1171,6 +1176,7 @@ VOID insertBasicSafetySync(thread_state_t* curr_tstate) {
     handshake_container_t* handshake_w = xiosim::buffer_management::GetBuffer(curr_tstate->tid);
 
     handshake_w->flags.real = false;
+    handshake_w->flags.helix_op = true;
     handshake_w->asid = asid;
     handshake_w->flags.valid = true;
 
@@ -1191,6 +1197,7 @@ VOID insertCollectionOnZero(thread_state_t* curr_tstate, bool threadZero) {
         handshake_container_t* handshake_w = xiosim::buffer_management::GetBuffer(curr_tstate->tid);
 
         handshake_w->flags.real = false;
+        handshake_w->flags.helix_op = true;
         handshake_w->asid = asid;
         handshake_w->flags.valid = true;
 
@@ -1208,6 +1215,7 @@ VOID insertCollectionOnZero(thread_state_t* curr_tstate, bool threadZero) {
         handshake_container_t* handshake_0 = xiosim::buffer_management::GetBuffer(curr_tstate->tid);
 
         handshake_0->flags.real = false;
+        handshake_0->flags.helix_op = true;
         handshake_0->asid = asid;
         handshake_0->flags.valid = true;
 
@@ -1225,6 +1233,7 @@ VOID insertCollectionOnZero(thread_state_t* curr_tstate, bool threadZero) {
     handshake_container_t* handshake_w = xiosim::buffer_management::GetBuffer(curr_tstate->tid);
 
     handshake_w->flags.real = false;
+    handshake_w->flags.helix_op = true;
     handshake_w->asid = asid;
     handshake_w->flags.valid = true;
 
@@ -1257,6 +1266,7 @@ VOID InsertHELIXPauseCode(THREADID tid, bool first_thread) {
      * have not only been scheduled, but also completed and ack-ed. */
     handshake_container_t* handshake = xiosim::buffer_management::GetBuffer(curr_tstate->tid);
     handshake->flags.real = false;
+    handshake->flags.helix_op = true;
     handshake->asid = asid;
     handshake->flags.valid = true;
 

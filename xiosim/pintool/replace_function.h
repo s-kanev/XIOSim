@@ -12,23 +12,28 @@
  * calls to @function_name that setup parameters (they will be ignored *after* the
  * first call).
  * The instructions inserted instead of @function_name will have flags.real == false,
- * so that the timing simulator can treat them differently, if it sp choses.
+ * so that the timing simulator can treat them differently, if it so choses.
  *
  * Here's a sample use-case that replaces a function with just one nop:
     xed_encoder_instruction_t nop;
     xed_inst0(&nop, dstate, XED_ICLASS_NOP, 0);
     list<xed_encoder_instruction_t> insts = {nop};
-    AddReplacement("fib_repl", 1, insts);
+    AddFunctionReplacement("fib_repl", 1, insts);
 
  * TODO(skanev): This is abstracted from the helix use-case in ildjit.cpp.
  * Port the helix case to actually use this API.
  */
 
-void AddReplacement(std::string function_name,
+void AddFunctionReplacement(std::string function_name,
                     size_t num_params,
                     std::list<xed_encoder_instruction_t> replacement);
 
-/* Default case for AddReplacement that simply replaces @function_name and
+/* Similar to above, but ignoring individual instructions.
+ * Don't call multiple times for the same instruction. */
+void AddInstructionReplacement(INS ins,
+                    std::list<xed_encoder_instruction_t> replacement);
+
+/* Default case for AddFunctionReplacement that simply replaces @function_name and
  * 0 parameters with a single nop. Useful for testing. */
 void IgnoreFunction(std::string function_name);
 extern KNOB<std::string> KnobIgnoreFunctions;

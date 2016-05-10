@@ -35,14 +35,15 @@
 #include "multiprocess_shared.h"
 #include "scheduler.h"
 
-#include "sync_pthreads.h"
-#include "syscall_handling.h"
 #include "ildjit.h"
-#include "roi.h"
-#include "replace_function.h"
-#include "speculation.h"
 #include "paravirt.h"
 #include "profiling.h"
+#include "replace_function.h"
+#include "roi.h"
+#include "speculation.h"
+#include "sync_pthreads.h"
+#include "syscall_handling.h"
+#include "tcm_hooks.h"
 #include "vdso.h"
 
 using namespace std;
@@ -131,6 +132,7 @@ static void FastForwardBarrier(int slice_num);
  * to mark it as finished -- scale stats, etc. */
 static void SliceEndBarrier(int slice_num, int slice_length, int slice_weight_times_1000);
 
+static void addInstrumentationCalls();
 static VOID amd_hack();
 
 // Functions to access thread-specific data
@@ -402,11 +404,15 @@ VOID MakeSSRequest(THREADID tid,
                    ADDRINT esp_value,
                    handshake_container_t* hshake) {
     hshake->asid = asid;
-    hshake->pc = pc;
+    /* PC already set signals that some prior instrumentation has prepped the hshake for
+     * us. For now, this is only fake_ins, and only affects the real flag. */
+    if (hshake->pc != pc) {
+        hshake->pc = pc;
+        hshake->flags.real = true;
+    }
     hshake->npc = npc;
     hshake->tpc = tpc;
     hshake->flags.brtaken = brtaken;
-    hshake->flags.real = true;
     hshake->flags.speculative = speculation_mode;
     PIN_SafeCopy(hshake->ins, (VOID*)pc, x86::MAX_ILEN);
 
@@ -1117,10 +1123,7 @@ INT32 main(INT32 argc, CHAR** argv) {
     // This cuts down HELIX compilation noticably for integer benchmarks.
 
     if (!KnobILDJIT.Value()) {
-        TRACE_AddInstrumentFunction(InstrumentInsIgnoring, 0);
-        INS_AddInstrumentFunction(Instrument, 0);
-        INS_AddInstrumentFunction(InstrumentSpeculation, 0);
-        TRACE_AddInstrumentFunction(InstrumentParavirt, 0);
+        addInstrumentationCalls();
     }
 
     PIN_AddThreadStartFunction(ThreadStart, NULL);
@@ -1218,16 +1221,24 @@ static VOID amd_hack() {
     *(char*)(vdso_begin + vsyscall_offset + 2) = 0xc3;
 }
 
+static void addInstrumentationCalls() {
+    /* Order matters here.
+     * TCMHoks sets up data for InsIgnoring, so it has to come before it.
+     * InsIgnoring sets up data for Instrument, so ditto. */
+    TRACE_AddInstrumentFunction(InstrumentTCMHooks, 0);
+    TRACE_AddInstrumentFunction(InstrumentInsIgnoring, 0);
+    INS_AddInstrumentFunction(Instrument, 0);
+    INS_AddInstrumentFunction(InstrumentSpeculation, 0);
+    TRACE_AddInstrumentFunction(InstrumentParavirt, 0);
+}
+
 VOID doLateILDJITInstrumentation() {
     static bool calledAlready = false;
 
     ASSERTX(!calledAlready);
 
     GetVmLock();
-    TRACE_AddInstrumentFunction(InstrumentInsIgnoring, 0);
-    INS_AddInstrumentFunction(Instrument, 0);
-    INS_AddInstrumentFunction(InstrumentSpeculation, 0);
-    TRACE_AddInstrumentFunction(InstrumentParavirt, 0);
+    addInstrumentationCalls();
     CODECACHE_FlushCache();
     ReleaseVmLock();
 

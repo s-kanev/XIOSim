@@ -143,6 +143,8 @@ toolchain {
     compiler_flag: "-DSPECULATION_DEBUG"
     compiler_flag: "-DPROFILING_DEBUG"
     compiler_flag: "-DPTHREADS_DEBUG"
+    compiler_flag: "-DIGNORE_DEBUG"
+    compiler_flag: "-DTCM_DEBUG"
   }
 
   compilation_mode_flags {
@@ -316,6 +318,8 @@ toolchain {
     compiler_flag: "-DSPECULATION_DEBUG"
     compiler_flag: "-DPROFILING_DEBUG"
     compiler_flag: "-DPTHREADS_DEBUG"
+    compiler_flag: "-DIGNORE_DEBUG"
+    compiler_flag: "-DTCM_DEBUG"
   }
 
   compilation_mode_flags {

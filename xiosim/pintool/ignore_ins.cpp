@@ -4,6 +4,8 @@
 #include "ignore_ins.h"
 #include "utils.h"
 
+/* TODO(skanev): this file is getting too hard to follow. Clean up! */
+
 struct replacement_info_t {
     UINT32 ins_to_ignore;
     ADDRINT call_alternative_pc;
@@ -26,12 +28,6 @@ KNOB<BOOL> KnobIgnoringInstructions(KNOB_MODE_WRITEONCE,
                                     "false",
                                     "Use ignoring API (usually to replace in-simulator callbacks)");
 
-KNOB<string> KnobIgnorePCs(KNOB_MODE_WRITEONCE,
-                           "pintool",
-                           "ignore_pcs",
-                           "",
-                           "Comma-separated list of pcs to ignore");
-
 ADDRINT NextUnignoredPC(ADDRINT pc) {
     ADDRINT curr = pc;
     lk_lock(&lk_ignored_tpc, 1);
@@ -46,16 +42,21 @@ VOID IgnoreCallsTo(ADDRINT addr, UINT32 num_insn, ADDRINT replacement_pc) {
     ignore_ips[addr] = replacement_info_t(num_insn, replacement_pc);
 }
 
-VOID IgnorePC(ADDRINT pc) {
+VOID IgnorePC(ADDRINT pc, ADDRINT replacement_pc) {
 #ifdef IGNORE_DEBUG
-    cerr << "Ignoring instruction at 0x" << hex << pc << dec << endl;
+    cerr << "Ignoring instruction at 0x" << hex << pc << " repl " << replacement_pc << dec << endl;
 #endif
-    ignore_ips[pc] = replacement_info_t(1, -1);
+    ignore_ips[pc] = replacement_info_t(1, replacement_pc);
 }
 
 static BOOL IsIgnoredInstruction(INS ins) {
     ADDRINT pc = INS_Address(ins);
     return ignore_ips.count(pc) > 0;
+}
+
+static ADDRINT InsAlternativePC(INS ins) {
+    ADDRINT pc = INS_Address(ins);
+    return ignore_ips[pc].call_alternative_pc;
 }
 
 static replacement_info_t IsCallToIgnoredFunction(INS ins) {
@@ -124,14 +125,19 @@ VOID AddIgnoredInstructionPCs(IMG img, std::vector<std::string>& ignored_pcs) {
 }
 
 VOID InstrumentInsIgnoring(TRACE trace, VOID* v) {
+    if (ExecMode != EXECUTION_MODE_SIMULATE)
+        return;
+
     if (!KnobIgnoringInstructions.Value())
         return;
 
     for (BBL bbl = TRACE_BblHead(trace); BBL_Valid(bbl); bbl = BBL_Next(bbl)) {
         for (INS ins = BBL_InsHead(bbl); INS_Valid(ins); ins = INS_Next(ins)) {
             BOOL ignored_ins = IsIgnoredInstruction(ins);
-            if (ignored_ins)
-                IgnoreIns(ins);
+            if (ignored_ins) {
+                IgnoreIns(ins, InsAlternativePC(ins));
+                continue;
+            }
 
             replacement_info_t repl = IsCallToIgnoredFunction(ins);
             if (repl.ins_to_ignore == 0)

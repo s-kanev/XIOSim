@@ -13,10 +13,11 @@
  */
 VOID IgnoreCallsTo(ADDRINT addr, UINT32 num_insn, ADDRINT replacement_pc);
 
-/* Ignore instances of instruction at address @pc. Will set the NPC to the
- * fallthrough, so be careful if you ignore things like often taken branches
+/* Ignore instances of instruction at address @pc.
+ * If replacement_pc == -1, will set the NPC to the fallthrough, so be careful if
+ * you ignore things like often taken branches.
  */
-VOID IgnorePC(ADDRINT pc);
+VOID IgnorePC(ADDRINT pc, ADDRINT replacement_pc = (ADDRINT)-1);
 
 /* Add the absolute addresses of ignored instructions. If the PCs are specified
  * through symbols and offsets, then resolve the absolute address.
@@ -37,7 +38,5 @@ VOID InstrumentInsIgnoring(TRACE trace, VOID* v);
  */
 bool IsInstructionIgnored(ADDRINT pc);
 
-
-extern KNOB<string> KnobIgnorePCs;
 
 #endif /* __IGNORE_INS__ */

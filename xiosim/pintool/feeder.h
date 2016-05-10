@@ -7,8 +7,9 @@
               Svilen Kanev, 2011
 */
 
-#include <stack>
 #include <map>
+#include <stack>
+#include <unordered_map>
 
 extern "C" {
 #include "xed-interface.h"
@@ -44,6 +45,11 @@ extern int asid;
 
 /* Xed machine mode state for when we need to encode/decode things. */
 extern xed_state_t dstate;
+#ifdef _LP64
+const size_t xed_mem_op_width = 64;
+#else
+const size_t xed_mem_op_width = 32;
+#endif
 
 /* Host TSC values for timing virtualization. */
 extern tick_t* initial_timestamps;
@@ -70,8 +76,6 @@ class thread_state_t {
 
   public:
     thread_state_t(THREADID instrument_tid) {
-        memset(&fpstate_buf, 0, sizeof(FPSTATE));
-
         last_syscall_number = last_syscall_arg1 = 0;
         last_syscall_arg2 = last_syscall_arg3 = 0;
         firstIteration = false;
@@ -108,9 +112,6 @@ class thread_state_t {
         }
     }
 
-    // Buffer to store the fpstate that the simulator may corrupt
-    FPSTATE fpstate_buf;
-
     // Used by syscall capture code
     ADDRINT last_syscall_number;
     ADDRINT last_syscall_arg1;
@@ -137,6 +138,13 @@ class thread_state_t {
 
     class bpred_t* bpred;
     ADDRINT lastBranchPrediction;
+
+    typedef std::vector<std::pair<ADDRINT, uint8_t>> replacement_mem_ops_t;
+    // Addresses for replacement API. Maps from fake ins PC to a list of (address, size) operands.
+    // Each fake instruction with a memory operand will grab its addresses from here.
+    // Addresses can be set at instrumentation time (if known), or from an earlier analysis
+    // routine.
+    std::unordered_map<ADDRINT, replacement_mem_ops_t> replacement_mem_ops;
 
     XIOSIM_LOCK lock;
     // XXX: SHARED -- lock protects those

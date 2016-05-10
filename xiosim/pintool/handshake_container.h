@@ -22,6 +22,7 @@ struct handshake_flags_t {
     bool brtaken : 1;             /* Taken or Not-Taken for branch instructions */
     bool flush_pipe : 1;          /* Flush core pipelie */
     bool real : 1;                /* Is this a real instruction */
+    bool helix_op : 1;            /* Special HELIX instruction */
     bool in_critical_section : 1; /* Thread executing a sequential cut? */
     bool speculative : 1;         /* Is instruction on a wrong path */
     bool is_profiling_start : 1;  /* Is a profiling start point */

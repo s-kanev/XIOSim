@@ -336,8 +336,6 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
 
     core->fetch->feeder_PC = handshake.pc;
     core->fetch->feeder_NPC = oracle_NPC;
-    core->fetch->prev_insn_fake = core->fetch->fake_insn;
-    core->fetch->fake_insn = !handshake.flags.real;
     core->asid = handshake.asid;
     /* Potentially change HELIX critical section state if instruction is fake. */
     if (!handshake.flags.real) {
@@ -403,7 +401,7 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
 
         /* Fill mem repeater fields */
         if (uop->decode.is_load || uop->decode.is_sta || uop->decode.is_std) {
-            uop->oracle.is_sync_op = core->fetch->fake_insn && !spec_mode;
+            uop->oracle.is_sync_op = handshake.flags.helix_op && !spec_mode;
             uop->oracle.is_repeated = core->in_critical_section || uop->oracle.is_sync_op;
         }
 
@@ -446,7 +444,7 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
 
     /* Magic instructions: fake NOPs go to a special magic ALU with a
      * configurable latency. Convenient to simulate various fixed-function HW. */
-    if (x86::is_nop(Mop) && core->fetch->fake_insn && !spec_mode) {
+    if (x86::is_nop(Mop) && !handshake.flags.real && !spec_mode) {
         zesto_assert(Mop->decode.last_uop_index == 0, NULL);
         Mop->uop[0].decode.is_nop = false;
         Mop->uop[0].decode.FU_class = FU_MAGIC;

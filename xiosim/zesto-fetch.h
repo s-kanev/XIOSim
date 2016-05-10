@@ -64,9 +64,6 @@ class core_fetch_t {
   md_addr_t PC;
   md_addr_t feeder_NPC; // What the instruction feeder sends us as next pc
   md_addr_t feeder_PC;  // Same for current pc
-  bool fake_insn;       // Instruction that we artificially injected
-  bool prev_insn_fake;  // Same for previously fetched instruction
-  bool invalid; /* TRUE if oracle encounters an instruction it doesn't know */
   std::unique_ptr<class bpred_t> bpred;
 
   /* constructor, stats registration */
