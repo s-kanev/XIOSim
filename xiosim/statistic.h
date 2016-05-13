@@ -11,6 +11,7 @@
 #define __STATISTIC_H__
 
 #include <string>
+#include <type_traits>
 
 #include "boost_statistics.h"
 
@@ -190,7 +191,7 @@ class Statistic : public StatisticCommon<V> {
  * from Statistic-s.
  */
 template <typename V>
-class Statistic<V, typename boost::enable_if<boost::is_arithmetic<V>>::type>
+class Statistic<V, typename std::enable_if_t<std::is_arithmetic<V>::value>>
         : public StatisticCommon<V>, public Expression {
   public:
     Statistic(const char* name,
@@ -248,39 +249,39 @@ class Statistic<V, typename boost::enable_if<boost::is_arithmetic<V>>::type>
 
     template <typename U = V>
     void set_output_format_default(
-            typename boost::enable_if<boost::is_same<U, int>>::type* = 0) {
+            typename std::enable_if_t<std::is_same<U, int>::value>* = 0) {
         this->output_fmt = "%12d";
     }
 
     template <typename U = V>
     void set_output_format_default(
-            typename boost::enable_if<boost::is_same<U, unsigned int>>::type* = 0) {
+            typename std::enable_if_t<std::is_same<U, unsigned int>::value>* = 0) {
         this->output_fmt = "%12u";
     }
 
     template <typename U = V>
     void set_output_format_default(
-            typename boost::enable_if<boost::is_same<U, double>>::type* = 0) {
+            typename std::enable_if_t<std::is_same<U, double>::value>* = 0) {
         this->output_fmt = "%12.4f";
     }
 
     template <typename U = V>
     void set_output_format_default(
-            typename boost::enable_if<boost::is_same<U, float>>::type* = 0) {
+            typename std::enable_if_t<std::is_same<U, float>::value>* = 0) {
         this->output_fmt = "%12.4f";
     }
 
     /* signed qword. */
     template <typename U = V>
     void set_output_format_default(
-            typename boost::enable_if<boost::is_same<U, int64_t>>::type* = 0) {
+            typename std::enable_if_t<std::is_same<U, int64_t>::value>* = 0) {
         this->output_fmt = "%12" PRId64;
     }
 
     /* unsigned qword. */
     template <typename U = V>
     void set_output_format_default(
-            typename boost::enable_if<boost::is_same<U, uint64_t>>::type* = 0) {
+            typename std::enable_if_t<std::is_same<U, uint64_t>::value>* = 0) {
         this->output_fmt = "%12" PRIu64;
     }
 

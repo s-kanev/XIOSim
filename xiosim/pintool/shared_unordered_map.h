@@ -65,7 +65,7 @@ class SharedUnorderedMap : public SharedUnorderedMapCommon<K, V> {
 
 // Specialization for plain-old-data (POD) types of values.
 template <typename K, typename V>
-class SharedUnorderedMap<K, V, typename std::enable_if<std::is_pod<V>::value>::type>
+class SharedUnorderedMap<K, V, typename std::enable_if_t<std::is_pod<V>::value>>
     : public SharedUnorderedMapCommon<K, V> {
     typedef SharedUnorderedMapCommon<K, V> ShmCommon;
     using ShmCommon::shm;

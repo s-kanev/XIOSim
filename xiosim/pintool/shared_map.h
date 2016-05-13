@@ -45,6 +45,7 @@
 #include <functional>  // for std::less
 #include <utility>     // for std::pair
 #include <iostream>
+#include <type_traits>
 
 #include "shared_common.h"
 
@@ -92,7 +93,7 @@ class SharedMemoryMap : public SharedMemoryMapCommon<K, V> {
 
 // A specialization for plain-old-data (POD) types of values.
 template <typename K, typename V>
-class SharedMemoryMap<K, V, typename boost::enable_if<boost::is_pod<V>>::type>
+class SharedMemoryMap<K, V, typename std::enable_if_t<std::is_pod<V>::value>>
     : public SharedMemoryMapCommon<K, V> {
     using SharedMemoryMapCommon<K, V>::shm;
     using SharedMemoryMapCommon<K, V>::internal_map;
