@@ -208,6 +208,40 @@ TEST_CASE("Distribution", "distribution") {
     }
 }
 
+TEST_CASE("Sparse histograms", "histogram") {
+    SparseHistogram histogram("histogram", "A histogram");
+    histogram.add_samples(0,2);
+    histogram.add_samples(0,2);
+    histogram.add_samples(3,2);
+    histogram.add_samples(0,2);
+    histogram.add_samples(0,2);
+    histogram.add_samples(1,2);
+    histogram.add_samples(1,2);
+    histogram.add_samples(0, 8);
+    histogram.add_samples(50, 2);
+
+    SECTION("Basic usage.") {
+        char temp_file_name[21];
+        FILE* temp_file = open_temp_file(temp_file_name);
+
+        histogram.print_value(temp_file);
+        check_printfs(temp_file,
+                      XIOSIM_PACKAGE_PATH + "test_data/test_stat.histogram.out");
+        cleanup_temp_file(temp_file, temp_file_name);
+    }
+
+    SECTION("Scaling a histogram (if it is sampled).") {
+        histogram.scale_value(0.5);
+        char temp_file_name[21];
+        FILE* temp_file = open_temp_file(temp_file_name);
+
+        histogram.print_value(temp_file);
+        check_printfs(temp_file,
+                      XIOSIM_PACKAGE_PATH + "test_data/test_stat.histogram_scaled.out");
+        cleanup_temp_file(temp_file, temp_file_name);
+    }
+}
+
 TEST_CASE("Formula statistics", "formulas") {
     SECTION("Formulas that add constants.") {
         Formula f("add_constants", "description");
@@ -479,10 +513,13 @@ TEST_CASE("Full statistics database", "database") {
         sdb.add_statistic("long_long_stat", "int64_t description", &ll_value, 0);
     sdb.add_statistic("string_stat", "string description", str_value);
     Distribution* dist = sdb.add_distribution("dist", "dist description", 0, 4);
+    SparseHistogram* hist = sdb.add_sparse_histogram("hist", "hist description");
 
-    // Don't need to add too many; distributions have their own unit tests.
+    // Don't need to add too many; distributions/histograms have their own unit tests.
     dist->add_samples(0, 50);
     dist->add_samples(50, 1);
+    hist->add_samples(0, 5);
+    hist->add_samples(10, 7);
 
     // Modify the stat values.
     int_value = 100;

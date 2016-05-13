@@ -16,3 +16,10 @@ dist.start_dist
                2          0   0.00 100.00 
                3          0   0.00 100.00 
 dist.end_dist
+hist                         # hist description
+hist.total = 12
+#            label      count    pdf    cdf 
+hist.start_hist
+                 0          5  41.67  41.67
+                10          7  58.33 100.00
+hist.end_hist

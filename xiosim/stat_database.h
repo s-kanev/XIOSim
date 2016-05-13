@@ -150,11 +150,24 @@ class StatsDatabase {
                                    const char* output_fmt = "",
                                    bool print = true,
                                    bool scale = true) {
-        auto dist = new Distribution(
+        Distribution* dist = new Distribution(
                 name, desc, init_val, array_sz, stat_labels, output_fmt, print, scale);
         stat_list.push_back(dist);
         stat_db[name] = stat_list.size() - 1;
         return dist;
+    }
+
+    SparseHistogram* add_sparse_histogram(const char* name,
+                                          const char* desc,
+                                          const char* label_fmt = "",
+                                          const char* output_fmt = "",
+                                          bool print = true,
+                                          bool scale = true) {
+        SparseHistogram* hist = new SparseHistogram(
+                name, desc, label_fmt, output_fmt, print, scale);
+        stat_list.push_back(hist);
+        stat_db[name] = stat_list.size() - 1;
+        return hist;
     }
 
     Formula* add_formula(const char* name,

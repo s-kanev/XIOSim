@@ -10,6 +10,7 @@
 #ifndef __STATISTIC_H__
 #define __STATISTIC_H__
 
+#include <map>
 #include <string>
 #include <type_traits>
 
@@ -438,6 +439,87 @@ class Distribution : public BaseStatistic {
     // Labels for each element in the distribution. Corresponds to array index
     // for index.
     const char** stat_labels;
+};
+
+// A sparse histogram statistic.
+class SparseHistogram : public BaseStatistic {
+  public:
+    SparseHistogram(const char* name,
+                    const char* desc,
+                    const char* _label_fmt = "",
+                    const char* output_fmt = "",
+                    bool print = true,
+                    bool scale = true)
+        : BaseStatistic(name, desc, output_fmt, print, scale)
+        , label_fmt(_label_fmt) {}
+
+    SparseHistogram(const SparseHistogram& rhs)
+        : BaseStatistic(rhs)
+        , label_fmt(rhs.label_fmt)
+        , counts(rhs.counts) {}
+
+    void add_samples(uint64_t key, uint64_t num_samples = 1) {
+        if (counts.find(key) != counts.end())
+            counts[key] += num_samples;
+        else
+            counts[key] = num_samples;
+    }
+
+    virtual void scale_value(double weight) {
+        for (auto& kv : counts)
+            kv.second *= weight;
+    }
+
+    virtual void accum_stat(BaseStatistic* other) {
+        SparseHistogram* hist = static_cast<SparseHistogram*>(other);
+        for (auto& kv : hist->counts) {
+            if (counts.find(kv.first) != counts.end())
+                counts[kv.first] += kv.second;
+            else
+                counts[kv.first] = kv.second;
+        }
+    }
+
+    virtual void save_value() { final_counts = counts; }
+
+    // It doesn't make sense to have a histogram with a nonzero initial value,
+    // so save_delta() is just save_value().
+    virtual void save_delta() { save_value(); }
+
+    virtual void print_value(FILE* fd) {
+        // Compute total counts.
+        unsigned long total = 0;
+        double cdf = 0.0, pdf = 0.0;
+        for (auto& kv : counts)
+            total += kv.second;
+
+        fprintf(fd, "%-28s # %s\n", name.c_str(), desc.c_str());
+        fprintf(fd, "%s.total = %lu\n", name.c_str(), total);
+
+        bool has_custom_output_fmt = !output_fmt.empty();
+        bool has_custom_label_fmt = !label_fmt.empty();
+        // 16 spaces is usually enough, but we add two more for hex indices that begin with 0x.
+        const char* index_fmt = has_custom_label_fmt ? label_fmt.c_str() : "%18" PRIu64;
+        const char* count_fmt = has_custom_output_fmt ? output_fmt.c_str() : "%10" PRIu64;
+        const char* pdf_fmt = has_custom_output_fmt ? output_fmt.c_str() : "%6.2f";
+        const char* cdf_fmt = has_custom_output_fmt ? output_fmt.c_str() : "%6.2f";
+        char line_fmt[64];
+        snprintf(line_fmt, 64, "%s %s %s %s\n", index_fmt, count_fmt, pdf_fmt, cdf_fmt);
+        fprintf(fd, "# %16s %10s %6s %6s \n", "label", "count", "pdf", "cdf");
+
+        fprintf(fd, "%s.start_hist\n", name.c_str());
+        for (auto& kv : counts) {
+            pdf = kv.second / fmax(total, 1.0);
+            cdf += pdf;
+            fprintf(fd, line_fmt, kv.first, kv.second, pdf * 100.0, cdf * 100.0);
+        }
+        fprintf(fd, "%s.end_hist\n", name.c_str());
+    }
+
+  private:
+    std::string label_fmt;                      // Format for histogram keys.
+    std::map<uint64_t, uint64_t> counts;        // Current counts.
+    std::map<uint64_t, uint64_t> final_counts;  // Final counts.
 };
 
 }  // namespace stats

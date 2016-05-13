@@ -1,0 +1,9 @@
+histogram                    # A histogram
+histogram.total = 12
+#            label      count    pdf    cdf 
+histogram.start_hist
+                 0          8  66.67  66.67
+                 1          2  16.67  83.33
+                 3          1   8.33  91.67
+                50          1   8.33 100.00
+histogram.end_hist

@@ -31,6 +31,7 @@
 
 using xiosim::stats::BaseStatistic;
 using xiosim::stats::Distribution;
+using xiosim::stats::SparseHistogram;
 using xiosim::stats::StatsDatabase;
 using xiosim::stats::Formula;
 using xiosim::stats::Expression;
@@ -208,6 +209,34 @@ Distribution* stat_reg_core_dist(StatsDatabase* sdb,
                                  int scale_me,
                                  void* print_fn);
 
+SparseHistogram* stat_reg_sparse_hist(StatsDatabase* sdb,
+                                      const char* name,
+                                      const char* desc,
+                                      const char* label_fmt,
+                                      const char* output_fmt,
+                                      bool print,
+                                      bool scale);
+
+SparseHistogram* stat_reg_core_sparse_hist(StatsDatabase* sdb,
+                                           int core_id,
+                                           const char* name,
+                                           const char* desc,
+                                           const char* label_fmt,
+                                           const char* output_fmt,
+                                           bool print,
+                                           bool scale);
+
+SparseHistogram* stat_reg_comp_sparse_hist(StatsDatabase* sdb,
+                                           int core_id,
+                                           const char* comp_name,
+                                           const char* stat_name,
+                                           const char* desc,
+                                           const char* label_fmt,
+                                           const char* output_fmt,
+                                           bool print,
+                                           bool scale,
+                                           bool is_llc);
+
 /* Registers some named queue's occupancy statistics.
  *
  * The name of the stats will be <queue_name>_occupancy, <queue_name>_empty,
@@ -302,6 +331,11 @@ xiosim::stats::Statistic<V>* stat_find_core_stat(StatsDatabase* sdb,
 Distribution* stat_find_dist(StatsDatabase* sdb, const char* stat_name);
 
 Distribution* stat_find_core_dist(StatsDatabase* sdb, int core_id, const char* stat_name);
+
+SparseHistogram* stat_find_sparse_hist(StatsDatabase* sdb, const char* stat_name);
+
+SparseHistogram* stat_find_core_sparse_hist(
+        StatsDatabase* sdb, int core_id, const char* stat_name);
 
 Formula* stat_find_core_formula(StatsDatabase* sdb, int core_id, const char* stat_name);
 

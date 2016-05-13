@@ -295,6 +295,52 @@ Distribution* stat_reg_core_dist(StatsDatabase* sdb,
                          format, imap, scale_me, print_fn);
 }
 
+SparseHistogram* stat_reg_sparse_hist(StatsDatabase* sdb,
+                                      const char* name,
+                                      const char* desc,
+                                      const char* label_fmt,
+                                      const char* output_fmt,
+                                      bool print,
+                                      bool scale) {
+    auto hist = sdb->add_sparse_histogram(
+            name, desc, label_fmt, output_fmt, print, scale);
+    return hist;
+}
+
+SparseHistogram* stat_reg_core_sparse_hist(StatsDatabase* sdb,
+                                           int core_id,
+                                           const char* name,
+                                           const char* desc,
+                                           const char* label_fmt,
+                                           const char* output_fmt,
+                                           bool print,
+                                           bool scale) {
+    char full_stat_name[STAT_NAME_MAX_LEN];
+    snprintf(full_stat_name, STAT_NAME_MAX_LEN, core_stat_fmt, core_id, name);
+    return stat_reg_sparse_hist(
+            sdb, full_stat_name, desc, label_fmt, output_fmt, print, scale);
+}
+
+// Register a histogram belonging to or associated with a core.
+// For more details, see stat_reg_comp_sqword.
+SparseHistogram* stat_reg_comp_sparse_hist(StatsDatabase* sdb,
+                                           int core_id,
+                                           const char* comp_name,
+                                           const char* stat_name,
+                                           const char* desc,
+                                           const char* label_fmt,
+                                           const char* output_fmt,
+                                           bool print,
+                                           bool scale,
+                                           bool is_llc) {
+    char full_stat_name[STAT_NAME_MAX_LEN];
+    char full_desc[DESC_MAX_LEN];
+    create_comp_stat_name(core_id, comp_name, stat_name, full_stat_name, is_llc);
+    snprintf(full_desc, DESC_MAX_LEN, desc, comp_name);
+    return stat_reg_sparse_hist(
+            sdb, full_stat_name, full_desc, label_fmt, output_fmt, print, scale);
+}
+
 void reg_core_queue_occupancy_stats(StatsDatabase* sdb,
                                     int core_id,
                                     std::string queue_name,
@@ -466,6 +512,17 @@ Distribution* stat_find_core_dist(StatsDatabase* sdb, int core_id, const char* s
     char full_stat_name[STAT_NAME_MAX_LEN];
     snprintf(full_stat_name, STAT_NAME_MAX_LEN, core_stat_fmt, core_id, stat_name);
     return static_cast<Distribution*>(sdb->get_statistic(full_stat_name));
+}
+
+SparseHistogram* stat_find_sparse_hist(StatsDatabase* sdb, const char* stat_name) {
+    return static_cast<SparseHistogram*>(sdb->get_statistic(stat_name));
+}
+
+SparseHistogram* stat_find_core_sparse_hist(
+        StatsDatabase* sdb, int core_id, const char* stat_name) {
+    char full_stat_name[STAT_NAME_MAX_LEN];
+    snprintf(full_stat_name, STAT_NAME_MAX_LEN, core_stat_fmt, core_id, stat_name);
+    return static_cast<SparseHistogram*>(sdb->get_statistic(full_stat_name));
 }
 
 void stat_save_stats(StatsDatabase* sdb) { sdb->save_stats_values(); }
