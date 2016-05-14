@@ -103,7 +103,8 @@ void core_fetch_t::create_caches() {
     struct bus_t* next_bus = (core->memory.DL2) ? core->memory.DL2_bus.get() : uncore->LLC_bus.get();
     core->memory.IL1 = cache_create(core, name, CACHE_READONLY, sets, assoc, linesize, rp, 'w', 't',
                                     'n', banks, bank_width, latency, MSHR_entries, 4, 1, next_level,
-                                    next_bus, knobs->memory.IL1_magic_hit_rate, nullptr);
+                                    next_bus, knobs->memory.IL1_magic_hit_rate,
+                                    knobs->memory.IL1_sample_misses, nullptr);
 
     prefetchers_create(core->memory.IL1.get(), knobs->memory.IL1_pf);
 
@@ -114,7 +115,7 @@ void core_fetch_t::create_caches() {
 
     core->memory.ITLB =
             cache_create(core, name, CACHE_READONLY, sets, assoc, 1, rp, 'w', 't', 'n', banks, 1,
-                         latency, MSHR_entries, 4, 1, next_level, next_bus, -1.0, nullptr);
+                         latency, MSHR_entries, 4, 1, next_level, next_bus, -1.0, false, nullptr);
 
     core->memory.IL1->controller =
             controller_create(knobs->memory.IL1_controller_opt_str, core, core->memory.IL1.get());

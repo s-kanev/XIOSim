@@ -60,6 +60,7 @@
 
 #include "knobs.h"
 #include "synchronization.h"
+#include "stats.h"
 
 /* used when passing an MSHR index into the cache functions, but for
    whatever reason there's no corresponding MSHR entry */
@@ -261,6 +262,8 @@ struct cache_t {
 
   float magic_hit_rate;
 
+  bool sample_misses;
+
   struct {
     counter_t load_lookups;
     counter_t load_misses;
@@ -284,6 +287,8 @@ struct cache_t {
     counter_t *core_lookups;
     counter_t *core_misses;
     counter_t MSHR_combos;
+    SparseHistogram* load_miss_pcs;
+    SparseHistogram* store_miss_pcs;
   } stat;
 };
 
@@ -307,6 +312,7 @@ std::unique_ptr<struct cache_t> cache_create(
     struct cache_t * const next_level_cache,
     struct bus_t * const bus_next,
     const float magic_hit_rate,
+    bool sample_misses,
     const char * const MSHR_cmd);
 
 void cache_reg_stats(

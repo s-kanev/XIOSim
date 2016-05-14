@@ -146,11 +146,11 @@ void core_exec_t::create_caches(bool create_TLBs) {
                   "write-policy:num-MSHR:WB-buffers:write-combining>\n\t(%s)",
                   knobs->memory.DL2_opt_str);
         /* per-core DL2 */
-        core->memory.DL2 =
-                cache_create(core, name, CACHE_READWRITE, sets, assoc, linesize, rp, ap, wp, wc,
-                             banks, bank_width, latency, MSHR_entries, MSHR_WB_entries, 1,
-                             uncore->LLC.get(), uncore->LLC_bus.get(),
-                             knobs->memory.DL2_magic_hit_rate, knobs->memory.DL2_MSHR_cmd);
+        core->memory.DL2 = cache_create(
+                core, name, CACHE_READWRITE, sets, assoc, linesize, rp, ap, wp, wc, banks,
+                bank_width, latency, MSHR_entries, MSHR_WB_entries, 1, uncore->LLC.get(),
+                uncore->LLC_bus.get(), knobs->memory.DL2_magic_hit_rate,
+                knobs->memory.DL1_sample_misses, knobs->memory.DL2_MSHR_cmd);
         prefetchers_create(core->memory.DL2.get(), knobs->memory.DL2_pf);
 
         /* per-core L2 bus (between L1 and L2) */
@@ -169,10 +169,10 @@ void core_exec_t::create_caches(bool create_TLBs) {
 
     struct cache_t* next_level = (core->memory.DL2) ? core->memory.DL2.get() : uncore->LLC.get();
     struct bus_t* next_bus = (core->memory.DL2) ? core->memory.DL2_bus.get() : uncore->LLC_bus.get();
-    core->memory.DL1 =
-            cache_create(core, name, CACHE_READWRITE, sets, assoc, linesize, rp, ap, wp, wc, banks,
-                         bank_width, latency, MSHR_entries, MSHR_WB_entries, 1, next_level,
-                         next_bus, knobs->memory.DL1_magic_hit_rate, knobs->memory.DL1_MSHR_cmd);
+    core->memory.DL1 = cache_create(core, name, CACHE_READWRITE, sets, assoc, linesize, rp, ap, wp,
+                                    wc, banks, bank_width, latency, MSHR_entries, MSHR_WB_entries,
+                                    1, next_level, next_bus, knobs->memory.DL1_magic_hit_rate,
+                                    knobs->memory.DL1_sample_misses, knobs->memory.DL1_MSHR_cmd);
     prefetchers_create(core->memory.DL1.get(), knobs->memory.DL1_pf);
     core->memory.DL1->controller =
             controller_create(knobs->memory.DL1_controller_opt_str, core, core->memory.DL1.get());
@@ -201,9 +201,9 @@ void core_exec_t::create_caches(bool create_TLBs) {
 
         /* on a complete TLB miss, go to the next level to simulate the traffic from a HW page-table
          * walker */
-        core->memory.DTLB2 =
-                cache_create(core, name, CACHE_READONLY, sets, assoc, 1, rp, 'w', 't', 'n', banks,
-                             1, latency, MSHR_entries, 4, 1, next_level, next_bus, -1.0, nullptr);
+        core->memory.DTLB2 = cache_create(core, name, CACHE_READONLY, sets, assoc, 1, rp, 'w', 't',
+                                          'n', banks, 1, latency, MSHR_entries, 4, 1, next_level,
+                                          next_bus, -1.0, false, nullptr);
     }
 
     /* DTLB */
@@ -213,9 +213,9 @@ void core_exec_t::create_caches(bool create_TLBs) {
 
     struct cache_t* next_TLB_level = (core->memory.DTLB2) ? core->memory.DTLB2.get() : uncore->LLC.get();
     struct bus_t* next_TLB_bus = (core->memory.DTLB2) ? core->memory.DTLB_bus.get() : uncore->LLC_bus.get();
-    core->memory.DTLB =
-            cache_create(core, name, CACHE_READONLY, sets, assoc, 1, rp, 'w', 't', 'n', banks, 1,
-                         latency, MSHR_entries, 4, 1, next_TLB_level, next_TLB_bus, -1.0, nullptr);
+    core->memory.DTLB = cache_create(core, name, CACHE_READONLY, sets, assoc, 1, rp, 'w', 't', 'n',
+                                     banks, 1, latency, MSHR_entries, 4, 1, next_TLB_level,
+                                     next_TLB_bus, -1.0, false, nullptr);
 
     core->memory.DTLB->controller =
             controller_create(knobs->memory.DTLB_controller_opt_str, core, core->memory.DTLB.get());

@@ -29,6 +29,8 @@ piii/loop: loop.cpp
 	g++ -m32 -O0 -static -o $@ $<
 piii/rdtsc: rdtsc.cpp
 	g++ -m32 -O1 -static -falign-functions=16 -o $@ $<
+piii/misses: misses.cpp
+	g++ -m32 -O1 -static -o $@ $<
 
 k8/fib: fib.cpp
 	g++ -std=c++1y -static -O0 -o $@ $<
@@ -58,3 +60,5 @@ k8/rdtsc: rdtsc.cpp
 	g++ -O1 -static -falign-functions=16 -o $@ $<
 k8/atomics: atomics.cpp
 	g++ -std=c++1y -O1 -static -falign-loops=64 -o $@ $<
+k8/misses: misses.cpp
+	g++ -O1 -static -o $@ $<

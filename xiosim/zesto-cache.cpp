@@ -1,12 +1,12 @@
 /* zesto-cache.cpp - Zesto cache structure
- * 
+ *
  * Copyright © 2009 by Gabriel H. Loh and the Georgia Tech Research Corporation
  * Atlanta, GA  30332-0415
  * All Rights Reserved.
- * 
+ *
  * THIS IS A LEGAL DOCUMENT BY DOWNLOADING ZESTO, YOU ARE AGREEING TO THESE
  * TERMS AND CONDITIONS.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -18,26 +18,26 @@
  * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
- * 
+ *
  * 1. Redistributions of source code must retain the above copyright notice,
  * this list of conditions and the following disclaimer.
- * 
+ *
  * 2. Redistributions in binary form must reproduce the above copyright notice,
  * this list of conditions and the following disclaimer in the documentation
  * and/or other materials provided with the distribution.
- * 
+ *
  * 3. Neither the name of the Georgia Tech Research Corporation nor the names of
  * its contributors may be used to endorse or promote products derived from
  * this software without specific prior written permission.
- * 
+ *
  * 4. Zesto is distributed freely for commercial and non-commercial use.
- * 
+ *
  * 5. No nonprofit user may place any restrictions on the use of this software,
  * including as modified by the user, by any other authorized user.
- * 
+ *
  * 6. Noncommercial and nonprofit users may distribute copies of Zesto in
  * compiled or executable form as set forth in Section 2, provided that either:
  * (A) it is accompanied by the corresponding machine-readable source code, or
@@ -47,7 +47,7 @@
  * verbatim duplication by anyone, or (C) it is distributed by someone who
  * received only the executable form, and is accompanied by a copy of the
  * written offer of source code.
- * 
+ *
  * 7. Zesto was developed by Gabriel H. Loh, Ph.D.  US Mail: 266 Ferst Drive,
  * Georgia Institute of Technology, Atlanta, GA 30332-0765
  */
@@ -57,6 +57,7 @@
 #include <cmath>
 
 #include "core_const.h"
+#include "knobs.h"
 #include "memory.h"
 #include "misc.h"
 #include "stats.h"
@@ -158,8 +159,8 @@ std::unique_ptr<struct cache_t> cache_create(
     struct cache_t * const next_level_cache, /* e.g., for the DL1, this should point to the L2 */
     struct bus_t * const next_bus, /* e.g., for the DL1, this should point to the bus between DL1 and L2 */
     const float magic_hit_rate,
-    const char * const MSHR_cmd
-    )
+    bool sample_misses,
+    const char * const MSHR_cmd)
 {
   int i;
   struct cache_t * cp = new cache_t();
@@ -223,6 +224,7 @@ std::unique_ptr<struct cache_t> cache_create(
   cp->check_for_work = true;
   cp->check_for_MSHR_fill_work = true;
   cp->magic_hit_rate = magic_hit_rate;
+  cp->sample_misses = sample_misses;
 
   if((cp->replacement_policy == REPLACE_PLRU) && (assoc & (assoc-1)))
     fatal("Tree-based PLRU only works when associativity is a power of two");
@@ -529,6 +531,20 @@ void cache_reg_stats(xiosim::stats::StatsDatabase* sdb,
     stat_reg_cache_counter(sdb, true, coreID, cp->name, "MSHR_combos",
                            "MSHR requests combined in %s", &cp->stat.MSHR_combos, 0, true, NULL);
 
+    // Only add these sampling stats if the sampling parameter is positive and
+    // the user has specified this cache to be sampled.
+    if (cp->sample_misses) {
+        cp->stat.load_miss_pcs =
+                stat_reg_comp_sparse_hist(sdb, coreID, cp->name, "load_miss_pcs",
+                                          "Number of load misses for a particular PC in %s",
+                                          "0x%" PRIx64, "", true, true, false);
+
+        cp->stat.store_miss_pcs =
+                stat_reg_comp_sparse_hist(sdb, coreID, cp->name, "store_miss_pcs",
+                                          "Number of store misses for a particular PC in %s",
+                                          "0x%" PRIx64, "", true, true, false);
+    }
+
     for (int i = 0; i < cp->num_prefetchers; i++)
         cp->prefetcher[i]->reg_stats(sdb, core);
 
@@ -679,6 +695,18 @@ void LLC_reg_stats(xiosim::stats::StatsDatabase* sdb, struct cache_t* const cp) 
                                    "MPKC by core %d in shared %s cache",
                                    LLC_misses_st / *core_sim_cycle_st * 1000, "%12.4f", true);
         }
+    }
+
+    if (cp->sample_misses) {
+        cp->stat.load_miss_pcs = stat_reg_comp_sparse_hist(
+            sdb, xiosim::INVALID_CORE, cp->name, "load_miss_pcs",
+            "Number of load misses for a particular PC in %s", "0x%" PRIx64, "", true,
+            true, false);
+
+        cp->stat.store_miss_pcs = stat_reg_comp_sparse_hist(
+            sdb, xiosim::INVALID_CORE, cp->name, "store_miss_pcs",
+            "Number of store misses for a particular PC in %s", "0x%" PRIx64, "", true,
+            true, false);
     }
 
     for (int i = 0; i < cp->num_prefetchers; i++)
@@ -918,7 +946,7 @@ struct cache_line_t * cache_is_hit(
                 prev = p->next;
                 while(prev->next)
                   prev = prev->next;
-                
+
                 /* stick ourselves there */
                 prev->next = p;
                 p->next = NULL;
@@ -1058,7 +1086,7 @@ void cache_insert_block(
           prev = p->next;
           while(prev->next)
             prev = prev->next;
-          
+
           /* stick ourselves there */
           prev->next = p;
           p->next = NULL;
@@ -1428,7 +1456,7 @@ static struct cache_action_t * MSHR_allocate(
   /* XXX: Disable combining for now  */
 /*  for(int i=0;i<cp->MSHR_size;i++)
   {
-    if((cp->MSHR[bank][i].cb != NULL) && 
+    if((cp->MSHR[bank][i].cb != NULL) &&
         (cp->MSHR[bank][i].paddr >> cp->addr_shift) == (paddr >> cp->addr_shift) &&
         (cp->MSHR[bank][i].MSHR_link == NULL) &&
         (cp->MSHR[bank][i].when_returned == TICK_T_MAX))
@@ -1781,8 +1809,14 @@ static void update_request_stats(
   {
     case CACHE_READ:
       CACHE_STAT(cp->stat.load_lookups++;)
-      if(!hit)
+      if(!hit) {
         CACHE_STAT(cp->stat.load_misses++;)
+        if (system_knobs.cache_miss_sample_parameter != 0 &&
+            cp->stat.load_miss_pcs != NULL &&
+            cp->stat.load_misses % system_knobs.cache_miss_sample_parameter == 0) {
+          CACHE_STAT(cp->stat.load_miss_pcs->add_samples(ca->PC);)
+        }
+      }
       break;
     case CACHE_PREFETCH:
       CACHE_STAT(cp->stat.prefetch_lookups++;)
@@ -1791,8 +1825,14 @@ static void update_request_stats(
       break;
     case CACHE_WRITE:
       CACHE_STAT(cp->stat.store_lookups++;)
-      if(!hit)
+      if(!hit) {
         CACHE_STAT(cp->stat.store_misses++;)
+        if (system_knobs.cache_miss_sample_parameter != 0 &&
+            cp->stat.store_miss_pcs != NULL &&
+            cp->stat.store_misses % system_knobs.cache_miss_sample_parameter == 0) {
+          CACHE_STAT(cp->stat.store_miss_pcs->add_samples(ca->PC);)
+        }
+      }
       break;
     case CACHE_WRITEBACK:
       CACHE_STAT(cp->stat.writeback_lookups++;)

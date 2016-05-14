@@ -122,6 +122,11 @@ struct core_knobs_t {
         const char* DTLB_controller_opt_str;
         const char* DTLB2_controller_opt_str;
 
+        /* Enable/disable sampling of cache misses. */
+        bool IL1_sample_misses;
+        bool DL1_sample_misses;
+        bool DL2_sample_misses;
+
         bool DL1_rep_req;
     } memory;
 
@@ -138,6 +143,7 @@ struct uncore_knobs_t {
     const char* LLC_opt_str;
     const char* LLC_MSHR_cmd;
     float LLC_magic_hit_rate;
+    bool LLC_sample_misses;
     double LLC_speed;
 
     const char* LLC_controller_str;
@@ -195,6 +201,9 @@ struct system_knobs_t {
 
     const char* dvfs_opt_str;
     int dvfs_interval;
+
+    /* Frequency at which to sample the PC of a cache miss. */
+    unsigned long cache_miss_sample_parameter;
 
     /* Prefix for profiling result files.
      * Filenames are prefix.<core>.<profile_id>. */

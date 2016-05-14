@@ -607,5 +607,40 @@ class Fib2CoreTest(XIOSimTest):
     def runTest(self):
         self.runAndValidate()
 
+class MissesSampleTest(XIOSimTest):
+    ''' End-to-end test for sampled cache miss PCs. '''
+    def setDriverParams(self):
+        bmk_cfg = self.writeTestBmkConfig("misses")
+        self.xio.AddBmks(bmk_cfg)
+
+        repl = {
+            "system_cfg.cache_miss_sample_parameter" : "100",
+            "core_cfg.exec_cfg.dcache_cfg.sample_misses": "true",
+            "uncore_cfg.llccache_cfg.sample_misses": "true",
+        }
+        test_cfg = self.writeTestConfig(os.path.join(self.xio.GetTreeDir(),
+                                                     "xiosim/config", "H.cfg"),
+                                        repl)
+        self.xio.AddConfigFile(test_cfg)
+        self.xio.AddPinOptions()
+
+    def setUp(self):
+        super(MissesSampleTest, self).setUp()
+        # With 10,000 iterations, each of which should cause a miss, and a
+        # sampling parameter of 100, we should capture 10,000/100 = 100 misses.
+        # The LLC is included because there is a separate code path for
+        # registering the stat for the LLC, and the number of misses are just
+        # based on observations from a few simulation runs.
+        self.expected_vals.append((xs.PerfStatRE("c0.DL1.load_misses"), 10000))
+        if self.xio.TARGET_ARCH == "k8":
+            self.expected_vals.append((xs.PerfDistStatRE("c0.DL1.load_miss_pcs[0x400523]"), 100))
+            self.expected_vals.append((xs.PerfDistStatRE("LLC.load_miss_pcs[0x400523]"), 75))
+        else:
+            self.expected_vals.append((xs.PerfDistStatRE("c0.DL1.load_miss_pcs[0x804833b]"), 100))
+            self.expected_vals.append((xs.PerfDistStatRE("LLC.load_miss_pcs[0x804833b]"), 75))
+
+    def runTest(self):
+        self.runAndValidate()
+
 if __name__ == "__main__":
     unittest.main()

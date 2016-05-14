@@ -5,6 +5,7 @@
  */
 
 #include <cmath>
+#include <iostream>
 #include <string>
 #include <sstream>
 
@@ -184,6 +185,7 @@ static void store_fetch_options(cfg_t* fetch_opt, core_knobs_t* knobs) {
     knobs->memory.IL1_opt_str = cfg_getstr(icache_opt, "config");
     knobs->memory.IL1_controller_opt_str = cfg_getstr(icache_opt, "coherency_controller");
     knobs->memory.IL1_magic_hit_rate = cfg_getfloat(icache_opt, "magic_hit_rate");
+    knobs->memory.IL1_sample_misses = cfg_getbool(icache_opt, "sample_misses");
     store_prefetcher_options(icache_prefetch_opt, &knobs->memory.IL1_pf);
 
     knobs->memory.ITLB_opt_str = cfg_getstr(itlb_opt, "config");
@@ -239,10 +241,12 @@ static void store_exec_stage_options(cfg_t* exec_opt, core_knobs_t* knobs) {
     knobs->memory.DL1_MSHR_cmd = cfg_getstr(dcache_opt, "mshr_cmd");
     knobs->memory.DL1_controller_opt_str = cfg_getstr(dcache_opt, "coherency_controller");
     knobs->memory.DL1_magic_hit_rate = cfg_getfloat(dcache_opt, "magic_hit_rate");
+    knobs->memory.DL1_sample_misses = cfg_getbool(dcache_opt, "sample_misses");
     knobs->memory.DL2_opt_str = cfg_getstr(l2_opt, "config");
     knobs->memory.DL2_MSHR_cmd = cfg_getstr(l2_opt, "mshr_cmd");
     knobs->memory.DL2_controller_opt_str = cfg_getstr(l2_opt, "coherency_controller");
     knobs->memory.DL2_magic_hit_rate = cfg_getfloat(l2_opt, "magic_hit_rate");
+    knobs->memory.DL2_sample_misses = cfg_getbool(l2_opt, "sample_misses");
 
     store_prefetcher_options(dpf_opt, &knobs->memory.DL1_pf);
     store_prefetcher_options(l2pf_opt, &knobs->memory.DL2_pf);
@@ -304,6 +308,7 @@ static void store_uncore_options(cfg_t* uncore_opt, uncore_knobs_t* knobs) {
     knobs->LLC_speed = cfg_getfloat(llccache_opt, "clock");
     knobs->LLC_controller_str = cfg_getstr(llccache_opt, "coherency_controller");
     knobs->LLC_magic_hit_rate = cfg_getfloat(llccache_opt, "magic_hit_rate");
+    knobs->LLC_sample_misses = cfg_getbool(llccache_opt, "sample_misses");
 
     store_prefetcher_options(llcprefetch_opt, &knobs->LLC_pf);
 
@@ -329,6 +334,8 @@ static void store_system_options(cfg_t* system_opt, system_knobs_t* knobs) {
     knobs->power.compute = cfg_getbool(system_opt, "simulate_power");
     knobs->power.rtp_interval = cfg_getint(system_opt, "power_rtp_interval");
     knobs->power.rtp_filename = cfg_getstr(system_opt, "power_rtp_file");
+
+    knobs->cache_miss_sample_parameter = cfg_getint(system_opt, "cache_miss_sample_parameter");
 
     cfg_t* profiling_opt = cfg_getsec(system_opt, "profiling_cfg");
     knobs->profiling_file_prefix = cfg_getstr(profiling_opt, "file_prefix");

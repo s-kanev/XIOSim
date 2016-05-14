@@ -106,7 +106,8 @@ uncore_t::uncore_t(const uncore_knobs_t& knobs)
 
     LLC = cache_create(NULL, name, CACHE_READWRITE, sets, assoc, linesize, rp, ap, wp, wc, banks,
                        bank_width, latency_scaled, MSHR_entries, MSHR_WB_entries, MSHR_banks, NULL,
-                       fsb.get(), knobs.LLC_magic_hit_rate, knobs.LLC_MSHR_cmd);
+                       fsb.get(), knobs.LLC_magic_hit_rate, knobs.LLC_sample_misses,
+                       knobs.LLC_MSHR_cmd);
 
     prefetchers_create(LLC.get(), knobs.LLC_pf);
 
