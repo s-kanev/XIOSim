@@ -30,7 +30,15 @@ def CreateDriver(bazel_env):
     else:
         # TODO(skanev): figure out how to plumb through bazel's cpu parameter
         ARCH = "k8"
-    xio = xd.XIOSimDriver(XIOSIM_INSTALL, XIOSIM_TREE, ARCH, bridge_dirs=BRIDGE_DIRS)
+
+    env = ""
+    use_own_lib = ("XIOSIM_LOADER_LIB" in os.environ)
+    if use_own_lib:
+        env = "LD_LIBRARY_PATH=%s/lib" % os.environ["XIOSIM_LOADER_LIB"]
+        if ARCH == "k8":
+            env+= "64"
+
+    xio = xd.XIOSimDriver(XIOSIM_INSTALL, XIOSIM_TREE, ARCH, bridge_dirs=BRIDGE_DIRS, env=env)
     return xio
 
 
