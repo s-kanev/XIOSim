@@ -441,6 +441,7 @@ cc_library(
     name = "catch_impl",
     srcs = ["catch_impl.cpp"],
     deps = ["//third_party/catch:main"],
+    copts = ["-DCATCH_CONFIG_MAIN"],
 )
 
 cc_library(
