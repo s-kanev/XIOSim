@@ -74,6 +74,18 @@ class XIOSimDriver(object):
         self.AddIgnoreOptions()
         self.cmd += "-ignore_pcs %s " % pcs
 
+    def AddTCMOption(self, knob, value=""):
+        """ Add a TCMalloc replacement option.
+
+        Args:
+          knob: Name of the knob (i.e. sll_pop_magic)
+          value: An optional value for the knob, either True or False.
+        """
+        if not "-tcm_hooks" in self.cmd:
+          self.cmd += "-tcm_hooks "
+        value = str(value)
+        self.cmd += knob + " " + value + " "
+
     def AddReplaceOptions(self, func):
         self.AddIgnoreOptions()
         self.cmd += "-ignore_functions %s " % func
