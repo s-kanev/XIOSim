@@ -61,6 +61,8 @@ cc_binary(
         "utils.h",
         "vdso.cpp",
         "vdso.h",
+        "xed_utils.cpp",
+        "xed_utils.h",
     ],
     linkopts = [
         "-Wl,-Bsymbolic",

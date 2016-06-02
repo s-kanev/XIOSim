@@ -4,10 +4,12 @@
 #include <string>
 
 #include "xiosim/regs.h"
+#include "xiosim/decode.h"
 
 #include "BufferManagerProducer.h"
 #include "feeder.h"
 #include "replace_function.h"
+#include "xed_utils.h"
 
 #include "tcm_hooks.h"
 
@@ -46,6 +48,19 @@ static ADDRINT SLL_Pop_Emulation(ADDRINT head) {
     PIN_SafeCopy(reinterpret_cast<VOID*>(head), &next, sizeof(ADDRINT));
     /* Pin will make sure the result of this analysis routine goes to the output reg */
     return result;
+}
+
+/* Emulate the ClassIndex() computation from tcmalloc. */
+static ADDRINT ClassIndex_Emulation(ADDRINT size) {
+    ADDRINT index;
+    if (size <= 1024) {
+        // Small size classes.
+        index = (static_cast<uint32_t>(size) + 7) >> 3;
+    } else {
+        // Large size classes.
+        index = (static_cast<uint32_t>(size) + 127 + (120 << 7)) >> 7;
+    }
+    return index;
 }
 
 /* Analysis routine to prepare memory addresses for a potential replacement. */
@@ -174,6 +189,71 @@ std::list<xed_encoder_instruction_t> Prepare_SLL_PushSimulation(INS ins) {
     return result;
 }
 
+std::list<xed_encoder_instruction_t> Prepare_ClassIndex_Simulation(INS ins) {
+    REG size_reg = INS_RegR(ins, 0);
+    REG index_reg = INS_RegW(ins, 0);
+
+    xed_reg_enum_t size_reg_xed = PinRegToXedReg(size_reg);
+    xed_reg_enum_t index_reg_xed = PinRegToXedReg(index_reg);
+
+    std::list<xed_encoder_instruction_t> result;
+    uint8_t buf[xiosim::x86::MAX_ILEN];
+
+    /* Compute small size class index. */
+    xed_encoder_instruction_t lea_7;
+    xed_inst2(&lea_7, dstate, XED_ICLASS_LEA, xed_mem_op_width,
+              xed_reg(index_reg_xed),
+              xed_mem_bd(size_reg_xed, xed_disp(7, 32), xed_mem_op_width));
+    size_t lea0_len = Encode(lea_7, &buf[0]);
+
+    xed_encoder_instruction_t shr_3;
+    xed_inst2(&shr_3, dstate, XED_ICLASS_SHR, xed_mem_op_width,
+              xed_reg(index_reg_xed),
+              xed_imm0(3, 8));
+    size_t shr0_len = Encode(shr_3, &buf[0]);
+
+    /* Compute large size class index. */
+    xed_encoder_instruction_t lea_3c7f;
+    xed_inst2(&lea_3c7f, dstate, XED_ICLASS_LEA, xed_mem_op_width,
+              xed_reg(index_reg_xed),
+              xed_mem_bd(size_reg_xed, xed_disp(0x3c7f, 32), xed_mem_op_width));
+    size_t lea1_len = Encode(lea_3c7f, &buf[0]);
+
+    xed_encoder_instruction_t shr_7;
+    xed_inst2(&shr_7, dstate, XED_ICLASS_SHR, xed_mem_op_width,
+              xed_reg(index_reg_xed),
+              xed_imm0(7, 8));
+    size_t shr1_len = Encode(shr_7, &buf[0]);
+
+    /* Check if small size class. */
+    xed_encoder_instruction_t cmp;
+    xed_inst2(&cmp, dstate, XED_ICLASS_CMP, xed_mem_op_width,
+              xed_reg(index_reg_xed),
+              xed_imm0(0x400, 32));
+
+    /* Jump over large size class index instructions. */
+    xed_encoder_instruction_t jmp_over_large_sz;
+    xed_inst1(&jmp_over_large_sz, dstate, XED_ICLASS_JMP, 0,
+              xed_relbr(lea1_len + shr1_len, 8));
+    size_t jmp_over_len = Encode(jmp_over_large_sz, &buf[0]);
+
+    /* Jump based on size class check. */
+    xed_encoder_instruction_t jmp_to_large_sz;
+    xed_inst1(&jmp_to_large_sz, dstate, XED_ICLASS_JNBE, 0,
+              xed_relbr(lea0_len + shr0_len + jmp_over_len, 8));
+
+    /* Add instructions in order. */
+    result.push_back(cmp);
+    result.push_back(jmp_to_large_sz);
+    result.push_back(lea_7);
+    result.push_back(shr_3);
+    result.push_back(jmp_over_large_sz);
+    result.push_back(lea_3c7f);
+    result.push_back(shr_7);
+
+    return result;
+}
+
 static void MarkMagicInstruction(THREADID tid, ADDRINT pc) {
     if (ExecMode != EXECUTION_MODE_SIMULATE)
         return;
@@ -190,10 +270,16 @@ static void MarkMagicInstruction(THREADID tid, ADDRINT pc) {
 }
 
 static void InsertEmulationCode(INS ins, xed_iclass_enum_t iclass) {
+#ifdef TCM_DEBUG
+    std::cerr << "Inserting emulation code";
+#endif
     /* Add emulation regardless of whether we're simulating or not, so we
      * can preserve program semantics. */
     switch (iclass) {
-    case XED_ICLASS_LZCNT:
+    case XED_ICLASS_LZCNT: {
+#ifdef TCM_DEBUG
+        std::cerr << " for lzcnt (SLL_Pop).";
+#endif
         INS_InsertCall(ins,
                        IPOINT_BEFORE,
                        AFUNPTR(SLL_Pop_Emulation),
@@ -206,7 +292,11 @@ static void InsertEmulationCode(INS ins, xed_iclass_enum_t iclass) {
                        CALL_ORDER_FIRST + 1,
                        IARG_END);
         break;
-    case XED_ICLASS_BEXTR:
+                           }
+    case XED_ICLASS_BEXTR: {
+#ifdef TCM_DEBUG
+        std::cerr << " for bextr (SLL_Push).";
+#endif
         INS_InsertCall(ins,
                        IPOINT_BEFORE,
                        AFUNPTR(SLL_Push_Emulation),
@@ -219,9 +309,34 @@ static void InsertEmulationCode(INS ins, xed_iclass_enum_t iclass) {
                        CALL_ORDER_FIRST + 1,
                        IARG_END);
         break;
-    default:
+                           }
+    case XED_ICLASS_BLSR: {
+#ifdef TCM_DEBUG
+        std::cerr << " for blsr (ClassIndex).";
+#endif
+        INS_InsertCall(ins,
+                       IPOINT_BEFORE,
+                       AFUNPTR(ClassIndex_Emulation),
+                       IARG_REG_VALUE,
+                       INS_RegR(ins, 0),
+                       IARG_RETURN_REGS,
+                       INS_RegW(ins, 0),
+                       IARG_CALL_ORDER,
+                       CALL_ORDER_FIRST + 1,
+                       IARG_END);
         break;
+                          }
+    default: {
+#ifdef TCM_DEBUG
+        std::cerr << "...just kidding.";
+#endif
+        break;
+             }
     }
+
+#ifdef TCM_DEBUG
+    std::cerr << std::endl;
+#endif
 
     /* Delete placeholder ins on the host side, so we don't get side effects from it. */
     INS_Delete(ins);
@@ -234,7 +349,9 @@ void InstrumentTCMHooks(TRACE trace, VOID* v) {
     for (BBL bbl = TRACE_BblHead(trace); BBL_Valid(bbl); bbl = BBL_Next(bbl)) {
         for (INS ins = BBL_InsHead(bbl); INS_Valid(ins); ins = INS_Next(ins)) {
             xed_iclass_enum_t iclass = static_cast<xed_iclass_enum_t>(INS_Opcode(ins));
-            if (iclass != XED_ICLASS_LZCNT && iclass != XED_ICLASS_BEXTR)
+            if (iclass != XED_ICLASS_LZCNT &&
+                iclass != XED_ICLASS_BEXTR &&
+                iclass != XED_ICLASS_BLSR)
                 continue;
 
             SEC sec = RTN_Sec(INS_Rtn(ins));
@@ -274,6 +391,9 @@ void InstrumentTCMHooks(TRACE trace, VOID* v) {
                         break;
                     case XED_ICLASS_BEXTR:
                         repl = Prepare_SLL_PushSimulation(ins);
+                        break;
+                    case XED_ICLASS_BLSR:
+                        repl = Prepare_ClassIndex_Simulation(ins);
                         break;
                     default:
                         break;

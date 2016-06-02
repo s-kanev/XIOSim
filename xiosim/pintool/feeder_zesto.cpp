@@ -45,6 +45,7 @@
 #include "syscall_handling.h"
 #include "tcm_hooks.h"
 #include "vdso.h"
+#include "xed_utils.h"
 
 using namespace std;
 
@@ -98,8 +99,6 @@ XIOSIM_LOCK lk_tid_map;
 
 int asid;
 
-xed_state_t dstate;
-static void InitXed();
 
 static void InitWatchdog();
 
@@ -1335,16 +1334,6 @@ static void SliceEndBarrier(int slice_num, int slice_length, int slice_weight_ti
     }
 
     lk_unlock(lk_num_done_slice);
-}
-
-/* ========================================================================== */
-static void InitXed() {
-    xed_tables_init();
-#ifdef _LP64
-    xed_state_init2(&dstate, XED_MACHINE_MODE_LONG_64, XED_ADDRESS_WIDTH_64b);
-#else
-    xed_state_init2(&dstate, XED_MACHINE_MODE_LONG_COMPAT_32, XED_ADDRESS_WIDTH_32b);
-#endif
 }
 
 /* ========================================================================== */

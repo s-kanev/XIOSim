@@ -43,14 +43,6 @@ extern XIOSIM_LOCK lk_tid_map;
 /* Unique address space id -- the # of this feeder among all */
 extern int asid;
 
-/* Xed machine mode state for when we need to encode/decode things. */
-extern xed_state_t dstate;
-#ifdef _LP64
-const size_t xed_mem_op_width = 64;
-#else
-const size_t xed_mem_op_width = 32;
-#endif
-
 /* Host TSC values for timing virtualization. */
 extern tick_t* initial_timestamps;
 

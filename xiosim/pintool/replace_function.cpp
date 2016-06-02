@@ -6,6 +6,7 @@
 #include "xiosim/synchronization.h"
 
 #include "replace_function.h"
+#include "xed_utils.h"
 
 KNOB<string> KnobIgnoreFunctions(KNOB_MODE_WRITEONCE,
                                  "pintool",
@@ -47,37 +48,6 @@ static void MarkReplaced(ADDRINT pc, std::vector<fake_inst_info_t> arg) {
 static std::vector<fake_inst_info_t>& GetReplacement(ADDRINT pc) {
     std::lock_guard<XIOSIM_LOCK> l(replacements_lk);
     return replacements[pc];
-}
-
-/* Encode replacement instructions in the provided buffer. */
-static size_t Encode(xed_encoder_instruction_t inst, uint8_t* inst_bytes) {
-    xed_encoder_request_t enc_req;
-
-    xed_encoder_request_zero_set_mode(&enc_req, &dstate);
-
-    bool convert_ok = xed_convert_to_encoder_request(&enc_req, &inst);
-    if (!convert_ok) {
-        cerr << "conversion to encode request failed" << endl;
-        PIN_ExitProcess(EXIT_FAILURE);
-    }
-
-    unsigned int inst_len;
-    auto err = xed_encode(&enc_req, inst_bytes, xiosim::x86::MAX_ILEN, &inst_len);
-    if (err != XED_ERROR_NONE) {
-        cerr << "xed_encode failed " << xed_error_enum_t2str(err) << endl;
-        PIN_ExitProcess(EXIT_FAILURE);
-    }
-    return inst_len;
-}
-
-/* Helper to check if a xed-encoded instruction has a memory operand.
- * TODO(skanev): we probably need a xed_utils.h, these are piling up. */
-static bool xed_enc_has_memory_operand(const xed_encoder_instruction_t& inst) {
-    for (size_t i = 0; i < inst.noperands; i++)
-        if (inst.operands[i].type == XED_ENCODER_OPERAND_TYPE_MEM)
-            return true;
-
-    return false;
 }
 
 /* Start ignoring instruction before the replaced instruction, and add the magically-encoded
@@ -142,7 +112,8 @@ struct replacement_params_t {
     list<xed_encoder_instruction_t> insts;
 };
 
-static std::vector<fake_inst_info_t> PrepareReplacementBuffer(const std::list<xed_encoder_instruction_t>& insts) {
+static std::vector<fake_inst_info_t> PrepareReplacementBuffer(
+        const std::list<xed_encoder_instruction_t>& insts) {
     std::vector<fake_inst_info_t> encoded_insts;
     if (insts.empty())
         return encoded_insts;
@@ -159,7 +130,7 @@ static std::vector<fake_inst_info_t> PrepareReplacementBuffer(const std::list<xe
     for (auto& x : insts) {
         size_t n_bytes = Encode(x, curr_buffer);
         fake_inst_info_t new_inst((ADDRINT)curr_buffer, n_bytes);
-        if (xed_enc_has_memory_operand(x))
+        if (XedEncHasMemoryOperand(x))
             new_inst.has_mem_op = true;
         encoded_insts.push_back(new_inst);
         curr_buffer += n_bytes;
