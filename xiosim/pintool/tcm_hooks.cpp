@@ -13,12 +13,27 @@
 
 #include "tcm_hooks.h"
 
+enum MagicInsMode {
+  IDEAL,
+  REALISTIC,
+  BASELINE
+};
+
+
 KNOB<BOOL> KnobTCMHooks(KNOB_MODE_WRITEONCE, "pintool", "tcm_hooks", "true",
                         "Emulate tcmalloc replacements.");
-KNOB<BOOL> KnobSLLPopMagic(KNOB_MODE_WRITEONCE, "pintool", "sll_pop_magic", "true",
-                           "Simulate the magic lzcnt instruction for SLL_Pop.");
-KNOB<BOOL> KnobSLLPopReal(KNOB_MODE_WRITEONCE, "pintool", "sll_pop_real", "false",
-                          "Replace the lzcnt instruction with its baseline implementation.");
+
+KNOB<std::string> KnobSLLPopMode(
+        KNOB_MODE_WRITEONCE, "pintool", "sll_pop_mode", "baseline",
+        "Simulate the magic lzcnt instruction with either zero latency (ideal), "
+        "a realistic accelerator implementation (realistic), or the baseline implementation "
+        "(baseline).");
+KNOB<std::string> KnobSLLPushMode(
+        KNOB_MODE_WRITEONCE, "pintool", "sll_push_mode", "baseline",
+        "Desired mode for simulating the magic bextr instruction.");
+KNOB<std::string> KnobClassIndexMode(
+        KNOB_MODE_WRITEONCE, "pintool", "class_index_mode", "baseline",
+        "Desired mode for simulating the magic blsr instruction.");
 
 /* Helper to translate from pin registers to xed registers. Why isn't
  * this exposed through the pin API? */
@@ -298,6 +313,20 @@ static void MarkMagicInstruction(THREADID tid, ADDRINT pc) {
     handshake->flags.real = false;
 }
 
+/* Helper to insert a call to MarkMagicInstruction() on an instruction. */
+static void MarkMagicInstructionHelper(INS ins) {
+    /* When we're simulating, mark the placeholder instruction as magic, so the
+     * timing simulator can evaluate performance. */
+    INS_InsertCall(ins,
+                   IPOINT_BEFORE,
+                   AFUNPTR(MarkMagicInstruction),
+                   IARG_THREAD_ID,
+                   IARG_INST_PTR,
+                   IARG_CALL_ORDER,
+                   CALL_ORDER_FIRST + 2,
+                   IARG_END);
+}
+
 static void InsertEmulationCode(INS ins, xed_iclass_enum_t iclass) {
 #ifdef TCM_DEBUG
     std::cerr << "Inserting emulation code";
@@ -321,7 +350,7 @@ static void InsertEmulationCode(INS ins, xed_iclass_enum_t iclass) {
                        CALL_ORDER_FIRST + 1,
                        IARG_END);
         break;
-                           }
+    }
     case XED_ICLASS_BEXTR: {
 #ifdef TCM_DEBUG
         std::cerr << " for bextr (SLL_Push).";
@@ -338,7 +367,7 @@ static void InsertEmulationCode(INS ins, xed_iclass_enum_t iclass) {
                        CALL_ORDER_FIRST + 1,
                        IARG_END);
         break;
-                           }
+    }
     case XED_ICLASS_BLSR: {
 #ifdef TCM_DEBUG
         std::cerr << " for blsr (ClassIndex).";
@@ -354,13 +383,13 @@ static void InsertEmulationCode(INS ins, xed_iclass_enum_t iclass) {
                        CALL_ORDER_FIRST + 1,
                        IARG_END);
         break;
-                          }
+    }
     default: {
 #ifdef TCM_DEBUG
         std::cerr << "...just kidding.";
 #endif
         break;
-             }
+    }
     }
 
 #ifdef TCM_DEBUG
@@ -371,9 +400,68 @@ static void InsertEmulationCode(INS ins, xed_iclass_enum_t iclass) {
     INS_Delete(ins);
 }
 
+/* Convert a knob for magic instruction mode into a MagicInsMode enum. */
+static MagicInsMode StringToMagicInsMode(std::string knob_value) {
+  if (knob_value == "ideal") {
+      return IDEAL;
+  } else if (knob_value == "realistic") {
+      return REALISTIC;
+  } else if (knob_value == "baseline") {
+      return BASELINE;
+  } else {
+      std::cerr << "Invalid value of magic mode knob: " << knob_value << std::endl;
+      abort();
+  }
+}
+
+static void GetBaselineInstructions(INS& ins,
+                                    xed_iclass_enum_t iclass,
+                                    std::list<xed_encoder_instruction_t>& repl) {
+    switch (iclass) {
+    case XED_ICLASS_LZCNT:
+        repl = Prepare_SLL_PopSimulation(ins);
+        break;
+    case XED_ICLASS_BEXTR:
+        repl = Prepare_SLL_PushSimulation(ins);
+        break;
+    case XED_ICLASS_BLSR:
+        repl = Prepare_ClassIndex_Simulation(ins);
+        break;
+    default:
+        break;
+    }
+}
+
+static void HandleMagicInsMode(INS& ins, xed_iclass_enum_t iclass, MagicInsMode mode) {
+    switch (mode) {
+    case IDEAL: {
+        std::list<xed_encoder_instruction_t> repl;
+        AddInstructionReplacement(ins, repl);
+        break;
+    }
+    case REALISTIC: {
+        MarkMagicInstructionHelper(ins);
+        break;
+    }
+    case BASELINE: {
+        std::list<xed_encoder_instruction_t> repl;
+        GetBaselineInstructions(ins, iclass, repl);
+        AddInstructionReplacement(ins, repl);
+        break;
+    }
+    default:
+        break;
+    }
+}
+
 void InstrumentTCMHooks(TRACE trace, VOID* v) {
     if (!KnobTCMHooks.Value())
         return;
+
+    MagicInsMode pop_mode = StringToMagicInsMode(KnobSLLPopMode.Value());
+    MagicInsMode push_mode = StringToMagicInsMode(KnobSLLPushMode.Value());
+    MagicInsMode class_index_mode =
+            StringToMagicInsMode(KnobClassIndexMode.Value());
 
     for (BBL bbl = TRACE_BblHead(trace); BBL_Valid(bbl); bbl = BBL_Next(bbl)) {
         for (INS ins = BBL_InsHead(bbl); INS_Valid(ins); ins = INS_Next(ins)) {
@@ -400,35 +488,18 @@ void InstrumentTCMHooks(TRACE trace, VOID* v) {
             if (ExecMode != EXECUTION_MODE_SIMULATE)
                 continue;
 
-            if (KnobSLLPopMagic.Value()) {
-                /* When we're simulating, mark the placeholder instruction as magic, so
-                 * the timing simulator can evaluate performance. */
-                INS_InsertCall(ins,
-                               IPOINT_BEFORE,
-                               AFUNPTR(MarkMagicInstruction),
-                               IARG_THREAD_ID,
-                               IARG_INST_PTR,
-                               IARG_CALL_ORDER,
-                               CALL_ORDER_FIRST + 2,
-                               IARG_END);
-            } else {
-                std::list<xed_encoder_instruction_t> repl;
-                if (KnobSLLPopReal.Value()) {
-                    switch (iclass) {
-                    case XED_ICLASS_LZCNT:
-                        repl = Prepare_SLL_PopSimulation(ins);
-                        break;
-                    case XED_ICLASS_BEXTR:
-                        repl = Prepare_SLL_PushSimulation(ins);
-                        break;
-                    case XED_ICLASS_BLSR:
-                        repl = Prepare_ClassIndex_Simulation(ins);
-                        break;
-                    default:
-                        break;
-                    }
-                }
-                AddInstructionReplacement(ins, repl);
+            switch (iclass) {
+            case XED_ICLASS_LZCNT:
+                HandleMagicInsMode(ins, iclass, pop_mode);
+                break;
+            case XED_ICLASS_BEXTR:
+                HandleMagicInsMode(ins, iclass, push_mode);
+                break;
+            case XED_ICLASS_BLSR:
+                HandleMagicInsMode(ins, iclass, class_index_mode);
+                break;
+            default:
+                break;
             }
         }
     }
