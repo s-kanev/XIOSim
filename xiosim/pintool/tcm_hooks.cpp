@@ -197,39 +197,43 @@ std::list<xed_encoder_instruction_t> Prepare_ClassIndex_Simulation(INS ins) {
     xed_reg_enum_t index_reg_xed = PinRegToXedReg(index_reg);
 
     std::list<xed_encoder_instruction_t> result;
-    uint8_t buf[xiosim::x86::MAX_ILEN];
 
     /* Compute small size class index. */
     xed_encoder_instruction_t lea_7;
     xed_inst2(&lea_7, dstate, XED_ICLASS_LEA, xed_mem_op_width,
               xed_reg(index_reg_xed),
               xed_mem_bd(size_reg_xed, xed_disp(7, 32), xed_mem_op_width));
-    size_t lea0_len = Encode(lea_7, &buf[0]);
 
     xed_encoder_instruction_t shr_3;
     xed_inst2(&shr_3, dstate, XED_ICLASS_SHR, xed_mem_op_width,
               xed_reg(index_reg_xed),
               xed_imm0(3, 8));
-    size_t shr0_len = Encode(shr_3, &buf[0]);
 
     /* Compute large size class index. */
     xed_encoder_instruction_t lea_3c7f;
     xed_inst2(&lea_3c7f, dstate, XED_ICLASS_LEA, xed_mem_op_width,
               xed_reg(index_reg_xed),
               xed_mem_bd(size_reg_xed, xed_disp(0x3c7f, 32), xed_mem_op_width));
-    size_t lea1_len = Encode(lea_3c7f, &buf[0]);
 
     xed_encoder_instruction_t shr_7;
     xed_inst2(&shr_7, dstate, XED_ICLASS_SHR, xed_mem_op_width,
               xed_reg(index_reg_xed),
               xed_imm0(7, 8));
-    size_t shr1_len = Encode(shr_7, &buf[0]);
 
-    /* Check if small size class. */
+    /* Check if small size class or large size class. */
     xed_encoder_instruction_t cmp;
     xed_inst2(&cmp, dstate, XED_ICLASS_CMP, xed_mem_op_width,
-              xed_reg(index_reg_xed),
+              xed_reg(size_reg_xed),
               xed_imm0(0x400, 32));
+
+#ifdef USE_FDO_BUILD
+    /* If we are running FDO builds of tcmalloc, the optimized code path for
+     * class index computation uses compares and jumps. */
+    uint8_t buf[xiosim::x86::MAX_ILEN];
+    size_t lea0_len = Encode(lea_7, &buf[0]);
+    size_t shr0_len = Encode(shr_3, &buf[0]);
+    size_t lea1_len = Encode(lea_3c7f, &buf[0]);
+    size_t shr1_len = Encode(shr_7, &buf[0]);
 
     /* Jump over large size class index instructions. */
     xed_encoder_instruction_t jmp_over_large_sz;
@@ -250,6 +254,31 @@ std::list<xed_encoder_instruction_t> Prepare_ClassIndex_Simulation(INS ins) {
     result.push_back(jmp_over_large_sz);
     result.push_back(lea_3c7f);
     result.push_back(shr_7);
+#else
+    /* Without FDO, the optimized code path computes class indices for both
+     * small and large size classes and uses a compare and conditional move to
+     * select the right one. */
+
+    /* Move small size class result to another register. */
+    xed_encoder_instruction_t mov_small;
+    xed_inst2(&mov_small, dstate, XED_ICLASS_MOV, xed_mem_op_width,
+              xed_reg(largest_reg(XED_REG_R15D)),
+              xed_reg(index_reg_xed));
+
+    /* Conditional move based on size class type. */
+    xed_encoder_instruction_t cmov;
+    xed_inst2(&cmov, dstate, XED_ICLASS_CMOVBE, xed_mem_op_width,
+              xed_reg(index_reg_xed),
+              xed_reg(largest_reg(XED_REG_R15D)));
+
+    result.push_back(lea_7);
+    result.push_back(shr_3);
+    result.push_back(mov_small);
+    result.push_back(lea_3c7f);
+    result.push_back(shr_7);
+    result.push_back(cmp);
+    result.push_back(cmov);
+#endif
 
     return result;
 }
