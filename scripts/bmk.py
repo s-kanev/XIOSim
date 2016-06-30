@@ -5,7 +5,7 @@ import shutil
 
 class BenchmarkRun(object):
 
-    def __init__(self, bmk, executable, args, input, output, error, name, expected):
+    def __init__(self, bmk, executable, args, input, output, error, name, expected, env=""):
         ''' Create a benchmark run instance. All paths are relative to the working
         directory.
         Arguments:
@@ -16,6 +16,7 @@ class BenchmarkRun(object):
             name: Name for the input (e.g. 'chicken' in 401.bzip2.chicken)
             expected: A list of files that the benchmark run is expecting in
                       the run directory. They'll be symlinked from the SPEC repo.
+            env: Optional string of environment variables in the format VAR[=VALUE].
         '''
         self.bmk = bmk
         self.executable = executable
@@ -26,7 +27,7 @@ class BenchmarkRun(object):
         self.directory = self.GetDir()
         self.name = "%s.%s" % (self.bmk, name)
         self.expected_files = expected
-
+        self.env = env
 
     def CreateRunDir(self, run_dir):
         ''' Create a directory -- the run will execute in that. If it exists,
