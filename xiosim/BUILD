@@ -397,6 +397,24 @@ cc_library(
     ],
 )
 
+# we don't depend on the misc rule so we can add the extra gzip flag
+cc_test(
+    name = "misc_test",
+    size = "small",
+    srcs = [
+        "misc.cpp",
+        "misc.h",
+        "misc_test.cpp",
+    ],
+    copts = ['-DGZIP_PATH=\\"/bin/gzip\\"'],
+    data = ["test_data/gzopen.gz"],
+    deps = [
+        ":core_const",
+        ":catch_impl",
+        ":host",
+    ],
+)
+
 cc_library(
     name = "stats",
     srcs = [
