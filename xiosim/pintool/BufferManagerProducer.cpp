@@ -128,7 +128,7 @@ void ProducerDone(pid_t tid, bool keepLock) {
 /* On the producer side, flush all buffers associated
  * with a thread to the backing file.
  */
-void FlushBuffers(pid_t tid) { copyProducerToFile(tid, false); }
+void FlushBuffers(pid_t tid) { copyProducerToFile(tid, true); }
 
 bool ProducerEmpty(pid_t tid) { return produceBuffer_[tid]->empty(); }
 
