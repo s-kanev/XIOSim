@@ -377,6 +377,8 @@ VOID ImageLoad(IMG img, VOID* v) {
 
     AddIgnoredInstructionPCs(img, system_knobs.ignored_pcs);
 
+    InstrumentTCMIMGHooks(img);
+
     ipc_message_t msg;
     msg.Mmap(asid, start, length, false);
     SendIPCMessage(msg);
@@ -507,8 +509,12 @@ VOID GrabInstructionContext(THREADID tid,
         lk_unlock(&tstate->lock);
     }
 
+    // npc might be different if we ignored the following instruction(s)
+    ADDRINT real_npc = NextUnignoredPC(npc);
+    // ... or if we've tacked on magic instructions after this one
+    real_npc = GetFixedUpftPC(pc, real_npc);
     // Populate handshake buffer
-    MakeSSRequest(tid, pc, NextUnignoredPC(npc), NextUnignoredPC(tpc), taken, esp_value, handshake);
+    MakeSSRequest(tid, pc, real_npc, NextUnignoredPC(tpc), taken, esp_value, handshake);
 
     // If no more steps, instruction is ready to be consumed
     if (done_instrumenting) {

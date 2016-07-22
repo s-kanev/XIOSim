@@ -32,7 +32,11 @@ struct fake_inst_info_t {
 };
 
 /* Metadata for replaced instructions that we need to preserve until analysis time. */
-static std::map<ADDRINT, std::vector<fake_inst_info_t>> replacements;
+using FakeInstructionsPerPC = std::map<ADDRINT, std::vector<fake_inst_info_t>>;
+/* Replacements are a sequence of instructions that will be simulated *instead of*
+ * the original instruction at @pc. Inserts will be simulated *in addition to* it. */
+static FakeInstructionsPerPC replacements;
+static FakeInstructionsPerPC inserts;
 static XIOSIM_LOCK replacements_lk;
 
 static bool IsReplaced(ADDRINT pc) {
@@ -50,20 +54,44 @@ static std::vector<fake_inst_info_t>& GetReplacement(ADDRINT pc) {
     return replacements[pc];
 }
 
-/* Start ignoring instruction before the replaced instruction, and add the magically-encoded
- * replacement instructions to the producer buffers. */
-static void ReplacedBefore(THREADID tid, ADDRINT pc, ADDRINT ftPC) {
+static bool IsInserted(ADDRINT pc) {
+    std::lock_guard<XIOSIM_LOCK> l(replacements_lk);
+    return inserts.find(pc) != inserts.end();
+}
+
+static void MarkInserted(ADDRINT pc, std::vector<fake_inst_info_t> arg) {
+    std::lock_guard<XIOSIM_LOCK> l(replacements_lk);
+    inserts[pc] = arg;
+}
+
+static std::vector<fake_inst_info_t>& GetInsert(ADDRINT pc) {
+    std::lock_guard<XIOSIM_LOCK> l(replacements_lk);
+    return inserts[pc];
+}
+
+/* Map from a PC to its ftPC, in case we've changed it (i.e. added instructions after @PC). */
+static map<ADDRINT, ADDRINT> ftPCs;
+static XIOSIM_LOCK ftPCs_lk;
+
+static void UpdateftPC(ADDRINT pc, ADDRINT tpc) {
+    std::lock_guard<XIOSIM_LOCK> l(ftPCs_lk);
+    ftPCs[pc] = tpc;
+}
+
+ADDRINT GetFixedUpftPC(ADDRINT pc, ADDRINT ftPC) {
+    std::lock_guard<XIOSIM_LOCK> l(ftPCs_lk);
+    if (ftPCs.find(pc) == ftPCs.end())
+        return ftPC;
+
+    return ftPCs.at(pc);
+}
+
+static void AddMagicInstructions(THREADID tid, ADDRINT pc, ADDRINT ftPC, std::vector<fake_inst_info_t>& magic_insns) {
     thread_state_t* tstate = get_tls(tid);
 
-    tstate->lock.lock();
-    tstate->ignore = true;
-    tstate->lock.unlock();
-
-    auto repl_state = GetReplacement(pc);
-
     size_t mem_ind = 0;
-    for (auto& inst : repl_state) {
-        bool last_inst = (inst == repl_state.back());
+    for (auto& inst : magic_insns) {
+        bool last_inst = (inst == magic_insns.back());
         handshake_container_t* handshake = xiosim::buffer_management::GetBuffer(tstate->tid);
 
         handshake->asid = asid;
@@ -92,17 +120,36 @@ static void ReplacedBefore(THREADID tid, ADDRINT pc, ADDRINT ftPC) {
 
         xiosim::buffer_management::ProducerDone(tstate->tid);
     }
+}
 
-    xiosim::buffer_management::FlushBuffers(tstate->tid);
+static void StartIgnoring(THREADID tid) {
+    thread_state_t* tstate = get_tls(tid);
+    std::lock_guard<XIOSIM_LOCK> l(tstate->lock);
+    tstate->ignore = true;
+}
+
+static void StopIgnoring(THREADID tid) {
+    thread_state_t* tstate = get_tls(tid);
+    std::lock_guard<XIOSIM_LOCK> l(tstate->lock);
+    tstate->ignore = false;
+}
+
+/* Start ignoring instruction before the replaced instruction, and add the magically-encoded
+ * replacement instructions to the producer buffers. */
+static void ReplacedBefore(THREADID tid, ADDRINT pc, ADDRINT ftPC) {
+    StartIgnoring(tid);
+
+    auto repl_state = GetReplacement(pc);
+    AddMagicInstructions(tid, pc, ftPC, repl_state);
 }
 
 /* Stop ignoring instruction after the replaced instruction. */
-static void ReplacedAfter(THREADID tid) {
-    thread_state_t* tstate = get_tls(tid);
+static void ReplacedAfter(THREADID tid) { StopIgnoring(tid); }
 
-    tstate->lock.lock();
-    tstate->ignore = false;
-    tstate->lock.unlock();
+/* Just add the encoded inserts to producer buffers. */
+static void InsertedBefore(THREADID tid, ADDRINT pc, ADDRINT ftPC) {
+    auto magic_insns = GetInsert(pc);
+    AddMagicInstructions(tid, pc, ftPC, magic_insns);
 }
 
 /* Helper struct to send parameters to image instrumentation routines. */
@@ -138,6 +185,13 @@ static std::vector<fake_inst_info_t> PrepareReplacementBuffer(
     return encoded_insts;
 }
 
+static ADDRINT GetFirstPC(const std::vector<fake_inst_info_t>& encoded_insts) {
+    ADDRINT alt_pc = static_cast<ADDRINT>(-1);
+    if (encoded_insts.size())
+        alt_pc = encoded_insts.front().pc;
+    return alt_pc;
+}
+
 static void AddReplacementCalls(IMG img, void* v) {
     replacement_params_t* params = static_cast<replacement_params_t*>(v);
     RTN rtn = RTN_FindByName(img, params->function_name.c_str());
@@ -171,9 +225,7 @@ static void AddReplacementCalls(IMG img, void* v) {
         /* Make sure ignoring API is enabled, otherwise below does nothing. */
         ASSERTX(KnobIgnoringInstructions.Value());
         /* Fixup next PC in instrumentation. */
-        ADDRINT alt_pc = (ADDRINT) -1;
-        if (encoded_insts.size())
-            alt_pc = encoded_insts.front().pc;
+        ADDRINT alt_pc = GetFirstPC(encoded_insts);
         IgnoreCallsTo(rtn_pc, params->num_params + 1 /* the call + param pushes */, alt_pc);
 
         MarkReplaced(rtn_pc, encoded_insts);
@@ -196,9 +248,7 @@ void AddInstructionReplacement(INS ins, std::list<xed_encoder_instruction_t> ins
         /* Make sure ignoring API is enabled, otherwise below does nothing. */
         ASSERTX(KnobIgnoringInstructions.Value());
         /* Fixup next PC in instrumentation. */
-        ADDRINT alt_pc = (ADDRINT) -1;
-        if (encoded_insts.size())
-            alt_pc = encoded_insts.front().pc;
+        ADDRINT alt_pc = GetFirstPC(encoded_insts);
         IgnorePC(pc, alt_pc);
     }
 
@@ -217,6 +267,70 @@ void AddInstructionReplacement(INS ins, std::list<xed_encoder_instruction_t> ins
                    IARG_THREAD_ID,
                    IARG_CALL_ORDER,
                    CALL_ORDER_LAST,
+                   IARG_END);
+}
+
+static bool PredicateTaken(BOOL taken) { return taken; }
+
+static void StartIgnoringTaken(THREADID tid) {
+    thread_state_t* tstate = get_tls(tid);
+    std::lock_guard<XIOSIM_LOCK> l(tstate->lock);
+    tstate->ignore = true;
+    tstate->ignore_taken = true;
+}
+
+static void StopIgnoringTaken(THREADID tid) {
+    thread_state_t* tstate = get_tls(tid);
+    std::lock_guard<XIOSIM_LOCK> l(tstate->lock);
+    if (tstate->ignore && tstate->ignore_taken) {
+        tstate->ignore = false;
+        tstate->ignore_taken = false;
+    }
+}
+
+void IgnoreTakenBranchPath(INS jcc) {
+    INS_InsertIfCall(jcc,
+                     IPOINT_BEFORE,
+                     AFUNPTR(PredicateTaken),
+                     IARG_BRANCH_TAKEN,
+                     IARG_END);
+    INS_InsertThenCall(jcc,
+                       IPOINT_BEFORE,
+                       AFUNPTR(StartIgnoringTaken),
+                       IARG_THREAD_ID,
+                       IARG_END);
+}
+
+void StopIgnoringTakenBranch(RTN rtn) {
+    RTN_InsertCall(rtn,
+                   IPOINT_AFTER,
+                   AFUNPTR(StopIgnoringTaken),
+                   IARG_THREAD_ID,
+                   IARG_END);
+}
+
+void AddFallthroughInstructions(INS jcc, list<xed_encoder_instruction_t> insts) {
+    if (ExecMode != EXECUTION_MODE_SIMULATE)
+        return;
+
+    ADDRINT pc = INS_Address(jcc);
+    if (!IsInserted(pc)) {
+        auto encoded_insts = PrepareReplacementBuffer(insts);
+        MarkInserted(pc, encoded_insts);
+
+        /* Fixup next PC in instrumentation. */
+        ADDRINT alt_pc = GetFirstPC(encoded_insts);
+        UpdateftPC(pc, alt_pc);
+    }
+
+    INS_InsertCall(jcc,
+                   IPOINT_AFTER,  // AFTER on a branch means fallthrough only
+                   AFUNPTR(InsertedBefore),
+                   IARG_THREAD_ID,
+                   IARG_INST_PTR,
+                   IARG_FALLTHROUGH_ADDR,
+                   IARG_CALL_ORDER,
+                   CALL_ORDER_LAST,  // so we add instructions after all jump instrumentation
                    IARG_END);
 }
 

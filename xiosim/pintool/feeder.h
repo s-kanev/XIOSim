@@ -75,6 +75,7 @@ class thread_state_t {
 
         ignore = true;
         ignore_all = true;
+        ignore_taken = false;
         firstInstruction = true;
 
         num_inst = 0;
@@ -144,6 +145,9 @@ class thread_state_t {
     BOOL ignore;
     // Similar effect to above, but produced differently for sequential code
     BOOL ignore_all;
+    // Similar to above, but for when we need to distinguish ignoring the
+    // taken path of a branch. Only set when ignore is also set.
+    BOOL ignore_taken;
     // Stores the ID of the wait between before and afterWait. -1 outside.
     INT32 lastWaitID;
 
