@@ -31,6 +31,8 @@ inline const char * print_uop(const struct uop_t * uop) { return "NYI"; }
 
 std::string print_Mop(const struct Mop_t * Mop);
 
+xed_iclass_enum_t get_iclass(const struct Mop_t* Mop);
+
 }  // xiosim::x86
 }  // xiosim
 

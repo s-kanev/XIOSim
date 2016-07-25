@@ -136,6 +136,16 @@ static void HandleMagicInsMode(const std::vector<INS>& insns, xed_iclass_enum_t 
     }
     case REALISTIC: {
         MarkMagicInstructionHelper(insns[0]);
+
+        /* For sampling, ignore the rest of the trigger sequence.
+         * But don't ignore the whole taken path (IMG instrumentation
+         * will take care to only ignore DoSampledAllocation() there). */
+        if (iclass == XED_ICLASS_ADC) {
+            std::list<xed_encoder_instruction_t> empty;
+            /* Ignore all magic instructions (replace them with nothing). */
+            for (size_t i = 1; i < insns.size(); i++)
+                AddInstructionReplacement(insns[i], empty);
+        }
         break;
     }
     case BASELINE: {
@@ -222,6 +232,24 @@ void InstrumentTCMIMGHooks(IMG img) {
         return;
 
     MagicInsMode sampling_mode = StringToMagicInsMode(KnobSamplingMode.Value());
+
+    /* In realisting sampling mode, make sure we ignore DoSampledAllocation.
+     * We'll use the magic adc instruction to simulate the (constant) cost of a PMU
+     * interrupt, and we'll still simulate PickNextSamplingPoint() as it is, because
+     * we need to do it in the real case. */
+    if (sampling_mode == REALISTIC) {
+        const std::string sampled_sym("_ZL19DoSampledAllocationm");
+        RTN rtn = RTN_FindByName(img, sampled_sym.c_str());
+        if (RTN_Valid(rtn)) {
+#ifdef TCM_DEBUG
+            ADDRINT rtn_addr = RTN_Address(rtn);
+            std::cerr << "IMG found DoSampledAllocation @ pc: " << std::hex << rtn_addr
+                      << std::dec << ". Ignoring in real mode." << std::endl;
+#endif
+            std::list<xed_encoder_instruction_t> empty;
+            AddFunctionReplacement(sampled_sym, 0, empty);
+        }
+    }
 
     for (SEC sec = IMG_SecHead(img); SEC_Valid(sec); sec = SEC_Next(sec)) {
         std::string sec_name = SEC_Name(sec);

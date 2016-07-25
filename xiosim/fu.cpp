@@ -11,7 +11,7 @@ std::string md_fu2name[NUM_FU_CLASSES] = { "", /* NA */
                                            "int-shift",     "FP-add",         "FP-multiply",
                                            "FP-complex",    "FP-divide",      "load-port",
                                            "sta-port",      "std-port",       "agen-unit",
-                                           "magic-unit" };
+                                           "magic-unit",    "sampling-unit" };
 
 std::string fu_name(enum fu_class fu) {
     assert(fu < NUM_FU_CLASSES);

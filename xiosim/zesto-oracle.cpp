@@ -285,6 +285,19 @@ int core_oracle_t::next_index(const int index) {
     return modinc(index, MopQ_size);  // return (index+1)%MopQ_size;
 }
 
+static xed_iclass_enum_t check_replacements(struct Mop_t* Mop) {
+    /* The magic instruction have all kinds of crazy things: multiple uops,
+     * memory operands, etc. While it's not too late, turn them into 1-byte
+     * NOPs and remember which optimization we're representing. */
+    if (x86::get_iclass(Mop) == XED_ICLASS_ADC) {
+        Mop->fetch.code[0] = 0x90;
+        x86::decode(Mop);
+        x86::decode_flags(Mop);
+        return XED_ICLASS_ADC;
+    }
+    return XED_ICLASS_INVALID;
+}
+
 struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
     struct core_knobs_t* knobs = core->knobs;
     size_t flow_index = 0;
@@ -331,6 +344,10 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
     /* then decode the instruction */
     x86::decode(Mop);
     x86::decode_flags(Mop);
+
+    xed_iclass_enum_t replacement_type = XED_ICLASS_INVALID;
+    if (!handshake.flags.real)
+        replacement_type = check_replacements(Mop);
 
     md_addr_t oracle_NPC = handshake.flags.brtaken ? handshake.tpc : handshake.npc;
 
@@ -444,7 +461,14 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
 
     /* Magic instructions: fake NOPs go to a special magic ALU with a
      * configurable latency. Convenient to simulate various fixed-function HW. */
-    if (x86::is_nop(Mop) && !handshake.flags.real && !spec_mode) {
+    if (replacement_type == XED_ICLASS_ADC) {
+        zesto_assert(Mop->decode.last_uop_index == 0, NULL);
+        Mop->uop[0].decode.is_nop = false;
+        Mop->uop[0].decode.FU_class = FU_SAMPLING;
+#ifdef ZTRACE
+        ztrace_print(Mop, "Making sampling Mop magic.");
+#endif
+    } else if (x86::is_nop(Mop) && !handshake.flags.real && !spec_mode) {
         zesto_assert(Mop->decode.last_uop_index == 0, NULL);
         Mop->uop[0].decode.is_nop = false;
         Mop->uop[0].decode.FU_class = FU_MAGIC;

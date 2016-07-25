@@ -232,6 +232,8 @@ static void AddReplacementCalls(IMG img, void* v) {
     }
 }
 
+static bool PredicateTaken(BOOL taken) { return taken; }
+
 void AddInstructionReplacement(INS ins, std::list<xed_encoder_instruction_t> insts) {
     if (ExecMode != EXECUTION_MODE_SIMULATE)
         return;
@@ -268,9 +270,26 @@ void AddInstructionReplacement(INS ins, std::list<xed_encoder_instruction_t> ins
                    IARG_CALL_ORDER,
                    CALL_ORDER_LAST,
                    IARG_END);
-}
 
-static bool PredicateTaken(BOOL taken) { return taken; }
+    /* If we're replacing a branch or a call, make sure we stop ignoring on the taken
+     * path (the above IPOINT_AFTER call is only valid on the fallthrough). */
+    if (INS_IsDirectBranchOrCall(ins)) {
+        INS_InsertIfCall(ins,
+                         IPOINT_BEFORE,
+                         AFUNPTR(PredicateTaken),
+                         IARG_BRANCH_TAKEN,
+                         IARG_CALL_ORDER,
+                         CALL_ORDER_LAST,
+                         IARG_END);
+        INS_InsertThenCall(ins,
+                           IPOINT_BEFORE,
+                           AFUNPTR(ReplacedAfter),
+                           IARG_THREAD_ID,
+                           IARG_CALL_ORDER,
+                           CALL_ORDER_LAST,
+                           IARG_END);
+    }
+}
 
 static void StartIgnoringTaken(THREADID tid) {
     thread_state_t* tstate = get_tls(tid);

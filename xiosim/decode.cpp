@@ -156,5 +156,9 @@ std::string print_Mop(const struct Mop_t * Mop) {
     return buffer;
 }
 
+xed_iclass_enum_t get_iclass(const struct Mop_t* Mop) {
+    return xed_decoded_inst_get_iclass(&Mop->decode.inst);
+}
+
 }  // xiosim::x86
 }  // xiosim
