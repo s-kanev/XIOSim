@@ -13,12 +13,13 @@
 
 #include "tcm_hooks.h"
 
+#define TCM_DEBUG
+
 enum MagicInsMode {
   IDEAL,
   REALISTIC,
   BASELINE
 };
-
 
 KNOB<BOOL> KnobTCMHooks(KNOB_MODE_WRITEONCE, "pintool", "tcm_hooks", "true",
                         "Emulate tcmalloc replacements.");
@@ -31,9 +32,9 @@ KNOB<std::string> KnobSLLPopMode(
 KNOB<std::string> KnobSLLPushMode(
         KNOB_MODE_WRITEONCE, "pintool", "sll_push_mode", "baseline",
         "Desired mode for simulating the magic bextr instruction.");
-KNOB<std::string> KnobClassIndexMode(
-        KNOB_MODE_WRITEONCE, "pintool", "class_index_mode", "baseline",
-        "Desired mode for simulating the magic blsr instruction.");
+KNOB<std::string> KnobSizeClassMode(
+        KNOB_MODE_WRITEONCE, "pintool", "size_class_mode", "baseline",
+        "Desired mode for simulating the magic blsr and andn instructions.");
 KNOB<std::string> KnobSamplingMode(
         KNOB_MODE_WRITEONCE, "pintool", "sampling_mode", "baseline",
         "Desired mode for simulating the magic adc sequence.");
@@ -58,6 +59,8 @@ static void InsertEmulationCode(INS ins, xed_iclass_enum_t iclass);
 static std::vector<magic_insn_action_t> GetBaselineInstructions(const std::vector<INS>& insns,
                                                                 xed_iclass_enum_t iclass);
 static std::vector<INS> GetSamplingInstructions(INS adc);
+static std::vector<INS> GetSizeClassInstructions(INS blsr);
+static std::vector<INS> GetSizeClassCacheUpdateInstructions(INS andn);
 
 /* Helper to translate from pin registers to xed registers. Why isn't
  * this exposed through the pin API? */
@@ -71,6 +74,27 @@ static xed_reg_enum_t PinRegToXedReg(LEVEL_BASE::REG pin_reg) {
     auto res = str2xed_reg_enum_t(pin_str.c_str());
     ASSERTX(res != XED_REG_INVALID);
     return res;
+}
+
+/* Locate the next jump instruction after a test. In some cases
+ * (do_malloc_pages()), the optimizer sneaks in an independent instruction in
+ * between the two sequence. Look for a jump of class @jmp_iclass until we hit
+ * the end of the bbl.
+ */
+static INS GetNextJumpAfterTest(INS& test, xed_iclass_enum_t jmp_iclass) {
+    INS next = INS_Next(test);
+    while (INS_Valid(next)) {
+        xed_iclass_enum_t ins_iclass = static_cast<xed_iclass_enum_t>(INS_Opcode(next));
+        if (ins_iclass == jmp_iclass) {
+            // Found it!
+            ASSERTX(INS_HasFallThrough(next));
+            break;
+        }
+        next = INS_Next(next);
+    }
+    // If we've reached the end of the bbl without finding the jump.
+    ASSERTX(INS_Valid(next));
+    return next;
 }
 
 static void MarkMagicInstruction(THREADID tid, ADDRINT pc) {
@@ -175,8 +199,8 @@ void InstrumentTCMHooks(TRACE trace, VOID* v) {
 
     MagicInsMode pop_mode = StringToMagicInsMode(KnobSLLPopMode.Value());
     MagicInsMode push_mode = StringToMagicInsMode(KnobSLLPushMode.Value());
-    MagicInsMode class_index_mode =
-            StringToMagicInsMode(KnobClassIndexMode.Value());
+    MagicInsMode size_class_mode =
+            StringToMagicInsMode(KnobSizeClassMode.Value());
     MagicInsMode sampling_mode = StringToMagicInsMode(KnobSamplingMode.Value());
 
     for (BBL bbl = TRACE_BblHead(trace); BBL_Valid(bbl); bbl = BBL_Next(bbl)) {
@@ -185,7 +209,8 @@ void InstrumentTCMHooks(TRACE trace, VOID* v) {
             if (iclass != XED_ICLASS_LZCNT &&
                 iclass != XED_ICLASS_BEXTR &&
                 iclass != XED_ICLASS_BLSR &&
-                iclass != XED_ICLASS_ADC)
+                iclass != XED_ICLASS_ADC &&
+                iclass != XED_ICLASS_ANDN)
                 continue;
 
             SEC sec = RTN_Sec(INS_Rtn(ins));
@@ -214,7 +239,12 @@ void InstrumentTCMHooks(TRACE trace, VOID* v) {
                 HandleMagicInsMode(insns, iclass, push_mode);
                 break;
             case XED_ICLASS_BLSR:
-                HandleMagicInsMode(insns, iclass, class_index_mode);
+                insns = GetSizeClassInstructions(ins);
+                HandleMagicInsMode(insns, iclass, size_class_mode);
+                break;
+            case XED_ICLASS_ANDN:
+                insns = GetSizeClassCacheUpdateInstructions(ins);
+                HandleMagicInsMode(insns, iclass, size_class_mode);
                 break;
             case XED_ICLASS_ADC:
                 insns = GetSamplingInstructions(ins);
@@ -233,7 +263,7 @@ void InstrumentTCMIMGHooks(IMG img) {
 
     MagicInsMode sampling_mode = StringToMagicInsMode(KnobSamplingMode.Value());
 
-    /* In realisting sampling mode, make sure we ignore DoSampledAllocation.
+    /* In realistic sampling mode, make sure we ignore DoSampledAllocation.
      * We'll use the magic adc instruction to simulate the (constant) cost of a PMU
      * interrupt, and we'll still simulate PickNextSamplingPoint() as it is, because
      * we need to do it in the real case. */
@@ -298,18 +328,17 @@ static ADDRINT SLL_Pop_Emulation(ADDRINT head) {
     return result;
 }
 
-/* Emulate the ClassIndex() computation from tcmalloc. */
-static ADDRINT ClassIndex_Emulation(ADDRINT size) {
-    ADDRINT index;
-    if (size <= 1024) {
-        // Small size classes.
-        index = (static_cast<uint32_t>(size) + 7) >> 3;
-    } else {
-        // Large size classes.
-        index = (static_cast<uint32_t>(size) + 127 + (120 << 7)) >> 7;
-    }
-    return index;
+/* To emulate the behavior of the size class computation, we force the host to
+ * always the fallback path, so there is no need for any arguments.  0 is
+ * stored into the size class register.
+ */
+static ADDRINT MagicSizeClassOrFallback_Emulation() {
+    return 0;
 }
+
+/* Update the size class cache on the producer. For now, leave this blank.
+ */
+static VOID SizeClassCacheUpdate_Emulation() {}
 
 /* The placeholder instruction we compile with is a bextr dst, src1, src2.
  * src1 holds the address of the LL head, src2 holds the element we're pushing.
@@ -384,15 +413,28 @@ static void InsertEmulationCode(INS ins, xed_iclass_enum_t iclass) {
     }
     case XED_ICLASS_BLSR: {
 #ifdef TCM_DEBUG
-        std::cerr << " for blsr (ClassIndex).";
+        std::cerr << " for blsr (MagicSizeClassOrFallback). Returning to " <<
+           REG_StringShort(INS_RegW(ins, 0));
+#endif
+        // We will delete the blsr on the host but leave the test instruction
+        // so the host takes the right path.
+        INS_InsertCall(ins,
+                       IPOINT_BEFORE,
+                       AFUNPTR(MagicSizeClassOrFallback_Emulation),
+                       IARG_RETURN_REGS,
+                       INS_RegW(ins, 0),
+                       IARG_CALL_ORDER,
+                       CALL_ORDER_FIRST + 1,
+                       IARG_END);
+        break;
+    }
+    case XED_ICLASS_ANDN: {
+#ifdef TCM_DEBUG
+        std::cerr << " for andn (MagicSizeClassOrFallback).";
 #endif
         INS_InsertCall(ins,
                        IPOINT_BEFORE,
-                       AFUNPTR(ClassIndex_Emulation),
-                       IARG_REG_VALUE,
-                       INS_RegR(ins, 0),
-                       IARG_RETURN_REGS,
-                       INS_RegW(ins, 0),
+                       AFUNPTR(SizeClassCacheUpdate_Emulation),
                        IARG_CALL_ORDER,
                        CALL_ORDER_FIRST + 1,
                        IARG_END);
@@ -655,6 +697,39 @@ std::vector<magic_insn_action_t> Prepare_ClassIndex_Simulation(const std::vector
     return result;
 }
 
+/* For simulationg the baseline size class, we will just skip the three magic
+ * instructions. The host will force the branch to be taken and go to the
+ * software fallback.
+ */
+std::vector<magic_insn_action_t> Prepare_SizeClass_Simulation(const std::vector<INS>& insns) {
+    std::vector<magic_insn_action_t> result;
+
+    result.emplace_back();
+    result.emplace_back();
+    result.emplace_back();
+
+    return result;
+}
+
+/* For the size class cache update magic instruction sequence, we want both the
+ * andn and the jump ignored for the baseline.
+ */
+static std::vector<magic_insn_action_t> Prepare_SizeClassCacheUpdate_Simulation(
+    const std::vector<INS>& insns) {
+    INS andn = insns[0];
+    INS jmp = insns[1];
+    ASSERTX(static_cast<xed_iclass_enum_t>(INS_Opcode(andn)) == XED_ICLASS_ANDN);
+    ASSERTX(static_cast<xed_iclass_enum_t>(INS_Opcode(jmp)) == XED_ICLASS_JMP);
+
+    std::vector<magic_insn_action_t> result;
+
+    result.emplace_back();
+    result.emplace_back();
+
+    return result;
+}
+
+
 /* For sampling, the magic sequence we insert isn't a single instruction.
  * Grab the adc; lahf; test; jne; sequence that we'll be modifying.
  * They are all one the same bbl, so we can do this without gymnastics. */
@@ -674,20 +749,40 @@ static std::vector<INS> GetSamplingInstructions(INS adc) {
     ASSERTX(test_iclass == XED_ICLASS_TEST);
     result.push_back(test);
 
-    /* In some cases (do_malloc_pages()), the optimizer sneaks in an independent
-     * instruction in our sequence. Look for the jump until we hit the end of the bbl. */
-    INS jne = INS_Next(test);
-    while (INS_Valid(jne)) {
-        xed_iclass_enum_t jne_iclass = static_cast<xed_iclass_enum_t>(INS_Opcode(jne));
-        if (jne_iclass == XED_ICLASS_JNZ) {
-            result.push_back(jne);
-            ASSERTX(INS_HasFallThrough(jne));
-            break;
-        }
-        jne = INS_Next(jne);
-    }
-    /* We've reached the end of the bbl without finding the jne. Uh-oh. */
-    ASSERTX(INS_Valid(jne));
+    INS jne = GetNextJumpAfterTest(test, XED_ICLASS_JNZ);
+    result.push_back(jne);
+
+    return result;
+}
+
+/* For size class, the magic instruction sequence is blsr; test; je.  Grab this
+ * instruction sequence so we can handle them appropriately.
+ */
+static std::vector<INS> GetSizeClassInstructions(INS blsr) {
+    std::vector<INS> result{blsr};
+
+    INS test = INS_Next(blsr);
+    ASSERTX(INS_Valid(test));
+    xed_iclass_enum_t test_iclass = static_cast<xed_iclass_enum_t>(INS_Opcode(test));
+    ASSERTX(test_iclass == XED_ICLASS_TEST);
+    result.push_back(test);
+
+    INS je = GetNextJumpAfterTest(test, XED_ICLASS_JZ);
+    result.push_back(je);
+
+    return result;
+}
+
+/* For updating the size class cache, get the andn; jmp magic instruction
+ * sequence.
+ */
+static std::vector<INS> GetSizeClassCacheUpdateInstructions(INS andn) {
+    std::vector<INS> result{andn};
+    INS jmp = INS_Next(andn);
+    ASSERTX(INS_Valid(jmp));
+    xed_iclass_enum_t jmp_iclass = static_cast<xed_iclass_enum_t>(INS_Opcode(jmp));
+    ASSERTX(jmp_iclass == XED_ICLASS_JMP);
+    result.push_back(jmp);
 
     return result;
 }
@@ -772,7 +867,9 @@ static std::vector<magic_insn_action_t> GetBaselineInstructions(const std::vecto
     case XED_ICLASS_BEXTR:
         return Prepare_SLL_PushSimulation(insns);
     case XED_ICLASS_BLSR:
-        return Prepare_ClassIndex_Simulation(insns);
+        return Prepare_SizeClass_Simulation(insns);
+    case XED_ICLASS_ANDN:
+        return Prepare_SizeClassCacheUpdate_Simulation(insns);
     case XED_ICLASS_ADC:
         return Prepare_Sampling_Simulation(insns);
     default:

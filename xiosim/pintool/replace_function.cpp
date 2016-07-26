@@ -263,13 +263,15 @@ void AddInstructionReplacement(INS ins, std::list<xed_encoder_instruction_t> ins
                    IARG_CALL_ORDER,
                    CALL_ORDER_FIRST + 2,  // +2 to order wrt to eventual emulation calls
                    IARG_END);
-    INS_InsertCall(ins,
-                   IPOINT_AFTER,
-                   AFUNPTR(ReplacedAfter),
-                   IARG_THREAD_ID,
-                   IARG_CALL_ORDER,
-                   CALL_ORDER_LAST,
-                   IARG_END);
+
+    if (INS_HasFallThrough(ins))
+        INS_InsertCall(ins,
+                       IPOINT_AFTER,
+                       AFUNPTR(ReplacedAfter),
+                       IARG_THREAD_ID,
+                       IARG_CALL_ORDER,
+                       CALL_ORDER_LAST,
+                       IARG_END);
 
     /* If we're replacing a branch or a call, make sure we stop ignoring on the taken
      * path (the above IPOINT_AFTER call is only valid on the fallthrough). */
