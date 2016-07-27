@@ -155,6 +155,9 @@ static void HandleMagicInsMode(const std::vector<INS>& insns, xed_iclass_enum_t 
         if (iclass == XED_ICLASS_ADC) {
             INS jne = insns.back();
             IgnoreTakenBranchPath(jne);
+        } else if (iclass == XED_ICLASS_BLSR) {
+            INS je = insns.back();
+            IgnoreTakenBranchPath(je);
         }
         break;
     }
@@ -413,8 +416,7 @@ static void InsertEmulationCode(INS ins, xed_iclass_enum_t iclass) {
     }
     case XED_ICLASS_BLSR: {
 #ifdef TCM_DEBUG
-        std::cerr << " for blsr (MagicSizeClassOrFallback). Returning to " <<
-           REG_StringShort(INS_RegW(ins, 0));
+        std::cerr << " for blsr (MagicSizeClassOrFallback).";
 #endif
         // We will delete the blsr on the host but leave the test instruction
         // so the host takes the right path.
@@ -432,9 +434,15 @@ static void InsertEmulationCode(INS ins, xed_iclass_enum_t iclass) {
 #ifdef TCM_DEBUG
         std::cerr << " for andn (MagicSizeClassOrFallback).";
 #endif
+        // For some reason, the 0th source operand is actually the write
+        // operand for this instruction.
         INS_InsertCall(ins,
                        IPOINT_BEFORE,
                        AFUNPTR(SizeClassCacheUpdate_Emulation),
+                       IARG_REG_VALUE,
+                       INS_RegR(ins, 1),
+                       IARG_REG_VALUE,
+                       INS_RegR(ins, 2),
                        IARG_CALL_ORDER,
                        CALL_ORDER_FIRST + 1,
                        IARG_END);

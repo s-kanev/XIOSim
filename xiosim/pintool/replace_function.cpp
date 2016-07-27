@@ -274,21 +274,22 @@ void AddInstructionReplacement(INS ins, std::list<xed_encoder_instruction_t> ins
                        IARG_END);
 
     /* If we're replacing a branch or a call, make sure we stop ignoring on the taken
-     * path (the above IPOINT_AFTER call is only valid on the fallthrough). */
+     * path (the above IPOINT_AFTER call is only valid on the fallthrough), but if a later
+     * analysis call starts ignoring the taken branch again, make sure we defer to that. */
     if (INS_IsDirectBranchOrCall(ins)) {
         INS_InsertIfCall(ins,
                          IPOINT_BEFORE,
                          AFUNPTR(PredicateTaken),
                          IARG_BRANCH_TAKEN,
                          IARG_CALL_ORDER,
-                         CALL_ORDER_LAST,
+                         CALL_ORDER_LAST - 1,  // with respect to IgnoreTakenBranchPath.
                          IARG_END);
         INS_InsertThenCall(ins,
                            IPOINT_BEFORE,
                            AFUNPTR(ReplacedAfter),
                            IARG_THREAD_ID,
                            IARG_CALL_ORDER,
-                           CALL_ORDER_LAST,
+                           CALL_ORDER_LAST - 1,
                            IARG_END);
     }
 }
@@ -314,11 +315,15 @@ void IgnoreTakenBranchPath(INS jcc) {
                      IPOINT_BEFORE,
                      AFUNPTR(PredicateTaken),
                      IARG_BRANCH_TAKEN,
+                     IARG_CALL_ORDER,
+                     CALL_ORDER_LAST,
                      IARG_END);
     INS_InsertThenCall(jcc,
                        IPOINT_BEFORE,
                        AFUNPTR(StartIgnoringTaken),
                        IARG_THREAD_ID,
+                       IARG_CALL_ORDER,
+                       CALL_ORDER_LAST,
                        IARG_END);
 }
 
@@ -327,6 +332,8 @@ void StopIgnoringTakenBranch(RTN rtn) {
                    IPOINT_AFTER,
                    AFUNPTR(StopIgnoringTaken),
                    IARG_THREAD_ID,
+                   IARG_CALL_ORDER,
+                   CALL_ORDER_LAST,
                    IARG_END);
 }
 
