@@ -279,9 +279,8 @@ static bool check_load(const struct Mop_t* Mop) {
     case XED_IFORM_LODSW:
     case XED_IFORM_LODSD:
     case XED_IFORM_LODSQ:
-    /* Treat prefetches as 64b loads. There's a lot more we can do to be more
-     * accurate with real HW (like actually respect temporal hints), but this
-     * should be enough to cover the common cases. */
+    /* Treat SW prefetches as loads. We'll set a special flag for them (no odep),
+     * so the rest of the pipeline can handle them differently. */
     case XED_IFORM_PREFETCHNTA_MEMmprefetch:
     case XED_IFORM_PREFETCHT0_MEMmprefetch:
     case XED_IFORM_PREFETCHT1_MEMmprefetch:
@@ -587,6 +586,8 @@ static bool check_tables(struct Mop_t* Mop) {
         xiosim_assert(regs_written.size() <= 1);
         if (regs_written.size())
             Mop->uop[0].decode.odep_name[0] = regs_written.front();
+        else
+            Mop->uop[0].decode.is_pf = true;
         return true;
     }
 

@@ -31,10 +31,11 @@ const int32_t PF_LOOKAHEAD = 16;
  * IPC: ~0.283
  *
  * with -DPREFETCH: 2*X  instructions (8 * iterations * SIZE)
- * 3*Y load lookups
- *      (curr->next_ind; curr->pf_ind (same line, always hits), prefetch)
- * Y load misses (same # as before, but now these are the prefetches -> PROFIT!)
- * IPC: ~1.586
+ * 2*Y load lookups
+ *      (curr->next_ind; curr->pf_ind (same line, always hits))
+ * Y pf_lookups & pf_misses
+ * ~0 load misses
+ * IPC: ~1.2
  */
 int chase() {
     size_t ind = 0;

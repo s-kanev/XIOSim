@@ -1275,8 +1275,7 @@ void core_exec_IO_DPM_t::LDQ_schedule(void)
                  (port[uop->alloc.port_assignment].STQ->pipe[0].uop == NULL))
               {
                 uop->exec.when_data_loaded = TICK_T_MAX;
-                if(!uop->oracle.is_sync_op && (uop->exec.when_addr_translated == 0)) {
-                  uop->exec.when_addr_translated = TICK_T_MAX;
+                if(!uop->oracle.is_sync_op) {
                   cache_enqueue(core, core->memory.DTLB.get(), NULL, CACHE_READ, asid, uop->Mop->fetch.PC, memory::page_table_address(asid, uop->oracle.virt_addr), uop->exec.action_id, 0, NO_MSHR, uop, DTLB_callback, load_miss_reschedule, NULL, get_uop_action_id);
                 }
                 else

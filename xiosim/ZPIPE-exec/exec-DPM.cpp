@@ -193,6 +193,7 @@ class core_exec_DPM_t:public core_exec_t
   static bool translated_callback(void * const op,const seq_t);
   static seq_t get_uop_action_id(void * const op);
   static void load_miss_reschedule(void * const op, const int new_pred_latency);
+  static void prefetch_callback(void * const op);
 
   /* callbacks used by commit for stores */
   static void store_dl1_callback(void * const op);
@@ -886,70 +887,73 @@ void core_exec_DPM_t::snatch_back(struct uop_t * const replayed_uop)
 void core_exec_DPM_t::load_writeback(struct uop_t * const uop)
 {
   zesto_assert((uop->alloc.LDQ_index >= 0) && (uop->alloc.LDQ_index < core->knobs->exec.LDQ_size),(void)0);
-  if(!LDQ[uop->alloc.LDQ_index].hit_in_STQ) /* no match in STQ, so use cache value */
+  if(LDQ[uop->alloc.LDQ_index].hit_in_STQ)
+    /* match in STQ, don't use cache value */
+    return;
+
+#ifdef ZTRACE
+  ztrace_print(uop,"e|load|writeback from cache/writeback");
+#endif
+
+  int fp_penalty = !uop->decode.is_pf ? get_fp_penalty(uop) : 0;
+  zesto_assert(uop->timing.when_completed == TICK_T_MAX, (void)0);
+  uop->timing.when_completed = core->sim_cycle + fp_penalty;
+
+  if (uop->decode.is_pf)
+    /* prefetch, no odeps or bypass use */
+    return;
+
+  port[uop->alloc.port_assignment].when_bypass_used = core->sim_cycle+fp_penalty;
+  uop->exec.ovalue_valid = true;
+  update_last_completed(core->sim_cycle+fp_penalty); /* for deadlock detection */
+  if(uop->decode.is_ctrl && (uop->Mop->oracle.NextPC != uop->Mop->fetch.pred_NPC)) /* XXX: for RETN */
   {
+    core->oracle->pipe_recover(uop->Mop,uop->Mop->oracle.NextPC);
+    ZESTO_STAT(core->stat.num_jeclear++;)
+    if(uop->Mop->oracle.spec_mode)
+      ZESTO_STAT(core->stat.num_wp_jeclear++;)
 #ifdef ZTRACE
-    ztrace_print(uop,"e|load|writeback from cache/writeback");
+    ztrace_print(uop,"e|jeclear|load/RETN mispred detected (no STQ hit)");
 #endif
+  }
 
-    int fp_penalty = get_fp_penalty(uop);
+  if(uop->timing.when_otag_ready > (core->sim_cycle+fp_penalty))
+    /* we thought this output would be ready later in the future,
+       but it's ready now! */
+    uop->timing.when_otag_ready = core->sim_cycle+fp_penalty;
 
-    port[uop->alloc.port_assignment].when_bypass_used = core->sim_cycle+fp_penalty;
-    uop->exec.ovalue_valid = true;
-    zesto_assert(uop->timing.when_completed == TICK_T_MAX,(void)0);
-    uop->timing.when_completed = core->sim_cycle+fp_penalty;
-    update_last_completed(core->sim_cycle+fp_penalty); /* for deadlock detection */
-    if(uop->decode.is_ctrl && (uop->Mop->oracle.NextPC != uop->Mop->fetch.pred_NPC)) /* XXX: for RETN */
+  /* bypass output value to dependents, but also check to see if
+     dependents were already speculatively scheduled; if not,
+     wake them up. */
+  struct odep_t * odep = uop->exec.odep_uop;
+
+  while(odep)
+  {
+    /* check scheduling info (tags) */
+    if(odep->uop->timing.when_itag_ready[odep->op_num] > (core->sim_cycle+fp_penalty))
     {
-      core->oracle->pipe_recover(uop->Mop,uop->Mop->oracle.NextPC);
-      ZESTO_STAT(core->stat.num_jeclear++;)
-      if(uop->Mop->oracle.spec_mode)
-        ZESTO_STAT(core->stat.num_wp_jeclear++;)
-#ifdef ZTRACE
-      ztrace_print(uop,"e|jeclear|load/RETN mispred detected (no STQ hit)");
-#endif
-    }
+      tick_t when_ready = 0;
 
+      odep->uop->timing.when_itag_ready[odep->op_num] = core->sim_cycle+fp_penalty;
 
-    if(uop->timing.when_otag_ready > (core->sim_cycle+fp_penalty))
-      /* we thought this output would be ready later in the future,
-         but it's ready now! */
-      uop->timing.when_otag_ready = core->sim_cycle+fp_penalty;
+      for(size_t j=0;j<MAX_IDEPS;j++)
+        if(when_ready < odep->uop->timing.when_itag_ready[j])
+          when_ready = odep->uop->timing.when_itag_ready[j];
 
-    /* bypass output value to dependents, but also check to see if
-       dependents were already speculatively scheduled; if not,
-       wake them up. */
-    struct odep_t * odep = uop->exec.odep_uop;
-
-    while(odep)
-    {
-      /* check scheduling info (tags) */
-      if(odep->uop->timing.when_itag_ready[odep->op_num] > (core->sim_cycle+fp_penalty))
+      if(when_ready < TICK_T_MAX)
       {
-        tick_t when_ready = 0;
-
-        odep->uop->timing.when_itag_ready[odep->op_num] = core->sim_cycle+fp_penalty;
-
-        for(size_t j=0;j<MAX_IDEPS;j++)
-          if(when_ready < odep->uop->timing.when_itag_ready[j])
-            when_ready = odep->uop->timing.when_itag_ready[j];
-
-        if(when_ready < TICK_T_MAX)
-        {
-          odep->uop->timing.when_ready = when_ready;
-          if(!odep->uop->exec.in_readyQ)
-            insert_ready_uop(odep->uop);
-        }
+        odep->uop->timing.when_ready = when_ready;
+        if(!odep->uop->exec.in_readyQ)
+          insert_ready_uop(odep->uop);
       }
-
-      /* bypass value */
-      zesto_assert(!odep->uop->exec.ivalue_valid[odep->op_num],(void)0);
-      odep->uop->exec.ivalue_valid[odep->op_num] = true;
-      odep->uop->timing.when_ival_ready[odep->op_num] = core->sim_cycle+fp_penalty;
-
-      odep = odep->next;
     }
 
+    /* bypass value */
+    zesto_assert(!odep->uop->exec.ivalue_valid[odep->op_num],(void)0);
+    odep->uop->exec.ivalue_valid[odep->op_num] = true;
+    odep->uop->timing.when_ival_ready[odep->op_num] = core->sim_cycle+fp_penalty;
+
+    odep = odep->next;
   }
 }
 
@@ -1158,7 +1162,6 @@ void core_exec_DPM_t::DTLB_callback(void * const op)
   if(uop->alloc.LDQ_index != -1)
   {
     struct LDQ_t * LDQ_item = &E->LDQ[uop->alloc.LDQ_index];
-    zesto_assert(uop->exec.when_addr_translated == TICK_T_MAX,(void)0);
     uop->exec.when_addr_translated = core->sim_cycle;
 #ifdef ZTRACE
     ztrace_print(uop,"e|load|virtual address translated");
@@ -1169,6 +1172,9 @@ void core_exec_DPM_t::DTLB_callback(void * const op)
       E->load_writeback(uop);
   }
 }
+
+/* dummy callback, prefetches don't care about a result */
+void core_exec_DPM_t::prefetch_callback(void * const op) { }
 
 /* returns true if TLB translation has completed */
 bool core_exec_DPM_t::translated_callback(void * const op, const seq_t action_id)
@@ -1616,15 +1622,19 @@ void core_exec_DPM_t::LDQ_schedule(void)
                  (port[uop->alloc.port_assignment].STQ->pipe[0].uop == NULL))
               {
                 uop->exec.when_data_loaded = TICK_T_MAX;
-                if(!uop->oracle.is_sync_op && (uop->exec.when_addr_translated == 0)) {
-                  uop->exec.when_addr_translated = TICK_T_MAX;
+                if(!uop->oracle.is_sync_op) {
                   cache_enqueue(core, core->memory.DTLB.get(), NULL, CACHE_READ, asid, uop->Mop->fetch.PC, memory::page_table_address(asid, uop->oracle.virt_addr), uop->exec.action_id, 0, NO_MSHR, uop, DTLB_callback, load_miss_reschedule, NULL, get_uop_action_id);
                 }
                 else
                   // The wait address is bogus, don't schedule a TLB translation
                   uop->exec.when_addr_translated = core->sim_cycle;
 
-                if(send_to_dl1 && !uop->oracle.is_sync_op)
+                if(uop->decode.is_pf)
+                    cache_enqueue(core, core->memory.DL1.get(), NULL, CACHE_PREFETCH, asid,
+                                  uop->Mop->fetch.PC, uop->oracle.virt_addr, (seq_t)-1, 0,
+                                  NO_MSHR, NULL, prefetch_callback, NULL, NULL, NULL);
+
+                if(send_to_dl1 && !uop->oracle.is_sync_op && !uop->decode.is_pf)
                   cache_enqueue(core, core->memory.DL1.get(), NULL, CACHE_READ, asid, uop->Mop->fetch.PC, uop->oracle.virt_addr, uop->exec.action_id, 0, NO_MSHR, uop, DL1_callback, load_miss_reschedule, translated_callback, get_uop_action_id);
 
                 if(uop->oracle.is_repeated) {
@@ -1635,8 +1645,11 @@ void core_exec_DPM_t::LDQ_schedule(void)
                 else
                   LDQ[index].first_repeated = false;
 
-                port[uop->alloc.port_assignment].STQ->pipe[0].uop = uop;
-                port[uop->alloc.port_assignment].STQ->pipe[0].action_id = uop->exec.action_id;
+                /* schedule STQ search for load (unless a prefetch) */
+                if (!uop->decode.is_pf)  {
+                  port[uop->alloc.port_assignment].STQ->pipe[0].uop = uop;
+                  port[uop->alloc.port_assignment].STQ->pipe[0].action_id = uop->exec.action_id;
+                }
 
                 LDQ[index].first_byte_requested = true;
                 if(uop->oracle.is_sync_op ||
@@ -1650,6 +1663,13 @@ void core_exec_DPM_t::LDQ_schedule(void)
                   LDQ[index].when_issued = core->sim_cycle;
                   LDQ[index].repeater_last_arrived = true;
                   LDQ[index].last_repeated = false;
+                }
+
+                if(uop->decode.is_pf) {
+                  /* pf-s "data" already here, just wait for a TLB translation */
+                  LDQ[index].first_byte_arrived = true;
+                  uop->exec.when_data_loaded = core->sim_cycle;
+                  zesto_assert(LDQ[index].last_byte_arrived, (void)0);
                 }
 
                 if(!LDQ[index].speculative_broadcast) /* need to re-wakeup children */

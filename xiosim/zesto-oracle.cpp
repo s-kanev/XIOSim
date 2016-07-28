@@ -436,6 +436,9 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
             auto mem_access = handshake.mem_buffer[mem_op_index];
             uop->oracle.virt_addr = mem_access.first;
             uop->decode.mem_size = mem_access.second;
+            if (uop->decode.is_pf)
+                /* make sure SW prefetches never cross cache lines. */
+                uop->decode.mem_size = 1;
 
             zesto_assert(uop->oracle.virt_addr != 0 || uop->Mop->oracle.spec_mode, NULL);
             uop->oracle.phys_addr =

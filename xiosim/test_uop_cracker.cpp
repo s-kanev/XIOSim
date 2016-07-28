@@ -926,3 +926,19 @@ TEST_CASE("XCHG", "[uop]") {
 
     REQUIRE(c.Mop.decode.flow_length == 8);
 }
+
+TEST_CASE("PREFETCHT0", "[uop]") {
+    xed_context c;
+    xed_inst1(&c.x, c.dstate, XED_ICLASS_PREFETCHT0, 0,
+              xed_mem_bd(largest_reg(XED_REG_EDX),
+                         xed_disp(0xbeef, 32),
+                         8 * 64));  // get that whole cache line!
+    c.encode();
+
+    c.decode_and_crack();
+
+    REQUIRE(c.Mop.decode.flow_length == 1);
+    REQUIRE(c.Mop.uop[0].decode.is_load);
+    REQUIRE(c.Mop.uop[0].decode.is_pf);
+    REQUIRE(c.Mop.uop[0].decode.odep_name[0] == XED_REG_INVALID);
+}
