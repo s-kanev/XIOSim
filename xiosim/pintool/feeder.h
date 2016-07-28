@@ -93,7 +93,7 @@ class thread_state_t {
           core_knobs.fetch.ras_opt_str
         );
         lastBranchPrediction = 0;
-        size_class_cache.set_size(core_knobs.size_class_cache.size);
+        size_class_cache.set_size(core_knobs.exec.size_class_cache.size);
         size_class_cache.set_tid(tid);
     }
 

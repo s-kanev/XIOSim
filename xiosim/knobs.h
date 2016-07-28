@@ -92,6 +92,10 @@ struct core_knobs_t {
         bool tornado_breaker;
         bool throttle_partial;
         const char* repeater_opt_str;
+
+        struct {
+            size_t size;
+        } size_class_cache;
     } exec;
 
     struct {
@@ -136,10 +140,6 @@ struct core_knobs_t {
         int branch_limit; /* maximum number of branches committed per cycle */
         int pre_commit_depth;
     } commit;
-
-    struct {
-        size_t size;
-    } size_class_cache;
 };
 
 struct uncore_knobs_t {

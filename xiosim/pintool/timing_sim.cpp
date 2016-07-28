@@ -4,8 +4,11 @@
 #include "xiosim/knobs.h"
 #include "xiosim/libsim.h"
 #include "xiosim/memory.h"
+#include "xiosim/sim.h"
 #include "xiosim/slices.h"
 #include "xiosim/synchronization.h"
+#include "xiosim/zesto-core.h"
+#include "xiosim/zesto-exec.h"
 #include "xiosim/zesto-config.h"
 
 #include "BufferManagerConsumer.h"
@@ -92,6 +95,7 @@ void* SimulatorLoop(void* arg) {
                 xiosim::buffer_management::Pop(instrument_tid);
 
                 // Let the scheduler send something else to this core
+                cores[coreID]->exec->flush_size_class_cache();
                 GiveUpCore(coreID, should_reschedule);
                 break;
             }

@@ -365,13 +365,16 @@ static ADDRINT MagicSizeClassOrFallback_Emulation(THREADID tid, ADDRINT size,
         thread_state_t* tstate = get_tls(tid);
         size_class_pair_t result;
         bool found = tstate->size_class_cache.lookup(size, result);
+        // Abusing mem_buffer to store the requested size class (input operand
+        // of this magic instruction).
+        auto handshake = xiosim::buffer_management::GetBuffer(tstate->tid);
+        handshake->mem_buffer.push_back(
+                std::make_pair(static_cast<md_addr_t>(size), 0));
         if (found) {
             size_reg->qword[0] = static_cast<UINT64>(result.get_size());
             ASSERTX(result.get_size_class() > 0);
-            return result.get_size_class();
-        } else {
-            return 0;
         }
+        return result.get_size_class();
     }
     }
     return 0;
@@ -388,6 +391,11 @@ static VOID SizeClassCacheUpdate_Emulation(THREADID tid, ADDRINT orig_size, ADDR
         if (ExecMode == EXECUTION_MODE_SIMULATE) {
             // If we're not simulating, none of these optimizations matter.
             thread_state_t* tstate = get_tls(tid);
+            auto handshake = xiosim::buffer_management::GetBuffer(tstate->tid);
+            // Ugly, but we need three parameters, so we need two pairs.
+            handshake->mem_buffer.push_back(std::make_pair(static_cast<md_addr_t>(orig_size), 0));
+            handshake->mem_buffer.push_back(
+                    std::make_pair(static_cast<md_addr_t>(size), static_cast<uint8_t>(cl)));
             tstate->size_class_cache.update(orig_size, size, cl);
         }
     }

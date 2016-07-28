@@ -28,6 +28,8 @@ cc_binary(
         "//third_party/ezOptionParser",
         "//xiosim:core_const",
         "//xiosim:libsim",
+        "//xiosim:zesto-core",
+        "//xiosim:zesto-exec",
         "//xiosim:zesto-config",
     ],
 )

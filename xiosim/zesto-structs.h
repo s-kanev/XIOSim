@@ -147,7 +147,7 @@ struct alignas(16) uop_t
     /* for load instructions */
     tick_t when_data_loaded;
     tick_t when_addr_translated;
-    
+
     int uops_in_RS; /* used only for fusion-head */
     int num_replays; /* number of times reached exec but ivalue not ready */
   } exec;
@@ -316,6 +316,7 @@ struct alignas(16) Mop_t
 
     bool is_trap;
     bool is_ctrl;
+    bool is_magic; /* Is magic op? */
     bool has_rep;
 
     size_t last_stage_index; /* index of next uop to remove from decode pipe */
@@ -343,6 +344,14 @@ struct alignas(16) Mop_t
     bool stopwatch_start;
     bool stopwatch_stop;
     uint32_t stopwatch_id;
+
+    // On a size class cache lookup or insert, record all input operands here.
+    // Operands are stored in handshake->mem_buffer (evil).
+    struct {
+      size_t req_size;          // Requested size.
+      size_t alloc_size;        // Allocated size.
+      size_t alloc_size_class;  // Allocated size class.
+    } size_class_cache;
   } oracle;
 
   struct {

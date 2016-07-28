@@ -111,6 +111,7 @@ gen_list(
     extra_deps = [
         ":helix",
         ":memory",
+        ":tcmalloc-magic",
         ":zesto-memdep",
         ":ztrace",
     ],

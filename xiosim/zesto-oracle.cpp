@@ -295,12 +295,15 @@ static xed_iclass_enum_t check_replacements(struct Mop_t* Mop) {
         Mop->fetch.code[0] = 0x90;
         x86::decode(Mop);
         x86::decode_flags(Mop);
+        Mop->decode.is_magic = true;
         return XED_ICLASS_ADC;
     } else if (x86::get_iclass(Mop) == XED_ICLASS_BLSR) {
         // The size class instructions will just get turned into a 1-uop flow
         // by the uop cracker fallback, and we will fix up dependencies later.
+        Mop->decode.is_magic = true;
         return XED_ICLASS_BLSR;
     } else if (x86::get_iclass(Mop) == XED_ICLASS_SHLD) {
+        Mop->decode.is_magic = true;
         return XED_ICLASS_SHLD;
     }
     return XED_ICLASS_INVALID;
@@ -427,6 +430,26 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
     } else if (replacement_type == XED_ICLASS_SHLD) {
         // shld does not actually write to the write operand.
         Mop->uop[0].decode.odep_name[0] = XED_REG_INVALID;
+    }
+
+    /* Make other special case adjustments for magic instructions. */
+    if (replacement_type == XED_ICLASS_BLSR) {
+        // Get requested size from handshake.
+        zesto_assert(handshake.mem_buffer.size() == 1, (void)0);
+        auto size_class_pair = handshake.mem_buffer.front();
+        size_t size = static_cast<size_t>(size_class_pair.first);
+        Mop->oracle.size_class_cache.req_size = size;
+    } else if (replacement_type == XED_ICLASS_SHLD) {
+        // Get original requested size, allocated size, and size class.
+        zesto_assert(handshake.mem_buffer.size() == 2, (void)0);
+        auto req_size_class_pair = handshake.mem_buffer[0];
+        auto alloc_size_class_pair = handshake.mem_buffer[1];
+        size_t req_size = static_cast<size_t>(req_size_class_pair.first);
+        size_t alloc_size = static_cast<size_t>(alloc_size_class_pair.first);
+        size_t alloc_size_class = static_cast<size_t>(alloc_size_class_pair.second);
+        Mop->oracle.size_class_cache.req_size = req_size;
+        Mop->oracle.size_class_cache.alloc_size = alloc_size;
+        Mop->oracle.size_class_cache.alloc_size_class = alloc_size_class;
     }
 
     flow_index = 0;

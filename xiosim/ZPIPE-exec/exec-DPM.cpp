@@ -3,13 +3,14 @@
  * __COPYRIGHT__ GT
  */
 
-
 #ifdef ZESTO_PARSE_ARGS
   if(!strcasecmp(exec_opt_string,"DPM"))
     return std::make_unique<class core_exec_DPM_t>(core);
 #else
 
 #include <bitset>
+#include "xiosim/decode.h"
+#include "xiosim/size_class_cache.h"
 
 class core_exec_DPM_t:public core_exec_t
 {
@@ -82,6 +83,9 @@ class core_exec_DPM_t:public core_exec_t
   virtual void STQ_squash_senior(void);
   virtual void STQ_set_addr(struct uop_t * const uop);
   virtual void STQ_set_data(struct uop_t * const uop);
+
+  virtual void magic_FU_exec(struct uop_t * const uop);
+  virtual void flush_size_class_cache();
 
   virtual void recover_check_assertions(void);
 
@@ -176,6 +180,7 @@ class core_exec_DPM_t:public core_exec_t
 
   std::unique_ptr<class memdep_t> memdep;
 
+  std::unique_ptr<SizeClassCache> size_class_cache;
 
   /* various exec utility functions */
 
@@ -318,6 +323,8 @@ core_exec_DPM_t::core_exec_DPM_t(struct core_t * const arg_core):
 
   memdep = memdep_create(core, knobs->exec.memdep_opt_str);
 
+  size_class_cache = std::make_unique<SizeClassCache>(knobs->exec.size_class_cache.size);
+
   check_for_work = true;
 }
 
@@ -413,6 +420,8 @@ void core_exec_DPM_t::reg_stats(xiosim::stats::StatsDatabase* sdb) {
                                    &core->stat.STQ_empty_cycles,
                                    &core->stat.STQ_full_cycles);
     memdep->reg_stats(sdb, core);
+
+    size_class_cache->reg_stats(sdb, coreID);
 }
 
 void core_exec_DPM_t::freeze_stats(void)
@@ -486,7 +495,7 @@ void core_exec_DPM_t::reset_execution(void)
   check_for_work = true;
 }
 
-/* Functions to support dependency tracking 
+/* Functions to support dependency tracking
    NOTE: "Ready" Queue is somewhat of a misnomer... uops are placed in the
    readyQ when all of their data-flow parents have issued (although not
    necessarily executed).  However, that doesn't necessarily mean that the
@@ -726,7 +735,7 @@ bool core_exec_DPM_t::check_load_issue_conditions(const struct uop_t * const uop
     /* check addr match */
     int st_mem_size = STQ[i].mem_size;
     md_addr_t st_addr1, st_addr2;
-    
+
     if(STQ[i].addr_valid)
       st_addr1 = STQ[i].virt_addr; /* addr of first byte */
     else
@@ -1587,7 +1596,7 @@ void core_exec_DPM_t::LDQ_schedule(void)
 
         /* Light fence -- the youngest store (at allocation time of the fence)
          * still hasn't gone out of STQ (i.e. gone to caches) */
-        if (STQ[stq_ind].std && 
+        if (STQ[stq_ind].std &&
             (STQ[stq_ind].std->decode.uop_seq < fence->decode.uop_seq))
           continue;
 
@@ -1833,7 +1842,7 @@ void core_exec_DPM_t::ST_ALU_exec(const struct uop_t * const uop)
         md_addr_t new_st_addr1 = STQ[overwrite_index].virt_addr;
         md_addr_t new_st_addr2 = new_st_addr1 + STQ[overwrite_index].mem_size - 1;
 
-        /* does this store overwrite any of our bytes? 
+        /* does this store overwrite any of our bytes?
            (1) address has been computed and
            (2) addr does NOT come completely before or after us */
         if(STQ[overwrite_index].addr_valid &&
@@ -1980,6 +1989,27 @@ void core_exec_DPM_t::STQ_set_data(struct uop_t * const uop)
   STQ[uop->alloc.STQ_index].value_valid = true;
 }
 
+void core_exec_DPM_t::magic_FU_exec(struct uop_t * const uop)
+{
+  xed_iclass_enum_t iclass = x86::get_iclass(uop->Mop);
+  if (iclass == XED_ICLASS_BLSR) {
+    size_class_pair_t result;
+    size_class_cache->lookup(uop->Mop->oracle.size_class_cache.req_size, result);
+  } else if (iclass == XED_ICLASS_SHLD) {
+      size_class_cache->update(uop->Mop->oracle.size_class_cache.req_size,
+                               uop->Mop->oracle.size_class_cache.alloc_size,
+                               uop->Mop->oracle.size_class_cache.alloc_size_class);
+  } else if (iclass == XED_ICLASS_ADC) {
+    // Nothing actually needs to be done here.
+  } else {
+    zesto_assert(false && "Unrecognized magic instruction type.",(void)0);
+  }
+}
+
+void core_exec_DPM_t::flush_size_class_cache() {
+    size_class_cache->flush();
+}
+
 /* Process actual execution (in ALUs) of uops, as well as shuffling of
    uops through the payload pipeline. */
 void core_exec_DPM_t::ALU_exec(void)
@@ -2066,6 +2096,10 @@ void core_exec_DPM_t::ALU_exec(void)
               else if(uop->decode.is_std)
               {
                 STQ_set_data(uop);
+              }
+              else if (uop->Mop->decode.is_magic)
+              {
+                magic_FU_exec(uop);
               }
 
               if((uop->decode.is_sta || uop->decode.is_std) &&
@@ -2469,7 +2503,7 @@ bool core_exec_DPM_t::STQ_deallocate_std(struct uop_t * const uop)
      Manual"). */
   struct cache_t* tlb = (core->memory.DTLB2) ? core->memory.DTLB2.get() : core->memory.DTLB.get();
   /* Wait until we can submit to DTLB (sync ops don't use TLB) */
-  if(get_STQ_request_type(uop) == CACHE_WRITE && 
+  if(get_STQ_request_type(uop) == CACHE_WRITE &&
      !cache_enqueuable(tlb, asid, memory::page_table_address(asid, uop->oracle.virt_addr)))
     return false;
   /* Wait until we can submit to DL1 */
@@ -2746,7 +2780,7 @@ void core_exec_DPM_t::store_dtlb_callback(void * const op)
   struct uop_t * uop = (struct uop_t *)op;
   struct core_t * core = uop->core;
   struct core_exec_DPM_t * E = (core_exec_DPM_t*)core->exec.get();
-  
+
 #ifdef ZTRACE
   ztrace_print(uop,"c|store|translated");
 #endif

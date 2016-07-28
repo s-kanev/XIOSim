@@ -59,7 +59,12 @@ class index_range_t {
             end = value + 1;
     }
 
-    bool operator<(const index_range_t& other) const { return begin < other.begin; }
+    /* Returns true if the bounds of this index range are both less than the
+     * beginning of the other index range.
+     */
+    bool operator<(const index_range_t& other) const {
+        return begin < other.begin && end <= other.begin;
+    }
     size_t get_begin() const { return begin; }
     size_t get_end() const { return end; }
 
@@ -98,6 +103,12 @@ class SizeClassCache {
     void set_size(size_t size) { cache_size = size; }
     void set_tid(pid_t _tid) { tid = _tid; }
 
+    /* Searches for a mapping for the requested size.
+     *
+     * If the lookup hits, the mapping is stored in @result and true is
+     * returned. If the lookup misses, @result stores (class = 0, size = requested_size),
+     * and false is returned.
+     */
     bool lookup(size_t requested_size, size_class_pair_t& result) {
         size_t cl_index = compute_index(requested_size);
         index_range_t key(cl_index, cl_index+1);
@@ -107,6 +118,7 @@ class SizeClassCache {
                       << " with index " << cl_index << std::endl;
 #endif
             misses++;
+            result = size_class_pair_t(0, requested_size);
             return false;
         } else {
             result = cache[key];
@@ -120,6 +132,16 @@ class SizeClassCache {
         }
     }
 
+    /* Update the cache with a new mapping.
+     *
+     * The mapping will be for a range from the index of @orig_size to the index
+     * of @size. orig_size must be provided for ranges to expand correctly.
+     *
+     * Arguments:
+     *    orig_size: the original requested size.
+     *    size: the allocated size.
+     *    cl: allocated size class.
+     */
     void update(size_t orig_size, size_t size, size_t cl) {
         size_t orig_cl_idx = compute_index(orig_size);
         size_t new_cl_idx = compute_index(size);
@@ -166,34 +188,18 @@ class SizeClassCache {
 
     void reg_stats(xiosim::stats::StatsDatabase* sdb, int coreID) {
         using namespace xiosim::stats;
-        const size_t LEN = 64;
-        char stat_name_prefix[LEN];
-        char hits_name[LEN];
-        char misses_name[LEN];
-        char evictions_name[LEN];
-        char insertions_name[LEN];
-        char accesses_name[LEN];
-        char hit_rate_name[LEN];
 
-        snprintf(stat_name_prefix, LEN, "size_class_cache.%d.", tid);
-        snprintf(hits_name, LEN, "%s.%s.", stat_name_prefix, "hits");
-        snprintf(misses_name, LEN, "%s.%s.", stat_name_prefix, "misses");
-        snprintf(insertions_name, LEN, "%s.%s.", stat_name_prefix, "insertions");
-        snprintf(evictions_name, LEN, "%s.%s.", stat_name_prefix, "evictions");
-        snprintf(accesses_name, LEN, "%s.%s.", stat_name_prefix, "accesses");
-        snprintf(hit_rate_name, LEN, "%s.%s.", stat_name_prefix, "hit_rate");
-
-        auto& hits_stat = stat_reg_core_qword(sdb, true, coreID, hits_name,
+        auto& hits_stat = stat_reg_core_qword(sdb, true, coreID, "size_class_cache.hits",
                                               "Size class hits", &hits, 0, true, NULL);
-        auto& misses_stat = stat_reg_core_qword(sdb, true, coreID, misses_name,
+        auto& misses_stat = stat_reg_core_qword(sdb, true, coreID, "size_class_cache.misses",
                                                 "Size class misses", &misses, 0, true, NULL);
-        stat_reg_core_qword(sdb, true, coreID, insertions_name,
+        stat_reg_core_qword(sdb, true, coreID, "size_class_cache.insertions",
                             "Size class insertions", &insertions, 0, true, NULL);
-        stat_reg_core_qword(sdb, true, coreID, evictions_name, "Size class evictions",
+        stat_reg_core_qword(sdb, true, coreID, "size_class_cache.evictions", "Size class evictions",
                             &evictions, 0, true, NULL);
-        stat_reg_core_formula(sdb, true, coreID, accesses_name,
+        stat_reg_core_formula(sdb, true, coreID, "size_class_cache.accesses",
                               "Size class total accesses", hits_stat + misses_stat, NULL);
-        stat_reg_core_formula(sdb, true, coreID, hit_rate_name, "Size class hit rate",
+        stat_reg_core_formula(sdb, true, coreID, "size_class_cache.hit_rate", "Size class hit rate",
                               hits_stat / (hits_stat + misses_stat), NULL);
     }
 

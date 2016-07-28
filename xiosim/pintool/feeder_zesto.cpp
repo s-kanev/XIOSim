@@ -227,6 +227,7 @@ VOID AddGiveUpHandshake(THREADID tid, bool start_ignoring, bool reschedule) {
 
     /* When the handshake is consumed, this will let the scheduler de-schedule
      * the thread. */
+    tstate->size_class_cache.flush();
     handshake_container_t* handshake = xiosim::buffer_management::GetBuffer(tstate->tid);
     handshake->flags.valid = true;
     handshake->flags.real = false;

@@ -260,7 +260,7 @@ static void store_exec_stage_options(cfg_t* exec_opt, core_knobs_t* knobs) {
     knobs->exec.repeater_opt_str = cfg_getstr(repeater_opt, "config");
     knobs->memory.DL1_rep_req = cfg_getbool(repeater_opt, "request_dl1");
 
-    knobs->size_class_cache.size = cfg_getint(size_class_cache_opt, "size");
+    knobs->exec.size_class_cache.size = cfg_getint(size_class_cache_opt, "size");
 
     store_execution_unit_options(exec_opt, "int_alu", FU_IEU, knobs);
     store_execution_unit_options(exec_opt, "jump", FU_JEU, knobs);
