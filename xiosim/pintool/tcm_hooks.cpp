@@ -58,6 +58,8 @@ struct magic_insn_action_t {
 static void InsertEmulationCode(INS ins, xed_iclass_enum_t iclass);
 static std::vector<magic_insn_action_t> GetBaselineInstructions(const std::vector<INS>& insns,
                                                                 xed_iclass_enum_t iclass);
+static std::vector<magic_insn_action_t> GetIdealInstructions(const std::vector<INS>& insns,
+                                                                xed_iclass_enum_t iclass);
 static std::vector<INS> GetSamplingInstructions(INS adc);
 static std::vector<INS> GetSizeClassInstructions(INS blsr);
 static std::vector<INS> GetSizeClassCacheUpdateInstructions(INS andn);
@@ -146,10 +148,12 @@ static void HandleMagicInsMode(const std::vector<INS>& insns, xed_iclass_enum_t 
                                MagicInsMode mode) {
     switch (mode) {
     case IDEAL: {
-        std::list<xed_encoder_instruction_t> empty;
+        auto repl = GetIdealInstructions(insns, iclass);
         /* Ignore all magic instructions (replace them with nothing). */
-        for (auto ins : insns)
-            AddInstructionReplacement(ins, empty);
+        for (size_t i = 0; i < insns.size(); i++) {
+            if (repl[i].do_replace)
+                AddInstructionReplacement(insns[i], repl[i].insns);
+        }
 
         /* For sampling, ignore everything on the taken branch path. */
         if (iclass == XED_ICLASS_ADC) {
@@ -883,4 +887,59 @@ static std::vector<magic_insn_action_t> GetBaselineInstructions(const std::vecto
     default:
         return std::vector<magic_insn_action_t>();
     }
+}
+
+/* Analysis routine to prepare memory addresses for a potential replacement. */
+static void SLL_Pop_GetIdealMemOperands(THREADID tid, ADDRINT pc, ADDRINT head) {
+    ADDRINT result;
+    /* Dereference the LL head. */
+    PIN_SafeCopy(&result, reinterpret_cast<VOID*>(head), sizeof(ADDRINT));
+
+    thread_state_t* tstate = get_tls(tid);
+    tstate->replacement_mem_ops[pc].clear();
+    tstate->replacement_mem_ops.at(pc).push_back({result, sizeof(ADDRINT)});
+}
+
+/* Helper for the ideal SLL_Pop sequence.
+ * Returns a SW prefetch to represent the best case cache-warming effects of the SLL pop.
+ * Sets up an analysis routine to grab the correspoining memory operand. */
+static std::vector<magic_insn_action_t> Prepare_SLL_PopMagic(const std::vector<INS>& insns) {
+    INS lzcnt = insns.front();
+    REG head_reg = INS_RegR(lzcnt, 0);
+    xed_reg_enum_t head_reg_xed = PinRegToXedReg(head_reg);
+
+    INS_InsertCall(lzcnt,
+                   IPOINT_BEFORE,
+                   AFUNPTR(SLL_Pop_GetIdealMemOperands),
+                   IARG_THREAD_ID,
+                   IARG_INST_PTR,
+                   IARG_REG_VALUE,
+                   head_reg,
+                   IARG_CALL_ORDER,
+                   CALL_ORDER_FIRST,
+                   IARG_END);
+
+    std::vector<magic_insn_action_t> result;
+
+    std::list<xed_encoder_instruction_t> lzcnt_repl;
+    xed_encoder_instruction_t sw_pf;
+    /* we'll give it a mem operand of *[head_reg], not just [head_reg] */
+    xed_inst1(&sw_pf, dstate, XED_ICLASS_PREFETCHT0, 0,
+              xed_mem_b(head_reg_xed, 64 * 8));
+    lzcnt_repl.push_back(sw_pf);
+    result.emplace_back(lzcnt_repl, true);
+    return result;
+}
+
+static std::vector<magic_insn_action_t> GetIdealInstructions(const std::vector<INS>& insns,
+                                                             xed_iclass_enum_t iclass) {
+    if (iclass == XED_ICLASS_LZCNT)
+        return Prepare_SLL_PopMagic(insns);
+
+    std::vector<magic_insn_action_t> result;
+    /* Else, empty list to just ignore all magic. */
+    for (size_t i = 0; i < insns.size(); i++) {
+        result.emplace_back();
+    }
+    return result;
 }
