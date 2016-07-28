@@ -290,10 +290,18 @@ static xed_iclass_enum_t check_replacements(struct Mop_t* Mop) {
      * memory operands, etc. While it's not too late, turn them into 1-byte
      * NOPs and remember which optimization we're representing. */
     if (x86::get_iclass(Mop) == XED_ICLASS_ADC) {
+        // The sampling magic instruction takes 10k cycles, so turning this
+        // into a NOP and discarding dependencies doesn't matter.
         Mop->fetch.code[0] = 0x90;
         x86::decode(Mop);
         x86::decode_flags(Mop);
         return XED_ICLASS_ADC;
+    } else if (x86::get_iclass(Mop) == XED_ICLASS_BLSR) {
+        // The size class instructions will just get turned into a 1-uop flow
+        // by the uop cracker fallback, and we will fix up dependencies later.
+        return XED_ICLASS_BLSR;
+    } else if (x86::get_iclass(Mop) == XED_ICLASS_SHLD) {
+        return XED_ICLASS_SHLD;
     }
     return XED_ICLASS_INVALID;
 }
@@ -412,6 +420,15 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
     // XXX: No immediates for now
     Mop->decode.last_uop_index = Mop->decode.flow_length - 1;
 
+    /* Fix up input/output dependencies for magic instructions. */
+    if (replacement_type == XED_ICLASS_BLSR) {
+        // blsr modifies the read operand in addition to the write operand.
+        Mop->uop[0].decode.odep_name[1] = Mop->uop[0].decode.idep_name[0];
+    } else if (replacement_type == XED_ICLASS_SHLD) {
+        // shld does not actually write to the write operand.
+        Mop->uop[0].decode.odep_name[0] = XED_REG_INVALID;
+    }
+
     flow_index = 0;
     while (flow_index < Mop->decode.flow_length) {
         struct uop_t* uop = &Mop->uop[flow_index];
@@ -471,6 +488,13 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
         Mop->uop[0].decode.FU_class = FU_SAMPLING;
 #ifdef ZTRACE
         ztrace_print(Mop, "Making sampling Mop magic.");
+#endif
+    } else if (replacement_type == XED_ICLASS_BLSR || replacement_type == XED_ICLASS_SHLD) {
+        zesto_assert(Mop->decode.last_uop_index == 0, NULL);
+        Mop->uop[0].decode.is_nop = false;
+        Mop->uop[0].decode.FU_class = FU_SIZE_CLASS;
+#ifdef ZTRACE
+        ztrace_print(Mop, "Making size class Mop magic.");
 #endif
     } else if (x86::is_nop(Mop) && !handshake.flags.real && !spec_mode) {
         zesto_assert(Mop->decode.last_uop_index == 0, NULL);

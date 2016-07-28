@@ -26,7 +26,8 @@ enum fu_class {
     FU_STD,        /* store-data port */
     FU_AGEN,       /* AGU used for LEA and int<>float forwarding */
     FU_MAGIC,      /* Magic ALU used to model accelerators */
-    FU_SAMPLING,
+    FU_SAMPLING,   /* TCMalloc sampling perf counter instruction. */
+    FU_SIZE_CLASS, /* TCMalloc size class computation unit. */
     NUM_FU_CLASSES /* total functional unit classes */
 };
 

@@ -20,12 +20,14 @@ extern "C" {
 using namespace INSTLIB;
 
 #include "xiosim/knobs.h"
+#include "xiosim/size_class_cache.h"
 #include "xiosim/synchronization.h"
 #include "xiosim/zesto-bpred.h"
 
 class handshake_container_t;
 
 extern KNOB<BOOL> KnobILDJIT;
+extern KNOB<std::string> KnobSizeClassMode;
 
 /* A list of the threads in this feeder. */
 extern list<THREADID> thread_list;
@@ -91,6 +93,8 @@ class thread_state_t {
           core_knobs.fetch.ras_opt_str
         );
         lastBranchPrediction = 0;
+        size_class_cache.set_size(core_knobs.size_class_cache.size);
+        size_class_cache.set_tid(tid);
     }
 
     VOID push_loop_state() {
@@ -138,6 +142,9 @@ class thread_state_t {
     // Addresses can be set at instrumentation time (if known), or from an earlier analysis
     // routine.
     std::unordered_map<ADDRINT, replacement_mem_ops_t> replacement_mem_ops;
+
+    // Each thread has its own size class cache state.
+    SizeClassCache size_class_cache;
 
     XIOSIM_LOCK lock;
     // XXX: SHARED -- lock protects those

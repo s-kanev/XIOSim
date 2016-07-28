@@ -70,6 +70,15 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "tcmalloc-magic",
+    srcs = ["size_class_cache.cpp"],
+    hdrs = ["size_class_cache.h"],
+    deps = [
+        ":stats",
+    ],
+)
+
 load("components", "gen_list")
 
 gen_list(

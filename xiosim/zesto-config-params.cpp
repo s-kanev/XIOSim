@@ -199,6 +199,8 @@ cfg_opt_t alloc_cfg[]{ CFG_INT("depth", 2, CFGF_NONE), CFG_INT("width", 4, CFGF_
 cfg_opt_t repeater_cfg[]{ CFG_STR("config", "none", CFGF_NONE),
                           CFG_BOOL("request_dl1", cfg_false, CFGF_NONE), CFG_END() };
 
+cfg_opt_t size_class_cache_cfg[]{ CFG_INT("size", 5, CFGF_NONE) };
+
 // Execution unit configuration.
 // Different execution units have different defaults but most of them have the
 // configurations below.
@@ -218,6 +220,7 @@ cfg_opt_t exec_cfg[]{ CFG_INT("width", 4, CFGF_NONE),
                       CFG_SEC("dcache_cfg", dcache_cfg, CFGF_TITLE),    // L1 and L2 dcaches.
                       CFG_SEC("l2cache_cfg", l2cache_cfg, CFGF_TITLE),  // L1 and L2 dcaches.
                       CFG_SEC("repeater_cfg", repeater_cfg, CFGF_NONE),
+                      CFG_SEC("size_class_cache_cfg", size_class_cache_cfg, CFGF_NONE),
                       CFG_SEC("exeu", exeu_cfg, CFGF_TITLE | CFGF_MULTI),
                       CFG_END() };
 

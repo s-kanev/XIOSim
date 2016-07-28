@@ -84,6 +84,7 @@ cc_binary(
         "//xiosim:helix",
         "//xiosim:knobs",
         "//xiosim:memory",
+        "//xiosim:tcmalloc-magic",
         "//xiosim:x86",
         "//xiosim:zesto-bpred",
         "//xiosim:zesto-config",

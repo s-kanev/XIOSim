@@ -226,6 +226,7 @@ static void store_exec_stage_options(cfg_t* exec_opt, core_knobs_t* knobs) {
     cfg_t* dpf_opt = cfg_getsec(dcache_opt, "dprefetch_cfg");
     cfg_t* l2pf_opt = cfg_getsec(l2_opt, "l2prefetch_cfg");
     cfg_t* repeater_opt = cfg_getsec(exec_opt, "repeater_cfg");
+    cfg_t* size_class_cache_opt = cfg_getsec(exec_opt, "size_class_cache_cfg");
 
     knobs->exec.RS_size = cfg_getint(exec_opt, "rs_size");
     knobs->exec.LDQ_size = cfg_getint(exec_opt, "loadq_size");
@@ -259,6 +260,8 @@ static void store_exec_stage_options(cfg_t* exec_opt, core_knobs_t* knobs) {
     knobs->exec.repeater_opt_str = cfg_getstr(repeater_opt, "config");
     knobs->memory.DL1_rep_req = cfg_getbool(repeater_opt, "request_dl1");
 
+    knobs->size_class_cache.size = cfg_getint(size_class_cache_opt, "size");
+
     store_execution_unit_options(exec_opt, "int_alu", FU_IEU, knobs);
     store_execution_unit_options(exec_opt, "jump", FU_JEU, knobs);
     store_execution_unit_options(exec_opt, "int_mul", FU_IMUL, knobs);
@@ -274,6 +277,7 @@ static void store_exec_stage_options(cfg_t* exec_opt, core_knobs_t* knobs) {
     store_execution_unit_options(exec_opt, "lea", FU_AGEN, knobs);
     store_execution_unit_options(exec_opt, "magic", FU_MAGIC, knobs);
     store_execution_unit_options(exec_opt, "sampling", FU_SAMPLING, knobs);
+    store_execution_unit_options(exec_opt, "size_class", FU_SIZE_CLASS, knobs);
 }
 
 static void store_commit_options(cfg_t* commit_opt, core_knobs_t* knobs) {

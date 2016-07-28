@@ -137,6 +137,9 @@ struct core_knobs_t {
         int pre_commit_depth;
     } commit;
 
+    struct {
+        size_t size;
+    } size_class_cache;
 };
 
 struct uncore_knobs_t {

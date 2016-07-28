@@ -3,8 +3,10 @@
 #include <iostream>
 #include <string>
 
+#include "xiosim/knobs.h"
 #include "xiosim/regs.h"
 #include "xiosim/decode.h"
+#include "xiosim/size_class_cache.h"
 
 #include "BufferManagerProducer.h"
 #include "feeder.h"
@@ -12,8 +14,6 @@
 #include "xed_utils.h"
 
 #include "tcm_hooks.h"
-
-#define TCM_DEBUG
 
 enum MagicInsMode {
   IDEAL,
@@ -34,7 +34,7 @@ KNOB<std::string> KnobSLLPushMode(
         "Desired mode for simulating the magic bextr instruction.");
 KNOB<std::string> KnobSizeClassMode(
         KNOB_MODE_WRITEONCE, "pintool", "size_class_mode", "baseline",
-        "Desired mode for simulating the magic blsr and andn instructions.");
+        "Desired mode for simulating the magic blsr and shld instructions.");
 KNOB<std::string> KnobSamplingMode(
         KNOB_MODE_WRITEONCE, "pintool", "sampling_mode", "baseline",
         "Desired mode for simulating the magic adc sequence.");
@@ -55,6 +55,8 @@ struct magic_insn_action_t {
         , do_replace(do_replace) {}
 };
 
+static MagicInsMode size_class_mode;
+
 static void InsertEmulationCode(INS ins, xed_iclass_enum_t iclass);
 static std::vector<magic_insn_action_t> GetBaselineInstructions(const std::vector<INS>& insns,
                                                                 xed_iclass_enum_t iclass);
@@ -62,7 +64,7 @@ static std::vector<magic_insn_action_t> GetIdealInstructions(const std::vector<I
                                                                 xed_iclass_enum_t iclass);
 static std::vector<INS> GetSamplingInstructions(INS adc);
 static std::vector<INS> GetSizeClassInstructions(INS blsr);
-static std::vector<INS> GetSizeClassCacheUpdateInstructions(INS andn);
+static std::vector<INS> GetSizeClassCacheUpdateInstructions(INS shld);
 
 /* Helper to translate from pin registers to xed registers. Why isn't
  * this exposed through the pin API? */
@@ -168,10 +170,13 @@ static void HandleMagicInsMode(const std::vector<INS>& insns, xed_iclass_enum_t 
     case REALISTIC: {
         MarkMagicInstructionHelper(insns[0]);
 
-        /* For sampling, ignore the rest of the trigger sequence.
-         * But don't ignore the whole taken path (IMG instrumentation
-         * will take care to only ignore DoSampledAllocation() there). */
-        if (iclass == XED_ICLASS_ADC) {
+        /* For sampling and size class, ignore the rest of the trigger
+         * sequence.  But don't ignore the whole taken path (for sampling, IMG
+         * instrumentation will take care to only ignore DoSampledAllocation()
+         * there). */
+        if (iclass == XED_ICLASS_ADC ||
+            iclass == XED_ICLASS_SHLD ||
+            iclass == XED_ICLASS_BLSR) {
             std::list<xed_encoder_instruction_t> empty;
             /* Ignore all magic instructions (replace them with nothing). */
             for (size_t i = 1; i < insns.size(); i++)
@@ -206,9 +211,8 @@ void InstrumentTCMHooks(TRACE trace, VOID* v) {
 
     MagicInsMode pop_mode = StringToMagicInsMode(KnobSLLPopMode.Value());
     MagicInsMode push_mode = StringToMagicInsMode(KnobSLLPushMode.Value());
-    MagicInsMode size_class_mode =
-            StringToMagicInsMode(KnobSizeClassMode.Value());
     MagicInsMode sampling_mode = StringToMagicInsMode(KnobSamplingMode.Value());
+    size_class_mode = StringToMagicInsMode(KnobSizeClassMode.Value());
 
     for (BBL bbl = TRACE_BblHead(trace); BBL_Valid(bbl); bbl = BBL_Next(bbl)) {
         for (INS ins = BBL_InsHead(bbl); INS_Valid(ins); ins = INS_Next(ins)) {
@@ -217,7 +221,7 @@ void InstrumentTCMHooks(TRACE trace, VOID* v) {
                 iclass != XED_ICLASS_BEXTR &&
                 iclass != XED_ICLASS_BLSR &&
                 iclass != XED_ICLASS_ADC &&
-                iclass != XED_ICLASS_ANDN)
+                iclass != XED_ICLASS_SHLD)
                 continue;
 
             SEC sec = RTN_Sec(INS_Rtn(ins));
@@ -249,7 +253,7 @@ void InstrumentTCMHooks(TRACE trace, VOID* v) {
                 insns = GetSizeClassInstructions(ins);
                 HandleMagicInsMode(insns, iclass, size_class_mode);
                 break;
-            case XED_ICLASS_ANDN:
+            case XED_ICLASS_SHLD:
                 insns = GetSizeClassCacheUpdateInstructions(ins);
                 HandleMagicInsMode(insns, iclass, size_class_mode);
                 break;
@@ -335,17 +339,59 @@ static ADDRINT SLL_Pop_Emulation(ADDRINT head) {
     return result;
 }
 
-/* To emulate the behavior of the size class computation, we force the host to
- * always the fallback path, so there is no need for any arguments.  0 is
- * stored into the size class register.
+/* Rather than emulating the size class computation itself, we instruct the
+ * host whether or not to take the branch that executes the fallback code. This
+ * depends on the value of KnobSizeClassMode and ExecMode.  If we are not
+ * simulating, always take the branch.
+ *
+ * Otherwise, if KnobSizeClassMode is:
+ *   - baseline: always take the branch.
+ *   - ideal: always take the branch.
+ *   - realistic: Consult the SizeClassCache and branch if we do not hit in the cache.
+ *
+ * If the lookup hits in the cache, return the size class and write the
+ * allocated size into the size register. If the lookup fails, return 0 and do
+ * not modify size_reg.
  */
-static ADDRINT MagicSizeClassOrFallback_Emulation() {
+static ADDRINT MagicSizeClassOrFallback_Emulation(THREADID tid, ADDRINT size,
+                                                  PIN_REGISTER* size_reg) {
+    switch (size_class_mode) {
+    case BASELINE:
+    case IDEAL:
+        return 0;
+    case REALISTIC: {
+        if (ExecMode != EXECUTION_MODE_SIMULATE)
+            return 0;
+        thread_state_t* tstate = get_tls(tid);
+        size_class_pair_t result;
+        bool found = tstate->size_class_cache.lookup(size, result);
+        if (found) {
+            size_reg->qword[0] = static_cast<UINT64>(result.get_size());
+            ASSERTX(result.get_size_class() > 0);
+            return result.get_size_class();
+        } else {
+            return 0;
+        }
+    }
+    }
     return 0;
 }
 
-/* Update the size class cache on the producer. For now, leave this blank.
- */
-static VOID SizeClassCacheUpdate_Emulation() {}
+/* Update the size class cache on the producer. */
+static VOID SizeClassCacheUpdate_Emulation(THREADID tid, ADDRINT orig_size, ADDRINT size,
+                                           ADDRINT cl) {
+    switch (size_class_mode) {
+    case BASELINE:
+    case IDEAL:
+        return;
+    case REALISTIC:
+        if (ExecMode == EXECUTION_MODE_SIMULATE) {
+            // If we're not simulating, none of these optimizations matter.
+            thread_state_t* tstate = get_tls(tid);
+            tstate->size_class_cache.update(orig_size, size, cl);
+        }
+    }
+}
 
 /* The placeholder instruction we compile with is a bextr dst, src1, src2.
  * src1 holds the address of the LL head, src2 holds the element we're pushing.
@@ -427,6 +473,11 @@ static void InsertEmulationCode(INS ins, xed_iclass_enum_t iclass) {
         INS_InsertCall(ins,
                        IPOINT_BEFORE,
                        AFUNPTR(MagicSizeClassOrFallback_Emulation),
+                       IARG_THREAD_ID,
+                       IARG_REG_VALUE,
+                       INS_RegR(ins, 0),
+                       IARG_REG_REFERENCE,
+                       INS_RegR(ins, 0),
                        IARG_RETURN_REGS,
                        INS_RegW(ins, 0),
                        IARG_CALL_ORDER,
@@ -434,15 +485,16 @@ static void InsertEmulationCode(INS ins, xed_iclass_enum_t iclass) {
                        IARG_END);
         break;
     }
-    case XED_ICLASS_ANDN: {
+    case XED_ICLASS_SHLD: {
 #ifdef TCM_DEBUG
-        std::cerr << " for andn (MagicSizeClassOrFallback).";
+        std::cerr << " for shld (SizeClassCacheUpdate).";
 #endif
-        // For some reason, the 0th source operand is actually the write
-        // operand for this instruction.
         INS_InsertCall(ins,
                        IPOINT_BEFORE,
                        AFUNPTR(SizeClassCacheUpdate_Emulation),
+                       IARG_THREAD_ID,
+                       IARG_REG_VALUE,
+                       INS_RegW(ins, 0),
                        IARG_REG_VALUE,
                        INS_RegR(ins, 1),
                        IARG_REG_VALUE,
@@ -724,13 +776,13 @@ std::vector<magic_insn_action_t> Prepare_SizeClass_Simulation(const std::vector<
 }
 
 /* For the size class cache update magic instruction sequence, we want both the
- * andn and the jump ignored for the baseline.
+ * shld and the jump ignored for the baseline.
  */
 static std::vector<magic_insn_action_t> Prepare_SizeClassCacheUpdate_Simulation(
     const std::vector<INS>& insns) {
-    INS andn = insns[0];
+    INS shld = insns[0];
     INS jmp = insns[1];
-    ASSERTX(static_cast<xed_iclass_enum_t>(INS_Opcode(andn)) == XED_ICLASS_ANDN);
+    ASSERTX(static_cast<xed_iclass_enum_t>(INS_Opcode(shld)) == XED_ICLASS_SHLD);
     ASSERTX(static_cast<xed_iclass_enum_t>(INS_Opcode(jmp)) == XED_ICLASS_JMP);
 
     std::vector<magic_insn_action_t> result;
@@ -785,12 +837,12 @@ static std::vector<INS> GetSizeClassInstructions(INS blsr) {
     return result;
 }
 
-/* For updating the size class cache, get the andn; jmp magic instruction
+/* For updating the size class cache, get the shld; jmp magic instruction
  * sequence.
  */
-static std::vector<INS> GetSizeClassCacheUpdateInstructions(INS andn) {
-    std::vector<INS> result{andn};
-    INS jmp = INS_Next(andn);
+static std::vector<INS> GetSizeClassCacheUpdateInstructions(INS shld) {
+    std::vector<INS> result{shld};
+    INS jmp = INS_Next(shld);
     ASSERTX(INS_Valid(jmp));
     xed_iclass_enum_t jmp_iclass = static_cast<xed_iclass_enum_t>(INS_Opcode(jmp));
     ASSERTX(jmp_iclass == XED_ICLASS_JMP);
@@ -880,7 +932,7 @@ static std::vector<magic_insn_action_t> GetBaselineInstructions(const std::vecto
         return Prepare_SLL_PushSimulation(insns);
     case XED_ICLASS_BLSR:
         return Prepare_SizeClass_Simulation(insns);
-    case XED_ICLASS_ANDN:
+    case XED_ICLASS_SHLD:
         return Prepare_SizeClassCacheUpdate_Simulation(insns);
     case XED_ICLASS_ADC:
         return Prepare_Sampling_Simulation(insns);
