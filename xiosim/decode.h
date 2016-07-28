@@ -13,7 +13,9 @@ struct uop_t;
 namespace xiosim {
 namespace x86 {
 
-const size_t MAX_ILEN = 15;
+constexpr size_t MAX_ILEN = 15;
+/* bytes, though we might be a bit inaccurate with anything > 16 */
+constexpr size_t MAX_MEMOP_SIZE = 64;
 
 void init_decoder();
 void decode(struct Mop_t * Mop);

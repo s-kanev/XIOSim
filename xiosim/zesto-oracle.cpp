@@ -439,6 +439,7 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
             if (uop->decode.is_pf)
                 /* make sure SW prefetches never cross cache lines. */
                 uop->decode.mem_size = 1;
+            zesto_assert(uop->decode.mem_size <= (int)x86::MAX_MEMOP_SIZE, NULL);
 
             zesto_assert(uop->oracle.virt_addr != 0 || uop->Mop->oracle.spec_mode, NULL);
             uop->oracle.phys_addr =

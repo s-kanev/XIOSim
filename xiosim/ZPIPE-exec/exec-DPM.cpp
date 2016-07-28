@@ -9,6 +9,8 @@
     return std::make_unique<class core_exec_DPM_t>(core);
 #else
 
+#include <bitset>
+
 class core_exec_DPM_t:public core_exec_t
 {
   /* readyQ for scheduling */
@@ -1421,7 +1423,7 @@ void core_exec_DPM_t::LDST_exec(void)
               else /* addr match but STD unknown */
               {
 #ifdef ZTRACE
-                ztrace_print(uop,"e|STQ-miss|addr hit but data not ready");
+                ztrace_print(uop,"e|STQ-miss|addr hit but data not ready, STQ: %d", j);
 #endif
                 /* reset the load's children */
                 if(LDQ[uop->alloc.LDQ_index].speculative_broadcast)
@@ -1805,7 +1807,9 @@ void core_exec_DPM_t::ST_ALU_exec(const struct uop_t * const uop)
   /* this is a bit mask for each byte of the stored value; if it reaches zero,
      then we've been completely overwritten and we can stop.
      least-sig bit corresponds to lowest address byte. */
-  int overwrite_mask = (1<< STQ[uop->alloc.STQ_index].mem_size)-1;
+  std::bitset<x86::MAX_MEMOP_SIZE> overwrite_mask;
+  for (int i = 0; i < STQ[uop->alloc.STQ_index].mem_size; i++)
+    overwrite_mask.set(i);
 
   for(idx=STQ[uop->alloc.STQ_index].next_load;
       LDQ[idx].uop && (LDQ[idx].uop->decode.uop_seq > uop->decode.uop_seq) && (num_loads < LDQ_num);
@@ -1844,7 +1848,10 @@ void core_exec_DPM_t::ST_ALU_exec(const struct uop_t * const uop)
              bits to get: 0000000011110011, with the remaining 1's indicating
              which bytes are still "in play" (i.e. have not been overwritten
              by a younger store) */
-          int new_write_mask = (1<<STQ[overwrite_index].mem_size)-1;
+          std::bitset<x86::MAX_MEMOP_SIZE> new_write_mask;
+          for (int i = 0; i < STQ[overwrite_index].mem_size; i++)
+            new_write_mask.set(i);
+
           int offset = new_st_addr1 - st_addr1;
           if(offset < 0) /* new_addr is at lower address */
             new_write_mask >>= (-offset);
@@ -1852,12 +1859,12 @@ void core_exec_DPM_t::ST_ALU_exec(const struct uop_t * const uop)
             new_write_mask <<= offset;
           overwrite_mask &= ~new_write_mask;
 
-          if(overwrite_mask == 0)
+          if(overwrite_mask.none())
             break; /* while */
         }
       }
 
-      if(overwrite_mask == 0)
+      if(overwrite_mask.none())
         break; /* for */
     }
 
@@ -1889,14 +1896,16 @@ void core_exec_DPM_t::ST_ALU_exec(const struct uop_t * const uop)
            bytes of the store overlapped with the two most-significant bytes of
            the load, which reveals a match.  Hooray for non-aligned loads and
            stores of every which size! */
-        int load_read_mask = (1<<LDQ[idx].mem_size) - 1;
+        std::bitset<x86::MAX_MEMOP_SIZE> load_read_mask;
+        for (int i = 0; i < LDQ[idx].mem_size; i++)
+          load_read_mask.set(i);
         int offset = ld_addr1 - st_addr1;
         if(offset < 0) /* load is at lower address */
           overwrite_mask <<= (-offset);
         else
           load_read_mask <<= offset;
 
-        if(load_read_mask & overwrite_mask)
+        if((load_read_mask & overwrite_mask).any())
         {
           if(LDQ[idx].uop->timing.when_completed != TICK_T_MAX) /* completed --> memory-ordering violation */
           {
