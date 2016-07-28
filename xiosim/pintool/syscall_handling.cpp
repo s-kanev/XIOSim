@@ -156,6 +156,14 @@ VOID SyscallEntry(THREADID threadIndex, CONTEXT* ictxt, SYSCALL_STANDARD std, VO
         }
         break;
 
+    case __NR_read: {
+#ifdef SYSCALL_DEBUG
+        log << "Syscall read(*)" << endl;
+#endif
+        AddGiveUpHandshake(threadIndex, false, true);
+        break;
+    }
+
     case __NR_epoll_wait:
     case __NR_epoll_pwait:
 #ifdef SYSCALL_DEBUG

@@ -71,7 +71,7 @@ void AfterGettimeofday(THREADID tid, ADDRINT retval) {
         return;
 
 #ifdef SYSCALL_DEBUG
-    std::cerr << "gettimeofday will wait." << std::endl;
+    std::cerr << "[" << tstate->tid << "]" << "gettimeofday will wait." << std::endl;
 #endif
 
     timeval* tv = (struct timeval*)tstate->last_syscall_arg1;
@@ -100,7 +100,7 @@ void AfterGettimeofday(THREADID tid, ADDRINT retval) {
     tstate->last_syscall_number = 0;
 
 #ifdef SYSCALL_DEBUG
-    std::cerr << "gettimeofday waited." << std::endl;
+    std::cerr << "[" << tstate->tid << "]" << "gettimeofday waited." << std::endl;
 #endif
 }
 
@@ -120,7 +120,7 @@ VOID ReadRDTSC(THREADID tid, ADDRINT pc, ADDRINT next_pc, CONTEXT *ictxt) {
     }
 
 #ifdef SYSCALL_DEBUG
-    std::cerr << "RDTSC will wait." << std::endl;
+    std::cerr << "[" << tstate->tid << "]" << "RDTSC will wait." << std::endl;
 #endif
 
     // We need to get the core this thread is running on before we sync
@@ -142,7 +142,7 @@ VOID ReadRDTSC(THREADID tid, ADDRINT pc, ADDRINT next_pc, CONTEXT *ictxt) {
     ScheduleThread(tid);
 
 #ifdef SYSCALL_DEBUG
-    std::cerr << "RDTSC waited." << std::endl;
+    std::cerr << "[" << tstate->tid << "]" << "RDTSC waited." << std::endl;
 #endif
     PIN_ExecuteAt(ictxt);
 }
