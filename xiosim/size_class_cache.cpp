@@ -6,7 +6,8 @@ std::ostream& operator<<(std::ostream& os, const index_range_t& range) {
     return os;
 }
 
-std::ostream& operator<<(std::ostream& os, const size_class_pair_t& pair) {
-    os << "(class: " << pair.get_size_class() << ", size: " << pair.get_size() << ")";
+std::ostream& operator<<(std::ostream& os, const cache_entry_t& pair) {
+    os << "(class: " << pair.get_size_class() << ", size: " << pair.get_size() << ", head: 0x"
+       << std::hex << pair.get_head() << ", valid: " << pair.has_valid_head() << std::dec << ")";
     return os;
 }

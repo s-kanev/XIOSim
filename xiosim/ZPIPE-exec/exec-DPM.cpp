@@ -1992,14 +1992,29 @@ void core_exec_DPM_t::STQ_set_data(struct uop_t * const uop)
 void core_exec_DPM_t::magic_FU_exec(struct uop_t * const uop)
 {
   xed_iclass_enum_t iclass = x86::get_iclass(uop->Mop);
-  if (iclass == XED_ICLASS_BLSR) {
-    size_class_pair_t result;
-    size_class_cache->lookup(uop->Mop->oracle.size_class_cache.req_size, result);
-  } else if (iclass == XED_ICLASS_SHLD) {
-      size_class_cache->update(uop->Mop->oracle.size_class_cache.req_size,
-                               uop->Mop->oracle.size_class_cache.alloc_size,
-                               uop->Mop->oracle.size_class_cache.alloc_size_class);
+  switch (iclass) {
+  case XED_ICLASS_BLSR: {
+      cache_entry_t result;
+      size_class_cache->size_lookup(uop->Mop->oracle.size_class_cache.req_size, result);
+      break;
   }
+  case XED_ICLASS_SHLD:
+      size_class_cache->size_update(uop->Mop->oracle.size_class_cache.req_size,
+                                    uop->Mop->oracle.size_class_cache.alloc_size,
+                                    uop->Mop->oracle.size_class_cache.size_class);
+      break;
+  case XED_ICLASS_SHRD: {
+      void* head;
+      size_class_cache->head_pop(uop->Mop->oracle.size_class_cache.size_class, &head);
+      break;
+  }
+  case XED_ICLASS_SHRX:
+      size_class_cache->head_update(uop->Mop->oracle.size_class_cache.size_class,
+                                    uop->Mop->oracle.size_class_cache.head);
+      break;
+  default:
+      break;
+  };
 }
 
 void core_exec_DPM_t::flush_size_class_cache() {
@@ -2093,7 +2108,7 @@ void core_exec_DPM_t::ALU_exec(void)
               {
                 STQ_set_data(uop);
               }
-              else if (uop->Mop->decode.is_magic)
+              else if (FU_type == FU_SIZE_CLASS && uop->Mop->decode.is_magic)
               {
                 magic_FU_exec(uop);
               }

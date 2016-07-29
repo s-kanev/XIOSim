@@ -942,3 +942,23 @@ TEST_CASE("PREFETCHT0", "[uop]") {
     REQUIRE(c.Mop.uop[0].decode.is_pf);
     REQUIRE(c.Mop.uop[0].decode.odep_name[0] == XED_REG_INVALID);
 }
+
+TEST_CASE("MAGIC BLSR", "[magic blsr]") {
+    xed_context c;
+    xed_inst2(&c.x, c.dstate, XED_ICLASS_BLSR, 0,
+              xed_reg(largest_reg(XED_REG_EAX)),
+              xed_reg(largest_reg(XED_REG_ECX)));
+    c.Mop.decode.is_magic = true;
+    c.encode();
+    c.decode_and_crack();
+
+    REQUIRE(c.Mop.decode.is_magic == true);
+    REQUIRE(c.Mop.decode.flow_length == 2);
+    REQUIRE(c.Mop.uop[0].decode.FU_class == FU_SIZE_CLASS);
+    REQUIRE(c.Mop.uop[1].decode.FU_class == FU_IEU);
+    REQUIRE(c.Mop.uop[0].decode.idep_name[0] == largest_reg(XED_REG_ECX));
+    REQUIRE(c.Mop.uop[1].decode.idep_name[0] == largest_reg(XED_REG_ECX));
+    REQUIRE(c.Mop.uop[0].decode.odep_name[0] == largest_reg(XED_REG_EAX));
+    REQUIRE(c.Mop.uop[1].decode.odep_name[0] == largest_reg(XED_REG_ECX));
+    REQUIRE(c.Mop.uop[1].decode.odep_name[1] == largest_reg(XED_REG_EFLAGS));
+}

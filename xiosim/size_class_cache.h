@@ -10,31 +10,50 @@
 #include "stat_database.h"
 #include "stats.h"
 
-// Stores a pair of size class and the allocated size it maps to.
-class size_class_pair_t {
+// Stores the size class, the allocated size it maps to, and the head of its
+// free list.
+class cache_entry_t {
   public:
-    size_class_pair_t()
+    cache_entry_t()
         : size_class(0)
-        , size(0) {}
+        , size(0)
+        , valid_head(false)
+        , head(nullptr) {}
 
-    size_class_pair_t(size_t cl, size_t size)
+    cache_entry_t(size_t cl, size_t size)
         : size_class(cl)
-        , size(size) {}
+        , size(size)
+        , valid_head(false)
+        , head(nullptr) {}
 
-    size_class_pair_t(const size_class_pair_t& pair)
-        : size_class_pair_t(pair.size_class, pair.size) {}
+    cache_entry_t(const cache_entry_t& pair) : cache_entry_t(pair.size_class, pair.size) {
+        valid_head = pair.valid_head;
+        head = pair.head;
+    }
 
-    bool operator==(const size_class_pair_t& pair) {
+    // For equality, don't check the head pointer since it will often change.
+    bool operator==(const cache_entry_t& pair) {
         return size_class == pair.size_class && size == pair.size;
     }
 
     size_t get_size_class() const { return size_class; }
     size_t get_size() const { return size; }
+    bool has_valid_head() const { return valid_head; }
+    void* get_head() const { return head; }
+    void set_head(void* new_head) {
+        head = new_head;
+        valid_head = true;
+    }
+    void invalidate_head() {
+        head = nullptr;
+        valid_head = false;
+    }
 
   private:
     size_t size_class;
     size_t size;
-
+    bool valid_head;
+    void* head;
 };
 
 /* Maps a range of size class indices to a size class pair.
@@ -74,7 +93,7 @@ class index_range_t {
 };
 
 std::ostream& operator<<(std::ostream& os, const index_range_t& range);
-std::ostream& operator<<(std::ostream& os, const size_class_pair_t& pair);
+std::ostream& operator<<(std::ostream& os, const cache_entry_t& pair);
 
 /* A cache for mappings between size classes and the allocated size.
  *
@@ -105,11 +124,11 @@ class SizeClassCache {
 
     /* Searches for a mapping for the requested size.
      *
-     * If the lookup hits, the mapping is stored in @result and true is
+     * If the lookup hits, the size class and size pair is stored in @result and true is
      * returned. If the lookup misses, @result stores (class = 0, size = requested_size),
      * and false is returned.
      */
-    bool lookup(size_t requested_size, size_class_pair_t& result) {
+    bool size_lookup(size_t requested_size, cache_entry_t& result) {
         size_t cl_index = compute_index(requested_size);
         index_range_t key(cl_index, cl_index+1);
         if (cache.find(key) == cache.end()) {
@@ -118,7 +137,7 @@ class SizeClassCache {
                       << " with index " << cl_index << std::endl;
 #endif
             misses++;
-            result = size_class_pair_t(0, requested_size);
+            result = cache_entry_t(0, requested_size);
             return false;
         } else {
             result = cache[key];
@@ -132,7 +151,7 @@ class SizeClassCache {
         }
     }
 
-    /* Update the cache with a new mapping.
+    /* Update the cache with a new size class and size mapping.
      *
      * The mapping will be for a range from the index of @orig_size to the index
      * of @size. orig_size must be provided for ranges to expand correctly.
@@ -141,11 +160,14 @@ class SizeClassCache {
      *    orig_size: the original requested size.
      *    size: the allocated size.
      *    cl: allocated size class.
+     *
+     * Returns:
+     *    true if a new entry was created or an existing entry was expanded, false otherwise.
      */
-    void update(size_t orig_size, size_t size, size_t cl) {
+    bool size_update(size_t orig_size, size_t size, size_t cl) {
         size_t orig_cl_idx = compute_index(orig_size);
         size_t new_cl_idx = compute_index(size);
-        size_class_pair_t current(cl, size);
+        cache_entry_t current(cl, size);
         index_range_t range(orig_cl_idx, new_cl_idx + 1);
 #ifdef SIZE_CLASS_CACHE_DEBUG
         std::cerr << "[Size class cache]: Inserting mapping: index range = " << range
@@ -154,15 +176,16 @@ class SizeClassCache {
         auto it = find_index_range(cl);
         if (it != cache.end()) {
             index_range_t current_range = it->first;
-            if (current_range.contains(new_cl_idx)) {
+            if (current_range.contains(orig_cl_idx)) {
 #ifdef SIZE_CLASS_CACHE_DEBUG
                 std::cerr << " did nothing: already present." << std::endl;
 #endif
+                return false;
             } else {
                 // Found the size class pair but the index was out of the existing
                 // range, so expand the index range and re-add it to the cache.
                 cache.erase(current_range);
-                current_range.expand(new_cl_idx);
+                current_range = range;
                 cache[current_range] = current;
 #ifdef SIZE_CLASS_CACHE_DEBUG
                 std::cerr << " succeeded: index range expanded." << std::endl;
@@ -178,10 +201,44 @@ class SizeClassCache {
 #endif
         }
         update_lru(cl);
+        return true;
+    }
+
+    /* Get the next head pointer for a size class.
+     *
+     * If found, stores the next head pointer in @next_head and returns true.
+     * Otherwise, stores nullptr in @next_head and returns false.
+     */
+    bool head_pop(size_t size_class, void** next_head) {
+        auto it = find_index_range(size_class);
+        if (it != cache.end() && it->second.has_valid_head()) {
+            *next_head = it->second.get_head();
+            it->second.invalidate_head();
+            return true;
+        } else {
+            *next_head = nullptr;
+            return false;
+        }
+    }
+
+    /* Search for the next head pointer for a size class.
+     *
+     * If the size class exists in the cache, the head is updated and true is
+     * returned. Otherwise, false is returned.
+     */
+    bool head_update(size_t size_class, void* new_head) {
+        auto it = find_index_range(size_class);
+        if (it == cache.end())
+            return false;
+        it->second.set_head(new_head);
+        return true;
     }
 
     // Flushes the cache.
     void flush() {
+#ifdef SIZE_CLASS_CACHE_DEBUG
+        std::cerr << "Flushing size class cache." << std::endl;
+#endif
         cache.clear();
         lru.clear();
     }
@@ -204,7 +261,7 @@ class SizeClassCache {
     }
 
   private:
-    std::map<index_range_t, size_class_pair_t>::iterator find_index_range(size_t cl) {
+    std::map<index_range_t, cache_entry_t>::iterator find_index_range(size_t cl) {
         for (auto it = cache.begin(); it != cache.end(); ++it)
             if (it->second.get_size_class() == cl)
                 return it;
@@ -245,7 +302,7 @@ class SizeClassCache {
         auto it = find_index_range(evicted_cl);
         assert(it != cache.end() && "Element to evict does not exist in the cache!");
 #ifdef SIZE_CLASS_CACHE_DEBUG
-        size_class_pair_t evicted_entry = it->second;
+        cache_entry_t evicted_entry = it->second;
         std::cerr << "[Size class cache]: Evicting index range = " << it->first
                   << ", entry = " << evicted_entry << std::endl;
 #endif
@@ -270,8 +327,8 @@ class SizeClassCache {
     // Id of the owning thread.
     pid_t tid;
 
-    // Maps a size class index range to the size class and the allocated size.
-    std::map<index_range_t, size_class_pair_t> cache;
+    // Maps a size class index range to the size class, allocated size, and next head ptr.
+    std::map<index_range_t, cache_entry_t> cache;
 
     // LRU chain where each element is a size class and the least
     // recently used item is the last element.

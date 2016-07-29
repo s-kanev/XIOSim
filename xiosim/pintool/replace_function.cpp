@@ -237,8 +237,10 @@ static void AddReplacementCalls(IMG img, void* v) {
 
 static bool PredicateTaken(BOOL taken) { return taken; }
 
-void AddInstructionReplacement(INS ins, std::list<xed_encoder_instruction_t> insts) {
-    if (ExecMode != EXECUTION_MODE_SIMULATE)
+void AddInstructionReplacement(INS ins,
+                               std::list<xed_encoder_instruction_t> insts,
+                               bool instrument_aot) {
+    if (!instrument_aot && ExecMode != EXECUTION_MODE_SIMULATE)
         return;
 
     ADDRINT pc = INS_Address(ins);

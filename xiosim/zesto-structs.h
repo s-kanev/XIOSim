@@ -348,9 +348,10 @@ struct alignas(16) Mop_t
     // On a size class cache lookup or insert, record all input operands here.
     // Operands are stored in handshake->mem_buffer (evil).
     struct {
-      size_t req_size;          // Requested size.
-      size_t alloc_size;        // Allocated size.
-      size_t alloc_size_class;  // Allocated size class.
+      size_t req_size;    // Requested size.
+      size_t alloc_size;  // Allocated size.
+      size_t size_class;  // Allocated size class.
+      void* head;         // Next head pointer.
     } size_class_cache;
   } oracle;
 

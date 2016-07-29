@@ -63,10 +63,8 @@ INS GetPrevInsOfClass(const INS& ins, xed_iclass_enum_t iclass) {
 INS GetNextInsOfCategory(const INS& ins, xed_category_enum_t category) {
     INS next = INS_Next(ins);
     while (INS_Valid(next)) {
-        xed_category_enum_t ins_cat = static_cast<xed_category_enum_t>(INS_Category(next));
-        if (ins_cat == category) {
+        if (XED_INS_CATEGORY(next) == category)
             break;
-        }
         next = INS_Next(next);
     }
     return next;

@@ -166,6 +166,8 @@ class core_oracle_t {
   void install_dependencies(struct uop_t * const uop);
   void commit_dependencies(struct uop_t * const uop);
   void undo_dependencies(struct uop_t * const uop);
+  void get_magic_insn_operands(struct Mop_t* Mop, const handshake_container_t* handshake,
+                               xed_iclass_enum_t replacement_type);
 
   void update_stats(struct Mop_t * const Mop);
 

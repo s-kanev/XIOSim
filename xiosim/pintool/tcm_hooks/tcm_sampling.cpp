@@ -7,6 +7,8 @@
 
 #include "tcm_utils.h"
 
+MagicInsMode sampling_mode;
+
 namespace Sampling {
 
 /*
@@ -14,15 +16,35 @@ namespace Sampling {
  * test rax, rax; jne <PickNextSamplingPoint>, so non-zero means we'll
  * sample.
  * */
-bool Sampling_Emulation(ADDRINT bytes_until_sample_addr, ADDRINT size) {
+static bool Emulation(ADDRINT bytes_until_sample_addr, ADDRINT size) {
     ADDRINT tmp;
     PIN_SafeCopy(&tmp, reinterpret_cast<VOID*>(bytes_until_sample_addr), sizeof(ADDRINT));
+#ifdef EMULATION_DEBUG
+    std::cerr << "Emulating Sampling: bytes_until_sample=" << tmp << ", size=" << size
+              << ", return=";
+#endif
+    bool result;
     if (tmp >= size) {
         tmp -= size;
         PIN_SafeCopy(reinterpret_cast<VOID*>(bytes_until_sample_addr), &tmp, sizeof(ADDRINT));
-        return 0;
+        result = false;
+    } else {
+        result = true;
     }
-    return 1;
+#ifdef EMULATION_DEBUG
+    std::cerr << result << std::endl;
+#endif
+    return result;
+}
+
+/* Analysis routine to prepare memory addresses for a potential replacement. */
+static void GetBaselineMemOperands(THREADID tid, ADDRINT pc, ADDRINT jne_pc, ADDRINT addr) {
+    thread_state_t* tstate = get_tls(tid);
+    tstate->replacement_mem_ops[pc].clear();
+    tstate->replacement_mem_ops.at(pc).push_back({ addr, sizeof(ADDRINT) });
+
+    tstate->replacement_mem_ops[jne_pc].clear();
+    tstate->replacement_mem_ops.at(jne_pc).push_back({ addr, sizeof(ADDRINT) });
 }
 
 /* For sampling, the magic sequence we insert isn't a single instruction.
@@ -51,7 +73,7 @@ insn_vec_t LocateMagicSequence(const INS& adc) {
 void RegisterEmulation(INS ins)  {
     INS_InsertCall(ins,
                    IPOINT_BEFORE,
-                   AFUNPTR(Sampling_Emulation),
+                   AFUNPTR(Emulation),
                    IARG_MEMORYOP_EA,
                    0,
                    IARG_REG_VALUE,
@@ -68,16 +90,6 @@ void RegisterEmulation(INS ins)  {
     INS_Delete(lahf);
 }
 
-/* Analysis routine to prepare memory addresses for a potential replacement. */
-void Sampling_GetMemOperands(THREADID tid, ADDRINT pc, ADDRINT jne_pc, ADDRINT addr) {
-    thread_state_t* tstate = get_tls(tid);
-    tstate->replacement_mem_ops[pc].clear();
-    tstate->replacement_mem_ops.at(pc).push_back({addr, sizeof(ADDRINT)});
-
-    tstate->replacement_mem_ops[jne_pc].clear();
-    tstate->replacement_mem_ops.at(jne_pc).push_back({addr, sizeof(ADDRINT)});
-}
-
 repl_vec_t GetBaselineReplacements(const insn_vec_t& insns) {
     INS adc = insns.front();
     REG addr_reg = INS_RegR(adc, 0);
@@ -86,7 +98,7 @@ repl_vec_t GetBaselineReplacements(const insn_vec_t& insns) {
     INS jne = insns.back();
     INS_InsertCall(adc,
                    IPOINT_BEFORE,
-                   AFUNPTR(Sampling_GetMemOperands),
+                   AFUNPTR(GetBaselineMemOperands),
                    IARG_THREAD_ID,
                    IARG_INST_PTR,
                    IARG_ADDRINT,

@@ -12,6 +12,7 @@
 MagicInsMode size_class_mode;
 
 namespace SizeClassCacheLookup {
+
 /* Rather than emulating the size class computation itself, we instruct the
  * host whether or not to take the branch that executes the fallback code. This
  * depends on the value of KnobSizeClassMode and ExecMode.  If we are not
@@ -26,29 +27,47 @@ namespace SizeClassCacheLookup {
  * allocated size into the size register. If the lookup fails, return 0 and do
  * not modify size_reg.
  */
-ADDRINT SizeClassCacheLookup_Emulation(THREADID tid, ADDRINT size, PIN_REGISTER* size_reg) {
+static ADDRINT Emulation(THREADID tid, ADDRINT size, PIN_REGISTER* size_reg) {
+    if (ExecMode != EXECUTION_MODE_SIMULATE)
+        return 0;
     switch (size_class_mode) {
     case BASELINE:
     case IDEAL:
         return 0;
     case REALISTIC: {
-        if (ExecMode != EXECUTION_MODE_SIMULATE)
-            return 0;
         thread_state_t* tstate = get_tls(tid);
-        size_class_pair_t result;
-        bool found = tstate->size_class_cache.lookup(size, result);
-        // Abusing mem_buffer to store the requested size class (input operand
-        // of this magic instruction).
-        auto handshake = xiosim::buffer_management::GetBuffer(tstate->tid);
-        handshake->mem_buffer.push_back(std::make_pair(static_cast<md_addr_t>(size), 0));
+        cache_entry_t result;
+        bool found = tstate->size_class_cache.size_lookup(size, result);
         if (found) {
             size_reg->qword[0] = static_cast<UINT64>(result.get_size());
             ASSERTX(result.get_size_class() > 0);
         }
+#ifdef EMULATION_DEBUG
+        std::cerr << "Emulating SizeClassCacheLookup: size=" << size << ", found=" << found
+                  << std::endl;
+#endif
         return result.get_size_class();
     }
     }
     return 0;
+}
+
+/* Pass cache lookup input operands to the timing simulator. */
+static VOID GetRegOperands(THREADID tid, ADDRINT size) {
+    if (ExecMode != EXECUTION_MODE_SIMULATE)
+        return;
+    switch (size_class_mode) {
+    case BASELINE:
+    case IDEAL:
+        return;
+    case REALISTIC: {
+        thread_state_t* tstate = get_tls(tid);
+        // Abusing mem_buffer to store the requested size class (input operand
+        // of this magic instruction).
+        auto handshake = xiosim::buffer_management::GetBuffer(tstate->tid);
+        handshake->mem_buffer.push_back(std::make_pair(static_cast<md_addr_t>(size), 0));
+    }
+    }
 }
 
 void RegisterEmulation(INS ins) {
@@ -56,7 +75,16 @@ void RegisterEmulation(INS ins) {
     // so the host takes the right path.
     INS_InsertCall(ins,
                    IPOINT_BEFORE,
-                   AFUNPTR(SizeClassCacheLookup_Emulation),
+                   AFUNPTR(GetRegOperands),
+                   IARG_THREAD_ID,
+                   IARG_REG_VALUE,
+                   INS_RegR(ins, 0),
+                   IARG_CALL_ORDER,
+                   CALL_ORDER_FIRST,
+                   IARG_END);
+    INS_InsertCall(ins,
+                   IPOINT_BEFORE,
+                   AFUNPTR(Emulation),
                    IARG_THREAD_ID,
                    IARG_REG_VALUE,
                    INS_RegR(ins, 0),
@@ -198,29 +226,67 @@ insn_vec_t GetFallbackPathBounds(const insn_vec_t& insns, RTN rtn) {
 namespace SizeClassCacheUpdate {
 
 /* Update the size class cache on the producer. */
-VOID SizeClassCacheUpdate_Emulation(THREADID tid, ADDRINT orig_size, ADDRINT size, ADDRINT cl) {
+static VOID Emulation(THREADID tid, ADDRINT orig_size, ADDRINT size, ADDRINT cl) {
+    // If we're not simulating, none of these optimizations matter.
+    if (ExecMode != EXECUTION_MODE_SIMULATE)
+        return;
     switch (size_class_mode) {
     case BASELINE:
     case IDEAL:
         return;
-    case REALISTIC:
-        if (ExecMode == EXECUTION_MODE_SIMULATE) {
-            // If we're not simulating, none of these optimizations matter.
-            thread_state_t* tstate = get_tls(tid);
-            auto handshake = xiosim::buffer_management::GetBuffer(tstate->tid);
-            // Ugly, but we need three parameters, so we need two pairs.
-            handshake->mem_buffer.push_back(std::make_pair(static_cast<md_addr_t>(orig_size), 0));
-            handshake->mem_buffer.push_back(
-                    std::make_pair(static_cast<md_addr_t>(size), static_cast<uint8_t>(cl)));
-            tstate->size_class_cache.update(orig_size, size, cl);
-        }
+    case REALISTIC: {
+        thread_state_t* tstate = get_tls(tid);
+        bool success = tstate->size_class_cache.size_update(orig_size, size, cl);
+#ifdef EMULATION_DEBUG
+        std::cerr << "Emulating SizeClassCacheUpdate: orig_size=" << orig_size << ", size=" << size
+                  << ", class=" << cl << ", success=" << success << std::endl;
+#else
+        (void)success;
+#endif
+
+        return;
+    }
+    default:
+        return;
+    }
+}
+
+/* Pass cache update input operands to the timing simulator. */
+static VOID GetRegOperands(THREADID tid, ADDRINT orig_size, ADDRINT size, ADDRINT cl) {
+    if (ExecMode != EXECUTION_MODE_SIMULATE)
+        return;
+    switch (size_class_mode) {
+    case BASELINE:
+    case IDEAL:
+        return;
+    case REALISTIC: {
+        thread_state_t* tstate = get_tls(tid);
+        auto handshake = xiosim::buffer_management::GetBuffer(tstate->tid);
+        // Ugly, but we need three parameters, so we need two pairs.
+        handshake->mem_buffer.push_back(std::make_pair(static_cast<md_addr_t>(orig_size), 0));
+        handshake->mem_buffer.push_back(
+                std::make_pair(static_cast<md_addr_t>(size), static_cast<uint8_t>(cl)));
+    }
     }
 }
 
 void RegisterEmulation(INS ins) {
     INS_InsertCall(ins,
                    IPOINT_BEFORE,
-                   AFUNPTR(SizeClassCacheUpdate_Emulation),
+                   AFUNPTR(GetRegOperands),
+                   IARG_THREAD_ID,
+                   IARG_REG_VALUE,
+                   INS_RegW(ins, 0),
+                   IARG_REG_VALUE,
+                   INS_RegR(ins, 1),
+                   IARG_REG_VALUE,
+                   INS_RegR(ins, 2),
+                   IARG_CALL_ORDER,
+                   CALL_ORDER_FIRST,
+                   IARG_END);
+    INS_InsertCall(ins,
+                   IPOINT_BEFORE,
+                   AFUNPTR(Emulation),
                    IARG_THREAD_ID,
                    IARG_REG_VALUE,
                    INS_RegW(ins, 0),
@@ -277,6 +343,11 @@ repl_vec_t GetIdealReplacements(const insn_vec_t& insns) {
 
 /* For updating the size class cache, get the mov rcx, r64; shld; jmp magic
  * instruction sequence. The mov sets up the cl operand for shld.
+ *
+ * The returned vector contains shld as the first element, so that later steps
+ * can assume the first element of any magic sequence is the trigger
+ * instruction. The order isn't that important anyways since we don't depend on
+ * it for inserting analysis routines.
  */
 insn_vec_t LocateMagicSequence(const INS& ins) {
     const INS& shld = ins;

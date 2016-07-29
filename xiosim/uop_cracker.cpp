@@ -1030,6 +1030,89 @@ static bool check_tables(struct Mop_t* Mop) {
     return false;
 }
 
+/* Check if this Mop is a magic TCMalloc insns that needs a special uop flow.  */
+static bool check_magic_insns(struct Mop_t* Mop) {
+    if (!Mop->decode.is_magic)
+        return false;
+    auto iform = xed_decoded_inst_get_iform_enum(&Mop->decode.inst);
+    if (iform != XED_IFORM_BLSR_VGPR64q_VGPR64q && iform != XED_IFORM_BLSR_VGPR32d_VGPR32d)
+        return false;
+
+    // BLSR is the SizeClassCacheLookup instruction, which writes to both
+    // the destination and source registers in addition to flags.
+    // uop 0 reads from src, writes to dest.
+    // uop 1 reads from src, writes to src and flags.
+    Mop->decode.flow_length = 2;
+    Mop->allocate_uops();
+
+    auto ideps = get_registers_read(Mop);
+    xiosim_assert(ideps.size() <= MAX_IDEPS);
+    int idep_ind = 0;
+    for (auto it = ideps.begin(); it != ideps.end(); it++, idep_ind++) {
+        Mop->uop[0].decode.idep_name[idep_ind] = *it;
+        Mop->uop[1].decode.idep_name[idep_ind] = *it;
+    }
+
+    auto odeps = get_registers_written(Mop);
+    xiosim_assert(odeps.size() == 2);
+    int uop_ind = 0;
+    for (auto it = odeps.begin(); it != odeps.end(); it++, uop_ind++) {
+        Mop->uop[uop_ind].decode.odep_name[uop_ind] = *it;
+    }
+    // The second uop writes to its source register.
+    Mop->uop[1].decode.odep_name[0] = Mop->uop[1].decode.idep_name[0];
+
+    // First uop performs the size class cache lookups, so it doesn't need
+    // to be repeated on the second one, which just updates registers.
+    Mop->uop[0].decode.FU_class = FU_SIZE_CLASS;
+    Mop->uop[1].decode.FU_class = FU_IEU;
+    return true;
+}
+
+/* After uop cracking, fix up magic instructions for special behaviors. */
+void fixup_magic_insn(struct Mop_t* Mop) {
+    if (!Mop->decode.is_magic)
+        return;
+    auto iclass = xed_decoded_inst_get_iclass(&Mop->decode.inst);
+    switch (iclass) {
+      case XED_ICLASS_SHLD:
+          // SHLD is a size class cache update instruction that does not write
+          // to the output operand, only to flags.
+          Mop->uop[0].decode.odep_name[0] = largest_reg(XED_REG_EFLAGS);
+          Mop->uop[0].decode.odep_name[1] = XED_REG_INVALID;
+          Mop->uop[0].decode.FU_class = FU_SIZE_CLASS;
+          break;
+      case XED_ICLASS_SHRX: {
+          // SHRX is a free list cache update instruction. It also does not
+          // write to its output operand, but if it is given a memory operand,
+          // it will load that address.
+          //
+          // Instruction is: shrx tmp15, r64, r64/m64. First source is the size
+          // class; second is either the pointer or the memory address to
+          // dereference. We use tmp15 to represent the size class.
+          bool has_load = is_load(Mop);
+          size_t uop_ind = has_load ? 1 : 0;
+          // Fix up ideps. Set the last idep to TMP15.
+          Mop->uop[uop_ind].decode.idep_name[2] = XED_REG_TMP15;
+          // Fix up odeps. Set the first odep to TMP15.
+          Mop->uop[uop_ind].decode.odep_name[0] = XED_REG_TMP15;
+          Mop->uop[uop_ind].decode.odep_name[1] = XED_REG_INVALID;
+          Mop->uop[uop_ind].decode.FU_class = FU_SIZE_CLASS;
+          if (has_load) {
+              // This instruction stores special operands in mem_buffer, so we
+              // have to be careful we read memory operands from the right place.
+              Mop->uop[0].oracle.mem_op_index = 1;
+          }
+          break;
+      }
+      case XED_ICLASS_SHRD:
+          Mop->uop[0].decode.FU_class = FU_SIZE_CLASS;
+          break;
+      default:
+          break;
+    }
+}
+
 void crack(struct Mop_t* Mop) {
 #ifdef DEBUG_CRACKER
     auto iform = xed_decoded_inst_get_iform_enum(&Mop->decode.inst);
@@ -1039,11 +1122,18 @@ void crack(struct Mop_t* Mop) {
     bool cracked = check_tables(Mop);
     if (cracked)
         return;
+
+    // Is this a magic instruction?
+    cracked = check_magic_insns(Mop);
+    if (cracked)
+        return;
+
     /* Instead of fully describing Mop->uop tables,
      * we'll try and cover some of the simple common patterns (e.g. LOAD-OP-STORE).
      * We obviously need a mechanism for exceptions for non-standard (e.g. microcoded) ops.
      */
     fallback(Mop);
+    fixup_magic_insn(Mop);
 
     /* there better be at least one uop */
     xiosim_assert(Mop->decode.flow_length);

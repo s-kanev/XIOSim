@@ -29,9 +29,13 @@ void AddFunctionReplacement(std::string function_name,
                     size_t num_params,
                     std::list<xed_encoder_instruction_t> replacement);
 
-/* Similar to above, but ignoring individual instructions. */
+/* Similar to above, but ignoring individual instructions.
+ *
+ * If ahead-of-time (AOT) instrumentation is needed, set instrument_aot=true.
+ */
 void AddInstructionReplacement(INS ins,
-                    std::list<xed_encoder_instruction_t> replacement);
+                    std::list<xed_encoder_instruction_t> replacement,
+                    bool instrument_aot=false);
 
 /* Default case for AddFunctionReplacement that simply replaces @function_name and
  * 0 parameters with a single nop. Useful for testing. */
