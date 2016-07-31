@@ -43,9 +43,10 @@
 #include "speculation.h"
 #include "sync_pthreads.h"
 #include "syscall_handling.h"
-#include "tcm_hooks.h"
 #include "vdso.h"
 #include "xed_utils.h"
+
+#include "tcm_hooks/tcm_hooks.h"
 
 using namespace std;
 
