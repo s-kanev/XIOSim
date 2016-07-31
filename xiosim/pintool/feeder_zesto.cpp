@@ -1229,7 +1229,7 @@ static VOID amd_hack() {
 
 static void addInstrumentationCalls() {
     /* Order matters here.
-     * TCMHoks sets up data for InsIgnoring, so it has to come before it.
+     * TCMHooks sets up data for InsIgnoring, so it has to come before it.
      * InsIgnoring sets up data for Instrument, so ditto. */
     TRACE_AddInstrumentFunction(InstrumentTCMHooks, 0);
     TRACE_AddInstrumentFunction(InstrumentInsIgnoring, 0);
