@@ -79,6 +79,19 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "test_size_class_cache",
+    size = "small",
+    srcs = ["test_size_class_cache.cpp"],
+    deps = [
+        ":catch_impl",
+        ":stats",
+        ":tcmalloc-magic",
+        "//third_party/catch:main",
+        "//third_party/confuse",
+    ],
+)
+
 load("components", "gen_list")
 
 gen_list(
