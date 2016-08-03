@@ -106,17 +106,16 @@ std::ostream& operator<<(std::ostream& os, const cache_entry_t& pair);
 class SizeClassCache {
   public:
     SizeClassCache()
-        : hits(0)
-        , misses(0)
-        , insertions(0)
-        , evictions(0)
+        : size_hits(0)
+        , size_misses(0)
+        , size_insertions(0)
+        , size_evictions(0)
+        , head_hits(0)
+        , head_misses(0)
+        , head_updates(0)
+        , head_invalidates(0)
         , cache_size(0) {}
-    SizeClassCache(size_t size)
-        : hits(0)
-        , misses(0)
-        , insertions(0)
-        , evictions(0)
-        , cache_size(size) {}
+    SizeClassCache(size_t size) : SizeClassCache() { cache_size = size; }
     ~SizeClassCache() {}
 
     void set_size(size_t size) { cache_size = size; }
@@ -136,13 +135,13 @@ class SizeClassCache {
             std::cerr << "[Size class cache]: Failed to find entry for size " << requested_size
                       << " with index " << cl_index << std::endl;
 #endif
-            misses++;
+            size_misses++;
             result = cache_entry_t(0, requested_size);
             return false;
         } else {
             result = cache[key];
             update_lru(result.get_size_class());
-            hits++;
+            size_hits++;
 #ifdef SIZE_CLASS_CACHE_DEBUG
             std::cerr << "[Size class cache]: Found entry for size " << requested_size
                       << ": index range = " << key << ", entry = " << result << std::endl;
@@ -167,9 +166,9 @@ class SizeClassCache {
     bool size_update(size_t orig_size, size_t size, size_t cl) {
         size_t orig_cl_idx = compute_index(orig_size);
         size_t new_cl_idx = compute_index(size);
-        cache_entry_t current(cl, size);
         index_range_t range(orig_cl_idx, new_cl_idx + 1);
 #ifdef SIZE_CLASS_CACHE_DEBUG
+        cache_entry_t current(cl, size);
         std::cerr << "[Size class cache]: Inserting mapping: index range = " << range
                   << ", entry = " << current;
 #endif
@@ -184,21 +183,21 @@ class SizeClassCache {
             } else {
                 // Found the size class pair but the index was out of the existing
                 // range, so expand the index range and re-add it to the cache.
+                cache_entry_t current_entry = it->second;
                 cache.erase(current_range);
-                current_range = range;
-                cache[current_range] = current;
+                cache[range] = current_entry;
 #ifdef SIZE_CLASS_CACHE_DEBUG
                 std::cerr << " succeeded: index range expanded." << std::endl;
 #endif
             }
         } else {
             // Did not find this size class pair, so insert a new mapping.
-            if (cache.size() == cache_size)
-                evict();
-            cache[range] = current;
 #ifdef SIZE_CLASS_CACHE_DEBUG
             std::cerr << " succeeded: created new mapping." << std::endl;
 #endif
+            if (cache.size() == cache_size)
+                evict();
+            cache[range] = cache_entry_t(cl, size);
         }
         update_lru(cl);
         return true;
@@ -214,23 +213,35 @@ class SizeClassCache {
         if (it != cache.end() && it->second.has_valid_head()) {
             *next_head = it->second.get_head();
             it->second.invalidate_head();
+            head_hits++;
             return true;
         } else {
             *next_head = nullptr;
+            head_misses++;
             return false;
         }
     }
 
-    /* Search for the next head pointer for a size class.
+    /* Updates a head pointer for a size class.
      *
-     * If the size class exists in the cache, the head is updated and true is
-     * returned. Otherwise, false is returned.
+     * If the size class exists in the cache and:
+     *    - new_head == NULL, the entry is invalidated.
+     *    - new_head != NULL, the entry is updated.
+     *
+     * and true returned. Otherwise, false is returned.
      */
     bool head_update(size_t size_class, void* new_head) {
         auto it = find_index_range(size_class);
-        if (it == cache.end())
+        if (it == cache.end()) {
             return false;
-        it->second.set_head(new_head);
+        }
+        if (new_head == nullptr) {
+            it->second.invalidate_head();
+            head_invalidates++;
+        } else {
+            it->second.set_head(new_head);
+            head_updates++;
+        }
         return true;
     }
 
@@ -246,18 +257,37 @@ class SizeClassCache {
     void reg_stats(xiosim::stats::StatsDatabase* sdb, int coreID) {
         using namespace xiosim::stats;
 
-        auto& hits_stat = stat_reg_core_qword(sdb, true, coreID, "size_class_cache.hits",
-                                              "Size class hits", &hits, 0, true, NULL);
-        auto& misses_stat = stat_reg_core_qword(sdb, true, coreID, "size_class_cache.misses",
-                                                "Size class misses", &misses, 0, true, NULL);
-        stat_reg_core_qword(sdb, true, coreID, "size_class_cache.insertions",
-                            "Size class insertions", &insertions, 0, true, NULL);
-        stat_reg_core_qword(sdb, true, coreID, "size_class_cache.evictions", "Size class evictions",
-                            &evictions, 0, true, NULL);
-        stat_reg_core_formula(sdb, true, coreID, "size_class_cache.accesses",
-                              "Size class total accesses", hits_stat + misses_stat, NULL);
-        stat_reg_core_formula(sdb, true, coreID, "size_class_cache.hit_rate", "Size class hit rate",
-                              hits_stat / (hits_stat + misses_stat), NULL);
+        auto& size_hits_stat =
+                stat_reg_core_qword(sdb, true, coreID, "size_class_cache.size_hits",
+                                    "Size class hits", &size_hits, 0, true, NULL);
+        auto& size_misses_stat =
+                stat_reg_core_qword(sdb, true, coreID, "size_class_cache.size_misses",
+                                    "Size class misses", &size_misses, 0, true, NULL);
+        stat_reg_core_qword(sdb, true, coreID, "size_class_cache.size_insertions",
+                            "Size class insertions", &size_insertions, 0, true, NULL);
+        stat_reg_core_qword(sdb, true, coreID, "size_class_cache.size_evictions",
+                            "Size class evictions", &size_evictions, 0, true, NULL);
+        stat_reg_core_formula(sdb, true, coreID, "size_class_cache.size_hit_rate",
+                              "Size class hit rate (size class)",
+                              size_hits_stat / (size_hits_stat + size_misses_stat), NULL);
+
+        auto& head_hits_stat =
+                stat_reg_core_qword(sdb, true, coreID, "size_class_cache.head_hits",
+                                    "Head pointer hits", &head_hits, 0, true, NULL);
+        auto& head_misses_stat =
+                stat_reg_core_qword(sdb, true, coreID, "size_class_cache.head_misses",
+                                    "Head pointer misses", &head_misses, 0, true, NULL);
+        stat_reg_core_qword(sdb, true, coreID, "head_class_cache.head_updates",
+                            "Head pointer insertions", &head_updates, 0, true, NULL);
+        stat_reg_core_qword(sdb, true, coreID, "head_class_cache.head_invalidates",
+                            "Head pointer invalidates", &head_invalidates, 0, true, NULL);
+        stat_reg_core_formula(sdb, true, coreID, "size_class_cache.head_hit_rate",
+                              "Head pointer hit rate (head)",
+                              head_hits_stat / (head_hits_stat + head_misses_stat), NULL);
+
+        stat_reg_core_formula(
+                sdb, true, coreID, "size_class_cache.accesses", "Size class total accesses",
+                size_hits_stat + size_misses_stat + head_hits_stat + head_misses_stat, "%0.0f");
     }
 
   private:
@@ -308,14 +338,24 @@ class SizeClassCache {
 #endif
         cache.erase(it);
         lru.pop_back();
-        evictions++;
+        size_evictions++;
+    }
+
+    void print() {
+        for (auto it = cache.begin(); it != cache.end(); it++) {
+            std::cerr << it->first << "\t" << it->second << std::endl;
+        }
     }
 
     // Statistics.
-    uint64_t hits;
-    uint64_t misses;
-    uint64_t insertions;
-    uint64_t evictions;
+    uint64_t size_hits;
+    uint64_t size_misses;
+    uint64_t size_insertions;
+    uint64_t size_evictions;
+    uint64_t head_hits;
+    uint64_t head_misses;
+    uint64_t head_updates;
+    uint64_t head_invalidates;
 
     // Constants from tcmalloc.
     const size_t kMaxSmallSize = 1024;
