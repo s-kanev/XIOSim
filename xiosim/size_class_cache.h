@@ -26,6 +26,13 @@ class cache_entry_t {
         , valid_head(false)
         , head(nullptr) {}
 
+    cache_entry_t(size_t cl, size_t size, void* _head)
+        : size_class(cl)
+        , size(size)
+        , head(_head) {
+        valid_head = (head != nullptr);
+    }
+
     cache_entry_t(const cache_entry_t& pair) : cache_entry_t(pair.size_class, pair.size) {
         valid_head = pair.valid_head;
         head = pair.head;
@@ -130,24 +137,23 @@ class SizeClassCache {
     bool size_lookup(size_t requested_size, cache_entry_t& result) {
         size_t cl_index = compute_index(requested_size);
         index_range_t key(cl_index, cl_index+1);
-        if (cache.find(key) == cache.end()) {
+        bool hit = get_cache_entry(key, result);
+        if (hit) {
+            size_hits++;
+#ifdef SIZE_CLASS_CACHE_DEBUG
+            std::cerr << "[Size class cache]: Found entry for size " << requested_size
+                      << ": index range = " << key << ", entry = " << result << std::endl;
+#endif
+        } else {
 #ifdef SIZE_CLASS_CACHE_DEBUG
             std::cerr << "[Size class cache]: Failed to find entry for size " << requested_size
                       << " with index " << cl_index << std::endl;
 #endif
             size_misses++;
             result = cache_entry_t(0, requested_size);
-            return false;
-        } else {
-            result = cache[key];
-            update_lru(result.get_size_class());
-            size_hits++;
-#ifdef SIZE_CLASS_CACHE_DEBUG
-            std::cerr << "[Size class cache]: Found entry for size " << requested_size
-                      << ": index range = " << key << ", entry = " << result << std::endl;
-#endif
-            return true;
         }
+        assert(lru.size() == cache.size());
+        return hit;
     }
 
     /* Update the cache with a new size class and size mapping.
@@ -183,9 +189,7 @@ class SizeClassCache {
             } else {
                 // Found the size class pair but the index was out of the existing
                 // range, so expand the index range and re-add it to the cache.
-                cache_entry_t current_entry = it->second;
-                cache.erase(current_range);
-                cache[range] = current_entry;
+                update_cache_key(current_range, range);
 #ifdef SIZE_CLASS_CACHE_DEBUG
                 std::cerr << " succeeded: index range expanded." << std::endl;
 #endif
@@ -197,9 +201,9 @@ class SizeClassCache {
 #endif
             if (cache.size() == cache_size)
                 evict();
-            cache[range] = cache_entry_t(cl, size);
+            insert_cache_entry(range, cache_entry_t(cl, size));
         }
-        update_lru(cl);
+        assert(lru.size() == cache.size());
         return true;
     }
 
@@ -210,16 +214,26 @@ class SizeClassCache {
      */
     bool head_pop(size_t size_class, void** next_head) {
         auto it = find_index_range(size_class);
+        bool success = false;
         if (it != cache.end() && it->second.has_valid_head()) {
             *next_head = it->second.get_head();
             it->second.invalidate_head();
             head_hits++;
-            return true;
+            success = true;
         } else {
             *next_head = nullptr;
             head_misses++;
-            return false;
+            success = false;
         }
+        assert(lru.size() == cache.size());
+#ifdef SIZE_CLASS_CACHE_DEBUG
+        std::cerr << "Popping head for class=" << size_class;
+        if (success)
+            std::cerr << " succeeded. Returning " << *next_head << std::endl;
+        else
+            std::cerr << " failed." << std::endl;
+#endif
+        return success;
     }
 
     /* Updates a head pointer for a size class.
@@ -232,17 +246,45 @@ class SizeClassCache {
      */
     bool head_update(size_t size_class, void* new_head) {
         auto it = find_index_range(size_class);
+        bool success = false;
         if (it == cache.end()) {
-            return false;
-        }
-        if (new_head == nullptr) {
-            it->second.invalidate_head();
-            head_invalidates++;
-        } else {
-            it->second.set_head(new_head);
+#ifdef SIZE_CLASS_CACHE_SLL_ONLY
+            // Insert this head pointer, evicting another entry if needed.
+            if (cache.size() == cache_size)
+                evict();
+            // We don't get size information, so we can't compute the actual index.
+            index_range_t fake_index(size_class, size_class + 1);
+            cache_entry_t new_entry(size_class, 0, new_head);
+            insert_cache_entry(fake_index, new_entry);
             head_updates++;
+            success = true;
+#else
+            success = false;
+#endif
+        } else {
+          success = true;
+          if (new_head == nullptr) {
+              it->second.invalidate_head();
+              head_invalidates++;
+          } else {
+              it->second.set_head(new_head);
+              head_updates++;
+          }
         }
-        return true;
+        assert(lru.size() == cache.size());
+#ifdef SIZE_CLASS_CACHE_DEBUG
+        if (new_head == nullptr) {
+            std::cerr << "Invalidating head for class=" << size_class;
+        } else {
+          std::cerr << "[Size class cache]: Updating head " << new_head
+                    << " for class=" << size_class;
+        }
+        if (success)
+            std::cerr << " succeeded." << std::endl;
+        else
+            std::cerr << " failed" << std::endl;
+#endif
+        return success;
     }
 
     // Flushes the cache.
@@ -252,6 +294,7 @@ class SizeClassCache {
 #endif
         cache.clear();
         lru.clear();
+        assert(lru.size() == cache.size());
     }
 
     void reg_stats(xiosim::stats::StatsDatabase* sdb, int coreID) {
@@ -269,7 +312,7 @@ class SizeClassCache {
                             "Size class evictions", &size_evictions, 0, true, NULL);
         stat_reg_core_formula(sdb, true, coreID, "size_class_cache.size_hit_rate",
                               "Size class hit rate (size class)",
-                              size_hits_stat / (size_hits_stat + size_misses_stat), NULL);
+                              size_hits_stat / (size_hits_stat + size_misses_stat), "%12.8f");
 
         auto& head_hits_stat =
                 stat_reg_core_qword(sdb, true, coreID, "size_class_cache.head_hits",
@@ -277,25 +320,49 @@ class SizeClassCache {
         auto& head_misses_stat =
                 stat_reg_core_qword(sdb, true, coreID, "size_class_cache.head_misses",
                                     "Head pointer misses", &head_misses, 0, true, NULL);
-        stat_reg_core_qword(sdb, true, coreID, "head_class_cache.head_updates",
+        stat_reg_core_qword(sdb, true, coreID, "size_class_cache.head_updates",
                             "Head pointer insertions", &head_updates, 0, true, NULL);
-        stat_reg_core_qword(sdb, true, coreID, "head_class_cache.head_invalidates",
+        stat_reg_core_qword(sdb, true, coreID, "size_class_cache.head_invalidates",
                             "Head pointer invalidates", &head_invalidates, 0, true, NULL);
         stat_reg_core_formula(sdb, true, coreID, "size_class_cache.head_hit_rate",
                               "Head pointer hit rate (head)",
-                              head_hits_stat / (head_hits_stat + head_misses_stat), NULL);
+                              head_hits_stat / (head_hits_stat + head_misses_stat), "%12.8f");
 
         stat_reg_core_formula(
                 sdb, true, coreID, "size_class_cache.accesses", "Size class total accesses",
-                size_hits_stat + size_misses_stat + head_hits_stat + head_misses_stat, "%0.0f");
+                size_hits_stat + size_misses_stat + head_hits_stat + head_misses_stat, "%12.0f");
     }
 
   private:
     std::map<index_range_t, cache_entry_t>::iterator find_index_range(size_t cl) {
-        for (auto it = cache.begin(); it != cache.end(); ++it)
-            if (it->second.get_size_class() == cl)
+        for (auto it = cache.begin(); it != cache.end(); ++it) {
+            if (it->second.get_size_class() == cl) {
+                update_lru(cl);
                 return it;
+            }
+        }
         return cache.end();
+    }
+
+    bool get_cache_entry(index_range_t key, cache_entry_t& result) {
+        if (cache.find(key) == cache.end())
+            return false;
+        result = cache[key];
+        update_lru(result.get_size_class());
+        return true;
+    }
+
+    void insert_cache_entry(index_range_t key, cache_entry_t entry) {
+        assert(cache.size() < cache_size && cache.find(key) == cache.end());
+        cache[key] = entry;
+        update_lru(entry.get_size_class());
+    }
+
+    void update_cache_key(index_range_t old_key, index_range_t new_key) {
+        assert(cache.find(old_key) != cache.end());
+        cache_entry_t current_entry = cache[old_key];
+        cache.erase(old_key);
+        cache[new_key] = current_entry;
     }
 
     /* Update the LRU chains.
@@ -337,7 +404,7 @@ class SizeClassCache {
                   << ", entry = " << evicted_entry << std::endl;
 #endif
         cache.erase(it);
-        lru.pop_back();
+        lru.pop_front();  // find_index_range calls update_lru(cl), which moves cl to the front.
         size_evictions++;
     }
 

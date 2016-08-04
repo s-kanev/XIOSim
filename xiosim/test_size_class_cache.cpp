@@ -70,3 +70,35 @@ TEST_CASE("Expansion of index ranges", "expansion") {
         REQUIRE(cache.size_update(575, 576, 26) == false);
     }
 }
+
+#ifdef SIZE_CLASS_CACHE_SLL_ONLY
+TEST_CASE("Head pointer only", "head only") {
+    SizeClassCache cache(5);
+    void* ptr;
+
+    REQUIRE(cache.head_update(1, (void*)0xdeadbeef) == true);
+    REQUIRE(cache.head_update(2, (void*)0xdecafbad) == true);
+    REQUIRE(cache.head_update(3, (void*)0xabcdef00) == true);
+
+    SECTION("Cache is not full.") {
+        REQUIRE(cache.head_pop(1, &ptr) == true);
+        REQUIRE(ptr == (void*)0xdeadbeef);
+        REQUIRE(cache.head_pop(2, &ptr) == true);
+        REQUIRE(ptr == (void*)0xdecafbad);
+        REQUIRE(cache.head_pop(3, &ptr) == true);
+        REQUIRE(ptr == (void*)0xabcdef00);
+        REQUIRE(cache.head_pop(4, &ptr) == false);
+        REQUIRE(ptr == nullptr);
+    }
+
+    SECTION("Cache entries get evicted.") {
+        REQUIRE(cache.head_update(4, (void*)0xffffffff) == true);
+        REQUIRE(cache.head_update(5, (void*)0xeeeeeeee) == true);
+        REQUIRE(cache.head_update(6, (void*)0xdddddddd) == true);
+
+        REQUIRE(cache.head_pop(1, &ptr) == false);  // Should have been evicted.
+        REQUIRE(cache.head_pop(2, &ptr) == true);
+        REQUIRE(cache.head_pop(6, &ptr) == true);
+    }
+}
+#endif

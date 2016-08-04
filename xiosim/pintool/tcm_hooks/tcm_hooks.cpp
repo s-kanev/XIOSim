@@ -356,6 +356,14 @@ void InstrumentTCMIMGHooks(IMG img) {
     if (!KnobTCMHooks.Value())
         return;
 
+#ifdef SIZE_CLASS_CACHE_SLL_ONLY
+    /* If we've compiled with this feature, make sure we don't run with
+     * size_class_mode = REALISTIC, because these features will conflict.
+     */
+    if (size_class_mode == REALISTIC && freelist_mode == REALISTIC)
+        ASSERTX(false && "Cannot run with realistic size classes AND free lists!!");
+#endif
+
     freelist_mode = StringToMagicInsMode(KnobFreelistMode.Value());
     sampling_mode = StringToMagicInsMode(KnobSamplingMode.Value());
 
