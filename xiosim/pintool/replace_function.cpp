@@ -87,6 +87,9 @@ ADDRINT GetFixedUpftPC(ADDRINT pc, ADDRINT ftPC) {
 }
 
 static void AddMagicInstructions(THREADID tid, ADDRINT pc, ADDRINT ftPC, std::vector<fake_inst_info_t>& magic_insns) {
+    if (ExecMode != EXECUTION_MODE_SIMULATE)
+        return;
+
     thread_state_t* tstate = get_tls(tid);
 
     size_t mem_ind = 0;
@@ -211,7 +214,7 @@ static void AddReplacementCalls(IMG img, void* v) {
                        IARG_INST_PTR,
                        IARG_RETURN_IP,
                        IARG_CALL_ORDER,
-                       CALL_ORDER_FIRST,
+                       CALL_ORDER_FIRST + 2,  // +2 to order wrt to eventual emulation calls
                        IARG_END);
         RTN_InsertCall(rtn,
                        IPOINT_AFTER,

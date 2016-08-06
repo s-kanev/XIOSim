@@ -1999,10 +1999,6 @@ void core_exec_DPM_t::magic_FU_exec(struct uop_t * const uop)
       size_class_cache->update(uop->Mop->oracle.size_class_cache.req_size,
                                uop->Mop->oracle.size_class_cache.alloc_size,
                                uop->Mop->oracle.size_class_cache.alloc_size_class);
-  } else if (iclass == XED_ICLASS_ADC) {
-    // Nothing actually needs to be done here.
-  } else {
-    zesto_assert(false && "Unrecognized magic instruction type.",(void)0);
   }
 }
 

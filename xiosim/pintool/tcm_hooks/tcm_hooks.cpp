@@ -6,6 +6,7 @@
 #include "xiosim/knobs.h"
 #include "xiosim/decode.h"
 #include "xiosim/size_class_cache.h"
+#include "xiosim/regs.h"
 
 #include "xiosim/pintool/BufferManagerProducer.h"
 #include "xiosim/pintool/feeder.h"
@@ -199,10 +200,11 @@ static void HandleMagicInsMode(const std::vector<INS>& insns, xed_iclass_enum_t 
         break;
     }
     case REALISTIC: {
-        MarkMagicInstructionHelper(insns[0]);
-
         auto repl = GetRealisticInstructions(insns, iclass);
-        for (size_t i = 1; i < insns.size(); i++)
+
+        if (!repl[0].do_replace)
+            MarkMagicInstructionHelper(insns[0]);
+        for (size_t i = 0; i < insns.size(); i++)
             if (repl[i].do_replace)
                 AddInstructionReplacement(insns[i], repl[i].insns);
         break;
@@ -311,8 +313,14 @@ void InstrumentTCMIMGHooks(IMG img) {
             std::cerr << "IMG found DoSampledAllocation @ pc: " << std::hex << rtn_addr
                       << std::dec << ". Ignoring in real mode." << std::endl;
 #endif
-            std::list<xed_encoder_instruction_t> empty;
-            AddFunctionReplacement(sampled_sym, 0, empty);
+            std::list<xed_encoder_instruction_t> do_sample_repl;
+            xed_encoder_instruction_t new_adc;
+            xed_inst2(&new_adc, dstate, XED_ICLASS_ADC, xed_mem_op_width,
+                      xed_reg(largest_reg(XED_REG_EAX)), // doesn't matter, will turn into a NOP
+                      xed_reg(largest_reg(XED_REG_EBX)));
+            do_sample_repl.push_back(new_adc);
+
+            AddFunctionReplacement(sampled_sym, 0, do_sample_repl);
         }
     }
 
