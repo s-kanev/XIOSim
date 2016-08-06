@@ -71,3 +71,17 @@ INS GetNextInsOfCategory(const INS& ins, xed_category_enum_t category) {
     }
     return next;
 }
+
+/* Get the next z-flag branch (je or jne).
+ * If the bbl ends with a different control-flow insn, the returned INS is not valid */
+INS GetNextZFlagBranch(const INS& ins) {
+    INS next = INS_Next(ins);
+    xed_iclass_enum_t ins_iclass = XED_ICLASS_INVALID;
+    while (INS_Valid(next)) {
+        ins_iclass = XED_INS_ICLASS(next);
+        if (ins_iclass == XED_ICLASS_JZ || ins_iclass == XED_ICLASS_JNZ)
+            break;
+        next = INS_Next(next);
+    }
+    return next;
+}

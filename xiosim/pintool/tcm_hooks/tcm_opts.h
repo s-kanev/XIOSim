@@ -44,11 +44,13 @@ void RegisterEmulation(INS ins);
 repl_vec_t GetBaselineReplacements(const insn_vec_t& insns);
 repl_vec_t GetRealisticReplacements(const insn_vec_t& insns);
 insn_vec_t LocateMagicSequence(const INS& ins);
+insn_vec_t GetFallbackPathBounds(const insn_vec_t& insns, RTN rtn);
 }
 
 namespace SizeClassCacheUpdate {
 void RegisterEmulation(INS ins);
 repl_vec_t GetBaselineReplacements(const insn_vec_t& insns);
+repl_vec_t GetIdealReplacements(const insn_vec_t& insns);
 insn_vec_t LocateMagicSequence(const INS& ins);
 }
 

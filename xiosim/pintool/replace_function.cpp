@@ -337,6 +337,24 @@ void StopIgnoringTakenBranch(RTN rtn) {
                    IARG_END);
 }
 
+void IgnoreBetween(const std::vector<INS>& bounds) {
+    ASSERTX(bounds.size() == 2);
+    INS_InsertCall(bounds[0],
+                   IPOINT_BEFORE,
+                   AFUNPTR(StartIgnoringTaken),
+                   IARG_THREAD_ID,
+                   IARG_CALL_ORDER,
+                   CALL_ORDER_FIRST,
+                   IARG_END);
+    INS_InsertCall(bounds[1],
+                   IPOINT_BEFORE,
+                   AFUNPTR(StopIgnoringTaken),
+                   IARG_THREAD_ID,
+                   IARG_CALL_ORDER,
+                   CALL_ORDER_FIRST,
+                   IARG_END);
+}
+
 void AddFallthroughInstructions(INS jcc, list<xed_encoder_instruction_t> insts) {
     if (ExecMode != EXECUTION_MODE_SIMULATE)
         return;

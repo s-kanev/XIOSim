@@ -55,4 +55,6 @@ INS GetNextInsOfClass(const INS& ins, xed_iclass_enum_t iclass);
 INS GetPrevInsOfClass(const INS& ins, xed_iclass_enum_t iclass);
 INS GetNextInsOfCategory(const INS& ins, xed_category_enum_t category);
 
+INS GetNextZFlagBranch(const INS& ins);
+
 #endif

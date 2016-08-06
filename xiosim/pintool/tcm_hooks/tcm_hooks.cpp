@@ -166,12 +166,13 @@ static std::vector<magic_insn_action_t> GetIdealInstructions(const std::vector<I
     switch (iclass) {
     case XED_ICLASS_BEXTR:
     case XED_ICLASS_BLSR:
-    case XED_ICLASS_SHLD:
     case XED_ICLASS_ADC:
         /* Usually, return an empty list to just ignore all magic. */
         return std::vector<magic_insn_action_t>(insns.size());
     case XED_ICLASS_LZCNT:
-        SLLPop::GetIdealReplacements(insns);
+        return SLLPop::GetIdealReplacements(insns);
+    case XED_ICLASS_SHLD:
+        return SizeClassCacheUpdate::GetIdealReplacements(insns);
     default:
         return std::vector<magic_insn_action_t>();
     }
@@ -194,9 +195,6 @@ static void HandleMagicInsMode(const std::vector<INS>& insns, xed_iclass_enum_t 
         if (iclass == XED_ICLASS_ADC) {
             INS jne = insns.back();
             IgnoreTakenBranchPath(jne);
-        } else if (iclass == XED_ICLASS_BLSR) {
-            INS je = insns.back();
-            IgnoreTakenBranchPath(je);
         }
         break;
     }
@@ -298,6 +296,7 @@ void InstrumentTCMIMGHooks(IMG img) {
         return;
 
     MagicInsMode sampling_mode = StringToMagicInsMode(KnobSamplingMode.Value());
+    MagicInsMode size_class_mode = StringToMagicInsMode(KnobSizeClassMode.Value());
 
     /* In realistic sampling mode, make sure we ignore DoSampledAllocation.
      * We'll use the magic adc instruction to simulate the (constant) cost of a PMU
@@ -326,7 +325,8 @@ void InstrumentTCMIMGHooks(IMG img) {
             RTN_Open(rtn);
             for (INS ins = RTN_InsHead(rtn); INS_Valid(ins); ins = INS_Next(ins)) {
                 xed_iclass_enum_t iclass = XED_INS_ICLASS(ins);
-                if (iclass != XED_ICLASS_ADC)
+                if (iclass != XED_ICLASS_ADC &&
+                    iclass != XED_ICLASS_BLSR)
                     continue;
 
 #ifdef TCM_DEBUG
@@ -334,14 +334,34 @@ void InstrumentTCMIMGHooks(IMG img) {
                           << std::dec << std::endl;
 #endif
 
-                /* When the sampling branch is taken, we don't come back to the fallthrough,
-                 * but a few (4-5) instructions above the ret. This is on a different bbl,
-                 * so we have to get a bit more creative with the instrumentation to stop
-                 * ignoring. We'll just add it statically on all exit points.
-                 * This way, we overestimate the benefits by 4-5 insns on the taken path,
-                 * but it's ~10K insns, so no harm done. */
-                if (sampling_mode == IDEAL)
-                    StopIgnoringTakenBranch(rtn);
+                switch (iclass) {
+                case XED_ICLASS_ADC:
+                    /* When the sampling branch is taken, we don't come back to the fallthrough,
+                     * but a few (4-5) instructions above the ret. This is on a different bbl,
+                     * so we have to get a bit more creative with the instrumentation to stop
+                     * ignoring. We'll just add it statically on all exit points.
+                     * This way, we overestimate the benefits by 4-5 insns on the taken path,
+                     * but it's ~10K insns, so no harm done. */
+                    if (sampling_mode == IDEAL)
+                        StopIgnoringTakenBranch(rtn);
+                    break;
+                case XED_ICLASS_BLSR: {
+                        auto insns = SizeClassCacheLookup::LocateMagicSequence(ins);
+                        auto fallback = SizeClassCacheLookup::GetFallbackPathBounds(insns, rtn);
+#ifdef TCM_DEBUG
+                        std::cerr << "Size class fallback path: " << std::endl;
+                        for (INS ins : fallback) {
+                            std::cerr << std::hex << INS_Address(ins) << std::dec << std::endl;
+                        }
+#endif
+                        if (size_class_mode == IDEAL) {
+                            IgnoreBetween(fallback);
+                        }
+                    break;
+                }
+                default:
+                    break;
+                };
             }
         }
     }

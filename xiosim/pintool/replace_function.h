@@ -3,6 +3,7 @@
 
 #include <string>
 #include <list>
+#include <vector>
 
 #include "feeder.h"
 #include "handshake_container.h"
@@ -45,6 +46,10 @@ void IgnoreTakenBranchPath(INS jcc);
 /* Adds instrumentation on the exit paths of @rtn that stops ignoring taken branch paths.
  * Assumes @rtn is already open. */
 void StopIgnoringTakenBranch(RTN rtn);
+
+/* Similar to IgnoreTakenBranch, ignore the dynamic sequence of insns between bounds[0]
+ * and bounds[1]. */
+void IgnoreBetween(const std::vector<INS>& bounds);
 
 /* Add @insns for simulation on the non-taken path of @jcc *without* ignoring @jcc. */
 void AddFallthroughInstructions(INS jcc, std::list<xed_encoder_instruction_t> insns);

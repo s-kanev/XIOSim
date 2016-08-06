@@ -6,6 +6,7 @@
 #include "xiosim/pintool/feeder.h"
 #include "xiosim/pintool/xed_utils.h"
 
+#include "tcm_opts.h"
 #include "tcm_utils.h"
 
 MagicInsMode size_class_mode;
@@ -97,16 +98,16 @@ repl_vec_t GetRealisticReplacements(const insn_vec_t& insns) {
     return result;
 }
 
-/* For size class, the magic instruction sequence is blsr; mov; test; je.  Grab
+/* For size class, the magic instruction sequence is blsr; mov; test; j(n)e.  Grab
  * this instruction sequence so we can handle them appropriately.
  */
 insn_vec_t LocateMagicSequence(const INS& ins) {
     const INS& blsr = ins;
     std::vector<INS> result{ blsr };
 
-    INS test = INS_Next(blsr);
+    // There might be something innocent between the blsr and test
+    INS test = GetNextInsOfClass(blsr, XED_ICLASS_TEST);
     ASSERTX(INS_Valid(test));
-    ASSERTX(XED_INS_ICLASS(test) == XED_ICLASS_TEST);
     result.push_back(test);
 
     // Try to find the reg-reg mov that reads the input of the blsr. Sometimes
@@ -122,11 +123,73 @@ insn_vec_t LocateMagicSequence(const INS& ins) {
         next = INS_Next(next);
     }
 
-    // TODO: This will fail if the optimizer uses a JNZ instead of a JZ.
-    INS je = GetNextInsOfClass(test, XED_ICLASS_JZ);
-    ASSERTX(INS_Valid(je));
-    result.push_back(je);
+    INS jene = GetNextZFlagBranch(test);
+    ASSERTX(INS_Valid(jene));
+    result.push_back(jene);
 
+    return result;
+}
+
+/* Helper to find insn with @pc in @rtn. */
+static INS RTN_FindInsByAddress(RTN rtn, ADDRINT pc) {
+    ASSERTX(pc < RTN_Address(rtn) + RTN_Size(rtn));
+    for (INS ins = RTN_InsHead(rtn); INS_Valid(ins); ins = INS_Next(ins)) {
+        if (INS_Address(ins) == pc)
+            return ins;
+    }
+    return INS();
+}
+
+insn_vec_t GetFallbackPathBounds(const insn_vec_t& insns, RTN rtn) {
+    INS jene = insns.back();
+    bool is_je = (XED_INS_ICLASS(jene) == XED_ICLASS_JZ);
+
+    insn_vec_t result;
+    if (is_je) {
+        /* JE -- falback path is the taken direction, and ends with a jmp to the ft. */
+        ADDRINT je_target_pc = INS_DirectBranchOrCallTargetAddress(jene);
+        INS je_target = RTN_FindInsByAddress(rtn, je_target_pc);
+        result.push_back(je_target);
+
+        /* Except when there's no jmp, and we have e.g. another exit path. */
+        /* We'll just play along with the shld again. */
+        INS shld = GetNextInsOfClass(je_target, XED_ICLASS_SHLD);
+        ASSERTX(INS_Valid(shld));
+        INS shld_next = INS_Next(shld);
+        ASSERTX(INS_Valid(shld_next));
+
+        if (XED_INS_ICLASS(shld_next) != XED_ICLASS_JMP) {
+            result.push_back(shld_next);
+        } else {
+            ADDRINT je_ft_pc = INS_NextAddress(jene);
+            ASSERTX(INS_DirectBranchOrCallTargetAddress(shld_next) == je_ft_pc);
+            INS je_ft = RTN_FindInsByAddress(rtn, je_ft_pc);
+            result.push_back(je_ft);
+        }
+    } else {
+        /* JNE -- fallback path is on the jne fallthrough, and (typically) ends at the jne target. */
+        ADDRINT jne_ft_pc = INS_NextAddress(jene);
+        INS jne_ft = RTN_FindInsByAddress(rtn, jne_ft_pc);
+        result.push_back(jne_ft);
+
+        /* Except in some crazy corner cases like MarkThreadBusy() */
+        /* Then, we'll just stop at the ins after the shld, and print a warning. */
+        INS shld = GetNextInsOfClass(jne_ft, XED_ICLASS_SHLD);
+        if (!INS_Valid(shld)) {
+            /* Mkay, in some even more fun cases the shld is a direct jump away.
+             * So, in desperation, just go for any shld in this routine. */
+            shld = GetNextInsOfClass(RTN_InsHead(rtn), XED_ICLASS_SHLD);
+            ASSERTX(INS_Valid(shld));
+        }
+        INS shld_next = INS_Next(shld);
+        ASSERTX(INS_Valid(shld_next));
+        result.push_back(shld_next);
+
+        ADDRINT jne_target_pc = INS_DirectBranchOrCallTargetAddress(jene);
+        if (INS_Address(shld_next) != jne_target_pc)
+            std::cerr << "Size class fallback: corner case fallback found at "
+                      << std::hex << INS_Address(shld_next) << std::dec << std::endl;
+    }
     return result;
 }
 
@@ -170,25 +233,45 @@ void RegisterEmulation(INS ins) {
                    IARG_END);
 }
 
-/* For the size class cache update magic instruction sequence, we want both the
- * shld and the jump ignored for the baseline.
- */
-repl_vec_t GetBaselineReplacements(const insn_vec_t& insns) {
-    ASSERTX(insns.size() == 2 || insns.size() == 3);
-    if (insns.size() == 2) {
+static void CheckSequence(const insn_vec_t& insns) {
+    ASSERTX(insns.size() >= 1 || insns.size() <= 3);
+    if (insns.size() == 1) {
         ASSERTX(XED_INS_ICLASS(insns[0]) == XED_ICLASS_SHLD);
-        ASSERTX(XED_INS_ICLASS(insns[1]) == XED_ICLASS_JMP);
+    }
+    else if (insns.size() == 2) {
+        ASSERTX(XED_INS_ICLASS(insns[0]) == XED_ICLASS_SHLD);
+        ASSERTX(XED_INS_ICLASS(insns[1]) == XED_ICLASS_JMP || XED_INS_ICLASS(insns[1]) == XED_ICLASS_MOV);
     } else if (insns.size() == 3) {
         ASSERTX(XED_INS_ICLASS(insns[0]) == XED_ICLASS_SHLD);
         ASSERTX(XED_INS_ICLASS(insns[1]) == XED_ICLASS_MOV);
         ASSERTX(XED_INS_ICLASS(insns[2]) == XED_ICLASS_JMP);
     }
+}
+
+/* For the size class cache update magic instruction sequence, we want both the
+ * shld and the jump ignored for the baseline.
+ */
+repl_vec_t GetBaselineReplacements(const insn_vec_t& insns) {
+    CheckSequence(insns);
 
     std::vector<magic_insn_action_t> result;
     for (unsigned i = 0; i < insns.size(); i++) {
         result.emplace_back();
     }
+    return result;
+}
 
+/* In the ideal case, lookup instrumentation already takes care of ignoring
+ * the whole branch, so we don't do anything, lest we stop ignoring by accident.
+ */
+repl_vec_t GetIdealReplacements(const insn_vec_t& insns) {
+    CheckSequence(insns);
+
+    std::list<xed_encoder_instruction_t> empty;
+    std::vector<magic_insn_action_t> result;
+    for (unsigned i = 0; i < insns.size(); i++) {
+        result.emplace_back(empty, false);
+    }
     return result;
 }
 
@@ -208,10 +291,11 @@ insn_vec_t LocateMagicSequence(const INS& ins) {
         }
         prev = INS_Prev(prev);
     }
+
+    /* jmp might or might not be there */
     INS jmp = INS_Next(shld);
-    ASSERTX(INS_Valid(jmp));
-    ASSERTX(XED_INS_ICLASS(jmp) == XED_ICLASS_JMP);
-    result.push_back(jmp);
+    if (INS_Valid(jmp) && XED_INS_ICLASS(jmp) == XED_ICLASS_JMP)
+        result.push_back(jmp);
 
     return result;
 }
