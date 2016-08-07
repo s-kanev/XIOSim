@@ -17,6 +17,7 @@ class SPECRun(bmk.BenchmarkRun):
         binary = '%s_%s.%s' % (executable, specTune, specExt)
         super(SPECRun, self).__init__(bmk, binary, args, input, output, error, name, expected)
         self.needs_pin_points = True
+        self.needs_roi = False
 
     def GetDir(self):
         return os.path.join(specDir, self.bmk, 'run', 'run_%s_%s_%s.%s' % (specTune, specInput, specExt, specRunID))

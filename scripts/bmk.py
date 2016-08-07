@@ -75,3 +75,6 @@ class BenchmarkRun(object):
 
     def NeedsPinPoints(self):
         return self.needs_pin_points
+
+    def NeedsROI(self):
+        return self.needs_roi
