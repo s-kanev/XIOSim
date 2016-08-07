@@ -321,6 +321,9 @@ VOID PPointHandler(CONTROL_EVENT ev, VOID* v, CONTEXT* ctxt, VOID* ip, THREADID 
     } break;
 
     case CONTROL_STOP: {
+        if (ExecMode != EXECUTION_MODE_SIMULATE)
+            return;
+
         lk_lock(printing_lock, 1);
         cerr << "Stop" << endl;
         lk_unlock(printing_lock);
@@ -384,6 +387,34 @@ VOID ImageLoad(IMG img, VOID* v) {
     ipc_message_t msg;
     msg.Mmap(asid, start, length, false);
     SendIPCMessage(msg);
+}
+
+/* Add a call to PPointHandler at the end of main.
+ * This is earlier than the typical Fini call (which is literally at the exit() syscall),
+ * so we can still have nice things like tls and finish multithreaded simulation cleanly.
+ * Fini will still call PPointHandler, but that's fine -- it will just be a no-op then. */
+VOID AddEarlyFini(IMG img, VOID* v) {
+    RTN rtn = RTN_FindByName(img, "main");
+    if (RTN_Valid(rtn)) {
+#ifdef ROI_DEBUG
+        cerr << IMG_Name(img) << ": main" << endl;
+#endif
+
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn,
+                       IPOINT_AFTER,
+                       AFUNPTR(PPointHandler),
+                       IARG_ADDRINT,
+                       CONTROL_STOP,
+                       IARG_ADDRINT,
+                       0,
+                       IARG_ADDRINT,
+                       0,
+                       IARG_INST_PTR,
+                       IARG_THREAD_ID,
+                       IARG_END);
+        RTN_Close(rtn);
+    }
 }
 
 /* ========================================================================== */
@@ -1115,6 +1146,9 @@ INT32 main(INT32 argc, CHAR** argv) {
             cerr << "Error reading control parametrs, exiting." << endl;
             return 1;
         }
+
+        // Add early Fini instrumentation
+        IMG_AddInstrumentFunction(AddEarlyFini, 0);
     }
 
     icount.Activate();
