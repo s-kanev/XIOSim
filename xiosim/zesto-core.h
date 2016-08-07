@@ -181,6 +181,7 @@ class core_t {
     counter_t int_FU_occupancy;
     counter_t fp_FU_occupancy;
     counter_t mul_FU_occupancy;
+    counter_t sampling_interrupts;
 
     /* commit stage */
     counter_t commit_bytes;

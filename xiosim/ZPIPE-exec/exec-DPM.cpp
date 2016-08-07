@@ -419,6 +419,8 @@ void core_exec_DPM_t::reg_stats(xiosim::stats::StatsDatabase* sdb) {
     reg_core_queue_occupancy_stats(sdb, coreID, "STQ", &core->stat.STQ_occupancy,
                                    &core->stat.STQ_empty_cycles,
                                    &core->stat.STQ_full_cycles);
+    stat_reg_core_counter(sdb, true, coreID, "sampling_interrupts", "Number of sampling interrupts",
+                          &core->stat.sampling_interrupts, 0, true, NULL);
     memdep->reg_stats(sdb, core);
 
     size_class_cache->reg_stats(sdb, coreID);
@@ -2111,6 +2113,9 @@ void core_exec_DPM_t::ALU_exec(void)
               else if (FU_type == FU_SIZE_CLASS && uop->Mop->decode.is_magic)
               {
                 magic_FU_exec(uop);
+              }
+              else if (FU_type == FU_SAMPLING && uop->Mop->decode.is_magic) {
+                core->stat.sampling_interrupts++;
               }
 
               if((uop->decode.is_sta || uop->decode.is_std) &&
