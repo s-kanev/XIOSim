@@ -426,6 +426,16 @@ static bool IsThreadBlocked(pid_t tid) {
 }
 
 void BlockThread(int coreID, pid_t tid, pid_t blocked_on) {
+    if (!IsSHMThreadSimulatingMaybe(blocked_on)) {
+#ifdef SCHEDULER_DEBUG
+        {
+            std::lock_guard<XIOSIM_LOCK> l(*printing_lock);
+            std::cerr << "Thread " << tid << " about to join " << blocked_on << ", which already finished." << std::endl;
+        }
+#endif
+        return;
+    }
+
     {
         std::lock_guard<XIOSIM_LOCK> l(tcb_lk);
         TCB& tcb = threads.at(tid);
