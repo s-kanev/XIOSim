@@ -65,15 +65,20 @@ inline md_addr_t page_offset(const md_addr_t addr) {
     return addr & PAGE_MASK;
 }
 
-/* this maps a virtual address to a low address where we're
-   pretending that the page table information is stored.  The shift
-   by PAGE_SHIFT yields the virtual page number, the masking is
-   just to hash the address down to something that's less than the
-   start of the .text section, and the additional offset is so that
-   we don't generate a really low (e.g., NULL) address. */
+/* This maps a virtual address to a low address where we're
+ * pretending that the page table for this process is stored.
+ * Shifting by PAGE_SHIFT yields the virtual page number.
+ * We don't simulate the full multi-level table, so we (somewhat arbitrarily)
+ * assume 1MB per process table.
+ * XXX: The real address would be multiplied by the size of a PTE
+ * but then our TLBs's banking hash function would need to discard these
+ * bits, or all TLB requests just go to bank 0.
+ * So, to save ourselves from making our TLB implementation diverge more
+ * from caches, we don't do the multiply.
+ */
 inline md_addr_t page_table_address(const int asid, const md_addr_t addr) {
-    return ((((addr >> PAGE_SHIFT) << 4) + asid) + 0x00080000) & 0x03ffffff;
-    /* TODO(skanev): Check for 64b */
+    const md_addr_t PAGE_TABLE_SIZE = (1 << 20);
+    return (addr >> PAGE_SHIFT) + PAGE_TABLE_SIZE * (asid + 1);
 }
 
 }
