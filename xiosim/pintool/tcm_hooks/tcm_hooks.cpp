@@ -356,6 +356,10 @@ void InstrumentTCMIMGHooks(IMG img) {
     if (!KnobTCMHooks.Value())
         return;
 
+    freelist_mode = StringToMagicInsMode(KnobFreelistMode.Value());
+    size_class_mode = StringToMagicInsMode(KnobSizeClassMode.Value());
+    sampling_mode = StringToMagicInsMode(KnobSamplingMode.Value());
+
 #ifdef SIZE_CLASS_CACHE_SLL_ONLY
     /* If we've compiled with this feature, make sure we don't run with
      * size_class_mode = REALISTIC, because these features will conflict.
@@ -363,9 +367,6 @@ void InstrumentTCMIMGHooks(IMG img) {
     if (size_class_mode == REALISTIC && freelist_mode == REALISTIC)
         ASSERTX(false && "Cannot run with realistic size classes AND free lists!!");
 #endif
-
-    freelist_mode = StringToMagicInsMode(KnobFreelistMode.Value());
-    sampling_mode = StringToMagicInsMode(KnobSamplingMode.Value());
 
     /* In realistic sampling mode, make sure we ignore DoSampledAllocation.
      * We'll use the magic adc instruction to simulate the (constant) cost of a PMU
