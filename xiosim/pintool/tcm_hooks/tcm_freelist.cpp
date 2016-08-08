@@ -359,10 +359,10 @@ void RegisterEmulation(INS ins) {
                    IARG_END);
 }
 
-/* The shrd instruction will set a flag based on the result of the lookup, so
- * we can ignore the test instruction that would do the same thing. Also, ignore
- * the mov instruction - that's just an artifact of using a three operand
- * placeholder instruction while ignoring the write operand.
+/* The shrd instruction can't set a flag based on the result of the lookup,
+ * because it's too far removed from the test, so the test can't be ignored.
+ * We can ignore the mov instruction - that's just an artifact of using a three
+ * operand placeholder instruction while ignoring the write operand.
  */
 repl_vec_t GetRealisticReplacements(const insn_vec_t& insns) {
     ASSERTX(insns.size() >= 1 || insns.size() <= 4);
@@ -370,7 +370,8 @@ repl_vec_t GetRealisticReplacements(const insn_vec_t& insns) {
     std::vector<magic_insn_action_t> result;
     result.emplace_back(empty, false);  // Don't ignore shrd.
     for (unsigned i = 1; i < insns.size(); i++) {
-        if (XED_INS_CATEGORY(insns[i]) == XED_CATEGORY_CMOV)
+        if (XED_INS_CATEGORY(insns[i]) == XED_CATEGORY_CMOV ||
+            XED_INS_ICLASS(insns[i]) == XED_ICLASS_TEST)
             result.emplace_back(empty, false);
         else
             result.emplace_back();
