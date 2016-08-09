@@ -392,6 +392,8 @@ void prefetch_LLC(struct uncore_t * const uncore);
 
 void cache_freeze_stats(struct core_t * const core);
 
+void cache_trash(struct cache_t* const cp);
+
 inline bool cache_single_line_access(struct cache_t * const cp, const md_addr_t addr, const size_t size)
 {
     return (((addr+size-1) >> cp->addr_shift) == (addr >> cp->addr_shift));

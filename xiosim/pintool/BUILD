@@ -57,6 +57,8 @@ cc_binary(
         "sync_pthreads.h",
         "syscall_handling.cpp",
         "syscall_handling.h",
+        "trash_hook.cpp",
+        "trash_hook.h",
         "utils.cpp",
         "utils.h",
         "vdso.cpp",

@@ -43,6 +43,7 @@
 #include "speculation.h"
 #include "sync_pthreads.h"
 #include "syscall_handling.h"
+#include "trash_hook.h"
 #include "vdso.h"
 #include "xed_utils.h"
 
@@ -379,6 +380,8 @@ VOID ImageLoad(IMG img, VOID* v) {
     AddROICallbacks(img);
 
     AddProfilingCallbacks(img);
+
+    AddTrashCallbacks(img);
 
     AddIgnoredInstructionPCs(img, system_knobs.ignored_pcs);
 

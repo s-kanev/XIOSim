@@ -27,6 +27,7 @@ struct handshake_flags_t {
     bool speculative : 1;         /* Is instruction on a wrong path */
     bool is_profiling_start : 1;  /* Is a profiling start point */
     bool is_profiling_stop : 1;   /* Is a profiling stop point */
+    bool is_cache_trash : 1;      /* Is a marker to trash the cache */
 };
 
 class handshake_container_t {

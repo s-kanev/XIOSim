@@ -536,6 +536,21 @@ struct Mop_t* core_oracle_t::exec(const md_addr_t requested_PC) {
 #endif
     }
 
+    if (handshake.flags.is_cache_trash) {
+        if (core->memory.DL1) {
+            cache_trash(core->memory.DL1.get());
+#ifdef ZTRACE
+            ztrace_print(Mop, "Trashing DL1.");
+#endif
+        }
+        if (core->memory.DL2) {
+            cache_trash(core->memory.DL2.get());
+#ifdef ZTRACE
+            ztrace_print(Mop, "Trashing DL2.");
+#endif
+        }
+    }
+
     update_stats(Mop);
 
     Mop->oracle.stopwatch_start = handshake.flags.is_profiling_start;

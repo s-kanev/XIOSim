@@ -2699,6 +2699,25 @@ tick_t cache_get_cycle(const struct cache_t * const cp)
   return cp->sim_cycle;
 }
 
+void cache_trash(struct cache_t* const cp) {
+    /* Random offset so we have a full address to pass. */
+    const md_paddr_t base_offset = 0x800000;
+    md_paddr_t addr = base_offset;
+
+    /* Iterate over half the associativity. This way, really hot things
+     * stay in the cache despite the trashing (say, stuck), while things
+     * with bad locality will get kicked out. */
+    size_t num_reps = (cp->assoc > 1) ? cp->assoc / 2 : 1;
+    for (size_t rep = 0; rep < num_reps; rep++) {
+        /* Go over all sets and kick things out. */
+        for (size_t i = 0; i < (size_t) cp->sets; i++) {
+            struct cache_line_t* p = cache_get_evictee(cp, addr, cp->core);
+            p->valid = p->dirty = false;
+            addr += cp->linesize;
+        }
+    }
+} 
+
 void cache_print(const struct cache_t * const cp)
 {
   fprintf(stderr,"<<<<< %s >>>>>\n",cp->name);
