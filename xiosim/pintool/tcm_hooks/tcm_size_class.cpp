@@ -190,7 +190,6 @@ insn_vec_t GetFallbackPathBounds(const insn_vec_t& insns, RTN rtn) {
             result.push_back(shld_next);
         } else {
             ADDRINT je_ft_pc = INS_NextAddress(jene);
-            ASSERTX(INS_DirectBranchOrCallTargetAddress(shld_next) == je_ft_pc);
             INS je_ft = RTN_FindInsByAddress(rtn, je_ft_pc);
             result.push_back(je_ft);
         }
