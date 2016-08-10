@@ -145,6 +145,8 @@ toolchain {
     compiler_flag: "-DPTHREADS_DEBUG"
     compiler_flag: "-DIGNORE_DEBUG"
     compiler_flag: "-DTCM_DEBUG"
+    compiler_flag: "-DDEMULATION_DEBUG"
+    compiler_flag: "-DSIZE_CLASS_CACHE_DEBUG"
   }
 
   compilation_mode_flags {
@@ -320,6 +322,8 @@ toolchain {
     compiler_flag: "-DPTHREADS_DEBUG"
     compiler_flag: "-DIGNORE_DEBUG"
     compiler_flag: "-DTCM_DEBUG"
+    compiler_flag: "-DDEMULATION_DEBUG"
+    compiler_flag: "-DSIZE_CLASS_CACHE_DEBUG"
   }
 
   compilation_mode_flags {
