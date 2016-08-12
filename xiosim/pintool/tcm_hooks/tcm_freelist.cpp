@@ -8,6 +8,8 @@
 
 #include "tcm_utils.h"
 
+#define EMULATION_DEBUG
+
 MagicInsMode freelist_mode;
 
 // Free list length is stored right after to the head pointer.
@@ -272,32 +274,44 @@ namespace LLHeadCacheLookup {
  * For baseline and ideal, we just return NULL (0) to force the producer to go
  * down the fallback path. For realistic, we actually perform the lookup.
  */
-static ADDRINT Emulation(THREADID tid, ADDRINT cl) {
+static void Emulation(THREADID tid, ADDRINT cl, PIN_REGISTER* head_reg, PIN_REGISTER* next_reg) {
+    /* Return 0 by default. */
+    head_reg->qword[0] = 0;
+    next_reg->qword[0] = 0;
+
     if (ExecMode != EXECUTION_MODE_SIMULATE)
-        return 0;
+        return;
+
     switch (freelist_mode) {
     case BASELINE:
     case IDEAL:
-        return 0;
+        return;
     case REALISTIC: {
         thread_state_t* tstate = get_tls(tid);
         void* next_head;
+        void* next_next;
         /* If success is false, return nullptr so that the test instruction
          * uses the fallback value. This is so we don't need to play with FLAGS
          * in the emulation routine.
          */
-        bool success = tstate->size_class_cache.head_pop(cl, &next_head);
 #ifdef EMULATION_DEBUG
-        std::cerr << "Emulating LLHeadCacheLookup: class=" << cl << ", next_head=" << next_head
+        std::cerr << "Emulating LLHeadCacheLookup: class=" << cl;
+#endif
+        bool success = tstate->size_class_cache.head_pop(cl, &next_head, &next_next);
+#ifdef EMULATION_DEBUG
+        std::cerr << ", next_head=" << next_head << ", next_next=" << next_next
                   << ", success=" << success << std::endl;
 #endif
-        if (success)
-            return reinterpret_cast<ADDRINT>(next_head);
+        if (success) {
+            head_reg->qword[0] = reinterpret_cast<ADDRINT>(next_head);
+            next_reg->qword[0] = reinterpret_cast<ADDRINT>(next_next);
+            return;
+        }
         else
-            return 0;
+            return;
     }
     default:
-        return 0;
+        return;
     }
 }
 
@@ -335,14 +349,14 @@ repl_vec_t GetBaselineReplacements(const insn_vec_t& insns) {
 }
 
 void RegisterEmulation(INS ins) {
-    // We will delete the shrd on the host but leave the test instruction so
+    // We will delete the rdpmc on the host but leave the test instructions so
     // the host takes the right path.
     INS_InsertCall(ins,
                    IPOINT_BEFORE,
                    AFUNPTR(GetRegOperands),
                    IARG_THREAD_ID,
                    IARG_REG_VALUE,
-                   INS_RegR(ins, 1),
+                   INS_RegR(ins, 0),
                    IARG_CALL_ORDER,
                    CALL_ORDER_FIRST,
                    IARG_END);
@@ -351,66 +365,62 @@ void RegisterEmulation(INS ins) {
                    AFUNPTR(Emulation),
                    IARG_THREAD_ID,
                    IARG_REG_VALUE,
-                   INS_RegR(ins, 1),
-                   IARG_RETURN_REGS,
+                   INS_RegR(ins, 0),
+                   IARG_REG_REFERENCE,
                    INS_RegW(ins, 0),
+                   IARG_REG_REFERENCE,
+                   INS_RegW(ins, 1),
                    IARG_CALL_ORDER,
                    CALL_ORDER_FIRST + 1,
                    IARG_END);
 }
 
-/* The shrd instruction can't set a flag based on the result of the lookup,
- * because it's too far removed from the test, so the test can't be ignored.
- * We can ignore the mov instruction - that's just an artifact of using a three
- * operand placeholder instruction while ignoring the write operand.
+/* We can ignore the mov instruction - that's just an artifact of using
+ * rdpmc that has hardcoded operands.
  */
 repl_vec_t GetRealisticReplacements(const insn_vec_t& insns) {
-    ASSERTX(insns.size() >= 1 || insns.size() <= 4);
-    std::list<xed_encoder_instruction_t> empty;
     std::vector<magic_insn_action_t> result;
-    result.emplace_back(empty, false);  // Don't ignore shrd.
-    for (unsigned i = 1; i < insns.size(); i++) {
-        if (XED_INS_CATEGORY(insns[i]) == XED_CATEGORY_CMOV ||
-            XED_INS_ICLASS(insns[i]) == XED_ICLASS_TEST)
-            result.emplace_back(empty, false);
-        else
+    for (INS ins : insns) {
+        // only ignore the mov to ECX
+        if (XED_INS_ICLASS(ins) == XED_ICLASS_MOV)
             result.emplace_back();
+        else {
+            std::list<xed_encoder_instruction_t> empty;
+            result.emplace_back(empty, false);
+        }
     }
     return result;
 }
 
-/* Get the magic instruction sequence shrd; test; cmovcc, if possible.
- *
- * shrd and the other instructions are separated by the fallback code (which
- * must be executed regardless) and end up on different basic blocks, so this
- * must be called from IMG instrumentation, not TRACE.
- *
- * Depending on what the optimizer does, the other instructions may or may not
- * exist in the current routine.
+/* Get the magic instruction sequence rdpmc; test; je; test; je;
+ * Both je targets are the same SW fallback path.
  */
 insn_vec_t LocateMagicSequence(const INS& ins) {
-    const INS& shrd = ins;
-    std::vector<INS> insns{ shrd };
-    LEVEL_BASE::REG shrd_dest = INS_RegW(shrd, 0);
-    INS next = INS_Next(shrd);
-    while (INS_Valid(next)) {
-        next = GetNextInsOfClass(next, XED_ICLASS_TEST);
-        if (INS_RegRContain(next, shrd_dest)) {
-            insns.push_back(next);
-            break;
-        }
-        next = INS_Next(next);
+    const INS& rdpmc = ins;
+    std::vector<INS> insns{ rdpmc };
+
+    LEVEL_BASE::REG rdpmc_src = INS_RegR(rdpmc, 0);
+    INS prev = INS_Prev(rdpmc);
+    if (XED_INS_ICLASS(prev) == XED_ICLASS_MOV &&
+        INS_RegW(prev, 0) == rdpmc_src) {
+        insns.push_back(prev);
     }
-    INS cmov = GetNextInsOfCategory(next, XED_CATEGORY_CMOV);
-    if (INS_Valid(cmov)) {
-        insns.push_back(cmov);
-    }
+
+    INS test_head = GetNextInsOfClass(rdpmc, XED_ICLASS_TEST);
+    insns.push_back(test_head);
+    INS je_head = GetNextInsOfClass(test_head, XED_ICLASS_JZ);
+    insns.push_back(je_head);
+    INS test_next = GetNextInsOfClass(je_head, XED_ICLASS_TEST);
+    insns.push_back(test_next);
+    INS je_next = GetNextInsOfClass(test_next, XED_ICLASS_JZ);
+    insns.push_back(je_next);
+
     return insns;
 }
 
 }  // namespace LLHeadCacheLookup
 
-namespace LLHeadCacheUpdate {
+namespace LLHeadCachePush {
 
 /* Update the linked list head cache on the producer.
  *
@@ -436,7 +446,7 @@ static BOOL Emulation(THREADID tid, ADDRINT ptr, ADDRINT cl, BOOL get_next_head)
     case REALISTIC: {
         // If we're not simulating, none of these optimizations matter.
 #ifdef EMULATION_DEBUG
-        std::cerr << "Emulating LLHeadCacheUpdate: class=" << cl << ", head=0x" << std::hex << ptr;
+        std::cerr << "Emulating LLHeadCachePush: class=" << cl << ", head=0x" << std::hex << ptr;
 #endif
         thread_state_t* tstate = get_tls(tid);
         ADDRINT next_head;
@@ -444,7 +454,7 @@ static BOOL Emulation(THREADID tid, ADDRINT ptr, ADDRINT cl, BOOL get_next_head)
             PIN_SafeCopy(&next_head, reinterpret_cast<VOID*>(ptr), sizeof(ADDRINT));
         else
             next_head = ptr;
-        bool success = tstate->size_class_cache.head_update(cl, reinterpret_cast<void*>(next_head));
+        bool success = tstate->size_class_cache.head_push(cl, reinterpret_cast<void*>(next_head));
 
 #ifdef EMULATION_DEBUG
         std::cerr << ", next_head=0x" << next_head << ", success:" << success << std::dec << std::endl;
@@ -515,4 +525,82 @@ repl_vec_t GetBaselineReplacements(const insn_vec_t& insns) {
     return result;
 }
 
-}  // namespace LLHeadCacheUpdate
+}  // namespace LLHeadCachePush
+
+namespace LLNextCachePrefetch {
+
+static VOID Emulation(THREADID tid, ADDRINT ptr, ADDRINT cl) {
+    // If we're not simulating, none of these optimizations matter.
+    if (ExecMode != EXECUTION_MODE_SIMULATE)
+        return;
+
+    if (freelist_mode != REALISTIC)
+        return;
+
+#ifdef EMULATION_DEBUG
+    std::cerr << "Emulating LLNextCachePrefetch: class=" << cl;
+#endif
+    ASSERTX(ptr);  // or we wouldn't be on this branch
+    ADDRINT ptr_next;
+    PIN_SafeCopy(&ptr_next, reinterpret_cast<ADDRINT*>(ptr), sizeof(ADDRINT));
+
+#ifdef EMULATION_DEBUG
+    std::cerr <<  ", next_next=0x" << std::hex << ptr_next << std::dec << std::endl;
+#endif
+
+    thread_state_t* tstate = get_tls(tid);
+    tstate->size_class_cache.prefetch_next(cl, reinterpret_cast<void*>(ptr_next));
+}
+
+
+/* Pass input operands to the timing simulator. */
+static VOID GetRegOperands(THREADID tid, ADDRINT ptr, ADDRINT cl) {
+    if (ExecMode != EXECUTION_MODE_SIMULATE)
+        return;
+
+    if (freelist_mode != REALISTIC)
+        return;
+
+    ASSERTX(ptr);  // or we wouldn't be on this branch
+    ADDRINT ptr_next;
+    PIN_SafeCopy(&ptr_next, reinterpret_cast<ADDRINT*>(ptr), sizeof(ADDRINT));
+
+    thread_state_t* tstate = get_tls(tid);
+    auto handshake = xiosim::buffer_management::GetBuffer(tstate->tid);
+    handshake->mem_buffer.push_back(
+            std::make_pair(static_cast<md_addr_t>(ptr_next), static_cast<uint8_t>(cl)));
+}
+
+void RegisterEmulation(INS ins) {
+    INS_InsertCall(ins,
+                   IPOINT_BEFORE,
+                   AFUNPTR(GetRegOperands),
+                   IARG_THREAD_ID,
+                   IARG_REG_VALUE,
+                   INS_RegR(ins, 0),
+                   IARG_REG_VALUE,
+                   INS_RegR(ins, 1),
+                   IARG_CALL_ORDER,
+                   CALL_ORDER_FIRST,
+                   IARG_END);
+    INS_InsertCall(ins,
+                   IPOINT_BEFORE,
+                   AFUNPTR(Emulation),
+                   IARG_THREAD_ID,
+                   IARG_REG_VALUE,
+                   INS_RegR(ins, 0),
+                   IARG_REG_VALUE,
+                   INS_RegR(ins, 1),
+                   IARG_CALL_ORDER,
+                   CALL_ORDER_FIRST + 1,
+                   IARG_END);
+}
+
+/* Same for the baseline free list next prefetch. */
+repl_vec_t GetBaselineReplacements(const insn_vec_t& insns) {
+    std::vector<magic_insn_action_t> result;
+    result.emplace_back();  // shrx
+    return result;
+}
+
+}  // namespace LLNextCachePrefetch

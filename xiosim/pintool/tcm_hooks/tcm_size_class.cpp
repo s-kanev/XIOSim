@@ -190,6 +190,10 @@ insn_vec_t GetFallbackPathBounds(const insn_vec_t& insns, RTN rtn) {
             result.push_back(shld_next);
         } else {
             ADDRINT je_ft_pc = INS_NextAddress(jene);
+            if (INS_DirectBranchOrCallTargetAddress(shld_next) != je_ft_pc) {
+                std::cerr << "Size class fallback: corner case fallback found at "
+                          << std::hex << INS_Address(shld_next) << std::dec << std::endl;
+            }
             INS je_ft = RTN_FindInsByAddress(rtn, je_ft_pc);
             result.push_back(je_ft);
         }

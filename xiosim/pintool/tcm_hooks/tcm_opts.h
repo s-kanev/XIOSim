@@ -33,7 +33,13 @@ repl_vec_t GetRealisticReplacements(const insn_vec_t& insns);
 insn_vec_t LocateMagicSequence(const INS& ins);
 }
 
-namespace LLHeadCacheUpdate {
+namespace LLHeadCachePush {
+void RegisterEmulation(INS ins);
+repl_vec_t GetBaselineReplacements(const insn_vec_t& insns);
+insn_vec_t LocateMagicSequence(const INS& ins);
+}
+
+namespace LLNextCachePrefetch {
 void RegisterEmulation(INS ins);
 repl_vec_t GetBaselineReplacements(const insn_vec_t& insns);
 insn_vec_t LocateMagicSequence(const INS& ins);

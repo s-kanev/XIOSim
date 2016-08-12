@@ -79,6 +79,16 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "tcmalloc-magic-timing",
+    hdrs = ["size_class_cache_timing.h"],
+    deps = [
+        ":misc",
+        ":tcmalloc-magic",
+        ":stats",
+    ],
+)
+
 cc_test(
     name = "test_size_class_cache",
     size = "small",
@@ -124,7 +134,7 @@ gen_list(
     extra_deps = [
         ":helix",
         ":memory",
-        ":tcmalloc-magic",
+        ":tcmalloc-magic-timing",
         ":zesto-memdep",
         ":ztrace",
     ],

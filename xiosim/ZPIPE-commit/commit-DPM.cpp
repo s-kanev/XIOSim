@@ -656,7 +656,8 @@ void core_commit_DPM_t::squash_uop(struct uop_t* const dead_uop) {
     } else if (dead_uop->decode.is_sta || dead_uop->decode.is_sfence) {
         if (dead_uop->timing.when_allocated != TICK_T_MAX)
             core->exec->STQ_squash_sta(dead_uop);
-    }
+    } else if (dead_uop->decode.FU_class == FU_SIZE_CLASS)
+            core->exec->squash_magic(dead_uop);
 
     undo_dependences(dead_uop);
 }

@@ -10,7 +10,7 @@
 
 #include <bitset>
 #include "xiosim/decode.h"
-#include "xiosim/size_class_cache.h"
+#include "xiosim/size_class_cache_timing.h"
 
 class core_exec_DPM_t:public core_exec_t
 {
@@ -86,6 +86,7 @@ class core_exec_DPM_t:public core_exec_t
 
   virtual void magic_FU_exec(struct uop_t * const uop);
   virtual void flush_size_class_cache();
+  virtual void squash_magic(struct uop_t * const uop);
 
   virtual void recover_check_assertions(void);
 
@@ -180,7 +181,7 @@ class core_exec_DPM_t:public core_exec_t
 
   std::unique_ptr<class memdep_t> memdep;
 
-  std::unique_ptr<SizeClassCache> size_class_cache;
+  std::unique_ptr<SizeClassCacheReal> size_class_cache;
 
   /* various exec utility functions */
 
@@ -323,7 +324,7 @@ core_exec_DPM_t::core_exec_DPM_t(struct core_t * const arg_core):
 
   memdep = memdep_create(core, knobs->exec.memdep_opt_str);
 
-  size_class_cache = std::make_unique<SizeClassCache>(knobs->exec.size_class_cache.size);
+  size_class_cache = std::make_unique<SizeClassCacheReal>(knobs->exec.size_class_cache.size);
 
   check_for_work = true;
 }
@@ -1997,22 +1998,32 @@ void core_exec_DPM_t::magic_FU_exec(struct uop_t * const uop)
   switch (iclass) {
   case XED_ICLASS_BLSR: {
       cache_entry_t result;
-      size_class_cache->size_lookup(uop->Mop->oracle.size_class_cache.req_size, result);
+      size_class_cache->size_lookup(//uop,
+                                    uop->Mop->oracle.size_class_cache.req_size, result);
       break;
   }
   case XED_ICLASS_SHLD:
-      size_class_cache->size_update(uop->Mop->oracle.size_class_cache.req_size,
+      size_class_cache->size_update(//uop,
+                                    uop->Mop->oracle.size_class_cache.req_size,
                                     uop->Mop->oracle.size_class_cache.alloc_size,
                                     uop->Mop->oracle.size_class_cache.size_class);
       break;
-  case XED_ICLASS_SHRD: {
+  case XED_ICLASS_RDPMC: {
       void* head;
-      size_class_cache->head_pop(uop->Mop->oracle.size_class_cache.size_class, &head);
+      void* next;
+      size_class_cache->head_pop(uop,
+                                 uop->Mop->oracle.size_class_cache.size_class, &head, &next);
       break;
   }
   case XED_ICLASS_SHRX:
-      size_class_cache->head_update(uop->Mop->oracle.size_class_cache.size_class,
-                                    uop->Mop->oracle.size_class_cache.head);
+      size_class_cache->head_push(uop,
+                                  uop->Mop->oracle.size_class_cache.size_class,
+                                  uop->Mop->oracle.size_class_cache.head);
+      break;
+  case XED_ICLASS_SHLX:
+      size_class_cache->prefetch_next(uop,
+                                      uop->Mop->oracle.size_class_cache.size_class,
+                                      uop->Mop->oracle.size_class_cache.head);
       break;
   default:
       break;
@@ -2021,6 +2032,26 @@ void core_exec_DPM_t::magic_FU_exec(struct uop_t * const uop)
 
 void core_exec_DPM_t::flush_size_class_cache() {
     size_class_cache->flush();
+}
+
+void core_exec_DPM_t::squash_magic(struct uop_t* const dead_uop) {
+  xed_iclass_enum_t iclass = x86::get_iclass(dead_uop->Mop);
+  switch (iclass) {
+  case XED_ICLASS_SHLX:
+      /* we've prefetched bogus, invalidate it, and let the replay fix things up */
+      if (dead_uop->timing.when_completed != TICK_T_MAX)
+        size_class_cache->prefetch_next(dead_uop, dead_uop->Mop->oracle.size_class_cache.size_class, nullptr);
+      break;
+  case XED_ICLASS_SHRX:
+  case XED_ICLASS_RDPMC:
+      /* these are harder to recover from (we've lost information). Invalidate the
+       * whole entry. */
+      if (dead_uop->timing.when_completed != TICK_T_MAX)
+        size_class_cache->invalidate_entry(dead_uop, dead_uop->Mop->oracle.size_class_cache.size_class);
+      break;
+  default:
+      break;
+  }
 }
 
 /* Process actual execution (in ALUs) of uops, as well as shuffling of

@@ -79,6 +79,7 @@ class core_exec_t
   virtual void RS_schedule(void) = 0;
   virtual void LDQ_schedule(void) = 0;
   virtual void flush_size_class_cache(void) {}  // Does nothing by default.
+  virtual void squash_magic(struct uop_t * const uop) {}
 
   virtual void recover(const struct Mop_t * const Mop) = 0;
   virtual void recover(void) = 0;

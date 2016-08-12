@@ -302,8 +302,9 @@ static xed_iclass_enum_t check_replacements(struct Mop_t* Mop) {
             return iclass;
         case XED_ICLASS_BLSR:
         case XED_ICLASS_SHLD:
-        case XED_ICLASS_SHRD:
+        case XED_ICLASS_RDPMC:
         case XED_ICLASS_SHRX:
+        case XED_ICLASS_SHLX:
             Mop->decode.is_magic = true;
             return iclass;
         default:
@@ -336,11 +337,12 @@ void core_oracle_t::get_magic_insn_operands(struct Mop_t* Mop,
         break;
     }
     case XED_ICLASS_SHRX:
+    case XED_ICLASS_SHLX:
         // Get the size class and next head pointer.
         Mop->oracle.size_class_cache.head = reinterpret_cast<void*>(ops.first);
         Mop->oracle.size_class_cache.size_class = ops.second;
         break;
-    case XED_ICLASS_SHRD:
+    case XED_ICLASS_RDPMC:
         // Get requested size class.
         Mop->oracle.size_class_cache.size_class = ops.second;
         break;

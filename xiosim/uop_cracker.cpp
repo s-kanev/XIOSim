@@ -1030,10 +1030,7 @@ static bool check_tables(struct Mop_t* Mop) {
     return false;
 }
 
-/* Check if this Mop is a magic TCMalloc insns that needs a special uop flow.  */
-static bool check_magic_insns(struct Mop_t* Mop) {
-    if (!Mop->decode.is_magic)
-        return false;
+static bool check_magic_blsr(struct Mop_t* Mop) {
     auto iform = xed_decoded_inst_get_iform_enum(&Mop->decode.inst);
     if (iform != XED_IFORM_BLSR_VGPR64q_VGPR64q && iform != XED_IFORM_BLSR_VGPR32d_VGPR32d)
         return false;
@@ -1069,47 +1066,91 @@ static bool check_magic_insns(struct Mop_t* Mop) {
     return true;
 }
 
+static bool check_magic_rdpmc(struct Mop_t* Mop) {
+    auto iclass = xed_decoded_inst_get_iclass(&Mop->decode.inst);
+    if (iclass != XED_ICLASS_RDPMC)
+        return false;
+
+    Mop->decode.flow_length = 3;
+    Mop->allocate_uops();
+
+    /* RDPMC always reads ECX */
+    Mop->uop[0].decode.idep_name[0] = largest_reg(XED_REG_ECX);
+    /* ... and now our magic reg to enforce ordering... */
+    Mop->uop[0].decode.idep_name[1] = XED_REG_TMP15;
+    Mop->uop[0].decode.odep_name[0] = XED_REG_TMP15;
+    Mop->uop[0].decode.FU_class = FU_SIZE_CLASS;
+
+    /* Now two uops that depend on the specual FU and write the results out to EDX, EAX. */
+    Mop->uop[1].decode.idep_name[0] = XED_REG_TMP15;
+    Mop->uop[1].decode.odep_name[0] = largest_reg(XED_REG_EAX);
+    Mop->uop[1].decode.FU_class = FU_IEU;
+
+    Mop->uop[2].decode.idep_name[0] = XED_REG_TMP15;
+    Mop->uop[2].decode.odep_name[0] = largest_reg(XED_REG_EDX);
+    Mop->uop[2].decode.FU_class = FU_IEU;
+    return true;
+}
+
+/* Check if this Mop is a magic TCMalloc insns that needs a special uop flow.  */
+static bool check_magic_insns(struct Mop_t* Mop) {
+    if (!Mop->decode.is_magic)
+        return false;
+
+    if (check_magic_blsr(Mop))
+        return true;
+
+    if (check_magic_rdpmc(Mop))
+        return true;
+
+    return false;
+}
+
 /* After uop cracking, fix up magic instructions for special behaviors. */
 void fixup_magic_insn(struct Mop_t* Mop) {
     if (!Mop->decode.is_magic)
         return;
     auto iclass = xed_decoded_inst_get_iclass(&Mop->decode.inst);
     switch (iclass) {
-      case XED_ICLASS_SHLD:
-          // SHLD is a size class cache update instruction that does not write
-          // to the output operand, only to flags.
-          Mop->uop[0].decode.odep_name[0] = largest_reg(XED_REG_EFLAGS);
-          Mop->uop[0].decode.odep_name[1] = XED_REG_INVALID;
-          Mop->uop[0].decode.FU_class = FU_SIZE_CLASS;
-          break;
-      case XED_ICLASS_SHRX: {
-          // SHRX is a free list cache update instruction. It also does not
-          // write to its output operand, but if it is given a memory operand,
-          // it will load that address.
-          //
-          // Instruction is: shrx tmp15, r64, r64/m64. First source is the size
-          // class; second is either the pointer or the memory address to
-          // dereference. We use tmp15 to represent the size class.
-          bool has_load = is_load(Mop);
-          size_t uop_ind = has_load ? 1 : 0;
-          // Fix up ideps. Set the last idep to TMP15.
-          Mop->uop[uop_ind].decode.idep_name[2] = XED_REG_TMP15;
-          // Fix up odeps. Set the first odep to TMP15.
-          Mop->uop[uop_ind].decode.odep_name[0] = XED_REG_TMP15;
-          Mop->uop[uop_ind].decode.odep_name[1] = XED_REG_INVALID;
-          Mop->uop[uop_ind].decode.FU_class = FU_SIZE_CLASS;
-          if (has_load) {
-              // This instruction stores special operands in mem_buffer, so we
-              // have to be careful we read memory operands from the right place.
-              Mop->uop[0].oracle.mem_op_index = 1;
-          }
-          break;
-      }
-      case XED_ICLASS_SHRD:
-          Mop->uop[0].decode.FU_class = FU_SIZE_CLASS;
-          break;
-      default:
-          break;
+    case XED_ICLASS_SHLD:
+        // SHLD is a size class cache update instruction that does not write
+        // to the output operand, only to flags.
+        Mop->uop[0].decode.odep_name[0] = largest_reg(XED_REG_EFLAGS);
+        Mop->uop[0].decode.odep_name[1] = XED_REG_INVALID;
+        Mop->uop[0].decode.FU_class = FU_SIZE_CLASS;
+        break;
+    case XED_ICLASS_SHRX:
+        // SHRX is a free list push instruction
+        // Add a TMP r/w dependence to order it wrt pop and prefetch
+        Mop->uop[0].decode.idep_name[2] = XED_REG_TMP15;
+        Mop->uop[0].decode.odep_name[0] = XED_REG_TMP15;
+        Mop->uop[0].decode.FU_class = FU_SIZE_CLASS;
+        break;
+    case XED_ICLASS_SHLX: {
+        // SHLX is a free list prefetch instruction. It goes out to
+        // memory and store the result in the cache "right" slot.
+        // It doesn't write to its output operand.
+        //
+        // Instruction is: shrx tmp15, r64, r64/m64. First source is the size
+        // class; second is either the pointer or the memory address to
+        // dereference. We use tmp15 to order it wrt push and pop.
+        assert(is_load(Mop));
+        // Fix up ideps. Set the last idep to TMP15.
+        assert(Mop->uop[1].decode.idep_name[2] == XED_REG_INVALID);
+        Mop->uop[1].decode.idep_name[2] = XED_REG_TMP15;
+        // Fix up odeps. Set the first odep to TMP15.
+        Mop->uop[1].decode.odep_name[0] = XED_REG_TMP15;
+        Mop->uop[1].decode.FU_class = FU_SIZE_CLASS;
+        // This instruction stores special operands in mem_buffer, so we
+        // have to be careful we read memory operands from the right place.
+        Mop->uop[0].oracle.mem_op_index = 1;
+        break;
+    }
+    case XED_ICLASS_RDPMC:
+        Mop->uop[0].decode.FU_class = FU_SIZE_CLASS;
+        break;
+    default:
+        break;
     }
 }
 

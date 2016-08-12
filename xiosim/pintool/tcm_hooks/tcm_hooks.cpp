@@ -17,6 +17,8 @@
 #include "tcm_opts.h"
 #include "tcm_utils.h"
 
+//#define TCM_DEBUG
+
 KNOB<BOOL> KnobTCMHooks(KNOB_MODE_WRITEONCE, "pintool", "tcm_hooks", "true",
                         "Emulate tcmalloc replacements.");
 KNOB<std::string> KnobFreelistMode(
@@ -102,14 +104,21 @@ static void InsertEmulationCode(INS ins, xed_iclass_enum_t iclass) {
     }
     case XED_ICLASS_SHRX: {
 #ifdef TCM_DEBUG
-        std::cerr << " for shrx (LLHeadCacheUpdate).";
+        std::cerr << " for shrx (LLHeadCachePush).";
 #endif
-        LLHeadCacheUpdate::RegisterEmulation(ins);
+        LLHeadCachePush::RegisterEmulation(ins);
         break;
     }
-    case XED_ICLASS_SHRD: {
+    case XED_ICLASS_SHLX: {
 #ifdef TCM_DEBUG
-        std::cerr << " for shrd (LLHeadCacheLookup).";
+        std::cerr << " for shlx (LLNextCachePrefetch).";
+#endif
+        LLNextCachePrefetch::RegisterEmulation(ins);
+        break;
+    }
+    case XED_ICLASS_RDPMC: {
+#ifdef TCM_DEBUG
+        std::cerr << " for rdpmc (LLHeadCacheLookup).";
 #endif
         LLHeadCacheLookup::RegisterEmulation(ins);
         break;
@@ -159,7 +168,8 @@ static std::vector<magic_insn_action_t> GetRealisticInstructions(const std::vect
         // Ditto for SLL_Push.
         return SLLPush::GetBaselineReplacements(insns);
     case XED_ICLASS_SHLD:
-    case XED_ICLASS_SHRX: {
+    case XED_ICLASS_SHRX:
+    case XED_ICLASS_SHLX: {
         // These are magic insns with simulated latency, so don't ignore the
         // trigger (first) instruction!
         auto repl = std::vector<magic_insn_action_t>(insns.size());
@@ -173,7 +183,7 @@ static std::vector<magic_insn_action_t> GetRealisticInstructions(const std::vect
     }
     case XED_ICLASS_BLSR:
         return SizeClassCacheLookup::GetRealisticReplacements(insns);
-    case XED_ICLASS_SHRD:
+    case XED_ICLASS_RDPMC:
         return LLHeadCacheLookup::GetRealisticReplacements(insns);
     default:
         return std::vector<magic_insn_action_t>();
@@ -187,10 +197,12 @@ static std::vector<magic_insn_action_t> GetBaselineInstructions(const std::vecto
         return SLLPop::GetBaselineReplacements(insns);
     case XED_ICLASS_BEXTR:
         return SLLPush::GetBaselineReplacements(insns);
-    case XED_ICLASS_SHRD:
+    case XED_ICLASS_RDPMC:
         return LLHeadCacheLookup::GetBaselineReplacements(insns);
     case XED_ICLASS_SHRX:
-        return LLHeadCacheUpdate::GetBaselineReplacements(insns);
+        return LLHeadCachePush::GetBaselineReplacements(insns);
+    case XED_ICLASS_SHLX:
+        return LLNextCachePrefetch::GetBaselineReplacements(insns);
     case XED_ICLASS_BLSR:
         return SizeClassCacheLookup::GetBaselineReplacements(insns);
     case XED_ICLASS_SHLD:
@@ -208,7 +220,8 @@ static std::vector<magic_insn_action_t> GetIdealInstructions(const std::vector<I
     case XED_ICLASS_BEXTR:
     case XED_ICLASS_BLSR:
     case XED_ICLASS_SHRX:
-    case XED_ICLASS_SHRD:
+    case XED_ICLASS_SHLX:
+    case XED_ICLASS_RDPMC:
     case XED_ICLASS_ADC:
         /* Usually, return an empty list to just ignore all magic. */
         return std::vector<magic_insn_action_t>(insns.size());
@@ -293,9 +306,10 @@ void InstrumentTCMHooks(TRACE trace, VOID* v) {
                 iclass != XED_ICLASS_BEXTR &&
                 iclass != XED_ICLASS_BLSR &&
                 iclass != XED_ICLASS_SHRX &&
+                iclass != XED_ICLASS_SHLX &&
                 iclass != XED_ICLASS_ADC &&
                 iclass != XED_ICLASS_SHLD &&
-                iclass != XED_ICLASS_SHRD)
+                iclass != XED_ICLASS_RDPMC)
                 continue;
 
             SEC sec = RTN_Sec(INS_Rtn(ins));
@@ -336,11 +350,11 @@ void InstrumentTCMHooks(TRACE trace, VOID* v) {
                 insns = Sampling::LocateMagicSequence(ins);
                 HandleMagicInsMode(insns, iclass, sampling_mode);
                 break;
-            case XED_ICLASS_SHRX: {
+            case XED_ICLASS_SHRX:
+            case XED_ICLASS_SHLX:
                 HandleMagicInsMode(insns, iclass, freelist_mode);
                 break;
-            }
-            case XED_ICLASS_SHRD:
+            case XED_ICLASS_RDPMC:
                 // Handle this case in InstrumentTCMIMGHooks.
                 break;
             default:
@@ -403,7 +417,7 @@ void InstrumentTCMIMGHooks(IMG img) {
                 xed_iclass_enum_t iclass = XED_INS_ICLASS(ins);
                 if (iclass != XED_ICLASS_ADC &&
                     iclass != XED_ICLASS_BLSR &&
-                    iclass != XED_ICLASS_SHRD)
+                    iclass != XED_ICLASS_RDPMC)
                     continue;
 #ifdef TCM_DEBUG
                 std::cerr << "IMG found placeholder @ pc: " << std::hex << INS_Address(ins)
@@ -435,7 +449,7 @@ void InstrumentTCMIMGHooks(IMG img) {
                         }
                     break;
                 }
-                case XED_ICLASS_SHRD: {
+                case XED_ICLASS_RDPMC: {
                     /* The shrd (LL head lookup) instruction should be placed
                      * BEFORE the fallback is called, but then this causes the shrx
                      * and the test and cmove to be on separate bbls. So we have to

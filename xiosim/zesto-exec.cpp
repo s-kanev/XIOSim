@@ -201,7 +201,7 @@ void core_exec_t::create_caches(bool create_TLBs) {
 
         /* on a complete TLB miss, go to the next level to simulate the traffic from a HW page-table
          * walker */
-        core->memory.DTLB2 = cache_create(core, name, CACHE_READONLY, sets, assoc, 1, rp, 'w', 't',
+        core->memory.DTLB2 = cache_create(core, name, CACHE_READONLY, sets, assoc, xiosim::memory::PTE_SIZE, rp, 'w', 't',
                                           'n', banks, 1, latency, MSHR_entries, 4, 1, next_level,
                                           next_bus, -1.0, false, nullptr);
     }
@@ -213,7 +213,7 @@ void core_exec_t::create_caches(bool create_TLBs) {
 
     struct cache_t* next_TLB_level = (core->memory.DTLB2) ? core->memory.DTLB2.get() : uncore->LLC.get();
     struct bus_t* next_TLB_bus = (core->memory.DTLB2) ? core->memory.DTLB_bus.get() : uncore->LLC_bus.get();
-    core->memory.DTLB = cache_create(core, name, CACHE_READONLY, sets, assoc, 1, rp, 'w', 't', 'n',
+    core->memory.DTLB = cache_create(core, name, CACHE_READONLY, sets, assoc, xiosim::memory::PTE_SIZE, rp, 'w', 't', 'n',
                                      banks, 1, latency, MSHR_entries, 4, 1, next_TLB_level,
                                      next_TLB_bus, -1.0, false, nullptr);
 

@@ -19,6 +19,8 @@ const md_addr_t PAGE_SIZE = 4096;
 const md_addr_t PAGE_SHIFT = 12; // log2(4K)
 const md_addr_t PAGE_MASK = PAGE_SIZE - 1;
 
+const size_t PTE_SIZE = 8; // bytes
+
 /* special address space id to indicate an already-translated address */
 const int DO_NOT_TRANSLATE = -1;
 
@@ -70,15 +72,10 @@ inline md_addr_t page_offset(const md_addr_t addr) {
  * Shifting by PAGE_SHIFT yields the virtual page number.
  * We don't simulate the full multi-level table, so we (somewhat arbitrarily)
  * assume 1MB per process table.
- * XXX: The real address would be multiplied by the size of a PTE
- * but then our TLBs's banking hash function would need to discard these
- * bits, or all TLB requests just go to bank 0.
- * So, to save ourselves from making our TLB implementation diverge more
- * from caches, we don't do the multiply.
  */
 inline md_addr_t page_table_address(const int asid, const md_addr_t addr) {
     const md_addr_t PAGE_TABLE_SIZE = (1 << 20);
-    return (addr >> PAGE_SHIFT) + PAGE_TABLE_SIZE * (asid + 1);
+    return (addr >> PAGE_SHIFT) * PTE_SIZE + PAGE_TABLE_SIZE * (asid + 1);
 }
 
 }
