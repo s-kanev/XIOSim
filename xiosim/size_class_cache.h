@@ -352,25 +352,52 @@ class SizeClassCache {
             return false;
         }
 
-        if (!it->second.has_valid_head()) {
-            trace_prefetch_next_end(false);
-            return false;
+        bool has_head = it->second.has_valid_head();
+        bool has_next = it->second.has_valid_next();
+        bool is_invalidate = (new_next == nullptr);
+
+        /* No head or next, prefetch straight to head. */
+        if (!has_head && !has_next) {
+            if (!is_invalidate) {
+                head_updates++;
+                it->second.set_head(new_next);
+            }
+
+            trace_prefetch_next_end(true);
+            SIZE_CACHE_ASSERT(lru.size() == cache.size());
+            return true;
         }
 
-        if (new_next == nullptr) {
+        /* Both head and next, only invalidates are ok. */
+        if (has_head && has_next) {
+            SIZE_CACHE_ASSERT(is_invalidate && "Tried to update non-null next.");
             it->second.invalidate_next();
             next_invalidates++;
-        }
-        else {
-            next_updates++;
-            SIZE_CACHE_ASSERT(!it->second.has_valid_next() && "Tried to update non-null next");
-            it->second.set_next(new_next);
+
+            trace_prefetch_next_end(true);
+            SIZE_CACHE_ASSERT(lru.size() == cache.size());
+            return true;
         }
 
-        trace_prefetch_next_end(true);
+        /* Only head, prefetch in next slot. Or invalidate head. */
+        if (has_head && !has_next) {
+            if (!is_invalidate) {
+                it->second.set_next(new_next);
+                next_updates++;
+            } else {
+                it->second.invalidate_head();
+                head_invalidates++;
+            }
+            trace_prefetch_next_end(true);
+            SIZE_CACHE_ASSERT(lru.size() == cache.size());
+            return true;
+        }
 
+        SIZE_CACHE_ASSERT(false && "LL with next and no head.");
+
+        trace_prefetch_next_end(false);
         SIZE_CACHE_ASSERT(lru.size() == cache.size());
-        return true;
+        return false;
     }
 
     void invalidate_entry(size_t size_class) {
