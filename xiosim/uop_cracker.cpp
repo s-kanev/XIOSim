@@ -1131,10 +1131,14 @@ void fixup_magic_insn(struct Mop_t* Mop) {
         // memory and store the result in the cache "right" slot.
         // It doesn't write to its output operand.
         //
-        // Instruction is: shrx tmp15, r64, r64/m64. First source is the size
+        // Instruction is: shlx tmp15, r64, r64/m64. First source is the size
         // class; second is either the pointer or the memory address to
         // dereference. We use tmp15 to order it wrt push and pop.
         assert(is_load(Mop));
+        Mop->uop[0].decode.is_pf = true;
+        Mop->uop[0].decode.odep_name[0] = XED_REG_INVALID;
+        Mop->uop[1].decode.idep_name[0] = XED_REG_INVALID;
+
         // Fix up ideps. Set the last idep to TMP15.
         assert(Mop->uop[1].decode.idep_name[2] == XED_REG_INVALID);
         Mop->uop[1].decode.idep_name[2] = XED_REG_TMP15;
