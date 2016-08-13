@@ -8,8 +8,6 @@
 
 #include "tcm_utils.h"
 
-#define EMULATION_DEBUG
-
 MagicInsMode freelist_mode;
 
 // Free list length is stored right after to the head pointer.

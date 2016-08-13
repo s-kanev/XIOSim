@@ -2175,7 +2175,7 @@ static void cache_process_pipe(struct cache_t * const cp, int start_point)
               if(!ca->prev_cp && ca->op && (ca->action_id == ca->get_action_id(ca->op)))
               {
 #ifdef ZTRACE
-                CACHE_ZTRACE("%s|hit",cp->name);
+                CACHE_ZTRACE("%s|hit %x",cp->name,ca->op);
 #endif
                 ca->cb(ca->op);
               }

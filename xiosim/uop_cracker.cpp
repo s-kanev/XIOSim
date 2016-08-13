@@ -1092,6 +1092,45 @@ static bool check_magic_rdpmc(struct Mop_t* Mop) {
     return true;
 }
 
+// SHLX is a free list prefetch instruction. It goes out to
+// memory and store the result in the cache "right" slot.
+// It doesn't write to its output operand.
+//
+// Instruction is: shlx tmp15, r64, m64. First source is the size
+// class; second is the pointer to prefetch.
+// We use tmp15 to order it wrt push and pop.
+static bool check_magic_shlx(struct Mop_t* Mop) {
+    auto iclass = xed_decoded_inst_get_iclass(&Mop->decode.inst);
+    if (iclass != XED_ICLASS_SHLX)
+        return false;
+
+    assert(is_load(Mop));
+    Mop->decode.flow_length = 2;
+    Mop->allocate_uops();
+
+    // First uop prepares the magic FU to accept the pf.
+
+    // Fix up ideps. Set the last idep to TMP15.
+    auto regs_read = get_registers_read(Mop);
+    assert(regs_read.size() == 1);
+    Mop->uop[0].decode.idep_name[0] = regs_read.front();
+    Mop->uop[0].decode.idep_name[2] = XED_REG_TMP15;
+    // Fix up odeps. Set the first odep to TMP15.
+    Mop->uop[0].decode.odep_name[0] = XED_REG_TMP15;
+    Mop->uop[0].decode.FU_class = FU_SIZE_CLASS;
+
+    // Second uop is the actual pf -- dependent on the first through TMP15,
+    // so the pf doesn't issue until someone is ready to recieve it.
+    fill_out_load_uop(Mop, Mop->uop[1], 0);
+    Mop->uop[1].decode.is_pf = true;
+    Mop->uop[1].decode.odep_name[0] = XED_REG_INVALID;
+    Mop->uop[1].decode.idep_name[2] = XED_REG_TMP15;
+    // Actually use index 1 for the oracle (not for memory op dependeces),
+    // because we use 0 to pass magical things (like size classes).
+    Mop->uop[1].oracle.mem_op_index = 1;
+    return true;
+}
+
 /* Check if this Mop is a magic TCMalloc insns that needs a special uop flow.  */
 static bool check_magic_insns(struct Mop_t* Mop) {
     if (!Mop->decode.is_magic)
@@ -1101,6 +1140,9 @@ static bool check_magic_insns(struct Mop_t* Mop) {
         return true;
 
     if (check_magic_rdpmc(Mop))
+        return true;
+
+    if (check_magic_shlx(Mop))
         return true;
 
     return false;
@@ -1126,30 +1168,6 @@ void fixup_magic_insn(struct Mop_t* Mop) {
         Mop->uop[0].decode.odep_name[0] = XED_REG_TMP15;
         Mop->uop[0].decode.FU_class = FU_SIZE_CLASS;
         break;
-    case XED_ICLASS_SHLX: {
-        // SHLX is a free list prefetch instruction. It goes out to
-        // memory and store the result in the cache "right" slot.
-        // It doesn't write to its output operand.
-        //
-        // Instruction is: shlx tmp15, r64, r64/m64. First source is the size
-        // class; second is either the pointer or the memory address to
-        // dereference. We use tmp15 to order it wrt push and pop.
-        assert(is_load(Mop));
-        Mop->uop[0].decode.is_pf = true;
-        Mop->uop[0].decode.odep_name[0] = XED_REG_INVALID;
-        Mop->uop[1].decode.idep_name[0] = XED_REG_INVALID;
-
-        // Fix up ideps. Set the last idep to TMP15.
-        assert(Mop->uop[1].decode.idep_name[2] == XED_REG_INVALID);
-        Mop->uop[1].decode.idep_name[2] = XED_REG_TMP15;
-        // Fix up odeps. Set the first odep to TMP15.
-        Mop->uop[1].decode.odep_name[0] = XED_REG_TMP15;
-        Mop->uop[1].decode.FU_class = FU_SIZE_CLASS;
-        // This instruction stores special operands in mem_buffer, so we
-        // have to be careful we read memory operands from the right place.
-        Mop->uop[0].oracle.mem_op_index = 1;
-        break;
-    }
     case XED_ICLASS_RDPMC:
         Mop->uop[0].decode.FU_class = FU_SIZE_CLASS;
         break;

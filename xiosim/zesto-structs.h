@@ -352,6 +352,8 @@ struct alignas(16) Mop_t
       size_t alloc_size;  // Allocated size.
       size_t size_class;  // Allocated size class.
       void* head;         // Next head pointer.
+      void* scc_entry;    // pointer to entry in the SCC for this op
+                          // (essentially an MSHR index in he SCC)
     } size_class_cache;
   } oracle;
 

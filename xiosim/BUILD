@@ -75,6 +75,7 @@ cc_library(
     srcs = ["size_class_cache.cpp"],
     hdrs = ["size_class_cache.h"],
     deps = [
+        ":host",
         ":stats",
     ],
 )

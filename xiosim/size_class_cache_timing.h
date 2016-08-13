@@ -10,6 +10,8 @@
 #include "stat_database.h"
 #include "stats.h"
 
+#include "zesto-structs.h"
+
 #define SIZE_CACHE_ASSERT(cond) xiosim_assert((cond))
 #include "size_class_cache.h"
 
@@ -60,25 +62,55 @@ class SizeClassCacheReal : public SizeClassCache {
                 size_hits_stat + size_misses_stat + head_hits_stat + head_misses_stat, "%12.0f");
     }
 
-    /* Wrappers to allow us to ztrace things from the SCC. */
+    /* Wrappers to add timing behavior to the SCC. */
     virtual bool head_pop(struct uop_t* uop, size_t size_class, void** next_head, void** next_next) {
-        curr_uop = uop;
+        curr_uop = uop;  // for ztrace
         return SizeClassCache::head_pop(size_class, next_head, next_next);
     }
 
     virtual bool head_push(struct uop_t* uop, size_t size_class, void* new_head) {
-        curr_uop = uop;
+        curr_uop = uop;  // for ztrace
         return SizeClassCache::head_push(size_class, new_head);
     }
 
     virtual bool prefetch_next(struct uop_t* uop, size_t size_class, void* new_next) {
-        curr_uop = uop;
-        return SizeClassCache::prefetch_next(size_class, new_next);
+        curr_uop = uop;  // for ztrace
+        bool start_pf = SizeClassCache::prefetch_next(size_class, new_next);
+
+        if (start_pf) {
+            index_range_t line_range = find_index_range(size_class, false);
+            xiosim_assert(line_range.valid());
+            cache_entry_t* line = get_line_ptr(line_range);
+            if (new_next != nullptr) {
+                /* we'll wait until the pf comes back. */
+                line->action_id = uop->exec.action_id;
+                uop->Mop->oracle.size_class_cache.scc_entry = line;
+#ifdef ZTRACE
+                ztrace_print(uop, "action id in line %x SCC: %d", line, line->action_id);
+#endif
+            } else {
+                /* invalidating, just clear action_id. */
+                line->action_id = TICK_T_MAX;
+            }
+        }
+        /* else, the pf will fail the action_id check and just fall out */
+
+        return start_pf;
     }
 
     virtual void invalidate_entry(struct uop_t* uop, size_t size_class) {
         curr_uop = uop;
         SizeClassCache::invalidate_entry(size_class);
+    }
+
+    virtual bool is_ready(size_t size_class) {
+        index_range_t range = find_index_range(size_class, false);
+        /* entry not in cache, so can't be blocked */
+        if (!range.valid())
+            return true;
+
+        /* outstanding PF, cache is blocked for this size class */
+        return (get_cache_entry(range, false).action_id == TICK_T_MAX);
     }
 
   protected:

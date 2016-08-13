@@ -202,6 +202,9 @@ class core_exec_DPM_t:public core_exec_t
   static seq_t get_uop_action_id(void * const op);
   static void load_miss_reschedule(void * const op, const int new_pred_latency);
   static void prefetch_callback(void * const op);
+  /* callbacks for the SCC */
+  static seq_t get_scc_action_id(void* const op);
+  static void scc_callback(void* const op);
 
   /* callbacks used by commit for stores */
   static void store_dl1_callback(void * const op);
@@ -1190,6 +1193,19 @@ void core_exec_DPM_t::DTLB_callback(void * const op)
 /* dummy callback, prefetches don't care about a result */
 void core_exec_DPM_t::prefetch_callback(void * const op) { }
 
+seq_t core_exec_DPM_t::get_scc_action_id(void* const op) {
+    cache_entry_t* scc_entry = reinterpret_cast<cache_entry_t*>(op);
+    seq_t action_id = scc_entry->action_id;
+    return action_id;
+}
+
+void core_exec_DPM_t::scc_callback(void* const op) {
+    /* the action_id check means the SCC is still waiting for this request
+     * (the entry hasn't been flushed or evicted) */
+    cache_entry_t* scc_entry = reinterpret_cast<cache_entry_t*>(op);
+    scc_entry->action_id = TICK_T_MAX;
+}
+
 /* returns true if TLB translation has completed */
 bool core_exec_DPM_t::translated_callback(void * const op, const seq_t action_id)
 {
@@ -1643,10 +1659,26 @@ void core_exec_DPM_t::LDQ_schedule(void)
                   // The wait address is bogus, don't schedule a TLB translation
                   uop->exec.when_addr_translated = core->sim_cycle;
 
-                if(uop->decode.is_pf)
-                    cache_enqueue(core, core->memory.DL1.get(), NULL, CACHE_PREFETCH, asid,
-                                  uop->Mop->fetch.PC, uop->oracle.virt_addr, (seq_t)-1, 0,
-                                  NO_MSHR, NULL, prefetch_callback, NULL, NULL, NULL);
+                if(uop->decode.is_pf) {
+                    if (!uop->Mop->decode.is_magic)
+                        cache_enqueue(core, core->memory.DL1.get(), NULL, CACHE_PREFETCH, asid,
+                                      uop->Mop->fetch.PC, uop->oracle.virt_addr, (seq_t)-1, 0,
+                                      NO_MSHR, NULL, prefetch_callback, NULL, NULL, NULL);
+                    else {
+                        void* scc_entry = uop->Mop->oracle.size_class_cache.scc_entry;
+                        if (scc_entry) {
+                            /* use action id of the *first uop* that we've already stored in the SCC */
+                            /* All our rollbacks are on the Mop level, so this should be ok. */
+                            seq_t action_id = uop->Mop->uop[0].exec.action_id;
+                            cache_enqueue(core, core->memory.DL1.get(), NULL, CACHE_PREFETCH, asid,
+                                          uop->Mop->fetch.PC, uop->oracle.virt_addr, action_id, 0,
+                                          NO_MSHR, scc_entry, scc_callback, NULL, NULL, get_scc_action_id);
+#ifdef ZTRACE
+                            ztrace_print(uop,"e|load|SCC pf enqueued to DL1/DTLB entry: %x action_id: %d", scc_entry, action_id);
+#endif
+                        }
+                    }
+                }
 
                 if(send_to_dl1 && !uop->oracle.is_sync_op && !uop->decode.is_pf)
                   cache_enqueue(core, core->memory.DL1.get(), NULL, CACHE_READ, asid, uop->Mop->fetch.PC, uop->oracle.virt_addr, uop->exec.action_id, 0, NO_MSHR, uop, DL1_callback, load_miss_reschedule, translated_callback, get_uop_action_id);
@@ -2212,6 +2244,15 @@ void core_exec_DPM_t::ALU_exec(void)
 
         for(size_t j=0;j<MAX_IDEPS;j++)
           all_ready &= uop->exec.ivalue_valid[j];
+
+        /* special when_ready check for SCC, which can stall separately per size class */
+        if (FU_class == FU_SIZE_CLASS && uop->Mop->decode.is_magic) {
+          xed_iclass_enum_t iclass = x86::get_iclass(uop->Mop);
+          if (iclass == XED_ICLASS_SHLX ||
+              iclass == XED_ICLASS_SHRX ||
+              iclass == XED_ICLASS_RDPMC)
+            all_ready &= size_class_cache->is_ready(uop->Mop->oracle.size_class_cache.size_class);
+        }
 
         /* have all input values arrived and FU available? */
         if((!all_ready) || (port[i].FU[FU_class]->pipe[0].uop != NULL) || (port[i].FU[FU_class]->when_executable > core->sim_cycle))

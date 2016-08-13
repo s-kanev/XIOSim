@@ -6,7 +6,9 @@
 #include <iostream>
 #include <list>
 #include <map>
+#include <memory>
 
+#include "host.h"
 #include "stat_database.h"
 #include "stats.h"
 
@@ -26,7 +28,8 @@ class cache_entry_t {
         , head(_head)
         , valid_head(_head != nullptr)
         , next(_next)
-        , valid_next(_next != nullptr) {}
+        , valid_next(_next != nullptr)
+        , action_id(TICK_T_MAX) {}
 
     cache_entry_t()
         : cache_entry_t(0, 0, nullptr, nullptr) {}
@@ -74,6 +77,9 @@ class cache_entry_t {
     bool valid_head;
     void* next;
     bool valid_next;
+
+  public:
+    seq_t action_id;
 };
 
 /* Maps a range of size class indices to a size class pair.
@@ -107,6 +113,10 @@ class index_range_t {
     size_t get_begin() const { return begin; }
     size_t get_end() const { return end; }
 
+    static index_range_t invalid() { return index_range_t(); }
+    bool operator==(const index_range_t& rhs) { return begin == rhs.begin && end == rhs.end; }
+    bool operator!=(const index_range_t& rhs) { return begin != rhs.begin || end != rhs.end; }
+    bool valid() { return (*this != index_range_t::invalid()); }
   private:
     size_t begin;
     size_t end;
@@ -114,6 +124,8 @@ class index_range_t {
 
 std::ostream& operator<<(std::ostream& os, const index_range_t& range);
 std::ostream& operator<<(std::ostream& os, const cache_entry_t& pair);
+
+struct uop_t;  // fwd
 
 /* A cache for mappings between size classes and the allocated size.
  *
@@ -135,10 +147,13 @@ class SizeClassCache {
         , head_updates(0)
         , head_invalidates(0)
         , cache_size(0) {}
-    SizeClassCache(size_t size) : SizeClassCache() { cache_size = size; }
+    SizeClassCache(size_t size) : SizeClassCache() { set_size(size); }
     virtual ~SizeClassCache() {}
 
-    virtual void set_size(size_t size) { cache_size = size; }
+    virtual void set_size(size_t size) {
+        cache_size = size;
+        cache_array = std::make_unique<cache_entry_t[]>(size);
+    }
     virtual void set_tid(pid_t _tid) { tid = _tid; }
 
     /* Searches for a mapping for the requested size.
@@ -191,9 +206,8 @@ class SizeClassCache {
         std::cerr << "[Size class cache]: Inserting mapping: index range = " << range
                   << ", entry = " << current;
 #endif
-        auto it = find_index_range(cl);
-        if (it != cache.end()) {
-            index_range_t current_range = it->first;
+        index_range_t current_range = find_index_range(cl);
+        if (current_range.valid()) {
             if (current_range.contains(orig_cl_idx)) {
 #ifdef SIZE_CLASS_CACHE_DEBUG
                 std::cerr << " did nothing: already present." << std::endl;
@@ -230,10 +244,10 @@ class SizeClassCache {
     virtual bool head_pop(size_t size_class, void** next_head, void** next_next) {
         trace_pop_start(size_class);
 
-        auto it = find_index_range(size_class);
+        index_range_t range = find_index_range(size_class);
         /* Index not in the cache, or both items missing. */
-        if (it == cache.end() ||
-            (!it->second.has_valid_head() && !it->second.has_valid_next())) {
+        if (!range.valid() ||
+            (!get_cache_entry(range).has_valid_head() && !get_cache_entry(range).has_valid_next())) {
             *next_head = nullptr;
             *next_next = nullptr;
 
@@ -244,18 +258,19 @@ class SizeClassCache {
             return false;
         }
 
+        cache_entry_t& entry = get_cache_entry(range);
         /* We have an index with a valid head and next. */
-        if (it->second.has_valid_head() && it->second.has_valid_next()) {
-            *next_head = it->second.get_head();
-            *next_next = it->second.get_next();
+        if (entry.has_valid_head() && entry.has_valid_next()) {
+            *next_head = entry.get_head();
+            *next_next = entry.get_next();
 
             /* Move next to head if next was kosher. */
-            it->second.set_head(*next_next);
+            entry.set_head(*next_next);
             if (*next_next == nullptr)
-                it->second.invalidate_head();
+                entry.invalidate_head();
 
             /* and next is no more */
-            it->second.invalidate_next();
+            entry.invalidate_next();
             SIZE_CACHE_ASSERT(lru.size() == cache.size());
 
             head_hits++;
@@ -267,11 +282,11 @@ class SizeClassCache {
 
         /* We have a head, but no next. Still a miss, but invalidate head,
          * because we'll pop it in the SW path. */
-        if (it->second.has_valid_head() && !it->second.has_valid_next()) {
-            *next_head = it->second.get_head();
+        if (entry.has_valid_head() && !entry.has_valid_next()) {
+            *next_head = entry.get_head();
             *next_next = nullptr;
 
-            it->second.invalidate_head();
+            entry.invalidate_head();
             SIZE_CACHE_ASSERT(lru.size() == cache.size());
 
             head_hits++;
@@ -281,7 +296,7 @@ class SizeClassCache {
             return false;
 
         }
-        trace_pop_end(false, nullptr, it->second.get_next());
+        trace_pop_end(false, nullptr, entry.get_next());
         SIZE_CACHE_ASSERT(false && "Entry with invalid head and valid next.");
         return true;
     }
@@ -295,9 +310,9 @@ class SizeClassCache {
      * and true returned. Otherwise, false is returned.
      */
     virtual bool head_push(size_t size_class, void* new_head) {
-        auto it = find_index_range(size_class);
+        index_range_t range = find_index_range(size_class);
         bool success = false;
-        if (it == cache.end()) {
+        if (!range.valid()) {
 #ifdef SIZE_CLASS_CACHE_SLL_ONLY
             // Insert this head pointer, evicting another entry if needed.
             if (cache.size() == cache_size)
@@ -312,21 +327,22 @@ class SizeClassCache {
             success = false;
 #endif
         } else {
+            cache_entry_t& entry = get_cache_entry(range);
             success = true;
             if (new_head == nullptr) {
-                it->second.invalidate_head();
+                entry.invalidate_head();
                 head_invalidates++;
-                it->second.invalidate_next();
+                entry.invalidate_next();
                 next_invalidates++;
             } else {
-                void* old_head = it->second.get_head();
-                it->second.set_next(old_head);
+                void* old_head = entry.get_head();
+                entry.set_next(old_head);
                 if (!old_head) { // pushing to an empty list
-                    it->second.invalidate_next();
+                    entry.invalidate_next();
                     next_invalidates++;
                 } else
                     next_updates++;
-                it->second.set_head(new_head);
+                entry.set_head(new_head);
                 head_updates++;
             }
         }
@@ -346,21 +362,22 @@ class SizeClassCache {
     virtual bool prefetch_next(size_t size_class, void* new_next) {
         trace_prefetch_next_start(size_class, new_next);
 
-        auto it = find_index_range(size_class);
-        if (it == cache.end()) {
+        index_range_t range = find_index_range(size_class);
+        if (!range.valid()) {
             trace_prefetch_next_end(false);
             return false;
         }
 
-        bool has_head = it->second.has_valid_head();
-        bool has_next = it->second.has_valid_next();
+        cache_entry_t& entry = get_cache_entry(range);
+        bool has_head = entry.has_valid_head();
+        bool has_next = entry.has_valid_next();
         bool is_invalidate = (new_next == nullptr);
 
         /* No head or next, prefetch straight to head. */
         if (!has_head && !has_next) {
             if (!is_invalidate) {
                 head_updates++;
-                it->second.set_head(new_next);
+                entry.set_head(new_next);
             }
 
             trace_prefetch_next_end(true);
@@ -371,7 +388,7 @@ class SizeClassCache {
         /* Both head and next, only invalidates are ok. */
         if (has_head && has_next) {
             SIZE_CACHE_ASSERT(is_invalidate && "Tried to update non-null next.");
-            it->second.invalidate_next();
+            entry.invalidate_next();
             next_invalidates++;
 
             trace_prefetch_next_end(true);
@@ -382,10 +399,10 @@ class SizeClassCache {
         /* Only head, prefetch in next slot. Or invalidate head. */
         if (has_head && !has_next) {
             if (!is_invalidate) {
-                it->second.set_next(new_next);
+                entry.set_next(new_next);
                 next_updates++;
             } else {
-                it->second.invalidate_head();
+                entry.invalidate_head();
                 head_invalidates++;
             }
             trace_prefetch_next_end(true);
@@ -403,13 +420,14 @@ class SizeClassCache {
     void invalidate_entry(size_t size_class) {
         trace_invalidate(size_class);
 
-        auto it = find_index_range(size_class);
-        if (it == cache.end())
+        index_range_t range = find_index_range(size_class);
+        if (range.valid())
             return;
 
-        it->second.invalidate_head();
+        cache_entry_t& entry = get_cache_entry(range);
+        entry.invalidate_head();
         head_invalidates++;
-        it->second.invalidate_next();
+        entry.invalidate_next();
         next_invalidates++;
     }
 
@@ -423,36 +441,65 @@ class SizeClassCache {
         SIZE_CACHE_ASSERT(lru.size() == cache.size());
     }
 
-  protected:
-    std::map<index_range_t, cache_entry_t>::iterator find_index_range(size_t cl) {
-        for (auto it = cache.begin(); it != cache.end(); ++it) {
-            if (it->second.get_size_class() == cl) {
-                update_lru(cl);
-                return it;
-            }
+    virtual void print() {
+        for (auto it = cache.begin(); it != cache.end(); it++) {
+            std::cerr << it->first << "\t" << cache_array[it->second] << std::endl;
         }
-        return cache.end();
     }
 
+  protected:
     bool get_cache_entry(index_range_t key, cache_entry_t& result) {
         if (cache.find(key) == cache.end())
             return false;
-        result = cache[key];
+        size_t result_ind = cache[key];
+        result = cache_array[result_ind];
         update_lru(result.get_size_class());
         return true;
     }
 
+    index_range_t find_index_range(size_t cl, bool touch_lru = true) {
+        for (auto& cache_pair : cache) {
+            if (cache_array[cache_pair.second].get_size_class() == cl) {
+                if (touch_lru)
+                    update_lru(cl);
+                return cache_pair.first;
+            }
+        }
+        return index_range_t::invalid();
+    }
+
+    cache_entry_t& get_cache_entry(index_range_t key, bool touch_lru = true) {
+        SIZE_CACHE_ASSERT(cache.find(key) != cache.end());
+        size_t result_ind = cache[key];
+        auto& result = cache_array[result_ind];
+        if (touch_lru)
+            update_lru(result.get_size_class());
+        return result;
+    }
+
     void insert_cache_entry(index_range_t key, cache_entry_t entry) {
         SIZE_CACHE_ASSERT(cache.size() < cache_size && cache.find(key) == cache.end());
-        cache[key] = entry;
+        size_t i;
+        for (i = 0; i < cache_size; i++) {
+            auto found = std::find_if(cache.begin(), cache.end(), [i](auto& x) { return x.second == i; });
+            if (found == cache.end())
+                break;
+        }
+        cache[key] = i;
+        cache_array[i] = entry;
         update_lru(entry.get_size_class());
     }
 
     void update_cache_key(index_range_t old_key, index_range_t new_key) {
         SIZE_CACHE_ASSERT(cache.find(old_key) != cache.end());
-        cache_entry_t current_entry = cache[old_key];
+        size_t current_ind = cache[old_key];
         cache.erase(old_key);
-        cache[new_key] = current_entry;
+        cache[new_key] = current_ind;
+    }
+
+    cache_entry_t* get_line_ptr(index_range_t key) {
+        size_t ind = cache[key];
+        return cache_array.get() + ind;
     }
 
     /* Update the LRU chains.
@@ -486,22 +533,17 @@ class SizeClassCache {
     // Evict the least recently used element.
     void evict() {
         size_t evicted_cl = lru.back();
-        auto it = find_index_range(evicted_cl);
-        SIZE_CACHE_ASSERT(it != cache.end() && "Element to evict does not exist in the cache!");
+        index_range_t range = find_index_range(evicted_cl);
+        SIZE_CACHE_ASSERT(range.valid() && "Element to evict does not exist in the cache!");
 #ifdef SIZE_CLASS_CACHE_DEBUG
-        cache_entry_t evicted_entry = it->second;
-        std::cerr << "[Size class cache]: Evicting index range = " << it->first
+        cache_entry_t evicted_entry = get_cache_entry(range);
+        std::cerr << "[Size class cache]: Evicting index range = " << range
                   << ", entry = " << evicted_entry << std::endl;
 #endif
-        cache.erase(it);
+        cache_array[cache[range]].action_id = TICK_T_MAX;
+        cache.erase(range);
         lru.pop_front();  // find_index_range calls update_lru(cl), which moves cl to the front.
         size_evictions++;
-    }
-
-    void print() {
-        for (auto it = cache.begin(); it != cache.end(); it++) {
-            std::cerr << it->first << "\t" << it->second << std::endl;
-        }
     }
 
     virtual void trace_pop_start(size_t size_class) {
@@ -584,12 +626,13 @@ class SizeClassCache {
     // Id of the owning thread.
     pid_t tid;
 
-    // Maps a size class index range to the size class, allocated size, and next head ptr.
-    std::map<index_range_t, cache_entry_t> cache;
+    // Maps a size class index range to an index in the array.
+    std::map<index_range_t, size_t> cache;
+    // The actual (fixed) storage array (size class, allocated size, and next head ptr).
+    std::unique_ptr<cache_entry_t[]> cache_array;
 
     // LRU chain where each element is a size class and the least
     // recently used item is the last element.
     std::list<size_t> lru;
 };
-
 #endif
